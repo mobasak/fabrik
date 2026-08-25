@@ -29,14 +29,32 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 FABRIK_LIB = Path("/opt/fabrik-lib")
 
-KINDS = ("cli", "driver", "registrar", "script", "lib-module", "scaffold", "rules-pack",
-         "hook", "command")
+KINDS = (
+    "cli",
+    "driver",
+    "registrar",
+    "script",
+    "lib-module",
+    "scaffold",
+    "rules-pack",
+    "hook",
+    "command",
+)
 _NON_MODULE_DIRS = {"docs", "docs-site", "node_modules", "scripts"}
-_SCRIPT_SUBDIRS = ("enforcement", "sysadmin", "utils", "probes", "aro-wake",
-                   # ownership-coverage additions (2026-08-12): surfaces the agent-distinction
-                   # map must see. Still excluded on purpose: systemd (unit files, not
-                   # invokables), tests (internal), archive/.scratch/backups (dead).
-                   "kilo-benchmarks", "bootstrap", "audit", "credit_fetchers")
+_SCRIPT_SUBDIRS = (
+    "enforcement",
+    "sysadmin",
+    "utils",
+    "probes",
+    "aro-wake",
+    # ownership-coverage additions (2026-08-12): surfaces the agent-distinction
+    # map must see. Still excluded on purpose: systemd (unit files, not
+    # invokables), tests (internal), archive/.scratch/backups (dead).
+    "kilo-benchmarks",
+    "bootstrap",
+    "audit",
+    "credit_fetchers",
+)
 # Markers are DIRECTIVES at the START of a comment/docstring line (matched line-prefixed, NOT as a raw
 # substring) — else this file's own marker tuples below would self-classify the generator as retired/manual.
 _RETIRED_MARKERS = ("DEPRECATED", "RETIRED")
@@ -112,7 +130,9 @@ def _first_docline(head: str) -> str:
                 b = ln.strip()
                 if b.lower().startswith("description:"):
                     val = b.split(":", 1)[1].strip().strip('"').strip("'")
-                    if val and val not in _BLOCK_SCALAR:  # empty / block-scalar → fall through to heading
+                    if (
+                        val and val not in _BLOCK_SCALAR
+                    ):  # empty / block-scalar → fall through to heading
                         return val[:160]
             body_start = close + 1  # no usable description → parse the body after the block
         # else: no closing fence → leading `---` is just an HR; parse from the top (body_start stays 0)
@@ -122,7 +142,9 @@ def _first_docline(head: str) -> str:
             continue
         # Skip shebang + coding cookies on the RAW line (before stripping the leading #, which would
         # otherwise hide the `#!`/`# coding:` and make it look like real doc text).
-        if bare.startswith(("#!", "# -*-", "-*-")) or bare.lower().startswith(("# coding:", "# vim:")):
+        if bare.startswith(("#!", "# -*-", "-*-")) or bare.lower().startswith(
+            ("# coding:", "# vim:")
+        ):
             continue
         s = bare.lstrip("#").strip().strip('"').strip("'").strip()
         if not s:
@@ -154,16 +176,28 @@ def _probe_help(argv: list[str], python: str = sys.executable) -> bool:
 # script path-prefix overrides; anything unmatched is "unassigned" (a kaizen WARN
 # signal for intel, never a crash).
 _OWNER_KIND_DEFAULTS = {
-    "hook": "infra", "command": "infra", "rules-pack": "infra",
-    "cli": "fleet", "driver": "fleet", "registrar": "fleet", "scaffold": "fleet",
+    "hook": "infra",
+    "command": "infra",
+    "rules-pack": "infra",
+    "cli": "fleet",
+    "driver": "fleet",
+    "registrar": "fleet",
+    "scaffold": "fleet",
     "lib-module": "external:fabrik-lib",
 }
 _OWNER_SCRIPT_PREFIXES = (
     ("scripts/kilo-benchmarks/", "intel"),
-    ("scripts/enforcement/", "infra"), ("scripts/sysadmin/", "infra"),
-    ("scripts/utils/", "infra"), ("scripts/probes/", "infra"),
-    ("scripts/aro-wake/", "infra"), ("scripts/bootstrap/", "infra"),
-    ("scripts/audit/", "infra"), ("scripts/credit_fetchers/", "infra"),  # provider-account plumbing — coupled to registry_sync/refresh_service_inventory (both infra)
+    ("scripts/enforcement/", "infra"),
+    ("scripts/sysadmin/", "infra"),
+    ("scripts/utils/", "infra"),
+    ("scripts/probes/", "infra"),
+    ("scripts/aro-wake/", "infra"),
+    ("scripts/bootstrap/", "infra"),
+    ("scripts/audit/", "infra"),
+    (
+        "scripts/credit_fetchers/",
+        "infra",
+    ),  # provider-account plumbing — coupled to registry_sync/refresh_service_inventory (both infra)
     ("scripts/vps_", "fleet"),  # deploy-facing exceptions, named per the plan
 )
 
@@ -215,8 +249,16 @@ def _enum_cli(root: Path) -> list[dict]:
         # Fail-CLOSED (symmetric with _enum_drivers): a failed CLI import is an env/generator error, not
         # "0 CLI verbs". Emit a broken sentinel so the whole-surface guard RAISES rather than silently
         # dropping all 55 verbs from the catalog (Behavior 7).
-        return [_rec("fabrik (cli import failed)", "cli", "fabrik.cli failed to import",
-                     "python -m fabrik.cli --help", "broken", doc_link="AGENTS.md")]
+        return [
+            _rec(
+                "fabrik (cli import failed)",
+                "cli",
+                "fabrik.cli failed to import",
+                "python -m fabrik.cli --help",
+                "broken",
+                doc_link="AGENTS.md",
+            )
+        ]
     recs: list[dict] = []
 
     def walk(group, prefix: tuple[str, ...] = ()) -> None:
@@ -282,8 +324,16 @@ def _enum_registrars(root: Path) -> list[dict]:
     except Exception:
         # Fail-CLOSED (symmetric with _enum_drivers/_enum_cli): a failed import is an env error, not
         # "0 registrars" → broken sentinel so the whole-surface guard RAISES (Behavior 7).
-        return [_rec("(registrars import failed)", "registrar", "infrastructure module failed to import",
-                     "specs/services/<id>.yaml shape → <registrar>", "broken", doc_link="AGENTS.md")]
+        return [
+            _rec(
+                "(registrars import failed)",
+                "registrar",
+                "infrastructure module failed to import",
+                "specs/services/<id>.yaml shape → <registrar>",
+                "broken",
+                doc_link="AGENTS.md",
+            )
+        ]
     return [
         _rec(
             r,
@@ -489,10 +539,31 @@ def render_llms_txt(catalog: list[dict]) -> str:
             continue
         lines.append(f"## {kind}")
         for c in sorted(items, key=lambda x: x["name"]):
-            link = c["doc_link"] or "#"
-            lines.append(f"- [{c['name']}]({link}) (owner: {c['owner']}): {c['summary'] or c['invoke']}")
+            link = _doc_link_from_docs(c["doc_link"])
+            lines.append(
+                f"- [{c['name']}]({link}) (owner: {c['owner']}): {c['summary'] or c['invoke']}"
+            )
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _doc_link_from_docs(doc_link: str | None) -> str:
+    """Rewrite a REPO-ROOT-relative doc_link so it resolves from ``docs/CAPABILITIES.md``.
+
+    The generator records targets as repo-root paths (``AGENTS.md``, ``INDEX.md``,
+    ``docs/SERVICES.md``) because that is how the rest of the codebase cites them — but the
+    OUTPUT lands in ``docs/``, where ``AGENTS.md`` resolves to the non-existent
+    ``docs/AGENTS.md``. Measured 2026-08-25: 273 of the repo's 386 broken links were this one
+    bug, 71% of the total, all in this generated file. Absolute paths and URLs pass through
+    untouched.
+    """
+    if not doc_link:
+        return "#"
+    if doc_link.startswith(("/", "http://", "https://", "#", "../")):
+        return doc_link
+    if doc_link.startswith("docs/"):
+        return doc_link[len("docs/") :]  # already inside docs/ — drop the prefix
+    return f"../{doc_link}"  # repo-root file, one level up from docs/
 
 
 def main(root: Path = REPO, out_dir: Path | None = None) -> int:
@@ -514,8 +585,11 @@ def main(root: Path = REPO, out_dir: Path | None = None) -> int:
     )
     ok = sum(1 for c in catalog if c["status"] == "ok")
     # the unassigned count is intel's kaizen WARN signal — always reported, never a failure
-    print("owners: " + " ".join(f"{k}:{v}" for k, v in sorted(owners_census.items()) if k != "unassigned")
-          + f" | unassigned: {owners_census['unassigned']}")
+    print(
+        "owners: "
+        + " ".join(f"{k}:{v}" for k, v in sorted(owners_census.items()) if k != "unassigned")
+        + f" | unassigned: {owners_census['unassigned']}"
+    )
     print(
         f"capability catalog: {len(catalog)} entries ({ok} ok, "
         f"{len(catalog) - ok} broken/retired/manual/incomplete)"

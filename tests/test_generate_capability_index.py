@@ -338,3 +338,30 @@ def test_owner_prefix_is_path_scoped_not_substring() -> None:
     assert gci._owner("script", "python scripts/credit_fetchers/fetch.py") == "infra"
     assert gci._owner("script", "bash scripts/vps_apply_limits.sh") == "fleet"
     assert gci._owner("script", "python scripts/tool.py --note scripts/vps_hint") == "infra"
+
+
+# --- doc_link must resolve FROM docs/, not from the repo root (2026-08-25) ----------------------
+# The generator records targets as repo-root paths (AGENTS.md, INDEX.md, docs/SERVICES.md) because
+# that is how the rest of the codebase cites them — but the OUTPUT lands in docs/CAPABILITIES.md,
+# where "AGENTS.md" resolves to the non-existent docs/AGENTS.md. Measured before the fix: 273 of the
+# repo's 386 broken links were this ONE bug — 71% of the total, all in this generated file.
+
+
+def test_repo_root_link_is_rewritten_for_the_docs_directory() -> None:
+    assert gci._doc_link_from_docs("AGENTS.md") == "../AGENTS.md"
+    assert gci._doc_link_from_docs("INDEX.md") == "../INDEX.md"
+
+
+def test_a_docs_prefixed_link_drops_the_prefix_rather_than_climbing() -> None:
+    """docs/SERVICES.md from inside docs/ is SERVICES.md — not ../docs/SERVICES.md."""
+    assert gci._doc_link_from_docs("docs/SERVICES.md") == "SERVICES.md"
+
+
+def test_absolute_and_external_links_pass_through_untouched() -> None:
+    for link in ("/opt/fabrik-lib/payments/README.md", "https://example.com/x", "#anchor", "../a.md"):
+        assert gci._doc_link_from_docs(link) == link
+
+
+def test_a_missing_link_still_degrades_to_the_anchor() -> None:
+    assert gci._doc_link_from_docs(None) == "#"
+    assert gci._doc_link_from_docs("") == "#"

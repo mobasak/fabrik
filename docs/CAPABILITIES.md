@@ -3,187 +3,187 @@
 > Every invokable capability in the Fabrik repo, generated + liveness-verified. A cold AI planner/orchestrator agent reads this first to discover and invoke tools. Machine-readable form: capabilities.json.
 
 ## cli
-- [fabrik ai usage](AGENTS.md) (owner: fleet): Show AI usage and cost summary.
-- [fabrik app-logs](AGENTS.md) (owner: fleet): (legacy) View application logs via the Coolify API (spec-based).
-- [fabrik apply](AGENTS.md) (owner: fleet): Deploy a service from spec.
-- [fabrik audit-registrars](AGENTS.md) (owner: fleet): Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).
-- [fabrik content](AGENTS.md) (owner: fleet): Content publishing commands.
-- [fabrik destroy](AGENTS.md) (owner: fleet): Tear down every resource ``fabrik apply`` created for SPEC_PATH.
-- [fabrik dev](AGENTS.md) (owner: fleet): Run the local dev stack via compose.dev.yaml (T3-03 G-I1).
-- [fabrik domain buy](AGENTS.md) (owner: fleet): Register a new domain.
-- [fabrik domain check](AGENTS.md) (owner: fleet): Check domain availability across all registrars.
-- [fabrik domain integrations](AGENTS.md) (owner: fleet): Show stored integration metadata (GA4, GSC, Bing, IndexNow).
-- [fabrik domain provision](AGENTS.md) (owner: fleet): Provision domain — DNS, CDN, WAF, and search engine setup.
-- [fabrik domain ready](AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.
-- [fabrik domain sitemap](AGENTS.md) (owner: fleet): Update sitemap and resubmit to Google, Bing, and IndexNow.
-- [fabrik domain zones](AGENTS.md) (owner: fleet): List all Cloudflare zones.
-- [fabrik export](AGENTS.md) (owner: fleet): Export the current VPS state as a portable bundle (T4-03 G-J2).
-- [fabrik fix](AGENTS.md) (owner: fleet): Add missing required files to a project.
-- [fabrik gpu compare](AGENTS.md) (owner: fleet): Compare RunPod / Modal / Vast.ai cost for a workload + recommend.
-- [fabrik gpu destroy](AGENTS.md) (owner: fleet): Destroy a session's pod/endpoint manually (orphan cleanup).
-- [fabrik gpu history](AGENTS.md) (owner: fleet): Tail the gpu-rent history log.
-- [fabrik gpu list](AGENTS.md) (owner: fleet): List active GPU sessions in local state + reconcile against RunPod.
-- [fabrik gpu pause](AGENTS.md) (owner: fleet): Pause (stop without destroy) a session's pod. Storage persists; GPU
-- [fabrik gpu reconcile](AGENTS.md) (owner: fleet): Compare local state to live provider accounts; optionally auto-destroy.
-- [fabrik gpu rent](AGENTS.md) (owner: fleet): Provision a GPU, optionally use it, always destroy (try/finally).
-- [fabrik gpu resume](AGENTS.md) (owner: fleet): Resume a previously paused pod. Storage + container disk are preserved;
-- [fabrik gpu status](AGENTS.md) (owner: fleet): Show detailed status for a session ID or a provider pod/endpoint ID.
-- [fabrik import](AGENTS.md) (owner: fleet): Import a portability bundle on a fresh target VPS (T4-03 G-J2).
-- [fabrik logs](AGENTS.md) (owner: fleet): View logs for a service.
-- [fabrik new](AGENTS.md) (owner: fleet): [DEPRECATED — use ``fabrik scaffold``] Create a spec from a template.
-- [fabrik plan](AGENTS.md) (owner: fleet): Show what will be deployed (dry run).
-- [fabrik preplan new](AGENTS.md) (owner: fleet): Create docs/preplans/<YYYY-MM-DD>-<slug>.md from the template.
-- [fabrik projects](AGENTS.md) (owner: fleet): List all tracked projects in /opt.
-- [fabrik reconcile-all](AGENTS.md) (owner: fleet): Walk every deployed spec, re-run infrastructure registrars (T2-02 G-F2).
-- [fabrik redeploy](AGENTS.md) (owner: fleet): Redeploy an application by name.
-- [fabrik review](AGENTS.md) (owner: fleet): Bundle git diff + spec + preplan + resolved registrars into a review pack (T3-03 G-D3).
-- [fabrik scaffold](AGENTS.md) (owner: fleet): Create a new project with full structure.
-- [fabrik scan](AGENTS.md) (owner: fleet): Scan /opt for projects and update registry + PROJECT_CATALOG.md.
-- [fabrik seo briefs-list](AGENTS.md) (owner: fleet): List briefs for a site.
-- [fabrik seo job-create](AGENTS.md) (owner: fleet): Create an SEO job for a site.
-- [fabrik seo job-run](AGENTS.md) (owner: fleet): Run an SEO job.
-- [fabrik seo site-register](AGENTS.md) (owner: fleet): Register a site in the SEO service.
-- [fabrik status](AGENTS.md) (owner: fleet): Check deployment status.
-- [fabrik templates](AGENTS.md) (owner: fleet): List available templates.
-- [fabrik validate](AGENTS.md) (owner: fleet): Validate project structure against standards.
-- [fabrik validate-deploy](AGENTS.md) (owner: fleet): Check deployment readiness of a scaffolded project.
-- [fabrik verify](AGENTS.md) (owner: fleet): Run postcondition checks against a deployed service.
-- [fabrik vps-sync](AGENTS.md) (owner: fleet): Refresh VPS documentation from live state.
-- [fabrik vultr cleanup](AGENTS.md) (owner: fleet): Destroy disposable instances past their destroy_after deadline (orphan recovery).
-- [fabrik vultr cost](AGENTS.md) (owner: fleet): Show this month's Vultr charges + estimated monthly run-rate of tracked instances.
-- [fabrik vultr destroy](AGENTS.md) (owner: fleet): Destroy a tracked instance by NAME. Permanent spokes need --reverse-fleet-add.
-- [fabrik vultr drill](AGENTS.md) (owner: fleet): Run a disposable DR drill (auto-destroys). Phase 3a: `bare`.
-- [fabrik vultr drill-history](AGENTS.md) (owner: fleet): Tail the drill history (logs/dr-drill-history.jsonl).
-- [fabrik vultr list](AGENTS.md) (owner: fleet): List Fabrik-tracked Vultr instances + reconcile against the live account.
-- [fabrik vultr provision](AGENTS.md) (owner: fleet): Provision a PERMANENT spoke (real billing + fleet change). Prompts to confirm.
-- [fabrik vultr reconcile](AGENTS.md) (owner: fleet): Compare local state to the live Vultr account and print the drift report.
-- [fabrik vultr status](AGENTS.md) (owner: fleet): Show one tracked instance: local state + live Vultr state.
+- [fabrik ai usage](../AGENTS.md) (owner: fleet): Show AI usage and cost summary.
+- [fabrik app-logs](../AGENTS.md) (owner: fleet): (legacy) View application logs via the Coolify API (spec-based).
+- [fabrik apply](../AGENTS.md) (owner: fleet): Deploy a service from spec.
+- [fabrik audit-registrars](../AGENTS.md) (owner: fleet): Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).
+- [fabrik content](../AGENTS.md) (owner: fleet): Content publishing commands.
+- [fabrik destroy](../AGENTS.md) (owner: fleet): Tear down every resource ``fabrik apply`` created for SPEC_PATH.
+- [fabrik dev](../AGENTS.md) (owner: fleet): Run the local dev stack via compose.dev.yaml (T3-03 G-I1).
+- [fabrik domain buy](../AGENTS.md) (owner: fleet): Register a new domain.
+- [fabrik domain check](../AGENTS.md) (owner: fleet): Check domain availability across all registrars.
+- [fabrik domain integrations](../AGENTS.md) (owner: fleet): Show stored integration metadata (GA4, GSC, Bing, IndexNow).
+- [fabrik domain provision](../AGENTS.md) (owner: fleet): Provision domain — DNS, CDN, WAF, and search engine setup.
+- [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.
+- [fabrik domain sitemap](../AGENTS.md) (owner: fleet): Update sitemap and resubmit to Google, Bing, and IndexNow.
+- [fabrik domain zones](../AGENTS.md) (owner: fleet): List all Cloudflare zones.
+- [fabrik export](../AGENTS.md) (owner: fleet): Export the current VPS state as a portable bundle (T4-03 G-J2).
+- [fabrik fix](../AGENTS.md) (owner: fleet): Add missing required files to a project.
+- [fabrik gpu compare](../AGENTS.md) (owner: fleet): Compare RunPod / Modal / Vast.ai cost for a workload + recommend.
+- [fabrik gpu destroy](../AGENTS.md) (owner: fleet): Destroy a session's pod/endpoint manually (orphan cleanup).
+- [fabrik gpu history](../AGENTS.md) (owner: fleet): Tail the gpu-rent history log.
+- [fabrik gpu list](../AGENTS.md) (owner: fleet): List active GPU sessions in local state + reconcile against RunPod.
+- [fabrik gpu pause](../AGENTS.md) (owner: fleet): Pause (stop without destroy) a session's pod. Storage persists; GPU
+- [fabrik gpu reconcile](../AGENTS.md) (owner: fleet): Compare local state to live provider accounts; optionally auto-destroy.
+- [fabrik gpu rent](../AGENTS.md) (owner: fleet): Provision a GPU, optionally use it, always destroy (try/finally).
+- [fabrik gpu resume](../AGENTS.md) (owner: fleet): Resume a previously paused pod. Storage + container disk are preserved;
+- [fabrik gpu status](../AGENTS.md) (owner: fleet): Show detailed status for a session ID or a provider pod/endpoint ID.
+- [fabrik import](../AGENTS.md) (owner: fleet): Import a portability bundle on a fresh target VPS (T4-03 G-J2).
+- [fabrik logs](../AGENTS.md) (owner: fleet): View logs for a service.
+- [fabrik new](../AGENTS.md) (owner: fleet): [DEPRECATED — use ``fabrik scaffold``] Create a spec from a template.
+- [fabrik plan](../AGENTS.md) (owner: fleet): Show what will be deployed (dry run).
+- [fabrik preplan new](../AGENTS.md) (owner: fleet): Create docs/preplans/<YYYY-MM-DD>-<slug>.md from the template.
+- [fabrik projects](../AGENTS.md) (owner: fleet): List all tracked projects in /opt.
+- [fabrik reconcile-all](../AGENTS.md) (owner: fleet): Walk every deployed spec, re-run infrastructure registrars (T2-02 G-F2).
+- [fabrik redeploy](../AGENTS.md) (owner: fleet): Redeploy an application by name.
+- [fabrik review](../AGENTS.md) (owner: fleet): Bundle git diff + spec + preplan + resolved registrars into a review pack (T3-03 G-D3).
+- [fabrik scaffold](../AGENTS.md) (owner: fleet): Create a new project with full structure.
+- [fabrik scan](../AGENTS.md) (owner: fleet): Scan /opt for projects and update registry + PROJECT_CATALOG.md.
+- [fabrik seo briefs-list](../AGENTS.md) (owner: fleet): List briefs for a site.
+- [fabrik seo job-create](../AGENTS.md) (owner: fleet): Create an SEO job for a site.
+- [fabrik seo job-run](../AGENTS.md) (owner: fleet): Run an SEO job.
+- [fabrik seo site-register](../AGENTS.md) (owner: fleet): Register a site in the SEO service.
+- [fabrik status](../AGENTS.md) (owner: fleet): Check deployment status.
+- [fabrik templates](../AGENTS.md) (owner: fleet): List available templates.
+- [fabrik validate](../AGENTS.md) (owner: fleet): Validate project structure against standards.
+- [fabrik validate-deploy](../AGENTS.md) (owner: fleet): Check deployment readiness of a scaffolded project.
+- [fabrik verify](../AGENTS.md) (owner: fleet): Run postcondition checks against a deployed service.
+- [fabrik vps-sync](../AGENTS.md) (owner: fleet): Refresh VPS documentation from live state.
+- [fabrik vultr cleanup](../AGENTS.md) (owner: fleet): Destroy disposable instances past their destroy_after deadline (orphan recovery).
+- [fabrik vultr cost](../AGENTS.md) (owner: fleet): Show this month's Vultr charges + estimated monthly run-rate of tracked instances.
+- [fabrik vultr destroy](../AGENTS.md) (owner: fleet): Destroy a tracked instance by NAME. Permanent spokes need --reverse-fleet-add.
+- [fabrik vultr drill](../AGENTS.md) (owner: fleet): Run a disposable DR drill (auto-destroys). Phase 3a: `bare`.
+- [fabrik vultr drill-history](../AGENTS.md) (owner: fleet): Tail the drill history (logs/dr-drill-history.jsonl).
+- [fabrik vultr list](../AGENTS.md) (owner: fleet): List Fabrik-tracked Vultr instances + reconcile against the live account.
+- [fabrik vultr provision](../AGENTS.md) (owner: fleet): Provision a PERMANENT spoke (real billing + fleet change). Prompts to confirm.
+- [fabrik vultr reconcile](../AGENTS.md) (owner: fleet): Compare local state to the live Vultr account and print the drift report.
+- [fabrik vultr status](../AGENTS.md) (owner: fleet): Show one tracked instance: local state + live Vultr state.
 
 ## driver
-- [authelia](docs/SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.
-- [backrest](docs/SERVICES.md) (owner: fleet): Backrest backup-plan provisioning — atomic under flock + jq on the VPS.
-- [cloudflare](docs/SERVICES.md) (owner: fleet): Cloudflare DNS Driver for Fabrik.
-- [dns](docs/SERVICES.md) (owner: fleet): DNS Client - Wrapper for Site Provisioner service.
-- [gatus](docs/SERVICES.md) (owner: fleet): Gatus health-monitoring endpoint provisioning via SSH + scp.
-- [glitchtip](docs/SERVICES.md) (owner: fleet): GlitchTip error-tracking project provisioning (Sentry-compatible API).
-- [grafana](docs/SERVICES.md) (owner: fleet): Grafana deployment-annotation driver — non-fatal, decorative.
-- [image_broker](docs/SERVICES.md) (owner: fleet): Image Broker Client - Wrapper for the unified stock image API.
-- [locks](docs/SERVICES.md) (owner: fleet): VPS-side file locking + whitelisted git versioning.
-- [meilisearch](docs/SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.
-- [modal_provider](docs/SERVICES.md) (owner: fleet): Modal driver — Phase 2 of the fabrik gpu rent plan.
-- [postgres](docs/SERVICES.md) (owner: fleet): PostgreSQL database + role provisioning on the shared ``postgres-main`` container.
-- [preflight](docs/SERVICES.md) (owner: fleet): Pre-deploy checks run by ``fabrik apply`` before any mutating step.
-- [prometheus](docs/SERVICES.md) (owner: fleet): Prometheus scrape-target registration for Fabrik services exposing ``/metrics``.
-- [r2](docs/SERVICES.md) (owner: fleet): Cloudflare R2 Driver - Client for R2 object storage operations.
-- [redis](docs/SERVICES.md) (owner: fleet): Per-service Redis logical-DB index allocation on the shared ``redis-main``.
-- [runpod](docs/SERVICES.md) (owner: fleet): RunPod REST API driver.
-- [seo](docs/SERVICES.md) (owner: fleet): SEO Client - Wrapper for the SEO keyword research and brief generation service.
-- [ssh](docs/SERVICES.md) (owner: fleet): SSH + SCP helpers for Fabrik VPS operations.
-- [tco](docs/SERVICES.md) (owner: fleet): TCO Client - Wrapper for the Triggered Content Orchestration service.
-- [uptime_kuma](docs/SERVICES.md) (owner: fleet): Uptime Kuma driver for Fabrik.
-- [vast_provider](docs/SERVICES.md) (owner: fleet): Vast.ai driver — Phase 2 of the fabrik gpu rent plan.
-- [vultr](docs/SERVICES.md) (owner: fleet): Vultr API v2 driver for Fabrik.
-- [watchdog](docs/SERVICES.md) (owner: fleet): Watchdog sidecar driver — per-project image build + compose overlay + bring-up.
+- [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.
+- [backrest](SERVICES.md) (owner: fleet): Backrest backup-plan provisioning — atomic under flock + jq on the VPS.
+- [cloudflare](SERVICES.md) (owner: fleet): Cloudflare DNS Driver for Fabrik.
+- [dns](SERVICES.md) (owner: fleet): DNS Client - Wrapper for Site Provisioner service.
+- [gatus](SERVICES.md) (owner: fleet): Gatus health-monitoring endpoint provisioning via SSH + scp.
+- [glitchtip](SERVICES.md) (owner: fleet): GlitchTip error-tracking project provisioning (Sentry-compatible API).
+- [grafana](SERVICES.md) (owner: fleet): Grafana deployment-annotation driver — non-fatal, decorative.
+- [image_broker](SERVICES.md) (owner: fleet): Image Broker Client - Wrapper for the unified stock image API.
+- [locks](SERVICES.md) (owner: fleet): VPS-side file locking + whitelisted git versioning.
+- [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.
+- [modal_provider](SERVICES.md) (owner: fleet): Modal driver — Phase 2 of the fabrik gpu rent plan.
+- [postgres](SERVICES.md) (owner: fleet): PostgreSQL database + role provisioning on the shared ``postgres-main`` container.
+- [preflight](SERVICES.md) (owner: fleet): Pre-deploy checks run by ``fabrik apply`` before any mutating step.
+- [prometheus](SERVICES.md) (owner: fleet): Prometheus scrape-target registration for Fabrik services exposing ``/metrics``.
+- [r2](SERVICES.md) (owner: fleet): Cloudflare R2 Driver - Client for R2 object storage operations.
+- [redis](SERVICES.md) (owner: fleet): Per-service Redis logical-DB index allocation on the shared ``redis-main``.
+- [runpod](SERVICES.md) (owner: fleet): RunPod REST API driver.
+- [seo](SERVICES.md) (owner: fleet): SEO Client - Wrapper for the SEO keyword research and brief generation service.
+- [ssh](SERVICES.md) (owner: fleet): SSH + SCP helpers for Fabrik VPS operations.
+- [tco](SERVICES.md) (owner: fleet): TCO Client - Wrapper for the Triggered Content Orchestration service.
+- [uptime_kuma](SERVICES.md) (owner: fleet): Uptime Kuma driver for Fabrik.
+- [vast_provider](SERVICES.md) (owner: fleet): Vast.ai driver — Phase 2 of the fabrik gpu rent plan.
+- [vultr](SERVICES.md) (owner: fleet): Vultr API v2 driver for Fabrik.
+- [watchdog](SERVICES.md) (owner: fleet): Watchdog sidecar driver — per-project image build + compose overlay + bring-up.
 
 ## registrar
-- [authelia](AGENTS.md) (owner: fleet): authelia registrar (auto-provisioned per spec shape)
-- [backrest](AGENTS.md) (owner: fleet): backrest registrar (auto-provisioned per spec shape)
-- [gatus](AGENTS.md) (owner: fleet): gatus registrar (auto-provisioned per spec shape)
-- [glitchtip](AGENTS.md) (owner: fleet): glitchtip registrar (auto-provisioned per spec shape)
-- [grafana](AGENTS.md) (owner: fleet): grafana registrar (auto-provisioned per spec shape)
-- [meilisearch](AGENTS.md) (owner: fleet): meilisearch registrar (auto-provisioned per spec shape)
-- [postgres](AGENTS.md) (owner: fleet): postgres registrar (auto-provisioned per spec shape)
-- [prometheus](AGENTS.md) (owner: fleet): prometheus registrar (auto-provisioned per spec shape)
-- [redis](AGENTS.md) (owner: fleet): redis registrar (auto-provisioned per spec shape)
-- [watchdog](AGENTS.md) (owner: fleet): watchdog registrar (auto-provisioned per spec shape)
+- [authelia](../AGENTS.md) (owner: fleet): authelia registrar (auto-provisioned per spec shape)
+- [backrest](../AGENTS.md) (owner: fleet): backrest registrar (auto-provisioned per spec shape)
+- [gatus](../AGENTS.md) (owner: fleet): gatus registrar (auto-provisioned per spec shape)
+- [glitchtip](../AGENTS.md) (owner: fleet): glitchtip registrar (auto-provisioned per spec shape)
+- [grafana](../AGENTS.md) (owner: fleet): grafana registrar (auto-provisioned per spec shape)
+- [meilisearch](../AGENTS.md) (owner: fleet): meilisearch registrar (auto-provisioned per spec shape)
+- [postgres](../AGENTS.md) (owner: fleet): postgres registrar (auto-provisioned per spec shape)
+- [prometheus](../AGENTS.md) (owner: fleet): prometheus registrar (auto-provisioned per spec shape)
+- [redis](../AGENTS.md) (owner: fleet): redis registrar (auto-provisioned per spec shape)
+- [watchdog](../AGENTS.md) (owner: fleet): watchdog registrar (auto-provisioned per spec shape)
 
 ## script
-- [scripts/audit_authelia_gates.py](INDEX.md) (owner: infra): Weekly drift audit for Authelia gating on admin dashboards.
-- [scripts/audit_infra_vs_docs.py](INDEX.md) (owner: infra): Probe-vs-doc audit for the VPS fleet.
-- [scripts/bootstrap/bootstrap-hub.sh](INDEX.md) (owner: infra): bootstrap-hub.sh — Fabrik hub disaster-recovery bootstrap
-- [scripts/bootstrap/bootstrap-spoke-restore.sh](INDEX.md) (owner: infra): bootstrap-spoke-restore.sh — Fabrik spoke disaster-recovery bootstrap
-- [scripts/bootstrap/bootstrap-vps.sh](INDEX.md) (owner: infra): bootstrap-vps.sh — Fabrik W-Multi M1
-- [scripts/check_zed_extensions.py](INDEX.md) (owner: infra): Gate: verify every Zed extension that settings.json depends on is installed.
-- [scripts/ci_fix_dispatcher.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
-- [scripts/classify_services.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
-- [scripts/claude_p_cost.py](INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/command_run.py](INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
-- [scripts/container_images.py](INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
-- [scripts/declare_subscription.py](INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
-- [scripts/deploy_doc_policy.py](INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
-- [scripts/doc_reconcile.py](INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/docs_updater.py](INDEX.md) (owner: infra): Fabrik Documentation Updater
-- [scripts/enforcement/_check_runner.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
-- [scripts/enforcement/check_android_env.py](INDEX.md) (owner: infra): Verify WSL-to-Windows Android SDK communication.
-- [scripts/enforcement/check_command_corpus.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
-- [scripts/enforcement/check_configuration_md.py](INDEX.md) (owner: infra): Enforce configuration documentation pattern.
-- [scripts/enforcement/check_convergence.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md | none
-- [scripts/enforcement/check_doc_index.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_doc_stubs.py](INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_doc_sync.py](INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_duplicates.py](INDEX.md) (owner: infra): Check for code duplication using jscpd.
-- [scripts/enforcement/check_env_example.py](INDEX.md) (owner: infra): Enforce .env.example completeness.
-- [scripts/enforcement/check_env_updates.py](INDEX.md) (owner: infra): Enforce .env file population when secrets are mentioned.
-- [scripts/enforcement/check_health.py](INDEX.md) (owner: infra): Check that health endpoints test actual dependencies.
-- [scripts/enforcement/check_hooks_index.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
-- [scripts/enforcement/check_index_md.py](INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
-- [scripts/enforcement/check_no_host_ports.py](INDEX.md) (owner: infra): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
-- [scripts/enforcement/check_opencode_json.py](INDEX.md) (owner: infra): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
-- [scripts/enforcement/check_plans.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
-- [scripts/enforcement/check_ports.py](INDEX.md) (owner: infra): Check port registration in PORTS.md and validate port ranges.
-- [scripts/enforcement/check_readme_md.py](INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
-- [scripts/enforcement/check_retired_terms.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_reusable_modules.py](INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
-- [scripts/enforcement/check_rule_size.py](INDEX.md) (owner: infra): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
-- [scripts/enforcement/check_script_headers.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
-- [scripts/enforcement/check_spec_db_match.py](INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
-- [scripts/enforcement/check_synced_unmodified.py](INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_traefik_labels.py](INDEX.md) (owner: infra): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
-- [scripts/enforcement/check_traycer_chain.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
-- [scripts/enforcement/check_user_guide.py](INDEX.md) (owner: infra): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
-- [scripts/enforcement/check_vps_docs.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_vps_docs_severity.py docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_watchdog.py](INDEX.md) (owner: infra): Check that services have watchdog scripts.
-- [scripts/enforcement/validate_conventions.py](INDEX.md) (owner: infra): Fabrik Convention Validator - Orchestrates all convention checks.
-- [scripts/epic_order.py](INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
-- [scripts/final_gate.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/fleet_doc_audit.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
-- [scripts/gather_envs.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
-- [scripts/generate_capability_index.py](INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
-- [scripts/health_check_autonomous.py](INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
-- [scripts/health_checker.py](INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
-- [scripts/health_summary.py](INDEX.md) (owner: infra): Scan /opt/* project directories and report health status.
-- [scripts/inject_deploy_resources.py](INDEX.md) (owner: infra): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
-- [scripts/kilo-benchmarks/build_task_baselines.py](INDEX.md) (owner: intel): AFTER-EDIT: rank_task_subagents.py (retained) engine/rank_coding_subagents.py (ai-model-catalog) libs/subagents/select.py
-- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](INDEX.md) (owner: intel): Heartbeat check for daily_refresh.sh — fires an alert when stale.
-- [scripts/kilo-benchmarks/update_gateway_counts.py](INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
-- [scripts/kilo_terminal_runner.py](INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
-- [scripts/lint_fix_agent.py](INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
-- [scripts/mail.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md
-- [scripts/migrate_db_rename.py](INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
-- [scripts/probes/glitchtip_webhook_capture.py](INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
-- [scripts/provision_glitchtip_project.sh](INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
-- [scripts/refresh_service_inventory.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
-- [scripts/release_cut.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
-- [scripts/review_rubric.py](INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py tests/test_review_rubric.py
-- [scripts/seed_real_ports.py](INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
-- [scripts/select_rules.py](INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
-- [scripts/snapshot_vps_state.py](INDEX.md) (owner: infra): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
-- [scripts/sync_gatus_to_vps.sh](INDEX.md) (owner: infra): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
-- [scripts/sync_prometheus_to_vps.sh](INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
-- [scripts/sync_schema_to_projects.py](INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
-- [scripts/sysadmin/ensure-apprise-alerts-config.sh](INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
-- [scripts/sysadmin/kaizen_backfill.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
-- [scripts/sysadmin/kaizen_collect.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
-- [scripts/sysadmin/kaizen_collect_v2.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/ | none
-- [scripts/sysadmin/kaizen_events.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_events.py, docs/workstation/kaizen-event-stream.md | none
-- [scripts/sysadmin/kaizen_outcomes.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
-- [scripts/sysadmin/kaizen_shrink_audit.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
-- [scripts/sysadmin/liveness_audit.py](INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
-- [scripts/sysadmin/quota_dashboard.py](INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
-- [scripts/traycer_mirror.py](INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
-- [scripts/traycer_write_report.py](INDEX.md) (owner: infra): Traycer Report Writer
-- [scripts/update_vps_docs.py](INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/vps_sync.py](INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
+- [scripts/audit_authelia_gates.py](../INDEX.md) (owner: infra): Weekly drift audit for Authelia gating on admin dashboards.
+- [scripts/audit_infra_vs_docs.py](../INDEX.md) (owner: infra): Probe-vs-doc audit for the VPS fleet.
+- [scripts/bootstrap/bootstrap-hub.sh](../INDEX.md) (owner: infra): bootstrap-hub.sh — Fabrik hub disaster-recovery bootstrap
+- [scripts/bootstrap/bootstrap-spoke-restore.sh](../INDEX.md) (owner: infra): bootstrap-spoke-restore.sh — Fabrik spoke disaster-recovery bootstrap
+- [scripts/bootstrap/bootstrap-vps.sh](../INDEX.md) (owner: infra): bootstrap-vps.sh — Fabrik W-Multi M1
+- [scripts/check_zed_extensions.py](../INDEX.md) (owner: infra): Gate: verify every Zed extension that settings.json depends on is installed.
+- [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
+- [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
+- [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
+- [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
+- [scripts/declare_subscription.py](../INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
+- [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
+- [scripts/doc_reconcile.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/docs_updater.py](../INDEX.md) (owner: infra): Fabrik Documentation Updater
+- [scripts/enforcement/_check_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
+- [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): Verify WSL-to-Windows Android SDK communication.
+- [scripts/enforcement/check_command_corpus.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
+- [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): Enforce configuration documentation pattern.
+- [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
+- [scripts/enforcement/check_doc_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): Check for code duplication using jscpd.
+- [scripts/enforcement/check_env_example.py](../INDEX.md) (owner: infra): Enforce .env.example completeness.
+- [scripts/enforcement/check_env_updates.py](../INDEX.md) (owner: infra): Enforce .env file population when secrets are mentioned.
+- [scripts/enforcement/check_health.py](../INDEX.md) (owner: infra): Check that health endpoints test actual dependencies.
+- [scripts/enforcement/check_hooks_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
+- [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
+- [scripts/enforcement/check_no_host_ports.py](../INDEX.md) (owner: infra): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
+- [scripts/enforcement/check_opencode_json.py](../INDEX.md) (owner: infra): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
+- [scripts/enforcement/check_plans.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
+- [scripts/enforcement/check_ports.py](../INDEX.md) (owner: infra): Check port registration in PORTS.md and validate port ranges.
+- [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
+- [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
+- [scripts/enforcement/check_rule_size.py](../INDEX.md) (owner: infra): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
+- [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
+- [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
+- [scripts/enforcement/check_synced_unmodified.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/enforcement/check_traefik_labels.py](../INDEX.md) (owner: infra): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
+- [scripts/enforcement/check_traycer_chain.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
+- [scripts/enforcement/check_user_guide.py](../INDEX.md) (owner: infra): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
+- [scripts/enforcement/check_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_vps_docs_severity.py docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/enforcement/check_watchdog.py](../INDEX.md) (owner: infra): Check that services have watchdog scripts.
+- [scripts/enforcement/validate_conventions.py](../INDEX.md) (owner: infra): Fabrik Convention Validator - Orchestrates all convention checks.
+- [scripts/epic_order.py](../INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
+- [scripts/final_gate.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
+- [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
+- [scripts/gather_envs.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
+- [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
+- [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+- [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
+- [scripts/health_summary.py](../INDEX.md) (owner: infra): Scan /opt/* project directories and report health status.
+- [scripts/inject_deploy_resources.py](../INDEX.md) (owner: infra): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
+- [scripts/kilo-benchmarks/build_task_baselines.py](../INDEX.md) (owner: intel): AFTER-EDIT: rank_task_subagents.py (retained) engine/rank_coding_subagents.py (ai-model-catalog) libs/subagents/select.py
+- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](../INDEX.md) (owner: intel): Heartbeat check for daily_refresh.sh — fires an alert when stale.
+- [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
+- [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
+- [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
+- [scripts/mail.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md
+- [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
+- [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
+- [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
+- [scripts/refresh_service_inventory.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
+- [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
+- [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py tests/test_review_rubric.py
+- [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
+- [scripts/select_rules.py](../INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
+- [scripts/snapshot_vps_state.py](../INDEX.md) (owner: infra): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
+- [scripts/sync_gatus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
+- [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
+- [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
+- [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
+- [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
+- [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
+- [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/ | none
+- [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_events.py, docs/workstation/kaizen-event-stream.md | none
+- [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
+- [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
+- [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
+- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
+- [scripts/traycer_mirror.py](../INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
+- [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): Traycer Report Writer
+- [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/vps_sync.py](../INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
 
 ## lib-module
 - [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md) (owner: external:fabrik-lib): abuse-prevention
@@ -255,107 +255,107 @@
 - [xlsx-io](/opt/fabrik-lib/xlsx-io/README.md) (owner: external:fabrik-lib): xlsx-io — structure-preserving text extract/apply for spreadsheets
 
 ## scaffold
-- [chrome-extension](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [desktop-app](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [docusaurus](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [file-api](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [file-worker](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [mobile-app](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [node-api](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [python-api](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [python-api-gpu](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [saas-skeleton](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
-- [static-site](docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [chrome-extension](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [desktop-app](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [docusaurus](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [file-api](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [file-worker](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [mobile-app](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [node-api](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [python-api](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [python-api-gpu](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [saas-skeleton](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
+- [static-site](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
-- [ai/10-speech-audio.md](.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
-- [ai/20-vision.md](.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
-- [ai/25-3d-generation.md](.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
-- [ai/30-language.md](.windsurf/rules/ai/30-language.md) (owner: infra): Language AI (category 3) — LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY — dedicated vector DBs bann
-- [ai/40-multimodal.md](.windsurf/rules/ai/40-multimodal.md) (owner: infra): Vision-Language & Multimodal AI (category 4) — combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image c
-- [ai/50-agentic.md](.windsurf/rules/ai/50-agentic.md) (owner: infra): Agentic / Reasoning AI (category 5) — multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Ki
-- [ai/60-code.md](.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) — generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, deb
-- [ai/70-data-predictive.md](.windsurf/rules/ai/70-data-predictive.md) (owner: infra): Data & Predictive AI (category 7) — analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo — use spe
-- [ai/80-specialized-domains.md](.windsurf/rules/ai/80-specialized-domains.md) (owner: infra): Specialized AI domains (categories 8–15) — Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Gene
-- [ai/90-long-context.md](.windsurf/rules/ai/90-long-context.md) (owner: infra): Long-Context AI (category 16) — process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G
-- [chrome-ext/00-domain-chrome-ext.md](.windsurf/rules/chrome-ext/00-domain-chrome-ext.md) (owner: infra): Chrome-extension domain — PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platfo
-- [chrome-ext/70-chrome-ext.md](.windsurf/rules/chrome-ext/70-chrome-ext.md) (owner: infra): Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
-- [chrome-ext/89-extension-launch-checklist.md](.windsurf/rules/chrome-ext/89-extension-launch-checklist.md) (owner: infra): Chrome extension launch checklist — Web Store account, listing assets, privacy practices tab, review-trap avoidance, staged rollout, post-launch
-- [core/10-python.md](.windsurf/rules/core/10-python.md) (owner: infra): Python/FastAPI patterns, typing, environment handling
-- [core/12-node.md](.windsurf/rules/core/12-node.md) (owner: infra): Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
-- [core/15-api-contracts.md](.windsurf/rules/core/15-api-contracts.md) (owner: infra): API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
-- [core/20-typescript.md](.windsurf/rules/core/20-typescript.md) (owner: infra): TypeScript language discipline — strict mode, type safety, module patterns, error handling
-- [core/25-data-postgres.md](.windsurf/rules/core/25-data-postgres.md) (owner: infra): PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
-- [core/30-ops.md](.windsurf/rules/core/30-ops.md) (owner: infra): Docker standards, deployment, infrastructure
-- [core/35-security-auth.md](.windsurf/rules/core/35-security-auth.md) (owner: infra): Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth
-- [core/40-documentation.md](.windsurf/rules/core/40-documentation.md) (owner: infra): Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
-- [core/42-docusaurus.md](.windsurf/rules/core/42-docusaurus.md) (owner: infra): Docusaurus discipline — MDX, sidebar org, versioning, search, deployment, content quality
-- [core/45-testing-strategy.md](.windsurf/rules/core/45-testing-strategy.md) (owner: infra): Testing strategy — what to test per ticket type, smoke vs integration, regression rules
-- [core/50-code-review.md](.windsurf/rules/core/50-code-review.md) (owner: infra): Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ
-- [core/55-observability.md](.windsurf/rules/core/55-observability.md) (owner: infra): Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
-- [core/57-external-data-sourcing.md](.windsurf/rules/core/57-external-data-sourcing.md) (owner: infra): External data sourcing — which mechanism (API/scrape/webhook/file/stream/MCP) and which vendor to reach for BEFORE writing an integration; pairs with 58-resilie
-- [core/58-resilience.md](.windsurf/rules/core/58-resilience.md) (owner: infra): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
-- [core/60-watchdog.md](.windsurf/rules/core/60-watchdog.md) (owner: infra): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
-- [core/62-using-subagents.md](.windsurf/rules/core/62-using-subagents.md) (owner: infra): How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp
-- [core/65-rag-search.md](.windsurf/rules/core/65-rag-search.md) (owner: infra): Search & retrieval discipline — MeiliSearch full-text, pgvector embeddings, hybrid search, chunking, citations, retrieval evals
-- [core/66-rag-chunking.md](.windsurf/rules/core/66-rag-chunking.md) (owner: infra): Markdown chunking discipline — heading-based splits, chunk envelopes, overlap strategy, quality checks for RAG pipelines
-- [core/67-file-api.md](.windsurf/rules/core/67-file-api.md) (owner: infra): File-handling discipline (2026) — S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contract
-- [core/75-workers-jobs.md](.windsurf/rules/core/75-workers-jobs.md) (owner: infra): Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
-- [core/76-gpu-workers.md](.windsurf/rules/core/76-gpu-workers.md) (owner: infra): GPU worker discipline — decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tol
-- [core/85-payments-billing.md](.windsurf/rules/core/85-payments-billing.md) (owner: infra): Payments & billing discipline — Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle
-- [core/86-email-templates.md](.windsurf/rules/core/86-email-templates.md) (owner: infra): Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
-- [core/90-bootstrap-scripts.md](.windsurf/rules/core/90-bootstrap-scripts.md) (owner: infra): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
-- [core/app-audit-log.md](.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
-- [core/cost-budget.md](.windsurf/rules/core/cost-budget.md) (owner: infra): Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
-- [core/ocoron-design-system.md](.windsurf/rules/core/ocoron-design-system.md) (owner: infra): <!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
-- [core/self-healing.md](.windsurf/rules/core/self-healing.md) (owner: infra): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
-- [core/tojlo-design-system.md](.windsurf/rules/core/tojlo-design-system.md) (owner: infra): <!-- CONSUMER: Coding agents building Tojlo-branded UI
-- [desktop-app/00-domain-desktop-app.md](.windsurf/rules/desktop-app/00-domain-desktop-app.md) (owner: infra): Desktop-app domain — PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-inte
-- [desktop-app/72-desktop.md](.windsurf/rules/desktop-app/72-desktop.md) (owner: infra): Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
-- [mobile-app/00-domain-mobile-app.md](.windsurf/rules/mobile-app/00-domain-mobile-app.md) (owner: infra): Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-dec
-- [mobile-app/80-mobile.md](.windsurf/rules/mobile-app/80-mobile.md) (owner: infra): React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
-- [mobile-app/81-mobile-billing.md](.windsurf/rules/mobile-app/81-mobile-billing.md) (owner: infra): Mobile billing discipline — Google Play Billing, RevenueCat entitlements, receipt validation, Turkey GPB-mandatory, Teknokent tax, launch checklist
-- [mobile-app/89-mobile-launch-checklist.md](.windsurf/rules/mobile-app/89-mobile-launch-checklist.md) (owner: infra): Mobile app launch checklist — Turkish LLC, store compliance, Teknokent tax, staged rollout, beta testing, post-launch
-- [mobile-app/ocoron-mobile-design-system.md](.windsurf/rules/mobile-app/ocoron-mobile-design-system.md) (owner: infra): Ocoron Mobile Design System — component patterns, navigation, interaction specs for React Native
-- [mobile-app/tojlo-mobile-design-system.md](.windsurf/rules/mobile-app/tojlo-mobile-design-system.md) (owner: infra): Tojlo Mobile Design System — module-aware mobile component patterns extending ocoron-mobile-design-system.md
-- [saas/00-domain-saas.md](.windsurf/rules/saas/00-domain-saas.md) (owner: infra): SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill crite
-- [saas/60-saas-ui.md](.windsurf/rules/saas/60-saas-ui.md) (owner: infra): SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
-- [saas/87-abuse-detection.md](.windsurf/rules/saas/87-abuse-detection.md) (owner: infra): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
-- [saas/88-saas-launch-checklist.md](.windsurf/rules/saas/88-saas-launch-checklist.md) (owner: infra): SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
-- [saas/95-multi-tenant-saas.md](.windsurf/rules/saas/95-multi-tenant-saas.md) (owner: infra): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention
+- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
+- [ai/10-speech-audio.md](../.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
+- [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
+- [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
+- [ai/30-language.md](../.windsurf/rules/ai/30-language.md) (owner: infra): Language AI (category 3) — LLMs (Claude Opus 4.8 default; Sonnet 4.6 high-volume; Haiku 4.5 speed), embeddings/search (pgvector ONLY — dedicated vector DBs bann
+- [ai/40-multimodal.md](../.windsurf/rules/ai/40-multimodal.md) (owner: infra): Vision-Language & Multimodal AI (category 4) — combine text/image/audio/video understanding (Claude Opus 4.8, GPT-4o, Gemini 2.5 Pro, LLaVA). Visual QA, image c
+- [ai/50-agentic.md](../.windsurf/rules/ai/50-agentic.md) (owner: infra): Agentic / Reasoning AI (category 5) — multi-step reasoning & tool use (OpenAI o3/o4-mini, Claude, LangChain Agents, AutoGPT). Automation, planning, research. Ki
+- [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) — generate or explain code (Claude Code, GitHub Copilot, Cursor, Windsurf Cascade, Amazon Q). Code completion, refactoring, deb
+- [ai/70-data-predictive.md](../.windsurf/rules/ai/70-data-predictive.md) (owner: infra): Data & Predictive AI (category 7) — analyze structured data, forecast, detect anomalies (DataRobot, H2O.ai, Vertex AI, SageMaker). Not covered by Kilo — use spe
+- [ai/80-specialized-domains.md](../.windsurf/rules/ai/80-specialized-domains.md) (owner: infra): Specialized AI domains (categories 8–15) — Robotics, Synthetic Data, Recommendation, Cybersecurity, Bio/Healthcare, Edge/Embedded, Governance/Trust/Safety, Gene
+- [ai/90-long-context.md](../.windsurf/rules/ai/90-long-context.md) (owner: infra): Long-Context AI (category 16) — process extremely long documents, codebases, or conversations. Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), G
+- [chrome-ext/00-domain-chrome-ext.md](../.windsurf/rules/chrome-ext/00-domain-chrome-ext.md) (owner: infra): Chrome-extension domain — PLANNING layer. Vision-intake dimensions (ICP, the permission-ceiling fork, monetization with ZERO platform tax, browser scope, platfo
+- [chrome-ext/70-chrome-ext.md](../.windsurf/rules/chrome-ext/70-chrome-ext.md) (owner: infra): Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
+- [chrome-ext/89-extension-launch-checklist.md](../.windsurf/rules/chrome-ext/89-extension-launch-checklist.md) (owner: infra): Chrome extension launch checklist — Web Store account, listing assets, privacy practices tab, review-trap avoidance, staged rollout, post-launch
+- [core/10-python.md](../.windsurf/rules/core/10-python.md) (owner: infra): Python/FastAPI patterns, typing, environment handling
+- [core/12-node.md](../.windsurf/rules/core/12-node.md) (owner: infra): Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
+- [core/15-api-contracts.md](../.windsurf/rules/core/15-api-contracts.md) (owner: infra): API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
+- [core/20-typescript.md](../.windsurf/rules/core/20-typescript.md) (owner: infra): TypeScript language discipline — strict mode, type safety, module patterns, error handling
+- [core/25-data-postgres.md](../.windsurf/rules/core/25-data-postgres.md) (owner: infra): PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
+- [core/30-ops.md](../.windsurf/rules/core/30-ops.md) (owner: infra): Docker standards, deployment, infrastructure
+- [core/35-security-auth.md](../.windsurf/rules/core/35-security-auth.md) (owner: infra): Security & auth discipline — JWT rules, CORS policy, secret handling, CSP, session patterns, sensitive-file backup, generated-password policy, M2M internal-auth
+- [core/40-documentation.md](../.windsurf/rules/core/40-documentation.md) (owner: infra): Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
+- [core/42-docusaurus.md](../.windsurf/rules/core/42-docusaurus.md) (owner: infra): Docusaurus discipline — MDX, sidebar org, versioning, search, deployment, content quality
+- [core/45-testing-strategy.md](../.windsurf/rules/core/45-testing-strategy.md) (owner: infra): Testing strategy — what to test per ticket type, smoke vs integration, regression rules
+- [core/50-code-review.md](../.windsurf/rules/core/50-code-review.md) (owner: infra): Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ
+- [core/55-observability.md](../.windsurf/rules/core/55-observability.md) (owner: infra): Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
+- [core/57-external-data-sourcing.md](../.windsurf/rules/core/57-external-data-sourcing.md) (owner: infra): External data sourcing — which mechanism (API/scrape/webhook/file/stream/MCP) and which vendor to reach for BEFORE writing an integration; pairs with 58-resilie
+- [core/58-resilience.md](../.windsurf/rules/core/58-resilience.md) (owner: infra): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
+- [core/60-watchdog.md](../.windsurf/rules/core/60-watchdog.md) (owner: infra): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
+- [core/62-using-subagents.md](../.windsurf/rules/core/62-using-subagents.md) (owner: infra): How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp
+- [core/65-rag-search.md](../.windsurf/rules/core/65-rag-search.md) (owner: infra): Search & retrieval discipline — MeiliSearch full-text, pgvector embeddings, hybrid search, chunking, citations, retrieval evals
+- [core/66-rag-chunking.md](../.windsurf/rules/core/66-rag-chunking.md) (owner: infra): Markdown chunking discipline — heading-based splits, chunk envelopes, overlap strategy, quality checks for RAG pipelines
+- [core/67-file-api.md](../.windsurf/rules/core/67-file-api.md) (owner: infra): File-handling discipline (2026) — S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contract
+- [core/75-workers-jobs.md](../.windsurf/rules/core/75-workers-jobs.md) (owner: infra): Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
+- [core/76-gpu-workers.md](../.windsurf/rules/core/76-gpu-workers.md) (owner: infra): GPU worker discipline — decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tol
+- [core/85-payments-billing.md](../.windsurf/rules/core/85-payments-billing.md) (owner: infra): Payments & billing discipline — Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle
+- [core/86-email-templates.md](../.windsurf/rules/core/86-email-templates.md) (owner: infra): Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
+- [core/90-bootstrap-scripts.md](../.windsurf/rules/core/90-bootstrap-scripts.md) (owner: infra): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
+- [core/app-audit-log.md](../.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
+- [core/cost-budget.md](../.windsurf/rules/core/cost-budget.md) (owner: infra): Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
+- [core/ocoron-design-system.md](../.windsurf/rules/core/ocoron-design-system.md) (owner: infra): <!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
+- [core/self-healing.md](../.windsurf/rules/core/self-healing.md) (owner: infra): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
+- [core/tojlo-design-system.md](../.windsurf/rules/core/tojlo-design-system.md) (owner: infra): <!-- CONSUMER: Coding agents building Tojlo-branded UI
+- [desktop-app/00-domain-desktop-app.md](../.windsurf/rules/desktop-app/00-domain-desktop-app.md) (owner: infra): Desktop-app domain — PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-inte
+- [desktop-app/72-desktop.md](../.windsurf/rules/desktop-app/72-desktop.md) (owner: infra): Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
+- [mobile-app/00-domain-mobile-app.md](../.windsurf/rules/mobile-app/00-domain-mobile-app.md) (owner: infra): Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-dec
+- [mobile-app/80-mobile.md](../.windsurf/rules/mobile-app/80-mobile.md) (owner: infra): React Native mobile discipline — architecture, backend, navigation, performance, monetization, compliance, and i18n for worldwide shipping
+- [mobile-app/81-mobile-billing.md](../.windsurf/rules/mobile-app/81-mobile-billing.md) (owner: infra): Mobile billing discipline — Google Play Billing, RevenueCat entitlements, receipt validation, Turkey GPB-mandatory, Teknokent tax, launch checklist
+- [mobile-app/89-mobile-launch-checklist.md](../.windsurf/rules/mobile-app/89-mobile-launch-checklist.md) (owner: infra): Mobile app launch checklist — Turkish LLC, store compliance, Teknokent tax, staged rollout, beta testing, post-launch
+- [mobile-app/ocoron-mobile-design-system.md](../.windsurf/rules/mobile-app/ocoron-mobile-design-system.md) (owner: infra): Ocoron Mobile Design System — component patterns, navigation, interaction specs for React Native
+- [mobile-app/tojlo-mobile-design-system.md](../.windsurf/rules/mobile-app/tojlo-mobile-design-system.md) (owner: infra): Tojlo Mobile Design System — module-aware mobile component patterns extending ocoron-mobile-design-system.md
+- [saas/00-domain-saas.md](../.windsurf/rules/saas/00-domain-saas.md) (owner: infra): SaaS domain — PLANNING layer. Vision-intake dimensions (ICP, moat, pricing axis, GTM, COGS-per-tenant vs the single-VPS ceiling, risk register, dated kill crite
+- [saas/60-saas-ui.md](../.windsurf/rules/saas/60-saas-ui.md) (owner: infra): SaaS UI patterns — navigation, components, dashboards, performance, billing UI, tenant UI, i18n
+- [saas/87-abuse-detection.md](../.windsurf/rules/saas/87-abuse-detection.md) (owner: infra): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
+- [saas/88-saas-launch-checklist.md](../.windsurf/rules/saas/88-saas-launch-checklist.md) (owner: infra): SaaS product completeness — launch-blocking checklist, legal compliance, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings
+- [saas/95-multi-tenant-saas.md](../.windsurf/rules/saas/95-multi-tenant-saas.md) (owner: infra): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, cross-tenant prevention
 
 ## hook
-- [agent_role.py](docs/workstation/hooks-index.md) (owner: infra): AFTER-EDIT: tests/test_agent_role_hook.py, docs/reference/agents/, docs/workstation/hooks-index.md, CLAUDE.md
+- [agent_role.py](workstation/hooks-index.md) (owner: infra): AFTER-EDIT: tests/test_agent_role_hook.py, docs/reference/agents/, docs/workstation/hooks-index.md, CLAUDE.md
 
 ## command
-- [design-review](CLAUDE.md) (owner: infra): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/A
-- [fabrik-catchup](CLAUDE.md) (owner: infra): Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge
-- [fabrik-conformance-review](CLAUDE.md) (owner: infra): Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adj
-- [fabrik-data-contract](CLAUDE.md) (owner: infra): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall
-- [fabrik-decommission](CLAUDE.md) (owner: infra): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evid
-- [fabrik-deploy](CLAUDE.md) (owner: infra): Execute a CONVERGED deployment plan — stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn —
-- [fabrik-deploy-plan](CLAUDE.md) (owner: infra): Author a per-service DEPLOYMENT PLAN — stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unk
-- [fabrik-deploy-plan-review](CLAUDE.md) (owner: infra): Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the
-- [fabrik-deploy-verify](CLAUDE.md) (owner: infra): Post-`fabrik apply` certification, run hub-side from `/opt/fabrik` — DNS resolves (vs two sibling domains), the spec's health endpoint asserts real deps (`/heal
-- [fabrik-doc-converge](CLAUDE.md) (owner: infra): Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENC
-- [fabrik-docs-review](CLAUDE.md) (owner: infra): Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconciler
-- [fabrik-execute-plan](CLAUDE.md) (owner: infra): Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) ins
-- [fabrik-features](CLAUDE.md) (owner: infra): Converge docs/FEATURES.md to the COMPLETE, testable feature contract — TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from
-- [fabrik-flows](CLAUDE.md) (owner: infra): Freeze the project's JOURNEY contract — docs/flows.md, every persona walked entry → actions → feedback → exit (decision points, edge/error paths, per-call resil
-- [fabrik-flows-review](CLAUDE.md) (owner: infra): Converge a FROZEN docs/flows.md to a fixed point — an INDEPENDENT author-blind adversarial review (Success-Criterion tracing, persona completeness, SECOND-ACTOR
-- [fabrik-generate-tests](CLAUDE.md) (owner: infra): Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse)
-- [fabrik-plan-after-chat](CLAUDE.md) (owner: infra): Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnab
-- [fabrik-plan-review](CLAUDE.md) (owner: infra): Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagen
-- [fabrik-release](CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
-- [fabrik-repo-review](CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
-- [fabrik-review](CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
-- [fabrik-rules-review](CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f
-- [fabrik-service-test](CLAUDE.md) (owner: infra): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
-- [fabrik-spec](CLAUDE.md) (owner: infra): Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra
-- [fabrik-spec-review](CLAUDE.md) (owner: infra): Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→bu
-- [fabrik-ui-design](CLAUDE.md) (owner: infra): Freeze a GUI project's UI/UX design — a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and
-- [fabrik-ui-design-review](CLAUDE.md) (owner: infra): Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/
-- [fabrik-upstream](CLAUDE.md) (owner: infra): Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-out
-- [fabrik-user-test](CLAUDE.md) (owner: infra): End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — the UI/workflow QC engineer. Builds the element inve
-- [fabrik-workflow-review](CLAUDE.md) (owner: infra): Force a Traycer-workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER `-fabrik` doers (ettw 00–06, mega 00/02/03; the `type` you
+- [design-review](../CLAUDE.md) (owner: infra): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/A
+- [fabrik-catchup](../CLAUDE.md) (owner: infra): Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge
+- [fabrik-conformance-review](../CLAUDE.md) (owner: infra): Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adj
+- [fabrik-data-contract](../CLAUDE.md) (owner: infra): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall
+- [fabrik-decommission](../CLAUDE.md) (owner: infra): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evid
+- [fabrik-deploy](../CLAUDE.md) (owner: infra): Execute a CONVERGED deployment plan — stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn —
+- [fabrik-deploy-plan](../CLAUDE.md) (owner: infra): Author a per-service DEPLOYMENT PLAN — stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unk
+- [fabrik-deploy-plan-review](../CLAUDE.md) (owner: infra): Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the
+- [fabrik-deploy-verify](../CLAUDE.md) (owner: infra): Post-`fabrik apply` certification, run hub-side from `/opt/fabrik` — DNS resolves (vs two sibling domains), the spec's health endpoint asserts real deps (`/heal
+- [fabrik-doc-converge](../CLAUDE.md) (owner: infra): Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENC
+- [fabrik-docs-review](../CLAUDE.md) (owner: infra): Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconciler
+- [fabrik-execute-plan](../CLAUDE.md) (owner: infra): Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) ins
+- [fabrik-features](../CLAUDE.md) (owner: infra): Converge docs/FEATURES.md to the COMPLETE, testable feature contract — TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from
+- [fabrik-flows](../CLAUDE.md) (owner: infra): Freeze the project's JOURNEY contract — docs/flows.md, every persona walked entry → actions → feedback → exit (decision points, edge/error paths, per-call resil
+- [fabrik-flows-review](../CLAUDE.md) (owner: infra): Converge a FROZEN docs/flows.md to a fixed point — an INDEPENDENT author-blind adversarial review (Success-Criterion tracing, persona completeness, SECOND-ACTOR
+- [fabrik-generate-tests](../CLAUDE.md) (owner: infra): Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse)
+- [fabrik-plan-after-chat](../CLAUDE.md) (owner: infra): Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnab
+- [fabrik-plan-review](../CLAUDE.md) (owner: infra): Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagen
+- [fabrik-release](../CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
+- [fabrik-repo-review](../CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
+- [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
+- [fabrik-rules-review](../CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f
+- [fabrik-service-test](../CLAUDE.md) (owner: infra): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
+- [fabrik-spec](../CLAUDE.md) (owner: infra): Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra
+- [fabrik-spec-review](../CLAUDE.md) (owner: infra): Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→bu
+- [fabrik-ui-design](../CLAUDE.md) (owner: infra): Freeze a GUI project's UI/UX design — a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and
+- [fabrik-ui-design-review](../CLAUDE.md) (owner: infra): Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/
+- [fabrik-upstream](../CLAUDE.md) (owner: infra): Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-out
+- [fabrik-user-test](../CLAUDE.md) (owner: infra): End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — the UI/workflow QC engineer. Builds the element inve
+- [fabrik-workflow-review](../CLAUDE.md) (owner: infra): Force a Traycer-workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER `-fabrik` doers (ettw 00–06, mega 00/02/03; the `type` you
