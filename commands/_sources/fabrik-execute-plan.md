@@ -539,7 +539,20 @@ quarantine-with-recorded-ruling — never an excuse to loop). Validation finding
 coders/units bound to the owning ticket's Touches through the per-ticket review loop (cross-cutting
 findings split along Touches); a producer-originated defect surfacing here (or at the Integration seam
 run) flips the producer's row ✅→🔵 and re-dispatches — the **sanctioned back-flip**. The validation MAY
-run in a fresh orchestrator context (spine + lock are the durable handoff). Then Finish: receipt, gate,
+run in a fresh orchestrator context (spine + lock are the durable handoff).
+
+**⚠️ A plan that shipped HTTP surface does not reach a terminal state on green suites alone — it owes
+at least one LIVE REQUEST.** When any merged ticket added or changed a route, endpoint, or client
+call, validation requires ≥1 real request issued against the running service, with its actual
+response pasted verbatim into the spine's `## Evidence`. A passing suite proves the code the tests
+call; only a live request proves the route EXISTS at the path the caller uses. Measured (transdoc,
+2026-08-25): six verification layers were simultaneously green — the governing rule pack unreachable,
+45 `page.route` mocks covering exactly the missing endpoints, `final_gate` green, 296 tests passing —
+while 19 frontend calls pointed at routes that did not exist and 14 built endpoints had no caller. No
+suite could see it; one request would have. Mocked, stubbed, or recorded responses do NOT satisfy
+this; a plan with no HTTP surface states that in `## Evidence` and moves on.
+
+Then Finish: receipt, gate,
 spine `Status: EXECUTED` citing the WHOLE-PLAN validation review
 (`docs/development/reviews/<plan>-review.md` — `check_convergence` enforces the citation exists with a
 quiet `found: 0` pass, and for a plan set it rejects a per-ticket `-T##-review.md` as that proof), lock

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/select_rules.py tests/test_review_rubric.py
+# AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
 """Armed-review rubric extractor — turns Tier-3 reviews from "reviewer reads the packs"
 into "the matched rule rubric is INJECTED into every finder prompt" (spec G5/G6; plan-2 WS-B).
 
@@ -24,7 +24,8 @@ Emits, on stdout, the rubric a review dispatcher pastes into each finder's promp
 
 Honesty (spec L1/L2): this arms the reviewer; it raises compliance probability — it does not
 guarantee it. Stdlib-only: this file is fleet-synced (fabrik_synced_manifest) and must run in
-every project venv with no extra deps. Reuses select_rules' frontmatter parser + tail-match.
+every project venv with no extra deps. Reuses select_rules' frontmatter parser + rules_match's
+glob-pack matcher.
 """
 
 from __future__ import annotations
@@ -39,7 +40,8 @@ from pathlib import Path
 _SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPTS))
 
-import select_rules  # noqa: E402 - the shared frontmatter parser + glob tail-matching
+import rules_match  # noqa: E402 - the shared glob-pack matcher (pack_matches_path)
+import select_rules  # noqa: E402 - the shared frontmatter parser
 
 # Kaizen M1 sensor (T04) — OBSERVATION ONLY, and defensively imported: this file is
 # fleet-synced, so a project without the box-local module must behave exactly as before.
@@ -57,9 +59,10 @@ except Exception:  # pragma: no cover - absence is the normal case in a project
 # `2.0` bounds exposure()'s git probes; the rubric is already delivered by then.
 _KAIZEN_PROBE_TIMEOUT_S = 2.0
 
-# ⚠️ LOCKSTEP CONTRACT: this file uses select_rules' PRIVATE symbols (_FM, _parse_frontmatter,
-# _tail_matches, _expand_braces). Both files are co-synced fleet-wide (fabrik_synced_manifest
-# CORE_SCRIPTS) — renaming those symbols breaks armed reviews in every project. Rename together.
+# ⚠️ LOCKSTEP CONTRACT: this file uses select_rules' PRIVATE frontmatter symbols (_FM,
+# _parse_frontmatter) and rules_match's PUBLIC glob-matching API (pack_matches_path). All
+# three files are co-synced fleet-wide (fabrik_synced_manifest CORE_SCRIPTS) — renaming any
+# of those symbols breaks armed reviews in every project. Rename together.
 
 # The mandatory-core floor (spec L3) — always injected, regardless of glob match.
 FLOOR_PACKS = (
@@ -180,32 +183,6 @@ def _packs(root: Path) -> list[tuple[str, list[str], str]]:
     return packs
 
 
-def _glob_matches_path(changed: str, glob: str) -> bool:
-    """Does this changed path match this pack glob? (select_rules' tail-match semantics,
-    applied to a single path instead of the whole tree.)"""
-    pat = glob.strip().lstrip("/")
-    if pat.startswith("**/"):
-        pat = pat[3:]
-    if pat.endswith("/**"):
-        pat = pat[:-3]
-    if not pat:
-        # a wildcard-only glob (`**/`, `/**`) means match-everything; arming errs SAFE
-        # (deliberate divergence from select_rules, where empty = not-ACTIVE)
-        return True
-    rel = changed.strip().lstrip("/")
-    return any(
-        select_rules._tail_matches(prefix, expanded)
-        for expanded in select_rules._expand_braces(pat)
-        # a dir-glob like uploads/** must match a PARENT segment too, not just the full path
-        for prefix in _prefixes(rel)
-    )
-
-
-def _prefixes(rel: str) -> list[str]:
-    segs = rel.split("/")
-    return ["/".join(segs[: i + 1]) for i in range(len(segs))]
-
-
 def build_rubric(changed: list[str], workflow: str | None, root: Path) -> str:
     packs = _packs(root)
     by_rel = {rel: (globs, body) for rel, globs, body in packs}
@@ -238,7 +215,11 @@ def build_rubric(changed: list[str], workflow: str | None, root: Path) -> str:
     for rel, globs, body in packs:
         if rel in emitted:
             continue
-        hits = [c for c in changed if any(_glob_matches_path(c, g) for g in globs)]
+        hits = [
+            c
+            for c in changed
+            if any(rules_match.pack_matches_path(c, g, empty_matches_all=True) for g in globs)
+        ]
         if hits:
             if not matched_any:
                 out.append("\n## MATCHED — packs whose globs hit the changed paths")
