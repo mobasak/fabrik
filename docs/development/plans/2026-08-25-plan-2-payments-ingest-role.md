@@ -1,6 +1,6 @@
 # Plan — payments-ingest DB role in the fabrik registrar
 
-Status: DRAFT
+Status: CONVERGED (/fabrik-plan-review 2026-08-25 — 2 passes, md5-verified no-op aeb74e2f; RETURNING-policy hardened + ingest-only scope resolved)
 Spec: docs/superpowers/specs/2026-08-23-payments-ingest-role-design.md (CONVERGED, 3 review passes)
 Owner: fleet (registrar). Build split: registrar code = fleet; `.windsurf/rules` doc slice = infra (mail handoff, Phase D).
 Date: 2026-08-25
@@ -63,7 +63,13 @@ Template to mirror: `create_watchdog_roles` (`src/fabrik/drivers/postgres.py:612
       payments_ingest_sel ON <t>; CREATE POLICY payments_ingest_sel ON <t> FOR SELECT TO "<role>" USING (true);`
     - `webhook_events`: `GRANT INSERT, SELECT ON webhook_events TO "<role>"`; drop+create TWO least-privilege
       policies — `payments_ingest_sel … FOR SELECT … USING (true)` and `payments_ingest_ins … FOR INSERT …
-      WITH CHECK (true)` (NO UPDATE/DELETE grant or policy — the store never issues them).
+      WITH CHECK (true)` (NO UPDATE/DELETE grant or policy — the store never issues them). **The SELECT
+      policy is REQUIRED, not optional**: `record_event` (store.py:186-193) runs `INSERT … ON CONFLICT DO
+      NOTHING RETURNING event_id`, and under RLS a RETURNING clause requires the returned row to satisfy the
+      SELECT policy or *Postgres throws* — "inserted or updated rows to be returned are never silently
+      ignored" (postgresql.org/docs/current/sql-createpolicy.html, verified 2026-08-25). Omit it and every
+      new event errors at insert. The Phase-B write test MUST exercise `… RETURNING` (not a bare INSERT), or
+      it would pass while the real store breaks.
   - Return `{"user": role, "password": pw, "status": …}` (fresh `password` only on new create — mirror
     :656-660, so the caller injects a DSN only once).
 
@@ -125,15 +131,19 @@ Template to mirror: `create_watchdog_roles` (`src/fabrik/drivers/postgres.py:612
 
 ---
 
-## Residuals / open for /fabrik-plan-review
-- The **worker surface** (subscriptions/customers UPSERT, `payments_audit_log` INSERT, `plans` read) is
-  project-written code and the project's DB-access concern — NOT provisioned here. Confirm the review agrees the
-  registrar role is ingest-store-only, not ingest+worker (the README calls them "one service role", but fabrik-lib
-  only *ships* the ingest store; the worker is the project's).
-- Whether the two webhook_events policies should be one `FOR ALL` vs split SELECT+INSERT — the plan chooses split
-  (least privilege, no UPDATE/DELETE); review to confirm.
+## Residuals / resolved in /fabrik-plan-review
+- **Ingest-only scope — RESOLVED (the worker needs no cross-tenant grant).** The README's "one service role"
+  for ingest+worker is a simplification: only the INGEST path is cross-tenant *by necessity* (it resolves the
+  org before the tenant is known, and `record_event` writes with no GUC — store.py:184). The WORKER runs
+  AFTER resolution and receives the resolved `org_id` in its job payload (`enqueue_fulfilment` puts `org_id`
+  in the `jobs` payload, store.py:210-219), so it runs as the ordinary tenant-scoped app role with
+  `SET app.current_org = <org_id>` and needs **zero** cross-tenant privilege. Therefore the registrar role is
+  correctly **ingest-store-only** — provisioning cross-tenant WRITE on `subscriptions`/`customers` for a
+  hypothetical worker would be a gratuitous blast-radius expansion the worker does not need.
+- **webhook_events policy shape — RESOLVED:** split SELECT+INSERT (least privilege, no UPDATE/DELETE), and
+  the SELECT half is mandatory for the store's `RETURNING` (see Phase B).
 - Role-name length: `{db}_payments_ingest` caps db_name at 47 chars — the 63-guard raises; confirm no live
-  payments-vendoring db name is that long.
+  payments-vendoring db name is that long (advisory; the guard fails loud, never silently truncates).
 
 ## Self-audit (plan-level)
 Every phase grounds in a real `path:line`; every user-observable behavior has a test (risky ones watched-fail-first);
