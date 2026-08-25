@@ -34,7 +34,7 @@ run — while `final_gate` was green and 296 tests passed.
 |---|---|---|---|---|---|
 | T01 | D7 requires one live request | — | ⚡ | 🟡 | |
 | T02 | corpus glob audit across all 12 scaffold types | T04 | ⛓️ | 🟡 | |
-| T03 | applies_to frontmatter + the non-circular check | T02 | ⛓️ | ⬜ | |
+| T03 | applies_to frontmatter + the non-circular check | T02 | ⛓️ | 🟡 | |
 | T04 | one shared path→pack matcher | — | ⚡ | 🟡 | |
 | T99 | integration | T01, T03, T04 | ⛓️ | ⬜ | |
 

@@ -1139,6 +1139,20 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_rule_size.py", "Rule File Size Guard")
         )
+        # Rule-pack reachability (advisory): a pack's declared `applies_to:` naming a
+        # scaffold type its globs cannot reach — an INDEPENDENT signal from
+        # select_rules.py's ACTIVE set (which derives from the very globs under test
+        # and can never catch this class; see scripts/enforcement/check_pack_reachability.py's
+        # module docstring). warn_only=True: 56 packs across ~46 repos with zero packs
+        # yet annotated must never turn the fleet gate red; promoting this to blocking
+        # is a deliberate operator decision once the corpus is clean.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_pack_reachability.py",
+                "Rule-pack reachability",
+                warn_only=True,
+            )
+        )
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_opencode_json.py", "opencode.json (Kilo-Safe Rules)"

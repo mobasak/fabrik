@@ -5522,3 +5522,29 @@ no-op arrived exactly one round after a wave whose residue surface was near-nil 
 (3) a degradation path must say UNKNOWN, never the success wording — a fail-soft that lies
 reads as a pass in every log forever; (4) every commit re-derives its own census counts in
 the SAME commit (three doc-drift findings were self-inflicted by mid-round commits).
+
+## 110. A reachability check that derives applicability from the ACTIVE set it's auditing can never fire — and a silent-by-design row needs its own denominator (2026-08-25)
+
+`select_rules.py`'s ACTIVE/AVAILABLE split for `.windsurf/rules` packs derives ACTIVE
+directly from `any_path_matches(root, glob, ...)` — the exact glob whose correctness a
+"do ACTIVE packs match real paths" check would want to test. A pack with broken globs
+never becomes "ACTIVE but matching nothing"; it just drops to AVAILABLE, indistinguishable
+from a pack correctly judged irrelevant. The search space (ACTIVE AND matches-zero) is
+empty by construction — this was the live state of `core/75-workers-jobs.md` and
+`core/app-audit-log.md`, both sitting in AVAILABLE while their real subject matter
+(`worker.py`, `billing_routes.py`) sat unguarded on disk in `/opt/transdoc`. The fix
+needed a signal INDEPENDENT of the globs under test: a declared `applies_to:` frontmatter
+field, cross-referenced against what a fresh scaffold of that type actually emits
+(`pack_layout_audit.audit_layout`), not against `select_rules`'s derived set. Second,
+smaller lesson bundled in the same ticket: because an unannotated pack must pass silently
+(so `applies_to` can land incrementally across ~56 packs without a day-one fleet-wide red),
+a "0 findings" result is ambiguous between "verified clean" and "nobody declared
+anything yet" — the check must ALSO print how many packs it actually examined, or its own
+silent-pass design becomes the exact "reports SUCCESS when it cannot ask its question"
+defect it exists to catch elsewhere. Takeaways: (1) when a check's question is "does X
+correctly compute Y", X's own derivation of Y disqualifies it as ground truth — the check
+needs a signal that could not have produced the wrong value the same way; (2) any check
+row designed with a silent/no-op success path (for incremental rollout, backward
+compat, etc.) must report its examined-count/denominator alongside the verdict, or the
+silence design and the "reports green when it can't ask" defect become the same bug from
+the outside.

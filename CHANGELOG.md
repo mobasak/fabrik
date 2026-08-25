@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Rule-pack reachability advisory gate (2026-08-25)
+
+- `scripts/enforcement/check_pack_reachability.py` — advisory (`warn_only=True`)
+  `final_gate.py` row wrapping the existing `pack_layout_audit.audit_layout()` engine.
+  Reports any `.windsurf/rules` pack whose declared `applies_to:` frontmatter names a
+  scaffold type its `globs:` cannot reach, and — critically — reports the COUNT of packs
+  it actually examined, so a corpus where nobody has declared `applies_to` yet reads as
+  "0 examined" rather than an unqualified pass. Non-circular by construction: applicability
+  comes from `applies_to`, never from `select_rules.py`'s ACTIVE/AVAILABLE split (which
+  derives from the very globs under test and can never catch this class — a broken glob
+  just drops a pack to AVAILABLE). Proven directly in
+  `tests/enforcement/test_pack_reachability.py`: a fixture pack `select_rules.collect()`
+  places in AVAILABLE is still examined and flagged here.
+- Doc: `docs/reference/rule-pack-reachability.md`.
+
 ### Added — One shared rule-pack path matcher + a D7 live-request pin (2026-08-25)
 
 - `scripts/rules_match.py` — the ONE path↔pack glob matcher. `select_rules.py` and
