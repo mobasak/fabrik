@@ -1,6 +1,6 @@
 # fabrik-mail DISPATCHER — Layer-1.5 auto-processing (design spec)
 
-Status: DRAFT
+Status: CONVERGED (spec-review 2026-08-25 — 3 passes, pass 3 md5-verified no-op `05e1cf56`)
 Date: 2026-08-25
 Author: infra (hub session, /fabrik-spec run)
 Predecessors: `2026-08-11-fabrik-mail-design.md` (Layer 1, shipped) ·
@@ -18,9 +18,12 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
 operator-visible escalation — with no human relaying.**
 
 **Success criteria (testable):**
-1. A fresh unaddressed `fabrik` inbox message carries `agent: infra|fleet|intel` after at most
-   one dispatcher interval (operator-decision items too — they get a beat owner plus the
-   `operator-decision` marker in the classification log, § Routing; no new `agent:` value exists).
+1. A fresh unaddressed `fabrik` inbox message carries `agent: infra|fleet|intel` by the end of
+   the FIRST dispatcher run that starts after its arrival (≤30 min while the box is awake; on
+   wake-from-sleep the stamp-checked catch-up run is that first run — latency is measured to the
+   first actual run, not to a scheduled slot the sleeping box missed). Operator-decision items
+   too — they get a beat owner plus the `operator-decision` marker in the classification log,
+   § Routing; no new `agent:` value exists.
 2. The dispatcher run is idempotent and concurrent-safe: two overlapping runs never double-route
    (`flock -n` serializes them), a message a live session claims mid-run resolves by rename
    atomicity (the dispatcher sees ENOENT and skips it — routing only ever touches files still in
@@ -70,7 +73,12 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    subject line (never body execution): `kind`, sender repo, and subject keywords mapped to beats
    (e.g. enforcement/command/gate/mail.py → infra; deploy/VPS/compose/registrar/DR → fleet;
    model/benchmark/flywheel/research → intel; credential/console/decision-only → operator-class,
-   § Routing). Every deterministic route logs its matched rule (auditable).
+   § Routing). **Precedence is pinned, not guessed:** rules evaluate most-specific-first
+   (`kind` + sender-repo pairs → sender-repo → subject keyword); a message matching rules that
+   disagree on the beat is treated as UNMATCHED and falls to the LLM (never a silent first-match
+   win — a deterministic misroute is worse than a bounded LLM call). Operator-class is not a
+   beat: its rules resolve to a (beat, `operator-decision` marker) pair like § Routing defines.
+   Every deterministic route logs its matched rule (auditable).
 3. **LLM fallback, bounded, for the unmatched remainder — via VENDORED
    `fabrik-lib/llm-dispatch`** (the complete `claude -p` module: `ClaudeCall → dispatch() →
    DispatchResult`, schema-enforced JSON via `--json-schema`, native `--max-budget-usd`,
@@ -98,7 +106,9 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    continue unaffected. **Injection frame:** the body is fenced with a run-unique random boundary
    string; a body containing the boundary (or an unparseable response) is left unrouted for a
    human — worst case of a successful injection is a misroute, which `route`-as-filter makes a
-   one-command human fix.
+   one-command human fix. The model's `why` string is itself untrusted OUTPUT: it is length-capped
+   and control-character-stripped before it reaches the log, and the log line is prefixed as
+   untrusted data (an injected instruction must not ride the audit trail into a reader's context).
 4. **Apply:** `mail.py route <id> --to-agent <beat>` (the existing primitive; a message a live
    session claimed meanwhile is simply absent from the inbox — the race resolves by rename
    atomicity, the loser sees ENOENT and moves on, exactly the Layer-1 concurrency contract).
