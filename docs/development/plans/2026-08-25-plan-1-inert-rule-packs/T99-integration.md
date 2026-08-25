@@ -5,7 +5,7 @@ Parallel: ⛓️
 Complexity: native
 Docs: whole-plan receipt
 Integration: true
-Gate: python scripts/enforcement/check_doc_sync.py
+Gate: python scripts/enforcement/check_doc_sync.py --range <plan-baseline>..HEAD
 
 ## Scope
 

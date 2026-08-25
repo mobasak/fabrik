@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan CONVERGED: rule packs that cannot reach the code they bind (2026-08-25)
+
+- `docs/development/plans/2026-08-25-plan-1-inert-rule-packs/` — 5-ticket set closing the class
+  transdoc filed (`01M0WN9RXJJY9SDQTF8183GTYW`): pack `globs:` written for a directory-per-concern
+  layout while the scaffolds emit file-per-concern, so a pack can be inert in every project it
+  governs with nothing detecting it. T01 D7 live-request + prose pin · T02 corpus×type audit + the
+  two proven-inert packs · T03 `applies_to:` frontmatter + a NON-circular check · T04 one shared
+  path matcher · T99 integration.
+- **The check transdoc proposed cannot fire as filed** — `select_rules.py:156` derives ACTIVE from
+  the very globs under test, so `ACTIVE ∧ matches-zero` is empty by construction. The plan replaces
+  it with an independently-declared `applies_to:` expectation; the circularity was reported back to
+  transdoc rather than silently redesigned.
+- Converged over **two independently-armed review rounds, 15 defects, 12 of them found only in the
+  second** — including three the first round had authored INTO the plan: a ticket Gate running a
+  test file a later ticket creates (`exit 4` today), a consumer merging before its producer, and a
+  check that would have shipped asking nothing because no pack declared the field it reads.
+
 ### Added — Payments webhook-ingest registrar role (`shape.needs_payments_ingest`) (2026-08-25)
 
 - New `shape.needs_payments_ingest` flag (requires `needs_database`): a project vendoring

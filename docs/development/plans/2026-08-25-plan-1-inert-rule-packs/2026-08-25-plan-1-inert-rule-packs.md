@@ -33,7 +33,7 @@ run — while `final_gate` was green and 296 tests passed.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | D7 requires one live request | — | ⚡ | ⬜ | |
-| T02 | corpus glob audit across all 12 scaffold types | — | ⚡ | ⬜ | |
+| T02 | corpus glob audit across all 12 scaffold types | T04 | ⛓️ | ⬜ | |
 | T03 | applies_to frontmatter + the non-circular check | T02 | ⛓️ | ⬜ | |
 | T04 | one shared path→pack matcher | — | ⚡ | ⬜ | |
 | T99 | integration | T01, T03, T04 | ⛓️ | ⬜ | |
@@ -41,27 +41,44 @@ run — while `final_gate` was green and 296 tests passed.
 ## Merge Order
 
 1. T01
-2. T02
-3. T04
+2. T04
+3. T02
 4. T03
 5. T99
+
+T04 merges BEFORE T02: T02's Scope consumes T04's matcher, so the original order (T02 then T04) had
+the consumer landing first — its Gate could not have passed.
 
 ## Interfaces
 
 - **T02 Produces** `scripts/enforcement/pack_layout_audit.py::audit_layout(root, types) -> list[Finding]`
   — the corpus×type matrix. **T03 Consumes** it as the check's engine, so the audit and the standing
   check share one implementation rather than two that can disagree.
-- **T04 Produces** `scripts/rules_match.py::pack_matches_path(path, glob) -> bool` and
-  `packs_for_paths(paths, root) -> list[str]`. **T02, T03 and `select_rules.py` Consume** them.
-  No component re-implements glob matching.
+- **T04 Produces** THREE symbols in `scripts/rules_match.py` —
+  `pack_matches_path(path, glob, *, empty_matches_all) -> bool` (single path, from
+  `review_rubric.py:183`), `any_path_matches(root, glob, *, empty_matches_all) -> bool` (root scan,
+  from `select_rules.py:123`), and `packs_for_paths(paths, root) -> list[str]`.
+  **T02, T03 and `select_rules.py` Consume** them. The two matchers are NOT interchangeable — one
+  takes a path, the other a tree — and they disagree deliberately on the empty pattern
+  (`review_rubric.py:194` returns True, `select_rules.py:131` returns False), which is why
+  `empty_matches_all` is an explicit keyword rather than a collapsed default.
 
 ## Global Constraints
 
 - **Everything here is FLEET-SYNCED.** `.windsurf/rules/**` and `scripts/enforcement/**` both sit in
   the governance-sync trigger filter (`.pre-commit-config.yaml`), so every commit distributes to ~46
   repos. A pack edit must be correct for ALL of them, never tuned to one project.
-- **No third glob parser.** `review_rubric.py:183 _glob_matches_path` and `select_rules.py:47 _GLOBS`
-  already do this twice. T04 collapses them; nothing in this plan may add a third.
+- **No third path matcher.** `review_rubric.py:183 _glob_matches_path` and
+  `select_rules.py:123 _glob_has_match` already do this twice. T04 collapses them into
+  `rules_match.py`; nothing in this plan may add a third. ⚠️ `select_rules.py:47 _GLOBS` is NOT one
+  of them — it is the frontmatter regex (`^globs:\s*\[(.*?)\]`), a different concern, and this plan's
+  first draft named it as the second matcher. It is out of scope; do not touch it.
+- **`applies_to:` lives in pack frontmatter.** DECIDED here, not deferred into execution:
+  `applies_to: [<scaffold type>, …]` sits beside the `globs:` it cross-checks. A central
+  `scaffold-type → packs` registry was the alternative and was rejected — a registry drifts from the
+  pack silently, which is the same failure mode this plan exists to close. The cost is a new key in a
+  fleet-synced frontmatter across up to 56 packs; it lands incrementally, and T02 seeds the two packs
+  it corrects so T03's check is not vacuous on landing.
 - **The new check is ADVISORY (WARN) on landing.** A blocking check that fires on 56 packs across 46
   repos on day one is how a gate gets ignored. Promotion to blocking is a separate operator decision
   once the corpus is clean.
@@ -77,12 +94,15 @@ run — while `final_gate` was green and 296 tests passed.
 ## Behavior Contract
 
 - **Given** a plan whose tickets ship HTTP surface, **When** D7 validation runs, **Then** it refuses to reach a terminal state without at least one live request/response pasted into `## Evidence` (commands/_sources/fabrik-execute-plan.md:520).
-- **Given** the 56-pack corpus and the 12 scaffold types, **When** the layout audit runs, **Then** it emits one row per (pack, type) pair where the pack declares applicability and matches zero emitted paths (scripts/enforcement/pack_layout_audit.py:1).
-- **Given** the two known-inert glob-activated packs, **When** their globs are corrected, **Then** each matches at least one real file in a scaffolded project of its declared type (.windsurf/rules/core/75-workers-jobs.md:3).
+- **Given** the D7 section with its live-request clause deleted, **When** the prose-pin test runs, **Then** it fails — proving the pin observes the clause rather than the file's existence (tests/test_execute_plan_d7.py:1).
+- **Given** a ticket's declared file list, **When** plan-stage pack routing runs, **Then** it returns the same pack set `review_rubric.py --changed` returns for those paths (scripts/rules_match.py:1).
+- **Given** a wildcard-only glob and the two callers' opposite conventions, **When** the shared matcher runs, **Then** `empty_matches_all=True` matches and `empty_matches_all=False` does not, preserving both call sites unchanged (scripts/review_rubric.py:194).
+- **Given** the 56-pack corpus and the 12 scaffold types, **When** the layout audit runs, **Then** it emits one row per (pack, type) pair the pack's `applies_to` claims and matches zero emitted paths (scripts/enforcement/pack_layout_audit.py:1).
+- **Given** the two known-inert glob-activated packs, **When** their globs are corrected and their `applies_to` seeded, **Then** each matches at least one real file in a scaffolded project of its declared type (.windsurf/rules/core/75-workers-jobs.md:3).
 - **Given** a pack whose frontmatter says `activation: manual`, **When** the layout audit runs, **Then** it is excluded from the report entirely rather than counted as inert (.windsurf/rules/saas/00-domain-saas.md:6).
 - **Given** a pack whose `applies_to` names a scaffold type it cannot match, **When** the check runs, **Then** it reports that pack and does NOT derive applicability from the globs under test (scripts/enforcement/check_pack_reachability.py:1).
 - **Given** a pack with no `applies_to` field, **When** the check runs, **Then** it passes silently rather than failing, so the field can land incrementally across 56 packs (scripts/enforcement/check_pack_reachability.py:1).
-- **Given** a ticket's declared file list, **When** plan-stage pack routing runs, **Then** it returns the same pack set `review_rubric.py --changed` returns for those paths (scripts/rules_match.py:1).
+- **Given** the corpus as it stands after T02, **When** the check runs, **Then** it reports the count of packs it actually examined, so a corpus where nobody declares `applies_to` reads as "0 examined" rather than as a pass (scripts/enforcement/check_pack_reachability.py:1).
 - **Given** the merged plan, **When** the whole-plan receipts run, **Then** the audit, the check and the matcher all report the same pack set for the same inputs (docs/reference/rule-pack-reachability.md:1).
 
 ## Coverage Checklist
@@ -98,10 +118,13 @@ MATCHED) plus the four standing recurrence classes. Every row adjudicated before
 | core/35-security-auth.md (FLOOR) | REFUTED | no auth/secret surface; the checks read `.windsurf/rules/**` and `scripts/**` only |
 | core/30-ops.md (FLOOR) | REFUTED | no container/deploy surface; nothing here reaches a VPS |
 | 12-FACTOR (all twelve axes) | CLEAN | no config/backing-service/process change; the checks are stateless CLI reads |
-| fail-open vs fail-closed on every gate/guard | FIXED | the new check lands ADVISORY (WARN) by explicit Global Constraint — 56 packs × 46 repos failing on day one is how a gate gets ignored; promotion to blocking is a named operator decision |
+| fail-open vs fail-closed on every gate/guard | FIXED | the new check lands ADVISORY via `run_optional_check(..., warn_only=True)` (scripts/final_gate.py:221-248), named concretely in T03 rather than left as "wire it in"; promotion to blocking is a named operator decision |
+| check that cannot ask its question (fail-silent-green) | FIXED | round 2: T03 added `applies_to` that NO pack declared, and its own row 2 made an undeclared pack pass silently — the check would have shipped asking nothing. T02 now seeds the field on the two packs it corrects, and T03 row 3 makes the examined-count visible |
 | cost/quota/limit accounting edges | CLEAN | no metered call, no LLM dispatch, no quota surface in any ticket |
-| boundary/sentinel/prefix collisions | FIXED | THE defect of this plan — `activation: manual` was the missing sentinel; the audit now filters on it first (.windsurf/rules/saas/00-domain-saas.md:6) |
-| behavior-without-a-test | FIXED | every ticket carries a runnable `Gate:`; T02/T03 gate on tests/enforcement/test_pack_reachability.py, T04 on tests/test_rules_match.py |
+| boundary/sentinel/prefix collisions | FIXED | round 1: `activation: manual` was the missing sentinel. Round 2: the empty-pattern branch — `review_rubric.py:194` returns True where `select_rules.py:131` returns False, a deliberate divergence T04's "pure move" would have collapsed across ~46 repos; now an explicit `empty_matches_all` keyword |
+| behavior-without-a-test | FIXED | round 2: T02's Gate ran a test file T03 creates (proven `exit 4` today) and T01's Gate could not observe its own row. T02 now owns tests/enforcement/test_pack_layout_audit.py, T01 owns tests/test_execute_plan_d7.py, T03 tests/enforcement/test_pack_reachability.py, T04 tests/test_rules_match.py |
+| read-set completeness (cold coder reads Scope + Touches + Context Files ONLY) | FIXED | round 2: T02 cited `saas/00-domain-saas.md` and the 12-type registry in its rows with neither in Context Files; T03's format decision had its criteria only in the spine's Residuals. All three now reachable from the tickets themselves |
+| Merge Order vs Interfaces direction | FIXED | round 2: T02 consumed T04's matcher while merging BEFORE it. T04 now merges second, T02 third |
 
 ## Context Ledger
 
@@ -112,8 +135,14 @@ MATCHED) plus the four standing recurrence classes. Every row adjudicated before
 **Ground truth read this session:**
 
 - `scripts/select_rules.py:148-158` — the ACTIVE/AVAILABLE split, and the circularity.
-- `scripts/select_rules.py:47` — `_GLOBS`, the second independent frontmatter parser.
-- `scripts/review_rubric.py:183` — `_glob_matches_path`, the first matcher.
+- `scripts/select_rules.py:123` — `_glob_has_match`, the root-scan matcher (and `:130-131`, its
+  empty-pattern `return False`).
+- `scripts/select_rules.py:47` — `_GLOBS`, the frontmatter regex — NOT a matcher, and out of scope.
+- `scripts/review_rubric.py:183` — `_glob_matches_path`, the single-path matcher (and `:191-194`, its
+  empty-pattern `return True`, whose own comment calls the divergence deliberate).
+- `scripts/final_gate.py:221-248` — `run_optional_check`, and `warn_only=True`'s contract.
+- `scripts/enforcement/check_command_corpus.py:24-45` — the five facts it proves, none of which can
+  observe D7's prose.
 - `scripts/review_rubric.py:168` — `_packs()`, the corpus loader reused by the audit.
 - `commands/_sources/fabrik-execute-plan.md:520` — D7, "Final validation + terminal states".
 - `src/fabrik/scaffold.py:138` — `SCAFFOLD_TYPES`, the 12-type registry (ground enumerations here, never from memory).
@@ -134,7 +163,9 @@ enumerations from the live registry.
 - .windsurf/rules/core/75-workers-jobs.md
 - .windsurf/rules/core/app-audit-log.md
 - tests/enforcement/test_pack_reachability.py
+- tests/enforcement/test_pack_layout_audit.py
 - tests/test_rules_match.py
+- tests/test_execute_plan_d7.py
 - docs/reference/rule-pack-reachability.md
 - docs/development/plans/2026-08-25-plan-1-inert-rule-packs/
 
@@ -146,8 +177,19 @@ enumerations from the live registry.
   `set_quality` back-fill) for the gradeable fan-out, native Opus ADDED on top for the
   authoritative/high-risk pass — here, T03's check semantics and every `.windsurf/rules/**` edit,
   because those distribute to ~46 repos. Never pool-only, never Opus-only.
-- **Parallelism + merge** — T01, T02, T04 fan out concurrently (disjoint Touches). T03 serializes
-  behind T02 (consumes its audit engine). T99 merges last. Results merge in Merge Order.
+- **Parallelism + merge** — T01 and T04 fan out concurrently (disjoint Touches). T02 serializes behind
+  T04 (consumes its matcher), T03 behind T02 (consumes its audit engine). T99 merges last. Results
+  merge in Merge Order.
+- **Ticket breadth (adjudicated, `check_ticket_breadth.py --plan-dir`)** — T02 and T03 both score 5
+  (T02) and 6 (T03) and both are KEPT WHOLE, with reasons. **T02**: the suggested peel is `scripts/`
+  from `.windsurf/`, but the audit and the two corrected globs prove each other — the audit's verdict
+  on those packs flipping from inert to reachable IS the glob fix's only evidence, so a split would
+  spread one invariant across two tickets. **T03**: two peels are suggested and both are refused —
+  `docs/reference/rule-pack-reachability.md` is the check's Doc Sync Matrix receipt and must land in
+  the same change as the check, and peeling the `final_gate.py` wiring would separate the check from
+  its only production consumer, which is precisely the stored-and-never-read defect the wired-consumer
+  rule exists to stop. The tool's own footer measures precision at 0.50 (n=14) — it is a screen, and
+  this is the LOOK it asked for.
 
 ## Evidence
 
@@ -164,8 +206,11 @@ and never a live request.
                 available.append(entry)
 ```
 
-Measured consequence — all three inert packs land in AVAILABLE, never ACTIVE, so
-"ACTIVE ∧ matches-zero" is empty by construction:
+Measured consequence — every zero-matching pack lands in AVAILABLE, never ACTIVE, so
+"ACTIVE ∧ matches-zero" is empty by construction. The probe below makes the point sharper than the
+original framing did: the two genuinely-broken packs and the one that is correctly manual are
+**indistinguishable** in this output. A check reading this split cannot tell a defect from a design
+choice, which is exactly why the expectation must be declared independently:
 
 ```
 $ cd /opt/transdoc && python scripts/select_rules.py | grep -A40 '^AVAILABLE' | grep -E '75-workers|app-audit|00-domain-saas'
@@ -174,12 +219,16 @@ $ cd /opt/transdoc && python scripts/select_rules.py | grep -A40 '^AVAILABLE' | 
   • saas/00-domain-saas.md — SaaS domain — PLANNING layer. Vision-intake dimensions (ICP,
 ```
 
-**Phase T04** — two independent parsers exist today:
+**Phase T04** — two independent path matchers exist today, with THREE call sites between them
+(round 1 cited `_GLOBS` here, which is the frontmatter regex, not a matcher — corrected):
 
 ```
-$ grep -n "_GLOBS\|_glob_matches_path" scripts/select_rules.py scripts/review_rubric.py
-scripts/select_rules.py:47:_GLOBS = re.compile(r"^globs:\s*\[(.*?)\]", re.MULTILINE | re.DOTALL)
+$ grep -n "_glob_matches_path\|_glob_has_match" scripts/select_rules.py scripts/review_rubric.py
+scripts/select_rules.py:123:def _glob_has_match(root: Path, glob: str) -> bool:
+scripts/select_rules.py:156:            if any(_glob_has_match(root, g) for g in globs):
+scripts/select_rules.py:177:            {"pack": e["pack"], "globs_fired": [g for g in e["globs"] if _glob_has_match(root, g)]}
 scripts/review_rubric.py:183:def _glob_matches_path(changed: str, glob: str) -> bool:
+scripts/review_rubric.py:241:        hits = [c for c in changed if any(_glob_matches_path(c, g) for g in globs)]
 ```
 
 **Phase T99** — the corpus audit harness, run this session against a real tree:
@@ -199,35 +248,53 @@ T04. Already-landed `15-api-contracts` glob fix → explicitly excluded above. W
 proposals → excluded in T01's DO-NOT. No gap found.
 
 **Cross-phase signature consistency** — T02 produces `audit_layout(root, types)`; T03 consumes that
-exact name. T04 produces `pack_matches_path` / `packs_for_paths`; T02, T03 and `select_rules.py`
-consume those exact names. Checked by name, not by intent.
+exact name. T04 produces `pack_matches_path` / `any_path_matches` / `packs_for_paths`; T02, T03 and
+`select_rules.py` consume those exact names, and T04 merges before both consumers. Checked by name
+AND by merge position, not by intent.
 
-**What was verified vs assumed** — VERIFIED by execution: the circularity, the three inert packs, the
-two parsers, D7's text, the 12-type registry. ASSUMED and carried as a decision, not a fact: that
-`applies_to` belongs in pack frontmatter rather than a central registry (see Residual unknowns).
+**What was verified vs assumed** — VERIFIED by execution: the circularity, the two inert packs, the
+two matchers and their divergence, D7's text and its gate's actual five checks, the 12-type registry,
+`run_optional_check`'s `warn_only` contract, and that T02's original Gate exits 4 today. Nothing
+material is carried as an assumption: the `applies_to` format is now a DECISION recorded in Global
+Constraints, not an open question.
 
-**CONVERGED** — `/fabrik-plan-review`, 2 rounds, edit-free round md5-verified
-(`9305b79235f7a5bd8d69c262ff387dda` before == after over the combined set).
+**Convergence receipt** — the combined-set md5 is recorded in the review report's Pass Ledger, not in
+this file. Writing the hash into the plan changes the plan, so an in-file hash can never equal the
+state it claims to certify: the round-1 receipt recorded `9305b792…` and no reachable state of this
+set reproduces it (the committed set hashed `9d7501a1…`, the spine alone `d5a180a1…`). Reproduce the
+current hash with
+`find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum`.
 
-**Round 1 found three defects, one of them mine and material:**
+**Round 1** found three defects. The material one: `saas/00-domain-saas.md` is `activation: manual`
+with an explicit *"NOT glob-activated ON PURPOSE … Do not re-add one"* (`:6-11`) — it matches zero
+source files BY DESIGN, the first draft called it inert, and T02 would have added a glob the pack
+forbids. Removed; the audit now filters on `activation: glob` first, which is why "30 zero-match" was
+inflated by four correctly-manual `00-domain-*` packs. transdoc's two findings stand unchanged.
 
-1. **REFUTED my own headline finding.** `saas/00-domain-saas.md` is `activation: manual` and carries
-   an explicit *"NOT glob-activated ON PURPOSE … Do not re-add one"* (`:6-11`). It matches zero source
-   files BY DESIGN. The first draft listed it as inert and T02 would have added a glob the pack
-   forbids. Removed; the audit now filters on `activation: glob` first — a filter the original harness
-   never applied, which is why "30 zero-match" was inflated by four correctly-manual `00-domain-*`
-   packs. transdoc's two findings stand unchanged.
-2. **Unnamed produced symbols.** The spine's Interfaces named `pack_matches_path` / `packs_for_paths`
-   but T04 never mentioned them, so a dispatched coder would have invented names. Both tickets now
-   name them explicitly.
-3. **Signature/deferral seams clean** — READ budget 0 findings across all five tickets, zero
-   `[OPEN → resolve at Phase N]` landmines, and Residual #1 verified as a real in-ticket decision gate
-   at `T03:14`, not a disguised deferral.
+**Round 2 — a second, independently-armed review found TWELVE more defects in the set round 1 had
+declared converged.** The dominant class was seams between tickets, invisible to a per-ticket read:
 
-**Four of my own probes were wrong before the artifact was** — a `grep -c` on a line-wrapped phrase,
-an off-by-one `sed` line, and two earlier in the audit. Each was corrected against the file rather
-than believed. The pattern is worth carrying into execution: a line-anchored probe over wrapped
-markdown is a false negative generator.
+1. **T02's Gate ran a test file T02 does not own**, created by T03, which merges after it — proven
+   `exit 4` today. T02 now owns `tests/enforcement/test_pack_layout_audit.py`.
+2. **T02 consumed T04's matcher while merging BEFORE T04.** Merge Order corrected.
+3. **T04's "pure move, byte-identical" was false.** `_glob_matches_path` takes a path,
+   `_glob_has_match` takes a tree, and they disagree deliberately on the empty pattern — collapsing
+   them would have silently changed the ACTIVE/AVAILABLE split in ~46 repos.
+4. **The "no third glob parser" constraint named the wrong file.** `select_rules.py:47 _GLOBS` is the
+   frontmatter regex, not a matcher; the real second matcher is `select_rules.py:123`. A coder
+   obeying the DO-NOT literally would have deleted the frontmatter parser.
+5. **T03's check would have shipped asking nothing** — it added `applies_to` that no pack declared,
+   and its own contract made an undeclared pack pass silently. Exactly the fail-silent-green class
+   this plan exists to close, authored INTO the plan that closes it.
+6. **T01's Gate could not observe its own Behavior row** — `check_command_corpus.py` proves five
+   mechanical facts and none of them reads D7's prose. A prose-pin test now does.
+7–12. Read-set gaps (T02 cited two files absent from its Context Files; T03's decision criteria lived
+   only in the spine), the deferred format decision, the unspecified `final_gate` hook, and the
+   unrun-until-now `check_ticket_breadth` advisory — now adjudicated in Execution Discipline.
+
+**Method note carried into execution:** across both rounds, six of my own probes were wrong before the
+artifact was — line-anchored greps over wrapped markdown, an off-by-one `sed`, and a hash that could
+not be reproduced. Verify the probe before believing its verdict.
 
 ## Residual unknowns
 
@@ -240,18 +307,20 @@ markdown is a false negative generator.
 - *Sequence by effort or by class-coverage?* — coverage. D7 is first because it is the only item that
   catches the class regardless of which of the six verification layers fails.
 
+- *Where `applies_to` lives* — **per-pack frontmatter**, decided at round 2 and recorded in Global
+  Constraints. A central `scaffold-type → packs` registry was the alternative; rejected because a
+  registry drifts from the pack silently, which is the failure this plan exists to close. Round 1
+  carried this as "T03 step 1 decides it in writing" — a deferred question wearing a resolution
+  step's clothes: the ticket named no criteria and no default, so the executor would have stalled or
+  guessed. Deciding it here IS the fix.
+
 **STILL OPEN — each with its resolution step**
 
-1. **Where `applies_to` lives** — per-pack frontmatter (this plan's inclination) vs a central
-   `scaffold-type → packs` registry. Frontmatter keeps the declaration beside the globs it
-   cross-checks; a registry avoids touching 56 synced files. **Resolution: T03 step 1 decides it in
-   writing, with the format's blast radius stated, BEFORE any pack is edited.** Not deferred into
-   execution — T03 cannot start its edits until the decision line exists in the ticket.
-2. **Whether the audit needs a real scaffold per type** — the honest denominator is "paths the
+1. **Whether the audit needs a real scaffold per type** — the honest denominator is "paths the
    scaffolder actually emits", which may require scaffolding each of the 12 types to a temp dir rather
    than reading templates. **Resolution: T02 step 2 runs `fabrik scaffold --type <t>` into a
    throwaway dir for ONE type and compares against the template-derived list; if they diverge, the
    scaffold path is the denominator.** Self-service, no operator input needed.
-3. **Promotion of the new check from WARN to blocking** — deliberately out of scope. **Resolution:
+2. **Promotion of the new check from WARN to blocking** — deliberately out of scope. **Resolution:
    operator decision after the corpus is clean; recorded in `docs/reference/rule-pack-reachability.md`
    as the explicit next gate.**
