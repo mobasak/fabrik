@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Payments webhook-ingest registrar role (`shape.needs_payments_ingest`) (2026-08-25)
+
+- New `shape.needs_payments_ingest` flag (requires `needs_database`): a project vendoring
+  fabrik-lib `payments` that takes unsigned-provider (iyzico) webhooks gets `fabrik apply` to
+  mint a **scoped, NON-BYPASSRLS** cross-tenant ingest role + inject `PAYMENTS_INGEST_DATABASE_URL`,
+  so `PgWebhookStore.resolve_org()` can attribute a webhook to its tenant (the tenant is the unknown
+  being resolved) under FORCE RLS.
+- `drivers/postgres.py::create_payments_ingest_role` mirrors `create_watchdog_roles` (split CREATE +
+  idempotent, table-existence-guarded grant/policy batch, CSPRNG-only-on-create). The role's
+  cross-tenant reach comes ONLY from permissive policies on the 3 tables the store touches (pinned
+  from `store.py`): SELECT on `customers`/`subscriptions`, INSERT+SELECT on `webhook_events`.
+  Wired into `_provision_postgres` behind the flag; DSN injected only on a fresh password.
+- Least-privilege over fabrik-lib's BYPASSRLS default — a leaked ingest DSN is confined to the
+  payments tables (non-payments tables are `permission denied`), proven live against a real PG.
+  Consuming projects wire `verify_service_role(..., allow_policy_based=True)`. Rule-pack contract
+  documentation handed to infra.
+
 ### Fixed — the vendored-drift instrument had its own blind spot: rules packs (2026-08-25)
 
 fabrik-lib, mail `01M0W4ZPGW9DB562TX4FV6VECM`. `check_vendored_drift.py` was built to close the
