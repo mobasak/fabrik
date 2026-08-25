@@ -99,10 +99,23 @@ def main() -> int:
 
             types = sorted(SCAFFOLD_TYPES)
         except (RuntimeError, ImportError) as e:
+            # This file is governance-synced to ~46 repos but the scaffolder is HUB-ONLY.
+            # Where it is unreachable this check cannot ask its question — so it says so and
+            # exits 0. It must NOT return 1: `run_optional_check(..., warn_only=True)` fails
+            # the gate on ANY non-zero exit ("a broken contract is a louder finding than a
+            # quiet one"), so returning 1 here would turn an ADVISORY row RED on every repo
+            # that cannot see the hub. Verified by simulating the unreachable scaffolder:
+            # the old path returned 1 → gate red (D7 whole-plan validation, 2026-08-25).
+            #
+            # Exiting 0 with an explicit "0 examined" is this plan's OWN doctrine applied to
+            # itself: a silent pass is only honest when it states its denominator. "0 examined
+            # — scaffolder unavailable" can never be mistaken for "every pack is reachable".
             print(
-                f"ERROR: could not resolve the live SCAFFOLD_TYPES registry: {e}", file=sys.stderr
+                "0 pack(s) examined — the fabrik scaffolder is unavailable here, so pack "
+                f"reachability cannot be evaluated ({e}). This check is HUB-ONLY; on a synced "
+                "project it is a no-op, not a pass.",
             )
-            return 1
+            return 0
 
     examined = _examined_packs(root, types)
     findings = pla.audit_layout(root, types)

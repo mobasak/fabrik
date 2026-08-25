@@ -224,3 +224,37 @@ def test_real_corpus_advisory_exit_and_examined_count():
     assert result["examined_count"] >= 2
     assert "core/75-workers-jobs.md" in result["examined_packs"]
     assert "core/app-audit-log.md" in result["examined_packs"]
+
+
+def test_unavailable_scaffolder_is_a_quiet_no_op_not_a_gate_failure(monkeypatch, capsys) -> None:
+    """Where the hub scaffolder is unreachable the check must exit 0, saying "0 examined".
+
+    This file is governance-synced to ~46 repos; the scaffolder is HUB-ONLY. The check is
+    wired as `run_optional_check(..., warn_only=True)`, and that contract fails the gate on
+    ANY non-zero exit — so returning 1 here would turn an ADVISORY row RED on every repo
+    that cannot see the hub. Verified live before the fix: the old path returned 1.
+    (D7 whole-plan validation finding, 2026-08-25.)
+
+    It exits 0 AND states its denominator. A silent pass is only honest when it says what it
+    examined — "0 examined, scaffolder unavailable" can never read as "every pack is fine",
+    which is the exact fail-silent-green class this whole plan exists to close.
+    """
+    import sys
+
+    import check_pack_reachability as cpr
+    import pack_layout_audit as pla
+
+    def _unavailable():
+        raise RuntimeError("fabrik scaffolder not found — hub only")
+
+    monkeypatch.setattr(pla, "_import_create_project", _unavailable)
+    # main() reads sys.argv; under pytest that holds pytest's own args and argparse aborts.
+    monkeypatch.setattr(sys, "argv", ["check_pack_reachability.py"])
+    pla._emitted_paths_for_type.cache_clear()
+
+    rc = cpr.main()
+
+    assert rc == 0, "an advisory check that cannot ask its question must NOT fail the gate"
+    out = capsys.readouterr().out
+    assert "0 pack(s) examined" in out, "the denominator must be stated, not implied"
+    assert "unavailable" in out.lower(), "it must say WHY it examined nothing"
