@@ -556,6 +556,7 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [architecture.md](docs/reference/architecture.md) | System architecture, components, data flow |
+| [rule-pack-reachability.md](docs/reference/rule-pack-reachability.md) | Why a rule pack can be silently INERT — `globs:` written for a directory-per-concern layout vs scaffolds that emit file-per-concern — why the obvious ACTIVE-set check is CIRCULAR and can never fire, what the `applies_to:` frontmatter declares, how to add it to a pack, and the cross-ticket seam proof. Promotion of the advisory check to blocking is a deliberate operator decision once the corpus is clean. |
 | [agents/infra.md](docs/reference/agents/infra.md) | infra agent charter (dev infrastructure + workstation + agent comms) — SessionStart overlay via `agent_role.py` |
 | [agents/fleet.md](docs/reference/agents/fleet.md) | fleet agent charter (VPS + deployment + new-project provisioning) — SessionStart overlay via `agent_role.py` |
 | [agents/intel.md](docs/reference/agents/intel.md) | intel agent charter (model intelligence until extraction + standing reviewer + floater) — SessionStart overlay via `agent_role.py` |

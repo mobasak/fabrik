@@ -135,6 +135,67 @@ the check itself failed to run (e.g. the live `SCAFFOLD_TYPES` registry could no
 resolved), never that a pack was found unreachable. Findings and the examined count are
 both printed to stdout regardless of exit status.
 
+## Cross-ticket seam proof (T02 x T03 x T04 agree)
+
+Three tickets independently touch the same "does this pack's glob reach this scaffold
+type's output" question — `pack_layout_audit.audit_layout()` (T02), the gate wrapper
+`check_pack_reachability.py` that reuses it (T03), and the shared path/glob matcher
+`rules_match.packs_for_paths()` (T04), which answers the same question through a
+*different* call path (`pack_matches_path` + `_prefixes` vs. `audit_layout`'s direct
+`_tail_matches` loop over pre-fetched emitted paths). An executable check run against
+the live corpus for both packs that currently declare `applies_to:` — including a
+negative control asking each pack about a scaffold type it does *not* claim — confirms
+all three agree, with no disagreement papered over:
+
+```
+$ /opt/fabrik/.venv/bin/python /tmp/.../seam_proof.py
+{
+  "fixtures": [
+    {
+      "pack": "core/75-workers-jobs.md",
+      "claimed_type": "file-worker",
+      "emitted_path_count": 254,
+      "positive": {
+        "T02_audit_layout_reachable": true,
+        "T03_examined_pack": true,
+        "T03_reachable": true,
+        "T04_packs_for_paths_reachable": true,
+        "AGREE": true
+      },
+      "negative_control": {
+        "unclaimed_type": "saas-skeleton",
+        "T02_is_finding (must be False)": false,
+        "T03_examined (must be False)": false,
+        "AGREE": true
+      },
+      "AGREE": true
+    },
+    {
+      "pack": "core/app-audit-log.md",
+      "claimed_type": "saas-skeleton",
+      "emitted_path_count": 359,
+      "positive": {
+        "T02_audit_layout_reachable": true,
+        "T03_examined_pack": true,
+        "T03_reachable": true,
+        "T04_packs_for_paths_reachable": true,
+        "AGREE": true
+      },
+      "negative_control": {
+        "unclaimed_type": "file-worker",
+        "T02_is_finding (must be False)": false,
+        "T03_examined (must be False)": false,
+        "AGREE": true
+      },
+      "AGREE": true
+    }
+  ],
+  "OVERALL_AGREE": true
+}
+```
+(exit code 0 — the script asserts `OVERALL_AGREE` and fails the process on any
+disagreement; it is a throwaway integration-ticket receipt, not a shipped script.)
+
 ## Promotion to blocking
 
 This check is **advisory only** (`warn_only=True` in `scripts/final_gate.py`) by design.
