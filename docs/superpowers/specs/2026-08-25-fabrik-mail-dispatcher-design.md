@@ -30,13 +30,17 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
    atomicity (the dispatcher sees ENOENT and skips it — routing only ever touches files still in
    the inbox), and a crashed run leaves no lock debris that blocks the next (stamp + `flock`, the
    `weekly_catchup.sh` pattern).
-3. Any `ack: required` message unacked ≥ `FABRIK_MAIL_ESCALATE_DAYS` (default 3) appears in a
-   Telegram escalation at most once per calendar day (the dispatcher's own frontmatter scan →
-   `send-telegram.sh`; `mail.py digest`'s aggregate counts are the cross-check — § approach 5).
+3. Any `ack: required` message unacked ≥ `FABRIK_MAIL_ESCALATE_DAYS` (default 3) — whether it
+   sits in the INBOX or was claimed into the ARCHIVE without an `acked-by:` resolution line
+   (`mail.py:191` `_ACK_LINE`; measured 2026-08-25: 8 of the 13 live unacked obligations are
+   archive strands, invisible to an inbox-only scan) — appears in a Telegram escalation at most
+   once per calendar day, sent via the hub-vendored **`libs/alerting`** telegram module
+   (§ approach 5 — the module that knows the split-credential layout in `/opt/fabrik/.env`).
 4. LLM usage is runaway-proof and visible — but NOT dollar-capped (operator directive
    2026-08-25, consistent with the standing rule "no budget caps on sysadmin LLM calls;
    Claude Code is subscription-billed"): exactly one classification call per message ever
-   (a decided message is never re-classified; an undecidable one is parked, not retried),
+   (a decided message is never re-classified; an undecidable one goes to the charter floater
+   tier — intel — never retried),
    per-call timeout with process-group kill, `flock` against overlap — and the estimated
    `total_cost_usd` is logged per run for visibility, gating nothing.
 5. Zero auto-replies in v1 — the run sends NO mail (§ Out of scope), so the loop-safety guards
@@ -71,43 +75,85 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
 One new box-local script, `scripts/mail_dispatcher.py`, run by a stamp-checked, `flock`-guarded
 cron line the OPERATOR installs (agents cannot write the crontab). Per run:
 
-1. **Scan** the hub mailbox (`/opt/fabrik-mail/fabrik/inbox/`) — parse EVERY inbox message once
-   per run, then split into TWO populations that must never be conflated: the **routing leg**
-   works the unaddressed subset (no `agent:` field), while the **escalation leg (step 5) works
-   ALL `ack: required` messages regardless of `agent:`** — a message routed on day 1 and never
-   acked must still escalate on day 3 (an escalation scan keyed on "unaddressed" would go blind
-   the moment routing succeeded, the exact rot this build exists to stop). Project inboxes are
-   out of scope — each project's own agents consume those; the hub's routing problem is the
-   three-hub-agent shared mailbox (the measured rot site).
-2. **Deterministic classification first** — a small, testable rule table over frontmatter +
-   subject line (never body execution). **Routing keys on CONTENT, never on the sender**
+1. **Scan** the hub mailbox (root from `FABRIK_MAIL_ROOT`, default `/opt/fabrik-mail` — the
+   dispatcher honors the SAME env seam `mail.py:_mail_root` reads, so tests redirect BOTH layers
+   to a tmp fixture with one variable) — parse every `fabrik/inbox/` message once per run, then
+   split into populations that must never be conflated: the **routing leg** works the unaddressed
+   inbox subset (no `agent:` field, minus the structural skip-list below), while the
+   **escalation leg (step 5) works ALL `ack: required` messages regardless of `agent:` — in the
+   inbox AND claimed-but-unresolved in `fabrik/archive/`** (no `acked-by:` line per
+   `mail.py:191`; `claim()` renames inbox→archive at `mail.py:745`, so an inbox-only scan goes
+   blind to claimed-then-forgotten obligations — measured 2026-08-25: 8 of 13 live unacked
+   obligations are exactly these archive strands). A message routed on day 1 and never acked
+   must still escalate on day 3 (keying escalation on "unaddressed" would go blind the moment
+   routing succeeded). **Structural skip-list:** messages whose SEMANTICS require all-agents
+   visibility are never routed and never sent to the LLM — the standing member is the daily
+   kaizen collector mail (`kaizen_collect_v2.py:2485` sends unaddressed by design; BOTH the
+   infra and fleet charters name it as their weekly pass trigger, and `agent:` is single-valued
+   — any route would silently remove one beat's trigger). Skip-listed = logged, left visible to
+   all three, zero LLM cost. Project inboxes are out of scope — each project's own agents
+   consume those; the hub's routing problem is the three-hub-agent shared mailbox.
+2. **Deterministic classification first** — a small, testable rule table over frontmatter + the
+   subject line. Honesty note: `mail.py` has no subject FIELD — the "subject" is the body's
+   FIRST LINE (`mail.py:509-520` `_subject_tokens`), i.e. untrusted sender-controlled text; the
+   deterministic tier only ever keyword-MATCHES it (worst case a misroute, same as any tier —
+   never execution), and the dispatcher IMPORTS `mail.py`'s own read helpers (`_parse`,
+   `_subject_tokens`, `_age_seconds` — read-only import, mutation stays CLI-only) rather than
+   re-implementing parsers that would silently drift. **Routing keys on CONTENT, never on the sender**
    (operator correction 2026-08-25): with 46 active projects, ANY project can raise deploy,
    research, or governance mail in the same week — a per-sender prior encodes "project X's mail
    is about beat Y", which is exactly the wrong assumption at fleet scale. The rule signals are:
-   an EXPLICIT addressee the sender already wrote (subject prefix like `[x→fleet]`, or `to-agent`
-   at send time) — always wins; then `kind` + subject-keyword rules derived from the beat
-   CHARTERS (enforcement/command/gate/rule-pack/mail.py → infra; deploy/VPS/compose/registrar/DR
-   → fleet; model/benchmark/flywheel/research → intel; credential/console/decision-only →
-   operator-class, § Routing). The sender repo is LOGGED as context and reported in stats — never
+   an EXPLICIT addressee prefix the sender already wrote in the subject — matched in BOTH live
+   encodings, `[x→y]` (U+2192) and `[x->y]` (measured 2026-08-25: the archive splits 7/5 across
+   them; pinning one form would miss five of thirteen), taking the RIGHT-hand token (the
+   addressee — the LEFT token is the SENDER, and a group-1 extraction would silently reintroduce
+   the banned sender-key; a dedicated test pins right-side extraction); a bare `[x]` prefix is
+   ambiguous (sender or addressee?) and is NOT a signal. (A send-time `--to-agent` needs no rule
+   — it already wrote the `agent:` field, so the message never enters the routing scan.) Then
+   `kind` + subject-keyword rules derived from the beat CHARTERS — grounded against the REAL
+   charter files, not prose: enforcement/command/gate/rule-pack/hooks/mail.py/**DR** → infra
+   (`infra.md` mandate names DR explicitly; the earlier "DR → fleet" example was charter drift);
+   deploy/VPS/compose/registrar/scaffold/monitoring → fleet (EXCEPT `templates/governance` →
+   infra, the carve-out both charters pin); model/benchmark/flywheel/model-selection → intel
+   (`intel.md`'s mandate is "model intelligence", not "research" — the earlier keyword was
+   prose, not charter); credential/console/decision-only → operator-class, § Routing. The RULES
+   table records the charter files' md5s at derivation and a test compares them to the live
+   charters — a charter edit reds the suite instead of silently staling the table. The sender
+   repo is LOGGED as context and reported in stats — never
    a routing key. **Precedence is pinned, not guessed:** an explicit addressee is TIER 0 and
    TERMINAL — when present it decides outright and no rule (however keyword-rich the subject) is
    even evaluated against it; the specificity logic applies only WITHIN the rule tiers below it:
    (`kind` + keyword) composite → keyword; a strictly more specific match WINS over a less
    specific one; only matches at the SAME specificity tier that disagree on the beat make the
    message UNMATCHED and fall to the LLM (never a silent first-match win — a deterministic
-   misroute is worse than a bounded LLM call). Adding a FUTURE beat is config, not surgery:
+   misroute is worse than a bounded LLM call). **Final tier — the charter floater:** what the
+   rules AND the LLM both fail to place (or everything, when the CLI is unavailable and the
+   per-run bound is spent) routes to **intel** with the `floater-default` log marker —
+   `intel.md` § Floater: "urgent unowned work (relays, unclaimed queue items) defaults to you";
+   the charters already name the owner of unowned mail, so nothing ever rots ownerless and the
+   LLM is an accuracy upgrade, not a load-bearing dependency. **Human override is FINAL:** the
+   dispatcher keeps a routed-once ledger (same mechanics as the LLM attempt ledger) — it routes
+   any given message AT MOST ONCE EVER, so a human clearing an addressee (`route --to-agent ''`,
+   the sanctioned undo) is never re-overwritten seconds later by the same rule; a cleared
+   message stays visible to all three sessions, which is exactly what the human asked for.
+   Adding a FUTURE beat is config, not surgery:
    `mail.py`'s `_safe_agent` shape-validates any role (no hardcoded three-set, `:367-385`), so a
    new charter needs only new RULES rows + the enum value. Operator-class is not a
    beat: its rules resolve to a (beat, `operator-decision` marker) pair like § Routing defines.
    Every deterministic route logs its matched rule (auditable).
 3. **LLM fallback, bounded, for the unmatched remainder — via VENDORED
    `fabrik-lib/llm-dispatch`** (the complete `claude -p` module: `ClaudeCall → dispatch() →
-   DispatchResult`, schema-enforced JSON via `--json-schema`, native `--max-budget-usd`,
-   process-group kill on timeout, argv-injection guard, `is_error`-only success authority —
-   exactly this call's needs, already hardened + 62-tested; never a hand-rolled subprocess).
-   ONE call per undecided message: `--permission-mode dontAsk` (mandatory — the `-p` starting
-   mode is Manual on every plan, so unattended runs MUST pass one explicitly), empty
-   `--allowedTools`, output schema
+   DispatchResult`, schema-enforced JSON via `--json-schema`, process-group kill on timeout,
+   argv-injection guard — exactly this call's needs, already hardened + 62-tested; never a
+   hand-rolled subprocess). ONE call per undecided message: `--permission-mode dontAsk`
+   (mandatory — the `-p` starting mode is Manual on every plan, so unattended runs MUST pass one
+   explicitly), `tools=()` — which the module emits as **`--tools ""`** (no tools at all;
+   ERRATUM: the earlier "--allowedTools" wording named a flag this design never emits —
+   `allowed_tools` is a different `ClaudeCall` field, `llm_dispatch.py:157-159`), with model AND
+   effort pinned explicitly (`model="haiku"`, `effort="low"` — `LLMConfig.from_env` otherwise
+   inherits box-level `CLAUDE_CLI_MODEL`/`CLAUDE_CLI_EFFORT` set for other consumers; the
+   `haiku` alias is verified with one dev-time live probe before the fallback ships), output
+   schema
    `{"beat": enum[infra,fleet,intel], "operator_decision": boolean, "why": string}` (ERRATUM,
    plan-review 2026-08-25: the earlier 4-value enum with `"operator"` left the operator→beat
    mapping undefined — the response carried no subject-area to map with; the boolean returns
@@ -124,7 +170,7 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    the watchdog pack's cost-ceiling clause, which is written for metered API loops): runaway
    protection is structural instead — **exactly ONE classification attempt per message, ever**
    (the dispatcher records attempted ids; a decided message is never re-classified, an
-   undecidable one is parked for a human, never retried), per-call `timeout_s` with
+   undecidable one goes to the floater tier, never retried), per-call `timeout_s` with
    llm-dispatch's process-group kill, and `flock` against overlapping runs. Each call's
    estimated `total_cost_usd` is logged per run for visibility only — it gates nothing.
    **Per-run LLM-call BOUND (a latency bound, not a money cap):** at most
@@ -133,11 +179,15 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    tail is ledger-free and retries within minutes on the next trigger/sweep, so the bound costs
    nothing but bounds run duration structurally.
    "Day" = the local calendar date (`YYYY-MM-DD` stamp) — the definition the escalation dedup
-   uses. **CLI unavailability fails soft:** if the `claude` binary is
-   missing, hung, quota-exhausted, or its OAuth expired (any `llm-dispatch` error), the run marks
-   LLM-unavailable ONCE, skips the remaining fallback calls (no per-message retry storm every 30
-   minutes), logs loudly, and leaves the tail unrouted — deterministic routing and escalation
-   continue unaffected. **Injection frame:** the body is fenced with a run-unique random boundary
+   uses. **CLI unavailability fails soft, classified by EXCEPTION TYPE (not by `is_error` —
+   `dispatch()` RAISES on an errored envelope, `llm_dispatch.py:640-654`, it never returns one):**
+   `DispatchSpawnError` (binary missing) and `DispatchTimeout` are infra-class; `SchemaValidation
+   Failed` (the CLI's structured-output retry ceiling) is message-class; a bare `DispatchError`
+   (auth, quota, anything unattributable) is treated as INFRA-class — conservative: an attempt
+   the dispatcher cannot PROVE was about the message never burns that message's lifetime
+   attempt. Infra-class → un-consume the ledger entry, mark LLM-unavailable for the rest of the
+   run (no retry storm), log loudly; the tail falls to the floater tier — deterministic routing
+   and escalation continue unaffected. **Injection frame:** the body is fenced with a run-unique random boundary
    string; a body containing the boundary (or an unparseable response) is left unrouted for a
    human — worst case of a successful injection is a misroute, which `route`-as-filter makes a
    one-command human fix. The model's `why` string is itself untrusted OUTPUT: it is length-capped
@@ -153,24 +203,28 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    dispatcher **routes without claiming** — `claim` is the ack-lock that pulls a message out of
    the inbox for ONE session, and a robot holding that lock would hide the message from every
    human session; `route` is the addressee FILTER, which is the actual delivery-to-owner need.
-5. **Escalate aging obligations:** the dispatcher's own frontmatter scan (it already parses
-   every inbox message for routing) collects `ack: required` items older than
-   `FABRIK_MAIL_ESCALATE_DAYS` with id · sender · age · assigned beat (age from the frontmatter
-   `ts`, never file mtime — `route` rewrites via `os.replace`, resetting mtime). ERRATUM
-   (plan-review 2026-08-25): the earlier "cross-check via `mail.py digest`" is withdrawn —
-   `digest()` MUTATES (`_quarantine`, `scripts/mail.py:1069-1071`) and counts every repo plus
-   archive strands, a different population; the dispatcher's own hub-inbox counts are the
-   observability. One Telegram message per calendar day (the day-stamp is written at the moment
-   of the SUCCESSFUL send, with that moment's date — a run crossing midnight stamps the new day,
-   so the next run's dedup reads it correctly; no midnight double-fire) via
-   `scripts/sysadmin/send-telegram.sh`; an item that crosses the age threshold AFTER today's
-   escalation already went rides the NEXT day's — acceptable by design for an obligation
-   already ≥3 days old (this is a daily digest, not real-time paging). The message is
-   size-bounded for Telegram's 4096-char limit: the OLDEST 20 items enumerated, then `+K more`
-   with the total — count truth survives any backlog size. When routing health degrades (LLM
-   unavailable across runs, parked or unrouted messages accumulating), the SAME daily message
-   carries those counts — a growing unrouted backlog is an operator-visible signal, never a
-   silent log line.
+5. **Escalate aging obligations:** the dispatcher's own frontmatter scan over BOTH populations
+   from step 1 (inbox `ack: required` + archive strands lacking an `acked-by:` line) collects
+   items older than `FABRIK_MAIL_ESCALATE_DAYS` with id · age · assigned beat — id/age/beat
+   ONLY, no subject or body text, so the message length is arithmetic, not content-dependent
+   (age from the frontmatter `ts`, never file mtime — `route` rewrites via `os.replace`,
+   resetting mtime). ERRATUM (plan-review 2026-08-25): the earlier "cross-check via `mail.py
+   digest`" is withdrawn — `digest()` MUTATES (`_quarantine`, `scripts/mail.py:1069-1071`); the
+   dispatcher's own read-only scan of the same strand signals is the coverage. **Channel
+   ERRATUM (third review, grounded live):** `scripts/sysadmin/send-telegram.sh` is REJECTED —
+   it reads `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID` from `/opt/fabrik/.env.sysadmin`, and that
+   file contains NEITHER key (read live 2026-08-25), so every send exits 1 on day 1 forever;
+   the working channel is the hub-vendored **`libs/alerting`** telegram module, the one code on
+   the box that documents and handles the split-credential layout in `/opt/fabrik/.env`
+   (`libs/alerting/telegram.py:3-21`: `TELEGRAM_FULL_BOT_TOKEN`/`TELEGRAM_BOT_ID`+secret,
+   `TELEGRAM_CHAT_ID`). One Telegram message per calendar day (the day-stamp is written ONLY
+   after a successful send, with the send-moment's date — no midnight double-fire, and a failed
+   send retries next run); an item that crosses the age threshold AFTER today's escalation went
+   rides the NEXT day's — acceptable for an obligation already ≥3 days old (daily digest, not
+   paging). Size-bounded for Telegram's 4096-char limit twice over: oldest 20 items + `+K more
+   (total)` AND a hard 3900-char truncation guard before the send. When routing health degrades
+   (LLM unavailable across runs, parked/floater-routed counts growing), the SAME daily message
+   carries those counts — a degrading router is operator-visible, never a silent log line.
 6. **Observability:** plain stdout (the cron line redirects to `/var/log/fabrik-*.log`, the box
    convention for workstation jobs — this is box-local tooling, not a 12-Factor service; the
    dispatcher itself writes no logfile, only its stamp + spend state). ⚠️ Verified 2026-08-25:
@@ -183,17 +237,22 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    quarantines unparseable frontmatter to `malformed/`, `scripts/mail.py:958`).
 
 **Trigger — immediate, event-driven (operator directive 2026-08-25), with a sweep fallback:**
-- **Primary: an inotify watcher** — a systemd USER service (`inotifywait -m -e create,moved_to`
-  on `/opt/fabrik-mail/fabrik/inbox/`, verified installed: `/usr/bin/inotifywait`; the systemd
-  user manager is `running` on this WSL box) that fires the dispatcher within seconds of a
-  message landing. The watcher wakes the DISPATCHER only — it never wakes a Claude session, so
-  the Layer-2 auto-wake deferral is untouched. Debounced (a burst of arrivals coalesces into one
-  run); the dispatcher's `flock` already makes concurrent fires safe.
+- **Primary: a systemd USER `.path` unit** (`PathModified=` on `/opt/fabrik-mail/fabrik/inbox`;
+  the user manager is `running` and `Linger=yes` on this box) triggering a ONESHOT service —
+  systemd owns the inotify watch, so there is NO long-running watcher process (ERRATUM: an
+  earlier draft described an `inotifywait -m` daemon loop, which the plan's no-daemonize
+  constraint bans; `.path` is the daemonless equivalent and `DirectoryNotEmpty=` is banned
+  separately — it re-fires forever on a never-drained inbox). Fires the dispatcher within
+  seconds of a message landing; wakes the DISPATCHER only, never a Claude session (Layer-2
+  deferral untouched). Edge losses (arrival mid-run, the pre-link `.tmp` event from
+  `_publish`) are covered by the dispatcher's own quiescence re-scan loop + the sweep; a
+  cron-sweep run's own `route` rewrites re-fire the `.path` once — a harmless no-op follow-up
+  run. A lock-skipped fire is LOGGED (one line) — silent-green skips are banned.
 - **Fallback: the stamp-checked sweep** (`*/30` cron line, `weekly_catchup.sh` pattern) — the
   safety net for watcher death, wake-from-sleep, and anything inotify missed. Belt and
   suspenders: the sweep alone is the v0 behavior if the operator installs only the cron line.
 - Install remains operator-owned: ONE cron line (classifier block) + `systemctl --user enable
-  --now fabrik-mail-dispatcher.path` (or the unit's equivalent) — both shipped ready-made.
+  --now fabrik-mail-dispatcher.path` — both shipped ready-made.
 
 ### The `operator` routing class
 
@@ -245,9 +304,9 @@ not work. No new `agent:` value is introduced (protocol untouched in v1).
 |---|---|---|
 | Mailbox protocol, route/claim/digest/should-reply | **REUSE in place** (hub-owned — no copy needed) | `scripts/mail.py` (fleet-synced) — every primitive the dispatcher calls exists today |
 | Stamp-checked catch-up cron | **REUSE in place** | `scripts/sysadmin/weekly_catchup.sh` pattern + `flock` lines (operator-installed) |
-| Telegram escalation / operator alerting | **REUSE in place** (hub-local) | `scripts/sysadmin/send-telegram.sh` — already the hub's escalation path. `fabrik-lib/alerting` was considered and NOT chosen: it is the project-side SSH→VPS-Apprise ladder; the hub has the direct script |
+| Telegram escalation / operator alerting | **REUSE in place** (hub-vendored) | `libs/alerting` (telegram module) — the ONLY code on the box that handles the split Telegram credential in `/opt/fabrik/.env` (`libs/alerting/telegram.py:3-21`). ERRATUM (third review): `send-telegram.sh` was the earlier pick, REJECTED after a live read of its env file — `/opt/fabrik/.env.sysadmin` carries neither key it requires, so it exits 1 unconditionally on this box |
 | Classification + orchestration glue | **BUILD** (small) | `scripts/mail_dispatcher.py` — nothing existing classifies/routes; ~200 lines of rule table + stamps + calls into the vendored module below. New-module-candidate check: FAILS (hub-specific beats + mailbox layout; not generic; single consumer) → project-local, no fabrik-lib flag |
-| Headless LLM call | **VENDOR** | `fabrik-lib/llm-dispatch` — the complete `claude -p` module (schema-enforced JSON, native `--max-budget-usd`, process-group kill, argv-injection guard, subscription auth via the mounted `~/.claude`). Building a raw subprocess here would reinvent its 62-tested surface. No core enhancement anticipated → no upstream note needed; if one emerges, `UPSTREAM_FEEDBACK.md` |
+| Headless LLM call | **VENDOR** | `fabrik-lib/llm-dispatch` — the complete `claude -p` module (schema-enforced JSON, process-group kill, argv-injection guard, subscription auth via the mounted `~/.claude`). Building a raw subprocess here would reinvent its 62-tested surface. (Its `--max-budget-usd` support is deliberately UNUSED here — no dollar caps, operator directive.) No core enhancement anticipated; if one emerges, `UPSTREAM_FEEDBACK.md` |
 
 ## Shape / infra implications
 
@@ -276,14 +335,16 @@ None. Box-local workstation tooling (the kaizen/weekly-catchup class): no scaffo
 - **RESOLVED (design-time):** classification mechanism, cadence, scope (hub mailbox only),
   auto-reply exclusion — all pinned above with rationale; each is a one-line operator override.
 - **OPEN (non-blocking, resolves at plan time):** the deterministic rule table's initial keyword
-  set — seeded from the archived mail that humans already routed (measured 2026-08-25: **35 of
-  144** archived fabrik messages carry an `agent:` label — a small but real labeled corpus), plus
-  kind/keyword statistics from the full archive (sender-repo stats are REPORTED context only,
-  never rules — operator correction 2026-08-25). Resolution step: the rules are derived from the
-  beat CHARTERS (content signals valid for any of the 46 projects), then EVALUATED against the
-  35 labels before the LLM fallback is wired. If the labeled set proves too thin to validate a
-  rule, the fallback IS the design's default path: unmatched → LLM (or unrouted in degraded
-  mode) — an empty table is safe, never wrong.
+  set — derived from the beat CHARTERS (content signals valid for any of the 46 projects), then
+  EVALUATED against the labeled archive (measured 2026-08-25: 35 labels, skewed 20 infra / 13
+  fleet / 2 intel, all from a 10-day window — an EVALUATION AID, never the authority). Validity
+  floor stated up front: the ≥0.8 precision cut applies only to rules with ≥5 labeled matches;
+  a rule with fewer (including every intel rule on n=2, and 0-match rules for charter areas the
+  window never exercised) ships charter-grounded and FLAGGED `unvalidated (n<5)` in the
+  derivation report — cut-for-being-new and pass-vacuously are both wrong, so neither happens
+  silently. Sender-repo stats are REPORTED context only, never rules. If the table proves thin,
+  the fallback chain (LLM → intel floater) is the design's default path — an empty table is
+  safe, never wrong, never ownerless.
 - **OPEN (operator, non-blocking):** the escalation threshold default (3 days) —
   env-overridable; ships unless overridden. (The former budget-default open item is CLOSED:
   operator removed dollar caps entirely, 2026-08-25.)
