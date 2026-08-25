@@ -174,7 +174,16 @@ def _scan(
     # every var. Dedup on the finding's identity, not on the file that triggered it,
     # so a count is a count of problems rather than of entry points.
     seen: set[tuple[str, str, str | None, int | None]] = set()
+    # DENOMINATOR. `0 error(s), 0 warning(s)` cannot distinguish "walked the tree and found
+    # nothing" from "walked nothing" — and the second is how a check that has quietly stopped
+    # working passes for one that is healthy. Measured 2026-08-25 across all 59 checks in a
+    # subject-free repo: 17 emitted an affirmative success claim and exactly ONE stated how much it
+    # had looked at. Say WALKED, not "examined": this runner hands every repo file to check_file
+    # and each check's own dispatch decides what applies, so the walk size is what this layer can
+    # honestly attest. See docs/reference/enforcement-battery-audit.md.
+    walked = 0
     for path in iter_repo_files(root):
+        walked += 1
         try:
             found = check_file(path)
         except Exception as exc:  # noqa: BLE001 — one unreadable file must never
@@ -208,7 +217,7 @@ def _scan(
     scope = "errors+warns" if args.strict else "errors"
     print(
         f"{verdict}: {check_name} — {len(errors)} error(s), {len(warns)} warning(s)"
-        f" [failing on: {scope}]"
+        f" across {walked} file(s) walked [failing on: {scope}]"
     )
     return 1 if failing else 0
 

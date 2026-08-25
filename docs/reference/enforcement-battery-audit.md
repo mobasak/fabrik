@@ -82,13 +82,28 @@ honest and is fine:
 - The **20 silent** exit-0 checks are not implicated: silence on an absent subject is honest. Only an
   affirmative claim is.
 
-## Remaining work
+## Progress
 
-Add a denominator to the success line of: `check_command_corpus` · `check_docker` · `check_doc_links` ·
-`check_env_updates` · `check_health` · `check_openapi_sync` · `check_phase_tests` ·
-`check_retired_terms` · `check_review_coverage` · `check_structure` · `check_test_coverage` ·
-`check_vps_docs` · `check_watchdog`.
+**Done (5 of 13, plus 3 that came free):**
 
-Mechanical, low-risk (message-only — no verdict changes), and independently landable per check. The
-`0 errors / 0 warnings` family (`check_docker`, `check_health`, `check_vps_docs`, `check_watchdog`)
-shares one emitter, so those four are a single edit.
+| check | success line now reads |
+|---|---|
+| `check_doc_links` | `OK — 0 broken of 1849 refs across 215 docs` |
+| `check_docker` · `check_health` · `check_watchdog` | `… across 2553 file(s) walked` |
+| `check_vps_docs` | `… across 3 VPS doc(s)` |
+
+`_check_runner.py` carries the count for **seven** checks, not the four first estimated — `check_ports`,
+`check_env_contract` and `check_deps_sync` gained it for free from the same edit.
+
+**Two units, deliberately.** The runner says **walked**, not *examined*: it hands every repo file to
+`check_file` and each check's own dispatch decides what applies, so walk size is what that layer can
+honestly attest. `check_vps_docs` does **not** walk the repo at all — its subject is the fixed
+`VPS_DOCS` list — so it names *VPS doc(s)*. Forcing the runner's unit there would have been a
+borrowed number the check never earned. **The rule is that a success line names ITS OWN denominator,
+not that every check reports the same one.**
+
+**Remaining (8):** `check_command_corpus` · `check_env_updates` · `check_openapi_sync` ·
+`check_phase_tests` · `check_retired_terms` · `check_review_coverage` · `check_structure` ·
+`check_test_coverage`.
+
+Each is message-only — no verdict logic changes — and independently landable.

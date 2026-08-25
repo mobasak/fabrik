@@ -20,6 +20,7 @@ seam the bug lived in: the findings were always right, the exit code was not.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -92,3 +93,29 @@ def test_a_clean_run_passes_in_both_modes(findings, capsys: pytest.CaptureFixtur
         "a green run must still print a verdict — silence is how a check that stopped "
         "running passes for one that found nothing"
     )
+
+
+# --- the verdict must state its DENOMINATOR (enforcement-battery audit, 2026-08-25) -------------
+# The clean-run test above already reasons that "silence is how a check that stopped running passes
+# for one that found nothing" — but `0 error(s), 0 warning(s)` has the same defect one level up: it
+# cannot distinguish "walked the tree and found nothing" from "walked nothing". Measured across all
+# 59 checks in a subject-free repo: 17 emitted an affirmative success claim, 1 stated a denominator.
+# This runner backs SEVEN checks (docker/health/ports/watchdog/vps_docs/env_contract/deps_sync), so
+# the count lands in all of them at once. See docs/reference/enforcement-battery-audit.md.
+
+
+def test_verdict_states_its_own_denominator(
+    findings, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """check_vps_docs does NOT walk the repo — its unit is the fixed VPS_DOCS list.
+
+    Asserting the runner's "files walked" here would be a borrowed unit: this check never calls
+    iter_repo_files, so a file count would be a number it did not earn. The rule is that a success
+    line names ITS OWN denominator, not that every check reports the same one.
+    """
+    findings()
+    assert cvd.main([]) == 0
+    out = capsys.readouterr().out
+    m = re.search(r"across (\d+) VPS doc\(s\)", out)
+    assert m is not None, f"verdict carries no denominator: {out!r}"
+    assert int(m.group(1)) == len(cvd.VPS_DOCS), "the count must be the real subject list, not a literal"

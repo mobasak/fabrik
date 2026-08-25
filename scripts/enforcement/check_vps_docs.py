@@ -130,9 +130,15 @@ def main(argv: list[str] | None = None) -> int:
     failing = bool(errors) or (args.strict and bool(warns))
     verdict = "FAIL" if failing else "PASS"
     scope = "errors+warns" if args.strict else "errors"
+    # DENOMINATOR. This check does NOT walk the repo (unlike _check_runner's seven), so "files
+    # walked" would be a borrowed and false unit — its subject is the fixed VPS_DOCS list. Saying
+    # which unit was counted is the point: `0 error(s), 0 warning(s)` alone cannot distinguish a
+    # clean sweep from an empty one. Measured 2026-08-25: 17 of 59 checks made an affirmative
+    # success claim with no subject present, only 1 named its denominator.
+    # See docs/reference/enforcement-battery-audit.md.
     print(
         f"{verdict}: check_vps_docs — {len(errors)} error(s), {len(warns)} warning(s)"
-        f" [failing on: {scope}]"
+        f" across {len(VPS_DOCS)} VPS doc(s) [failing on: {scope}]"
     )
     return 1 if failing else 0
 
