@@ -1,9 +1,9 @@
 # Design — least-privilege payments-ingest DB role in the fabrik registrar
 
-Status: DRAFT
+Status: CONVERGED
 Owner: fleet (registrar is fleet's beat)
 Date: 2026-08-23
-Stage: 1-design → next: /fabrik-spec-review
+Stage: 1-design (converged via /fabrik-spec-review, md5-verified no-op) → next: operator approval → /fabrik-plan-after-chat
 
 ## Problem
 
@@ -21,19 +21,28 @@ customer" (fabrik-lib README § Gotchas; reported by transdoc 2026-08-23).
 — a dedicated non-superuser role that OWNS the DB). It provisions **no** cross-tenant ingest role,
 so a payments-vendoring project cannot wire ingest correctly.
 
-## Grounding — what the routed request got wrong, and the real authority
+## Grounding — the routed request, corrected
 
 The routing mail (fabrik-mail `01M0PX55QK`) states *"the RLS pack `.windsurf/rules/95-multi-tenant-saas.md`
-MANDATES a `fabrik_admin` BYPASSRLS role."* **Both halves are ungrounded** (verified this session):
+MANDATES a `fabrik_admin` BYPASSRLS role that `fabrik apply` never creates."* Corrected against the tree
+(an earlier review pass of this spec wrongly called the whole claim ungrounded — it is not):
 
-- `.windsurf/rules/95-multi-tenant-saas.md` **does not exist**; the multi-tenant/payments rules live in
-  `.windsurf/rules/saas/00-domain-saas.md` and `core/85-payments-billing.md`, and **neither names
-  `fabrik_admin` or `BYPASSRLS`** (grep-clean).
-- The **real authority** for the two-role requirement is fabrik-lib's own contract:
-  `/opt/fabrik-lib/payments/README.md:109-118` + `SPEC.md:58`. It requires a cross-tenant **service
-  role** for ingest and **explicitly supports two ways to satisfy it**: a `BYPASSRLS` role *or* an
-  "equivalent service *policy*" (`verify_service_role(conn, allow_policy_based=True)`). So a
-  non-BYPASSRLS, policy-based role is a **first-class, already-supported** path — not a workaround.
+- **The pack EXISTS** — at `.windsurf/rules/saas/95-multi-tenant-saas.md` (the mail's path dropped the
+  `saas/` prefix). It **does** mandate a `fabrik_admin` role: `NOLOGIN NOINHERIT BYPASSRLS`, *"for
+  migrations / backups / exports only — the public app role never connects as it"* (95:92, 154-155, 230).
+- **BUT `fabrik_admin` is neither a `fabrik apply` gap nor usable for ingest.** It is created by the
+  **project's own migration** (canonical `053_force_rls_and_admin.sql`, 95:57/68), not the registrar; and
+  it is **`NOLOGIN`** — it has no connection string and can never serve a webhook-ingest path. The mail
+  conflated two distinct roles.
+- **The REAL gap this spec fills** is a **`LOGIN` cross-tenant READ role** for the ingest path — which
+  the pack does **not** provide (it defines only `fabrik_admin` NOLOGIN + the RLS-subject app role).
+- The pack's own least-privilege rules **reinforce** the policy-based choice: *"the public-facing
+  application must never use the BYPASSRLS role; the application DB user must always be subject to RLS"*
+  (95:155/230), and the mandatory cross-tenant probe must run under `NOSUPERUSER NOBYPASSRLS` (95:94-102).
+- The **consuming authority** is fabrik-lib's contract (`/opt/fabrik-lib/payments/README.md:109-118` +
+  `SPEC.md:58`): a cross-tenant **service role** for ingest, satisfiable **two ways** — a `BYPASSRLS` role
+  *or* an "equivalent service *policy*" (`verify_service_role(conn, allow_policy_based=True)`). The
+  non-BYPASSRLS policy-based role is a **first-class, already-supported** path, not a workaround.
 
 ## External grounding (live, cited)
 
@@ -58,6 +67,11 @@ a policy-scoped role reads cross-tenant on **only those two tables**. Same funct
 order-of-magnitude smaller blast radius — the least-privilege choice for a single-operator fleet
 (threat model: a leaked ingest DSN, not an insider). The consuming app asserts the wiring at boot with
 `verify_service_role(ingest_conn, allow_policy_based=True)`.
+
+This is not a novel posture — it is the registrar's **existing default**: the watchdog RO role
+(`{db}_wd_ro`) is the same class of non-owner role under FORCE RLS, and the driver documents the same
+answer — *"a multi-tenant app that needs cross-tenant diagnosis must add a policy … least privilege is
+the default here"* (`postgres.py:645-649`). The payments-ingest role reuses that established pattern.
 
 ## Approaches considered
 
@@ -84,23 +98,41 @@ order-of-magnitude smaller blast radius — the least-privilege choice for a sin
    `PAYMENTS_INGEST_DATABASE_URL`." Requires `needs_database: true`.
 2. **Registrar** — in `_provision_postgres`, when `shape.needs_payments_ingest` (and `needs_database`),
    call a new `create_payments_ingest_role(db_name)` in `drivers/postgres.py` (mirror
-   `create_watchdog_roles`): mint `<db>_payments_ingest` (LOGIN, CSPRNG password, **no BYPASSRLS**),
-   `GRANT SELECT ON subscriptions, customers`, and `CREATE POLICY ... FOR SELECT TO <role> USING (true)`
-   on those two tables. Inject `PAYMENTS_INGEST_DATABASE_URL` (mirror the watchdog RO/RW URL injection,
+   `create_watchdog_roles`, incl. its split CREATE-then-idempotent-GRANT and fresh-password-only DSN
+   injection): mint `{db}_payments_ingest` (LOGIN NOSUPERUSER, CSPRNG password, **no BYPASSRLS**), then
+   **idempotently re-apply** `GRANT SELECT ON subscriptions, customers` + `CREATE POLICY … FOR SELECT TO
+   {db}_payments_ingest USING (true)` on those tables — the policy step **guarded on table existence**
+   (self-heals on the apply after the app's schema lands; see § Sequencing). Inject
+   `PAYMENTS_INGEST_DATABASE_URL` only on fresh creation (mirror the watchdog RO/RW URL injection,
    `infrastructure.py:583-591`).
 3. **Consumer wiring** (documented for the vendoring project, not built here): ingest connects with
    `PAYMENTS_INGEST_DATABASE_URL` and calls `verify_service_role(conn, allow_policy_based=True)` at boot.
 
-### ⚠️ Open design point for /fabrik-spec-review (sequencing)
+### Sequencing (RESOLVED in review — grounded, the watchdog precedent settles it)
 
-The policy `CREATE POLICY ... ON subscriptions` references tables that come from the **project's**
-`db/schema.sql`, applied by the app at deploy — they may **not exist** when `fabrik apply` runs the
-registrar. Resolution options to converge: (a) make role+grant+policy idempotent and run/repair it
-**after** first schema apply (a post-deploy registrar step, like the watchdog roles' re-check); (b) the
-project's schema migration creates the policy itself and the registrar only mints the *role* + injects
-the DSN. **(b) is the leaner split** (registrar owns identity + secret; the project owns its own
-table policies) and avoids the registrar reaching into project-defined tables — provisionally preferred,
-to be confirmed in review.
+The policy `CREATE POLICY ... ON subscriptions` references tables from the **project's**
+`db/schema.sql`, which the **dedicated owner role applies itself** at deploy (`postgres.py:404`) —
+*after* `fabrik apply` runs the registrar. So the tables do **not** exist when the role is minted.
+This is the **exact** situation `create_watchdog_roles` already handles: its
+"**Schema/table GRANTs are re-applied every call (idempotent, additive) so … tables added by a later
+migration are covered**" (`postgres.py:639-643`), and its RO role is the **identical class** to ours —
+"a multi-tenant app that needs cross-tenant diagnosis **must add a policy for `{db}_wd_ro`** … least
+privilege is the default here" (`postgres.py:645-649`).
+
+**Resolution (registrar owns role + grant + policy, idempotently re-applied — NOT the project schema):**
+- Registrar mints `{db}_payments_ingest` (LOGIN, NOSUPERUSER, **no BYPASSRLS**, CSPRNG password) — a
+  role is DB-global, safe to create before any table exists — and injects `PAYMENTS_INGEST_DATABASE_URL`
+  only on fresh creation (the watchdog password-lifecycle rule, `postgres.py:657-660`).
+- The `GRANT SELECT` + `CREATE POLICY … USING (true)` on `subscriptions`/`customers` is **idempotent and
+  re-applied on every apply** (the watchdog additive-GRANT model), so it self-heals on the first apply
+  **after** the app's schema lands. Unlike a GRANT (coverable pre-table via `ALTER DEFAULT PRIVILEGES FOR
+  ROLE <owner>`), `CREATE POLICY` needs the table to exist — so the policy step is **guarded on table
+  existence** (skip-if-absent, applied on the next apply once present). This keeps provisioning in ONE
+  place (the registrar) and does not make the project author RLS policy for a fabrik-minted role.
+
+The earlier "project schema owns the policy" option is **rejected**: it forces every payments-vendoring
+project to hardcode the registrar's role name into its migrations and re-implement the guard the
+registrar already owns for `{db}_wd_ro`.
 
 ## Blast radius + build split (sync-consciousness)
 
@@ -118,7 +150,7 @@ to be confirmed in review.
 - `Shape` accepts `needs_payments_ingest`; `fabrik plan` on a spec with it set previews the ingest role +
   `PAYMENTS_INGEST_DATABASE_URL`.
 - `fabrik apply` mints a **non-BYPASSRLS** `<db>_payments_ingest` role and injects the DSN.
-- With the project's policy in place, `resolve_org()` returns the org for an unsigned (iyzico) webhook;
+- With the registrar-provisioned policy in place, `resolve_org()` returns the org for an unsigned (iyzico) webhook;
   `verify_service_role(conn, allow_policy_based=True)` passes; the role reads **only**
   `subscriptions`/`customers` cross-tenant (a leaked DSN cannot read other RLS tables).
 - The rule-pack documentation slice is filed to infra, not committed by fleet.
