@@ -111,7 +111,14 @@ def check_duplicates(report_path: Path, threshold: float = 5.0) -> int:
         print(f"FAIL: Duplication {percentage:.1f}% exceeds threshold {threshold}%")
         return 1
 
-    print("PASS: Duplication within threshold")
+    # DENOMINATOR (enforcement-battery audit 2026-08-25): "within threshold" is true when the
+    # analyser found 0.0% because it scanned nothing — jscpd absent, no source, or a failed
+    # run — and that reads identically to a genuinely clean repo. Carry the measured figure.
+    # See docs/reference/enforcement-battery-audit.md.
+    print(
+        f"PASS: Duplication within threshold — {percentage:.1f}% of {duplicated_lines} "
+        f"duplicated line(s), {len(duplicates)} block(s), threshold {threshold}%"
+    )
     return 0
 
 

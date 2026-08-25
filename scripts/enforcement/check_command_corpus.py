@@ -274,9 +274,7 @@ def audit(
                 # a runnable delivery.
                 ok = (repo / script).exists()
                 if not ok and path in orch_doc_set:
-                    ok = any(
-                        c.is_file() for c in (repo / "templates").glob(f"**/{script}")
-                    )
+                    ok = any(c.is_file() for c in (repo / "templates").glob(f"**/{script}"))
                 if not ok:
                     problems.append(f"{rel}:{lineno}: {script} does not exist")
             if canonical_model:
@@ -352,9 +350,13 @@ def main(argv: list[str] | None = None) -> int:
         for line in problems:
             print(f"  {line}")
         return 1
+    # DENOMINATOR: this check is SYNCED to ~46 repos where the corpus does not exist, and it
+    # correctly returns [] there — but "all sound" then reads as a clean audit of nothing.
+    # See docs/reference/enforcement-battery-audit.md.
+    audited = len(_corpus_files(SOURCES, FRAGMENTS, REPO / "commands" / "assemble_commands.py"))
     print(
         "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
-        " run records — all sound"
+        f" run records — all sound across {audited} corpus file(s)"
     )
     return 0
 

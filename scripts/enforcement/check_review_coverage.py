@@ -508,7 +508,6 @@ _MEGA_SURFACE = re.compile(
 _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
-
 # A block-level HTML comment opener: line-leading (0–3 spaces). A mid-paragraph `<!--` is
 # INLINE HTML to a renderer, not a block comment — round 59 reproduced the fence-unaware
 # blanking regex letting a prose `<!--` eat a real fence opener through a `-->` quoted
@@ -711,6 +710,7 @@ def _indented_grammar_error(text: str) -> str | None:
                 "indented blocks as quoted code, but this line looks load-bearing — out-dent "
                 "it if it is live, or put it in a ``` fence if it is a quoted example"
             )
+
     def _peel(line: str) -> tuple[str, int, int]:
         content, n_quote, n_list = line, 0, 0
         while True:
@@ -972,8 +972,7 @@ def _ledger_shapes(
                 p_run.append(row)
                 ordered.append(row)
             elif p_run and (
-                atx_boundary.match(line)
-                or (setext_underline.match(line) and prev_nonblank)
+                atx_boundary.match(line) or (setext_underline.match(line) and prev_nonblank)
             ):
                 prose_runs.append(p_run)
                 p_run = []
@@ -1460,7 +1459,13 @@ def main() -> int:
             "— there is no cap-stop; a spot-verify of fixes is the re-check step, never the closing round."
         )
         return 1
-    print("check_review_coverage: OK (no unproven coverage claims in changed review artifacts)")
+    # DENOMINATOR: this check is DIFF-SCOPED, so on most runs there is simply nothing changed
+    # to inspect — and a bare OK reads as "your reviews are proven" rather than "I looked at
+    # nothing". See docs/reference/enforcement-battery-audit.md.
+    print(
+        "check_review_coverage: OK — 0 unproven coverage claims across "
+        f"{len(changed)} changed review artifact(s)"
+    )
     return 0
 
 

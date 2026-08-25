@@ -80,7 +80,10 @@ def main() -> int:
         print("\n⚠️  .env update reminders (non-blocking)")
         return 0
 
-    print("✅ .env check PASSED")
+    # DENOMINATOR (enforcement-battery audit 2026-08-25): a bare PASSED cannot distinguish
+    # "checked the changed files and found nothing" from "there were no changed files".
+    # See docs/reference/enforcement-battery-audit.md.
+    print(f"✅ .env check PASSED — 0 reminders across {len(changed_files)} changed file(s)")
     return 0
 
 

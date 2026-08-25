@@ -161,7 +161,9 @@ def main() -> int:
                 untested_items.append((src_file, "class", cls))
 
     if not untested_items:
-        print("✅ Test coverage check PASSED")
+        # DENOMINATOR: the sibling branch above already names its reason ("no src/ changes");
+        # this branch DID examine something, so it should say how much.
+        print(f"✅ Test coverage check PASSED — {len(src_files)} changed src file(s) examined")
         return 0
 
     print("WARNING: New public code without apparent tests.")

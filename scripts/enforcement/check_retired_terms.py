@@ -47,6 +47,7 @@ _NAME_ONLY = re.compile(r"kilo[-_/]|/kilo|kilo_")
 
 def main() -> int:
     warns: list[str] = []
+    scanned = 0
     tracked = subprocess.run(
         ["git", "ls-files", "docs/**/*.md", "docs/*.md"],
         cwd=REPO,
@@ -61,6 +62,7 @@ def main() -> int:
             lines = (REPO / p).read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
+        scanned += 1
         # Doc-level banner rule: a retirement banner in the file head marks the
         # WHOLE doc's mentions as documented-historical (the traycer-README pattern).
         head = " ".join(lines[:30])
@@ -79,7 +81,10 @@ def main() -> int:
     for w in warns:
         print(f"WARN: {w}")
     if not warns:
-        print("check_retired_terms: OK — no unmarked retired-tech framing in live docs")
+        print(
+            "check_retired_terms: OK — 0 unmarked retired-tech mentions "
+            f"across {scanned} live doc(s)"
+        )
     else:
         print(f"check_retired_terms: {len(warns)} WARN(s) — advisory only, not blocking")
     return 0  # ALWAYS — WARN-only by contract

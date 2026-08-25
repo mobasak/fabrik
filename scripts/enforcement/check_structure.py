@@ -403,7 +403,9 @@ def main() -> int:
     violations = check_structure(project_root, args.files if args.files else None)
 
     if not violations:
-        print("✓ Project structure OK")
+        # DENOMINATOR: "structure OK" over a path that does not exist reads identically to a
+        # real clean verdict. Name the root actually inspected.
+        print(f"✓ Project structure OK — 0 violations under {project_root}")
         return 0
 
     errors = [v for v in violations if v["severity"] == "error"]

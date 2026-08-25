@@ -102,8 +102,36 @@ honestly attest. `check_vps_docs` does **not** walk the repo at all — its subj
 borrowed number the check never earned. **The rule is that a success line names ITS OWN denominator,
 not that every check reports the same one.**
 
-**Remaining (8):** `check_command_corpus` · `check_env_updates` · `check_openapi_sync` ·
-`check_phase_tests` · `check_retired_terms` · `check_review_coverage` · `check_structure` ·
-`check_test_coverage`.
+## Closed — re-swept 2026-08-25
 
-Each is message-only — no verdict logic changes — and independently landable.
+Re-running the identical empty-repo sweep after the fixes:
+
+| | before | after |
+|---|---|---|
+| affirmative success claims | 17 | 21 (more checks now reach a verdict) |
+| …**bare** (no denominator, no reason) | **16** | **0** |
+
+Every success line now either **states a count** or **names its reason**. Both forms satisfy the
+rule; requiring a number everywhere would have been worse, because several checks are honestly
+reporting *why* there was nothing rather than *how much* of nothing:
+
+```
+check_imports_resolvable   NOT APPLICABLE: none of src/app/tests exist in this repo
+check_compose_services     ✅ Compose services check PASSED (no compose files)
+check_test_coverage        ✅ Test coverage check PASSED (no src/ changes)
+check_hooks_index          (not the hub — hooks-index check skipped)
+check_retired_terms        OK — 0 unmarked retired-tech mentions across 0 live doc(s)
+check_review_coverage      OK — 0 unproven coverage claims across 0 changed review artifact(s)
+check_duplicates           PASS — 1.3% of 205 duplicated line(s), 12 block(s), threshold 7.0%
+```
+
+**Three of the eight "remaining" turned out to need nothing** — `check_openapi_sync`
+(`no new routes`), `check_phase_tests` (`no active plan window…`) and `check_test_coverage`
+(`no src/ changes`) already named their reason. Editing them would have been churn against
+non-defects, which is the failure mode this audit exists to avoid.
+
+**A classifier caveat worth keeping.** Three successive regexes used to *count* the remaining bare
+lines each produced false positives — `[0-9]+ (file|doc)` cannot match `0 live doc(s)` or
+`1 changed file(s)`, and none of them knew `NOT APPLICABLE` was compliant. The final count was made
+by reading all 21 lines. **An audit of misleading output is itself easy to mislead;** when the
+population is small enough to read, read it.
