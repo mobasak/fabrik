@@ -2135,3 +2135,17 @@ def test_tokenfree_pipe_bounded_bullet_is_prose(repo: Path) -> None:
     rc, out = _gate(repo, "2026-08-21-mega-vg-validation-review.md", body2)
     assert rc == 1, "a bulleted mega round row escaped the refusal"
     assert "LIST-WRAPPED pipe row" in out
+
+
+def test_routed_is_an_honest_terminal_verdict(repo: Path) -> None:
+    """TI feedback (01M0Q4ZJFEAMNABM7RZ5KQPW4E): gate-stage commands whose contract is
+    ROUTE-not-fix had no honest token — ROUTED(n) now adjudicates a row like its siblings."""
+    body = (
+        "# Review — some diff (/fabrik-review)\nSurface: abc123\n\n"
+        "review_rubric.py output embedded\n\n"
+        "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
+        "| fail-open cost boundary untested behavior | ROUTED(2) — handed to /fabrik-review src/x |\n\n"
+        "## Pass Ledger\nPass 1: found: 2, fixed: 0\nPass 2: found: 0, fixed: 0\n"
+    )
+    rc, out = _gate(repo, "2026-08-25-routed-review.md", body)
+    assert rc == 0, f"a ROUTED row was treated as unadjudicated: {out}"

@@ -28,6 +28,25 @@ Vendor `app-audit-log` and call `record_event()` in projects that:
 
 If your service is none of the above (pure static site, internal worker with no human-visible actions), skip this module.
 
+## Canonical Actor Vocabulary
+
+**Rule (mirror of the action rule):** never invent a new actor form in code — the set below is
+closed; extend it HERE first, then use it. Two projects inventing different prefixes (`admin:` vs
+`operator:`) produce audit logs that cannot be correlated, and nothing detects it because each is
+internally consistent (a consumer hit exactly this citation gap: `schema.sql` referenced a
+vocabulary this pack did not carry).
+
+| Actor form | Meaning |
+| --- | --- |
+| `user:<id>` | an authenticated end user; `<id>` is the app's canonical user id |
+| `admin:<id>` | a human operating an admin surface; same id space as `user:` |
+| `system` | the application itself (scheduled jobs, lifecycle hooks, cascades) |
+| `watchdog` | the autonomous monitoring/self-healing layer |
+
+Adding a prefix: a new AUTONOMOUS component class gets a bare literal (like `system`); anything
+acting FOR an identifiable principal gets a `<prefix>:<id>` form. Add the row here in the same
+change that first writes it.
+
 ## Canonical Action Vocabulary
 
 **Rule:** Never invent a new action string in code. If the action doesn't exist in this vocabulary, add it here first, then use it.
@@ -52,7 +71,7 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 | Action | Triggers | `details` shape | `target_*` |
 | --- | --- | --- | --- |
 | `billing.subscription_created` | New subscription wired | `{plan, amount_usd, currency, billing_period}` | `subscription`, sub_id |
-| `billing.subscription_updated` | Plan change / quantity change | `{from, to}` | `subscription`, sub_id |
+| `billing.subscription_updated` | Plan change / quantity change | `{old_plan_id, new_plan_id, old_status, new_status, reason}` | `subscription`, sub_id |
 | `billing.subscription_cancelled` | User or system cancelled | `{reason}` | `subscription`, sub_id |
 | `billing.charge_succeeded` | Money received | `{amount_usd, currency, provider_txn_id}` | `subscription`, sub_id |
 | `billing.charge_failed` | Charge attempt failed | `{amount_usd, currency, provider_error_code}` | `subscription`, sub_id |

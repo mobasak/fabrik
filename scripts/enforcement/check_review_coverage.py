@@ -43,7 +43,11 @@ CHECKLIST_HEAD = re.compile(r"^#{1,4}\s+\**coverage checklist\b", re.I)
 # (prose explaining the process trips it; a paraphrasing report escapes it). Subject-ness is the
 # checklist HEADING; artifact-emission enforcement is the run-record's moment.
 COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")  # noqa: F841 — retired, see above
-VERDICT = re.compile(r"\b(CLEAN|FIXED\s*\(?\d*\)?|REFUTED)\b")
+# ROUTED(n) (trade-intelligence feedback 01M0Q4ZJFEAMNABM7RZ5KQPW4E, first live
+# /fabrik-conformance-review run): gate-stage commands whose Phase-3 contract is
+# ROUTE-not-fix had no honest terminal token — authors were forced to write
+# "FIXED(n, via routing)" to parse. A routed finding is adjudicated, not open.
+VERDICT = re.compile(r"\b(CLEAN|FIXED\s*\(?\d*\)?|REFUTED|ROUTED\s*\(?\d*\)?)\b")
 UNCHECKED = re.compile(r"\bUNCHECKED\b")
 BLOCKED_HEAD = re.compile(r"^#{2,4}\s*.*BLOCKED", re.M)
 RECURRENCE = {

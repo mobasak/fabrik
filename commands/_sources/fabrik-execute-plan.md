@@ -397,6 +397,19 @@ its Touches (contract violation → its diff is rejected at acceptance).
 
 ### D2 — Dispatcher contract (who codes, who is dispatched, when)
 
+- **PRECONDITION — a dispatched coder must be able to RUN its proof floor.** A native
+  `claude -p` coder under `--permission-mode acceptEdits` can write files but cannot execute
+  ANY Bash without a pre-approved allowlist — five coders on one transdoc ticket each wrote
+  code none could verify (proposal 2026-08-23, upstream'd). The fleet baseline that grants the
+  verification surface (pytest/ruff/mypy/gate/git-reads) ships in the SYNCED
+  `.claude/settings.json` `permissions.allow`; **before the first dispatch, confirm it is
+  present in THIS repo's copy** (`python3 -c "import json;print('allow' in
+  json.load(open('.claude/settings.json')).get('permissions',{}))"` → `True`). Absent →
+  re-sync from the hub (`pull, don't expect push` for excluded repos) or halt with a
+  pre-start finding — do NOT fall back to `bypassPermissions` (unbounded grant) and do NOT
+  run the coders' tests yourself (that collapses coder and reviewer — the separation is what
+  catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing
+  capability grant — check the settings first.
 - **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
   **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
   change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the

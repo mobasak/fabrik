@@ -520,6 +520,38 @@ _MYPY_EXCLUDE_RE = (
 )
 
 
+def _import_load_spec():
+    """Import fabrik.spec_loader's load_spec WITHOUT leaking its env side effects.
+
+    Importing the hub settings chain SETS os.environ["DATABASE_URL"] inside the gate
+    process; every later run_cmd child inherited it, un-skipping env-keyed tests into a
+    connect against the leaked DSN — the gate's pytest red while the identical command
+    passed standalone (trade-intelligence, proven end-to-end 2026-08-16, finding
+    01M0CT0GDXWTB3Y6XXPVXJFN14). The settings object keeps whatever it captured at
+    import; only the PROCESS env is restored, so children see the env the operator ran
+    the gate with. Returns None when fabrik isn't importable (gate outside the hub)."""
+    import sys as _sys
+
+    _src = str(PROJECT_ROOT / "src")
+    if _src not in _sys.path:
+        _sys.path.insert(0, _src)
+    env_before = dict(os.environ)
+    try:
+        from fabrik.spec_loader import (
+            load_spec as _load_spec,  # type: ignore[import-not-found,unused-ignore]
+        )
+
+        return _load_spec
+    except ImportError:
+        return None  # outside fabrik repo; caller falls back to yaml.safe_load
+    finally:
+        for k in set(os.environ) - set(env_before):
+            del os.environ[k]
+        for k, v in env_before.items():
+            if os.environ.get(k) != v:
+                os.environ[k] = v
+
+
 def _mypy_config_selects_files() -> bool:
     """True when pyproject's [tool.mypy] declares files=/packages=/modules= — i.e. the project
     tells mypy exactly what to check, so the gate passes NO target and lets mypy self-discover."""
@@ -622,20 +654,7 @@ def run_static_checks(
             # lazily — if fabrik isn't installed (gate running outside
             # /opt/fabrik), skip spec validation gracefully rather than
             # failing the whole check.
-            load_spec = None
-            try:
-                import sys as _sys
-
-                _src = str(PROJECT_ROOT / "src")
-                if _src not in _sys.path:
-                    _sys.path.insert(0, _src)
-                from fabrik.spec_loader import (
-                    load_spec as _load_spec,  # type: ignore[import-not-found,unused-ignore]
-                )
-
-                load_spec = _load_spec
-            except ImportError:
-                pass  # outside fabrik repo; just do yaml.safe_load
+            load_spec = _import_load_spec()
             for f in files:
                 path = PROJECT_ROOT / f
                 if path.exists():

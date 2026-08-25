@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mailbox batch: three enforcement fixes + two pack/command completions (2026-08-25)
+
+From the infra mailbox sweep (six findings validated against live code first): `final_gate.py`
+no longer leaks `fabrik.spec_loader`'s import-time env mutations (DATABASE_URL) into run_cmd
+children — the leak un-skipped env-keyed tests in project gates (trade-intelligence repro,
+subprocess-pinned both directions); `check_doc_sprawl` admits `UPSTREAM_FEEDBACK.md` at any
+depth (fabrik-lib's CLAUDE.md mandates one per module — --strict was blocked by a
+governance-mandated artifact); `check_env_vars` recognizes container-internal localhost inside
+`docker exec … sh -c` strings (a meilisearch self-probe redded the gate on every unrelated
+touch of vps_sync.py); `check_review_coverage` admits `ROUTED(n)` as a terminal checklist
+verdict (gate-stage commands whose contract is route-not-fix had no honest token);
+`core/app-audit-log.md` gains the Canonical Actor Vocabulary and a `billing.subscription_updated`
+details shape that names what changed; `/fabrik-execute-plan` D2 states the dispatched-coder
+permission precondition (the synced settings' capability baseline shipped in d87e9915) and
+`/fabrik-conformance-review` documents the Evidence-bootstrap sequence.
+
+
 ### Fixed — workspace TRUST was the real blocker; correcting a false "proven narrow" claim (2026-08-25)
 
 Closes transdoc `01M0Q0XN9E6SJ372ESTE79VW8X`. The 2026-08-23 entry below shipped the allowlist and

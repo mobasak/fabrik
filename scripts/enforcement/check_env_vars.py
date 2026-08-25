@@ -101,6 +101,18 @@ def check_file(file_path: Path) -> list[CheckResult]:
         # Skip if line contains allowed pattern
         if any(re.search(pattern, line, re.IGNORECASE) for pattern in ALLOWED_CONTEXTS):
             continue
+        # Container-internal localhost: inside a `docker exec … sh -c '…'` command string,
+        # localhost IS the container — the correct host, not an app→DB shortcut (fleet
+        # finding 01M05N9CVESBMTS7QX80NY8AYB: a meilisearch self-probe redded the gate on
+        # every unrelated touch of the file). A shell command is routinely a MULTI-LINE
+        # Python string, so the docker-exec marker sits on a NEARBY line: look back a
+        # short, fixed window. The teeth stay: without `docker exec` above, localhost in
+        # a string is still flagged.
+        if any(
+            "docker exec" in lines[i].lower()
+            for i in range(max(0, line_num - 4), line_num)  # this line + 3 above
+        ):
+            continue
 
         # Check for violations
         for pattern, description in HARDCODED_PATTERNS:

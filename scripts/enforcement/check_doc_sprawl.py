@@ -94,6 +94,14 @@ ALLOWED_PATTERNS = [
     # (docs/superpowers/plans/** · docs/superpowers/specs/**); this matcher keeps
     # the gate in lockstep with the contract so those artifacts don't red the gate.
     re.compile(r"^docs/superpowers/(plans|specs)/.+\.md$"),
+    # Module upstream-feedback footers: <module>/UPSTREAM_FEEDBACK.md at any depth.
+    # fabrik-lib's CLAUDE.md MANDATES one per module ("End the README with the
+    # UPSTREAM_FEEDBACK.md footer…", 24 tracked at the time of filing), and the check is
+    # vendored byte-exact there — so --strict would red the gate on an artifact the repo's
+    # own governance requires (finding 01M03KTXJTVAADM4KQZS433DBR, 2026-08-15). Hub-side
+    # blast radius: none (the hub tracks no UPSTREAM_FEEDBACK.md; synced projects create
+    # one only when vendoring feeds a fix upstream — exactly the sanctioned flow).
+    re.compile(r"^(.*/)?UPSTREAM_FEEDBACK\.md$"),
     # Epic tickets: docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md
     # Written by mega-epic-breakdown/03-expand-epic-files-fabrik, one file per epic.
     # Unlike Traycer (which has a native ticket store), our orchestrator has none —

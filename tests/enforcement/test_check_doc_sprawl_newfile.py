@@ -80,3 +80,18 @@ def test_rename_from_archive_into_blocked_dir_is_treated_as_new(tmp_repo):
     _git(tmp_repo, "commit", "-qm", "archive doc")
     _git(tmp_repo, "mv", "docs/archive/old.md", "docs/operations/smuggled.md")
     assert _exists_for_gate(tmp_repo, "docs/operations/smuggled.md") is False
+
+
+def test_upstream_feedback_is_admitted_at_any_depth(tmp_path):
+    """fabrik-lib's CLAUDE.md mandates one UPSTREAM_FEEDBACK.md per module and the check is
+    vendored byte-exact there — --strict must not red the gate on a governance-mandated
+    artifact (finding 01M03KTXJTVAADM4KQZS433DBR). Applied via .match, so the pattern must
+    fire on nested paths, and the guard must not over-admit lookalikes."""
+    import check_doc_sprawl as d
+    for rel, allowed in [
+        ("app-audit-log/UPSTREAM_FEEDBACK.md", True),
+        ("UPSTREAM_FEEDBACK.md", True),
+        ("docs/UPSTREAM_FEEDBACK_notes.md", False),
+    ]:
+        hit = any(p.match(rel) for p in d.ALLOWED_PATTERNS)
+        assert hit is allowed, f"{rel}: allowed={hit}, expected {allowed}"

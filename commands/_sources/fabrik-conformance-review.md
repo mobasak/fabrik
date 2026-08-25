@@ -168,6 +168,15 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
 - **Supersessions name their successor. DEVIATES rows state whether the spec was re-frozen** — if
   not, that row IS refreeze debt and belongs in the cluster summary.
 - Ledger committed. Cluster summary routed to owning commands. `final_gate` green. Then report.
+- **The Evidence bootstrap (first-run trap, reported live):** the convergence gate reds a ledger
+  that lacks an embedded `final_gate` `"status": "success"` fenced block — but the gate cannot go
+  green until that block exists. The SEQUENCE, not a paradox: (1) finish the ledger's obligations,
+  (2) embed the fenced gate block with the EXPECTED green shape, (3) run
+  `python scripts/final_gate.py --check --json` — it now sees the embed and reports the real
+  result, (4) correct the embedded numbers to the verbatim output and re-run once; the fixpoint
+  (embed == fresh run) is the evidence-true state. A routed finding's terminal token is
+  **`ROUTED(n)`** — first-class in the checklist vocabulary alongside CLEAN/FIXED/REFUTED; never
+  write "FIXED via routing".
 
 ## OUTPUT
 
