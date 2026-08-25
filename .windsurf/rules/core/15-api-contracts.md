@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/routes/**", "**/api/**", "**/route.ts", "**/router.py"]
+globs: ["**/routes/**", "**/api/**", "**/route.ts", "**/router.py", "**/lib/api*", "**/lib/client/**", "**/*api-client*", "**/*.api.ts", "**/*client.ts"]
 description: API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
 trigger: glob
 ---
