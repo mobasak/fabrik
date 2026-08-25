@@ -54,7 +54,7 @@ Fabrik is a **spec-driven deployment automation** system that:
 ┌── fabrik CLI (src/fabrik/cli.py) — 23 @cli.command + 7 @cli.group ───────┐
 │ Project lifecycle:  scaffold  validate  validate-deploy  fix  scan       │
 │                     projects  templates  export  import  dev  review     │
-│ Deploy / ops:       plan  apply  status  app-logs  logs  destroy         │
+│ Deploy / ops:       plan  apply  status  logs  destroy                  │
 │                     redeploy  verify  vps-sync  audit-registrars         │
 │                     reconcile-all                                       │
 │ Groups (7):         preplan  ai  domain  content  seo  vultr  gpu        │
@@ -659,7 +659,6 @@ fabrik apply [<spec.yaml>] \
 fabrik status <spec.yaml>
 
 # Logs (NOTE: two distinct commands)
-fabrik app-logs <spec.yaml> [-n <lines>] [--follow]   # Coolify container logs for the spec's app
 fabrik logs <service> [-n <tail>] [--since <range>]   # Loki query by service name (1h, 24h, 7d)
 
 # Redeploy a Coolify app by name or UUID (no spec needed)
@@ -1237,7 +1236,6 @@ All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and sig
 | `fabrik apply [<spec_path>]` | Deploy from a spec, or (if `spec_path` omitted) resolve from `project.yaml` in cwd. The orchestrator pipeline is the default since 2026-05-05 (G1) — `--use-orchestrator` is a deprecated, hidden no-op kept for backward compat; `--legacy` opts OUT back to the pre-orchestrator pipeline. `--keep-on-failure` for proof-runs. WordPress redirects to the `wpf` CLI. |
 | `fabrik plan <spec>` | Preview deployment (dry run) |
 | `fabrik status <spec>` | Check deployment status (Coolify + DNS + cert) |
-| `fabrik app-logs <spec>` | Coolify container logs for the spec's app (`-n`, `--follow`) |
 | `fabrik logs <service>` | Loki query by service name (`-n`, `--since 1h\|24h\|7d`) |
 | `fabrik redeploy <app>` | Trigger Coolify redeploy by app name or UUID (`--force`) |
 | `fabrik destroy <spec>` | Remove deployment (`--keep-dns`, `--keep-files`, `--drop-data`, `--dry-run`) |

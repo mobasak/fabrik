@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — the dead `fabrik app-logs` Coolify command (2026-08-25)
+
+- `fabrik app-logs` called the retired Coolify API (`CoolifyClient`) — Coolify was removed from
+  vps1 on 2026-05-30, so the command failed at runtime while passing `--help` (a dead body behind
+  a live `click` decorator; infra finding 01M0WNJD). Removed the command + purged it from 5 docs
+  (CLI reference, QUICKSTART, CAPABILITIES, FEATURES, the scaffold workflow). Regression test
+  asserts it stays unregistered. Use `fabrik logs` (Loki) or `docker logs <app>` over SSH.
+- NOTE: this fixes the user-facing defect only. The broader Coolify decommission — the
+  `coolify.py` driver, `compose_updater.py`, `health_app.py`, and the dead Coolify branches inside
+  the LIVE `status`/`reconcile-all`/`projects` commands + `rollback.py`/`portability.py` (a
+  load-bearing `drivers/__init__.py` import + DR surface, ~2500 lines) — is scoped as a follow-up
+  plan, not ripped out here (blind removal would delete live functionality).
+
 ### Added — Rule-pack reachability advisory gate (2026-08-25)
 
 - `scripts/enforcement/check_pack_reachability.py` — advisory (`warn_only=True`)

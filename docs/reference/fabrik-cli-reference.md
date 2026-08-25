@@ -280,14 +280,6 @@ fabrik logs [service] [-n/--tail N] [--since 1h] [--follow]
 fabrik logs --local [-f] [--service <name>]      # local dev stack via docker compose logs
 ```
 
-### `fabrik app-logs <spec_path>` — live container tail
-
-**Purpose:** Tail the live container's logs via SSH `docker logs`.
-
-```bash
-fabrik app-logs <spec_path> [-n LINES] [-f]
-```
-
 ---
 
 ## Domain management
@@ -469,7 +461,7 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 | `reconcile-all` | `cli.py::reconcile_all()` (`cli.py:1487`) → `orchestrator/__init__.py::DeploymentOrchestrator.refresh_infrastructure()` (`:312`) |
 | `validate-deploy`, `validate`, `fix` | `deploy_validator.py` + `scaffold.py` |
 | `vps-sync` | `scripts/vps_sync.py` |
-| `status`, `logs`, `app-logs` | `cli.py` directly + `drivers/ssh.py` |
+| `status`, `logs` | `cli.py` directly + `drivers/ssh.py` |
 | `domain *` | `drivers/dns.py::DNSClient` |
 | `dev`, `review`, `import`, `export` | `dev_tools.py` + `portability.py` |
 | `ai usage` | `ai/tracker.py::UsageTracker` |

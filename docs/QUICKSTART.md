@@ -117,10 +117,8 @@ fabrik plan /opt/fabrik/specs/services/hello-api.yaml
 # Tail logs (Loki for centralized, or `docker logs` over SSH for live container).
 fabrik logs /opt/fabrik/specs/services/hello-api.yaml
 
-# ⚠️ `fabrik app-logs` is DEAD, not merely legacy — do not reach for it. Its body calls
-# `CoolifyClient`, and Coolify was fully removed from vps1 on 2026-05-30 (no containers, no
-# binary). The subcommand still REGISTERS, so `--help` succeeds and it looks available; it
-# fails only when actually run. Use `fabrik logs` above, or `docker logs <app>` over SSH.
+# `fabrik app-logs` was REMOVED 2026-08-25 (it called the retired Coolify API). Use
+# `fabrik logs` above, or `docker logs <app>` over SSH.
 
 # Audit live VPS state against what shape says SHOULD be registered (T2-02).
 # Pivot table of all 9 registrars × all deployed specs.

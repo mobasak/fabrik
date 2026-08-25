@@ -4,7 +4,6 @@
 
 ## cli
 - [fabrik ai usage](../AGENTS.md) (owner: fleet): Show AI usage and cost summary.
-- [fabrik app-logs](../AGENTS.md) (owner: fleet): (legacy) View application logs via the Coolify API (spec-based).
 - [fabrik apply](../AGENTS.md) (owner: fleet): Deploy a service from spec.
 - [fabrik audit-registrars](../AGENTS.md) (owner: fleet): Compare each spec's shape-resolved registrars to live VPS state (T2-02 G-G2).
 - [fabrik content](../AGENTS.md) (owner: fleet): Content publishing commands.

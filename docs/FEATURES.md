@@ -223,7 +223,6 @@ fabrik redeploy --spec specs/services/my-api.yaml
 
 # Tail logs
 fabrik logs my-api -f
-fabrik app-logs specs/services/my-api.yaml --lines 100
 ```
 
 ### State Machine
