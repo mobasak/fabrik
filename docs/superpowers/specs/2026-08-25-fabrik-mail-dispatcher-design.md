@@ -21,7 +21,7 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
 1. A fresh unaddressed `fabrik` inbox message carries `agent: infra|fleet|intel` **within
    seconds of arrival** while the watcher is up (operator directive 2026-08-25: immediate, not
    interval-batched — an inotify watcher fires the dispatcher on each inbox create/move), and by
-   the end of the first fallback sweep otherwise (the stamp-checked sweep is the safety net for
+   the end of the first fallback sweep otherwise (the cron sweep is the safety net for
    watcher death and wake-from-sleep, not the primary path). Operator-decision items too — they
    get a beat owner plus the `operator-decision` marker in the classification log, § Routing; no
    new `agent:` value exists.
@@ -29,8 +29,8 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
    (ONE shared lock file serializes watcher and sweep runs alike, waiter-queued with a logged
    skip on timeout), a message a live session claims mid-run resolves by rename
    atomicity (the dispatcher sees ENOENT and skips it — routing only ever touches files still in
-   the inbox), and a crashed run leaves no lock debris that blocks the next (stamp + `flock`, the
-   `weekly_catchup.sh` pattern).
+   the inbox), and a crashed run leaves no lock debris that blocks the next (`flock` releases on process
+   exit by construction; the only other state files are append-only ledgers + the day-stamp).
 3. Any `ack: required` message unacked ≥ `FABRIK_MAIL_ESCALATE_DAYS` (default 3) — whether it
    sits in the INBOX or was claimed into the ARCHIVE without an `acked-by:` resolution line
    (`mail.py:191` `_ACK_LINE`; measured 2026-08-25: 8 of the 13 live unacked obligations are
@@ -74,7 +74,7 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
 ## Chosen approach — deterministic-first router with a bounded LLM fallback (Approach A)
 
 One new box-local script, `scripts/mail_dispatcher.py`, fired within seconds by a systemd USER
-`.path` unit (primary — § Trigger) with a stamp-checked, `flock`-guarded cron sweep as fallback;
+`.path` unit (primary — § Trigger) with a `flock`-guarded cron sweep as fallback;
 both install artifacts are shipped ready-made and OPERATOR-installed (agents cannot write the
 crontab). Per run:
 
@@ -91,7 +91,9 @@ crontab). Per run:
    must still escalate on day 3 (keying escalation on "unaddressed" would go blind the moment
    routing succeeded). **Structural skip-list:** messages whose SEMANTICS require all-agents
    visibility are never routed and never sent to the LLM — the standing member is the daily
-   kaizen collector mail (`kaizen_collect_v2.py:2485` sends unaddressed by design; BOTH the
+   kaizen collector mail — matched by CONTENT key `kind: request` AND subject line starting
+   `# Kaizen daily collection` (`scripts/sysadmin/kaizen_collect_v2.py:2469` sends with no
+   `--to-agent`, `:2485` composes that first line; BOTH the
    infra and fleet charters name it as their weekly pass trigger, and `agent:` is single-valued
    — any route would silently remove one beat's trigger). Skip-listed = logged, left visible to
    all three, zero LLM cost. Project inboxes are out of scope — each project's own agents
@@ -107,8 +109,8 @@ crontab). Per run:
    research, or governance mail in the same week — a per-sender prior encodes "project X's mail
    is about beat Y", which is exactly the wrong assumption at fleet scale. The rule signals are:
    an EXPLICIT addressee prefix the sender already wrote in the subject — matched in BOTH live
-   encodings, `[x→y]` (U+2192) and `[x->y]` (measured 2026-08-25: the archive splits 7/5 across
-   them; pinning one form would miss five of thirteen), taking the RIGHT-hand token (the
+   encodings, `[x→y]` (U+2192) and `[x->y]` (both forms measured LIVE in the mailbox 2026-08-25 — U+2192 the majority, ASCII a real
+   minority ~5 occurrences; pinning one form would silently miss the other), taking the RIGHT-hand token (the
    addressee — the LEFT token is the SENDER, and a group-1 extraction would silently reintroduce
    the banned sender-key; a dedicated test pins right-side extraction); a bare `[x]` prefix is
    ambiguous (sender or addressee?) and is NOT a signal. (A send-time `--to-agent` needs no rule
@@ -129,16 +131,23 @@ crontab). Per run:
    (`kind` + keyword) composite → keyword; a strictly more specific match WINS over a less
    specific one; only matches at the SAME specificity tier that disagree on the beat make the
    message UNMATCHED and fall to the LLM (never a silent first-match win — a deterministic
-   misroute is worse than a bounded LLM call). **Final tier — the charter floater:** what the
-   rules AND the LLM both fail to place (or everything, when the CLI is unavailable and the
-   per-run bound is spent) routes to **intel** with the `floater-default` log marker —
-   `intel.md` § Floater: "urgent unowned work (relays, unclaimed queue items) defaults to you";
-   the charters already name the owner of unowned mail, so nothing ever rots ownerless and the
-   LLM is an accuracy upgrade, not a load-bearing dependency. **Human override is FINAL:** the
-   dispatcher keeps a routed-once ledger (same mechanics as the LLM attempt ledger) — it routes
-   any given message AT MOST ONCE EVER, so a human clearing an addressee (`route --to-agent ''`,
-   the sanctioned undo) is never re-overwritten seconds later by the same rule; a cleared
-   message stays visible to all three sessions, which is exactly what the human asked for.
+   misroute is worse than a bounded LLM call). **Final tier — the charter floater, for DECIDED
+   undecidables ONLY:** a message the rules could not place and the LLM genuinely ATTEMPTED and
+   failed to place (message-class outcome: schema/enum violation, boundary collision, unusable
+   verdict) routes to **intel** with the `floater-default` log marker — `intel.md` § Floater:
+   "urgent unowned work … defaults to you". **An INFRA-class outage tail is NOT floater-routed**
+   (design collision resolved, fourth review: floater-routing an outage tail + the routed-once
+   ledger would permanently park every message swept during an OAuth outage on intel, restoring
+   the exact burn the exception taxonomy exists to prevent) — the outage tail stays UNROUTED and
+   ledger-free, retries when the CLI recovers, and is visible in the daily health counts
+   meanwhile. **Human override is FINAL — observe-and-record:** the routed-once ledger records
+   (a) every ULID the dispatcher itself decides AND (b) every ULID it ever OBSERVES already
+   carrying an `agent:` field (sender-set or pre-ledger routes included) — so clearing ANY
+   addressee (`route --to-agent ''`, the sanctioned undo) leaves a ledger entry the dispatcher
+   honors: it routes a given message AT MOST ONCE EVER and never re-decides a cleared one; a
+   cleared message stays visible to all three sessions, which is exactly what the human asked
+   for. Ledger file `routed.txt` beside the LLM attempt ledger, same pruning (drop ULIDs no
+   longer in inbox or archive).
    Adding a FUTURE beat is config, not surgery:
    `mail.py`'s `_safe_agent` shape-validates any role (no hardcoded three-set, `:367-385`), so a
    new charter needs only new RULES rows + the enum value. Operator-class is not a
@@ -189,8 +198,9 @@ crontab). Per run:
    (auth, quota, anything unattributable) is treated as INFRA-class — conservative: an attempt
    the dispatcher cannot PROVE was about the message never burns that message's lifetime
    attempt. Infra-class → un-consume the ledger entry, mark LLM-unavailable for the rest of the
-   run (no retry storm), log loudly; the tail falls to the floater tier — deterministic routing
-   and escalation continue unaffected. **Injection frame:** the body is fenced with a run-unique random boundary
+   run (no retry storm), log loudly; the affected messages and the unreached tail stay UNROUTED
+   and ledger-free (never floater-routed — § approach 2, collision resolution) and retry next
+   run — deterministic routing and escalation continue unaffected. **Injection frame:** the body is fenced with a run-unique random boundary
    string; a body containing the boundary (or an unparseable response) skips the LLM and goes to
    the floater tier — worst case of a successful injection is a misroute, which
    `route`-as-filter makes a one-command human fix. The model's `why` string is itself untrusted OUTPUT: it is length-capped
@@ -212,7 +222,7 @@ crontab). Per run:
    ONLY, no subject or body text, so the message length is arithmetic, not content-dependent
    (age from the frontmatter `ts`, never file mtime — `route` rewrites via `os.replace`,
    resetting mtime). ERRATUM (plan-review 2026-08-25): the earlier "cross-check via `mail.py
-   digest`" is withdrawn — `digest()` MUTATES (`_quarantine`, `scripts/mail.py:1069-1071`); the
+   digest`" is withdrawn — `digest()` MUTATES (`_quarantine` call at `scripts/mail.py:1073`); the
    dispatcher's own read-only scan of the same strand signals is the coverage. **Channel
    ERRATUM (third review, grounded live):** `scripts/sysadmin/send-telegram.sh` is REJECTED —
    it reads `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID` from `/opt/fabrik/.env.sysadmin`, and that
@@ -251,9 +261,18 @@ crontab). Per run:
   `_publish`) are covered by the dispatcher's own quiescence re-scan loop + the sweep; a
   cron-sweep run's own `route` rewrites re-fire the `.path` once — a harmless no-op follow-up
   run. A lock-skipped fire is LOGGED (one line) — silent-green skips are banned.
-- **Fallback: the stamp-checked sweep** (`*/30` cron line, `weekly_catchup.sh` pattern) — the
+- **Fallback: the cron sweep** (`*/30` flock-guarded line; cron only fires while awake, so
+  wake-from-sleep coverage is the next tick ≤30 min after resume) — the
   safety net for watcher death, wake-from-sleep, and anything inotify missed. Belt and
   suspenders: the sweep alone is the v0 behavior if the operator installs only the cron line.
+- **Both trigger legs MUST run with CWD=/opt/fabrik** — `libs/alerting` autoloads its
+  credentials by walking UP FROM THE CURRENT DIRECTORY (`libs/alerting/_dotenv.py`), so a cron
+  leg started in $HOME finds no `/opt/fabrik/.env` and escalation is silently unconfigured on
+  that leg forever (fourth review, grounded live — the same day-1 class as the send-telegram.sh
+  rejection). The cron line therefore `cd /opt/fabrik` first and pre-creates the lock parent
+  (`mkdir -p ~/.claude/state`), and a lock timeout APPENDS its own skip line to the log (the
+  flock process exits without running anything — only a wrapper can log the skip). The systemd
+  service pins `WorkingDirectory=/opt/fabrik` + an ExecStartPre mkdir.
 - Install remains operator-owned: ONE cron line (classifier block) + `systemctl --user enable
   --now fabrik-mail-dispatcher.path` — both shipped ready-made.
 

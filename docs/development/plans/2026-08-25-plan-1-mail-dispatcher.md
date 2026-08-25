@@ -90,10 +90,16 @@ No 🆕 fabrik-lib candidate: the dispatcher glue is hub-specific (spec's new-mo
 - `scripts/mail_dispatcher.py` — CLI: `python3 scripts/mail_dispatcher.py [--dry-run] [--no-llm]`;
   mailbox root from `FABRIK_MAIL_ROOT` (default `/opt/fabrik-mail`) — the dispatcher's OWN scan
   honors the same env seam as `mail.py:_mail_root`, so one variable redirects both layers in
-  tests; READ helpers (`_parse`, `_subject_tokens`, `_age_seconds`) are IMPORTED from
+  tests; READ helpers (`_parse`, `_subject_tokens`, `_age_seconds`, `_ACK_LINE`) are IMPORTED from
   `scripts.mail` (read-only import; mutation stays CLI-only) — never re-implemented parsers
-  that drift; importable functions `scan_unaddressed(inbox: Path) -> list[Msg]`,
-  `classify_deterministic(msg: Msg, rules: list[Rule]) -> Verdict | None`
+  that drift; importable functions `scan_mailbox(root: Path) -> ScanResult` (dataclass with `.unaddressed:
+  list[Msg]` — routing leg — and `.obligations: list[Msg]` — inbox ack-required + archive
+  strands via `_ACK_LINE`),
+  `classify_deterministic(msg: Msg, rules: list[Rule]) -> Verdict | None` (`Msg` and `Rule`
+  are frozen dataclasses defined in the dispatcher: `Msg(ulid, kind, sender, agent, ack, ts,
+  subject, path)`; `Rule(tier: int, kind: str | None, keywords: tuple[str, ...], beat: str,
+  operator_decision: bool)`; matching = case-insensitive substring on the subject tokens —
+  tier 0 addressee-prefix is TERMINAL: when present NO rule is evaluated at all, spec § 2)
   (`Verdict = (beat: str, why: str, operator_decision: bool)`; **`beat` is ALWAYS a real
   `agent:` value `infra|fleet|intel`** — an operator-class rule carries its charter beat plus
   `operator_decision=True`; the string "operator" never reaches `apply_route`),
@@ -113,20 +119,29 @@ No 🆕 fabrik-lib candidate: the dispatcher glue is hub-specific (spec's new-mo
   is NOT a signal. Charter-grounded keywords per the spec (DR → infra, not fleet;
   intel = model/benchmark/flywheel/model-selection; templates/governance carve-out → infra);
   the RULES header records the three charter files' md5s and a test compares them live — a
-  charter edit reds the suite instead of silently staling the table. **Structural skip-list:**
-  the daily kaizen collector mail (dual-charter trigger, unaddressed BY DESIGN) is never routed,
-  never LLM'd, logged as skipped. **Routed-once ledger:** the dispatcher routes any message AT
-  MOST ONCE EVER (ledger like the LLM one, same pruning) — a human's `route --to-agent ''`
-  clear is FINAL, never re-overwritten by the same rule seconds later).
+  charter edit reds the suite instead of silently staling the table. **Structural skip-list** (content-keyed): `kind == request` AND subject line starting
+  `# Kaizen daily collection` (`scripts/sysadmin/kaizen_collect_v2.py:2469` send, `:2485`
+  compose) — the dual-charter trigger stays unaddressed BY DESIGN: never routed, never LLM'd,
+  logged as skipped. **Routed-once ledger (observe-and-record), file
+  `~/.claude/state/mail-dispatcher/routed.txt`:** records (a) every ULID the dispatcher itself
+  decides AND (b) every ULID observed already carrying `agent:` (sender-set and pre-ledger
+  routes included) — the dispatcher routes any message AT MOST ONCE EVER and never re-decides a
+  cleared one, so a human's `route --to-agent ''` clear is FINAL in every case; pruned only
+  when a ULID leaves inbox+archive).
   **Startup bootstrap:** `scripts/mail_dispatcher.py` inserts the REPO ROOT on `sys.path` at
   startup (the `scripts/mail.py:1310` precedent — `sys.path[0]` is `scripts/` when invoked by
   path) and imports the vendored module in PACKAGE form: `from libs.llm_dispatch.llm_dispatch
   import ClaudeCall, dispatch` (the repo convention — `libs/__init__.py` + e.g.
   `scripts/doc_reconcile.py:43`), never a cwd-relative `sys.path.insert(0,'libs')`.
   **Main loop is quiescence-seeking:** after a sweep, re-scan; repeat while new unaddressed
-  messages keep appearing (bounded at 10 iterations/run) — a message landing MID-run is caught
+  messages keep appearing (bounded at 10 iterations/run); a run whose FIRST scan finds nothing
+  sleeps 2s and re-scans once before exiting (the `.path` unit can fire on `_publish`'s
+  pre-link `.tmp` event — without the settle, the real message lands just after the empty scan
+  and waits for the sweep, breaking criterion 1's immediacy) — a message landing MID-run is caught
   by the same run, so the .path unit's retrigger semantics can never strand one until the sweep.
-- State dir `~/.claude/state/mail-dispatcher/` (created on first run).
+- State dir `~/.claude/state/mail-dispatcher/` (created on first run; holds `llm-attempts.txt`,
+  `routed.txt`, the escalation day-stamp).
+- `tests/fixtures/mail_dispatcher/` (fixture mailboxes + the anonymized labeled sample).
 
 Steps:
 1. Probe preflight (first step, runnable, from /opt/fabrik): `systemctl --user
@@ -140,13 +155,14 @@ Steps:
    `INDEX.md`. ⚠️ Vendor VERBATIM — in particular **never "fix" `bare: bool = False` to match
    the module docstring** (the docstring at `llm_dispatch.py:144-146` wrongly says `bare=True`
    is the default; the CODE default False is deliberate and is the only auth path this box has —
-   flipping it returns `is_error:true` with exit 0). Append that docstring↔code contradiction to
-   `/opt/fabrik-lib/llm-dispatch/UPSTREAM_FEEDBACK.md` (the sanctioned upstream-note flow).
+   flipping it returns `is_error:true` with exit 0). Report that docstring↔code contradiction to fabrik-lib via fabrik-mail (`mail.py send --to
+   fabrik-lib --kind finding`, an attended executor action — NEVER a direct write into
+   `/opt/fabrik-lib`, which is a cross-repo HARD STOP needing turn-scoped approval).
    `requirements.txt` is copied as documentation only — `httpx` is the OpenRouter leg's lazy
    dep; **never `uv add` anything** (deps files are a HARD STOP). The vendored
    `test_llm_dispatch*.py` sit outside `testpaths=["tests"]` (`pyproject.toml`) and will NOT run
    here — deliberate; the hub-side vendor-integrity test below is the guard. Gate:
-   `python3 -c "from libs.llm_dispatch.llm_dispatch import ClaudeCall, dispatch; import dataclasses; assert any(f.name=='cost_usd' for f in dataclasses.fields(__import__('libs.llm_dispatch.llm_dispatch',fromlist=['DispatchResult']).DispatchResult)); print('ok')"`
+   `python3 -c "from libs.llm_dispatch.llm_dispatch import ClaudeCall, dispatch; import dataclasses; assert {'cost_usd','is_error','structured'} <= {f.name for f in dataclasses.fields(__import__('libs.llm_dispatch.llm_dispatch',fromlist=['DispatchResult']).DispatchResult)); print('ok')"`
    (run from /opt/fabrik) → `ok` — this line also ships as a permanent vendor-integrity test in
    `tests/test_mail_dispatcher.py`.
 3. Derive the seed rule table from the labeled archive (35 of 144 messages carry `agent:`):
@@ -158,8 +174,13 @@ Steps:
    hand-curate `RULES` from the stats + the beat charters
    (`docs/reference/agents/{infra,fleet,intel}.md`). The SHIPPED test measures precision against
    the committed fixture snapshot (hermetic, clone-safe).
-   Gate: per-rule precision vs the fixture labels; every shipped rule ≥0.8
-   precision on labeled data or it is cut (misroute worse than LLM fallback — spec § approach 2).
+   Gate: per-rule precision vs the fixture labels with the spec's VALIDITY FLOOR (§ Open
+   unknowns): the ≥0.8 cut applies ONLY to rules with ≥5 labeled matches; a rule with fewer
+   (every intel rule on n=2, 0-match charter areas) ships charter-grounded and FLAGGED
+   `unvalidated (n<5)` in the derivation report — cut-for-being-new and pass-vacuously are both
+   wrong. ANONYMIZATION defined: fixtures carry ONLY the frontmatter `kind` + the subject line
+   with sender/project names replaced by `sender-N` placeholders; bodies are DROPPED entirely
+   (mail bodies are the designated untrusted/sensitive surface — they never enter git).
    Coverage/recall is REPORTED, not gated — a thin rule table is safe by design (the LLM covers
    the tail); the report just makes the deterministic share visible.
 4. Implement scan + deterministic classify + route with pinned precedence (strictly-more-specific
@@ -179,6 +200,16 @@ Phase gate: `uv run pytest tests/test_mail_dispatcher.py -q` → all pass;
   rule, **When** classified, **Then** the more specific composite beat wins.
 - **Given** two messages with identical kind + subject from two DIFFERENT sender repos, **When**
   classified, **Then** the verdicts are identical (sender is never a routing key). (TDD)
+- **Given** a message with an addressee prefix AND a subject matching a conflicting composite
+  rule, **When** classified, **Then** the prefix decides and the log shows tier-0 terminal — no
+  rule was evaluated. (TDD)
+- **Given** a kaizen daily mail (`kind: request`, subject `# Kaizen daily collection — …`),
+  **When** scanned, **Then** it is skip-listed: not routed, no LLM call, logged as skipped. (TDD)
+- **Given** a message the dispatcher routed and a human then cleared (`route --to-agent ''`),
+  **When** the next run fires, **Then** it is NOT re-routed (routed-once, observe-and-record).
+  (TDD)
+- **Given** a message whose `agent:` was set by the SENDER and later cleared by a human, **When**
+  the next run fires, **Then** it is NOT routed (observed-addressed ULIDs are ledgered too). (TDD)
 - **Given** an operator-class match, **When** routed, **Then** the beat is a real `agent:` value and the log
   carries `operator-decision`.
 - **Given** an empty inbox, **When** run, **Then** exit 0 with the summary line `scanned 0 …`.
@@ -233,12 +264,15 @@ Steps:
    and retry naturally. Ledger stays bounded: at run end, drop ULIDs no longer present in the
    inbox (routing/archive settled them).
 4. Failure ladder: infra-class exception (step 3 taxonomy) → un-consume the ledger entry, mark
-   LLM-unavailable for the REST of this run (no per-message retry storm), log loudly — the tail
-   goes to the intel floater tier (charter-owned, never ownerless) and re-attempts LLM next run.
+   LLM-unavailable for the REST of this run (no per-message retry storm), log loudly — the
+   affected messages and the unreached tail stay UNROUTED and ledger-free and retry next run
+   (NEVER floater-routed: collision resolution, fourth review — floater-routing an outage tail
+   plus the routed-once ledger would permanently park every outage-swept message on intel).
    Message-class failure → floater-routed, attempt consumed. Deterministic routing + Phase C
    escalation unaffected either way. NO dollar checks
    anywhere; log `DispatchResult.cost_usd` (or `cost=unknown` when None) in the summary line.
-   **Per-run LLM-call bound** `FABRIK_MAIL_LLM_PER_RUN` (default 20 — a LATENCY bound, not a
+   **Per-run LLM-call bound** `FABRIK_MAIL_LLM_PER_RUN` (default 20, counted ACROSS ALL
+   quiescence iterations of the run — one total, never per-iteration — a LATENCY bound, not a
    money cap: serial 120s calls would otherwise hold the lock for hours under a storm; the
    unreached tail is ledger-free and retries on the next trigger within minutes).
 5. Tests (TDD for: message-class consumes / infra-class does NOT consume the ledger entry;
@@ -261,7 +295,9 @@ first on the four TDD rows).
 - **Given** a ULID already in the ledger, **When** the run reaches it, **Then** no dispatch happens and it is
   logged as ledger-settled → floater tier. (TDD)
 - **Given** an infra-class dispatch failure (spawn/timeout/auth) on a message, **When** the run finishes,
-  Then that message's ULID is NOT in the ledger (its lifetime attempt survives the outage). (TDD)
+  **Then** that message's ULID is NOT in the ledger (its lifetime attempt survives the outage). (TDD)
+- **Given** an infra-class failure mid-run, **When** the run finishes, **Then** NO affected or
+  unreached message carries `agent: intel` — an outage tail is never floater-routed. (TDD)
 - **Given** `dispatch` raises on message 2 of 5, **When** the run continues, **Then** messages 3–5 get NO LLM
   calls this run and deterministic routing still applied where rules matched. (TDD)
 - **Given** a full fixture-mailbox cycle, **When** every subprocess argv is recorded, **Then** none contains
@@ -278,8 +314,10 @@ Close: doc-sync check → **/fabrik-review on Phase B's surface to its coverage-
 
 ## Phase C — Escalation, watcher units, install deliverables, docs, final gate
 
-**Interfaces.Consumes:** Phase A scan (frontmatter access), Phase B summary line.
-**Interfaces.Produces:** `escalate(inbox) -> int`; `configs/systemd/fabrik-mail-dispatcher.service`
+**Interfaces.Consumes:** Phase A's `scan_mailbox` (both populations), Phase B summary line.
+**Interfaces.Produces:** `escalate(obligations: list[Msg]) -> int` (fed by Phase A's
+`scan_mailbox(root) -> ScanResult` — `ScanResult.unaddressed` for routing,
+`ScanResult.obligations` = inbox ack-required + archive strands for escalation); `configs/systemd/fabrik-mail-dispatcher.service`
 (+ `.path`); `configs/logrotate/fabrik-mail-dispatcher`; the operator install block (cron line +
 `systemctl --user enable --now` + logrotate copy) in `docs/workstation/fabrik-mail.md`.
 
@@ -294,20 +332,30 @@ Steps:
    frontmatter `ts`, NEVER file mtime** — `route()` rewrites via `os.replace`
    (`scripts/mail.py:801-803`), so mtime resets the moment the dispatcher routes a message and
    an mtime-based age would never escalate anything (test-green, production-silent).
-   **Channel: the hub-vendored `libs/alerting` telegram module** — NOT `send-telegram.sh`
-   (grounded out live: its required `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID` do not exist in
-   `/opt/fabrik/.env.sysadmin`, so it exits 1 unconditionally on this box; `libs/alerting`
-   handles the split credential in `/opt/fabrik/.env` — `libs/alerting/telegram.py:3-21`).
+   **Channel: `from libs.alerting import telegram; telegram.send(title, body) -> bool`**
+   (`libs/alerting/telegram.py:120` — the DIRECT sender; deliberately NOT the package-level
+   `send_alert`, whose title-keyed dedup/min-interval could suppress a same-title daily digest —
+   the day-stamp is this design's dedup). NOT `send-telegram.sh` (grounded out live: its
+   required `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID` do not exist in `/opt/fabrik/.env.sysadmin`,
+   so it exits 1 unconditionally on this box; `libs/alerting` handles the split credential in
+   `/opt/fabrik/.env` — `libs/alerting/telegram.py:3-21`).
    One Telegram per calendar day; **the day-stamp is written ONLY after a successful send,
    carrying the send-moment's date** (midnight-safe; a failed send leaves no stamp → next run
    retries, at most once per run, loud on stdout). Message content is `id · age(d) · beat`
    ONLY — no subject/body text, so length is arithmetic — oldest 20 + `+K more (total)`, plus
    the floater/LLM-unavailable health counts when nonzero, and a hard 3900-char
    truncation guard before the send (Telegram caps at 4096 and a 400 is non-retryable in most
-   clients). NO `digest()` call — it MUTATES (`_quarantine`, `scripts/mail.py:1069-1071`).
-   Tests: the alerting send function is monkeypatched (no live POST), day-stamp-after-success
-   ordering (TDD: failed send → no stamp → next run retries), threshold boundary (exactly
-   `N*86400` seconds → escalated, one second younger → not), archive-strand inclusion (TDD).
+   clients). NO `digest()` call — it MUTATES (`_quarantine`, `scripts/mail.py:1073`).
+   Loudness is the DISPATCHER'S OWN print: `telegram.send` returns only a bool and the
+   library logs via an unconfigured logger (stderr lastResort) — so the dispatcher prints its
+   own `escalation sent/failed` line to stdout with the bool and the item count; the digest
+   text is PLAIN (alphanumerics, dots, middots — no Markdown metacharacters: `try_send` posts
+   with `parse_mode: Markdown` and an unbalanced `*`/`_`/`[` would 400 non-retryably,
+   `libs/alerting/telegram.py:89,112`). Tests: `libs.alerting.telegram.send` is monkeypatched
+   (the pinned target; no live POST), day-stamp-after-success ordering (TDD: failed send → no
+   stamp → next run retries), threshold boundary (exactly `N*86400` seconds → escalated, one
+   second younger → not), archive-strand inclusion (TDD), digest-builder output length ≤3900
+   and Markdown-metachar-free.
 2. systemd USER units (files in-repo; operator symlinks/copies + enables). `.path` uses
    **`PathModified=/opt/fabrik-mail/fabrik/inbox` ONLY — never `DirectoryNotEmpty=`**: the inbox
    is NOT a drained spool (`route` rewrites in place, unacked mail sits for days), so
@@ -315,9 +363,11 @@ Steps:
    `StartLimitBurst` flips the unit to `failed` and the "immediate" watcher silently dies —
    verified against `man systemd.path` re-check-on-deactivate semantics. Edge losses (an arrival
    while the service is active) are covered by the dispatcher's own quiescence loop (Phase A) +
-   the cron sweep. The `.service` (oneshot) pins `WorkingDirectory=/opt/fabrik` and
-   `ExecStart=/usr/bin/flock -w 30 -E 0 %h/.claude/state/mail-dispatcher.lock /usr/bin/python3
-   /opt/fabrik/scripts/mail_dispatcher.py` — `%h` not `$HOME` (systemd does no shell expansion),
+   the cron sweep. The `.service` (oneshot) pins `WorkingDirectory=/opt/fabrik` (LOAD-BEARING — the
+   `libs/alerting` CWD env-seam above), `ExecStartPre=/bin/mkdir -p %h/.claude/state`, and
+   `ExecStart=/bin/sh -c 'flock -w 30 %h/.claude/state/mail-dispatcher.lock /usr/bin/python3
+   /opt/fabrik/scripts/mail_dispatcher.py || echo "dispatcher: lock timeout, run skipped"'` —
+   `%h` not `$HOME` in unit directives (systemd does no shell expansion),
    `-w 30 -E 0` not `-n` (a `flock -n` miss exits 1, marks the oneshot `failed`, and a burst
    walks the unit into `StartLimitBurst` death; `-w` queues one waiter, `-E 0` keeps a timeout
    green), and **the SAME lock file the cron line uses** — one lock path,
@@ -328,9 +378,13 @@ Steps:
    configs/systemd/fabrik-mail-dispatcher.path` → no errors.
 3. Fallback cron line + logrotate snippet, verbatim in `docs/workstation/fabrik-mail.md` § Install
    (operator installs; agents never write the crontab):
-   `*/30 * * * * flock -w 30 -E 0 $HOME/.claude/state/mail-dispatcher.lock python3 /opt/fabrik/scripts/mail_dispatcher.py >> /var/log/fabrik-mail-dispatcher.log 2>&1`
-   (same single lock file as the systemd unit — cron sweep and watcher runs can never overlap;
-   parent dir exists today, no chicken-and-egg).
+   `*/30 * * * * /bin/sh -c 'mkdir -p $HOME/.claude/state && cd /opt/fabrik && { flock -w 30 $HOME/.claude/state/mail-dispatcher.lock python3 scripts/mail_dispatcher.py || echo "$(date -Is) dispatcher: lock timeout, sweep skipped"; }' >> /var/log/fabrik-mail-dispatcher.log 2>&1`
+   — `cd /opt/fabrik` is LOAD-BEARING (`libs/alerting` autoloads credentials by walking up from
+   CWD — a $HOME-started leg finds no `.env` and escalation is silently unconfigured on that leg
+   forever, fourth review); `mkdir -p` kills the fresh-box lock-parent chicken-and-egg; the
+   `|| echo` line makes a lock-timeout skip LOUD (the flock process exits without running
+   anything, so only the wrapper can log it — silent-green skips are banned by the spec). Same
+   single lock file as the systemd unit — sweep and watcher runs can never overlap.
    The install block ALSO carries (grounded this session): a one-time
    `sudo touch /var/log/fabrik-mail-dispatcher.log && sudo chown $USER: /var/log/fabrik-mail-dispatcher.log`
    (`/var/log` is not user-writable; the pre-created user-owned file is the existing
@@ -340,7 +394,7 @@ Steps:
 4. Docs (Doc Sync Matrix rows this plan owes): `docs/reference/fabrik-mail.md` § Dispatcher
    (replaces the ":219 forthcoming" note — canonical behavior doc); `docs/workstation/fabrik-mail.md`
    § Install (box-local specifics); `.env.example` + `docs/CONFIGURATION.md`
-   (`FABRIK_MAIL_ESCALATE_DAYS`); `INDEX.md` (new files); `CHANGELOG.md` entry;
+   (`FABRIK_MAIL_ESCALATE_DAYS` AND `FABRIK_MAIL_LLM_PER_RUN` — both new); `INDEX.md` (new files); `CHANGELOG.md` entry;
    `docs/LESSONS_LEARNT.md` (entry or `none`). Pool-reconciled via `scripts/doc_reconcile.py`
    where it applies, coder-curated.
 5. **/fabrik-docs-review** over the touched docs → truthful fixed point.
@@ -432,7 +486,7 @@ $ sed -n 215,219p /opt/fabrik-lib/llm-dispatch/llm_dispatch.py
 Phase C grounding:
 - `scripts/sysadmin/send-telegram.sh:20-31` — `MESSAGE="${1:-}"`, `DRY_RUN=1` supported, exit 0/1,
   env from `/opt/fabrik/.env.sysadmin`.
-- `scripts/mail.py:1069-1071` — `digest()` calls `_quarantine(inbox, f)` (it MUTATES) and scans
+- `scripts/mail.py:1073` — `digest()` calls `_quarantine(inbox, f)` (it MUTATES) and scans
   every repo + archive strands → the dispatcher never calls it; escalation detail and counts are
   the dispatcher's own hub-inbox scan (spec erratum, corrected same-change).
 - Environment probes, live this session:
@@ -606,8 +660,8 @@ $ ls /etc/logrotate.d/ | grep -c fabrik
 
 | Class | Verdict |
 |---|---|
-| Untrusted-input → instructions (35-security FLOOR) | FIXED(4) — boundary fence; `why` AND sender/subject sanitized; argv-not-shell telegram; argv-vs-stdin honesty note (hunted: Phase B 1-2, Phase C 1) |
-| Config via env only, zero secrets in code (35-security FLOOR) | CLEAN — env vars with defaults only; secrets stay in `.env.sysadmin`, read only by send-telegram.sh (hunted: Global Constraints, Phase C) |
+| Untrusted-input → instructions (35-security FLOOR) | FIXED(5) — boundary fence; `why` AND sender/subject sanitized; in-process plain-text (Markdown-metachar-free) telegram digest; argv-vs-stdin honesty note (hunted: Phase B 1-2, Phase C 1; re-adjudicated after the channel swap) |
+| Config via env only, zero secrets in code (35-security FLOOR) | CLEAN — env vars with defaults only; Telegram credentials stay in `/opt/fabrik/.env`, read only by `libs/alerting` (hunted: Global Constraints, Phase C; re-adjudicated after the channel swap) |
 | 12F XI — stdout only, no app logfile/rotation | CLEAN — dispatcher prints to stdout; cron/systemd own redirection; logrotate is an operator install artifact (hunted: Global Constraints, Phase C 3) |
 | 12F VIII — no daemonize / PID file | CLEAN — systemd .path owns the watch; oneshot run-to-completion script (hunted: Phase C 2) |
 | 12F IX — disposability: crash-safe state, idempotent reruns | FIXED(3) — single shared lock, quiescence loop, ledger crash/prune semantics (hunted: Phase A Interfaces, Phase B 3) |
