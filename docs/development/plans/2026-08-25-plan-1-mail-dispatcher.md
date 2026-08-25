@@ -1,6 +1,6 @@
 # Plan — fabrik-mail dispatcher (Layer 1.5): immediate routing + escalation
 
-Status: CONVERGED (re-adjudicated by a fourth review 2026-08-25 — 37 findings incl. the floater/routed-once collision and the libs/alerting CWD env-seam; final no-op pass md5 `00e011bb`)
+Status: CONVERGED (fifth review 2026-08-25 — architecture adjudication: keyword tier DELETED, tier 0 widened to 26% measured coverage, LLM-primary with blocking precision probe, verdicts.jsonl cache path; consistent with the spec)
 Date: 2026-08-25
 Spec (source of truth, CONVERGED): `docs/superpowers/specs/2026-08-25-fabrik-mail-dispatcher-design.md`
 
@@ -95,14 +95,16 @@ No 🆕 fabrik-lib candidate: the dispatcher glue is hub-specific (spec's new-mo
   that drift; importable functions `scan_mailbox(root: Path) -> ScanResult` (dataclass with `.unaddressed:
   list[Msg]` — routing leg — and `.obligations: list[Msg]` — inbox ack-required + archive
   strands via `_ACK_LINE`),
-  `classify_deterministic(msg: Msg, rules: list[Rule]) -> Verdict | None` (`Msg` and `Rule`
-  are frozen dataclasses defined in the dispatcher: `Msg(ulid, kind, sender, agent, ack, ts,
-  subject, path)`; `Rule(tier: int, kind: str | None, keywords: tuple[str, ...], beat: str,
-  operator_decision: bool)`; matching = case-insensitive substring on the subject tokens —
-  tier 0 addressee-prefix is TERMINAL: when present NO rule is evaluated at all, spec § 2)
+  `classify_tier0(msg: Msg) -> Verdict | None` (`Msg` is a frozen dataclass: `Msg(ulid, kind,
+  sender, agent, ack, ts, subject, path)`; v2 shape — the hand-derived keyword `Rule` table is
+  DELETED, spec Rejected alternative D: the ONLY deterministic router is the enum-anchored
+  addressee predicate — subject first line carries an agent-pair arrow in any real form:
+  `[infra→fleet]`, `subject: [infra->fleet]`, or UNBRACKETED `infra → intel:`; both encodings;
+  BOTH tokens validated against the agent enum, which rejects non-agent arrows like
+  `RELAY REQUEST → /opt/...`; RIGHT token routes — measured 43/166 = 26% coverage vs 6/166 for
+  the bracket-only form)
   (`Verdict = (beat: str, why: str, operator_decision: bool)`; **`beat` is ALWAYS a real
-  `agent:` value `infra|fleet|intel`** — an operator-class rule carries its charter beat plus
-  `operator_decision=True`; the string "operator" never reaches `apply_route`),
+  `agent:` value `infra|fleet|intel`**),
   `apply_route(msg_id: str, beat: str) -> bool` — wraps
   `subprocess.run([sys.executable, "/opt/fabrik/scripts/mail.py", "route", msg_id, "--to-agent",
   beat, "--repo", "fabrik"], ...)` (argv list, NEVER a shell string): **`--repo fabrik` is
@@ -110,16 +112,13 @@ No 🆕 fabrik-lib candidate: the dispatcher glue is hub-specific (spec's new-mo
   to `Path.cwd().name`), so under cron (CWD=$HOME → repo "ozgur") or systemd (CWD=/ → raises)
   every route fails 100% while a hand-run from /opt/fabrik works — the exact silent-green trap.
   Checks the exit code, NEVER raises — False + log on any failure.
-  `RULES: list[Rule]` (ordered, tiered: explicit addressee-prefix → (kind + keyword) → keyword
-  → LLM → **intel floater** (the charter's own owner of unowned work, `intel.md` § Floater) —
-  **CONTENT-keyed only; the sender repo is NEVER a routing key** (operator correction
-  2026-08-25). The addressee-prefix regex matches BOTH live encodings (`[x→y]` and `[x->y]`,
-  7/5 split in the archive) and takes the RIGHT-hand token — the left is the SENDER, and a
-  group-1 slip would silently reintroduce the banned sender key (dedicated test); a bare `[x]`
-  is NOT a signal. Charter-grounded keywords per the spec (DR → infra, not fleet;
-  intel = model/benchmark/flywheel/model-selection; templates/governance carve-out → infra);
-  the RULES header records the three charter files' md5s and a test compares them live — a
-  charter edit reds the suite instead of silently staling the table. **Structural skip-list** (content-keyed): `kind == request` AND subject line starting
+  Chain: tier-0 addressee (terminal) → skip-list → LLM (charters inlined in the prompt) →
+  **intel floater** for decided-undecidables (`intel.md` § Floater) — **CONTENT-keyed only; the
+  sender repo is NEVER a routing key** (operator correction 2026-08-25); the RIGHT-hand arrow
+  token routes, the left is the SENDER and a group-1 slip would silently reintroduce the banned
+  sender key (dedicated test); a bare `[x]` single token is NOT a signal. NO keyword table, NO
+  charter-md5 test (deleted with the tier — the charters are the LLM's prompt data instead).
+  **Structural skip-list** (content-keyed): `kind == request` AND subject line starting
   `# Kaizen daily collection` (`scripts/sysadmin/kaizen_collect_v2.py:2469` send, `:2485`
   compose) — the dual-charter trigger stays unaddressed BY DESIGN: never routed, never LLM'd,
   logged as skipped. **Routed-once ledger (observe-and-record), file
@@ -141,7 +140,7 @@ No 🆕 fabrik-lib candidate: the dispatcher glue is hub-specific (spec's new-mo
   by the same run, so the .path unit's retrigger semantics can never strand one until the sweep.
 - State dir `~/.claude/state/mail-dispatcher/` (created on first run; holds `llm-attempts.txt`,
   `routed.txt`, the escalation day-stamp).
-- `tests/fixtures/mail_dispatcher/` (fixture mailboxes + the anonymized labeled sample).
+- `tests/fixtures/mail_dispatcher/` (synthetic fixture mailboxes — no live-mail snapshots).
 
 Steps:
 1. Probe preflight (first step, runnable, from /opt/fabrik): `systemctl --user
@@ -165,44 +164,32 @@ Steps:
    `python3 -c "from libs.llm_dispatch.llm_dispatch import ClaudeCall, dispatch; import dataclasses; assert {'cost_usd','is_error','structured'} <= {f.name for f in dataclasses.fields(__import__('libs.llm_dispatch.llm_dispatch',fromlist=['DispatchResult']).DispatchResult)); print('ok')"`
    (run from /opt/fabrik) → `ok` — this line also ships as a permanent vendor-integrity test in
    `tests/test_mail_dispatcher.py`.
-3. Derive the seed rule table from the labeled archive (35 of 144 messages carry `agent:`):
-   a ONE-OFF dev-time run by the executor (NOT part of the test suite — Phase C's contract bans
-   tests touching the live mailbox, and on a fresh clone the live-archive glob is empty, which
-   would make a precision gate vacuously green while measuring nothing): parse
-   `/opt/fabrik-mail/fabrik/archive/*.md` frontmatter + subject once, snapshot an ANONYMIZED
-   labeled sample as committed fixtures under `tests/fixtures/mail_dispatcher/labeled/`, and
-   hand-curate `RULES` from the stats + the beat charters
-   (`docs/reference/agents/{infra,fleet,intel}.md`). The SHIPPED test measures precision against
-   the committed fixture snapshot (hermetic, clone-safe).
-   Gate: per-rule precision vs the fixture labels with the spec's VALIDITY FLOOR (§ Open
-   unknowns): the ≥0.8 cut applies ONLY to rules with ≥5 labeled matches; a rule with fewer
-   (every intel rule on n=2, 0-match charter areas) ships charter-grounded and FLAGGED
-   `unvalidated (n<5)` in the derivation report — cut-for-being-new and pass-vacuously are both
-   wrong. ANONYMIZATION defined: fixtures carry ONLY the frontmatter `kind` + the subject line
-   with sender/project names replaced by `sender-N` placeholders; bodies are DROPPED entirely
-   (mail bodies are the designated untrusted/sensitive surface — they never enter git).
-   Coverage/recall is REPORTED, not gated — a thin rule table is safe by design (the LLM covers
-   the tail); the report just makes the deterministic share visible.
-4. Implement scan + deterministic classify + route with pinned precedence (strictly-more-specific
-   wins; same-tier disagreement → UNMATCHED) and per-message error isolation.
-5. Tests (TDD — watched fail first for: precedence conflict → UNMATCHED; route-failure isolation;
-   operator-decision marker pairing). Fixture mailbox under `tests/fixtures/mail_dispatcher/`.
+3. (Deleted in the v2 shape — no rule derivation, no labeled fixtures, no precision gate; the
+   corpus for a future v1.1 cache tier is `verdicts.jsonl`, which Phase B appends on every LLM
+   verdict. Ship the derivation SCRIPT skeleton (`scripts/mail_dispatcher.py --derive-cache`,
+   reads verdicts.jsonl, proposes rules at ≥0.95 precision / n≥20, prints — never applies) and
+   the STRATEGIC_BACKLOG row with the mechanical trigger `n ≥ 200 verdicts`.)
+4. Implement scan + tier-0 classify + route with per-message error isolation (no precedence
+   machinery — tier 0 is the only deterministic router and it is terminal).
+5. Tests (TDD — watched fail first for: the tier-0 encoding matrix; enum-anchor rejection;
+   route-failure isolation; operator-decision marker pairing). Fixture mailbox under
+   `tests/fixtures/mail_dispatcher/`.
 
 Phase gate: `uv run pytest tests/test_mail_dispatcher.py -q` → all pass;
 `ruff check scripts/mail_dispatcher.py` → clean.
 
 ### Behavior Contract (risk-ordered)
-- **Given** two same-tier rules disagreeing on beat, **When** classified, **Then** verdict is None (UNMATCHED)
-  and the log names both rules. (TDD)
+- **Given** each of the three real prefix forms (`[infra→fleet]`, `subject: [infra->fleet]`,
+  unbracketed `infra → intel:`), **When** classified, **Then** each routes to the RIGHT-hand
+  beat — the full encoding matrix. (TDD)
+- **Given** a non-agent arrow subject (`RELAY REQUEST → /opt/web-ecommerce-factory`), **When**
+  classified, **Then** tier 0 does NOT fire (enum anchor) and the message goes to the LLM. (TDD)
 - **Given** a message `route` refuses (claimed mid-run), **When** applied, **Then** `apply_route` returns
   False, logs the id, and the remaining messages still process. (TDD)
-- **Given** a message matching a (kind + keyword) composite rule AND a conflicting bare-keyword
-  rule, **When** classified, **Then** the more specific composite beat wins.
 - **Given** two messages with identical kind + subject from two DIFFERENT sender repos, **When**
   classified, **Then** the verdicts are identical (sender is never a routing key). (TDD)
-- **Given** a message with an addressee prefix AND a subject matching a conflicting composite
-  rule, **When** classified, **Then** the prefix decides and the log shows tier-0 terminal — no
-  rule was evaluated. (TDD)
+- **Given** a message with an addressee prefix, **When** classified, **Then** the prefix decides
+  and the log shows tier-0 terminal — the LLM is never consulted. (TDD)
 - **Given** a kaizen daily mail (`kind: request`, subject `# Kaizen daily collection — …`),
   **When** scanned, **Then** it is skip-listed: not routed, no LLM call, logged as skipped. (TDD)
 - **Given** a message the dispatcher routed and a human then cleared (`route --to-agent ''`),
@@ -218,7 +205,7 @@ Close: doc-sync check → **/fabrik-review on Phase A's surface to its coverage-
 (BLOCKING; every class CLEAN/FIXED/REFUTED; the fixing pass is never the last look)** → commit
 (explicit paths + trailers) + push.
 
-## Phase B — LLM fallback: one bounded call per unmatched message, ever
+## Phase B — LLM classification: one bounded call per unaddressed non-skip-listed message, ever
 
 **Interfaces.Consumes:** Phase A's `scan/classify/apply_route`, `libs/llm_dispatch`.
 **Interfaces.Produces:** `classify_llm(msg: Msg) -> Verdict | None` wired into the main loop;
@@ -240,6 +227,9 @@ Steps:
    facts and removes the mapping problem. `model="haiku"` is pinned EXPLICITLY — `dispatch()`
    otherwise inherits `LLMConfig` `claude_model="opus"` (`llm_dispatch.py:109`), an Opus call per
    trivial classification and silently overridable by a box-level `CLAUDE_CLI_MODEL`.
+   Every verdict APPENDS to `~/.claude/state/mail-dispatcher/verdicts.jsonl`
+   (`{subject_hash, kind, beat, operator_decision, why, ts}` — write-only in v1; the v1.1
+   cache corpus, spec § Open unknowns).
    Success = `dispatch()` returned without raising AND `structured` is present (on an errored
    envelope it RAISES, `llm_dispatch.py:640-654`). Beat re-checked
    against the enum in the dispatcher (docs promise conformance, not payload validation).
@@ -272,11 +262,18 @@ Steps:
    Message-class failure → floater-routed, attempt consumed. Deterministic routing + Phase C
    escalation unaffected either way. NO dollar checks
    anywhere; log `DispatchResult.cost_usd` (or `cost=unknown` when None) in the summary line.
-   **Per-run LLM-call bound** `FABRIK_MAIL_LLM_PER_RUN` (default 20, counted ACROSS ALL
-   quiescence iterations of the run — one total, never per-iteration — a LATENCY bound, not a
+   **Per-run LLM-call bound** `FABRIK_MAIL_LLM_PER_RUN` (default 8, counted ACROSS ALL
+   quiescence iterations of the run — one total, never per-iteration — bounds the worst-case
+   lock hold to ~16 min; the mean burst is ONE message. The deterministic legs (tier 0 +
+   skip-list) run over the WHOLE scan BEFORE any LLM call. A LATENCY bound, not a
    money cap: serial 120s calls would otherwise hold the lock for hours under a storm; the
    unreached tail is ledger-free and retries on the next trigger within minutes).
-5. Tests (TDD for: message-class consumes / infra-class does NOT consume the ledger entry;
+5. **BLOCKING pre-ship probe (one afternoon, dev-time):** run the production prompt (charters
+   inlined) over the ~38 existing `agent:`-labeled archive messages; report per-beat precision.
+   Below 0.8 overall → the LLM leg ships DISABLED (`--no-llm` default) and the design escalates
+   to the operator — asserted comprehension is not measured comprehension (spec § Open
+   unknowns).
+6. Tests (TDD for: message-class consumes / infra-class does NOT consume the ledger entry;
    boundary-collision parks; infra-class EXCEPTION → unavailable-for-run; enum violation →
    floater-routed, attempt consumed).
    `dispatch` is monkeypatched with stubs mirroring the REAL `DispatchResult` field names
@@ -428,7 +425,7 @@ Close: doc-sync check → **/fabrik-review on Phase C's surface to its coverage-
   per-behavior test authoring (Phase A/B/C), review finders; native Claude on top for the
   authoritative high-risk pass (the LLM-call path, the untrusted-input frame) and the
   decide/refute/merge the executor owns. Never all-native.
-- **Parallelism:** Phase A steps 2 (vendor) and 3 (rule derivation) are independent — fan out;
+- **Parallelism:** Phase A steps 2 (vendor) and 4-5 (tier-0 + tests) are independent — fan out;
   test authoring fans out per behavior row; merge/dedupe at the executor before the phase gate.
   Phases are sequential (true data dependencies A→B→C).
 
@@ -514,12 +511,12 @@ $ ls /etc/logrotate.d/ | grep -c fabrik
 - (a) Coverage vs "What we already agreed": immediate → Phase C step 2 (.path unit) + criterion
   in spec; no $ caps → Global Constraints + Phase B step 4; no API key → Global Constraints +
   vendored `bare=False`; route-not-claim → Phase A step 4; v1 no sends → the TESTED no-send
-  invariant (Phase B step 5 argv-recording test), not a File-Scope inference; escalation → Phase
-  C step 1; rule seeding →
+  invariant (Phase B step 6 argv-recording test), not a File-Scope inference; escalation → Phase
+  C step 1; the v1.1 cache path (verdicts.jsonl + derive script + backlog trigger) →
   Phase A step 3; operator install → Phase C steps 2-3. No gaps found.
 - (b) Cross-phase signatures: `scan_mailbox` (ScanResult: `.unaddressed` → B's routing loop,
-  `.obligations` → C's `escalate`), `classify_deterministic`/`apply_route` consumed under the
-  same names; `Verdict`/`Msg`/`Rule` shapes pinned in Phase A. Re-verified after the fourth
+  `.obligations` → C's `escalate`), `classify_tier0`/`apply_route` consumed under the
+  same names; `Verdict`/`Msg` shapes pinned in Phase A. Re-verified after the fourth
   review's renames. Consistent.
 - Wired consumer: the terminal consumer of everything is `scripts/mail_dispatcher.py` `main()`
   itself, invoked by the .path unit + cron line (Phase C) — no stored-and-never-read surface.
@@ -528,9 +525,9 @@ $ ls /etc/logrotate.d/ | grep -c fabrik
 ## Residual unknowns
 
 - RESOLVED: trigger mechanism (systemd user .path — probed), auth path (subscription, vendored
-  default), rule seeding source (measured 35/144), all operator decisions (amended spec).
-- OPEN (self-service, non-blocking): the exact curated `RULES` content — Phase A step 3 derives
-  it from the archive with a precision gate ≥0.8; no operator input needed.
+  default), the architecture question (fifth-review adjudication: keyword tier deleted, tier 0 widened to the measured 26%), all operator decisions (amended spec).
+- CLOSED by deletion (fifth review): the curated rule-table item — spec Rejected alternative
+  D; the v1.1 cache derives from `verdicts.jsonl` (mechanical trigger n≥200, backlog row).
 - RESOLVED (was open): `.path` trigger semantics — settled by design, not probing:
   `DirectoryNotEmpty=` is BANNED here (permanent retrigger spin on a never-drained inbox →
   `StartLimitBurst` → silent watcher death, per `man systemd.path` re-check-on-deactivate);
