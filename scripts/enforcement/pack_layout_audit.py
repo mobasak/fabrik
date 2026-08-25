@@ -146,6 +146,32 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...]:
     Extracted to its own function so tests can monkeypatch it and stay hermetic (no real
     scaffold invocation, no dependency on the live corpus or the scaffolder's runtime)."""
     create_project = _import_create_project()
+    # ⚠️ SUPPRESS the scaffolder's post-scaffold sync for this THROWAWAY probe.
+    # `create_project` ends with `_post_scaffold_sync()`, which shells out to
+    # `scripts/sync_projects.py` with `cwd=FABRIK_ROOT` and REWRITES three tracked hub
+    # files: PORTS.md, data/projects.yaml, docs/PROJECT_CATALOG.md. That is catastrophic
+    # for an ADVISORY, supposedly read-only check that ships to ~46 repos:
+    #   * `final_gate.py --check` is contractually READ-ONLY and would mutate the tree;
+    #   * three concurrent hub sessions share this tree — every gate run dirties files
+    #     that then get swept into somebody else's commit;
+    #   * a PROJECT's gate run would reach into /opt/fabrik and rewrite hub files, i.e.
+    #     the "files outside project tree" HARD STOP executed by machinery, not an agent.
+    # Proven live before this fix: one `--types file-worker` run changed PORTS.md's md5.
+    # We want the scaffold's OUTPUT, never its registry side effects. (D7 finding, 2026-08-25.)
+    scaffold_mod = sys.modules[create_project.__module__]
+    _real_sync = getattr(scaffold_mod, "_post_scaffold_sync", None)
+    if _real_sync is not None:
+        scaffold_mod._post_scaffold_sync = lambda *_a, **_kw: None
+    try:
+        return _scaffold_and_walk(create_project, project_type)
+    finally:
+        if _real_sync is not None:
+            scaffold_mod._post_scaffold_sync = _real_sync
+
+
+def _scaffold_and_walk(create_project, project_type: str) -> tuple[str, ...]:
+    """Scaffold into a throwaway dir and return its path tuple. Split out so the
+    side-effect suppression above wraps the whole scaffold, not just part of it."""
     with tempfile.TemporaryDirectory(prefix="pack-layout-audit-") as tmp:
         project_dir = create_project(
             f"probe-{project_type}",
