@@ -108,8 +108,24 @@ def _prefixes(rel: str) -> list[str]:
 
 
 def _strip_wildcards(glob: str) -> str | None:
-    """Strip a leading `**/` / trailing `/**` off glob; None if that empties the pattern
-    (a wildcard-only glob, e.g. `**/` or `/**`) — callers resolve None via `empty_matches_all`."""
+    """Strip a leading `**/` / trailing `/**` off glob; None if that empties the pattern —
+    callers resolve None via `empty_matches_all`.
+
+    ⚠️ NOT every wildcard-only glob normalizes to None, and that asymmetry is INHERITED,
+    not chosen. `**/` -> None (leading strip empties it), but `/**` -> `'**'`: `lstrip("/")`
+    runs FIRST, leaving `**`, which neither startswith `**/` nor endswith `/**`. The residue
+    reaches `_tail_matches`, which rewrites `**` -> `*` and matches anything — so `/**` and
+    `**` match EVERYTHING regardless of `empty_matches_all`, bypassing it entirely.
+
+    Verified against the pre-extraction code at `b589a1b8~1`: `select_rules._glob_has_match`
+    returned False / True / True for `**/` / `/**` / `**` — byte-identical to this module.
+    This is therefore faithfully preserved behavior, NOT a regression, and it is deliberately
+    left alone: T04 is a pure move, and "fixing" it here would change rule-pack activation in
+    ~46 repos as a side effect of a refactor. `test_strip_wildcards_asymmetry_is_inherited`
+    pins it so the next reader finds it documented instead of rediscovering it.
+    (Raised independently by two finders in the confirming review round, 2026-08-25 — the
+    original docstring claimed `/**` normalized to None, which was simply false.)
+    """
     pat = glob.strip().lstrip("/")
     if pat.startswith("**/"):
         pat = pat[3:]

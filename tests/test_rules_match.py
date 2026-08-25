@@ -179,3 +179,33 @@ def test_packs_for_paths_matches_review_rubric_changed_output() -> None:
         "otherwise it degenerates into the plain-equality assertion it replaced"
     )
     assert from_rules_match == matched_from_rubric | floor_that_fired
+
+
+def test_strip_wildcards_asymmetry_is_inherited() -> None:
+    """`**/` normalizes to None but `/**` and `**` do NOT — pinned as inherited behavior.
+
+    `_strip_wildcards` does `lstrip("/")` FIRST, so `/**` becomes `**`, which neither
+    startswith `**/` nor endswith `/**`. The residue reaches `_tail_matches`, which rewrites
+    `**` -> `*` and matches anything — so these two bypass `empty_matches_all` entirely.
+
+    Proven NOT a regression: `select_rules._glob_has_match` at b589a1b8~1 (pre-extraction)
+    returned False / True / True for the same three inputs. This test exists so the quirk is
+    documented rather than rediscovered, and so that anyone who DOES decide to normalize it
+    has to delete an explicit assertion — which is the review conversation that change needs,
+    given it would move packs between ACTIVE and AVAILABLE across ~46 repos.
+    """
+    assert rm._strip_wildcards("**/") is None
+    assert rm._strip_wildcards("/**/") is None
+    assert rm._strip_wildcards("") is None
+    # the asymmetry:
+    assert rm._strip_wildcards("/**") == "**"
+    assert rm._strip_wildcards("**") == "**"
+
+    # and its consequence — empty_matches_all is bypassed for those two
+    assert rm.pack_matches_path("any/file.py", "**/", empty_matches_all=False) is False
+    assert rm.pack_matches_path("any/file.py", "**/", empty_matches_all=True) is True
+    for wildcard_only in ("/**", "**"):
+        assert rm.pack_matches_path("any/file.py", wildcard_only, empty_matches_all=False) is True, (
+            f"{wildcard_only!r} is expected to bypass empty_matches_all (inherited); if this "
+            "now fails, the normalization changed and rule-pack activation moved fleet-wide"
+        )
