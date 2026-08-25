@@ -164,7 +164,6 @@ def test_packs_for_paths_matches_review_rubric_changed_output() -> None:
 
     from_rules_match = set(rm.packs_for_paths(changed, _ROOT))
 
-    import select_rules  # noqa: E402
     sys.path.insert(0, str(_SCRIPTS))
     import review_rubric  # noqa: E402
 

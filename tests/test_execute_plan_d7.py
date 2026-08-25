@@ -23,14 +23,14 @@ _D7_SOURCE = Path(__file__).resolve().parents[1] / "commands" / "_sources" / "fa
 
 def _d7_section(text: str) -> str:
     """Extract the D7 section from the execute-plan markdown text.
-    
+
     The section starts at the D7 heading and ends at the next section header (### or ##)
     or the end of the file.
     """
     lines = text.split('\n')
     d7_start = None
     d7_end = None
-    
+
     for i, line in enumerate(lines):
         if '### D7 — Final validation + terminal states' in line:
             d7_start = i
@@ -40,13 +40,13 @@ def _d7_section(text: str) -> str:
                     d7_end = j
                     break
             break
-    
+
     if d7_start is None:
         return ''
-    
+
     if d7_end is None:
         d7_end = len(lines)
-    
+
     return '\n'.join(lines[d7_start:d7_end])
 
 
@@ -85,17 +85,17 @@ def _pins_live_request(section: str) -> bool:
 
 def test_d7_section_contains_live_request_requirement():
     """Assert that D7 names the live-request requirement.
-    
+
     This is the primary pin test: it reads the actual D7 section from the
     execute-plan markdown and asserts it contains the live-request requirement.
     """
     content = _D7_SOURCE.read_text()
-    
+
     d7 = _d7_section(content)
-    
+
     # The section should not be empty
     assert d7, "D7 section should be extracted from the file"
-    
+
     # The section should contain the live-request requirement
     assert _pins_live_request(d7), (
         "D7 section must contain the live-request requirement with 'live request' "
@@ -105,34 +105,34 @@ def test_d7_section_contains_live_request_requirement():
 
 def test_d7_pin_is_not_vacuous():
     """Assert that the pin actually detects the absence of the requirement.
-    
+
     This test mutates the D7 section by removing the requirement sentence and
     verifies that the pin's predicate returns False. This proves the pin is real
     and not vacuously passing.
-    
+
     The ticket's second Behavior-Contract row - it is not optional.
     """
     content = _D7_SOURCE.read_text()
-    
+
     d7 = _d7_section(content)
-    
+
     # Verify the requirement is present first (sanity check)
     assert _pins_live_request(d7), "Test setup: D7 should contain the requirement before mutation"
-    
+
     # Mutate by removing the live-request requirement text
     # Find and remove sentences containing "live request" and "## Evidence"
     mutated = d7
-    
+
     # Remove lines that contain both "live" and "request" (case-insensitive)
     # and lines that contain "## Evidence"
     lines = mutated.split('\n')
     filtered_lines = [
-        line for line in lines 
+        line for line in lines
         if not (re.search(r'live', line, re.IGNORECASE) and re.search(r'request', line, re.IGNORECASE))
         and '## Evidence' not in line
     ]
     mutated = '\n'.join(filtered_lines)
-    
+
     # The mutated section should NOT satisfy the requirement
     assert not _pins_live_request(mutated), (
         "Mutated D7 section (with requirement removed) should NOT satisfy the pin predicate"
