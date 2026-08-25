@@ -89,7 +89,16 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
     am = _ACTIVATION_RE.search(fm)
     activation = am.group(1).strip() if am else ""
     tm = _APPLIES_TO_RE.search(fm)
-    applies_to = re.findall(r"[\"']([^\"']+)[\"']", tm.group(1)) if tm else []
+    # ⚠️ Accept BOTH quoted and bare items. `applies_to: [file-worker]` is legal YAML and an
+    # author will write it; a quotes-only regex silently yielded [] for it, so the pack was
+    # skipped and could never produce a Finding — this check's OWN fail-silent-green, inside
+    # the check built to close that class (review finding, 2026-08-25). Split on commas and
+    # strip optional quotes per item rather than requiring them.
+    applies_to = (
+        [item.strip().strip("\"'") for item in tm.group(1).split(",") if item.strip().strip("\"'")]
+        if tm
+        else []
+    )
     return activation, applies_to
 
 

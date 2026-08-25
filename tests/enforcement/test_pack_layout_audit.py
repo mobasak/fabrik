@@ -166,3 +166,46 @@ def test_real_corpus_after_fix_has_no_findings_for_declared_types():
     flagged = {(f.pack, f.scaffold_type) for f in findings}
     assert ("core/75-workers-jobs.md", "file-worker") not in flagged
     assert ("core/app-audit-log.md", "saas-skeleton") not in flagged
+
+
+def test_applies_to_accepts_bare_yaml_items() -> None:
+    """`applies_to: [file-worker]` is legal YAML and MUST parse.
+
+    A quotes-only regex yielded [] for the bare form, so the pack was skipped and could
+    never produce a Finding — this check's own fail-silent-green, inside the check built to
+    close that class. An author writing correct YAML would have had their declaration
+    silently ignored (review finding, 2026-08-25).
+    """
+    from pack_layout_audit import _parse_extra_frontmatter
+
+    for frontmatter, expected in (
+        ('applies_to: ["file-worker"]', ["file-worker"]),
+        ("applies_to: ['file-worker']", ["file-worker"]),
+        ("applies_to: [file-worker]", ["file-worker"]),                      # the bare form
+        ("applies_to: [file-worker, saas-skeleton]", ["file-worker", "saas-skeleton"]),
+        ('applies_to: [file-worker, "saas-skeleton"]', ["file-worker", "saas-skeleton"]),
+        ("applies_to: []", []),
+    ):
+        activation, applies_to = _parse_extra_frontmatter(
+            f"---\nactivation: glob\n{frontmatter}\n---\n"
+        )
+        assert activation == "glob"
+        assert applies_to == expected, f"{frontmatter!r} parsed to {applies_to!r}"
+
+
+def test_activation_regex_is_line_anchored() -> None:
+    """`activation:` inside a description must NOT be read as the pack's activation.
+
+    Raised as a candidate in review and REFUTED here rather than argued: the regex is
+    line-anchored under MULTILINE, so a mid-line occurrence cannot collide. Pinned so a
+    future loosening of the anchor is caught.
+    """
+    from pack_layout_audit import _parse_extra_frontmatter
+
+    activation, applies_to = _parse_extra_frontmatter(
+        '---\nactivation: glob\n'
+        'description: "Uses activation: manual strategy internally"\n'
+        'applies_to: ["file-worker"]\n---\n'
+    )
+    assert activation == "glob"
+    assert applies_to == ["file-worker"]
