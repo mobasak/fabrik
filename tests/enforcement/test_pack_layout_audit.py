@@ -155,6 +155,14 @@ def test_real_corpus_after_fix_has_no_findings_for_declared_types():
     pack actually declared the type — is what catches it); GREEN after."""
     packs = {rel: (globs, activation, applies_to) for rel, globs, activation, applies_to in pla._packs_with_meta(REPO)}
 
+    # A bare packs[...] raises KeyError, which reads as a test bug rather than the real
+    # cause (pack renamed/removed). Name the cause. (D7 test-honesty finding, 2026-08-25.)
+    for required in ("core/75-workers-jobs.md", "core/app-audit-log.md"):
+        assert required in packs, (
+            f"{required} is not in the corpus — renamed or removed? This plan's glob fix "
+            f"targets it by name, so the fix is now untested. corpus has {len(packs)} packs."
+        )
+
     globs_75, _activation_75, applies_to_75 = packs["core/75-workers-jobs.md"]
     assert "file-worker" in applies_to_75, "75-workers-jobs.md must declare applies_to: [..., \"file-worker\", ...]"
 
@@ -264,3 +272,45 @@ def test_satisfying_path_returns_the_evidence_not_just_a_bool() -> None:
     assert _satisfying_path(paths, ["**/main.py"]) == "worker/main.py"
     # a boilerplate-only clear is still a clear — but now it is VISIBLE as one
     assert _satisfying_path(paths, ["**/Dockerfile"]) == "Dockerfile"
+
+
+def test_fixtures_cover_the_shapes_the_real_denominator_contains(tmp_path, monkeypatch) -> None:
+    """Feed the audit the path shapes every OTHER fixture omits.
+
+    The hermetic fixtures elsewhere in this file hand-write tuples like
+    ("worker", "worker/main.py", "Dockerfile") — no copied hub boilerplate, no excluded
+    directory, no wildcard-only glob. That is exactly why the denominator contamination
+    and the wildcard asymmetry survived the suite: no test ever fed the engine a shape
+    that could expose them. Fixtures that mirror the implementation's own blind spots
+    prove only that it is self-consistent. (D7 test-honesty finding, 2026-08-25.)
+
+    Pins the three shapes as they ACTUALLY behave, so a future change to any of them is a
+    deliberate decision rather than a silent drift.
+    """
+    from pack_layout_audit import _matches_any_emitted, _satisfying_path
+
+    # 1. BOILERPLATE-ONLY clear — real, and now visible via the satisfying path.
+    boilerplate = ("Dockerfile", "compose.yaml", "libs/subagents", "db/schema.sql")
+    assert _matches_any_emitted(boilerplate, ["**/Dockerfile"]) is True
+    assert _satisfying_path(boilerplate, ["**/Dockerfile"]) == "Dockerfile"
+
+    # 2. WILDCARD-ONLY globs — the asymmetry: `**/` is non-matching, `/**` and `**` match
+    #    everything. Documented in _matches_any_emitted; pinned here.
+    assert _matches_any_emitted(boilerplate, ["**/"]) is False
+    assert _matches_any_emitted(boilerplate, ["/**"]) is True
+    assert _matches_any_emitted(boilerplate, ["**"]) is True
+
+    # 3. An EXCLUDED-dir glob can never match, because _tree_paths prunes it during the
+    #    walk — the false-INERT direction of the contamination.
+    import rules_match
+
+    assert "templates" in rules_match._EXCLUDE
+    walked = rules_match._tree_paths(tmp_path)
+    (tmp_path / "templates").mkdir()
+    (tmp_path / "templates" / "welcome_email.html").write_text("x")
+    rules_match._tree_paths.cache_clear()
+    walked = rules_match._tree_paths(tmp_path)
+    assert not any("templates" in w for w in walked), (
+        "templates/ is pruned, so **/templates/*email* can never match — a pack globbing "
+        "it would be falsely reported INERT"
+    )

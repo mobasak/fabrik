@@ -221,9 +221,24 @@ def test_real_corpus_advisory_exit_and_examined_count():
     exits 0 (advisory) and reports a real examined_count > 0 (the two packs this ticket's
     sibling fix already annotated: core/75-workers-jobs.md, core/app-audit-log.md)."""
     result = _run_json(REPO, ["file-worker", "saas-skeleton"])
-    assert result["examined_count"] >= 2
-    assert "core/75-workers-jobs.md" in result["examined_packs"]
-    assert "core/app-audit-log.md" in result["examined_packs"]
+
+    # NOT `examined_count >= 2`: that passes the moment ANY two packs anywhere gain an
+    # applies_to, without either NAMED pack still being reachable — a test whose pass does
+    # not depend on the thing it claims to check (D7 test-honesty finding, 2026-08-25).
+    for pack in ("core/75-workers-jobs.md", "core/app-audit-log.md"):
+        assert pack in result["examined_packs"], (
+            f"{pack} is no longer examined — it lost its applies_to, was renamed, or turned "
+            f"manual. examined_packs={result['examined_packs']}"
+        )
+    unreachable = {f["pack"] for f in result.get("findings", [])}
+    for pack in ("core/75-workers-jobs.md", "core/app-audit-log.md"):
+        assert pack not in unreachable, (
+            f"{pack} is EXAMINED but UNREACHABLE — the glob fix this plan landed has "
+            f"regressed. findings={result.get('findings')}"
+        )
+    assert not result.get("unknown_types"), (
+        f"a pack declares a type that is not a scaffold type: {result.get('unknown_types')}"
+    )
 
 
 def test_unavailable_scaffolder_is_a_quiet_no_op_not_a_gate_failure(monkeypatch, capsys) -> None:
