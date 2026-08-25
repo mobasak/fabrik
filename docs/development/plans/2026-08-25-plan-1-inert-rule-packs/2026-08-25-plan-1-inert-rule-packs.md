@@ -1,6 +1,6 @@
 # Plan: rule packs that cannot reach the code they bind
 
-Status: CONVERGED
+Status: IN-PROGRESS
 
 **Origin:** transdoc `01M0WN9RXJJY9SDQTF8183GTYW` + follow-up `01M0WNVKDMYG0G2NTPZTG38XG4`
 (proposal: `/opt/transdoc/docs/reference/upstream-proposals/2026-08-25-rule-packs-that-cannot-reach-the-code-they-bind.md`).
