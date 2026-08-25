@@ -1,6 +1,6 @@
 # Plan — fabrik-mail dispatcher (Layer 1.5): immediate routing + escalation
 
-Status: CONVERGED
+Status: CONVERGED (re-adjudicated by a fourth review 2026-08-25 — 37 findings incl. the floater/routed-once collision and the libs/alerting CWD env-seam; final no-op pass md5 `00e011bb`)
 Date: 2026-08-25
 Spec (source of truth, CONVERGED): `docs/superpowers/specs/2026-08-25-fabrik-mail-dispatcher-design.md`
 
@@ -250,7 +250,8 @@ Steps:
    is `dontAsk` + `tools=()` + the boundary fence + output sanitization, never "it's on stdin".
 3. Ledger with an OUTCOME taxonomy (the attempt is the MESSAGE's only-ever attempt — it must
    never be burned by an infrastructure failure that had nothing to do with the message):
-   ULID present in `llm-attempts.txt` → skip (goes to the floater tier). Append BEFORE dispatch
+   ULID present in `llm-attempts.txt` → skip entirely (it was already settled — floater-routed
+   at the moment its attempt was consumed; nothing further to do). Append BEFORE dispatch
    (crash-safety: a crash mid-call consumes the attempt — deliberate, rare, visible), BUT the
    outcome classes are EXCEPTION TYPES, not `is_error` — `dispatch()` RAISES on an errored
    envelope (`llm_dispatch.py:640-654`), it never returns one: **infra-class** =
@@ -293,7 +294,7 @@ first on the four TDD rows).
 
 ### Behavior Contract
 - **Given** a ULID already in the ledger, **When** the run reaches it, **Then** no dispatch happens and it is
-  logged as ledger-settled → floater tier. (TDD)
+  logged as already-settled; no dispatch, no route. (TDD)
 - **Given** an infra-class dispatch failure (spawn/timeout/auth) on a message, **When** the run finishes,
   **Then** that message's ULID is NOT in the ledger (its lifetime attempt survives the outage). (TDD)
 - **Given** an infra-class failure mid-run, **When** the run finishes, **Then** NO affected or
@@ -484,8 +485,11 @@ $ sed -n 215,219p /opt/fabrik-lib/llm-dispatch/llm_dispatch.py
   `total_cost_usd` estimate, `--bare` future-default risk.
 
 Phase C grounding:
-- `scripts/sysadmin/send-telegram.sh:20-31` — `MESSAGE="${1:-}"`, `DRY_RUN=1` supported, exit 0/1,
-  env from `/opt/fabrik/.env.sysadmin`.
+- `scripts/sysadmin/send-telegram.sh:26-42` requires `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID`
+  from `/opt/fabrik/.env.sysadmin` — probed live: that file contains ZERO `TELEGRAM*` keys →
+  REJECTED; channel is `libs/alerting/telegram.py:120` `send(title, body)` (split-credential
+  resolver at `:41-51`, loaded from `/opt/fabrik/.env` via the CWD-walking dotenv seam — hence
+  the load-bearing `cd /opt/fabrik` / `WorkingDirectory=` on both trigger legs).
 - `scripts/mail.py:1073` — `digest()` calls `_quarantine(inbox, f)` (it MUTATES) and scans
   every repo + archive strands → the dispatcher never calls it; escalation detail and counts are
   the dispatcher's own hub-inbox scan (spec erratum, corrected same-change).
@@ -513,9 +517,10 @@ $ ls /etc/logrotate.d/ | grep -c fabrik
   invariant (Phase B step 5 argv-recording test), not a File-Scope inference; escalation → Phase
   C step 1; rule seeding →
   Phase A step 3; operator install → Phase C steps 2-3. No gaps found.
-- (b) Cross-phase signatures: `scan_unaddressed`/`classify_deterministic`/`apply_route` (A) are
-  consumed by B's main-loop wiring and C's escalation scan under the same names; `Verdict` shape
-  shared. Consistent.
+- (b) Cross-phase signatures: `scan_mailbox` (ScanResult: `.unaddressed` → B's routing loop,
+  `.obligations` → C's `escalate`), `classify_deterministic`/`apply_route` consumed under the
+  same names; `Verdict`/`Msg`/`Rule` shapes pinned in Phase A. Re-verified after the fourth
+  review's renames. Consistent.
 - Wired consumer: the terminal consumer of everything is `scripts/mail_dispatcher.py` `main()`
   itself, invoked by the .path unit + cron line (Phase C) — no stored-and-never-read surface.
 - Not yet a fixed point: `/fabrik-plan-review` owns convergence.

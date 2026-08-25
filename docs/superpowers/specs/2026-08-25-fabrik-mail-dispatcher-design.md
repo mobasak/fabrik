@@ -1,6 +1,6 @@
 # fabrik-mail DISPATCHER — Layer-1.5 auto-processing (design spec)
 
-Status: CONVERGED (three /fabrik-spec-review runs 2026-08-25 — final run: 36 findings incl. the alerting-credential day-1 breaker, archive-strand escalation, exception-type taxonomy, intel floater tier; final no-op pass md5 `b1bf74dd`)
+Status: CONVERGED (four review runs 2026-08-25 — the fourth resolved the floater/routed-once collision, pinned the libs/alerting CWD env-seam + observe-and-record ledger; consistent with plan `2026-08-25-plan-1-mail-dispatcher.md`)
 Date: 2026-08-25
 Author: infra (hub session, /fabrik-spec run)
 Predecessors: `2026-08-11-fabrik-mail-design.md` (Layer 1, shipped) ·
