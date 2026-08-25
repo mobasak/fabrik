@@ -1,6 +1,6 @@
 # Configuration Guide
 
-**Last Updated:** 2026-04-26
+**Last Updated:** 2026-08-25
 
 **Purpose:** This guide explains HOW to configure Fabrik and WHY certain configurations exist. For WHAT variables are needed, see `.env.example` which is self-documenting.
 
@@ -59,12 +59,13 @@ New projects never needed a Coolify API token.
 
 ### FABRIK_EXEC_MODE — WordPress driver execution mode
 
-> **⚠️ Moved to `/opt/wpf`.** WordPress deploy/site-management logic lives in the standalone
-> `/opt/wpf` project now, not in this repo — there is no `fabrik.drivers.wordpress` module or
-> `ContainerResolver`/`WordPressClient` class in `/opt/fabrik`. The real driver is
-> `/opt/wpf/src/wpf/drivers/wordpress.py` (`ContainerResolver` + `WordPressClient` classes live
-> there), and `FABRIK_EXEC_MODE` is set in `/opt/wpf/.env.example`, not this repo's `.env.example`.
-> Kept here only as a pointer for anyone still looking for it in Fabrik.
+> **⚠️ RETIRED — not merely moved.** WordPress left this repo for a standalone `/opt/wpf` project
+> (2026-06-17), and **that project was itself ARCHIVED to `/opt/archived/wpf` on 2026-08-07**.
+> `/opt/wpf` no longer exists, so the pointer this section used to give sent readers to a path that
+> is gone. There is no `fabrik.drivers.wordpress` module in `/opt/fabrik` and no supported WordPress
+> driver anywhere on the box; `FABRIK_EXEC_MODE` is not read by anything in this repo. The
+> `wordpress` scaffold type survives only for legacy deploy/shape routing. Kept here as a
+> *tombstone* — the variable is documented so nobody re-adds it thinking it was an oversight.
 
 **Why needed:** The driver historically assumed it was running on a WSL workstation that reaches the VPS over SSH. On-VPS execution surfaces (systemd cron, self-healing watchdog) make wrapping every `docker exec` in `ssh vps …` pointless overhead. `FABRIK_EXEC_MODE` flips the dispatch at the driver level so the same code path runs unchanged in both environments.
 
@@ -130,7 +131,7 @@ New projects never needed a Coolify API token.
 - ~~`IMAGE_BROKER_URL` — Image Broker endpoint (http://localhost:18016)~~ — **RETIRED 2026-06-02** (image-broker no longer deployed)
 - `CONTENT_WORKER_ID` — Worker identifier for brief lifecycle tracking (default: fabrik-content-publisher)
 
-**WordPress credentials:** `WP_ADMIN_USER` and `WP_ADMIN_PASSWORD` are read by `/opt/wpf/src/wpf/engine/deployer.py` (the standalone `/opt/wpf` project — there is no `deployer.py` or `WordPressAPIClient` class in this repo; the WP REST calls there use `requests` directly, no dedicated client class). The domain is derived from the site spec — no `WP_SITE_URL` env var is needed. To target a different site, run with a different spec/site_id.
+**WordPress credentials:** `WP_ADMIN_USER` / `WP_ADMIN_PASSWORD` were read by the standalone `wpf` project, which was **archived to `/opt/archived/wpf` on 2026-08-07** — nothing in `/opt/fabrik` reads them, and the path this line used to cite no longer exists. Listed as a tombstone only; do not provision them.
 
 **Development:** All services run locally via docker-compose. Use `http://localhost:PORT`.
 **Production:** Services deployed on VPS at `*.vps1.ocoron.com` with internal Docker networking.

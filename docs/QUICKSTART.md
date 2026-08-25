@@ -1,6 +1,6 @@
 # Quick Start
 
-**Last Updated:** 2026-04-22
+**Last Updated:** 2026-08-25
 
 Get Fabrik running in 5 minutes. Full reference: [DEPLOYMENT_ARCHITECTURE.md](DEPLOYMENT_ARCHITECTURE.md).
 
