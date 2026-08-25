@@ -214,6 +214,9 @@ Steps:
    unrouted — it self-clears when the CLI recovers. Message-class failure → parked, attempt
    consumed. Deterministic routing + Phase C escalation unaffected either way. NO dollar checks
    anywhere; log `DispatchResult.cost_usd` (or `cost=unknown` when None) in the summary line.
+   **Per-run LLM-call bound** `FABRIK_MAIL_LLM_PER_RUN` (default 20 — a LATENCY bound, not a
+   money cap: serial 120s calls would otherwise hold the lock for hours under a storm; the
+   unreached tail is ledger-free and retries on the next trigger within minutes).
 5. Tests (TDD for: message-class consumes / infra-class does NOT consume the ledger entry;
    boundary-collision parks; infra `is_error` → unavailable-for-run; enum violation → parked).
    `dispatch` is monkeypatched with stubs mirroring the REAL `DispatchResult` field names
@@ -256,15 +259,22 @@ Close: doc-sync check → **/fabrik-review on Phase B's surface to its coverage-
 `systemctl --user enable --now` + logrotate copy) in `docs/workstation/fabrik-mail.md`.
 
 Steps:
-1. Escalation: dispatcher-side frontmatter scan for `ack: required` aged
+1. Escalation: dispatcher-side frontmatter scan over **ALL inbox messages regardless of
+   `agent:`** — the escalation population is "unacked", NEVER "unaddressed" (a message routed on
+   day 1 and unacked on day 3 must escalate; keying this leg on the routing leg's no-`agent:`
+   filter would blind it the moment routing succeeds) — for `ack: required` aged
    `age_seconds(ts) >= FABRIK_MAIL_ESCALATE_DAYS * 86400` — the SAME inclusive comparison
    `digest()` uses (`scripts/mail.py:1076`) (default 3, env-overridable). **Age source is the
    frontmatter `ts`, NEVER file mtime** — `route()` rewrites via `os.replace`
    (`scripts/mail.py:801-803`), so mtime resets to "now" the moment the dispatcher routes a
    message and an mtime-based age would never escalate anything (test-green, production-silent).
    One Telegram per calendar day; **the day-stamp is written ONLY after `send-telegram.sh` exits
-   0** — a failed send leaves no stamp, so the next run retries (at most one attempt per run,
-   loud on stdout; stamp-before-send would silently suppress a whole day on one network blip).
+   0, carrying the send-moment's date** (a midnight-crossing run stamps the new day — no
+   double-fire) — a failed send leaves no stamp, so the next run retries (at most one attempt
+   per run, loud on stdout; stamp-before-send would silently suppress a whole day on one
+   network blip). Message SIZE-BOUNDED for Telegram's 4096-char limit: oldest 20 items + `+K
+   more (total)`; and when parked/unrouted counts are nonzero (e.g. an LLM outage across runs)
+   the same message carries them — routing-health degradation is operator-visible daily.
    Message lists `id · sender · age(d) · beat`, with sender/subject text sanitized exactly like
    `why` (frontmatter is untrusted input too) and the telegram call made with an argv list,
    never a shell string. NO `digest()` call — grounded out: `digest()` MUTATES
@@ -316,7 +326,12 @@ Steps:
 
 ### Behavior Contract
 - **Given** an obligation exactly at the threshold and today's escalation already sent, **When** run,
-  Then no second Telegram today; tomorrow's first run sends it. (TDD)
+  **Then** no second Telegram today; tomorrow's first run sends it. (TDD)
+- **Given** a message ROUTED three days ago (`agent:` set) and never acked, **When** the
+  escalation leg runs, **Then** it IS escalated — the escalation population is unacked, never
+  unaddressed. (TDD)
+- **Given** 50 aging obligations, **When** the Telegram message is built, **Then** it enumerates
+  the oldest 20 + `+30 more (50)` and stays under 4096 chars.
 - **Given** `send-telegram.sh` exits 1, **When** escalating, **Then** the run still exits 0 with the failure
   on stdout (alerting is best-effort; routing is the job).
 - **Given** the unit files, **When** `systemd-analyze verify` runs, **Then** zero errors.

@@ -71,9 +71,14 @@ delivery-to-owner gap: **every unaddressed message in the hub mailbox gets a bea
 One new box-local script, `scripts/mail_dispatcher.py`, run by a stamp-checked, `flock`-guarded
 cron line the OPERATOR installs (agents cannot write the crontab). Per run:
 
-1. **Scan** the hub mailbox (`/opt/fabrik-mail/fabrik/inbox/`) for messages with **no `agent:`**
-   field. Project inboxes are out of scope — each project's own agents consume those; the hub's
-   routing problem is the three-hub-agent shared mailbox (the measured rot site).
+1. **Scan** the hub mailbox (`/opt/fabrik-mail/fabrik/inbox/`) — parse EVERY inbox message once
+   per run, then split into TWO populations that must never be conflated: the **routing leg**
+   works the unaddressed subset (no `agent:` field), while the **escalation leg (step 5) works
+   ALL `ack: required` messages regardless of `agent:`** — a message routed on day 1 and never
+   acked must still escalate on day 3 (an escalation scan keyed on "unaddressed" would go blind
+   the moment routing succeeded, the exact rot this build exists to stop). Project inboxes are
+   out of scope — each project's own agents consume those; the hub's routing problem is the
+   three-hub-agent shared mailbox (the measured rot site).
 2. **Deterministic classification first** — a small, testable rule table over frontmatter +
    subject line (never body execution). **Routing keys on CONTENT, never on the sender**
    (operator correction 2026-08-25): with 46 active projects, ANY project can raise deploy,
@@ -84,11 +89,15 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    CHARTERS (enforcement/command/gate/rule-pack/mail.py → infra; deploy/VPS/compose/registrar/DR
    → fleet; model/benchmark/flywheel/research → intel; credential/console/decision-only →
    operator-class, § Routing). The sender repo is LOGGED as context and reported in stats — never
-   a routing key. **Precedence is pinned, not guessed:** explicit addressee → (`kind` + keyword)
-   composite → keyword; a strictly more specific match WINS over a less specific one; only
-   matches at the SAME specificity tier that disagree on the beat make the message UNMATCHED and
-   fall to the LLM (never a silent first-match win — a deterministic misroute is worse than a
-   bounded LLM call). Operator-class is not a
+   a routing key. **Precedence is pinned, not guessed:** an explicit addressee is TIER 0 and
+   TERMINAL — when present it decides outright and no rule (however keyword-rich the subject) is
+   even evaluated against it; the specificity logic applies only WITHIN the rule tiers below it:
+   (`kind` + keyword) composite → keyword; a strictly more specific match WINS over a less
+   specific one; only matches at the SAME specificity tier that disagree on the beat make the
+   message UNMATCHED and fall to the LLM (never a silent first-match win — a deterministic
+   misroute is worse than a bounded LLM call). Adding a FUTURE beat is config, not surgery:
+   `mail.py`'s `_safe_agent` shape-validates any role (no hardcoded three-set, `:367-385`), so a
+   new charter needs only new RULES rows + the enum value. Operator-class is not a
    beat: its rules resolve to a (beat, `operator-decision` marker) pair like § Routing defines.
    Every deterministic route logs its matched rule (auditable).
 3. **LLM fallback, bounded, for the unmatched remainder — via VENDORED
@@ -118,6 +127,11 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    undecidable one is parked for a human, never retried), per-call `timeout_s` with
    llm-dispatch's process-group kill, and `flock` against overlapping runs. Each call's
    estimated `total_cost_usd` is logged per run for visibility only — it gates nothing.
+   **Per-run LLM-call BOUND (a latency bound, not a money cap):** at most
+   `FABRIK_MAIL_LLM_PER_RUN` (default 20) fallback calls per run — serial calls at up to 120s
+   each mean an unbounded run could hold the lock for hours under a mail storm; the unreached
+   tail is ledger-free and retries within minutes on the next trigger/sweep, so the bound costs
+   nothing but bounds run duration structurally.
    "Day" = the local calendar date (`YYYY-MM-DD` stamp) — the definition the escalation dedup
    uses. **CLI unavailability fails soft:** if the `claude` binary is
    missing, hung, quota-exhausted, or its OAuth expired (any `llm-dispatch` error), the run marks
@@ -146,15 +160,24 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    (plan-review 2026-08-25): the earlier "cross-check via `mail.py digest`" is withdrawn —
    `digest()` MUTATES (`_quarantine`, `scripts/mail.py:1069-1071`) and counts every repo plus
    archive strands, a different population; the dispatcher's own hub-inbox counts are the
-   observability. One Telegram message per calendar day (day-stamp) via
+   observability. One Telegram message per calendar day (the day-stamp is written at the moment
+   of the SUCCESSFUL send, with that moment's date — a run crossing midnight stamps the new day,
+   so the next run's dedup reads it correctly; no midnight double-fire) via
    `scripts/sysadmin/send-telegram.sh`; an item that crosses the age threshold AFTER today's
    escalation already went rides the NEXT day's — acceptable by design for an obligation
-   already ≥3 days old (this is a daily digest, not real-time paging).
+   already ≥3 days old (this is a daily digest, not real-time paging). The message is
+   size-bounded for Telegram's 4096-char limit: the OLDEST 20 items enumerated, then `+K more`
+   with the total — count truth survives any backlog size. When routing health degrades (LLM
+   unavailable across runs, parked or unrouted messages accumulating), the SAME daily message
+   carries those counts — a growing unrouted backlog is an operator-visible signal, never a
+   silent log line.
 6. **Observability:** plain stdout (the cron line redirects to `/var/log/fabrik-*.log`, the box
    convention for workstation jobs — this is box-local tooling, not a 12-Factor service; the
    dispatcher itself writes no logfile, only its stamp + spend state). ⚠️ Verified 2026-08-25:
    `/etc/logrotate.d/` has NO fabrik entry today, so the operator-install deliverable includes a
-   `logrotate.d` snippet alongside the cron line (a `*/30` job's log must not grow unbounded);
+   `logrotate.d` snippet alongside the cron line — **size-based** (`size 10M`), not daily: the
+   watcher is event-driven, so a runaway sender could write a day's worth of log lines in
+   minutes and a date-based rotation would let the disk fill first;
    one summary line per run (`scanned N · ruled R · llm L · routed T · escalated E · spend $X`);
    errors are loud and per-message (one bad message never aborts the sweep — `mail.py` already
    quarantines unparseable frontmatter to `malformed/`, `scripts/mail.py:958`).
