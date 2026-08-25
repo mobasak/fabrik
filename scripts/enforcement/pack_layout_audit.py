@@ -33,6 +33,26 @@ THREE RULES (Behavior Contract — `tests/enforcement/test_pack_layout_audit.py`
    zero emitted paths — never per-glob (a pack can carry several globs; only the
    aggregate verdict for that type matters).
 
+⚠️ THE DENOMINATOR IS CONTAMINATED IN BOTH DIRECTIONS — a Finding here is a STRONG
+signal, and the ABSENCE of one is a WEAK signal. Measured, not theorised (2026-08-25):
+
+  * OVER-states reachability. A fresh scaffold contains everything the scaffolder COPIES
+    from the hub — `.windsurf/rules/**`, `scripts/enforcement/**`, `libs/subagents/`,
+    `db/schema.sql`, `tests/`, `Dockerfile`, `compose.yaml`, `.env.example`. Packs can
+    therefore be "reachable" via boilerplate alone, never via type-specific source. For
+    `docusaurus`: `core/30-ops.md` clears on `Dockerfile`/`compose.yaml`;
+    `core/62-using-subagents.md` clears on `libs/subagents` — i.e. it satisfies its own
+    reachability claim with its OWN copied file. That is a FALSE CLEAR.
+  * UNDER-states reachability. `rules_match._EXCLUDE` prunes `templates/`, `output/`,
+    `backups/`, `.droid/`, `.tmp/` during the walk, so a glob aimed at any of them can
+    never match. Real example: `core/86-email-templates.md` globs `**/templates/*email*`
+    — annotating that pack would yield a FALSE INERT finding.
+
+`check_pack_reachability` therefore prints WHICH path satisfied each claim, so a
+boilerplate-only clear is visible to the reader rather than silent. Fixing the
+denominator properly needs a scaffolder-side manifest of "type source vs copied
+governance", which does not exist today; this is the honest interim. (D7 finding.)
+
 DENOMINATOR: "paths the scaffolder actually emits" for a type, NOT its raw template
 directory contents — the two provably diverge (`file-worker`'s template ships
 `worker/__init__.py` + `worker/main.py`; the real `create_project()` output additionally
@@ -206,6 +226,23 @@ def _scaffold_and_walk(create_project, project_type: str) -> tuple[str, ...]:
             generate_spec=False,
         )
         return rules_match._tree_paths(project_dir)
+
+
+def _satisfying_path(paths: tuple[str, ...], globs: list[str]) -> str | None:
+    """The FIRST emitted path any glob matches, or None. Same logic as
+    `_matches_any_emitted`, but returns the evidence instead of a bare bool — so a caller
+    can show the reader WHY a pack was cleared. That matters because the denominator
+    over-states reachability (see module docstring): a clear on `Dockerfile` or
+    `libs/subagents` is a boilerplate-only clear, and only the path reveals it."""
+    for glob in globs:
+        pat = rules_match._strip_wildcards(glob)
+        if pat is None:
+            continue
+        for expanded in rules_match._expand_braces(pat):
+            for rel in paths:
+                if rules_match._tail_matches(rel, expanded):
+                    return rel
+    return None
 
 
 def _matches_any_emitted(paths: tuple[str, ...], globs: list[str]) -> bool:

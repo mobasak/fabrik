@@ -134,7 +134,25 @@ def main() -> int:
                 unknown.append((rel, claimed))
     findings = pla.audit_layout(root, types)
 
+    # Show WHICH path cleared each examined pack. The denominator over-states reachability
+    # (a fresh scaffold carries copied hub boilerplate), so a bare "OK" can hide a pack that
+    # cleared only on Dockerfile or libs/subagents rather than on any type-specific source.
+    # Printing the evidence makes a boilerplate-only clear visible instead of silent — the
+    # same doctrine as the examined-count. (D7 finding, 2026-08-25.)
+    cleared: list[tuple[str, str, str]] = []
+    flagged = {(f.pack, f.scaffold_type) for f in findings}
+    for rel, globs, activation, applies_to in pla._packs_with_meta(root):
+        if activation == "manual":
+            continue
+        for claimed in applies_to:
+            if claimed in known and (rel, claimed) not in flagged:
+                hit = pla._satisfying_path(pla._emitted_paths_for_type(claimed), globs)
+                if hit:
+                    cleared.append((rel, claimed, hit))
+
     if not args.json:
+        for rel, claimed, hit in cleared:
+            print(f"  reachable: {rel} @ {claimed} — via {hit}")
         for rel, claimed in unknown:
             print(
                 f"UNKNOWN TYPE: {rel} declares applies_to: {claimed!r}, which is not a "

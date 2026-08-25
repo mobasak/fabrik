@@ -243,3 +243,24 @@ def test_unscaffoldable_type_yields_no_paths_instead_of_crashing() -> None:
     from pack_layout_audit import _emitted_paths_for_type
 
     assert _emitted_paths_for_type("wordpress") == ()
+
+
+def test_satisfying_path_returns_the_evidence_not_just_a_bool() -> None:
+    """A clear must be explainable: return WHICH path satisfied the glob.
+
+    The denominator over-states reachability — a fresh scaffold carries copied hub
+    boilerplate (`Dockerfile`, `libs/subagents`, `db/schema.sql`), so a pack can clear
+    without matching any type-specific source. Measured for `docusaurus`:
+    `core/30-ops.md` clears on `Dockerfile`, `core/62-using-subagents.md` on
+    `libs/subagents` — the latter satisfying its own claim with its own copied file.
+
+    A bare bool hides that; the path reveals it. (D7 whole-plan validation, 2026-08-25.)
+    """
+    from pack_layout_audit import _satisfying_path
+
+    paths = ("worker", "worker/main.py", "Dockerfile")
+    assert _satisfying_path(paths, ["**/worker.py"]) is None
+    assert _satisfying_path(paths, ["**/worker/**"]) == "worker"
+    assert _satisfying_path(paths, ["**/main.py"]) == "worker/main.py"
+    # a boilerplate-only clear is still a clear — but now it is VISIBLE as one
+    assert _satisfying_path(paths, ["**/Dockerfile"]) == "Dockerfile"
