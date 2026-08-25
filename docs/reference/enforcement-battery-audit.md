@@ -1,0 +1,94 @@
+# Enforcement battery audit — "when a check cannot ask its question, what does it report?"
+
+**Date:** 2026-08-25 · **Trigger:** transdoc, mail `01M0PRGR3JCNTGHQ9J608DXGA0` — *"audit the whole
+enforcement battery against one question. I found six instances without looking systematically.
+Expect more."*
+
+## Method — executable, not a read-through
+
+Reading 59 checks and reasoning about them is exactly the proxy this audit exists to distrust. Instead
+the question was asked mechanically: **give every check a repo where its subject does not exist, and
+record what it says.**
+
+```
+$ mkdir empty && cd empty && git init && echo "# empty" > README.md && git commit -am init
+$ cp -r /opt/fabrik/scripts/enforcement scripts/     # checks derive ROOT from __file__, NOT cwd
+$ for f in scripts/enforcement/check_*.py; do python "$f"; echo "exit $?"; done
+```
+
+The copy step is load-bearing and was learned the hard way: most checks resolve their root via
+`Path(__file__).resolve().parents[2]`, so running them with a different `cwd` audits **/opt/fabrik**
+while appearing to audit the empty repo. `tests/enforcement/test_check_imports_resolvable.py` documents
+the same trap for the same reason.
+
+## Result
+
+| | count |
+|---|---|
+| checks in the battery | 59 (56 runnable standalone) |
+| exit 0 in an empty repo | 49 |
+| exit 1 in an empty repo (asked a question, got an answer) | 10 |
+| exit 0 and **silent** | 20 |
+| exit 0 and an **affirmative success claim** | 17 |
+| …of those, stating a **denominator** | **1** |
+
+## The finding — it is not "these checks are broken"
+
+Most of the 17 reach the **right verdict**: their subject is absent, so there is nothing to fail on.
+The defect is in what they *say*. A reader — human or agent — sees
+
+```
+check_doc_links: OK — zero broken references in the live tree
+✓ command corpus: web-tool names, chain targets, script paths, trailer models — all sound
+✅ Test coverage check PASSED (no src/ changes)
+```
+
+and concludes the check **examined something and found it clean**. In the fixture above,
+`check_doc_links` scanned a single README with no links at all. The sentence is true and the
+impression is false.
+
+**`OK` is indistinguishable from `OK, I examined nothing`.** That is the whole class, and it is the
+same shape as the three defects already fixed this week — `check_command_corpus` red-gating every
+project it was synced to, `check_imports_resolvable` walking `src/app/tests` in repos that have none,
+`check_vendored_drift` never comparing rules packs.
+
+### The exemplar to copy
+
+Exactly one check already does it right:
+
+```
+check_traycer_chain: PASS - 0 files, all 3 classes clean
+```
+
+`0 files` is the whole fix. A reader instantly knows this verdict covers nothing, and no follow-up
+question is needed.
+
+### The rule
+
+> **A success line must state its denominator.** Not `OK`, but `OK — N <subjects> examined`. When N is
+> 0, say so; a check with nothing to examine should report NOT-APPLICABLE, never success.
+
+Two checks already satisfy the spirit by naming the reason instead of a count, which is equally
+honest and is fine:
+
+- `check_hooks_index` → `(not the hub — hooks-index check skipped)`
+- `check_test_proposal` → `INFO: No plans directory found - skipping Behavior Contract check`
+
+## Not findings — verified before claiming
+
+- **`check_android_env`** prints `PASS: Android Environment verified at …`. It examines the HOST's
+  `ANDROID_HOME` env var, not the repo, so passing in an empty repo is correct for what it is. Listing
+  it as a defect would have been the same over-claiming this audit exists to catch.
+- The **20 silent** exit-0 checks are not implicated: silence on an absent subject is honest. Only an
+  affirmative claim is.
+
+## Remaining work
+
+Add a denominator to the success line of: `check_command_corpus` · `check_docker` · `check_doc_links` ·
+`check_env_updates` · `check_health` · `check_openapi_sync` · `check_phase_tests` ·
+`check_retired_terms` · `check_review_coverage` · `check_structure` · `check_test_coverage` ·
+`check_vps_docs` · `check_watchdog`.
+
+Mechanical, low-risk (message-only — no verdict changes), and independently landable per check. The
+`0 errors / 0 warnings` family (`check_docker`, `check_health`, `check_vps_docs`, `check_watchdog`)
+shares one emitter, so those four are a single edit.

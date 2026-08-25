@@ -72,3 +72,25 @@ def test_scaffold_templates_are_excluded_as_sources():
     # and none survive into the real source list
     srcs = {str(p.relative_to(REPO)) for p in cdl._tracked_md_sources()}
     assert not any(s.endswith("_TEMPLATE.md") or "scaffold-templates/" in s for s in srcs)
+
+
+# --- the success line must state its DENOMINATOR (enforcement-battery audit, 2026-08-25) --------
+# Measured across all 59 checks in a repo with no subject: 17 emit an affirmative success claim and
+# only ONE states how much it examined. "OK" is indistinguishable from "OK, I examined nothing" —
+# in an empty-repo fixture this check scanned a single README with no links and still reported
+# "zero broken references in the live tree". True sentence, false impression. Exemplar to copy:
+# `check_traycer_chain: PASS - 0 files, all 3 classes clean`.
+
+
+def test_success_line_states_how_much_it_examined(tmp_path, capsys, monkeypatch):
+    """A clean verdict must carry its denominator, so a zero-subject run is visibly zero."""
+    repo = tmp_path / "r"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "docs" / "a.md").write_text("no links here\n", encoding="utf-8")
+    monkeypatch.setattr(cdl, "REPO", repo)
+    monkeypatch.setattr(cdl, "_tracked_md_sources", lambda: sorted(repo.rglob("*.md")))
+    monkeypatch.setattr(sys, "argv", ["check_doc_links.py"])
+    assert cdl.main() == 0
+    out = capsys.readouterr().out
+    assert "1 doc" in out, f"no denominator in the success line: {out!r}"
+    assert "0 ref" in out or "refs" in out, f"no reference count: {out!r}"

@@ -210,11 +210,19 @@ def _resolves(target: str, src: Path) -> bool:
 def main() -> int:
     as_json = "--json" in sys.argv
     broken: list[str] = []
+    # Denominator, not just the verdict. A bare "OK" is indistinguishable from "OK, I examined
+    # nothing" — measured 2026-08-25 across all 59 checks, 17 emit an affirmative success claim with
+    # no subject present and only ONE stated how much it looked at. In an empty-repo fixture this
+    # check scanned a single README with no links and still said "zero broken references in the live
+    # tree": true sentence, false impression. See docs/reference/enforcement-battery-audit.md.
+    docs_scanned = 0
+    refs_checked = 0
     for src in _tracked_md_sources():
         try:
             text = src.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        docs_scanned += 1
         rel_src = src.relative_to(REPO)
         seen: set[str] = set()
         for target, kind in _iter_refs(text):
@@ -230,15 +238,27 @@ def main() -> int:
                 r"\.(md|py|sh|yaml|yml|json|txt)$", target.split("#")[0]
             ):
                 continue
+            refs_checked += 1
             if not _resolves(target, src):
                 broken.append(f"{rel_src}: broken ref -> {target}")
     if as_json:
-        print(json.dumps({"status": "success" if not broken else "failure", "broken": broken}))
+        print(
+            json.dumps(
+                {
+                    "status": "success" if not broken else "failure",
+                    "broken": broken,
+                    "docs_scanned": docs_scanned,
+                    "refs_checked": refs_checked,
+                }
+            )
+        )
     else:
         for b in broken:
             print(f"ERROR: {b}")
         if not broken:
-            print("check_doc_links: OK — zero broken references in the live tree")
+            print(
+                f"check_doc_links: OK — 0 broken of {refs_checked} refs across {docs_scanned} docs"
+            )
     return 1 if broken else 0
 
 
