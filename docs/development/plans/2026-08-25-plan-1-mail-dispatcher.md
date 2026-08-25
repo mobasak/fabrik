@@ -97,7 +97,11 @@ No 🆕 fabrik-lib candidate: the dispatcher glue is hub-specific (spec's new-mo
   to `Path.cwd().name`), so under cron (CWD=$HOME → repo "ozgur") or systemd (CWD=/ → raises)
   every route fails 100% while a hand-run from /opt/fabrik works — the exact silent-green trap.
   Checks the exit code, NEVER raises — False + log on any failure.
-  `RULES: list[Rule]` (ordered, tiered: (kind, sender) → sender → keyword).
+  `RULES: list[Rule]` (ordered, tiered: explicit addressee → (kind + keyword) → keyword —
+  **CONTENT-keyed only; the sender repo is NEVER a routing key** (operator correction
+  2026-08-25: with 46 active projects any project raises deploy/research/governance mail alike;
+  a per-sender prior encodes the wrong assumption at fleet scale — sender is logged context and
+  a reported statistic, nothing more)).
   **Startup bootstrap:** `scripts/mail_dispatcher.py` inserts the REPO ROOT on `sys.path` at
   startup (the `scripts/mail.py:1310` precedent — `sys.path[0]` is `scripts/` when invoked by
   path) and imports the vendored module in PACKAGE form: `from libs.llm_dispatch.llm_dispatch
@@ -155,8 +159,10 @@ Phase gate: `uv run pytest tests/test_mail_dispatcher.py -q` → all pass;
   and the log names both rules. (TDD)
 - **Given** a message `route` refuses (claimed mid-run), **When** applied, **Then** `apply_route` returns
   False, logs the id, and the remaining messages still process. (TDD)
-- **Given** a message matching a (kind, sender) rule AND a conflicting keyword rule, **When** classified,
-  Then the more specific (kind, sender) beat wins.
+- **Given** a message matching a (kind + keyword) composite rule AND a conflicting bare-keyword
+  rule, **When** classified, **Then** the more specific composite beat wins.
+- **Given** two messages with identical kind + subject from two DIFFERENT sender repos, **When**
+  classified, **Then** the verdicts are identical (sender is never a routing key). (TDD)
 - **Given** an operator-class match, **When** routed, **Then** the beat is a real `agent:` value and the log
   carries `operator-decision`.
 - **Given** an empty inbox, **When** run, **Then** exit 0 with the summary line `scanned 0 …`.

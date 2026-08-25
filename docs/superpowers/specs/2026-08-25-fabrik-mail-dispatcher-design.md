@@ -75,14 +75,20 @@ cron line the OPERATOR installs (agents cannot write the crontab). Per run:
    field. Project inboxes are out of scope — each project's own agents consume those; the hub's
    routing problem is the three-hub-agent shared mailbox (the measured rot site).
 2. **Deterministic classification first** — a small, testable rule table over frontmatter +
-   subject line (never body execution): `kind`, sender repo, and subject keywords mapped to beats
-   (e.g. enforcement/command/gate/mail.py → infra; deploy/VPS/compose/registrar/DR → fleet;
-   model/benchmark/flywheel/research → intel; credential/console/decision-only → operator-class,
-   § Routing). **Precedence is pinned, not guessed:** rules evaluate most-specific-first
-   (`kind` + sender-repo pairs → sender-repo → subject keyword); a strictly more specific match
-   WINS over a less specific one; only matches at the SAME specificity tier that disagree on the
-   beat make the message UNMATCHED and fall to the LLM (never a silent first-match win — a
-   deterministic misroute is worse than a bounded LLM call). Operator-class is not a
+   subject line (never body execution). **Routing keys on CONTENT, never on the sender**
+   (operator correction 2026-08-25): with 46 active projects, ANY project can raise deploy,
+   research, or governance mail in the same week — a per-sender prior encodes "project X's mail
+   is about beat Y", which is exactly the wrong assumption at fleet scale. The rule signals are:
+   an EXPLICIT addressee the sender already wrote (subject prefix like `[x→fleet]`, or `to-agent`
+   at send time) — always wins; then `kind` + subject-keyword rules derived from the beat
+   CHARTERS (enforcement/command/gate/rule-pack/mail.py → infra; deploy/VPS/compose/registrar/DR
+   → fleet; model/benchmark/flywheel/research → intel; credential/console/decision-only →
+   operator-class, § Routing). The sender repo is LOGGED as context and reported in stats — never
+   a routing key. **Precedence is pinned, not guessed:** explicit addressee → (`kind` + keyword)
+   composite → keyword; a strictly more specific match WINS over a less specific one; only
+   matches at the SAME specificity tier that disagree on the beat make the message UNMATCHED and
+   fall to the LLM (never a silent first-match win — a deterministic misroute is worse than a
+   bounded LLM call). Operator-class is not a
    beat: its rules resolve to a (beat, `operator-decision` marker) pair like § Routing defines.
    Every deterministic route logs its matched rule (auditable).
 3. **LLM fallback, bounded, for the unmatched remainder — via VENDORED
@@ -249,11 +255,12 @@ None. Box-local workstation tooling (the kaizen/weekly-catchup class): no scaffo
 - **OPEN (non-blocking, resolves at plan time):** the deterministic rule table's initial keyword
   set — seeded from the archived mail that humans already routed (measured 2026-08-25: **35 of
   144** archived fabrik messages carry an `agent:` label — a small but real labeled corpus), plus
-  sender-repo/kind priors from the full archive. Resolution step: the plan's first phase derives
-  the table from `archive/` frontmatter and measures precision against the 35 labels before the
-  LLM fallback is wired. If the labeled set proves too thin for a rule, the fallback IS the
-  design's default path: unmatched → LLM (or unrouted in degraded mode) — an empty table is safe,
-  never wrong.
+  kind/keyword statistics from the full archive (sender-repo stats are REPORTED context only,
+  never rules — operator correction 2026-08-25). Resolution step: the rules are derived from the
+  beat CHARTERS (content signals valid for any of the 46 projects), then EVALUATED against the
+  35 labels before the LLM fallback is wired. If the labeled set proves too thin to validate a
+  rule, the fallback IS the design's default path: unmatched → LLM (or unrouted in degraded
+  mode) — an empty table is safe, never wrong.
 - **OPEN (operator, non-blocking):** the escalation threshold default (3 days) —
   env-overridable; ships unless overridden. (The former budget-default open item is CLOSED:
   operator removed dollar caps entirely, 2026-08-25.)
