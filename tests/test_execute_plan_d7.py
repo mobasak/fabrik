@@ -13,6 +13,12 @@ The test follows the watched-fail-first pattern:
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+# Resolve from THIS file, never cwd: `pytest tests/...` from the repo root and
+# `pytest test_execute_plan_d7.py` from inside tests/ must both work. A cwd-relative
+# path made the second form die with FileNotFoundError (review finding, 2026-08-25).
+_D7_SOURCE = Path(__file__).resolve().parents[1] / "commands" / "_sources" / "fabrik-execute-plan.md"
 
 
 def _d7_section(text: str) -> str:
@@ -69,8 +75,7 @@ def test_d7_section_contains_live_request_requirement():
     This is the primary pin test: it reads the actual D7 section from the
     execute-plan markdown and asserts it contains the live-request requirement.
     """
-    with open('./commands/_sources/fabrik-execute-plan.md', 'r') as f:
-        content = f.read()
+    content = _D7_SOURCE.read_text()
     
     d7 = _d7_section(content)
     
@@ -93,8 +98,7 @@ def test_d7_pin_is_not_vacuous():
     
     The ticket's second Behavior-Contract row - it is not optional.
     """
-    with open('./commands/_sources/fabrik-execute-plan.md', 'r') as f:
-        content = f.read()
+    content = _D7_SOURCE.read_text()
     
     d7 = _d7_section(content)
     
@@ -118,4 +122,30 @@ def test_d7_pin_is_not_vacuous():
     # The mutated section should NOT satisfy the requirement
     assert not _pins_live_request(mutated), (
         "Mutated D7 section (with requirement removed) should NOT satisfy the pin predicate"
+    )
+
+
+def test_pin_requires_the_live_request_phrase_independently():
+    """Strip ONLY the live-request phrase; the pin must go False.
+
+    test_d7_pin_is_not_vacuous strips BOTH signals in one mutation, so it cannot
+    show WHICH signal the predicate depends on — a pin keyed solely on
+    `## Evidence` would pass it unchanged. These two tests isolate each signal.
+    (Review finding, 2026-08-25.)
+    """
+    section = _d7_section(_D7_SOURCE.read_text())
+    assert _pins_live_request(section)
+    stripped = re.sub(r"live\s+request", "", section, flags=re.IGNORECASE)
+    assert not _pins_live_request(stripped), (
+        "pin still passes with every 'live request' removed — it is not keyed on that phrase"
+    )
+
+
+def test_pin_requires_the_evidence_reference_independently():
+    """Strip ONLY the `## Evidence` reference; the pin must go False."""
+    section = _d7_section(_D7_SOURCE.read_text())
+    assert _pins_live_request(section)
+    stripped = section.replace("## Evidence", "the spine")
+    assert not _pins_live_request(stripped), (
+        "pin still passes with the '## Evidence' reference removed — it is not keyed on it"
     )
