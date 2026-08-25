@@ -213,12 +213,29 @@ def _matches_any_emitted(paths: tuple[str, ...], globs: list[str]) -> bool:
     normalization primitives (`_strip_wildcards` / `_expand_braces` / `_tail_matches`) —
     the same three steps `any_path_matches` composes, just fed a pre-fetched path tuple
     instead of walking a live directory (there is no directory to walk after the
-    scaffold's `TemporaryDirectory` closes). A wildcard-only glob (`_strip_wildcards`
-    returns None) is treated as NON-matching here — mirroring `select_rules.py`'s
-    `empty_matches_all=False` choice: a pack claiming a type via an ambiguous
-    wildcard-only glob has not genuinely proven it governs anything in that type's
-    output, and staying silent by default is the same "don't force a false ACTIVE"
-    reasoning `select_rules.py` documents for the whole-tree question this mirrors."""
+    scaffold's `TemporaryDirectory` closes).
+
+    ⚠️ The wildcard-only story is NOT uniform, and an earlier version of this docstring
+    claimed it was ("a wildcard-only glob is treated as NON-matching, mirroring
+    select_rules' empty_matches_all=False"). That holds for `**/` ONLY. `_strip_wildcards`
+    does `lstrip("/")` FIRST, so `/**` and `**` survive as `'**'`, reach `_tail_matches`,
+    and match EVERYTHING. Measured against ("worker/main.py", "Dockerfile"):
+
+        glob='**/'  this=False  rules_match(empty_matches_all=True)=True   select_rules=False
+        glob='/**'  this=True   rules_match=True                            select_rules=True
+        glob='**'   this=True   rules_match=True                            select_rules=True
+
+    Two consequences, both latent: (a) a pack globbing `/**` is auto-declared reachable for
+    every type, having proven nothing; (b) for `**/` this audit reports UNREACHABLE while
+    `review_rubric` injects that same pack as MATCHED for EVERY changed path — a genuine
+    disagreement between this engine and the shared matcher. The cross-ticket seam proof
+    could not observe it: it used only the two live packs, neither carrying a wildcard-only
+    glob, and no pack in the corpus carries one today (verified). Recorded rather than
+    silently "mirrored". (D7 whole-plan validation, 2026-08-25.)
+
+    For `**/` specifically the NON-matching choice stands, and for the stated reason: a pack
+    claiming a type via an ambiguous wildcard-only glob has not genuinely proven it governs
+    anything in that type's output."""""
     for glob in globs:
         pat = rules_match._strip_wildcards(glob)
         if pat is None:

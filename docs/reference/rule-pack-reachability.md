@@ -133,7 +133,7 @@ python scripts/enforcement/check_pack_reachability.py --types file-worker saas-s
 Exit code is always `0` on a completed run (advisory contract) — a non-zero exit means
 the check itself failed to run (e.g. the live `SCAFFOLD_TYPES` registry could not be
 resolved), never that a pack was found unreachable. Findings and the examined count are
-both printed to stdout regardless of exit status.
+Findings and the examined count are printed to stdout on every run that COMPLETES. The one non-completing path — the hub scaffolder being unreachable — prints its explanation instead and still exits 0; it does not print a findings list or a count, because it has neither. (An earlier version of this sentence said "regardless of exit status", which was false in precisely the case where it would have mattered.)
 
 ## Cross-ticket seam proof (T02 x T03 x T04 agree)
 
