@@ -118,13 +118,37 @@ def main() -> int:
             return 0
 
     examined = _examined_packs(root, types)
+
+    # ⚠️ An `applies_to` item that is not a REAL scaffold type is silently unexamined and
+    # reads as a pass — a pack with `applies_to: ["saas_skeleton"]` (underscore typo) printed
+    # "no pack in this corpus declares applies_to yet", which is flatly false: it DID declare
+    # one. The doc tells the author to run this check "to confirm", so a typo yielded a
+    # confident green. Surface unknown types explicitly. (D7 finding, 2026-08-25.)
+    known = set(types)
+    unknown: list[tuple[str, str]] = []
+    for rel, _globs, activation, applies_to in pla._packs_with_meta(root):
+        if activation == "manual":
+            continue
+        for claimed in applies_to:
+            if claimed not in known:
+                unknown.append((rel, claimed))
     findings = pla.audit_layout(root, types)
+
+    if not args.json:
+        for rel, claimed in unknown:
+            print(
+                f"UNKNOWN TYPE: {rel} declares applies_to: {claimed!r}, which is not a "
+                "scaffold type"
+            )
 
     if args.json:
         print(
             json.dumps(
                 {
                     "examined_count": len(examined),
+                    "unknown_types": [
+                        {"pack": r, "declared": c} for r, c in unknown
+                    ],
                     "examined_packs": examined,
                     "types_checked": types,
                     "findings": [
@@ -141,15 +165,21 @@ def main() -> int:
         )
     else:
         print(
-            f"Examined {len(examined)} pack(s) with a reachable applies_to claim "
+            f"Examined {len(examined)} pack(s) declaring applies_to for a checked type "
             f"(of {len(types)} scaffold type(s) checked)."
         )
         if not examined:
             print(
-                "NOTHING TO CHECK — no pack in this corpus declares applies_to yet. "
-                "This is NOT a pass on the packs; it is an unasked question. See "
-                "docs/reference/rule-pack-reachability.md for how to add applies_to."
+            "NOTHING TO CHECK — no pack in this corpus declares a usable applies_to yet"
+            + (
+                f" ({len(unknown)} pack(s) DID declare one, but named a type that is not a "
+                "scaffold type — see UNKNOWN TYPE above; that is a typo to fix, not a pass)"
+                if unknown
+                else ""
             )
+            + ". This is NOT a pass on the packs; it is an unasked question. See "
+            "docs/reference/rule-pack-reachability.md for how to add applies_to."
+        )
         elif not findings:
             print("OK — every examined pack's applies_to claim reaches at least one emitted path.")
         else:

@@ -89,6 +89,22 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
     am = _ACTIVATION_RE.search(fm)
     activation = am.group(1).strip() if am else ""
     tm = _APPLIES_TO_RE.search(fm)
+    if tm is None:
+        # BLOCK-SEQUENCE form — the one a YAML author is MOST likely to write for a
+        # multi-item list, and the flow-style regex above silently yields [] for it:
+        #     applies_to:
+        #       - file-worker
+        #       - saas-skeleton
+        # Same fail-silent-green class as the quotes-only bug fixed earlier today, in a
+        # second legal form that fix did not cover (D7 finding, 2026-08-25).
+        bm = re.search(r"^applies_to:\s*$\n((?:[ \t]+-[ \t]*\S.*\n?)+)", fm, re.MULTILINE)
+        if bm:
+            items = [
+                ln.strip().lstrip("-").strip().strip("\"'")
+                for ln in bm.group(1).splitlines()
+                if ln.strip().lstrip("-").strip().strip("\"'")
+            ]
+            return activation, items
     # ⚠️ Accept BOTH quoted and bare items. `applies_to: [file-worker]` is legal YAML and an
     # author will write it; a quotes-only regex silently yielded [] for it, so the pack was
     # skipped and could never produce a Finding — this check's OWN fail-silent-green, inside
@@ -164,6 +180,15 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...]:
         scaffold_mod._post_scaffold_sync = lambda *_a, **_kw: None
     try:
         return _scaffold_and_walk(create_project, project_type)
+    except NotImplementedError:
+        # Some registry types have no scaffolder (e.g. `wordpress` is out of fabrik) but
+        # ARE in SCAFFOLD_TYPES, which is what the docs tell pack authors to choose from.
+        # Uncaught, this propagated out of an ADVISORY check -> non-zero exit -> and
+        # run_optional_check's warn_only contract fails the gate on ANY non-zero exit,
+        # i.e. a hard gate failure in ~46 repos the moment one pack annotated that type.
+        # A type we cannot scaffold contributes NO paths; the pack is then simply not
+        # evaluated for it, never crashed on. (D7 finding, 2026-08-25.)
+        return ()
     finally:
         if _real_sync is not None:
             scaffold_mod._post_scaffold_sync = _real_sync

@@ -173,7 +173,7 @@ def test_row3_zero_declared_reads_as_zero_examined_not_a_pass(tmp_path, monkeypa
     assert "OK —" not in out, "zero examined must never read as a pass"
 
 
-def test_row3_examined_count_matches_declared_reachable_packs(tmp_path, monkeypatch):
+def test_row3_examined_count_matches_declared_packs(tmp_path, monkeypatch):
     """examined_count reflects packs whose applies_to reaches one of the CHECKED types —
     not the whole corpus size, and not a pack whose applies_to names a type outside the
     types actually being checked this run."""

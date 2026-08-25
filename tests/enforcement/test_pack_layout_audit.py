@@ -209,3 +209,37 @@ def test_activation_regex_is_line_anchored() -> None:
     )
     assert activation == "glob"
     assert applies_to == ["file-worker"]
+
+
+def test_applies_to_accepts_yaml_block_sequence() -> None:
+    """The BLOCK-SEQUENCE form must parse — it is what a YAML author writes for a list.
+
+        applies_to:
+          - file-worker
+          - saas-skeleton
+
+    The flow-style regex silently yielded [] for it, so such a pack was skipped, never
+    counted, and the run printed "no pack declares applies_to yet" — flatly false. Same
+    fail-silent-green class as the quotes-only bug, in a second legal form that fix did
+    not cover (D7 whole-plan validation, 2026-08-25).
+    """
+    from pack_layout_audit import _parse_extra_frontmatter
+
+    activation, applies_to = _parse_extra_frontmatter(
+        "---\nactivation: glob\napplies_to:\n  - file-worker\n  - saas-skeleton\n---\n"
+    )
+    assert activation == "glob"
+    assert applies_to == ["file-worker", "saas-skeleton"]
+
+
+def test_unscaffoldable_type_yields_no_paths_instead_of_crashing() -> None:
+    """A registry type with no scaffolder must contribute 0 paths, never raise.
+
+    `wordpress` is in SCAFFOLD_TYPES (which the docs tell pack authors to choose from)
+    but `create_project` raises NotImplementedError for it. Uncaught, that propagated out
+    of an ADVISORY check — and warn_only fails the gate on ANY non-zero exit, so one pack
+    annotating that type would have hard-failed the gate in ~46 repos.
+    """
+    from pack_layout_audit import _emitted_paths_for_type
+
+    assert _emitted_paths_for_type("wordpress") == ()
