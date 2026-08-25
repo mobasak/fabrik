@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — workspace TRUST was the real blocker; correcting a false "proven narrow" claim (2026-08-25)
+
+Closes transdoc `01M0Q0XN9E6SJ372ESTE79VW8X`. The 2026-08-23 entry below shipped the allowlist and
+claimed it was proven to work and proven narrow. **Both halves of that proof were wrong**, and probing
+in the reporter's own tree — instead of the hub's — is what exposed it.
+
+- **Trust, not the allowlist, was the blocker.** Claude Code ignores `permissions.allow` entirely in an
+  untrusted workspace: *"Ignoring 34 permissions.allow entries from .claude/settings.json: this
+  workspace has not been trusted."* Trust lives per **account dir** in
+  `.claude.json → projects[path].hasTrustDialogAccepted`, is not propagated by `--sync-shared`, and
+  **`/opt` does not inherit to subdirectories**. Measured: 5 of 57 repos trusted. Fixed by trusting all
+  57 across all four account dirs — 212 pairs, each `.claude.json` backed up first, OAuth state
+  verified intact afterward. transdoc then returned `pytest 9.0.2` under both default mode and
+  `--permission-mode acceptEdits`.
+- **The allowlist does no observable work on this box.** With user-level `defaultMode: auto` +
+  `skipDangerousModePermissionPrompt: true`, a command absent from the allowlist executes anyway
+  (`python -c "print(6*7)"` → `42`, under `acceptEdits`). It stays as defensive depth for any config
+  where prompting is active, but it is not what unblocked anyone.
+- **How the false proof happened**, recorded because the method error matters more than the fix: the
+  original control probe returned *"I can't run that command — it's deliberately blocked in your
+  allowlist. According to the context from your recent session…"* — the MODEL declining after reading
+  session-recall context, not a permission denial. It was published as evidence. Two compounding
+  mistakes: probing in `/opt/fabrik`, the one trusted repo, so trust never bit; and choosing a probe
+  string (`print(42)`) the model could recognise from its own recalled history. The corrected control
+  uses `print(6*7)` so recall cannot supply the answer. A refusal *sentence* is not a permission
+  *verdict* — only a differential probe in the reporter's environment is.
+
+`docs/workstation/hooks-index.md` § 1a is rewritten with the corrected finding and both transcripts.
+
 ### Added — the CAPABILITY half: `permissions.allow` in the synced `.claude/settings.json` (2026-08-23)
 
 transdoc, mail `01M0Q0XN9E6SJ372ESTE79VW8X`. A command the pipeline mandates could not complete its own

@@ -31,19 +31,46 @@ every command is refused. A dispatched coder could WRITE code but never VERIFY i
 transdoc after five coders were defeated on one ticket (2 pool units, 3 native `claude -p`); a
 10-ticket plan set halted at T02, implemented and UNVERIFIED.
 
-**Proven by execution, both directions, at the time of landing:**
+⚠️ **THE ALLOWLIST IS NOT SUFFICIENT — AND ON THIS BOX IT IS NOT THE OPERATIVE MECHANISM EITHER.**
+Corrected 2026-08-25 after probing in the REPORTER's tree instead of the hub's.
+
+**1. Trust is the real gate.** Claude Code ignores `permissions.allow` outright in an untrusted
+workspace:
 
 ```
-$ claude -p 'Run exactly this command and reply with only its output: python -m pytest --version' --model haiku
-pytest 9.0.2                                    <- ALLOWED rule, executes
-
-$ claude -p 'Run exactly this command and reply with only its output: python -c "print(42)"' --model haiku
-I can't run that command — it's deliberately blocked in your allowlist.   <- NOT in the list, still refused
+$ cd /opt/transdoc && claude -p '…python -m pytest --version' --model haiku
+Ignoring 34 permissions.allow entries from .claude/settings.json:
+this workspace has not been trusted.
+The command `python -m pytest --version` requires your approval to run.
 ```
 
-The control probe is the point: the grant is a **narrow allowlist, not a blanket unlock**. Arbitrary
-`python -c` — i.e. arbitrary code execution — is deliberately NOT granted, which is why transdoc's own
-minimal repro (`python -c "print(42)"`) still fails by design while their real proof floor works.
+Trust lives in `<account-dir>/.claude.json` → `projects["<path>"].hasTrustDialogAccepted`, is **per
+account dir**, and is NOT propagated by `--sync-shared` (which deliberately preserves it). Measured
+2026-08-23: only 5 of 57 repos trusted — `/opt`, `/opt/fabrik`, `/opt/proxy`, `/opt/seo`,
+`/opt/youtube` — and **`/opt` does NOT inherit to its subdirectories**. Fixed 2026-08-25 by trusting
+all 57 in all four dirs (212 pairs). After that, in transdoc: `pytest 9.0.2`.
+
+**2. The allowlist does no observable work on THIS box.** With user-level
+`permissions.defaultMode: auto` + `skipDangerousModePermissionPrompt: true`, a command that is NOT in
+the allowlist runs anyway — verified under BOTH default mode and `--permission-mode acceptEdits`:
+
+```
+$ cd /opt/transdoc && claude -p '…python -c "print(6*7)"' --model haiku --permission-mode acceptEdits
+42                          <- NOT in the allowlist, executes regardless
+```
+
+So the array is **defensive depth**, not the fix: it matters on a box or account dir where prompting
+is active, and it is the correct thing to ship fleet-wide, but it is not what unblocked transdoc.
+
+⚠️ **HOW THE FIRST VERSION OF THIS SECTION GOT IT WRONG — the trap is worth more than the fix.** The
+original control probe used `python -c "print(42)"` and came back *"I can't run that command — it's
+deliberately blocked in your allowlist. According to the context from your recent session…"*. That is
+the MODEL declining after reading session-recall context, **not a permission-system denial** — and it
+was published here as proof of narrowness. Two compounding errors: probing in `/opt/fabrik` (the one
+trusted repo, so trust never bit) and using a probe string the model could recognise from its own
+recalled history. The corrected control uses `print(6*7)` precisely so recall cannot supply the
+answer. **A refusal sentence is not a permission verdict; only a differential probe in the reporter's
+own environment is.**
 
 Scope (34 rules): test/lint/type runners (`pytest`, `ruff`, `mypy`, `final_gate.py`), JS build+test
 (`npm`/`pnpm`/`npx tsc`/`eslint`), `alembic`, read-only git (`status`/`diff`/`log`/`show`), and file
