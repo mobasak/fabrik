@@ -746,6 +746,138 @@ def create_watchdog_roles(
     }
 
 
+# ── Payments webhook ingest: per-project scoped cross-tenant role ─────────── #
+#
+# A project vendoring `fabrik-lib/payments` and taking UNSIGNED-provider webhooks
+# (iyzico has no signed org field) needs `PgWebhookStore.resolve_org()` to read
+# across tenants — the tenant is the unknown being discovered. Under the multi-tenant
+# RLS model (ENABLE + FORCE, tenant-scoped policies) a non-GUC role default-denies.
+# fabrik-lib DEFAULTS to a BYPASSRLS service role; we instead mint a NON-BYPASSRLS
+# role confined by permissive policies to ONLY the payments tables the store touches
+# (store.py: SELECT subscriptions/customers for resolve_org; INSERT+SELECT
+# webhook_events for record_event — the SELECT half is REQUIRED for its
+# `INSERT … RETURNING`, which throws under RLS if the returned row fails the SELECT
+# policy). A leaked PAYMENTS_INGEST_DATABASE_URL is then confined to the payments
+# tables, never the app's own core tenant data. Password lifecycle mirrors
+# create_watchdog_roles: CSPRNG only on create, None on re-apply.
+# ---------------------------------------------------------------------------
+
+_PAYMENTS_INGEST_SUFFIX = "_payments_ingest"
+# Pinned from /opt/fabrik-lib/payments/payments/store.py (NOT plans — the store never
+# reads it; NOT the project's `jobs` queue — a project-owned table, the project's policy).
+_PAYMENTS_INGEST_READ_TABLES = ("customers", "subscriptions")  # store.py:153/162 (resolve_org)
+_PAYMENTS_INGEST_WRITE_TABLE = "webhook_events"  # store.py:188 (record_event INSERT … RETURNING)
+
+
+def _payments_ingest_role_name(db_name: str) -> str:
+    """Return ``{db_name}_payments_ingest``; raise if it exceeds 63 chars.
+
+    Same 63-char guard as :func:`_wd_role_names` — Postgres silently truncates past
+    ``NAMEDATALEN`` (63), which would let two long db names collide on one role.
+    """
+    _validate_identifier(db_name, "database")
+    role = f"{db_name}{_PAYMENTS_INGEST_SUFFIX}"
+    if len(role) > 63:
+        raise ValueError(
+            f"payments-ingest role name {role!r} exceeds Postgres' 63-char identifier "
+            f"limit — shorten depends.postgres for {db_name!r}"
+        )
+    return role
+
+
+def _payments_ingest_drop_role_sql(db_name: str) -> str:
+    """``DROP ROLE IF EXISTS`` for the per-project payments-ingest role (decommission).
+
+    Empty string when the name would be invalid / too long (never created → nothing to
+    drop). Same wedge-cleanup motivation as watchdog: a drop+recreate leaving the role
+    behind with an out-of-band password makes the next apply's `_role_exists` skip the
+    fresh DSN injection.
+    """
+    try:
+        role = _payments_ingest_role_name(db_name)
+    except ValueError:
+        return ""
+    return f'DROP ROLE IF EXISTS "{role}";\n'
+
+
+def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
+    """A table-existence-GUARDED, idempotent GRANT+POLICY DO block for one table.
+
+    The tables come from the PROJECT's `db/schema.sql`, applied by the owner role
+    AFTER `fabrik apply` (postgres.py: "so it can apply its own schema") — so they may
+    not exist when the role is minted. `to_regclass` guards each: absent → skipped
+    (self-heals on the apply after the schema lands). `DROP POLICY IF EXISTS` + CREATE
+    makes it idempotent. GRANT/CREATE POLICY are utility commands → run via `EXECUTE`
+    inside the plpgsql block. `table` is a hardcoded constant; `role` is
+    `_validate_identifier`-gated — no injection surface.
+    """
+    stmts = [
+        f'GRANT {"INSERT, SELECT" if write else "SELECT"} ON {table} TO "{role}"',
+        f"DROP POLICY IF EXISTS payments_ingest_sel ON {table}",
+        f'CREATE POLICY payments_ingest_sel ON {table} FOR SELECT TO "{role}" USING (true)',
+    ]
+    if write:
+        stmts += [
+            f"DROP POLICY IF EXISTS payments_ingest_ins ON {table}",
+            f'CREATE POLICY payments_ingest_ins ON {table} FOR INSERT TO "{role}" '
+            "WITH CHECK (true)",
+        ]
+    body = "\n".join(f"    EXECUTE '{s}';" for s in stmts)
+    return f"DO $$ BEGIN\n  IF to_regclass('public.{table}') IS NOT NULL THEN\n{body}\n  END IF;\nEND $$;"
+
+
+def create_payments_ingest_role(
+    db_name: str, container: str = POSTGRES_CONTAINER, dry_run: bool = False
+) -> dict[str, Any]:
+    """Mint the per-project NON-BYPASSRLS cross-tenant payments-ingest role.
+
+    Mirrors :func:`create_watchdog_roles`: split CREATE from the idempotent
+    grant+policy batch (a GRANT failure can't orphan a just-created role with a lost
+    password); grants run inside the app DB (``\\c``); password is CSPRNG only on
+    create (``None`` on re-apply) so the caller injects ``PAYMENTS_INGEST_DATABASE_URL``
+    exactly once. The role is ``NOBYPASSRLS`` — the whole point; its cross-tenant reach
+    comes ONLY from the permissive policies on the three payments tables (guarded on
+    existence, so it self-heals on the apply after the app's schema lands).
+
+    Returns ``{"user", "password"|None, "status"}`` — ``password`` present only on a
+    fresh create (mirrors :func:`create_watchdog_roles`).
+    """
+    role = _payments_ingest_role_name(db_name)
+    if dry_run:
+        logger.info("[DRY RUN] Would ensure payments-ingest role %s on %s", role, db_name)
+        return {"user": role, "password": None, "status": "dry_run"}
+
+    exists = _role_exists(role, container)
+    pw = None if exists else _generate_password()
+    if not exists:
+        _run_sql(
+            "\\set ON_ERROR_STOP on\n"
+            f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '  # nosec B608
+            f"NOBYPASSRLS PASSWORD '{pw}';",  # nosec B608 — pw is CSPRNG alnum, single-quote-safe
+            container=container,
+        )
+    grant_parts: list[str] = [
+        "\\set ON_ERROR_STOP on",
+        f'GRANT CONNECT ON DATABASE "{db_name}" TO "{role}";',
+        f"\\c {db_name}",
+        f'GRANT USAGE ON SCHEMA public TO "{role}";',
+    ]
+    for t in _PAYMENTS_INGEST_READ_TABLES:
+        grant_parts.append(_payments_ingest_policy_block(t, role, write=False))
+    grant_parts.append(_payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True))
+    # nosec B608 — db_name/role are _validate_identifier-gated; table names are constants.
+    _run_sql("\n".join(grant_parts) + "\n", container=container)  # nosec B608
+    logger.info(
+        "payments-ingest role on %s: %s (%s) — non-BYPASSRLS, scoped to %s + %s",
+        db_name,
+        role,
+        "created" if not exists else "exists",
+        ", ".join(_PAYMENTS_INGEST_READ_TABLES),
+        _PAYMENTS_INGEST_WRITE_TABLE,
+    )
+    return {"user": role, "password": pw, "status": "created" if not exists else "exists"}
+
+
 # ── Subagent-runs telemetry: per-project INSERT-only role ─────────────────── #
 #
 # Every project vendoring `fabrik-lib/subagents` writes each run to the shared
