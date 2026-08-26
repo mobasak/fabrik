@@ -8,26 +8,33 @@ Status: CONVERGED
 
 > **Shape decision, stated because it trips a stated trigger — and re-argued from measurement at
 > review time.** The spine+ticket set is triggered by ANY of: >3 phases · projected monolith
-> >~300 lines · a phase READ set over `READ_BUDGET_BYTES` (262144). This file is **~570 lines**, so
-> the line trigger fires at roughly 1.9×. **Kept as a monolith deliberately**, on evidence rather
-> than preference:
+> >~300 lines · a phase READ set over `READ_BUDGET_BYTES` (262144). This file is **well past the
+> line threshold** (it has grown across two review rounds and will grow again), so that trigger
+> fires. **Kept as a monolith deliberately**, on evidence rather than preference:
 >
 > ```
 > $ per-phase READ set (the phase's files + its Context Files) vs the 262144 budget
 > Phase A: 153924 bytes  (59%)      Phase B: 137344 bytes  (52%)
-> $ line accounting (the totals drift as the review edits the file; the SPLIT is the stable signal)
-> phase bodies (## Phase A → ## Review Record) 268 · everything else ~300
 > ```
 >
+> **No line count is quoted here, deliberately.** This blockquote measures the file it lives in, so
+> every edit invalidates it — review 2 corrected the figure three times (422 → 559 → 803 → 828)
+> before accepting that a document cannot state its own length. Reproduce it if you need it:
+> `wc -l` for the total, `awk '/^## Phase A/,/^## Review Record/' | wc -l` for the phase bodies.
+> Roughly half is phase body and half is scaffolding.
+>
 > The **exact** trigger — the byte budget the line count only proxies for — does not fire, with ~40%
-> headroom in both phases; each is comfortably codeable by one cold agent. Only **268 lines are the
-> phases themselves**; the rest is Context Ledger / Global Constraints / Review Record / Coverage
-> Checklist / Evidence / Self-audit / Residual unknowns — **every one of which a spine carries
-> identically**, so converting
-> lengthens the artifact rather than shortening it, and mints a mandatory `Integration: true` ticket
-> whose only Touches are receipts for a two-file deliverable. The command's own convention keeps
-> work this small in a monolith. **A reviewer who disagrees now has the numbers to argue with rather
-> than a preference to accept.**
+> headroom in both phases; each is comfortably codeable by one cold agent. **That is the argument,
+> and it is the only one resting on the exact trigger rather than the approximate one.**
+>
+> ⚠️ **Review 2 withdrew a weaker claim that stood here.** An earlier draft said "only ~270 lines are
+> the phases themselves, flat while the file tripled." Both halves were false: review 2 added
+> substantially to both phases, and the count was ~442 when re-measured. Roughly half this file is
+> still Context Ledger / Global Constraints / Review Record / Coverage Checklist / Evidence /
+> Self-audit / Residual unknowns — **every one of which a spine carries identically** — so converting lengthens the artifact rather than shortening it, and mints a
+> mandatory `Integration: true` ticket whose only Touches are receipts for a two-file deliverable.
+> **A reviewer who disagrees has the measured numbers to argue with rather than a preference to
+> accept — including the one this round got wrong.**
 
 ---
 
@@ -52,7 +59,7 @@ Status: CONVERGED
 
 - **stdlib only.** `json`, `pathlib`, `re`, `argparse`. No new dependency; `pyproject.toml` /
   `requirements.txt` are NOT authorised by this plan.
-- **`warn_only=True` still FAILS the gate on ANY non-zero exit** (`scripts/final_gate.py:267-268`:
+- **`warn_only=True` still FAILS the gate on ANY non-zero exit** (`scripts/final_gate.py:262-270`:
   *"registered warn_only=True but exited {code} — its contract changed"*). Every failure path returns
   **0** with an honest line. The exception guard catches the **CLASS** (`except Exception`), never an
   enumerated list of types.
@@ -90,12 +97,13 @@ Status: CONVERGED
 | `.windsurf/rules/core/10-python.md` (ACTIVE) | Python/typing discipline; no file logging (XI), no grouped env sets (III) | `10-python.md:249`, `:252` |
 | `.windsurf/rules/core/40-documentation.md` (ACTIVE) | Doc Sync Matrix — a new subsystem owes a DEDICATED `docs/reference/<name>.md` + its `INDEX.md` row | `CLAUDE.md` § Doc Sync Matrix |
 | `.windsurf/rules/core/62-using-subagents.md` (ACTIVE) | dispatch policy: pool-default for gradeable fan-out, native for never-route + the decide/merge | `62-using-subagents.md` § Dispatch policy |
-| `scripts/final_gate.py` `run_optional_check` | `warn_only=True` implies `advisory`, and still FAILS the gate on non-zero exit | `final_gate.py:221-248`, `:267-268` |
+| `scripts/final_gate.py` `run_optional_check` | `warn_only=True` implies `advisory`, and still FAILS the gate on non-zero exit | `final_gate.py:221-248`, `:262-270` |
 | `scripts/enforcement/check_vendored_drift.py` registration | the **every-tier** registration site — above the `# ── Tier 1` marker | `final_gate.py:874-880`; marker at `:882` |
-| `scripts/enforcement/check_pack_reachability.py` | the output-contract template: `examined_count` / `claim_pairs` / `unevaluable_types` + the `OK` vs `NOTHING VERIFIED` fork | `check_pack_reachability.py:253-255`, `:302-310` |
+| `scripts/enforcement/check_pack_reachability.py` | the output-contract template — the **`--json` dict** (`examined_count` / `claim_pairs` / `unevaluable_types`), the human `OK` vs `NOTHING VERIFIED` fork, AND the CLI surface this check copies (`--project-root`, `--json`) | `check_pack_reachability.py:253-255`, `:293-301` (OK) + `:302-310` (NOTHING VERIFIED), `:96`, `:103` |
 | `scripts/enforcement/check_convergence.py` `EXECUTED` | the hardened, anchored, decoration-tolerant plan-Status matcher — **reuse, do not edit** | `check_convergence.py:122-126`; rationale `:116-118` |
 | `scripts/enforcement/check_plan_tickets.py` `NEVER_ROUTE_PREFIXES` | the deliverable is entirely never-route ⇒ native execution only | `check_plan_tickets.py:212-218` |
 | `tests/enforcement/test_final_gate_registration.py` | the AST block-membership pin pattern + its built-in red (feed the defeating mutant to your own helper) | `test_final_gate_registration.py:1-11`, `:108` |
+| `tests/enforcement/test_pack_reachability.py` | the end-to-end test idiom for a `--project-root`/`--json` check: set `sys.argv`, call `main()`, parse the JSON — used by the four rows that exercise `main()` | `test_pack_reachability.py:66-71` |
 | `commands/_sources/fabrik-catchup.md` probe 1 | the finding taxonomy this check makes executable — adopt verbatim, do not invent a parallel one | `fabrik-catchup.md:47-60` |
 | `commands/_sources/fabrik-execute-plan.md` | the writer's contract: `paused` `:459`, `blocked` `:563`, operator-deletes remedy `:77`, step-6 repoint `:970` | as cited |
 | `scripts/fabrik_synced_manifest.py` | `scripts/enforcement/` is a recursive synced dir — no manifest edit needed | `fabrik_synced_manifest.py:100-101`, `:259-272` |
@@ -140,6 +148,26 @@ def resolve_plan(root: Path, lock_path: Path, plan_field: str | None) -> PlanRef
 def classify(root: Path, lock_path: Path) -> list[Finding]   # 0, 1 or MORE per lock
 def main(argv: list[str] | None = None) -> int          # ALWAYS 0 — findings included
 ```
+
+**CLI surface — `--project-root PATH` (default `Path.cwd()`) and `--json`.** `main(argv=None)` falls
+back to `sys.argv[1:]`. The gate invokes the script **bare** (`final_gate.py:261`:
+`run_cmd([PYTHON, str(full_path)])`), so the no-flag default must emit the human output; `--json`
+emits the structured dict.
+
+⚠️ **This block previously declared only `main(argv)` and named no flags — which left four Behavior
+Contract rows unwritable and the two cited templates in open disagreement.** `check_vendored_drift.py`
+(named as "the model") has **no argparse at all** and is tested by `monkeypatch.chdir(tmp_path)`
+(`test_check_vendored_drift.py:22`); `check_pack_reachability.py` (named as the *output-contract*
+template) has `--project-root` and `--json` (`:96`, `:103`) and is tested by setting `sys.argv` then
+calling `main()` (`test_pack_reachability.py:66-71`). An implementer could satisfy the plan either
+way, and the four rows that exercise `main()` end-to-end — exit-0-with-findings, `NOTHING VERIFIED`,
+the `OK` branch, and the empty-stdout inert contract — need a way to point the check at a `tmp_path`
+corpus that the plan never gave them.
+
+**Decision: follow `check_pack_reachability`, not `check_vendored_drift`.** `--project-root` targets
+a fixture corpus without process-global `chdir`, and `--json` lets the four `main()` rows assert on
+structured counters instead of scraping human prose. The test idiom is
+`test_pack_reachability.py:66-71` verbatim: set `sys.argv`, call `main()`, parse the JSON.
 
 ⚠️ **`status_value()` and `finished_token()` are two functions on purpose — an earlier draft fused
 them and the result was unsatisfiable.** `finished_token` was specified to take a *value* while
@@ -206,6 +234,28 @@ counters is the normal case, not an edge one.
      mechanical writer after >2 NEW instances) — the spec requires those live in the docstring where
      the next agent reads them, not only in the spec.
    - `NON_TERMINAL` / `TERMINAL` / `FINISHED_TOKENS` as module constants.
+   - `main()` — `argparse` with `--project-root` (default `Path.cwd()`) and `--json`; every path
+     returns **0**. Bare invocation (what the gate does) prints the human output. It enumerates
+     `<project_root>/.fabrik/plan-locks/*.json` (sorted), calls `classify(project_root, lock_path)`
+     per file, and accumulates the eight counters. ⚠️ **Every path derives from `--project-root`,
+     never from `Path.cwd()` directly** — a `glob` rooted at cwd would ignore the flag, silently
+     re-target every `tmp_path` fixture at the real repo, and make the four `main()` rows pass
+     against the operator's live corpus instead of the fixture they built. Absent directory ⇒ the
+     empty-stdout inert path, not an error.
+   - `COMPLETION_TS = ("completed_at", "finished_at", "released_at")` — the completion-timestamp
+     family, **enumerated, not inferred**. ⚠️ **`started_at` is explicitly NOT a member and the
+     distinction is fleet-critical.** The plan previously said only *"the timestamp key family, not
+     just `completed_at`"*, whose natural reading is `endswith("_at")`. Measured across the fleet:
+
+     ```
+     $ *_at key frequency across fleet locks
+     {'started_at': 212, 'completed_at': 146, 'released_at': 29, 'finished_at': 5,
+      'blocked_at': 1, 'reopened_at': 1, 'resumed_at': 1}      # non-terminal locks: 7
+     ```
+
+     `started_at` is on essentially every lock, so an `endswith("_at")` family emits
+     `HALF-APPLIED FINISH` on **all 7** non-terminal fleet locks on day one — the identical
+     fires-everywhere failure this plan spent a round scoping `PLAN FIELD STALE` to avoid.
    - `normalise_status()` applied before EVERY partition test. ⚠️ **The partition is case-folded
      and that is not cosmetic** — the fleet carries a live `"RELEASED"` (upper-case) lock at
      `tryton-crm/2026-08-25-plan-2-turkish-catalogue-integrity-and-release-closure.json`, on a
@@ -284,7 +334,21 @@ counters is the normal case, not an edge one.
 
      Either condition alone would suffice; the conjunction is kept because a future writer adding one
      without the other should be surfaced, not silently absorbed.
-   - **Reuse `check_convergence.EXECUTED`** for the canonical form — applied by `status_value()` to
+   - `status_value()` — **fence-strip the spine first, then take the FIRST surviving
+     `Status:`-shaped line, and capture the remainder of that line.** All three clauses are
+     load-bearing and none was stated before:
+     - *Fence-strip*: `check_convergence` fence-strips for `CONVERGED` but **not** for `EXECUTED`.
+       Without stripping, `/opt/site-provisioner/docs/development/plans/2026-05-31-plan-domain-drop-catching.md:248`
+       — `status: Mapped[str] = mapped_column(` inside a fenced block — is read as that plan's
+       status. It parses to garbage that silently means "not finished" (fail-silent-green), and
+       becomes a false positive the day a fenced gate-output line starts with `DONE`/`FIXED`.
+     - *First, not last*: **5 live fleet plans carry more than one `Status:`-shaped line**, and
+       first-vs-last flips the verdict on two of them (`/opt/youtube/…-fabrik-lib-module-integration.md`
+       reads `IN-PROGRESS` first and `EXECUTED 2026-07-02` last).
+     - *Generic capture*: `check_convergence.EXECUTED` hard-codes its token, so it can confirm the
+       canonical `EXECUTED` case but can **never extract** an arbitrary value — fixtures d
+       (`NOT_STARTED`), f, and the spine-with-no-`Status:` row all need the value itself.
+   - **Reuse `check_convergence.EXECUTED`** only as the canonical-form confirmation, applied to
      the **raw `Status:` line** (it requires the literal `Status` + `:`, so it can never match an
      extracted value); `finished_token()` then handles the legacy alternation on the value, using
      the same anchor discipline. Do not edit the import target.
@@ -354,6 +418,17 @@ counters is the normal case, not an edge one.
   *`warn_only` implies `advisory`, so stdout prints on every pass; without this the check emits a
   block on every gate run forever in 30 repos. The model it copies self-skips out of scope:
   `check_vendored_drift.py` prints 3281 bytes at the hub and 0 in a project.*
+- **Given** a non-terminal lock with **`released_at`** set and `final_commit` absent, **When** the
+  check runs, **Then** it emits `HALF-APPLIED FINISH` — the third family member (29 fleet locks carry
+  it) and the one no fixture covered.
+- **Given** a non-terminal lock carrying only **`started_at`** and no completion timestamp, **When**
+  the check runs, **Then** it is **NOT** flagged. *The negative that stops the family being read as
+  `endswith("_at")`; `started_at` is on 212 of ~213 fleet locks, so this mutant fires on everything.*
+- **Given** a spine with **two** `Status:`-shaped lines (`IN-PROGRESS` first, `EXECUTED` last),
+  **When** the check runs, **Then** the FIRST is used and the lock is not flagged (5 live fleet plans
+  have this shape and two flip verdict on first-vs-last).
+- **Given** a spine whose only `Status:`-shaped line sits **inside a fenced block**, **When** the
+  check runs, **Then** it is ignored and the lock is counted `UNEVALUABLE`, never parsed as status.
 - **Given** a lock whose status is `"RELEASED"` (upper-case, live today in `tryton-crm`), **When** the
   check runs, **Then** it is treated as **terminal** and not flagged — the partition is case-folded.
 - **Given** an archived plan whose spine EXISTS but carries **no `Status:` line**, **When** the check
@@ -380,6 +455,9 @@ counters is the normal case, not an edge one.
    | missing spine ⇒ counted terminal | e (`UNEVALUABLE` never counted clean) |
    | `PLAN FIELD STALE` unscoped | m (terminal locks not flagged) |
    | `main()` → `return 1 if findings else 0` | the exit-0-with-findings row (**the fleet-red guard**) |
+   | completion-timestamp family → `endswith("_at")` | the `started_at`-only row (fires on all 7 non-terminal fleet locks otherwise) |
+   | `status_value` → last `Status:` line instead of first | the two-`Status:`-line row |
+   | `status_value` → no fence-strip | the fenced-`Status:` row |
 
    **The neutered state is never staged or committed.**
 6. **Append the `CHANGELOG.md` `[Unreleased]` entry — BEFORE the gate, not after** —
@@ -389,8 +467,9 @@ counters is the normal case, not an edge one.
    significant code staged without `CHANGELOG.md`; it is registered **blocking** at
    `final_gate.py:952-954`. An earlier draft both said *"no doc row is owed by Phase A"* and placed
    this step after the gate run — either alone reddens the gate and pushes the agent into
-   improvising a governance-surface edit mid-phase. Then run
-   `python scripts/enforcement/check_doc_sync.py`. *(The subsystem doc itself still lands in Phase B,
+   improvising a governance-surface edit mid-phase. Then `git add` this phase's paths and run
+   `python scripts/enforcement/check_doc_sync.py` — **staged first, or it reads an empty diff and
+   returns 0 having examined nothing** (`check_doc_sync.py:253`). *(The subsystem doc itself still lands in Phase B,
    where the check becomes a live gate row.)*
 7. Run the phase gate → green.
 8. **`/fabrik-review` on Phase A's changed surface — BLOCKING**, to a coverage-adjudicated exit: pool
@@ -467,7 +546,18 @@ Phase A's *Produces* block, by those exact names.
    check is not even listed as advisory in the modes where it does not run).
 4. Run step 1's pin → **GREEN**.
 5. **Verify the check against the real fleet, read-only.** Copy another repo's lock corpus into
-   `tmp_path` and assert the check finds the known live instance:
+   `tmp_path` **AND materialise the plan tree the locks point at** — then assert the check finds the
+   known live instance:
+
+   ⚠️ **Copying the locks alone makes this assertion FAIL, and fail in the most damaging direction.**
+   The lock's `plan` field is repo-relative (`docs/development/plans/2026-08-10-plan-1-deep-research.md`)
+   while the file actually lives under `.../archived/`. Under a lock-only `tmp_path` all four
+   resolution branches miss, so the check emits `ORPHAN LOCK` instead of `STALE LOCK` — and the
+   cheapest escape for whoever hits it is to loosen `resolve_plan`, the exact function this plan
+   spends thirty lines protecting. **Create `tmp_path/docs/development/plans/archived/<stem>.md`
+   alongside the copied lock** (an empty file with a `Status:` line is enough), or point
+   `--project-root` at a read-only view of the real repo.
+
    ```
    /opt/brand-identiy-creator/.fabrik/plan-locks/2026-08-10-plan-1-deep-research.json
      → status:"active", plan archived → STALE LOCK
@@ -494,20 +584,54 @@ Phase A's *Produces* block, by those exact names.
      (`check_doc_index.py:69-83` hard-fails on a tracked `docs/**/*.md` missing from `INDEX.md`, and
      `docs/reference/` is not in its `EXCLUDE_PREFIXES` — so the INDEX row is gate-enforced, not a
      courtesy.)
-   - The `CHANGELOG.md` entry was already appended in **Phase A step 6**; do not duplicate it.
+   - **`CHANGELOG.md` — Phase B appends its OWN `[Unreleased]` line** (`### Changed — Plan-lock
+     release gate registered every-tier (2026-08-26)`). ⚠️ **"Do not duplicate it" was wrong and
+     would have blocked this phase.** Phase A commits the CHANGELOG at its step 9, so re-`git add`ing
+     an unmodified file does not put it back in the staged set — verified in a scratch repo. Phase B
+     then stages `scripts/final_gate.py`, which `check_doc_sync.py:32` counts as significant
+     (`SIGNIFICANT_DIRS` includes `scripts/`), and `:265-270` ERRORs on significant code staged
+     without `CHANGELOG.md` (`return 1` at `:355-361`, registered **blocking** at
+     `final_gate.py:951-954`). One entry per commit is the gate's unit.
 
    `INDEX.md`, `docs/README.md` and `CHANGELOG.md` are shared-append governance surfaces — appended,
    never overwritten, and deliberately **outside** File Scope.
 8. Run the phase gate → green.
-9. `python scripts/enforcement/check_doc_sync.py` + `python scripts/enforcement/check_doc_stubs.py`.
+9. `git add` this phase's paths, **then** `python scripts/enforcement/check_doc_sync.py`.
+   ⚠️ **The `git add` is load-bearing for the same reason as the Phase A gate line, and this plan
+   previously fixed it in one place and left it broken in two.** `check_doc_sync.py:253` reads the
+   **staged** diff and returns 0 immediately when it is empty, so running it before staging certifies
+   nothing. `check_doc_stubs.py` is **dropped from this step**: its `_trigger_detectors()` covers
+   exactly five docs (`QUICKSTART`, `CONFIGURATION`, `data-contract`, `SERVICES`, `OPERATIONS`), none
+   of which this deliverable touches, and it can never inspect `docs/reference/plan-lock-lifecycle.md`.
 10. **`/fabrik-review` on Phase B's changed surface — BLOCKING**, same methodology and same
     pool-breadth + native-Opus dispatch as Phase A step 8. Iterate to `found: 0`.
 11. **`/fabrik-docs-review`** on the new reference doc — converge the docs to a truthful fixed point
     (the touch-on-change gates prove presence, not correctness).
-12. **Full gate + convergence:** `python scripts/final_gate.py --check --json` → `"status":"success"`,
+12. **`git add` the new `docs/reference/plan-lock-lifecycle.md` FIRST, then full gate + convergence:**
+    `python scripts/final_gate.py --check --json` → `"status":"success"`,
     and `python scripts/enforcement/check_convergence.py` → exit 0. **A green gate is necessary but
     not sufficient** — it proves citations and format, not that the design is sound; the real proof is
     the Evidence below plus the red-first runs in Phase A.
+
+    ⚠️ **This step is a free end-to-end assertion, because the check meets THIS PLAN'S OWN LOCK.**
+    `/fabrik-execute-plan` step 7 creates `.fabrik/plan-locks/2026-08-26-plan-1-plan-lock-release-check.json`
+    with `status:"active"` before Phase A starts, so by step 12 the hub — which carries **0**
+    non-terminal locks at authoring time — has exactly one. Its plan sits under `plans/` with
+    `Status: CONVERGED`/`IN-PROGRESS`, neither of which is a finished token. **So the required output
+    is `OK — 0 stale of N examined (1 non-terminal evaluated · …)`, and NOT `NOTHING VERIFIED`.**
+    ⚠️ **The `git add` above is not tidiness.** `check_doc_index.py:60-74` iterates
+    `git ls-files`, so an **untracked** `docs/reference/plan-lock-lifecycle.md` is invisible to it —
+    omit the `INDEX.md` row and every gate this plan runs stays green, then the *next* agent's gate
+    goes red after the commit lands. A defect handed forward is worse than one caught.
+
+    Assert that string. It falsifies three things at once for free: `NOTHING VERIFIED` here means
+    non-terminal detection is broken; a finding against our own lock means rule 1B is over-eager; and
+    silence means the inert path fired when a corpus existed.
+
+    The one ordering that could make the check flag itself is closed by the command, not by us:
+    Finish step 5 sets `status:"released"` **before** flipping the plan to `Status: EXECUTED`
+    (`fabrik-execute-plan.md:955-956`). Reversed, there is a window in which an `active` lock sits
+    beside an `EXECUTED` plan under `plans/` — rule 1B's exact signature. Keep step 5's stated order.
 13. **Commit from `/opt/fabrik` itself, not a worktree** — the governance-sync pre-commit hook guards
     on `[ "$(pwd)" = "/opt/fabrik" ]` (`.pre-commit-config.yaml:67`). Then **verify distribution
     landed** in a sample project (`ls /opt/transdoc/scripts/enforcement/check_plan_lock_release.py`);
@@ -557,9 +681,13 @@ uses `uv`)"*, and this plan's gates use `python -m pytest`. The pack is written 
 projects**; the hub runs its own suite differently, and the hub's own gate proves it:
 
 ```
-$ grep -n 'pytest' scripts/final_gate.py | sed -n '4p'
+$ grep -n '"-m", "pytest"' scripts/final_gate.py
 774:  [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
 ```
+
+*(The probe greps the literal invocation, not a positional `sed -n '4p'` — review 2's probe-duty
+re-run showed the positional form had already drifted onto a comment line while the claim itself
+stayed true. A probe that depends on match ORDER goes stale on the next unrelated edit.)*
 
 Three archived, converged hub plans use the same form (`2026-07-20-plan-1-docs-truth-convergence.md:199`,
 `2026-08-04-plan-1-spine-ticket-plans.md:348`, `2026-08-10-plan-2-review-loop-overhaul.md:424`).
@@ -579,10 +707,10 @@ recurrence classes. Every row carries a verdict and the paths actually hunted.
 | 5 | 12-Factor, all twelve axes (FLOOR) | CLEAN | Swept in § Global Constraints, which copies all twelve verbatim. The two that could bite a CLI: **XI** — the check prints to stdout only, never opens a log file; **III** — no config at all. |
 | 6 | Python discipline (MATCHED `core/10-python.md`) | CLEAN | No `uv`/dep change (Global Constraints forbids touching `pyproject.toml`); no `logger.exception()`; no file logging; stdlib imports only. |
 | 7 | Documentation discipline (MATCHED `core/40-documentation.md`) | CLEAN | Phase B step 6 emits the dedicated `docs/reference/plan-lock-lifecycle.md` (checked-before-create: `ls docs/reference/ \| grep -i lock` → empty); step 7 adds the `INDEX.md` + `docs/README.md` rows; step 11 runs `/fabrik-docs-review`. Trailer-block rule applies at commit (Phase A step 9, Phase B step 13). |
-| 8 | Testing strategy (MATCHED `core/45-testing-strategy.md`) | FIXED (4) | 21-row Behavior Contract, one row per distinct observable behavior. **This class absorbed the most fixes of any row (9).** Red-first was producing a `ModuleNotFoundError` rather than an assertion failure → Phase A gained **step 0** (a deliberately-wrong stub). The vacuity audit named the wrong two rows: `l` actually FAILS the do-nothing model, while `g`, `e`, `k`, the `NOTHING VERIFIED` row and the (missing) `OK`-branch row all passed it — step 5's red-on-revert list is now a seven-mutant matrix. Six rows were added: exit-0-with-findings, the `OK` branch, the empty-corpus inert contract, upper-case `RELEASED`, a spine with no `Status:` line, and the multi-label lock. `uv run pytest` mandate REFUTED above with evidence. |
-| 9 | **fail-open vs fail-closed on every gate/guard** (standing) | CLEAN | Deliberately **fail-soft by contract**: every failure path returns 0 with an honest line, because `warn_only=True` still FAILS the gate on non-zero exit (`final_gate.py:267-268`). The *reporting* side fails CLOSED instead — an unreadable lock becomes `UNEVALUABLE`, never a silent pass, and an all-unevaluable run prints `NOTHING VERIFIED`, never `OK`. Both directions are covered by Behavior Contract rows 13–14. |
+| 8 | Testing strategy (MATCHED `core/45-testing-strategy.md`) | FIXED (13) | 25-row Behavior Contract. **Round 1 fixed 9 here; round 2 added 4 more rows and 3 more mutants.** Round 2's additions: a `released_at` row (the family's third member, 29 fleet locks, previously uncovered), a `started_at`-only NEGATIVE row (the mutant that reads the family as `endswith("_at")` and fires on all 7 non-terminal fleet locks), a two-`Status:`-line row, and a fenced-`Status:` row. The red-on-revert matrix is now ten mutants. |
+| 9 | **fail-open vs fail-closed on every gate/guard** (standing) | FIXED (2) | Deliberately **fail-soft by contract**: every failure path returns 0, because `warn_only=True` still FAILS the gate on non-zero exit (`final_gate.py:262-270`). Reporting fails CLOSED instead — an unreadable lock is `UNEVALUABLE`, never a silent pass, and an all-unevaluable run prints `NOTHING VERIFIED`. **Round 2 found two more instances of the same class in the plan's own verification steps:** `check_doc_sync` (Phase A step 6, Phase B step 9) reads the STAGED diff and returns 0 on an empty one, so running it before `git add` certifies nothing — the identical trap the plan had already documented for `check_script_headers` and left unfixed in two siblings. Both now stage first; `check_doc_stubs` was dropped from step 9 because its five trigger docs exclude everything this change touches. |
 | 10 | **cost / quota / limit accounting edges** (standing) | FIXED (1) | The check makes no paid call and holds no quota — but the **noise budget IS a limit-accounting edge, and pass 1 found a real defect here**: `PLAN FIELD STALE` was written unscoped off a hub-only count (2 of 48) and would have fired **37 times fleet-wide** on day one. Scoped to non-terminal it fires twice. The other limit in play — the gate's 500-char / 10-line advisory truncation — is answered by the census-line-first output contract (Phase A step 3). |
-| 11 | **boundary / sentinel / prefix collisions** (standing) | CLEAN | This is the deliverable's dominant risk class and is where the spec's own review found most defects: the anchored-vs-substring token match (fixture f), the `repo-lock-` **prefix** that is a different protocol (fixture l), `complete` vs `completed` as distinct status values, and `absent` vs `null` for `final_commit`. All four have Behavior Contract rows. |
+| 11 | **boundary / sentinel / prefix collisions** (standing) | FIXED (3) | The deliverable's dominant risk class, and round 2 found three more in it: the completion-timestamp **key prefix** (`*_at` vs an enumerated family — `started_at` is on 212 of ~213 locks); the `Status:`-line **boundary** (first vs last, where 5 fleet plans carry more than one and 2 flip verdict); and the **fence boundary** (a SQLAlchemy `status: Mapped[str] = mapped_column(` at `site-provisioner/…-domain-drop-catching.md:248` parses as a plan status without fence-stripping). Round 1's four — anchored-vs-substring, the `repo-lock-` prefix, `complete` vs `completed`, `absent` vs `null` — all still hold. Every one has a Behavior Contract row. |
 | 12 | **behavior-without-a-test** (standing) | FIXED (1) | Every one of the eight output labels has a Behavior Contract row; the registration position — the one behavior outside the check module — is pinned by the AST test in Phase B steps 1–2, with its own built-in red. **Pass 5 found one gap here and fixed it:** making `classify()` return a LIST created a multi-label behavior with no row, so fixture **n** was added (the motivating lock is simultaneously `STALE LOCK` and `HALF-APPLIED FINISH`); a single-finding implementation passes all fifteen other rows and fails only that one. |
 
 ## File Scope (owned paths)
@@ -626,18 +754,24 @@ NEVER_ROUTE_PREFIXES = (
   re-run at plan time:
 
 ```
-$ plan-shaped vs other, across all 16 /opt repos carrying locks
+$ plan-shaped vs other, across all 16 /opt repos carrying locks   — SNAPSHOT
 plan-shaped 188 | other 25          # 7 of the 25 are fabrik-lib repo-lock-<host>-<pid>.json
-$ anchored vs substring finished-token match
+$ anchored vs substring finished-token match                      — SNAPSHOT
 LIVE: anchored=5 substring-only=1   ARCH: anchored=61 substring-only=5
 ```
+
+⚠️ **These counts drift and re-measured higher during review 2 (plan-shaped 188 → 190, ARCH anchored
+61 → 62) as sibling sessions took locks and archived plans.** The *ratios* are what the design rests
+on and they hold: `other` stayed 25, `substring-only` stayed 1 / 5, and no anchored/substring
+misclassification appeared in either direction. Re-measure rather than quote these at execution
+time — Phase A step 4's fixtures encode the shapes, not the counts.
 
 **Phase B**
 
 - `scripts/final_gate.py:874-880` — the `check_vendored_drift` registration, read this turn: it sits
   above the `# ── Tier 1: Showstoppers only ──` marker at `:882`, which is precisely the every-tier
   position this plan copies.
-- `scripts/final_gate.py:267-268` — the `warn_only` contract that forces every failure path to exit 0.
+- `scripts/final_gate.py:262-270` — the `warn_only` contract that forces every failure path to exit 0.
 - `tests/enforcement/test_final_gate_registration.py:1-11` — the AST-pin pattern *and* its
   built-in-red convention, both reused verbatim by Phase B steps 1–2.
 - The fleet corpus this check will judge on landing day, and the live instance Phase B step 5 asserts
@@ -679,7 +813,7 @@ policy to native and is now in § Execution Discipline.
 in either phase revisits them. stdlib-only → Global Constraints; no manifest edit is authorised. The
 spec's eight labels, its twelve fixtures (plus **m**, added by this review's pass 1), the
 `NOTHING VERIFIED` fork, the census line, never-auto-reclaim, and the remediation wording →
-Phase A steps 3–4 + the 21-row Behavior Contract. Registration tier → B steps 1–4.
+Phase A steps 3–4 + the 25-row Behavior Contract. Registration tier → B steps 1–4.
 `AFTER-EDIT` header → A step 3. **No gap found; no phase added.**
 
 **(b) Cross-phase signature consistency.** Phase B consumes exactly the names Phase A's *Produces*
@@ -709,6 +843,38 @@ reddened Phase A; and a vacuity audit that named the wrong rows.
 **Fixed-point claim.** Reached: the closing pass re-read the whole plan, re-ran every embedded probe,
 and made zero edits with an identical md5 (see the Pass Ledger in the review report).
 
+## Review round 2 — `/fabrik-plan-review` re-invoked on the CONVERGED plan
+
+The operator re-invoked the command on a plan already `CONVERGED` at `c1f54c4e`. It was not a
+rubber stamp. The rubric was re-run **this turn** over the (now six-entry) File Scope; the pool
+returned two axes CLEAN with reasoning and one clean constructibility sweep of all 21 Behavior
+Contract rows. **Seven further defects surfaced, three of them substantive:**
+
+1. **The CLI surface was never specified, and four Behavior Contract rows depended on it.** The
+   Interfaces block declared only `main(argv)`. The plan's two cited templates *disagree*:
+   `check_vendored_drift.py` (named as "the model") has **no argparse at all** and is tested by
+   `monkeypatch.chdir(tmp_path)` (`test_check_vendored_drift.py:22`), while
+   `check_pack_reachability.py` (named as the output-contract template) has `--project-root` and
+   `--json` (`:96`, `:103`) and is tested via `sys.argv` + `main()` (`test_pack_reachability.py:66-71`).
+   The four rows that exercise `main()` end-to-end had no stated way to point the check at a
+   `tmp_path` corpus. Resolved by choosing `check_pack_reachability`'s surface explicitly.
+2. **Probe duty caught two stale probes.** The `pytest` probe used a positional `sed -n '4p'` that
+   had already drifted onto a comment line while its claim stayed true — rewritten to grep the
+   literal invocation. The corpus counts (plan-shaped 188 → 190, archived anchored 61 → 62) had
+   moved as sibling sessions took locks; marked as snapshots with the invariant ratios called out.
+3. **Phase B step 12 was carrying a free end-to-end assertion nobody had noticed.** The check meets
+   **this plan's own `active` lock** during its own execution, so the required output there is
+   `OK — … (1 non-terminal evaluated …)` and specifically **not** `NOTHING VERIFIED`. Asserting that
+   one string falsifies three failure modes at zero cost. (It also surfaced an ordering dependency:
+   Finish step 5 releases the lock *before* flipping the plan to `EXECUTED`, `fabrik-execute-plan.md:955-956`
+   — reversed, the check transiently flags itself.)
+
+Plus: the `warn_only` citation unified from `:267-268` (the message) onto `:262-270` (the guard that
+makes it binding); residual 1 downgraded now that a non-stale live case exists; and **a false claim
+of my own withdrawn** — the shape blockquote asserted "~270 phase lines, flat while the file tripled"
+when the real figure was 442. That blockquote measured the file it lives in and went stale **four
+times in two rounds**; it now quotes no line count at all and tells the reader how to reproduce one.
+
 ## Pass Ledger — `/fabrik-plan-review`, 2026-08-26
 
 | Pass | axes re-checked | raised | new: | edits | note |
@@ -722,7 +888,24 @@ and made zero edits with an identical md5 (see the Pass Ledger in the review rep
 | 7 | **independent grounders: pool ×3 + Opus ×2** | 15 | 15 | 15 | the AST pin was vacuous; `main()` exit-0; a false citation; case-folding; an unreachable step 4 |
 | 8 | step ordering after the merge | 2 | 2 | 2 | CHANGELOG step sat *after* the gate it must precede |
 | 9 | all probes re-run | 2 | 2 | 2 | fleet totals drifting mid-review → snapshot + durable-ratio split |
-| 10 | all probes · structural · gates | **0** | **0** | **0** | ✓ md5 identical → **CONVERGED** |
+| 10 | all probes · structural · gates | **0** | **0** | **0** | ✓ md5 identical → CONVERGED (round 1) |
+
+**Round 2** — the operator re-invoked the command on the CONVERGED plan:
+
+| Pass | axes re-checked | raised | new: | edits | note |
+|-----:|---|---:|---:|---:|---|
+| 1 | rubric re-armed · probe duty · pool finders (3 axes) | 7 | 7 | 16 | CLI surface unspecified; 2 stale probes; the free self-referential assertion at Phase B step 12 |
+| 2 | 49 `path:line` citations re-resolved · structural · gates | 1 | 1 | 4 | the shape blockquote's own line count — false and drifting for the 4th time; self-measurement removed |
+| 3 | full re-read + all probes | 1 | 1 | 1 | `main()`'s lock enumeration + `--project-root` threading unstated |
+| 4 | **independent Opus grounder merged** | 6 | 6 | 10 | step 5's live assertion fails on a lock-only copy; `status_value` grammar (fence/first/generic); the timestamp family read as `endswith("_at")` fires on all 7 non-terminal fleet locks; Phase B needs its OWN CHANGELOG line; two more staged-diff vacuity traps; `check_doc_index` cannot see an untracked doc |
+| 5 | all probes · 53 citations · structural · gates | **0** | **0** | **0** | ✓ md5 identical → **CONVERGED (round 2)** |
+
+Round 2 `new:` falls 7 → 1 → 1 → **6** → 0. **The same shape as round 1: a quiet author pass (3),
+then the independent grounder finding six more.** Round 1's lesson repeated exactly — an author's
+no-op measures the author. Durable probes re-run at round 2's close: READ sets 153924 / 137344 ·
+discriminator 7 both / 0 mixed · plan-field 35 terminal vs 2 non-terminal · `*_at` frequency
+`{started_at 212, completed_at 146, released_at 29, finished_at 5}` · 53 citations all resolve ·
+`check_plans` and `check_convergence` exit 0.
 
 `new:` falls 5 → 2 → 2 → 1 → 2 → 0 → **15** → 2 → 2 → 0. **The spike at pass 7 is the point of this
 ledger:** pass 6 was a genuine author no-op, and had the loop exited there, fifteen defects — six of
@@ -755,7 +938,13 @@ a separator · `check_plans` and `check_convergence` both exit 0.
    the fleet sweep first and points the assertion at whatever non-terminal-on-archived lock it
    reports; if the fleet is genuinely clean by then, the assertion degrades to the `tmp_path`
    fixture-corpus form and the plan's Evidence records that the live case was gone. The check is not
-   blocked either way.
+   blocked either way. *(Re-checked at review 2: `brand-identiy-creator`'s lock is still `active`.)*
+
+   **Review 2 downgraded this residual rather than re-resolving it.** Phase B step 12 now carries a
+   live assertion that **cannot** go stale — the check meets this plan's own `active` lock during its
+   own execution — so even a fleet that goes completely clean leaves one real end-to-end positive
+   case standing. Step 5 is still worth running (a second repo exercises the cross-repo path), but it
+   is no longer the only live proof, which is what made this residual feel load-bearing.
 2. **`FOREIGN LOCK`'s only live instances sit in a repo the check does not reach by sync.** All
    seven `repo-lock-<host>-<pid>.json` files are in `/opt/fabrik-lib`, which is **sync-excluded**
    (`sync_enforcement_to_projects.py:795` — *"Reference implementation store (vendor, don't
