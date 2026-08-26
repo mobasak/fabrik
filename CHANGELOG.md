@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-rivals`: competitive evidence before a spec exists (2026-08-26)
+
+- New command `commands/_sources/fabrik-rivals.md` (stage `1-design`, immediately before
+  `/fabrik-spec`) + hub-side driver `scripts/rivals_run.py`, driving fabrik-lib's `competitor-intel`
+  engine (vendored to `libs/competitor_intel`, with `libs/deep_research` + `libs/web_tools.py` which
+  it injects). Produces a match-then-beat dossier: rivals, mined review signal, a feature MATRIX, a
+  ranked **MATCH** list (what rivals have that we lack) and **BEAT** list (their review-proven
+  weaknesses), plus a pricing wedge and white-space. MATCH seeds features-to-build, BEAT seeds
+  problems-to-solve, both handed to `/fabrik-spec`. Requested by fabrik-lib
+  (mail `01M0ZD2JH6Z4MGFT6P6ZKKQYYC`).
+- **Two modes by repo identity**, mirroring `/fabrik-upstream`: PROJECT mode grounds and files the
+  brief with local tooling only (no hub shell-out, no vendored engine, no keys); HUB mode holds the
+  single vendored copy and runs it. The command reaches every project — old and new — because the
+  corpus renders to user-level `~/.claude/commands` + `~/.claude/skills`, not by copying into trees.
+- **The LLM is subscription `claude -p`, and NO agents are dispatched** — no pool `fanout`, no Task
+  subagents, no metered LLM API (`ANTHROPIC_API_KEY` stays reserved for `fabrik ai generate`). It runs
+  from a NEUTRAL cwd because `claude -p` loads the CLAUDE.md of its tree: measured 33,953
+  cache-creation tokens from `/opt/fabrik` vs 11,611 from an empty dir, and an agent contract is not
+  context for summarising review excerpts. Only the SEARCH legs are metered; `--free-legs-only` runs
+  a whole scan at zero marginal cost.
+- **A pre-flight that catches what the engine cannot.** `run()` never raises for money or staging, so
+  every wiring mistake yields a dossier that LOOKS complete. `--preflight-only` rejects, before
+  spending: `--budget 0` (documented as "run NO research" while still returning a Dossier — the
+  fail-silent-green sentinel, so "no ceiling" is spelled as a large number), `legs` keys that do not
+  match the packs' leg names, a positive estimate on the free `brave` leg, and an empty `job_id`.
+- **Found live and filed upstream: a silent total-failure defect in the engine's documented wiring.**
+  Its two consumers call the injected LLM with different arities — `competitor_intel/synth.py:53`
+  passes one positional, `deep_research/engine.py:257` passes two — while the README documents the
+  one-positional form. A verbatim copy of that snippet raises `TypeError` on every research call, and
+  because both call sites sit behind never-raise boundaries the run returns an empty dossier with
+  `partial=True` and no visible error (measured: `competitors=0`). The driver accepts `*parts`.
+  Also filed: `_safe_research` logs only the stage label, not the exception, which is what made it
+  undiagnosable from outside.
+- **Termination is a LOOP, not one engine run**: discovery-until-dry (two consecutive rounds adding
+  no rival and no MATCH/BEAT item) plus a **SPLIT** trust audit — the feature matrix, pricing wedge
+  and white-space are re-groundable (the engine holds the source text), while BEAT is Tier-C and is
+  audited on its corroboration gate instead. Claiming one rail for all stages is the overclaim the
+  engine's own review had to scope out of its README. Zero competitors is a FAILED scan, never an
+  empty market. Reference: `docs/reference/rivals-command.md`.
+
 ### Changed — core/35-security-auth: CSRF requirement split onto its own bullet (Lax vs Strict disjunction made unmissable) (2026-08-26)
 
 - `.windsurf/rules/core/35-security-auth.md:120` packed the Pattern-A cookie attributes, the

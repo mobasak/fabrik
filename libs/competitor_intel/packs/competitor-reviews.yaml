@@ -1,0 +1,61 @@
+# Competitor REVIEWS pack — mine real review sentiment for ONE competitor. Subject = the competitor.
+#
+# The DEFAULT, always-works, ToS-clean path is Tier-C search-excerpts (the search legs surface verbatim
+# review snippets + ratings from review directories / app stores / forums as SEARCH RESULTS — no scraper
+# code, no G2 fetch). Extraction produces (aspect, sentiment, verbatim_quote, source_url) triplets. Leg
+# names match the discovery pack so ONE deps wiring serves both.
+
+query_plan_prompt: |
+  [stage:query-plan] You are a review-mining query planner. Given a competitor name/URL and the market,
+  produce ONLY a JSON object {"firecrawl": [..], "exa": [..], "brave": [..]} — ranked queries that surface
+  REAL user reviews and complaints: "{name} reviews", "{name} complaints", "{name} vs", "{name} pros cons",
+  "{name} cancel/refund", and site-scoped queries against the injected review venues. Prefer pages that
+  quote users verbatim. Over-generate at least 6 Brave-syntax queries.
+
+shortlist_prompt: |
+  [stage:shortlist] Merge and dedupe these search rows into a shortlist of pages that actually contain
+  user reviews or first-hand experience of this competitor (drop the vendor's own marketing pages and
+  pure listicles). Produce ONLY a JSON array, at most {cap} items, each {"name": .., "url": ..} where
+  name is a short page label.
+
+verify_prompt: |
+  [stage:extract] From each page's text, extract ONLY a JSON array of review-signal cards, exactly this
+  closed shape per card:
+  {"aspect","sentiment","verbatim_quote","source_url","grounded"}.
+  `aspect` = the feature/topic the user is talking about (pricing, support, reliability, onboarding, ...).
+  `sentiment` = one of positive|negative|neutral|mixed. `verbatim_quote` = the user's OWN words, copied
+  exactly from the page (never paraphrased). `source_url` = the page URL. `grounded` = true ONLY when
+  `verbatim_quote` is a real quote copied from the source. Constrain to what the sources say; if a field
+  is not supported by the page, leave it empty — never invent.
+
+shortlist_cap: 12
+verify_cap: 10
+
+legs:
+  - {name: firecrawl, cap: 4, include_market: true, num_results: 5}
+  - {name: exa, cap: 4, num_results: 5}
+  - {name: brave, cap: 2, is_free: true, num_results: 5}
+
+card_schema:
+  - {name: aspect, type: str}
+  - {name: sentiment, type: str, default: neutral}
+  - {name: verbatim_quote, type: str}
+  - {name: source_url, type: str}
+  - {name: grounded, type: bool, default: false}
+
+# {subject} = the competitor (first non-empty of brief_keys); {market} = the home market.
+fallback_templates:
+  firecrawl:
+    - "{subject} reviews {market}"
+    - "{subject} complaints"
+  exa:
+    - "honest user reviews of {subject}"
+    - "why users switched away from {subject}"
+  brave:
+    - "{subject} reviews {market}"
+    - "{subject} pros and cons"
+    - "{subject} vs"
+
+brief_keys: [competitor_name, competitor_url]
+subject_name_key: competitor_name
+demote_rule: [grounded, verbatim_quote]   # grounded -> false unless a verbatim quote is present

@@ -1,0 +1,48 @@
+# PRICING pack — surface a competitor's pricing/packaging page text. Subject = one competitor. The pack
+# FETCHES pricing-page snippets; the pricing MODEL + wedge are synthesized in stages.price_wedge. Leg names
+# match the other packs so one deps wiring serves all.
+
+query_plan_prompt: |
+  [stage:query-plan] You are a pricing-research query planner. Given a competitor name/URL and the market,
+  produce ONLY a JSON object {"firecrawl": [..], "exa": [..], "brave": [..]} of queries that surface the
+  competitor's PRICING and PACKAGING: "{name} pricing", "{name} plans", "{name} cost per seat", site-scoped
+  queries against the competitor's pricing/plans page. Prefer pages that quote actual prices/tiers.
+  Over-generate at least 6 Brave-syntax queries.
+
+shortlist_prompt: |
+  [stage:shortlist] Merge and dedupe these rows into a shortlist of pages that actually show this
+  competitor's pricing or packaging (drop generic listicles and reviews). Produce ONLY a JSON array, at
+  most {cap} items, each {"name": <short page label>, "url": ..}.
+
+verify_prompt: |
+  [stage:extract] From each page's text, extract ONLY a JSON array of pricing-snippet cards, exactly this
+  closed shape per card: {"snippet","source_url"}. `snippet` = the verbatim pricing/packaging text copied
+  exactly from the page (tiers, prices, what's gated, whether a free tier exists). `source_url` = the page
+  URL. Copy text exactly; never summarize or invent a price.
+
+shortlist_cap: 10
+verify_cap: 8
+
+legs:
+  - {name: firecrawl, cap: 4, include_market: true, num_results: 5}
+  - {name: exa, cap: 4, num_results: 5}
+  - {name: brave, cap: 2, is_free: true, num_results: 5}
+
+card_schema:
+  - {name: snippet, type: str}
+  - {name: source_url, type: str}
+
+fallback_templates:
+  firecrawl:
+    - "{subject} pricing {market}"
+    - "{subject} plans cost"
+  exa:
+    - "how much does {subject} cost"
+    - "{subject} pricing tiers and packaging"
+  brave:
+    - "{subject} pricing"
+    - "{subject} plans"
+    - "{subject} cost per month"
+
+brief_keys: [competitor_name, competitor_url]
+subject_name_key: competitor_name

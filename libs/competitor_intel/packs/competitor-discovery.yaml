@@ -1,0 +1,66 @@
+# Competitor DISCOVERY pack — find the real rivals in a market. Subject = the category/industry.
+#
+# Generic across all product types (SaaS, mobile, ecommerce, website, headless-api, docs, extension,
+# desktop) — no originating-project vocabulary. The leg names (firecrawl/exa/brave) are the keys into the
+# consumer's injected ``deps.legs`` / ``deps.leg_estimates``. Swap this file (or inject a custom pack) to
+# change discovery behavior with no code edit.
+#
+# Provenance: the engine + pack idiom is deep-research's; this pack's CONTENT is authored generic for
+# competitor-intel (deep-research's shipped competitor-discovery.yaml carries e-commerce-specific vocab,
+# deliberately not copied — a library default must serve every product type).
+
+query_plan_prompt: |
+  [stage:query-plan] You are a competitive-market query planner. Given the category/industry subject and
+  the home market, produce ONLY a JSON object {"firecrawl": [..], "exa": [..], "brave": [..]} — ranked
+  query strings per leg, localized to the market's language. Firecrawl/Brave queries may use `site:`
+  operators; Exa queries are plain neural phrasings. Target vendor sites, review directories, "best X"
+  and "alternatives to X" listicles, and category comparison pages. Over-generate: at least 6
+  Brave-syntax queries, so budget reallocated from a dead leg has queries to spend.
+
+shortlist_prompt: |
+  [stage:shortlist] Merge and dedupe these search rows into a shortlist of REAL, distinct competitor
+  companies/products in this category — never the subject's own brand, never a directory or aggregator
+  as if it were a company. Produce ONLY a JSON array, at most {cap} items, each {"name": .., "url": ..}.
+
+verify_prompt: |
+  [stage:extract] From each candidate's page text, produce ONLY a JSON array of evidence-based competitor
+  cards, exactly this closed shape per card:
+  {"name","url","verified","evidence","positioning","price_tier","market_presence","source_urls"}.
+  `verified` may be true ONLY with quoted evidence of a real market presence (a live product, pricing,
+  customers) in `evidence`. Quote positioning from the rival's OWN words. Unverifiable candidates ship
+  with verified=false — never dropped.
+
+shortlist_cap: 12
+verify_cap: 8
+
+legs:
+  - {name: firecrawl, cap: 4, include_market: true, num_results: 5}
+  - {name: exa, cap: 4, num_results: 5}
+  - {name: brave, cap: 2, is_free: true, num_results: 5}
+
+card_schema:
+  - {name: name, type: str}
+  - {name: url, type: str}
+  - {name: verified, type: bool, default: false}
+  - {name: evidence, type: str}
+  - {name: positioning, type: str}
+  - {name: price_tier, type: str}
+  - {name: market_presence, type: list}
+  - {name: source_urls, type: list}
+
+# {subject} = the first non-empty of brief_keys (industry, else brand_name); {market} = the home market.
+fallback_templates:
+  firecrawl:
+    - "{subject} {market}"
+    - "best {subject} tools {market}"
+  exa:
+    - "companies and products in {subject} for {market}"
+    - "leading {subject} vendors {market}"
+  brave:
+    - "{subject} {market}"
+    - "alternatives to {subject} {market}"
+    - "best {subject} {market}"
+
+brief_keys: [industry, brand_name]
+subject_name_key: brand_name
+demote_rule: [verified, evidence]   # verified -> false unless evidence is non-empty

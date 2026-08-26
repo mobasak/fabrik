@@ -1,0 +1,47 @@
+# WHITE-SPACE pack — surface DEMAND-side unmet-need discourse for a category. Subject = the market/category
+# (NOT a competitor). The pack fetches "I wish X existed" / "switched away because" discourse; the unmet
+# needs are clustered + corroboration-gated in stages.white_space. Leg names match the other packs.
+
+query_plan_prompt: |
+  [stage:query-plan] You are a demand-research query planner. Given a market/category and locale, produce
+  ONLY a JSON object {"firecrawl": [..], "exa": [..], "brave": [..]} of queries that surface UNMET DEMAND —
+  "{subject} I wish there was", "{subject} feature request", "does any {subject} tool do", "switched away
+  from {subject} because", "{subject} still no way to". Target forums, Reddit, HN, community boards. Prefer
+  pages where users voice a need no product serves. Over-generate at least 6 Brave-syntax queries.
+
+shortlist_prompt: |
+  [stage:shortlist] Merge and dedupe these rows into a shortlist of pages that actually contain users
+  voicing an unmet need (drop vendor marketing and pure feature lists). Produce ONLY a JSON array, at most
+  {cap} items, each {"name": <short page label>, "url": ..}.
+
+verify_prompt: |
+  [stage:extract] From each page's text, extract ONLY a JSON array of unmet-need snippet cards, exactly
+  this closed shape per card: {"snippet","source_url"}. `snippet` = the verbatim user statement of an unmet
+  need, copied exactly. `source_url` = the page URL. Copy text exactly; never invent a need or paraphrase.
+
+shortlist_cap: 12
+verify_cap: 10
+
+legs:
+  - {name: firecrawl, cap: 4, include_market: true, num_results: 5}
+  - {name: exa, cap: 4, num_results: 5}
+  - {name: brave, cap: 2, is_free: true, num_results: 5}
+
+card_schema:
+  - {name: snippet, type: str}
+  - {name: source_url, type: str}
+
+fallback_templates:
+  firecrawl:
+    - "{subject} feature request {market}"
+    - "{subject} I wish there was a tool"
+  exa:
+    - "unmet needs in {subject} that no product solves"
+    - "users switching away from {subject} tools because"
+  brave:
+    - "{subject} I wish"
+    - "does any {subject} tool"
+    - "{subject} still no way to"
+
+brief_keys: [category, market]
+subject_name_key: category

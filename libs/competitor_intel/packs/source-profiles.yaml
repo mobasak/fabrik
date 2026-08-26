@@ -1,0 +1,48 @@
+# Source profiles — which review venues + query-site patterns to target PER product type, and which
+# optional adapters that type enables. DATA, not code: a new product type is a new key here, zero code.
+# Read by the orchestrator (venues/patterns fold into the reviews brief) and by the adapter seam
+# (`adapters` lists which opt-in adapters are relevant — still key-gated at runtime).
+#
+# The core uses these as Tier-C search HINTS (site-scoped queries against public review directories) — it
+# never fetches those directories directly. `adapters` names are opt-in lazy plugins (Phase C ships the
+# free HN + Apple exemplars); an unlisted/unkeyed adapter simply stays off.
+
+saas:
+  review_venues: [g2.com, capterra.com, trustpilot.com, trustradius.com, reddit.com]
+  site_patterns: ["site:g2.com {subject}", "site:reddit.com {subject} review", "{subject} alternatives"]
+  adapters: [hn_algolia]
+
+headless-api:
+  review_venues: [g2.com, news.ycombinator.com, reddit.com, github.com, stackoverflow.com]
+  site_patterns: ["site:news.ycombinator.com {subject}", "site:github.com {subject} issues", "{subject} vs"]
+  adapters: [hn_algolia]
+
+mobile-app:
+  review_venues: [apps.apple.com, play.google.com, reddit.com, producthunt.com]
+  site_patterns: ["site:apps.apple.com {subject}", "site:reddit.com {subject} app review", "{subject} app complaints"]
+  adapters: [apple_rss]
+
+desktop:
+  review_venues: [apps.apple.com, reddit.com, news.ycombinator.com, alternativeto.net]
+  site_patterns: ["site:alternativeto.net {subject}", "site:reddit.com {subject}", "{subject} review"]
+  adapters: [apple_rss, hn_algolia]
+
+extension:
+  review_venues: [chromewebstore.google.com, reddit.com, producthunt.com]
+  site_patterns: ["{subject} chrome extension reviews", "site:reddit.com {subject} extension", "{subject} alternatives"]
+  adapters: [hn_algolia]
+
+ecommerce:
+  review_venues: [trustpilot.com, reddit.com, sitejabber.com]
+  site_patterns: ["site:trustpilot.com {subject}", "{subject} reviews scam legit", "{subject} shipping complaints"]
+  adapters: []
+
+website:
+  review_venues: [trustpilot.com, reddit.com, g2.com]
+  site_patterns: ["{subject} reviews", "site:reddit.com {subject}", "{subject} vs"]
+  adapters: []
+
+docs:
+  review_venues: [news.ycombinator.com, reddit.com, github.com]
+  site_patterns: ["site:news.ycombinator.com {subject} docs", "{subject} documentation review", "{subject} vs"]
+  adapters: [hn_algolia]
