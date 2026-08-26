@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_doc_sync RESILIENCE trigger no longer fires on prose "fallback" (2026-08-26)
+
+- `\bfallback\b` dropped from RESILIENCE_PATTERNS (web-ecommerce-factory upstream proposal,
+  measured 4/4 prose false-positives): a real code fallback co-occurs with retry/backoff/
+  max_retries/circuit-breaker, which still trigger; a WARN whose only correct response is to
+  ignore it trains scroll-past. Both-direction regression tests (prose silent · retry fires).
+
 ### Changed — Plan-lock release gate registered every-tier (2026-08-26)
 
 - `scripts/final_gate.py`: the plan-lock release check is now a live advisory row, registered

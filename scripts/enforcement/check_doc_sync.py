@@ -49,11 +49,14 @@ ROUTE_PATTERNS = (
     r"@api_router\.(get|post|put|patch|delete|options|head)\s*\(",
 )
 CHANGELOG_ENTRY_RE = re.compile(r"###\s+(Added|Changed|Fixed|Removed|Security|Deprecated)")
+# \bfallback\b was dropped 2026-08-26 (web-ecommerce-factory upstream proposal, measured
+# 4/4 prose false-positives — comments and operator-facing strings): a REAL code fallback
+# almost always co-occurs with retry/backoff/max_retries/circuit-breaker, which still
+# trigger; a WARN whose only correct response is to ignore it teaches scroll-past.
 RESILIENCE_PATTERNS = (
     r"\bretry\b",
     r"\bbackoff\b",
     r"\bcircuit.?breaker\b",
-    r"\bfallback\b",
     r"\bmax_retries\b",
 )
 

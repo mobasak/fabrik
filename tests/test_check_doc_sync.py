@@ -273,3 +273,28 @@ def test_an_actually_pasted_template_placeholder_is_still_rejected(repo: Path) -
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     r = _run(repo)
     assert r.returncode == 1, f"a ticked template placeholder must still fail: {r.stdout}"
+
+
+def test_prose_fallback_does_not_fire_the_resilience_warning(repo):
+    """2026-08-26 (web-ecommerce-factory upstream, measured 4/4 prose false-positives):
+    the word "fallback" in a comment or operator-facing string is not a resilience
+    pattern — a WARN whose only correct response is to ignore it trains scroll-past."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Added — classifier default (2026-08-26)\n- x\n")
+    _write(repo, "src/app/classify.py",
+           "def classify(x):\n    # the fallback class shown to a human in the scan report\n"
+           "    return 'fallback: unknown'\n")
+    _stage(repo, "CHANGELOG.md", "src/app/classify.py")
+    r = _run(repo)
+    assert "RESILIENCE" not in r.stdout, r.stdout
+
+
+def test_retry_still_fires_the_resilience_warning(repo):
+    """The counter-direction: dropping \\bfallback\\b must not have taken retry with it."""
+    _write(repo, "CHANGELOG.md",
+           "# Changelog\n\n## [Unreleased]\n\n### Added — retrying client (2026-08-26)\n- x\n")
+    _write(repo, "src/app/client.py",
+           "def get(x):\n    for attempt in range(3):  # retry with backoff\n        pass\n")
+    _stage(repo, "CHANGELOG.md", "src/app/client.py")
+    r = _run(repo)
+    assert "RESILIENCE" in r.stdout, r.stdout
