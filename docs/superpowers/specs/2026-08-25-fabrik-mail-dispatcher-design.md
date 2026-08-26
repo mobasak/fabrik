@@ -1,6 +1,6 @@
 # fabrik-mail ADDRESSING ENFORCEMENT + ESCALATION (design spec — v3, enforcement-first)
 
-Status: CONVERGED (v3.1 2026-08-26 — enforcement-first; sixth review: 17 findings folded incl. the claude_rotate sender census, library-level guard, send_alert channel, all-mailbox three-population escalation; citations spot-verified at source)
+Status: CONVERGED (v3.1 2026-08-26 — enforcement-first; sixth+seventh reviews folded: sender census incl. the aro-wake twin, reply-exempt + broadcast/ack-required-refused guard semantics, render-before-commit, liveness registration)
 Date: 2026-08-26 (v1/v2 dispatcher shape 2026-08-25 — superseded, § Rejected alternative E)
 Author: infra (hub session)
 Predecessors: `2026-08-11-fabrik-mail-design.md` (Layer 1, shipped) ·
@@ -22,18 +22,27 @@ escalation digest, the one destination-side piece that survives.
    so the importable path is closed too) refuses a hub-bound send (`to == "fabrik"`,
    **deliberately NOT `_is_hub`** — `HUB_NODES` includes `fabrik-lib` (`mail.py:47`), whose
    mailbox has no beats and must stay unguarded) without `to_agent ∈ HUB_BEATS` or
-   `broadcast=True`; the CLI maps this to **exit 2** + the three-beat guide on stderr. With
-   either flag it succeeds. Project-bound sends untouched. **Ordering preserved:** the
+   `broadcast=True`; the CLI maps this to **exit 2** via the EXISTING `MailRefusedError`
+   ladder + the three-beat guide on stderr. With either flag it succeeds. Semantics pinned:
+   `broadcast` off-hub = legal no-op; `broadcast`+`to_agent` → `to_agent` wins;
+   **`broadcast`+`ack: required` is REFUSED** (an obligation nobody owns is a contradiction —
+   and it keeps broadcast mail out of the escalation digest by construction); **a `--re` reply
+   with a resolvable parent is EXEMPT** (thread-anchored — the documented project reply path
+   keeps working; `send()` already resolves parents at `:676-684`). Project-bound sends
+   untouched. **Ordering preserved:** the
    addressing check runs AFTER the recipient/star checks and the HIGH-secret refusal
    (`mail.py:658-666`, invariants D6/E1 — a credential leak must be diagnosed as a leak on the
    FIRST attempt, never masked by an addressing nag).
 2. **Every live automated hub-bound sender is updated in the same change** — the census
    (corrected by the sixth review; a literal grep missed variable argv):
-   `claude_rotate.py:_drain_mail` (`:2169-2200`, call site `:3764-3770` — the DOMINANT sender:
-   10 of the 15 currently-unaddressed hub messages are its `fleet quota advisory`, sent with
-   `stderr=DEVNULL`, so a refusal would be silent loss of the quota-wall warning) and
-   `kaizen_collect_v2.py:2469` — both gain `--broadcast` (advisories/collections are
-   all-agents by nature). The instruction surfaces that TEACH `--to fabrik` are updated in the
+   `claude_rotate.py:_drain_mail` (`:2169-2200`, call site `:3764-3770` — the DOMINANT
+   sender: 11 of the 15 currently-unaddressed hub messages are its `fleet quota advisory`,
+   sent with `stderr=DEVNULL`, so a refusal would be silent loss of the quota-wall warning)
+   **in BOTH byte-identical copies (`scripts/sysadmin/` AND the fleet-rsync'd
+   `scripts/aro-wake/` twin — the file's own header declares the invariant; the census lesson
+   struck twice)**, and `kaizen_collect_v2.py:2469` — gaining `--broadcast` (advisories/
+   collections are all-agents by nature), kaizen additionally `--ack no` (broadcast+required
+   is now a refused contradiction; the kaizen ledger is its accountability, not mail-ack). The instruction surfaces that TEACH `--to fabrik` are updated in the
    same change too: `templates/governance/CLAUDE.md:95,234,239` and
    `commands/_sources/fabrik-upstream.md:155,245` (+ the `assemble_commands.py:69` summary
    string) carry the beat guide — synced-file/enforcement/commands defects → `--to-agent infra`;
@@ -51,9 +60,12 @@ escalation digest, the one destination-side piece that survives.
 4. Zero new daemons, watchers, LLM calls, ledgers, or systemd units. The build is the send
    guard + caller/doc updates + one hub-local escalation script + ONE cron line.
 5. At ship, the hub inbox holds zero ACCIDENTALLY-unaddressed messages (one-time triage;
-   broadcast-class stays). Residual honesty: `--broadcast` and legacy `requeue` (returns
-   claimed mail unaddressed, `mail.py:886` — accepted: visible to all, escalation catches
-   aging) mean the unaddressed population is minimized, not extinct; `route` for the hub
+   broadcast-class stays). Residual honesty: `--broadcast` and legacy `requeue` (CORRECTED claim: it preserves ALL frontmatter incl. `agent:`, `mail.py:886-922` —
+   only already-unaddressed legacy mail returns unaddressed; accepted, escalation catches
+   aging), the guard-exempt reply thread class, and the sync-EXCLUDED `fabrik-lib` fork (its
+   `mail.py` copy never receives the guard — made VISIBLE by the check_vendored_drift
+   extension, closed only when fabrik-lib re-vendors; 83 archived messages of hub
+   correspondence) mean the unaddressed population is minimized, not extinct; `route` for the hub
    mailbox is hardened to `HUB_BEATS` in the same change (a typo'd beat via `route` would
    otherwise hide a message from all three `list --agent` views — the same harm one verb
    later).
@@ -70,7 +82,7 @@ escalation digest, the one destination-side piece that survives.
 |---|---|
 | Message protocol: ULID ids, frontmatter, `agent:` as a FILTER never a lock | `scripts/mail.py` + `docs/reference/fabrik-mail.md` (shipped) |
 | `mail.py` is fleet-synced; a commit touching it FIRES the governance-sync at pre-commit (verified: the `governance-sync` files-filter alternation includes `mail`, `.pre-commit-config.yaml:69`; 49 project copies exist) | sync-consciousness binds; blast radius intended |
-| `fabrik-lib` is sync-EXCLUDED (`sync_enforcement_to_projects.py:795`) — its `mail.py` fork (byte-identical today, 36 live messages of hub correspondence) does NOT receive the guard; closed by (a) a fabrik-mail notice to re-vendor and (b) adding `scripts/mail.py` to `check_vendored_drift.py`'s governance set so undeclared drift is flagged | sixth review, finding 4 |
+| `fabrik-lib` is sync-EXCLUDED (`sync_enforcement_to_projects.py:795`) — its `mail.py` fork (byte-identical today, 83 archived messages of hub correspondence — re-measured) does NOT receive the guard; closed by (a) a fabrik-mail notice to re-vendor and (b) adding `scripts/mail.py` to `check_vendored_drift.py`'s governance set so undeclared drift is flagged | sixth review, finding 4 |
 | Crontab writes CLASSIFIER-BLOCKED; operator installs the line | memory `project_crontab_wipe_2026_08_19` |
 | Telegram channel: **`libs.alerting.send_alert(title, body)`** — the PACKAGE entry, not `telegram.send`: the "title-dedup would suppress the daily digest" premise was FALSE (`_last_sent` is in-process state, `__init__.py:56`; a fresh cron process always starts empty), and `send_alert` adds the SSH→Apprise primary leg + `format_diagnosis` (`__init__.py:88-109`) — losing those was the real cost of the bypass. Credentials via the CWD-walking dotenv → **`cd /opt/fabrik` in the cron line stays LOAD-BEARING** | sixth review, finding 5 (grounded live) |
 | Mail text is DATA; sender/subject/agent fields sanitized before ANY output surface — the NAMED Markdown-metachar set `` _ * [ ] ` `` is stripped/replaced (a single `_` in a repo name would 400 the send with `parse_mode: Markdown`, `telegram.py:89,112`, and a 400 retries forever) plus control chars + length caps | Layer-1 spec + sixth review, finding 13 |
@@ -115,7 +127,9 @@ line. Failure fail-soft: exit 0, loud on the script's OWN stdout.
 **4. One cron line (operator installs):**
 `0 */6 * * * /bin/sh -c 'mkdir -p $HOME/.claude/state/mail-escalate && cd /opt/fabrik && FABRIK_MAIL_ESCALATE_DAYS=3 flock -n $HOME/.claude/state/mail-escalate/cron.lock python3 scripts/sysadmin/mail_escalate.py' >> /var/log/fabrik-mail-escalate.log 2>&1`
 — 6-hourly + day-stamp = at most one Telegram/local-day, sleep-resilient; the env prefix IS the
-operator's override point. Install block adds the one-time
+operator's override point. The cron registers in `.fabrik/liveness-registry.json` (cron_match + evidence log +
+max_age_hours — an unregistered cron is unmonitored, `docs/workstation/liveness.md`).
+Install block adds the one-time
 `sudo touch /var/log/fabrik-mail-escalate.log && sudo chown $USER:` (the `fabrik-audit.log`
 convention) and the logrotate snippet shipped at `configs/logrotate/fabrik-mail-escalate`
 (new dir; installed by the operator with `sudo cp` into `/etc/logrotate.d/` — sudo is already
