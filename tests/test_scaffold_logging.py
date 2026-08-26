@@ -192,6 +192,24 @@ class TestPythonApiLogging:
         assert 'logger.info("service_stopping")' in content
         assert 'logger.error("health_check_failed"' in content
 
+    def test_health_pings_the_db_not_a_config_check(
+        self, mock_fabrik_root: Path, temp_dir: Path
+    ) -> None:
+        """/health must do a REAL DB round-trip (SELECT 1) and 503 on failure — not the old
+        TODO stub that reported 'configured' and returned 200 against a dead DB (job-agent
+        finding 01M0WXQQ: the Docker/compose/watchdog healthchecks all trusted a false 'ok').
+        """
+        project = _scaffold_python_api(mock_fabrik_root, temp_dir)
+        content = (project / "src" / "test_svc" / "main.py").read_text()
+        # the real ping: driver import + a genuine SELECT 1 round-trip, 503 on failure
+        assert "import asyncpg" in content, "health must ping via a real driver"
+        assert 'await conn.execute("SELECT 1")' in content, "health must run a real SELECT 1"
+        assert "await conn.close()" in content, "the health ping must not leak the connection"
+        assert "status_code = 200 if all_ok else 503" in content, "a dead DB must yield 503"
+        # the old lie must be gone: no TODO stub, no bare 'configured' that skips the ping
+        assert "TODO: Replace with actual async DB ping" not in content
+        assert '    deps["database"] = "configured"\n' not in content
+
     def test_requirements_includes_structlog(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """requirements.txt includes structlog."""
         project = _scaffold_python_api(mock_fabrik_root, temp_dir)

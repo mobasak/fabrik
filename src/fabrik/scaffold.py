@@ -1676,17 +1676,30 @@ def init_glitchtip() -> bool:
         f"\n"
         f'@app.get("/health")\n'
         f"async def health():\n"
-        f'    """Health check - tests actual dependencies, returns non-200 on failure."""\n'
+        f'    """Health check — tests actual dependencies (real DB ping), 503 on failure."""\n'
         f'    db_url = os.getenv("DATABASE_URL")\n'
         f"    deps = {{}}\n"
         f"    all_ok = True\n"
         f"\n"
-        f"    # Database check (only if configured)\n"
+        f"    # Database LIVENESS — a real round-trip, never a config-presence check. A service\n"
+        f"    # whose DB is unreachable MUST report 503 so the Docker/compose/watchdog\n"
+        f"    # healthchecks fail it (governance: test real deps, `SELECT 1`).\n"
         f"    if db_url:\n"
         f"        try:\n"
-        f"            # TODO: Replace with actual async DB ping when DB is added\n"
-        f'            # Example: await db.execute("SELECT 1")\n'
-        f'            deps["database"] = "configured"\n'
+        f"            import asyncpg\n"
+        f"\n"
+        f"            # asyncpg takes a bare libpq DSN — drop SQLAlchemy's +driver suffix.\n"
+        f'            raw = db_url.replace("postgresql+asyncpg://", "postgresql://")\n'
+        f"            conn = await asyncpg.connect(raw, timeout=5.0)\n"
+        f"            try:\n"
+        f'                await conn.execute("SELECT 1")\n'
+        f"            finally:\n"
+        f"                await conn.close()\n"
+        f'            deps["database"] = "ok"\n'
+        f"        except ImportError:\n"
+        f"            # No DB driver in this service's deps → nothing to ping. Report honestly\n"
+        f"            # (never claim liveness); add asyncpg when the service gains a DB.\n"
+        f'            deps["database"] = "configured (no driver)"\n'
         f"        except Exception as e:\n"
         f'            deps["database"] = f"error: {{str(e)}}"\n'
         f'            logger.error("health_check_failed", dependency="database", error=str(e))\n'

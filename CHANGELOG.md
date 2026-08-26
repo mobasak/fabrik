@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — python-api scaffold /health does a REAL DB ping, not a config-presence lie (2026-08-26)
+
+- `src/fabrik/scaffold.py` (`_scaffold_fastapi_backend`): the emitted `/health` docstring claimed "tests
+  actual dependencies, returns non-200 on failure" but the DB check was a `# TODO` stub that set
+  `deps["database"] = "configured"` without any round-trip — so a service with an **unreachable DB returned
+  200** (job-agent finding 01M0WXQQ, reproduced live), and the Docker/compose/watchdog healthchecks all
+  trusted it. Now `/health` does a real `await conn.execute("SELECT 1")` via asyncpg (driver-suffix stripped)
+  and returns **503** on failure; guarded by `ImportError` so a driver-less base service reports
+  `"configured (no driver)"` honestly instead of a false `"ok"`. Empirically verified: dead DSN → 503
+  (`ConnectionRefusedError`), unset → `not_configured`, no-driver → honest fallback. Regression test in
+  `tests/test_scaffold_logging.py`. Makes `Dockerfile.python:47`'s assertion true.
+- Note: the sibling report's chrome-extension "pnpm 11 install BLOCKER" was **REFUTED** — a real
+  `fabrik scaffold --type chrome-extension` + `pnpm install` exits 0 on pnpm 11.24.0 (the scaffold's
+  `pnpm-workspace.yaml allowBuilds` has handled esbuild's build script since 2026-07-11, deec1d90); no
+  framework swap was needed or made.
+
 ### Fixed — core/86-email-templates could not reach the files that send email (third inert-glob instance) (2026-08-26)
 
 - `.windsurf/rules/core/86-email-templates.md`: its globs described only the layout its own
