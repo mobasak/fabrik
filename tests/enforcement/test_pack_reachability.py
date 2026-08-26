@@ -437,3 +437,47 @@ def test_duplicate_applies_to_entries_count_once(tmp_path, monkeypatch) -> None:
     assert result["examined_count"] == 1
     assert result["claim_pairs"] == 1, "a duplicate entry is one claim, not two"
     assert not result["findings"]
+
+
+def test_masked_scaffolder_failure_is_reported_not_silent(tmp_path, monkeypatch, capsys) -> None:
+    """The broad `except` must RECORD what it swallowed, not hide it.
+
+    `_emitted_paths_for_type` catches Exception deliberately: under `warn_only=True` any
+    escaping exception reds the gate in ~46 repos, and for this check every failure genuinely
+    means "cannot evaluate". But an earlier comment justified the breadth by claiming
+    `_scaffold_and_walk` "only scaffolds and walks, so there is no unrelated logic for a
+    broad except to mask" — FALSE. `create_project` runs git init, git checkout -b, template
+    copying and a pre-commit install; a real bug in any of them is swallowed here.
+
+    A masked failure you can SEE is an accepted trade; one you cannot see is the defect this
+    plan exists to close. So the exception type and message are recorded and printed.
+    (D7 round 12.)
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    _pla._UNEVALUABLE_REASONS.clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "wp.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/x.php"]\napplies_to: [wordpress]\n'
+        "description: w\n---\nbody\n"
+    )
+
+    argv = sys.argv
+    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
+                "--types", "wordpress"]
+    try:
+        rc = cpr.main()
+    finally:
+        sys.argv = argv
+        _pla._emitted_paths_for_type.cache_clear()
+        _pla._UNEVALUABLE_REASONS.clear()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "NOT EVALUATED" in out
+    assert "NotImplementedError" in out, (
+        "the swallowed exception TYPE must appear — a broad except that reports nothing is "
+        "indistinguishable from the failure never happening"
+    )

@@ -188,9 +188,11 @@ def main() -> int:
 
     if not args.json:
         for claimed in unevaluable:
+            reason = pla._UNEVALUABLE_REASONS.get(claimed)
             print(
                 f"NOT EVALUATED: scaffold type {claimed!r} cannot be built here, so packs "
                 "claiming it were neither cleared nor flagged"
+                + (f" [{reason}]" if reason else "")
             )
         for rel, claimed, hit in cleared:
             print(f"  reachable: {rel} @ {claimed} — via {hit}")

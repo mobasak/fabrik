@@ -185,6 +185,11 @@ def _import_create_project():
     )
 
 
+# Why each type could not be evaluated, keyed by type — so a swallowed scaffolder failure is
+# reportable rather than silent (see the broad `except` below).
+_UNEVALUABLE_REASONS: dict[str, str] = {}
+
+
 @functools.cache
 def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
     """Every relative file/dir path (posix) a FRESH `create_project(project_type=...)`
@@ -229,7 +234,7 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
         scaffold_mod._post_scaffold_sync = lambda *_a, **_kw: None
     try:
         return _scaffold_and_walk(create_project, project_type)
-    except Exception:  # noqa: BLE001 - deliberate; see below
+    except Exception as exc:  # noqa: BLE001 - deliberate; see below
         # ⚠️ BROAD ON PURPOSE. Whatever fails while probing a scaffold, the answer to "can
         # this type be evaluated here?" is NO — never "the pack is unreachable", never a
         # traceback. This check is ADVISORY and wired `warn_only=True`, which fails the gate
@@ -239,8 +244,18 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
         # and round 11 then pointed at FileNotFoundError from a missing template. Enumerating
         # exception types is the same instance-by-instance patching that let the applies_to
         # parser drop three legal YAML forms in a row. The CLASS is "any scaffolder failure
-        # means unevaluable", so catch the class. `_scaffold_and_walk` only scaffolds and
-        # walks, so there is no unrelated logic here for a broad except to mask.
+        # means unevaluable", so catch the class.
+        #
+        # ⚠️ WHAT THIS MASKS, stated honestly. An earlier version of this comment claimed
+        # `_scaffold_and_walk` "only scaffolds and walks, so there is no unrelated logic for
+        # a broad except to mask". That is FALSE: `create_project` runs `git init`,
+        # `git checkout -b`, template copying and a pre-commit install, and a genuine bug in
+        # any of them is swallowed here. The trade is accepted — for THIS check any failure
+        # genuinely means "cannot evaluate", and the alternative is a red gate in ~46 repos —
+        # but the swallowed error must not be SILENT, so `_unevaluable_reasons` records the
+        # exception type and the check prints it. A masked failure you can see is a trade;
+        # one you cannot is the defect this plan exists to close. (D7 round 12.)
+        _UNEVALUABLE_REASONS[project_type] = f"{type(exc).__name__}: {exc}"
         #
         # The original cases, for the record. NotImplementedError: a registry type with no scaffolder
         # (e.g. `wordpress`). ValueError: `create_project` rejecting a type it does not know
