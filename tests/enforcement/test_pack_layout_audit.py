@@ -250,7 +250,15 @@ def test_unscaffoldable_type_yields_no_paths_instead_of_crashing() -> None:
     """
     from pack_layout_audit import _emitted_paths_for_type
 
-    assert _emitted_paths_for_type("wordpress") == ()
+    # cache_clear FIRST: _emitted_paths_for_type is @functools.cache'd, and a sibling test
+    # that monkeypatched it can leave a stale entry. Proven order-dependent — this test
+    # passed forward and FAILED in reverse until the clear was added. (D7 round 6.)
+    _emitted_paths_for_type.cache_clear()
+
+    # None, not (): "cannot evaluate this type" is NOT "evaluated, emits nothing". Returning
+    # () made every pack claiming an unbuildable type report UNREACHABLE — a false finding
+    # at fleet scale (finding 14). The distinction is the whole point of the sentinel.
+    assert _emitted_paths_for_type("wordpress") is None
 
 
 def test_satisfying_path_returns_the_evidence_not_just_a_bool() -> None:

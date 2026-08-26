@@ -325,3 +325,53 @@ def test_unavailable_scaffolder_with_explicit_types_is_not_a_crash_and_not_a_pas
     assert "NOT EVALUATED" in out, "must name the type it could not build"
     assert "NOTHING VERIFIED" in out, "0 verified is not OK — it is an unasked question"
     assert "OK —" not in out
+
+
+def test_unevaluable_type_is_not_reported_unreachable_and_not_counted_verified(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A pack claiming an UNBUILDABLE type must be skipped, not condemned — and the summary
+    must not claim it was verified.
+
+    Two defects, both live before this (D7 round 6, finding 14):
+
+    1. The None sentinel was applied to the RuntimeError branch but NOT to the
+       NotImplementedError branch, which still returned `()`. So a pack claiming
+       `wordpress` was printed as "globs match ZERO paths that type emits" — when the truth
+       is that the type cannot be built here at all. A FALSE finding, at fleet scale.
+    2. The summary then said "every EXAMINED pack's claim reaches at least one emitted
+       path" while 2 were examined and only 1 verified. The parenthetical was honest; the
+       sentence was not.
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "good.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/worker/**"]\napplies_to: ["file-worker"]\n'
+        "description: g\n---\nbody\n"
+    )
+    (rules / "wp.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/nothing-xyz.php"]\napplies_to: ["wordpress"]\n'
+        "description: w\n---\nbody\n"
+    )
+
+    argv = sys.argv
+    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
+                "--types", "file-worker", "wordpress"]
+    try:
+        rc = cpr.main()
+    finally:
+        sys.argv = argv
+        _pla._emitted_paths_for_type.cache_clear()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "wp.md" not in out.split("NOT EVALUATED")[-1].split("Examined")[0] or \
+        "UNREACHABLE: core/wp.md" not in out, "must not condemn a pack whose type is unbuildable"
+    assert "UNREACHABLE" not in out, "an unbuildable type yields no findings at all"
+    assert "NOT EVALUATED: scaffold type 'wordpress'" in out
+    assert "1 of 2 examined pack(s) verified" in out, (
+        "the summary must state verified-of-examined, not claim every examined pack passed"
+    )

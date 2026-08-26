@@ -220,8 +220,11 @@ def main() -> int:
         elif not findings:
             if cleared:
                 print(
-                    "OK — every examined pack's applies_to claim reaches at least one "
-                    f"emitted path ({len(cleared)} claim(s) verified"
+                    # "every EXAMINED pack" was false whenever a type could not be
+                    # evaluated: 2 examined, 1 verified, and the sentence claimed both.
+                    # Say what was actually checked. (D7 round 6, finding 14's tail.)
+                    "OK — every VERIFIABLE applies_to claim reaches at least one emitted "
+                    f"path ({len(cleared)} of {len(examined)} examined pack(s) verified"
                     + (f"; {len(unevaluable)} type(s) NOT EVALUATED" if unevaluable else "")
                     + ")."
                 )

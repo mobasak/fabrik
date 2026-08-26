@@ -223,9 +223,14 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
         # Uncaught, this propagated out of an ADVISORY check -> non-zero exit -> and
         # run_optional_check's warn_only contract fails the gate on ANY non-zero exit,
         # i.e. a hard gate failure in ~46 repos the moment one pack annotated that type.
-        # A type we cannot scaffold contributes NO paths; the pack is then simply not
-        # evaluated for it, never crashed on. (D7 finding, 2026-08-25.)
-        return ()
+        # ⚠️ Returns None, NOT (). A type with no scaffolder cannot be EVALUATED; it does
+        # not "emit nothing". With () every pack claiming that type matches zero paths and
+        # is reported UNREACHABLE — a FALSE finding, at fleet scale. Proven live: a pack
+        # claiming `wordpress` was printed as "globs match ZERO paths that type emits" when
+        # the truth is the type cannot be built here at all. The RuntimeError branch above
+        # already returned None; this branch did not, so the sentinel was only half-applied.
+        # (D7 round 6, finding 14 — the SECOND half of finding 13's own fix.)
+        return None
     finally:
         if _real_sync is not None:
             scaffold_mod._post_scaffold_sync = _real_sync
