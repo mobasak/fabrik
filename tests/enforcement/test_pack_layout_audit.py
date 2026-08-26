@@ -341,3 +341,25 @@ def test_both_helpers_tolerate_the_cannot_evaluate_sentinel() -> None:
     # and () still means "evaluated, matched nothing" — NOT the same input, same answer
     assert _matches_any_emitted((), ["**/anything.py"]) is False
     assert _satisfying_path((), ["**/anything.py"]) is None
+
+
+def test_unknown_scaffold_type_does_not_crash_the_advisory_check() -> None:
+    """`create_project` rejecting an unknown type must yield the sentinel, never a crash.
+
+    `--types` is USER-SUPPLIED and is never validated against the registry before use, so
+    `create_project` raises ValueError for a bogus value. Uncaught, that escaped an ADVISORY
+    check as a non-zero exit, and `warn_only=True` fails the gate on ANY non-zero exit —
+    the third instance of "an uncaught exception escapes an advisory check" in this plan
+    (cf. the wordpress NotImplementedError and the explicit-`--types` RuntimeError).
+
+    A round-6 finder examined this exact path and DISMISSED it, reasoning that
+    "audit_layout only calls this for types in SCAFFOLD_TYPES, pre-validated". That premise
+    is false. A direct probe crashed it. (D7 round 7, finding 16.)
+    """
+    from pack_layout_audit import _emitted_paths_for_type
+
+    _emitted_paths_for_type.cache_clear()
+    try:
+        assert _emitted_paths_for_type("not-a-real-scaffold-type") is None
+    finally:
+        _emitted_paths_for_type.cache_clear()

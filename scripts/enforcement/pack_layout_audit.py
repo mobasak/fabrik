@@ -217,7 +217,15 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
         scaffold_mod._post_scaffold_sync = lambda *_a, **_kw: None
     try:
         return _scaffold_and_walk(create_project, project_type)
-    except NotImplementedError:
+    except (NotImplementedError, ValueError):
+        # TWO cases, one sentinel. NotImplementedError: a registry type with no scaffolder
+        # (e.g. `wordpress`). ValueError: `create_project` rejecting a type it does not know
+        # — reachable because `--types` is USER-SUPPLIED and never validated against the
+        # registry before use. A round-6 finder considered this exact path and dismissed it
+        # ("audit_layout only calls this for types in SCAFFOLD_TYPES, pre-validated"); that
+        # reasoning was wrong, and a direct probe crashed the check with an uncaught
+        # ValueError -> non-zero exit -> warn_only turns it into a gate failure. Third
+        # instance of "an uncaught exception escapes an ADVISORY check" (cf. findings 2, 13).
         # Some registry types have no scaffolder (e.g. `wordpress` is out of fabrik) but
         # ARE in SCAFFOLD_TYPES, which is what the docs tell pack authors to choose from.
         # Uncaught, this propagated out of an ADVISORY check -> non-zero exit -> and
@@ -294,9 +302,13 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
     glob, and no pack in the corpus carries one today (verified). Recorded rather than
     silently "mirrored". (D7 whole-plan validation, 2026-08-25.)
 
-    For `**/` specifically the NON-matching choice stands, and for the stated reason: a pack
-    claiming a type via an ambiguous wildcard-only glob has not genuinely proven it governs
-    anything in that type's output."""""
+    MECHANISM for `**/`, stated precisely because two review rounds read the previous wording
+    as a stronger guarantee than the code gives: `_strip_wildcards("**/")` returns None and
+    the loop SKIPS that glob — it contributes nothing either way. A pack whose ONLY glob is
+    `**/` therefore ends with no matches and is reported unreachable; a pack that also has
+    real globs is decided entirely by those. So the effect matches "wildcard-only proves
+    nothing about this type", but it is a consequence of the skip, not a special case anyone
+    wrote. Do not restate it as a deliberate policy."""""
     if paths is None:
         # SYMMETRY with _satisfying_path, which already tolerates the sentinel. Every call
         # site guards `is None` today, so this is latent — but two sibling helpers with
