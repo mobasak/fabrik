@@ -557,3 +557,42 @@ def test_unknown_type_is_judged_against_the_registry_not_the_types_subset(
         "a VALID type outside the --types subset must never be called unknown"
     )
     assert "'saas_skeleton'" in out, "a genuine typo must still be caught"
+
+
+def test_corpus_is_parsed_exactly_once_per_run(tmp_path, monkeypatch) -> None:
+    """One `_packs_with_meta` call per run — three independent reads can see three states.
+
+    Round 8 collapsed two calls into one; the unevaluable-types scan added at round 12 then
+    made it THREE, and `_examined_packs` had always done its own. Same shape as the
+    LOCATE/RUN guard asymmetry: fix one instance of a duplication class and leave — or
+    create — the others. Counting the calls is the only way to keep it at one, since the
+    symptom (a torn read between two parses) needs a concurrent corpus change to appear.
+    (D7 round 19.)
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "p.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/worker/**"]\napplies_to: [file-worker]\n'
+        "description: p\n---\nbody\n"
+    )
+
+    calls = {"n": 0}
+    real = _pla._packs_with_meta
+
+    def counting(root):
+        calls["n"] += 1
+        return real(root)
+
+    monkeypatch.setattr(_pla, "_packs_with_meta", counting)
+    try:
+        _run_json(tmp_path, ["file-worker"])
+    finally:
+        _pla._emitted_paths_for_type.cache_clear()
+
+    assert calls["n"] == 1, (
+        f"the corpus was parsed {calls['n']}x in one run; thread the single parse to every "
+        "consumer instead of re-reading"
+    )

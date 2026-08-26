@@ -407,12 +407,20 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
     return False
 
 
-def audit_layout(root: Path, types: list[str]) -> list[Finding]:
+def audit_layout(
+    root: Path, types: list[str], packs_meta: list | None = None
+) -> list[Finding]:
     """For the pack corpus under `root/.windsurf/rules` x `types`: every (pack, type)
     pair where the pack's `applies_to:` claims `type` and none of its globs match
     anything a fresh scaffold of `type` emits."""
     findings: list[Finding] = []
-    for rel, globs, activation, applies_to in _packs_with_meta(root):
+    # Accept an already-parsed corpus so a caller that has one does not force a SECOND
+    # full re-read. `check_pack_reachability` parses once and threads it here; without this
+    # the two modules parsed the tree twice per run and could observe two different states.
+    # (D7 round 19.)
+    for rel, globs, activation, applies_to in (
+        packs_meta if packs_meta is not None else _packs_with_meta(root)
+    ):
         if activation == "manual":  # rule 2 — excluded entirely, never re-globbed
             continue
         for scaffold_type in types:

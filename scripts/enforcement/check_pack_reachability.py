@@ -58,7 +58,9 @@ if str(_ENFORCEMENT_DIR) not in sys.path:
 import pack_layout_audit as pla  # noqa: E402 - the shared engine, not reimplemented
 
 
-def _examined_packs(root: Path, types: list[str]) -> list[str]:
+def _examined_packs(
+    root: Path, types: list[str], packs_meta: list | None = None
+) -> list[str]:
     """Packs this run actually asked a question about: glob-activated (non-manual)
     packs whose `applies_to` names at least one of `types`.
 
@@ -76,7 +78,9 @@ def _examined_packs(root: Path, types: list[str]) -> list[str]:
     types_set = set(types)
     return [
         rel
-        for rel, _globs, activation, applies_to in pla._packs_with_meta(root)
+        for rel, _globs, activation, applies_to in (
+            packs_meta if packs_meta is not None else pla._packs_with_meta(root)
+        )
         if activation != "manual" and any(t in types_set for t in applies_to)
     ]
 
@@ -131,7 +135,15 @@ def main() -> int:
             )
             return 0
 
-    examined = _examined_packs(root, types)
+    # ⚠️ ONE parse per run, threaded to every consumer. Round 8 collapsed two calls and I
+    # then ADDED a third (the unevaluable-types scan), so this file was re-reading and
+    # re-parsing the whole corpus THREE times — same shape as the LOCATE/RUN guard
+    # asymmetry: fix one instance of a class, leave (or create) the others. Beyond the
+    # wasted I/O, three independent reads can observe three different corpus states.
+    # (D7 round 19.)
+    packs_meta = pla._packs_with_meta(root)
+
+    examined = _examined_packs(root, types, packs_meta)
 
     # ⚠️ An `applies_to` item that is not a REAL scaffold type is silently unexamined and
     # reads as a pass — a pack with `applies_to: ["saas_skeleton"]` (underscore typo) printed
@@ -158,10 +170,6 @@ def main() -> int:
         registry = None
     unknown: list[tuple[str, str]] = []
     malformed: list[str] = []
-    # ONE parse, reused below. Two independent _packs_with_meta() calls re-read and re-parse
-    # every pack, and could in principle observe different snapshots if the corpus changed
-    # between them. (D7 round 8.)
-    packs_meta = pla._packs_with_meta(root)
     # dict.fromkeys DEDUPES while preserving order: `applies_to: [file-worker, file-worker]`
     # is ONE distinct claim, not two. Counting raw entries over-stated claim_pairs (and
     # double-listed the pack in `cleared`) — a denominator over-count in the denominator
@@ -184,7 +192,7 @@ def main() -> int:
     # `_UNEVALUABLE_REASONS` is module-level and survives between in-process runs (tests,
     # chained CLI calls). Clear it so a later run cannot report a reason it did not produce.
     pla._UNEVALUABLE_REASONS.clear()
-    findings = pla.audit_layout(root, types)
+    findings = pla.audit_layout(root, types, packs_meta)
 
     # Show WHICH path cleared each examined pack. The denominator over-states reachability
     # (a fresh scaffold carries copied hub boilerplate), so a bare "OK" can hide a pack that
@@ -211,7 +219,7 @@ def main() -> int:
     # unreachable findings — but a bare "OK — every pack reaches" after evaluating NOTHING
     # is this plan's own fail-silent-green, committed by the fix for it. State it.
     unevaluable = sorted(
-        {c for _r, _g, act, ap in pla._packs_with_meta(root) if act != "manual"
+        {c for _r, _g, act, ap in packs_meta if act != "manual"
          for c in ap if c in known and pla._emitted_paths_for_type(c) is None}
     )
 
