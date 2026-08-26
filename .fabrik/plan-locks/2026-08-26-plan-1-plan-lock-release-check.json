@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/2026-08-26-plan-1-plan-lock-release-check.md",
+  "owned_paths": [
+    "scripts/enforcement/check_plan_lock_release.py",
+    "tests/enforcement/test_plan_lock_release.py",
+    "tests/enforcement/test_final_gate_registration.py",
+    "scripts/final_gate.py",
+    "docs/workflows/FINAL_GATE_WORKFLOW.md",
+    "docs/reference/plan-lock-lifecycle.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-26T12:20:19+00:00",
+  "status": "active",
+  "baseline_commit": "3b338428d8ed46fc9a23889e3f7ce56f917dd1fa",
+  "baseline_gate": {
+    "tier": 1,
+    "status": "success",
+    "passed": 24,
+    "failed": 0,
+    "already_red": []
+  }
+}

@@ -1,6 +1,6 @@
 # Plan 1 — plan-lock release check: make a finished plan's unreleased lock visible the day it happens
 
-Status: CONVERGED
+Status: IN-PROGRESS
 
 **Spec:** `docs/superpowers/specs/2026-08-25-plan-lock-release-check-design.md` (CONVERGED, review 2,
 8 passes, md5 `6b853a48`, commit `381b0f6e`; operator-approved 2026-08-26).
@@ -124,7 +124,7 @@ Status: CONVERGED
 
 ---
 
-## Phase A — the classifier + its behavior suite (TDD, red-first on the two risky rules)
+## Phase A — the classifier + its behavior suite (TDD, red-first on the two risky rules) — ✅ EXECUTED 2026-08-26
 
 **Deliverable:** `scripts/enforcement/check_plan_lock_release.py` and
 `tests/enforcement/test_plan_lock_release.py`, green, with the riskiest behaviors seen RED first.

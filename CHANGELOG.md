@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Fleet quota advisory: fire only when the ACTIVE account is walled, not per-account (2026-08-26)
+
+- `scripts/sysadmin/claude_rotate.py` (+ its byte-identical `scripts/aro-wake/` twin): the tick's
+  quota advisory no longer fires per-account on every ≥85% crossing. Under one-active-pointer-for-
+  all-projects an individual account hitting 95% is a non-event — the flip leg re-points to a
+  sibling with headroom and every agent keeps working — so the old advisory was both **spam** (10
+  near-identical mails to trade-intelligence on 2026-08-25, 8 of them a dead-steady mob@ 95%,
+  finding 01M0YAB2) **and a false alarm**. New `_fleet_active_wall_advisory` fires ONE fleet-wide
+  advisory only when the post-flip **active** account is walled with no auto-relief (no successor,
+  or the operator's pause held the flip); it broadcasts to every mailbox repo and re-arms the
+  instant relief arrives.
+- Root cause of the recurrence: the prior fix (`51181918`) relocated the dedup key from the
+  fast-sliding 5-hour reset onto the weekly reset but kept it a **raw sliding epoch**
+  (`cycle = str(int(weekly_reset))`), which jitters across the `:59↔:00` minute boundary and
+  churned the key every tick — the *same defect class*, moved not killed. The new latch is
+  **epoch-free** (presence-only), so it has no sliding-key or clock-skew failure mode. Removed the
+  now-dead `_fleet_slug_repos` per-account routing. Watched-fail-first; 134 fleet tests green.
+
+### Added — Plan-lock release advisory gate (2026-08-26)
+
+- `scripts/enforcement/check_plan_lock_release.py` (fleet-synced, `warn_only=True`): detects a
+  `.fabrik/plan-locks/<id>.json` left in a NON-TERMINAL state (`active`/`paused`/`blocked`) after
+  its plan finished — the omission that BLOCKED an unrelated plan at `/fabrik-execute-plan` step 7
+  for thirteen days before an operator ruled. Executable backing for `fabrik-catchup` probe 1,
+  which specified the rule in prose but could not run.
+- Eight labels, four findings + four self-reports: `STALE LOCK` (plan archived — definitive) ·
+  `LIKELY STALE LOCK` (anchored finished-token on an un-archived plan — inductive) ·
+  `HALF-APPLIED FINISH` · `PLAN FIELD STALE` · `ORPHAN LOCK` · `FOREIGN LOCK` (a repo-wide mutex
+  is a different protocol — counted, never judged) · `UNKNOWN STATUS` · `UNEVALUABLE`. A census
+  line prints first with all eight counters including zeros, because the gate truncates advisory
+  output at 500 chars. `OK` is reserved for runs that cleared ≥1 claim; otherwise `NOTHING
+  VERIFIED`, and a repo with no lock dir prints nothing at all.
+- Never auto-reclaims, and the remediation text names the owner and the sanctioned action —
+  locks are git-tracked, so "release it" addressed to an arbitrary reader would instruct a
+  never-commit-what-you-did-not-author violation from the check's own output.
+
 ### Added — fabrik-mail addressing enforcement: hub-bound sends carry an owner (2026-08-26)
 
 - `scripts/mail.py` (fleet-synced): the shared three-agent `fabrik` mailbox now REFUSES an
