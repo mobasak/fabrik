@@ -200,7 +200,16 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
     scaffold invocation, no dependency on the live corpus or the scaffolder's runtime)."""
     try:
         create_project = _import_create_project()
-    except RuntimeError:
+    except Exception as exc:  # noqa: BLE001 - same class-level reasoning as the scaffold call
+        # ⚠️ BROAD, for the SAME reason the scaffold call below is broad — and this guard was
+        # narrower than that one by oversight, not design. `_import_create_project` raises
+        # RuntimeError when the scaffolder is absent, but `from src.fabrik.scaffold import
+        # create_project` can also raise ImportError (module present, a transitive dependency
+        # missing) or anything else the module raises at import time. Any of those escaped
+        # uncaught -> non-zero exit -> `warn_only=True` fails the gate in ~46 repos.
+        # Whatever goes wrong LOCATING the scaffolder, the answer is the same as when the
+        # scaffold itself fails: this type cannot be evaluated here. (D7 round 15.)
+        _UNEVALUABLE_REASONS[project_type] = f"{type(exc).__name__}: {exc}"
         # The scaffolder is HUB-ONLY and this file is governance-synced to ~46 repos. main()
         # guards this — but ONLY on the `--types` DEFAULT branch. Pass `--types` explicitly
         # (exactly what docs/reference/rule-pack-reachability.md tells a pack author to do to

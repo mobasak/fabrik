@@ -429,3 +429,35 @@ def test_any_scaffolder_failure_is_unevaluable_not_a_gate_failure(monkeypatch) -
         assert _pla._emitted_paths_for_type("file-worker") is None
     finally:
         _pla._emitted_paths_for_type.cache_clear()
+
+
+def test_broken_scaffolder_import_is_unevaluable_not_a_gate_failure(monkeypatch) -> None:
+    """A scaffolder that EXISTS but fails to import must yield the sentinel, not a crash.
+
+    Two guards wrap the scaffolder: locating it (`_import_create_project`) and running it
+    (`_scaffold_and_walk`). Round 11 widened the RUN guard to catch the class; the LOCATE
+    guard stayed narrow at `except RuntimeError` — by oversight, not design. But
+    `from src.fabrik.scaffold import create_project` raises ImportError when the module is
+    present and a transitive dependency is missing, and that escaped uncaught -> non-zero
+    exit -> `warn_only=True` reds the gate in ~46 repos.
+
+    Fifth instance of "an uncaught exception escapes an advisory check", and the first at
+    the LOCATE step rather than the RUN step — which is why widening one guard did not cover
+    it. (D7 round 15.)
+    """
+    import pack_layout_audit as _pla
+
+    def _broken_import(*_a, **_kw):
+        raise ImportError("no module named 'somedep' — scaffolder present but unimportable")
+
+    monkeypatch.setattr(_pla, "_import_create_project", _broken_import)
+    _pla._emitted_paths_for_type.cache_clear()
+    _pla._UNEVALUABLE_REASONS.clear()
+    try:
+        assert _pla._emitted_paths_for_type("file-worker") is None
+        assert "ImportError" in _pla._UNEVALUABLE_REASONS["file-worker"], (
+            "the swallowed import failure must be reportable, not silent"
+        )
+    finally:
+        _pla._emitted_paths_for_type.cache_clear()
+        _pla._UNEVALUABLE_REASONS.clear()
