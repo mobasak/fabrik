@@ -139,6 +139,23 @@ def main() -> int:
     # one. The doc tells the author to run this check "to confirm", so a typo yielded a
     # confident green. Surface unknown types explicitly. (D7 finding, 2026-08-25.)
     known = set(types)
+
+    # ⚠️ "unknown" means NOT A SCAFFOLD TYPE — judged against the real registry, never
+    # against the `--types` SUBSET being checked. Comparing to the subset (the round-6 fix's
+    # mistake) made every pack claiming a VALID type outside the current subset get accused:
+    #     $ check_pack_reachability --types file-worker
+    #     UNKNOWN TYPE: core/wp.md declares applies_to: 'wordpress', which is not a scaffold type
+    # — flatly false; `wordpress` is in SCAFFOLD_TYPES, it just was not being checked. A check
+    # built to stop false claims was emitting one. When the registry is unreachable (a synced
+    # project) we cannot ask the question at all, so we do not answer it. (D7 round 16.)
+    registry: set[str] | None
+    try:
+        pla._import_create_project()
+        from src.fabrik.scaffold import SCAFFOLD_TYPES  # type: ignore[import-not-found]
+
+        registry = set(SCAFFOLD_TYPES)
+    except Exception:  # noqa: BLE001 - no registry here means the question is unaskable
+        registry = None
     unknown: list[tuple[str, str]] = []
     # ONE parse, reused below. Two independent _packs_with_meta() calls re-read and re-parse
     # every pack, and could in principle observe different snapshots if the corpus changed
@@ -159,8 +176,11 @@ def main() -> int:
         if activation == "manual":
             continue
         for claimed in dict.fromkeys(applies_to):
-            if claimed not in known:
+            if registry is not None and claimed not in registry:
                 unknown.append((rel, claimed))
+    # `_UNEVALUABLE_REASONS` is module-level and survives between in-process runs (tests,
+    # chained CLI calls). Clear it so a later run cannot report a reason it did not produce.
+    pla._UNEVALUABLE_REASONS.clear()
     findings = pla.audit_layout(root, types)
 
     # Show WHICH path cleared each examined pack. The denominator over-states reachability

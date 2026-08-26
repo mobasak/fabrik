@@ -16,13 +16,18 @@ Two shapes, one glob-normalization core:
     effectively hung `select_rules.py` (proven live 2026-07-18, repeated 2-minute
     timeouts). Never swap this back to a per-glob `rglob` loop.
 
-`empty_matches_all` is deliberately a KEYWORD with NO default: after stripping `**/` /
-`/**`, an empty pattern (a wildcard-only glob) is ambiguous on its own, and the two
-callers resolve it in OPPOSITE directions on purpose —
+`empty_matches_all` is deliberately a KEYWORD with NO default: when stripping `**/` /
+`/**` EMPTIES the pattern, what remains is ambiguous, and the two callers resolve it in
+OPPOSITE directions on purpose —
   · review_rubric: True  — arming a reviewer errs SAFE (match-everything).
   · select_rules:  False — activating a pack project-wide on a wildcard-only glob would
                             make every pack ACTIVE, defeating the ACTIVE/AVAILABLE split.
 A caller that forgets the flag gets a TypeError, not a silently wrong default.
+
+⚠️ "empties the pattern" is NOT the same as "wildcard-only glob", and an earlier version of
+this paragraph equated them. Only `**/` empties. `/**` and `**` survive as `'**'`, reach
+`_tail_matches`, and match EVERYTHING — `empty_matches_all` never sees them. See
+`_strip_wildcards` for the mechanism and the proof it is inherited.
 
 `packs_for_paths(paths, root)` is the plan-stage routing entry point: given a set of
 changed paths, which packs (relative to `.windsurf/rules/`, posix) does ANY of them

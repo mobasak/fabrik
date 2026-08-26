@@ -509,3 +509,51 @@ def test_duplicate_types_argument_yields_one_finding(tmp_path, monkeypatch) -> N
     assert len(result["findings"]) == 1, "a repeated --types value is one type, not two"
     assert result["claim_pairs"] == 1
     assert len(result["findings"]) == result["claim_pairs"], "content and count must agree"
+
+
+def test_unknown_type_is_judged_against_the_registry_not_the_types_subset(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """"Unknown" must mean NOT A SCAFFOLD TYPE — never "not in the --types I was given".
+
+    The round-6 unknown-type fix compared each claim to `known = set(types)`, the SUBSET
+    being checked. So a pack claiming a perfectly valid type that simply was not in this
+    run's `--types` got accused:
+
+        $ check_pack_reachability --types file-worker
+        UNKNOWN TYPE: core/wp.md declares applies_to: 'wordpress', which is not a scaffold type
+
+    Flatly false — `wordpress` is in SCAFFOLD_TYPES. A check built to stop false claims was
+    emitting one, and the fix for a fail-silent-green defect had introduced a fail-LOUD-wrong
+    one. Now judged against the real registry; where the registry is unreachable (a synced
+    project) the question is unaskable and simply is not answered. (D7 round 16.)
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "wp.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/x.php"]\napplies_to: [wordpress]\n'
+        "description: w\n---\nbody\n"
+    )
+    (rules / "typo.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/y.py"]\napplies_to: [saas_skeleton]\n'
+        "description: t\n---\nbody\n"
+    )
+
+    argv = sys.argv
+    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
+                "--types", "file-worker"]
+    try:
+        rc = cpr.main()
+    finally:
+        sys.argv = argv
+        _pla._emitted_paths_for_type.cache_clear()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "'wordpress', which is not a scaffold type" not in out, (
+        "a VALID type outside the --types subset must never be called unknown"
+    )
+    assert "'saas_skeleton'" in out, "a genuine typo must still be caught"
