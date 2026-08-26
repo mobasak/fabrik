@@ -67,6 +67,12 @@ _ALERT_DEBOUNCE_S = 12 * 3600
 # a real switch (NTP correction, and WSL suspend/resume, move this box's clock in both directions).
 _CLOCK_SKEW_TOLERANCE_S = 60.0
 
+# The fleet-wall advisory latch fires once per wall episode, but re-arms after this long so a
+# sustained total exhaustion re-reminds the operator (the "week without a word" re-arm the old
+# per-account advisory carried; without it a presence-only latch silences forever if the walled
+# active account never dips below threshold across a reset).
+_FLEET_WALL_REARM_S = 7 * 86400.0
+
 # Quota / usage-limit signal (case-insensitive). PURE alternation — no literal spaces
 # around '|'. Grounded verbatim (claude-auto-retry README + Anthropic errors docs,
 # 2026-07-07): weekly / session / Opus / N-hour / "out of extra usage" variants.
@@ -3677,18 +3683,43 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     with headroom and every agent keeps working. The "reach a checkpoint before the wall"
     advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
     could not relieve it (no successor with headroom, or the operator's pause held the flip).
-    Firing it per-account on every ≥85% crossing was both spam — 10 near-identical mails on
-    2026-08-25, trade-intelligence 01M0YAB2 — and a false alarm. Fire once on entry to the
-    walled state; suppress while it persists (the latch); re-arm the instant relief arrives.
-    Epoch-free by construction: no reset-timestamp dedup key to churn (the 51181918 defect
-    class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady 95%).
-    (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
+    A flip merely held by the transient 30-min dwell while a headroom sibling exists is NOT
+    exhaustion — relief is minutes away — so it is suppressed. Firing per-account on every ≥85%
+    crossing was both spam — 10 near-identical mails on 2026-08-25, trade-intelligence 01M0YAB2 —
+    and a false alarm. Fire once on entry to the walled state; suppress while it persists (the
+    latch); re-arm the instant relief arrives, on a future-dated (clock-skew) stamp, or after a
+    week of unbroken exhaustion. Dedup is epoch-free: no reset-timestamp key to churn (the
+    51181918 defect class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady
+    95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
     walled, row = _active_account_walled(accounts, threshold)
     stamp = _fleet_exhaustion_stamp()
     if not walled or row is None:
         stamp.unlink(missing_ok=True)  # relief arrived (flip/reset) → re-arm for the next wall
         return
-    if stamp.exists():
+    # Relief IS coming when a headroom successor exists AND rotation is not paused: the active
+    # account is walled only because the flip is held by the transient 30-min dwell, not because
+    # the fleet is out of quota. Firing here would reintroduce the exact false alarm this change
+    # removed — the hysteresis window (a flip, then the new active burns to ≥threshold inside the
+    # dwell while a sibling still has headroom; the reachable state test_fleet_tick_flips_at_
+    # threshold's second tick sets up). The operator's PAUSE is the exception: it deliberately
+    # froze the safety valve, so a walled active under pause IS a real stall worth the warning.
+    if not _switch_paused() and _validated_pick(accounts, {row["email"]}) is not None:
+        stamp.unlink(missing_ok=True)  # transient dwell hold, not exhaustion → re-arm
+        return
+    # Latch: fire once per wall episode. But a latch is not forever — a WEEK of unbroken
+    # exhaustion is a fact worth repeating (restores the per-account "week without a word" re-arm
+    # the old code carried; a presence-only latch otherwise silences the operator for good if the
+    # walled active account never dips below threshold across a reset). A FUTURE-dated stamp (WSL
+    # suspend/resume, NTP — the _last_switch_ts clock-skew class) is INVALID and must not silence
+    # a live wall until the wall clock catches up: treat it as expired and speak now.
+    try:
+        age = now - stamp.stat().st_mtime
+    except OSError:
+        age = None
+    latched = stamp.exists() and not (
+        age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S)
+    )
+    if latched:
         return  # already advised for this wall episode — one fact, one message
     hot = max(
         (

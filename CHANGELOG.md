@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Fleet quota advisory self-review: dwell false-alarm + permanent-suppression regression (2026-08-26)
+
+- `scripts/sysadmin/claude_rotate.py` (+ aro-wake twin): `/fabrik-review` of the advisory reframe
+  (a0f56598) caught two defects the reframe introduced. (1) **Dwell false-alarm** — a walled active
+  account whose flip was withheld only by the transient 30-min dwell (headroom sibling present, not
+  paused) fired a false "every sibling walled" advisory, reintroducing the exact false alarm the
+  reframe removed; now gated on `_switch_paused() or _validated_pick(..) is None`. (2)
+  **Permanent-suppression regression** — the presence-only latch never re-armed if the walled active
+  never dipped below threshold across a reset; restored the removed clock-skew invalidation +
+  "week without a word" re-arm via `_FLEET_WALL_REARM_S`. Three regression tests, all red-on-revert
+  proven; 7 further candidates refuted with `path:line`. Review:
+  `docs/development/reviews/2026-08-26-rotate-active-wall-advisory-review.md`.
+
 ### Fixed — check_doc_sync RESILIENCE trigger no longer fires on prose "fallback" (2026-08-26)
 
 - `\bfallback\b` dropped from RESILIENCE_PATTERNS (web-ecommerce-factory upstream proposal,

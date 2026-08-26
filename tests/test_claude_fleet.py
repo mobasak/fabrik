@@ -1354,11 +1354,11 @@ def test_fleet_exhaustion_advisory_fires_once_then_rearms_on_relief(tmp_path, mo
     assert len(actions["telegrams"]) == 2, "a new wall episode after relief is a new fact — fires"
 
 
-def test_fleet_wall_latch_is_epoch_free_no_clock_skew_silence(tmp_path, monkeypatch):
-    """The wall latch is presence-only (no mtime comparison), so it has NO clock-skew failure
-    mode: a future-dated stamp cannot silence a genuine wall the way the old time-keyed per-
-    account stamp could (F54). With the ONLY account walled, a pre-existing latch whose mtime
-    sits in the future still suppresses (already-advised) — decided by presence, never by age."""
+def test_fleet_wall_advisory_future_dated_latch_is_invalid_and_still_fires(tmp_path, monkeypatch):
+    """A latch whose mtime sits in the FUTURE (WSL suspend/resume, NTP — the clock-skew class,
+    F54) is INVALID: it must NOT silence a live wall until the wall clock catches up in N days,
+    which is exactly when the operator most needs the warning. Treat future-dated as expired and
+    speak now. (The fresh-latch suppression path is covered by the fires_once test below.)"""
     fleet, *_ = _canonical(tmp_path, monkeypatch)
     assert cr.main(["--new-dir", "ob", "ob@ocoron.com"]) == 0
     _pin(fleet, "ob", "ob@ocoron.com")
@@ -1370,13 +1370,75 @@ def test_fleet_wall_latch_is_epoch_free_no_clock_skew_silence(tmp_path, monkeypa
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
     _point(fleet, "ob")
     stamp = cr._fleet_exhaustion_stamp()
-    stamp.touch()  # latch already present → this wall episode was already advised
+    stamp.write_text("1")  # a latch is present, but its mtime is in the future → invalid
     future = FLEET_NOW + 5 * 86400
     os.utime(stamp, (future, future))
 
     assert cr._cmd_tick() == 0
 
-    assert actions["telegrams"] == [], "a present latch suppresses regardless of its (future) mtime"
+    assert len(actions["telegrams"]) == 1, "a future-dated (invalid) latch must not silence a live wall"
+
+
+def test_fleet_wall_advisory_suppressed_during_dwell_hold_with_headroom_sibling(
+    tmp_path, monkeypatch, capsys
+):
+    """A flip HELD only by the transient 30-min dwell is NOT exhaustion — a headroom sibling
+    exists and relief is minutes away — so no wall advisory fires. This is the hysteresis false
+    alarm the reframe must not reintroduce (found in self-review of a0f56598; the state is the
+    reachable one test_fleet_tick_flips_at_threshold's second tick sets up)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+
+    # tick 1: flips seo(96%) -> intel(headroom), ledgers a flip at FLEET_NOW; the flip relieved it
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel"
+    assert actions["telegrams"] == [], "the flip relieved the wall — no advisory"
+
+    # tick 2 (same instant): intel walls to 96%, seo now has headroom, but the flip to seo is HELD
+    # by the 30-min dwell → active stays walled. Headroom sibling + not paused → relief coming.
+    usages["tok-intel"] = _usage_blob(96.0, 96.0)
+    usages["tok-seo"] = _usage_blob(10.0, 10.0)
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel", "a flip inside the dwell must be held"
+    assert actions["telegrams"] == [], "dwell-held flip with a headroom sibling fires NO advisory"
+    assert actions["mails"] == []
+
+
+def test_fleet_wall_advisory_rearms_after_a_week_of_unbroken_exhaustion(tmp_path, monkeypatch):
+    """The latch is not forever: a WEEK of unbroken total exhaustion re-reminds the operator
+    (restores the old 'week without a word' re-arm; a presence-only latch would otherwise go
+    silent for good if the walled active never dips below threshold across a reset)."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "ob", "ob@ocoron.com"]) == 0
+    _pin(fleet, "ob", "ob@ocoron.com")
+    _fleet_creds(fleet, "ob", "tok-ob", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    _fake_oauth(monkeypatch, usages={"tok-ob": _usage_blob(96.0, 96.0)})
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "ob")
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "entry to the walled state fires once"
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "a fresh latch suppresses the immediate repeat"
+
+    # 8 days later, still walled, still no successor → the latch has expired → re-fire
+    stamp = cr._fleet_exhaustion_stamp()
+    old = FLEET_NOW - 8 * 86400
+    os.utime(stamp, (old, old))
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 2, "a week of unbroken exhaustion re-reminds"
 
 
 def test_keepalive_future_skewed_credentials_mtime_counts_as_due(tmp_path, monkeypatch, capsys):
