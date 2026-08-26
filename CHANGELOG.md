@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — saas/95-multi-tenant-saas: the sanctioned cross-tenant payments-ingest path (2026-08-26)
+
+- The rule-pack slice fleet's payments-ingest build left owed (`01M0WPW3`, `.windsurf/rules/` being
+  infra's surface): § Admin & Maintenance Access now states that webhook ingest is never
+  `fabrik_admin` (NOLOGIN — no DSN can connect as it) nor any `BYPASSRLS` role — the sanctioned
+  path is `shape.needs_payments_ingest: true` → the fabrik-minted `LOGIN NOSUPERUSER NOBYPASSRLS`
+  role policy-scoped to `SELECT customers/subscriptions` + `INSERT`+`SELECT webhook_events`,
+  injected as `PAYMENTS_INGEST_DATABASE_URL`; the worker keeps the tenant role + GUC. Anti-pattern
+  table row added. Every stated grant verified against
+  `src/fabrik/drivers/postgres.py::create_payments_ingest_role` (:768-769 table constants, :815
+  INSERT+SELECT write grant) and `spec_loader.py:333/385` before writing.
+
 ### Added — `/fabrik-rivals`: competitive evidence before a spec exists (2026-08-26)
 
 - New command `commands/_sources/fabrik-rivals.md` (stage `1-design`, immediately before

@@ -153,6 +153,17 @@ tenant_context: ContextVar[str] = ContextVar("tenant_id", default="")
 
 - Create a dedicated `fabrik_admin` database role with `BYPASSRLS`. This role is strictly for migrations, backups, data exports, and internal admin panels.
 - The public-facing application must **never** use the `BYPASSRLS` role. The application DB user must always be subject to RLS policies.
+- **Cross-tenant *payments ingest* is not an admin case** — never route webhook ingest through
+  `fabrik_admin` (it is `NOLOGIN`: no DSN can connect as it) or any `BYPASSRLS` role. The sanctioned
+  path: set `shape.needs_payments_ingest: true` in the service spec (requires `needs_database: true`)
+  and `fabrik apply` mints a per-project `LOGIN NOSUPERUSER NOBYPASSRLS` role whose cross-tenant reach
+  comes ONLY from permissive policies scoped to the payments tables — `SELECT` on
+  `customers`/`subscriptions` (webhook→org resolution) and `INSERT`+`SELECT` on `webhook_events`
+  (`record_event`'s `INSERT … RETURNING` throws under RLS without the `SELECT` half). Injected as
+  `PAYMENTS_INGEST_DATABASE_URL` (never hand-set — `docs/CONFIGURATION.md` § Payments webhook
+  ingest). A leaked ingest DSN is confined to those three tables. The WORKER never uses this role:
+  it holds the resolved `org_id`, so it runs as the tenant role + GUC like any other tenant-scoped
+  code path.
 
 ## Per-Tenant Rate Limiting
 
@@ -207,6 +218,7 @@ Once migrated, compat mode owns the `auth.*` helpers natively (§ compat mode ab
 | Global variables / module-level state for tenant context | Python `ContextVar` |
 | Redis keys without tenant prefix (`user_session_1`) | `t:{tenant_id}:user_session_1` |
 | Application DB user with `BYPASSRLS` | Dedicated `fabrik_admin` role for maintenance only |
+| Webhook ingest via `fabrik_admin` or any `BYPASSRLS` role | `shape.needs_payments_ingest` → scoped `NOBYPASSRLS` ingest role (`PAYMENTS_INGEST_DATABASE_URL`) |
 | RLS-protected table without `tenant_id` index | B-tree index on `tenant_id` (minimum) |
 | Trusting `X-Tenant-ID` without membership check | Validate user belongs to tenant before `SET LOCAL` |
 | `current_tenant_id()` / `auth.uid()` that raises or defaults on unset context | `EXCEPTION WHEN OTHERS THEN RETURN NULL` (fail-closed deny) |
