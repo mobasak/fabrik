@@ -160,6 +160,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 **Phase 3: Repo Consistency (18 checks)** — `run_consistency_checks(tier=1)`: 16 in the `if tier in (1, 2):` block + 2 unconditional
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
 - **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally (the check every eyeball recount dropped — counts here are derived by instrumented execution)
+- **Plan-lock release** - `check_plan_lock_release.py` — runs every tier, unconditionally (advisory `warn_only=True`): reports a `.fabrik/plan-locks/<id>.json` left NON-TERMINAL (`active`/`paused`/`blocked`) after its plan finished. Every-tier ON PURPOSE — `--lean` is the mode agents run while a lock is live. Doc: [plan-lock-lifecycle.md](../reference/plan-lock-lifecycle.md)
 - **Secrets (Zero Hardcoding)** - `check_secrets.py`
   - Scans for hardcoded secrets (API keys, passwords, tokens)
 - **Hardcoded localhost/127.0.0.1 Ban** - `check_env_vars.py`
@@ -251,6 +252,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 **Phase 3: Repo Consistency (14 checks)** — `run_consistency_checks` (the `tier >= 2` / Tier-3 selections; count verified by instrumented execution 2026-08-11 — the old "13" dropped the unconditional Coverage Checklist, the same bug as the tier-1/2 counts)
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally
 - **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally
+- **Plan-lock release** - `check_plan_lock_release.py` — runs every tier, unconditionally (advisory `warn_only=True`): reports a `.fabrik/plan-locks/<id>.json` left NON-TERMINAL (`active`/`paused`/`blocked`) after its plan finished. Every-tier ON PURPOSE — `--lean` is the mode agents run while a lock is live. Doc: [plan-lock-lifecycle.md](../reference/plan-lock-lifecycle.md)
 - **Docker** - `check_docker.py`
   - Validates amd64 compatibility, No-Alpine base images, HEALTHCHECK presence
 - **Port Registration** - `check_ports.py`

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan-lock release gate registered every-tier (2026-08-26)
+
+- `scripts/final_gate.py`: the plan-lock release check is now a live advisory row, registered
+  **above** the `if tier in (1, 2):` marker so it runs in `--lean`, default and `--systemic`.
+  `--lean` is the mode agents run *during* execution, which is exactly when a lock is live — a
+  tier-gated registration would be absent precisely when the check matters.
+- `tests/enforcement/test_final_gate_registration.py`: an AST pin that rejects **any** `if tier …`
+  ancestor. A literal mirror of the existing `_phase_tests_in_tier2_only` helper would be vacuous —
+  it matches only `ast.Eq` against `2`, so it waves through `if tier in (1, 2):` (four lines below
+  the insertion point) and `if tier >= 2:`. Proven: the Eq-only form accepts both mutants, this one
+  rejects all three, and its built-in red feeds it all three.
+- `docs/reference/plan-lock-lifecycle.md`: the subsystem reference — the writer-derived status
+  partition, the eight labels, the anchoring rule, the `FOREIGN LOCK` jurisdiction boundary, and
+  the two named exits (promote to blocking, or delete in favour of a mechanical writer).
+
 ### Fixed — Fleet quota advisory: fire only when the ACTIVE account is walled, not per-account (2026-08-26)
 
 - `scripts/sysadmin/claude_rotate.py` (+ its byte-identical `scripts/aro-wake/` twin): the tick's

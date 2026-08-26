@@ -489,7 +489,7 @@ so exit 0 is not the signal; the named-file line is.
 
 ---
 
-## Phase B — register it every-tier, pin the registration, document the subsystem
+## Phase B — register it every-tier, pin the registration, document the subsystem — ✅ EXECUTED 2026-08-26
 
 **Deliverable:** the check is a live advisory row in every gate tier, the registration is pinned
 against the two mutants that would silently disable it, and the subsystem has its own reference doc.

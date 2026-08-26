@@ -609,3 +609,45 @@ def test_foreign_locks_are_counted_but_never_printed_as_lines(tmp_path, capsys, 
     out = capsys.readouterr().out
     assert "3 foreign" in out, "the census must carry the count"
     assert "FOREIGN LOCK:" not in out, "…but no per-lock line"
+
+
+# ── live fleet verification (Phase B step 5) ──────────────────────────────────────────
+
+def test_against_a_copy_of_a_real_fleet_corpus(tmp_path):
+    """Read-only, on a COPY: the lock belongs to another repo and is never touched.
+
+    ⚠️ The lock corpus alone is NOT enough. A lock's `plan` field is repo-relative and points at
+    the pre-archive path, so under a lock-only tmp_path all four resolution branches miss and the
+    check emits ORPHAN LOCK instead of STALE LOCK — whereupon the cheapest escape is to loosen
+    `resolve_plan`. The plan tree must be materialised alongside.
+    """
+    import shutil
+
+    donor = Path("/opt/brand-identiy-creator")
+    src = donor / ".fabrik" / "plan-locks"
+    if not src.is_dir():  # pragma: no cover - the donor repo is not part of this repo's contract
+        import pytest
+
+        pytest.skip("donor corpus absent")
+
+    shutil.copytree(src, tmp_path / ".fabrik" / "plan-locks")
+    # Materialise only the plan TREE SHAPE the locks point at — names, not contents.
+    for sub in ("", "archived"):
+        d = donor / "docs" / "development" / "plans" / sub
+        if not d.is_dir():
+            continue
+        out = tmp_path / "docs" / "development" / "plans" / sub
+        out.mkdir(parents=True, exist_ok=True)
+        for f in d.iterdir():
+            if f.suffix == ".md":
+                head = "\n".join(f.read_text(encoding="utf-8", errors="replace").splitlines()[:40])
+                (out / f.name).write_text(head, encoding="utf-8")
+            elif f.is_dir():
+                (out / f.name).mkdir(exist_ok=True)
+
+    findings = []
+    for lock in sorted((tmp_path / ".fabrik" / "plan-locks").glob("*.json")):
+        findings.extend(cplr.classify(tmp_path, lock))
+    stale = [f for f in findings if f.label == "STALE LOCK"]
+    assert stale, "the known live instance must be found as STALE LOCK, not ORPHAN"
+    assert any("deep-research" in f.lock for f in stale)

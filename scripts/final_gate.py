@@ -879,6 +879,28 @@ def run_consistency_checks(
         )
     )
 
+    # Plan-lock release (advisory): a finished plan must not hold its scope lock. The protocol
+    # has three readers and ZERO writers — the lock is created and released by PROSE, so the
+    # omission is invisible until it surfaces days later as a hard BLOCKED halt at an unrelated
+    # agent's /fabrik-execute-plan step 7 (measured: one lock held ten high-traffic hub paths
+    # for thirteen days). Executable backing for fabrik-catchup probe 1.
+    #
+    # EVERY-TIER on purpose — registered here, ABOVE the `if tier in (1, 2):` marker below,
+    # never inside it. `--lean` is the mode agents run DURING execution, which is exactly when
+    # a lock is live; a tier-2-only registration would be absent precisely when the check
+    # matters. Pinned by tests/enforcement/test_final_gate_registration.py, whose helper rejects
+    # ANY `if tier …` ancestor (an Eq-only pin waves through `in (1, 2)` and `>= 2`).
+    #
+    # warn_only=True: the check always exits 0 by contract — a non-zero exit here would turn an
+    # advisory row into a blocking red across ~46 governance-synced repos.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_plan_lock_release.py",
+            "Plan-lock release",
+            warn_only=True,
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):

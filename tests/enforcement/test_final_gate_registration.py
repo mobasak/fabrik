@@ -11,6 +11,7 @@ feeds its defeating mutant to its own helper to prove discriminating power (buil
 """
 
 import ast
+import textwrap
 from pathlib import Path
 
 GATE = Path(__file__).resolve().parents[2] / "scripts" / "final_gate.py"
@@ -126,3 +127,90 @@ def test_mutation_registration_is_env_strip_guarded():
     assert not _mutation_registration_guarded(_MUTANT_FLAT_GUARD), (
         "pin is vacuous: it accepted the flattened (no try/finally) mutant"
     )
+
+
+# ── plan-lock release: registered EVERY-TIER ──────────────────────────────────────────
+#
+# The pin asserts the literal has NO `ast.If` ancestor whose test mentions the name `tier` —
+# ANY operator. Mirroring `_phase_tests_in_tier2_only` (which matches only `ast.Eq` against the
+# constant 2) would be VACUOUS here: `final_gate.py` also branches on `if tier in (1, 2):`
+# (`ast.In`, four lines below the insertion point — the likeliest place a later edit lands) and
+# `if tier >= 2:` (`ast.GtE`). An Eq-only pin waves both through, and the check silently stops
+# running in a tier while the pin stays green. Two independent reviewers implemented the mirrored
+# form and proved it accepts both mutants.
+
+def _mentions_tier(node: ast.AST) -> bool:
+    return any(isinstance(x, ast.Name) and x.id == "tier" for x in ast.walk(node))
+
+
+def _plan_lock_release_every_tier(src: str) -> bool:
+    """True iff every 'check_plan_lock_release.py' literal sits OUTSIDE the body of any `if`
+    whose test mentions `tier` (and at least one exists).
+
+    EVERY literal must be ungated — `gated == 0`, not "at least one is free" — so adding a second,
+    tier-gated registration alongside the good one still fails the pin.
+
+    KNOWN BOUND, stated rather than implied: this inspects `ast.If` only. A registration moved
+    behind a `while tier …` guard, or into a helper that is itself called from a tier-gated block,
+    is invisible to it. Neither is a realistic regression for this file (every tier branch in
+    `final_gate.py` is an `if`, and the registrations are inline), and widening the pin to chase
+    them would trade a precise check for a vague one. The realistic regression — the call drifting
+    into the `if tier in (1, 2):` block four lines below — is what it catches, and what the
+    three-mutant built-in red proves it catches."""
+    tree = ast.parse(src)
+    needle = "check_plan_lock_release.py"
+    total = sum(
+        1
+        for x in ast.walk(tree)
+        if isinstance(x, ast.Constant) and isinstance(x.value, str) and needle in x.value
+    )
+    gated = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and _mentions_tier(node.test):
+            for stmt in node.body + node.orelse:
+                gated += sum(
+                    1
+                    for x in ast.walk(stmt)
+                    if isinstance(x, ast.Constant)
+                    and isinstance(x.value, str)
+                    and needle in x.value
+                )
+    return total >= 1 and gated == 0
+
+
+_PLR_CALL = """    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_plan_lock_release.py",
+            "Plan-lock release",
+            warn_only=True,
+        )
+    )
+"""
+
+
+def _mutant(guard: str) -> str:
+    """The registration nested inside `guard` — built with textwrap.indent so the synthetic
+    source actually parses (a hand-rolled .replace() left the first line un-indented and the
+    mutants died on IndentationError, which would have made all three asserts pass vacuously)."""
+    return f"def run_consistency_checks(tier):\n    {guard}\n" + textwrap.indent(_PLR_CALL, "    ")
+
+
+_PLR_MUTANT_EQ = _mutant("if tier == 2:")
+_PLR_MUTANT_IN = _mutant("if tier in (1, 2):")
+_PLR_MUTANT_GE = _mutant("if tier >= 2:")
+
+
+def test_plan_lock_release_registered_every_tier():
+    src = GATE.read_text(encoding="utf-8")
+    assert _plan_lock_release_every_tier(src), (
+        "check_plan_lock_release.py must be registered OUTSIDE every `if tier …` block — "
+        "`--lean` is the mode agents run while a lock is live, so a tier-gated registration is "
+        "absent precisely when the check matters"
+    )
+    # Built-in red, ALL THREE mutants — an Eq-only pin accepts the last two.
+    assert not _plan_lock_release_every_tier(_PLR_MUTANT_EQ), "pin accepted the `tier == 2` mutant"
+    assert not _plan_lock_release_every_tier(_PLR_MUTANT_IN), (
+        "pin accepted the `tier in (1, 2)` mutant — the block four lines below the real "
+        "insertion point, and the likeliest place a later edit moves it"
+    )
+    assert not _plan_lock_release_every_tier(_PLR_MUTANT_GE), "pin accepted the `tier >= 2` mutant"
