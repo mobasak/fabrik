@@ -1,6 +1,6 @@
 # Plan: rule packs that cannot reach the code they bind
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-25
 
 **Origin:** transdoc `01M0WN9RXJJY9SDQTF8183GTYW` + follow-up `01M0WNVKDMYG0G2NTPZTG38XG4`
 (proposal: `/opt/transdoc/docs/reference/upstream-proposals/2026-08-25-rule-packs-that-cannot-reach-the-code-they-bind.md`).
@@ -32,11 +32,11 @@ run — while `final_gate` was green and 296 tests passed.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | D7 requires one live request | — | ⚡ | 🟡 | |
-| T02 | corpus glob audit across all 12 scaffold types | T04 | ⛓️ | 🟡 | |
-| T03 | applies_to frontmatter + the non-circular check | T02 | ⛓️ | 🟡 | |
-| T04 | one shared path→pack matcher | — | ⚡ | 🟡 | |
-| T99 | integration | T01, T03, T04 | ⛓️ | ⬜ | |
+| T01 | D7 requires one live request | — | ⚡ | ✅ | 6bbf6d1a |
+| T02 | corpus glob audit across all 12 scaffold types | T04 | ⛓️ | ✅ | d8ac7d31 |
+| T03 | applies_to frontmatter + the non-circular check | T02 | ⛓️ | ✅ | d8aa4749 |
+| T04 | one shared path→pack matcher | — | ⚡ | ✅ | b589a1b8 |
+| T99 | integration | T01, T03, T04 | ⛓️ | ✅ | 9e2bd95b |
 
 ## Merge Order
 
@@ -324,3 +324,26 @@ not be reproduced. Verify the probe before believing its verdict.
 2. **Promotion of the new check from WARN to blocking** — deliberately out of scope. **Resolution:
    operator decision after the corpus is clean; recorded in `docs/reference/rule-pack-reachability.md`
    as the explicit next gate.**
+
+**EXECUTED 2026-08-25.** All five Board units merged. D7 whole-plan validation closed at
+**round 20** — 4/4 axes ran, 0 confirmed findings, 0 edits — with `final_gate.py --json`
+green in the same turn (`status: success`, 0 failures, 539 tests).
+Whole-plan review: `docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-review.md`
+(37 findings across 17 rounds, every one FIXED or REFUTED by execution).
+
+**What shipped:** D7 now requires a live request (prose-pinned); `scripts/rules_match.py` is
+the one shared matcher behind `select_rules` + `review_rubric`; `pack_layout_audit.py` answers
+the corpus×type question; `check_pack_reachability.py` is the NON-circular advisory gate; and
+`core/75-workers-jobs.md` + `core/app-audit-log.md` reach the file-per-concern layout they
+always claimed to govern.
+
+**Proven end to end:** replaying transdoc's original condition — the pre-fix directory-only
+globs still claiming `file-worker` — the shipped check FLAGS it, and goes silent once the
+globs are corrected. The machine catches the bug it was built for.
+
+**Two limitations recorded, not hidden** (`docs/reference/rule-pack-reachability.md`): the
+denominator is contaminated in both directions by copied hub boilerplate and by `_EXCLUDE`
+pruning; and an internal `**` matches only the adjacent case, leaving six live globs — one of
+them in a pack this plan fixed — unable to reach the nested layout they were written for.
+Both are inherited behavior, deliberately not changed by a pure-move refactor, and both have a
+named next gate.
