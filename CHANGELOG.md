@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — core/35-security-auth: CSRF requirement split onto its own bullet (Lax vs Strict disjunction made unmissable) (2026-08-26)
+
+- `.windsurf/rules/core/35-security-auth.md:120` packed the Pattern-A cookie attributes, the
+  CSRF requirement, its two-way disjunction, and the Lax-insufficiency caveat into one bullet —
+  a grounded reader with all three SameSite lines open still arbitrated "Lax vs Strict" as
+  competing cookie values and filed a ruling request naming the pack self-inconsistent
+  (fabrik-lib `01M0Z1RNJB`, self-retracted `01M0Z3Q9W2` — retraction verified here against the
+  live lines: no contradiction; the cookie is `Lax`, `Strict` is one of two ways to meet the
+  separate CSRF requirement). The CSRF requirement now sits on its own bullet stating exactly
+  that; semantics unchanged, `:116`/`:324` untouched. Also fixed a broken link in the new
+  `docs/reference/nvidia-build.md` (selection doc lives under `kilo/`, not `MD/`) caught by the
+  same gate run.
+
 ### Fixed — plan-lock release check: six closing review rounds, and twice more it reported success it could not prove (2026-08-26)
 
 - `scripts/enforcement/check_plan_lock_release.py` + `tests/enforcement/test_plan_lock_release.py`

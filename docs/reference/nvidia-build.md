@@ -113,5 +113,5 @@ write-mode needs function calling (the tool-caller row).
 
 ## Related
 
-- Pool selection/rankings: `libs/subagents/select.py` + `docs/reference/MD/TASK_SUBAGENT_SELECTION.md`
+- Pool selection/rankings: `libs/subagents/select.py` + `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`
 - Media-side provider map (different concern): `docs/reference/ai-media-generation-provider-map.md`
