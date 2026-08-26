@@ -61,3 +61,14 @@ since the roll-up above; this run re-verifies rather than re-scopes.
 Checklist state: every class remains CLEAN/FIXED/REFUTED as adjudicated in the two phase
 artifacts; no class re-opened. The single open surface remains the OPERATOR INSTALL
 (three commands, § below in workstation doc) — by classifier-block design, not omission.
+
+## Verification pass (operator-invoked /fabrik-review, 2026-08-26 15:2x, post-install)
+
+Surface: my plan files show **0 changes** since `e7d503cb` (the interleaved sibling commit
+`3b338428` touches none of them — verified by pathspec diff); working tree delta = sibling WIP
+only. Prior full adjudication stands unopened.
+
+Fresh proofs this run: 43 guard+escalation tests green · lean gate success · install state
+intact (exactly 1 crontab line, byte-identical to the doc; logrotate 398B in /etc/logrotate.d;
+log pre-created 0B awaiting the 18:00 first slot; first-run watch armed). New classes to hunt:
+none — the only delta since the quiet round is operator-state install, verified above.
