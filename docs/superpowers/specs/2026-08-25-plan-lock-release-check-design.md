@@ -1,6 +1,6 @@
 # Design: plan-lock release check — a finished plan must not hold its scope lock
 
-Status: DRAFT
+Status: CONVERGED
 
 **Owner:** `[infra]` · **Scope:** one enforcement check + its test · **Stage:** 1-design
 
@@ -21,14 +21,20 @@ mechanical is a separate decision the detector's own data should inform.
 
 ```
 $ grep -rl "plan-locks" scripts/ .claude/hooks/ --include=*.py
-scripts/enforcement/check_plan_tickets.py     # READS  (:561, :949, :1470)
+scripts/kilo-benchmarks/tests/test_golden_parity.py   # :1347 — a string-literal guard
+                                                      #   asserting plan-locks is NOT staged;
+                                                      #   never opens a lock. Not a consumer.
 scripts/enforcement/check_phase_tests.py      # READS  (:36, :44-46)
+scripts/enforcement/check_plan_tickets.py     # READS  (:561, :949, :1470)
 .claude/hooks/final_gate_stop.py              # READS  (:785)
 $ grep -rn "plan-locks" scripts/ .claude/hooks/ --include=*.py | grep -E "write_text|json.dump|open\(.*['\"]w"
 (no output)
 ```
 
-Three readers, zero writers. The lock is created by prose (`/fabrik-execute-plan`
+FOUR files match; THREE parse lock files, the fourth only asserts the string is absent from a
+stage list. So: three consumers, zero writers. (The grep is shown returning four because that
+is what it returns — an earlier draft of this spec said "three", which would have sent anyone
+re-running it looking for the discrepancy.) The lock is created by prose (`/fabrik-execute-plan`
 Before-You-Start step 7: *"create `.fabrik/plan-locks/<plan-id>.json`"*) and released by prose
 (Finish step 5: *"set `status:"released"` (+ `completed_at`, `final_commit`)"*). So the whole
 mutual-exclusion protocol is honour-system, with the honour supplied by an LLM following a
@@ -56,11 +62,43 @@ its cause.
 `scripts/enforcement/check_plan_lock_release.py`, wired into `final_gate.py` via
 `run_optional_check(..., warn_only=True)`.
 
+⚠️ **The status vocabulary is NOT binary, and do not enumerate it.** Measured across the live
+corpus:
+
+```
+$ status distribution across 49 locks
+{'released': 44, 'executed': 4, 'complete': 1}      # plus 'active', currently 0
+```
+
+Four values in the wild. This spec stated the vocabulary twice from partial data before
+measuring it — first as binary, then as three values — which is the same instance-by-instance
+trap the predecessor plan hit four times over (a YAML parser patched per-form, an exception
+guard patched per-type). So both rules key on **`status == "active"` and treat EVERY other
+value as terminal**, rather than testing `!= "released"` or enumerating terminal values. A
+fifth value invented tomorrow then needs no code change.
+
 **Two mechanically-decidable rules, no judgement:**
 
 1. A lock whose plan is `Status: EXECUTED` **or** lives under `docs/development/plans/archived/`
    must not be `status:"active"`.
-2. A lock with `completed_at` set must have `final_commit` set. (Instance 1's exact signature.)
+2. **An `active` lock** with `completed_at` set must have `final_commit` set. (Instance 1's
+   signature: a half-applied Finish step 5.)
+
+   ⚠️ **The `active` scoping is load-bearing and was MISSING from this spec's first draft.**
+   Executed against the real corpus, the unscoped rule flags **14 locks — 13 `released` and 1
+   `complete`** — because `completed_at` without `final_commit` is the ordinary historical shape
+   of a *finished* lock, not a defect signature. Landing that would have fired on 14 locks on
+   day one: exactly the "a check firing fleet-wide on day one is how a gate gets ignored"
+   failure this spec warns about, committed by the spec itself. Scoped to `active`, it flags
+   **0**. Measured, not reasoned:
+
+   ```
+   $ # rule 2, unscoped, over all locks
+   locks matching (completed_at set, final_commit null): 14
+   their status distribution: {'released': 13, 'complete': 1}
+   $ # rule 2, scoped to status == "active"
+   would flag: 0
+   ```
 
 **Why standalone rather than folded into `check_plan_tickets.py`:** that check is a
 spine↔ticket *contract* gate, and it already reads locks for a different purpose — at `:1470`
@@ -90,7 +128,7 @@ A success line **states its denominator** — the class this session closed repe
 this check from the start rather than retrofitted:
 
 ```
-OK — 0 stale of 21 plan lock(s) examined (2 active, 19 released)
+OK — 0 stale of 49 plan lock(s) examined (0 active · 49 terminal)
 ```
 
 and on a finding:
@@ -172,6 +210,15 @@ one test file, one `run_optional_check` line.
   `plans/archived/`, per `check_plan_tickets.py:1481`'s existing convention — the `plan` field
   is a hint, not a path.
 
+**⚠️ VERIFICATION GAP — rule 1 has no positive case left on live data.** Both motivating
+instances were released earlier today, so the corpus now contains **zero active locks** and rule
+1 flags nothing. That is the desired end state, but it means the live corpus can no longer
+demonstrate the rule fires. **The test MUST therefore build a synthetic fixture** — a tmp_path
+lock with `status:"active"` beside an archived `Status: EXECUTED` plan — and assert it is
+flagged. A rule verified only by "it reports nothing on a clean corpus" is a rule that has never
+been seen to work, which is the untested-assertion class this repo has closed repeatedly. The
+two real instances are preserved above as the fixture's shape.
+
 **STILL OPEN — each with its resolution step**
 
 1. **Should a lock whose plan file cannot be found at all be reported?** A lock with no
@@ -184,3 +231,33 @@ one test file, one `run_optional_check` line.
 2. **Promotion from WARN to blocking.** Deliberately out of scope. **Resolution: operator
    decision after the check has run clean for a period, recorded in the check's own docstring
    as the explicit next gate.**
+
+---
+
+**CONVERGED** — `/fabrik-spec-review`, edit-free md5-verified no-op round
+(`aea589ae4c38e0f456c04441d0842128` before == after), every executable claim re-run at the close:
+49 locks · `{released: 44, executed: 4, complete: 1}` · 0 active · rule 2 unscoped flags 14,
+scoped flags 0 · grep returns 4 files.
+
+**The review changed the design, it did not rubber-stamp it.** Four corrections, each caught by
+executing a claim rather than reading it:
+
+1. **Rule 2 would have fired on 14 healthy locks.** Unscoped, `completed_at` without
+   `final_commit` is the ordinary shape of a FINISHED lock (13 `released` + 1 `complete`), not a
+   half-applied Finish. The rule needed `status == "active"` scoping the first draft omitted —
+   and landing it unscoped would have committed the exact "fires fleet-wide on day one, gets
+   ignored" failure the spec itself warns against.
+2. **The status vocabulary was stated twice from partial data** — first as binary, then as three
+   values — before being measured at FOUR (`active`/`released`/`executed`/`complete`). Both
+   rules now key on `active` and treat everything else as terminal, so a fifth value needs no
+   code change. Enumerating the values would have been the same instance-by-instance trap the
+   predecessor plan hit four times.
+3. **The corpus is 49 locks, not 21** — the number the spec's own example denominator used.
+4. **The reader grep returns four files, not three**; the fourth is a string-literal guard that
+   never opens a lock. A spec whose value is "these claims were executed" must show what the
+   command actually prints.
+
+Plus one gap named rather than papered over: **rule 1 has no positive case left on live data**,
+because both motivating instances were freed hours before this review. Its test must therefore
+build a synthetic fixture — a rule verified only by silence on a clean corpus has never been
+seen to work.
