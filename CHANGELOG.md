@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Pack-reachability check now evaluable project-side: both scaffolder roots on sys.path (2026-08-26)
+
+- `scripts/enforcement/pack_layout_audit.py::_import_create_project`: inserted only `<candidate>`
+  on sys.path, which resolves the `src.fabrik.scaffold` entry import but not the `fabrik.`-rooted
+  imports scaffold.py itself makes (`src/fabrik/__init__.py:11`) — masked at the hub by the
+  editable-install `.pth`, dead on every synced project venv with
+  `ModuleNotFoundError: No module named 'fabrik.spec_loader'` (tryton-crm
+  01M0X1JFP8M4T0JMYWVNW3AEE9, root cause + fix proven by the filer from their venv). Now inserts
+  `<candidate>` AND `<candidate>/src`; proven end-to-end: with `fabrik` stripped from sys.path the
+  check fully evaluates 12 scaffold types against a project corpus instead of the "0 examined"
+  no-op. `check_pack_reachability.py`'s unavailable-scaffolder message no longer claims the check
+  is hub-only (it remains the honest no-op for environments that genuinely cannot import the
+  scaffolder — missing deps, no `/opt/fabrik`). The `warn_only`-escalation harness rule is
+  untouched, per the filer's explicit ask. Hermetic red-first regression test
+  (`test_import_create_project_makes_fabrik_rooted_imports_resolvable`) strips the masking
+  install in a subprocess.
+
 ### Fixed — Fleet quota advisory self-review: dwell false-alarm + permanent-suppression regression (2026-08-26)
 
 - `scripts/sysadmin/claude_rotate.py` (+ aro-wake twin): `/fabrik-review` of the advisory reframe

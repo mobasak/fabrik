@@ -486,3 +486,50 @@ def test_unparseable_applies_to_is_flagged_not_swallowed() -> None:
 
     # absence is a legitimate opt-out and must stay distinguishable from a broken line
     assert parsed("description: x") == []
+
+
+def test_import_create_project_makes_fabrik_rooted_imports_resolvable(tmp_path) -> None:
+    """`scaffold.py`'s own imports are rooted `fabrik.` (`src/fabrik/__init__.py:11`,
+    `scaffold.py:30`), so locating the scaffolder needs BOTH `<candidate>` (for the
+    `src.fabrik.scaffold` entry import) and `<candidate>/src` (for every `fabrik.*`
+    import that entry triggers) on sys.path. Inserting only `<candidate>` worked at the
+    hub solely because an editable-install `.pth` in site-packages made `fabrik`
+    importable anyway — a project venv has no such install, and the fallback died with
+    `ModuleNotFoundError: No module named 'fabrik.spec_loader'` on every synced repo
+    (tryton-crm 01M0X1JFP8M4T0JMYWVNW3AEE9, proven from their venv).
+
+    Hermetic: a fake candidate tree reproduces the import pattern, and the subprocess
+    strips site-packages + the hub's real `src/` so the editable install cannot mask
+    the failure the way it does in this dev environment.
+    """
+    import subprocess
+
+    (tmp_path / "scripts").mkdir()
+    pkg = tmp_path / "src" / "fabrik"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("from fabrik.dep import MARKER\n", encoding="utf-8")
+    (pkg / "dep.py").write_text('MARKER = "resolved-via-src"\n', encoding="utf-8")
+    (pkg / "scaffold.py").write_text(
+        "from fabrik.dep import MARKER\n\n\ndef create_project(*a, **k):\n    return MARKER\n",
+        encoding="utf-8",
+    )
+
+    script = f"""
+import sys
+from pathlib import Path
+blocked = {{"site-packages", "dist-packages"}}
+sys.path[:] = [
+    p for p in sys.path
+    if not any(b in p for b in blocked) and Path(p or ".").resolve() != Path({str(REPO / "src")!r})
+]
+sys.path.insert(0, {str(REPO / "scripts" / "enforcement")!r})
+sys.path.insert(0, {str(REPO / "scripts")!r})
+import pack_layout_audit as pla
+pla._SCRIPTS_DIR = Path({str(tmp_path / "scripts")!r})
+print(pla._import_create_project()())
+"""
+    proc = subprocess.run(
+        [sys.executable, "-s", "-c", script], capture_output=True, text=True, check=False
+    )
+    assert proc.returncode == 0, f"fabrik-rooted import unresolvable:\n{proc.stderr}"
+    assert "resolved-via-src" in proc.stdout

@@ -58,9 +58,7 @@ if str(_ENFORCEMENT_DIR) not in sys.path:
 import pack_layout_audit as pla  # noqa: E402 - the shared engine, not reimplemented
 
 
-def _examined_packs(
-    root: Path, types: list[str], packs_meta: list | None = None
-) -> list[str]:
+def _examined_packs(root: Path, types: list[str], packs_meta: list | None = None) -> list[str]:
     """Packs this run actually asked a question about: glob-activated (non-manual)
     packs whose `applies_to` names at least one of `types`.
 
@@ -117,9 +115,12 @@ def main() -> int:
 
             types = sorted(SCAFFOLD_TYPES)
         except (RuntimeError, ImportError) as e:
-            # This file is governance-synced to ~46 repos but the scaffolder is HUB-ONLY.
-            # Where it is unreachable this check cannot ask its question — so it says so and
-            # exits 0. It must NOT return 1: `run_optional_check(..., warn_only=True)` fails
+            # This file is governance-synced to ~46 repos; the scaffolder SOURCE is hub-only,
+            # but any repo on this box can import it via _import_create_project's /opt/fabrik
+            # fallback (both roots on sys.path — tryton-crm 01M0X1JF), so a synced project
+            # with a capable venv evaluates fully. This guard remains for the environments
+            # that genuinely cannot (missing deps, no /opt/fabrik — e.g. CI): there the check
+            # cannot ask its question — so it says so and exits 0. It must NOT return 1: `run_optional_check(..., warn_only=True)` fails
             # the gate on ANY non-zero exit ("a broken contract is a louder finding than a
             # quiet one"), so returning 1 here would turn an ADVISORY row RED on every repo
             # that cannot see the hub. Verified by simulating the unreachable scaffolder:
@@ -130,8 +131,8 @@ def main() -> int:
             # — scaffolder unavailable" can never be mistaken for "every pack is reachable".
             print(
                 "0 pack(s) examined — the fabrik scaffolder is unavailable here, so pack "
-                f"reachability cannot be evaluated ({e}). This check is HUB-ONLY; on a synced "
-                "project it is a no-op, not a pass.",
+                f"reachability cannot be evaluated ({e}). Where the hub's scaffolder cannot "
+                "be imported this run is a no-op, not a pass.",
             )
             return 0
 
@@ -219,8 +220,13 @@ def main() -> int:
     # unreachable findings — but a bare "OK — every pack reaches" after evaluating NOTHING
     # is this plan's own fail-silent-green, committed by the fix for it. State it.
     unevaluable = sorted(
-        {c for _r, _g, act, ap in packs_meta if act != "manual"
-         for c in ap if c in known and pla._emitted_paths_for_type(c) is None}
+        {
+            c
+            for _r, _g, act, ap in packs_meta
+            if act != "manual"
+            for c in ap
+            if c in known and pla._emitted_paths_for_type(c) is None
+        }
     )
 
     if not args.json:
@@ -235,8 +241,7 @@ def main() -> int:
             reason = pla._UNEVALUABLE_REASONS.get(claimed)
             print(
                 f"NOT EVALUATED: scaffold type {claimed!r} cannot be built here, so packs "
-                "claiming it were neither cleared nor flagged"
-                + (f" [{reason}]" if reason else "")
+                "claiming it were neither cleared nor flagged" + (f" [{reason}]" if reason else "")
             )
         for rel, claimed, hit in cleared:
             print(f"  reachable: {rel} @ {claimed} — via {hit}")
@@ -254,9 +259,7 @@ def main() -> int:
                     "claim_pairs": claim_pairs,
                     "unevaluable_types": unevaluable,
                     "malformed_applies_to": malformed,
-                    "unknown_types": [
-                        {"pack": r, "declared": c} for r, c in unknown
-                    ],
+                    "unknown_types": [{"pack": r, "declared": c} for r, c in unknown],
                     "examined_packs": examined,
                     "types_checked": types,
                     "findings": [
@@ -278,16 +281,16 @@ def main() -> int:
         )
         if not examined:
             print(
-            "NOTHING TO CHECK — no pack in this corpus declares a usable applies_to yet"
-            + (
-                f" ({len(unknown)} pack(s) DID declare one, but named a type that is not a "
-                "scaffold type — see UNKNOWN TYPE above; that is a typo to fix, not a pass)"
-                if unknown
-                else ""
+                "NOTHING TO CHECK — no pack in this corpus declares a usable applies_to yet"
+                + (
+                    f" ({len(unknown)} pack(s) DID declare one, but named a type that is not a "
+                    "scaffold type — see UNKNOWN TYPE above; that is a typo to fix, not a pass)"
+                    if unknown
+                    else ""
+                )
+                + ". This is NOT a pass on the packs; it is an unasked question. See "
+                "docs/reference/rule-pack-reachability.md for how to add applies_to."
             )
-            + ". This is NOT a pass on the packs; it is an unasked question. See "
-            "docs/reference/rule-pack-reachability.md for how to add applies_to."
-        )
         elif not findings:
             if cleared:
                 print(

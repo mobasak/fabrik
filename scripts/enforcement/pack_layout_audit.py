@@ -149,7 +149,11 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
     # the check built to close that class (review finding, 2026-08-25). Split on commas and
     # strip optional quotes per item rather than requiring them.
     applies_to = (
-        [item.strip().strip("\"'").strip("[]") for item in tm.group(1).split(",") if item.strip().strip("\"'").strip("[]")]
+        [
+            item.strip().strip("\"'").strip("[]")
+            for item in tm.group(1).split(",")
+            if item.strip().strip("\"'").strip("[]")
+        ]
         if tm
         else []
     )
@@ -195,8 +199,15 @@ def _import_create_project():
     `FABRIK_ROOT` pattern)."""
     for candidate in (_SCRIPTS_DIR.parent, Path("/opt/fabrik")):
         if (candidate / "src" / "fabrik" / "scaffold.py").exists():
-            if str(candidate) not in sys.path:
-                sys.path.insert(0, str(candidate))
+            # BOTH roots, not one: `<candidate>` resolves the `src.fabrik.scaffold` entry
+            # import, but scaffold.py's own imports are rooted `fabrik.` and need
+            # `<candidate>/src`. Inserting only the first worked at the hub solely because
+            # an editable-install .pth made `fabrik` importable anyway — a project venv has
+            # no such install, so the fallback died with ModuleNotFoundError on every
+            # synced repo (tryton-crm 01M0X1JFP8M4T0JMYWVNW3AEE9).
+            for entry in (candidate, candidate / "src"):
+                if str(entry) not in sys.path:
+                    sys.path.insert(0, str(entry))
             from src.fabrik.scaffold import create_project  # type: ignore[import-not-found]
 
             return create_project
@@ -347,7 +358,8 @@ def _satisfying_path(paths: tuple[str, ...] | None, globs: list[str]) -> str | N
 
 
 def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> bool:
-    """Does ANY of `globs` match ANY of `paths`? Built from `rules_match`'s own
+    (
+        """Does ANY of `globs` match ANY of `paths`? Built from `rules_match`'s own
     normalization primitives (`_strip_wildcards` / `_expand_braces` / `_tail_matches`) —
     the same three steps `any_path_matches` composes, just fed a pre-fetched path tuple
     instead of walking a live directory (there is no directory to walk after the
@@ -389,7 +401,9 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
     `**/` therefore ends with no matches and is reported unreachable; a pack that also has
     real globs is decided entirely by those. So the effect matches "wildcard-only proves
     nothing about this type", but it is a consequence of the skip, not a special case anyone
-    wrote. Do not restate it as a deliberate policy."""""
+    wrote. Do not restate it as a deliberate policy."""
+        ""
+    )
     if paths is None:
         # SYMMETRY with _satisfying_path, which already tolerates the sentinel. Every call
         # site guards `is None` today, so this is latent — but two sibling helpers with
@@ -407,9 +421,7 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
     return False
 
 
-def audit_layout(
-    root: Path, types: list[str], packs_meta: list | None = None
-) -> list[Finding]:
+def audit_layout(root: Path, types: list[str], packs_meta: list | None = None) -> list[Finding]:
     """For the pack corpus under `root/.windsurf/rules` x `types`: every (pack, type)
     pair where the pack's `applies_to:` claims `type` and none of its globs match
     anything a fresh scaffold of `type` emits."""
