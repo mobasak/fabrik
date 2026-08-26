@@ -146,11 +146,29 @@ def main() -> int:
             continue
         for claimed in applies_to:
             if claimed in known and (rel, claimed) not in flagged:
-                hit = pla._satisfying_path(pla._emitted_paths_for_type(claimed), globs)
+                emitted = pla._emitted_paths_for_type(claimed)
+                if emitted is None:
+                    # cannot evaluate this type here (no scaffolder) — not a clear, not a
+                    # finding; audit_layout skipped it for the same reason.
+                    continue
+                hit = pla._satisfying_path(emitted, globs)
                 if hit:
                     cleared.append((rel, claimed, hit))
 
+    # Which claimed types could not be evaluated at all? Skipping them avoids FALSE
+    # unreachable findings — but a bare "OK — every pack reaches" after evaluating NOTHING
+    # is this plan's own fail-silent-green, committed by the fix for it. State it.
+    unevaluable = sorted(
+        {c for _r, _g, act, ap in pla._packs_with_meta(root) if act != "manual"
+         for c in ap if c in known and pla._emitted_paths_for_type(c) is None}
+    )
+
     if not args.json:
+        for claimed in unevaluable:
+            print(
+                f"NOT EVALUATED: scaffold type {claimed!r} cannot be built here, so packs "
+                "claiming it were neither cleared nor flagged"
+            )
         for rel, claimed, hit in cleared:
             print(f"  reachable: {rel} @ {claimed} — via {hit}")
         for rel, claimed in unknown:
@@ -164,6 +182,7 @@ def main() -> int:
             json.dumps(
                 {
                     "examined_count": len(examined),
+                    "unevaluable_types": unevaluable,
                     "unknown_types": [
                         {"pack": r, "declared": c} for r, c in unknown
                     ],
@@ -199,7 +218,22 @@ def main() -> int:
             "docs/reference/rule-pack-reachability.md for how to add applies_to."
         )
         elif not findings:
-            print("OK — every examined pack's applies_to claim reaches at least one emitted path.")
+            if cleared:
+                print(
+                    "OK — every examined pack's applies_to claim reaches at least one "
+                    f"emitted path ({len(cleared)} claim(s) verified"
+                    + (f"; {len(unevaluable)} type(s) NOT EVALUATED" if unevaluable else "")
+                    + ")."
+                )
+            else:
+                # 0 verified is NOT "OK". Saying "every pack reaches" after evaluating
+                # nothing is exactly the fail-silent-green this plan closes — and the fix
+                # for finding 13 briefly reintroduced it.
+                print(
+                    "NOTHING VERIFIED — 0 claim(s) could be evaluated"
+                    + (f" ({len(unevaluable)} type(s) not buildable here)" if unevaluable else "")
+                    + ". This is an unasked question, NOT a pass."
+                )
         else:
             for f in findings:
                 print(

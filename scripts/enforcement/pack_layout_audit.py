@@ -174,14 +174,31 @@ def _import_create_project():
 
 
 @functools.cache
-def _emitted_paths_for_type(project_type: str) -> tuple[str, ...]:
+def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
     """Every relative file/dir path (posix) a FRESH `create_project(project_type=...)`
     emits — the honest denominator (see module docstring: the scaffold path diverges
     from the raw template directory). Throwaway `base=`, cleaned up immediately; cached
     per type since several packs can claim the same type in one `audit_layout` call.
     Extracted to its own function so tests can monkeypatch it and stay hermetic (no real
     scaffold invocation, no dependency on the live corpus or the scaffolder's runtime)."""
-    create_project = _import_create_project()
+    try:
+        create_project = _import_create_project()
+    except RuntimeError:
+        # The scaffolder is HUB-ONLY and this file is governance-synced to ~46 repos. main()
+        # guards this — but ONLY on the `--types` DEFAULT branch. Pass `--types` explicitly
+        # (exactly what docs/reference/rule-pack-reachability.md tells a pack author to do to
+        # confirm an annotation) and the guard is skipped, the RuntimeError escapes main()
+        # uncaught, and `run_optional_check(..., warn_only=True)` turns that traceback into a
+        # HARD gate failure in every repo that cannot see the hub. Same class as the
+        # `wordpress` NotImplementedError, different entry point. Proven by execution: with
+        # _import_create_project stubbed to raise, `--types file-worker` crashed.
+        # A type we cannot scaffold contributes NO paths — never a crash.
+        # ⚠️ Returns None, NOT (). They mean different things and conflating them is a
+        # SECOND defect: with () every annotated pack matches zero paths and is reported
+        # UNREACHABLE — false findings on every repo that cannot see the hub. None means
+        # "cannot evaluate"; audit_layout SKIPS those types rather than condemning them.
+        # (Caught while fixing finding 13 — the first fix introduced it.)
+        return None
     # ⚠️ SUPPRESS the scaffolder's post-scaffold sync for this THROWAWAY probe.
     # `create_project` ends with `_post_scaffold_sync()`, which shells out to
     # `scripts/sync_projects.py` with `cwd=FABRIK_ROOT` and REWRITES three tracked hub
@@ -228,12 +245,14 @@ def _scaffold_and_walk(create_project, project_type: str) -> tuple[str, ...]:
         return rules_match._tree_paths(project_dir)
 
 
-def _satisfying_path(paths: tuple[str, ...], globs: list[str]) -> str | None:
+def _satisfying_path(paths: tuple[str, ...] | None, globs: list[str]) -> str | None:
     """The FIRST emitted path any glob matches, or None. Same logic as
     `_matches_any_emitted`, but returns the evidence instead of a bare bool — so a caller
     can show the reader WHY a pack was cleared. That matters because the denominator
     over-states reachability (see module docstring): a clear on `Dockerfile` or
     `libs/subagents` is a boilerplate-only clear, and only the path reveals it."""
+    if paths is None:
+        return None  # cannot evaluate — never a clear
     for glob in globs:
         pat = rules_match._strip_wildcards(glob)
         if pat is None:
@@ -295,6 +314,13 @@ def audit_layout(root: Path, types: list[str]) -> list[Finding]:
             if scaffold_type not in applies_to:  # rule 1 — applicability is declared, not derived
                 continue
             emitted = _emitted_paths_for_type(scaffold_type)
+            if emitted is None:
+                # Cannot evaluate this type here (no scaffolder, or none for this type).
+                # Skipping is the honest answer: "I could not ask" is NOT "the pack is
+                # unreachable". Returning () instead would report every claiming pack as
+                # UNREACHABLE on every repo that cannot see the hub — false findings at
+                # fleet scale. (D7 confirming round, finding 13's second half.)
+                continue
             if not _matches_any_emitted(emitted, globs):  # rule 3 — one row per claimed pair
                 findings.append(Finding(pack=rel, scaffold_type=scaffold_type, globs=tuple(globs)))
     return findings

@@ -273,3 +273,55 @@ def test_unavailable_scaffolder_is_a_quiet_no_op_not_a_gate_failure(monkeypatch,
     out = capsys.readouterr().out
     assert "0 pack(s) examined" in out, "the denominator must be stated, not implied"
     assert "unavailable" in out.lower(), "it must say WHY it examined nothing"
+
+
+def test_unavailable_scaffolder_with_explicit_types_is_not_a_crash_and_not_a_pass(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """`--types` explicitly + no scaffolder must exit 0, report NOTHING VERIFIED, and flag
+    no false UNREACHABLE.
+
+    Three defects in one path, all found in the D7 confirming round (finding 13):
+
+    1. main() guarded the scaffolder only on the `--types` DEFAULT branch. Passing `--types`
+       — exactly what the reference doc tells a pack author to do to confirm an annotation —
+       skipped the guard, the RuntimeError escaped main() uncaught, and `warn_only=True`
+       turned that traceback into a HARD gate failure in every repo that cannot see the hub.
+    2. The first fix returned `()`, so every annotated pack matched zero paths and was
+       reported UNREACHABLE — false findings at fleet scale.
+    3. The second fix then printed "OK — every examined pack's claim reaches..." after
+       evaluating NOTHING: this plan's own fail-silent-green, committed by the fix for it.
+
+    The honest contract, pinned here: exit 0 (advisory), no findings, and a denominator that
+    says nothing was verified.
+    """
+    import pack_layout_audit as _pla
+
+    def _no_scaffolder(*_a, **_kw):
+        raise RuntimeError("fabrik scaffolder not found — simulated project context")
+
+    monkeypatch.setattr(_pla, "_import_create_project", _no_scaffolder)
+    _pla._emitted_paths_for_type.cache_clear()
+
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "p.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/x.py"]\napplies_to: ["file-worker"]\n'
+        "description: d\n---\nbody\n"
+    )
+
+    argv = sys.argv
+    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
+                "--types", "file-worker"]
+    try:
+        rc = cpr.main()
+    finally:
+        sys.argv = argv
+        _pla._emitted_paths_for_type.cache_clear()
+
+    out = capsys.readouterr().out
+    assert rc == 0, "advisory: an unbuildable type must never fail the gate"
+    assert "UNREACHABLE" not in out, "must not condemn a pack it could not evaluate"
+    assert "NOT EVALUATED" in out, "must name the type it could not build"
+    assert "NOTHING VERIFIED" in out, "0 verified is not OK — it is an unasked question"
+    assert "OK —" not in out
