@@ -396,3 +396,36 @@ def test_applies_to_accepts_every_legal_yaml_shape() -> None:
     # and every form that MUST yield nothing — absence is opt-out, not a parse failure
     assert parsed("description: x") == []
     assert parsed("applies_to: []") == []
+
+
+def test_any_scaffolder_failure_is_unevaluable_not_a_gate_failure(monkeypatch) -> None:
+    """ANY exception while probing a scaffold means "cannot evaluate" — never a traceback.
+
+    This guard was patched three times, one exception type at a time:
+      NotImplementedError  — `wordpress` is in SCAFFOLD_TYPES with no scaffolder  (round 4)
+      RuntimeError         — explicit `--types` on a project without the hub      (round 5)
+      ValueError           — a bogus `--types` value create_project rejects       (round 7)
+    and round 11 then pointed at FileNotFoundError from a missing template. Enumerating
+    exception types is the same instance-by-instance patching that let the `applies_to`
+    parser drop three legal YAML forms in a row, so the guard now catches the CLASS.
+
+    Why that is safe rather than sloppy: this check is ADVISORY and wired `warn_only=True`,
+    which fails the gate on ANY non-zero exit — so an escaping exception reddens ~46 repos,
+    while a swallowed one costs only an honest "NOT EVALUATED". `_scaffold_and_walk` does
+    nothing but scaffold and walk, so there is no unrelated logic for the broad except to
+    hide. This test asserts the CLASS by using an exception type nobody enumerated.
+    """
+    import pack_layout_audit as _pla
+
+    def _explode(*_a, **_kw):
+        def _cp(*_aa, **_kk):
+            raise FileNotFoundError("scaffold template missing — a type nobody enumerated")
+
+        return _cp
+
+    monkeypatch.setattr(_pla, "_import_create_project", _explode)
+    _pla._emitted_paths_for_type.cache_clear()
+    try:
+        assert _pla._emitted_paths_for_type("file-worker") is None
+    finally:
+        _pla._emitted_paths_for_type.cache_clear()

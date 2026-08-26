@@ -229,8 +229,20 @@ def _emitted_paths_for_type(project_type: str) -> tuple[str, ...] | None:
         scaffold_mod._post_scaffold_sync = lambda *_a, **_kw: None
     try:
         return _scaffold_and_walk(create_project, project_type)
-    except (NotImplementedError, ValueError):
-        # TWO cases, one sentinel. NotImplementedError: a registry type with no scaffolder
+    except Exception:  # noqa: BLE001 - deliberate; see below
+        # ⚠️ BROAD ON PURPOSE. Whatever fails while probing a scaffold, the answer to "can
+        # this type be evaluated here?" is NO — never "the pack is unreachable", never a
+        # traceback. This check is ADVISORY and wired `warn_only=True`, which fails the gate
+        # on ANY non-zero exit, so an uncaught exception turns an advisory row RED in ~46
+        # repos. Patched THREE times one type at a time — NotImplementedError (wordpress),
+        # RuntimeError (explicit --types on a project), ValueError (a bogus --types value) —
+        # and round 11 then pointed at FileNotFoundError from a missing template. Enumerating
+        # exception types is the same instance-by-instance patching that let the applies_to
+        # parser drop three legal YAML forms in a row. The CLASS is "any scaffolder failure
+        # means unevaluable", so catch the class. `_scaffold_and_walk` only scaffolds and
+        # walks, so there is no unrelated logic here for a broad except to mask.
+        #
+        # The original cases, for the record. NotImplementedError: a registry type with no scaffolder
         # (e.g. `wordpress`). ValueError: `create_project` rejecting a type it does not know
         # — reachable because `--types` is USER-SUPPLIED and never validated against the
         # registry before use. A round-6 finder considered this exact path and dismissed it
@@ -296,9 +308,11 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
     instead of walking a live directory (there is no directory to walk after the
     scaffold's `TemporaryDirectory` closes).
 
-    ⚠️ The wildcard-only story is NOT uniform, and an earlier version of this docstring
-    claimed it was ("a wildcard-only glob is treated as NON-matching, mirroring
-    select_rules' empty_matches_all=False"). That holds for `**/` ONLY. `_strip_wildcards`
+    ⚠️ The wildcard-only story is NOT uniform. (An earlier version of this docstring said
+    otherwise; that sentence is DELETED rather than quoted, because four separate review
+    rounds read the quoted-and-corrected version as a live claim and re-reported it. A
+    correction that keeps repeating the error it corrects is a trap for the next reader.)
+    The uniform reading holds for `**/` ONLY. `_strip_wildcards`
     does `lstrip("/")` FIRST, so `/**` and `**` survive as `'**'`, reach `_tail_matches`,
     and match EVERYTHING. Measured against ("worker/main.py", "Dockerfile"):
 
