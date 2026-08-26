@@ -264,7 +264,7 @@ def _satisfying_path(paths: tuple[str, ...] | None, globs: list[str]) -> str | N
     return None
 
 
-def _matches_any_emitted(paths: tuple[str, ...], globs: list[str]) -> bool:
+def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> bool:
     """Does ANY of `globs` match ANY of `paths`? Built from `rules_match`'s own
     normalization primitives (`_strip_wildcards` / `_expand_braces` / `_tail_matches`) —
     the same three steps `any_path_matches` composes, just fed a pre-fetched path tuple
@@ -292,6 +292,13 @@ def _matches_any_emitted(paths: tuple[str, ...], globs: list[str]) -> bool:
     For `**/` specifically the NON-matching choice stands, and for the stated reason: a pack
     claiming a type via an ambiguous wildcard-only glob has not genuinely proven it governs
     anything in that type's output."""""
+    if paths is None:
+        # SYMMETRY with _satisfying_path, which already tolerates the sentinel. Every call
+        # site guards `is None` today, so this is latent — but two sibling helpers with
+        # DIFFERENT None-tolerance is precisely the trap that produced finding 13's cascade
+        # (a fix returned () where None was meant, and every pack was condemned). "Cannot
+        # evaluate" is never "matched". (Self-probe during the round-6 confirming pass.)
+        return False
     for glob in globs:
         pat = rules_match._strip_wildcards(glob)
         if pat is None:

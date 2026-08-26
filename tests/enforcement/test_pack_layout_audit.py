@@ -314,3 +314,22 @@ def test_fixtures_cover_the_shapes_the_real_denominator_contains(tmp_path, monke
         "templates/ is pruned, so **/templates/*email* can never match — a pack globbing "
         "it would be falsely reported INERT"
     )
+
+
+def test_both_helpers_tolerate_the_cannot_evaluate_sentinel() -> None:
+    """`_matches_any_emitted` and `_satisfying_path` must agree on the None sentinel.
+
+    None means "cannot evaluate this type here" (no scaffolder), distinct from () meaning
+    "evaluated, emits nothing". `_satisfying_path` already returned None for it while
+    `_matches_any_emitted` raised TypeError — latent, since every call site guards, but two
+    sibling helpers with different None-tolerance is the exact trap that produced finding
+    13's cascade: a fix returned () where None was meant and every annotated pack was
+    condemned UNREACHABLE across 46 repos. "Cannot evaluate" is never "matched".
+    """
+    from pack_layout_audit import _matches_any_emitted, _satisfying_path
+
+    assert _matches_any_emitted(None, ["**/anything.py"]) is False
+    assert _satisfying_path(None, ["**/anything.py"]) is None
+    # and () still means "evaluated, matched nothing" — NOT the same input, same answer
+    assert _matches_any_emitted((), ["**/anything.py"]) is False
+    assert _satisfying_path((), ["**/anything.py"]) is None
