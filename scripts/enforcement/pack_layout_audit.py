@@ -110,6 +110,18 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
     activation = am.group(1).strip() if am else ""
     tm = _APPLIES_TO_RE.search(fm)
     if tm is None:
+        # SCALAR form — `applies_to: file-worker` or `applies_to: "file-worker"`. Legal YAML
+        # (a one-item list written without brackets) and the THIRD form this parser silently
+        # dropped to []: flow style worked, block-sequence was added at D7 round 4, and the
+        # scalar still returned nothing — so the pack was skipped, never counted, and the run
+        # printed OK. Third instance of the SAME fail-silent-green defect, in the parser at
+        # the centre of the check built to close fail-silent-green. Matched BEFORE the
+        # block-sequence branch would consume the line. (D7 round 9, finding 20.)
+        sm = re.search(r"^applies_to:[ \t]+(?!\[)(\S[^\n]*)$", fm, re.MULTILINE)
+        if sm:
+            scalar = sm.group(1).strip().strip("\"'")
+            if scalar:
+                return activation, [scalar]
         # BLOCK-SEQUENCE form — the one a YAML author is MOST likely to write for a
         # multi-item list, and the flow-style regex above silently yields [] for it:
         #     applies_to:

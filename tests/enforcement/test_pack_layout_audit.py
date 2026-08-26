@@ -363,3 +363,36 @@ def test_unknown_scaffold_type_does_not_crash_the_advisory_check() -> None:
         assert _emitted_paths_for_type("not-a-real-scaffold-type") is None
     finally:
         _emitted_paths_for_type.cache_clear()
+
+
+def test_applies_to_accepts_every_legal_yaml_shape() -> None:
+    """All four ways a human writes `applies_to` must parse; absent/empty must stay empty.
+
+    This parser dropped a legal form to [] THREE separate times, and each time the pack was
+    skipped, never counted, and the run reported OK — the exact fail-silent-green defect the
+    check exists to close, in the check's own parser:
+
+      * quotes-only regex   -> `[file-worker]` (unquoted) dropped        (per-ticket review)
+      * flow-style only     -> block sequence dropped                    (D7 round 4)
+      * list forms only     -> bare/quoted SCALAR dropped                (D7 round 9)
+
+    Enumerating every shape in one table is the fix for the CLASS, not the third instance:
+    a fourth form now has an obvious place to be added, and a regression in any one of them
+    fails here rather than silently returning [].
+    """
+    from pack_layout_audit import _parse_extra_frontmatter
+
+    def parsed(body: str) -> list[str]:
+        return _parse_extra_frontmatter(f"---\nactivation: glob\n{body}\n---\n")[1]
+
+    # every form that MUST yield the claim
+    assert parsed("applies_to: [file-worker]") == ["file-worker"]
+    assert parsed('applies_to: ["file-worker", "saas-skeleton"]') == ["file-worker", "saas-skeleton"]
+    assert parsed("applies_to: [file-worker, saas-skeleton]") == ["file-worker", "saas-skeleton"]
+    assert parsed("applies_to:\n  - file-worker\n  - saas-skeleton") == ["file-worker", "saas-skeleton"]
+    assert parsed("applies_to: file-worker") == ["file-worker"], "bare scalar is legal YAML"
+    assert parsed('applies_to: "file-worker"') == ["file-worker"], "quoted scalar is legal YAML"
+
+    # and every form that MUST yield nothing — absence is opt-out, not a parse failure
+    assert parsed("description: x") == []
+    assert parsed("applies_to: []") == []
