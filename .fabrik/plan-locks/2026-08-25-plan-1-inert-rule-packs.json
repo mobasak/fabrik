@@ -1,24 +1,9 @@
 {
-  "plan": "docs/development/plans/2026-08-25-plan-1-inert-rule-packs/2026-08-25-plan-1-inert-rule-packs.md",
-  "owned_paths": [
-    "scripts/rules_match.py",
-    "scripts/enforcement/pack_layout_audit.py",
-    "scripts/enforcement/check_pack_reachability.py",
-    "scripts/select_rules.py",
-    "scripts/review_rubric.py",
-    "scripts/final_gate.py",
-    "commands/_sources/fabrik-execute-plan.md",
-    ".windsurf/rules/core/75-workers-jobs.md",
-    ".windsurf/rules/core/app-audit-log.md",
-    "tests/enforcement/test_pack_reachability.py",
-    "tests/enforcement/test_pack_layout_audit.py",
-    "tests/test_rules_match.py",
-    "tests/test_execute_plan_d7.py",
-    "docs/reference/rule-pack-reachability.md"
-  ],
+  "plan": "docs/development/plans/archived/2026-08-25-plan-1-inert-rule-packs/2026-08-25-plan-1-inert-rule-packs.md",
+  "owned_paths": [],
   "branch": "master",
   "started_at": "2026-08-25T19:20:00+03:00",
-  "status": "active",
+  "status": "released",
   "tickets": {},
   "baseline_commit": "4a9731ca6bb352f555693b4b0ede1f2c51162d37",
   "baseline_gate": {
@@ -29,5 +14,7 @@
       "Vendored Drift (sync-excluded repos)",
       "untracked sources (advisory)"
     ]
-  }
+  },
+  "completed_at": "2026-08-25",
+  "final_commit": "9903d07e"
 }
