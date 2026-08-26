@@ -60,8 +60,16 @@ import pack_layout_audit as pla  # noqa: E402 - the shared engine, not reimpleme
 
 def _examined_packs(root: Path, types: list[str]) -> list[str]:
     """Packs this run actually asked a question about: glob-activated (non-manual)
-    packs whose `applies_to` names at least one of `types`. Mirrors the exact condition
-    `audit_layout` evaluates per (pack, type) pair — `pla._packs_with_meta` is the same
+    packs whose `applies_to` names at least one of `types`.
+
+    ⚠️ This counts PACKS, not (pack, type) PAIRS — and an earlier version of this docstring
+    claimed it "mirrors the exact condition `audit_layout` evaluates per (pack, type) pair",
+    which is FALSE and was the FIFTH false claim in this change. `audit_layout` loops per
+    type and evaluates `scaffold_type in applies_to`; this uses `any(...)` across all types.
+    They coincide for a single-type pack, and DIVERGE when a pack claims two types and only
+    one is evaluable: examined says 1 pack while 2 pairs were considered and 1 skipped. The
+    pair count is reported separately (`claim_pairs`) precisely so the denominator is not
+    this number pretending to be that one. `pla._packs_with_meta` is the same
     frontmatter reader the engine uses, reused here (not reparsed) purely to COUNT what
     was examined, distinct from the engine's own findings computation."""
     types_set = set(types)
@@ -126,7 +134,14 @@ def main() -> int:
     # confident green. Surface unknown types explicitly. (D7 finding, 2026-08-25.)
     known = set(types)
     unknown: list[tuple[str, str]] = []
-    for rel, _globs, activation, applies_to in pla._packs_with_meta(root):
+    # ONE parse, reused below. Two independent _packs_with_meta() calls re-read and re-parse
+    # every pack, and could in principle observe different snapshots if the corpus changed
+    # between them. (D7 round 8.)
+    packs_meta = pla._packs_with_meta(root)
+    claim_pairs = sum(
+        1 for _r, _g, act, ap in packs_meta if act != "manual" for c in ap if c in known
+    )
+    for rel, _globs, activation, applies_to in packs_meta:
         if activation == "manual":
             continue
         for claimed in applies_to:
@@ -141,7 +156,7 @@ def main() -> int:
     # same doctrine as the examined-count. (D7 finding, 2026-08-25.)
     cleared: list[tuple[str, str, str]] = []
     flagged = {(f.pack, f.scaffold_type) for f in findings}
-    for rel, globs, activation, applies_to in pla._packs_with_meta(root):
+    for rel, globs, activation, applies_to in packs_meta:
         if activation == "manual":
             continue
         for claimed in applies_to:
@@ -182,6 +197,7 @@ def main() -> int:
             json.dumps(
                 {
                     "examined_count": len(examined),
+                    "claim_pairs": claim_pairs,
                     "unevaluable_types": unevaluable,
                     "unknown_types": [
                         {"pack": r, "declared": c} for r, c in unknown
@@ -202,8 +218,8 @@ def main() -> int:
         )
     else:
         print(
-            f"Examined {len(examined)} pack(s) declaring applies_to for a checked type "
-            f"(of {len(types)} scaffold type(s) checked)."
+            f"Examined {len(examined)} pack(s) / {claim_pairs} claim-pair(s) declaring "
+            f"applies_to for a checked type (of {len(types)} scaffold type(s) checked)."
         )
         if not examined:
             print(

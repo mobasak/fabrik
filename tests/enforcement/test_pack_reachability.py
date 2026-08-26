@@ -375,3 +375,38 @@ def test_unevaluable_type_is_not_reported_unreachable_and_not_counted_verified(
     assert "1 of 2 examined pack(s) verified" in out, (
         "the summary must state verified-of-examined, not claim every examined pack passed"
     )
+
+
+def test_pack_count_and_claim_pair_count_are_reported_separately(tmp_path, monkeypatch) -> None:
+    """`examined_count` counts PACKS; `claim_pairs` counts (pack, type) PAIRS. Both reported.
+
+    `_examined_packs` uses `any(t in types for t in applies_to)` — one row per PACK — while
+    `audit_layout` loops per type and evaluates `scaffold_type in applies_to` — one per
+    PAIR. An earlier docstring claimed the former "mirrors the exact condition" of the
+    latter; it does not, and that was the FIFTH false claim in this change.
+
+    They coincide for a single-type pack and DIVERGE when a pack claims two types and only
+    one is evaluable: 1 pack examined, 2 pairs considered, 1 skipped. Reporting only the
+    pack count would understate what was actually asked — the same denominator dishonesty
+    this whole plan exists to close, one level down. (D7 round 8.)
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "two.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/worker/**"]\n'
+        'applies_to: ["file-worker", "wordpress"]\ndescription: t\n---\nbody\n'
+    )
+    try:
+        result = _run_json(tmp_path, ["file-worker", "wordpress"])
+    finally:
+        _pla._emitted_paths_for_type.cache_clear()
+
+    assert result["examined_count"] == 1, "one PACK declares a checked type"
+    assert result["claim_pairs"] == 2, "but it makes TWO (pack, type) claims"
+    assert result["unevaluable_types"] == ["wordpress"]
+    assert result["examined_count"] != result["claim_pairs"], (
+        "this fixture exists to catch the two counts being collapsed back into one"
+    )
