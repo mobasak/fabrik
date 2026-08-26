@@ -44,3 +44,20 @@ Operator hand-off (the ONLY unfinished surface, by design — crontab writes are
 classifier-blocked): the install block in `docs/workstation/fabrik-mail.md` § Escalation digest
 (log pre-create + logrotate `sudo cp` + the cron line). Until installed, the liveness registry
 row reads DEAD/unscheduled by declared expectation.
+
+## Re-adjudication (operator-invoked /fabrik-review, 2026-08-26 post-ship)
+
+Surface: `e7d503cb` (+ working-tree delta = sibling WIP only, hash `c128b6e50964`) — unchanged
+since the roll-up above; this run re-verifies rather than re-scopes.
+
+- **Fleet-blast EXECUTED, not inferred:** `/opt/transdoc/scripts/mail.py` (a synced project
+  copy) refuses an unaddressed hub send with the full three-beat guide, exit 2, and accepts
+  `--to-agent infra`, exit 0 — run live in a sandboxed mail root.
+- Fresh proofs this run: 252 tests green · `final_gate --check` success · rubric recomputed.
+- Fresh finder round: 2 raised, both REFUTED against recorded design decisions (`--re ""` =
+  the reviewed round-3 fix; ownerless-parent reply stays exempt-unaddressed by design) —
+  `found-new: 0`.
+
+Checklist state: every class remains CLEAN/FIXED/REFUTED as adjudicated in the two phase
+artifacts; no class re-opened. The single open surface remains the OPERATOR INSTALL
+(three commands, § below in workstation doc) — by classifier-block design, not omission.
