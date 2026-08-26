@@ -1,0 +1,12 @@
+# fabrik-mail escalation digest log — size-based (the job is cron-driven; a runaway
+# sender writing refusal lines must not fill the disk before a date-based rotation).
+# Operator install: sudo cp configs/logrotate/fabrik-mail-escalate /etc/logrotate.d/
+/var/log/fabrik-mail-escalate.log {
+    size 10M
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+    su ozgur ozgur
+}

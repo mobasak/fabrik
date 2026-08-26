@@ -696,3 +696,19 @@ def test_strict_is_opt_in_and_fails_only_on_dead(tmp_path: Path) -> None:
         {"id": "opaque", "kind": "cron", "cron_match": "other.sh", "evidence": {"type": "none"}}
     ]), {"heartbeat"}, box=box)
     assert unknown_only.failures() == 0, "UNKNOWN must never fail --strict; only DEAD does"
+
+
+def test_mail_escalate_is_registered_with_the_precedent_fields():
+    """The escalation cron must stay registered (an unregistered cron is unmonitored) with
+    the precedent's shape: a log-evidence path, a slack-justified budget, and a `why` that
+    names the crontab install state so DEAD/unscheduled reads as expected pre-install."""
+    import json
+    from pathlib import Path
+
+    reg = json.loads((Path(__file__).resolve().parent.parent / ".fabrik" / "liveness-registry.json").read_text())
+    surfaces = reg["surfaces"] if isinstance(reg, dict) and "surfaces" in reg else reg
+    row = next(s for s in surfaces if s.get("id") == "mail-escalate")
+    assert row["cron_match"] == "mail_escalate.py"
+    assert row["evidence"]["path"] == "/var/log/fabrik-mail-escalate.log"
+    assert row["max_age_hours"] == 54 and "max_age_note" in row
+    assert "crontab" in row["why"].lower()

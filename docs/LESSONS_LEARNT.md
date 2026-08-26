@@ -922,6 +922,28 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## Enforce at the source before routing at the destination — and read callers, never grep them (2026-08-26)
+
+**Context:** the fabrik-mail dispatcher. Five adversarial review rounds hardened a
+destination-side router (tier-0 regex → keyword rules → Haiku classification → floater,
+ledgers, watcher) before the operator asked the framing question: *"why don't we enforce
+sender agents to add a recipient address instead?"* The send path was hub-owned,
+fleet-synced, and refusable all along — the entire routed population could be emptied by
+construction. The final build was ~1/10th the dispatcher plan: a ~30-line send guard + a
+daily escalation cron.
+
+**Lesson 1:** when a system exists to compensate for bad inputs, first ask whether the
+INPUT SURFACE is yours to fix. Reviews optimize inside the frame they are handed — none of
+five rounds (pool + native Opus + judge panels) challenged the dispatcher frame itself;
+the operator did. Put "should this population exist?" in every design review's checklist
+before "is this classifier good?".
+
+**Lesson 2:** enumerate CALLERS by reading them, never by literal grep. A grep for
+`send.*--to.*fabrik` missed the DOMINANT automated sender twice: `_drain_mail` builds its
+argv from variables (10-11 of 15 live unaddressed messages), and its byte-identical
+fleet-rsync'd twin in `scripts/aro-wake/` was declared in the file's own header. Both
+would have failed silently (`stderr=DEVNULL`) under the new guard.
+
 ## 1. Context
 
 - **Project/Module:** Fabrik Infrastructure / Coolify Migration

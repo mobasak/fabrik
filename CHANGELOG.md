@@ -15,7 +15,12 @@ All notable changes to this project will be documented in this file.
   `claude_rotate.py` twins (`--broadcast` advisories) + kaizen (one ADDRESSED `ack:required`
   obligation per beat, infra+fleet); `check_vendored_drift.py` now watches `scripts/mail.py`
   (the sync-excluded fabrik-lib fork's drift is visible); governance template + /fabrik-upstream
-  teach the beat guide. 17 new guard tests, red-on-revert proven; 544 tests green.
+  teach the beat guide. 17 new guard tests, red-on-revert proven; 544 tests green. Phase B: the escalation
+  digest (`scripts/sysadmin/mail_escalate.py` + 22 sandboxed tests, mutation-hardened) — aged `ack: required` obligations
+  across ALL mailboxes (inbox regardless of addressee · archive strands · stranded
+  resolve-windows) → at most one Telegram per local day (`send_alert`; day-stamp only after
+  success); liveness-registry row `mail-escalate`; size-based logrotate snippet; operator
+  install block in docs/workstation/fabrik-mail.md § Escalation.
 
 ### Removed — the dead `fabrik app-logs` Coolify command (2026-08-25)
 

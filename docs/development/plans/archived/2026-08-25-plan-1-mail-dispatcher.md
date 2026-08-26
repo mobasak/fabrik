@@ -1,6 +1,6 @@
 # Plan — fabrik-mail addressing enforcement + escalation (v3, enforcement-first)
 
-Status: IN-PROGRESS (execution started 2026-08-26; converged at seventh review, md5 aee43157)
+Status: EXECUTED 2026-08-26 (Phase A f4023918 fleet-synced · Phase B this commit; both phase reviews 0-outstanding; whole-plan review docs/development/reviews/2026-08-25-plan-1-mail-dispatcher-review.md)
 Date: 2026-08-26
 Spec (source of truth): `docs/superpowers/specs/2026-08-25-fabrik-mail-dispatcher-design.md` (v3.1)
 
@@ -151,7 +151,7 @@ coverage-adjudicated exit (BLOCKING — fleet-synced files)** → commit (explic
 trailers; the governance-sync fires AT this commit — blast radius known and intended) + push →
 render the command corpus from merged master.
 
-## Phase B — escalation digest + install + docs + triage
+## Phase B — escalation digest + install + docs + triage ✅ EXECUTED 2026-08-26 (this commit)
 
 **Interfaces.Consumes:** `mail.py` import surface (`_parse`, `_age_seconds`, `_ACK_LINE`).
 **Interfaces.Produces:** `scripts/sysadmin/mail_escalate.py` — `collect_obligations(root)

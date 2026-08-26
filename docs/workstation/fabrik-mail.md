@@ -115,3 +115,35 @@ did its job; distinct from a REFUSED exit 2). The reasons: self-guard · termina
 reply yourself with a plain `--re` (no `--auto` — a human is never gated), or bump the env caps
 (`FABRIK_MAIL_HOP_CAP` / `FABRIK_MAIL_RATE_CAP` / `FABRIK_MAIL_RATE_WINDOW_S`; cap 0 = refuse all
 auto-replies). Pre-check any message with `python scripts/mail.py should-reply <id>`.
+
+## Escalation digest (mail_escalate.py — the daily unacked-obligations Telegram)
+
+`scripts/sysadmin/mail_escalate.py` scans EVERY mailbox for `ack: required` obligations aged
+≥ `FABRIK_MAIL_ESCALATE_DAYS` (default 3) — inbox (regardless of `agent:` — the population is
+UNACKED, never unaddressed), archive strands (claimed, never resolved), and stranded
+`*.md.resolving*` windows (mtime-aged) — and sends AT MOST ONE Telegram per LOCAL calendar day
+via `libs.alerting.send_alert` (day-stamp written only after a successful send). Oldest ≤20
+rows (`id · repo · sender · age · agent`), plain-text sanitized; the `+K more (total)` count
+line always survives. Failure is fail-soft: exit 0, loud in the log, retried ≤6 h later by the
+no-stamp rule.
+
+### Install (operator — crontab writes are classifier-blocked for agents)
+
+One-time:
+
+```bash
+sudo touch /var/log/fabrik-mail-escalate.log && sudo chown $USER: /var/log/fabrik-mail-escalate.log
+sudo cp /opt/fabrik/configs/logrotate/fabrik-mail-escalate /etc/logrotate.d/
+```
+
+Cron line (`crontab -e`; the `FABRIK_MAIL_ESCALATE_DAYS=` prefix IS the override point — cron
+reads no `.env`, and the alerting dotenv allowlist excludes this key):
+
+```
+0 */6 * * * /bin/sh -c 'mkdir -p $HOME/.claude/state/mail-escalate && cd /opt/fabrik && FABRIK_MAIL_ESCALATE_DAYS=3 flock -n $HOME/.claude/state/mail-escalate/cron.lock python3 scripts/sysadmin/mail_escalate.py' >> /var/log/fabrik-mail-escalate.log 2>&1
+```
+
+`cd /opt/fabrik` is LOAD-BEARING (`libs/alerting` resolves its Telegram credentials by walking
+up from CWD); `mkdir -p` covers the fresh-box lock parent; 6-hourly + the day-stamp = at most
+one message/day, resilient to the box sleeping through any given hour. Registered in
+`.fabrik/liveness-registry.json` (`mail-escalate`) so the liveness audit flags a dead cron.

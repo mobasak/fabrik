@@ -1,0 +1,46 @@
+# Whole-plan review — fabrik-mail addressing enforcement + escalation (v3.1)
+
+Plan: `docs/development/plans/2026-08-25-plan-1-mail-dispatcher.md` (executed 2026-08-26).
+Cumulative surface: Phase A commit `f4023918` (fleet-synced) + the Phase B working set.
+
+## Per-phase verdicts
+
+| Phase | Review artifact | Rounds | Outcome |
+|---|---|---|---|
+| A — send guard + callers + teaching surfaces | `2026-08-26-plan-1-mail-dispatcher-phase-1-review.md` | 3 (23/2/3 raised) | 15 FIXED (incl. 3 CONFIRMED code bugs found by the Opus round: resolvability-keyed exemption → kind-keyed + owner inheritance; kaizen demotion → per-beat obligations; `--re ""` edge) · 12 REFUTED with proof · **0 outstanding** · red-on-revert proven twice |
+| B — escalation digest + install + docs + triage | `2026-08-26-plan-1-mail-dispatcher-phase-2-review.md` | 2 (23/0 raised) | 14 FIXED (incl. 2 contract-falsifiers: unguarded send crash; post-delivery stamp-write storm; mutation-hardened suite: every round-1 surviving mutant now has a killer) · 9 REFUTED/ACCEPTED with proof · **0 outstanding** |
+
+## Behavior-contract coverage
+
+Every plan Behavior Contract row maps to a passing test: Phase A → `tests/test_mail_addressing.py`
+(22 tests; refusal/no-write, exit-2 + guide, secret-outranks, fabrik-lib literal, non-hub no-op,
+typo'd beat at send AND route, broadcast semantics + effective-ack contradiction, reply exemption
+both directions + owner inheritance, HOLD stays exit 3, stdout path-only, caller pins + twin
+byte-equality) + the 62 updated `tests/test_mail.py` sites (rule-governed). Phase B →
+`tests/test_mail_escalate.py` (22 tests; unacked-not-unaddressed, strands + windows, dotfiles all
+legs, inclusive boundary (unit-pinned comparator), env override + garbage fallback, local-date
+stamp incl. UTC-midnight crossing, stamp-after-success + write-failure warn, send-raise fail-soft,
+per-repo fail-soft scan, digest cap/trim/count/oldest-first/metachars all fields, lazy seam) +
+the registry pin in `tests/test_liveness_audit.py`.
+
+## Final proofs (run this session, in order)
+
+```
+$ uv run pytest tests/test_mail_escalate.py tests/test_mail_addressing.py tests/test_mail.py tests/test_liveness_audit.py tests/test_kaizen_collect_v2.py -q
+406 passed
+$ python scripts/final_gate.py --check --json   → "status": "success"
+$ python scripts/enforcement/check_doc_sync.py  → clean
+```
+
+Docs-review: pool reconciler CLEAN over the 11-doc changed surface; every "unverifiable" it
+listed was independently verified at source this session (test count, `_env_cap` default,
+`DOTENV_KEYS`, cron-env behavior).
+
+Triage receipt: 6 messages routed to their beats · 11 broadcast-class deliberately left
+(10 quota advisories + the kaizen daily) · stray `/opt/fabrik-mail/inbox/` removed. Post-guard
+live state: dogfooded — this run's own hub-bound sends passed through the new guard.
+
+Operator hand-off (the ONLY unfinished surface, by design — crontab writes are
+classifier-blocked): the install block in `docs/workstation/fabrik-mail.md` § Escalation digest
+(log pre-create + logrotate `sudo cp` + the cron line). Until installed, the liveness registry
+row reads DEAD/unscheduled by declared expectation.

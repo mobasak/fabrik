@@ -363,6 +363,19 @@
     "command_contains": "session_orient.py"
    },
    "doc": "docs/workstation/hooks-index.md"
+  },
+  {
+   "id": "mail-escalate",
+   "kind": "cron",
+   "why": "the daily unacked-obligation Telegram digest \u2014 without it aged ack:required mail rots invisibly (the measured 22-obligation failure). Crontab line NOT yet installed (operator action, docs/workstation/fabrik-mail.md \u00a7 Escalation) \u2014 until then DEAD/unscheduled is the EXPECTED verdict",
+   "cron_match": "mail_escalate.py",
+   "evidence": {
+    "type": "log",
+    "path": "/var/log/fabrik-mail-escalate.log"
+   },
+   "max_age_hours": 54,
+   "max_age_note": "quiet days write one no-send line per day at most (the suppressed-path print) \u2014 54h = two missed days' slack, the kaizen daily precedent",
+   "doc": "docs/workstation/fabrik-mail.md"
   }
  ]
 }

@@ -140,13 +140,24 @@ UserPromptSubmit exit would block prompts fleet-wide). `/fabrik-upstream` PROJEC
 proposals through mail. Conventions: `docs/reference/fabrik-mail.md`. Layer 2 (native cross-session
 messaging ≥2.1.224) is adopted post-upgrade — deferred by fact.
 
+**Addressing enforcement + escalation (2026-08-26, Layer 1.5):** the shared three-agent hub
+mailbox refuses an unaddressed `send --to fabrik` (exit 2 + the three-beat guide) — `--to-agent
+infra|fleet|intel`, explicit `--broadcast` (refuses `ack:required`: an obligation nobody owns
+cannot be acked), or a `kind: reply` thread (exempt by kind; inherits the parent's owner). Typo'd
+beats refused at `send` and `route`. Destination side: `scripts/sysadmin/mail_escalate.py` — a
+6-hourly cron (≤1 Telegram/local-day via day-stamp) escalating `ack: required` obligations aged
+≥3 days across ALL mailboxes, in three populations (inbox regardless of addressee · archive
+strands · stranded resolve-windows). The dispatcher alternative (tier-0 regex + Haiku
+classification, probe-measured 85.2%) was REJECTED at the operator's frame-break — enforcement
+at the source beats routing at the destination (spec § Rejected alternative E).
+
 ---
 
 ## Quick Reference
 
 | Feature | Status | Audience | Headline |
 |---------|--------|----------|----------|
-| [fabrik-mail](#fabrik-mail--durable-hubproject-ai-mail-2026-08-11) | ✅ Shipped | Developer | Durable hub↔project AI mail — file mailbox + one fleet-synced fail-open surfacing hook; replaces operator-as-transport |
+| [fabrik-mail](#fabrik-mail--durable-hubproject-ai-mail-2026-08-11) | ✅ Shipped | Developer | Durable hub↔project AI mail — file mailbox + surfacing hook; addressing ENFORCED at send (2026-08-26) + daily obligation escalation; replaces operator-as-transport |
 | [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
 | [Deploy Command Triad](#deploy-command-triad) | ✅ Shipped | Operator | `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` — plan-governed, evidence-bound deploys wrapping `fabrik apply` |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |

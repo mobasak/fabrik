@@ -260,7 +260,7 @@ mints replies with no `hops` line (read as 0) — the hop cap is weak across mix
 fail-soft path (a parent that cannot be resolved at all — dangling id, prose ref, or a
 parent in another repo's box) NO guard is evaluated, so the rate cap is not a backstop
 there either; that path is deliberately fail-soft (a wedged channel is worse) and is why
-the dispatcher must pass a resolvable `--re` from its own mailbox. Env overrides: `FABRIK_MAIL_HOP_CAP` · `FABRIK_MAIL_RATE_CAP` ·
+an unattended auto-replier must pass a resolvable `--re` from its own mailbox. Env overrides: `FABRIK_MAIL_HOP_CAP` · `FABRIK_MAIL_RATE_CAP` ·
 `FABRIK_MAIL_RATE_WINDOW_S` (an explicit cap of 0 = refuse all auto-replies; a below-1 window warns and uses the default).
 
 **These guards are a circuit breaker, not authentication.** The self-guard and the rate cap both
@@ -306,3 +306,16 @@ AI ONCE (fabrik-lib is mail-deaf until the hook lands there); after that fabrik-
 > 6. RESTART the systemd unit after editing the watcher (`systemctl --user`/`sudo systemctl` per its
 >    install) or the old inotify target keeps running until reboot.
 > `ack: required` — reply to `fabrik` with the disposition when done.
+
+
+## Escalation digest (hub-side cron — the destination-side backstop)
+
+Sender-side enforcement makes NEW hub mail carry an owner; `scripts/sysadmin/mail_escalate.py`
+covers the other half — recipients not ACTING. Every ≤6 h (cron + a local-date day-stamp = at
+most one Telegram/day) it scans EVERY mailbox for `ack: required` obligations aged ≥
+`FABRIK_MAIL_ESCALATE_DAYS` (default 3) in three populations: inbox mail regardless of `agent:`
+(the population is UNACKED, never unaddressed — an addressed-but-ignored obligation still
+escalates), archive strands (claimed, no `acked-by:` line), and stranded `*.md.resolving*`
+windows (mtime-aged). Delivery via `libs.alerting.send_alert`; plain-text sanitized rows,
+oldest ≤20 + an always-surviving total. Install + override mechanics (operator-owned):
+`docs/workstation/fabrik-mail.md` § Escalation digest.

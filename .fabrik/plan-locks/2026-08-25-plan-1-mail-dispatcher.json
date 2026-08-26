@@ -1,0 +1,33 @@
+{
+ "plan": "docs/development/plans/archived/2026-08-25-plan-1-mail-dispatcher.md",
+ "owned_paths": [
+  "scripts/mail.py",
+  "tests/test_mail.py",
+  "tests/test_mail_addressing.py",
+  "tests/test_mail_escalate.py",
+  "tests/fixtures/mail_escalate/",
+  "scripts/sysadmin/claude_rotate.py",
+  "scripts/aro-wake/claude_rotate.py",
+  "scripts/sysadmin/kaizen_collect_v2.py",
+  "scripts/sysadmin/mail_escalate.py",
+  "scripts/enforcement/check_vendored_drift.py",
+  "templates/governance/CLAUDE.md",
+  "commands/_sources/fabrik-upstream.md",
+  "commands/assemble_commands.py",
+  "configs/logrotate/fabrik-mail-escalate",
+  "docs/reference/fabrik-mail.md",
+  "docs/workstation/fabrik-mail.md",
+  "docs/workstation/kaizen.md",
+  "docs/STRATEGIC_BACKLOG.md",
+  "docs/CONFIGURATION.md",
+  ".env.example",
+  ".fabrik/liveness-registry.json",
+  "docs/workstation/liveness.md",
+  "docs/development/reviews/2026-08-25-plan-1-mail-dispatcher-review.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-26T13:40:48.939033",
+ "status": "released",
+ "baseline_commit": "7fa52608d473226838d0207069c113bd72ff5134",
+ "completed_at": "2026-08-26T14:34:56.276175"
+}
