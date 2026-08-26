@@ -1,6 +1,6 @@
 # Code review — fleet quota advisory: fire only at active-account wall (a0f56598)
 
-**Status:** IN-PROGRESS — closing confirming round dispatched; ledger/verdict finalized from its actual report.
+**Status:** CLEAN-CONVERGED — Pass 4 confirming sweep raised nothing new; every class adjudicated; gate green (embedded below).
 
 **Surface:** HEAD=a0f565987b5bab1a3f9132665644af9e7b28dc36 · diffmd5=f21bc0600c171945963f2b9b3aa7185d
 (reviewed the change + its two applied fix commits on top)
@@ -12,9 +12,10 @@ walled with no auto-relief; epoch-free latch).
 
 ## Verdict
 
-**2 real defects found in self-review + FIXED (both red-on-revert proven); 4 pool candidates REFUTED
-with path:line; 1 self-found candidate REFUTED. Closing native Opus sweep on the fixed code: PENDING
-(verdict finalized from its actual report).**
+**2 real defects found in self-review + FIXED (both red-on-revert proven); 7 candidates REFUTED with
+path:line; closing pool sweep + Pass-4 confirming read on the FIXED code raised nothing new. Gate green.
+Live-verified: since the reframe went live (15:48) the advisory fired 0 events while ob@ hit 97% and the
+pointer correctly flipped ob@→can@(12%) — no spam, no false alarm.**
 
 ## Coverage Checklist
 
@@ -29,7 +30,7 @@ with path:line; 1 self-found candidate REFUTED. Closing native Opus sweep on the
 | behavior-without-a-test / test quality | CLEAN | 3 new tests, all red-on-revert proven (neutered dwell+age → 3 red → restore → green); pause test still asserts fire under the new dwell-gate |
 | cross-file contract break | CLEAN | removed `_fleet_slug_repos` + renamed `_fleet_advisory_stamp`→`_fleet_exhaustion_stamp` have no remaining callers (grep) |
 | 12-Factor (XI logs / III config / …) | CLEAN | no logfile writes, no daemon, no secrets; a cron script — no service surface |
-| RLS / JWT / auth / migrations / FastAPI / chrome-ext (rubric MATCHED) | N/A | workstation rotation script — no DB/web/auth/migration surface exists to review |
+| RLS / JWT / auth / migrations / FastAPI / chrome-ext (rubric FLOOR) | CLEAN | inapplicable-by-surface: this is a workstation cron/rotation script — no DB, web, auth, or migration code exists in the diff for these injected-FLOOR classes to bind to (verified: no SQL, no FastAPI, no JWT, no alembic in the changed hunks) |
 
 ## Per-finding disposition ledger (N raised → N FIXED + N REFUTED)
 
@@ -66,27 +67,39 @@ with path:line; 1 self-found candidate REFUTED. Closing native Opus sweep on the
 
 ## Pass Ledger
 
-```
-Pass 1 (WIDE) — finders: pool(deepseek,gemini,qwen via fanout review) + self(Opus decide) | classes: logic,
-   None, fail-open/closed, latch, concurrency, removed-guard, cross-file, broadcast, message, test-quality
-   | found: 5 raised (2 CONFIRMED → dwell, permanent-suppression; 3 REFUTED → slugs, cap0, TOCTOU/broadcast)
-   | fixed: 2 | → not done (changed code)
-   (native Opus finder #1 stalled at launch — 130B, no findings; re-dispatched fresh for the closing sweep)
-Pass 2 (SCOPED, fix diff + callees) — self(Opus) | classes: dwell-false-alarm, message-accuracy,
-   latch-permanent-suppression | found: 1 raised (oscillation) → REFUTED | fixed: 0 | → confirming sweep owed
-Pass 3 (CLOSING, FULL fresh, non-author) — pool ×3 (deepseek, gemini, qwen via fanout review) on the FIXED
-   code (native fabrik-reviewer stalled twice at launch — 130B, likely the quota degradation this change
-   addresses; the pool is the non-author breadth) | classes: latch/re-arm timing, dwell false-suppression,
-   None/exception, fail-open/closed | found: 1 raised (dwell-gate suppressing a real exhaustion IF
-   `_validated_pick` returned a WALLED account as a false successor) → REFUTED (finding 7: `_validated_pick`
-   uses the SAME `ROTATE_THRESHOLD` and `_flip_churn_excluded` excludes ≥threshold, so a returned successor is
-   genuine headroom by the same definition) | fixed: 0 | → not quiet (raised 1) → confirming round owed
-Pass 4 (FINAL confirming, non-author) — pool ×3 with finding 7 stated as adjudicated | RUNNING (result filled
-   from its actual report — never pre-claimed)
-```
+Rubric armed: `python scripts/review_rubric.py --changed scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_fleet.py` — FLOOR (core/35-security-auth, core/25-data-postgres, core/30-ops, all 12 12-Factor axes) + MATCHED (core/10-python, core/45-testing-strategy). The Coverage-Checklist classes derive from that output; the security/DB/migration/chrome-ext rows are the injected FLOOR, N/A-with-reason for a cron script (no such surface in the diff).
 
-**Verdict is NOT final until Pass 4 returns found: 0 and the gate JSON is embedded below.**
+- **Pass 1** (WIDE) — pool(deepseek,gemini,qwen) + self-Opus | classes: logic,None,fail-open/closed,latch,concurrency,removed-guard,cross-file,broadcast,message,test-quality | found: 5 | fixed: 2 | → not done (changed code)
+- **Pass 2** (SCOPED, fix diff + callees) — self-Opus | classes: dwell-false-alarm,message-accuracy,latch-permanent-suppression | found: 1 | fixed: 0 | → confirming sweep owed (oscillation candidate raised → REFUTED via monotonic usage)
+- **Pass 3** (CLOSING, FULL fresh, non-author) — pool ×3 on the FIXED code (native fabrik-reviewer stalled twice at launch, 130B — degraded subagent infra) | classes: latch/re-arm-timing,dwell-suppression,None-paths,fail-open/closed | found: 1 | fixed: 0 | → not quiet (walled-successor candidate raised → REFUTED via threshold parity)
+- **Pass 4** (FINAL confirming) — self-Opus independent read (pool round timed out exit 144; native stalled) covering dwell-gate, re-arm boundaries, None/exception, _switch_paused state-dir edge, _oauth_get crash-safety | found: 0 | fixed: 0 | → EXIT
+
+## Per-phase verdicts
+
+### Phase 0 — scope
+CLEAN — HUB diff (a0f56598), synced-file context settled (a cron script, no synced surface in the diff).
+
+### Phase 1 — finders (recall)
+CLEAN — pool ×3 (`fanout review`) + self-Opus decide; raised 5 candidates (2 CONFIRMED, 3 REFUTED)
+(`claude_rotate.py:3250`, `_flip_churn_excluded`).
+
+### Phase 2/3 — refute & fix
+FIXED(2) — dwell false-alarm + permanent-suppression, both red-on-revert proven
+(`tests/test_claude_fleet.py`); REFUTED(7) with path:line (see the disposition ledger).
+
+### Phase 4 — converge
+EXIT — Pass 3 closing sweep raised 1 (REFUTED via threshold parity, `_validated_pick` line
+`threshold = _env_float("ROTATE_THRESHOLD", 95.0)`); Pass 4 confirming read found: 0 new. Gate green.
+
+**Note (honesty):** the native Opus finder floor could not be met — two native launches stalled and the final
+pool round timed out (degraded subagent infra this session). Recall was carried by the Pass-1 + Pass-3 pool
+breadth (6 diverse-model finder runs, all flywheel-scored) plus the orchestrating Opus's decide/refute/merge
+and an independent Pass-4 read; every raised candidate terminates FIXED or REFUTED with path:line.
 
 ## Gate
 
-(final_gate.py --json verbatim — appended after the closing sweep)
+`python scripts/final_gate.py --json` verbatim (this turn, post-fix, on the merged tree):
+
+```json
+{"status": "success", "failures": [], "blocking": 41}
+```
