@@ -481,3 +481,31 @@ def test_masked_scaffolder_failure_is_reported_not_silent(tmp_path, monkeypatch,
         "the swallowed exception TYPE must appear — a broad except that reports nothing is "
         "indistinguishable from the failure never happening"
     )
+
+
+def test_duplicate_types_argument_yields_one_finding(tmp_path, monkeypatch) -> None:
+    """`--types X X` must produce ONE finding, matching the claim count.
+
+    Duplicates in `--types` made `audit_layout` iterate the type twice and append the SAME
+    Finding twice, while `known = set(types)` counted the claim once: findings=2 against
+    claim_pairs=1. Content and count disagreeing is the denominator integrity this check
+    exists to enforce, one level further out. Deduped at the input boundary so a future call
+    site cannot reintroduce it. (D7 round 13.)
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "p.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/zzz-nope.py"]\napplies_to: [file-worker]\n'
+        "description: p\n---\nbody\n"
+    )
+    try:
+        result = _run_json(tmp_path, ["file-worker", "file-worker"])
+    finally:
+        _pla._emitted_paths_for_type.cache_clear()
+
+    assert len(result["findings"]) == 1, "a repeated --types value is one type, not two"
+    assert result["claim_pairs"] == 1
+    assert len(result["findings"]) == result["claim_pairs"], "content and count must agree"

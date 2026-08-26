@@ -328,8 +328,11 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
     rounds read the quoted-and-corrected version as a live claim and re-reported it. A
     correction that keeps repeating the error it corrects is a trap for the next reader.)
     The uniform reading holds for `**/` ONLY. `_strip_wildcards`
-    does `lstrip("/")` FIRST, so `/**` and `**` survive as `'**'`, reach `_tail_matches`,
-    and match EVERYTHING. Measured against ("worker/main.py", "Dockerfile"):
+    strips a LEADING `**/` and a TRAILING `/**`, and `**` matches neither pattern — `/**`
+    loses its slash to `lstrip("/")` and then also matches neither. Both therefore survive
+    as `'**'`, reach `_tail_matches`, and match EVERYTHING. (Said precisely because an
+    earlier wording implied `**` passes through `lstrip("/")`; it has no leading slash to
+    strip. Same outcome, wrong route.) Measured against ("worker/main.py", "Dockerfile"):
 
         glob='**/'  this=False  rules_match(empty_matches_all=True)=True   select_rules=False
         glob='/**'  this=True   rules_match=True                            select_rules=True
@@ -413,7 +416,12 @@ def main() -> int:
     args = ap.parse_args()
     root = args.project_root.resolve()
 
-    types = args.types
+    # DEDUPE at the input boundary. `--types file-worker file-worker` made audit_layout
+    # iterate the type twice and emit the SAME Finding twice, while `known = set(types)`
+    # counted the claim once — content and count disagreeing, which is the denominator
+    # integrity this check exists to enforce, one level further out. Fixing it here rather
+    # than at each consumer means a future call site cannot reintroduce it. (D7 round 13.)
+    types = list(dict.fromkeys(args.types)) if args.types else args.types
     if types is None:
         try:
             _import_create_project()  # ensures the hub's `src.fabrik` is on sys.path

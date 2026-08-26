@@ -99,7 +99,12 @@ def main() -> int:
     args = ap.parse_args()
     root = args.project_root.resolve()
 
-    types = args.types
+    # DEDUPE at the input boundary. `--types file-worker file-worker` made audit_layout
+    # iterate the type twice and emit the SAME Finding twice, while `known = set(types)`
+    # counted the claim once — content and count disagreeing, which is the denominator
+    # integrity this check exists to enforce, one level further out. Fixing it here rather
+    # than at each consumer means a future call site cannot reintroduce it. (D7 round 13.)
+    types = list(dict.fromkeys(args.types)) if args.types else args.types
     if types is None:
         try:
             pla._import_create_project()  # ensures the hub's `src.fabrik` is on sys.path
