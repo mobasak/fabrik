@@ -93,7 +93,7 @@ def test_ulid_no_collision_same_ms(env, monkeypatch):
 # ---------------------------------------------------------------------------
 def test_publish_exclusive_create_no_overwrite(env):
     inbox = env["mail_root"] / "fabrik" / "inbox"
-    p1 = mail.send(to="fabrik", kind="finding", body="first", frm="alpha")
+    p1 = mail.send(to="fabrik", to_agent="infra", kind="finding", body="first", frm="alpha")
     assert p1.exists()
     original = p1.read_text()
     # force the same id -> second publish must raise, never overwrite
@@ -118,7 +118,7 @@ def test_star_topology_refuses_project_to_project(env):
 
 def test_star_allows_hub_edges(env):
     # project -> hub, and hub -> project, both allowed
-    assert mail.send(to="fabrik", kind="finding", body="up", frm="alpha").exists()
+    assert mail.send(to="fabrik", to_agent="infra", kind="finding", body="up", frm="alpha").exists()
     assert mail.send(to="alpha", kind="request", body="down", frm="fabrik").exists()
     # fabrik-lib is a first-class node (hub edge)
     assert mail.send(to="fabrik-lib", kind="upstream-feedback", body="x", frm="alpha").exists()
@@ -145,7 +145,7 @@ def test_send_creates_recipient_inbox_lazily(env):
 def test_send_refuses_high_confidence_secret(env):
     body = "here is the key\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY\n"
     with pytest.raises(mail.MailRefusedError) as ei:
-        mail.send(to="fabrik", kind="finding", body=body, frm="alpha")
+        mail.send(to="fabrik", to_agent="infra", kind="finding", body=body, frm="alpha")
     assert "secret" in str(ei.value).lower()
     # nothing written
     assert (
@@ -161,12 +161,12 @@ def test_send_refuses_pem_header(env):
     header = "-----BEGIN RSA " + "PRIVATE KEY-----"
     body = f"{header}\nMIIEabc...\n"
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body=body, frm="alpha")
+        mail.send(to="fabrik", to_agent="infra", kind="finding", body=body, frm="alpha")
 
 
 def test_send_warns_low_confidence_but_delivers(env, capsys):
     # a lone 'password' word is low-confidence: warn, still send
-    p = mail.send(to="fabrik", kind="finding", body="remember your password policy", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="finding", body="remember your password policy", frm="alpha")
     assert p.exists()
     err = capsys.readouterr().err.lower()
     assert "warn" in err or "low-confidence" in err
@@ -178,20 +178,20 @@ def test_send_warns_low_confidence_but_delivers(env, capsys):
 def test_send_refuses_oversized_body(env):
     big = "x" * (64 * 1024 + 1)
     with pytest.raises(mail.MailRefusedError) as ei:
-        mail.send(to="fabrik", kind="finding", body=big, frm="alpha")
+        mail.send(to="fabrik", to_agent="infra", kind="finding", body=big, frm="alpha")
     assert "64" in str(ei.value) or "cap" in str(ei.value).lower()
 
 
 def test_send_allows_body_at_cap(env):
     ok = "x" * (64 * 1024)
-    assert mail.send(to="fabrik", kind="finding", body=ok, frm="alpha").exists()
+    assert mail.send(to="fabrik", to_agent="infra", kind="finding", body=ok, frm="alpha").exists()
 
 
 # ---------------------------------------------------------------------------
 # ack / requeue / digest
 # ---------------------------------------------------------------------------
 def test_ack_moves_to_archive_and_appends_line(env):
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")  # ack:required by kind
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")  # ack:required by kind
     mid = p.name.removesuffix(".md")
     arch = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert arch.exists() and not p.exists()
@@ -200,7 +200,7 @@ def test_ack_moves_to_archive_and_appends_line(env):
 
 
 def test_ack_loser_gets_enoent(env):
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     with pytest.raises(FileNotFoundError):
@@ -208,14 +208,14 @@ def test_ack_loser_gets_enoent(env):
 
 
 def test_ack_required_default_by_kind(env):
-    req = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
-    fnd = mail.send(to="fabrik", kind="finding", body="y", frm="alpha")
+    req = mail.send(to="fabrik", to_agent="infra", kind="request", body="x", frm="alpha")
+    fnd = mail.send(to="fabrik", to_agent="infra", kind="finding", body="y", frm="alpha")
     assert "ack: required" in req.read_text()
     assert "ack: no" in fnd.read_text()
 
 
 def test_digest_counts_claimed_without_ackline_as_unacked(env):
-    p = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="x", frm="alpha")
     mid = p.name.removesuffix(".md")
     # simulate a crashed claimer: move to archive with NO acked-by line
     arch_dir = env["mail_root"] / "fabrik" / "archive"
@@ -229,7 +229,7 @@ def test_digest_counts_claimed_without_ackline_as_unacked(env):
 
 
 def test_digest_never_counts_ack_no(env):
-    mail.send(to="fabrik", kind="finding", body="fyi", frm="alpha")  # ack:no
+    mail.send(to="fabrik", to_agent="infra", kind="finding", body="fyi", frm="alpha")  # ack:no
     d = mail.digest(days=0)
     assert d["unacked"] == 0
 
@@ -237,7 +237,7 @@ def test_digest_never_counts_ack_no(env):
 def test_digest_counts_unclaimed_required_over_threshold(env, monkeypatch):
     # an old ack:required still in inbox is unacked
     monkeypatch.setattr(mail.time, "time_ns", lambda: 1_000 * 1_000_000)  # ancient ts
-    mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    mail.send(to="fabrik", to_agent="infra", kind="request", body="x", frm="alpha")
     d = mail.digest(days=3)
     assert d["unacked"] >= 1
 
@@ -271,7 +271,7 @@ def test_ack_rejects_traversal_msg_id(env):
 
 
 def test_ack_rejects_traversal_repo(env):
-    p = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="x", frm="alpha")
     mid = p.name.removesuffix(".md")
     with pytest.raises(mail.MailRefusedError):
         mail.ack(msg_id=mid, repo="../../etc", disposition="done")
@@ -291,7 +291,7 @@ def test_digest_not_fooled_by_acked_by_prose_in_body(env):
     # a request (ack:required) whose BODY casually mentions "acked-by:" must NOT
     # be treated as acked when archived without a REAL ack line (old substring bug).
     p = mail.send(
-        to="fabrik",
+        to="fabrik", to_agent="infra",
         kind="request",
         body="the boss said acked-by: someone should handle this",
         frm="alpha",
@@ -315,20 +315,20 @@ def test_parse_quarantines_empty_id_or_kind(env):
 def test_send_refuses_jwt(env):
     jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N"
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body=f"token: {jwt}", frm="alpha")
+        mail.send(to="fabrik", to_agent="infra", kind="finding", body=f"token: {jwt}", frm="alpha")
 
 
 def test_send_refuses_bearer_and_db_url(env):
     with pytest.raises(mail.MailRefusedError):
         mail.send(
-            to="fabrik",
+            to="fabrik", to_agent="infra",
             kind="finding",
             body="Authorization: Bearer abcdef1234567890XYZ",
             frm="alpha",
         )
     with pytest.raises(mail.MailRefusedError):
         mail.send(
-            to="fabrik",
+            to="fabrik", to_agent="infra",
             kind="finding",
             body="db at postgresql://user:s3cretpass@host:5432/db",
             frm="alpha",
@@ -343,14 +343,14 @@ def test_send_refuses_anthropic_and_aws_session_and_github_pat(env):
         "pat: github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz012345",
     ):
         with pytest.raises(mail.MailRefusedError):
-            mail.send(to="fabrik", kind="finding", body=body, frm="alpha")
+            mail.send(to="fabrik", to_agent="infra", kind="finding", body=body, frm="alpha")
 
 
 def test_send_refuses_redis_url_without_user(env):
     # native review F3: redis://:pw@ has an EMPTY username — must still refuse
     with pytest.raises(mail.MailRefusedError):
         mail.send(
-            to="fabrik",
+            to="fabrik", to_agent="infra",
             kind="finding",
             body="cache at redis://:sup3rs3cr3tpw@10.99.0.1:6379/0",
             frm="alpha",
@@ -360,7 +360,7 @@ def test_send_refuses_redis_url_without_user(env):
 def test_digest_excludes_properly_acked_message(env):
     # whole-plan seam: the ack line ack() WRITES must match the _ACK_LINE regex
     # digest READS, so a resolved message is never nagged (silent-drift guard).
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert mail.digest(days=0)["unacked"] == 0
@@ -369,7 +369,7 @@ def test_digest_excludes_properly_acked_message(env):
 def test_ack_rejects_unknown_disposition(env):
     # DISPOSITIONS SSOT: ack() validates its arg (a disposition not in the set that
     # _ACK_LINE matches would else archive a message digest counts unacked forever).
-    p = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="x", frm="alpha")
     mid = p.name.removesuffix(".md")
     with pytest.raises(mail.MailRefusedError):
         mail.ack(msg_id=mid, repo="fabrik", disposition="maybe")
@@ -378,7 +378,7 @@ def test_ack_rejects_unknown_disposition(env):
 def test_ack_line_regex_matches_every_disposition(env):
     # the _ACK_LINE regex (digest reader) matches what ack() writes for EACH disposition
     for disp in mail.DISPOSITIONS:
-        p = mail.send(to="fabrik", kind="request", body=f"do {disp}", frm="alpha")
+        p = mail.send(to="fabrik", to_agent="infra", kind="request", body=f"do {disp}", frm="alpha")
         mid = p.name.removesuffix(".md")
         arch = mail.ack(msg_id=mid, repo="fabrik", disposition=disp)
         assert mail._ACK_LINE.search(arch.read_text()), disp
@@ -387,7 +387,7 @@ def test_ack_line_regex_matches_every_disposition(env):
 def test_requeue_strips_stale_ack_line(env):
     # fabrik-lib production finding: claim-via-ack asserts a disposition, and requeue must NOT
     # carry that stale `acked-by: … done` marker back into the next reader's inbox.
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.ack(msg_id=mid, repo="fabrik", disposition="done")  # claim + (prematurely) assert done
     back = mail.requeue(msg_id=mid, repo="fabrik")
@@ -402,7 +402,7 @@ def test_requeue_strips_stale_ack_line(env):
 def test_claim_moves_without_ack_line(env):
     """claim = the rename lock ALONE — no acked-by/disposition line (the honest
     claim-first-then-work verb; ack stays the resolve)."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     arch = mail.claim(msg_id=mid, repo="fabrik")
     assert arch.exists() and not p.exists()
@@ -410,7 +410,7 @@ def test_claim_moves_without_ack_line(env):
 
 
 def test_claim_loser_gets_enoent(env):
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     with pytest.raises(FileNotFoundError):
@@ -420,7 +420,7 @@ def test_claim_loser_gets_enoent(env):
 def test_ack_after_claim_appends_in_place(env):
     """A claimed (archived) message is resolvable: ack appends the disposition line
     to the archived file without requiring it back in the inbox."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
@@ -430,7 +430,7 @@ def test_ack_after_claim_appends_in_place(env):
 def test_requeue_after_claim_carries_no_stale_marker(env):
     """claim → requeue → the re-opened message is marker-free (regression: the
     _ACK_LINE strip covers the claim path too)."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     back = mail.requeue(msg_id=mid, repo="fabrik")
@@ -488,9 +488,9 @@ def test_send_refuses_body_with_verbatim_ack_line(env):
     to indent-quote ('> acked-by: …')."""
     bad = "relaying the thread:\nacked-by: fabrik · ts: 2026-08-12T00:00:00Z · disposition: done\n"
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body=bad, frm="alpha")
+        mail.send(to="fabrik", to_agent="infra", kind="finding", body=bad, frm="alpha")
     ok = "relaying the thread:\n> acked-by: fabrik · ts: X · disposition: done\n"
-    assert mail.send(to="fabrik", kind="finding", body=ok, frm="alpha").exists()
+    assert mail.send(to="fabrik", to_agent="infra", kind="finding", body=ok, frm="alpha").exists()
 
 
 def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
@@ -501,7 +501,7 @@ def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
     import os as _os
     import time as _time
 
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     _os.utime(p, (_time.time() - 300, _time.time() - 300))  # OLD message (closer E1: renames
     # preserve mtime — the gate must measure the WINDOW's age, never the message's)
@@ -527,7 +527,7 @@ def test_ack_fallback_window_excludes_a_second_acker(env, monkeypatch):
 def test_stale_resolving_orphan_is_swept_and_resolvable(env):
     """Closer D1: a resolver killed mid-window (SIGKILL/OOM) leaves <id>.md.resolving —
     invisible to ack/claim/requeue/read/digest. ack must sweep the orphan back and resolve."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
@@ -545,7 +545,7 @@ def test_stale_resolving_orphan_is_swept_and_resolvable(env):
 def test_digest_counts_stale_resolving_as_unacked(env):
     """Closer D1 (visibility half): a stranded .resolving file must show in the digest,
     never report a clean mailbox while a message is invisible."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
@@ -564,7 +564,7 @@ def test_window_isolation_requeue_and_reclaim_both_locked_out(env, monkeypatch):
     """Closer E2 (the fake-raise version proved nothing): with the unified per-process
     resolve window, a REAL append runs while requeue AND a fresh re-claim both attempt to
     interleave — both must ENOENT, the resolve lands exactly once on the original."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     real_append = mail._append_ack_line
@@ -596,7 +596,7 @@ def test_multiple_stale_orphans_all_cleared(env):
     import os as _os
     import time as _time
 
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = mail._mail_root() / "fabrik" / "archive" / f"{mid}.md"
@@ -621,7 +621,7 @@ def test_window_never_carries_stale_mtime(env, monkeypatch):
     import os as _os
     import time as _time
 
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     _os.utime(p, (_time.time() - 300, _time.time() - 300))
     mail.claim(msg_id=mid, repo="fabrik")
@@ -1311,7 +1311,8 @@ def test_prose_re_with_spaces_still_allowed(env):
     """P2-1 counter-direction: the R1 prose fail-soft survives — only line
     separators are refused, not ordinary text."""
     out = mail.send(
-        "fabrik", "request", "x", frm="alpha", re="U3: is validate_conventions the path"
+        "fabrik", "request", "x", frm="alpha", to_agent="infra",
+        re="U3: is validate_conventions the path",
     )
     assert out.is_file()
 
@@ -1343,10 +1344,10 @@ def test_ack_field_cannot_inject_frontmatter(env):
     the self-guard) and can plant an acked-by line (permanently un-ackable +
     digest-invisible). Same splitlines() test as --re, plus a vocabulary check."""
     with pytest.raises(mail.MailRefusedError, match="ack"):
-        mail.send("fabrik", "request", "x", frm="alpha", ack="required\nfrom: attacker")
+        mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="required\nfrom: attacker")
     with pytest.raises(mail.MailRefusedError, match="ack"):
-        mail.send("fabrik", "request", "x", frm="alpha", ack="bogus")
-    assert mail.send("fabrik", "request", "x", frm="alpha", ack="required").is_file()
+        mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="bogus")
+    assert mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="required").is_file()
 
 
 def test_should_reply_unsafe_repo_holds_not_allows(env, capsys):
@@ -1421,7 +1422,7 @@ def test_ack_survives_undecodable_bytes(env):
 def test_empty_ack_still_means_kind_default(env):
     """P4-6: ack='' is the legacy 'use the kind default' idiom — the P3-1
     vocabulary check must not break it."""
-    out = mail.send("fabrik", "request", "x", frm="alpha", ack="")
+    out = mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="")
     assert mail._parse(out.read_text(encoding="utf-8")).get("ack") == "required"
 
 
@@ -1800,7 +1801,7 @@ def test_requeue_preserves_a_body_that_never_had_an_ack_line(env):
     truncated on the first claim->requeue — with no ack ever appended, which is
     not what its docstring or the reference doc describe."""
     body = "hello world\n\n\n   \n"
-    p = mail.send(to="fabrik", kind="request", body=body, frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body=body, frm="alpha")
     mid = p.name.removesuffix(".md")
     before = (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").read_text(encoding="utf-8")
     mail.claim(msg_id=mid, repo="fabrik")
@@ -1813,7 +1814,7 @@ def test_digest_does_not_count_a_fresh_resolving_window(env):
     """P14-4: the resolving leg counted EVERY window unconditionally, ignoring
     the age threshold its own docstring promises — so a healthy in-flight ack()
     running while the digest cron fires reported a phantom unacked message."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
@@ -1883,7 +1884,7 @@ def test_dsn_password_containing_a_slash_is_refused(env):
     body = "DATABASE_URL: postgres://admin:s3cr3t/with/slash@host:5432/db"
     assert mail._secret_level(body) == "high"
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="finding", body=body, frm="alpha")
+        mail.send(to="fabrik", to_agent="infra", kind="finding", body=body, frm="alpha")
 
 
 def test_dsn_with_a_capitalised_scheme_is_refused(env):
@@ -1920,7 +1921,7 @@ def test_the_widened_patterns_do_not_refuse_an_ordinary_doc_link(env):
     with a path and an anchor is NOT a credential, and neither is prose."""
     assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
     assert mail._secret_level("the deploy ran at 10:00@vps1 and passed") is None
-    p = mail.send(to="fabrik", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha")
     assert p.is_file()
 
 
@@ -1944,7 +1945,7 @@ def test_dsn_scheme_urls_fail_closed_even_when_ambiguous(env):
     assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
     assert mail._secret_level("the deploy ran at 10:00@vps1 and passed") is None
     assert mail.send(
-        to="fabrik", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha"
+        to="fabrik", to_agent="infra", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha"
     ).is_file()
     # …and every genuine credential shape stays refused.
     for real in (
@@ -1970,7 +1971,7 @@ def test_requeue_keeps_undecodable_bytes_while_stripping_an_ack_line(env):
     test used ASCII with an ack line, the other undecodable bytes with NO ack
     line, so the write-back branch was never entered with a lossy body. Dropping
     the gate durably rewrites the byte to U+FFFD."""
-    p = mail.send(to="fabrik", kind="request", body="do X", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
@@ -2017,7 +2018,7 @@ def test_a_stray_directory_does_not_shadow_a_real_message_elsewhere(env):
     loop — so a stray directory at `inbox/<id>.md` aborted the search before
     `archive/` (and the resolving-window and malformed fallbacks) were ever tried.
     A perfectly readable archived parent became a spurious HOLD."""
-    p = mail.send(to="fabrik", kind="request", body="the real parent", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="the real parent", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")  # now lives in archive/
     (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").mkdir(parents=True)
@@ -2032,9 +2033,9 @@ def test_max_re_boundary_is_bound(env):
     empty — so mutating `>` to `>=` (refusing a legal 512-char ref) survived the
     whole suite. Both sides of the boundary now bite."""
     ok = "x" * mail.MAX_RE
-    assert mail.send(to="fabrik", kind="reply", body="b", frm="alpha", re=ok).is_file()
+    assert mail.send(to="fabrik", kind="reply", body="b", frm="alpha", to_agent="infra", re=ok).is_file()
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="reply", body="b", frm="alpha", re="x" * (mail.MAX_RE + 1))
+        mail.send(to="fabrik", kind="reply", body="b", frm="alpha", to_agent="infra", re="x" * (mail.MAX_RE + 1))
 
 
 def test_digest_age_threshold_is_inclusive_on_both_legs(env):
@@ -2048,7 +2049,7 @@ def test_digest_age_threshold_is_inclusive_on_both_legs(env):
     _mint(env, "alpha", "fabrik", "request", "required", ts=ts)
     assert mail.digest(days=1)["unacked"] == 1, "age == threshold COUNTS (inbox leg)"
     # the archive .resolving leg, same boundary
-    p = mail.send(to="fabrik", kind="request", body="x", frm="alpha")
+    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="x", frm="alpha")
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")
     arch = env["mail_root"] / "fabrik" / "archive" / f"{mid}.md"
@@ -2232,7 +2233,7 @@ def test_every_credential_url_refuses_with_no_placeholder_exemption(env):
         "found: postgres:// user:REDACTED @dbhost/finaldb",
     ):
         assert mail._secret_level(quotable) != "high", quotable
-        assert mail.send(to="fabrik", kind="finding", body=quotable, frm="alpha").is_file()
+        assert mail.send(to="fabrik", to_agent="infra", kind="finding", body=quotable, frm="alpha").is_file()
     # Ordinary doc links are untouched.
     assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
 
@@ -2254,7 +2255,7 @@ def test_agent_addressing_routes_within_one_shared_mailbox(env):
         to="fabrik", kind="finding", body="mine", frm="fabrik", to_agent="infra"
     ).name.removesuffix(".md")
     everyones = mail.send(
-        to="fabrik", kind="finding", body="everyones", frm="fabrik"
+        to="fabrik", kind="finding", body="everyones", frm="fabrik", broadcast=True
     ).name.removesuffix(".md")
 
     by_id = {m["id"]: m for m in mail.list_msgs("fabrik")}
@@ -2302,15 +2303,15 @@ def test_send_warns_on_a_duplicate_open_report_but_never_refuses(env, capsys):
     the sender threads instead — but NEVER refuse: today's advisory bug proved
     that suppressing a repeat also suppresses a genuine escalation."""
     subject = "command_run.py shares one nosession.json across repos"
-    mail.send(to="fabrik", kind="finding", body=subject + "\n\nfirst report", frm="alpha")
+    mail.send(to="fabrik", to_agent="infra", kind="finding", body=subject + "\n\nfirst report", frm="alpha")
     capsys.readouterr()
-    p = mail.send(to="fabrik", kind="finding", body=subject + "\n\nsecond report", frm="beta")
+    p = mail.send(to="fabrik", to_agent="infra", kind="finding", body=subject + "\n\nsecond report", frm="beta")
     err = capsys.readouterr().err
     assert p.is_file(), "a duplicate must still be DELIVERED — never refused"
     assert "similar open message" in err and "--re" in err, err
     # an unrelated subject stays quiet
     capsys.readouterr()
-    mail.send(to="fabrik", kind="finding", body="unrelated topic entirely\n\nx", frm="alpha")
+    mail.send(to="fabrik", to_agent="infra", kind="finding", body="unrelated topic entirely\n\nx", frm="alpha")
     assert "similar open message" not in capsys.readouterr().err
 
 
@@ -2325,7 +2326,7 @@ def test_send_warns_on_a_duplicate_open_report_but_never_refuses(env, capsys):
 
 
 def test_route_sets_the_addressee_on_an_existing_message(env):
-    mid = mail.send("fabrik", "finding", "body\n", frm="alpha").stem
+    mid = mail.send("fabrik", "finding", "body\n", frm="alpha", broadcast=True).stem
     assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") is None
     mail.route(mid, "fleet", repo="fabrik")
     assert mail._parse(mail.read_msg(mid, "fabrik"))["agent"] == "fleet"
@@ -2345,7 +2346,7 @@ def test_route_to_empty_clears_the_addressee(env):
 
 
 def test_route_rejects_an_unsafe_role(env):
-    mid = mail.send("fabrik", "finding", "b\n", frm="alpha").stem
+    mid = mail.send("fabrik", "finding", "b\n", frm="alpha", broadcast=True).stem
     with pytest.raises(mail.MailRefusedError):
         mail.route(mid, "../../etc", repo="fabrik")
     # and the message is untouched, not half-rewritten
@@ -2354,7 +2355,7 @@ def test_route_rejects_an_unsafe_role(env):
 
 def test_route_preserves_body_and_every_other_header(env):
     body = "Subject: keep me\n\nline two\n---\nnot frontmatter\n"
-    mid = mail.send("fabrik", "request", body, frm="alpha", ack="required").stem
+    mid = mail.send("fabrik", "request", body, frm="alpha", to_agent="infra", ack="required").stem
     before = mail._parse(mail.read_msg(mid, "fabrik"))
     mail.route(mid, "fleet", repo="fabrik")
     after_text = mail.read_msg(mid, "fabrik")

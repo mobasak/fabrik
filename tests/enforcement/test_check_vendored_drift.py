@@ -132,3 +132,21 @@ def test_allowlist_covers_a_rules_pack_too(tmp_path, capsys, monkeypatch):
     # asserting the noisy branch, which only appears when something is UNdeclared.
     assert "OK (every vendored governance divergence is declared)" in out, out
     assert "rules/x.md: differs from hub with no declaration" not in out
+
+
+def test_mail_py_is_in_the_governance_set():
+    """2026-08-26: the addressing guard rides mail.py fleet-wide via the sync, but a
+    sync-EXCLUDED vendorer's fork keeps accepting unaddressed hub mail — this row is
+    what makes that drift a visible advisory. Removing it re-opens the blind spot."""
+    assert "scripts/mail.py" in cvd.ROOT_FILES
+
+
+def test_governance_set_actually_collects_mail_py(tmp_path):
+    """Functional twin of the ROOT_FILES pin: _governance_set must REPORT a vendored
+    mail.py, not merely list it — a _governance_set that stopped reading ROOT_FILES
+    would pass the membership pin while the blind spot silently re-opened."""
+    root = tmp_path / "repo"
+    (root / "scripts").mkdir(parents=True)
+    (root / "scripts" / "mail.py").write_text("GUARDED\n", encoding="utf-8")
+    got = cvd._governance_set(root)
+    assert "scripts/mail.py" in got

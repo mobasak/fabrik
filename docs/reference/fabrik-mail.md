@@ -104,10 +104,14 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   An `ack: required` OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age
   comes from the message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left
   alone rather than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
-- **Every hub message carries an ADDRESSEE.** The hub runs three agents — `infra` · `fleet` · `intel` —
-  sharing one `fabrik` mailbox, so a message with no `agent:` is work nobody owns: all three see the
-  same undifferentiated pile and every triage decision is re-derived by reading bodies. Set it at send
-  time with `send --to-agent <role>`, and on mail already delivered with
+- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs three
+  agents — `infra` · `fleet` · `intel` — sharing one `fabrik` mailbox, so a message with no `agent:`
+  is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the three-beat guide) unless it
+  carries `--to-agent infra|fleet|intel`, an explicit `--broadcast` (deliberately all-agents;
+  refuses `ack:required` — an obligation nobody owns cannot be acked), or is a `kind=reply` thread
+  (`--re` given — exempt; a resolvable parent's `agent:` is INHERITED so the thread stays owned).
+  A typo'd beat is refused at send AND at `route` (clearing with `''` stays legal). Set the
+  addressee at send time with `send --to-agent <role>`, and on mail already delivered with
   **`mail.py route <id> --to-agent <role>`** (empty role clears it). Routing is a FILTER, never a lock:
   `list --agent X` shows addressed-to-X **plus everything unaddressed**, so re-routing can never hide a
   message from anyone, and a wrong assignment is always reversible. `route` touches frontmatter only,
@@ -233,7 +237,7 @@ only as strong as the always-pass-`--auto` rule. A **human**-driven `--re` reply
 
 **Verdicts + exit codes:** a guard HOLD on `send --auto` exits **3** (benign — the guard did its
 job; stop quietly), distinct from a real refusal's **2** (secret, invalid recipient, topology,
-`--auto` without `--re`) — hard refusals always outrank a HOLD. The advisory pre-check is
+`--auto` without `--re`, an unaddressed or typo-beat hub-bound send — the addressing guard) — hard refusals always outrank a HOLD. The advisory pre-check is
 `mail.py should-reply <id>` (prints `ALLOW`/`HOLD: <reason>`, exit 0/3) — same verdict logic as the
 enforced path, including exists-but-unparseable/unreadable parents (HOLD on both paths).
 Exit **1** is the OS-level failure code: a missing message id, and since the round-14 hardening
@@ -242,7 +246,9 @@ every other `OSError` too (EACCES on a rename, `IsADirectoryError` from a stray 
 1 as "not there yet, retry"; it means "the OS refused", which may need an operator.
 
 **Fail-soft rules:** a genuinely MISSING or non-ULID (prose `re:`) parent → ALLOW with `hops=0` and
-a stderr note (a wedged channel is worse than a rare unbounded reply); an EXISTING parent that is
+a stderr note (a wedged channel is worse than a rare unbounded reply; the addressing guard
+preserves this — `kind=reply` is exempt BY KIND, so an unresolvable-`re` reply is never re-refused
+as an addressing problem); an EXISTING parent that is
 unreadable or unparseable → HOLD (guards cannot be evaluated — never reply blind). `--auto`
 resolves the parent in the SENDER's (`--from`) own mailbox — a wrong `--from` degrades to the
 fail-soft ALLOW, so wrappers must pass the correct identity.

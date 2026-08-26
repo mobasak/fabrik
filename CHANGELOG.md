@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fabrik-mail addressing enforcement: hub-bound sends carry an owner (2026-08-26)
+
+- `scripts/mail.py` (fleet-synced): the shared three-agent `fabrik` mailbox now REFUSES an
+  unaddressed send (exit 2 + the three-beat guide) — `--to-agent infra|fleet|intel`, explicit
+  `--broadcast` (refuses `ack:required`: an obligation nobody owns cannot be acked), or a
+  `kind=reply` thread (exempt BY KIND; a resolvable parent's `agent:` is inherited so threads
+  stay owned). Typo'd beats refused at `send` and `route` (clear `''` stays legal); guard runs
+  AFTER the secret/star checks (a leak is diagnosed as a leak). Callers updated: both
+  `claude_rotate.py` twins (`--broadcast` advisories) + kaizen (one ADDRESSED `ack:required`
+  obligation per beat, infra+fleet); `check_vendored_drift.py` now watches `scripts/mail.py`
+  (the sync-excluded fabrik-lib fork's drift is visible); governance template + /fabrik-upstream
+  teach the beat guide. 17 new guard tests, red-on-revert proven; 544 tests green.
+
 ### Removed — the dead `fabrik app-logs` Coolify command (2026-08-25)
 
 - `fabrik app-logs` called the retired Coolify API (`CoolifyClient`) — Coolify was removed from

@@ -41,8 +41,16 @@ HUB = Path("/opt/fabrik")
 OPT = Path("/opt")
 ALLOWLIST_REL = ".fabrik/vendored-divergence-allowlist"
 
-# The governance set a vendorer copies: the enforcement dir plus the three root drivers.
-ROOT_FILES = ("scripts/final_gate.py", "scripts/select_rules.py", "scripts/review_rubric.py")
+# The governance set a vendorer copies: the enforcement dir plus the root drivers.
+# scripts/mail.py joined 2026-08-26: the addressing guard ships fleet-wide via the sync,
+# but a sync-EXCLUDED vendorer's fork keeps accepting unaddressed hub mail invisibly —
+# this row is what makes that drift a visible advisory instead of silent debt.
+ROOT_FILES = (
+    "scripts/final_gate.py",
+    "scripts/select_rules.py",
+    "scripts/review_rubric.py",
+    "scripts/mail.py",
+)
 
 
 def _sha(p: Path) -> str:

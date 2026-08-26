@@ -230,8 +230,10 @@ claimable at plan-execution end; the gate review is a named operator-triggered f
 
 Unchanged from v1 in shape: after the row is on disk — in that order; a mail failure must never
 cost the measurement — the collector mails the metrics with every `—` reason to the shared
-`fabrik` mailbox (`scripts/mail.py send --to fabrik --kind request`; ack-rename is the claim
-lock). The agent's ≤90-min pass opens with its input gathered: analyze (recurrence × blast
+`fabrik` mailbox — ONE ADDRESSED `ack:required` obligation per kaizen beat
+(`scripts/mail.py send --to fabrik --to-agent infra|fleet --kind request`, two sends; the
+addressing guard refuses ownerless obligations, and each beat's mail IS its pass trigger;
+ack-rename remains the claim lock per mail). The agent's ≤90-min pass opens with its input gathered: analyze (recurrence × blast
 radius, evidence-cited), improve (≤30-min fixes land in-pass; larger become a spec or a mailed
 handoff), control (every fix ships a regression guard) — then fill `Top friction fixed` and
 `Filed`.

@@ -1,6 +1,6 @@
 # Plan — fabrik-mail addressing enforcement + escalation (v3, enforcement-first)
 
-Status: CONVERGED (v3.1 2026-08-26 — seventh review (armed, independent): 24 candidates, 20 folded / 4 refuted; checklist fully adjudicated; final no-op pass md5 aee43157)
+Status: IN-PROGRESS (execution started 2026-08-26; converged at seventh review, md5 aee43157)
 Date: 2026-08-26
 Spec (source of truth): `docs/superpowers/specs/2026-08-25-fabrik-mail-dispatcher-design.md` (v3.1)
 
@@ -60,7 +60,7 @@ Richness: RICH (spec-fed v3.1).
 
 No 🆕 fabrik-lib candidate.
 
-## Phase A — the send guard + every sender + every instruction surface
+## Phase A — the send guard + every sender + every instruction surface ✅ EXECUTED 2026-08-26 (see phase commit)
 
 **Interfaces.Produces:** `HUB_BEATS` constant; guarded library `send(to, ..., to_agent=None,
 broadcast=False)`; hardened `route()`; `--broadcast` CLI flag; updated callers

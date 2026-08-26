@@ -7,7 +7,9 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
 (``id from to ts re kind ack hops`` + optional ``agent``) + a markdown body. Subcommands:
 
     send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
-          [--to-agent <role>] < body
+          [--to-agent <role>] [--broadcast] < body
+          (hub-bound sends REQUIRE --to-agent infra|fleet|intel, --broadcast, or a
+          kind=reply thread — the addressing guard; see the refusal text)
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
     ack   <id> [--repo <repo>] [--disposition done|blocked|wontfix]
@@ -364,6 +366,12 @@ def _frontmatter(
     )
 
 
+# The hub's shared three-agent mailbox is the ONLY mailbox with beats — the send/route
+# guards key on membership here. Project mailboxes keep free-form roles (_safe_agent is
+# shape-only). Adding a future beat = extend this tuple (plus the charter file).
+HUB_BEATS = ("infra", "fleet", "intel")
+
+
 def _safe_agent(name: str) -> str:
     """Validate an intra-mailbox addressee (a ROLE, not a repo and not a session).
 
@@ -610,6 +618,7 @@ def send(
     re: str | None = None,
     auto: bool = False,
     to_agent: str | None = None,
+    broadcast: bool = False,
 ) -> Path:
     """Publish a message to <to>'s inbox. Raises MailRefusedError on any refusal (nothing written)."""
     frm = frm or _current_repo()
@@ -715,6 +724,44 @@ def send(
             file=sys.stderr,
         )
     ack = ack or ACK_BY_KIND[kind]
+    # Addressing guard — the hub's shared three-agent mailbox only. Keyed on the LITERAL
+    # "fabrik", deliberately never _is_hub(): fabrik-lib's mailbox has no beats and stays
+    # unguarded. Runs AFTER the recipient/star checks and the HIGH-secret refusal (D6/E1 —
+    # a credential leak is diagnosed as a leak on the FIRST attempt, never masked by an
+    # addressing nag) and AFTER parent resolution (a --re reply with a resolvable parent is
+    # thread-anchored and exempt). Checks the EFFECTIVE ack, post-ACK_BY_KIND default.
+    if to == "fabrik":
+        if to_agent and to_agent not in HUB_BEATS:
+            raise MailRefusedError(
+                f"unknown hub beat {to_agent!r} — a typo'd beat hides mail from every "
+                f"`list --agent` view; hub beats: {', '.join(HUB_BEATS)}"
+            )
+        # Threaded replies are exempt BY KIND (kind=="reply" with a --re), never by
+        # parent resolvability: keying on resolvability broke the sanctioned --auto
+        # prose-re fail-soft AND let any kind bypass the guard with a forged --re.
+        # A reply that DOES resolve its parent inherits the thread's owner, so
+        # ownership survives every hop instead of evaporating at the first reply.
+        is_thread_reply = kind == "reply" and bool(re)  # "" is no thread ref
+        if is_thread_reply and not to_agent and parent is not None:
+            inherited = parent.get("agent") or ""
+            if inherited in HUB_BEATS:
+                to_agent = inherited
+        if not to_agent and broadcast and ack == "required":
+            raise MailRefusedError(
+                "broadcast + ack:required is a contradiction — an obligation nobody owns "
+                "can never be acked; address it (--to-agent) or drop the ack (--ack no)"
+            )
+        if not to_agent and not broadcast and not is_thread_reply:
+            raise MailRefusedError(
+                "unaddressed hub-bound send — the fabrik mailbox is shared by THREE agents, "
+                "so name the owner:\n"
+                "  --to-agent infra  (commands · rules packs · enforcement · hooks · "
+                "fabrik-mail · workstation)\n"
+                "  --to-agent fleet  (VPS · deploy · specs/services · scaffolding · "
+                "monitoring)\n"
+                "  --to-agent intel  (models · benchmarks · flywheel · reviews)\n"
+                "  genuinely all-agents → --broadcast (with --ack no)"
+            )
     # AFTER every refusal, BEFORE minting: a hint must never change whether a
     # message is accepted, and must never fire for a send that was going to be
     # refused anyway. Threading onto an existing report is the sender's choice.
@@ -780,6 +827,13 @@ def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
     repo = repo or _current_repo()
     _safe_name(repo, "repo")
     agent = _safe_agent(to_agent or "")  # raises on an unsafe role BEFORE any mutation
+    if repo == "fabrik" and agent and agent not in HUB_BEATS:
+        # Same harm as the send guard, one verb later: a typo'd beat hides the message
+        # from all three `list --agent` views. Clearing ('') stays legal — reversibility
+        # is the point of route-as-filter.
+        raise MailRefusedError(
+            f"unknown hub beat {agent!r} — hub beats: {', '.join(HUB_BEATS)} (or '' to clear)"
+        )
     path = _mail_root() / repo / "inbox" / f"{msg_id}.md"
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -1356,6 +1410,14 @@ def main(argv: list[str] | None = None) -> int:
         dest="to_agent",
         help="intra-mailbox addressee ROLE (infra/fleet/intel) — a filter, never a lock",
     )
+    p_send.add_argument(
+        "--broadcast",
+        action="store_true",
+        help="deliberately all-agents hub mail (bypasses the addressing guard when no "
+        "--to-agent is given; an unaddressed broadcast refuses ack:required — an "
+        "obligation nobody owns cannot be acked; with --to-agent it is a no-op, "
+        "as it is off-hub)",
+    )
 
     p_list = sub.add_parser("list", help="list a repo's inbox")
     p_list.add_argument("--repo")
@@ -1423,7 +1485,12 @@ def main(argv: list[str] | None = None) -> int:
                 re=args.re,
                 auto=args.auto,
                 to_agent=args.to_agent,
+                broadcast=args.broadcast,
             )
+            if args.broadcast and not args.to_agent and args.to == "fabrik":
+                # stderr, deliberately: stdout is the path-only contract callers parse.
+                # Gated on the hub — off-hub the flag is a documented no-op.
+                print("mail.py: broadcast — delivered unaddressed to all agents", file=sys.stderr)
             print(path)
         elif args.cmd == "list":
             # CLAUDE_AGENT is the role the operator set for this window; an unset

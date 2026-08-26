@@ -2463,23 +2463,33 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
 
 
 def send_mail(repo_root: Path, body: str) -> bool:
+    """One ADDRESSED ack:required obligation per kaizen beat (infra + fleet).
+
+    The charters call this mail each agent's pass trigger, and an obligation
+    demoted to broadcast/ack:no would be sweepable by age and invisible to
+    digest() — so under the addressing guard the hand-off became two addressed
+    obligations, not one ownerless broadcast."""
     mail = repo_root / "scripts" / "mail.py"
-    try:
-        proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            [sys.executable, str(mail), "send", "--to", "fabrik", "--kind", "request"],
-            input=body,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
-    except Exception as exc:  # pragma: no cover - defensive; the row is already on disk
-        _warn(f"mail hand-off failed ({exc!r}) — data already recorded")
-        return False
-    if proc.returncode != 0:
-        _warn(f"mail hand-off failed (exit {proc.returncode}) — data already recorded")
-        return False
-    return True
+    ok = True
+    for beat in ("infra", "fleet"):
+        try:
+            proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                [sys.executable, str(mail), "send", "--to", "fabrik", "--to-agent", beat,
+                 "--kind", "request"],
+                input=body,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except Exception as exc:  # pragma: no cover - defensive; the row is already on disk
+            _warn(f"mail hand-off to {beat} failed ({exc!r}) — data already recorded")
+            ok = False
+            continue
+        if proc.returncode != 0:
+            _warn(f"mail hand-off to {beat} failed (exit {proc.returncode}) — data already recorded")
+            ok = False
+    return ok
 
 
 def _compose_mail(day: dt.date, metrics: dict[str, MetricResult], holes_note: str) -> str:

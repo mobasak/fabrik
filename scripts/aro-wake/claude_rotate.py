@@ -2187,6 +2187,7 @@ def _drain_mail(repos: list[str], msg: str) -> None:
                     "finding",
                     "--ack",
                     "no",
+                    "--broadcast",
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
