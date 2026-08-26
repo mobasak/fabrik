@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/emails/**", "**/*.mjml", "**/templates/*email*", "**/templates/*notification*", "**/push/**", "**/notifications/**"]
+globs: ["**/emails/**", "**/*.mjml", "**/templates/*email*", "**/templates/*notification*", "**/push/**", "**/notifications/**", "**/email*", "**/mailer*", "**/notify*", "**/notification*"]
 description: Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
 trigger: glob
 ---

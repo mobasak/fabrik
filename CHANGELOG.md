@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — core/86-email-templates could not reach the files that send email (third inert-glob instance) (2026-08-26)
+
+- `.windsurf/rules/core/86-email-templates.md`: its globs described only the layout its own
+  mandated pipeline produces (`emails/`, `*.mjml`, `templates/*email*`) — self-fulfilling
+  addressing that armed for already-compliant projects and stayed silent for every project it
+  exists to correct (transdoc `01M0Z2E979J79FSVBPYCEFW43F`: three security-notice templates
+  shipped `str.format`-rendered against a pack mandating MJML+Jinja2, zero conflict reported).
+  Added four file-per-concern globs grounded in the real fleet inventory (`**/email*`,
+  `**/mailer*`, `**/notify*`, `**/notification*` — transdoc's `notify.py`/`mailer.py`,
+  youtube's `email_service.py`/`email_renderer.py`, brand-identity's `email.py`/`notify.py`,
+  hub's `notifications.py`); prefix-shaped so synced infra (`mail.py`, `mail_notify.py`) never
+  arms it. Proven by execution: `review_rubric.py --changed` on the real defect-site names now
+  lists the pack (was 0 hits). No `applies_to` annotation — no scaffold type emits an email
+  source file, so an annotation would be an unsatisfiable claim the reachability auditor
+  rightly flags. Instances 1–2 of the class (core/15, core/75) verified already fixed by the
+  D7 inert-rule-packs plan (reproductions re-run: both arm); the plan-stage gaps from the same
+  mails are now owned as a STRATEGIC_BACKLOG row.
+
+### Fixed — Plan-lock release gate: two live fleet-red paths and an output budget overrun (2026-08-26)
+
+- **Two paths could turn this advisory row into a BLOCKING RED across ~46 repos**, both found by
+  independent closing-sweep reviewers and both reproduced: (1) the census separator was `U+00B7`
+  and the print block sat OUTSIDE `main()`'s guard, so an ASCII stdout (`PYTHONIOENCODING=ascii`,
+  `LC_ALL=C`) raised `UnicodeEncodeError` and exited 1 — in the exact bare-invocation mode the gate
+  uses, in every repo holding a lock; (2) `except Exception` does not catch `SystemExit`, so the
+  (dead) `check_convergence` import could exit non-zero. The whole output path is now guarded, the
+  separator is ASCII, and the import is deleted — which also makes the doc's `stdlib only` contract
+  true and removes a `sys.path` mutation.
+- **The 500-char advisory budget was already cutting a real finding in half.** `_REMEDY` (140 chars)
+  was re-emitted per finding; the fleet's one finding-bearing repo produced 662 chars and lost its
+  second finding to `output[:500]`. The remedy now prints once as a trailer, every line is capped,
+  and an overflow is COUNTED AND NAMED rather than silently truncated.
+- **`plans/archive/` (no 'd') is a real fleet layout** — `/opt/youtube` keeps 33 plans there. Only
+  `archived` was resolved, so a genuinely stale lock downgraded from `STALE LOCK` to `ORPHAN LOCK`
+  and the verdict from `FINDINGS` to `NOTHING VERIFIED`.
+- **Rule 2 was blind to the two-of-three half-apply.** A lock with `completed_at` AND `final_commit`
+  but still `active` reported plain `OK` — while still hard-BLOCKing an unrelated plan at step 7.
+  It now flags whenever a non-terminal lock carries any completion timestamp, naming which field
+  Finish step 5 failed to land. Fleet impact measured before landing: 0 additional findings.
+- **No more double-report:** an archived plan emitted both `STALE LOCK` and `PLAN FIELD STALE`,
+  whose remedies contradict each other — and the repoint advice is what the provenance rule forbids
+  on finished work.
+- **Silent when there is nothing to say:** an all-zero census printed on every gate run in 11 repos
+  holding only terminal locks. `--json` is never silenced.
+- 63 tests (+14), each new guard proven red-on-revert. The ASCII test had to be strengthened past
+  `rc == 0` — the guard alone satisfied that while emitting no useful output.
+
 ### Fixed — Pack-reachability check now evaluable project-side: both scaffolder roots on sys.path (2026-08-26)
 
 - `scripts/enforcement/pack_layout_audit.py::_import_create_project`: inserted only `<candidate>`
