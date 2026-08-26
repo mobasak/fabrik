@@ -268,11 +268,17 @@ Steps:
    skip-list) run over the WHOLE scan BEFORE any LLM call. A LATENCY bound, not a
    money cap: serial 120s calls would otherwise hold the lock for hours under a storm; the
    unreached tail is ledger-free and retries on the next trigger within minutes).
-5. **BLOCKING pre-ship probe (one afternoon, dev-time):** run the production prompt (charters
-   inlined) over the ~38 existing `agent:`-labeled archive messages; report per-beat precision.
-   Below 0.8 overall → the LLM leg ships DISABLED (`--no-llm` default) and the design escalates
-   to the operator — asserted comprehension is not measured comprehension (spec § Open
-   unknowns).
+5. **Pre-ship probe: ALREADY RUN and PASSED (2026-08-25, operator-directed — spec § Open
+   unknowns has the full numbers): 85.2% on the production population, gate 0.8.** The tuned
+   production prompt is BINDING for step 1: charters' Mandate+OWNS sections inlined + three
+   disambiguation rules verbatim — (1) a cross-repo RELAY delivery request (subject "RELAY
+   REQUEST", kind relay) → infra, the mail machinery executes relays regardless of relayed
+   content; (2) a report OF completed work → the beat that OWNS the reported surface (or the
+   named addressee), NEVER intel's reviewer role — intel only for model/benchmark/flywheel/
+   model-selection content or an explicitly requested review; (3) otherwise the beat whose OWNS
+   list contains the message's primary surface. Probe harness kept as the rerunnable
+   `--probe-precision` mode of the dispatcher (reads labeled archive, reports per-beat
+   precision) so the measurement is repeatable as the corpus grows.
 6. Tests (TDD for: message-class consumes / infra-class does NOT consume the ledger entry;
    boundary-collision parks; infra-class EXCEPTION → unavailable-for-run; enum violation →
    floater-routed, attempt consumed).

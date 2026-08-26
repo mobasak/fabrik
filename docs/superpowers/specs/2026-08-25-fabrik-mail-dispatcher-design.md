@@ -351,12 +351,19 @@ None. Box-local workstation tooling (the kaizen/weekly-catchup class): no scaffo
   auto-reply exclusion — all pinned above with rationale; each is a one-line operator override.
 - **CLOSED by deletion (fifth review):** the keyword-table open item — the tier is Rejected
   alternative D.
-- **BLOCKING pre-Phase-B (self-service, one afternoon):** measure Haiku's 3-way precision
-  against the ~38 existing `agent:`-labeled archive messages (charters inlined, the production
-  prompt) BEFORE the LLM leg ships — per-beat precision reported; if it lands below 0.8 the
-  fallback ships DISABLED (`--no-llm` default) and the design escalates to the operator. The
-  infra/fleet boundary is genuinely subtle (the `templates/governance` carve-out, DR→infra) —
-  asserted comprehension is not measured comprehension.
+- **RESOLVED — the pre-ship precision probe RAN (2026-08-25, operator-directed):** 39 labeled
+  archive messages, production-faithful call (vendored llm-dispatch, Haiku, charters inlined,
+  boundary fence, schema-forced). Baseline 76.9% overall — but 4 of 9 misses were
+  tier-0-prefixed messages the LLM never sees in production (label=addressee vs
+  model=content — an artifact that VALIDATES tier-0-first). On the true production population:
+  **81.5% untuned → 85.2% after adding two disambiguation rules to the prompt** (relay-delivery
+  → infra; completed-work reports → the surface owner, never intel's reviewer role) — the
+  0.8 gate PASSES. Remaining 4 misses are label-ambiguous (one dual-addressed, one
+  conversation-owner label): ~the corpus ceiling; further tuning against n=27 would overfit.
+  Per-beat (tuned): infra 0.89/0.89, fleet 0.75/0.86, intel n≈2 (validity floor holds).
+  Measured cost ~$0.031/call estimate (25× the earlier back-of-envelope — recorded honestly;
+  still <1% of daily box quota at 20 calls/day). The TUNED prompt (charters' Mandate+OWNS +
+  the three disambiguation rules) IS the production prompt, pinned in the plan Phase B.
 - **v1.1 named follow-on with a mechanical trigger:** when `verdicts.jsonl` reaches n≥200, the
   shipped derivation script proposes a cache tier (≥0.95 precision / n≥20 per rule) — a
   STRATEGIC_BACKLOG row carries the trigger so the deferred work has a firing condition, not an
