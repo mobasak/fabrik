@@ -100,6 +100,12 @@ class Finding:
     globs: tuple[str, ...]  # the pack's globs, for the report — NOT what drove applicability
 
 
+# Packs whose frontmatter HAS an `applies_to:` line that no form could parse. "Declared but
+# unparseable" is not "not declared", and returning [] for both made a typo'd bracket look
+# exactly like a deliberate opt-out. Keyed by nothing — the caller pairs it with the pack.
+_MALFORMED_SENTINEL = "\x00malformed"
+
+
 def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
     """(activation, applies_to) from a pack's frontmatter block. Absent fields are the
     empty string / empty list — a pack with no `applies_to:` claims nothing and can
@@ -119,7 +125,7 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
         # block-sequence branch would consume the line. (D7 round 9, finding 20.)
         sm = re.search(r"^applies_to:[ \t]+(?!\[)(\S[^\n]*)$", fm, re.MULTILINE)
         if sm:
-            scalar = sm.group(1).strip().strip("\"'")
+            scalar = sm.group(1).strip().strip("\"'").strip("[]")
             if scalar:
                 return activation, [scalar]
         # BLOCK-SEQUENCE form — the one a YAML author is MOST likely to write for a
@@ -132,9 +138,9 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
         bm = re.search(r"^applies_to:\s*$\n((?:[ \t]+-[ \t]*\S.*\n?)+)", fm, re.MULTILINE)
         if bm:
             items = [
-                ln.strip().lstrip("-").strip().strip("\"'")
+                ln.strip().lstrip("-").strip().strip("\"'").strip("[]")
                 for ln in bm.group(1).splitlines()
-                if ln.strip().lstrip("-").strip().strip("\"'")
+                if ln.strip().lstrip("-").strip().strip("\"'").strip("[]")
             ]
             return activation, items
     # ⚠️ Accept BOTH quoted and bare items. `applies_to: [file-worker]` is legal YAML and an
@@ -143,10 +149,25 @@ def _parse_extra_frontmatter(text: str) -> tuple[str, list[str]]:
     # the check built to close that class (review finding, 2026-08-25). Split on commas and
     # strip optional quotes per item rather than requiring them.
     applies_to = (
-        [item.strip().strip("\"'") for item in tm.group(1).split(",") if item.strip().strip("\"'")]
+        [item.strip().strip("\"'").strip("[]") for item in tm.group(1).split(",") if item.strip().strip("\"'").strip("[]")]
         if tm
         else []
     )
+    # ⚠️ An EXPLICIT empty list (`applies_to: []`) is a legitimate opt-out and must NOT be
+    # flagged — only a line that no form could parse. Flagging `[]` was a regression this
+    # very fix introduced, caught immediately by the six-shape table from round 9. That table
+    # existed precisely because this parser had already broken three times; it just paid for
+    # itself a fourth.
+    if (
+        not applies_to
+        and re.search(r"^applies_to:", fm, re.MULTILINE)
+        and not re.search(r"^applies_to:[ \t]*\[[ \t]*\][ \t]*$", fm, re.MULTILINE)
+    ):
+        # The line EXISTS but nothing parsed it. Flag rather than swallow: an author who
+        # wrote `applies_to: [file-worker` (no closing bracket) gets told, instead of the
+        # pack being silently skipped and the run reporting OK. Fourth shape of this same
+        # fail-silent-green defect in this one parser. (D7 round 17.)
+        return activation, [_MALFORMED_SENTINEL]
     return activation, applies_to
 
 

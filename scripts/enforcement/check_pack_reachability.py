@@ -157,6 +157,7 @@ def main() -> int:
     except Exception:  # noqa: BLE001 - no registry here means the question is unaskable
         registry = None
     unknown: list[tuple[str, str]] = []
+    malformed: list[str] = []
     # ONE parse, reused below. Two independent _packs_with_meta() calls re-read and re-parse
     # every pack, and could in principle observe different snapshots if the corpus changed
     # between them. (D7 round 8.)
@@ -176,7 +177,9 @@ def main() -> int:
         if activation == "manual":
             continue
         for claimed in dict.fromkeys(applies_to):
-            if registry is not None and claimed not in registry:
+            if claimed == pla._MALFORMED_SENTINEL:
+                malformed.append(rel)
+            elif registry is not None and claimed not in registry:
                 unknown.append((rel, claimed))
     # `_UNEVALUABLE_REASONS` is module-level and survives between in-process runs (tests,
     # chained CLI calls). Clear it so a later run cannot report a reason it did not produce.
@@ -213,6 +216,13 @@ def main() -> int:
     )
 
     if not args.json:
+        for rel in malformed:
+            print(
+                f"MALFORMED: {rel} has an applies_to: line that NO supported YAML form could "
+                "parse (flow `[a, b]` / block `- a` / scalar `a`) — the pack was NOT examined. "
+                "That is a typo to fix, not an opt-out: an unparseable declaration used to be "
+                "indistinguishable from no declaration at all."
+            )
         for claimed in unevaluable:
             reason = pla._UNEVALUABLE_REASONS.get(claimed)
             print(
@@ -235,6 +245,7 @@ def main() -> int:
                     "examined_count": len(examined),
                     "claim_pairs": claim_pairs,
                     "unevaluable_types": unevaluable,
+                    "malformed_applies_to": malformed,
                     "unknown_types": [
                         {"pack": r, "declared": c} for r, c in unknown
                     ],

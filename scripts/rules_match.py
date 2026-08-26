@@ -118,7 +118,11 @@ def _strip_wildcards(glob: str) -> str | None:
     callers resolve None via `empty_matches_all`.
 
     ⚠️ NOT every wildcard-only glob normalizes to None, and that asymmetry is INHERITED,
-    not chosen. `**/` -> None (leading strip empties it), but `/**` -> `'**'`: `lstrip("/")`
+    not chosen. Read the arrows below as WHOLE literal inputs — the glob that IS exactly
+    `"/**"`, not "any glob containing /**" (five review rounds read it the second way, which
+    makes the notation the defect even though the behavior is right; a glob merely ENDING in
+    `/**`, like `"uploads/**"`, strips to `"uploads"` and is entirely ordinary).
+    `"**/"` -> None (leading strip empties it), but `"/**"` -> `'**'`: `lstrip("/")`
     runs FIRST, leaving `**`, which neither startswith `**/` nor endswith `/**`. The residue
     reaches `_tail_matches`, which rewrites `**` -> `*` and matches anything — so `/**` and
     `**` match EVERYTHING regardless of `empty_matches_all`, bypassing it entirely.

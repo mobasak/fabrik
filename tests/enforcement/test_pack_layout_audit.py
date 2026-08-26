@@ -461,3 +461,28 @@ def test_broken_scaffolder_import_is_unevaluable_not_a_gate_failure(monkeypatch)
     finally:
         _pla._emitted_paths_for_type.cache_clear()
         _pla._UNEVALUABLE_REASONS.clear()
+
+
+def test_unparseable_applies_to_is_flagged_not_swallowed() -> None:
+    """An `applies_to:` line no form can parse must be REPORTED, not silently emptied.
+
+    `applies_to: [file-worker` (missing bracket) returned `[]` — byte-identical to a pack
+    that never declared anything. So a typo made the pack silently unexamined while the run
+    reported OK. FOURTH shape of this same fail-silent-green defect in this one parser
+    (quotes-only, flow-only, list-only, and now malformed), which is why the fix is a
+    distinguishable sentinel rather than another accepted spelling.
+
+    Also strips stray brackets, so `applies_to: file-worker]` yields the real type instead of
+    carrying `file-worker]` forward as a phantom. (D7 round 17.)
+    """
+    from pack_layout_audit import _MALFORMED_SENTINEL, _parse_extra_frontmatter
+
+    def parsed(body: str) -> list[str]:
+        return _parse_extra_frontmatter(f"---\nactivation: glob\n{body}\n---\n")[1]
+
+    assert parsed("applies_to: [file-worker") == [_MALFORMED_SENTINEL], "no closing bracket"
+    assert parsed("applies_to:") == [_MALFORMED_SENTINEL], "key present, value absent"
+    assert parsed("applies_to: file-worker]") == ["file-worker"], "stray bracket stripped"
+
+    # absence is a legitimate opt-out and must stay distinguishable from a broken line
+    assert parsed("description: x") == []
