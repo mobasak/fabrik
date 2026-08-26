@@ -142,6 +142,17 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
 
 - `FAL_KEY` — fal.ai key in `KEY_ID:SECRET` format. Get from [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys). Read-only catalog access is sufficient for price discovery. **Positive balance required** for the specialty bench (`microbench_specialty.py`) since it enqueues real image generations against Fal.ai's BFL Flux mirror.
 
+### NVIDIA Build — `NVIDIA_API_KEY` (free inference endpoints)
+
+- `NVIDIA_API_KEY` — NVIDIA Build (build.nvidia.com) free, OpenAI-compatible inference at
+  `https://integrate.api.nvidia.com/v1` (`nvapi-*` format; console key name
+  `NVIDIABuild-Autogen-17`). $0 — free endpoints only, rate-limited per key. 83 model ids live
+  as of 2026-08-26 (nemotron-3 family incl. the 1M-context `nemotron-3-ultra-550b-a55b`,
+  `deepseek-v4-flash-0731`, `kimi-k3`, `gpt-oss-120b/20b`, vision/embedding/safety/translation
+  specialists). Catalog + subagents-pool compatibility verdict:
+  [docs/reference/nvidia-build.md](reference/nvidia-build.md). Full listing:
+  `curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`.
+
 ### Specialty-service bench providers (kilo-benchmarks)
 
 Used by `/opt/ai-model-catalog/engine/microbench_specialty.py` (ai-model-catalog) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md).
