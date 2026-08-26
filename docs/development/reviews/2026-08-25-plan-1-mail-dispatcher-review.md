@@ -72,3 +72,16 @@ Fresh proofs this run: 43 guard+escalation tests green · lean gate success · i
 intact (exactly 1 crontab line, byte-identical to the doc; logrotate 398B in /etc/logrotate.d;
 log pre-created 0B awaiting the 18:00 first slot; first-run watch armed). New classes to hunt:
 none — the only delta since the quiet round is operator-state install, verified above.
+
+## Day-close operational review (operator-invoked /fabrik-review, 2026-08-26 ~16:00)
+
+Scope: the post-ship OPERATIONAL legs no prior artifact covered — the cron install, the
+fabrik_analytics DB intervention, the mailbox triage + intel item.
+
+| Class | Verdict |
+|---|---|
+| Cron line correctness | CLEAN — byte-identical to the doc (proven); **0 `%` characters** (crontab's percent-expansion trap doesn't apply); lock parent pre-created by the line's own mkdir; the first-write cd-drop was caught by diff-vs-backup and fixed from the doc as source of truth |
+| DB intervention safety | CLEAN with live proofs — 152 deleted rows backed up first (CSV, 153 lines incl. header; restore: `\copy subagent_runs FROM 'backups/subagent_runs_dedupe_backup_20260826.csv' CSV HEADER`); keep-rule has-cost→latest; **the index's decisive risks disproven on the live table**: 0 overlap between `''` and `done` agent_id populations (the `''` rows are a one-day 2026-07-18 backfill era) and 0 agent_ids in 7k-row history with >1 distinct non-scored status (retry-never-reuses-id proven empirically) |
+| Index design | FIXED-by-design — PARTIAL (`WHERE status <> 'scored'`), protecting the INSERT-only set_quality delta contract a plain index would have silently broken under the writer's untargeted ON CONFLICT; not CONCURRENTLY (7k-row table, momentary lock — accepted); writer role needs no new grants (INSERT privilege suffices; the exact writer SQL was live-probed: dup dispatch `INSERT 0 0`, scored deltas kept) |
+| Mailbox triage | CLEAN — 27/27 tagged (26 infra · 1 intel · 0 unaddressed); one judgment re-route recorded (quota advisories fleet→infra: the coalesce fix lands in sysadmin machinery); intel item full-loop (claim→fix→prove→reply→ack→archive), the reply itself exercising the new guard's reply exemption |
+| Finder round | 1 pool finder: honest UNVERIFIABLE (no artifacts inlined) — its named classes each closed above with live evidence; 0 CONFIRMED/PLAUSIBLE outstanding |
