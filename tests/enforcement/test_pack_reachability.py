@@ -410,3 +410,30 @@ def test_pack_count_and_claim_pair_count_are_reported_separately(tmp_path, monke
     assert result["examined_count"] != result["claim_pairs"], (
         "this fixture exists to catch the two counts being collapsed back into one"
     )
+
+
+def test_duplicate_applies_to_entries_count_once(tmp_path, monkeypatch) -> None:
+    """A repeated `applies_to` entry is ONE distinct claim, not two.
+
+    `applies_to: [file-worker, file-worker]` reported `claim_pairs=2` and listed the pack
+    twice in `cleared`. A denominator OVER-count — introduced one round after, and by the
+    fix for, a denominator UNDER-count. Both directions of the same mistake, in the same
+    number, in consecutive rounds. (D7 round 10.)
+    """
+    import pack_layout_audit as _pla
+
+    _pla._emitted_paths_for_type.cache_clear()
+    rules = tmp_path / ".windsurf" / "rules" / "core"
+    rules.mkdir(parents=True)
+    (rules / "dup.md").write_text(
+        '---\nactivation: glob\nglobs: ["**/worker/**"]\n'
+        "applies_to: [file-worker, file-worker]\ndescription: d\n---\nbody\n"
+    )
+    try:
+        result = _run_json(tmp_path, ["file-worker"])
+    finally:
+        _pla._emitted_paths_for_type.cache_clear()
+
+    assert result["examined_count"] == 1
+    assert result["claim_pairs"] == 1, "a duplicate entry is one claim, not two"
+    assert not result["findings"]

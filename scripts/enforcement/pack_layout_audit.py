@@ -308,8 +308,15 @@ def _matches_any_emitted(paths: tuple[str, ...] | None, globs: list[str]) -> boo
 
     Two consequences, both latent: (a) a pack globbing `/**` is auto-declared reachable for
     every type, having proven nothing; (b) for `**/` this audit reports UNREACHABLE while
-    `review_rubric` injects that same pack as MATCHED for EVERY changed path — a genuine
-    disagreement between this engine and the shared matcher. The cross-ticket seam proof
+    `review_rubric` injects that same pack as MATCHED for EVERY changed path.
+
+    ⚠️ ATTRIBUTION, corrected: (b) is NOT this engine diverging from the shared matcher.
+    measured — audit=False, `pack_matches_path(..., empty_matches_all=False)`=False,
+    `(..., empty_matches_all=True)`=True. This engine agrees EXACTLY with the
+    `empty_matches_all=False` convention; the divergence is the two CALLERS', deliberately
+    (select_rules False, review_rubric True), and this audit takes select_rules' side. The
+    user-visible consequence stands — one wildcard-only pack, two opposite verdicts — but
+    naming the wrong party was itself a false claim. The cross-ticket seam proof
     could not observe it: it used only the two live packs, neither carrying a wildcard-only
     glob, and no pack in the corpus carries one today (verified). Recorded rather than
     silently "mirrored". (D7 whole-plan validation, 2026-08-25.)

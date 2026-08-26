@@ -138,13 +138,21 @@ def main() -> int:
     # every pack, and could in principle observe different snapshots if the corpus changed
     # between them. (D7 round 8.)
     packs_meta = pla._packs_with_meta(root)
+    # dict.fromkeys DEDUPES while preserving order: `applies_to: [file-worker, file-worker]`
+    # is ONE distinct claim, not two. Counting raw entries over-stated claim_pairs (and
+    # double-listed the pack in `cleared`) — a denominator over-count in the denominator
+    # added one round earlier to fix a denominator under-count. (D7 round 10.)
     claim_pairs = sum(
-        1 for _r, _g, act, ap in packs_meta if act != "manual" for c in ap if c in known
+        1
+        for _r, _g, act, ap in packs_meta
+        if act != "manual"
+        for c in dict.fromkeys(ap)
+        if c in known
     )
     for rel, _globs, activation, applies_to in packs_meta:
         if activation == "manual":
             continue
-        for claimed in applies_to:
+        for claimed in dict.fromkeys(applies_to):
             if claimed not in known:
                 unknown.append((rel, claimed))
     findings = pla.audit_layout(root, types)
@@ -159,7 +167,7 @@ def main() -> int:
     for rel, globs, activation, applies_to in packs_meta:
         if activation == "manual":
             continue
-        for claimed in applies_to:
+        for claimed in dict.fromkeys(applies_to):  # dedupe — one entry per distinct claim
             if claimed in known and (rel, claimed) not in flagged:
                 emitted = pla._emitted_paths_for_type(claimed)
                 if emitted is None:
