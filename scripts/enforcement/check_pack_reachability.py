@@ -62,9 +62,10 @@ def _examined_packs(root: Path, types: list[str]) -> list[str]:
     """Packs this run actually asked a question about: glob-activated (non-manual)
     packs whose `applies_to` names at least one of `types`.
 
-    ⚠️ This counts PACKS, not (pack, type) PAIRS — and an earlier version of this docstring
-    claimed it "mirrors the exact condition `audit_layout` evaluates per (pack, type) pair",
-    which is FALSE and was the FIFTH false claim in this change. `audit_layout` loops per
+    ⚠️ This counts PACKS, not (pack, type) PAIRS. (An earlier version claimed the two were
+    equivalent; that sentence is DELETED rather than quoted — three separate review rounds
+    read the quoted-and-corrected version as a live claim and re-reported it. A correction
+    that repeats the error it corrects is a trap for the next reader.) `audit_layout` loops per
     type and evaluates `scaffold_type in applies_to`; this uses `any(...)` across all types.
     They coincide for a single-type pack, and DIVERGE when a pack claims two types and only
     one is evaluable: examined says 1 pack while 2 pairs were considered and 1 skipped. The

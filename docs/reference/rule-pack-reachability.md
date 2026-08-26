@@ -205,3 +205,44 @@ would fail every one of the ~46 synced repos in one commit and train operators t
 the gate. Promoting this row from advisory to blocking is a deliberate **operator**
 decision, made once the corpus has been swept and `applies_to` coverage is judged
 sufficient — never something a future edit to this script decides unilaterally.
+
+
+## Known limitation: an internal `**` matches only the ADJACENT case
+
+`_tail_matches` normalizes a glob with `pat.replace("**/", "").replace("**", "*")`, so a
+doublestar in the MIDDLE of a pattern collapses instead of spanning depth. Measured:
+
+```
+$ glob '**/billing/**/webhook*'
+  api/billing/webhook_stripe.py     -> True    # adjacent: matches
+  api/billing/stripe/webhook.py     -> False   # nested: does NOT
+  srv/x/billing/iyzico/webhooks.py  -> False   # nested: does NOT
+```
+
+The author of such a glob means "at any depth below `billing/`"; the matcher gives "directly
+inside `billing/`". This is **inherited** behavior — verified identical in
+`select_rules._tail_matches` at `b589a1b8~1`, before the extraction — so it is deliberately
+NOT changed here: this plan's matcher work is a pure move, and altering match semantics would
+shift rule-pack activation across ~46 repos as a refactor side effect.
+
+**Six live globs are affected today**, found at D7 round 14:
+
+| pack | glob |
+|---|---|
+| `core/40-documentation.md` | `docs/**/*` |
+| `core/76-gpu-workers.md` | `**/workers/**/gpu*` |
+| `core/90-bootstrap-scripts.md` | `scripts/bootstrap/**/*.sh` |
+| `core/90-bootstrap-scripts.md` | `scripts/bootstrap/**/*.template` |
+| `core/app-audit-log.md` | `**/billing/**/webhook*` |
+| `core/app-audit-log.md` | `**/admin/**/impersonat*` |
+
+⚠️ **The audit cannot see this, and that is a real gap in it.** Reachability is decided
+PER PACK: a pack clears as soon as ANY one glob matches, so `core/app-audit-log.md` — which
+this plan corrected — is reported reachable via its new file-shaped globs while two of its
+globs remain unable to reach the nested layout they were written for. Per-pack clearing hides
+per-glob deadness.
+
+**Next gate (operator decision):** report DEAD GLOBS — globs matching nothing — even when
+their pack is cleared. That is the same "state your denominator" move this check already
+makes for packs, applied one level down to globs. It is deliberately not bundled into this
+plan, which is already at 14 review rounds.
