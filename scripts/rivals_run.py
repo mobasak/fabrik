@@ -260,6 +260,159 @@ def _default_model() -> str:
     return os.getenv("RIVALS_LLM_MODEL", "sonnet")
 
 
+def render_dossier_md(d: dict[str, Any]) -> str:
+    """Render the DECISION-GRADE brief from `to_dict()`, not `to_markdown()`.
+
+    Measured 2026-08-26 on a real 12-rival scan: the engine's own `to_markdown()` emitted **404
+    bytes** — the market line, a spend line, and one BEAT item. It never listed the twelve
+    competitors it found, never rendered the 12-column feature matrix, and never showed the pricing
+    models. All of that IS in `to_dict()`. The engine's markdown is a summary; this command's
+    artifact is what a spec gets decided on, so it renders from the structured payload.
+
+    `verified` is surfaced per rival and never silently dropped: on that same run, 5 of 12
+    candidates carried `verified: False` with the reason "No page text retrieved for this candidate"
+    — an unconfirmed name sitting in a list of real ones is exactly how a fabricated competitor
+    reaches a spec.
+    """
+
+    def _s(v: Any) -> str:
+        return str(v).replace("|", "\\|").strip()
+
+    out: list[str] = []
+    out.append(f"# Rivals dossier — {d.get('market', '?')}")
+    out.append("")
+    verified = [c for c in (d.get("competitors") or []) if str(c.get("verified")) == "True"]
+    unconfirmed = [c for c in (d.get("competitors") or []) if str(c.get("verified")) != "True"]
+    out.append(
+        f"**product_type:** `{d.get('product_type')}` · **rivals:** {len(d.get('competitors') or [])} "
+        f"({len(verified)} verified, {len(unconfirmed)} unconfirmed) · "
+        f"**review signals:** {len(d.get('review_signal') or [])} · "
+        f"**spend:** ${d.get('spend_usd')} · **partial:** {d.get('partial')} · "
+        f"**truncated:** {d.get('truncated')}"
+    )
+    out.append("")
+    if d.get("truncated"):
+        out.append(
+            "> ⚠️ **truncated** — the money ceiling BOUND this run. Partial by budget, not complete."
+        )
+        out.append("")
+    if not d.get("competitors"):
+        out.append(
+            "> ⚠️ **ZERO rivals discovered — treat this as a FAILED scan, not an empty market.**"
+        )
+        out.append("")
+
+    out.append("## Rivals")
+    out.append("")
+    out.append("| Rival | Verified | Positioning | Source |")
+    out.append("|---|---|---|---|")
+    for c in d.get("competitors") or []:
+        ok = "✅" if str(c.get("verified")) == "True" else "❓"
+        out.append(
+            f"| [{_s(c.get('name'))}]({c.get('url')}) | {ok} | {_s(c.get('positioning'))[:120]} "
+            f"| {c.get('url')} |"
+        )
+    if unconfirmed:
+        out.append("")
+        out.append(
+            f"> ❓ **{len(unconfirmed)} unconfirmed** — the engine could not retrieve page text to "
+            f"verify these. Do NOT let an unconfirmed name reach a spec as a real competitor: "
+            + ", ".join(_s(c.get("name")) for c in unconfirmed)
+        )
+    out.append("")
+
+    fm = d.get("feature_matrix") or {}
+    cols, rows, cells = fm.get("columns") or [], fm.get("rows") or [], fm.get("cells") or {}
+    if cols and rows:
+        out.append("## Feature matrix")
+        out.append("")
+        out.append("| Feature | " + " | ".join(_s(c) for c in cols) + " |")
+        out.append("|---" * (len(cols) + 1) + "|")
+        for r in rows:
+            line = [_s(r)]
+            for c in cols:
+                # The engine keys cells "<row>\u241f<col>" (U+241F UNIT SEPARATOR) and each value is
+                # a dict carrying `state` (✅/❌/⚠️/❓). Guessing "<row>|<col>" rendered a 44x12 grid
+                # of ❓ that looked like "nothing known" rather than a lookup bug — checked against
+                # the real payload rather than assumed.
+                cell = cells.get(f"{r}\u241f{c}") if isinstance(cells, dict) else None
+                state = cell.get("state") if isinstance(cell, dict) else cell
+                line.append(_s(state) if state else "❓")
+            out.append("| " + " | ".join(line) + " |")
+        out.append("")
+
+    match = d.get("match_list") or []
+    out.append("## MATCH — what rivals have that we lack")
+    out.append("")
+    if match:
+        for m in match:
+            star = "★ " if m.get("universal") else ""
+            out.append(f"- {star}**{_s(m.get('feature'))}** — {_s(m.get('detail') or '')}")
+    else:
+        out.append(
+            "_Empty. In a **greenfield** run (`us=None`) this is EXPECTED — there is no `us` side to "
+            "lack anything, and the matrix is rival-vs-rival. Re-run with `--us-name`/`--us-feature` "
+            "once features exist to get a real MATCH list._"
+        )
+    out.append("")
+
+    beat = d.get("beat_list") or []
+    out.append("## BEAT — rivals' corroborated weaknesses (our openings)")
+    out.append("")
+    out.append(
+        "> **Tier-C.** These are deep-research's review cards; the engine never held the raw review "
+        "page, so BEAT is corroboration-gated (≥2 distinct sources) and source-weighted, NOT "
+        "quote-re-grounded like the matrix and pricing below."
+    )
+    out.append("")
+    for b in beat:
+        out.append(
+            f"- **{_s(b.get('theme') or b.get('weakness'))}** "
+            f"(weight {b.get('weight')}, {b.get('n_sources') or b.get('sources')} sources)"
+        )
+        for q in (b.get("quotes") or [])[:3]:
+            out.append(f'  - "{_s(q)[:220]}"')
+    if not beat:
+        out.append(
+            "_None cleared the ≥2-distinct-source gate. Thin BEAT is the gate working, not a bug._"
+        )
+    out.append("")
+
+    pricing = (d.get("pricing") or {}).get("models") or []
+    if pricing:
+        out.append("## Pricing wedge")
+        out.append("")
+        out.append("| Rival | Model | Free tier | Evidence | Source |")
+        out.append("|---|---|---|---|---|")
+        for m in pricing:
+            out.append(
+                f"| {_s(m.get('competitor'))} | {_s(m.get('model'))} | {_s(m.get('free_tier'))} "
+                f"| {_s(m.get('evidence'))[:140]} | {m.get('source_url') or '—'} |"
+            )
+        out.append("")
+
+    needs = (d.get("white_space") or {}).get("needs") or []
+    out.append("## White-space — unmet demand")
+    out.append("")
+    out.append(
+        "> Weakest evidence in this dossier: **incumbent/discourse-anchored**, never blue-ocean, and "
+        "for four of five product types it degrades entirely to Tier-C search-excerpts."
+    )
+    out.append("")
+    for n in needs:
+        out.append(f"- **{_s(n.get('need'))}** — {_s(n.get('detail') or '')}")
+    if not needs:
+        out.append("_None corroborated._")
+    out.append("")
+    out.append("---")
+    out.append(
+        "**Scope:** competitor and entry-opportunity intel. This is **NOT market-sizing or demand "
+        "validation** — a spec still needs that separately, and this dossier is never evidence that "
+        "a market is big enough."
+    )
+    return "\n".join(out) + "\n"
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the vendored competitor-intel engine (hub-side).")
     p.add_argument("--market", required=True, help="the market / category to scan")
@@ -398,7 +551,7 @@ async def _run(args: argparse.Namespace) -> int:
         )
 
     data = dossier.to_dict()
-    md = dossier.to_markdown()
+    md = render_dossier_md(data)
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)

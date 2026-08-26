@@ -102,6 +102,23 @@ The driver therefore accepts `*parts` and joins them. Two upstream items were fi
 the README signature, and the fact that `_safe_research` logs only the stage label and not the
 exception, which is what made the failure undiagnosable from outside.
 
+## The artifact is rendered from `to_dict()`, not `to_markdown()`
+
+Measured 2026-08-26 on a live 12-rival scan of "invoice OCR software": `dossier.to_markdown()`
+emitted **404 bytes** — the market line, a spend line, and one BEAT item. It never listed the twelve
+rivals it found, never rendered the 12x44 feature matrix, and never showed the pricing models, all of
+which were present in `to_dict()`. `rivals_run.py::render_dossier_md()` renders the decision-grade
+brief from the structured payload instead (8.9 KB on the same data).
+
+Two details that are easy to get wrong and were checked against the real payload rather than assumed:
+
+- The matrix `cells` dict is keyed `"<row>\u241f<col>"` (U+241F UNIT SEPARATOR), and each value is a
+  dict carrying `state`. Guessing `"<row>|<col>"` renders a full grid of `❓` that looks like
+  "nothing is known" rather than a lookup bug.
+- Every rival carries `verified`. On that run **5 of 12** were `verified: False` with the reason
+  "No page text retrieved for this candidate". They are rendered `❓` and named in a callout — an
+  unconfirmed name sitting among real ones is how a fabricated competitor reaches a spec.
+
 ## Termination — the command is a LOOP
 
 A single engine run is not a dossier. HUB mode is done only when all of these hold:

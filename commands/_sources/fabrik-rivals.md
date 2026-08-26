@@ -144,9 +144,17 @@ re-reads.
 
 ## Phase 3 — the artifact, and the hand-off
 
-Write `docs/reference/rivals/<market>.md` from `dossier.to_markdown()`, plus a header carrying: the
-run's `job_id`, the model used, the spend, `partial`/`truncated`, the tier of each section, and the
-Pass Ledger. `docs/reference/**/*.md` is already inside the gate-enforced `.md` allowlist, so this
+Write `docs/reference/rivals/<market>.md` from **`rivals_run.py::render_dossier_md(dossier.to_dict())`**
+— NOT from `dossier.to_markdown()`. Measured on a real 12-rival scan: the engine's own markdown emitted
+**404 bytes** (market line, spend, one BEAT item) while the structured payload held all twelve rivals,
+a 12x44 feature matrix and the pricing models. The engine's markdown is a summary; this artifact is
+what a spec gets decided on. Add a header carrying the run's `job_id`, the model, the spend,
+`partial`/`truncated`, whether it ran `--free-legs-only`, and the Pass Ledger.
+
+**Never let an unconfirmed rival read as a real one.** The engine sets `verified` per competitor; on
+that same run **5 of 12** were `verified: False` ("No page text retrieved"). The renderer marks them
+`❓` and names them in a callout — carry that through, because an unconfirmed name sitting in a list
+of real ones is exactly how a fabricated competitor reaches a spec. `docs/reference/**/*.md` is already inside the gate-enforced `.md` allowlist, so this
 needs no governance change. Add the `INDEX.md` and `docs/README.md` rows — the ordinary Doc Sync
 Matrix obligation for a new file under `docs/reference/`, not an exemption.
 
