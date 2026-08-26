@@ -476,7 +476,7 @@ def test_ok_line_buckets_sum_to_examined(tmp_path, capsys, monkeypatch):
     )
     cplr.main()
     out_lines = capsys.readouterr().out.splitlines()
-    line = [ln for ln in out_lines if ln.startswith("OK —")][0]
+    line = [ln for ln in out_lines if ln.startswith("OK -")][0]
     nums = [int(n) for n in re.findall(r"(\d+) (?:non-terminal|terminal|foreign)", line)]
     total = int(re.search(r"of (\d+) plan lock", line).group(1))
     assert sum(nums) == total == 3, line
@@ -607,11 +607,18 @@ def test_foreign_locks_are_counted_but_never_printed_as_lines(tmp_path, capsys, 
     monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
     cplr.main()
     out = capsys.readouterr().out
-    assert "3 foreign" in out, "the census must carry the count"
+    # A FOREIGN-ONLY corpus has nothing ACTIONABLE to say, so the human path is now SILENT.
+    # fabrik-lib holds 7 foreign repo-locks and 41 terminal plan locks: counting `foreign` as
+    # "content worth printing" put two content-free lines on every gate run there, forever.
+    assert out == "", "a foreign-only corpus is not worth two lines on every gate run"
+    # ...but the machine payload still carries the count, so the census never lies by omission.
+    out = _run_json(tmp_path, monkeypatch)["out"]
+    assert json.loads(out)["counters"]["foreign"] == 3, "the census must carry the count"
     assert "FOREIGN LOCK:" not in out, "…but no per-lock line"
 
 
 # ── live fleet verification (Phase B step 5) ──────────────────────────────────────────
+
 
 def test_against_a_copy_of_a_real_fleet_corpus(tmp_path):
     """Read-only, on a COPY: the lock belongs to another repo and is never touched.
@@ -651,3 +658,346 @@ def test_against_a_copy_of_a_real_fleet_corpus(tmp_path):
     stale = [f for f in findings if f.label == "STALE LOCK"]
     assert stale, "the known live instance must be found as STALE LOCK, not ORPHAN"
     assert any("deep-research" in f.lock for f in stale)
+
+
+# ── regressions from the closing non-author sweeps ────────────────────────────────────
+
+
+def test_output_does_not_crash_under_an_ascii_stdout(tmp_path):
+    """THE fleet-red path the guard missed: the census separator was U+00B7, and the print block
+    sat OUTSIDE main()'s try. Under `PYTHONIOENCODING=ascii` it raised UnicodeEncodeError and
+    exited 1 — in the exact bare-invocation mode the gate uses, in every repo holding >=1 lock."""
+    import os
+    import subprocess
+
+    _plan(tmp_path, "asc", "Status: EXECUTED 2026-08-01", archived=True)
+    _lock(tmp_path, "asc", plan="docs/development/plans/archived/asc.md", status="active")
+    env = {**os.environ, "PYTHONIOENCODING": "ascii", "LC_ALL": "C"}
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts/enforcement/check_plan_lock_release.py"),
+            "--project-root",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert r.returncode == 0, f"non-zero exit reddens ~46 repos: {r.stderr[-400:]}"
+    assert "Traceback" not in r.stderr
+    # rc==0 alone is NOT enough — the guard would satisfy that while the check emitted only
+    # "could not evaluate plan locks: UnicodeEncodeError(...)", i.e. survived by saying nothing
+    # useful. Two independent fixes are in play (an ASCII-safe separator AND the guard around the
+    # whole output path); this asserts the FIRST one, so reverting it alone still goes red.
+    assert "stale" in r.stdout, f"the census must still be emitted under ASCII stdout: {r.stdout!r}"
+    assert "could not evaluate" not in r.stdout, "degraded to the guard's error path"
+    assert "STALE LOCK" in r.stdout, "the finding must still reach the operator"
+
+
+def test_module_imports_nothing_outside_the_stdlib(tmp_path):
+    """`except Exception` does NOT catch SystemExit, so a sibling exiting at import time turned
+    this advisory row into a blocking red (measured rc=3). It also made the doc's `stdlib only`
+    contract false. The import was dead — nothing read the name it bound."""
+    src = (REPO / "scripts/enforcement/check_plan_lock_release.py").read_text(encoding="utf-8")
+    import ast as _ast
+
+    mods = set()
+    for node in _ast.walk(_ast.parse(src)):
+        if isinstance(node, _ast.Import):
+            mods |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, _ast.ImportFrom) and node.module:
+            mods.add(node.module.split(".")[0])
+    assert mods <= {"argparse", "json", "re", "sys", "dataclasses", "pathlib", "__future__"}, mods
+    assert "sys.path.insert" not in src, (
+        "no sys.path mutation — it existed only for the dead import"
+    )
+
+
+def test_the_remedy_prints_once_not_per_finding(tmp_path, capsys, monkeypatch):
+    """140 chars x N blew `final_gate.py:2114`'s output[:500] budget — measured 662 chars on the
+    fleet's only finding-bearing repo, cut mid-token with the second finding lost."""
+    for i in range(3):
+        _plan(tmp_path, f"r{i}", "Status: EXECUTED 2026-08-01", archived=True)
+        _lock(tmp_path, f"r{i}", plan=f"docs/development/plans/archived/r{i}.md", status="active")
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    cplr.main()
+    out = capsys.readouterr().out
+    assert out.count("OWNER releases it") == 1, "the remedy must appear exactly once"
+    assert len(out) < 500, f"must fit the gate's advisory budget, got {len(out)}"
+    # Detail may be dropped; the EXISTENCE of a finding may not be. Whatever does not fit is
+    # counted and named, so the operator can never mistake a truncation for a clean run.
+    shown = out.count("STALE LOCK:")
+    assert shown >= 1
+    if shown < 3:
+        assert f"{3 - shown} more finding(s)" in out, "the overflow must be named, not silent"
+
+
+def test_archive_without_the_d_resolves(tmp_path):
+    """/opt/youtube/docs/development/plans/archive/ holds 33 real plans. Hard-coding only
+    'archived' downgraded a genuinely stale lock there to ORPHAN and the verdict to
+    NOTHING VERIFIED."""
+    d = tmp_path / "docs" / "development" / "plans" / "archive"
+    d.mkdir(parents=True)
+    (d / "yt.md").write_text("Status: ✅ EXECUTED 2026-05-25\n", encoding="utf-8")
+    lk = _lock(tmp_path, "yt", plan="docs/development/plans/archive/yt.md", status="active")
+    assert "STALE LOCK" in _labels(cplr.classify(tmp_path, lk))
+
+
+def test_no_double_report_on_an_archived_plan(tmp_path):
+    """One lock, one root cause. Emitting STALE LOCK *and* PLAN FIELD STALE gave two counters and
+    two contradictory remedies — and the repoint advice is what the provenance rule forbids on
+    finished work."""
+    _plan(tmp_path, "dd", "Status: EXECUTED 2026-08-01", archived=True)
+    lk = _lock(tmp_path, "dd", plan="docs/development/plans/dd.md", status="active")  # stale field
+    got = _labels(cplr.classify(tmp_path, lk))
+    assert "STALE LOCK" in got and "PLAN FIELD STALE" not in got
+
+
+def test_all_zero_census_is_silent_but_json_still_speaks(tmp_path, capsys, monkeypatch):
+    """11 of 16 lock-carrying repos hold only terminal locks — an all-zero block on every gate run
+    forever is the fires-everywhere failure. `--json` is never silenced: a machine consumer asked."""
+    _plan(tmp_path, "q", "Status: EXECUTED 2026-08-01", archived=True)
+    _lock(tmp_path, "q", plan="docs/development/plans/archived/q.md", status="released")
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    assert cplr.main() == 0
+    assert capsys.readouterr().out == "", "an all-zero human census is noise"
+    r = _run_json(tmp_path, monkeypatch)
+    assert json.loads(r["out"])["examined"] == 1, "--json must still report"
+
+
+def test_half_applied_when_the_status_flip_is_the_missing_field(tmp_path):
+    """Finish step 5 writes THREE things. Keying only on `final_commit` reported plain OK for
+    {active + completed_at + final_commit} — a lock that still hard-BLOCKs an unrelated plan."""
+    _plan(tmp_path, "hf", "Status: IN-PROGRESS — phase 3 of 4")
+    lk = _lock(
+        tmp_path,
+        "hf",
+        plan="docs/development/plans/hf.md",
+        status="active",
+        completed_at="2026-08-21",
+        final_commit="abc1234",
+    )
+    got = [f for f in cplr.classify(tmp_path, lk) if f.label == "HALF-APPLIED FINISH"]
+    assert got, "two-of-three is still a half-apply"
+    assert "status flip" in got[0].detail
+
+
+def test_every_finding_label_reaches_the_findings_verdict(tmp_path, monkeypatch):
+    """`real` gates the verdict. A mutation narrowing it to ('STALE LOCK',) survived the whole
+    suite — so nothing proved the other three labels ever produce FINDINGS."""
+    _plan(tmp_path, "v1", "**Status:** ✅ EXECUTED 2026-08-14")  # -> LIKELY STALE
+    _lock(tmp_path, "v1", plan="docs/development/plans/v1.md", status="active")
+    r = _run_json(tmp_path, monkeypatch)
+    assert json.loads(r["out"])["verdict"] == "FINDINGS"
+
+    d2 = tmp_path / "second"
+    (d2 / "docs" / "development" / "plans").mkdir(parents=True)
+    (d2 / "docs/development/plans/v2.md").write_text("Status: CONVERGED\n", encoding="utf-8")
+    _lock(d2, "v2", plan="docs/development/plans/v2.md", status="active", completed_at="2026-08-01")
+    r2 = _run_json(d2, monkeypatch)  # -> HALF-APPLIED FINISH
+    assert json.loads(r2["out"])["verdict"] == "FINDINGS"
+
+
+def test_census_prints_first_and_includes_the_zeros(tmp_path, capsys, monkeypatch):
+    """Mutations printing only non-zero counters, and printing the census LAST, both survived the
+    suite — yet the doc calls both load-bearing (a counter that prints only when non-zero is
+    indistinguishable from one that was never computed)."""
+    _plan(tmp_path, "c1", "Status: EXECUTED 2026-08-01", archived=True)
+    _lock(tmp_path, "c1", plan="docs/development/plans/archived/c1.md", status="active")
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    cplr.main()
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    first = lines[0]
+    for key in cplr.LABELS:
+        assert key.replace("_", "-") in first, f"{key} missing from the census line"
+    assert first.count("0 ") >= 5, "zeros must print, not be omitted"
+    assert "STALE LOCK:" not in first, "the census must come FIRST"
+
+
+def test_terminal_set_and_token_list_are_complete(tmp_path):
+    """Mutations dropping `completed` from TERMINAL, and 6 of 9 FINISHED_TOKENS, all survived."""
+    for st in ("released", "executed", "complete", "completed"):
+        _plan(tmp_path, f"t_{st}", "Status: EXECUTED 2026-08-01", archived=True)
+        lk = _lock(
+            tmp_path, f"t_{st}", plan=f"docs/development/plans/archived/t_{st}.md", status=st
+        )
+        assert cplr.classify(tmp_path, lk) == [], f"{st} must be terminal"
+    # ⚠️ `for tok in cplr.FINISHED_TOKENS` iterates whatever SURVIVED, so it cannot see a token
+    # that was REMOVED — the whole suite passed with 7 of the 9 deleted, while this test's own
+    # docstring claimed to close that mutation. The set must be asserted LITERALLY, from outside
+    # the module, or the assertion is a tautology over the thing it is meant to pin.
+    assert set(cplr.FINISHED_TOKENS) == {
+        "IMPLEMENTATION-CONVERGED",
+        "EXECUTED",
+        "COMPLETED",
+        "COMPLETE",
+        "CLOSED",
+        "DONE",
+        "SHIPPED",
+        "FIXED",
+        "SUPERSEDED",
+    }, "a finished token was added or removed without updating this pin"
+    # ...and RESOLVED/CONVERGED stay OUT: the first labels a resolved issue inside an unfinished
+    # plan, the second a plan that is ready to execute, not executed.
+    for absent in ("RESOLVED", "CONVERGED"):
+        assert absent not in cplr.FINISHED_TOKENS
+        assert cplr.finished_token(f"{absent} 2026-08-01") is None, absent
+    for tok in cplr.FINISHED_TOKENS:
+        assert cplr.finished_token(f"{tok} 2026-08-01") == tok, tok
+
+
+def test_foreign_needs_both_holder_and_star_owned_paths(tmp_path):
+    """The discriminator is an AND. Mutating it to `holder` alone survived — and would silently
+    exempt any plan lock that happens to carry a holder field."""
+    _plan(tmp_path, "fh", "Status: EXECUTED 2026-08-01", archived=True)
+    lk = _lock(
+        tmp_path, "fh", plan="docs/development/plans/archived/fh.md", status="active", holder="H:1"
+    )  # holder but NOT owned_paths == ["**"]
+    got = _labels(cplr.classify(tmp_path, lk))
+    assert "FOREIGN LOCK" not in got and "STALE LOCK" in got
+
+
+# ── round 4: the closing non-author sweep ─────────────────────────────────────────────────
+
+
+def test_ok_never_stands_alone_above_an_unresolved_lock(tmp_path, capsys, monkeypatch):
+    """Fail-silent-green, inside the check written to close it. `OK` is scoped to the four
+    FINDINGS, but the self-reports print underneath it — so a healthy active lock plus one ORPHAN
+    emitted `OK - 0 stale of 2 plan lock(s) examined` immediately above `ORPHAN LOCK: ghost.json`.
+    An operator scanning an advisory row stops reading at `OK`."""
+    _plan(tmp_path, "live", "Status: IN-PROGRESS")
+    _lock(tmp_path, "live", plan="docs/development/plans/live.md", status="active")
+    _lock(tmp_path, "ghost", plan="docs/development/plans/ghost.md", status="active")  # orphan
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    cplr.main()
+    out = capsys.readouterr().out
+    ok = [ln for ln in out.splitlines() if ln.startswith("OK -")][0]
+    assert "ORPHAN LOCK" in out, "the self-report must still print"
+    assert "could NOT be resolved" in ok, f"OK stood alone above an unresolved lock: {ok!r}"
+    assert "1 lock(s)" in ok, "the count must be named, not merely hinted"
+    # ...and the qualifier must NOT appear when there is genuinely nothing unresolved.
+    (tmp_path / ".fabrik" / "plan-locks" / "ghost.json").unlink()
+    cplr.main()
+    clean = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("OK -")][0]
+    assert "could NOT be resolved" not in clean, "a clean OK must not carry the qualifier"
+
+
+def test_say_is_ascii_by_construction_not_by_stream_configuration(capsys):
+    """`_ascii_safe_stdout` is a belt, not the brace: `reconfigure` exists only on a real
+    TextIOWrapper, so under a captured/wrapped stdout it silently no-ops (its `except` is a `pass`)
+    and the next `✅` from a quoted plan status raises anyway. capsys IS such a stream, so this test
+    runs in exactly the configuration where the stream-level fix does nothing."""
+    assert (
+        not hasattr(sys.stdout, "reconfigure") or sys.stdout.__class__.__name__ != "TextIOWrapper"
+    )
+    cplr._say("STALE LOCK: ✅ EXECUTED 2026-08-12 — all six phases")
+    out = capsys.readouterr().out
+    assert out.isascii(), f"non-ASCII reached stdout: {out!r}"
+    assert "\\u2705" in out, "the payload must DEGRADE to an escape, not vanish"
+    assert "STALE LOCK" in out and "EXECUTED" in out, "the ASCII content must survive intact"
+
+
+def test_printed_block_respects_both_gate_caps_500_chars_and_10_lines(
+    tmp_path, monkeypatch, capsys
+):
+    """`final_gate.py:2114` cuts advisory output at `output[:500]` and `:387` prints TEN lines with
+    NO ellipsis — two independent caps. The budget arithmetic charged neither the newlines nor the
+    line count. Worst case measured 491 chars against a 500 cap, a 9-char margin."""
+    ar = tmp_path / "docs" / "development" / "plans" / "archived"
+    ar.mkdir(parents=True)
+    for i in range(40):  # far more findings than can ever be printed
+        (ar / f"p{i}.md").write_text("Status: " + "X" * 900 + " EXECUTED\n", encoding="utf-8")
+        _lock(tmp_path, f"p{i}", plan=f"docs/development/plans/archived/p{i}.md", status="active")
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    cplr.main()
+    out = capsys.readouterr().out
+    assert len(out) <= 500, f"the gate would cut this mid-token at 500: {len(out)}"
+    assert len(out.splitlines()) <= 10, (
+        f"lines past 10 vanish with no ellipsis: {len(out.splitlines())}"
+    )
+    assert "more finding(s)" in out, "dropping the EXISTENCE of a finding must never be silent"
+    assert out.splitlines()[0].startswith("40 stale"), "the census still leads and still counts ALL"
+
+
+def test_the_line_cap_holds_when_the_char_budget_is_not_the_binding_constraint(
+    tmp_path, monkeypatch, capsys
+):
+    """The 10-line cap (`final_gate.py:387`, no ellipsis) is a SECOND, independent limit, and today
+    it is unreachable: the char budget collapses even a 40-finding corpus to 5 lines, so a test run
+    at the real budget passes with the cap reverted — it proves nothing. That safety is EMERGENT,
+    not stated: raising `_ADVISORY_BUDGET` alone would silently start dropping findings past line
+    10 with no ellipsis and no marker. This test removes the char budget as the binding constraint
+    so the line cap is the only thing left holding, which is precisely the future it guards."""
+    pl = tmp_path / "docs" / "development" / "plans"
+    pl.mkdir(parents=True)
+    for i in range(30):
+        _lock(tmp_path, f"g{i}", plan=f"docs/development/plans/g{i}.md", status="active")
+    monkeypatch.setattr(cplr, "_ADVISORY_BUDGET", 100_000)  # the char cap can no longer bind
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    cplr.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) <= 10, f"lines past 10 vanish with no ellipsis: emitted {len(lines)}"
+    assert any("more finding(s)" in ln for ln in lines), "the truncation must still be NAMED"
+
+
+def test_the_remedy_follows_the_findings_that_actually_printed(tmp_path, monkeypatch, capsys):
+    """Keyed on `shown` rather than on what was EMITTED, a corpus of 9 ORPHANs plus 1 STALE printed
+    `-> the plan's OWNER releases it (Finish step 5)` beneath a visible list containing no stale
+    lock — the STALE line had been truncated away by the budget. The reader is then told to take
+    the wrong action on the findings they can actually see: an orphan is not released, its plan
+    cannot be found at all. Measured on a real fixture during the closing review round."""
+    ar = tmp_path / "docs" / "development" / "plans" / "archived"
+    ar.mkdir(parents=True)
+    for i in range(9):  # ORPHANs carry no remedy, and they crowd out everything after them
+        _lock(tmp_path, f"a{i}", plan=f"docs/development/plans/a{i}.md", status="active")
+    (ar / "zz.md").write_text(
+        "Status: EXECUTED\n", encoding="utf-8"
+    )  # the one STALE, with a remedy
+    _lock(tmp_path, "zz", plan="docs/development/plans/archived/zz.md", status="active")
+    monkeypatch.setattr(sys, "argv", ["c", "--project-root", str(tmp_path)])
+    cplr.main()
+    out = capsys.readouterr().out
+    assert "more finding(s)" in out, "fixture must actually truncate, or it proves nothing"
+    assert "STALE LOCK" not in out, "fixture must truncate the ONLY remedy-bearing finding away"
+    assert "OWNER releases it" not in out, (
+        "a remedy printed with no visible finding it applies to, telling the reader to release "
+        f"locks when every VISIBLE finding is an orphan: {out!r}"
+    )
+    assert "ORPHAN LOCK" in out, "the findings that did print must still print"
+    # Two-sided, or `_REMEDY = ""` would satisfy the negative assertion above trivially: when the
+    # remedy-bearing finding IS among the emitted ones, the trailer MUST appear.
+    for f in tmp_path.glob(".fabrik/plan-locks/a*.json"):
+        f.unlink()  # drop the orphans; only the STALE lock remains, so it cannot be truncated
+    cplr.main()
+    out2 = capsys.readouterr().out
+    assert "STALE LOCK" in out2 and "OWNER releases it" in out2, (
+        f"the remedy must print when its finding does: {out2!r}"
+    )
+
+
+def test_a_fenced_status_line_cannot_escape_via_a_mismatched_closing_marker():
+    """The fence regex accepted ``` or ~~~ at BOTH ends independently, so the non-greedy `.*?`
+    paired an opening ``` with an unrelated ~~~ and stripped the wrong span — leaving a `Status:`
+    line that lives INSIDE a code block exposed to the anchor. A plan whose real status is
+    IN-PROGRESS but which quotes `Status: EXECUTED` inside a fence then read as EXECUTED: a
+    LIKELY STALE LOCK against a perfectly healthy lock, the one outcome worse than not running.
+    CommonMark requires the closing marker to match the opener; the regex now does too."""
+    body = "# p\n```\nx\n~~~\nStatus: EXECUTED\n```\nStatus: IN-PROGRESS\n"
+    assert cplr.status_value(body) == "IN-PROGRESS", "a fenced Status: escaped its block"
+    assert cplr.finished_token(cplr.status_value(body)) is None, "healthy plan read as finished"
+    # An UNTERMINATED fence swallows to EOF for the same reason — better UNEVALUABLE than wrong.
+    assert cplr.status_value("# p\n```\nStatus: EXECUTED\n") is None
+    # Regressions: the shapes that already worked must keep working.
+    assert (
+        cplr.status_value("# p\n~~~\nStatus: EXECUTED\n~~~\nStatus: IN-PROGRESS\n") == "IN-PROGRESS"
+    )
+    assert cplr.status_value("# p\nStatus: IN-PROGRESS\n") == "IN-PROGRESS"
+    # site-provisioner's real shape: a SQLAlchemy `status:` inside a python fence.
+    assert (
+        cplr.status_value(
+            "# p\n```python\nstatus: Mapped[str] = mapped_column(\n```\nStatus: IN-PROGRESS\n"
+        )
+        == "IN-PROGRESS"
+    )

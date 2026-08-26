@@ -1,9 +1,9 @@
 # Review — this session's shipped surface (plan-lock release check)
 
-Status: IN-PROGRESS
+Status: CLOSED — coverage-adjudicated exit, final round `found: 0, fixed: 0`
 
 **Surface:** `HEAD cde8ad20f97814904d6df23d167fe8fc426d674e` · worktree-diff md5
-`d9721056b9a98cc823b54460aecf096a` · shipped-surface md5 `446ae88eb8464d6da1e93ce9adfecf3b`
+`d9721056b9a98cc823b54460aecf096a` · shipped-surface md5 `446ae88eb8464d6da1e93ce9adfecf3b` -> at close `446ae88eb8464d6da1e93ce9adfecf3b`
 (`git diff 3b338428..HEAD -- <the six owned paths> | md5sum`)
 
 **Scope:** what this session shipped — `scripts/enforcement/check_plan_lock_release.py`,
@@ -251,7 +251,161 @@ repos and the operator should see it stated, not discovered.
 
 | Pass | finders | found | new | fixed |
 |---:|---|---:|---:|---:|
-| 1 (WIDE) | pool ×3 — `deepseek-v3.2-exp` (fleet-breakage), `gemini-3-flash` (false-positive), `qwen3-max` (rubric-floor) | 3 | 3 | 0 |
-| 2 (CLOSING, pending) | native `fabrik-reviewer` on Opus, NON-AUTHOR context — dispatched, not yet returned | — | — | — |
+| Pass 1 (WIDE) | pool ×3 — `deepseek-v3.2-exp` (fleet-breakage), `gemini-3-flash` (false-positive), `qwen3-max` (rubric-floor) | 3 | 3 | 0 |
+| Pass 2 (CLOSING, wide) | native `fabrik-reviewer` on Opus ×2, NON-AUTHOR context, independently dispatched | 28 | 28 | 8 classes |
+| Pass 3 (confirming) | pool ×3 + my own live ASCII/fleet probes | 7 | 7 | 7 |
+| Pass 4 (confirming) | pool ×4, NON-AUTHOR brief, closed-list suppressed | 6 | 4 | 4 |
+| Pass 5 (confirming) | pool ×4, flywheel-recorded | 6 | 1 | 1 |
+| Pass 6 (confirming) | pool ×4 | 5 | 1 | 1 |
+| Pass 7 (confirming) | pool ×4 | 8 | 3 | 3 |
+| **Pass 8 (terminal)** | pool ×4 — two `NONE`-with-evidence, two candidates | **2** | **0** | **0** |
+
+Pass 8: found: 0, fixed: 0 — the terminal round. The round that fixes anything is never the last,
+and this one fixed nothing.
+
+### Rounds 3-8 — six more rounds, and the check kept committing its own sin
+
+The closing sweep did not converge in one round. It took six, and the defects it found were not
+cosmetic: **twice more, this check reported success when it could not ask its question** — the
+exact class it exists to close.
+
+**Round 3 (7 fixed).** The round-2 ASCII fix was partial and I had reported it as done. Only the
+census separator had been fixed; every *other* emitted line still carried non-ASCII, and the
+guard's own message used `repr(exc)`, re-embedding the unprintable payload so the guard failed too.
+Reproduced live against `/opt/brand-identiy-creator`:
+
+```
+$ PYTHONIOENCODING=ascii LC_ALL=C python scripts/enforcement/check_plan_lock_release.py \
+      --project-root /opt/brand-identiy-creator
+1 stale | 0 likely-stale | ... | 0 unevaluable          <- census prints
+                                                         <- the STALE LOCK line VANISHES
+rc=0                                                     <- indistinguishable from clean
+```
+
+Also: `--json` was silenced by the human-path short-circuit; `foreign` counted as "content worth
+printing", so fabrik-lib emitted two content-free lines on every gate run forever; and the budget
+charged neither the verdict line nor the overflow marker.
+
+**Round 4 (4 fixed) — the second fail-silent-green, and it was `OK` itself.** `OK` is scoped to the
+four *findings*, but the *self-reports* print underneath it, so a healthy `active` lock plus one
+`ORPHAN` emitted `OK - 0 stale of 2 plan lock(s) examined` immediately above
+`ORPHAN LOCK: ghost.json`. An operator scanning an advisory row stops at `OK`. The word stays —
+nothing stale *was* found — but it is now suffixed `- but N lock(s) could NOT be resolved`.
+Also this round: ASCII made a property of the output **by construction** (`_say()` coerces every
+line) rather than of the stream, since `sys.stdout.reconfigure` silently no-ops on a wrapped
+stdout; the newlines `output[:500]` counts are now charged; and an explicit 10-line cap was added
+for `final_gate.py:387`.
+
+**My own regression test caught my own round-3 fix.** The silence predicate keyed on the counters
+alone deleted the `OK` denominator line outright — the one thing the spec requires a clean run to
+state. `test_ok_line_buckets_sum_to_examined` went red. The predicate is now an AND with
+`evaluable == 0`.
+
+**Round 5 (1 fixed).** With 9 `ORPHAN`s and 1 `STALE`, the `STALE` line was truncated away by the
+budget but its remedy still printed — telling the reader to *release a lock* when every visible
+finding was an orphan, whose plan cannot be found at all. The remedy is now keyed on what was
+actually **emitted**, not on what was found.
+
+**Round 6 (1 fixed) — a false positive on a healthy lock, the one outcome worse than not running.**
+The fence regex accepted ``` or `~~~` at either end independently, so the non-greedy match paired
+an opening ``` with an unrelated `~~~`, stripped the wrong span, and left a `Status:` line living
+*inside* a code block exposed to the anchor. A plan whose real status is `IN-PROGRESS` but which
+quotes `Status: EXECUTED` in a fence read as EXECUTED — a `LIKELY STALE LOCK` against a perfectly
+healthy lock. CommonMark requires the closing marker to match the opener; the regex now does too.
+
+**Round 7 (3 fixed) — a test that claimed to close a mutation it could not see.**
+`test_terminal_set_and_token_list_are_complete`'s docstring says *"Mutations dropping ... 6 of 9
+FINISHED_TOKENS, all survived"* — and its loop was `for tok in cplr.FINISHED_TOKENS`, which
+iterates whatever **survived**. Measured: the whole suite passed with **7 of the 9 tokens deleted**.
+The set is now asserted literally, with `RESOLVED`/`CONVERGED` pinned absent. Also: `marker_cost`
+is computed from the real marker string instead of a literal `52`, and the remedy test is
+two-sided (an empty `_REMEDY` satisfied the negative assertion alone).
+
+**Round 8 — terminal.** Two finders returned `NONE` with an itemised list of what they checked;
+two raised candidates, **both refuted by execution**: the census does print alongside a foreign
+lock (the finder contradicted itself mid-analysis), and the `COMPLETED`-before-`COMPLETE` ordering
+*is* pinned — swapping the tuple turns the suite red, and the verdict does not change either way
+(only the reported token does). `found: 0, fixed: 0`.
+
+### What the fixes are worth — measured, not asserted
+
+Every fix carries a kept regression test, and **each was proven red-on-revert** with the source
+restored byte-identical afterwards:
+
+```
+R4-F1 OK-stands-alone          -> RED (discriminates)
+R4-F4 ASCII-by-construction    -> RED (discriminates)
+R4-F3 line cap                 -> RED (discriminates)
+R4-F3b marker not reserved     -> RED (discriminates)
+R5-F1 remedy attribution       -> RED (discriminates)
+R6-F1 fence marker match       -> RED (discriminates)
+R7 token pin: drop 7 tokens    -> RED (discriminates)
+R7 token pin: add RESOLVED     -> RED (discriminates)
+R7 empty _REMEDY               -> RED (discriminates)
+silence predicate (round 3)    -> RED (discriminates)
+  restored byte-identical: True
+```
+
+Two of my own mutants were themselves defective and had to be re-run: the line-cap test was
+**vacuous** at the real budget (the char budget collapses 40 findings to 5 lines, so the cap never
+binds and the test passed with it reverted) — rewritten to raise `_ADVISORY_BUDGET` so the cap is
+the only thing holding, at which point it went red and immediately exposed an **off-by-one in the
+fix itself**: the overflow marker is a printed line and was not reserved, emitting 11 lines against
+a 10-line cap. And the `_REMEDY = ""` mutation was a no-op regex that never applied; re-applied
+correctly, the test discriminates. A mutation that does not apply is not evidence.
+
+### The fleet, re-measured after every round
+
+```
+45 git repos x 2 encodings (UTF-8 and PYTHONIOENCODING=ascii LC_ALL=C)
+  non-zero exits = 0 | over 500 chars = 0 | over 10 lines = 0 | repos that speak = 5
+
+96 synthetic corpora brute-forced through the real CLI (stale/orphan/unknown x long/short):
+  worst case 500 chars / 5 lines — zero breaches, zero non-zero exits
+
+715 real plan files on the box, old fence regex vs new:
+  status_value changed = 0 | verdict flips = 0   (pure hardening, no regression)
+```
+
+The noise floor fell from ~16 speaking repos to **5**, each for a real reason: one finding, three
+stating their denominator, one orphan.
+
+### Round 2 — the closing sweeps found what pass 1 could not
+
+Two independent non-author Opus reviewers, dispatched separately, converged on the same class:
+**this check had two live paths to a fleet-wide blocking red**, and both were reproduced, not argued.
+
+1. **`UnicodeEncodeError` under an ASCII stdout, rc=1.** The census separator was `U+00B7` and the
+   print block sat OUTSIDE `main()`'s guard. Reproduced: `PYTHONIOENCODING=ascii … → rc=1`, in the
+   exact bare-invocation mode `final_gate` uses, in every repo holding a lock — the hub included.
+   `final_gate.py:262-270` turns that into a blocking red across ~46 repos. **This is the precise
+   failure mode the module docstring cites as its reason for existing**, present in the module.
+2. **`except Exception` does not catch `SystemExit`.** Reproduced at rc=3 via the (dead)
+   `check_convergence` import. The docstring's claim that the guard "catches the CLASS" was false —
+   `Exception` is not the class of `BaseException`. The import bound a name nothing read, so
+   deleting it fixed the exit path, removed a `sys.path` mutation, and made the doc's `stdlib only`
+   contract true, all at once.
+3. **The 500-char advisory cap was already cutting a real finding in half, today.** `_REMEDY` is
+   140 chars and was re-emitted per finding; the fleet's one finding-bearing repo emitted 662 chars
+   and lost its second finding to `output[:500]`.
+4. **`plans/archive/` — no 'd' — is a real fleet layout.** `/opt/youtube` keeps 33 plans there. A
+   genuinely stale lock downgraded to `ORPHAN LOCK` and the verdict to `NOTHING VERIFIED`.
+5. **Rule 2 was blind to the two-of-three half-apply** (`completed_at` + `final_commit`, still
+   `active`) and reported plain `OK` on a lock that still hard-BLOCKs an unrelated plan.
+6. **A double-report with contradictory remedies** on the fleet's only live finding — the second
+   advised the repoint the provenance rule forbids on finished work.
+7. **An all-zero census printed forever in 11 repos** — the fires-everywhere failure the doc argues
+   against for the no-lock-dir case and then did not guard here.
+8. **Eleven source mutations survived the suite**, including `real` narrowed to `STALE LOCK` only
+   (nothing proved the other three labels ever produce a `FINDINGS` verdict) and a census printing
+   only non-zero counters.
+
+Fourteen tests added, **each proven red-on-revert**. One had to be strengthened past `rc == 0`:
+the guard alone satisfied it while the check emitted no useful output, so it now asserts the census
+and the finding still reach the operator under an ASCII stdout.
+
+**One fix created a defect and the sweep caught it in the same round:** adding the `archive`
+branches took the ORPHAN `tried:` list from four candidate paths to six, pushing a real line to
+1020 chars. The detail now names the stem and the count; the search order lives in the doc.
 
 **This review is NOT closed.** Pass 1 adjudicated every class and refuted all three of its candidates, but the termination contract needs BOTH a fully-adjudicated checklist AND a full fresh round that raises nothing — and the closing round's finders must run in a **non-author context**, which mine cannot (I wrote this surface). The closing sweep is dispatched and outstanding; `Status: IN-PROGRESS` is the honest state until it returns and is merged. Recording it this way rather than claiming a quiet exit on my own pass is the whole point of the rule — an author's clean round measures what occurred to the author, which this session has now demonstrated twice (a quiet author pass at plan-review round 1, then 15 findings from the independent grounder; a quiet author pass at plan-review round 3, then 6 more).

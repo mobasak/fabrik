@@ -78,11 +78,29 @@ advisory output as `output[:500]` and `:387` prints ten lines with no ellipsis, 
 a leading census can be truncated into invisibility. A counter that prints only when non-zero is
 indistinguishable from a counter that was never computed.
 
+Those are **two independent caps**, and the printed block is budgeted against both. The char budget
+charges the census, the verdict line, the overflow marker and the remedy trailer — each including
+the newline `output[:500]` counts. The line budget reserves three (census, verdict, marker) plus the
+remedy when one will print. Today only the char cap binds — 40 findings still collapse to five
+lines, because the census and verdict consume ~260 of the 500 and no finding line is shorter than
+~90 chars — so the line cap is defensive: raising `_ADVISORY_BUDGET` alone would otherwise start
+dropping findings past line 10 with no ellipsis and no marker. Whatever is cut, the **count** of
+dropped findings is always named; dropping the *existence* of a finding silently is the one outcome
+the budget exists to prevent.
+
 ### Three verdicts, and why the ordering matters
 
 - `FINDINGS` — at least one of the four findings. **This outranks everything.**
 - `NOTHING VERIFIED` — no lock was in an evaluable state. *An unasked question, not a pass.*
-- `OK` — at least one lock was evaluated and nothing was found.
+- `OK` — at least one lock was evaluated and none of the four findings fired.
+
+⚠️ **`OK` may never stand alone above an unresolved lock.** `OK` is scoped to the four *findings*,
+but the *self-reports* print underneath it — so a healthy `active` lock plus one `ORPHAN` emitted
+`OK - 0 stale of 2 plan lock(s) examined` immediately above `ORPHAN LOCK: ghost.json`, and an
+operator scanning an advisory row stops reading at `OK`. That is fail-silent-green occurring inside
+the check written to close it. The word stays — nothing stale *was* found, which is true — but when
+`orphan + unknown-status + unevaluable > 0` the line is suffixed
+`- but N lock(s) could NOT be resolved; see below`.
 
 ⚠️ **`FINDINGS` must outrank `NOTHING VERIFIED`.** `STALE LOCK`, `HALF-APPLIED FINISH` and
 `ORPHAN LOCK` are all emitted on paths where the lock is *not* evaluable, so an ordering that let
@@ -91,9 +109,28 @@ verified — this is an unasked question, not a pass"* on the very next line, wi
 detail and the remedy never printing at all. That shipped in development and was caught by the
 Phase-A review; `test_findings_print_even_when_nothing_was_evaluable` pins it.
 
-**A repo with no `.fabrik/plan-locks/` prints nothing at all** — 30 of ~46 synced repos have none,
-and `warn_only` implies `advisory`, so stdout is shown on every pass. A `NOTHING VERIFIED` block
-there would be permanent noise.
+### When the check says nothing at all
+
+`warn_only` implies `advisory`, so stdout is shown on **every** gate pass, red or green. Anything
+printed unconditionally is printed forever. The human path is therefore silent when there is both
+nothing to report *and* nothing that went unasked:
+
+| Repo state | Human output |
+|---|---|
+| no `.fabrik/plan-locks/` at all (30 of ~46 synced repos) | *(silent)* |
+| locks present, all terminal and/or foreign — nothing evaluable, no self-report | *(silent)* |
+| ≥1 lock evaluated, nothing found | census + `OK - 0 stale of N …` (+ the unresolved-count suffix, if any) |
+| nothing evaluable **but** an `ORPHAN` / `UNKNOWN STATUS` / `UNEVALUABLE` / finding | census + `NOTHING VERIFIED` + the lines |
+| any finding | census + the finding lines + the remedy |
+
+⚠️ **The silence predicate is an AND, and `evaluable == 0` is the clause that keeps it honest.**
+An all-zero-counter run where something *was* evaluated is not "nothing to say" — it is the check
+asking its question and getting a clean answer, and stating the denominator is this check's whole
+success contract. Keying the silence on the counters alone deleted the `OK` line outright; a
+regression test caught it in review, red before the fix.
+
+**`--json` is never silenced.** A machine consumer asked the question explicitly and is owed the
+payload, including the all-zero census.
 
 ## Anchoring, and why the token list is safe
 
@@ -116,6 +153,13 @@ Each clause is load-bearing and each was measured:
   verdict between the first and the last.
 - *Fence-stripped* — `site-provisioner`'s plan contains `status: Mapped[str] = mapped_column(`
   inside a code fence. Unstripped, that parses as the plan's status.
+- *…and the closing fence must MATCH its opener*, as CommonMark requires. Accepting ``` or `~~~`
+  at either end independently let the non-greedy match pair an opening ``` with an unrelated `~~~`,
+  strip the wrong span, and leave a `Status:` line that lives inside a code block exposed to the
+  anchor — reading a plan whose real status is `IN-PROGRESS` as `EXECUTED`, i.e. a
+  `LIKELY STALE LOCK` against a healthy lock. Verified against all **715** plan files on the box:
+  the stricter regex changes **zero** status values and zero verdicts, so it is pure hardening. An
+  unterminated fence now swallows to EOF for the same reason — `UNEVALUABLE` beats confidently wrong.
 
 `RESOLVED` and `CONVERGED` are deliberately **absent** from the token set: the first is how this
 repo labels a resolved issue inside an unfinished plan, and a converged plan is ready to execute,
@@ -178,7 +222,15 @@ violation — from the check's own output.
 - **Always exits 0**, findings included. `final_gate.py:262-270` converts a non-zero exit from a
   `warn_only` check into a **blocking red**, which on a governance-synced check means ~46 repos.
   Unknown flags are tolerated (`parse_known_args`) for the same reason.
-- **stdlib only** — `json`, `pathlib`, `re`, `argparse`.
+- **stdlib only** — `json`, `pathlib`, `re`, `sys`, `argparse`. Pinned by
+  `test_module_imports_nothing_outside_the_stdlib`, because `except Exception` does not catch a
+  `SystemExit` raised by a third-party module at import time.
+- **ASCII-safe stdout.** Every line the check emits is ASCII, and `sys.stdout` is reconfigured with
+  `errors="backslashreplace"` before anything prints — real fleet status values carry `✅` and `—`,
+  and under `PYTHONIOENCODING=ascii` / `LC_ALL=C` an unguarded `print` raised `UnicodeEncodeError`
+  *mid-block*: the census printed, then the finding and its remedy vanished and the run exited 0,
+  indistinguishable from clean. Degrading a quoted status to `\u2705` is acceptable; losing the
+  finding is not.
 - CLI: `--project-root PATH` (default cwd) · `--json`.
 
 ## Two named exits — this check is not meant to live forever
