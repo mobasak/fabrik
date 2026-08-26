@@ -1268,7 +1268,11 @@ def _fleet_tick_spies(monkeypatch):
     return actions
 
 
-def test_fleet_tick_advisory_at_96_installs_nothing(tmp_path, monkeypatch, capsys):
+def test_fleet_tick_no_advisory_while_a_sibling_has_headroom(tmp_path, monkeypatch, capsys):
+    """The active account at 96% is a NON-event while any sibling has headroom: the flip leg
+    re-points to it and every agent keeps working, so NO advisory fires (operator directive
+    2026-08-26 + trade-intelligence 01M0YAB2 — the old per-account 96% advisory was spam AND a
+    false alarm). The tick still installs nothing (credential-free flip)."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
@@ -1282,101 +1286,97 @@ def test_fleet_tick_advisory_at_96_installs_nothing(tmp_path, monkeypatch, capsy
     capsys.readouterr()
 
     assert cr._cmd_tick() == 0
-    out = capsys.readouterr().out
 
     assert actions["switched"] == [] and actions["picked"] == [], "fleet tick installs NOTHING"
-    assert len(actions["telegrams"]) == 1
-    assert "sarp@ocoron.com" in actions["telegrams"][0] and "96" in actions["telegrams"][0]
-    assert "96%" in out
-
-    # 24h per-account suppression: an immediate re-tick fires nothing new
-    capsys.readouterr()
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1, "the advisory must be 24h-suppressed per account"
+    assert actions["telegrams"] == [], (
+        "a walled account with a headroom sibling fires NO advisory — the flip relieves it"
+    )
+    assert actions["mails"] == [], "no drain mail while the fleet has headroom"
 
 
-def test_fleet_tick_suppression_is_per_account_not_global(tmp_path, monkeypatch):
-    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
-    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
-    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    usages = {"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
-    _fake_oauth(monkeypatch, usages=usages)
-    actions = _fleet_tick_spies(monkeypatch)
-    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
-    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
-
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1  # sarp only
-
-    usages["tok-intel"] = _usage_blob(90.0, 10.0)  # ob crosses AFTER sarp's stamp exists
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 2, "a second account's advisory must not be suppressed"
-    assert "ob@ocoron.com" in actions["telegrams"][1]
-
-
-def test_fleet_tick_drain_mail_routes_mapped_slugs_to_existing_repos(tmp_path, monkeypatch, capsys):
-    fleet, *_ = _canonical(tmp_path, monkeypatch)
-    for slug in ("fabrik-infra", "cron-ci-fix", "seo"):
-        assert cr.main(["--new-dir", slug, "sarp@ocoron.com"]) == 0
-        _pin(fleet, slug, "sarp@ocoron.com")
-    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
-    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(96.0, 50.0)})
-    actions = _fleet_tick_spies(monkeypatch)
-    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo", "youtube"])
-    opt = tmp_path / "opt"  # holds fabrik/ + seo/ but NO cron-ci-fix/
-    (opt / "fabrik").mkdir(parents=True)
-    (opt / "seo").mkdir()
-    monkeypatch.setattr(cr, "OPT_DIR", opt)
-
-    assert cr._cmd_tick() == 0
-
-    # fabrik-* hub role slugs → fabrik; seo → seo; cron-ci-fix has no repo → skipped
-    assert sorted(actions["mails"]) == ["fabrik", "seo"]
-
-
-def test_fleet_tick_drain_mail_broadcasts_when_account_slugs_map_to_no_repo(
+def test_fleet_exhaustion_advisory_broadcasts_to_all_mailbox_repos(
     tmp_path, monkeypatch, capsys
 ):
-    """Pointer model: account-named slugs (ob/can/sarp/mob) match no /opt repo, so narrow
-    routing resolves EMPTY — under one-active-account-for-all-projects the advisory must then
-    BROADCAST to every mailbox repo, not silently mail nobody (only the Telegram would fire)."""
+    """When the ONLY account is walled (no sibling to flip to), the fleet-wide wall advisory
+    fires and BROADCASTS to every mailbox repo — the wall concerns every project equally."""
     fleet, *_ = _canonical(tmp_path, monkeypatch)
     assert cr.main(["--new-dir", "ob", "ob@ocoron.com"]) == 0
     _pin(fleet, "ob", "ob@ocoron.com")
     _fleet_creds(fleet, "ob", "tok-ob", age_s=60.0)
     monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
-    _fake_oauth(monkeypatch, usages={"tok-ob": _usage_blob(96.0, 50.0)})
+    _fake_oauth(monkeypatch, usages={"tok-ob": _usage_blob(96.0, 96.0)})
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo", "youtube"])
-    opt = tmp_path / "opt"  # deliberately holds NO 'ob' dir — the account slug maps nowhere
-    (opt / "fabrik").mkdir(parents=True)
-    monkeypatch.setattr(cr, "OPT_DIR", opt)
+    _point(fleet, "ob")
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
 
     assert cr._cmd_tick() == 0
 
+    assert len(actions["telegrams"]) == 1, "the active account is walled with no relief → 1 advisory"
+    assert "ob@ocoron.com" in actions["telegrams"][0]
     assert sorted(actions["mails"]) == ["fabrik", "seo", "youtube"]
 
 
-def test_fleet_tick_future_dated_stamp_never_suppresses_the_advisory(tmp_path, monkeypatch):
-    """F54: a suppression stamp whose mtime sits in the FUTURE (WSL suspend/resume, NTP — the
-    _last_switch_ts clock-skew class) must read EXPIRED, not 'suppressed until the wall clock
-    catches up in 5 days' — that silence lands exactly while an account burns to its wall."""
+def test_fleet_exhaustion_advisory_fires_once_then_rearms_on_relief(tmp_path, monkeypatch):
+    """Fire ONCE on entry to the walled state, suppress while it persists (the latch), and
+    re-arm the instant relief arrives — a headroom sibling returning clears the latch so the
+    NEXT genuine wall speaks fresh. This is the epoch-free replacement for the churny per-
+    account band|cycle dedup that spammed 8x at a steady 95% (trade-intelligence 01M0YAB2)."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
-    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(96.0, 50.0)})
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "entry to the walled state fires ONE advisory"
+
+    # Still walled next tick → the latch suppresses the repeat (this is the anti-spam fix).
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "a persisting wall must NOT re-fire (latch holds)"
+
+    # A sibling regains headroom → the flip relieves the active account → latch re-arms, silent.
+    usages["tok-intel"] = _usage_blob(10.0, 10.0)
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1, "relief (a flip to headroom) fires nothing and re-arms"
+
+    # A fresh total wall AFTER relief speaks again — the latch was cleared, so it is a new fact.
+    usages["tok-seo"] = _usage_blob(97.0, 97.0)
+    usages["tok-intel"] = _usage_blob(100.0, 100.0)
+    _fake_oauth(monkeypatch, usages=usages)
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 2, "a new wall episode after relief is a new fact — fires"
+
+
+def test_fleet_wall_latch_is_epoch_free_no_clock_skew_silence(tmp_path, monkeypatch):
+    """The wall latch is presence-only (no mtime comparison), so it has NO clock-skew failure
+    mode: a future-dated stamp cannot silence a genuine wall the way the old time-keyed per-
+    account stamp could (F54). With the ONLY account walled, a pre-existing latch whose mtime
+    sits in the future still suppresses (already-advised) — decided by presence, never by age."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "ob", "ob@ocoron.com"]) == 0
+    _pin(fleet, "ob", "ob@ocoron.com")
+    _fleet_creds(fleet, "ob", "tok-ob", age_s=60.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    _fake_oauth(monkeypatch, usages={"tok-ob": _usage_blob(96.0, 96.0)})
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
-    stamp = cr._fleet_advisory_stamp("sarp@ocoron.com")
-    stamp.touch()
+    _point(fleet, "ob")
+    stamp = cr._fleet_exhaustion_stamp()
+    stamp.touch()  # latch already present → this wall episode was already advised
     future = FLEET_NOW + 5 * 86400
     os.utime(stamp, (future, future))
 
     assert cr._cmd_tick() == 0
 
-    assert len(actions["telegrams"]) == 1, "a future-dated stamp must not silence the advisory"
-    assert stamp.stat().st_mtime == FLEET_NOW, "the invalid stamp must be rewritten at now"
+    assert actions["telegrams"] == [], "a present latch suppresses regardless of its (future) mtime"
 
 
 def test_keepalive_future_skewed_credentials_mtime_counts_as_due(tmp_path, monkeypatch, capsys):
@@ -2893,85 +2893,40 @@ def test_usage_windows_still_fail_closed_on_bad_required_window():
 # ── fabrik-lib's advisory-volume report (01M0DQ…, 2026-08-19): one FACT, one message ──
 
 
-def test_advisory_does_not_refire_daily_while_the_same_account_sits_over(tmp_path, monkeypatch):
-    """fabrik-lib measured 10 advisories in 3 days, 9 identical, and asked for
-    'one advisory per account per reset cycle, updated in place rather than
-    re-sent'. The 24h stamp only rate-LIMITED it: an account parked at 91%
-    re-fired every 24h forever — 'ob@ 91% repeated across three days is one
-    fact, not three'. Suppress while the band AND the reset cycle are unchanged."""
-    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
-    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
-    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    _fake_oauth(
-        monkeypatch,
-        usages={"tok-seo": _usage_blob(91.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
-    )
-    actions = _fleet_tick_spies(monkeypatch)
-    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
-    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
-
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1, "the first crossing DOES alert"
-
-    # Three days later, same account, same band, same quota cycle: still ONE fact.
-    stamp = cr._fleet_advisory_stamp("sarp@ocoron.com")
-    old = cr._now() - (3 * 86400)
-    os.utime(stamp, (old, old))
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1, (
-        "same account, same band, same cycle — a stale stamp must NOT re-fire it"
-    )
-
-
-def test_advisory_refires_when_the_band_escalates(tmp_path, monkeypatch):
-    """Suppression must not silence a WORSENING account — 91% then 97% is two
-    facts, and the second one matters more."""
-    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
-    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
-    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    usages = {"tok-seo": _usage_blob(86.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
-    _fake_oauth(monkeypatch, usages=usages)
-    actions = _fleet_tick_spies(monkeypatch)
-    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
-    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
-
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1
-    usages["tok-seo"] = _usage_blob(97.0, 50.0)  # escalation
-    _fake_oauth(monkeypatch, usages=usages)
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 2, "an escalating band is a NEW fact and must alert"
-
-
-def test_advisory_does_not_refire_when_only_the_sliding_5h_reset_moves(tmp_path, monkeypatch):
-    """The 5-hour session window SLIDES its resets_at forward as an active account keeps being
-    used (Claude's rolling window). Keying the dedup cycle on min(resets) picked that volatile
-    5h reset, so the key churned every tick and the advisory re-fired on EVERY 5-min tick —
-    mob 85->87->90->91 in 20 min, plus ob/sarp re-firing at a steady 91% (2026-08-23). Same
-    account, same band, UNCHANGED weekly cycle => one fact, even as the 5h reset moves."""
+def test_no_advisory_churn_from_reset_jitter_while_a_sibling_has_headroom(tmp_path, monkeypatch):
+    """The root cause of trade-intelligence 01M0YAB2 (mob@ 8x at a steady 95% on 2026-08-25):
+    the per-account dedup keyed its cycle on a reset epoch that JITTERS/SLIDES tick-to-tick
+    (the weekly reset crossing :59<->:00, the 5h reset sliding forward), so int(epoch) churned
+    and the advisory re-fired every 5 minutes. The redesign removes the per-account advisory
+    entirely — while ANY sibling has headroom the account crossing 95% is a non-event (the flip
+    relieves it), so NO amount of reset jitter on the hot account can produce a single mail.
+    Epoch-free by construction."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
 
-    def blob(session_reset_iso):
+    def blob(weekly_reset_iso):
+        # weekly reset jitters across the minute boundary — the exact 51181918 defect input.
         return {
-            "five_hour": {"utilization": 86.0, "resets_at": session_reset_iso},
-            "seven_day": {"utilization": 50.0, "resets_at": "2027-01-22T00:00:00+00:00"},
+            "five_hour": {"utilization": 95.0, "resets_at": "2027-01-20T00:00:00+00:00"},
+            "seven_day": {"utilization": 95.0, "resets_at": weekly_reset_iso},
         }
 
-    usages = {"tok-seo": blob("2027-01-20T00:00:00+00:00"), "tok-intel": _usage_blob(10.0, 10.0)}
+    usages = {"tok-seo": blob("2027-01-22T20:59:59+00:00"), "tok-intel": _usage_blob(10.0, 10.0)}
     _fake_oauth(monkeypatch, usages=usages)
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
 
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1, "first crossing alerts"
+    # Tick repeatedly with the weekly reset flipping :59<->:00 — the old churn trigger.
+    for reset_iso in (
+        "2027-01-22T21:00:00+00:00",
+        "2027-01-22T20:59:59+00:00",
+        "2027-01-22T21:00:01+00:00",
+    ):
+        usages["tok-seo"] = blob(reset_iso)
+        _fake_oauth(monkeypatch, usages=usages)
+        assert cr._cmd_tick() == 0
 
-    # Next tick: the 5h reset slid +3h, weekly UNCHANGED, band UNCHANGED (86% -> band 85).
-    usages["tok-seo"] = blob("2027-01-20T03:00:00+00:00")
-    _fake_oauth(monkeypatch, usages=usages)
-    assert cr._cmd_tick() == 0
-    assert len(actions["telegrams"]) == 1, (
-        "a sliding 5h reset must NOT re-fire a steady same-band advisory (cycle keys on weekly)"
-    )
+    assert actions["telegrams"] == [], "reset jitter must produce ZERO advisories while headroom exists"
+    assert actions["mails"] == [], "and zero mail — the spam class is structurally gone"

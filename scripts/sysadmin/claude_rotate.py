@@ -3510,13 +3510,15 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
     return 0
 
 
-def _fleet_advisory_stamp(email: str) -> Path:
-    """The 24h PER-ACCOUNT advisory dedupe stamp (same fallback contract as the drain stamp)."""
-    safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
+def _fleet_exhaustion_stamp() -> Path:
+    """The fleet-wide wall latch: present = the "active account is walled, no auto-relief"
+    advisory has already fired for the CURRENT wall episode. Cleared the instant the active
+    account is no longer walled (a flip to headroom, or a reset), so the next genuine wall
+    speaks fresh. Same tmp fallback as the other stamps — epoch-free, no clock-skew concern."""
     try:
-        return _rotate_state_dir() / f"fleet-advisory-{safe}"
+        return _rotate_state_dir() / "fleet-exhausted"
     except _STATE_DIR_ERRORS:
-        return Path(tempfile.gettempdir()) / f"claude-fleet-advisory-{safe}"
+        return Path(tempfile.gettempdir()) / "claude-fleet-exhausted"
 
 
 def _fleet_refresh_stamp(email: str) -> Path:
@@ -3548,25 +3550,6 @@ def _touch_refresh_stamp(email: str) -> None:
         _fleet_refresh_stamp(email).touch()
     except OSError:
         pass  # a lost stamp costs one extra ping next tick, never the status itself
-
-
-def _fleet_slug_repos(slugs: list[str]) -> list[str]:
-    """Drain-mail routing: slug → /opt/<slug> where that repo exists (hub role slugs
-    ``fabrik-*`` → /opt/fabrik), intersected with the mailbox-capable repos. Slugs with no
-    repo (e.g. cron-ci-fix) are skipped — mail to a nonexistent inbox helps nobody."""
-    reachable = set(_mailbox_repos())
-    out: list[str] = []
-    for slug in slugs:
-        name = "fabrik" if slug.startswith("fabrik-") else slug
-        if name in out or name not in reachable:
-            continue
-        try:
-            if not (OPT_DIR / name).is_dir():
-                continue
-        except OSError:
-            continue
-        out.append(name)
-    return out
 
 
 def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) -> None:
@@ -3663,8 +3646,80 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         print(f"tick: flip {row['email']} -> {email} ({slug}) withheld (see stderr)")
 
 
+def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool, dict | None]:
+    """Is the account the fleet's ``active`` pointer resolves to (AFTER this tick's flip leg)
+    walled? Uses the ONE shared exclusion predicate (:func:`_flip_churn_excluded`) — a pointer
+    sitting on a ≥threshold / cap-walled / ≥100 account IS the real "no active quota left"
+    signal, and it stays true across a pause (the flip was held) or a no-successor tick (nothing
+    to flip to). Unresolvable pointer / no reading → not-walled: never cry wolf."""
+    active_slug = _resolve_active()
+    row = (
+        next((r for r in accounts if active_slug in (r.get("slugs") or [])), None)
+        if active_slug
+        else None
+    )
+    if row is None:
+        return False, None
+    utils = {
+        key: (w.get("utilization") if isinstance(w, dict) else None)
+        for key, w in (("five_hour", row.get("five_hour")), ("seven_day", row.get("seven_day")))
+    }
+    if all(v is None for v in utils.values()):
+        return False, row  # no reading → no claim
+    return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
+
+
+def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
+    """Fire ONE advisory only when the fleet's ACTIVE account is walled with no auto-relief.
+
+    Under one-active-pointer-for-all-projects (memory rotation_continuity_over_binding), an
+    individual account crossing 95% is a NON-event — the flip leg above re-points to a sibling
+    with headroom and every agent keeps working. The "reach a checkpoint before the wall"
+    advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
+    could not relieve it (no successor with headroom, or the operator's pause held the flip).
+    Firing it per-account on every ≥85% crossing was both spam — 10 near-identical mails on
+    2026-08-25, trade-intelligence 01M0YAB2 — and a false alarm. Fire once on entry to the
+    walled state; suppress while it persists (the latch); re-arm the instant relief arrives.
+    Epoch-free by construction: no reset-timestamp dedup key to churn (the 51181918 defect
+    class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady 95%).
+    (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
+    walled, row = _active_account_walled(accounts, threshold)
+    stamp = _fleet_exhaustion_stamp()
+    if not walled or row is None:
+        stamp.unlink(missing_ok=True)  # relief arrived (flip/reset) → re-arm for the next wall
+        return
+    if stamp.exists():
+        return  # already advised for this wall episode — one fact, one message
+    hot = max(
+        (
+            w["utilization"]
+            for w in (row.get("five_hour"), row.get("seven_day"))
+            if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
+        ),
+        default=0.0,
+    )
+    msg = (
+        f"fleet quota advisory: the active account {row['email']} is at {hot:.0f}% and this tick"
+        " could not flip to an account with headroom (every sibling walled, or rotation paused)"
+        " — work will stall until a weekly reset. Reach a commit-and-push checkpoint NOW."
+    )
+    _tick_telegram(msg)
+    repos = _mailbox_repos()  # a fleet-wide wall concerns every project → broadcast
+    if repos:
+        _drain_mail(repos, "fleet quota advisory\n\n" + msg)
+    try:
+        stamp.write_text(str(int(now)), encoding="utf-8")
+        os.utime(stamp, (now, now))
+    except OSError:
+        pass
+    _ledger_append(
+        {"event": "fleet-active-wall", "ts": now, "account": row["email"], "at_pct": hot}
+    )
+    print(f"tick: ACTIVE-WALL advisory {row['email']} at {hot:.0f}%")
+
+
 def _fleet_tick_inner(dirs: list[Path]) -> int:
-    """The tick, fleet-shaped: telemetry + the POINTER FLIP + per-ACCOUNT advisories.
+    """The tick, fleet-shaped: telemetry + the POINTER FLIP + the fleet wall advisory.
 
     REWRITTEN, not reused — _tick_inner's frame installs credential files, which fleet mode
     never does. The flip leg (operator redesign 2026-08-15 — one active account for ALL
@@ -3673,10 +3728,11 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     active account ≥ROTATE_THRESHOLD (default 95) on EITHER window → flip to the account with
     the most weekly-then-session headroom among credentialed, un-walled siblings. The flip
     moves zero credential bytes and is refused by the pause marker + the 30-min dwell (inside
-    :func:`_flip_active`); telemetry and the advisories below run REGARDLESS (T01 semantics —
-    pause holds action, never signal). No successor with headroom → nothing flips and the
-    ≥85% drain advisory below is the recourse, exactly as before: one advisory Telegram per
-    account per 24h, plus drain mail routed to the repos mapped to that account's slugs.
+    :func:`_flip_active`); telemetry and the wall advisory below run REGARDLESS (T01 semantics —
+    pause holds action, never signal). The advisory is FLEET-WIDE, not per-account: it fires
+    ONLY when the post-flip active account is walled with no auto-relief (no successor, or the
+    pause held the flip) — see :func:`_fleet_active_wall_advisory`. A single account crossing
+    95% while a sibling has headroom is a non-event (the flip relieved it) and fires nothing.
     """
     threshold = _env_float("ROTATE_THRESHOLD", 95.0)
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
@@ -3697,90 +3753,12 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             print(f"tick: {row['email']} — no quota reading (no fresh token, nothing cached)")
             continue
         hot = max(utils)
-        if hot < drain_thr:
-            print(f"tick: ok — {row['email']} at {hot:.0f}%{stale}")
-            continue
-        resets = [w.get("resets_at_epoch") for w in windows if w.get("resets_at_epoch")]
-        if resets:
-            from datetime import datetime
-
-            revive_s = datetime.fromtimestamp(min(resets)).strftime("%a %H:%M")
-        else:
-            revive_s = "unknown"
-        # Advisory dedupe, per fabrik-lib's report (2026-08-19): the stamp used to be
-        # time-only — one per account per 24h — which rate-LIMITED the message without
-        # deduping the FACT. An account parked at 91% re-fired every 24h forever ("ob@ 91%
-        # repeated across three days is one fact, not three"), and, worse, the same 24h
-        # window SILENCED a genuine escalation from 86% to 97%. The stamp now carries
-        # "<band>|<cycle>": suppress only while the 5%-band and the quota cycle are both
-        # unchanged, so a steady account says it once per reset cycle while a worsening one
-        # always speaks.
-        stamp = _fleet_advisory_stamp(row["email"])
-        band = int(hot // 5) * 5
-        # cycle keys on the WEEKLY reset ONLY — the stable per-quota-week boundary. The 5-hour
-        # session reset SLIDES forward as an active account keeps being used (Claude's rolling
-        # window), so keying on min(resets) picked that volatile value and the dedup key churned
-        # every tick — the advisory re-fired on EVERY 5-minute tick (mob 85->87->90->91 in 20 min
-        # + ob/sarp re-firing at a steady 91%, 2026-08-23). The weekly reset is fixed within a
-        # quota week; the band comparison below still lets a genuine escalation (86->97) speak.
-        weekly = row.get("seven_day")
-        weekly_reset = weekly.get("resets_at_epoch") if isinstance(weekly, dict) else None
-        cycle = str(int(weekly_reset)) if weekly_reset else "unknown"
-        prev_band: int | None = None
-        prev_cycle = ""
-        try:
-            prev_band_s, _, prev_cycle = stamp.read_text(encoding="utf-8").strip().partition("|")
-            prev_band = int(prev_band_s)
-        except (OSError, ValueError):
-            prev_band, prev_cycle = None, ""
-        try:
-            age = now - stamp.stat().st_mtime
-        except OSError:
-            age = None
-        if age is not None and age < -_CLOCK_SKEW_TOLERANCE_S:
-            # A stamp mtime AHEAD of now (WSL suspend/resume, NTP — the _last_switch_ts skew
-            # class) would read "fresh" until the wall clock catches up, silencing the advisory
-            # for days exactly while an account burns. Future-dated = INVALID: fire now.
-            prev_band = None
-        if (
-            prev_band is not None
-            and prev_cycle == cycle
-            and band <= prev_band
-            # Re-arm safety valve: with no reset epoch to key on, an unchanged band would
-            # otherwise suppress forever. A week without a word is a fact worth repeating.
-            and not (cycle == "unknown" and age is not None and age > 7 * 86400)
-        ):
-            print(f"tick: {row['email']} at {hot:.0f}%{stale} — advisory suppressed (same band)")
-            continue
-        msg = (
-            f"fleet advisory: account {row['email']} at {hot:.0f}%{stale} (resets {revive_s})"
-            " — the active pointer flips to the account with headroom; a walled account's"
-            " windows resume on reset"
-        )
-        _tick_telegram(msg)
-        # Pointer model: account slugs (ob/can/sarp/mob) map to no /opt repo, so narrow
-        # routing resolves EMPTY — and under one-active-account-for-all-projects a quota
-        # advisory concerns every coder anyway. Empty narrow routing → broadcast to every
-        # mailbox repo (the legacy drain's posture); per-project slugs still route narrowly.
-        repos = _fleet_slug_repos(row["slugs"]) or _mailbox_repos()
-        if repos:
-            _drain_mail(
-                repos,
-                "fleet quota advisory\n\n"
-                + msg
-                + " Reach a commit-and-push checkpoint before the wall.",
-            )
-        try:
-            # Record the FACT we just reported, not merely that we reported something —
-            # the next tick compares band+cycle against this to decide "already said".
-            stamp.write_text(f"{band}|{cycle}", encoding="utf-8")
-            os.utime(stamp, (now, now))
-        except OSError:
-            pass
-        _ledger_append(
-            {"event": "fleet-advisory", "ts": now, "account": row["email"], "at_pct": hot}
-        )
-        print(f"tick: ADVISORY {row['email']} at {hot:.0f}%{stale}")
+        status = "ok" if hot < drain_thr else "at/over drain threshold"
+        print(f"tick: {status} — {row['email']} at {hot:.0f}%{stale}")
+    # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
+    # every agent is using) is walled with no auto-relief. A single account crossing 95% is a
+    # non-event — the flip leg above already re-pointed to a sibling with headroom.
+    _fleet_active_wall_advisory(accounts, now, threshold)
     for warn in _fleet_row_warnings(accounts):
         print(warn)
     for p in pending:
