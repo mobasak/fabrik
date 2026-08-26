@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-08-26-plan-1-plan-lock-release-check.md",
+  "plan": "docs/development/plans/archived/2026-08-26-plan-1-plan-lock-release-check.md",
   "owned_paths": [
     "scripts/enforcement/check_plan_lock_release.py",
     "tests/enforcement/test_plan_lock_release.py",
@@ -10,7 +10,7 @@
   ],
   "branch": "master",
   "started_at": "2026-08-26T12:20:19+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "3b338428d8ed46fc9a23889e3f7ce56f917dd1fa",
   "baseline_gate": {
     "tier": 1,
@@ -18,5 +18,7 @@
     "passed": 24,
     "failed": 0,
     "already_red": []
-  }
+  },
+  "completed_at": "2026-08-26T13:02:30+00:00",
+  "final_commit": "7ec570cdf7cfcea606b25c0c41a05f71b680c2f8"
 }

@@ -1,6 +1,9 @@
 # Plan 1 — plan-lock release check: make a finished plan's unreleased lock visible the day it happens
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-26
+
+**Completion stamp:** Phase A `eaef5765` · Phase B `7ec570cd` · final gate `python scripts/final_gate.py --check --json` → `"status":"success"` (48/0, fresh this turn) · 52 tests green · distribution verified live in transdoc/tryton-crm/job-agent.
+Whole-plan review: docs/development/reviews/2026-08-26-plan-1-plan-lock-release-check-review.md
 
 **Spec:** `docs/superpowers/specs/2026-08-25-plan-lock-release-check-design.md` (CONVERGED, review 2,
 8 passes, md5 `6b853a48`, commit `381b0f6e`; operator-approved 2026-08-26).
