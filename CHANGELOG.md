@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — plan-lock release check: six closing review rounds, and twice more it reported success it could not prove (2026-08-26)
+
+- `scripts/enforcement/check_plan_lock_release.py` + `tests/enforcement/test_plan_lock_release.py`
+  (fleet-synced, `warn_only=True`): rounds 3-8 of `/fabrik-review` fixed **16** defects on the
+  already-shipped advisory. Two were the module committing its own thesis — reporting a clean run
+  when the question went unasked:
+  - **ASCII output was only half-fixed in round 2.** The census printed; every other line then
+    raised `UnicodeEncodeError` and vanished at `rc=0`, and the guard's own message used
+    `repr(exc)`, re-embedding the unprintable payload so the guard failed too. Reproduced live
+    against `/opt/brand-identiy-creator`. ASCII is now a property of the output **by construction**
+    (`_say()` coerces every line), not of the stream — `sys.stdout.reconfigure` silently no-ops on
+    a wrapped stdout, so the round-2 fix depended on the environment cooperating.
+  - **`OK` stood alone above unresolved locks** — `OK - 0 stale of 2 plan lock(s) examined` printed
+    directly above `ORPHAN LOCK: ghost.json`, and an operator scanning an advisory row stops at
+    `OK`. Now suffixed `- but N lock(s) could NOT be resolved; see below`.
+- **A false positive on a healthy lock**, the one outcome worse than not running: the fence regex
+  accepted either fence marker at both ends independently, so the non-greedy match paired an
+  opening backtick fence with an unrelated tilde fence and left a `Status:` line living *inside* a
+  code block exposed to the
+  anchor — reading an `IN-PROGRESS` plan as `EXECUTED`. CommonMark requires the closing marker to
+  match its opener; the regex now does too. Verified against all **715** plan files on the box:
+  zero status-value changes, zero verdict flips.
+- **A test that could not see the mutation its own docstring claimed to close**: the suite passed
+  with **7 of the 9 `FINISHED_TOKENS` deleted**, because the assertion looped over the tuple it was
+  pinning. The set is now asserted literally, with `RESOLVED`/`CONVERGED` pinned absent.
+- Also: the silence predicate now ANDs `evaluable == 0` (keyed on counters alone it deleted the
+  `OK` denominator line outright); the remedy is keyed on findings actually **emitted**, not found
+  (9 orphans + 1 truncated stale printed "release the lock" under a list of orphans); `--json` is
+  never silenced; the budget charges the newlines `output[:500]` counts; `marker_cost` is computed
+  from the real marker string; and an explicit 10-line cap guards `final_gate.py:387`.
+- Nine mutants proven red-on-revert, source restored byte-identical each time. 69 tests.
+  Fleet: 45 repos x 2 encodings — 0 non-zero exits, 0 over 500 chars, 0 over 10 lines; the noise
+  floor fell from ~16 speaking repos to 5. `docs/reference/plan-lock-lifecycle.md` re-freezed to
+  match. Round 8 terminal: `found: 0, fixed: 0`.
+
 ### Added — NVIDIA Build free inference endpoints: key wired + catalog documented + pool-compatibility verdict (2026-08-26)
 
 - `NVIDIA_API_KEY` added to the hub `.env` (backup taken first; console key name
