@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — NVIDIA Build free inference endpoints: key wired + catalog documented + pool-compatibility verdict (2026-08-26)
+
+- `NVIDIA_API_KEY` added to the hub `.env` (backup taken first; console key name
+  `NVIDIABuild-Autogen-17`), with placeholder + provenance in `.env.example` and a
+  `docs/CONFIGURATION.md` subsection. New `docs/reference/nvidia-build.md` documents the
+  live-probed catalog (HTTP 200, 83 model ids; inference proven on
+  `nvidia/nemotron-3-nano-30b-a3b`) by category — agentic/coding LLMs (nemotron-3 family incl.
+  1M-context ultra-550b, deepseek-v4-flash-0731, kimi-k3, gpt-oss-120b/20b, laguna-xs-2.1),
+  vision, embeddings, safety, translation, and the not-subagent-shaped rest — plus the grounded
+  verdict on `libs/subagents`: the pool is OpenRouter-only by construction
+  (`_transport.py::_resolve_client` + hardcoded default base_url; no dispatch-level override), so
+  today the usable paths are direct OpenAI-compatible calls and the OpenRouter-overlap set;
+  wiring options and their costs (RPM under fan-out, no health-aware rerouting, $0 flywheel rows)
+  recorded for a future decision. INDEX row added.
+
 ### Fixed — python-api scaffold /health does a REAL DB ping, not a config-presence lie (2026-08-26)
 
 - `src/fabrik/scaffold.py` (`_scaffold_fastapi_backend`): the emitted `/health` docstring claimed "tests
