@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_imports_resolvable discovers nested source roots instead of assuming ROOT/src (2026-08-27)
+
+- The checker modeled exactly one layout (`ROOT/src`), so a saas-skeleton whose Python lives
+  under `server/src/<pkg>` — the scaffold's OWN emitted layout — had every repo-resident
+  module called a PHANTOM when it also resolved machine-wide (transdoc `01M12A2D90`: four
+  false errors, one systemic cause, `git ls-files`-tracked modules predicted to
+  ModuleNotFoundError in CI). Any first-level `*/src` now joins the synthetic path
+  (hidden/junk parents excluded); an untracked root cannot mask a real phantom because the
+  tracked-file check still governs at the resolution site. Red-first regression test with the
+  outside-resolution leg that makes the false positive actually fire.
+
 ### Changed — STRATEGIC_BACKLOG.md is universal: every scaffold type seeds and allows it (2026-08-27)
 
 - Operator rule (2026-08-27, relayed via job-agent `01M11GMK9M`): "STRATEGIC_BACKLOG.md must

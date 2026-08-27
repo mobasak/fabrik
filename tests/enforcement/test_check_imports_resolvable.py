@@ -411,3 +411,26 @@ def test_not_applicable_does_not_mask_a_real_scripts_warning(repo: Path) -> None
     assert rc == 0, out
     assert "NOT APPLICABLE" in out, out
     assert "WARN" in out, f"a scripts/ phantom must still surface:\n{out}"
+
+
+def test_nested_source_root_is_not_a_phantom(repo: Path, outside: Path) -> None:
+    """transdoc 01M12A2D90: the checker hardcoded ROOT/src as the only source layout, so a
+    saas-skeleton whose Python lives under server/src/<pkg> — the scaffold's OWN emitted
+    layout — had every repo-resident import called a PHANTOM (four false errors, one cause).
+    The real trigger needs the package ALSO resolvable outside the repo (the "exists on
+    this machine" half) — mimicked via extra_syspath. Source roots are discovered (any
+    first-level */src), not assumed."""
+    (outside / "transdoc").mkdir()
+    (outside / "transdoc" / "__init__.py").write_text("")
+    (repo / "server" / "src" / "transdoc").mkdir(parents=True)
+    (repo / "server" / "src" / "transdoc" / "__init__.py").write_text("")
+    (repo / "server" / "src" / "transdoc" / "billing_routes.py").write_text("X = 1\n")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_billing.py").write_text(
+        "import os, sys\n"
+        "sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'server', 'src'))\n"
+        "from transdoc import billing_routes  # noqa: E402\n"
+    )
+    _commit(repo, ".")
+    rc, out = _run_check(repo, extra_syspath=[str(outside)])
+    assert "transdoc" not in out, f"repo-resident nested-src module flagged as phantom:\n{out}"

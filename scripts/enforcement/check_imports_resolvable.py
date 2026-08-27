@@ -511,6 +511,21 @@ def _origin_of(mod: str) -> Path | None:
 def main() -> int:
     as_json = "--json" in sys.argv
     sys.path.insert(0, str(ROOT))
+    # Source roots are DISCOVERED, not assumed. The scaffold itself emits nested layouts
+    # (saas-skeleton puts Python under server/src/<pkg>), so hardcoding ROOT/src called
+    # every repo-resident module in such a repo a PHANTOM — four false errors, one
+    # systemic cause (transdoc 01M12A2D90). Any first-level */src dir joins the synthetic
+    # path; junk/hidden dirs don't. Adding an UNTRACKED root cannot mask a real phantom:
+    # the tracked-file check still governs wherever the import resolves.
+    for src_root in sorted(ROOT.glob("*/src")):
+        parent = src_root.parent.name
+        if src_root.is_dir() and not parent.startswith(".") and parent not in (
+            "node_modules",
+            "dist",
+            "build",
+            "backups",
+        ):
+            sys.path.insert(0, str(src_root))
     sys.path.insert(0, str(ROOT / "src"))
 
     errors: list[str] = []
