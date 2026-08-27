@@ -129,8 +129,13 @@ genuinely multi-party logic.**
 **Contract inputs** section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`'s
 evidence list) · (conditional) **i18n Decisions** · the flows in encounter order.
 
-**Hard exclusions:** no file paths · no component names · no implementation detail (libraries, endpoints,
-DB tables) · no literal microcopy · no test names. Length discipline: a flow over 30 lines gets a one-line
+**Hard exclusions — these govern FLOW BODIES (the journey narratives), not lifecycle metadata:** no file
+paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal
+microcopy · no test names. The **header, R-notes, Contract inputs, and the re-freeze close-out's
+Downstream impact table are lifecycle metadata and EXEMPT** — their entire job is naming entities,
+fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out
+mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case:
+four false CRITICALs in one transdoc review). Length discipline: a flow over 30 lines gets a one-line
 justification; near 50, split it; the file near 400, propose splitting the feature.
 
 ## Phase 6 — Validation gate, then self-convergence to FROZEN
