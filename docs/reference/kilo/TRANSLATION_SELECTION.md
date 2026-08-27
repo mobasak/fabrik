@@ -1,4 +1,4 @@
-Last refresh: 2026-08-16
+Last refresh: 2026-08-19
 
 # Translation Selection — Pareto-ranked at 100 000 chars
 
@@ -9,4 +9,4 @@ dominated on (lower cost, higher quality_elo).
 
 | # | Model | Provider | Cost @100 000 chars (USD) | quality_elo |
 |---|---|---|---:|---:|
-| 1 | `qwen/qwen-mt-turbo` | qwen | $0.0160 | — |
+| — | _no accessible translation rows_ | — | — | — |

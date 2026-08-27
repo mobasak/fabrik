@@ -1,4 +1,4 @@
-Last refresh: 2026-08-16
+Last refresh: 2026-08-19
 
 # Image-Gen Selection — Pareto-ranked at 100 images
 
@@ -10,6 +10,4 @@ Elos: ArtificialAnalysis Image Arena (grounded 2026-07-05).
 
 | # | Model | Provider | Cost @100 images (USD) | quality_elo |
 |---|---|---|---:|---:|
-| 1 | `google/gemini-2.5-flash-image` | google | $0.0387 | — |
-| 2 | `google/gemini-3.1-flash-image` | google | $0.0645 | 1230 |
-| 3 | `google/gemini-3-pro-image` | google | $0.2580 | 1265 |
+| — | _no accessible image_gen rows_ | — | — | — |

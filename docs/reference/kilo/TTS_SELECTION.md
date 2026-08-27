@@ -1,4 +1,4 @@
-Last refresh: 2026-08-16
+Last refresh: 2026-08-19
 
 # TTS Selection — Pareto-ranked at 100 000 chars
 
@@ -9,4 +9,4 @@ on (lower cost, higher quality_elo).
 
 | # | Model | Provider | Cost @100 000 chars (USD) | quality_elo |
 |---|---|---|---:|---:|
-| 1 | `elevenlabs/turbo-v2.5` | elevenlabs | $16.5000 | — |
+| — | _no accessible TTS rows_ | — | — | — |

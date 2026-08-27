@@ -21,7 +21,7 @@ If unsure about a ticket's complexity, **default to complex** — a quality regr
 ## Current Roster
 
 <!-- ROSTER:START (auto-generated — do not edit below this line) -->
-*Auto-generated on 2026-08-16 from `assignments.json` + `kilo_agents.db`.*
+*Auto-generated on 2026-08-19 from `assignments.json` + `kilo_agents.db`.*
 
 ### coding — General coding — routed here when ticket isn't classified yet
 
@@ -77,7 +77,7 @@ If unsure about a ticket's complexity, **default to complex** — a quality regr
 ## Embedding Roster
 
 <!-- EMBEDDING_ROSTER:START (auto-managed by embedding_export_markdown.py) -->
-*Auto-generated on 2026-08-16 (UTC) from `embedding_roles` + `embedding_role_configs.yaml`. Edits between the markers will be overwritten on the next daily run.*
+*Auto-generated on 2026-08-18 (UTC) from `embedding_roles` + `embedding_role_configs.yaml`. Edits between the markers will be overwritten on the next daily run.*
 
 **Selection algorithm** (see `embedding_selector.select_for_role`): apply hard floors, sort survivors by `input_cost_per_m ASC`, `quality_tier DESC`, `context_window_k DESC`, `id ASC`, take top-N where N = `slots`. Pinned winners also persisted in `embedding_roles` (SQLite), `embedding_assignments.json`, `kilo_embeddings_final.json` (Traycer), and `embedding_roles_history` (one snapshot per UTC day).
 
@@ -88,24 +88,18 @@ If unsure about a ticket's complexity, **default to complex** — a quality regr
 | Priority | Model | Provider | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned |
 |---|---|---|---|---|---|---|---|---|
 | P1 | `qwen/qwen3-embedding-8b` | qwen | $0.01/M | 32k | — | 1 (bulk) | ✓ | — |
-| P2 | `qwen/qwen3-embedding-4b` | qwen | $0.02/M | 32k | — | 2 (mid) | ✓ | — |
 
 ### frontier_reference — Highest-quality reference embedder for A/B comparisons, golden-set evaluation, and as a fallback when multilingual_primary breaks
 
 **Slots:** 2  ·  **Floors:** `quality_tier ≥ 3`, `context_window_k ≥ 8k`, free-tier excluded, GA only (no preview / beta / experimental)
 
-| Priority | Model | Provider | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned |
-|---|---|---|---|---|---|---|---|---|
-| P1 | `voyageai/voyage-4-large` | voyageai | $0.12/M | 32k | — | 3 (frontier) | — | — |
-| P2 | `voyageai/voyage-code-4` | voyageai | $0.12/M | 32k | — | 3 (frontier) | — | ✓ |
+> ⚠️  No eligible model satisfies these floors today.
 
 ### code_embedding — Code-aware retrieval for the IDE-side semantic search use case
 
 **Slots:** 1  ·  **Floors:** `context_window_k ≥ 8k`, `is_code_tuned = true`, free-tier excluded, GA only (no preview / beta / experimental)
 
-| Priority | Model | Provider | Cost (input/M) | Context | Dimensions | Tier | Multilingual | Code-tuned |
-|---|---|---|---|---|---|---|---|---|
-| P1 | `voyageai/voyage-code-4` | voyageai | $0.12/M | 32k | — | 3 (frontier) | — | ✓ |
+> ⚠️  No eligible model satisfies these floors today.
 <!-- EMBEDDING_ROSTER:END -->
 
 ---

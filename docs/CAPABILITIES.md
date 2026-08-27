@@ -128,6 +128,8 @@
 - [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
 - [scripts/enforcement/check_no_host_ports.py](../INDEX.md) (owner: infra): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
 - [scripts/enforcement/check_opencode_json.py](../INDEX.md) (owner: infra): Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
+- [scripts/enforcement/check_pack_reachability.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_pack_reachability.py
+- [scripts/enforcement/check_plan_lock_release.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_lock_release.py
 - [scripts/enforcement/check_plans.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
 - [scripts/enforcement/check_ports.py](../INDEX.md) (owner: infra): Check port registration in PORTS.md and validate port ranges.
 - [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
@@ -163,9 +165,10 @@
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
 - [scripts/refresh_service_inventory.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
 - [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
-- [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py tests/test_review_rubric.py
+- [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
+- [scripts/rivals_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: commands/_sources/fabrik-rivals.md | docs/reference/rivals-command.md | INDEX.md
 - [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
-- [scripts/select_rules.py](../INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
+- [scripts/select_rules.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/rules_match.py scripts/review_rubric.py tests/test_select_rules.py
 - [scripts/snapshot_vps_state.py](../INDEX.md) (owner: infra): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
 - [scripts/sync_gatus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
 - [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
@@ -196,9 +199,11 @@
 - [app-audit-log](/opt/fabrik-lib/app-audit-log/README.md) (owner: external:fabrik-lib): app-audit-log
 - [async-http-client](/opt/fabrik-lib/async-http-client/README.md) (owner: external:fabrik-lib): fabrik-lib/async-http-client — Pooled AsyncClient + Asyncio Circuit Breaker
 - [authored-list](/opt/fabrik-lib/authored-list/README.md) (owner: external:fabrik-lib): authored-list
+- [backups](#) (owner: external:fabrik-lib): vendor /opt/fabrik-lib/backups/
 - [captcha-solve](/opt/fabrik-lib/captcha-solve/README.md) (owner: external:fabrik-lib): captcha-solve — provider-pluggable captcha solving (reCAPTCHA / hCaptcha / Turnstile / image)
 - [chrome-ext-billing-kit](/opt/fabrik-lib/chrome-ext-billing-kit/README.md) (owner: external:fabrik-lib): chrome-ext-billing-kit
 - [claude-evaluator](/opt/fabrik-lib/claude-evaluator/README.md) (owner: external:fabrik-lib): claude-evaluator/
+- [competitor-intel](/opt/fabrik-lib/competitor-intel/README.md) (owner: external:fabrik-lib): competitor-intel
 - [concurrency-throttle](/opt/fabrik-lib/concurrency-throttle/README.md) (owner: external:fabrik-lib): concurrency-throttle
 - [cookie-consent](/opt/fabrik-lib/cookie-consent/README.md) (owner: external:fabrik-lib): cookie-consent
 - [cost-budget](/opt/fabrik-lib/cost-budget/README.md) (owner: external:fabrik-lib): cost-budget
@@ -232,6 +237,7 @@
 - [pause-state](/opt/fabrik-lib/pause-state/README.md) (owner: external:fabrik-lib): pause-state
 - [payments](/opt/fabrik-lib/payments/README.md) (owner: external:fabrik-lib): payments/
 - [pdf-extract](/opt/fabrik-lib/pdf-extract/README.md) (owner: external:fabrik-lib): pdf-extract — positional text extract + overlay re-render for PDFs
+- [product-entitlements](/opt/fabrik-lib/product-entitlements/README.md) (owner: external:fabrik-lib): product-entitlements/
 - [proxy-pool](/opt/fabrik-lib/proxy-pool/README.md) (owner: external:fabrik-lib): proxy-pool
 - [rag](/opt/fabrik-lib/rag/README.md) (owner: external:fabrik-lib): RAG Template
 - [request-metering](/opt/fabrik-lib/request-metering/README.md) (owner: external:fabrik-lib): request-metering
@@ -267,7 +273,7 @@
 - [static-site](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
+- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
 - [ai/10-speech-audio.md](../.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
 - [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
 - [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
@@ -349,6 +355,7 @@
 - [fabrik-release](../CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
 - [fabrik-repo-review](../CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
 - [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
+- [fabrik-rivals](../CLAUDE.md) (owner: infra): Competitive evidence BEFORE a spec exists — drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feed
 - [fabrik-rules-review](../CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f
 - [fabrik-service-test](../CLAUDE.md) (owner: infra): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
 - [fabrik-spec](../CLAUDE.md) (owner: infra): Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra
