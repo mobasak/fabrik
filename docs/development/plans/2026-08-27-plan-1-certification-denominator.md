@@ -1,6 +1,6 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: CONVERGED — 11 rounds, 15 findings fixed; round 11 a no-op (23 contract rows, 0 ungradeable)
+Status: CONVERGED — 14 rounds, 22 findings fixed; round 14 a GENUINE no-op (all 18 classes swept, md5 426f2d46 unchanged across the round)
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product
@@ -105,8 +105,13 @@ the proposal did not know was absent.
 - `scripts/final_gate.py` — one `run_optional_check` registration, `warn_only=True`
 - `tests/enforcement/test_certification_coverage.py` — **NEW**
 - `docs/reference/certification-denominator.md` — **NEW** subsystem reference
-- the generated per-surface artifacts: `docs/reference/certification/<surface>-ledger.md`
-  (the denominator) and `<surface>-plan.md` (the phased test plan the run executes)
+- the generated per-run artifacts, **both inside the cert board directory** so one run's outputs
+  archive as a unit: `docs/development/certifications/YYYY-MM-DD-cert-<surface>/ledger.md` (the
+  denominator) + the spine + its `TC##` tickets. ⚠️ Settled here because three locations had
+  accumulated across the reframes — an earlier round sited the ledger under
+  `docs/reference/certification/` while round 10 moved the board to `docs/development/certifications/`.
+  Splitting them would mean the dispatcher's whole-directory archive at Finish captures the board
+  and LOSES the denominator it was graded against, which is the one artifact a later auditor needs.
 - **`CLAUDE.md` + `scripts/enforcement/check_doc_sprawl.py`** — the allowlist row for
   `docs/development/certifications/YYYY-MM-DD-cert-<surface>/` (`TC##[a-z]?-<slug>.md` tickets only,
   gate-enforced shape, not a free `**`). ⚠️ This is a **fleet-wide governance edit** — CLAUDE.md is a
@@ -329,17 +334,17 @@ already exists in this repo and is reusable here:
 | A run record opened as the command's FIRST act | `scripts/command_run.py` | the run is visible and un-abandonable; the pinned `RUN:` line survives a compaction |
 | Numbered phases in dependency order | the plan schema | certification runs phase by phase, not as one opaque gauntlet |
 | Every claim grounded BEFORE writing | § Phase 1 grounding | every ID traced to the registry row that produced it |
-| A structured ARTIFACT with a fixed schema | the plan file | **the ledger is not enough — the run emits a CERTIFICATION PLAN** |
+| A structured ARTIFACT with a fixed schema | the plan-set shape | **the ledger is not enough — the run emits a CERT BOARD** |
 | Auto-convergence to an md5-verified no-op via a paired review | `/fabrik-plan-review` | the gauntlet closes on a quiet round, not on the agent's judgement |
 | Gate enforcement of the artifact's shape | `check_convergence.py`, `check_test_proposal.py` | `check_certification_coverage.py` (Phase A) |
 
 **The consequence for the design.** Phase 1 of each command does not merely enumerate a ledger — it
-**generates a certification PLAN** over that ledger and writes it to
-`docs/reference/certification/<surface>-plan.md`: the IDs grouped into phases by risk tier, each
-phase carrying its own runnable gate and evidence slots, in dependency order (T1 journeys before the
-T3 sweep, because a broken auth boundary invalidates everything behind it). Execution then walks
-that plan phase by phase, exactly as `/fabrik-execute-plan` walks an implementation plan — with
-`command_run.py step` at each phase and `round` at each convergence pass.
+**generates a CERT BOARD** over that ledger at
+`docs/development/certifications/YYYY-MM-DD-cert-<surface>/`: a spine carrying `## Test Board` plus
+`TC##` tickets, IDs grouped per touchpoint and risk-tiered, in dependency order (T1 journeys before
+the T3 sweep, because a broken auth boundary invalidates everything behind it). Execution then walks
+that board ticket by ticket via the cert dispatch loop — with `command_run.py step` at each phase and
+`round` at each convergence pass.
 
 That is what makes "100% fully" *repeatable* rather than a one-off heroic run: the plan is an
 artifact, so a second run diffs against the first, a resumed run knows where it stopped, and a
@@ -350,7 +355,7 @@ reviewer can see which phase a claim came from.
 The grader first, deliberately: a contract with no grader is what produced this defect, and building
 the checker before the prose means the prose has something to be true against.
 
-**A1. Define the ledger artifact** at **`docs/reference/certification/<surface>-ledger.md`**.
+**A1. Define the ledger artifact** at **`<cert-board-dir>/ledger.md`** — inside the run's own board directory (see Touches), so the denominator archives with the board it graded.
 
 ⚠️ Resolved at plan time, not left to execution: `scripts/enforcement/check_doc_sprawl.py:31-42`
 holds **CLOSED** allowlists (`ALLOWED_NEW_ROOT_DOCS`, `ALLOWED_NEW_DOCS_SCAFFOLD`) plus strict
@@ -410,11 +415,17 @@ tests=$(pytest tests/enforcement/test_certification_coverage.py --collect-only -
 `python scripts/final_gate.py --check --json` → `"status":"success"`.
 
 ### Evidence
-- [x] allowlist resolved at plan time **by execution, not by reading the allowlist**:
+- [x] allowlist behaviour resolved at plan time **by execution, not by reading the allowlist**:
       `check_doc_sprawl.py` is registered at `final_gate.py:1402` (it binds), and a live probe gave
       `BLOCKED: docs/certification/_probe.md` with exit 1 while `docs/reference/certification/_probe.md`
-      passed unmentioned. The ledger sites under `docs/reference/certification/` and needs no
-      governance edit.
+      passed unmentioned — so the checker is ACTIVE and its allowlist is genuinely closed.
+      ⚠️ **The conclusion that followed ("needs no governance edit") is now VOID.** It was true while
+      the ledger lived under `docs/reference/certification/`; round 12 moved both artifacts into
+      `docs/development/certifications/YYYY-MM-DD-cert-<surface>/` so a run archives as a unit, and
+      that tree is NOT allowlisted. **The allowlist row IS required** and is listed in Touches as a
+      fleet-wide governance edit. The probe's value survives the move (it proved the checker binds
+      and would block the new tree too); the conclusion did not.
+- [ ] the allowlist row landed and re-probed: a `TC##` file under the cert tree passes `check_doc_sprawl --strict`
 - [ ] fenced `pytest` output showing every Behavior Contract row green
 - [ ] fenced red-on-revert matrix, source restored byte-identical
 
@@ -573,12 +584,34 @@ it and the output is signal rather than noise. Not in this plan.
 | 8 | the same six, re-swept; 17 contract rows, 0 ungradeable | 0 | 0 |
 | 9 (operator reframe) | certification is a TICKET BOARD, not a bespoke artifact | 1 | 1 |
 | 10 (operator: no mix-up) | namespace separation across 4 systems · ticket→Runner routing | 2 | 2 |
-| **11 (terminal)** | all 7 classes re-swept; 23 contract rows, 0 ungradeable | **0** | **0** |
+| 11 | all 7 classes re-swept; 23 contract rows, 0 ungradeable | 0 | 0 |
+| 12 (`/fabrik-review` lens) | fail-open · cost/quota · behavior-without-test — 3 classes 11 rounds never swept | 3 | 3 |
+| 13 (internal consistency) | **superseded ghosts · artifact siting · a VOID conclusion** | 4 | 4 |
+| **14 (GENUINE no-op)** | all **18** accumulated classes; md5 `426f2d46` unchanged across the round | **0** | **0** |
 
 Round 2 made no edits — `md5 b0266c18` unchanged — so this is a genuine no-op exit, not a
 re-derivation. The five round-1 findings were: the `wordpress` gap (the dangerous one), the
 unsettled declaration home, the ungradeable evidence clause, the under-stated `warn_only` exit
 contract, and an allowlist claim resting on a citation rather than an executed verdict.
+
+⚠️ **Round 13 — the plan contained live instructions for a design it had explicitly deleted.** After
+twelve rounds of edits, an internal-consistency hunt found four contradictions no correctness review
+had looked for, because every prior round asked *"is each statement true?"* and none asked *"do these
+statements agree with each other?"*:
+
+- **Line 338 still told an executor to build `<surface>-plan.md`** — the artifact round 9 deleted.
+  Someone executing Phase 1 would have built it.
+- **The Touches list still named both deleted artifacts**, and split one run's outputs across two
+  trees. Settled: ledger and board both live in the run's own cert-board directory, so the
+  dispatcher's whole-directory archive at Finish captures the denominator it was graded against
+  rather than losing it.
+- **A "needs no governance edit" conclusion had gone VOID.** It was true while the ledger sat under
+  `docs/reference/certification/`; moving it made the allowlist row REQUIRED. An executor reading
+  Phase A would have skipped a fleet-wide governance edit the plan depends on. The probe's evidence
+  survives the move — it proved the checker binds — but the conclusion drawn from it did not.
+
+The lesson is specific: **a long-lived artifact rots at the seams between its edits, not inside
+them.** Correctness review reads statements; only a consistency pass reads the relationships.
 
 ⚠️ **Round 10 — the operator caught a collision the reframe itself introduced.** *"be sure name test
 tickets differently and do not cause ticket mix up."* Round 9 moved certification onto the plan-set
