@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-spec-review's own advertised trigger routed to the WRONG command (2026-08-27)
+
+Command 3 of 31, audited against the checklist. `/fabrik-spec-review` declares
+`TRIGGER — EN: "review/harden/converge this spec"`. The router resolved **"review this spec" to the
+`review` stem → `fabrik-review`** — the code-diff reviewer, whose own `SKIP:` clause says it is not
+for a spec. The operator typing the command's own advertised phrase was pointed at a different gate,
+which is worse than routing nowhere; the other three EN triggers and every TR trigger resolved to
+nothing.
+
+Added a `spec-review` stem ordered ABOVE both `spec` and `review` (first match wins), deliberately
+narrow — it needs a spec/design noun in the same clause as a review/harden/converge verb, so
+"review this diff", "code review" and "let's write a spec" are untouched. All 139 router tests pass,
+including the 62 pre-existing ones. `.claude/hooks/` is a governance-sync trigger, so this lands
+fleet-wide.
+
+Two checklist items corrected by the same run: **item 3** counted the literal `SKIP:` token and would
+have raised 7 false findings — 7 of the 11 sources without the token redirect inline, and only 4 of 31
+give no sibling guidance at all; **item 6** now requires RUNNING the router on the command's own
+advertised phrases rather than checking a stem exists, because that is what surfaced the mis-route.
+
+OPEN, needs an operator ruling: a spec's `Status: CONVERGED` claim is presence-checked (by
+`check_stage_artifacts`, when a plan cites it) but its EVIDENCE is never graded the way a plan's is —
+`check_convergence` scans `docs/development/plans/` and `docs/development/reviews/` only. 16 of 21
+hub specs currently claim CONVERGED, so grading them fleet-wide is the same promote-to-blocking
+hazard already ruled on for certification coverage. Reported, not unilaterally shipped.
+
 ### Changed — checklist calibrated on command 2: /fabrik-spec passes clean, and exposed a shape gap (2026-08-27)
 
 `/fabrik-spec` audited against all 100 items: **no findings.** Router stem present (unlike

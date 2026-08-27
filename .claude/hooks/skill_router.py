@@ -107,6 +107,7 @@ HAIKU_TIMEOUT = 8
 # auto-enroll instead of needing an edit here.
 STEM_SKILLS: dict[str, str] = {
     "spec": "fabrik-spec",
+    "spec-review": "fabrik-spec-review",
     "plan": "fabrik-plan-after-chat",
     "review": "fabrik-review",
     "docs": "fabrik-docs-review",
@@ -221,7 +222,28 @@ _HEADLESS_TYPES = {"python-api", "python-api-gpu", "node-api", "file-api", "file
 #     run" collocation itself); "test this end to end" keeps firing
 #     unchanged via the separate end-to-end pattern.
 KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
-    # FIRST deliberately: the broad "spec" / "plan" / "review" stems below would
+    # BEFORE both `spec` and `review`, because first match wins and BOTH would swallow this.
+    # /fabrik-spec-review advertises TRIGGER "review/harden/converge this spec"; without this entry
+    # "review this spec" resolved to the `review` stem -> fabrik-review, the CODE-DIFF reviewer,
+    # whose own SKIP clause says it is not for a spec. Routing the operator's own advertised phrase
+    # to the WRONG gate is worse than routing nowhere (audit of command 3 of 31, 2026-08-27).
+    #
+    # Deliberately NARROW: it requires a spec/design NOUN in the same clause as a
+    # review/harden/converge VERB, so "review this diff", "code review" and "let's write a spec"
+    # are untouched — the router's standing precision problem is over-firing, not under-firing.
+    (
+        re.compile(
+            r"\b(review|harden|converge|stress|adversarial\w*|gozden|gözden)\b"
+            r"[^.]{0,30}\b(spec|specification|spec'?[iıu]|tasar[ıi]m\w*)\b"
+            r"|\b(spec|specification|tasar[ıi]m\w*)\b[^.]{0,30}"
+            r"\b(gözden\s+ge[çc]ir\w*|sa[ğg]laml[aá]?[şs]t[ıi]r\w*|harden|converge)\w*"
+            r"|\bis\s+(this|the|my)\s+(spec|specification|design)\b[^.]{0,30}"
+            r"\b(solid|ready|sound|good|done)\b"
+            r"|\b(spec|specification|design)\s+review\b"
+        ),
+        "spec-review",
+    ),
+    # THEN: the broad "spec" / "plan" / "review" stems below would
     # otherwise swallow "audit every spec and plan against the code", which is a
     # conformance sweep, not a spec-authoring or code-review request.
     (

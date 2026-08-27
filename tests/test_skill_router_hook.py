@@ -966,3 +966,41 @@ def test_conformance_stem_maps_to_the_installed_skill() -> None:
     """STEM_SKILLS and KEYWORD_STEMS are two hardcoded maps that must agree — a
     stem with no skill entry routes to nothing, silently."""
     assert hook.STEM_SKILLS["conformance"] == "fabrik-conformance-review"
+
+
+# ── /fabrik-spec-review had no stem, so its own advertised triggers MIS-ROUTED ───────────────────
+# Found auditing command 3 of 31 against docs/reference/command-evaluation-checklist.md item 6.
+# The command declares TRIGGER — EN: "review/harden/converge this spec". The router resolved
+# "review this spec" to the `review` stem -> fabrik-review, the CODE-DIFF reviewer, whose own SKIP
+# clause says it is not for a spec. That is worse than routing nowhere: the operator types the
+# command's advertised phrase and is pointed at a different gate. The other three EN triggers and
+# every TR trigger resolved to nothing.
+
+
+def test_review_this_spec_reaches_the_spec_reviewer_not_the_code_reviewer() -> None:
+    assert hook.first_regex_match("review this spec") == "spec-review"
+    assert hook.first_regex_match("harden this spec") == "spec-review"
+    assert hook.first_regex_match("converge this spec") == "spec-review"
+    assert hook.first_regex_match("is this spec solid") == "spec-review"
+
+
+def test_the_turkish_spec_review_triggers_resolve_too() -> None:
+    assert hook.first_regex_match("bu spec'i gözden geçir") == "spec-review"
+    assert hook.first_regex_match("bu spec'i sağlamlaştır") == "spec-review"
+
+
+def test_spec_review_does_not_swallow_the_producer_or_the_code_reviewer() -> None:
+    """Precision matters more than recall here — the router's whole history is over-firing fixes.
+    Adding a stem ABOVE `review` must not cannibalise its siblings."""
+    assert hook.first_regex_match("let's write a spec for this") == "spec"
+    assert hook.first_regex_match("draft a spec") == "spec"
+    assert hook.first_regex_match("review this diff") == "review"
+    assert hook.first_regex_match("code review") == "review"
+    assert hook.first_regex_match("review the logs shows an OOM") != "spec-review"
+
+
+def test_spec_review_stem_is_registered_and_ordered_before_review() -> None:
+    assert hook.STEM_SKILLS["spec-review"] == "fabrik-spec-review"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    assert order.index("spec-review") < order.index("review"), "first match wins — must precede"
+    assert order.index("spec-review") < order.index("spec"), "else 'spec' swallows it"
