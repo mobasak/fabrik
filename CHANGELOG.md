@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — evaluation checklist for the /fabrik-* command corpus (2026-08-27)
+
+`docs/reference/command-evaluation-checklist.md` — the JUDGEMENT half of auditing the corpus, the
+sibling of the Traycer `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` but aimed at the command set
+itself rather than at epic artifacts. 100 items in the same contract as its sibling: every item must
+be CHECKED, "N/A because X" is valid, forgetting is not.
+
+Three things it does that a flat list would not:
+
+- **Names the 19 surfaces** one command's audit actually touches. An audit that reads only
+  `commands/_sources/<cmd>.md` passes a command whose reference doc, INDEX rows, router entry and
+  grader have all rotted — which is exactly what happened to `/fabrik-rivals` (4 of its 5 defects
+  were stale companions).
+- **Marks [GATED] items** that `check_command_corpus.py` already decides mechanically, so audit
+  attention is not spent re-deriving a gate's verdict.
+- **Closes with 11 anti-pattern CLASSES found live**, each with its reproduction: the vacuous
+  convergence loop, the `warn_only` check with a non-zero exit path, the cross-repo-reads misread,
+  the stale companion, the advisory-budget overrun, the constant that does not mean what it says,
+  fail-silent-green rebuilt inside its own fix, the vacuous test, and the contract with no grader.
+
+Every factual claim in it was verified against the live corpus before commit (13 router stems for 31
+commands · 11 sources with no `SKIP:` clause · 3 commands using a bespoke run-record block rather
+than the fragment · 31/31 NEXT-map coverage).
+
 ### Changed — feedback is RECIPROCAL: the hub's three agents now owe each other what the fleet owes the hub (2026-08-27)
 
 `templates/governance/CLAUDE.md` makes filing a hub defect a DUTY at every step for all ~46 projects
