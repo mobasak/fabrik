@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — certification denominator: plan to make /fabrik-user-test + /fabrik-service-test enforce full-surface coverage (2026-08-27)
+
+- `docs/development/plans/2026-08-27-plan-1-certification-denominator.md` (**CONVERGED**) — the
+  contract change accepted from tryton-crm (mail `01M0YTBH22XYYG2D4TJVM3NCR7`, replied + acked).
+  Both certification commands emit an Inventory Ledger that is **prose with counts**
+  (`fabrik-user-test.md:87-90`, `fabrik-service-test.md:76`), authored by the agent later graded
+  against it, with no stable IDs and no re-derivation — and **no enforcement check reads it at all**,
+  which the proposal did not know. Measured on tryton-crm immediately after a genuine md5-verified
+  `/fabrik-features` no-op: ~12 of ~1,700 surfaces would be exercised and the gauntlet would report
+  converged. Not a stale-doc problem — FEATURES.md documents what was BUILT, certification must
+  cover what SHIPS.
+- **`DEFERRED` is rejected as a disposition** (operator: *"i dont accept deferred… as like a real qc
+  engineer all functionality must be tested"*), so the plan deliberately OVERRIDES its own upstream
+  source, which proposes it. Terminal states are `EXERCISED` (evidence path must exist on disk) or
+  `OUT-OF-SCOPE(reason)`; `UNVISITED` blocks the close. Risk tiers set DEPTH, never whether something
+  is tested — which is achievable only because the inherited tail is GENERATED, not hand-authored.
+- Rollout is **advisory/`warn_only` fleet-wide** on landing, promotion to blocking a separate later
+  decision: nothing grandfathered, nothing silently re-baselined, no release frozen on day one.
+- Two execution-blocking unknowns were resolved AT PLAN TIME rather than deferred: the ledger sites
+  under `docs/reference/certification/` (proven by execution — a live probe returned
+  `BLOCKED: docs/certification/_probe.md`, exit 1, while the `reference/` path passed), and the
+  denominator is declared in `project.yaml` on the shipped `check_user_guide.py` precedent, not in
+  `spec_loader.py::Shape`, which is infrastructure-registrar-only.
+- The registry table covers 11 of 12 `SCAFFOLD_TYPES`; **`wordpress` is the gap and it is the
+  dangerous kind** — `scaffold.py:5783` raises `NotImplementedError` while `:146` keeps it in
+  `SCAFFOLD_TYPES`, the exact shape that turned a sibling `warn_only` check into a blocking red
+  across ~46 repos. It is now an explicit guarded row and a Behavior Contract test.
+
 ### Fixed — `/fabrik-rivals`: 16 defects from the adversarial review it shipped without (2026-08-27)
 
 - `scripts/rivals_run.py` + the command source + `docs/reference/rivals-command.md`: an eight-round
