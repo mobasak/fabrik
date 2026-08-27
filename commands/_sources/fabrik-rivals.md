@@ -1,6 +1,6 @@
 ---
-description: Competitive evidence BEFORE a spec exists — drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feeds `/fabrik-spec`: finds the rivals, mines their real reviews, builds a feature MATRIX, then a ranked MATCH list (what they have that we lack) and a ranked BEAT list (their review-proven weaknesses = our openings), plus a pricing wedge and white-space. Two modes by repo identity — PROJECT briefs, HUB runs. NOT market-sizing. TRIGGER — EN: "who are our competitors", "what do rivals do better", "how do we beat X"; TR: "rakiplerimiz kim", "onları nasıl geçeriz" — fires bare-prose. SKIP: sizing a market · reviewing a spec (→ /fabrik-spec-review) · our own features (→ /fabrik-features). Stage: 1-design.
-argument-hint: "[the market/category to scan] [optional: --us <our product> | --greenfield] [HUB mode: the brief path]"
+description: Competitive evidence BEFORE a spec exists — drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feeds `/fabrik-spec`: finds the rivals, mines their real reviews, builds a feature MATRIX, then a ranked MATCH list (what they have that we lack) and a ranked BEAT list (their review-proven weaknesses = our openings), plus a pricing wedge and white-space. Runs from ANY repo (fleet-synced driver, engine local-first then hub). NOT market-sizing. TRIGGER — EN: "who are our competitors", "what do rivals do better", "how do we beat X"; TR: "rakiplerimiz kim", "onları nasıl geçeriz" — fires bare-prose. SKIP: sizing a market · reviewing a spec (→ /fabrik-spec-review) · our own features (→ /fabrik-features). Stage: 1-design.
+argument-hint: "[the market/category to scan] [optional: --us <our product> | --greenfield]"
 ---
 
 Produce the competitive evidence a product should be spec'd on, so the ANGLE, the FEATURES and the
@@ -9,19 +9,22 @@ PROBLEMS-TO-SOLVE come from real rivals and real reviews instead of vibes. The e
 `scripts/rivals_run.py`; this command owns the brief, the evidence contract, the convergence loop and
 the hand-off into `/fabrik-spec`.
 
-**This command is two commands wearing one name** — pick the mode by repo identity (never a bare cwd
-string, and never by asking):
+**Run it from ANY repo — there is no mode to pick and no hand-off.** `scripts/rivals_run.py` is
+fleet-synced, so every project already has it, and it resolves the engine **local-first, then the
+hub's single vendored copy**. The search keys already reach every project through the synced
+`libs/subagents` autoloader. Every artifact it writes lands in the CALLING repo.
 
-- **PROJECT mode** (repo identity ≠ `/opt/fabrik`) — grounds and files the BRIEF. **Where this runs:**
-  any project, with local project tooling only — no hub shell-out, no vendored engine, no API keys.
-  The project owns what only the project knows (what we ship, who we think we compete with, which
-  market); the hub owns execution.
-- **HUB mode** (repo identity = `/opt/fabrik`, given a brief) — wires the engine and runs it, then
-  replies with the dossier. **Where this runs:** hub-side only — the hub holds the single vendored
-  copy and the fleet's curated keys. Identity is tested by CONTENT, never a bare path string:
-  `scripts/fabrik_synced_manifest.py` present at the toplevel = HUB (a relocated or DR hub clone is
-  still the hub); a `/opt/fabrik` **worktree** IS hub-repo — run it there, never file a brief to
-  yourself.
+```
+python scripts/rivals_run.py --market "<market>" --product-type <type> [--us-name X | --greenfield]
+```
+
+⚠️ **An earlier version of this command split the work across two repos** — a project filed a brief by
+mail and the operator opened a hub session to run it. That was built on a misreading of the
+cross-repo hard stop, which governs *"create/edit/**commit** files in a repo OTHER than the one you
+were launched in"* — **writes**, not reads. Importing the hub's vendored engine and writing only into
+your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo
+errand. If the engine is in neither place the driver says so and names the fix; it never degrades to
+a hand-off.
 
 {{include:run-record}}
 {{include:repo-identity}}
@@ -31,24 +34,18 @@ string, and never by asking):
 
 Two contracts, one per mode. Never let one mode's "done" stand in for the other's.
 
-**PROJECT mode is done when:** the brief exists, every claim in it is grounded in this repo (not
-recalled), it has been sent to the hub with `--to fabrik --to-agent infra`, and the send is verified
-**on disk** — `mail.py send` echoes your body back inside an argparse error if the flags are wrong,
-so a tail of its output looks identical whether it sent or failed. Confirm the message file exists
-before claiming it was filed.
+**The run is done when ALL of these hold** — this is a LOOP, not a single shot:
 
-**HUB mode is done when ALL of these hold** — this is a LOOP, not a single shot:
-
-1. **Discovery is DRY** — a fresh round surfaces no new competitor AND no new MATCH/BEAT item.
-   Unknown-size discovery never terminates honestly on a fixed round count; the tail is where the
-   non-obvious rival lives. Two consecutive dry rounds, not one.
+1. **Discovery is DRY** — a fresh round surfaces no new competitor AND no new MATCH/BEAT item. Two
+   consecutive dry rounds, not one: unknown-size discovery never terminates honestly on a fixed
+   round count, and the tail is where the non-obvious rival lives.
 2. **The trust audit returns zero unverifiable claims**, adjudicated per the split below.
-3. **`truncated` is False.** `truncated=True` means the money ceiling BOUND the run — the dossier is
-   partial-by-budget, and with the standing no-ceiling policy it should never fire. If it does, that
-   is a LOUD finding (a runaway discovery), never a footnote: report it and raise the budget.
+3. **`truncated` is False.** `truncated=True` means the money ceiling BOUND the run — partial by
+   budget, and with the standing no-ceiling policy it should never fire. If it does, that is a LOUD
+   finding, never a footnote.
 4. **`competitors` is non-empty.** Zero discovered rivals is a FAILED scan, not an empty market.
-5. The dossier is written to `docs/reference/rivals/<market>.md`, its `INDEX.md` and
-   `docs/README.md` rows exist, and the gate is green THIS run.
+5. The dossier is written to `docs/reference/rivals/<market>.md` **in this repo**, its `INDEX.md` row
+   exists, and the gate is green THIS run.
 
 ### The trust audit — split, because the rails are NOT uniform
 
@@ -69,72 +66,39 @@ module's own review already had to scope out of its README. Audit accordingly:
 
 {{include:term-edit}}
 
-## Phase 0 — PROJECT mode: ground the brief
+## Phase 0 — ground the inputs from THIS repo
 
 Never ask the operator for what the repo already answers. Read, in this order:
 
 1. `project.yaml::type` → the `product_type`. The engine's vocabulary is its OWN
    (`saas mobile-app ecommerce website headless-api docs extension desktop`), NOT the fabrik
-   `SCAFFOLD_TYPES` strings — `scripts/rivals_run.py` maps them, so pass the scaffold type and let it
-   alias. An unknown type degrades to Tier-C with no venue hints; it never errors.
-2. `docs/FEATURES.md` → our shipped features, verbatim, for the `us` side of the matrix. If the file
-   is absent or every row is `Planned`, this is a **greenfield** run (`--greenfield`, `us=None`) and
-   the matrix becomes rival-vs-rival. That is the headline use case, not a degraded one.
+   `SCAFFOLD_TYPES` strings — `rivals_run.py` maps them, so pass the scaffold type and let it alias.
+2. `docs/FEATURES.md` → our shipped features, verbatim, for the `us` side of the matrix. Absent, or
+   every row `Planned`? That is a **greenfield** run (`--greenfield`, `us=None`) and the matrix
+   becomes rival-vs-rival — the headline use case, not a degraded one.
 3. `docs/BUSINESS_MODEL.md` (SaaS) → positioning and price points, for the pricing wedge.
-4. The market/category. This is the ONE thing the repo often cannot answer — it is the question worth
-   asking if `docs/` does not state it.
+4. The market/category — the ONE thing the repo often cannot answer, and the question worth asking
+   if `docs/` does not state it.
 
-The brief names: the market, the product type, `us` (name + category + the feature list, verbatim
-from FEATURES.md) or greenfield, any rivals we already believe we have, and what decision the dossier
-is meant to inform. Send it, then verify the file on disk.
+## Phase 1 — pre-flight, then run
 
-## Phase 1 — HUB mode: pre-flight, then run
-
-`scripts/rivals_run.py` pre-flights every wiring trap BEFORE spending, because the module's contract
-is that `run()` **never raises** for a money or staging reason — so a wiring mistake yields a dossier
-that looks like a completed run. Run `--preflight-only` first and read its checklist:
-
-```
-python scripts/rivals_run.py --market "<market>" --product-type <type> --greenfield --preflight-only
-```
+`rivals_run.py` pre-flights every wiring trap BEFORE spending, because the engine **never raises**
+for a money or staging reason — so a wiring mistake yields a dossier that looks like a completed run.
+Run `--preflight-only` first and read its checklist; it reports which engine copy it resolved
+(`local` or `hub`).
 
 The traps, all of which produce a plausible-looking empty dossier rather than an error:
 
-- **`--budget 0` is REJECTED, not treated as unlimited.** The module documents `0`/absent as "run NO
-  research" while still returning a `Dossier`. "No ceiling" is spelled as a large number (the default
-  is `1000`); `0` is the fail-silent-green sentinel.
+- **`--budget 0` is REJECTED, not treated as unlimited.** The engine documents `0`/absent as "run NO
+  research" while still returning a `Dossier`. "No ceiling" is spelled as a large number.
 - **`legs` keys must be exactly `firecrawl`/`exa`/`brave`** — they must match the shipped packs' leg
-  names, or `run()` raises a wiring `ValueError` at entry.
-- **The free leg (`brave`) estimate must be `<= 0`** — a positive estimate silently breaks the ceiling
-  arithmetic from the first call.
-- **`job_id` non-empty** — it is the double-book guard, so a resume re-bills nothing.
-- **every required SEARCH key is present** — a missing key raises nowhere: the leg fails, the engine
+  names, or the engine raises a wiring `ValueError` at entry.
+- **The free leg (`brave`) estimate must be `<= 0`** — a positive estimate silently breaks the
+  ceiling arithmetic from the first call.
+- **`job_id` non-empty** — the double-book guard, so a resume re-bills nothing.
+- **every required SEARCH key present** — a missing key raises nowhere: the leg fails, the engine
   degrades, and you get an empty dossier with `partial=True`. The pre-flight names the missing key,
   because the engine cannot. `--free-legs-only` requires only `BRAVE_API_KEY`.
-- **`checkpoint_dir` is repo-local** and **`product_type` is in the engine's vocabulary** (scaffold
-  types are aliased for you).
-
-### What this costs, and what it must never cost
-
-**The LLM is `claude -p` — subscription-billed — and this command dispatches NO agents.** No pool
-`fanout`, no Task subagents, no metered LLM API. `ANTHROPIC_API_KEY` is reserved for
-`fabrik ai generate` and must never reach this path. The binding constraint on `claude -p` is the
-weekly QUOTA, not dollars, and the `total_cost_usd` the CLI reports is an API-equivalent lens rather
-than real spend (`scripts/claude_p_cost.py`).
-
-`claude -p` runs from a NEUTRAL cwd on purpose: it loads the CLAUDE.md of whatever tree it runs in,
-so running it from the hub prepends ~34k tokens of governance to every synthesis call (measured
-33,953 cache-creation tokens from the repo vs 11,611 from an empty dir) — wasteful, and wrong on the
-merits, since an agent contract is not context for "summarise these review excerpts".
-
-The ONLY metered spend left is the **search legs**: Exa and Firecrawl. `brave` is free, so
-`--free-legs-only` runs the entire scan at zero marginal cost with thinner discovery — say which mode
-you ran in the dossier. Search keys come from `libs.subagents.load_env` (the fleet's curated autoload
-carries `EXA_API_KEY`, `BRAVE_API_KEY`, `FIRECRAWL_API_KEY`). **Never prompt the operator for a key
-and never hardcode one** — a missing key is a provisioning escalation.
-
-Then run it for real, writing both artifacts, and read the SUMMARY line honestly: `partial=True` means
-a leg failed, `truncated=True` means the ceiling bound the run.
 
 ## Phase 2 — converge: dry discovery + the split audit
 

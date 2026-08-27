@@ -38,6 +38,10 @@ CORE_SCRIPTS = [
     "rules_match.py",  # the ONE path<->pack glob matcher; select_rules + review_rubric both import it
     "release_cut.py",  # /fabrik-release version cut: [Unreleased] -> semver section + tag + GitHub Release
     "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/claim/ack/requeue/digest/should-reply)
+    "rivals_run.py",  # /fabrik-rivals driver — SYNCED so EVERY repo runs the scan itself. It
+    # resolves the engine local-first then falls back to the hub's vendored copy (a READ, which the
+    # cross-repo hard stop does not govern — that rule is about create/edit/COMMIT). Keys already
+    # reach every project via the synced libs/subagents autoloader, so nothing else is needed.
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
 ]
 
@@ -178,8 +182,7 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
         # built from NAME LISTS, not iter_synced_pairs, so every new leg must be
         # fed in here explicitly (live regression: dropping CLAUDE.md from
         # GOVERNANCE_FILES silently removed its ignore line fleet-wide).
-        "Governance files": list(GOVERNANCE_FILES)
-        + [dest for _src, dest in GOVERNANCE_TEMPLATES],
+        "Governance files": list(GOVERNANCE_FILES) + [dest for _src, dest in GOVERNANCE_TEMPLATES],
         "Agent definition-of-done hooks": list(AGENT_HOOK_FILES),
         "Rule packs, workflows and synced reference dirs": synced_dirs,
         "Reference docs (synced from fabrik)": [dest for _src, dest in REFERENCE_DOCS],
@@ -221,8 +224,12 @@ def gitignore_block_text() -> str:
     # Per-project local state, never committed: the synced-files lock (md5 of what was
     # distributed; check_synced_unmodified compares against it) + the Claude Code local
     # settings carrier (per-project, machine-specific — never a fleet-wide contract).
-    lines += ["# Local state (never committed, never synced)",
-              ".fabrik/synced.lock", ".claude/settings.local.json", ""]
+    lines += [
+        "# Local state (never committed, never synced)",
+        ".fabrik/synced.lock",
+        ".claude/settings.local.json",
+        "",
+    ]
     lines += [_GI_BAR, GITIGNORE_BLOCK_END, _GI_BAR]
     return "\n".join(lines) + "\n"
 

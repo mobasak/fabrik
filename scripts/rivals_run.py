@@ -58,6 +58,33 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "libs"))
 sys.path.insert(0, str(REPO))
 
+# ── ENGINE RESOLUTION: local first, then the hub ────────────────────────────────────────────────
+# This script is FLEET-SYNCED, so it runs in ~46 repos that do not vendor the engine. It resolves
+# `competitor_intel` / `deep_research` / `web_tools` from this repo if present, else from the hub's
+# single vendored copy.
+#
+# ⚠️ Reading the hub is NOT the cross-repo hard stop. That rule governs "create/edit/COMMIT files in
+# a repo OTHER than the one you were launched in" — writes. This only ever READS and IMPORTS; every
+# artifact it produces is written into the CALLING repo. An earlier design mistook the rule for a
+# ban on reads and built a two-hop mail workflow around a restriction that did not exist, which made
+# a one-rival scan into a cross-repo errand for the operator. Keys need no such hop either: the
+# synced `libs/subagents` autoloader already resolves EXA/FIRECRAWL/BRAVE in every project.
+HUB_LIBS = Path("/opt/fabrik/libs")
+
+
+def _resolve_engine() -> str:
+    """Put the engine on sys.path. Returns 'local' or 'hub'; raises PreflightError if neither."""
+    if (REPO / "libs" / "competitor_intel").is_dir():
+        return "local"
+    if (HUB_LIBS / "competitor_intel").is_dir():
+        sys.path.insert(0, str(HUB_LIBS))
+        return "hub"
+    raise PreflightError(
+        f"the competitor-intel engine is in neither {REPO / 'libs'} nor {HUB_LIBS}. Vendor it "
+        f"(`cp -r /opt/fabrik-lib/competitor-intel/competitor_intel libs/`) or repair the hub copy."
+    )
+
+
 # The module's own product-type vocabulary is NOT the fabrik SCAFFOLD_TYPES strings. It aliases the
 # common ones itself and degrades an unknown type to Tier-C with a warning rather than erroring, but
 # we map explicitly so `/fabrik-rivals` can read `project.yaml::type` straight off a project.
@@ -558,6 +585,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 async def _run(args: argparse.Namespace) -> int:
+    where = _resolve_engine()
     import httpx
     from competitor_intel import Deps, Us, run
     from deep_research import load_pack, run_research
@@ -608,7 +636,7 @@ async def _run(args: argparse.Namespace) -> int:
         checkpoint_dir=checkpoint_dir,
         product_type=product_type,
     )
-    print("PRE-FLIGHT — every wiring trap checked before a cent is spent:")
+    print(f"PRE-FLIGHT (engine: {where}) — every wiring trap checked before a cent is spent:")
     for line in passed:
         print(f"  ok  {line}")
 
