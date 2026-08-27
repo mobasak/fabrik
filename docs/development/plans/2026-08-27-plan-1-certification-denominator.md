@@ -1,6 +1,6 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: CONVERGED — 8 rounds, 12 findings fixed; round 8 a no-op (re-adjudicated on re-invocation)
+Status: DRAFT — round 9 reframed the design onto the existing ticket-board machinery; re-converge before executing
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product
@@ -152,13 +152,19 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
   crash guard, because `scaffold.py:5783` raises `NotImplementedError` while `:146` keeps the string,
   and a sibling check let that escape and reddened ~46 repos. We ship no WordPress projects; this
   asserts nothing about certification.
-- **Given** a generated ledger, **When** the command completes Phase 1, **Then** a phased
-  certification PLAN exists at `docs/reference/certification/<surface>-plan.md` with every ID
-  assigned to a phase and every phase carrying a runnable gate — the run is not merely counted, it
-  is planned.
-- **Given** a certification plan whose phases do not partition the ledger exactly, **When** the
-  grader runs, **Then** it is rejected — an ID in NO phase re-opens the `UNVISITED` hole one level
-  up, and an ID in TWO phases double-counts the coverage fraction.
+- **Given** a generated ledger, **When** the command completes Phase 1, **Then** a PLAN-SET exists at
+  `docs/development/plans/YYYY-MM-DD-cert-<surface>/` — spine with a `## Ticket Board` plus `T##`
+  ticket files — so `/fabrik-execute-plan` DISPATCHER MODE can run it and `check_plan_tickets.py`
+  can grade its shape. No bespoke artifact format is invented.
+- **Given** a certification board whose tickets do not cover the ledger exactly, **When** the new
+  coverage check runs, **Then** it is rejected — a registry ID in NO ticket re-opens the `UNVISITED`
+  hole one level up, and an ID in TWO tickets double-counts the fraction. **This ID↔ticket link is
+  the ONLY genuinely new check**; board shape is already `check_plan_tickets.py`'s job.
+- **Given** an issue found while exercising a ticket, **When** it is recorded, **Then** it becomes
+  ANOTHER TICKET ON THE SAME BOARD — never an entry in a prose "HANDED-OFF list", which is how the
+  current contract lets a known defect leave the run unowned.
+- **Given** a ticket whose fix has landed, **When** the dispatcher closes it, **Then** the ticket's
+  own gate must pass — the RETEST is the ticket lifecycle, not a separate phase anyone can skip.
 - **Given** a project with no ledger at all, **When** the grader runs on landing day, **Then** it
   WARNs and exits 0 — advisory rollout, never a hard red.
 - **Given** ANY input at all, including a corrupt ledger and a raising guard path, **When** the
@@ -185,6 +191,39 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
 - `src/fabrik/scaffold.py:138` — `SCAFFOLD_TYPES`, the registry-table denominator.
 
 ---
+
+## ⚠️ CERTIFICATION IS A TICKET BOARD, NOT A GAUNTLET — the reframe that supersedes the artifact design
+
+Operator, 2026-08-27: *"as like a real qc engineer all user/service touchpoint must be tested, issues
+detected and resolved and retested by this command… as like completing tickets, our orchestrator
+agent should manage the entire tests."*
+
+**This supersedes the bespoke `<surface>-plan.md` artifact an earlier round of this plan invented.**
+That was a parallel universe built next to machinery the hub already ships. Verified before
+rewriting:
+
+| What certification needs | What already exists |
+|---|---|
+| a decomposed, trackable unit of test work | **plan-SET**: `docs/development/plans/YYYY-MM-DD-plan-<slug>/` — spine with `## Ticket Board` + `T##[a-z]?-<slug>.md` tickets, **already in the CLAUDE.md allowlist as a gate-enforced shape** |
+| something to run the board to completion | **`/fabrik-execute-plan` DISPATCHER MODE** — triggered by a plan-set directory or a `## Ticket Board` spine; iterates the Board, `Agent-Task: T##` provenance, no `Agent-Phase` |
+| a grader for the board's shape | **`scripts/enforcement/check_plan_tickets.py`** — *"Spine↔ticket plan-set contract gate"*: Board section parsing (`:92`), duplicate rows (`:727`), a ticket file with no Board row (`:738`), ticket-size limits (`:1318`) |
+| the detect → fix → **retest** loop | the dispatcher's own ticket lifecycle: a ticket is not DONE until its gate passes, so a fix is re-verified by construction |
+| resumability across sessions | Board state — a four-figure ledger spans sessions and the Board already carries per-ticket state |
+
+**So the design changes shape.** Phase 1 of each certification command does not emit a novel
+document — it **generates a plan-SET**: one ticket per touchpoint group, sized so a single agent can
+hold it, with the registry ID(s) each ticket covers named in the ticket. Then the run hands the board
+to the dispatcher. An issue found mid-run becomes **another ticket on the same board**, so it cannot
+rot in a "HANDED-OFF list" the way the current prose contract allows.
+
+**The operator never runs a planning command first.** Asking a human to hand-author a plan before
+each certification would be absurd at 1,700 IDs; the command generates the board. `/fabrik-plan-*`
+stays where it belongs — for implementation work a human is deciding.
+
+**What this deletes from the plan:** the invented `<surface>-plan.md` format (Phase A1b), and most of
+the invented grader. `check_plan_tickets.py` already grades board SHAPE. The only thing it cannot
+know is whether the board's tickets **cover the registry** — that link is the one genuinely new
+check, and it is small: *every registry ID appears in exactly one ticket*.
 
 ## ⚠️ The method must be SYSTEMATIC, not just the denominator
 
@@ -240,10 +279,11 @@ Machine-readable block with one row per ID:
 | ROUTE-POST-/v1/parties | T1 | EXERCISED | tests/e2e/test_parties.py::test_post | registry:app.routes |
 ```
 
-**A1b. Define the certification PLAN artifact** at `docs/reference/certification/<surface>-plan.md`
-— added in round 5, because the Behavior Contract asserted this artifact exists while no phase said
-what it looked like: a contract clause with no grader, which is the precise defect this whole plan
-exists to remove. Caught by the plan's own confirming sweep.
+**A1b. The test plan is a PLAN-SET, not a new format.** Superseded in round 9: an earlier round
+invented `<surface>-plan.md` and defined its schema. That was wrong — the hub already ships the
+shape, the dispatcher and the grader (see the reframe above). The command generates
+`docs/development/plans/YYYY-MM-DD-cert-<surface>/` as a spine + `T##` tickets, which
+`check_plan_tickets.py` already grades and `/fabrik-execute-plan` already runs.
 
 Same schema discipline as an implementation plan, because that is what "systematic like
 `/fabrik-plan-after-chat`" means mechanically:
@@ -430,12 +470,22 @@ it and the output is signal rather than noise. Not in this plan.
 | 5 | re-swept after the round-4 additions | 1 | 1 |
 | 6 | full re-sweep: contract/phase parity · partition · wordpress · method · residuals | 0 | 0 |
 | 7 (re-invocation) | **disposition-loophole · generator-integrity · cross-check-unused** — three NEW classes | 3 | 3 |
-| **8 (terminal)** | the same six, re-swept; 17 contract rows, 0 ungradeable | **0** | **0** |
+| 8 | the same six, re-swept; 17 contract rows, 0 ungradeable | 0 | 0 |
+| **9 (operator reframe)** | certification is a TICKET BOARD, not a bespoke artifact | 1 | 1 |
 
 Round 2 made no edits — `md5 b0266c18` unchanged — so this is a genuine no-op exit, not a
 re-derivation. The five round-1 findings were: the `wordpress` gap (the dangerous one), the
 unsettled declaration home, the ungradeable evidence clause, the under-stated `warn_only` exit
 contract, and an allowlist claim resting on a citation rather than an executed verdict.
+
+⚠️ **Round 9 — the operator's reframe, and it deleted more of this plan than any review round.**
+*"as like completing tickets, our orchestrator agent should manage the entire tests."* Earlier rounds
+invented a `<surface>-plan.md` artifact, defined its schema, and specified a grader for it — all of
+it a parallel universe beside machinery the hub already ships: the plan-SET shape (allowlisted,
+gate-enforced), `/fabrik-execute-plan` DISPATCHER MODE, and `check_plan_tickets.py`. The lesson is
+the one this repo keeps re-learning: **check what already exists before designing the thing.** Six
+review rounds hardened an artifact that should never have been invented — none of them asked whether
+the hub already had one.
 
 ⚠️ **Round 7 came from a RE-INVOCATION of `/fabrik-plan-review` on an already-CONVERGED plan, and it
 found the two worst defects in the document.** Every earlier round was run by the plan's own author,
