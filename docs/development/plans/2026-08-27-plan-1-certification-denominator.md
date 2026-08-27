@@ -180,6 +180,11 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
   coverage check runs, **Then** it is rejected — a registry ID in NO ticket re-opens the `UNVISITED`
   hole one level up, and an ID in TWO tickets double-counts the fraction. **This ID↔ticket link is
   the ONLY genuinely new check**; board shape is already `check_plan_tickets.py`'s job.
+- **Given** a registry of ~1,700 IDs, **When** the board is generated, **Then** the ticket COUNT is
+  bounded and the bound is graded — IDs are grouped per touchpoint, not one ticket per ID. A naive
+  generator emitting 1,700 tickets against a dispatcher that runs 3 at a time is ~570 dispatch
+  cycles: technically "converged", operationally never finishing. `check_plan_tickets.py:1318` bounds
+  a single ticket's SIZE; nothing bounds a board's LENGTH, and the cert checker must.
 - **Given** an issue found while exercising a ticket, **When** it is recorded, **Then** it becomes
   ANOTHER TICKET ON THE SAME BOARD — never an entry in a prose "HANDED-OFF list", which is how the
   current contract lets a known defect leave the run unowned.
@@ -187,6 +192,15 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
   own gate must pass — the RETEST is the ticket lifecycle, not a separate phase anyone can skip.
 - **Given** a project with no ledger at all, **When** the grader runs on landing day, **Then** it
   WARNs and exits 0 — advisory rollout, never a hard red.
+- **Given** a cert board whose heading is `## Ticket Board`, or whose lock sits in
+  `.fabrik/plan-locks/`, **When** the guard runs, **Then** it FAILS BLOCKING — **not advisory, from
+  day one.**
+
+  ⚠️ The advisory rollout was ruled for COVERAGE COMPLETENESS: nobody's release should freeze because
+  their real fraction is now visible. It was NOT ruled for a wrong-agent dispatch. A mis-headed cert
+  board is a safety defect — it puts CODING agents on a test board holding a lock
+  `final_gate_stop.py:785` believes in — and a warn-only safety guard is one nobody reads until
+  after the damage. Applying `warn_only` uniformly across both would have mis-applied the ruling.
 - **Given** ANY input at all, including a corrupt ledger and a raising guard path, **When** the
   grader runs, **Then** it exits 0. `scripts/final_gate.py:198-208` converts a non-zero `warn_only`
   exit into a blocking red fleet-wide; this class bit `check_plan_lock_release` five times in one
@@ -379,7 +393,18 @@ boundary invalidates every result behind it.
 reports. `warn_only=True`, exit 0 on every path, census-first output (the 500-char/10-line advisory
 budget applies — see `plan-lock-lifecycle.md`).
 
-**A3. Tests** — the nine Behavior Contract rows, each proven red-on-revert.
+**A3. Tests — ONE PER BEHAVIOR CONTRACT ROW, counted mechanically, each proven red-on-revert.**
+
+⚠️ This step said *"the nine Behavior Contract rows"* while the contract had grown to **23** — 14 rows
+with no test assigned, inside the plan whose whole purpose is to stop behavior-without-a-test. A
+literal count in prose goes stale the moment the contract grows, so the count is not restated here:
+**the phase gate asserts parity mechanically** —
+
+```
+rows=$(grep -c '^- \*\*Given\*\*' <the plan's Behavior Contract section>)
+tests=$(pytest tests/enforcement/test_certification_coverage.py --collect-only -q | tail -1)
+# parity is the gate; a contract row with no test FAILS the phase
+```
 
 **Gate:** `python -m pytest tests/enforcement/test_certification_coverage.py -q` + `ruff` +
 `python scripts/final_gate.py --check --json` → `"status":"success"`.
