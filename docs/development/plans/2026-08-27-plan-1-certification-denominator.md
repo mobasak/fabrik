@@ -1,6 +1,6 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: CONVERGED — 6 rounds, 9 findings fixed; round 6 a no-op
+Status: CONVERGED — 8 rounds, 12 findings fixed; round 8 a no-op (re-adjudicated on re-invocation)
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product
@@ -48,7 +48,7 @@ BUILT and certification must cover what the product SHIPS.
 | Disposition | Meaning |
 |---|---|
 | `EXERCISED` | visited and asserted on, with an evidence path. The depth of the assertion is set by risk tier. |
-| `OUT-OF-SCOPE(reason)` | **not our product's functionality** — a third party's own hosted page beyond our redirect. Justified per-ID and reviewable. |
+| `OUT-OF-SCOPE(reason)` | **not our product's functionality** — a third party's own hosted page beyond our redirect. The reason must NAME THE EXTERNAL OWNER; see the closed loophole below. |
 | `UNVISITED` | not terminal. **Blocks the close.** |
 
 ⚠️ **The upstream proposal proposes a third disposition, `DEFERRED(reason)`, and this plan REJECTS
@@ -57,6 +57,27 @@ must be tested"*). A "later" disposition is the loophole that would let this ent
 ignored: the tail that most needs generating is exactly the tail that would be deferred. The
 divergence must be carried back to tryton-crm, whose reference implementation is being built against
 the proposal's three-state model.
+
+### ⚠️ The loophole removing `DEFERRED` left open (found on re-review)
+
+Deleting `DEFERRED` moved the hole; it did not close it. `OUT-OF-SCOPE(reason)` was graded on one
+thing only — that the reason string is non-empty — with **no bound on how many IDs may carry it**.
+An agent facing 1,700 IDs could mark 1,688 `OUT-OF-SCOPE(inherited vendor surface)` and 12
+`EXERCISED`, and the grader would report CONVERGED. That is **the tryton-crm scenario verbatim**
+(~12 of ~1,700, converged) with a different word in the disposition column.
+
+Three mechanical closures, because prose asking for good judgement is what produced this defect:
+
+1. **A rejected-reason list.** `inherited`, `vendored`, `third-party code`, `generated`, `legacy`,
+   `low priority`, `not ours to fix` are **REJECTED as OUT-OF-SCOPE reasons**. Every one of them
+   describes *how our surface came to exist*, not whether a customer can click it. Inherited
+   surfaces are precisely what T3 exists for. A valid reason **names an external owner** — a domain
+   or vendor whose system the user has left ours to reach.
+2. **The disposition census always prints** — `N exercised · M out-of-scope · K unvisited` — so a
+   1,688/12 split is visible at a glance and cannot hide behind a converged verdict.
+3. **`out-of-scope > exercised` does not converge silently.** It is reported as a distinct verdict
+   requiring an explicit operator acknowledgement line in the ledger. A product that is mostly
+   out-of-scope is a claim about the product, and a human should have to make it.
 
 **Risk tiers set DEPTH, never whether something is tested.** This is what makes 100% EXERCISED
 achievable rather than aspirational:
@@ -106,6 +127,21 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
   **Then** the row is rejected — the strongest mechanical proxy for "the assertion was real".
 - **Given** a close-time re-enumeration of the registry that yields an ID absent from the ledger,
   **When** the grader diffs them, **Then** it reports NOT CONVERGED (the anti-cheat).
+- **Given** a generator that under-enumerates CONSISTENTLY, **When** the close-time diff runs,
+  **Then** the diff alone cannot catch it — both enumerations come from the same generator, so a
+  short list agrees with itself. The generator must therefore emit a **raw `registry_total`**
+  (a count taken straight from the registry, e.g. `SELECT count(*)`) alongside the enumerated IDs,
+  and **Then** `ids_enumerated != registry_total` is a REFUSAL that fails LOUD naming the shortfall.
+- **Given** a doc-derived inventory that diverges sharply from the registry, **When** the grader
+  runs, **Then** the divergence is REPORTED. This is the bidirectional-reconciliation value the plan
+  claimed for the demoted doc inventory and then never used — an independent second opinion on the
+  denominator is exactly what catches a short generator that agrees with itself.
+- **Given** an `OUT-OF-SCOPE` reason drawn from the rejected list (`inherited`, `vendored`,
+  `generated`, `legacy`, `low priority`, …), **When** the grader runs, **Then** the row is rejected —
+  those describe how our surface came to exist, not whether a customer can click it.
+- **Given** a ledger where `out-of-scope` rows outnumber `exercised` rows, **When** the grader runs,
+  **Then** it does NOT report a silent CONVERGED — it emits a distinct verdict requiring an explicit
+  operator acknowledgement line.
 - **Given** a ledger whose `source` resolves to a doc rather than a registry, **When** the grader
   runs, **Then** it is rejected — the doc inventory is a cross-check, never the denominator.
 - **Given** a generator that could not reach its declared registry, **When** it emits the ledger,
@@ -392,12 +428,34 @@ it and the output is signal rather than noise. Not in this plan.
 | **3 (gate-driven)** | Behavior Contract FORMAT — the gate found what all three prose rounds missed | 1 | 1 |
 | 4 (operator correction) | `wordpress` framing · the SYSTEMATIC-method requirement the first draft missed | 2 | 2 |
 | 5 | re-swept after the round-4 additions | 1 | 1 |
-| **6 (terminal)** | full re-sweep: contract/phase parity · partition · wordpress · method · residuals | **0** | **0** |
+| 6 | full re-sweep: contract/phase parity · partition · wordpress · method · residuals | 0 | 0 |
+| 7 (re-invocation) | **disposition-loophole · generator-integrity · cross-check-unused** — three NEW classes | 3 | 3 |
+| **8 (terminal)** | the same six, re-swept; 17 contract rows, 0 ungradeable | **0** | **0** |
 
 Round 2 made no edits — `md5 b0266c18` unchanged — so this is a genuine no-op exit, not a
 re-derivation. The five round-1 findings were: the `wordpress` gap (the dangerous one), the
 unsettled declaration home, the ungradeable evidence clause, the under-stated `warn_only` exit
 contract, and an allowlist claim resting on a citation rather than an executed verdict.
+
+⚠️ **Round 7 came from a RE-INVOCATION of `/fabrik-plan-review` on an already-CONVERGED plan, and it
+found the two worst defects in the document.** Every earlier round was run by the plan's own author,
+and the two holes below are exactly what an author is blind to — both let the contract be satisfied
+by a product that was never tested:
+
+- **`OUT-OF-SCOPE` had absorbed the abuse `DEFERRED` was deleted for.** It was graded on one thing:
+  a non-empty reason. Nothing bounded how many IDs could carry it. 1,688 `OUT-OF-SCOPE(inherited
+  vendor surface)` + 12 `EXERCISED` = CONVERGED — the tryton-crm scenario verbatim, with a different
+  word in the disposition column. Closed with a rejected-reason list (`inherited`/`vendored`/
+  `legacy`/… describe how our surface came to exist, not whether a customer can click it), an
+  always-printed disposition census, and a distinct non-silent verdict when out-of-scope outnumbers
+  exercised.
+- **The anti-cheat could not see a consistently-short generator.** The close-time re-enumeration
+  diffs the registry against the ledger, but BOTH enumerations come from the same generator — a
+  short list agrees with itself and the diff is empty. This is the plan's own thesis reproduced one
+  level down: a true statement about the wrong denominator. Closed by requiring a raw
+  `registry_total` (a count taken straight from the registry) against `ids_enumerated`, and by
+  finally GRADING the doc-derived cross-check the plan had demoted, praised, and never used — an
+  independent second opinion is precisely what catches a generator that agrees with itself.
 
 ⚠️ **Round 4 was the OPERATOR, and both corrections were fair.** (a) The plan gave `wordpress` a row
 in the registry table; we ship **zero** WordPress projects and CLAUDE.md records the type as out of
