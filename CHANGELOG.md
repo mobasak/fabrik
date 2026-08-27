@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — MISTRAL_API_KEY: free Experiment-tier provider wired + payload-screened for the haiku replacement (2026-08-27)
+
+- Operator-provisioned Mistral La Plateforme free key into the hub `.env` (backup first), with
+  `.env.example` placeholder + `docs/CONFIGURATION.md` section (per-model 1 req/s · 500k tok/min ·
+  1B tok/month; data-training caveat). Live-proven: 54 models listed; the 40k-char payload screen
+  (the harness that reproduced crowdlex's latency tiering) shows `mistral-medium-latest` at
+  **7.1s with 10/10 verbatim quotes** — the first candidate faster than the task's viability bar
+  with perfect screen-grounding; `mistral-small`/`ministral-14b`/`magistral-medium` also pass
+  (9–12s); `mistral-large-latest` times out >100s twice and is not viable at this payload size.
+
 ### Added — certification coverage is graded now: registry denominator, cert board, deny-list exit (2026-08-27)
 
 - `scripts/enforcement/check_certification_coverage.py` (**NEW**, fleet-synced, `warn_only`) + 47

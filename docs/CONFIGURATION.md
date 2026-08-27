@@ -153,6 +153,18 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   [docs/reference/nvidia-build.md](reference/nvidia-build.md). Full listing:
   `curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`.
 
+### Mistral La Plateforme — `MISTRAL_API_KEY` (free Experiment tier)
+
+- `MISTRAL_API_KEY` — Mistral's free Experiment tier at `https://api.mistral.ai/v1`
+  (OpenAI-compatible). $0; **per-model** limits: 1 req/s · 500k tok/min · 1B tok/month
+  (console → Limits is the live authority). 54 models as of 2026-08-27 incl.
+  `mistral-large-2512`, `mistral-medium-3.5`, codestral/devstral, magistral (reasoning),
+  voxtral (audio), OCR. ⚠️ The free tier trains on submitted data — send public/low-sensitivity
+  content only. Payload-screened 2026-08-27 for the crowdlex haiku-replacement:
+  `mistral-medium-latest` 7.1s at 40k chars with 10/10 verbatim quotes; `mistral-large-latest`
+  times out (>100s) at that size. Full listing:
+  `curl -H "Authorization: Bearer $MISTRAL_API_KEY" https://api.mistral.ai/v1/models`.
+
 ### Specialty-service bench providers (kilo-benchmarks)
 
 Used by `/opt/ai-model-catalog/engine/microbench_specialty.py` (ai-model-catalog) to fill the AI Models Browser Speed column for non-LLM rows (`image_gen`, `tts`, `music_gen`, `stt`, `translation`). Sunday cron; $10 hard / $2.50 soft per-run cost cap. See [docs/development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md](development/plans/archived/2026-07-03-plan-1-full-speed-coverage-close.md).
