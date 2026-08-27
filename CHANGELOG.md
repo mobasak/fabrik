@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the feedback duty was inert for as long as it was only written down; the close now refuses without it (2026-08-28)
+
+- **Measured before changing anything:** the duty was in 30/30 rendered commands and 4/4 agent
+  definitions, the `~/.claude-fleet` copies were byte-identical to `~/.claude`, `--feedback` existed,
+  the verdict persisted to the record, and a grader read it — and there were **13 closes in 14 days,
+  12 with no verdict, and zero `filed` verdicts ever recorded**. Distribution was never the problem.
+- `scripts/command_run.py` — `done`/`blocked`/`handoff` now REFUSE without `--feedback`. This adds no
+  new blocking check and no new hook: a refused close leaves the record `running`, which
+  `final_gate_stop.py` already blocks the turn on. Runs started before `_FEEDBACK_REQUIRED_FROM` are
+  grandfathered — two peer sessions held live records when this landed.
+- Both places that PRINT the close command (`command_run.py` terminal-verdict line and the Stop
+  hook's remedy) now include `--feedback`; without that fix the machinery would have instructed a
+  command it then refused.
+- `commands/_fragments/close-feedback.md` says the close refuses, so agents meet the requirement in
+  the instruction rather than at the exit.
+
+
 ### Fixed — flywheel gate diagnoses the repo=<name> nested-ledger trap instead of claiming ZERO runs (2026-08-28)
 
 - `fanout(repo="<name>")` called from inside a repo writes the ledger to

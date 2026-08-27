@@ -8,6 +8,12 @@ dies in your context when the session ends.
 
 > `FEEDBACK: <what you filed, to whom> | none — <the surfaces this run exercised>`
 
+**Then pass it: `done --command <name> --evidence "<proof>" --feedback "<that same line>"`. The close
+REFUSES without it** — and a refused close leaves the record `running`, which the Stop hook blocks the
+turn on. This is not ceremony bolted onto the exit: it is the only moment you still hold the context
+to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in
+14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands).
+
 **"none" is a valid verdict and it must be STATED, never left as silence.** Silence and "I found
 nothing" are byte-identical to the reader, and only one of them is information. Name the surfaces you
 actually exercised so the reader knows what your "none" covers.

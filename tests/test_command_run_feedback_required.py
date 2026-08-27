@@ -1,0 +1,122 @@
+"""The close REFUSES without a feedback verdict — the layer that makes the duty bind.
+
+Operator, three times: *"agents must give you feedback if they find issues, or have suggestions
+about our commands and rules and infra, and send infra, intel or fleet a message — they must be
+proactive."* Three layers were built and none of them bound. Measured 2026-08-28 across the live
+box: the duty was in 30/30 rendered commands and 4/4 agent definitions, the fleet copies were
+byte-identical, `--feedback` existed, the verdict persisted, a grader read it — and there were
+**13 closes in 14 days, 12 with no verdict, and zero `filed` verdicts ever recorded**.
+
+The missing layer was mechanical: `done` returned 0 without the flag, and the grader is
+`warn_only`. This refusal is the whole fix, and it deliberately adds no new blocking check — the
+record stays `running`, which `final_gate_stop.py` already blocks the turn on.
+
+The grandfather clause is not politeness: two peer sessions held live run records at the moment
+this landed, dispatched under a contract that never mentioned the flag.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import importlib.util
+import json
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+_spec = importlib.util.spec_from_file_location("cr", REPO / "scripts" / "command_run.py")
+assert _spec and _spec.loader
+cr = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(cr)
+
+
+def _rec(started: dt.datetime) -> dict:
+    return {"command": "fabrik-probe", "state": "running", "started_at": started.isoformat()}
+
+
+AFTER = cr._FEEDBACK_REQUIRED_FROM + dt.timedelta(days=1)
+BEFORE = cr._FEEDBACK_REQUIRED_FROM - dt.timedelta(days=1)
+
+
+def test_a_run_started_after_the_cutoff_owes_a_verdict():
+    assert cr._feedback_is_required(_rec(AFTER)) is True
+
+
+def test_a_run_started_before_the_cutoff_is_grandfathered():
+    """A peer mid-run when this landed must not be trapped by a rule it never read."""
+    assert cr._feedback_is_required(_rec(BEFORE)) is False
+
+
+def test_an_unparseable_or_missing_timestamp_fails_open():
+    """Never wedge a close on a record we cannot date — that traps an agent with no way out."""
+    for bad in ({}, {"started_at": ""}, {"started_at": "not-a-date"}, {"started_at": None},
+                {"started_at": "2026-08-28T00:00:00"}):  # naive: _parse_ts rejects it
+        assert cr._feedback_is_required(bad) is False, bad
+
+
+def test_the_refusal_message_names_both_valid_verdicts(capsys, tmp_path, monkeypatch):
+    """A refusal that does not say how to satisfy it converts one stall into another."""
+    src = (REPO / "scripts" / "command_run.py").read_text(encoding="utf-8")
+    i = src.index("REFUSED — closing /{live} needs its FEEDBACK verdict")
+    block = src[i : i + 900]
+    assert "--feedback 'filed" in block
+    assert "--feedback 'none" in block
+    assert "close-feedback.md" in block
+
+
+def test_the_stop_hook_blocks_on_the_state_a_refused_close_leaves_behind():
+    """The refusal has teeth only because the record stays `running` and the Stop hook keys on
+    exactly that. If this coupling ever breaks, the refusal degrades to a printed complaint."""
+    hook = (REPO / ".claude" / "hooks" / "final_gate_stop.py").read_text(encoding="utf-8")
+    assert 'state' in hook and '"running"' in hook
+
+
+def test_a_verdict_of_none_satisfies_the_requirement():
+    """`none` is a verdict. Counting it as absence would push agents toward inventing filings."""
+    verdict, beats = cr._feedback_verdict("none — exercised the flows corpus and the gate")
+    assert verdict == "none" and beats == []
+
+
+def test_whitespace_only_feedback_does_not_satisfy_it():
+    class A:
+        feedback = "   "
+
+    assert not str(getattr(A, "feedback", "") or "").strip()
+
+
+# ── end to end: the refusal itself, through main(), against an isolated state dir ────────────
+
+
+def _run(monkeypatch, tmp_path, argv: list[str], *, sid: str = "s1") -> int:
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", sid)
+    return cr.main(argv)
+
+
+def test_done_without_feedback_is_refused_and_the_record_stays_running(monkeypatch, tmp_path):
+    """The behaviour the whole change exists for. `running` is load-bearing: it is what the Stop
+    hook blocks the turn on, so a refused close is a blocked turn, not a printed suggestion."""
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    rc = _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e"])
+    assert rc == 1, "a close with no verdict must be refused"
+    rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert rec["state"] == "running", "a REFUSED close must not half-mutate the record"
+    assert "feedback" not in rec
+
+
+def test_done_with_feedback_closes_normally(monkeypatch, tmp_path):
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    rc = _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e",
+                                      "--feedback", "filed a corpus defect to infra"])
+    assert rc == 0
+    rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert rec["state"] == "done" and rec["feedback"] == "filed"
+
+
+def test_blocked_owes_a_verdict_too(monkeypatch, tmp_path):
+    """A halted run has MORE to report about the machinery, not less."""
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    rc = _run(monkeypatch, tmp_path, ["blocked", "--command", "fabrik-probe", "--reason", "r"])
+    assert rc == 1

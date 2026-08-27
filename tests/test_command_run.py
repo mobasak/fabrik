@@ -43,6 +43,7 @@ def _cr(
     sid: str | None = "s1",
     cwd: Path | None = None,
     extra_env: dict[str, str] | None = None,
+    inject_feedback: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     env = {
         "PATH": "/usr/bin:/bin",
@@ -53,14 +54,34 @@ def _cr(
     if sid is not None:
         env["CLAUDE_SESSION_ID"] = sid
     env.update(extra_env or {})
+    # A close now REFUSES without a feedback verdict (scripts/command_run.py
+    # `_FEEDBACK_REQUIRED_FROM`). Every test below that closes a run does so as SETUP for some
+    # other assertion, so the harness supplies the verdict once rather than 60 call sites
+    # repeating it — a test that is ABOUT the verdict passes its own and opts out here.
+    argv = list(args)
+    if inject_feedback and argv and argv[0] in ("done", "blocked", "handoff") and "--feedback" not in argv:
+        argv += ["--feedback", "none — harness setup"]
     return subprocess.run(
-        [sys.executable, str(_SCRIPT), *args],
+        [sys.executable, str(_SCRIPT), *argv],
         capture_output=True,
         text=True,
         timeout=30,
         cwd=str(cwd) if cwd else None,
         env=env,
     )
+
+
+def _backdate(run_dir: Path, sid: str = "s1") -> None:
+    """Age a record to before `_FEEDBACK_REQUIRED_FROM` so its close is grandfathered.
+
+    Not a convenience: it is the only way to exercise the pre-cutoff branch, and that branch is
+    load-bearing — it is what keeps a peer who was already mid-run when the requirement landed
+    from being trapped by a rule their dispatch never mentioned.
+    """
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["started_at"] = "2026-08-01T00:00:00+00:00"
+    f.write_text(json.dumps(rec), encoding="utf-8")
 
 
 #: The fixture command name. It MUST NOT be one of the names `_close` special-cases
@@ -490,14 +511,16 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     )
     r = subprocess.run(
         [
-            sys.executable,
-            script,
-            "done",
+                sys.executable,
+                script,
+                "done",
             "--command",
             "fabrik-review",
             "--evidence",
             "reviewed, all clean",
-        ],
+                "--feedback",
+                "none — harness setup",
+            ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -511,14 +534,16 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     (repo / "docs/development/reviews/2026-08-19-x-review.md").write_text("# r\n")
     r2 = subprocess.run(
         [
-            sys.executable,
-            script,
-            "done",
+                sys.executable,
+                script,
+                "done",
             "--command",
             "fabrik-review",
             "--evidence",
             "report written",
-        ],
+                "--feedback",
+                "none — harness setup",
+            ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -562,7 +587,7 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
     )
     # close from repo B (wrong repo, dirty reviews/): must still refuse — the check runs in A
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo_b,
         env=env,
         capture_output=True,
@@ -576,7 +601,7 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
     sub = repo_a / "scripts"
     sub.mkdir()
     r2 = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=sub,
         env=env,
         capture_output=True,
@@ -636,7 +661,7 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -683,7 +708,7 @@ def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -727,7 +752,7 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=dirty,
         env=env,
         capture_output=True,
@@ -768,14 +793,16 @@ def test_blocked_works_on_a_rootless_record(tmp_path):
     )
     r = subprocess.run(
         [
-            sys.executable,
-            script,
-            "blocked",
+                sys.executable,
+                script,
+                "blocked",
             "--command",
             "fabrik-review",
             "--reason",
             "rootless-record",
-        ],
+                "--feedback",
+                "none — harness setup",
+            ],
         cwd=norepo,
         env=env,
         capture_output=True,
@@ -1563,6 +1590,8 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
                 cmd,
                 "--evidence",
                 "nothing written at all",
+                "--feedback",
+                "none — harness setup",
             ],
             cwd=repo,
             env=env,
@@ -1576,7 +1605,7 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
         rep = repo / f"docs/development/reviews/2026-08-21-{cmd}-x.md"
         rep.write_text("# r\ndone and closed\n")
         r2 = subprocess.run(
-            [sys.executable, script, "done", "--command", cmd, "--evidence", "report written"],
+            [sys.executable, script, "done", "--command", cmd, "--evidence", "report written", "--feedback", "none — harness setup"],
             cwd=repo,
             env=env,
             capture_output=True,
@@ -1615,7 +1644,7 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
     rep = repo / "docs/development/reviews/2026-08-21-midloop-review.md"
     rep.write_text("# r\nStatus: IN-PROGRESS — round 3 running\n")
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "all done"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "all done", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1626,7 +1655,7 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
     assert "IN-PROGRESS" in r.stdout
     rep.write_text("# r\nStatus: closed — quiet round earned\n")
     r2 = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "closed"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "closed", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1686,7 +1715,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
 
     _os.utime(rep, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1718,7 +1747,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     (repo / "docs/development/reviews/evidence.png").write_bytes(b"\x89PNG")
     _commit(repo, env, "docs/development/reviews", msg="png")
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "see commit"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "see commit", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1750,7 +1779,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     (repo / "docs/development/reviews/archived/old-review.md").write_text("# old\n")
     _commit(repo, env, "docs/development/reviews", msg="refile")
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "refiled"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "refiled", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1807,7 +1836,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     target.write_text("unrelated\n")
     (repo / "docs/development/reviews/fake-review.md").symlink_to(target)
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1848,7 +1877,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     )
     _os.utime(stale, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1894,7 +1923,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     _commit(repo, "docs/development/reviews", msg="merge-resolve")
     _os.utime(f, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1931,7 +1960,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
         _commit(repo, "f.txt", msg=f"phase-{i}")
     _os.utime(rep, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1990,7 +2019,7 @@ def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e"],
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -2309,9 +2338,16 @@ def test_done_records_an_explicit_none_verdict(run_dir: Path) -> None:
 
 def test_omitting_feedback_is_recorded_as_unstated_not_as_none(run_dir: Path) -> None:
     """THE point. If a missing verdict collapsed into `none`, the metric would report perfect
-    diligence for a corpus nobody ever looked at — the fail-silent-green shape, in the telemetry."""
+    diligence for a corpus nobody ever looked at — the fail-silent-green shape, in the telemetry.
+
+    A close now REFUSES without a verdict, so `unstated` is reachable only through a GRANDFATHERED
+    record (one started before `_FEEDBACK_REQUIRED_FROM`). That path must keep classifying
+    correctly: the grader reads a 14-day window that still contains pre-cutoff closes, and
+    re-labelling them `none` would retroactively invent compliance that never happened."""
     _start(run_dir)
-    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x")
+    _backdate(run_dir, "s1")
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
+        inject_feedback=False)
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "unstated", row
 
@@ -2420,10 +2456,25 @@ def test_the_record_itself_carries_the_feedback_verdict(run_dir: Path) -> None:
 
 
 def test_a_close_without_feedback_records_unstated_on_the_record_too(run_dir: Path) -> None:
+    """Same grandfathered path, asserted on the RECORD rather than the event — that is what the
+    per-run grader (`check_feedback_duty.py`) actually reads."""
     _start(run_dir)
-    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e")
+    _backdate(run_dir, "s1")
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e",
+        inject_feedback=False)
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["feedback"] == "unstated", rec
+
+
+def test_a_post_cutoff_close_cannot_reach_unstated_at_all(run_dir: Path) -> None:
+    """The other half of the pair, and the reason the change exists: for any run started under the
+    current contract, `unstated` is now UNREACHABLE — the close is refused instead, and the record
+    stays `running` so the Stop hook holds the turn open."""
+    _start(run_dir)
+    r = _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", "")
+    assert r.returncode == 1, r.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "running" and "feedback" not in rec, rec
 
 
 def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_dir: Path) -> None:

@@ -291,7 +291,7 @@ def _round_report(rec: dict[str, Any]) -> str:
             f"({', '.join(clean_c)}) clean and found 0 new findings. This IS the no-op "
             "round the contract demands. Close the run: "
             f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
-            '--evidence "<proof>"'
+            '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
         )
         # A terminal round CLOSES the loop — never also scold it for oscillating. The
         # drop TO zero is what non-increasing was asking for; the series test alone
@@ -620,6 +620,26 @@ def _evidence_hash(text: str) -> str:
 # The three hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
 # whole words so "infrastructure" does not read as a route to `infra`.
 _BEATS = ("infra", "fleet", "intel")
+
+# Runs STARTED before this instant close without a verdict, exactly as they always could. They
+# were dispatched under a contract that did not require one, and trapping a peer mid-run to
+# enforce a rule it never read is the failure mode this whole mechanism exists to prevent.
+# UTC, and the landing instant — not a rounded local date. Set to a midnight that had not yet
+# arrived in UTC, this whole mechanism ships INERT for hours while reading as enforced; the
+# end-to-end tests caught exactly that before it landed.
+_FEEDBACK_REQUIRED_FROM = dt.datetime(2026, 8, 27, 21, 15, tzinfo=dt.UTC)
+
+
+def _feedback_is_required(rec: dict[str, Any]) -> bool:
+    """Does this record owe a `--feedback` verdict at close?
+
+    Fails OPEN on every unreadable or missing timestamp. A record whose `started_at` cannot be
+    parsed is old, corrupt, or written by a version that did not stamp it — none of which is
+    evidence the agent owes anything, and all of which would otherwise wedge a close with no way
+    out. The duty binds forward, never retroactively.
+    """
+    started = _parse_ts(str(rec.get("started_at") or ""))
+    return started is not None and started >= _FEEDBACK_REQUIRED_FROM
 
 
 def _feedback_verdict(text: str | None) -> tuple[str, list[str]]:
@@ -1179,6 +1199,27 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             sys.stderr.write(f"[command_run] {msg}\n")
             print(msg)
             return 1
+    # ── the FEEDBACK duty, made non-optional at the only moment it can still be paid ──────────
+    # Measured 2026-08-28, after the duty was written into both constitutions, auto-appended to
+    # all 31 commands and 4 agent definitions, given a `--feedback` flag, a persisted verdict, a
+    # kaizen cell and a grader: 13 closes in 14 days, 12 with NO verdict, and ZERO `filed` — ever.
+    # Distribution was not the problem (30/30 commands carried it; the fleet copies were
+    # byte-identical). It changed nothing because `done` returned 0 without the flag and the
+    # grader is warn_only. Prose plus an advisory line does not bind an agent at the end of a long
+    # run; a refused close does — and it needs no new hook and no new fleet-wide red, because the
+    # record simply stays `running` and final_gate_stop.py ALREADY blocks the turn on that.
+    if _feedback_is_required(rec) and not str(getattr(args, "feedback", "") or "").strip():
+        msg = (
+            f"REFUSED — closing /{live} needs its FEEDBACK verdict. You are the only witness to "
+            "how the machinery behaved on this run, and this is the last moment you can say so.\n"
+            f"  Filed something:  --feedback 'filed <what> to <infra|fleet|intel>'\n"
+            "  Genuinely nothing: --feedback 'none — <the surfaces you exercised>'\n"
+            "`none` is a valid verdict and is counted separately; silence is not a verdict. "
+            "See commands/_fragments/close-feedback.md."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
     rec["state"] = args.cmd
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
     # on `state == "running"` alone). `agent` is the only value this script writes; the
