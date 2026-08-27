@@ -1193,6 +1193,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
     _fb_verdict, _fb_beats = _feedback_verdict(getattr(args, "feedback", None))
+    # On the RECORD as well as the event: the event stream is box-local telemetry, while the record
+    # is what a per-run check can read. Storing it only on the event left the record unable to
+    # describe its own close, and left the duty ungradeable — which is how a prose obligation stays
+    # prose. The verdict is stored; the PROSE never is (`feedback_hash` on the event covers that).
+    rec["feedback"] = _fb_verdict
+    rec["feedback_to"] = _fb_beats
     fields = _queue(
         rec,
         outbox,

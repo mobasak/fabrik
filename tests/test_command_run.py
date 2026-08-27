@@ -2405,3 +2405,22 @@ def test_handoff_carries_the_feedback_verdict_like_the_other_closes(run_dir: Pat
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "filed" and row["feedback_to"] == ["infra"], row
+
+
+def test_the_record_itself_carries_the_feedback_verdict(run_dir: Path) -> None:
+    """The event stream is box-local telemetry; the RECORD is what a check can read per-run. Storing
+    the verdict only on the event left the record unable to describe its own close — and left the
+    duty ungradeable, which is how a prose obligation stays prose."""
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e",
+        "--feedback", "filed to fleet — scaffold emits no DB fixture")
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["feedback"] == "filed", rec
+    assert rec["feedback_to"] == ["fleet"], rec
+
+
+def test_a_close_without_feedback_records_unstated_on_the_record_too(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e")
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["feedback"] == "unstated", rec

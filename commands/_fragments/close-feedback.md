@@ -38,6 +38,17 @@ python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel> --kind fi
 Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it. **In a PROJECT repo**,
 a defect in a SYNCED file additionally follows `/fabrik-upstream` — never edit the synced copy.
 
+### A subagent's finding is YOURS to file
+
+Subagents are ephemeral. A `fabrik-reviewer` that notices a false-positive check, a
+`fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule —
+each surfaces it in its return value and then **ceases to exist**. If you do not carry it out, it is
+gone, and the subagent cannot mail anything itself.
+
+So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under
+review) come to you, and you file them under the routing above. They are the cheapest findings you
+will ever get — someone else already did the work of hitting the defect.
+
 **The bar is evidence, not a complaint.** One reproducible `path:line` and the command you ran beats
 a paragraph of impression. If you already fixed it in your own beat, say so and skip the mail — the
 duty is about what you are NOT going to fix yourself.

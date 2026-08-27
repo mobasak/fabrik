@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the feedback duty is now GRADED, and reaches subagent findings (2026-08-27)
+
+Operator directive, restated: agents must be proactive about reporting issues with our commands,
+rules and infra, routed to infra/fleet/intel. The duty was in both constitutions, auto-appended to
+all 31 commands, and recordable via `command_run.py --feedback`. **Nothing measured it** — and the
+agent a prose obligation constrains is the only one who could report having skipped it, which is
+exactly what does not get self-reported.
+
+- **`check_feedback_duty.py`** (advisory, `warn_only`, always exits 0, silent when nothing closed).
+  Baseline the moment it ran: **11 closed run records, 11 with no verdict** — including this
+  session's own `/fabrik-review` and `/fabrik-rivals` closes. A record with no `feedback` key closed
+  WITHOUT one and counts as `unstated`; excusing those would report compliance that never happened.
+  A still-running record is never graded — the duty attaches to the close. 19 tests, the finding
+  proven by red-on-revert.
+- **The verdict now lands on the RECORD**, not only the event. Storing it only on box-local
+  telemetry left the record unable to describe its own close and the duty ungradeable — which is how
+  a prose obligation stays prose.
+- **A subagent's finding is the dispatcher's to file.** Subagents are ephemeral: a `fabrik-reviewer`
+  that notices a false-positive check surfaces it and ceases to exist. If the orchestrator does not
+  carry it out it is gone, and the subagent cannot mail anything itself. Added to the fragment, so
+  it reaches all 31 commands.
+
+⚠️ **Recorded gap, not fixed here:** the four subagent definitions in `~/.claude/agents/` are
+hand-authored, box-local and owned by no generator — invisible to the corpus check and to any sync.
+Routing subagent findings through the dispatcher (above) closes the behaviour, but that surface being
+ungoverned is a separate defect on the infra beat.
+
 ### Fixed — transdoc's /fabrik-user-test run: the gauntlet could not legitimately terminate (2026-08-27)
 
 Upstream proposal from transdoc after a full `/fabrik-user-test` run on a saas-skeleton — 3 discovery

@@ -942,6 +942,18 @@ def run_consistency_checks(
         )
     )
 
+    # Close-out feedback duty. Same terms as its three advisory siblings above: tier-independent,
+    # always exits 0 by contract, warn_only so a finding never reddens ~46 synced repos. Silent when
+    # no run closed in the window. Baseline at landing: 11 closes, 11 without a verdict — which is
+    # exactly the number a grader exists to move, and which no agent would ever self-report.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_feedback_duty.py",
+            "Feedback duty",
+            warn_only=True,
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):
