@@ -16,6 +16,10 @@ run that ran but was never `record_agent_run`-recorded.
 NO-POOL declaration} are ALL confidently determined. ANY git failure, parse error, or exception in any
 helper degrades to EXIT 0 — never a false block. A blocking gate that false-blocks the whole fleet is
 worse than one that occasionally lets a violation through, so every ambiguous case leans no-block.
+One deliberate addition to the blocking set (2026-08-28): in-cycle rows found ONLY at the nested
+repo=<name> trap path ALSO block — the pool ran, but into a location this gate and pick_models never
+read, and a broken recording location is repaired now (message names the 30-second merge), never
+papered green.
 
 Only COMMITTED (since the merge-base) + STAGED files count as "this cycle's work" — NOT the unstaged
 working tree, which in a shared clone carries other agents' WIP + build artifacts (would false-block).
@@ -249,6 +253,17 @@ def _pool_or_declare(ledger_path: Path) -> int:
         )
         return 0
     if _in_cycle_pool_runs(ledger_path, _merge_base_epoch()) > 0:
+        # Partial-split edge (review 2026-08-28): rows in BOTH ledgers pass on the real
+        # ones — but the nested rows would strand silently until the next zero cycle.
+        # The ⚠ prefix routes this into final_gate --json `warnings` on a green exit.
+        stray = PROJECT_ROOT / PROJECT_ROOT.name / ".tmp" / "subagents" / "ledger.jsonl"
+        if stray.exists():
+            print(
+                f"⚠ SUBAGENT FLYWHEEL: gate passes on the real ledger, but a nested stray "
+                f"exists at {stray} — rows there are invisible to this gate and to "
+                f"pick_models. Merge them into the real ledger and delete the stray dir "
+                f"(repo= misuse trap, 01M0Z2B420)."
+            )
         return 0  # the pool WAS dispatched this cycle
     # The nested-path trap BEFORE the zero-claim: `fanout(repo="<name>")` called from inside
     # the repo resolves the ledger to <root>/<name>/.tmp/subagents/ — the runs HAPPEN, this

@@ -349,3 +349,26 @@ def test_nested_trap_ledger_is_diagnosed_not_reported_as_zero(tmp_path, monkeypa
     assert "nested" in out.lower(), f"the trap must be named, not reported as zero:\n{out}"
     assert "ZERO OpenRouter pool" not in out, "the misleading zero-claim must not print"
     assert "repo=" in out, "the root cause (repo= misuse) must be named"
+
+
+def test_pass_with_nested_ledger_present_still_warns(tmp_path, monkeypatch, capsys):
+    """Partial-split edge (review round 1): rows recorded to BOTH the real and the nested
+    path make the gate pass on the real rows — and silently strand the nested ones. A pass
+    with a nested ledger present must still say so (⚠-prefixed, so final_gate --json
+    surfaces it), or the stranded rows are invisible until the next zero-cycle."""
+    mod = _load()
+    root = tmp_path / "myrepo"
+    nested = root / "myrepo" / ".tmp" / "subagents" / "ledger.jsonl"
+    nested.parent.mkdir(parents=True)
+    _write_ledger(nested, [{"ts": _iso(1_000_500.0), "agent_id": "stranded"}])
+    real = root / ".tmp" / "subagents" / "ledger.jsonl"
+    real.parent.mkdir(parents=True)
+    _write_ledger(real, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)
+    monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
+    monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
+    monkeypatch.setattr(mod, "_merge_base_epoch", lambda: 1_000_000.0)
+    assert mod.check(real) == 0, "real in-cycle rows still pass the gate"
+    out = capsys.readouterr().out
+    assert "⚠" in out and "nested" in out.lower(), f"a silent pass strands the nested rows:\n{out}"
