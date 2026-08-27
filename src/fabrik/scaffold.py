@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -1011,15 +1012,20 @@ def _scaffold_shared(
     # Copy ALL Fabrik scripts for complete project independence
     # Projects should be fully functional without absolute paths to Fabrik
 
-    # Core quality gate scripts
-    core_scripts = [
-        "final_gate.py",
-        "kilo_code_review.py",
-        "kilo_docs_enforcer.py",
-        "docs_updater.py",
-        "update_agents_toc.py",
-        "health_checker.py",
-    ]
+    # Core scripts — read from the MANIFEST, never a second hardcoded list.
+    # ⚠️ This used to be its own list and had drifted twice over: it still named
+    # `kilo_code_review.py` and `kilo_docs_enforcer.py`, both in RETIRED_CORE_SCRIPTS (Kilo retired
+    # 2026-07-19), and it was missing everything added since — so a NEWLY scaffolded project did not
+    # receive `rivals_run.py`, `command_run.py`, `select_rules.py`, `review_rubric.py`, `rules_match.py`,
+    # `mail.py` or `release_cut.py` until the next unrelated governance-sync happened to fire.
+    # A second copy of a list is a second thing to forget; `fabrik_synced_manifest` is the one truth.
+    try:
+        sys.path.insert(0, str(FABRIK_ROOT / "scripts"))
+        from fabrik_synced_manifest import CORE_SCRIPTS as _CORE  # type: ignore[import-not-found]
+
+        core_scripts = list(_CORE)
+    except Exception:  # pragma: no cover - a hub without its own manifest is not a real state
+        core_scripts = ["final_gate.py", "docs_updater.py", "health_checker.py"]
     for script_name in core_scripts:
         fabrik_script = FABRIK_ROOT / "scripts" / script_name
         if fabrik_script.exists():
