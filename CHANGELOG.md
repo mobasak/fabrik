@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the "404 bytes" justification for our own renderer had EXPIRED (2026-08-27)
+
+`/fabrik-rivals` told agents to render from `rivals_run.py::render_dossier_md`, "NOT from
+`dossier.to_markdown()`", because the engine's own markdown emitted **404 bytes** on a real 12-rival
+scan. That was measured 2026-08-26 and was true then. fabrik-lib has since rebuilt the renderer
+(`e818249` "render safety", re-vendored here at `bdb73670`): `to_markdown()` now emits all six
+sections — COMPETITORS · FEATURE MATRIX · MATCH · BEAT · PRICING · WHITE SPACE — with its own
+12-test render-safety suite covering the same injection classes we hardened independently.
+
+We filed the defect upstream, they fixed it properly, we re-vendored the fix — and never went back to
+retire our workaround or its justification. Same stale-companion class the checklist names as
+anti-pattern 93, operating across the repo boundary instead of inside one.
+
+Corrected in all three places that carried it (command source, reference doc, driver docstring) with
+the reason that actually survives: a **SHAPE mismatch**, not a quality gap. `to_markdown()` needs the
+live typed `Dossier` and raises `AttributeError` on plain dicts; the driver writes the JSON BEFORE
+rendering, because the money is already spent and a formatting bug must cost the pretty view and
+never the data, and re-rendering a past run from disk has only the dict path.
+
+Filed to fabrik-lib (`01M120ER77`): `Dossier.from_dict()` would let the driver drop ~600 lines and
+stop shadowing their hardening; and `--rediscover` belongs in the module, since the
+discovery-once-per-`job_id` trap is the engine's design and every consumer will hit it.
+
 ### Fixed — /fabrik-rivals re-audited against the new checklist: 5 findings the first pass missed (2026-08-27)
 
 Calibration run of `docs/reference/command-evaluation-checklist.md` against command 1 of 31. The

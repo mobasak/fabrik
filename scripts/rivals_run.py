@@ -547,11 +547,16 @@ def _merge_competitors_into_progress(
 def render_dossier_md(d: dict[str, Any]) -> str:
     """Render the DECISION-GRADE brief from `to_dict()`, not `to_markdown()`.
 
-    Measured 2026-08-26 on a real 12-rival scan: the engine's own `to_markdown()` emitted **404
-    bytes** — the market line, a spend line, and one BEAT item. It never listed the twelve
-    competitors it found, never rendered the 12-column feature matrix, and never showed the pricing
-    models. All of that IS in `to_dict()`. The engine's markdown is a summary; this command's
-    artifact is what a spec gets decided on, so it renders from the structured payload.
+    ⚠️ The reason is a SHAPE mismatch, not a quality gap (corrected 2026-08-27). The original
+    justification — `to_markdown()` emitting only 404 bytes on a 12-rival scan — was measured
+    against the pre-`e818249` engine and no longer holds: upstream rebuilt the renderer and it now
+    emits all six sections with its own render-safety suite.
+
+    What remains: `to_markdown()` requires the live TYPED `Dossier` (`m.universal`, `b.weight`; it
+    raises `AttributeError` on plain dicts), while this renders `to_dict()`. The driver writes the
+    JSON BEFORE rendering — the money is already spent, so a formatting bug must cost the pretty
+    view and never the data — and re-rendering a past run from disk has only the dict path. There is
+    no `Dossier.from_dict()`; one has been requested upstream, and it would retire most of this.
 
     `verified` is surfaced per rival and never silently dropped: on that same run, 5 of 12
     candidates carried `verified: False` with the reason "No page text retrieved for this candidate"

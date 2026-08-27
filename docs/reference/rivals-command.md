@@ -159,11 +159,24 @@ exception, which is what made the failure undiagnosable from outside.
 
 ## The artifact is rendered from `to_dict()`, not `to_markdown()`
 
-Measured 2026-08-26 on a live 12-rival scan of "invoice OCR software": `dossier.to_markdown()`
-emitted **404 bytes** — the market line, a spend line, and one BEAT item. It never listed the twelve
-rivals it found, never rendered the 12x44 feature matrix, and never showed the pricing models, all of
-which were present in `to_dict()`. `rivals_run.py::render_dossier_md()` renders the decision-grade
-brief from the structured payload instead (**10,032 bytes** on the same data).
+⚠️ **Corrected 2026-08-27 — the original justification has EXPIRED.** It read: measured 2026-08-26 on
+a live 12-rival scan, `dossier.to_markdown()` emitted **404 bytes** while `to_dict()` held all twelve
+rivals, a 12x44 matrix and the pricing models. That was true of the engine as it then stood. Upstream
+then rebuilt the renderer (`e818249`, "render safety", re-vendored here at `bdb73670`), and
+`to_markdown()` now emits all six sections — COMPETITORS · FEATURE MATRIX · MATCH · BEAT · PRICING ·
+WHITE SPACE — with a 12-test render-safety suite of its own. **The quality gap is gone.**
+
+The reason the driver still renders is now a **SHAPE mismatch**, and it is narrower: `to_markdown()`
+consumes the live TYPED `Dossier` (`m.universal`, `b.weight`; it raises `AttributeError` on plain
+dicts), while `render_dossier_md()` consumes `to_dict()`. That matters because the driver writes the
+JSON **before** rendering — the money is already spent, so a formatting bug must cost the pretty view
+and never the data — and because re-rendering a past run from disk has only the dict path. There is
+no `Dossier.from_dict()`.
+
+**Standing debt:** `render_dossier_md` is therefore ~600 lines running PARALLEL to a renderer upstream
+now maintains, with its own duplicate injection hardening. `Dossier.from_dict()` (or a
+`render_from_dict()`) would let the driver drop nearly all of it; requested from fabrik-lib
+2026-08-27. Until that lands, keep the driver's renderer and keep it honest about WHY it exists.
 
 Two details that are easy to get wrong and were checked against the real payload rather than assumed:
 

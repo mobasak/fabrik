@@ -137,10 +137,17 @@ re-reads.
 ## Phase 3 — the artifact, and the hand-off
 
 Write `docs/reference/rivals/<market>.md` from **`rivals_run.py::render_dossier_md(dossier.to_dict())`**
-— NOT from `dossier.to_markdown()`. Measured on a real 12-rival scan: the engine's own markdown emitted
-**404 bytes** (market line, spend, one BEAT item) while the structured payload held all twelve rivals,
-a 12x44 feature matrix and the pricing models. The engine's markdown is a summary; this artifact is
-what a spec gets decided on. Add a header carrying the **scan DATE** (the driver stamps `scanned_at`; a dossier with no date
+— not from `dossier.to_markdown()`. ⚠️ **The reason is a SHAPE mismatch, not a quality gap** (corrected
+2026-08-27): `to_markdown()` requires the live TYPED `Dossier` (`m.universal`, `b.weight` — it raises
+`AttributeError` on plain dicts), while the driver writes the JSON payload BEFORE rendering, because
+the money is already spent and a formatting bug must never destroy a paid run. There is no
+`Dossier.from_dict()`, so the saved payload can only be rendered from dicts. Re-rendering an old run
+from disk needs the same path.
+
+The earlier justification — that `to_markdown()` emitted only 404 bytes — was measured against the
+PRE-`e818249` engine and is now FALSE: upstream rebuilt it, and it emits all six sections
+(COMPETITORS · FEATURE MATRIX · MATCH · BEAT · PRICING · WHITE SPACE) with its own render-safety
+suite. Do not repeat the retired claim. Add a header carrying the **scan DATE** (the driver stamps `scanned_at`; a dossier with no date
 reads as current forever, and competitive intel is perishable — rival pricing, features and review
 sentiment all move), the run's `job_id`, the model, the spend, `partial`/`truncated`, whether it
 ran `--free-legs-only`, and the Pass Ledger. **Re-read the date before trusting an existing
