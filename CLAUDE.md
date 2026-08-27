@@ -80,6 +80,21 @@ what makes an in-flight command visible and un-abandonable.
   you **RETURN to the invoked command in the same run** — delivering a different command's output is
   answering the wrong question, however good the commits look.
 - **Stay on task:** no unsolicited advice or process commentary.
+- **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project-facing
+  contract makes filing a hub defect a **DUTY at every step** (`templates/governance/CLAUDE.md`
+  § Upstream feedback: *"Working around it silently, noting it only in a local doc, or absorbing the
+  friction is a defect in YOUR run"*). **The same duty binds the three HUB agents toward each other**,
+  and it binds harder, because you live inside the machinery and see its defects first. A finding
+  outside YOUR beat that you fix silently, park in a review report, or merely mention to the operator
+  is an unfiled finding. Route it by BEAT (charters: `docs/reference/agents/`), never by convenience:
+  **infra** — `commands/_sources/`, `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`,
+  the box mesh, fabrik-mail · **fleet** — `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding,
+  `docs/PROJECT_CATALOG.md` · **intel** — models, benchmarks, the flywheel, author-blind review.
+  Send with `python scripts/mail.py send --to fabrik --to-agent <role> --kind finding` carrying
+  reproducible evidence at `path:line`; genuinely unsure ⇒ `--broadcast --ack no`. In-beat findings
+  you simply FIX — the duty is about the ones that are not yours to fix, which are exactly the ones
+  that otherwise die in your context when the session ends. (Live 2026-08-27: a command-corpus audit
+  raised nine real defects, two of them squarely on other beats, and filed zero mail until asked.)
 - **Merge-time render only:** NEVER bare-render `commands/assemble_commands.py` from a worktree — the
   renderer PRUNES installed commands+skills absent from the current tree's `_sources/`, deleting
   master-only artifacts box-wide. Render from merged master; `--check` (temp-dir render) is always safe.

@@ -605,7 +605,10 @@ def _emit(args, counters, findings, examined, evaluable, foreign) -> int:
     for f in shown:
         line = f"  {f.label}: {f.lock} {f.detail}".rstrip()
         if len(line) > _MAX_LINE:  # never let ONE finding eat the whole budget
-            line = line[: _MAX_LINE - 1] + "..."
+            # -3 for the ellipsis, so the result is `_MAX_LINE` EXACTLY. `[:_MAX_LINE - 1] + "..."`
+            # yields `_MAX_LINE + 2` — the constant then means something other than it says (measured
+            # 222 against a declared 220 in the sibling rivals check, review 2026-08-27).
+            line = line[: _MAX_LINE - 3] + "..."
         if (budget - len(line) < 0 or len(emitted) >= line_budget) and emitted:
             _say(f"  ... {len(shown) - len(emitted)} more finding(s) - run the check directly")
             break

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — feedback is RECIPROCAL: the hub's three agents now owe each other what the fleet owes the hub (2026-08-27)
+
+`templates/governance/CLAUDE.md` makes filing a hub defect a DUTY at every step for all ~46 projects
+("absorbing the friction is a defect in YOUR run"). The hub's own `CLAUDE.md` contained the word
+"feedback" **zero** times — so the three agents who live inside the machinery, and therefore see its
+defects first, had no reciprocal obligation to route a finding off their own beat.
+
+Added to `CLAUDE.md` § Behavior, with the beat→role routing table (infra: commands/rules/enforcement/
+hooks/mesh/mail · fleet: specs/deploy/VPS/scaffolding · intel: models/benchmarks/flywheel). In-beat
+findings you simply fix; the duty covers the ones that are NOT yours, which are exactly the ones that
+otherwise die in a session's context when it ends.
+
+Demonstrated rather than merely asserted: this session's command-corpus audit had raised nine real
+defects, two of them on other beats, and filed zero mail until asked. Both are now filed with
+reproducible evidence — `01M11VS2ZE` to intel (two dead Kilo test modules abort pytest COLLECTION
+repo-wide since 7a8dc281 removed `scripts/kilo_code_review.py`) and `01M11VSSKA` to fleet (a new
+advisory enforcement check + a new CORE_SCRIPT now auto-enrol in every scaffolded project).
+
+Also fixed in passing, in-beat: `check_plan_lock_release.py:608` carried the same `MAX_LINE`
+off-by-two the rivals review found (`[:_MAX_LINE - 1] + "..."` yields `_MAX_LINE + 2`).
+
 ### Fixed — /fabrik-review on the rivals audit fixes: 7 findings, 6 confirmed (2026-08-27)
 
 Adversarial review of the commit below, run to a fixed point. The two that mattered:
