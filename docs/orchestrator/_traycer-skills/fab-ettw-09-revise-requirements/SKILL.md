@@ -32,13 +32,17 @@ line shows the operator where the run actually is rather than where it started.
 Close it EXACTLY ONE of two ways — never by simply stopping:
 
 - `python3 scripts/command_run.py done --command fab-ettw-09-revise-requirements --evidence "<what proves the terminal
-  condition was met>"` — the evidence is the point; "finished" is not evidence. ⚠️ **Emit the
-  `FEEDBACK:` line (§ Close-out feedback, at the end of this command) BEFORE you close** — you are
-  the only witness to how the machinery behaved this run, and an unfiled finding dies with the
-  session. `none` is a valid verdict; silence is not.
-- `python3 scripts/command_run.py blocked --command fab-ettw-09-revise-requirements --reason "<what · searched · missing>"`
-  on one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra ·
-  an unresolvable spec contradiction). Nothing else is a legitimate halt.
+  condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"`
+  — the evidence is the point; "finished" is not evidence. ⚠️ **`--feedback` is REQUIRED: the close
+  REFUSES without it** (§ Close-out feedback, at the end of this command), and a refused close leaves
+  the record `running`, which the Stop hook blocks the turn on. You are the only witness to how the
+  machinery behaved this run, and an unfiled finding dies with the session. `none` is a valid verdict;
+  silence is not.
+- `python3 scripts/command_run.py blocked --command fab-ettw-09-revise-requirements --reason "<what · searched · missing>"
+  --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` on one of the three
+  sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · an unresolvable spec
+  contradiction). Nothing else is a legitimate halt — and a BLOCKED run is exactly when the machinery
+  friction is worth reporting, so the verdict is required here too.
 
 **Always name the run you close.** A bare close ends whatever is live — which, when this command was
 invoked BY another, silently ends the *caller* instead. A mismatched name is refused; closing an

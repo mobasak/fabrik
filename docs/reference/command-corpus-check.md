@@ -109,6 +109,22 @@ They are now generated from `commands/_agents/*.md` by `assemble_commands.py` (w
 
 HUB-ONLY, like every other predicate here: a project has no `_agents/` dir and stays silent.
 
+## Predicate 7 — an advertised close must be a RUNNABLE close (added 2026-08-28)
+
+`scripts/command_run.py done|blocked|handoff` REFUSES without `--feedback`. Every place the corpus
+PRINTS that command is in-product documentation an agent copies verbatim — so a printed close missing
+the flag instructs a command the tool then refuses, leaving the record `running` and the Stop hook
+holding the turn open. That is the worst shape a fail-closed change can take: the machinery tells you
+the way out, and the way out does not work.
+
+Measured the day the refusal landed: **36 such sites** — `commands/_fragments/run-record.md`, the 17
+orchestrator wrappers GENERATED from it, and the Stop hook's own remedy. The hand fix reached 2 of
+them; only a mechanical sweep found the rest, which is precisely why this is a predicate and not a
+review note.
+
+The window is **4 lines**, because the real fragment wraps the flag onto a continuation line — a
+single-line window would flag every correctly-fixed site.
+
 ## Anti-vacuity
 
 `--selftest` feeds a known-bad corpus through the same predicates and requires **each** to

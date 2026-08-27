@@ -54,13 +54,17 @@ def test_an_unparseable_or_missing_timestamp_fails_open():
 
 
 def test_the_refusal_message_names_both_valid_verdicts(capsys, tmp_path, monkeypatch):
-    """A refusal that does not say how to satisfy it converts one stall into another."""
-    src = (REPO / "scripts" / "command_run.py").read_text(encoding="utf-8")
-    i = src.index("REFUSED — closing /{live} needs its FEEDBACK verdict")
-    block = src[i : i + 900]
-    assert "--feedback 'filed" in block
-    assert "--feedback 'none" in block
-    assert "close-feedback.md" in block
+    """A refusal that does not say how to satisfy it converts one stall into another.
+
+    Asserted on what the process actually PRINTS, not on the source text — a grep of the source
+    passes even if the refusal never fires, which is the vacuity this suite exists to avoid."""
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e"])
+    printed = capsys.readouterr().out
+    assert "--feedback 'filed" in printed, printed
+    assert "--feedback 'none" in printed, printed
+    assert "close-feedback.md" in printed, printed
 
 
 def test_the_stop_hook_blocks_on_the_state_a_refused_close_leaves_behind():
@@ -76,11 +80,40 @@ def test_a_verdict_of_none_satisfies_the_requirement():
     assert verdict == "none" and beats == []
 
 
-def test_whitespace_only_feedback_does_not_satisfy_it():
-    class A:
-        feedback = "   "
+def test_whitespace_only_feedback_does_not_satisfy_it(monkeypatch, tmp_path):
+    """A verdict of spaces is silence with extra steps. Exercised through the real close — the
+    previous version of this test asserted a re-implementation of the production expression
+    against a stub object, so it would have passed with the `.strip()` removed."""
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    rc = _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e",
+                                      "--feedback", "   "])
+    assert rc == 1
+    rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert rec["state"] == "running", rec
 
-    assert not str(getattr(A, "feedback", "") or "").strip()
+
+def test_handoff_owes_a_verdict_too(monkeypatch, tmp_path):
+    """The third close, and the one the certification gauntlets MANDATE — /fabrik-user-test and
+    /fabrik-service-test close NOT-QUIET runs this way, so it is the disposition most likely to
+    carry machinery friction, and it was the branch with no test."""
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    rc = _run(monkeypatch, tmp_path, ["handoff", "--command", "fabrik-probe", "--reason", "r",
+                                      "--resume", "docs/x.md"])
+    assert rc == 1
+    rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert rec["state"] == "running", rec
+
+
+def test_handoff_with_a_verdict_closes_and_releases_the_stop_hook(monkeypatch, tmp_path):
+    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
+                                 "--terminal", "t"])
+    rc = _run(monkeypatch, tmp_path, ["handoff", "--command", "fabrik-probe", "--reason", "r",
+                                      "--resume", "docs/x.md", "--feedback", "none — swept it"])
+    assert rc == 0
+    rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert rec["state"] == "handoff" and rec["feedback"] == "none", rec
 
 
 # ── end to end: the refusal itself, through main(), against an isolated state dir ────────────

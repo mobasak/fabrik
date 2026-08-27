@@ -529,7 +529,9 @@ def _run_block_reason(rec: dict, attempt: int) -> str:
         'none — the surfaces this run exercised>" when the contract IS met, or '
         f"python3 scripts/command_run.py blocked --command {cmd} --reason "
         '"<one of the three sanctioned BLOCKED cases: 3 consecutive same-test '
-        'failures | missing infra | an unresolvable spec contradiction>".'
+        'failures | missing infra | an unresolvable spec contradiction>" '
+        '--feedback "<what you filed, to whom | none — the surfaces this run exercised>". '
+        "BOTH exits REQUIRE --feedback; the close is refused without it."
     )
 
 

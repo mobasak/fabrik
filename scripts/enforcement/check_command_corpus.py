@@ -19,8 +19,8 @@ unknown name yields an EMPTY list, whereupon ``merged.pop("tools")`` runs the
 plan grounded that way was ungrounded, and no gate, test, or human review caught
 it for as long as the text stood.
 
-WHAT IT PROVES (all five are mechanically decidable — no judgement, no network)
-------------------------------------------------------------------------------
+WHAT IT PROVES (all seven are mechanically decidable — no judgement, no network)
+-------------------------------------------------------------------------------
 1. WEB-TOOL NAMES  — every ``web_tools=[...]`` literal names only real tools,
    imported live from ``WEB_TOOL_NAMES`` rather than copied here (a copy drifts).
 2. CHAIN TARGETS   — every ``/fabrik-x`` / ``/design-review`` chain reference
@@ -35,8 +35,16 @@ WHAT IT PROVES (all five are mechanically decidable — no judgement, no network
    model into provenance trailers (found live: six templates said "Opus 4.8").
 5. RUN RECORD      — every command opens one, so the Stop hook can block an abandoned
    run (it was wired into 3 of 27 when this check was written).
+6. AGENT DEFS      — every ``commands/_agents/*.md`` has frontmatter, a ``name:`` matching
+   its filename, and a ``description:`` (the dispatcher selects on it). Until 2026-08-27
+   the four subagent definitions existed ONLY on the box, outside git and this audit.
+7. ADVERTISED CLOSE — every printed ``command_run.py done|blocked|handoff`` carries
+   ``--feedback``, which the tool now REQUIRES. A printed close missing it instructs a
+   command that is refused, leaving the record ``running`` and the Stop hook holding the
+   turn open: the machinery documenting an exit that does not work. Found live in 36
+   sites the day the refusal landed.
 
-BLOCKING. Each of the five is a true/false fact about the tree with no tolerance
+BLOCKING. Each of the seven is a true/false fact about the tree with no tolerance
 band, and every one of them was found VIOLATED in a corpus that looked healthy.
 
 Anti-vacuity: ``--selftest`` feeds a known-bad corpus through the same predicates
@@ -76,6 +84,7 @@ _NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "contex
 # reproduced with a dead absolute citation, round-5 closing sweep). The absolute prefix is
 # stripped before resolution, so both forms check the same repo-rooted path.
 _SCRIPT_RE = re.compile(r"(?:/opt/fabrik/|(?<![\w/-]))(scripts/[\w/-]+\.py)")
+_CLOSE_CMD_RE = re.compile(r"command_run\.py\s+(?:done|blocked|handoff)\s+--command")
 _TRAILER_RE = re.compile(r"Co-Authored-By:\s*(.+?)\s*<")
 
 
@@ -289,6 +298,29 @@ def audit(
                             f"{rel}:{lineno}: commit template says Co-Authored-By {model!r} "
                             f"but CLAUDE.md's canonical trailer says {canonical_model!r}"
                         )
+    # ── Predicate 7: an advertised CLOSE must be a RUNNABLE close ──────────────────────────────
+    # `command_run.py done|blocked|handoff` REFUSES without `--feedback` (the close-out feedback
+    # duty). Every place the corpus PRINTS that command is in-product documentation an agent
+    # copies verbatim — so a printed close missing the flag instructs a command the tool then
+    # refuses, leaving the record `running` and the Stop hook holding the turn open. Measured the
+    # day the refusal landed: 36 such sites across the run-record fragment, the 17 generated
+    # orchestrator wrappers, and the Stop hook — the fix reached 2 of them, and only a mechanical
+    # sweep found the rest. The flag may wrap to a continuation line, so the window is 4 lines.
+    for path in files:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        rel = path.relative_to(repo) if path.is_relative_to(repo) else path
+        for i, line in enumerate(lines):
+            if not _CLOSE_CMD_RE.search(line):
+                continue
+            if "--feedback" not in "\n".join(lines[i : i + 4]):
+                problems.append(
+                    f"{rel}:{i + 1}: advertises a close with no --feedback — the tool REFUSES "
+                    "it, so this instructs a command that cannot succeed"
+                )
+
     # ── Predicate 6: agent definitions are GOVERNED ────────────────────────────────────────────
     # Until 2026-08-27 the four subagent definitions lived ONLY in ~/.claude/agents/: no repo
     # source, no generator, not in git, and outside this audit entirely — so the corpus check
@@ -344,6 +376,12 @@ def _selftest() -> int:
             "script path": "run `scripts/enforcement/check_no_such_thing.py`\n",
             "trailer model": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n",
             "run record": "a command body that never opens a run record\n",
+            # Predicate 7: an advertised close the tool would REFUSE. The good fixture below
+            # carries the same command WITH --feedback, so this also pins the false-positive side.
+            "advertised close": (
+                "{{include:run-record}}\n"
+                'close it: `python3 scripts/command_run.py done --command x --evidence "e"`\n'
+            ),
         }
         # Predicate 6 has its own fixture (an agent dir, not a command body).
         bad_agents = root / "_bad_agents"
@@ -369,6 +407,8 @@ def _selftest() -> int:
             'fanout("research", web_tools=["web_search","docs_lookup"])\n'
             "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
             "run `scripts/enforcement/check_command_corpus.py`\n"
+            'close: `python3 scripts/command_run.py done --command x --evidence "e" '
+            '--feedback "none — swept it"`\n'
             f"Co-Authored-By: {_canonical_trailer_model()} <noreply@anthropic.com>\n"
         )
         noise = audit(src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch")
@@ -406,7 +446,8 @@ def main(argv: list[str] | None = None) -> int:
     audited = len(_corpus_files(SOURCES, FRAGMENTS, REPO / "commands" / "assemble_commands.py"))
     print(
         "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
-        f" run records — all sound across {audited} corpus file(s)"
+        " run records, agent definitions, advertised closes —"
+        f" all sound across {audited} corpus file(s)"
     )
     return 0
 

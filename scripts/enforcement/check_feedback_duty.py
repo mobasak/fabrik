@@ -24,6 +24,18 @@ WHAT IT CANNOT GRADE, stated because a grader hiding its blind spot rebuilds the
 down: it sees whether a verdict was GIVEN. It cannot see whether the filing was honest, whether the
 mail was actually sent, or whether a `none` was earned by looking. See `SCOPE_NOTE`.
 
+WHY IT STAYS ADVISORY, now that `UNSTATED` is nearly unreachable (2026-08-28): the close itself
+REFUSES without `--feedback` (`command_run.py::_FEEDBACK_REQUIRED_FROM`), so a run started under the
+current contract cannot reach `unstated` at all. Promoting this to blocking would gate on a finding
+that can no longer occur, and the only behaviour it could still pressure is a reflexive
+`--feedback "none"` to clear the gate. Its job changed instead, and BOTH halves are the reason not to
+delete it as dead code:
+  * CANARY — if `UNSTATED` reappears for a post-cutoff run, the refusal has REGRESSED. Nothing else
+    watches that.
+  * RATIO — `filed` vs `none` is the number that actually tracks the goal. A wall of honest-looking
+    `none` is the failure mode the refusal creates, and it is invisible to a check that only asks
+    whether the field is populated.
+
 ADVISORY BY CONTRACT. Registered `warn_only=True` and **always exits 0** — a non-zero exit from a
 `warn_only` check is a BLOCKING red across ~46 governance-synced repos. Silent when no run closed in
 the window; a still-running record is never graded, because the duty attaches to the CLOSE.

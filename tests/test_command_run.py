@@ -2509,3 +2509,25 @@ def test_a_real_filing_still_registers_its_beats(run_dir: Path) -> None:
         assert row["feedback"] == "filed", f"{text!r} -> {row['feedback']}"
         assert sorted(row["feedback_to"]) == sorted(beats), f"{text!r} -> {row['feedback_to']}"
         (run_dir / "s1.json").unlink()
+
+
+def test_the_stop_hooks_remedy_advertises_a_runnable_close() -> None:
+    """The hook prints the way OUT of a blocked turn. Since the close now REFUSES without
+    `--feedback`, a remedy missing it tells a stuck agent to run a command that cannot succeed —
+    the record stays `running`, the hook fires again, and the loop has no exit.
+
+    Both exits are asserted because the fix reached `done` and left `blocked` for a full review
+    round, and `blocked` is the one a genuinely stuck agent reaches for. `check_command_corpus`
+    predicate 7 polices the command corpus, but the hook is not corpus — this is its only guard.
+    """
+    import ast
+
+    src = _HOOK.read_text(encoding="utf-8")
+    ast.parse(src)  # a SyntaxError here disarms the whole enforcement mesh, silently
+
+    i = src.index("COMMAND STILL RUNNING")
+    block = src[i : src.index("\n    )", i)]
+    for verb in ("done", "blocked"):
+        seg = block[block.index(f"command_run.py {verb}") :]
+        seg = seg[: seg.index("command_run.py", 10)] if "command_run.py" in seg[10:] else seg
+        assert "--feedback" in seg, f"the hook's {verb} remedy omits --feedback:\n{seg}"

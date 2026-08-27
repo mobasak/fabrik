@@ -317,3 +317,47 @@ def test_hub_absolute_script_citations_are_audited(tmp_path: Path):
     problems = audit(src, frag, tmp_path / "absent.py", tmp_path, traycer_skills=tmp_path / "no-orch")
     assert any("definitely_absent_xyz" in p for p in problems), "absolute dead citation missed"
     assert not any("really_here" in p for p in problems), "absolute LIVE citation false-flagged"
+
+
+# ── Predicate 7: an advertised close must be a RUNNABLE close ────────────────────────────────
+
+
+def test_an_advertised_close_without_feedback_is_caught(corpus):
+    """`command_run.py done|blocked|handoff` REFUSES without `--feedback`, so a printed close
+    missing it instructs a command the tool cannot accept — the record stays `running` and the
+    Stop hook holds the turn open. Found live: 36 such sites (the run-record fragment, the 17
+    generated orchestrator wrappers, the Stop hook) the day the refusal landed."""
+    problems = corpus(
+        'close it: `python3 scripts/command_run.py done --command fabrik-probe --evidence "e"`\n'
+    )
+    assert any("--feedback" in p for p in problems), problems
+
+
+def test_all_three_close_verbs_are_policed(corpus):
+    """`blocked` and `handoff` refuse identically — policing only `done` would leave the two
+    dispositions a stuck run actually uses. `handoff` is what the certification gauntlets close
+    NOT-QUIET runs with, so it is the likeliest close to carry machinery friction."""
+    for verb, arg in (("done", "--evidence"), ("blocked", "--reason"), ("handoff", "--reason")):
+        problems = corpus(
+            f'`python3 scripts/command_run.py {verb} --command fabrik-probe {arg} "x"`\n'
+        )
+        assert any("--feedback" in p for p in problems), f"{verb} not policed: {problems}"
+
+
+def test_a_compliant_close_is_silent(corpus):
+    """The false-positive side. Without this, the predicate could pass by flagging everything."""
+    problems = corpus(
+        '`python3 scripts/command_run.py done --command fabrik-probe --evidence "e" '
+        '--feedback "none — swept the corpus"`\n'
+    )
+    assert not any("--feedback" in p for p in problems), problems
+
+
+def test_the_flag_may_wrap_to_a_continuation_line(corpus):
+    """The real fragment wraps: the command opens on one line and `--feedback` lands on the next.
+    A single-line window would have called every correctly-fixed site a defect."""
+    problems = corpus(
+        '`python3 scripts/command_run.py blocked --command fabrik-probe --reason "<what>"\n'
+        '  --feedback "<what you filed, to whom | none — surfaces>"`\n'
+    )
+    assert not any("--feedback" in p for p in problems), problems

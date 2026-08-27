@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the close refusal advertised exits that did not work; /fabrik-review found 9 (2026-08-28)
+
+- **36 sites advertised a close the tool now REFUSES** — `commands/_fragments/run-record.md`, the 17
+  orchestrator wrappers GENERATED from it (the whole epic / mega-epic front door), and the Stop hook's
+  `blocked` remedy. The hand fix had reached 2. A fail-closed change whose own machinery documents a
+  non-working exit is the worst shape it can take: the agent reads the way out, and it does not work.
+- **`check_command_corpus.py` predicate 7** now polices every advertised close (4-line window, because
+  the flag wraps), wired into `--selftest` (now "all 7 predicates fire") with both false-positive sides
+  tested. Generated wrappers stay covered by `assemble_commands.py --check`, which was verified to go
+  red (`rc=1`) on a hand-edited wrapper.
+- **A `SyntaxError` I introduced into `.claude/hooks/final_gate_stop.py`** — unparseable, which
+  silently disarms the whole enforcement mesh. Caught only by the closing full sweep. The hook's
+  remedy now has its own regression guard (both exits + `ast.parse`), proven red-on-revert.
+- **Two of the new tests were vacuous** — one asserted a re-implementation of the production
+  expression against a stub class, one grepped the source. Both rewritten against the real process;
+  removing `.strip()` now fails exactly one test. `handoff`'s refusal was untested and now is.
+- `check_feedback_duty` records WHY it stays advisory: its `UNSTATED` finding is unreachable for
+  post-cutoff runs, so its job is now regression CANARY + `filed`-vs-`none` RATIO — the number that
+  actually tracks the goal, and the failure mode the refusal creates.
+
+
 ### Fixed — the feedback duty was inert for as long as it was only written down; the close now refuses without it (2026-08-28)
 
 - **Measured before changing anything:** the duty was in 30/30 rendered commands and 4/4 agent
