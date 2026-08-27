@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — flywheel advisory names the absent-DSN cause: unrecordable is not unscored (2026-08-28)
+
+- A repo whose `.env` has no `SUBAGENT_RUNS_DSN` cannot record ANY fanout — `record_agent_run`
+  fail-opens False silently, every dispatch piles into the "N runs never recorded" advisory, and
+  `batch.score()` later refuses each unit blaming `project=None` (job-agent `01M12K8RRD`; their
+  local-ledger-schema root cause refuted at source — `project` lives in the PG store by design).
+  Fleet survey: the DSN is provisioned in tryton-crm and trade-intelligence, absent in job-agent
+  and youtube — partial provisioning, so every DSN-less repo's flywheel has been unrecordable
+  since day one. `check_subagent_flywheel._warn_unrecorded` now detects the absent DSN and says
+  the actionable truth ("provision the DSN — scoring harder cannot fix this") instead of telling
+  the agent to score unscorable runs. Red-first test. The `score()` message fix + fanout's silent
+  False are routed to fabrik-lib (canonical); the provisioning gap is filed to infra.
+
 ### Fixed — /fabrik-flows froze a contract and never told anyone to review it (2026-08-28)
 
 - Command 5 of 31 audited against `docs/reference/command-evaluation-checklist.md`. It is a

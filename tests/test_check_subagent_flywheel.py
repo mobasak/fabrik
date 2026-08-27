@@ -372,3 +372,25 @@ def test_pass_with_nested_ledger_present_still_warns(tmp_path, monkeypatch, caps
     assert mod.check(real) == 0, "real in-cycle rows still pass the gate"
     out = capsys.readouterr().out
     assert "⚠" in out and "nested" in out.lower(), f"a silent pass strands the nested rows:\n{out}"
+
+
+def test_unrecorded_warn_names_the_absent_dsn_when_that_is_the_cause(tmp_path, monkeypatch, capsys):
+    """job-agent 01M12K8RRD: a repo with NO SUBAGENT_RUNS_DSN in its .env cannot record ANY
+    fanout (record_agent_run fail-opens False, silently) — every dispatch piles into the
+    unrecorded warning, and score() later blames "project=None". When the DSN is absent, the
+    advisory must say THAT is the cause — the runs were never recordable, not never scored."""
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    (root / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    import types
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "SUBAGENT_RUNS_DSN" in out, f"the absent-DSN cause must be named:\n{out}"
+    assert "cannot record" in out.lower() or "unrecordable" in out.lower()

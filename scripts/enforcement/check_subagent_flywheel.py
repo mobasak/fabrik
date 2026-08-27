@@ -312,6 +312,28 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         return
     if not unrecorded:
         return
+    # Name the CAUSE when it is the environment, not the agent: a repo whose .env carries no
+    # SUBAGENT_RUNS_DSN cannot record ANY run — record_agent_run fail-opens False silently, so
+    # every dispatch lands here and score() later refuses with a misleading "project=None"
+    # (job-agent 01M12K8RRD; fleet survey 2026-08-28: the DSN is provisioned in some repos,
+    # absent in others). Telling the agent to "score each run" in that state is unactionable.
+    env_file = PROJECT_ROOT / ".env"
+    try:
+        has_dsn = env_file.exists() and any(
+            line.startswith("SUBAGENT_RUNS_DSN=") and line.split("=", 1)[1].strip()
+            for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        )
+    except OSError:
+        has_dsn = True  # unreadable .env proves nothing — keep the generic message
+    if not has_dsn:
+        print(
+            f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) are UNRECORDABLE, not "
+            "unscored — this repo's .env has no SUBAGENT_RUNS_DSN, so record_agent_run fail-opens "
+            "False on every call and batch.score() refuses each unit as an orphan. Scoring harder "
+            "cannot fix this: provision the DSN (hub-side: the fabrik_analytics per-project "
+            "INSERT-only role — ask infra), then re-score from the ledger."
+        )
+        return
     print(
         f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) ran but were never "
         "scored+recorded (ledger − receipts) — each owes record_agent_run(spec, result). "
