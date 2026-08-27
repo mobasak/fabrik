@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — checklist calibrated on command 2: /fabrik-spec passes clean, and exposed a shape gap (2026-08-27)
+
+`/fabrik-spec` audited against all 100 items: **no findings.** Router stem present (unlike
+`/fabrik-rivals`), URL **+ date** required on external claims in four places, prompt-injection
+handling and a secret-exfiltration guardrail inline, a question bar, a `never` list, graders in
+`check_stage_artifacts` + `check_convergence`, and presence in both CLAUDE.mds. Item 64 (a dedicated
+reference doc) is correctly N/A — only 1 of 31 commands has one, and it is the only one shipping a
+driver script and a vendored engine.
+
+The value of the run was the gap it exposed in the CHECKLIST: items 11-15 assumed every command owns
+its convergence loop. Five commands are **producers with a review twin** where convergence is
+delegated, and demanding an in-command loop there is itself a defect — it duplicates the twin, which
+the sibling epic checklist names as an anti-pattern. A grep for "termination contract" against
+`/fabrik-spec` returned zero and nearly produced a false finding against a Phase 6 that delegates
+correctly and names its only two legitimate early stops. Items 11-15 now branch on command SHAPE
+(self-converging · producer-with-twin · one-shot utility).
+
 ### Fixed — the "404 bytes" justification for our own renderer had EXPIRED (2026-08-27)
 
 `/fabrik-rivals` told agents to render from `rivals_run.py::render_dossier_md`, "NOT from

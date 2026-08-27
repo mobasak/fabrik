@@ -67,7 +67,27 @@ rotted. The surfaces, grouped by the question they answer:
 
 ## Contract & Termination
 
-11. Does it have an explicit **termination contract** — a stated condition that ends the run?
+⚠️ **First decide which SHAPE the command is, or items 11-15 will generate false findings.**
+
+- **Self-converging** (`/fabrik-review`, `/fabrik-repo-review`, `/fabrik-rivals`, the certification
+  gauntlets): owns its loop. Items 11-15 apply in full.
+- **Producer with a review TWIN** (`/fabrik-spec`→`/fabrik-spec-review`,
+  `/fabrik-plan-after-chat`→`/fabrik-plan-review`, `/fabrik-ui-design`→`/fabrik-ui-design-review`,
+  `/fabrik-deploy-plan`→`/fabrik-deploy-plan-review`, `/fabrik-flows`→`/fabrik-flows-review`):
+  convergence is DELEGATED. The correct contract is a light self-review, a **MANDATORY invocation of
+  the twin in the same turn**, a stated "do not end on an unconverged DRAFT", and a named short list
+  of the only legitimate early stops. Demanding an in-command md5/Pass-Ledger loop here is a
+  DEFECT — it duplicates the twin, which the sibling epic checklist names as an anti-pattern at its
+  item 135. Evaluate 11-15 against the DELEGATION, not against an absent loop.
+- **One-shot utility** (`/fabrik-doc-converge`, `/fabrik-upstream`): a stated done-condition is still
+  owed; a loop is not.
+
+Calibration note: on the first pass over `/fabrik-spec` this distinction was missing, and a grep for
+"termination contract" returned zero — nearly producing a false finding against a command whose
+Phase 6 delegates correctly and names its two legitimate early stops.
+
+11. Does it have an explicit **termination contract** — a stated condition that ends the run (for a
+    producer: the delegation above)?
 12. Is that condition **mechanically decidable**, or does it rest on the agent's own judgement of its own output?
 13. Is the terminal condition reachable? Walk the mechanism that feeds it and prove a round can genuinely re-ask the question (**anti-pattern 90**).
 14. If it is a LOOP, does it forbid a fixed round count and require a no-op round?
