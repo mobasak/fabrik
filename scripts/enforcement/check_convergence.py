@@ -589,8 +589,30 @@ _NEG_AFTER_CLAIM = re.compile(
 )
 
 
+def _inline_code_spans(text: str) -> list[tuple[int, int]]:
+    """Byte ranges covered by INLINE code spans (`like this`).
+
+    Fenced blocks are already removed upstream by FENCE_STRIP; inline spans were not, and a claim
+    word QUOTED as data is not a claim about the document. transdoc (2026-08-27) ships a control
+    whose label is the past tense of "to review", so their certification report could not name the
+    button it drove — nor write the note explaining the false positive — and was contorted into
+    "mark-as-complete" wording purely to pass. A gate that forces an artifact to misdescribe reality
+    is worse than one that misses a case.
+
+    An UNTERMINATED backtick yields NO span: fail-open. A stray tick must never silently exempt
+    every claim after it, which would turn one typo into a laundering device.
+    """
+    ticks = [m.start() for m in re.finditer(r"`", text)]
+    # Pair them off; a trailing UNPAIRED tick is dropped by the step-2 walk, which is the fail-open
+    # behaviour the docstring promises.
+    return [(ticks[i], ticks[i + 1]) for i in range(0, len(ticks) - 1, 2)]
+
+
 def _claims_reviewed(stripped: str) -> bool:
+    code = _inline_code_spans(stripped)
     for m in REVIEWED.finditer(stripped):
+        if any(a < m.start() and m.end() <= b for a, b in code):
+            continue  # quoted as data (a label, an identifier), not asserted about this doc
         if _NEG_BEFORE_CLAIM.search(stripped[max(0, m.start() - 24) : m.start()]):
             continue
         if _NEG_AFTER_CLAIM.search(stripped[m.end() : m.end() + 40]):

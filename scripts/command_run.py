@@ -712,6 +712,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     p = sub.add_parser(
+        "handoff",
+        help="terminal: NOT-QUIET — the loop is quiet but rows stay OPEN, routed in a RESUME block",
+        parents=[common],
+    )
+    p.add_argument(
+        "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
+    p.add_argument(
+        "--resume",
+        required=True,
+        help=(
+            "path to the artifact carrying the open rows + the `## RESUME` block. REQUIRED: this "
+            "close is only legitimate when the successor is named, which makes it strictly harder "
+            "to fake than the BLOCKED cause agents were stretching to reach"
+        ),
+    )
+    p.add_argument("--reason", required=True, help="why rows remain open")
+    p.add_argument(
+        "--feedback",
+        default=None,
+        help="the close-out FEEDBACK line — see commands/_fragments/close-feedback.md",
+    )
+
+    p = sub.add_parser(
         "blocked", help="terminal: one of the three sanctioned BLOCKED cases", parents=[common]
     )
     p.add_argument(
@@ -918,7 +942,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         print(_round_report(rec))
         return 0
 
-    if args.cmd in ("done", "blocked"):
+    if args.cmd in ("done", "blocked", "handoff"):
         return _close(sid, rec, args, outbox)
 
     return 0
@@ -1155,6 +1179,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     rec["closed_by"] = "agent"
     if args.cmd == "done":
         rec["evidence"] = args.evidence
+    elif args.cmd == "handoff":
+        # NOT-QUIET: the loop went quiet but rows stay OPEN and are ROUTED. /fabrik-user-test and
+        # /fabrik-service-test both MANDATE this close; before it existed the only reachable words
+        # were `done` (untrue - the contract is not met) and a stretched "unresolvable spec
+        # contradiction". An agent ordered to produce a disposition it cannot record will either
+        # lie or stall, and both are worse than a fourth word.
+        rec["blocked_reason"] = args.reason
+        rec["resume"] = args.resume
     else:
         rec["blocked_reason"] = args.reason
     _touch(rec)
@@ -1169,6 +1201,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "verdict": args.cmd,
             "closed_by": "agent",
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
+            "resume": getattr(args, "resume", "") or "",
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
             # verdict, which beats were routed to, and a HASH of the line (never the prose - the

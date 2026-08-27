@@ -868,3 +868,44 @@ def test_executed_single_unrelated_citation_also_fails(tmp_path):
         "Whole-plan validation: `docs/development/reviews/2026-01-01-unrelated-review.md`.\n"
     )
     assert cc._check_executed_plan(root, plan), "single unrelated quiet citation must not satisfy"
+
+
+# ── F4: a claim word QUOTED as data is not a claim about the document ────────────────────────────
+# transdoc, 2026-08-27: their product ships a button whose label is the past tense of "to review".
+# A certification report could not quote the control it drove — and neither could the note explaining
+# the false positive — because REVIEWED matches anywhere in the doc. Hyphenating does not help: \b
+# matches at a hyphen. The report was contorted into "mark-as-complete" wording purely to pass,
+# which made the artifact LESS clear than the truth. A gate that forces a doc to misdescribe reality
+# is worse than one that misses a case.
+#
+# Fenced blocks were already stripped; INLINE code was not. A backticked span is data by convention.
+
+
+def _claims(text: str) -> bool:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cc", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod._claims_reviewed(text)
+
+
+def test_a_backticked_ui_label_is_not_a_convergence_claim():
+    assert not _claims("The dropzone exposes a `Reviewed` toggle; TC01 drove it.")
+    assert not _claims("Asserted the `converged` badge renders for an approved doc.")
+
+
+def test_prose_outside_the_backticks_still_claims():
+    """The exemption must be surgical — quoting a label cannot launder a real claim beside it."""
+    assert _claims("The plan is converged. The UI also has a `Reviewed` button.")
+    assert _claims("This artifact was reviewed end to end.")
+
+
+def test_an_unterminated_backtick_does_not_swallow_the_rest_of_the_document():
+    """Fail-open on a malformed span: a stray backtick must not silently exempt every later claim."""
+    assert _claims("A stray ` tick opens here. This document is converged.")
+
+
+def test_negation_still_wins_inside_and_outside_code():
+    assert not _claims("sign-off is withheld")
+    assert not _claims("not yet reviewed")

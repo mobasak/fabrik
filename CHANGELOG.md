@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — transdoc's /fabrik-user-test run: the gauntlet could not legitimately terminate (2026-08-27)
+
+Upstream proposal from transdoc after a full `/fabrik-user-test` run on a saas-skeleton — 3 discovery
+rounds, 25 defects fixed red-to-green across 16 commits — which closed **BLOCKED because no honest
+`done` existed**. Their follow-up mail corrected its own scope claim from a proxy assertion to a
+verified one: F1/F2/F3 are the SAME SENTENCES in `/fabrik-service-test`. All five validated here
+against our sources before acting; four are ours, and two of them I shipped this session.
+
+- **F2 (the one that trapped the run) — the exit was unreachable.** `term-coverage` demanded
+  `found: 0` counting REFUTED candidates, while the stall breaker eight lines later calls that same
+  state "CONVERGENCE, never a stall". A standing DESIGN-GAP row (an unbuilt endpoint, a missing
+  feature) is re-raised by every future finder round for as long as it is true, so `found` never
+  reaches 0 and the breaker refuses to fire. Exit now keys on **`new: 0` + every found candidate
+  adjudicated** — no rigor lost: `new:` is already the breaker's metric, nothing unadjudicated
+  escapes, and open rows still block `/fabrik-release`. Shared fragment ⇒ fixes 5 commands at once.
+- **F1 — the command promised a guard that was deliberately not built.** Both sources said
+  "`UNVISITED` blocks the close" while `check_certification_coverage.py` is `warn_only` by design and
+  says so in its own docstring. Measured at transdoc: a board reporting `{ids: 7, exercised: 0,
+  unvisited: 7}` passed a green 49/0 gate because the board had gone STALE. Both sources now state
+  the real contract and REQUIRE the grader's verbatim counters in the report. Not promoted to
+  blocking — the docstring argues against it and transdoc agrees.
+- **F3 — a mandated close with no word for it.** Both commands ORDER a `NOT-QUIET (routes
+  outstanding)` close with a `## RESUME` block; `command_run.py` had only `done`/`blocked`, so
+  transdoc closed under a stretched "unresolvable spec contradiction" and said so in the reason
+  string rather than let the record read cleaner than the truth. New `handoff` disposition, and it is
+  strictly HARDER to fake than the cause it replaced: `--resume` is required and names the artifact.
+  Follow-through the change itself demanded: `RUN_CLOSE_VERDICTS` had to learn `handoff` or every
+  such close would have landed as `unknown-run_close-verdict` and been dropped from derivation.
+- **F4 — a gate that forced an artifact to misdescribe reality.** `check_convergence`'s `REVIEWED`
+  matched anywhere, so transdoc — whose product ships a control labelled with the past tense of "to
+  review" — could not quote the button its test drove, nor write the note explaining the false
+  positive; the report was contorted into "mark-as-complete" wording purely to pass. Inline-code
+  spans are now exempt (fenced blocks already were). Unterminated backtick ⇒ no span, fail-open, so
+  one stray tick cannot launder every later claim.
+- **F5 — two preflights into `/fabrik-user-test`.** transdoc served an ENTIRELY UNSTYLED product
+  (no `postcss.config.js`, Tailwind never compiled) with every route test, DOM assertion and axe run
+  green against it; and axe has no rule for a clickable `div`, which is what their PRIMARY action
+  was — two 30/40-tab traversals never reached it.
+
 ### Added — kaizen's `Filed (spec/mail)` cell is now MEASURED, not typed (2026-08-27)
 
 Closes the two blockers named yesterday, in the order safety required.

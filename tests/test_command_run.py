@@ -2350,3 +2350,58 @@ def test_feedback_never_breaks_the_close(run_dir: Path) -> None:
     row = _events(run_dir, "s1")[-1]
     assert row["event"] == "run_close" and row["feedback"] == "filed", row
     assert "z" * 100 not in json.dumps(row), "the prose must never reach the store"
+
+
+# ── F3: the commands MANDATE a close that command_run had no word for ────────────────────────────
+# transdoc, 2026-08-27: /fabrik-user-test and /fabrik-service-test both REQUIRE a run with open rows
+# to close `NOT-QUIET (routes outstanding)` with a `## RESUME` block naming every open row. Neither
+# `done` (the contract is not met) nor any of the three sanctioned BLOCKED causes means that, so a
+# real 3-round gauntlet fixing 25 defects had to close under "unresolvable spec contradiction" — a
+# stretch its author flagged in the reason string rather than let the record read cleaner than the
+# truth. A disposition an agent is ORDERED to produce and CANNOT record is a contract defect.
+#
+# `handoff` is strictly HARDER to fake than the cause it replaces: --resume is required and names the
+# artifact carrying the open rows, where "unresolvable spec contradiction" is free prose.
+
+
+def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) -> None:
+    _start(run_dir)
+    out = _cr(
+        run_dir, "handoff", "--command", "fabrik-probe",
+        "--resume", "docs/development/certifications/2026-08-27-cert-x/ledger.md",
+        "--reason", "3 DESIGN-GAP rows the run may not decide",
+    )
+    assert out.returncode == 0, out.stderr
+    row = _events(run_dir, "s1")[-1]
+    assert row["event"] == "run_close" and row["verdict"] == "handoff", row
+    assert row["closed_by"] == "agent", row
+
+
+def test_handoff_refuses_without_the_resume_artifact(run_dir: Path) -> None:
+    """The whole point: it must be harder to fake than the BLOCKED cause it replaces."""
+    _start(run_dir)
+    out = _cr(run_dir, "handoff", "--command", "fabrik-probe", "--reason", "rows open")
+    assert out.returncode != 0, out.stdout + out.stderr
+
+
+def test_handoff_leaves_the_record_closed_so_the_stop_hook_releases(run_dir: Path) -> None:
+    """A fourth close is only useful if it actually ENDS the run — otherwise the agent is still
+    trapped and will reach for the stretched BLOCKED cause anyway."""
+    _start(run_dir)
+    _cr(
+        run_dir, "handoff", "--command", "fabrik-probe", "--resume", "docs/x/ledger.md",
+        "--reason", "rows open",
+    )
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "handoff", rec
+    assert rec["state"] != "running", "the Stop hook keys on running — handoff must release it"
+
+
+def test_handoff_carries_the_feedback_verdict_like_the_other_closes(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(
+        run_dir, "handoff", "--command", "fabrik-probe", "--resume", "docs/x/ledger.md",
+        "--reason", "rows open", "--feedback", "filed to infra — the grader is mute",
+    )
+    row = _events(run_dir, "s1")[-1]
+    assert row["feedback"] == "filed" and row["feedback_to"] == ["infra"], row

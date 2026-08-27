@@ -108,7 +108,11 @@ GOLDEN_MISMATCH_REASON = "instrument red: golden mismatch"
 ERA_EVENT = "event"
 
 #: Sanctioned run_close verdicts (docs/workstation/kaizen-event-stream.md § vocabulary).
-RUN_CLOSE_VERDICTS = frozenset({"done", "blocked"})
+RUN_CLOSE_VERDICTS = frozenset({"done", "blocked", "handoff"})
+#: `handoff` (2026-08-27) = NOT-QUIET: the loop went quiet but rows stay OPEN and are routed in a
+#: `## RESUME` block. It is NOT a success and must never inflate `done` — /fabrik-user-test and
+#: /fabrik-service-test both MANDATE this close, and before it existed the only reachable words
+#: were an untrue `done` or a stretched BLOCKED cause (transdoc, proposal 2026-08-27).
 #: stop_block causes that are premature-stop shaped: the agent tried to end the turn
 #: while a run record was still live, or while promising undispatched work.
 PREMATURE_CAUSES = frozenset({"run-record", "promise-stall"})
@@ -287,6 +291,7 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
     blocked = 0
     rounds_max = 0
     fb_filed = fb_none = fb_unstated = 0
+    handoff = 0
     death_classes: list[str] = []
     first_dt: dt.datetime | None = None
     last_dt: dt.datetime | None = None
@@ -364,6 +369,8 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
                     # M8: a present-but-malformed evidence hash is an instrument
                     # defect, counted — never silently "unevidenced".
                     reasons["malformed-evidence_hash"] += 1
+            elif row.get("verdict") == "handoff":
+                handoff += 1
             else:
                 blocked += 1
             # The close-out FEEDBACK verdict, counted beside done/blocked on the SAME pass so the
@@ -434,6 +441,7 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             "fb_filed": fb_filed,
             "fb_none": fb_none,
             "fb_unstated": fb_unstated,
+            "handoff": handoff,
         },
         "stop_causes": dict(stop_causes),
         # Every death class, in order of occurrence (M9) — a session can die more
@@ -698,7 +706,19 @@ def read_rows(
 _DELTA_SCALARS: tuple[tuple[str | None, tuple[str, ...]], ...] = (
     (None, ("lines_total", "lines_unclassified")),
     ("gate", ("runs", "pass", "fail", "runs_noncheck")),
-    ("runs", ("opened", "done", "done_evidenced", "blocked", "fb_filed", "fb_none", "fb_unstated")),
+    (
+        "runs",
+        (
+            "opened",
+            "done",
+            "done_evidenced",
+            "blocked",
+            "handoff",
+            "fb_filed",
+            "fb_none",
+            "fb_unstated",
+        ),
+    ),
 )
 #: (container key or None, counter-map field name) — additive {name: count} maps.
 _DELTA_MAPS: tuple[tuple[str | None, str], ...] = (

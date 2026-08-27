@@ -34,7 +34,7 @@
         "runs_noncheck": 1,
         "failed_checks_noncheck": {"mypy": 1}
       },
-      "runs": {"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 1, "fb_filed": 0, "fb_none": 0, "fb_unstated": 1},
+      "runs": {"opened": 1, "done": 1, "done_evidenced": 1, "blocked": 0, "rounds_max": 1, "handoff": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 1},
       "stop_causes": {},
       "death_classes": [],
       "events_unattributed": {},
@@ -65,7 +65,7 @@
         "runs_noncheck": 0,
         "failed_checks_noncheck": {}
       },
-      "runs": {"opened": 1, "done": 0, "done_evidenced": 0, "blocked": 1, "rounds_max": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 1},
+      "runs": {"opened": 1, "done": 0, "done_evidenced": 0, "blocked": 1, "rounds_max": 0, "handoff": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 1},
       "stop_causes": {"run-record": 1},
       "death_classes": ["rate_limit"],
       "events_unattributed": {},
@@ -96,7 +96,7 @@
         "runs_noncheck": 0,
         "failed_checks_noncheck": {}
       },
-      "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 0},
+      "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0, "handoff": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 0},
       "stop_causes": {},
       "death_classes": [],
       "events_unattributed": {},
@@ -118,7 +118,7 @@
         "runs_noncheck": 0,
         "failed_checks_noncheck": {}
       },
-      "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 0},
+      "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0, "handoff": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 0},
       "stop_causes": {},
       "death_classes": [],
       "events_unattributed": {"rule_activation": 1, "gate_run": 1},
@@ -140,7 +140,7 @@
         "runs_noncheck": 0,
         "failed_checks_noncheck": {}
       },
-      "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 0},
+      "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0, "handoff": 0, "fb_filed": 0, "fb_none": 0, "fb_unstated": 0},
       "stop_causes": {"unpushed": 1},
       "death_classes": [],
       "events_unattributed": {},

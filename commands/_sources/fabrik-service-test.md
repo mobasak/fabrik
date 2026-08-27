@@ -109,7 +109,7 @@ dispatched to CODING agents holding a lock the Stop hook believes in. `check_cer
 flags all four as **BLOCKING**, not advisory.
 
 **Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or
-`OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` blocks the close. `DEFERRED` is
+`OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it **advisory** (`warn_only`) by deliberate design — see its docstring — so a board full of `UNVISITED` will NOT redden the gate. **You must therefore paste the grader's verbatim counters into the report** (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface. A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`. `DEFERRED` is
 REJECTED**, with its synonyms — a "later" state is the loophole that lets the whole contract be
 ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are **rejected REASONS**:
 they describe how OUR surface came to exist, not whether a customer can click it, and inherited

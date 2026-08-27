@@ -63,6 +63,19 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
      comes from the backend, like sao): walk the NAV TREE, don't crawl links** — doc-crawl is for
      link-based sites, not menu-driven apps.
 
+### Two preflights that cost a second and catch a whole-product lie (transdoc, 2026-08-27)
+
+- **Prove the STYLING PIPELINE actually ran** before trusting a single visual verdict. transdoc had
+  no `postcss.config.js` (never scaffolded), so Tailwind never compiled and the entire product served
+  UNSTYLED HTML — every route test, DOM assertion and axe run passed against it, green throughout.
+  The SCREENSHOTS-ARE-READ clause did catch it, which is the system working; a one-second probe
+  catches it sooner. Check the config exists AND that a built asset actually contains compiled
+  utility CSS — presence of a config file is not proof it ran.
+- **axe has NO rule for a clickable `div`,** and it is the most common React a11y defect. transdoc's
+  dropzone — the product's PRIMARY action — was a `div` with `onClick`, no `tabIndex`, no `role`, no
+  key handler: two independent 30/40-tab traversals never reached it, with a11y green the whole way.
+  Grep the source for `onClick` on a non-interactive element; the DOM check cannot see it.
+
 ## Phase 1 — The INVENTORY: the denominator nothing may hide from
 
 Coverage claims are fractions; this phase builds the denominator. Enumerate **every interactive
@@ -120,7 +133,7 @@ dispatched to CODING agents holding a lock the Stop hook believes in. `check_cer
 flags all four as **BLOCKING**, not advisory.
 
 **Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or
-`OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` blocks the close. `DEFERRED` is
+`OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it **advisory** (`warn_only`) by deliberate design — see its docstring — so a board full of `UNVISITED` will NOT redden the gate. **You must therefore paste the grader's verbatim counters into the report** (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface. A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`. `DEFERRED` is
 REJECTED**, with its synonyms — a "later" state is the loophole that lets the whole contract be
 ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are **rejected REASONS**:
 they describe how OUR surface came to exist, not whether a customer can click it, and inherited

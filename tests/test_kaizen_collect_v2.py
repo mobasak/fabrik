@@ -334,6 +334,7 @@ def test_derive_session_mixed_good_and_malformed(tmp_path: Path) -> None:
         "done_evidenced": 1,
         "blocked": 0,
         "rounds_max": 0,
+        "handoff": 0,
         # neither close carried --feedback, so both are honestly `unstated` (the verdict="maybe"
         # line is rejected before the counters, hence 1 not 2)
         "fb_filed": 0,
@@ -3672,3 +3673,20 @@ def test_the_whole_feedback_chain_connects_end_to_end(tmp_path: Path) -> None:
     finally:
         ko._window_deltas = orig
     assert cell == "1 filed / 1 none / 1 unstated", cell
+
+
+def test_a_handoff_close_is_a_sanctioned_verdict_not_an_unknown_one(tmp_path: Path) -> None:
+    """Adding a fourth close disposition to command_run.py without teaching the collector about it
+    would make every NOT-QUIET close land as `unknown-run_close-verdict` — dropped from derivation
+    entirely, taking its feedback counters with it. The enum and its consumer move together."""
+    lines = [
+        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="handoff",
+              resume="docs/x/ledger.md", feedback="filed", feedback_to=["infra"]),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
+    assert row is not None
+    assert row["unclassified_reasons"].get("unknown-run_close-verdict") is None, row
+    assert row["runs"]["fb_filed"] == 1, row["runs"]
+    # NOT-QUIET is not a success: it must never inflate the `done` count.
+    assert row["runs"]["done"] == 0, row["runs"]
+    assert row["runs"]["handoff"] == 1, row["runs"]
