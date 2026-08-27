@@ -879,6 +879,21 @@ def run_consistency_checks(
         )
     )
 
+    # Certification coverage (advisory): /fabrik-user-test and /fabrik-service-test graded their own
+    # denominator. The inventory was PROSE WITH COUNTS authored by the agent later graded against it,
+    # and NOTHING read it — there was no certification grader at all. On an inherited surface it
+    # under-counts silently and the run terminates honestly and wrong. Advisory on landing so every
+    # project SEES its real fraction without a release freezing; the anti-mix-up findings inside it
+    # are BLOCKING by their own flag, because a cert board that looks like an implementation plan
+    # gets dispatched to CODING agents.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_certification_coverage.py",
+            "Certification Coverage (advisory)",
+            warn_only=True,
+        )
+    )
+
     # Plan-lock release (advisory): a finished plan must not hold its scope lock. The protocol
     # has three readers and ZERO writers — the lock is created and released by PROSE, so the
     # omission is invisible until it surfaces days later as a hard BLOCKED halt at an unrelated
