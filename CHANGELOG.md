@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — final_gate --json: tail-preserving truncation with a machine-readable marker; skipped static tier announces itself (2026-08-27)
+
+- A bare `[:500]` on every `--json` output field dropped exactly the line every tool puts
+  its totals on, so "3 errors shown" was indistinguishable from "the first 3 of 83" — a
+  consumer built a false cascade model and argued for reverting correct fixes (job-agent
+  `01M10DYMRG`; transdoc's 1-of-4-findings gate line, same class). `clip_output()` now
+  keeps head AND tail (totals always survive), states the omission in-band
+  (`… [truncated: ~N line(s) omitted — tail follows] …`) and as fields
+  (`truncated`/`omitted_lines`) at all five emit sites; consumers reading `output` as a
+  string are unaffected. Secondary: the diff-sensed only-`.md` skip of the static tier now
+  emits a ⚠ advisory row ("this green asserts nothing about lint/type debt") into `--json`
+  `warnings`, so a green result carries its own scope. Unit tests pin tail-survival,
+  in-band marker, and stable schema.
+
 ### Fixed — check_imports_resolvable discovers nested source roots instead of assuming ROOT/src (2026-08-27)
 
 - The checker modeled exactly one layout (`ROOT/src`), so a saas-skeleton whose Python lives

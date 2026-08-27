@@ -171,6 +171,27 @@ def run_ai_fixes(tool: str, tool_output: str | None = None) -> tuple[bool, str]:
         return False, str(e)
 
 
+def clip_output(output: str, head: int = 1400, tail: int = 600) -> dict[str, object]:
+    """Head+TAIL clip with a machine-readable marker, for every --json output field.
+
+    A bare ``[:500]`` dropped exactly the line every tool puts its totals on
+    (mypy/ruff/pytest all end with "Found N errors ..."), so the JSON showed "3 errors"
+    indistinguishably from "the first 3 of 83" — consumers built a false cascade model
+    and argued for reverting correct fixes (job-agent 01M10DYMRG; same class as a
+    4-finding check surfacing 1, transdoc 01M12A2D90). The tail SURVIVES, the omission
+    is stated in-band AND as fields, and an untruncated output keeps a stable schema.
+    """
+    if len(output) <= head + tail:
+        return {"output": output, "truncated": False, "omitted_lines": 0}
+    kept_head, kept_tail = output[:head], output[-tail:]
+    omitted = output[len(kept_head) : len(output) - len(kept_tail)].count("\n")
+    return {
+        "output": f"{kept_head}\n… [truncated: ~{omitted} line(s) omitted — tail follows] …\n{kept_tail}",
+        "truncated": True,
+        "omitted_lines": omitted,
+    }
+
+
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
     """Run a command and return (returncode, output)."""
     timeout = timeout or TIMEOUTS["default"]
@@ -599,8 +620,20 @@ def run_static_checks(
     if tier == 3:
         return results
 
-    # Diff-sensing: if only .md files changed, skip all static checks
+    # Diff-sensing: if only .md files changed, skip all static checks — but SAY so.
+    # A silently skipped tier made a green run indistinguishable from a verified one,
+    # so a repo could carry a large mypy debt while every recorded gate read green
+    # (job-agent 01M10DYMRG, secondary finding). The ⚠ prefix routes this row into
+    # --json's `warnings`, so a green result carries its own scope.
     if changed and _only_md_changed(changed):
+        results.append(
+            (
+                "static tier (diff-sensed skip)",
+                True,
+                "⚠ static checks skipped — only .md files in the diff; this green asserts "
+                "nothing about lint/type debt",
+            )
+        )
         return results
 
     # --- Ruff check (Tier 1 + Tier 2) — scoped to the CHANGED python files ---
@@ -1710,7 +1743,7 @@ def log_gate_issues(results: list[tuple[str, bool, str]], gate_type: str) -> Non
         "timestamp": datetime.now().isoformat(),
         "gate_type": gate_type,
         "project": str(PROJECT_ROOT),
-        "issues": [{"check": name, "output": output[:500]} for name, output in failed],
+        "issues": [{"check": name, **clip_output(output)} for name, output in failed],
     }
 
     with open(log_file, "a") as f:
@@ -2164,7 +2197,7 @@ def main() -> int:
         # were ever at risk. Registered warn-only rows carry their whole product in stdout,
         # so it ships here too (the `warnings` list below only collects ⚠-prefixed output).
         advisory_rows = [
-            {"check": name, "output": output[:500]}
+            {"check": name, **clip_output(output)}
             for name, ok, output in all_results
             if ok and name in WARN_ONLY_CHECKS
         ]
@@ -2176,7 +2209,7 @@ def main() -> int:
             "advisory": advisory_rows,
             "blocking": passed_count - len(advisory_rows),
             "failures": [
-                {"check": name, "output": output[:500]}  # Truncate long outputs
+                {"check": name, **clip_output(output)}  # tail-preserving, marker in-band
                 for name, _, output in failed
             ],
             # Advisory warnings a check OPTS INTO by prefixing with ⚠ — surfaced in --json (the
@@ -2185,12 +2218,12 @@ def main() -> int:
             # skipping)") out; a check emitting a plain "WARNING:" (e.g. check_reusable_modules)
             # stays human-mode-only by design.
             "warnings": [
-                {"check": name, "output": output[:500]}
+                {"check": name, **clip_output(output)}
                 for name, ok, output in all_results
                 if ok and output and output.lstrip().startswith("⚠")
             ]
             + (
-                [{"check": "untracked sources (advisory)", "output": untracked_warn[:500]}]
+                [{"check": "untracked sources (advisory)", **clip_output(untracked_warn)}]
                 if untracked_warn
                 else []
             ),
