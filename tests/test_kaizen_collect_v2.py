@@ -334,6 +334,11 @@ def test_derive_session_mixed_good_and_malformed(tmp_path: Path) -> None:
         "done_evidenced": 1,
         "blocked": 0,
         "rounds_max": 0,
+        # neither close carried --feedback, so both are honestly `unstated` (the verdict="maybe"
+        # line is rejected before the counters, hence 1 not 2)
+        "fb_filed": 0,
+        "fb_none": 0,
+        "fb_unstated": 1,
     }
     assert row["first_ts"].startswith("2026-08-18T10:00:00")
     assert row["last_ts"].startswith("2026-08-18T12:00:00")
@@ -3511,3 +3516,159 @@ def test_lock_default_home_is_fixed_and_unreaped(monkeypatch: pytest.MonkeyPatch
     lockfile = kc._log_lockfile(Path("/opt/fabrik/docs/reference/agents/kaizen-log-infra.md"))
     assert lockfile.parent == Path.home() / ".claude" / "state" / "kaizen-log-locks"
     assert lockfile.suffix == ".lock"
+
+
+# ── the analyst's cells are HERS: a computed value may FILL, never OVERWRITE ─────────────────────
+# kaizen.md:202 promises the analyst's `Top friction fixed` / `Filed (spec/mail)` cells are "never
+# overwritten by a re-run". `_merge_cells` only half-kept that promise: it yielded to the analyst
+# when the NEW value was a dash, but a real computed value WON. That was harmless only while nothing
+# computed those cells. Wiring `Filed` to the measured filing count would have started silently
+# eating the analysis half's prose on the next cron run.
+
+
+def test_a_computed_value_never_overwrites_an_analysts_cell() -> None:
+    from kaizen_collect_v2 import _merge_cells
+
+    old = ["2026-08-27", "100%", "—", "—", "—", "—", "router mis-route", "01M11VS2ZE -> intel"]
+    new = ["2026-08-27", "90%", "—", "—", "—", "—", "—", "3 filed / 5 none / 2 unstated"]
+    merged = _merge_cells(new, old, force_dash=False)
+    assert merged[1] == "90%", "mechanical cells still take the fresh value"
+    assert merged[6] == "router mis-route", merged
+    assert merged[7] == "01M11VS2ZE -> intel", "the analyst's prose must survive a computed value"
+
+
+def test_a_computed_value_does_fill_an_empty_analyst_cell() -> None:
+    """Filling is the point — the cells have read '—' on every row since the 2026-08-12 baseline."""
+    from kaizen_collect_v2 import _merge_cells
+
+    old = ["2026-08-27", "100%", "—", "—", "—", "—", "—", "—"]
+    new = ["2026-08-27", "90%", "—", "—", "—", "—", "—", "3 filed / 5 none / 2 unstated"]
+    merged = _merge_cells(new, old, force_dash=False)
+    assert merged[7] == "3 filed / 5 none / 2 unstated", merged
+
+
+def test_an_absent_old_row_lets_the_computed_value_through() -> None:
+    from kaizen_collect_v2 import _merge_cells
+
+    new = ["2026-08-27", "90%", "—", "—", "—", "—", "—", "2 filed / 1 none / 0 unstated"]
+    assert _merge_cells(new, [], force_dash=False)[7] == "2 filed / 1 none / 0 unstated"
+
+
+def test_force_dash_still_spares_the_analyst() -> None:
+    """Golden refusal blanks the MECHANICAL cells; the analyst's writing is not a measurement and
+    is not refused with them."""
+    from kaizen_collect_v2 import _merge_cells
+
+    old = ["2026-08-27", "100%", "—", "—", "—", "—", "friction", "filed"]
+    new = ["2026-08-27", "90%", "—", "—", "—", "—", "—", "9 filed / 0 none / 0 unstated"]
+    merged = _merge_cells(new, old, force_dash=True)
+    assert merged[1] == "—", "mechanical cells are refused"
+    assert merged[6] == "friction" and merged[7] == "filed", "analyst cells survive the refusal"
+
+
+# ── the FEEDBACK verdict, counted at the derivation layer ────────────────────────────────────────
+# Counted HERE — beside `done`/`blocked`/`done_evidenced` on the same `run_close` pass — rather than
+# by an ad-hoc reader beside the metrics, so the filing counts obey the same single-source law,
+# per-sid dedup and delta arithmetic as every other counter. A parallel counter would drift.
+
+
+def test_derivation_counts_the_three_feedback_verdicts(tmp_path: Path) -> None:
+    lines = [
+        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done",
+              evidence_hash="h", feedback="filed", feedback_to=["intel"]),
+        _line("s1", "run_close", "2026-08-18T11:00:00.000+00:00", verdict="done",
+              evidence_hash="h", feedback="none", feedback_to=[]),
+        _line("s1", "run_close", "2026-08-18T12:00:00.000+00:00", verdict="done",
+              evidence_hash="h", feedback="unstated", feedback_to=[]),
+        _line("s1", "run_close", "2026-08-18T13:00:00.000+00:00", verdict="blocked",
+              feedback="filed", feedback_to=["fleet", "infra"]),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
+    assert row is not None
+    runs = row["runs"]
+    assert runs["fb_filed"] == 2, runs
+    assert runs["fb_none"] == 1, runs
+    assert runs["fb_unstated"] == 1, runs
+
+
+def test_a_run_close_with_no_feedback_field_counts_as_unstated(tmp_path: Path) -> None:
+    """Every run_close predating the field is `unstated` — which is TRUE of them: no verdict was
+    ever given. Defaulting them to `none` would manufacture diligence retroactively."""
+    lines = [
+        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done", evidence_hash="h"),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
+    assert row is not None
+    assert row["runs"]["fb_unstated"] == 1, row["runs"]
+    assert row["runs"]["fb_none"] == 0, row["runs"]
+
+
+def test_an_unknown_feedback_value_is_counted_as_an_instrument_defect(tmp_path: Path) -> None:
+    """M8 shape: a present-but-malformed value is a defect to COUNT, never silently bucketed."""
+    lines = [
+        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done",
+              evidence_hash="h", feedback="probably?"),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
+    assert row is not None
+    assert row["unclassified_reasons"].get("unknown-feedback-verdict") == 1, row
+    assert row["runs"]["fb_filed"] == 0 and row["runs"]["fb_none"] == 0, row["runs"]
+
+
+def test_the_feedback_counters_are_registered_as_delta_scalars() -> None:
+    """Unregistered counters are point-in-time, not additive — the weekly cell would report a
+    session's lifetime filings once per residency day."""
+    scalars = {k: v for k, v in kc._DELTA_SCALARS if k is not None}
+    for name in ("fb_filed", "fb_none", "fb_unstated"):
+        assert name in scalars["runs"], f"{name} is not delta'd"
+
+
+def test_the_whole_feedback_chain_connects_end_to_end(tmp_path: Path) -> None:
+    """command_run.py done --feedback -> event -> derivation -> metric cell.
+
+    Every link is unit-tested above, and that is exactly why this exists: three green links do not
+    prove a connected chain. This drives the REAL CLI, reads the REAL event file, runs the REAL
+    derivation, and asserts the REAL metric string that lands in kaizen's `Filed (spec/mail)` cell.
+    """
+    import subprocess
+    import sys
+
+    ev, runs = tmp_path / "ev", tmp_path / "runs"
+    ev.mkdir()
+    runs.mkdir()
+
+    def _run(sid: str, *extra: str) -> None:
+        env = {
+            "PATH": "/usr/bin:/bin",
+            "KAIZEN_EVENTS_DIR": str(ev),
+            "COMMAND_RUN_DIR": str(runs),
+            "CLAUDE_SESSION_ID": sid,
+        }
+        for args in (
+            ("start", "--command", "p", "--phases", "1", "--terminal", "t"),
+            ("done", "--command", "p", "--evidence", "e", *extra),
+        ):
+            subprocess.run(
+                [sys.executable, str(REPO / "scripts" / "command_run.py"), *args],
+                env=env, capture_output=True, text=True, check=False,
+            )
+
+    _run("chain-a", "--feedback", "filed 01M11 to intel")
+    _run("chain-b", "--feedback", "none - swept the router")
+    _run("chain-c")  # no --feedback at all -> unstated
+
+    rows = [r for r in (kc.derive_session(f) for f in sorted(ev.glob("*.jsonl"))) if r]
+    assert len(rows) == 3, rows
+    totals = {k: sum(r["runs"][k] for r in rows) for k in ("fb_filed", "fb_none", "fb_unstated")}
+    assert totals == {"fb_filed": 1, "fb_none": 1, "fb_unstated": 1}, totals
+
+    sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
+    import kaizen_outcomes as ko
+
+    orig = ko._window_deltas
+    try:
+        ko._window_deltas = lambda state, days: (rows, rows)
+        cell = ko.filings(days=["2026-08-27"]).cell
+    finally:
+        ko._window_deltas = orig
+    assert cell == "1 filed / 1 none / 1 unstated", cell

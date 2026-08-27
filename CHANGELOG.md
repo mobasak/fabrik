@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen's `Filed (spec/mail)` cell is now MEASURED, not typed (2026-08-27)
+
+Closes the two blockers named yesterday, in the order safety required.
+
+**1. The merge rule first.** `kaizen.md:202` promises the analyst's cells are "never overwritten by a
+re-run", but `_merge_cells` only half-kept it: it yielded to the analyst when the NEW value was a
+dash, while a real computed value WON. Harmless only while nothing computed those cells — wiring
+`Filed` without fixing this would have started silently eating the analysis half's prose on the next
+cron run. A real value the analyst typed now always wins; a computed value only FILLS an empty cell.
+
+**2. Then the metric, inside the existing machinery rather than beside it.** The verdicts are counted
+at DERIVATION on the same `run_close` pass as `done`/`blocked` (`runs.fb_filed` / `fb_none` /
+`fb_unstated`) and registered in `_DELTA_SCALARS` — unregistered counters are point-in-time, so the
+weekly cell would have reported a session's lifetime filings once per residency day.
+`kaizen_outcomes.filings()` aggregates them over the same `_window_deltas` every sibling metric uses,
+so the count inherits the single-source law, the per-sid dedup and the delta arithmetic.
+
+All three verdicts ride the cell (`N filed / N none / N unstated`) because `0 filed` alone reads like
+a quiet week, while `0 filed / 0 none / 9 unstated` reads like nine runs where nobody was asked. A
+window with no derived rows stays UNMEASURABLE rather than a knowable zero, per the root law.
+
+Proven end to end, not link by link: a test drives the real CLI three times, reads the real event
+file, runs the real derivation and asserts the real cell string — `1 filed / 1 none / 1 unstated`.
+Three green links do not prove a connected chain.
+
+The golden corpus's expected `runs` dicts gained the three counters; every golden close predates the
+field and is therefore honestly `unstated`, which is what a close with no verdict IS — defaulting
+them to `none` would manufacture diligence retroactively.
+
 ### Added — the close-out FEEDBACK verdict is now MEASURED on the event stream (2026-08-27)
 
 `command_run.py done|blocked` takes `--feedback`, and the existing `run_close` event now carries

@@ -1515,3 +1515,67 @@ def test_guard_dash_discloses_the_bootstrap_exclusion(tmp_path: Path) -> None:
             "(the accumulator-side bootstrap-window cause is a DIFFERENT fact "
             "and may legitimately co-occur): " + rounds.detail
         )
+
+
+# ── filings: the close-out FEEDBACK verdict as a windowed metric ─────────────────────────────────
+# Built on _window_deltas like every sibling so it inherits the single-source law, the per-sid
+# dedup and the delta arithmetic. The point of the cell is to make kaizen's `Filed (spec/mail)`
+# column MEASURED — it has read "—" on every row since the 2026-08-12 baseline.
+
+
+def _fb_row(sid: str, day: str, filed: int, none_: int, unstated: int) -> dict:
+    return {
+        "sid": sid,
+        "day": day,
+        "runs": {"fb_filed": filed, "fb_none": none_, "fb_unstated": unstated},
+    }
+
+
+def test_filings_reports_all_three_verdicts(monkeypatch) -> None:
+    import kaizen_outcomes as ko
+
+    rows = [_fb_row("s1", "2026-08-27", 2, 1, 0), _fb_row("s2", "2026-08-27", 1, 4, 3)]
+    monkeypatch.setattr(ko, "_window_deltas", lambda state, days: (rows, rows))
+    r = ko.filings(days=["2026-08-27"])
+    assert r.measurable, r.detail
+    assert "3 filed" in r.cell and "5 none" in r.cell and "3 unstated" in r.cell, r.cell
+
+
+def test_filings_surfaces_the_unstated_share_because_that_is_the_diligence_signal() -> None:
+    import kaizen_outcomes as ko
+
+    rows = [_fb_row("s1", "2026-08-27", 0, 0, 9)]
+    orig = ko._window_deltas
+    try:
+        ko._window_deltas = lambda state, days: (rows, rows)
+        r = ko.filings(days=["2026-08-27"])
+    finally:
+        ko._window_deltas = orig
+    # 9 closes, not one verdict given — the cell must SAY so, not read as a quiet week.
+    assert "9 unstated" in r.cell, r.cell
+
+
+def test_filings_is_unmeasurable_rather_than_zero_when_the_window_has_no_derivation() -> None:
+    """A derivation gap is not a knowable 0 — the same law every sibling metric obeys."""
+    import kaizen_outcomes as ko
+
+    orig = ko._window_deltas
+    try:
+        ko._window_deltas = lambda state, days: ([], [])
+        r = ko.filings(days=["2026-08-27"])
+    finally:
+        ko._window_deltas = orig
+    assert not r.measurable and r.cell == "—", r
+
+
+def test_filings_is_unmeasurable_when_no_run_closed_at_all() -> None:
+    import kaizen_outcomes as ko
+
+    rows = [_fb_row("s1", "2026-08-27", 0, 0, 0)]
+    orig = ko._window_deltas
+    try:
+        ko._window_deltas = lambda state, days: (rows, rows)
+        r = ko.filings(days=["2026-08-27"])
+    finally:
+        ko._window_deltas = orig
+    assert not r.measurable, r

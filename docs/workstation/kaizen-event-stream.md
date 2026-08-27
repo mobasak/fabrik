@@ -192,11 +192,19 @@ Collapsing `unstated` into `none` would report perfect diligence for a corpus no
 the fail-silent-green shape reproduced inside the telemetry built to measure it. The prose never
 enters the store; only a `blake2s` hash, on the same contract `evidence_hash` already keeps.
 
-**Consumer status:** the stream now CARRIES the signal; the kaizen log's `Filed (spec/mail)` cell is
-still the analyst's to type. Wiring it to the measured count belongs in `kaizen_outcomes` alongside
-the other windowed metrics (its day-scoped delta rows and the 20% attribution floor), and
-`_merge_cells` must first be changed so a computed value can never overwrite an analyst's prose — its
-current rule lets a real new value win. Both are open; neither is bodged in here.
+**Consumer — SHIPPED 2026-08-27.** The counters are summed at derivation on the same `run_close`
+pass as `done`/`blocked` (`kaizen_collect_v2`, published as `runs.fb_filed` / `fb_none` /
+`fb_unstated` and registered in `_DELTA_SCALARS`, so they are additive rather than point-in-time),
+aggregated by `kaizen_outcomes.filings()` on the same `_window_deltas` every sibling metric uses, and
+published into the kaizen log's `Filed (spec/mail)` cell as `N filed / N none / N unstated`.
+
+All three verdicts ride the cell on purpose: `0 filed` alone reads like a quiet week, while
+`0 filed / 0 none / 9 unstated` reads like nine runs where nobody was asked.
+
+⚠️ `Filed` is an ANALYST cell. `_merge_cells` was corrected first so a real value the analyst typed
+always wins and the computed value only FILLS an empty cell — `kaizen.md:202` promises these are
+never overwritten by a re-run, and the previous rule only honoured that while nothing computed
+them.
 | `terminator_spam` | `rules_compliance` | final_block_emitted / closures | T06 collector |
 | `premature_stop_rate` | `first_attempt_gate_pass` | EVENT-level stop verdicts | T06 collector |
 | `first_attempt_gate_pass` | `premature_stop_rate` | sessions, first gate_run | T06 collector |

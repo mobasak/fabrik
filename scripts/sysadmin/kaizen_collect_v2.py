@@ -286,6 +286,7 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
     done_evidenced = 0
     blocked = 0
     rounds_max = 0
+    fb_filed = fb_none = fb_unstated = 0
     death_classes: list[str] = []
     first_dt: dt.datetime | None = None
     last_dt: dt.datetime | None = None
@@ -365,6 +366,24 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
                     reasons["malformed-evidence_hash"] += 1
             else:
                 blocked += 1
+            # The close-out FEEDBACK verdict, counted beside done/blocked on the SAME pass so the
+            # filing counts inherit the single-source law, the per-sid dedup and the delta
+            # arithmetic every other counter obeys. An ad-hoc reader beside the metrics would drift.
+            #
+            # A run_close with NO feedback field is `unstated` — which is exactly true of it: no
+            # verdict was ever given, including for every close that predates the field. Defaulting
+            # those to `none` would manufacture diligence retroactively, which is the precise
+            # confusion `unstated` exists to prevent.
+            fb = row.get("feedback")
+            if fb is None or fb == "unstated":
+                fb_unstated += 1
+            elif fb == "filed":
+                fb_filed += 1
+            elif fb == "none":
+                fb_none += 1
+            else:
+                # M8: present-but-unknown is an instrument defect, counted — never bucketed.
+                reasons["unknown-feedback-verdict"] += 1
         elif event == "round":
             rounds_max = max(rounds_max, int(row["n"]))
         elif event == "stop_block":
@@ -412,6 +431,9 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             "done_evidenced": done_evidenced,
             "blocked": blocked,
             "rounds_max": rounds_max,
+            "fb_filed": fb_filed,
+            "fb_none": fb_none,
+            "fb_unstated": fb_unstated,
         },
         "stop_causes": dict(stop_causes),
         # Every death class, in order of occurrence (M9) — a session can die more
@@ -676,7 +698,7 @@ def read_rows(
 _DELTA_SCALARS: tuple[tuple[str | None, tuple[str, ...]], ...] = (
     (None, ("lines_total", "lines_unclassified")),
     ("gate", ("runs", "pass", "fail", "runs_noncheck")),
-    ("runs", ("opened", "done", "done_evidenced", "blocked")),
+    ("runs", ("opened", "done", "done_evidenced", "blocked", "fb_filed", "fb_none", "fb_unstated")),
 )
 #: (container key or None, counter-map field name) — additive {name: count} maps.
 _DELTA_MAPS: tuple[tuple[str | None, str], ...] = (
@@ -1945,7 +1967,13 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
         if force_dash and i not in _ANALYST_CELLS:
             merged[i] = DASH
             continue
-        if i in _ANALYST_CELLS and merged[i] == DASH and i < len(old) and old[i] not in ("", DASH):
+        # The analyst's cell is HERS. A real old value wins over ANY new value, computed or dash —
+        # kaizen.md:202 promises these are "never overwritten by a re-run", and the old rule only
+        # kept that promise while nothing computed them (it yielded to the analyst on a DASH but let
+        # a real new value win). `Filed (spec/mail)` is computed now, so without this the next cron
+        # run would silently eat the analysis half's prose. A computed value FILLS an empty cell and
+        # never more than that.
+        if i in _ANALYST_CELLS and i < len(old) and old[i] not in ("", DASH):
             merged[i] = old[i]
     return merged
 
@@ -2442,6 +2470,23 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
     except Exception as exc:  # never let the rounds cell kill the whole log row
         _warn(f"Review rounds /plan = {DASH} — weekly recompute unavailable ({exc})")
         rounds = DASH
+    # Cell 7 — `Filed (spec/mail)`. An ANALYST cell, so `_merge_cells` lets a value the analyst
+    # typed win over this one; the computed value only FILLS an empty cell. That ordering is the
+    # whole reason the merge rule was corrected first — before it, this line would have started
+    # overwriting the analysis half's prose on the next cron run.
+    try:
+        import kaizen_outcomes as _ko2  # noqa: PLC0415 - call-time, avoids the import cycle
+
+        fr = _ko2.filings(state=state, days=days)
+        if fr.measurable:
+            filed_cell = fr.cell
+            _warn(f"Filed (spec/mail) detail: {fr.detail}")
+        else:
+            _warn(f"Filed (spec/mail) = {DASH} — {fr.detail}")
+            filed_cell = DASH
+    except Exception as exc:  # never let the filings cell kill the whole log row
+        _warn(f"Filed (spec/mail) = {DASH} — filings unavailable ({exc})")
+        filed_cell = DASH
     _warn(f"Lesson-class recurrence = {DASH} — no class taxonomy on lessons (analysis-half job)")
     _warn(
         f"Missed crons = {DASH} — not an event-stream metric; the liveness audit owns it "
@@ -2455,7 +2500,7 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         rounds,
         DASH,
         DASH,
-        DASH,
+        filed_cell,
     ]
 
 
@@ -2474,8 +2519,17 @@ def send_mail(repo_root: Path, body: str) -> bool:
     for beat in ("infra", "fleet"):
         try:
             proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
-                [sys.executable, str(mail), "send", "--to", "fabrik", "--to-agent", beat,
-                 "--kind", "request"],
+                [
+                    sys.executable,
+                    str(mail),
+                    "send",
+                    "--to",
+                    "fabrik",
+                    "--to-agent",
+                    beat,
+                    "--kind",
+                    "request",
+                ],
                 input=body,
                 capture_output=True,
                 text=True,
@@ -2487,7 +2541,9 @@ def send_mail(repo_root: Path, body: str) -> bool:
             ok = False
             continue
         if proc.returncode != 0:
-            _warn(f"mail hand-off to {beat} failed (exit {proc.returncode}) — data already recorded")
+            _warn(
+                f"mail hand-off to {beat} failed (exit {proc.returncode}) — data already recorded"
+            )
             ok = False
     return ok
 

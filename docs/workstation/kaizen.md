@@ -199,7 +199,8 @@ version · every week day gapped/unpublished:
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
 | Review rounds /plan | **real** (M1) | the single-source law's ONE carve-out (W8-1): recomputed latest-per-sid over the ISO week's day-scoped delta rows via `kaizen_outcomes.review_rounds(days=<week days>)` — never the day points (anonymous points cannot per-session-deduplicate a multi-day session). All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) runs at week scope; the detail rides stderr with the row (W9-2). A day whose point was never published still contributes when its store rows exist — the weekly value is not reconcilable against the day series by design (W9-4). |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
-| Top friction fixed / Filed | **the analyst's** | Never overwritten by a re-run. |
+| Top friction fixed | **the analyst's** | Never overwritten by a re-run. Never computed. |
+| Filed (spec/mail) | **the analyst's**, auto-FILLED when empty | Never overwritten by a re-run: a value the analyst typed always wins. When the cell is empty the collector fills it from the measured close-out verdicts (`kaizen_outcomes.filings()` — `N filed / N none / N unstated`), so a week nobody annotated still carries its filing counts instead of a dash. |
 
 **Idempotence** — the row is keyed by ISO week: a same-week re-run updates that week's row;
 mechanical cells always take the newly computed value **including a dash** (a fresh honest `—`

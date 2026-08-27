@@ -1039,6 +1039,55 @@ def review_rounds(state: Path | None = None, days: list[str] | None = None) -> M
     )
 
 
+def filings(state: Path | None = None, days: list[str] | None = None) -> MetricResult:
+    """The close-out FEEDBACK verdicts over the window — kaizen's `Filed (spec/mail)` cell.
+
+    Built on ``_window_deltas`` like every sibling so it inherits the single-source law, the
+    per-sid dedup and the delta arithmetic; the counters themselves are summed at derivation
+    (`kaizen_collect_v2`, on the same `run_close` pass as done/blocked), never re-read here.
+
+    All THREE verdicts ride the cell, and ``unstated`` is the reason the metric is worth having.
+    A week of "0 filed" reads like a quiet week; "0 filed / 0 none / 9 unstated" reads like nine
+    runs where nobody was asked. Publishing only the filings would report diligence for a corpus
+    nobody looked at — the fail-silent-green shape, in the metric built to measure it.
+
+    A window with no derived rows is a derivation GAP, not a knowable zero (root law). A window
+    whose runs all closed without any verdict at all is likewise unmeasurable rather than "0
+    filed": there is no denominator of asked-and-answered closes to divide by.
+    """
+    day_stamps = days if days is not None else _window_day_stamps()
+    deltas, attributed = _window_deltas(state, day_stamps)
+    if not deltas:
+        return MetricResult.unavailable("filings", _no_derivation_reason(state, day_stamps))
+    # An events-map gap row cannot say whether a run closed — out of the operand entirely.
+    rows = [r for r in attributed if not _gapped(r, "events")]
+    filed = none_ = unstated = 0
+    for r in rows:
+        runs = r.get("runs")
+        if not isinstance(runs, dict):
+            continue
+        filed += int(runs.get("fb_filed", 0) or 0)
+        none_ += int(runs.get("fb_none", 0) or 0)
+        unstated += int(runs.get("fb_unstated", 0) or 0)
+    total = filed + none_ + unstated
+    if total <= 0:
+        return MetricResult.unavailable(
+            "filings", "no run closed in the window — nothing to report a feedback verdict for"
+        )
+    answered = filed + none_
+    return MetricResult(
+        id="filings",
+        cell=f"{filed} filed / {none_} none / {unstated} unstated",
+        detail=(
+            f"{answered}/{total} closes carried a verdict; "
+            f"{unstated} closed without one (see commands/_fragments/close-feedback.md)"
+        ),
+        value={"filed": filed, "none": none_, "unstated": unstated},
+        numerator=filed,
+        denominator=total,
+    )
+
+
 # ── registry — the three pairs join T06's set (unpaired definitions refuse) ──────────
 
 OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
