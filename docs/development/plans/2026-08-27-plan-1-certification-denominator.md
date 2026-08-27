@@ -1,6 +1,6 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: DRAFT — round 9 reframed the design onto the existing ticket-board machinery; re-converge before executing
+Status: CONVERGED — 11 rounds, 15 findings fixed; round 11 a no-op (23 contract rows, 0 ungradeable)
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product
@@ -107,6 +107,10 @@ the proposal did not know was absent.
 - `docs/reference/certification-denominator.md` — **NEW** subsystem reference
 - the generated per-surface artifacts: `docs/reference/certification/<surface>-ledger.md`
   (the denominator) and `<surface>-plan.md` (the phased test plan the run executes)
+- **`CLAUDE.md` + `scripts/enforcement/check_doc_sprawl.py`** — the allowlist row for
+  `docs/development/certifications/YYYY-MM-DD-cert-<surface>/` (`TC##[a-z]?-<slug>.md` tickets only,
+  gate-enforced shape, not a free `**`). ⚠️ This is a **fleet-wide governance edit** — CLAUDE.md is a
+  synced surface and the change distributes to ~46 repos.
 - `INDEX.md`, `docs/README.md` (dir row already covers `reference/`), `CHANGELOG.md`
 
 ## Behavior Contract
@@ -152,10 +156,26 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
   crash guard, because `scaffold.py:5783` raises `NotImplementedError` while `:146` keeps the string,
   and a sibling check let that escape and reddened ~46 repos. We ship no WordPress projects; this
   asserts nothing about certification.
-- **Given** a generated ledger, **When** the command completes Phase 1, **Then** a PLAN-SET exists at
-  `docs/development/plans/YYYY-MM-DD-cert-<surface>/` — spine with a `## Ticket Board` plus `T##`
-  ticket files — so `/fabrik-execute-plan` DISPATCHER MODE can run it and `check_plan_tickets.py`
-  can grade its shape. No bespoke artifact format is invented.
+- **Given** a generated ledger, **When** the command completes Phase 1, **Then** a CERT BOARD exists
+  at `docs/development/certifications/YYYY-MM-DD-cert-<surface>/` — a spine with `## Test Board`
+  plus `TC##[a-z]?-<slug>.md` tickets — reusing the plan-set SHAPE while occupying a separate
+  namespace.
+- **Given** a cert board, **When** `/fabrik-execute-plan`'s dispatcher detection runs against it,
+  **Then** it does NOT claim it — the heading is `## Test Board`, not `## Ticket Board`, and the
+  directory is not `plans/YYYY-MM-DD-plan-<slug>/`. **This is the anti-mix-up assertion and it is
+  tested directly**, because the dispatcher's second trigger is the heading STRING alone
+  (`fabrik-execute-plan.md:34-38`), so a cert board carrying the wrong heading would be dispatched
+  to coding agents.
+- **Given** a certification run, **When** it acquires its scope lock, **Then** the lock file must
+  exist under `.fabrik/cert-locks/`, and a lock written to `.fabrik/plan-locks/` is **rejected** —
+  `check_phase_tests.py:36` and `final_gate_stop.py:785` both read the plan-lock dir, so a cert lock
+  there would arm the Stop hook and scope phase tests as if source were being written.
+- **Given** a `TC##` ticket with no `Runner:` field, **When** the cert checker runs, **Then** it is
+  rejected — the dispatcher's default unit is a coder, and an unrouted test ticket would put a
+  coding agent on a browser job.
+- **Given** a test ticket whose exercise FAILED, **When** a `Runner: fix` ticket for it is merged,
+  **Then** the original test ticket is still non-terminal until it is RE-RUN green — the fix does
+  not close the test.
 - **Given** a certification board whose tickets do not cover the ledger exactly, **When** the new
   coverage check runs, **Then** it is rejected — a registry ID in NO ticket re-opens the `UNVISITED`
   hole one level up, and an ID in TWO tickets double-counts the fraction. **This ID↔ticket link is
@@ -224,6 +244,61 @@ stays where it belongs — for implementation work a human is deciding.
 the invented grader. `check_plan_tickets.py` already grades board SHAPE. The only thing it cannot
 know is whether the board's tickets **cover the registry** — that link is the one genuinely new
 check, and it is small: *every registry ID appears in exactly one ticket*.
+
+## ⚠️ NAMESPACE SEPARATION — a cert board must never be mistaken for an implementation plan
+
+Operator, 2026-08-27: *"be sure name test tickets differently and do not cause ticket mix up with
+fabrik-plan-after-chat and execute commands."* The concern is correct and the collision is real —
+the reframe above, as first written, would have caused it. Four systems key on the plan-set shape:
+
+| System | What it keys on | Collision if a cert board reuses the shape |
+|---|---|---|
+| Doc allowlist — `CLAUDE.md:132`, `check_doc_sprawl.py` | `docs/development/plans/YYYY-MM-DD-plan-<slug>/` with `T##[a-z]?-<slug>.md` **only** | a `cert-` dir or a `TC##` file is BLOCKED today — the allowlist row is part of this work |
+| `check_plan_tickets.py:90` `PLAN_DIR_NAME_RE` | `^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$` | a cert dir does not match → silently UNGRADED |
+| `/fabrik-execute-plan` dispatcher detection (`:34-38`) | the plan-set dir **OR a spine with `## Ticket Board` present** | ⚠️ **the dangerous one** — `## Ticket Board` alone triggers DISPATCHER MODE regardless of directory, so a cert spine would be dispatched as an implementation plan |
+| plan-locks — `check_phase_tests.py:36`, `final_gate_stop.py:785` | `.fabrik/plan-locks/*.json` | a cert run's lock would arm the Stop hook and scope phase tests as if code were being written |
+
+**The separation, on all four axes:**
+
+| Axis | Implementation work | Certification work |
+|---|---|---|
+| directory | `docs/development/plans/YYYY-MM-DD-plan-<slug>/` | **`docs/development/certifications/YYYY-MM-DD-cert-<surface>/`** |
+| ticket file | `T##[a-z]?-<slug>.md` | **`TC##[a-z]?-<slug>.md`** (TC = test case) |
+| board heading | `## Ticket Board` | **`## Test Board`** — this is what stops dispatcher detection claiming it |
+| lock | `.fabrik/plan-locks/` | **`.fabrik/cert-locks/`** |
+| grader | `check_plan_tickets.py` | a sibling cert checker |
+
+`## Test Board` is the load-bearing one: the dispatcher's second trigger is the *heading string*, so a
+different heading is what mechanically prevents `/fabrik-execute-plan` from adopting a cert board.
+
+⚠️ **The honest cost of this decision.** Full separation means the certification command runs **its
+own dispatch loop, modelled on the D-loop, not `/fabrik-execute-plan` verbatim**. That is more work
+than reuse, and it risks the two loops drifting apart over time. It is chosen anyway because the
+alternative — a cert board that IS an implementation plan to every tool on the box — is precisely
+the mix-up the operator ruled out, and a wrong dispatch would put a coding agent on a test board with
+a plan-lock the Stop hook believes in. The drift risk is mitigated by the cert loop citing the D-loop
+as its source and by both being graded by sibling checkers.
+
+## ⚠️ Ticket→RUNNER routing — a cert ticket is not a coding ticket
+
+Found while tracing the end-state, and unnamed until now: the dispatcher's unit is a **coder**, but a
+certification ticket drives a browser or probes an API. The hooks exist —
+`/fabrik-execute-plan:198-199` already routes a GUI build+verify unit as
+`subagent_type: fabrik-gui`, and `check_plan_tickets.py:35` already cross-checks routing against a
+ticket's `Complexity:` — but nothing lets a ticket say *what kind of agent runs me*.
+
+Every `TC##` ticket therefore declares a **`Runner:`** field, and the cert checker rejects a ticket
+without one:
+
+| `Runner:` | Used for | Dispatched as |
+|---|---|---|
+| `gui` | UI-bearing surfaces — a screen, a flow, an element | `subagent_type: fabrik-gui` (browser MCPs) |
+| `service` | endpoints, jobs, events, contracts | a headless probe unit |
+| `generated-smoke` | the T3 inherited tail | a generated loop, never a hand-authored spec |
+| `fix` | a ticket opened BY a failure, whose work is code | a coding agent, and the only `Runner:` that writes source |
+
+`Runner: fix` is what keeps detect→fix→retest inside one board: the failing test ticket stays open,
+its fix ticket is a coding unit, and the test ticket cannot flip terminal until it is re-run green.
 
 ## ⚠️ The method must be SYSTEMATIC, not just the denominator
 
@@ -471,12 +546,24 @@ it and the output is signal rather than noise. Not in this plan.
 | 6 | full re-sweep: contract/phase parity · partition · wordpress · method · residuals | 0 | 0 |
 | 7 (re-invocation) | **disposition-loophole · generator-integrity · cross-check-unused** — three NEW classes | 3 | 3 |
 | 8 | the same six, re-swept; 17 contract rows, 0 ungradeable | 0 | 0 |
-| **9 (operator reframe)** | certification is a TICKET BOARD, not a bespoke artifact | 1 | 1 |
+| 9 (operator reframe) | certification is a TICKET BOARD, not a bespoke artifact | 1 | 1 |
+| 10 (operator: no mix-up) | namespace separation across 4 systems · ticket→Runner routing | 2 | 2 |
+| **11 (terminal)** | all 7 classes re-swept; 23 contract rows, 0 ungradeable | **0** | **0** |
 
 Round 2 made no edits — `md5 b0266c18` unchanged — so this is a genuine no-op exit, not a
 re-derivation. The five round-1 findings were: the `wordpress` gap (the dangerous one), the
 unsettled declaration home, the ungradeable evidence clause, the under-stated `warn_only` exit
 contract, and an allowlist claim resting on a citation rather than an executed verdict.
+
+⚠️ **Round 10 — the operator caught a collision the reframe itself introduced.** *"be sure name test
+tickets differently and do not cause ticket mix up."* Round 9 moved certification onto the plan-set
+shape and, in doing so, would have made a cert board indistinguishable from an implementation plan to
+four separate systems — worst of all the dispatcher, whose second trigger is the bare heading string
+`## Ticket Board`, so a cert spine would have been dispatched to coding agents holding a plan-lock
+the Stop hook believes in. Separated on all four axes (directory · `TC##` · `## Test Board` ·
+`.fabrik/cert-locks/`), with the cost stated: the cert loop is now its own, modelled on the D-loop
+rather than reusing it. The same round settled the `Runner:` field that tracing the end-state had
+surfaced as unnamed.
 
 ⚠️ **Round 9 — the operator's reframe, and it deleted more of this plan than any review round.**
 *"as like completing tickets, our orchestrator agent should manage the entire tests."* Earlier rounds
