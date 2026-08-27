@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — every command run now owes a routed FEEDBACK verdict (2026-08-27)
+
+Operator directive: *"for each command run, agents must give you feedback if they find issues, or
+have suggestions about our commands and rules and infra, and send infra, intel or fleet a message —
+they must be proactive."*
+
+The duty already existed in prose in BOTH constitutions and was bound to **no command**. A command
+run is the moment the machinery is actually exercised, which makes the agent running it the only
+witness to how it behaved — and a defect routed around silently dies in that session's context.
+
+`commands/_fragments/close-feedback.md`, **auto-appended by the assembler to all 31 commands** rather
+than hand-included in 31 sources. Opt-in obligations are the ones a NEW command silently ships
+without — exactly the run-record defect, which was wired into 3 of 27 commands before it became a
+shared fragment. Auto-append makes "every command carries it" true by construction; 5 tests pin it,
+including a count assertion that fails the moment it drops below the full source count.
+
+Shape: a one-line `FEEDBACK: <what you filed, to whom> | none — <surfaces exercised>` before
+`command_run.py done`. **`none` is a valid verdict that must be STATED** — silence and "I found
+nothing" are byte-identical to the reader, and only one is information. Routed by BEAT (infra ·
+fleet · intel) with the charter table inline, and the bar is evidence at `path:line`, not a
+complaint. Also wired into the run-record fragment's close-out step and both CLAUDE.mds.
+
+**Kaizen impact:** `kaizen_collect_v2.py:125-126` emits the `Top friction fixed` and
+`Filed (spec/mail)` columns but never populates them — they are the analyst's cells by design
+(`docs/workstation/kaizen.md:202`). Every row in `kaizen-log-infra.md` has carried `—` in both since
+the 2026-08-12 baseline, so kaizen's qualitative half has been structurally empty while its metrics
+half worked. This directive supplies exactly that missing input.
+
 ### Added — check_spec_convergence.py: the pipeline's front door finally has a grader (2026-08-27)
 
 `/fabrik-spec` carries a **BLOCKING live-research gate for every external fact** and

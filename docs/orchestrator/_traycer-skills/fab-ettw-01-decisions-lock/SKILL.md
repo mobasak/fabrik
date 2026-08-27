@@ -32,7 +32,10 @@ line shows the operator where the run actually is rather than where it started.
 Close it EXACTLY ONE of two ways — never by simply stopping:
 
 - `python3 scripts/command_run.py done --command fab-ettw-01-decisions-lock --evidence "<what proves the terminal
-  condition was met>"` — the evidence is the point; "finished" is not evidence.
+  condition was met>"` — the evidence is the point; "finished" is not evidence. ⚠️ **Emit the
+  `FEEDBACK:` line (§ Close-out feedback, at the end of this command) BEFORE you close** — you are
+  the only witness to how the machinery behaved this run, and an unfiled finding dies with the
+  session. `none` is a valid verdict; silence is not.
 - `python3 scripts/command_run.py blocked --command fab-ettw-01-decisions-lock --reason "<what · searched · missing>"`
   on one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra ·
   an unresolvable spec contradiction). Nothing else is a legitimate halt.

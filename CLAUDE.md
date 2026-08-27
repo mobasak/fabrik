@@ -80,6 +80,7 @@ what makes an in-flight command visible and un-abandonable.
   you **RETURN to the invoked command in the same run** — delivering a different command's output is
   answering the wrong question, however good the commits look.
 - **Stay on task:** no unsolicited advice or process commentary.
+- **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — what you filed and to whom, or `none` plus the surfaces you exercised. Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not.
 - **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project-facing
   contract makes filing a hub defect a **DUTY at every step** (`templates/governance/CLAUDE.md`
   § Upstream feedback: *"Working around it silently, noting it only in a local doc, or absorbing the

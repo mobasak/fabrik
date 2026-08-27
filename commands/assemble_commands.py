@@ -24,6 +24,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent
 FRAG, SRC = ROOT / "_fragments", ROOT / "_sources"
+# Auto-appended to EVERY rendered command (see render()). Named once so the fragment cannot be
+# renamed on disk without this constant failing loudly rather than silently disabling the duty.
+_CLOSE_FEEDBACK = "close-feedback"
 OUT = Path.home() / ".claude" / "commands"
 SKILLS = Path.home() / ".claude" / "skills"
 BACKUP = Path.home() / ".claude" / "commands.bak-20260721-0615"
@@ -665,6 +668,18 @@ def render(dest: Path, skills_dest: Path | None = None):
         leftover = re.findall(r"\{\{(?:include:)?[A-Za-z_-]+\}\}", text)
         if leftover:
             errs.append(f"{name}: unresolved {sorted(set(leftover))}")
+        # AUTO-APPENDED to every command, never hand-included in 31 sources. Operator directive
+        # 2026-08-27: a command run is the moment the machinery is exercised, so the agent running
+        # it is the only witness to how it actually behaved — and a defect routed around silently
+        # dies in that session's context. The duty existed in prose in BOTH constitutions and was
+        # bound to no command.
+        #
+        # Structural, because opt-in obligations are the ones a NEW command silently ships without —
+        # exactly the run-record defect (wired into 3 of 27 commands before it was made a shared
+        # fragment). Appended AFTER fragment substitution so it cannot itself be shadowed, and
+        # guarded so a source that also includes it explicitly does not emit it twice.
+        if _CLOSE_FEEDBACK in frags and frags[_CLOSE_FEEDBACK].split("\n", 1)[0] not in text:
+            text = text.rstrip("\n") + "\n\n" + frags[_CLOSE_FEEDBACK] + "\n"
         desc_raw = _description_of(text)  # captured BEFORE requoting — _emit_skill applies its own _yaml_dq
         text = _requote_command_description(text)
         # banner after frontmatter
