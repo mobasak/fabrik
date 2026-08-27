@@ -242,6 +242,22 @@ def _nontrivial_fences(text: str) -> int:
     return sum(1 for inner in FENCE_BLOCK.findall(text) if len(inner.strip()) >= 20)
 
 
+# A probe is a fence whose command line starts `$ `; probe duty says re-run it and diff the
+# output. A line reading `$ ...` cannot be re-run — the command itself was elided — so it is a
+# probe-shaped placeholder that reads as evidence and proves nothing. This check already demanded
+# a NON-TRIVIAL fence, which such a block satisfies easily: the elided command sits above real
+# pasted output. Filed by tryton-crm 2026-08-28 after three probe defects survived a plan that was
+# Status: CONVERGED with check_plan_quality, check_plans, check_convergence and final_gate all
+# green. Measured before landing: 3 hits across 1,134 plan/review docs fleet-wide, all of them the
+# reported defect, zero elsewhere — so this fires on the defect and nothing else.
+ELIDED_PROBE = re.compile(r"^[ \t]*\$[ \t]+\.\.\.", re.M)
+
+
+def _elided_probes(text: str) -> int:
+    """Count `$ ...` command lines inside fenced blocks — probe-shaped, unrunnable."""
+    return sum(len(ELIDED_PROBE.findall(inner)) for inner in FENCE_BLOCK.findall(text))
+
+
 def _changed_md(root: Path, prefix: str) -> list[Path]:
     """Changed/untracked .md files under ``prefix`` (per git status), excluding archived/."""
 
@@ -374,6 +390,13 @@ def _check_plan(root: Path, path: Path) -> list[str]:
         fails.append(f"fewer than 1 `file:line` citation per phase (need >= {phases})")
     if _nontrivial_fences(text) < 1:
         fails.append("no non-trivial fenced command-output block (a column name != its values)")
+    elided = _elided_probes(text)
+    if elided:
+        fails.append(
+            f"{elided} probe fence(s) whose command is ELIDED (`$ ...`) — probe duty says re-run "
+            "the command and diff its output, which an elided command makes impossible; paste the "
+            "command you actually ran"
+        )
     out = [f"{rel}: {x}" for x in fails]
     if _is_spine(path):
         # Runs on BOTH claim paths (a dual CONVERGED+EXECUTED claim would double

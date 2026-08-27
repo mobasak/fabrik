@@ -28,7 +28,7 @@ out. Four of the ten findings (F1, F2, F6, F8) are exactly that shape.
 | 3 | **boundary / sentinel / prefix** (standing) | FIXED(1) | Empty string, whitespace-only, and the three close verbs each probed through the real close. `.strip()` removal now fails exactly one test (**F3**). |
 | 4 | **behavior-without-a-test** (standing) | FIXED(2) | `handoff`'s refusal had NO test (**F5**); the Stop-hook remedy had no guard (**F9**). Both added, both red-on-revert with the mutation asserted on disk. |
 | 5 | live TIME branch correctness | CLEAN | `_FEEDBACK_REQUIRED_FROM` = `2026-08-27T21:15Z`, verified BEHIND now, and a record started now returns `required: True`. The pre-landing defect (a local midnight rounded UP past the current UTC instant, shipping the mechanism inert) was caught by the end-to-end pair before the commit. |
-| 6 | fleet blast radius | CLEAN | 47 of 48 projects carry BOTH synced files consistently. `/opt/fabrik-lib` is the sanctioned sync exclusion and holds a consistent OLD pair — old tool + old remedy, so no trap. |
+| 6 | fleet blast radius | **MISSED — see § Residual risks** | 47 of 48 projects carry both synced files consistently. I graded `/opt/fabrik-lib`'s sync exclusion as a "consistent OLD pair, no trap" by checking its two repo-local files. Wrong: the rendered corpus is box-wide, so its agent reads the NEW instruction and runs the OLD tool. fabrik-lib hit it live 40 minutes later (`01M12NYJ8X`). The probe I ran could not have found it — it only looked inside the exclusion. |
 | 7 | backward compatibility / grandfathering | CLEAN | Runs started before the cutoff close exactly as before; two peer sessions held live records at landing. Tested from both sides. |
 | 8 | test-suite adaptation vacuity | CLEAN | **Proven by mutation, not by reading.** With the refusal disabled, 90 of 91 tests in `test_command_run.py` still pass — the only failure is the test that asserts the refusal. No pre-existing test was made to pass for my reason. |
 | 9 | doc/code parity (advertised closes) | FIXED(3) | **F1/F2/F6.** 36 sites advertised a close the tool now refuses; the hand fix had reached 2. Re-scan: 0 remaining, and the newly-advertised `blocked` command executes `rc=0`. |
@@ -94,8 +94,17 @@ out. Four of the ten findings (F1, F2, F6, F8) are exactly that shape.
 
 ## Residual risks
 
-- `/opt/fabrik-lib` is sync-excluded, so its agents keep the old optional close. Consistent (old tool +
-  old remedy), not a trap — but its feedback duty stays unenforced until someone re-vendors.
+- ~~`/opt/fabrik-lib` is sync-excluded, so its agents keep the old optional close. Consistent (old
+  tool + old remedy), not a trap.~~ **WRONG — corrected 2026-08-28 by fabrik-lib hitting it live
+  (`01M12NYJ8X`).** I checked that fabrik-lib had an old `command_run.py` AND an old hook and called
+  the pair consistent. It is not: the COMMAND CORPUS is not per-repo. `~/.claude/commands/` is
+  box-wide, so a fabrik-lib agent reads the NEW instruction ("the close REFUSES without
+  `--feedback`") and runs the OLD script (`error: unrecognized arguments: --feedback`). New
+  instruction + old tool + same agent is the definition of a trap, and it is the exact failure this
+  review was convened to hunt. **The class I missed:** for a sync-EXCLUDED repo, "are its files
+  consistent with each other" is the wrong question — the box-wide surfaces it shares (the rendered
+  corpus, the skills, the agents) are not in its exclusion. Checking only the repo-local pair looked
+  like evidence and was not.
 
 ## Closing evidence
 

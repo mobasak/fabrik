@@ -30,7 +30,13 @@ a hand-off.
 {{include:run-record}}
 {{include:injection}}
 
-## ⚠️ Termination contract
+## ⚠️ DISCOVERY termination — when the rival SET stops growing
+
+⚠️ Distinct from the dossier-text convergence loop below (`## ⚠️ Termination contract — READ FIRST`),
+which converges the WRITTEN dossier to an md5-verified no-op with its own Pass Ledger. This one
+governs the discovery/mining rounds — whether the set of rivals is complete. Two loops, two
+mechanisms: do not apply the Pass-Ledger format to these rounds (youtube, 2026-08-27, lost real time
+to the two sections sharing a header).
 
 **The run is done when ALL of these hold** — this is a LOOP, not a single shot:
 

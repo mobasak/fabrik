@@ -127,7 +127,10 @@ build this — never pick an approach from training memory or first instinct:
   the fabrik self-host default) and **lean** (the smallest design that meets the goal — YAGNI).
 - **Cite the source + date** for each best-practice/leanness claim in the spec's Chosen-approach section, and
   **actually fetch it this session** (`WebFetch` / `firecrawl_scrape` / `mcp__context7`) — a claim you didn't
-  open is memory. "Best practice is X" / "this is the lean option" with **no fresh cited source is a defect**.
+  open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
+  `firecrawl_scrape`) and match the string: a `WebFetch` reply is a small model's ANSWER about the page,
+  not an extract, and quoting it ships a sentence the page does not contain (live 2026-08-27 — the
+  fabricated quote also inverted the mechanism, under the spec's central verdict). "Best practice is X" / "this is the lean option" with **no fresh cited source is a defect**.
   If the design cites a **standard/RFC** (OAuth, an HTTP spec, a W3C/IETF doc), fetch the primary doc and quote
   the exact clause — don't paraphrase from memory (that's the hallucinated-citation defect `/fabrik-spec-review`
   re-checks; catch it here).

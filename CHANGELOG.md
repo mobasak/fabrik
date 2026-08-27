@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — three filed machinery findings: a quotable paraphrase, an unrunnable probe, a shared header (2026-08-28)
+
+- **A `WebFetch` answer is a PARAPHRASE, never source text** (`fabrik-lib`, `01M12NVCSK`). Their run
+  quoted a `WebFetch` reply as a source sentence; the sentence is nowhere in the page AND inverted the
+  mechanism it described, under the spec's central build-vs-buy verdict. Re-fetching through a
+  summarizer satisfies the letter of axis A's "re-open each cited URL" and defeats its purpose. Both
+  `/fabrik-spec` (1a gate) and `/fabrik-spec-review` (axis A) now say: to QUOTE, fetch the RAW document
+  and match the string — a quotation mark is a claim those exact words appear at that URL.
+- **An elided probe is not a probe** (`tryton-crm`, `01M12NR9GZ`). Three probe defects survived a plan
+  that was `Status: CONVERGED` with `check_plan_quality`, `check_plans`, `check_convergence` and
+  `final_gate` all green — the sharpest being a fence reading `$ ... "…"`, which probe duty says to
+  re-run and diff, and which cannot be. `check_convergence` now counts `$ ...` command lines inside
+  fences. Measured before landing: **3 hits across 1,134 plan/review docs fleet-wide, all of them the
+  reported defect, zero elsewhere.**
+- **`/fabrik-rivals` had two sections sharing the header "## ⚠️ Termination contract"** (`youtube`,
+  `01M12QC3H1`) governing two different loops. Renamed the rivals-local one to
+  `## ⚠️ DISCOVERY termination`. Their suggested fix (rename the second) would have changed the shared
+  `term-edit` fragment in **11** commands to fix a collision that exists in one.
+- **Correction to my own review:** I graded `/opt/fabrik-lib`'s sync exclusion as a "consistent old
+  pair, no trap". Wrong — the rendered corpus is box-wide, so its agent reads the NEW instruction and
+  runs the OLD script. fabrik-lib hit it 40 minutes later (`01M12NYJ8X`). Checklist row 6 and
+  § Residual risks corrected in place rather than quietly amended.
+
+
 ### Fixed — flywheel advisory names the absent-DSN cause: unrecordable is not unscored (2026-08-28)
 
 - A repo whose `.env` has no `SUBAGENT_RUNS_DSN` cannot record ANY fanout — `record_agent_run`

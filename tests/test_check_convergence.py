@@ -909,3 +909,108 @@ def test_an_unterminated_backtick_does_not_swallow_the_rest_of_the_document():
 def test_negation_still_wins_inside_and_outside_code():
     assert not _claims("sign-off is withheld")
     assert not _claims("not yet reviewed")
+
+
+# ── a probe whose command is ELIDED is not a probe ──────────────────────────────────────────────
+# tryton-crm, 2026-08-28: three probe defects survived a plan that was Status: CONVERGED with
+# check_plan_quality, check_plans, check_convergence AND final_gate all green. The sharpest was a
+# fence reading `$ ... "account.payment fields_get"` — probe duty demands you re-run a `$ ` line
+# and diff its output, and an elided command makes that impossible. The fence still satisfied the
+# non-trivial-content rule, because the elided command sat above real pasted output.
+
+
+def _cc():
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "cc_probe", root / "scripts" / "enforcement" / "check_convergence.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_an_elided_probe_command_is_counted():
+    cc = _cc()
+    text = '```\n$ ... "account.payment fields_get"\nname | string | char\n```\n'
+    assert cc._elided_probes(text) == 1
+
+
+def test_a_real_probe_command_is_not_counted():
+    """The false-positive side, and the one that matters: 1,131 of 1,134 fleet plan/review docs
+    carry real `$ ` probes, and flagging any of them would make the gate untrustworthy."""
+    cc = _cc()
+    text = '```\n$ python scripts/final_gate.py --json\n"status": "success"\n```\n'
+    assert cc._elided_probes(text) == 0
+
+
+def test_an_ellipsis_in_output_is_not_an_elided_command():
+    """Truncated output legitimately contains `...`; only the COMMAND line is policed."""
+    cc = _cc()
+    text = "```\n$ grep -rn pattern .\nfile.py:1: match\n...\nfile.py:99: match\n```\n"
+    assert cc._elided_probes(text) == 0
+
+
+def test_an_ellipsis_inside_a_real_command_is_not_flagged():
+    """`$ grep "..." file` is a real command with a literal ellipsis argument — the rule anchors on
+    the command STARTING with `...`, so a mid-line ellipsis never fires."""
+    cc = _cc()
+    text = '```\n$ grep -n "..." notes.txt\nnotes.txt:3: ...\n```\n'
+    assert cc._elided_probes(text) == 0
+
+
+def test_elided_probes_outside_a_fence_are_ignored():
+    """Prose may describe the shape `$ ...` while teaching the rule; only fenced blocks count."""
+    cc = _cc()
+    assert cc._elided_probes("A placeholder line like `$ ...` is not a probe.\n") == 0
+
+
+def test_multiple_elided_probes_are_all_counted():
+    cc = _cc()
+    text = '```\n$ ... one\nout\n```\n\n```\n$ ... two\nout\n```\n'
+    assert cc._elided_probes(text) == 2
+
+
+def test_an_elided_probe_is_actually_reported_not_just_counted(tmp_path):
+    """The wiring, not the helper. Neutering `_elided_probes`'s CALL SITE (`elided = 0`) left all
+    50 tests green — the counter was covered and the reporting path was not, so the finding could
+    have shipped unable to fire. This test is the one that goes red for that mutation."""
+    import subprocess
+
+    cc = _cc()
+    root = tmp_path
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    d = root / "docs" / "development" / "plans"
+    d.mkdir(parents=True)
+    plan = d / "2026-08-28-plan-1-probe.md"
+    plan.write_text(
+        "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\n## Evidence\n\n"
+        "src/app.py:42 — the call site\n\n"
+        '```\n$ ... "account.payment fields_get"\nname | string | char | required\n```\n\n'
+        "## Self-audit\n\nchecked.\n",
+        encoding="utf-8",
+    )
+    fails = cc._check_plan(root, plan)
+    assert any("ELIDED" in f for f in fails), fails
+
+
+def test_a_plan_with_a_real_probe_is_not_flagged_for_elision(tmp_path):
+    """Companion false-positive side, through the same reporting path."""
+    import subprocess
+
+    cc = _cc()
+    root = tmp_path
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    d = root / "docs" / "development" / "plans"
+    d.mkdir(parents=True)
+    plan = d / "2026-08-28-plan-2-probe.md"
+    plan.write_text(
+        "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\n## Evidence\n\n"
+        "src/app.py:42 — the call site\n\n"
+        '```\n$ python scripts/final_gate.py --json\n"status": "success"\n```\n\n'
+        "## Self-audit\n\nchecked.\n",
+        encoding="utf-8",
+    )
+    assert not any("ELIDED" in f for f in cc._check_plan(root, plan)), cc._check_plan(root, plan)
