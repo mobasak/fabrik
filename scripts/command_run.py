@@ -641,12 +641,19 @@ def _feedback_verdict(text: str | None) -> tuple[str, list[str]]:
         return "unstated", []
     low = stripped.lower()
     beats = [b for b in _BEATS if re.search(rf"\b{b}\b", low)]
-    # A beat named anywhere means something was routed - an agent writing "none for infra, filed to
-    # fleet" has filed. Only a line naming NO beat can be `none`.
-    if beats:
-        return "filed", beats
-    if re.match(r"^(none|nothing|n/?a)\b", low):
+    # A beat name is NOT by itself a filing. `close-feedback.md` instructs the agent to write
+    # "none - <the surfaces this run exercised>", and those surfaces are routinely the beat names
+    # themselves ("infra rules", "the fleet specs"). Matching a beat anywhere therefore read an
+    # HONEST `none` as a filing, inflating compliance and under-counting the exact verdict the
+    # metric exists to tell apart. A filing needs a filing VERB.
+    # PAST TENSE only. `filed?` also matched the bare infinitive, so "nothing to FILE" read as a
+    # filing — the negation of the sentence lost to one optional character. A verdict claims a
+    # COMPLETED act or it is not a claim.
+    filed_verb = re.search(r"\b(filed|sent|routed|mailed|raised|reported)\b", low) is not None
+    if re.match(r"^(none|nothing|n/?a)\b", low) and not filed_verb:
         return "none", []
+    if beats or filed_verb:
+        return "filed", beats
     return ("filed" if len(stripped) > 3 else "none"), beats
 
 

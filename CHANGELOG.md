@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review on this session's work: 3 findings, the worst one mine twice over (2026-08-27)
+
+Adversarial review of 12 commits, converged at round 5 under the exit contract it fixed.
+
+- **F1 — the grader rejected the contract's own exit.** Yesterday's fix for transdoc keyed convergence
+  on `new: 0` in the shared `term-coverage` fragment, but `check_review_coverage.py:1388` still
+  hard-required the last ledger row's `found:` to be 0. So the gate REJECTED the exact state the
+  contract calls converged — transdoc's own defect (two clauses judging one state oppositely),
+  recreated by my fix for it, one layer out. Fixed by reading `new:` off the ledger row's raw line;
+  `_ledger_shapes` is deliberately NOT extended (its docstring records three parallel readers
+  drifting until the triple implementation was named the foundation error). The fallback to `found:`
+  for rows without a `new:` counter is deliberate: every pre-existing report grades exactly as
+  before, verified against the real corpus — 1 non-quiet flag before and after, the same one.
+- **F2 — an honest `none` counted as a filing.** `_feedback_verdict` read any beat name as a filing,
+  but `close-feedback.md` INSTRUCTS agents to write `none — <surfaces exercised>`, and those surfaces
+  are routinely the beat names ("infra rules", "the fleet specs"). Then a second layer: `filed?`
+  matched the bare infinitive, so "nothing to **file**" also read as filed. The metric built to
+  measure honesty was inflating its own compliance.
+- **F3 — six stale `found: 0` promises** in `/fabrik-review`'s own body (including its description
+  and the `done --evidence` template) plus one in `/fabrik-conformance-review`. The example ledger now
+  MODELS the new exit — a pass with `found: 1, new: 0` that correctly EXITS — because the example is
+  what agents copy.
+
+REFUTED and recorded rather than drive-by fixed: `design-review.md` carries the same termination trap
+in its own independent contract ("refuting/deferring findings does not count as empty"), but it does
+not consume `term-coverage` and is untouched by this diff. It deserves its own evidence.
+
+Report: `docs/development/reviews/2026-08-27-session-infra-work-review.md`
+
 ### Added — the subagent definitions are GOVERNED: generator + corpus predicate (2026-08-27)
 
 Closes the gap recorded last change. `~/.claude/agents/` held four definitions (214 lines) that

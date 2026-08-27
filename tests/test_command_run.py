@@ -2424,3 +2424,37 @@ def test_a_close_without_feedback_records_unstated_on_the_record_too(run_dir: Pa
     _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e")
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["feedback"] == "unstated", rec
+
+
+def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_dir: Path) -> None:
+    """F2 from /fabrik-review on this work. `close-feedback.md` INSTRUCTS the agent to write
+    `none — <the surfaces this run exercised>`, and those surface names are frequently the beat
+    names themselves ("infra rules", "the fleet specs"). Matching a beat anywhere therefore read an
+    honest `none` as a filing — inflating compliance and under-counting the very verdict the metric
+    exists to distinguish. A beat only means `filed` alongside an actual filing VERB."""
+    for text in (
+        "none — swept infra rules and the enforcement checks",
+        "none - exercised the fleet spec loader",
+        "nothing to file; looked at intel's flywheel rosters",
+    ):
+        _start(run_dir)
+        _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
+        row = _events(run_dir, "s1")[-1]
+        assert row["feedback"] == "none", f"{text!r} -> {row['feedback']}"
+        assert row["feedback_to"] == [], f"{text!r} -> {row['feedback_to']}"
+        (run_dir / "s1.json").unlink()
+
+
+def test_a_real_filing_still_registers_its_beats(run_dir: Path) -> None:
+    for text, beats in (
+        ("filed 01M11 to intel", ["intel"]),
+        ("sent a finding to fleet", ["fleet"]),
+        ("routed to infra and intel", ["infra", "intel"]),
+        ("none for infra, but filed to fleet", ["fleet", "infra"]),  # a mixed line HAS filed
+    ):
+        _start(run_dir)
+        _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
+        row = _events(run_dir, "s1")[-1]
+        assert row["feedback"] == "filed", f"{text!r} -> {row['feedback']}"
+        assert sorted(row["feedback_to"]) == sorted(beats), f"{text!r} -> {row['feedback_to']}"
+        (run_dir / "s1.json").unlink()

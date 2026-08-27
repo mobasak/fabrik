@@ -1283,6 +1283,12 @@ def check_cert_dispositions(path: Path, root: Path) -> list[str]:
     return errs
 
 
+#: The `new:` counter on a ledger row. TOKEN-anchored exactly like `found:`/`fixed:` — a
+#: narrative "renewed: 0" must never satisfy the exit, which is the decoy class rounds 11+ of this
+#: file already closed for the other two counters.
+_NEW_TOKEN = re.compile(r"(?<![\w-])new:\s*(\d+)(?![\w-])", re.I)
+
+
 def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
     """Reports that are COMMITTED and still record a non-quiet exit round.
 
@@ -1384,10 +1390,28 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             )
             # NO continue (round-15 finding 4): the non-quiet check below still runs, so a
             # decoy-group report that is ALSO non-quiet surfaces both facts, not just one.
-        rows = [str(f) for f, _x, _ln in ordered_rows]
-        if rows and int(rows[-1]) != 0:
+        # The exit the CONTRACT states. `term-coverage` keys convergence on `new: 0` + every found
+        # candidate adjudicated, because a standing DESIGN-GAP row is re-raised by every future
+        # finder round for as long as it is true — so `found` never reaches 0 and the loop cannot
+        # terminate (transdoc, 2026-08-27). Grading `found` alone REJECTED the exact state the
+        # contract calls converged.
+        #
+        # `_ledger_shapes` is NOT extended: its docstring records three parallel ledger readers each
+        # hardened separately until the triple implementation was named the foundation error. It
+        # already hands back the raw LINE, so `new:` is read off that.
+        #
+        # THE FALLBACK IS DELIBERATE: a row with no `new:` counter grades on `found:` exactly as
+        # before. Every report written before the contract change carries only `found:`, and
+        # silently re-grading history is not a fix.
+        rows = [(str(f), ln) for f, _x, ln in ordered_rows]
+        quiet = True
+        if rows:
+            last_found, last_line = rows[-1]
+            m_new = _NEW_TOKEN.search(last_line)
+            quiet = int(m_new.group(1)) == 0 if m_new else int(last_found) == 0
+        if not quiet:
             out.append(
-                f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round (found: {rows[-1]}) "
+                f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round (found: {rows[-1][0]}) "
                 "— committing a review does not converge it. Finish the loop, BLOCKED-escalate the "
                 "stuck finding, or mark the report `Status: IN-PROGRESS`."
             )

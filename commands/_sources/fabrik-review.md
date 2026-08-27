@@ -1,5 +1,5 @@
 ---
-description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until every Coverage-Checklist class is CLEAN/FIXED/REFUTED and a full fresh round returns found: 0 (no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
+description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until every Coverage-Checklist class is CLEAN/FIXED/REFUTED and a full fresh round returns new: 0 with every found candidate adjudicated (no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 
@@ -11,7 +11,7 @@ first and then DEPTH.
 ## Run record — open it FIRST, keep it current, close it only at the no-op round
 
 This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a full fresh round that
-returns `found: 0`**. Open the record before Phase 0 does anything else:
+returns **`new: 0`** with every found candidate adjudicated**. Open the record before Phase 0 does anything else:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-review --phases 5 \
@@ -25,7 +25,7 @@ Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pa
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class with
 `--findings 0`, `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its found: 0>"`. A genuinely stuck
+`done --command fabrik-review --evidence "<the round number + its new: 0>"`. A genuinely stuck
 review exits via `blocked --command fabrik-review --reason "…"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
@@ -283,7 +283,7 @@ first pass found" is not an exit — those classes return to UNCHECKED until a f
 verdict — every known class clean, `--findings 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> returned found: 0"`.
+`done --command fabrik-review --evidence "round <n> returned new: 0, all adjudicated"`.
 
 ## Behavior Contract test generation — the pool authors, you curate (the fix for an untested behavior)
 
@@ -306,14 +306,20 @@ a pass that finds nothing must still enumerate that coverage — an empty pass w
 **Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted) AND the numbered Pass Ledger. Chat output is a courtesy copy; the FILE is the review:**
 
 ```
-Pass 1 — finders: <classes covered> | found: 3 (2 CONFIRMED, 1 PLAUSIBLE) | fixed: 3 | → not done (changed code)
-Pass 2 — finders: <classes covered> | found: 1 (1 PLAUSIBLE)            | fixed: 1 | → not done (changed code)
-Pass 3 — finders: <classes covered> | found: 0                          | fixed: 0 | → EXIT (checklist fully adjudicated)
+Pass 1 — finders: <classes covered> | found: 3 | new: 3 | fixed: 3 | → not done (changed code)
+Pass 2 — finders: <classes covered> | found: 2 | new: 1 | fixed: 1 | → not done (changed code)
+Pass 3 — finders: <classes covered> | found: 1 | new: 0 | fixed: 0 | → EXIT (that 1 is a re-raised
+                                                                     DESIGN-GAP row, already adjudicated)
 ```
 
-You may claim completion **only** when the last row is `found: 0 | fixed: 0`. A ledger that ends on a row
-with a non-zero found/fixed count is an unfinished review — run the next pass. A ledger with a single row
-is only valid if that row is `found: 0 | fixed: 0` from a demonstrably-thorough pass.
+Note pass 3: `found: 1` and it still EXITS. That is the point — a standing DESIGN-GAP row (an unbuilt
+endpoint, a missing feature the run may not decide) is re-raised by every future finder round for as
+long as it is true, so `found` would never reach 0 and the loop could never terminate. `new:` is what
+says the loop stopped learning.
+
+You may claim completion **only** when the last row is `new: 0` with every found candidate adjudicated.
+A ledger ending on a row with fresh candidates is an unfinished review — run the next pass. A ledger
+with a single row is only valid if that row is `new: 0` from a demonstrably-thorough pass. ⚠️ `found:` may stay ABOVE zero forever when a standing DESIGN-GAP row is re-raised each round; `new:` is what says the loop stopped learning (transdoc, 2026-08-27).
 
 **Emit a per-finding disposition ledger — this is what makes a skipped finding impossible to hide.** Every
 candidate raised by any finder across all rounds appears as one row ending in exactly ONE terminal state:

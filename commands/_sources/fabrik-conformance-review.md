@@ -158,7 +158,7 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
   downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
   rows that already passed. The **closing round runs non-author verifiers** on the full inventory.
-- **DONE requires all of:** the final round raised **`found: 0`** (counting candidates you refuted
+- **DONE requires all of:** the final round raised **`new: 0`** with every found candidate adjudicated (`found:` counts candidates you refuted
   in adjudication — a round that raised 3 and refuted 3 is not quiet); **every Inventory row
   terminal** (no `PENDING`); **every Checklist row adjudicated** `CLEAN` / `FIXED(n)` /
   `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with `found:` / `new:` /
