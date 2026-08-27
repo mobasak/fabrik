@@ -116,6 +116,13 @@ not merged — so a round-2 discovery returning 9 of 12 rivals would silently dr
    discoveries, prior cards first and winning collisions (a surviving card may already carry mined
    data).
 
+The re-arm reports one of three outcomes, and the distinction is load-bearing: `rearmed` (the next run
+genuinely re-discovers), `ROUND 1` (no checkpoint yet — discovery would have run regardless), and a
+loud `!!` **failed** (the checkpoint could not be rewritten, so discovery is SKIPPED and that round
+**cannot** discover anything). Collapsing the last two — which an earlier revision did, by returning a
+bare empty list for both — reintroduces the exact fail-silent-green defect this flag exists to remove,
+inside its own error path: a voided round reads as a dry one.
+
 **The loop shape this implies:** every round but the last runs `--rediscover`; the **final round runs
 without it**, so the engine restores the full union as `discovered`, mines any still-unmined reviews,
 and synthesizes the matrix over the complete set. The driver prints the per-round `NEW`/`union` counts

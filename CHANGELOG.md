@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review on the rivals audit fixes: 7 findings, 6 confirmed (2026-08-27)
+
+Adversarial review of the commit below, run to a fixed point. The two that mattered:
+
+- **`argparse` escaped the new check's guard.** `SystemExit` derives from `BaseException`, so
+  `except Exception` never caught it and a bad flag exited **2** — which `final_gate` converts into
+  a BLOCKING red across ~46 synced repos, while the module docstring claimed "always exits 0".
+  `check_plan_lock_release.py:454-456` had already solved this with `parse_known_args` and said why;
+  the new check had copied its guard shape but not its parser. Reproduced by execution, not reading.
+- **The competitor union had a data-loss window.** It lived only in a local variable across
+  `await run(...)`, while the engine overwrites `competitors` at `orchestrator.py:585` and its
+  `_persist()` is a literal dict that drops any driver-added key. A raise — or an operator Ctrl-C on
+  a long scan — destroyed every rival accumulated in prior PAID rounds. Now stashed to a durable
+  sidecar before the run, keyed and verified by `job_id`.
+
+Also: `MAX_LINE` truncation produced `MAX_LINE + 2` (222 vs a declared 220); a failed checkpoint
+re-arm was indistinguishable from "round 1", so a VOIDED round read as a dry one and would have
+counted toward convergence; and that same path would have reported already-known rivals as NEW.
+
 ### Fixed — /fabrik-rivals: the convergence loop could not converge, and had no grader (2026-08-27)
 
 Command-corpus audit, command 1 of 31. Four defects, one of them load-bearing:

@@ -56,7 +56,11 @@ CENSUS_NOTE = "self-reported provenance only"
 # `final_gate` prints ten lines of advisory output and truncates the stream at 500 chars with NO
 # ellipsis, so the census must come FIRST and every later line must be charged against a budget.
 ADVISORY_BUDGET = 500
-MAX_LINE = 220
+# 200, not 220. At 220 the measured worst case (one max-length finding + census + marker + remedy)
+# landed at 499/500 — the invariant held, but with ZERO margin, so any later wording change would
+# have silently truncated the remedy line across ~46 synced repos. 200 buys 20 chars of headroom
+# and costs nothing: no real finding line approaches it.
+MAX_LINE = 200
 MAX_LINES = 10
 
 REMEDY = (
@@ -141,11 +145,20 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description="Advisory: a rivals dossier must meet its contract."
+    )
     parser.add_argument("--root", default=".", help="repo root to audit (default: cwd)")
+    # parse_KNOWN_args, and it must sit INSIDE the guard. argparse calls `sys.exit(2)` on an
+    # unrecognised flag or a missing value, and `SystemExit` derives from BaseException — so
+    # `except Exception` does NOT catch it and the process exits 2, which `final_gate` converts
+    # into a fleet-wide BLOCKING red for a warn_only check. `check_plan_lock_release.py:454-456`
+    # had already solved exactly this; this check copied its guard shape but not its parser.
     try:
-        args = parser.parse_args(argv)
+        args, _unknown = parser.parse_known_args(argv)
         examined, findings = _audit(Path(args.root))
+    except SystemExit:  # argparse still exits on `--help`; never let that be a gate failure
+        return 0
     except Exception as exc:  # the CLASS, never an enumerated list of types
         try:
             _say(f"could not evaluate rivals dossiers: {type(exc).__name__}")
@@ -175,7 +188,10 @@ def main(argv: list[str] | None = None) -> int:
     for f in findings:
         line = f"  {f.label}: {f.dossier} {f.detail}".rstrip()
         if len(line) > MAX_LINE:  # never let ONE finding eat the whole budget
-            line = line[: MAX_LINE - 1] + "..."
+            # -3 for the ellipsis, so the result is MAX_LINE EXACTLY. `[:MAX_LINE - 1] + "..."`
+            # yields MAX_LINE + 2, which makes the constant mean something other than it says —
+            # measured 222 against a declared 220 (review of this check, 2026-08-27).
+            line = line[: MAX_LINE - 3] + "..."
         if (budget - len(line) < 0 or emitted >= MAX_LINES - 3) and emitted:
             break
         _say(line)

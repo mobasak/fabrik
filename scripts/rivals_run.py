@@ -394,21 +394,114 @@ def _write_progress(path: Path, body: dict[str, Any]) -> bool:
         return False
 
 
-def _rediscover_reset(checkpoint_dir: Path, job_id: str) -> list[dict[str, Any]]:
-    """Re-arm discovery for the next round; return the competitors the round is about to replace.
+def _rediscover_reset(checkpoint_dir: Path, job_id: str) -> tuple[str, list[dict[str, Any]]]:
+    """Re-arm discovery for the next round. Returns `(status, prior competitors)`.
 
     Everything already paid for is preserved — `reviews_done` (so no review is re-mined),
-    `spent_usd` (the ceiling's only memory across a resume), and the degrade flags.
+    `spent_usd` (the ceiling's only memory across a resume), and the degrade flags. The prior set is
+    stashed to the durable sidecar BEFORE the engine can overwrite it (see `_union_sidecar`).
+
+    ⚠️ The STATUS is load-bearing, not decoration. An earlier revision returned a bare list, so
+    "no checkpoint yet" (genuinely round 1) and "the re-arm WRITE FAILED" were indistinguishable —
+    and in the second case `discovery_done` is still True, so the round is silently vacuous while
+    the driver cheerfully reports "discovery re-armed". That is the exact fail-silent-green class
+    `--rediscover` exists to remove, rebuilt inside its own error path.
+
+    - `"no-checkpoint"` — round 1; discovery would have run regardless.
+    - `"rearmed"` — the flag is cleared; the next run genuinely re-discovers.
+    - `"failed"` — the checkpoint could NOT be rewritten; discovery will be SKIPPED. Not a dry round.
     """
     found = _progress_file_for(checkpoint_dir, job_id)
     if found is None:
-        return []
+        return "no-checkpoint", []
     path, body = found
-    prior = [c for c in (body.get("competitors") or []) if isinstance(c, dict)]
+    # Union with anything a previous round already stashed. A round that CRASHED after the engine
+    # overwrote `competitors` leaves the progress file THINNER than the sidecar, and reading the
+    # progress file alone would then discard exactly what the sidecar exists to protect.
+    prior = _dedup_cards(
+        [*_durable_prior(checkpoint_dir, job_id), *(body.get("competitors") or [])]
+    )
     body["discovery_done"] = False
     if not _write_progress(path, body):
+        # Carry `prior` even on failure. The round's ROUND: line computes `added = total - len(prior)`,
+        # so returning [] here would count every ALREADY-KNOWN rival as NEW and print a growth
+        # number for a round that discovered nothing — the same lie in a different field.
+        return "failed", prior
+    _stash_prior(checkpoint_dir, job_id, prior)
+    return "rearmed", prior
+
+
+def _comp_slug(value: str) -> str:
+    """Filename-safe slug for the sidecar. Local on purpose — the engine's `_slug` is private to a
+    vendored module, and replicating a private helper is a fork that drifts on the next re-vendor."""
+    out = "".join(ch if ch.isalnum() else "-" for ch in value.strip().lower()).strip("-")
+    return out[:80] or "job"
+
+
+def _union_sidecar(checkpoint_dir: Path, job_id: str) -> Path:
+    """Where the accumulated union is stashed DURABLY, outside the progress file.
+
+    It cannot live IN the progress file: `orchestrator.py::_persist` rewrites that from a LITERAL
+    dict, so any key the driver adds is silently dropped on the engine's next save. And it cannot
+    live only in a local variable: the engine overwrites `competitors` with the fresh discovery at
+    `orchestrator.py:585` — immediately after discovery — so if the run then raises, or the operator
+    Ctrl-Cs a long scan, the post-run merge never executes and every rival accumulated in prior
+    rounds is gone from work that was already PAID for.
+    """
+    return checkpoint_dir / f"{_comp_slug(job_id)}-union.json"
+
+
+def _durable_prior(checkpoint_dir: Path, job_id: str) -> list[dict[str, Any]]:
+    """The stashed union, or []. Fails soft — a missing or corrupt sidecar degrades to "no prior
+    rivals known", never to a traceback on a paid run."""
+    try:
+        body = json.loads(_union_sidecar(checkpoint_dir, job_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         return []
-    return prior
+    if not isinstance(body, dict) or body.get("job_id") != job_id:
+        return []
+    return [c for c in (body.get("competitors") or []) if isinstance(c, dict)]
+
+
+def _stash_prior(checkpoint_dir: Path, job_id: str, cards: list[dict[str, Any]]) -> None:
+    """Write the union sidecar atomically. Best-effort: a failure here costs the safety NET, not the
+    run, so it is never allowed to raise."""
+    path = _union_sidecar(checkpoint_dir, job_id)
+    try:
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps({"job_id": job_id, "competitors": cards}, indent=2), encoding="utf-8"
+        )
+        tmp.replace(path)
+    except OSError:
+        pass
+
+
+def _dedup_cards(cards: list[Any]) -> list[dict[str, Any]]:
+    """Order-preserving dedup by `_comp_key`; first occurrence wins (an earlier round's card may
+    already carry mined data). A card with NEITHER name nor url has no key — it is KEPT, once,
+    rather than dropped: `_as_dicts` already ruled on this class for the renderer ("dropping such
+    entries silently would be worse than raising — the count would quietly disagree with the
+    engine's own census"), and the union must not contradict that ruling one layer down."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    keyless = 0
+    for card in cards:
+        if not isinstance(card, dict):
+            # A bare string has no fields to merge on. Dropping it here matches the ENGINE exactly:
+            # `orchestrator.py:526` filters non-dicts out of `competitors` on every resume, so a
+            # string kept in the union would be discarded the moment the final round restored it.
+            continue
+        key = _comp_key(card)
+        if key is None:
+            keyless += 1
+            if keyless == 1:  # keep ONE, so the census disagreement is visible, not multiplied
+                out.append(card)
+            continue
+        if key not in seen:
+            seen.add(key)
+            out.append(card)
+    return out
 
 
 def _comp_key(card: Any) -> str | None:
@@ -438,14 +531,15 @@ def _merge_competitors_into_progress(
     if found is None:
         return 0
     path, body = found
-    union: dict[str, dict[str, Any]] = {}
-    for card in [*prior, *(body.get("competitors") or [])]:
-        key = _comp_key(card)
-        if key is not None and key not in union:
-            union[key] = card
-    body["competitors"] = list(union.values())
+    # `prior` is the caller's in-memory copy; the SIDECAR is the durable one. Union both, so a
+    # resumed process that never held `prior` still recovers everything earlier rounds paid for.
+    union = _dedup_cards(
+        [*prior, *_durable_prior(checkpoint_dir, job_id), *(body.get("competitors") or [])]
+    )
+    body["competitors"] = union
     if not _write_progress(path, body):
         return 0
+    _stash_prior(checkpoint_dir, job_id, union)  # keep the safety net current for the next round
     return len(union)
 
 
@@ -804,15 +898,22 @@ async def _run(args: argparse.Namespace) -> int:
     # wiring check has no business mutating a checkpoint.
     prior_competitors: list[dict[str, Any]] = []
     if args.rediscover:
-        prior_competitors = _rediscover_reset(checkpoint_dir, job_id)
-        print(
-            f"  ok  --rediscover: discovery re-armed, carrying {len(prior_competitors)} known "
-            f"rival(s) forward; mined reviews are NOT re-billed"
-        )
-        if not prior_competitors:
+        status, prior_competitors = _rediscover_reset(checkpoint_dir, job_id)
+        if status == "rearmed":
             print(
-                "      (no prior checkpoint for this job_id — this is round 1, discovery would "
-                "have run anyway)"
+                f"  ok  --rediscover: discovery re-armed, carrying {len(prior_competitors)} known "
+                f"rival(s) forward; mined reviews are NOT re-billed"
+            )
+        elif status == "no-checkpoint":
+            print(
+                "  ok  --rediscover: no prior checkpoint for this job_id - this is ROUND 1 and "
+                "discovery would have run anyway"
+            )
+        else:  # "failed" - never let this read as a dry round
+            print(
+                "  !!  --rediscover: the checkpoint could NOT be rewritten, so discovery will be "
+                "SKIPPED and this round CANNOT discover anything. Its zero-new result is NOT a dry "
+                "round. Fix the checkpoint (or pass a fresh --job-id) before trusting convergence."
             )
     cfg = WebToolsConfig(
         exa_api_key=os.getenv("EXA_API_KEY", ""),

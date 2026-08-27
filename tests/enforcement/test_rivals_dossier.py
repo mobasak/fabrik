@@ -195,3 +195,29 @@ def test_output_never_exceeds_final_gates_500_char_truncation(tmp_path, capsys):
     assert len(out) <= chk.ADVISORY_BUDGET, f"{len(out)} chars - final_gate would truncate"
     assert chk.REMEDY[-20:] in out, "the remedy survived truncation"
     assert "more finding(s)" in out, "and the reader is told findings were withheld"
+
+
+@pytest.mark.parametrize("argv", [["--bogus-flag"], ["--root"], ["-x"], ["extra-positional"]])
+def test_a_malformed_argv_never_exits_nonzero(argv):
+    """F1, found by review of this very check: `argparse` calls `sys.exit(2)` on a bad flag, and
+    `SystemExit` derives from BaseException — so `except Exception` does NOT catch it and the
+    process exits 2. On a `warn_only` check that is a BLOCKING red across ~46 synced repos, and the
+    module docstring claimed 'always exits 0'. The reference implementation
+    (`check_plan_lock_release.py:454-456`) had already solved this with `parse_known_args` and said
+    why; this check copied its guard shape but not its parser."""
+    try:
+        rc = chk.main(argv)
+    except SystemExit as exc:  # the defect: argparse escaping the guard
+        raise AssertionError(f"argv={argv} raised SystemExit({exc.code}) instead of returning 0")
+    assert rc == 0
+
+
+def test_a_pathologically_long_dossier_name_still_fits_the_budget(tmp_path, capsys):
+    """MAX_LINE truncation is what bounds this: one 220-char finding + census + marker + remedy is
+    the true worst case. Measured 497/500 — tight, so it is pinned rather than assumed."""
+    _dossier(tmp_path, name="a" * 200, rivals=0, partial="True", truncated="True")
+    chk.main(["--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert len(out) <= chk.ADVISORY_BUDGET, f"{len(out)} chars"
+    assert chk.REMEDY[-25:] in out
+    assert max(len(ln) for ln in out.splitlines()) <= chk.MAX_LINE

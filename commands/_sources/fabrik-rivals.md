@@ -123,6 +123,10 @@ NEW count and the running union — a dry round is a MEASURED fact, never an ass
 whatever is new. A round that adds a rival is never the last round. Record a Pass Ledger row per round
 with `found:` / `new:` / `fixed:`, exactly as the review commands do.
 
+⚠️ **A `!!` line from `--rediscover` VOIDS the round.** If the driver reports that the checkpoint could
+not be rewritten, discovery was SKIPPED — that round's zero-new result is not a dry round and must not
+be counted toward the two. Fix the checkpoint (or pass a fresh `--job-id`) and re-run it.
+
 **The final round runs WITHOUT the flag** — the engine then restores the full accumulated union as its
 competitor set, mines any still-unmined reviews, and synthesizes the matrix over ALL of them. That
 round's dossier is the artifact; a `--rediscover` round's dossier covers only that round's fresh

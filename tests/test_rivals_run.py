@@ -680,8 +680,9 @@ def test_rediscover_clears_only_the_discovery_flag():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         f = _progress(tmp)
-        rr._rediscover_reset(tmp, "rivals-crm")
+        status, _ = rr._rediscover_reset(tmp, "rivals-crm")
         got = json.loads(f.read_text(encoding="utf-8"))
+    assert status == "rearmed"
     assert got["discovery_done"] is False, "discovery must be re-armed"
     assert got["reviews_done"] == {"alpha-1234abcd": True}, "mined reviews must NOT be re-billed"
     assert got["spent_usd"] == "0.86", "cumulative spend must survive — it is the ceiling's memory"
@@ -694,7 +695,7 @@ def test_rediscover_returns_the_prior_competitors_so_they_can_be_reunioned():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         _progress(tmp)
-        prior = rr._rediscover_reset(tmp, "rivals-crm")
+        _, prior = rr._rediscover_reset(tmp, "rivals-crm")
     assert [c["name"] for c in prior] == ["Alpha"]
 
 
@@ -705,9 +706,9 @@ def test_rediscover_refuses_a_progress_file_owned_by_another_job():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         f = _progress(tmp, job_id="rivals-something-else")
-        prior = rr._rediscover_reset(tmp, "rivals-crm")
+        status, prior = rr._rediscover_reset(tmp, "rivals-crm")
         got = json.loads(f.read_text(encoding="utf-8"))
-    assert prior == []
+    assert status == "no-checkpoint" and prior == []
     assert got["discovery_done"] is True, "a foreign job's checkpoint must be left untouched"
 
 
@@ -716,7 +717,7 @@ def test_rediscover_on_a_first_run_is_a_silent_no_op():
     import tempfile
 
     with tempfile.TemporaryDirectory() as td:
-        assert rr._rediscover_reset(Path(td) / "nope", "rivals-crm") == []
+        assert rr._rediscover_reset(Path(td) / "nope", "rivals-crm") == ("no-checkpoint", [])
 
 
 def test_rediscover_survives_a_corrupt_checkpoint():
@@ -726,7 +727,7 @@ def test_rediscover_survives_a_corrupt_checkpoint():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         (tmp / "x-progress.json").write_text("{not json", encoding="utf-8")
-        assert rr._rediscover_reset(tmp, "rivals-crm") == []
+        assert rr._rediscover_reset(tmp, "rivals-crm") == ("no-checkpoint", [])
 
 
 def test_the_union_merge_keeps_prior_rivals_the_fresh_round_did_not_rediscover():
@@ -785,3 +786,163 @@ def test_bare_string_competitors_do_not_crash_the_union():
 def test_rediscover_is_advertised_on_the_cli():
     ns = rr._parse_args(["--market", "crm", "--rediscover"])
     assert ns.rediscover is True
+
+
+def test_the_union_survives_the_engine_dying_mid_run():
+    """F2, found by review: the accumulated union lived ONLY in a local variable between
+    `_rediscover_reset` and the post-run merge. The engine overwrites `competitors` with the fresh
+    discovery at `orchestrator.py:585` — immediately after discovery — and its `_persist()` builds a
+    LITERAL dict, so a driver-owned key inside the progress file is dropped on the next save. If the
+    run then raises (or the operator Ctrl-Cs a long scan) the merge at `rivals_run.py:852` never
+    executes, the local variable dies with the process, and every rival accumulated in prior rounds
+    is permanently gone from PAID work. The prior set must therefore be durable BEFORE the run.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp)  # round 1 left "Alpha" in the checkpoint
+        rr._rediscover_reset(tmp, "rivals-crm")
+
+        # The engine discovers, persists fresh-only, then DIES. Nothing else runs.
+        body = json.loads((tmp / "rivals-crm-1234abcd-progress.json").read_text(encoding="utf-8"))
+        body["competitors"] = [{"name": "Beta", "url": "https://beta.io"}]
+        body["discovery_done"] = True
+        (tmp / "rivals-crm-1234abcd-progress.json").write_text(json.dumps(body), encoding="utf-8")
+
+        # A LATER process resumes. It has no memory of round 1.
+        recovered = rr._durable_prior(tmp, "rivals-crm")
+
+    assert [c["name"] for c in recovered] == ["Alpha"], (
+        "the pre-run stash must outlive the process that made it"
+    )
+
+
+def test_the_durable_stash_is_a_sidecar_the_engine_cannot_clobber():
+    """It must NOT live in the progress file: `orchestrator.py::_persist` rewrites that from a
+    literal dict, silently dropping any key the driver added."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp)
+        rr._rediscover_reset(tmp, "rivals-crm")
+        names = {p.name for p in tmp.iterdir()}
+    assert any("union" in n for n in names), f"no sidecar written; got {names}"
+
+
+def test_a_card_with_neither_name_nor_url_is_counted_not_silently_dropped():
+    """`_as_dicts` already ruled on this class for the renderer: 'Dropping such entries silently
+    would be worse than raising - the count would quietly disagree with the engine's own census.'
+    The union must not contradict that ruling."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp, competitors=[{"name": "", "url": ""}, {"name": "B", "url": "https://b.io"}])
+        n = rr._merge_competitors_into_progress(
+            tmp, "rivals-crm", [{"name": "Alpha", "url": "https://alpha.io"}]
+        )
+        got = json.loads((tmp / "rivals-crm-1234abcd-progress.json").read_text(encoding="utf-8"))
+    assert n == 3, f"the malformed card must still be counted, got {n}"
+    assert len(got["competitors"]) == 3, "and must survive into the dossier as a visible ? row"
+
+
+def test_two_job_ids_that_slug_alike_cannot_cross_contaminate():
+    """`_comp_slug` collapses punctuation, so `crm/eu` and `crm-eu` share a sidecar FILENAME. The
+    job_id stored INSIDE the file is what makes that safe: a foreign sidecar degrades to 'no prior
+    rivals known', never to another job's competitor list leaking into this dossier."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        assert rr._comp_slug("crm/eu") == rr._comp_slug("crm-eu"), "precondition: they collide"
+        rr._stash_prior(tmp, "crm/eu", [{"name": "Alpha", "url": "https://alpha.io"}])
+        assert rr._durable_prior(tmp, "crm/eu")  # own job reads it back
+        assert rr._durable_prior(tmp, "crm-eu") == [], "a colliding job must NOT inherit it"
+
+
+def test_a_degenerate_job_id_still_produces_a_usable_filename():
+    assert rr._comp_slug("///") == "job"
+    assert rr._comp_slug("") == "job"
+    assert len(rr._comp_slug("x" * 500)) <= 80
+
+
+def test_a_corrupt_sidecar_degrades_to_no_prior_never_a_traceback():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        rr._union_sidecar(tmp, "j1").write_text("{not json", encoding="utf-8")
+        assert rr._durable_prior(tmp, "j1") == []
+
+
+def test_a_failed_rearm_is_not_reported_as_round_one():
+    """F6, pass 2: `_rediscover_reset` returned `[]` for BOTH 'no checkpoint yet' (genuinely round
+    1) and 'the re-arm write FAILED'. In the second case `discovery_done` is still True, so the
+    round is silently vacuous again — while the driver prints 'discovery re-armed'. That is the
+    exact fail-silent-green class this whole --rediscover fix exists to remove, reintroduced in its
+    own error path. The two outcomes must be distinguishable by the caller."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp)
+        # Make the atomic rewrite fail the way a read-only mount or a full disk would.
+        real = rr._write_progress
+        rr._write_progress = lambda *a, **k: False
+        try:
+            status, prior = rr._rediscover_reset(tmp, "rivals-crm")
+        finally:
+            rr._write_progress = real
+
+    assert status == "failed", f"a failed re-arm must say so, got {status!r}"
+    # F7: prior is still CARRIED. The ROUND: line computes `added = total - len(prior)`, so an
+    # empty list here would report every already-known rival as NEW on a round that discovered
+    # nothing — the same false-growth claim in a different field.
+    assert [c["name"] for c in prior] == ["Alpha"]
+
+
+def test_a_first_round_rearm_says_first_round():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        status, prior = rr._rediscover_reset(Path(td), "rivals-crm")
+    assert status == "no-checkpoint" and prior == []
+
+
+def test_a_successful_rearm_says_so_and_carries_the_rivals():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp)
+        status, prior = rr._rediscover_reset(tmp, "rivals-crm")
+    assert status == "rearmed" and [c["name"] for c in prior] == ["Alpha"]
+
+
+def test_preflight_only_never_mutates_the_checkpoint():
+    """Pass 3: a WIRING CHECK must not touch state. `--preflight-only` returns before the re-arm,
+    so `--preflight-only --rediscover` must leave `discovery_done` exactly as it found it —
+    otherwise a dry-run silently arms a round the operator never asked to pay for. The ordering was
+    asserted only in a comment."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        f = _progress(tmp)
+        before = f.read_text(encoding="utf-8")
+        ns = rr._parse_args(["--market", "crm", "--preflight-only", "--rediscover"])
+        assert ns.preflight_only and ns.rediscover
+        # The re-arm is the only thing that would rewrite it, and it sits after the early return.
+        after = f.read_text(encoding="utf-8")
+    assert after == before, "a --preflight-only run must not mutate the checkpoint"
+    src = (REPO / "scripts" / "rivals_run.py").read_text(encoding="utf-8")
+    # Anchor on the CALL SITE, not the def — `_rediscover_reset(checkpoint_dir` also matches the
+    # function's own signature 500 lines earlier, which made the first version of this assertion
+    # compare the wrong two offsets and fail on correct code. Assert the subject you mean.
+    call = "status, prior_competitors = _rediscover_reset("
+    assert src.count(call) == 1, "the call site moved - re-anchor this assertion"
+    assert src.index("if args.preflight_only:") < src.index(call), (
+        "the re-arm must sit AFTER the --preflight-only early return"
+    )
