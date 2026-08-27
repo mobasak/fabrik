@@ -48,8 +48,8 @@ class HnAlgoliaAdapter:
             if getattr(resp, "status_code", 200) != 200:
                 return []
             data = resp.json()
-        except Exception:  # noqa: BLE001 — an adapter must never break the run
-            logger.warning("competitor_intel.hn_algolia_fetch_failed")
+        except Exception as exc:  # noqa: BLE001 — an adapter must never break the run
+            logger.warning("competitor_intel.hn_algolia_fetch_failed cause=%s", type(exc).__name__)
             return []
         hits = data.get("hits") if isinstance(data, dict) else None
         if not isinstance(hits, list):

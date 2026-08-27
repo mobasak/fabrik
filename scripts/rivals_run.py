@@ -473,8 +473,14 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     out.append("")
     if match:
         for m in match:
+            # `detail` is not emitted by the module; MATCH items carry `rivals_having` (+
+            # `universal`). Reading a field that does not exist rendered an empty tail.
             star = "★ " if m.get("universal") else ""
-            out.append(f"- {star}**{_s(m.get('feature'))}** — {_s(m.get('detail') or '')}")
+            having = m.get("rivals_having") or []
+            who = (
+                f"{len(having)} rival(s): {', '.join(_s(x) for x in having[:6])}" if having else ""
+            )
+            out.append(f"- {star}**{_s(m.get('feature'))}** — {who}")
     else:
         out.append(
             "_Empty. In a **greenfield** run (`us=None`) this is EXPECTED — there is no `us` side to "
@@ -495,7 +501,10 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     for b in beat:
         out.append(
             f"- **{_s(b.get('theme') or b.get('weakness'))}** "
-            f"(weight {_s(b.get('weight'))}, {_s(b.get('n_sources') or b.get('sources'))} sources)"
+            # The beat item carries `source_urls`; `n_sources`/`sources` do not exist, so this
+            # printed "None sources" on every BEAT row. Verified against the real payload —
+            # beat keys are quotes/source_urls/theme/weight. (fabrik-lib, 2026-08-27)
+            f"(weight {_s(b.get('weight'))}, {len(b.get('source_urls') or [])} sources)"
         )
         for q in (b.get("quotes") or [])[:3]:
             out.append(f'  - "{_s(q)[:220]}"')
@@ -518,6 +527,19 @@ def render_dossier_md(d: dict[str, Any]) -> str:
             )
         out.append("")
 
+    # NIT 2: the per-rival models table was rendered but `pricing.wedge` — the ranked list of
+    # pricing OPENINGS, i.e. the actual output the stage exists to produce — was dropped entirely.
+    wedge = _as_dicts(_as_map(d.get("pricing")).get("wedge"))
+    if wedge:
+        out.append("### Pricing wedge — the openings")
+        out.append("")
+        for w in wedge:
+            detail = _s(w.get("rationale") or w.get("evidence") or "")
+            out.append(
+                f"- **{_s(w.get('wedge') or w.get('opening') or w.get('theme'))}** {detail}"[:400]
+            )
+        out.append("")
+
     needs = _as_dicts(_as_map(d.get("white_space")).get("needs"))
     out.append("## White-space — unmet demand")
     out.append("")
@@ -527,7 +549,13 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     )
     out.append("")
     for n in needs:
-        out.append(f"- **{_s(n.get('need'))}** — {_s(n.get('detail') or '')}")
+        # white-space needs carry weight + quotes + source_urls, not `detail`.
+        q = (n.get("quotes") or [None])[0]
+        srcs = len(n.get("source_urls") or [])
+        out.append(
+            f"- **{_s(n.get('need'))}** (weight {_s(n.get('weight'))}, {srcs} sources)"
+            + (f' — "{_s(q)[:160]}"' if q else "")
+        )
     if not needs:
         out.append("_None corroborated._")
     out.append("")

@@ -19,7 +19,16 @@ from .dossier import Dossier, Signal, Tier, Us
 from .orchestrator import run
 from .protocols import Deps, Pack, PackLoader, ResearchFn, SynthLlm
 from .stages import PricingBlock, PricingModel, UnmetNeed, WhiteSpaceBlock
-from .synth import BeatItem, Feature, FeatureSet, MatchItem, Matrix, MatrixCell
+from .synth import (
+    CELL_KEY_SEP,
+    BeatItem,
+    Feature,
+    FeatureSet,
+    MatchItem,
+    Matrix,
+    MatrixCell,
+    cell_key,
+)
 
 __all__ = [
     "run",
@@ -37,6 +46,9 @@ __all__ = [
     "FeatureSet",
     "Matrix",
     "MatrixCell",
+    # the flat `to_dict()` cell-key contract (guessing the separator fails SILENTLY — see README)
+    "CELL_KEY_SEP",
+    "cell_key",
     "MatchItem",
     "BeatItem",
     "PricingModel",

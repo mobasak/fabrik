@@ -86,11 +86,24 @@ class PackLoader(Protocol):
 
 
 class SynthLlm(Protocol):
-    """The injected LLM for the synthesis tail (Phase B) — an OpenRouter-backed async text completion.
-    Same shape as deep-research's ``LlmFn`` (``engine.py:32``). Kept distinct so a consumer MAY wire a
-    cheaper model for synthesis than for staged research."""
+    """The injected LLM — an async text completion, called with a VARIABLE number of positional parts.
 
-    def __call__(self, prompt: str, **kwargs: Any) -> Awaitable[str]: ...
+    ⚠️ **It must accept both one and two positionals**, because ONE injected callable is used by two
+    callers at two arities:
+
+    * ``synth.py`` (this module's synthesis tail) calls ``llm(prompt)`` — ONE part;
+    * the injected deep-research engine calls ``deps.llm(prompt, payload)`` — TWO parts
+      (``engine.py:257``, ``:337``, ``:401``), where the second is a JSON payload.
+
+    So the contract is ``async def my_llm(*parts: str, **kwargs) -> str`` — join the parts however your
+    router prefers (``"\\n\\n".join(parts)`` is the usual choice). A one-positional callable satisfies
+    mypy against this Protocol nowhere, and :func:`~.orchestrator._preflight_wiring` rejects it at entry —
+    both deliberate. Before that pre-flight existed, a ``def my_llm(prompt)`` raised ``TypeError`` inside
+    the never-raise research boundary and the run returned an EMPTY dossier with ``partial=True``,
+    indistinguishable from "this market has no competitors" (reported by a consumer, 2026-08-26).
+    """
+
+    def __call__(self, *parts: str, **kwargs: Any) -> Awaitable[str]: ...
 
 
 # The leg-executor callable the consumer wires from web-tools (``engine.py`` ``LegExecutor`` at :58).

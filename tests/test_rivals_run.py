@@ -486,7 +486,11 @@ SINKS: dict[str, dict] = {
         "feature_matrix": {"columns": ["c"], "rows": ["r"], "cells": {"r␟c": {"state": "s\n## X"}}}
     },
     "match feature": {"match_list": [{"feature": "f\n## X", "detail": "d"}]},
-    "match detail": {"match_list": [{"feature": "f", "detail": "d\n## X"}]},
+    # `detail` is NOT emitted by the module — MATCH carries `rivals_having`. Rendering a field
+    # that does not exist was one of three nits fabrik-lib found. Test what RENDERS.
+    "match rivals_having": {"match_list": [{"feature": "f", "rivals_having": ["r\n## X"]}]},
+    "beat source_urls": {"beat_list": [{"theme": "t", "weight": 1, "source_urls": ["s\n## X"]}]},
+    "pricing wedge": {"pricing": {"wedge": [{"wedge": "w\n## X", "rationale": "r"}]}},
     "beat theme": {"beat_list": [{"theme": "t\n## X", "weight": 1, "quotes": []}]},
     "beat weight": {"beat_list": [{"theme": "t", "weight": "1\n## X", "quotes": []}]},
     "beat n_sources": {
@@ -499,7 +503,9 @@ SINKS: dict[str, dict] = {
         "pricing": {"models": [{"competitor": "c", "source_url": "https://u\n## X"}]}
     },
     "white_space need": {"white_space": {"needs": [{"need": "n\n## X", "detail": "d"}]}},
-    "white_space detail": {"white_space": {"needs": [{"need": "n", "detail": "d\n## X"}]}},
+    "white_space quote": {
+        "white_space": {"needs": [{"need": "n", "weight": 1, "quotes": ["q\n## X"]}]}
+    },
 }
 
 
@@ -512,9 +518,9 @@ def test_no_payload_field_can_inject_markdown_structure(sink):
     # passed on the URL sink because `_url` had percent-encoded the space to "\n##%20X" — the
     # newline still broke the link open, but the needle no longer matched. A sanitiser that mangles
     # the payload must never be able to launder an escape past the test.
-    assert "\n#" not in out.replace("\n# Rivals dossier", "").replace("\n## ", "\x00"), (
-        f"{sink}: a raw newline reached the output and could open a block"
-    )
+    # Assert the PAYLOAD marker never starts a line. An earlier version neutralised known
+    # headings and then tripped on a legitimate h3 the renderer itself adds — a heading
+    # allowlist has to be maintained; "did the injected text open a block" does not.
     for line in out.splitlines():
         assert not line.startswith("## X") and not line.startswith("##%20X"), (
             f"{sink}: injected a heading line: {line!r}"
@@ -589,3 +595,48 @@ def test_the_flatten_table_is_derived_not_hand_listed():
     assert len(rr._LINE_BOUNDARIES) >= 8
     for ch in ("\n", "\r", "\f", "\v", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
         assert ch in rr._LINE_BOUNDARIES, f"U+{ord(ch):04X} missing from the derived table"
+
+
+def test_beat_source_count_reads_the_field_the_module_actually_emits():
+    """fabrik-lib nit 1: the renderer read `n_sources`/`sources`, neither of which the beat item
+    carries — it carries `source_urls` — so every BEAT row printed "None sources". Verified against
+    the real payload: beat keys are quotes/source_urls/theme/weight."""
+    out = rr.render_dossier_md(
+        {
+            "beat_list": [
+                {"theme": "pricing", "weight": 1.6, "source_urls": ["https://a", "https://b"]}
+            ]
+        }
+    )
+    assert "None sources" not in out
+    assert "2 sources" in out
+
+
+def test_the_pricing_wedge_is_rendered():
+    """fabrik-lib nit 2: the per-rival models table rendered but `pricing.wedge` — the ranked list of
+    openings, the actual output the stage exists to produce — was dropped entirely."""
+    out = rr.render_dossier_md(
+        {
+            "pricing": {
+                "wedge": [{"wedge": "no free tier below $500", "rationale": "3 rivals gate it"}]
+            }
+        }
+    )
+    assert "Pricing wedge" in out and "no free tier below $500" in out
+
+
+def test_match_and_white_space_read_real_fields_not_a_phantom_detail():
+    """fabrik-lib nit 3: both read a `detail` field the module never emits, rendering an empty tail.
+    MATCH carries `rivals_having` (+ `universal`); white-space needs carry weight/quotes/source_urls."""
+    out = rr.render_dossier_md(
+        {
+            "match_list": [{"feature": "SSO", "universal": True, "rivals_having": ["A", "B"]}],
+            "white_space": {
+                "needs": [
+                    {"need": "bulk edit", "weight": 2, "quotes": ["I wish"], "source_urls": ["u"]}
+                ]
+            },
+        }
+    )
+    assert "SSO" in out and "2 rival(s)" in out and "A, B" in out
+    assert "bulk edit" in out and "1 sources" in out and "I wish" in out

@@ -75,8 +75,8 @@ class AppleRssAdapter:
                 f"https://itunes.apple.com/{cc}/rss/customerreviews/page=1/id={app_id}/sortby=mostrecent/json"
             )
             data = reviews.json()
-        except Exception:  # noqa: BLE001 — an adapter must never break the run
-            logger.warning("competitor_intel.apple_rss_fetch_failed")
+        except Exception as exc:  # noqa: BLE001 — an adapter must never break the run
+            logger.warning("competitor_intel.apple_rss_fetch_failed cause=%s", type(exc).__name__)
             return []
 
         feed = data.get("feed") if isinstance(data, dict) else None

@@ -9,6 +9,7 @@ no originating-project vocabulary lives here.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -131,10 +132,119 @@ def _shim(
 
 
 # ── wiring pre-flight: fail LOUD before any research call ─────────────────────────────────────────────
+#: The positional arities ``deps.llm`` is called at, and by whom. ``synth.py`` calls it with ONE part;
+#: the injected deep-research engine calls it with TWO (``engine.py:257``/``:337``/``:401``). A callable
+#: that cannot take both is the defect :func:`_preflight_llm_arity` exists to catch.
+_LLM_ARITIES: tuple[tuple[int, str], ...] = ((1, "this module's synthesis tail"), (2, "the deep-research engine"))
+
+
+def _preflight_llm_arity(llm: Any) -> str | None:
+    """Return a problem string if ``llm`` cannot be called at BOTH arities the module uses, else None.
+
+    Purely introspective — it never CALLS the callable, so it costs nothing and cannot spend money.
+    ``inspect.signature`` fails on some builtins/C callables; that is not evidence of a defect, so an
+    un-introspectable callable passes (fail-open on introspection, fail-closed on a proven mismatch).
+
+    This exists because the failure it catches is invisible: a one-positional ``llm`` raises ``TypeError``
+    *inside* :func:`_safe_research`'s never-raise boundary, so the run completes and returns an EMPTY
+    dossier with ``partial=True`` — which reads as "this market has no competitors" rather than "your
+    wiring is wrong". A consumer hit exactly that on a real, money-spending run (2026-08-26).
+    """
+    if not callable(llm):
+        return f"deps.llm must be callable; got {type(llm).__name__}"
+    if inspect.isclass(llm):
+        # `callable(SomeClass)` is True and `signature(SomeClass)` describes `__init__`, so a class wired
+        # where an instance belongs would be measured against the wrong signature and the message would
+        # talk about `*parts` to someone whose actual mistake was forgetting the `()`.
+        return f"deps.llm is the CLASS {llm.__name__}, not an instance — wire {llm.__name__}(...)"
+    try:
+        # ⚠️ `follow_wrapped=False` is load-bearing. The default follows `__wrapped__`, so a
+        # `@functools.wraps` decorator reports the INNER signature — and the arity-ADAPTING wrapper this
+        # module's own README recommends (`async def wrapper(*parts): return await fn("\n\n".join(parts))`)
+        # was therefore REJECTED at entry while working perfectly at runtime. Breaking a working
+        # deployment is a worse failure than missing one: this guard exists to catch the naive
+        # `def my_llm(prompt)` that was actually reported, and it still does. Introspect the callable that
+        # is actually invoked.
+        sig = inspect.signature(llm, follow_wrapped=False)
+    except Exception:  # noqa: BLE001 — see below; fail-open on ANY introspection failure
+        # NOT `(TypeError, ValueError)`: `signature()` touches `__wrapped__`/`__signature__`/`__call__`,
+        # and a lazy or DI-injected proxy raises whatever it likes from `__getattr__` (a real one raised
+        # RuntimeError). A narrow catch let that escape `run()`, breaking the documented contract that
+        # "the ONLY raise is a ValueError at entry" — and a consumer's `except ValueError:` would miss it.
+        return None
+    bad = [
+        f"{n} ({who})" for n, who in _LLM_ARITIES if not _accepts_positionals(sig, n)
+    ]
+    if not bad:
+        return None
+    return (
+        f"deps.llm cannot be called with {' or '.join(bad)} positional arg(s); its signature is "
+        f"{sig}. Wire `async def my_llm(*parts: str, **kwargs) -> str` — ONE callable is used at both "
+        f"arities. Left unchecked this raises inside the never-raise boundary and returns an EMPTY "
+        f"dossier with partial=True."
+    )
+
+
+def _accepts_positionals(sig: inspect.Signature, n: int) -> bool:
+    """True if ``sig`` binds EXACTLY ``n`` positional arguments and nothing else is owed.
+
+    ``bind`` (not ``bind_partial``) on purpose: ``bind_partial`` tolerates MISSING arguments, so
+    ``async def llm(prompt, payload)`` — two REQUIRED positionals — would pass a 1-arity probe and still
+    blow up on ``synth.py``'s one-part call. ``bind`` rejects both too-many and too-few, which is the
+    pair of directions that actually break.
+
+    A required keyword-only parameter (``def llm(*parts, model)``) fails here too, and correctly so: the
+    module never passes ``model``, so that callable cannot be driven by this module at any arity.
+    """
+    try:
+        sig.bind(*(("",) * n))
+    except TypeError:
+        return False
+    return True
+
+
+def _preflight_research_fn(research_fn: Any) -> str | None:
+    """Return a problem string if ``research_fn`` cannot take the module's call shape, else None.
+
+    ``deps.llm`` was not the only injected callable in this failure class — it was just the one a consumer
+    reported. ``research_fn`` is called exactly once, one way (``research_fn(brief, market, pack=…,
+    deps=…)``), and a mismatch degrades EXACTLY the same way: ``TypeError`` inside the never-raise
+    boundary, empty dossier, ``partial=True``. The realistic trigger is the one
+    :func:`_preflight_wiring`'s docstring already names — vendoring a deep-research revision whose
+    ``run_research`` signature has drifted.
+
+    Same policy as the llm check: fail-open on any introspection failure, fail-closed on a proven
+    mismatch, and never CALL the callable.
+    """
+    if not callable(research_fn):
+        return f"deps.research_fn must be callable; got {type(research_fn).__name__}"
+    if inspect.isclass(research_fn):
+        # Same mistake, same bespoke message as the llm check — an asymmetric guard is how one of two
+        # identical failure modes stays invisible.
+        return (
+            f"deps.research_fn is the CLASS {research_fn.__name__}, not an instance — "
+            f"wire {research_fn.__name__}(...) or the module's `run_research` function"
+        )
+    try:
+        sig = inspect.signature(research_fn, follow_wrapped=False)
+    except Exception:  # noqa: BLE001 — fail-open on introspection; see _preflight_llm_arity
+        return None
+    try:
+        sig.bind({}, "", pack=object(), deps=object())
+    except TypeError as exc:
+        return (
+            f"deps.research_fn cannot be called as research_fn(brief, market, pack=…, deps=…) — {exc}. "
+            f"Its signature is {sig}. Wire deep-research's `run_research`; if you vendored a newer "
+            f"deep-research whose signature drifted, reconcile it (see the README Gotcha on revision sync)."
+        )
+    return None
+
+
 def _preflight_wiring(pack: Pack, deps: Deps) -> None:
     """Mirror ``deep_research._validate_deps`` (engine.py:415) as a DETERMINISTIC pre-flight: every pack
-    leg has an executor AND an estimate, scrape is wired, exactly ONE ``is_free`` leg, and that free leg's
-    estimate is a finite value <= 0 (the invariant that keeps the ceiling armed → bounds spend).
+    leg has an executor AND an estimate, scrape is wired, exactly ONE ``is_free`` leg, that free leg's
+    estimate is a finite value <= 0 (the invariant that keeps the ceiling armed → bounds spend), and
+    ``deps.llm`` accepts both arities the module calls it at (:func:`_preflight_llm_arity`).
 
     Run BEFORE any research call and OUTSIDE the never-raise boundary: a wiring gap is a caller bug that
     must fail loud (a missing estimate would silently disable the ceiling → unbounded spend), and doing it
@@ -152,6 +262,10 @@ def _preflight_wiring(pack: Pack, deps: Deps) -> None:
         problems.append(f"deps.leg_estimates missing {sorted(missing_est)}")
     if deps.scrape is None:
         problems.append("deps.scrape is required")
+    if llm_problem := _preflight_llm_arity(deps.llm):
+        problems.append(llm_problem)
+    if rf_problem := _preflight_research_fn(deps.research_fn):
+        problems.append(rf_problem)
     free = [leg for leg in pack.legs if leg.is_free]
     if len(free) != 1:
         problems.append(f"pack must declare exactly ONE is_free leg, found {len(free)}")
@@ -190,17 +304,31 @@ def _pack(deps: Deps, name: str) -> Pack:
 # ── never-raise research boundary ────────────────────────────────────────────────────────────────────
 async def _safe_research(
     deps: Deps, brief: Mapping[str, Any], market: str, *, pack: Pack, shim: _ResearchDepsShim, label: str
-) -> tuple[dict[str, Any], bool]:
+) -> tuple[dict[str, Any], bool, str]:
     """Wrap ONE ``run_research`` call so a staging failure (network/LLM/parse — incl. a ``ValueError`` the
     injected LLM raises, which ``run_research`` does not wrap) degrades to a flagged-empty result rather
     than raising. Wiring is already proven by :func:`_preflight_wiring`, so catching ``ValueError`` here is
-    correct (it can only be staging). Returns ``(doc, ok)``; ``ok`` is False on degradation."""
+    correct (it can only be staging). Returns ``(doc, ok, cause)``; ``ok`` is False on degradation and
+    ``cause`` is the exception CLASS NAME (``""`` when ok) so the caller can surface it on the Dossier —
+    a log line alone is invisible to a consumer running with logging off, which is how the reported
+    defect stayed undiagnosable."""
     try:
         doc = await deps.research_fn(brief, market, pack=pack, deps=shim)
-        return doc, True
-    except Exception:  # noqa: BLE001 — the never-raise boundary is the whole point (deep-research idiom)
-        logger.warning("competitor_intel.research_degraded label=%s", label)
-        return {"cards": [], "degraded_legs": ["all"], "truncated": False, "status": "error"}, False
+        return doc, True, ""
+    except Exception as exc:  # noqa: BLE001 — the never-raise boundary is the whole point (deep-research idiom)
+        # The exception TYPE, deliberately — never `exc` / `repr(exc)`. A degraded leg's message can carry
+        # a scraped page, an API key echoed by a client library, or an unprintable payload; the class name
+        # is bounded, safe, and is the one bit that separates a wiring bug (TypeError/AttributeError) from
+        # a network blip (httpx.*) from a bad key (HTTPStatusError). Logging only the label made a real
+        # consumer defect undiagnosable — they could not tell an empty market from a broken wiring.
+        logger.warning(
+            "competitor_intel.research_degraded label=%s cause=%s", label, type(exc).__name__
+        )
+        return (
+            {"cards": [], "degraded_legs": ["all"], "truncated": False, "status": "error"},
+            False,
+            type(exc).__name__,
+        )
 
 
 @dataclass
@@ -208,6 +336,7 @@ class _StageResult:
     doc: dict[str, Any]
     ok: bool
     truncated: bool  # skipped for budget, OR the sub-call hit its ceiling
+    cause: str = ""  # exception CLASS NAME when this leg degraded, else "" (never a message)
 
 
 async def _run_leg(
@@ -232,7 +361,9 @@ async def _run_leg(
         checkpoint_file=deps.checkpoint_dir / f"{stage}-{slug}.json",
         job_id=f"{deps.job_id}:{stage}:{slug}",
     )
-    doc, ok = await _safe_research(deps, brief, market, pack=pack, shim=shim, label=f"{stage}:{slug}")
+    doc, ok, cause = await _safe_research(
+        deps, brief, market, pack=pack, shim=shim, label=f"{stage}:{slug}"
+    )
     if _is_finite_decimal(shim.spent_usd):
         budget.charge(shim.spent_usd)  # the Decimal run_research mutated, not the return str
         degraded_spend = False
@@ -240,7 +371,13 @@ async def _run_leg(
         budget.charge(remaining)  # broken/NaN spend report → assume worst case (it could have spent it all)
         degraded_spend = True
         logger.warning("competitor_intel.nonfinite_spend label=%s:%s", stage, slug)
-    return _StageResult(doc=doc, ok=(ok and not degraded_spend), truncated=bool(shim.ceiling_hit))
+        # A SYNTHETIC cause: research succeeded, so `cause` is empty, but this path sets `ok=False` and
+        # charges the FULL remaining budget — the most expensive degradation in the module, and it was
+        # producing a `partial=True` with nothing to explain it.
+        cause = cause or "NonFiniteSpendReport"
+    return _StageResult(
+        doc=doc, ok=(ok and not degraded_spend), truncated=bool(shim.ceiling_hit), cause=cause
+    )
 
 
 # ── orchestrator-level progress checkpoint (top-level; distinct from each sub-call's own) ──────────────
@@ -273,12 +410,25 @@ def _load_progress(deps: Deps) -> dict[str, Any]:
     return cast(dict[str, Any], data)
 
 
-def _save_progress(deps: Deps, state: Mapping[str, Any]) -> None:
+def _save_progress(deps: Deps, state: Mapping[str, Any]) -> str:
     try:
         deps.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        _progress_file(deps).write_text(json.dumps(state), encoding="utf-8")
-    except (OSError, TypeError, ValueError):
-        logger.warning("competitor_intel.progress_save_failed")
+        # ATOMIC: temp file + os.replace, mirroring deep-research's own checkpoint writer. A bare
+        # write_text can tear on a crash or a full disk, and `_load_progress` fails OPEN on a corrupt
+        # file — so a torn write silently re-grants the WHOLE budget on the next resume, which is the
+        # opposite of what this file exists to guarantee (and of what the README promises). The
+        # PID-unique temp name stops two racers tearing one file.
+        target = _progress_file(deps)
+        tmp = target.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(state), encoding="utf-8")
+        os.replace(tmp, target)
+    except (OSError, TypeError, ValueError) as exc:
+        # Log-only is a real gap on the MONEY path — a read-only volume or a full disk silently disables
+        # the module's one cumulative-spend record, and a consumer running without logging sees nothing.
+        # The caller has no dossier here, so the cause is returned for the caller to record.
+        logger.warning("competitor_intel.progress_save_failed cause=%s", type(exc).__name__)
+        return type(exc).__name__
+    return ""
 
 
 def _netloc(url: str) -> str:
@@ -311,8 +461,8 @@ def _load_source_profile(product_type: str) -> dict[str, Any]:
         import yaml  # type: ignore[import-untyped, unused-ignore]  # local: PyYAML is the only core dep
 
         raw = yaml.safe_load((_PACKS_DIR / "source-profiles.yaml").read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 — best-effort loader; a malformed profile must NOT break the run
-        logger.warning("competitor_intel.source_profiles_load_failed")
+    except Exception as exc:  # noqa: BLE001 — best-effort loader; a malformed profile must NOT break the run
+        logger.warning("competitor_intel.source_profiles_load_failed cause=%s", type(exc).__name__)
         return {}
     if not isinstance(raw, dict):
         return {}
@@ -356,6 +506,18 @@ async def run(
     # already-done competitors (reviews_done) and synthesizes on an EMPTY signal → a hollow BEAT/matrix.
     dossier.review_signal = _rehydrate_signals(progress.get("review_signal"))
     dossier.partial = bool(progress.get("partial"))
+    # …and the causes behind that flag. `isinstance`-guarded per element: the checkpoint is a file on
+    # disk that a crash can truncate or a hand-edit can corrupt, and a restore must never raise.
+    restored_causes = progress.get("degrade_causes")
+    if isinstance(restored_causes, list):
+        # `dict.fromkeys` to DEDUPE while preserving first-seen order — every append site upholds that
+        # invariant and the field documents it, but the restore path did not: a checkpoint hand-edited,
+        # partially written, or produced by a build without the dedup came back with repeats, and the
+        # brief rendered "Degraded by: `Real`, `Real`". A restore must re-establish the invariant, not
+        # assume the file on disk already satisfies it.
+        dossier.degrade_causes = list(
+            dict.fromkeys(c for c in restored_causes if isinstance(c, str) and c)
+        )
     dossier.truncated = bool(progress.get("truncated"))
     profile = _load_source_profile(product_type)
 
@@ -366,7 +528,10 @@ async def run(
     reviews_done: dict[str, bool] = dict(progress.get("reviews_done") or {})
 
     def _persist() -> None:
-        _save_progress(
+        # A failed save is recorded on the DOSSIER, not merely logged: it silently disables the module's
+        # one cumulative-spend record, so the next resume re-grants the whole budget. A consumer running
+        # with logging off would have no way to know.
+        save_cause = _save_progress(
             deps,
             {
                 "job_id": deps.job_id,
@@ -375,10 +540,19 @@ async def run(
                 "reviews_done": reviews_done,
                 "review_signal": [s.to_dict() for s in dossier.review_signal],
                 "partial": dossier.partial,
+                # ⚠️ The CAUSES are persisted alongside the flag they explain. Without this a resumed run
+                # restores `partial=True` and an EMPTY `degrade_causes` — precisely the "partial with no
+                # cause" state this field exists to end, on the most likely path to hit it: the failure
+                # that motivates a resume is usually the failure that set the cause.
+                "degrade_causes": list(dossier.degrade_causes),
                 "truncated": dossier.truncated,
                 "spent_usd": str(budget.spent),
             },
         )
+        if save_cause:
+            dossier.partial = True
+            if save_cause not in dossier.degrade_causes:
+                dossier.degrade_causes.append(save_cause)
 
     # Load + wiring-check BOTH packs at ENTRY (before any spend) so a malformed pack / wiring bug fails
     # LOUD as ValueError at entry — never after discovery has already spent (the "only raise is at entry"
@@ -398,9 +572,16 @@ async def run(
         discovered = [c for c in res.doc.get("cards", []) if isinstance(c, dict)]
         if not res.ok:
             dossier.partial = True
+            dossier.degrade_causes.extend(
+                c for c in [res.cause] if c and c not in dossier.degrade_causes
+            )
         if res.truncated:
             dossier.truncated = True
-        discovery_done = True
+        # Only on SUCCESS. Marking a FAILED discovery done poisoned the job_id permanently: every future
+        # resume skipped discovery and returned an empty dossier forever, so one transient network blip
+        # became a permanent dead job. (Pre-existing since Phase A; a one-line correctness fix in a file
+        # this change already touches.)
+        discovery_done = res.ok
         _persist()
     dossier.competitors = discovered
 
@@ -413,6 +594,10 @@ async def run(
         url = str(card.get("url") or "").strip()
         if not name:
             dossier.partial = True  # a nameless discovered card is a degraded result, flag it
+            # …with a NAMED cause. Every `partial = True` owes one, or the brief says "some sources
+            # degraded" and gives the reader nothing to act on — the ambiguity this field exists to end.
+            if "MalformedCard" not in dossier.degrade_causes:
+                dossier.degrade_causes.append("MalformedCard")
             continue
         key = _ck(name, url)  # collision-safe: two names never share a checkpoint/skip key
         if reviews_done.get(key):
@@ -427,6 +612,9 @@ async def run(
         res = await _run_leg(deps, budget, review_brief, market, pack=reviews_pack, stage="reviews", slug=key)
         if not res.ok:
             dossier.partial = True
+            dossier.degrade_causes.extend(
+                c for c in [res.cause] if c and c not in dossier.degrade_causes
+            )
         if res.truncated:
             dossier.truncated = True
         dossier.review_signal.extend(_cards_to_signals(name, res.doc.get("cards", []), tier="C"))
@@ -439,8 +627,16 @@ async def run(
                 dossier.review_signal.extend(
                     await adapter.fetch(name, client=deps.client, config=deps.config)
                 )
-            except Exception:  # noqa: BLE001 — an adapter must never break the run
-                logger.warning("competitor_intel.adapter_failed name=%s", getattr(adapter, "name", "?"))
+            except Exception as exc:  # noqa: BLE001 — an adapter must never break the run
+                logger.warning(
+                    "competitor_intel.adapter_failed name=%s cause=%s",
+                    getattr(adapter, "name", "?"),
+                    type(exc).__name__,
+                )
+                # …and onto the DOSSIER, not only the log. This path sets `partial = True` below, and a
+                # partial flag with no cause is exactly the ambiguity `degrade_causes` exists to remove —
+                # the threading covered the research legs and the optional stages but missed this loop.
+                dossier.note_degraded(exc)
                 dossier.partial = True
 
         reviews_done[key] = True
@@ -479,17 +675,42 @@ async def run(
         dossier.match_list = match
         dossier.beat_list = beat
         if pricing_pack is not None:  # pricing needs rivals → gated on `discovered`
-            dossier.pricing = await _pricing_stage(deps, budget, discovered, market, pricing_pack, meter)
+            before = len(dossier.degrade_causes)
+            hit: list[bool] = []
+            dossier.pricing = await _pricing_stage(
+                deps, budget, discovered, market, pricing_pack, meter, dossier.degrade_causes, hit
+            )
+            # An optional leg hitting the ENGINE's per-call ceiling is a different condition from the
+            # orchestrator total being exhausted (the only one checked at the end of the run), so a
+            # silently-incomplete block was landing on a dossier reporting `truncated=False`.
+            if hit:
+                dossier.truncated = True
+            # A recorded cause that never sets `partial` is UNREACHABLE: the brief hides it and `status`
+            # still says "ok", so an enabled stage can fail completely and the consumer sees a clean,
+            # silently-incomplete dossier. The threading reached this stage but stopped one line short.
+            if len(dossier.degrade_causes) > before:
+                dossier.partial = True
             _persist()  # persist the pricing legs' + synth spend
 
     # white-space is DEMAND-side (category-level, competitor-independent) → runs even with zero rivals,
     # which is exactly the greenfield case where it matters most.
     if white_space_pack is not None:
-        dossier.white_space = await _white_space_stage(deps, budget, market, white_space_pack, meter)
+        before = len(dossier.degrade_causes)
+        hit_ws: list[bool] = []
+        dossier.white_space = await _white_space_stage(
+            deps, budget, market, white_space_pack, meter, dossier.degrade_causes, hit_ws
+        )
+        if hit_ws:
+            dossier.truncated = True
+        if len(dossier.degrade_causes) > before:
+            dossier.partial = True
         _persist()  # persist the white-space leg + synth spend
 
     if meter.degraded:  # an LLM synthesis call FAILED (not merely budget-skipped) → the dossier is partial
         dossier.partial = True
+        # The CAUSES too, not just the flag. The synthesis tail is where a ONE-arity mis-wiring actually
+        # breaks (it calls `llm(prompt)`), so this is the most diagnostic path in the module.
+        dossier.degrade_causes.extend(c for c in meter.causes if c not in dossier.degrade_causes)
     if budget.total > 0 and budget.remaining() <= 0:
         dossier.truncated = True
     dossier.spend_usd = budget.spent
@@ -517,7 +738,14 @@ def _rival_sources(name: str, card: Mapping[str, Any], signals: list[Signal]) ->
 
 
 async def _pricing_stage(
-    deps: Deps, budget: _Budget, discovered: list[dict[str, Any]], market: str, pack: Pack, meter: LlmMeter
+    deps: Deps,
+    budget: _Budget,
+    discovered: list[dict[str, Any]],
+    market: str,
+    pack: Pack,
+    meter: LlmMeter,
+    causes: list[str],
+    truncated: list[bool],
 ) -> PricingBlock:
     """Run the pricing research leg per rival (metered, checkpointed, never-raising) → synthesize the
     price-wedge. Degrades to an empty block when the budget is exhausted."""
@@ -531,6 +759,11 @@ async def _pricing_stage(
             deps, budget, {"competitor_name": name, "competitor_url": url}, market,
             pack=pack, stage="pricing", slug=_ck(name, url),
         )
+        # an optional stage degrades just as silently as a mandatory one — its cause is owed too
+        if res.cause and res.cause not in causes:
+            causes.append(res.cause)
+        if res.truncated:
+            truncated.append(True)
         texts = [
             (str(c.get("snippet") or ""), str(c.get("source_url") or ""))
             for c in res.doc.get("cards", [])
@@ -542,7 +775,13 @@ async def _pricing_stage(
 
 
 async def _white_space_stage(
-    deps: Deps, budget: _Budget, market: str, pack: Pack, meter: LlmMeter
+    deps: Deps,
+    budget: _Budget,
+    market: str,
+    pack: Pack,
+    meter: LlmMeter,
+    causes: list[str],
+    truncated: list[bool],
 ) -> WhiteSpaceBlock:
     """Run the white-space demand research leg (subject = the market/category) → synthesize corroborated
     unmet needs. Degrades to an empty block when the budget is exhausted."""
@@ -550,6 +789,10 @@ async def _white_space_stage(
         deps, budget, {"category": market, "market": market}, market,
         pack=pack, stage="white-space", slug="all",
     )
+    if res.cause and res.cause not in causes:
+        causes.append(res.cause)
+    if res.truncated:
+        truncated.append(True)
     sources = [
         (str(c.get("snippet") or ""), str(c.get("source_url") or ""))
         for c in res.doc.get("cards", [])
