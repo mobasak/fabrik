@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `/fabrik-rivals`: 16 defects from the adversarial review it shipped without (2026-08-27)
+
+- `scripts/rivals_run.py` + the command source + `docs/reference/rivals-command.md`: an eight-round
+  `/fabrik-review` over the surface shipped in `a21b4cb8`/`bd20e79d`. It had passed a green gate and
+  a live run, but a gate is lint/type/tests — and this surface's whole thesis is *"a broken run looks
+  like a good one"*, so hunting that class everywhere except its own code was the wrong gap.
+- **An unbounded subprocess.** `proc.communicate()` took no timeout, so a wedged `claude -p` hung the
+  run forever: the retry loop never reached its next attempt, and the engine's ceiling bounds SPEND,
+  not wall-clock. Now `asyncio.wait_for` + kill + retry, bounded by `RIVALS_LLM_TIMEOUT_S`.
+- **A render raise destroyed a paid run.** `render_dossier_md` reads an LLM-shaped dict and raised
+  `AttributeError` on a bare-string competitor — and ran BEFORE the JSON was written, so the money
+  was spent and BOTH artifacts were lost. The paid JSON now lands first; the renderer is defensive
+  as the belt and the ordering is the brace.
+- **A missing search key raised nowhere** — the leg failed, the engine degraded, and the run returned
+  an empty dossier with `partial=True`. The same fail-silent-green shape as `--budget 0`, now caught
+  in the pre-flight with the key NAMED, because the engine cannot say which one.
+- **Markdown injection from LLM/web content**, into a document a spec is decided on. The class
+  reopened three times, each a narrower guard: table cells, then the rival URL (a `javascript:`
+  target the operator is invited to click) and the H1, then four header/BEAT sinks. Closed
+  structurally — every interpolation is wrapped, and the line-boundary table is DERIVED from
+  `str.splitlines()` rather than hand-listed, which is how `\f`, `\v`, U+2028 and U+2029 were missed.
+- **446 lines of driver had ZERO tests; now 69**, each proven red-on-revert with the source restored
+  byte-identical. One test was itself the bug — its assertion looked for a literal `\n## X` and passed
+  because the sanitiser had percent-encoded the space to `\n##%20X` while the newline still broke
+  out; it asserts on structure now. Two mutations initially reported a verdict from a pattern that
+  did not apply (`ruff format` had moved it) and were re-run before anything was recorded.
+- Round 8 swept 90 injection combinations and 8 hostile payload shapes clean: `found: 0, fixed: 0`.
+  Review: `docs/development/reviews/2026-08-27-fabrik-rivals-surface-review.md`.
+
 ### Added — saas/95-multi-tenant-saas: the sanctioned cross-tenant payments-ingest path (2026-08-26)
 
 - The rule-pack slice fleet's payments-ingest build left owed (`01M0WPW3`, `.windsurf/rules/` being
