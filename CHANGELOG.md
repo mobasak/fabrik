@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — flywheel gate diagnoses the repo=<name> nested-ledger trap instead of claiming ZERO runs (2026-08-28)
+
+- `fanout(repo="<name>")` called from inside a repo writes the ledger to
+  `<root>/<name>/.tmp/subagents/` while the gate reads the real path — the runs happen, the
+  gate says "ZERO pool runs recorded", and the agent's natural next move is a false NO-POOL
+  declaration (job-agent `01M0Z2B420`). `check_subagent_flywheel.py` now probes the nested
+  path before the zero-claim and, when in-cycle rows exist there, names the trap, the cause,
+  and the 30-second recovery (still exit 1 — the ledger location must be fixed). Fleet sweep
+  confirmed the trap live in fabrik, transdoc, and tryton-crm; the hub's own stray
+  (`/opt/fabrik/fabrik/`, 12 rows) was recovered into the real ledger (backup in `backups/`)
+  and the dir removed — it had also been namespace-shadowing `import fabrik`. The canonical
+  seam fix (validate `repo=` at dispatch entry) is routed to fabrik-lib, whose in-flight
+  NVIDIA re-vendor owns `agent.py`. Red-first regression test.
+
 ### Fixed — two dead Kilo test modules broke pytest collection repo-wide (2026-08-28)
 
 - `tests/test_kilo_review_validation.py` + `tests/test_kilo_strictness_scenarios.py` imported

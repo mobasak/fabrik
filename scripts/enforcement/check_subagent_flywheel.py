@@ -250,6 +250,24 @@ def _pool_or_declare(ledger_path: Path) -> int:
         return 0
     if _in_cycle_pool_runs(ledger_path, _merge_base_epoch()) > 0:
         return 0  # the pool WAS dispatched this cycle
+    # The nested-path trap BEFORE the zero-claim: `fanout(repo="<name>")` called from inside
+    # the repo resolves the ledger to <root>/<name>/.tmp/subagents/ — the runs HAPPEN, this
+    # gate reads the real path, and "ZERO recorded" pushes the agent toward a false NO-POOL
+    # declaration (job-agent 01M0Z2B420; fleet sweep found live strays in fabrik, transdoc,
+    # tryton-crm). When in-cycle rows exist at the nested path, say THAT — the remedy is a
+    # 30-second merge, not a declaration.
+    nested = PROJECT_ROOT / PROJECT_ROOT.name / ".tmp" / "subagents" / "ledger.jsonl"
+    if nested.exists() and _in_cycle_pool_runs(nested, _merge_base_epoch()) > 0:
+        real = PROJECT_ROOT / ".tmp" / "subagents" / "ledger.jsonl"
+        print(
+            f"SUBAGENT FLYWHEEL (BLOCKING): pool runs WERE recorded this cycle — into the "
+            f"nested-path trap {nested}, which this gate does not read. Cause: a dispatch "
+            f'passed repo="{PROJECT_ROOT.name}" (a bare name, joined to CWD) instead of the '
+            f"project ROOT path. Recover: append the nested rows to {real}, delete the stray "
+            f"{nested.parent.parent.parent} directory, and pass repo= as an absolute root "
+            "from now on. Do NOT declare NO-POOL — the pool ran."
+        )
+        return 1
     print(
         f"SUBAGENT FLYWHEEL (BLOCKING): {code} code files changed this cycle but ZERO OpenRouter pool "
         "subagent runs were recorded — the pool-default review/implement fan-out was skipped "

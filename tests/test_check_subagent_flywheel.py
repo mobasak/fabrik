@@ -324,3 +324,28 @@ def test_advisory_corrupt_ledger_is_safe(tmp_path):
     ledger.write_bytes(b"\xff\xfe not valid utf-8 \x80\x81\n")
     r = _run_advisory(ledger)
     assert r.returncode == 0, r.stderr  # advisory never blocks, even on a corrupt ledger
+
+
+def test_nested_trap_ledger_is_diagnosed_not_reported_as_zero(tmp_path, monkeypatch, capsys):
+    """job-agent 01M0Z2B420: fanout(repo="<name>") from inside the repo writes the ledger to
+    <root>/<name>/.tmp/subagents/ — the runs HAPPEN, the gate reads the real path, reports
+    "ZERO pool runs" and blocks, and the agent's natural next move is a false NO-POOL
+    declaration. Fleet sweep found the trap live in fabrik, transdoc, and tryton-crm. When
+    in-cycle rows exist at the nested path, the gate must name the trap and the recovery,
+    never claim zero."""
+    mod = _load()
+    root = tmp_path / "myrepo"
+    nested = root / "myrepo" / ".tmp" / "subagents" / "ledger.jsonl"
+    nested.parent.mkdir(parents=True)
+    _write_ledger(nested, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    monkeypatch.setattr(mod, "_pool_available", lambda: True)
+    monkeypatch.setattr(mod, "_changed_code_files", lambda: 20)
+    monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
+    monkeypatch.setattr(mod, "_merge_base_epoch", lambda: 1_000_000.0)
+    real_ledger = root / ".tmp" / "subagents" / "ledger.jsonl"  # absent
+    assert mod.check(real_ledger) == 1, "a broken ledger location still blocks"
+    out = capsys.readouterr().out
+    assert "nested" in out.lower(), f"the trap must be named, not reported as zero:\n{out}"
+    assert "ZERO OpenRouter pool" not in out, "the misleading zero-claim must not print"
+    assert "repo=" in out, "the root cause (repo= misuse) must be named"
