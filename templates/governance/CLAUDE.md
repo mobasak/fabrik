@@ -45,7 +45,7 @@ what makes an in-flight command visible and un-abandonable.
 
    | Stage | Covers |
    |---|---|
-   | `1-design` | idea → grounded design spec |
+   | `1-design` | competitive evidence (`/fabrik-rivals` — runs right here, no hub session) then idea → grounded design spec |
    | `2-contract` | freeze the journey, data and/or UI contracts before planning |
    | `3-plan` | approved decisions → execution-ready plan |
    | `4-build` | execute the plan — code, tests, docs, phase by phase |
@@ -261,7 +261,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
 
 ## Pipeline — next-command chaining (every `/fabrik-*` command ends by pointing to the next)
 
-**The flow:** idea → **/fabrik-spec** → /fabrik-spec-review → *(early, recommended)* **/fabrik-features** (pin the PLANNED inventory) → **/fabrik-flows** → /fabrik-flows-review (journeys — every scaffold type) → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → *(denominator refresh)* **/fabrik-features** → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release** → **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify** (this bold tail is the VPS route ONLY; store surfaces skip it: operator submits after /fabrik-release, then /fabrik-deploy-verify).
+**The flow:** idea → *(market-facing? recommended)* **/fabrik-rivals** (competitive evidence BEFORE the spec: MATCH seeds features-to-build, BEAT seeds problems-to-solve; runs in THIS repo — `scripts/rivals_run.py` is fleet-synced and resolves the engine local-first then the hub) → **/fabrik-spec** → /fabrik-spec-review → *(early, recommended)* **/fabrik-features** (pin the PLANNED inventory) → **/fabrik-flows** → /fabrik-flows-review (journeys — every scaffold type) → *(data-shaped)* **/fabrik-data-contract** → *(GUI only)* **/fabrik-ui-design** → /fabrik-ui-design-review → **/fabrik-plan-after-chat** → /fabrik-plan-review → **/fabrik-execute-plan** (which per phase interleaves /fabrik-review + /fabrik-generate-tests + /fabrik-docs-review) → *(denominator refresh)* **/fabrik-features** → **end-to-end certification: /fabrik-user-test** (UI-bearing types) **| /fabrik-service-test** (headless types) → **/fabrik-release** → **/fabrik-deploy-plan → /fabrik-deploy-plan-review → (Gate 2) /fabrik-deploy → /fabrik-deploy-verify** (this bold tail is the VPS route ONLY; store surfaces skip it: operator submits after /fabrik-release, then /fabrik-deploy-verify).
 
 Every `/fabrik-*` command, at the end of its run, applies these three (lean — one line, not a section):
 1. **Name the NEXT command** in the flow (+ the one-line why) so the operator chains without re-deriving it.
