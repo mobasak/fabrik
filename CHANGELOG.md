@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — /fabrik-review on the command-evaluation checklist: 6 findings, converged at round 3 (2026-08-27)
+### Fixed — /fabrik-review on the command-evaluation checklist: 8 findings, converged at round 5 (2026-08-27)
 
 A checklist is uniquely falsifiable by its own items, so items 32 (verify every cited path), 83
 (every statement factual) and 85 (classify citations) were run AGAINST THE DOC — three of the five
@@ -15,6 +15,12 @@ re-derived, and propagated to the INDEX row and the CHANGELOG; two of `check_com
 five predicates having no numbered `[GATED]` item, so a manual auditor would silently skip them
 (added as `7b`/`62b` via the sibling checklist's sub-numbering, leaving 100 items unrenumbered); and
 an anti-pattern described in the present tense hours after both its instances were fixed.
+
+Two further findings were raised by `check_review_coverage.py` against the REVIEW REPORT itself, and
+correctly: rounds 1-3 derived their class list from memory and never ran `review_rubric.py`, and two
+standing recurrence classes were missing. The run was in breach of the contract it was enforcing on
+someone else. (Embedding the rubric inside a fence still failed — the detector strips fenced blocks
+by design, so a quoted example cannot satisfy the obligation.)
 
 One finding REFUTED: a reported heading-level skip was the detecting script misfiring on the first
 heading, not a doc defect.
