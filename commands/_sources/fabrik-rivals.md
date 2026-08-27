@@ -142,6 +142,18 @@ re-reads.
 
 ## Phase 3 — the artifact, and the hand-off
 
+⚠️ **`--out` must be on the FIRST invocation of the final round.** Without it the driver renders to
+STDOUT and writes NOTHING — so a no-flag round run to "read it first" produces no artifact and has to
+be run again in full (youtube, 2026-08-27: ~9 wasted minutes). The final round is literally:
+
+```bash
+python scripts/rivals_run.py --market "<market>" [--us-name "<our product>"] \
+  --out docs/reference/rivals/<slug>
+```
+
+`--out <slug>` writes BOTH `<slug>.json` and `<slug>.md` (`rivals_run.py:818`) — pass the path WITHOUT
+an extension. Read the dossier from the written file; do not trade a write for a preview.
+
 Write `docs/reference/rivals/<market>.md` from **`rivals_run.py::render_dossier_md(dossier.to_dict())`**
 — not from `dossier.to_markdown()`. ⚠️ **The reason is a SHAPE mismatch, not a quality gap** (corrected
 2026-08-27): `to_markdown()` requires the live TYPED `Dossier` (`m.universal`, `b.weight` — it raises
