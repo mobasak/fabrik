@@ -1,6 +1,6 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: CONVERGED — md5-verified no-op round (b0266c18), 2 rounds, 5 findings fixed
+Status: CONVERGED — 3 rounds, 6 findings fixed; final round a no-op
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product
@@ -88,30 +88,46 @@ the proposal did not know was absent.
 
 ## Behavior Contract
 
-One test per distinct observable behaviour, risk-ordered, TDD for the risky ones:
+One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
 
-1. A ledger with any `UNVISITED` ID → the check reports NOT CONVERGED.
-2. A ledger where every ID is `EXERCISED` or `OUT-OF-SCOPE(reason)` → converged.
-3. `OUT-OF-SCOPE` with an empty/missing reason → rejected (a bare disposition is not a justification).
-4. **`DEFERRED` appearing anywhere in a ledger → rejected as an unknown disposition**, naming the
-   operator ruling. This is the clause most likely to be re-introduced by someone reading the
-   upstream proposal instead of this plan.
-5. A close-time re-enumeration that finds an ID absent from the ledger → NOT CONVERGED (anti-cheat).
-6. A ledger whose `source` is a doc rather than a registry → rejected; the doc inventory is a
-   cross-check, never the denominator.
-7. A generator that could not reach its registry → the ledger records the refusal and the check
-   fails LOUD, naming what could not be enumerated.
-8. Missing ledger entirely → advisory WARN on landing (never a hard red), per the rollout ruling.
-9. **The check never turns the gate red on landing** — `warn_only=True` and exit 0 on EVERY path,
-   including the guard's own error path. `scripts/final_gate.py:198-208` converts a non-zero
-   `warn_only` exit into a blocking red fleet-wide, and this class has now bitten twice in one week:
-   `check_plan_lock_release` hit it five times during its build, and a sibling check reddened ~46
-   repos via the `wordpress` `NotImplementedError`. **Write this test FIRST (TDD) and copy
-   `check_plan_lock_release.py`'s guard shape verbatim** — a `try` around the WHOLE body including
-   the output path, catching the CLASS, with the message naming `type(exc).__name__` and never
-   `repr(exc)`.
-10. The evidence path recorded against an `EXERCISED` ID must **exist on disk**; a ledger row citing
-    a path nobody produced is rejected.
+- **Given** a generated ledger containing any ID whose disposition is `UNVISITED`, **When** the
+  grader runs, **Then** it reports NOT CONVERGED and names the unvisited IDs.
+- **Given** a ledger where every ID is `EXERCISED` or `OUT-OF-SCOPE(reason)`, **When** the grader
+  runs, **Then** it reports CONVERGED with the computed fraction.
+- **Given** a row dispositioned `OUT-OF-SCOPE` with an empty or missing reason, **When** the grader
+  runs, **Then** the row is rejected — a bare disposition is not a justification.
+- **Given** a row dispositioned `DEFERRED`, **When** the grader runs, **Then** it is rejected as an
+  unknown disposition, citing the operator ruling. *(This is the clause most likely to be
+  re-introduced by someone reading the upstream proposal, which proposes `DEFERRED`, instead of this
+  plan.)*
+- **Given** an `EXERCISED` row whose evidence path does not exist on disk, **When** the grader runs,
+  **Then** the row is rejected — the strongest mechanical proxy for "the assertion was real".
+- **Given** a close-time re-enumeration of the registry that yields an ID absent from the ledger,
+  **When** the grader diffs them, **Then** it reports NOT CONVERGED (the anti-cheat).
+- **Given** a ledger whose `source` resolves to a doc rather than a registry, **When** the grader
+  runs, **Then** it is rejected — the doc inventory is a cross-check, never the denominator.
+- **Given** a generator that could not reach its declared registry, **When** it emits the ledger,
+  **Then** the refusal is recorded and the grader fails LOUD naming what could not be enumerated —
+  never a silently short list.
+- **Given** a project with `type: wordpress`, **When** the grader resolves its registry, **Then** it
+  returns "no registry — type retired" and exits 0 WITHOUT reaching the scaffolder
+  (`src/fabrik/scaffold.py:5783` raises `NotImplementedError`; `:146` keeps the type in
+  `SCAFFOLD_TYPES`, and that combination turned a sibling `warn_only` check into a blocking red
+  across ~46 repos).
+- **Given** a project with no ledger at all, **When** the grader runs on landing day, **Then** it
+  WARNs and exits 0 — advisory rollout, never a hard red.
+- **Given** ANY input at all, including a corrupt ledger and a raising guard path, **When** the
+  grader runs, **Then** it exits 0. `scripts/final_gate.py:198-208` converts a non-zero `warn_only`
+  exit into a blocking red fleet-wide; this class bit `check_plan_lock_release` five times in one
+  week. **Write this test FIRST (TDD)** and copy `check_plan_lock_release.py`'s guard shape verbatim
+  — a `try` around the WHOLE body including the output path, catching the CLASS, with the message
+  naming `type(exc).__name__` and never `repr(exc)`.
+
+- **Mocked:** nothing is mocked in the grader's own tests — they run against ledger FIXTURES written
+  to `tmp_path`, which is the real parser against real files. The registry PROBES (Phase B) are the
+  only mocked surface: a live ERP/route-table is not reachable from a unit test, so each probe is
+  tested against a captured registry fixture, with the live path proven once against tryton-crm's
+  reference generator (Phase D2).
 
 ## Context Files
 
@@ -311,12 +327,21 @@ it and the output is signal rather than noise. Not in this plan.
 | Round | classes swept | found | fixed |
 |---:|---|---:|---:|
 | 1 | ungradeable-clauses · warn-only-exit · declaration-residual · scaffold-type-coverage · doc-allowlist | 5 | 5 |
-| **2 (terminal)** | the same five, re-swept | **0** | **0** |
+| 2 | the same five, re-swept | 0 | 0 |
+| **3 (gate-driven)** | Behavior Contract FORMAT — the gate found what all three prose rounds missed | 1 | 1 |
 
 Round 2 made no edits — `md5 b0266c18` unchanged — so this is a genuine no-op exit, not a
 re-derivation. The five round-1 findings were: the `wordpress` gap (the dangerous one), the
 unsettled declaration home, the ungradeable evidence clause, the under-stated `warn_only` exit
 contract, and an allowlist claim resting on a citation rather than an executed verdict.
+
+⚠️ **Round 3 was the GATE, not me, and it is the most instructive round.** `final_gate` rejected the
+plan: *"Behavior Contract missing the Given/When/Then structure"* (`check_test_proposal.py:200-205`).
+Three prose review rounds had audited whether each row was *gradeable* and never checked whether the
+section met the FORMAT the gate actually enforces — a plan whose entire thesis is *"a contract with
+no grader gets ignored"*, failing its own grader. Rewritten as Given/When/Then, and the `Mocked:`
+line the format also requires is now present. This is the same lesson the plan encodes: prose review
+is not a substitute for running the check.
 
 ⚠️ **One round-2 candidate was withdrawn as a probe artifact, not a plan defect.** A gradeability
 sweep reported 3 Behavior Contract rows with "no mechanical verdict"; the regex had captured only
