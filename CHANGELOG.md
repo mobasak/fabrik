@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-flows froze a contract and never told anyone to review it (2026-08-28)
+
+- Command 5 of 31 audited against `docs/reference/command-evaluation-checklist.md`. It is a
+  **producer-with-twin**, whose contract (checklist § Contract & Termination) is a self-review plus a
+  **mandatory invocation of the twin**. `/fabrik-flows` had the self-convergence and the
+  "no consumer against a DRAFT" rule, but **nothing in the body directed the agent to
+  `/fabrik-flows-review`** — an agent following the command exactly ends at `FROZEN` and stops.
+- Measured against the closest structural sibling: `/fabrik-ui-design` (also 2-contract, also
+  self-converges to FROZEN, also twinned) guards it three ways — a `never` entry, a dedicated
+  `## Next` section, and "Do NOT begin planning until the review attests". `/fabrik-flows` had none.
+  It mattered here more than anywhere: `docs/flows.md` is the contract every downstream freeze reads.
+- Added the `## Next` section and a `FROZEN is not attested` guard at the hand-off point.
+- Clean on the rest: `argument-hint`, `Stage: 2-contract`, NEXT map, `run-record` + `term-edit`
+  fragments, and it IS graded (`check_frozen_chain.py`, `check_stage_artifacts.py`).
+
+
 ### Fixed — advertised TRIGGER phrases that reached the wrong command; the routing pass (2026-08-28)
 
 - **Measured, not assumed:** all 71 advertised EN `TRIGGER` phrases run through the live

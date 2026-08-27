@@ -162,7 +162,7 @@ arc set).
 
 Then converge: re-walk the whole artifact; fix; repeat until a full pass makes **zero edits** (md5 the file
 before/after the closing pass — identical hashes are the proof). Set `Status: FROZEN`, bump `Version`.
-**Present the frozen contract + the flow index to the user** — the freeze stands unless they redirect.
+**Present the frozen contract + the flow index to the user** — the freeze stands unless they redirect. **`FROZEN` is not `attested`:** handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next).
 
 **Freeze law (verbatim into the artifact):** *any journey/persona/flow change = bump `Version` +
 re-freeze via `/fabrik-flows` — never edit in place. Downstream consumers
@@ -189,5 +189,17 @@ holds the diff that names what changed, so only this run can say what the re-fre
    projects.domain needs a §5.3 control; §5.11 'unbuildable' passages now stale`) — never the first-run
    pipeline chain line. The gate's WARN will nag until that re-freeze lands; the impact list is the part
    only you know.
+
+## Next — run `/fabrik-flows-review` (the independent pass, before any consumer)
+
+Freezing here is the AUTHOR'S convergence: it cannot catch its own blind spots, and this contract is the
+one every downstream freeze reads. Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner
+consumes it, run **`/fabrik-flows-review`** on it — the independent, author-blind pass that re-traces every
+Success Criterion, re-derives the SECOND-ACTOR and life-cycle-arc coverage, and converges to its own
+edit-free md5 no-op. The split mirrors `/fabrik-spec` → `/fabrik-spec-review`.
+
+**Do NOT let a consumer freeze against a contract the review has not attested** — a `FROZEN` status is the
+author's word; the review is what makes it independent. If the review surfaces something it cannot
+reconcile, it routes back here; resolve that before the contract is consumed.
 
 {{include:subagents-core}}
