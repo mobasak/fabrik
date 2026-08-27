@@ -428,3 +428,101 @@ def test_the_declaration_key_follows_the_shipped_precedent():
     )
     assert "has_user_guide" in src, "the precedent must be cited where the key is defined"
     assert "Shape" in src, "the rejected home must be named so it is not re-proposed"
+
+
+# ── the "declared but never consumed" class — found by review AFTER this shipped ────────────────
+
+
+def _project(tmp_path: Path, *, ptype: str = "saas-skeleton", declared: str | None = None) -> None:
+    lines = ["name: probe", f"type: {ptype}"]
+    if declared:
+        lines.append(f"certification_registry: {declared}")
+    (tmp_path / "project.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_a_declared_registry_is_actually_read(tmp_path):
+    """⚠️ This is the test that was MISSING. `DECLARATION_KEY`, `REGISTRY_BY_TYPE` and
+    `RETIRED_TYPES` shipped DEFINED, DOCUMENTED and asserted-by-tests — and read by NOTHING. The
+    whole declaration contract was inert. The old tests checked the constants' CONTENTS; a constant's
+    contents being right says nothing about whether anyone consults it."""
+    _project(tmp_path, declared="registry:ir_ui_menu")
+    source, how = cc.resolve_registry(tmp_path)
+    assert how == "declared" and source == "registry:ir_ui_menu"
+
+
+def test_an_undeclared_source_falls_back_and_records_it(tmp_path):
+    """A declared-and-justified fallback is auditable; an inferred one is not."""
+    _project(tmp_path, ptype="chrome-extension")
+    source, how = cc.resolve_registry(tmp_path)
+    assert how == "fallback:chrome-extension"
+    assert "MV3" in source
+    _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    _ledger(_board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"]))
+    assert "REGISTRY FALLBACK" in _labels(_run(tmp_path)[0])
+
+
+def test_a_retired_type_never_reaches_the_scaffolder(tmp_path):
+    """`wordpress` raises NotImplementedError at scaffold.py:5783 while :146 keeps the string; a
+    sibling check that let that escape reddened ~46 repos."""
+    _project(tmp_path, ptype="wordpress")
+    source, how = cc.resolve_registry(tmp_path)
+    assert how == "retired:wordpress" and source == ""
+
+
+def test_an_unknown_type_is_reported_not_guessed(tmp_path):
+    _project(tmp_path, ptype="not-a-real-type")
+    _ledger(_board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"]))
+    assert "NO REGISTRY DECLARED" in _labels(_run(tmp_path)[0])
+
+
+def test_no_module_constant_is_dead():
+    """The class this whole check exists to catch, turned on the check itself. A constant that is
+    defined, documented and never read is a contract nobody enforces — exactly the prose-inventory
+    defect one level down. Six of them shipped before a review caught it."""
+    import re as _re
+
+    src = (REPO / "scripts" / "enforcement" / "check_certification_coverage.py").read_text(
+        encoding="utf-8"
+    )
+    body = src.split('"""', 2)[2]
+    dead = []
+    for name in _re.findall(r"^([A-Z][A-Z0-9_]{3,})\s*[:=]", body, _re.M):
+        if len(_re.findall(rf"\b{name}\b", body)) <= 1:
+            dead.append(name)
+    assert not dead, f"module constants defined but never consumed: {dead}"
+
+
+def test_the_cert_board_pattern_is_wired_into_the_allowlist():
+    """⚠️ The severe one: `CERT_BOARD_RE` was defined in check_doc_sprawl and never added to
+    `ALLOWED_PATTERNS`, so a real cert board was BLOCKED (exit 1) by the very gate the plan claimed
+    to have updated. The CLAUDE.md allowlist row was prose with dead code behind it."""
+    sp = (REPO / "scripts" / "enforcement" / "check_doc_sprawl.py").read_text(encoding="utf-8")
+    assert "CERT_BOARD_RE" in sp
+    patterns_block = sp.split("ALLOWED_PATTERNS", 1)[1].split("]", 1)[0]
+    # ⚠️ A substring check passes on a COMMENTED-OUT entry — caught when the mutation
+    # `# CERT_BOARD_RE,` left this green. Assert on an ACTIVE, uncommented line.
+    active = [
+        ln
+        for ln in patterns_block.splitlines()
+        if "CERT_BOARD_RE" in ln and not ln.strip().startswith("#")
+    ]
+    assert active, (
+        "CERT_BOARD_RE is not an ACTIVE entry in ALLOWED_PATTERNS — a real cert board would be "
+        "blocked by the gate that is supposed to permit it"
+    )
+    # ...and prove it end-to-end rather than by reading the list.
+    import importlib.util as _iu
+    import sys as _sys
+
+    # check_doc_sprawl imports its sibling `validate_conventions`, so the enforcement dir must be
+    # importable — an ad-hoc spec load does not set that up for us.
+    _sys.path.insert(0, str(REPO / "scripts" / "enforcement"))
+    _s = _iu.spec_from_file_location("ds", REPO / "scripts" / "enforcement" / "check_doc_sprawl.py")
+    ds = _iu.module_from_spec(_s)
+    _s.loader.exec_module(ds)
+    ok = "docs/development/certifications/2026-08-27-cert-web/TC01-menus.md"
+    bad = "docs/development/certifications/2026-08-27-cert-web/T01-menus.md"
+    assert any(p.match(ok) for p in ds.ALLOWED_PATTERNS), "a real cert ticket must be permitted"
+    assert not any(p.match(bad) for p in ds.ALLOWED_PATTERNS), (
+        "a T## implementation ticket must NOT be permitted on a cert board"
+    )

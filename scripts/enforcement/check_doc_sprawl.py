@@ -75,6 +75,7 @@ ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
 # Fleet effect measured after the fix: 2272 -> 22 blocking files (vendor trees excluded).
 # Allowed patterns for new files - STRICT matchers
 ALLOWED_PATTERNS = [
+    CERT_BOARD_RE,  # cert boards — the pattern above; defining it without listing it here left it DEAD
     # Dated plan documents: docs/development/plans/YYYY-MM-DD-plan-<name>.md —
     # FLAT only ([^/]+): nested paths are governed by the spine+ticket pattern
     # below, so junk like <plan-dir>/notes/scratch.md is no longer admitted by

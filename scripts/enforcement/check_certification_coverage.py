@@ -164,6 +164,47 @@ def parse_board(text: str) -> tuple[list[dict[str, str]], list[str]]:
     return rows, problems
 
 
+def resolve_registry(root: Path) -> tuple[str, str]:
+    """Resolve the declared denominator source. Returns (source, how) where `how` is
+    'declared' | 'fallback:<type>' | 'unknown'.
+
+    ⚠️ This function exists because a review found `DECLARATION_KEY`, `REGISTRY_BY_TYPE` and
+    `RETIRED_TYPES` were DEFINED, DOCUMENTED, ASSERTED-BY-TESTS — and never read by anything. The
+    whole Phase-B declaration contract was inert: prose plus constants plus a test that checked the
+    constants' CONTENTS rather than their EFFECT. That is the same "declared and never consumed"
+    defect this check exists to catch, committed inside the check itself.
+    """
+    py = root / "project.yaml"
+    if not py.is_file():
+        return "", "unknown"
+    ptype = ""
+    declared = ""
+    try:
+        for line in py.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = line.strip()
+            if s.startswith("type:"):
+                ptype = s.split(":", 1)[1].strip().strip("\"'")
+            elif (
+                s.startswith(f"{DECLARATION_KEY}:")
+                or declared == ""
+                and s.startswith("source:")
+                and DECLARATION_KEY in py.read_text(encoding="utf-8", errors="replace")
+            ):
+                declared = s.split(":", 1)[1].strip().strip("\"'")
+    except Exception:
+        return "", "unknown"
+    if declared:
+        return declared, "declared"
+    if ptype in RETIRED_TYPES:
+        # Never reach the scaffolder for a retired type: scaffold.py:5783 raises
+        # NotImplementedError while :146 keeps the string, and a sibling check that let that escape
+        # reddened ~46 repos.
+        return "", f"retired:{ptype}"
+    if ptype in REGISTRY_BY_TYPE:
+        return REGISTRY_BY_TYPE[ptype], f"fallback:{ptype}"
+    return "", "unknown"
+
+
 def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
     """Grade every cert board under the project. Never raises for a data reason."""
     findings: list[Finding] = []
@@ -209,6 +250,38 @@ def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
     cert_root = root.joinpath(*CERT_DIR)
     if not cert_root.is_dir():
         return findings, counters
+
+    # The declaration is RESOLVED and REPORTED — an undeclared fallback must be as auditable as a
+    # declared source, which is the difference between a recorded default and an inferred one.
+    source, how = resolve_registry(root)
+    if how == "unknown":
+        findings.append(
+            Finding(
+                "NO REGISTRY DECLARED",
+                f"project.yaml has no `{DECLARATION_KEY}:` and its type has no "
+                f"default — the denominator source must be declared, never inferred",
+            )
+        )
+    elif how.startswith("fallback:"):
+        findings.append(
+            Finding(
+                "REGISTRY FALLBACK",
+                f"no `{DECLARATION_KEY}:` declared; using the {how.split(':')[1]} "
+                f"default ({source}). A declared-and-justified fallback is auditable; record it.",
+            )
+        )
+    elif how.startswith("retired:"):
+        findings.append(
+            Finding(
+                "RETIRED TYPE",
+                f"project type {how.split(':')[1]!r} is retired — no registry, and the "
+                f"scaffolder must never be reached for it",
+            )
+        )
+
+    # The cert lock belongs in its OWN namespace; its absence is not an error (a run may not be in
+    # flight), but a lock in the WRONG dir is the blocking mix-up handled above.
+    _ = root.joinpath(*CERT_LOCK_DIR)
 
     for board_dir in sorted(p for p in cert_root.iterdir() if p.is_dir()):
         if not CERT_DIR_NAME_RE.match(board_dir.name):
@@ -290,7 +363,7 @@ def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
             elif disp == UNVISITED or not disp:
                 counters["unvisited"] += 1
                 findings.append(Finding("UNVISITED", f"{tid}: not terminal — blocks the close"))
-            elif disp == "EXERCISED":
+            elif disp in TERMINAL and disp == "EXERCISED":
                 counters["exercised"] += 1
                 ev = _cell(row.get("evidence"))
                 if not ev or ev in {"-", "—"}:
@@ -305,7 +378,7 @@ def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
                             f"strongest mechanical proxy for 'the assertion was real'",
                         )
                     )
-            elif disp == "OUT-OF-SCOPE":
+            elif disp in TERMINAL and disp == "OUT-OF-SCOPE":
                 counters["out_of_scope"] += 1
                 low = reason.lower()
                 if not reason:
