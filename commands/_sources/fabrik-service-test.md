@@ -115,6 +115,14 @@ ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are 
 they describe how OUR surface came to exist, not whether a customer can click it, and inherited
 surfaces are exactly what the T3 generated-smoke tier is FOR.
 
+**Bulk marking is where a deny-list leaks — and the grader never records.** A sweep flag
+(`--tier`/`--kind`/any multi-id form) must pass the SAME per-id refusals as a single mark: the
+reference implementation's first live sweep marked 39 navigation containers `EXERCISED` via a
+screen suite that never touched them because the sweep path skipped the modelless-entry refusal
+(tryton-crm, fixed and re-proven 424→385). And recording stays OUT of the grader by design — a
+checker that can also mark things done will eventually mark things done; retiring an id goes
+through the recorder (evidence mandatory), the grader only reads.
+
 **The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT
 mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
 feature with zero mapped IDs cannot be reported as working.** That clause survived the denominator
