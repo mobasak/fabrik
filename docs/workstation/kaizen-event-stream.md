@@ -112,7 +112,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `run_open` | `command`, `phases`, `terminal`, `nested` | `scripts/command_run.py start` |
 | `phase` | `n`, `title` | `scripts/command_run.py step` |
 | `round` | `n`, `findings`, `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
-| `run_close` | `verdict` (`done`\|`blocked`), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds` | `scripts/command_run.py done`/`blocked` |
+| `run_close` | `verdict` (`done`\|`blocked`), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `packs: [{pack, globs_fired}]` — labelled *invocation-time* activation | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
 | `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`), `outcome` (`blocked`\|`warned_through`) | `.claude/hooks/final_gate_stop.py` |
@@ -177,6 +177,26 @@ Every metric is registered with a version, a definition hash, and a **reciprocal
 | Metric | Counter pair | Level | Source |
 |---|---|---|---|
 | `rules_compliance` | `terminator_spam` | run_close events | T06 collector |
+
+### `feedback` — why `unstated` is a third value, not a synonym for `none`
+
+Added 2026-08-27 with the close-out feedback duty (`commands/_fragments/close-feedback.md`,
+auto-appended to all 31 commands). The agent running a command is the only witness to how the
+machinery behaved on that run, and `--feedback` is how that verdict reaches the stream.
+
+- `filed` — a beat was named; something was routed. `feedback_to` says which.
+- `none` — the agent looked and had nothing to file. **A real answer.**
+- `unstated` — no `--feedback` was passed at all.
+
+Collapsing `unstated` into `none` would report perfect diligence for a corpus nobody ever looked at —
+the fail-silent-green shape reproduced inside the telemetry built to measure it. The prose never
+enters the store; only a `blake2s` hash, on the same contract `evidence_hash` already keeps.
+
+**Consumer status:** the stream now CARRIES the signal; the kaizen log's `Filed (spec/mail)` cell is
+still the analyst's to type. Wiring it to the measured count belongs in `kaizen_outcomes` alongside
+the other windowed metrics (its day-scoped delta rows and the 20% attribution floor), and
+`_merge_cells` must first be changed so a computed value can never overwrite an analyst's prose — its
+current rule lets a real new value win. Both are open; neither is bodged in here.
 | `terminator_spam` | `rules_compliance` | final_block_emitted / closures | T06 collector |
 | `premature_stop_rate` | `first_attempt_gate_pass` | EVENT-level stop verdicts | T06 collector |
 | `first_attempt_gate_pass` | `premature_stop_rate` | sessions, first gate_run | T06 collector |

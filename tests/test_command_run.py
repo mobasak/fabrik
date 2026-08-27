@@ -2264,3 +2264,89 @@ def test_a_cosmetic_command_name_cannot_disable_the_rule(tmp_path: Path) -> None
                "--terminal", "t", sid="case-sid", cwd=repo).returncode == 0
     assert _cr(run_dir, "step", "--phase", "2", "--title", "B",
                sid="case-sid", cwd=repo).returncode != 0
+
+
+# ── the FEEDBACK verdict: making "Filed" MEASURED instead of hand-typed ──────────────────────────
+# `kaizen_collect_v2.py` emits the columns `Top friction fixed` and `Filed (spec/mail)` but never
+# populates them — they are the analyst's cells by design (docs/workstation/kaizen.md:202), and every
+# row in kaizen-log-infra.md has carried "—" in both since the 2026-08-12 baseline. The weekly
+# analyst had to reconstruct "what got in the way" from memory across sessions they cannot see.
+#
+# The close-out FEEDBACK line (commands/_fragments/close-feedback.md) supplies the corpus; this makes
+# it COUNTABLE. Carried on the existing `run_close` event rather than a new vocabulary entry — the
+# collector already reads run_close, so no consumer has to learn a new name.
+#
+# The load-bearing value is `unstated`. An agent that never passed --feedback is not the same as one
+# that looked and found nothing, and only a distinct value makes the difference measurable instead of
+# invisible — the same rule the FEEDBACK line itself enforces on the agent.
+
+
+def test_done_records_a_filed_feedback_verdict(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(
+        run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 4 found: 0",
+        "--feedback", "filed 01M11VS2ZE to intel — dead Kilo test modules break collection",
+    )
+    row = _events(run_dir, "s1")[-1]
+    assert row["feedback"] == "filed", row
+    assert row["feedback_to"] == ["intel"], row
+    # a HASH, never the prose — same contract as evidence_hash
+    assert isinstance(row["feedback_hash"], str) and len(row["feedback_hash"]) >= 8, row
+    assert "Kilo" not in json.dumps(row), row
+
+
+def test_done_records_an_explicit_none_verdict(run_dir: Path) -> None:
+    """`none` is a real answer: the agent looked and had nothing to file."""
+    _start(run_dir)
+    _cr(
+        run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
+        "--feedback", "none — exercised the router and the corpus check",
+    )
+    row = _events(run_dir, "s1")[-1]
+    assert row["feedback"] == "none", row
+    assert row["feedback_to"] == [], row
+
+
+def test_omitting_feedback_is_recorded_as_unstated_not_as_none(run_dir: Path) -> None:
+    """THE point. If a missing verdict collapsed into `none`, the metric would report perfect
+    diligence for a corpus nobody ever looked at — the fail-silent-green shape, in the telemetry."""
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x")
+    row = _events(run_dir, "s1")[-1]
+    assert row["feedback"] == "unstated", row
+
+
+def test_blocked_carries_the_verdict_too(run_dir: Path) -> None:
+    """A BLOCKED run is exactly when friction is worth hearing about."""
+    _start(run_dir)
+    _cr(
+        run_dir, "blocked", "--command", "fabrik-probe", "--reason", "missing infra — no DB",
+        "--feedback", "filed to fleet — the scaffold emits no DB fixture",
+    )
+    row = _events(run_dir, "s1")[-1]
+    assert row["verdict"] == "blocked" and row["feedback"] == "filed", row
+    assert row["feedback_to"] == ["fleet"], row
+
+
+def test_multiple_beats_are_all_captured(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(
+        run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
+        "--feedback", "filed to infra and intel",
+    )
+    assert sorted(_events(run_dir, "s1")[-1]["feedback_to"]) == ["infra", "intel"]
+
+
+def test_feedback_never_breaks_the_close(run_dir: Path) -> None:
+    """The record is the point; telemetry is not allowed to cost a close."""
+    _start(run_dir)
+    out = _cr(
+        run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
+        # NOT a NUL byte: execve() forbids one in argv, so it can never reach this code and a
+        # test using one measures subprocess, not the classifier. These CAN arrive.
+        "--feedback", "\x01\x1b[31m filed to   nobody " + "z" * 5000,
+    )
+    assert out.returncode == 0, out.stderr
+    row = _events(run_dir, "s1")[-1]
+    assert row["event"] == "run_close" and row["feedback"] == "filed", row
+    assert "z" * 100 not in json.dumps(row), "the prose must never reach the store"

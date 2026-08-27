@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the close-out FEEDBACK verdict is now MEASURED on the event stream (2026-08-27)
+
+`command_run.py done|blocked` takes `--feedback`, and the existing `run_close` event now carries
+`feedback` (`filed`|`none`|`unstated`), `feedback_to` (which beats were routed to) and
+`feedback_hash`. Carried on `run_close` rather than a new vocabulary entry, so no consumer has to
+learn a new event name. The prose never enters the store — only a `blake2s` hash, the same contract
+`evidence_hash` already keeps (verified: a filing mentioning "Kilo" leaves no "Kilo" in the line).
+
+**`unstated` is the load-bearing value.** An agent that never passed `--feedback` is not the same as
+one that looked and found nothing; collapsing the two would report perfect diligence for a corpus
+nobody ever looked at — the fail-silent-green shape reproduced inside the telemetry built to measure
+it. Six tests, including that distinction and a hostile-input case.
+
+**Honest status:** the stream now CARRIES the signal; the kaizen log's `Filed (spec/mail)` cell is
+still the analyst's to type. Two things stand between here and a measured cell, and neither is
+bodged in: the count belongs in `kaizen_outcomes` alongside the other windowed metrics (day-scoped
+delta rows, the 20% attribution floor, the single-source law), and `_merge_cells`
+(`kaizen_collect_v2.py:1936`) must first change so a computed value can never overwrite an analyst's
+prose — its current rule lets a real new value win. Both are documented in
+`docs/workstation/kaizen-event-stream.md` § feedback.
+
 ### Added — every command run now owes a routed FEEDBACK verdict (2026-08-27)
 
 Operator directive: *"for each command run, agents must give you feedback if they find issues, or

@@ -617,6 +617,39 @@ def _evidence_hash(text: str) -> str:
     return hashlib.blake2s((text or "").encode("utf-8", "replace"), digest_size=8).hexdigest()
 
 
+# The three hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
+# whole words so "infrastructure" does not read as a route to `infra`.
+_BEATS = ("infra", "fleet", "intel")
+
+
+def _feedback_verdict(text: str | None) -> tuple[str, list[str]]:
+    """Classify the close-out FEEDBACK line into (verdict, beats).
+
+    Three values, and the third is the load-bearing one:
+      ``filed``     - something was routed to a beat.
+      ``none``      - the agent looked and had nothing to file. A real answer.
+      ``unstated``  - no --feedback was passed at all.
+
+    ``unstated`` must never collapse into ``none``. If it did, the metric would report perfect
+    diligence for a corpus nobody ever looked at - the fail-silent-green shape reproduced inside the
+    very telemetry built to measure it. That distinction is the whole reason this field exists.
+    """
+    if text is None:
+        return "unstated", []
+    stripped = (text or "").strip()
+    if not stripped:
+        return "unstated", []
+    low = stripped.lower()
+    beats = [b for b in _BEATS if re.search(rf"\b{b}\b", low)]
+    # A beat named anywhere means something was routed - an agent writing "none for infra, filed to
+    # fleet" has filed. Only a line naming NO beat can be `none`.
+    if beats:
+        return "filed", beats
+    if re.match(r"^(none|nothing|n/?a)\b", low):
+        return "none", []
+    return ("filed" if len(stripped) > 3 else "none"), beats
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # ⚠️ NOT `--session-*`: argparse resolves abbreviations, so a second flag sharing the
     # `--sess` prefix makes the long-standing `--sess <id>` spelling AMBIGUOUS and every
@@ -668,6 +701,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--command", required=True, help="the run you are closing — must be the LIVE one"
     )
     p.add_argument("--evidence", required=True)
+    p.add_argument(
+        "--feedback",
+        default=None,
+        help=(
+            "the close-out FEEDBACK line: what you filed and to whom, or 'none' plus the "
+            "surfaces you exercised. OMITTING it records `unstated`, which is NOT the same as "
+            "`none` and is counted separately - see commands/_fragments/close-feedback.md"
+        ),
+    )
 
     p = sub.add_parser(
         "blocked", help="terminal: one of the three sanctioned BLOCKED cases", parents=[common]
@@ -676,6 +718,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--command", required=True, help="the run you are closing — must be the LIVE one"
     )
     p.add_argument("--reason", required=True)
+    p.add_argument(
+        "--feedback",
+        default=None,
+        help=(
+            "the close-out FEEDBACK line: what you filed and to whom, or 'none' plus the "
+            "surfaces you exercised. OMITTING it records `unstated`, which is NOT the same as "
+            "`none` and is counted separately - see commands/_fragments/close-feedback.md"
+        ),
+    )
 
     sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
     p = sub.add_parser("status", help="print the record", parents=[common])
@@ -1109,6 +1160,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     _touch(rec)
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
+    _fb_verdict, _fb_beats = _feedback_verdict(getattr(args, "feedback", None))
     fields = _queue(
         rec,
         outbox,
@@ -1117,6 +1169,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "verdict": args.cmd,
             "closed_by": "agent",
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
+            # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
+            # baseline because nothing ever measured it. These three fields make it countable: the
+            # verdict, which beats were routed to, and a HASH of the line (never the prose - the
+            # same contract `evidence_hash` already keeps).
+            "feedback": _fb_verdict,
+            "feedback_to": _fb_beats,
+            "feedback_hash": _evidence_hash(getattr(args, "feedback", None) or ""),
             "rounds": len(rec.get("rounds") or []),
             # A nested close is the one event whose meaning lives OUTSIDE the line: "resuming"
             # is only informative if it says what, and at what point. Without these the
