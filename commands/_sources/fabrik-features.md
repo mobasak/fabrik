@@ -1,12 +1,18 @@
 ---
-description: Converge docs/FEATURES.md to the COMPLETE, testable feature contract — TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from the approved spec (rows marked Planned) so features are decided BEFORE journeys, contract, and design. REFRESH (5-certify): discover every shipped capability (routes, jobs, CLI, screens, integrations), reconcile bidirectionally, flip Planned→Shipped, every row EXERCISABLE — the certification DENOMINATOR. TRIGGER — EN: "what are the product's features", "refresh the features list"; TR: "ürünün özellikleri ne olacak", "özellik listesini güncelle". SKIP: the certification itself (→ /fabrik-user-test, /fabrik-service-test). Stage: 5-certify (EARLY run sanctioned at design exit).
+description: Converge docs/FEATURES.md to the COMPLETE, testable feature contract — TWO positions. EARLY (after /fabrik-spec-review approval): pin the PLANNED inventory from the approved spec (rows marked Planned) so features are decided BEFORE journeys, contract, and design. REFRESH (5-certify): discover every shipped capability (routes, jobs, CLI, screens, integrations), reconcile bidirectionally, flip Planned→Shipped, every row EXERCISABLE — the certification CROSS-CHECK, not the denominator. TRIGGER — EN: "what are the product's features", "refresh the features list"; TR: "ürünün özellikleri ne olacak", "özellik listesini güncelle". SKIP: the certification itself (→ /fabrik-user-test, /fabrik-service-test). Stage: 5-certify.
 argument-hint: "[optional: a subsystem/dir to scope the sweep — omit to converge the WHOLE feature inventory]"
 ---
 
 Converge this project's `docs/FEATURES.md` into the **complete, testable feature contract**. The
 certification gauntlets treat every FEATURES row as inventory ("a TESTED contract, not prose") and
 reconcile bidirectionally — so **a missing row is a feature that never gets tested, and a stale row is a
-test that can never pass**. This command exists to make that denominator complete BEFORE certification.
+test that can never pass**. This command exists to make that CROSS-CHECK complete BEFORE certification.
+
+⚠️ **FEATURES.md is not the denominator, and saying so is a gate failure.** `check_certification_coverage.py`
+flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT;
+certification must cover what it SHIPS. The doc inventory is a cross-check, never the denominator."*
+The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type).
+This command's own guardrail says the same thing: *the CODE is the denominator; the doc is the claim.*
 
 {{include:run-record}}
 {{include:term-edit}}
@@ -93,7 +99,7 @@ on an edit-free, md5-verified no-op round.
 - Pad with implementation trivia ("refactored X", "uses Redis") — features are user-observable behaviors.
 - Delete a row silently — a removed feature is stated in the run report (the operator may be tracking it).
 - Leave a `README`/`QUICKSTART` claim unmapped — vapor claims are findings, not decoration.
-- Hand off to certification while the loop is non-quiet — an unconverged denominator silently shrinks the
+- Hand off to certification while the loop is non-quiet — an unconverged cross-check silently shrinks the
   gauntlet.
 
 {{include:subagents-core}}

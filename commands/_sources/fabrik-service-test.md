@@ -37,7 +37,7 @@ fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
      class. **Boundary/invalid values come FROM here, never invented.**
    - `docs/QUICKSTART.md` + `docs/CONFIGURATION.md` + `.env.example` — the integrator's real entry
      path and every env var; **an undocumented required var is a finding** (it breaks first-run).
-   - `docs/FEATURES.md` (thin/stale? run **`/fabrik-features`** first — it converges the denominator this gauntlet tests against) — a TESTED contract: every row must be traversed by a journey (bidirectional
+   - `docs/FEATURES.md` (thin/stale? run **`/fabrik-features`** first — it converges the cross-check; the denominator is the live registry) — the denominator this gauntlet tests against) — a TESTED contract: every row must be traversed by a journey (bidirectional
      — shipped-but-undocumented is doc-drift; documented-but-broken is a defect).
    - `docs/RESILIENCE.md` §2 (dependency inventory + pause/resume) and §7 (scheduled jobs) — the
      declared failure behavior you will *prove*, plus the Beat/cron inventory.

@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-features billed itself as the certification denominator; the grader rejects that (2026-08-27)
+
+Command 4 of 31, audited against `docs/reference/command-evaluation-checklist.md`.
+
+**The finding (items 35-44, contract-vs-grader).** `/fabrik-features`' description ended *"every row
+EXERCISABLE — the certification DENOMINATOR"*, and both gauntlets pointed at it the same way. But
+`check_certification_coverage.py:118` names a doc denominator **"the original defect"** and flags any
+cert board whose source resolves to one: *"FEATURES.md documents what the project BUILT; certification
+must cover what it SHIPS. The doc inventory is a cross-check, never the denominator."* An agent
+following the command and then certifying against FEATURES.md gets flagged by the gate.
+
+Sharper still, the command CONTRADICTED ITSELF: its own `never` list already says *"the CODE is the
+denominator; the doc is the claim."* The headline claim disagreed with the guardrail four screens
+below it, and with the grader — all three authored in this same session.
+
+Corrected in five places (description, body framing, the `never` line's neighbours, both gauntlets'
+pointers, and the NEXT map) to say what is true: FEATURES.md is the **cross-check**; the denominator
+is the project's live registry. A body warning now quotes the grader verbatim so the next author
+cannot re-introduce it by accident.
+
+**Also surfaced, deliberately not fixed:** none of the command's four advertised TRIGGER phrases
+resolve in `skill_router.py` — unlike `/fabrik-spec-review`, they route NOWHERE rather than wrongly,
+which the checklist's item 6 rates defensible. Recorded for the routing pass rather than bolted on.
+
+The assembler's 1024-char skill-description limit rejected three successive attempts at the fix — a
+real gate doing its job. The final wording is net SHORTER than what it replaced.
+
 ### Fixed — /fabrik-review on this session's work: 3 findings, the worst one mine twice over (2026-08-27)
 
 Adversarial review of 12 commits, converged at round 5 under the exit contract it fixed.
