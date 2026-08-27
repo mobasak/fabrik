@@ -113,6 +113,7 @@ STEM_SKILLS: dict[str, str] = {
     # Both sit ABOVE `review` in KEYWORD_STEMS: each is a phrase `fabrik-review`'s own SKIP
     # clause disclaims, so letting the broad `review` stem win points the operator at a gate
     # that says it is not the one (measured 2026-08-28 across all 71 advertised EN triggers).
+    "rivals": "fabrik-rivals",
     "ui-design-review": "fabrik-ui-design-review",
     "design-review": "design-review",
     "workflow-review": "fabrik-workflow-review",
@@ -309,6 +310,22 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "plan",
+    ),
+    # /fabrik-rivals had NO stem while its description promised "fires bare-prose, no slash command
+    # needed" — 0 of its 3 advertised phrases reached anything. The nouns are unusually distinctive
+    # (competitor/rival/rakip), so this is one of the few places a stem can be added without the
+    # over-firing risk that keeps the other 42 unrouted phrases deliberately unrouted.
+    (
+        re.compile(
+            r"\b(competitors?|rivals?|rakip(ler)?\w*)\b"
+            r"[^.]{0,40}\b(who|what|which|how|kim|ne\w*|nas[ıi]l|better|beat|ge[çc]\w*|do)\b"
+            r"|\b(who|what|which|how)\b[^.]{0,30}\b(competitors?|rivals?)\b"
+            r"|\bhow\s+do\s+we\s+beat\b"
+            r"|\bonlar[ıi]\s+nas[ıi]l\s+ge[çc]er\w*"
+            r"|\brakiplerimiz\s+kim",
+            re.I,
+        ),
+        "rivals",
     ),
     # BEFORE design-review: /fabrik-ui-design-review converges the FROZEN docs/ui-design.md, not a
     # rendered screen — its own SKIP says "never a running app (→ /design-review)". The first cut of

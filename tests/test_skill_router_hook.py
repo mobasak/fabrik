@@ -1066,3 +1066,34 @@ def test_ui_design_review_is_registered_and_ordered_before_design_review() -> No
     assert hook.STEM_SKILLS["ui-design-review"] == "fabrik-ui-design-review"
     order = [st for _, st in hook.KEYWORD_STEMS]
     assert order.index("ui-design-review") < order.index("design-review"), "first match wins"
+
+
+# ── "fires bare-prose, no slash command needed" is a ROUTING CLAIM, and it must be true ─────────
+# Five commands say it. Measured 2026-08-28: 10 of their 15 advertised phrases reached nothing, and
+# /fabrik-rivals reached nothing on all three while having no stem at all. Item 6 of the command
+# checklist draws the line exactly here — most TRIGGER clauses serve model-native matching only and
+# that is defensible, but a description that PROMISES bare-prose routing it does not have is not.
+
+
+def test_the_rivals_triggers_reach_the_rivals_command() -> None:
+    assert hook.first_regex_match("who are our competitors") == "rivals"
+    assert hook.first_regex_match("what do rivals do better") == "rivals"
+    assert hook.first_regex_match("how do we beat X") == "rivals"
+
+
+def test_the_turkish_rivals_triggers_resolve_too() -> None:
+    assert hook.first_regex_match("rakiplerimiz kim") == "rivals"
+    assert hook.first_regex_match("onları nasıl geçeriz") == "rivals"
+
+
+def test_rivals_does_not_swallow_neighbouring_prompts() -> None:
+    """Precision first, as everywhere in this router. `competitor` talk that is not a request for
+    the dossier — and every unrelated 'beat'/'better' phrasing — must stay untouched."""
+    assert hook.first_regex_match("this query is better now") != "rivals"
+    assert hook.first_regex_match("beat the flaky test into submission") != "rivals"
+    assert hook.first_regex_match("review this diff") == "review"
+    assert hook.first_regex_match("let's write a spec for this") == "spec"
+
+
+def test_rivals_stem_is_registered() -> None:
+    assert hook.STEM_SKILLS["rivals"] == "fabrik-rivals"

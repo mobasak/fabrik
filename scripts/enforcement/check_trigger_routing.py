@@ -48,6 +48,12 @@ SKILLS = Path.home() / ".claude" / "skills"
 _DESC_RE = re.compile(r"^description:\s*(.+)$", re.M)
 _EN_RE = re.compile(r"TRIGGER\s*—\s*EN:\s*(.+?)(?:;\s*TR:|—|\bStage:)", re.S)
 _PHRASE_RE = re.compile(r'"([^"]+)"')
+# A description saying "fires bare-prose, no slash command needed" makes a ROUTING PROMISE: the
+# operator can reach it by typing, without the slash. Checklist item 6 draws the line here — most
+# TRIGGER clauses serve model-native matching only and that is fine, but a PROMISE of bare-prose
+# routing that no stem backs is a contract contradicting reality. Measured 2026-08-28: five
+# commands promised it and /fabrik-rivals reached nothing on all three of its phrases.
+_BARE_PROSE_RE = re.compile(r"fires\s+bare-prose|no\s+slash\s+command\s+needed", re.I)
 
 # `fabrik-service-test` is the one command whose stem resolves DYNAMICALLY by project type, so it
 # must be graded against a type it actually serves — grading it as `saas-skeleton` reports a
@@ -104,10 +110,25 @@ def advertised(sources: Path) -> list[tuple[str, str]]:
     return out
 
 
-def grade(sources: Path, router, roster: set[str]) -> tuple[list[tuple[str, str, str]], int, int]:
-    """(mis-routes, correct_count, nowhere_count)."""
+def promises_bare_prose(sources: Path) -> set[str]:
+    """Commands whose description PROMISES bare-prose routing."""
+    named: set[str] = set()
+    for path in sorted(sources.glob("*.md")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        desc = _DESC_RE.search(text)
+        if desc and _BARE_PROSE_RE.search(desc.group(1)):
+            named.add(path.stem)
+    return named
+
+
+def grade(sources: Path, router, roster: set[str]):
+    """(mis-routes, correct_count, nowhere_count, broken_promises)."""
     misrouted: list[tuple[str, str, str]] = []
     correct = nowhere = 0
+    reached: set[str] = set()
     for cmd, phrase in advertised(sources):
         try:
             stem = router.first_regex_match(phrase)
@@ -122,9 +143,11 @@ def grade(sources: Path, router, roster: set[str]) -> tuple[list[tuple[str, str,
             nowhere += 1
         elif target == cmd:
             correct += 1
+            reached.add(cmd)
         else:
             misrouted.append((cmd, phrase, target))
-    return misrouted, correct, nowhere
+    broken = sorted(promises_bare_prose(sources) - reached)
+    return misrouted, correct, nowhere, broken
 
 
 def _ascii(text: str) -> str:
@@ -154,11 +177,11 @@ def main(argv: list[str] | None = None) -> int:
     if not roster:
         return 0  # no installed roster to resolve against; silent rather than wrong
 
-    misrouted, correct, nowhere = grade(sources, router, roster)
+    misrouted, correct, nowhere, broken = grade(sources, router, roster)
     total = correct + nowhere + len(misrouted)
     if not total:
         return 0
-    if not misrouted:
+    if not misrouted and not broken:
         print(
             _ascii(
                 f"trigger routing: {total} advertised phrase(s) - {correct} reach their own "
@@ -168,15 +191,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     head = (
-        f"WARN trigger routing: {len(misrouted)} advertised phrase(s) reach a DIFFERENT command "
+        f"WARN trigger routing: {len(misrouted)} phrase(s) reach a DIFFERENT command, "
+        f"{len(broken)} command(s) promise bare-prose routing no stem backs "
         f"(of {total}; {correct} correct, {nowhere} nowhere - not graded)"
     )
-    marker_cost = len(f"\n  ... {len(misrouted)} more") if len(misrouted) > MAX_LINES else 0
+    marker_cost = len(f"\n  ... {len(misrouted) + len(broken)} more")
     remedy = f"\n  -> {REMEDY}"
     budget = ADVISORY_BUDGET - len(head) - len(remedy) - marker_cost
     lines: list[str] = []
-    for cmd, phrase, target in misrouted[:MAX_LINES]:
-        row = f'  {cmd}: "{phrase}" -> {target}'
+    findings = [f'  {c}: "{p}" -> {t}' for c, p, t in misrouted]
+    findings += [f"  {c}: promises bare-prose routing; no advertised phrase reaches it" for c in broken]
+    for row in findings[:MAX_LINES]:
         if len(row) > MAX_LINE:
             row = row[: MAX_LINE - 3] + "..."
         if budget - len(row) - 1 < 0:
@@ -184,8 +209,8 @@ def main(argv: list[str] | None = None) -> int:
         budget -= len(row) + 1
         lines.append(row)
     out = head + "".join("\n" + ln for ln in lines)
-    if len(misrouted) > len(lines):
-        out += f"\n  ... {len(misrouted) - len(lines)} more"
+    if len(findings) > len(lines):
+        out += f"\n  ... {len(findings) - len(lines)} more"
     print(_ascii(out + remedy))
     return 0
 

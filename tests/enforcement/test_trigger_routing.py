@@ -101,14 +101,14 @@ def test_a_command_with_no_trigger_clause_contributes_nothing(tmp_path):
 def test_a_phrase_reaching_a_different_command_is_the_finding(tmp_path, capsys):
     d = _sources(tmp_path, {"fabrik-a": ["review this UI"]})
     router = _R({"review this UI": "fabrik-review"})
-    mis, correct, nowhere = chk.grade(d, router, {"fabrik-review"})
+    mis, correct, nowhere, broken = chk.grade(d, router, {"fabrik-review"})
     assert mis == [("fabrik-a", "review this UI", "fabrik-review")]
     assert (correct, nowhere) == (0, 0)
 
 
 def test_a_phrase_reaching_its_own_command_is_correct(tmp_path):
     d = _sources(tmp_path, {"fabrik-a": ["do a thing"]})
-    mis, correct, nowhere = chk.grade(d, _R({"do a thing": "fabrik-a"}), {"fabrik-a"})
+    mis, correct, nowhere, broken = chk.grade(d, _R({"do a thing": "fabrik-a"}), {"fabrik-a"})
     assert not mis and (correct, nowhere) == (1, 0)
 
 
@@ -116,7 +116,7 @@ def test_a_phrase_routing_nowhere_is_counted_but_never_a_finding(tmp_path):
     """The deliberate non-finding. 42 of 71 live phrases route nowhere; grading them would push
     someone to add loose stems, and over-firing is the router's actual failure mode."""
     d = _sources(tmp_path, {"fabrik-a": ["some unrouted phrase"]})
-    mis, correct, nowhere = chk.grade(d, _R({}), {"fabrik-a"})
+    mis, correct, nowhere, broken = chk.grade(d, _R({}), {"fabrik-a"})
     assert not mis and (correct, nowhere) == (0, 1)
 
 
@@ -147,7 +147,7 @@ def test_a_clean_corpus_states_its_denominator(tmp_path, capsys, monkeypatch):
 
 def test_output_fits_the_advisory_budget_and_is_ascii(tmp_path, capsys, monkeypatch):
     mis = [(f"fabrik-a-long-command-name-{i:02d}", "a" * 60, "fabrik-review") for i in range(30)]
-    monkeypatch.setattr(chk, "grade", lambda *a, **k: (mis, 3, 40))
+    monkeypatch.setattr(chk, "grade", lambda *a, **k: (mis, 3, 40, []))
     monkeypatch.setattr(chk, "_load_router", lambda: object())
     d = _sources(tmp_path, {"fabrik-a": ["x"]})
     skills = tmp_path / "skills"
@@ -176,3 +176,41 @@ def test_no_module_constant_is_dead():
     src = (REPO / "scripts" / "enforcement" / "check_trigger_routing.py").read_text(encoding="utf-8")
     for name in [n for n in dir(chk) if n.isupper() and not n.startswith("_")]:
         assert src.count(name) > 1, f"{name} is defined and never used"
+
+
+# ── the bare-prose PROMISE is a routing claim, and a broken one is a finding ─────────────────────
+
+
+def _promising(tmp: Path, cmd: str, phrases: list[str]) -> Path:
+    d = tmp / "_sources"
+    d.mkdir()
+    quoted = ", ".join(f'"{p}"' for p in phrases)
+    (d / f"{cmd}.md").write_text(
+        f'---\ndescription: does a thing. TRIGGER — EN: {quoted}; TR: "x" — fires bare-prose, '
+        f"no slash command needed. Stage: utility.\n---\nbody\n",
+        encoding="utf-8",
+    )
+    return d
+
+
+def test_a_command_promising_bare_prose_with_no_reaching_phrase_is_a_finding(tmp_path):
+    """Checklist item 6's exact line: an unrouted TRIGGER is defensible, a PROMISE of bare-prose
+    routing that no stem backs is not. /fabrik-rivals promised it and reached nothing on all 3."""
+    d = _promising(tmp_path, "fabrik-rivals", ["who are our competitors"])
+    _mis, _c, _n, broken = chk.grade(d, _R({}), {"fabrik-rivals"})
+    assert broken == ["fabrik-rivals"], broken
+
+
+def test_one_reaching_phrase_is_enough_to_keep_the_promise(tmp_path):
+    """The promise is 'an operator can reach me by typing', not 'every phrase routes'. Demanding
+    all of them would push loose patterns into a router whose failure mode is over-firing."""
+    d = _promising(tmp_path, "fabrik-rivals", ["who are our competitors", "unrouted phrase"])
+    _mis, _c, _n, broken = chk.grade(d, _R({"who are our competitors": "fabrik-rivals"}), set())
+    assert broken == [], broken
+
+
+def test_a_command_that_never_promised_bare_prose_is_not_graded_on_it(tmp_path):
+    """41 of 71 phrases route nowhere by design. Only the PROMISE turns that into a defect."""
+    d = _sources(tmp_path, {"fabrik-flows": ["map the journeys/flows"]})
+    _mis, _c, _n, broken = chk.grade(d, _R({}), {"fabrik-flows"})
+    assert broken == [], broken

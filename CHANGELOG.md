@@ -22,7 +22,13 @@ All notable changes to this project will be documented in this file.
 - **New advisory check `check_trigger_routing.py`** grades ONLY mis-routes and reports the
   nowhere-count as a denominator. Grading "routes nowhere" would pressure someone to close 42 gaps
   with loose patterns — and over-firing, not under-firing, is this router's documented failure mode.
-- **Result: 29 correct, 0 mis-routed, 42 nowhere (safe).**
+- **A broken bare-prose PROMISE is now its own finding.** Five commands say "fires bare-prose, no
+  slash command needed" — a routing CLAIM, not a hint. `/fabrik-rivals` said it with **no stem at
+  all** and reached nothing on all three phrases; a `rivals` stem now backs it (distinctive nouns —
+  competitor/rival/rakip — so near-zero over-fire risk). An unrouted TRIGGER stays defensible; an
+  unbacked promise does not. One reaching phrase keeps the promise, so the check never pressures a
+  command to route every phrase.
+- **Result: 32 correct, 0 mis-routed, 0 broken promises, 39 nowhere (safe).**
 
 
 ### Fixed — the close refusal advertised exits that did not work; /fabrik-review found 9 (2026-08-28)
