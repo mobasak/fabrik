@@ -73,10 +73,56 @@ each catches what the others miss:
   `/health`, `/metrics` series, queue introspection) and diff it against the three above.
   **A mounted-but-uncatalogued route, an unused env var, or a Beat job with no owner is a finding.**
 
-Output: the **Inventory Ledger** — `journeys[] · features[] · endpoints[] · jobs[] · events[] ·
-schedules[] · env[] · dependencies[]` with counts. Every later verdict reconciles against these
-counts. **An endpoint or job never exercised is an open row, not a rounding error — and a
-FEATURES row with zero mapped scenarios cannot be reported as working.**
+Output: the **CERT BOARD + LEDGER**, generated — never hand-written.
+
+⚠️ **The denominator comes from a live REGISTRY, not from this list and not from a doc.** The four
+discovery modes above are demoted to **cross-checks** (their bidirectional-reconciliation value is
+real and is kept). The denominator resolves to a machine-readable registry of the RUNNING system,
+declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND
+records the fallback. A registry that cannot be reached **fails LOUD naming what could not be
+enumerated** — a silently short list rebuilds the defect one layer down.
+
+Why: the inventory used to be PROSE WITH COUNTS, authored by the agent later graded against it, and
+**nothing read it**. On a surface the project authored, the agent's enumeration and reality converge
+and this never bites; on an INHERITED surface it under-counts silently and the run terminates
+HONESTLY AND WRONG. Measured on a `saas-skeleton` wrapping a vendored ERP, immediately after a
+genuine md5-verified `/fabrik-features` no-op: **30 shipped FEATURES rows (~12 browser-reachable)
+against 271 menus / 316 window actions / 80 wizards / 19 reports / 142 model buttons / 867 views —
+93% inherited.** ~12 of ~1,700 would be exercised and the gauntlet would report converged.
+`/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what
+the product SHIPS.
+
+**Two generated artifacts, both inside the run's own board directory so they archive as a unit:**
+
+```
+docs/development/certifications/YYYY-MM-DD-cert-<surface>/
+  YYYY-MM-DD-cert-<surface>.md   ← the spine, carrying `## Test Board`
+  ledger.md                      ← source: · registry_total: · ids_enumerated:
+  TC01-<slug>.md …               ← one ticket per touchpoint GROUP
+```
+
+⚠️ **NAMESPACE — never reuse the implementation plan's.** `## Test Board` (not `## Ticket Board`),
+`TC##[a-z]?-<slug>.md` (not `T##`), `docs/development/certifications/` (not `plans/`), and
+`.fabrik/cert-locks/` (not `.fabrik/plan-locks/`). The heading is load-bearing:
+`/fabrik-execute-plan`'s dispatcher triggers on that **bare string**, so a mis-headed board is
+dispatched to CODING agents holding a lock the Stop hook believes in. `check_certification_coverage.py`
+flags all four as **BLOCKING**, not advisory.
+
+**Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or
+`OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` blocks the close. `DEFERRED` is
+REJECTED**, with its synonyms — a "later" state is the loophole that lets the whole contract be
+ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are **rejected REASONS**:
+they describe how OUR surface came to exist, not whether a customer can click it, and inherited
+surfaces are exactly what the T3 generated-smoke tier is FOR.
+
+**Tiers set DEPTH, never whether something is tested.** T1 money/tenancy/PII/auth → full
+UI-truth-vs-system-truth · T2 authored or modified → deep · T3 inherited → **generated** smoke. 100%
+is achievable only because the tail is generated; hand-authoring it guarantees the tier is skipped.
+
+**Every ticket declares `Runner:`** — `gui` · `service` · `generated-smoke` · `fix`. The dispatcher's
+default unit is a CODER, so an unrouted test ticket puts a coding agent on a browser job. **An issue
+found becomes ANOTHER TICKET on the same board** (`Runner: fix`), and **a fix ticket does not close
+its test ticket** — the test must be re-run green. That is the retest loop, structurally.
 
 ## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer's real subject)
 

@@ -85,6 +85,39 @@ REJECTED_REASONS = (
 )
 
 RUNNERS = frozenset({"gui", "service", "generated-smoke", "fix"})
+
+# ── Phase B: where a project DECLARES its denominator source ────────────────────────────────────
+# The hub must not INFER the registry. A project declares it in `project.yaml`, copying the shipped
+# precedent `has_user_guide` — a project.yaml flag that arms `check_user_guide.py` (":7-8": pass when
+# the flag is false/absent, fail when declared-but-missing). NOT `spec_loader.py::Shape`, which
+# "declares what the project IS ... which infrastructure registrars are applicable" (:205-215) — a
+# certification denominator is not an infrastructure registrar.
+DECLARATION_KEY = "certification_registry"
+
+# Per-scaffold-type DEFAULT when nothing is declared. Adopted from the tryton-crm proposal, which
+# grounded it. An undeclared source falls back here AND the fallback is RECORDED — a
+# declared-and-justified fallback is auditable, an inferred one is not.
+# `wordpress` is absent on purpose: it is a dead legacy string in SCAFFOLD_TYPES (scaffold.py:146,
+# with :5783 raising NotImplementedError) and we ship zero WordPress projects. It is a crash guard,
+# never a product surface — and a sibling check that iterated SCAFFOLD_TYPES and let that
+# NotImplementedError escape reddened ~46 repos.
+REGISTRY_BY_TYPE: dict[str, str] = {
+    "python-api": "live route table (FastAPI app.routes) or the emitted OpenAPI",
+    "python-api-gpu": "live route table (FastAPI app.routes) or the emitted OpenAPI",
+    "node-api": "live route table (Express _router.stack) or the emitted OpenAPI",
+    "file-api": "live route table or the emitted OpenAPI",
+    "saas-skeleton": "live route table; if it wraps a vendored platform, THAT platform's registry",
+    "file-worker": "the task/beat registry — registered job names + schedules",
+    "static-site": "sitemap.xml / the build manifest",
+    "docusaurus": "sitemap.xml / the build manifest",
+    "chrome-extension": "the MV3 manifest — popup, options, content-script matches, commands",
+    "mobile-app": "the navigator route tree",
+    "desktop-app": "the window + application-menu registry",
+}
+RETIRED_TYPES = frozenset({"wordpress"})
+# A denominator that resolves to a DOC is the original defect: FEATURES.md documents what the
+# project BUILT; certification must cover what the product SHIPS.
+DOC_SOURCES = ("features.md", "docs/", "readme", "changelog", "prose", "doc:")
 _ADVISORY_BUDGET = 500
 _MAX_LINE = 220
 _MAX_LINES = 10
@@ -295,6 +328,69 @@ def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
             else:
                 counters["unvisited"] += 1
                 findings.append(Finding("UNKNOWN DISPOSITION", f"{tid}: {disp!r}"))
+
+    # ── Phase B: the ledger's SOURCE must be a registry, and a short generator must be caught ──
+    for board_dir in sorted(p for p in cert_root.iterdir() if p.is_dir()):
+        ledger = board_dir / "ledger.md"
+        if not ledger.is_file():
+            findings.append(
+                Finding(
+                    "NO LEDGER",
+                    f"{board_dir.name}: no ledger.md beside the board — the denominator "
+                    f"must archive WITH the board it graded, or a later auditor has the verdict "
+                    f"without the question",
+                )
+            )
+            continue
+        try:
+            lt = ledger.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            findings.append(Finding("UNREADABLE", f"ledger.md: {type(exc).__name__}"))
+            continue
+        src = ""
+        for line in lt.splitlines():
+            if line.lower().startswith(("source:", "- source:", "**source:**")):
+                src = line.split(":", 1)[1].strip().strip("*` ")
+                break
+        if not src:
+            findings.append(
+                Finding(
+                    "NO SOURCE",
+                    f"{board_dir.name}: ledger declares no `source:` — the denominator "
+                    f"must name the registry it came from",
+                )
+            )
+        elif any(d in src.lower() for d in DOC_SOURCES):
+            findings.append(
+                Finding(
+                    "DOC DENOMINATOR",
+                    f"{board_dir.name}: source {src!r} is a DOC. FEATURES.md "
+                    f"documents what the project BUILT; certification must cover what it SHIPS. The "
+                    f"doc inventory is a cross-check, never the denominator.",
+                )
+            )
+        # A generator that under-enumerates CONSISTENTLY defeats the close-time diff, because both
+        # enumerations come from the same generator and a short list agrees with itself.
+        m_tot = re.search(r"registry_total:\s*(\d+)", lt)
+        m_enum = re.search(r"ids_enumerated:\s*(\d+)", lt)
+        if not m_tot or not m_enum:
+            findings.append(
+                Finding(
+                    "NO RAW COUNT",
+                    f"{board_dir.name}: ledger must record `registry_total:` (counted "
+                    f"straight from the registry) AND `ids_enumerated:` — without both, a consistently "
+                    f"short generator agrees with itself and the close-time diff is empty",
+                )
+            )
+        elif int(m_tot.group(1)) != int(m_enum.group(1)):
+            findings.append(
+                Finding(
+                    "SHORT GENERATOR",
+                    f"{board_dir.name}: registry_total={m_tot.group(1)} but "
+                    f"ids_enumerated={m_enum.group(1)} — the generator did not enumerate what it "
+                    f"counted. Fail LOUD, never a silently short list.",
+                )
+            )
 
     # The 1,688/12 split must be impossible to hide behind a converged verdict.
     if counters["out_of_scope"] > counters["exercised"] and counters["ids"]:

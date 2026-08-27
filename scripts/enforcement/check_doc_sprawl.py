@@ -38,6 +38,15 @@ ALLOWED_NEW_ROOT_DOCS = frozenset(
     }
 )
 
+# Certification boards — a SEPARATE namespace from plan sets on purpose (see CLAUDE.md § HARD
+# STOPS): `## Test Board` not `## Ticket Board`, `TC##` not `T##`, `.fabrik/cert-locks/` not
+# `plan-locks/`. /fabrik-execute-plan's dispatcher triggers on the bare heading string, so a cert
+# board wearing the plan-set shape would be dispatched to CODING agents.
+CERT_BOARD_RE = re.compile(
+    r"^docs/development/certifications/\d{4}-\d{2}-\d{2}-cert-[a-z0-9-]+/"
+    r"(?:\d{4}-\d{2}-\d{2}-cert-[a-z0-9-]+\.md|ledger\.md|TC\d{2}[a-z]?-[a-z0-9-]+\.md)$"
+)
+
 # Docs scaffold-created files - CLOSED allowlist
 ALLOWED_NEW_DOCS_SCAFFOLD = frozenset(
     {

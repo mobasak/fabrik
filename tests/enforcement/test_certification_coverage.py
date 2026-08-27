@@ -338,3 +338,93 @@ def test_every_behavior_contract_row_has_a_test():
         f"({params} parametrized). Rows are outgrowing their tests — the exact "
         f"behavior-without-a-test defect this plan exists to remove."
     )
+
+
+# ── Phase B: the denominator's SOURCE, and a generator that agrees with itself ──────────────────
+
+
+def _ledger(
+    board_dir: Path, *, source: str = "registry:ir_ui_menu", total: int = 3, enum: int = 3
+) -> None:
+    (board_dir / "ledger.md").write_text(
+        f"# ledger\n\nsource: {source}\nregistry_total: {total}\nids_enumerated: {enum}\n",
+        encoding="utf-8",
+    )
+
+
+def test_a_board_with_no_ledger_is_reported(tmp_path):
+    """The denominator must archive WITH the board it graded, or a later auditor holds the verdict
+    without the question it answered."""
+    _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    assert "NO LEDGER" in _labels(_run(tmp_path)[0])
+
+
+def test_a_ledger_must_name_its_source(tmp_path):
+    d = _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    (d / "ledger.md").write_text(
+        "# ledger\nregistry_total: 1\nids_enumerated: 1\n", encoding="utf-8"
+    )
+    assert "NO SOURCE" in _labels(_run(tmp_path)[0])
+
+
+@pytest.mark.parametrize("doc_src", ["docs/FEATURES.md", "doc: the feature list", "README"])
+def test_a_doc_denominator_is_rejected(tmp_path, doc_src):
+    """FEATURES.md documents what the project BUILT; certification must cover what it SHIPS. This is
+    the original defect — a perfectly converged FEATURES.md is still the wrong denominator."""
+    d = _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    _ledger(d, source=doc_src)
+    findings = _run(tmp_path)[0]
+    assert "DOC DENOMINATOR" in _labels(findings)
+    assert any("BUILT" in f.detail and "SHIPS" in f.detail for f in findings)
+
+
+def test_a_registry_source_is_accepted(tmp_path):
+    d = _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    _ledger(d, source="registry:ir_ui_menu")
+    labels = _labels(_run(tmp_path)[0])
+    assert "DOC DENOMINATOR" not in labels and "NO SOURCE" not in labels
+
+
+def test_a_short_generator_is_caught_by_the_raw_count(tmp_path):
+    """The close-time diff cannot see a CONSISTENTLY short generator: both enumerations come from the
+    same generator, so a short list agrees with itself and the diff is empty. The raw registry count
+    is the independent number that catches it."""
+    d = _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    _ledger(d, total=1700, enum=12)
+    findings = _run(tmp_path)[0]
+    assert "SHORT GENERATOR" in _labels(findings)
+    assert any("1700" in f.detail and "12" in f.detail for f in findings)
+
+
+def test_a_ledger_without_both_counts_is_reported(tmp_path):
+    d = _board(tmp_path, ["| M-1 | T3 | gui | OUT-OF-SCOPE(vendor.example.com) | - |"])
+    (d / "ledger.md").write_text("# ledger\nsource: registry:routes\n", encoding="utf-8")
+    assert "NO RAW COUNT" in _labels(_run(tmp_path)[0])
+
+
+def test_the_registry_table_covers_every_live_scaffold_type():
+    """Every type we actually ship needs a default registry. `wordpress` is deliberately ABSENT: a
+    dead legacy string in SCAFFOLD_TYPES (scaffold.py:146, :5783 raises NotImplementedError), zero
+    projects declare it, and a sibling check that iterated the frozenset and let that escape
+    reddened ~46 repos."""
+    import sys as _s
+
+    _s.path.insert(0, str(REPO / "src"))
+    from fabrik.scaffold import SCAFFOLD_TYPES
+
+    live = set(SCAFFOLD_TYPES) - cc.RETIRED_TYPES
+    missing = sorted(live - set(cc.REGISTRY_BY_TYPE))
+    assert not missing, f"live scaffold types with no default registry: {missing}"
+    assert "wordpress" in cc.RETIRED_TYPES
+    assert "wordpress" not in cc.REGISTRY_BY_TYPE, "a retired string must not get a registry row"
+
+
+def test_the_declaration_key_follows_the_shipped_precedent():
+    """`project.yaml::has_user_guide` arms `check_user_guide.py` — a project.yaml flag arming an
+    enforcement check is a working precedent, and `spec_loader.py::Shape` is infrastructure-only."""
+    assert cc.DECLARATION_KEY == "certification_registry"
+    src = (REPO / "scripts" / "enforcement" / "check_certification_coverage.py").read_text(
+        encoding="utf-8"
+    )
+    assert "has_user_guide" in src, "the precedent must be cited where the key is defined"
+    assert "Shape" in src, "the rejected home must be named so it is not re-proposed"

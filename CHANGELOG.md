@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — certification coverage is graded now: registry denominator, cert board, deny-list exit (2026-08-27)
+
+- `scripts/enforcement/check_certification_coverage.py` (**NEW**, fleet-synced, `warn_only`) + 47
+  tests + a `final_gate` registration in every tier. `/fabrik-user-test` and `/fabrik-service-test`
+  enumerated a **prose inventory with counts**, authored by the agent later graded against it — and
+  **nothing read it**: there was no certification grader at all. Measured on a `saas-skeleton`
+  wrapping a vendored ERP, right after a genuine md5-verified `/fabrik-features` no-op: 30 shipped
+  FEATURES rows (~12 browser-reachable) against 271 menus / 316 window actions / 80 wizards / 19
+  reports / 142 model buttons / 867 views, 93% inherited. ~12 of ~1,700 exercised, gauntlet
+  converged. `/fabrik-features` is not the fix — it documents what was BUILT, certification must
+  cover what SHIPS.
+- **Both command contracts rewritten** (rendered box-wide): the denominator resolves to a live
+  registry declared in `project.yaml::certification_registry` (on the shipped `has_user_guide`
+  precedent), the four discovery modes are demoted to cross-checks, and Phase 1 GENERATES a cert
+  board + ledger instead of hand-writing an inventory.
+- **`DEFERRED` is rejected** as a disposition, with its synonyms — terminal states are `EXERCISED`
+  (evidence path must EXIST on disk) or `OUT-OF-SCOPE(reason naming an external owner)`, and
+  `UNVISITED` blocks the close. Deleting `DEFERRED` alone would only have moved the hole, so
+  `inherited`/`vendored`/`generated`/`legacy`/`low-priority` are rejected REASONS, the disposition
+  census always prints, and `out-of-scope > exercised` is a distinct non-silent verdict.
+- **A separate namespace, BLOCKING from day one** — `docs/development/certifications/` ·
+  `TC##[a-z]?-<slug>.md` · `## Test Board` · `.fabrik/cert-locks/`. `/fabrik-execute-plan`'s
+  dispatcher triggers on the bare heading string, so a cert board wearing `## Ticket Board` would be
+  dispatched to CODING agents holding a lock `final_gate_stop.py:785` believes in. Everything else
+  lands advisory; that one is not a coverage-quality issue. `CLAUDE.md`'s `.md` allowlist and
+  `check_doc_sprawl.py` carry the new shape (fleet-wide governance edit).
+- **The anti-cheat's blind spot closed:** the close-time re-enumeration cannot see a *consistently*
+  short generator, because both enumerations come from the same generator and a short list agrees
+  with itself. The ledger now records a raw `registry_total` against `ids_enumerated`.
+- Reference: `docs/reference/certification-denominator.md`. Plan:
+  `2026-08-27-plan-1-certification-denominator.md` (14 rounds, 22 findings, genuine md5-verified
+  no-op).
+
 ### Added — certification denominator: plan to make /fabrik-user-test + /fabrik-service-test enforce full-surface coverage (2026-08-27)
 
 - `docs/development/plans/2026-08-27-plan-1-certification-denominator.md` (**CONVERGED**) — the
