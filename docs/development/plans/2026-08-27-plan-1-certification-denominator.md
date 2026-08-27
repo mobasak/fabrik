@@ -1,6 +1,7 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: CONVERGED — 14 rounds, 22 findings fixed; round 14 a GENUINE no-op (all 18 classes swept, md5 426f2d46 unchanged across the round)
+Status: ✅ EXECUTED 2026-08-27 — phases A-D landed (b94e9ce8, d612b5fd), gate 49/0, fleet-synced.
+Previously CONVERGED over 14 rounds / 22 findings with a genuine md5-verified no-op.
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product

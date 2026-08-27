@@ -1,0 +1,18 @@
+{
+  "plan": "docs/development/plans/2026-08-27-plan-1-certification-denominator.md",
+  "status": "released",
+  "owned_paths": [
+    "scripts/enforcement/check_certification_coverage.py",
+    "tests/enforcement/test_certification_coverage.py",
+    "scripts/final_gate.py",
+    "commands/_sources/fabrik-user-test.md",
+    "commands/_sources/fabrik-service-test.md",
+    "docs/reference/certification-denominator.md",
+    "CLAUDE.md",
+    "scripts/enforcement/check_doc_sprawl.py"
+  ],
+  "started_at": "2026-08-27",
+  "baseline_commit": "9ad32739",
+  "completed_at": "2026-08-27",
+  "final_commit": "d612b5fd"
+}
