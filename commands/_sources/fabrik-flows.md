@@ -151,7 +151,14 @@ Walk the gate; resolve gaps in conversation, never hand off with known gaps: eve
 to ≥1 flow · every persona's journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING
 flow has its RECEIVING persona's journey · every async boundary has its gap state · exactly one
 `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) ·
-i18n decisions when applicable · hard exclusions honored · length within targets.
+i18n decisions when applicable · hard exclusions honored · length within targets · **life-cycle arc
+coverage (UI-bearing types):** the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual ·
+paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user ·
+recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap
+is surfaced. Certification re-derives these arcs later; a flows contract frozen without them fails at cert
+time or, worse, ships the hole (transdoc: two md5-verified convergence loops missed a missing
+paying-customer exit and a missing resume path, because nothing after the authoring phase re-checked the
+arc set).
 
 Then converge: re-walk the whole artifact; fix; repeat until a full pass makes **zero edits** (md5 the file
 before/after the closing pass — identical hashes are the proof). Set `Status: FROZEN`, bump `Version`.

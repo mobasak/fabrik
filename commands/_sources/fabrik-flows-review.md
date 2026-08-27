@@ -66,6 +66,14 @@ inside a flow counts; the artifact's own counting rule, the freeze law, a gate l
 match a naive grep and are prose. Miscounting here manufactures a defect that is not there — it already has,
 in a checker, mid-run, and in a review. Per-external-call resilience present (slow AND down, persona's view).
 
+**E2) Life-cycle arc coverage (UI-bearing types).** Re-derive the `/fabrik-user-test` Phase-1b arc set
+independently — *first-day · habitual · paying-customer · leaving-user · recovery* — and check each
+applicable arc has BOTH legs: an entry AND a deliberate exit (paying-customer needs a VOLUNTARY
+downgrade/cancel, not just involuntary payment-failure recovery; recovery needs the interrupted-journey
+resume, not just abandoned checkout). This axis exists because the arc set is an AUTHORING instruction in
+another command and nothing in the flows gate re-derived it: two honest md5-verified convergence loops
+missed two arc holes that one operator sentence caught (transdoc, 2026-08-27).
+
 **F) Discipline + exclusions.** Microcopy Hot-Spots are outcomes, never literal strings · i18n decisions
 present when the project declares i18n · **the hard exclusions (no file paths / component names /
 implementation detail) govern FLOW BODIES only** — the header, R-notes, Contract inputs and the re-freeze
