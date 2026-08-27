@@ -394,7 +394,13 @@ def gap_synthesis(
     # BEAT: group negative signals by aspect (the theme), corroboration-gate, source-weight rank.
     by_theme: dict[str, list[Signal]] = {}
     for s in review_signal:
-        if s.sentiment.lower() != "negative":
+        # ⚠️ `.strip().lower()`, matching `orchestrator._signal_key` EXACTLY. The key normalizes with
+        # `.strip()`, so `"negative "` and `"negative"` merge into one entry there — and if the survivor
+        # kept the stray whitespace, a bare `.lower()` here FILTERED IT OUT, dropping the corroborating
+        # source and collapsing the whole BEAT theme below `min_sources=2`. `partial=False`, no cause.
+        # A dedupe key and the filter it feeds must normalize identically or the merge silently deletes
+        # evidence; matching the field name is not enough (see the key's docstring).
+        if (s.sentiment or "").strip().lower() != "negative":
             continue
         aspect = (s.aspect or "").strip().lower()
         if not aspect:
@@ -412,7 +418,7 @@ def gap_synthesis(
         # fire (a rating-bearing source e.g. Apple; a Tier-C signal has rating=None → url-marker weighting).
         doms = subject_domains or {}
         weight = sum(
-            source_weight(u, rating=s.rating, subject_domain=doms.get(s.competitor)) for s, u in entries if u
+            source_weight(u, rating=s.rating, subject_domain=doms.get(s.competitor.strip())) for s, u in entries if u
         )
         beat.append(
             BeatItem(

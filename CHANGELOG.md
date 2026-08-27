@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — competitor_intel re-vendored: resume re-billing + budget-0-permanently-empty, both live in the hub copy (2026-08-27)
+
+- `libs/competitor_intel/{orchestrator,synth}.py` re-vendored from fabrik-lib HEAD (`43e4324`,
+  byte-identity verified against `git show HEAD:`, never their working tree — which carried
+  further WIP). Closes the two bugs fabrik-lib proved live in our copy (`01M11Z5VCW`): a
+  sub-call's CUMULATIVE spend charged as a DELTA on resume (0.20→0.50 across four no-work
+  resumes; now a per-sub-call `charged` watermark ledger + `LedgerReset` degrade cause), and
+  `discovery_done = res.ok` marking a budget-exhausted short-circuit permanently complete
+  (empty dossier forever; now `res.ok and res.ran`). Sub-call checkpoints are job-scoped.
+  Hub `tests/test_rivals_run.py` 98/98 green on the new copy; the three render nits from
+  `01M119N8VG` were verified already fixed in `scripts/rivals_run.py` (`:714-717`, `:740-749`,
+  `:762-766`).
+
 ### Fixed — /fabrik-features billed itself as the certification denominator; the grader rejects that (2026-08-27)
 
 Command 4 of 31, audited against `docs/reference/command-evaluation-checklist.md`.
