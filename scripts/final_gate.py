@@ -929,6 +929,19 @@ def run_consistency_checks(
         )
     )
 
+    # Spec convergence. Same terms and same reason as the two checks above: tier-independent (a
+    # spec's contract does not care which tier the caller asked for), always exits 0 by contract,
+    # warn_only so a finding never reddens ~46 synced repos. Silent in a repo with no CONVERGED
+    # spec. NOT grandfathered — pre-existing CONVERGED specs are graded too, per the standing
+    # rollout ruling (advisory on landing, promote after the fleet has run it once).
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_spec_convergence.py",
+            "Spec convergence",
+            warn_only=True,
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):

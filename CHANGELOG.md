@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — check_spec_convergence.py: the pipeline's front door finally has a grader (2026-08-27)
+
+`/fabrik-spec` carries a **BLOCKING live-research gate for every external fact** and
+`/fabrik-spec-review` flips `Status: DRAFT → CONVERGED` after an edit-free no-op round. **Nothing
+graded that claim.** `check_convergence.py` scans `docs/development/plans/` + `docs/development/reviews/`
+only; `check_stage_artifacts.py` explicitly defers CONVERGED-claim grading to it and merely checks a
+cited spec HAS a status. So the artifact every later stage inherits was presence-checked and never
+evidenced — the "contract with no grader" class, at the front of the pipeline.
+
+Two findings, both mechanically decidable off the artifact:
+
+- **SILENT-1a** — a CONVERGED spec citing zero external source URLs that never says why. Zero
+  citations is often correct (most infra specs have no vendor facts), but silence makes "there were
+  no external facts" and "I skipped the blocking research gate" byte-identical, and only one of those
+  is convergence. The matcher is deliberately generous — the finding is for SILENCE, not phrasing.
+- **NO-RESIDUAL** — converged while enumerating no residual unknowns, against the review command's
+  own "do not promise 100% accuracy … then enumerate residual unknowns / assumptions".
+
+Measured on landing: **16 CONVERGED specs, 9 with findings.** DRAFT specs are never graded (being
+incomplete is what DRAFT means). Not grandfathered, per the standing rollout ruling. Advisory
+(`warn_only`), always exits 0 including argparse failure, silent where no CONVERGED spec exists, and
+budget-safe against `final_gate`'s 500-char truncation.
+
+Both finding classes proven by red-on-revert with the mutation asserted APPLIED before its verdict
+was read (Lesson 134).
+
 ### Fixed — /fabrik-spec-review's own advertised trigger routed to the WRONG command (2026-08-27)
 
 Command 3 of 31, audited against the checklist. `/fabrik-spec-review` declares
