@@ -59,12 +59,18 @@ notification, export), the receiving persona's journey exists and starts from th
 **D) Async-boundary gap states.** Every out-of-band round-trip names what the persona sees between the two
 legs. "The webhook updates the status" is the system's view; the axis demands the PERSONA'S view of the gap.
 
-**E) `[PRIMARY PATH]` + resilience.** Exactly ONE `[PRIMARY PATH]` per flow (zero or two is a defect — the
-certification gauntlets consume it as their denominator); per-external-call resilience present (slow AND
-down, from the persona's view).
+**E) `[PRIMARY PATH]` + resilience.** Exactly ONE `[PRIMARY PATH]` per flow (zero or two is a defect — it is
+the certification DEPTH input, the journey exercised deeply, never the denominator: the gauntlets resolve
+that from a live registry). **Count MARKERS, not the token:** only an occurrence labelling a step sequence
+inside a flow counts; the artifact's own counting rule, the freeze law, a gate line and your own ledger all
+match a naive grep and are prose. Miscounting here manufactures a defect that is not there — it already has,
+in a checker, mid-run, and in a review. Per-external-call resilience present (slow AND down, persona's view).
 
 **F) Discipline + exclusions.** Microcopy Hot-Spots are outcomes, never literal strings · i18n decisions
-present when the project declares i18n · no file paths / component names / implementation detail leaked in ·
+present when the project declares i18n · **the hard exclusions (no file paths / component names /
+implementation detail) govern FLOW BODIES only** — the header, R-notes, Contract inputs and the re-freeze
+close-out's Downstream impact table are lifecycle metadata whose entire job is naming entities, fields and
+consumer docs, and axis G below REQUIRES exactly that; raising them under F contradicts G in the same pass ·
 per-flow and spec-wide length within targets · Mermaid only where genuinely multi-party.
 
 **G) Cross-artifact truth.** No flow contradicts the spec (spot-check the spec's INTENT — the written spec
@@ -84,8 +90,9 @@ Reviewed means consumable as-is:
   journeys.
 - **`/fabrik-ui-design`** (GUI types) can design screens knowing every surface a journey lands on — a
   journey step landing on an undesignable "somewhere" is not handoff-ready.
-- **`/fabrik-user-test` / `/fabrik-service-test`** can read the `[PRIMARY PATH]` set as their certification
-  denominator without inventing journeys at gauntlet time.
+- **`/fabrik-user-test` / `/fabrik-service-test`** can read the `[PRIMARY PATH]` set as the journeys owed
+  DEPTH without inventing them at gauntlet time — their coverage DENOMINATOR comes from a live registry, and
+  a cert board sourced from a doc is a finding their own grader raises.
 - **The freeze is real:** `Status: FROZEN` + `Version` + `Date` + `Type` + `Journey kinds` header set; the
   verbatim freeze law present.
 

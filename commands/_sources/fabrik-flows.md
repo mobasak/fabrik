@@ -119,7 +119,8 @@ a persona would behave differently — or a developer would assume wrong — if 
 
 Write `docs/flows.md`. **Per flow (target ≤30 lines, hard split at 50):** flow name (short imperative) ·
 persona · the Success Criterion it serves · exactly **one `[PRIMARY PATH]`** marker on the 80%+ step
-sequence (label only — the certification gauntlets consume it as their denominator) · decision points ·
+sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their
+denominator from a live registry and demote every doc to a cross-check) · decision points ·
 edge/error paths · resilience + async-gap states · **Microcopy Hot-Spots** naming the OUTCOME the copy must
 communicate, never the literal string · i18n notes where applicable. **Mermaid sequence diagrams only for
 genuinely multi-party logic.**
@@ -137,6 +138,12 @@ fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`)
 mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case:
 four false CRITICALs in one transdoc review). Length discipline: a flow over 30 lines gets a one-line
 justification; near 50, split it; the file near 400, propose splitting the feature.
+
+**`[PRIMARY PATH]` counting rule — state it verbatim in the artifact:** *a MARKER is that token labelling a
+step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate
+line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every
+reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect
+under the "exactly one" gate above and has already mis-fired in a checker, mid-run, and in a review.
 
 ## Phase 6 — Validation gate, then self-convergence to FROZEN
 
