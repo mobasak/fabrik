@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-rivals: the convergence loop could not converge, and had no grader (2026-08-27)
+
+Command-corpus audit, command 1 of 31. Four defects, one of them load-bearing:
+
+- **The Phase 2 convergence loop was structurally vacuous.** The engine guards discovery with
+  `if not discovery_done:` (`orchestrator.py:566`) and persists the flag per `job_id`, while the
+  driver derives `job_id` deterministically from the market — so round 2 onward could not surface a
+  new rival **by construction**, and the "two consecutive dry rounds" terminal condition
+  auto-satisfied at round 2. The loop reported DRY without ever re-asking: fail-silent-green inside
+  the phase that exists to stop a fabricated competitor reaching a spec. Clearing the flag alone
+  would have been *worse* — `discovered` is REPLACED at `orchestrator.py:572`, not merged, so a
+  thinner round would silently drop rivals whose `reviews_done` entries survive. New
+  `rivals_run.py --rediscover` does both halves: re-arm discovery preserving `reviews_done` and
+  `spent_usd`, then re-union the prior set afterwards. Rounds 1..N-1 use the flag; the final round
+  omits it so the engine synthesizes over the full union.
+- **No grader existed at all** — `grep -rln rivals scripts/enforcement/` returned nothing against a
+  five-condition termination contract. New `scripts/enforcement/check_rivals_dossier.py` (advisory,
+  `warn_only=True`, always exits 0, silent in repos with no dossier) grades the four mechanically
+  decidable conditions and states both its denominator and what it *cannot* grade.
+- **The reference doc still documented the deleted two-repo split** — `docs/reference/rivals-command.md`
+  told a project agent to file a brief by mail and wait for a hub session, which is exactly how a
+  project agent got stuck. Same for two `INDEX.md` rows.
+
 ### Added — MISTRAL_API_KEY: free Experiment-tier provider wired + payload-screened for the haiku replacement (2026-08-27)
 
 - Operator-provisioned Mistral La Plateforme free key into the hub `.env` (backup first), with

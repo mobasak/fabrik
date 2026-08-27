@@ -916,6 +916,19 @@ def run_consistency_checks(
         )
     )
 
+    # Rivals-dossier contract. Registered for the same reason and on the same terms as the
+    # plan-lock check above: it is tier-independent (a dossier's contract does not care which tier
+    # the caller asked for), it always exits 0 by contract, and warn_only=True keeps it advisory —
+    # a non-zero exit here would turn an advisory row into a blocking red across ~46 synced repos.
+    # Silent in every repo that has no docs/reference/rivals/, which is most of the fleet.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_rivals_dossier.py",
+            "Rivals dossier",
+            warn_only=True,
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):

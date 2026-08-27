@@ -36,9 +36,11 @@ Two contracts, one per mode. Never let one mode's "done" stand in for the other'
 
 **The run is done when ALL of these hold** — this is a LOOP, not a single shot:
 
-1. **Discovery is DRY** — a fresh round surfaces no new competitor AND no new MATCH/BEAT item. Two
-   consecutive dry rounds, not one: unknown-size discovery never terminates honestly on a fixed
-   round count, and the tail is where the non-obvious rival lives.
+1. **Discovery is DRY** — a fresh `--rediscover` round surfaces no new competitor AND no new
+   MATCH/BEAT item. Two consecutive dry rounds, not one: unknown-size discovery never terminates
+   honestly on a fixed round count, and the tail is where the non-obvious rival lives. ⚠️ **Only a
+   `--rediscover` round can be dry** — without the flag the engine skips discovery entirely, so a
+   plain re-run returns zero new rivals no matter how much of the market is unexplored (Phase 2).
 2. **The trust audit returns zero unverifiable claims**, adjudicated per the split below.
 3. **`truncated` is False.** `truncated=True` means the money ceiling BOUND the run — partial by
    budget, and with the standing no-ceiling policy it should never fire. If it does, that is a LOUD
@@ -102,10 +104,29 @@ The traps, all of which produce a plausible-looking empty dossier rather than an
 
 ## Phase 2 — converge: dry discovery + the split audit
 
-Loop. Each round: re-run discovery (the checkpoint re-bills nothing for completed work), diff the new
+⚠️ **Every convergence round MUST pass `--rediscover`, or the loop is vacuous.** The engine discovers
+ONCE per `job_id` (`orchestrator.py:566` guards it on a persisted `discovery_done`), and the driver
+derives `job_id` deterministically from the market — so a plain re-run cannot surface a new rival **by
+construction**, and condition 1 above would auto-satisfy at round 2. That is not a dry market; it is
+the question never being asked. `--rediscover` re-arms the discovery leg while re-billing no mined
+review, and re-unions the rivals already found (the engine REPLACES the competitor list rather than
+merging it, so without the union a thinner round silently drops rivals).
+
+```
+round 1..N-1:  python scripts/rivals_run.py --market "<market>" ... --rediscover
+round N:       python scripts/rivals_run.py --market "<market>" ...      # no flag — synthesis round
+```
+
+Loop. Each round: re-run discovery with `--rediscover`, read the driver's `ROUND:` line (it prints the
+NEW count and the running union — a dry round is a MEASURED fact, never an assumption), diff the new
 `competitors` / `match_list` / `beat_list` against the last round, and run the split trust audit over
 whatever is new. A round that adds a rival is never the last round. Record a Pass Ledger row per round
 with `found:` / `new:` / `fixed:`, exactly as the review commands do.
+
+**The final round runs WITHOUT the flag** — the engine then restores the full accumulated union as its
+competitor set, mines any still-unmined reviews, and synthesizes the matrix over ALL of them. That
+round's dossier is the artifact; a `--rediscover` round's dossier covers only that round's fresh
+discoveries and must never be written to `docs/reference/rivals/`.
 
 **A rival you cannot corroborate is not a finding.** Drop it to `❓` and say so. The failure mode here
 is a confident, well-formatted, fabricated competitor — which is why the audit re-fetches rather than

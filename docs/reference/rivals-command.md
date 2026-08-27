@@ -1,6 +1,6 @@
 # `/fabrik-rivals` — competitive evidence before a spec exists
 
-**What this covers:** the `/fabrik-rivals` command, its hub-side driver `scripts/rivals_run.py`, and
+**What this covers:** the `/fabrik-rivals` command, its fleet-synced driver `scripts/rivals_run.py`, and
 the wiring contract between them and the vendored `competitor-intel` engine. The engine itself is a
 fabrik-lib module and is documented there (`/opt/fabrik-lib/competitor-intel/README.md`); this doc is
 about the *fabrik* half — where the command sits, what it costs, and the traps that make a broken run
@@ -29,25 +29,26 @@ entry-opportunity intel, **not market-sizing or demand validation**. A spec stil
 separately. White-space is incumbent/discourse-anchored — it surfaces needs people are already
 voicing, never a blue ocean nobody has mentioned.
 
-## Two modes, and why
+## One mode: every repo runs its own scan
 
-The engine is vendored-not-imported and needs `deep-research` + `web-tools` + an LLM injected. Putting
-that in all ~46 projects would mean vendoring three modules per repo; fabrik-lib's brief asked for a
-"thin hub-side driver" instead. The operator's requirement was that the command work in **every**
-project, old and new. Both are satisfied by the same two-mode shape `/fabrik-upstream` already uses:
+**There is no mode to pick and no hand-off.** Any repo — hub or project, old or new — runs the scan
+itself and writes every artifact into its own tree.
 
-- **PROJECT mode** (repo identity ≠ `/opt/fabrik`) — grounds and files the BRIEF, using local tooling
-  only. No hub shell-out, no vendored engine, no keys. The project supplies what only it knows: its
-  `project.yaml::type`, its `docs/FEATURES.md`, its market.
-- **HUB mode** (repo identity = `/opt/fabrik`) — holds the single vendored copy at
-  `libs/competitor_intel` and runs it.
+Two things make that work. `scripts/rivals_run.py` is a **`CORE_SCRIPT`**
+(`scripts/fabrik_synced_manifest.py:41`), so it is fleet-synced into every project and scaffolded into
+every new one. And it resolves the engine **local-first, then the hub's single vendored copy**
+(`rivals_run.py::_resolve_engine`) — a project imports `/opt/fabrik/libs/competitor_intel` rather than
+vendoring `deep-research` + `web-tools` + `competitor-intel` into all ~46 repos. Search keys reach
+every project through the synced `libs/subagents` autoloader. If the engine is in neither place the
+driver says so and names the fix; it never degrades to a hand-off.
 
-The command reaches every project because the corpus renders to user-level `~/.claude/commands` and
-`~/.claude/skills`, not because anything is copied into a project tree.
-
-⚠️ Identity is tested by CONTENT (`scripts/fabrik_synced_manifest.py` at the toplevel), never by a
-bare path string — a relocated or DR hub clone is still the hub, and a `/opt/fabrik` worktree IS
-hub-repo.
+⚠️ **An earlier version of this command split the work across two repos** — a project filed a brief by
+mail and the operator opened a hub session to run it. That was built on a **misreading of the
+cross-repo HARD STOP**, which governs *"create/edit/**commit** files in a repo OTHER than the one you
+were launched in"* — **writes**, not reads. Importing the hub's vendored engine while writing only
+into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo
+errand (which is exactly how a project agent got stuck, 2026-08-27). The split is gone; do not
+reintroduce it.
 
 ## What it costs
 
@@ -91,6 +92,42 @@ at entry. The consequence is that **every wiring mistake yields a dossier that l
 `--preflight-only` runs all of them and exits without spending. **Never prompt the operator for a
 key** — a missing one is a provisioning escalation, and the guard says so in its own message.
 
+### The vacuous-loop trap: discovery runs ONCE per `job_id`
+
+Found by audit 2026-08-27, and the most dangerous of the set because it defeated the very phase that
+exists to stop a fabricated rival reaching a spec.
+
+The engine guards discovery with `if not discovery_done:` (`orchestrator.py:566`) and persists that
+flag in the progress checkpoint. The driver derives `job_id` **deterministically from the market**
+(`rivals_run.py::main`), into a persistent `.tmp/rivals/<job_id>/`. So a second round could not
+surface a new rival **by construction** — and the command's terminal condition #1, "two consecutive
+dry rounds", auto-satisfied at round 2. The loop reported DRY without ever re-asking the question:
+fail-silent-green, in the convergence loop itself.
+
+Clearing the flag alone would have been **worse**. `discovered` is REPLACED at `orchestrator.py:572`,
+not merged — so a round-2 discovery returning 9 of 12 rivals would silently drop 3, while their
+`reviews_done` entries survived, meaning no later round would re-mine them either.
+
+`--rediscover` is therefore two halves, both driver-side (never a fork of the vendored engine):
+
+1. **Re-arm** — clear `discovery_done`, preserving `reviews_done` (no mined review is re-billed),
+   `spent_usd` (the ceiling's only memory across a resume) and the degrade flags.
+2. **Re-union** — after the run, union the prior competitor set back over the round's fresh
+   discoveries, prior cards first and winning collisions (a surviving card may already carry mined
+   data).
+
+**The loop shape this implies:** every round but the last runs `--rediscover`; the **final round runs
+without it**, so the engine restores the full union as `discovered`, mines any still-unmined reviews,
+and synthesizes the matrix over the complete set. The driver prints the per-round `NEW`/`union` counts
+so a dry round is a measured fact rather than an assumption.
+
+The progress file is located by **glob**, not by rebuilding the engine's private
+`_slug(job_id)-_hash(job_id)-progress.json` naming — `checkpoint_dir` is already per-`job_id`, so it
+holds exactly one, and replicating a vendored module's private naming is a fork that drifts silently
+on the next re-vendor. Every path verifies `job_id` first (the engine discards a foreign progress
+file, and mutating one would corrupt an unrelated scan) and fails **soft** — a checkpoint problem must
+never cost a paid run.
+
 The key autoload itself stays **fail-open but never silent**: if `libs.subagents.load_env` is
 unavailable the driver prints a `note:` and relies on the ambient environment, rather than swallowing
 the failure. Swallowing it would be the same diagnosability gap this command filed upstream against
@@ -132,10 +169,12 @@ Two details that are easy to get wrong and were checked against the real payload
 
 ## Termination — the command is a LOOP
 
-A single engine run is not a dossier. HUB mode is done only when all of these hold:
+A single engine run is not a dossier. The run is done only when all of these hold:
 
-1. **Discovery is DRY** — two consecutive rounds surface no new competitor and no new MATCH/BEAT item.
-   Unknown-size discovery never terminates honestly on a fixed round count.
+1. **Discovery is DRY** — two consecutive `--rediscover` rounds surface no new competitor and no new
+   MATCH/BEAT item. Unknown-size discovery never terminates honestly on a fixed round count. ⚠️ A
+   round run **without** `--rediscover` cannot discover anything (see the vacuous-loop trap above) —
+   it is the closing synthesis round, never a dry round.
 2. **The trust audit is clean** — see the split below.
 3. **`truncated` is False** — with the no-ceiling policy it should never fire; if it does, that is a
    loud finding (runaway discovery), not a footnote.
@@ -167,5 +206,5 @@ silently fork the vendored copy; re-vendor to pick up a fix.
 
 - `/opt/fabrik-lib/competitor-intel/README.md` — the engine, its `Deps` table, and its gotchas
 - `commands/_sources/fabrik-rivals.md` — the command source (rendered box-wide)
-- `scripts/rivals_run.py` — the hub-side driver and its pre-flight
+- `scripts/rivals_run.py` — the fleet-synced driver, its pre-flight and `--rediscover`
 - `scripts/claude_p_cost.py` — what a `claude -p` call actually costs

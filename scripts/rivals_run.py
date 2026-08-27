@@ -347,6 +347,108 @@ def _as_map(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+# ── re-discovery: making `/fabrik-rivals` Phase 2's convergence loop actually loop ────────────────
+# The engine discovers ONCE per job_id — `if not discovery_done:` (orchestrator.py:566), with the
+# flag persisted in the progress checkpoint — and this driver derives `job_id` deterministically
+# from the market. So a second round found no new rival BY CONSTRUCTION, and the command's "two
+# consecutive dry rounds" terminal condition auto-satisfied at round 2: a loop that reported DRY
+# without ever re-asking. Clearing the flag alone is NOT enough, and is in fact worse: the engine
+# REPLACES `discovered` (orchestrator.py:572) rather than merging, so a round-2 discovery returning
+# 9 of 12 rivals would silently drop 3 — while their `reviews_done` entries survived, so no later
+# round would re-mine them either. Re-discovery is therefore two halves: re-arm the flag while
+# preserving everything already paid for, and re-union the prior set back in afterwards.
+#
+# We locate the progress file by GLOB rather than by rebuilding the engine's private
+# `_slug(job_id)-_hash(job_id)-progress.json` naming: `checkpoint_dir` is already per-job_id, so it
+# holds exactly one, and replicating a vendored module's private naming is a fork that drifts
+# silently on the next re-vendor. Every path here fails SOFT — a checkpoint problem must never cost
+# a paid run — and every path verifies `job_id` first, because the engine discards a foreign
+# progress file and mutating one would corrupt an unrelated scan.
+
+
+def _progress_file_for(checkpoint_dir: Path, job_id: str) -> tuple[Path, dict[str, Any]] | None:
+    """This job's progress file + its parsed body, or None (absent, unreadable, or another job's)."""
+    try:
+        candidates = sorted(checkpoint_dir.glob("*-progress.json"))
+    except OSError:
+        return None
+    for path in candidates:
+        try:
+            body = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(body, dict) and body.get("job_id") == job_id:
+            return path, body
+    return None
+
+
+def _write_progress(path: Path, body: dict[str, Any]) -> bool:
+    """Atomic rewrite — a torn progress file loses the cumulative-spend record, so never write in
+    place. Returns False on any failure; the caller degrades to "discovery runs anyway"."""
+    try:
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(body, indent=2), encoding="utf-8")
+        tmp.replace(path)
+        return True
+    except OSError:
+        return False
+
+
+def _rediscover_reset(checkpoint_dir: Path, job_id: str) -> list[dict[str, Any]]:
+    """Re-arm discovery for the next round; return the competitors the round is about to replace.
+
+    Everything already paid for is preserved — `reviews_done` (so no review is re-mined),
+    `spent_usd` (the ceiling's only memory across a resume), and the degrade flags.
+    """
+    found = _progress_file_for(checkpoint_dir, job_id)
+    if found is None:
+        return []
+    path, body = found
+    prior = [c for c in (body.get("competitors") or []) if isinstance(c, dict)]
+    body["discovery_done"] = False
+    if not _write_progress(path, body):
+        return []
+    return prior
+
+
+def _comp_key(card: Any) -> str | None:
+    """Dedup key for the competitor union. Deliberately NOT the engine's `_ck` — that keys
+    `reviews_done` and must stay exactly as the engine writes it; this one only has to recognise the
+    same rival re-discovered with different casing or stray whitespace."""
+    if not isinstance(card, dict):
+        return None
+    name = str(card.get("name") or "").strip().lower()
+    url = str(card.get("url") or "").strip().lower().rstrip("/")
+    if not name and not url:
+        return None
+    return f"{name}|{url}"
+
+
+def _merge_competitors_into_progress(
+    checkpoint_dir: Path, job_id: str, prior: list[dict[str, Any]]
+) -> int:
+    """Union `prior` back over the round's fresh discoveries; return the union size (0 = not written).
+
+    Prior cards come FIRST and win a collision: a card that survived an earlier round may already
+    carry mined data, and the fresh card is at best equivalent. The union lands in the checkpoint so
+    the FINAL round — run WITHOUT `--rediscover` — restores all of them as `discovered`, mines any
+    still-unmined reviews, and synthesizes the matrix over the complete set.
+    """
+    found = _progress_file_for(checkpoint_dir, job_id)
+    if found is None:
+        return 0
+    path, body = found
+    union: dict[str, dict[str, Any]] = {}
+    for card in [*prior, *(body.get("competitors") or [])]:
+        key = _comp_key(card)
+        if key is not None and key not in union:
+            union[key] = card
+    body["competitors"] = list(union.values())
+    if not _write_progress(path, body):
+        return 0
+    return len(union)
+
+
 def render_dossier_md(d: dict[str, Any]) -> str:
     """Render the DECISION-GRADE brief from `to_dict()`, not `to_markdown()`.
 
@@ -599,6 +701,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--no-pricing", action="store_true", help="disable the price-wedge stage")
     p.add_argument("--no-white-space", action="store_true", help="disable the white-space stage")
     p.add_argument(
+        "--rediscover",
+        action="store_true",
+        help=(
+            "re-arm discovery for a CONVERGENCE round: re-runs the discovery leg (which the "
+            "checkpoint otherwise skips forever) and unions the result with the rivals already "
+            "found, while re-billing NO mined review. Use it for every round but the LAST — the "
+            "final round runs WITHOUT it, so the engine synthesizes over the full union."
+        ),
+    )
+    p.add_argument(
         "--llm-model",
         default="",
         choices=("", *CLAUDE_P_MODELS),
@@ -688,6 +800,20 @@ async def _run(args: argparse.Namespace) -> int:
     print(f"\nRunning: market={args.market!r} · product_type={product_type} · {mode}")
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    # A CONVERGENCE round, not a resume. Must happen AFTER the `--preflight-only` return above — a
+    # wiring check has no business mutating a checkpoint.
+    prior_competitors: list[dict[str, Any]] = []
+    if args.rediscover:
+        prior_competitors = _rediscover_reset(checkpoint_dir, job_id)
+        print(
+            f"  ok  --rediscover: discovery re-armed, carrying {len(prior_competitors)} known "
+            f"rival(s) forward; mined reviews are NOT re-billed"
+        )
+        if not prior_competitors:
+            print(
+                "      (no prior checkpoint for this job_id — this is round 1, discovery would "
+                "have run anyway)"
+            )
     cfg = WebToolsConfig(
         exa_api_key=os.getenv("EXA_API_KEY", ""),
         firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY", ""),
@@ -718,6 +844,26 @@ async def _run(args: argparse.Namespace) -> int:
         )
 
     data = dossier.to_dict()
+    if args.rediscover:
+        # Re-union BEFORE anything else touches the checkpoint: the engine has just overwritten
+        # `competitors` with this round's discoveries only (orchestrator.py:572), so without this
+        # the rivals the fresh round happened not to re-surface are gone from every later round.
+        fresh = len(data.get("competitors") or [])
+        total = _merge_competitors_into_progress(checkpoint_dir, job_id, prior_competitors)
+        added = total - len(prior_competitors)
+        print(
+            f"\nROUND: discovery re-ran and returned {fresh} rival(s); "
+            f"{added} NEW, union now {total}."
+        )
+        print(
+            "  → This round's dossier covers the fresh discoveries only. "
+            + (
+                "A round that adds a rival is never the last round — run another --rediscover round."
+                if added > 0
+                else "DRY round. Two consecutive dry rounds, then a FINAL run WITHOUT "
+                "--rediscover to synthesize over the full union."
+            )
+        )
     # ⚠️ ORDER IS LOAD-BEARING. The JSON is the paid artifact — the money is already spent by this
     # line — so it lands on disk BEFORE anything that can raise. Rendering used to run first, and
     # `render_dossier_md` reads keys off an LLM-shaped dict: an `AttributeError` on a competitor

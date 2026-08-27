@@ -593,7 +593,12 @@ def test_the_flatten_table_is_derived_not_hand_listed():
     """Hand-listing the characters is how `\\f`/`\\v`/U+2028/U+2029 were missed the first time. The
     table is derived from `str.splitlines()` itself, so it cannot drift from the definition."""
     assert len(rr._LINE_BOUNDARIES) >= 8
-    for ch in ("\n", "\r", "\f", "\v", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
+    # ⚠️ ESCAPES, never the literal characters. U+2028/U+2029 were embedded literally here and the
+    # gate's auto-formatter silently DELETED them (2026-08-27) — leaving `("...", "", "")`, which
+    # only surfaced because `ord("")` raises. Had the test used `in` alone it would have passed
+    # vacuously on two empty strings, and the two boundary characters it exists to pin would have
+    # been unguarded. A test must not encode its subject as bytes a formatter is entitled to rewrite.
+    for ch in ("\n", "\r", "\f", "\v", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"):
         assert ch in rr._LINE_BOUNDARIES, f"U+{ord(ch):04X} missing from the derived table"
 
 
@@ -640,3 +645,143 @@ def test_match_and_white_space_read_real_fields_not_a_phantom_detail():
     )
     assert "SSO" in out and "2 rival(s)" in out and "A, B" in out
     assert "bulk edit" in out and "1 sources" in out and "I wish" in out
+
+
+# ── D1: the convergence loop was structurally vacuous ────────────────────────────────────────────
+# `/fabrik-rivals` Phase 2 tells the agent to re-run discovery each round and diff the competitor
+# list, terminating on two consecutive DRY rounds. But the engine guards discovery with
+# `if not discovery_done:` (orchestrator.py:566) and persists that flag per job_id, while the driver
+# derives job_id deterministically from the market — so round 2 onward could not surface a new rival
+# BY CONSTRUCTION, and "dry" was auto-satisfied at round 2. Worse, `discovered` is REPLACED at
+# orchestrator.py:572, not merged, so naively clearing the flag would silently DROP round-1 rivals.
+# These tests pin the two halves of the fix: reset-without-collateral-damage, and union-on-merge.
+
+
+def _progress(tmp_path: Path, job_id: str = "rivals-crm", **over) -> Path:
+    body = {
+        "job_id": job_id,
+        "discovery_done": True,
+        "competitors": [{"name": "Alpha", "url": "https://alpha.io"}],
+        "reviews_done": {"alpha-1234abcd": True},
+        "spent_usd": "0.86",
+        "partial": False,
+        "truncated": False,
+    }
+    body.update(over)
+    f = tmp_path / "rivals-crm-1234abcd-progress.json"
+    f.write_text(json.dumps(body), encoding="utf-8")
+    return f
+
+
+def test_rediscover_clears_only_the_discovery_flag():
+    """The whole point: discovery re-runs, but the reviews already paid for are NOT re-billed."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        f = _progress(tmp)
+        rr._rediscover_reset(tmp, "rivals-crm")
+        got = json.loads(f.read_text(encoding="utf-8"))
+    assert got["discovery_done"] is False, "discovery must be re-armed"
+    assert got["reviews_done"] == {"alpha-1234abcd": True}, "mined reviews must NOT be re-billed"
+    assert got["spent_usd"] == "0.86", "cumulative spend must survive — it is the ceiling's memory"
+
+
+def test_rediscover_returns_the_prior_competitors_so_they_can_be_reunioned():
+    """orchestrator.py:572 REPLACES the list. The driver must hold the prior set across the run."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp)
+        prior = rr._rediscover_reset(tmp, "rivals-crm")
+    assert [c["name"] for c in prior] == ["Alpha"]
+
+
+def test_rediscover_refuses_a_progress_file_owned_by_another_job():
+    """`_load_progress` discards a foreign file; mutating one would corrupt an unrelated scan."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        f = _progress(tmp, job_id="rivals-something-else")
+        prior = rr._rediscover_reset(tmp, "rivals-crm")
+        got = json.loads(f.read_text(encoding="utf-8"))
+    assert prior == []
+    assert got["discovery_done"] is True, "a foreign job's checkpoint must be left untouched"
+
+
+def test_rediscover_on_a_first_run_is_a_silent_no_op():
+    """Round 1 has no checkpoint yet — discovery runs anyway; this must not raise."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        assert rr._rediscover_reset(Path(td) / "nope", "rivals-crm") == []
+
+
+def test_rediscover_survives_a_corrupt_checkpoint():
+    """A torn write must degrade to 'discovery runs anyway', never a traceback on a paid run."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "x-progress.json").write_text("{not json", encoding="utf-8")
+        assert rr._rediscover_reset(tmp, "rivals-crm") == []
+
+
+def test_the_union_merge_keeps_prior_rivals_the_fresh_round_did_not_rediscover():
+    """THE defect: without this, a round-2 discovery returning 9 of 12 silently drops 3 rivals."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        f = _progress(tmp, competitors=[{"name": "Beta", "url": "https://beta.io"}])
+        prior = [{"name": "Alpha", "url": "https://alpha.io"}]
+        n = rr._merge_competitors_into_progress(tmp, "rivals-crm", prior)
+        got = json.loads(f.read_text(encoding="utf-8"))
+    assert n == 2
+    assert [c["name"] for c in got["competitors"]] == ["Alpha", "Beta"], "prior first, then new"
+
+
+def test_the_union_dedups_case_and_whitespace_variants_of_the_same_rival():
+    """A rival re-discovered with different casing must not become a second row in the matrix."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        f = _progress(tmp, competitors=[{"name": " alpha ", "url": "HTTPS://Alpha.io"}])
+        n = rr._merge_competitors_into_progress(
+            tmp, "rivals-crm", [{"name": "Alpha", "url": "https://alpha.io"}]
+        )
+        got = json.loads(f.read_text(encoding="utf-8"))
+    assert n == 1, "same rival, one row"
+    assert got["competitors"][0]["name"] == "Alpha", "the prior card wins — it may carry mined data"
+
+
+def test_the_union_never_touches_a_foreign_jobs_progress():
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        f = _progress(tmp, job_id="other")
+        rr._merge_competitors_into_progress(tmp, "rivals-crm", [{"name": "X", "url": "u"}])
+        got = json.loads(f.read_text(encoding="utf-8"))
+    assert [c["name"] for c in got["competitors"]] == ["Alpha"]
+
+
+def test_bare_string_competitors_do_not_crash_the_union():
+    """The renderer already had to survive this shape; so must the merge."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _progress(tmp, competitors=["a bare string"])
+        n = rr._merge_competitors_into_progress(
+            tmp, "rivals-crm", [{"name": "Alpha", "url": "https://alpha.io"}]
+        )
+    assert n == 1, "the malformed card is dropped, the real one survives"
+
+
+def test_rediscover_is_advertised_on_the_cli():
+    ns = rr._parse_args(["--market", "crm", "--rediscover"])
+    assert ns.rediscover is True
