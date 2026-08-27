@@ -1004,3 +1004,65 @@ def test_spec_review_stem_is_registered_and_ordered_before_review() -> None:
     order = [st for _, st in hook.KEYWORD_STEMS]
     assert order.index("spec-review") < order.index("review"), "first match wins — must precede"
     assert order.index("spec-review") < order.index("spec"), "else 'spec' swallows it"
+
+
+# ── two more advertised triggers routed INTO the command whose SKIP clause forbids them ──────────
+# Measured 2026-08-28 by running all 71 advertised EN TRIGGER phrases through the live router:
+# 21 resolved correctly, 45 resolved NOWHERE (safe), and these resolved to the WRONG gate. Both
+# landed on `fabrik-review` — the command whose OWN description reads "SKIP: ... Traycer artifact
+# convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review)". Same shape as
+# the spec-review mis-route above, and the same reason it matters: routing nowhere is safe, routing
+# the operator's own advertised phrase to a gate that disclaims it is not.
+
+
+def test_review_this_ui_reaches_design_review_not_the_code_reviewer() -> None:
+    assert hook.first_regex_match("review this UI") == "design-review"
+    assert hook.first_regex_match("review the UI changes") == "design-review"
+    assert hook.first_regex_match("check the design and accessibility of this screen") == (
+        "design-review"
+    )
+
+
+def test_a_traycer_artifact_review_reaches_workflow_review() -> None:
+    assert hook.first_regex_match("review the epic or ticket breakdown") == "workflow-review"
+    assert hook.first_regex_match("converge this workflow artifact") == "workflow-review"
+
+
+def test_the_new_stems_do_not_cannibalise_the_code_reviewer() -> None:
+    """The router's entire history is over-firing fixes: a stem added ABOVE `review` must leave
+    every sibling phrase alone. `design-review`'s own SKIP sends non-UI code review back here."""
+    assert hook.first_regex_match("review this diff") == "review"
+    assert hook.first_regex_match("code review") == "review"
+    assert hook.first_regex_match("is this PR safe to merge") != "design-review"
+    assert hook.first_regex_match("review this spec") == "spec-review"
+    assert hook.first_regex_match("review the deployment plan") != "design-review"
+    # "design" as a verb about a SPEC is the producer's, not the rendered-UI gate's
+    assert hook.first_regex_match("let's design and spec this out") != "design-review"
+
+
+def test_both_new_stems_are_registered_and_ordered_before_review() -> None:
+    assert hook.STEM_SKILLS["design-review"] == "design-review"
+    assert hook.STEM_SKILLS["workflow-review"] == "fabrik-workflow-review"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    assert order.index("design-review") < order.index("review"), "first match wins"
+    assert order.index("workflow-review") < order.index("review"), "first match wins"
+
+
+def test_the_ui_contract_review_is_not_swallowed_by_the_rendered_ui_gate() -> None:
+    """The first cut of the `design-review` stem above matched "review ... UI" and swallowed
+    /fabrik-ui-design-review, which converges the FROZEN docs/ui-design.md — a different artifact
+    from a rendered screen, and its own SKIP says so ("never a running app (→ /design-review)").
+    Caught by re-measuring all 71 advertised triggers AFTER the fix, not by reading it."""
+    assert hook.first_regex_match("review/harden this UI design contract") == "ui-design-review"
+    assert hook.first_regex_match("is this ui-design.md ready") == "ui-design-review"
+    # and the rendered-UI gate still wins for a rendered screen
+    assert hook.first_regex_match("review this UI") == "design-review"
+    assert hook.first_regex_match("check the design and accessibility of this screen") == (
+        "design-review"
+    )
+
+
+def test_ui_design_review_is_registered_and_ordered_before_design_review() -> None:
+    assert hook.STEM_SKILLS["ui-design-review"] == "fabrik-ui-design-review"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    assert order.index("ui-design-review") < order.index("design-review"), "first match wins"

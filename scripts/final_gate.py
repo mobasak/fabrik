@@ -987,6 +987,19 @@ def run_consistency_checks(
         )
     )
 
+    # Trigger routing — a command's ADVERTISED phrase must not reach a DIFFERENT command. Measured
+    # 2026-08-28: 5 of 71 did, and each landed on a command whose own SKIP clause disclaims the
+    # phrase. ADVISORY, and deliberately blind to phrases that route NOWHERE — that is safe, and
+    # grading it would push someone to close 42 gaps with loose patterns, which is how a router
+    # starts hijacking unrelated prompts. Hub-only: silent wherever commands/_sources/ is absent.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_trigger_routing.py",
+            "Trigger routing (advertised phrase -> its own command)",
+            warn_only=True,
+        )
+    )
+
     # ── Tier 1: Showstoppers only ──
     # Applied for Tier 1 and Tier 2. Tier 3 is systemic-only and skips these.
     if tier in (1, 2):

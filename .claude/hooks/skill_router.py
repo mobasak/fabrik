@@ -110,6 +110,12 @@ STEM_SKILLS: dict[str, str] = {
     "spec-review": "fabrik-spec-review",
     "plan": "fabrik-plan-after-chat",
     "review": "fabrik-review",
+    # Both sit ABOVE `review` in KEYWORD_STEMS: each is a phrase `fabrik-review`'s own SKIP
+    # clause disclaims, so letting the broad `review` stem win points the operator at a gate
+    # that says it is not the one (measured 2026-08-28 across all 71 advertised EN triggers).
+    "ui-design-review": "fabrik-ui-design-review",
+    "design-review": "design-review",
+    "workflow-review": "fabrik-workflow-review",
     "docs": "fabrik-docs-review",
     "release": "fabrik-release",
     "deploy-plan": "fabrik-deploy-plan",
@@ -303,6 +309,51 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "plan",
+    ),
+    # BEFORE design-review: /fabrik-ui-design-review converges the FROZEN docs/ui-design.md, not a
+    # rendered screen — its own SKIP says "never a running app (→ /design-review)". The first cut of
+    # the design-review stem below matched "review ... UI" and swallowed it; the CONTRACT nouns
+    # (contract / ui-design.md / design system) are what separate the two.
+    (
+        re.compile(
+            r"\b(review|harden|converge|sa[ğg]laml[aá]?[şs]t[ıi]r\w*|g[öo]zden\s+ge[çc]ir\w*)\b"
+            r"[^.]{0,40}\b(ui[- ]design(\.md)?|ui\s+design\s+contract|design\s+contract"
+            r"|design\s+system|ekran\s+s[öo]zle[şs]mesi)\b"
+            r"|\b(ui[- ]design(\.md)?|ui\s+design\s+contract|design\s+contract)\b[^.]{0,40}"
+            r"\b(review|harden|converge|ready|haz[ıi]r\s*m[ıi]|incele\w*)\b",
+            re.I,
+        ),
+        "ui-design-review",
+    ),
+    # /design-review advertises "review this UI" and "check the design and accessibility of this
+    # screen"; both fell to the broad `review` stem -> fabrik-review, whose SKIP clause literally
+    # says "rendered-UI review (→ /design-review)". Narrow by construction: a UI/screen/visual NOUN
+    # must sit in the same clause as the verb, so "review this diff" and "code review" are untouched.
+    (
+        re.compile(
+            r"\b(review|check|audit|look at)\b[^.]{0,30}"
+            r"\b(ui|screen|screens|frontend|front-end|visual|a11y|accessibility|styling)\b"
+            r"|\b(ui|screen|frontend|front-end|visual|a11y|accessibility)\b[^.]{0,30}"
+            r"\b(review|incele\w*|g[öo]zden\s+ge[çc]ir\w*)\b"
+            r"|\bbu\s+aray[üu]z[üu]\s+incele\w*"
+            r"|\btasar[ıi]m[ıi]?\s+ve\s+eri[şs]ilebilirli[ğg]i\w*",
+            re.I,
+        ),
+        "design-review",
+    ),
+    # /fabrik-workflow-review advertises "review the epic or ticket breakdown" and "converge this
+    # workflow artifact" — Traycer ARTIFACTS, which fabrik-review's SKIP also disclaims. Requires an
+    # epic/ticket/workflow-artifact noun, so a plain "review" never reaches it.
+    (
+        re.compile(
+            r"\b(review|converge|harden|sa[ğg]laml[aá]?[şs]t[ıi]r\w*|g[öo]zden\s+ge[çc]ir\w*)\b"
+            r"[^.]{0,40}\b(epic|ticket\s+breakdown|ticket\s+outline|workflow\s+artifact"
+            r"|decisions[- ]lock)\b"
+            r"|\b(epic|ticket\s+breakdown|workflow\s+[çc][ıi]kt[ıi]s[ıi]|workflow\s+artifact)\b"
+            r"[^.]{0,40}\b(review|converge|incele\w*|sa[ğg]laml[aá]?[şs]t[ıi]r\w*)\b",
+            re.I,
+        ),
+        "workflow-review",
     ),
     (
         re.compile(

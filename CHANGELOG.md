@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — advertised TRIGGER phrases that reached the wrong command; the routing pass (2026-08-28)
+
+- **Measured, not assumed:** all 71 advertised EN `TRIGGER` phrases run through the live
+  `skill_router.py`. **21 reached their own command, 45 routed NOWHERE, 5 reached a DIFFERENT one.**
+- The five mis-routes were not random — every one landed on a command whose OWN description
+  disclaims the phrase. `"review this UI"` and `"review the epic or ticket breakdown"` both fell to
+  `fabrik-review`, whose SKIP clause names `/design-review` and `/fabrik-workflow-review` for
+  exactly those. Same shape as the `/fabrik-spec-review` mis-route found auditing command 3.
+- Three narrow stems added above the broad `review` stem (`ui-design-review`, `design-review`,
+  `workflow-review`), each requiring a domain noun in the same clause as the verb so `"review this
+  diff"` and `"code review"` are untouched. The first cut of `design-review` over-fired and
+  swallowed `/fabrik-ui-design-review` (the frozen CONTRACT, not a rendered screen) — caught by
+  re-measuring all 71 after the fix, which is why `ui-design-review` sits above it.
+- `/fabrik-ui-design` advertised `"let's design the app"`, which `/fabrik-spec` also advertises and
+  correctly wins (spec precedes screens). Fixed the phrase, not the router.
+- **New advisory check `check_trigger_routing.py`** grades ONLY mis-routes and reports the
+  nowhere-count as a denominator. Grading "routes nowhere" would pressure someone to close 42 gaps
+  with loose patterns — and over-firing, not under-firing, is this router's documented failure mode.
+- **Result: 29 correct, 0 mis-routed, 42 nowhere (safe).**
+
+
 ### Fixed — the close refusal advertised exits that did not work; /fabrik-review found 9 (2026-08-28)
 
 - **36 sites advertised a close the tool now REFUSES** — `commands/_fragments/run-record.md`, the 17
