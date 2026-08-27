@@ -27,6 +27,12 @@ FRAG, SRC = ROOT / "_fragments", ROOT / "_sources"
 # Auto-appended to EVERY rendered command (see render()). Named once so the fragment cannot be
 # renamed on disk without this constant failing loudly rather than silently disabling the duty.
 _CLOSE_FEEDBACK = "close-feedback"
+AGENT_SRC = ROOT / "_agents"
+AGENTS = Path.home() / ".claude" / "agents"
+# Auto-appended to every rendered AGENT definition. A subagent cannot mail — it is ephemeral and
+# has no mailbox — so its half of the feedback duty is to SURFACE machinery findings in its return
+# value for the dispatcher (who owns the FEEDBACK: verdict) to file.
+_AGENT_FEEDBACK = "agent-feedback"
 OUT = Path.home() / ".claude" / "commands"
 SKILLS = Path.home() / ".claude" / "skills"
 BACKUP = Path.home() / ".claude" / "commands.bak-20260721-0615"
@@ -632,9 +638,61 @@ def _requote_command_description(text: str) -> str:
     return "---" + fm2 + text[end:]
 
 
-def render(dest: Path, skills_dest: Path | None = None):
+def _render_agent(src: Path, frags: dict[str, str]) -> str:
+    """One agent definition, banner-stamped and carrying the machinery-findings duty.
+
+    The frontmatter is NEVER touched beyond the banner insert: Claude Code parses `name:` /
+    `description:` / the tool fields out of it, so a renderer that disturbed the block would
+    silently unregister the agent rather than fail loudly.
+    """
+    text = src.read_text()
+    body = frags.get(_AGENT_FEEDBACK, "")
+    if body and body.split("\n", 1)[0] not in text:
+        text = text.rstrip("\n") + "\n\n" + body + "\n"
+    if text.startswith("---"):
+        end = text.index("\n---", 3) + 4
+        return text[:end] + "\n" + BANNER + text[end:].lstrip("\n")
+    return BANNER + text
+
+
+def agent_drift(dest: Path) -> list[str]:
+    """Installed agent definitions vs a fresh render — the check that makes the repo CANONICAL.
+
+    Before this existed, `~/.claude/agents/` was hand-authored and box-local: no source to diff, so a
+    defect in a subagent's brief could not be reviewed and the corpus check had no jurisdiction over
+    the agents its commands dispatch.
+    """
+    frags = {p.stem: p.read_text().rstrip("\n") for p in FRAG.glob("*.md")}
+    drift: list[str] = []
+    for src in sorted(AGENT_SRC.glob("*.md")):
+        live = dest / src.name
+        if not live.exists():
+            drift.append(f"agents/{src.name}: MISSING in {dest}")
+            continue
+        want, have = _render_agent(src, frags), live.read_text()
+        if want != have:
+            n = len(list(difflib.unified_diff(want.splitlines(), have.splitlines())))
+            drift.append(f"agents/{src.name}: HAND-EDITED ({n} diff lines)")
+    return drift
+
+
+def _emit_agents(dest: Path, frags: dict[str, str]) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    keep = set()
+    for src in sorted(AGENT_SRC.glob("*.md")):
+        (dest / src.name).write_text(_render_agent(src, frags))
+        keep.add(src.name)
+    # Prune ONLY what we generated. An operator's own agent definition must survive — deleting a
+    # hand-authored file here would be data loss, and the banner is what tells them apart.
+    for stale in dest.glob("*.md"):
+        if stale.name not in keep and BANNER.strip() in stale.read_text(errors="replace"):
+            stale.unlink()
+
+
+def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None = None):
     dest.mkdir(parents=True, exist_ok=True)
     frags = {p.stem: p.read_text().rstrip("\n") for p in FRAG.glob("*.md")}
+    _emit_agents(agents_dest if agents_dest is not None else AGENTS, frags)
     errs = []
     emitted: list[tuple[str, str]] = []
     for s in sorted(SRC.glob("*.md")):
@@ -723,14 +781,22 @@ def render(dest: Path, skills_dest: Path | None = None):
             if sk.parent.name not in keep and SKILL_BANNER in sk.read_text():
                 shutil.rmtree(sk.parent)
     n = len(emitted)
-    print(f"rendered {n} commands -> {dest}" + (f" + {n} skills -> {skills_dest}" if skills_dest else ""))
+    n_agents = len(list(AGENT_SRC.glob("*.md")))
+    print(
+        f"rendered {n} commands -> {dest}"
+        + (f" + {n} skills -> {skills_dest}" if skills_dest else "")
+        + f" + {n_agents} agents -> {agents_dest if agents_dest is not None else AGENTS}"
+    )
 
 def check():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         tmp_sk = tmp / "_skills"
-        render(tmp, tmp_sk)
-        drift = []
+        tmp_ag = tmp / "_agents"
+        render(tmp, tmp_sk, agents_dest=tmp_ag)
+        # Agent definitions are part of the corpus now: a hand-edit on the box must show up here,
+        # or the repo sources are merely FIRST rather than canonical.
+        drift = list(agent_drift(AGENTS))
         for f in sorted(tmp.glob("*.md")):
             inst = OUT / f.name
             if not inst.exists():

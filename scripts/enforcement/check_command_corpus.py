@@ -171,12 +171,17 @@ def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[str
     return docs, problems
 
 
+#: Agent definitions — `commands/_agents/*.md`, rendered to `~/.claude/agents/`. Predicate 6.
+AGENTS_SRC = SOURCES.parent / "_agents"
+
+
 def audit(
     sources: Path = SOURCES,
     fragments: Path = FRAGMENTS,
     assembler: Path = ASSEMBLER,
     repo: Path = REPO,
     traycer_skills: Path | None = None,
+    agents: Path | None = None,
 ) -> list[str]:
     """Return one problem string per real defect; empty means the corpus is sound."""
     problems: list[str] = []
@@ -284,6 +289,40 @@ def audit(
                             f"{rel}:{lineno}: commit template says Co-Authored-By {model!r} "
                             f"but CLAUDE.md's canonical trailer says {canonical_model!r}"
                         )
+    # ── Predicate 6: agent definitions are GOVERNED ────────────────────────────────────────────
+    # Until 2026-08-27 the four subagent definitions lived ONLY in ~/.claude/agents/: no repo
+    # source, no generator, not in git, and outside this audit entirely — so the corpus check
+    # vouched for 31 commands while the agents those commands DISPATCH were unreviewable. Exactly
+    # the blind spot that once left the orchestrator wrappers unaudited.
+    #
+    # HUB-ONLY, like the rest of this check: a project has no _agents/ dir and must stay silent.
+    agents_src = agents if agents is not None else AGENTS_SRC
+    if agents_src.is_dir():
+        for adef in sorted(agents_src.glob("*.md")):
+            text = adef.read_text(encoding="utf-8", errors="replace")
+            if not text.startswith("---"):
+                problems.append(
+                    f"_agents/{adef.name}: no frontmatter — Claude Code cannot register it"
+                )
+                continue
+            head = text.split("\n---", 1)[0]
+            declared = ""
+            for line in head.splitlines():
+                if line.startswith("name:"):
+                    declared = line.split(":", 1)[1].strip()
+                    break
+            if not declared:
+                problems.append(f"_agents/{adef.name}: frontmatter declares no `name:`")
+            elif declared != adef.stem:
+                problems.append(
+                    f"_agents/{adef.name}: declares `name: {declared}` — an agent whose name "
+                    f"disagrees with its filename cannot be dispatched by either"
+                )
+            if "description:" not in head:
+                problems.append(
+                    f"_agents/{adef.name}: no `description:` — the dispatcher selects on it, so an "
+                    f"agent without one is invisible to model-native routing"
+                )
     return problems
 
 
@@ -306,6 +345,17 @@ def _selftest() -> int:
             "trailer model": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n",
             "run record": "a command body that never opens a run record\n",
         }
+        # Predicate 6 has its own fixture (an agent dir, not a command body).
+        bad_agents = root / "_bad_agents"
+        bad_agents.mkdir()
+        (bad_agents / "mismatch.md").write_text("---\nname: something-else\ndescription: d\n---\n")
+        if not audit(
+            src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch", agents=bad_agents
+        ):
+            failures.append(
+                "VACUOUS: the agent-definition predicate did not fire on known-bad input"
+            )
+        cases["agent definition"] = "(fixture-based — see bad_agents above)"
         for label, bad in cases.items():
             probe = src / "fabrik-probe.md"
             probe.write_text(bad)

@@ -101,6 +101,14 @@ trusts explicit `## Phase N` headings only once there are at least two of them: 
 declares a lone `Phase 0` and then branches into VPS/MOBILE/STORE sections, so the literal count
 would claim the run was finished with most of it still ahead.
 
+## Predicate 6 — agent definitions (added 2026-08-27)
+
+The four subagent definitions lived ONLY in `~/.claude/agents/`: hand-authored, box-local, absent from git, owned by no generator, and outside this audit. So the check vouched for 31 commands and 31 skills while the agents those commands **dispatch** were unreviewable — the same shape as the orchestrator-corpus blind spot above, one layer down.
+
+They are now generated from `commands/_agents/*.md` by `assemble_commands.py` (with `--check` drift detection and banner-scoped orphan pruning), and predicate 6 requires of each: frontmatter present, a `name:` that MATCHES the filename (a mismatch registers an agent nobody can dispatch by either), and a `description:` (the dispatcher selects on it, so an agent without one is invisible to model-native routing).
+
+HUB-ONLY, like every other predicate here: a project has no `_agents/` dir and stays silent.
+
 ## Anti-vacuity
 
 `--selftest` feeds a known-bad corpus through the same predicates and requires **each** to

@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the subagent definitions are GOVERNED: generator + corpus predicate (2026-08-27)
+
+Closes the gap recorded last change. `~/.claude/agents/` held four definitions (214 lines) that
+existed only on this machine — no repo source, no generator, not in git, invisible to
+`check_command_corpus.py` and to every sync. The corpus check vouched for 31 commands and 31 skills
+while **the agents those commands dispatch** were outside its jurisdiction: the same blind spot that
+once left the orchestrator wrappers unaudited, one layer down.
+
+- **Sources** at `commands/_agents/*.md`, copied VERBATIM first (`diff -q` clean against the live
+  files) so the first render changed no behaviour.
+- **Generator** in `assemble_commands.py`: renders to `~/.claude/agents/`, `--check` drift detection
+  (proven by hand-editing a live file and watching it flag), and orphan pruning scoped to the
+  generator banner — an operator's own agent definition survives, because deleting it would be data
+  loss. Frontmatter is never disturbed beyond the banner: Claude Code parses `name:`/`description:`
+  out of it, so a careless renderer would silently UNREGISTER an agent rather than fail loudly.
+- **Predicate 6**: frontmatter present · `name:` matches the filename · `description:` present.
+  Corpus now audits **47 files, up from 43**. The selftest proves all 6 fire on known-bad input.
+- **`agent-feedback.md`**, auto-appended to every definition. A subagent is EPHEMERAL and has no
+  mailbox, so its half of the duty is to surface machinery findings in a `MACHINERY:` block for the
+  dispatcher to file. `MACHINERY: none` is required — silence and "nothing to report" are not the
+  same answer, and only one is information.
+
+The new predicate immediately caught the new fragment: its illustrative example used `/fabrik-bar`
+and `scripts/baz.py`, which predicates 2 and 3 correctly resolved as broken references. The example
+now uses real ones, so it is illustrative AND true.
+
 ### Added — the feedback duty is now GRADED, and reaches subagent findings (2026-08-27)
 
 Operator directive, restated: agents must be proactive about reporting issues with our commands,
