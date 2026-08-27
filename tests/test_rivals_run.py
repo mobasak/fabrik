@@ -993,3 +993,23 @@ def test_every_live_scaffold_type_is_mapped_or_deliberately_rejected():
         f"is a deliberate rejection like wordpress — widen this test's expectation and say why."
     )
     assert not set(rr.SCAFFOLD_TO_PRODUCT_TYPE) - set(SCAFFOLD_TYPES), "dead alias row"
+
+
+def test_match_rival_count_agrees_with_the_printed_list():
+    """trade-intelligence live-run defect (via fabrik-lib 01M12DAX77): a bare [:6] truncation
+    printed "9 rival(s):" over 6 names — the count and the list come from the same field and
+    must agree. Truncation is said out loud; an untruncated list prints every name."""
+    nine = [f"r{i}" for i in range(9)]
+    out = rr.render_dossier_md({"match_list": [{"feature": "f", "rivals_having": nine}]})
+    assert "9 rival(s) (top 6 shown):" in out
+    out2 = rr.render_dossier_md({"match_list": [{"feature": "f", "rivals_having": ["a", "b"]}]})
+    assert "2 rival(s): a, b" in out2
+
+
+def test_all_nameless_wedge_items_render_none_not_empty_bold():
+    """trade-intelligence live-run artifact (via fabrik-lib 01M12DAX77): a wedge item whose
+    name fields are all empty rendered "- **** " — bold-wrapped nothing. Nameless items are
+    skipped; an all-nameless list gets the white-space section's _None corroborated._ line."""
+    out = rr.render_dossier_md({"pricing": {"wedge": [{"wedge": "", "rationale": "orphan"}]}})
+    assert "- **** " not in out
+    assert "_None corroborated._" in out

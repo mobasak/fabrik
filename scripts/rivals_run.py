@@ -687,9 +687,15 @@ def render_dossier_md(d: dict[str, Any]) -> str:
             # `universal`). Reading a field that does not exist rendered an empty tail.
             star = "★ " if m.get("universal") else ""
             having = m.get("rivals_having") or []
-            who = (
-                f"{len(having)} rival(s): {', '.join(_s(x) for x in having[:6])}" if having else ""
-            )
+            # The count and the list come from the SAME field, so they must agree: a bare
+            # [:6] truncation printed "9 rival(s):" over 6 names (trade-intelligence live
+            # run, via fabrik-lib). Say the truncation out loud instead.
+            if len(having) > 6:
+                who = f"{len(having)} rival(s) (top 6 shown): {', '.join(_s(x) for x in having[:6])}"
+            elif having:
+                who = f"{len(having)} rival(s): {', '.join(_s(x) for x in having)}"
+            else:
+                who = ""
             out.append(f"- {star}**{_s(m.get('feature'))}** — {who}")
     else:
         out.append(
@@ -743,11 +749,20 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     if wedge:
         out.append("### Pricing wedge — the openings")
         out.append("")
+        rendered_any = False
         for w in wedge:
+            # An item whose name fields are ALL empty rendered "- **** " (bold-wrapped
+            # nothing) — the empty-openings artifact from trade-intelligence's live run.
+            # Skip nameless items; an all-nameless list gets the same _None_ line the
+            # white-space section uses.
+            name = _s(w.get("wedge") or w.get("opening") or w.get("theme"))
+            if not name.strip():
+                continue
             detail = _s(w.get("rationale") or w.get("evidence") or "")
-            out.append(
-                f"- **{_s(w.get('wedge') or w.get('opening') or w.get('theme'))}** {detail}"[:400]
-            )
+            out.append(f"- **{name}** {detail}"[:400])
+            rendered_any = True
+        if not rendered_any:
+            out.append("_None corroborated._")
         out.append("")
 
     needs = _as_dicts(_as_map(d.get("white_space")).get("needs"))
