@@ -89,6 +89,9 @@ REQUIRED_LEGS = ("firecrawl", "exa", "brave")
 # "No ceiling" (operator, 2026-08-26) is spelled as a large number, never as 0 — see the module
 # docstring above for why 0 is the fail-silent-green trap rather than the unlimited sentinel.
 DEFAULT_BUDGET_USD = "1000"
+# Wall-clock bound per `claude -p` call. The engine has a MONEY ceiling and checkpoints, but
+# nothing bounds a wedged subprocess — `communicate()` takes no timeout and blocks forever.
+_LLM_TIMEOUT_S = float(os.getenv("RIVALS_LLM_TIMEOUT_S", "300"))
 
 
 class PreflightError(RuntimeError):
@@ -103,6 +106,7 @@ def _preflight(
     job_id: str,
     checkpoint_dir: Path,
     product_type: str,
+    required_keys: tuple[str, ...] = (),
 ) -> list[str]:
     """Every wiring trap that would otherwise yield a plausible-looking empty dossier.
 
@@ -155,6 +159,22 @@ def _preflight(
             f"repo-local `.tmp` path, never /tmp."
         )
     ok.append(f"checkpoint_dir is repo-local ({checkpoint_dir})")
+
+    # A missing search key does not raise anywhere: the leg fails, the engine degrades, and the run
+    # returns an empty dossier with partial=True. That is the same fail-silent-green shape as
+    # budget-0, so it is caught HERE with the key named — the engine cannot tell you which one.
+    missing_keys = [k for k in required_keys if not os.getenv(k)]
+    if missing_keys:
+        raise PreflightError(
+            f"{', '.join(missing_keys)} not set — the leg(s) using them would fail silently and the "
+            f"run would return an EMPTY dossier with partial=True. These are autoloaded by "
+            f"libs.subagents.load_env from the repo .env or the operator's fleet env file: provision "
+            f"them there. NEVER prompt for a key and never hardcode one."
+        )
+    if required_keys:
+        # Only claim the check when it actually ran: "search keys present ()" is a green line for a
+        # question nobody asked, which is the whole failure class this pre-flight exists to prevent.
+        ok.append(f"search keys present ({', '.join(required_keys)})")
 
     if product_type not in PRODUCT_TYPES:
         raise PreflightError(
@@ -228,7 +248,17 @@ def _make_llm(model: str):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                out, err = await proc.communicate()
+                try:
+                    out, err = await asyncio.wait_for(proc.communicate(), timeout=_LLM_TIMEOUT_S)
+                except TimeoutError:
+                    # A wedged `claude` is bounded by NOTHING otherwise: the retry loop never
+                    # reaches its next attempt, and the money ceiling bounds SPEND, not wall-clock,
+                    # so an unattended run hangs forever. Proven with a stub that never exits.
+                    proc.kill()
+                    await proc.wait()
+                    last = f"claude -p exceeded {_LLM_TIMEOUT_S}s and was killed"
+                    await asyncio.sleep(2 * (attempt + 1))
+                    continue
                 if proc.returncode == 0:
                     try:
                         doc = json.loads(out.decode("utf-8", "replace"))
@@ -260,6 +290,36 @@ def _default_model() -> str:
     return os.getenv("RIVALS_LLM_MODEL", "sonnet")
 
 
+# Every character Python's `str.splitlines()` treats as a line boundary. CommonMark only breaks on
+# `\n`, so the exotic ones do not open a heading in a *renderer* — but every line-oriented CONSUMER
+# (this module's own checks, the gate's doc scanners, anything calling `.splitlines()`) disagrees
+# with a sanitiser that guards only `\r\n`. A guard whose definition of "a line" differs from its
+# readers' is a guard with a hole, so the whole class is collapsed to a space.
+_LINE_BOUNDARIES = tuple(ch for ch in map(chr, range(0x110000)) if len(f"a{ch}b".splitlines()) > 1)
+_FLATTEN = {ord(ch): " " for ch in _LINE_BOUNDARIES}
+
+
+def _as_dicts(value: Any) -> list[dict[str, Any]]:
+    """Normalise an LLM-shaped list into a list of dicts, keeping non-dict entries visible.
+
+    A bare string in `competitors` used to raise `AttributeError` deep in the renderer. Dropping
+    such entries silently would be worse than raising — the count would quietly disagree with the
+    engine's own census — so a non-dict is wrapped as `{"name": <repr>}` and renders as an
+    unconfirmed row the reader can see and question.
+    """
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in value:
+        out.append(item if isinstance(item, dict) else {"name": str(item), "verified": "False"})
+    return out
+
+
+def _as_map(value: Any) -> dict[str, Any]:
+    """`value` if it is a mapping, else an empty mapping — never raise on a surprising shape."""
+    return value if isinstance(value, dict) else {}
+
+
 def render_dossier_md(d: dict[str, Any]) -> str:
     """Render the DECISION-GRADE brief from `to_dict()`, not `to_markdown()`.
 
@@ -275,20 +335,60 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     reaches a spec.
     """
 
+    def _url(v: Any) -> str:
+        """Link-target-safe. The rival URL is LLM- and web-sourced and went RAW into
+        `[name](url)`, so a value like `http://e)vil](javascript:alert(1))` closed the link early
+        and injected a `javascript:` target into a document the operator is invited to click.
+        Only http/https survive; parens are percent-encoded so the link cannot be closed early.
+        """
+        raw = str(v or "").strip()
+        if not raw.lower().startswith(("http://", "https://")):
+            return ""
+        # Percent-encode EVERY character that can terminate or restructure a markdown link target.
+        # `.strip()` only trims the ENDS: an embedded newline still broke the link open, and the
+        # sink test missed it because the following space was encoded to %20, so the assertion's
+        # literal needle never matched. Encode the whitespace class, not just the space.
+        raw = raw.translate(_FLATTEN)  # any line boundary -> space, then encode it
+        for ch, enc in (
+            (" ", "%20"),
+            ("\t", "%09"),
+            ("(", "%28"),
+            (")", "%29"),
+            ("<", "%3C"),
+            (">", "%3E"),
+            ('"', "%22"),
+        ):
+            raw = raw.replace(ch, enc)
+        return raw
+
     def _s(v: Any) -> str:
-        return str(v).replace("|", "\\|").strip()
+        """Table-cell-safe. Escapes `|` AND collapses newlines.
+
+        Escaping only the pipe let a value containing `\\n## FAKE HEADING` break out of the table
+        and inject a heading into a document a spec gets decided on — and this content is
+        LLM- and web-sourced, i.e. precisely the untrusted input this command warns about.
+        """
+        if v is None:
+            return ""  # a missing field rendered the literal string "None" in the dossier
+        return str(v).replace("\\", "\\\\").replace("|", "\\|").translate(_FLATTEN).strip()
 
     out: list[str] = []
-    out.append(f"# Rivals dossier — {d.get('market', '?')}")
+    # `market` reaches an H1. It arrives from the CLI or from a project-authored brief, so a
+    # newline in it injected a heading — same class as the table break-out, different sink.
+    out.append(f"# Rivals dossier — {_s(d.get('market')) or '?'}")
     out.append("")
-    verified = [c for c in (d.get("competitors") or []) if str(c.get("verified")) == "True"]
-    unconfirmed = [c for c in (d.get("competitors") or []) if str(c.get("verified")) != "True"]
+    # Every collection below is normalised to "list of dicts" first. The payload is LLM-shaped:
+    # a competitor can arrive as a bare string, and `white_space` as something other than a mapping.
+    # Both raised AttributeError before this, AFTER the money was spent.
+    comps = _as_dicts(d.get("competitors"))
+    verified = [c for c in comps if str(c.get("verified")) == "True"]
+    unconfirmed = [c for c in comps if str(c.get("verified")) != "True"]
     out.append(
-        f"**product_type:** `{d.get('product_type')}` · **rivals:** {len(d.get('competitors') or [])} "
+        f"**product_type:** `{_s(d.get('product_type'))}` · **rivals:** {len(comps)} "
         f"({len(verified)} verified, {len(unconfirmed)} unconfirmed) · "
-        f"**review signals:** {len(d.get('review_signal') or [])} · "
-        f"**spend:** ${d.get('spend_usd')} · **partial:** {d.get('partial')} · "
-        f"**truncated:** {d.get('truncated')}"
+        f"**review signals:** {len(d.get('review_signal') or []) if isinstance(d.get('review_signal'), list) else 0} · "
+        f"**spend:** ${_s(d.get('spend_usd'))} · **partial:** {_s(d.get('partial'))} · "
+        f"**truncated:** {_s(d.get('truncated'))}"
     )
     out.append("")
     if d.get("truncated"):
@@ -296,7 +396,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
             "> ⚠️ **truncated** — the money ceiling BOUND this run. Partial by budget, not complete."
         )
         out.append("")
-    if not d.get("competitors"):
+    if not comps:
         out.append(
             "> ⚠️ **ZERO rivals discovered — treat this as a FAILED scan, not an empty market.**"
         )
@@ -306,12 +406,12 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     out.append("")
     out.append("| Rival | Verified | Positioning | Source |")
     out.append("|---|---|---|---|")
-    for c in d.get("competitors") or []:
+    for c in comps:
         ok = "✅" if str(c.get("verified")) == "True" else "❓"
-        out.append(
-            f"| [{_s(c.get('name'))}]({c.get('url')}) | {ok} | {_s(c.get('positioning'))[:120]} "
-            f"| {c.get('url')} |"
-        )
+        href = _url(c.get("url"))
+        name = _s(c.get("name")) or "(unnamed)"
+        cell = f"[{name}]({href})" if href else f"{name} ⚠️"
+        out.append(f"| {cell} | {ok} | {_s(c.get('positioning'))[:120]} | {_s(href) or '—'} |")
     if unconfirmed:
         out.append("")
         out.append(
@@ -321,7 +421,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
         )
     out.append("")
 
-    fm = d.get("feature_matrix") or {}
+    fm = _as_map(d.get("feature_matrix"))
     cols, rows, cells = fm.get("columns") or [], fm.get("rows") or [], fm.get("cells") or {}
     if cols and rows:
         out.append("## Feature matrix")
@@ -341,7 +441,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
             out.append("| " + " | ".join(line) + " |")
         out.append("")
 
-    match = d.get("match_list") or []
+    match = _as_dicts(d.get("match_list"))
     out.append("## MATCH — what rivals have that we lack")
     out.append("")
     if match:
@@ -356,7 +456,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
         )
     out.append("")
 
-    beat = d.get("beat_list") or []
+    beat = _as_dicts(d.get("beat_list"))
     out.append("## BEAT — rivals' corroborated weaknesses (our openings)")
     out.append("")
     out.append(
@@ -368,7 +468,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     for b in beat:
         out.append(
             f"- **{_s(b.get('theme') or b.get('weakness'))}** "
-            f"(weight {b.get('weight')}, {b.get('n_sources') or b.get('sources')} sources)"
+            f"(weight {_s(b.get('weight'))}, {_s(b.get('n_sources') or b.get('sources'))} sources)"
         )
         for q in (b.get("quotes") or [])[:3]:
             out.append(f'  - "{_s(q)[:220]}"')
@@ -378,7 +478,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
         )
     out.append("")
 
-    pricing = (d.get("pricing") or {}).get("models") or []
+    pricing = _as_dicts(_as_map(d.get("pricing")).get("models"))
     if pricing:
         out.append("## Pricing wedge")
         out.append("")
@@ -387,11 +487,11 @@ def render_dossier_md(d: dict[str, Any]) -> str:
         for m in pricing:
             out.append(
                 f"| {_s(m.get('competitor'))} | {_s(m.get('model'))} | {_s(m.get('free_tier'))} "
-                f"| {_s(m.get('evidence'))[:140]} | {m.get('source_url') or '—'} |"
+                f"| {_s(m.get('evidence'))[:140]} | {_s(_url(m.get('source_url'))) or '—'} |"
             )
         out.append("")
 
-    needs = (d.get("white_space") or {}).get("needs") or []
+    needs = _as_dicts(_as_map(d.get("white_space")).get("needs"))
     out.append("## White-space — unmet demand")
     out.append("")
     out.append(
@@ -489,7 +589,18 @@ async def _run(args: argparse.Namespace) -> int:
         leg_estimates["firecrawl"] = budget * 10
         leg_estimates["exa"] = budget * 10
 
+    # `--free-legs-only` forecloses the paid legs, so only the free leg's key is required then.
+    required_keys = (
+        ("BRAVE_API_KEY",)
+        if args.free_legs_only
+        else (
+            "BRAVE_API_KEY",
+            "EXA_API_KEY",
+            "FIRECRAWL_API_KEY",
+        )
+    )
     passed = _preflight(
+        required_keys=required_keys,
         budget=budget,
         legs=legs,
         leg_estimates=leg_estimates,
@@ -551,13 +662,29 @@ async def _run(args: argparse.Namespace) -> int:
         )
 
     data = dossier.to_dict()
-    md = render_dossier_md(data)
-    if args.out:
-        out = Path(args.out)
+    # ⚠️ ORDER IS LOAD-BEARING. The JSON is the paid artifact — the money is already spent by this
+    # line — so it lands on disk BEFORE anything that can raise. Rendering used to run first, and
+    # `render_dossier_md` reads keys off an LLM-shaped dict: an `AttributeError` on a competitor
+    # that arrived as a bare string destroyed BOTH artifacts and left the operator a traceback for
+    # a scan they had already paid for. The renderer is now defensive too, but the ordering is the
+    # guarantee: a rendering bug can cost you the pretty view, never the data.
+    out = Path(args.out) if args.out else None
+    if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.with_suffix(".json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+        print(f"\nwrote {out.with_suffix('.json')}")
+    try:
+        md = render_dossier_md(data)
+    except Exception as exc:  # noqa: BLE001 — never lose a paid run to a formatting bug
+        md = (
+            f"# Rivals dossier — {str(data.get('market') or '?').replace(chr(10), ' ')}\n\n"
+            f"> ⚠️ The dossier could not be rendered ({type(exc).__name__}). The full payload IS "
+            f"saved as JSON alongside this file — nothing was lost. Please report this shape.\n"
+        )
+        print(f"  ⚠ render failed ({type(exc).__name__}) — JSON is intact; wrote a stub markdown")
+    if out is not None:
         out.with_suffix(".md").write_text(md, encoding="utf-8")
-        print(f"\nwrote {out.with_suffix('.json')} and {out.with_suffix('.md')}")
+        print(f"wrote {out.with_suffix('.md')}")
     else:
         print("\n" + md)
 
@@ -586,8 +713,11 @@ def main(argv: list[str] | None = None) -> int:
         from libs.subagents import load_env
 
         load_env(str(REPO))
-    except Exception:  # pragma: no cover - the autoload is a convenience, never a hard dep
-        pass
+    except Exception as exc:  # pragma: no cover - the autoload is a convenience, never a hard dep
+        # Stays fail-open (a missing autoload must not block a run whose keys are already exported)
+        # but SAYS SO. Swallowing it silently is the same diagnosability gap this command filed
+        # upstream against the engine's `_safe_research`, which logs a label and not the cause.
+        print(f"note: key autoload unavailable ({type(exc).__name__}); relying on the environment")
     try:
         return asyncio.run(_run(args))
     except PreflightError as exc:

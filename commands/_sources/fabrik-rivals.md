@@ -108,6 +108,11 @@ The traps, all of which produce a plausible-looking empty dossier rather than an
 - **The free leg (`brave`) estimate must be `<= 0`** — a positive estimate silently breaks the ceiling
   arithmetic from the first call.
 - **`job_id` non-empty** — it is the double-book guard, so a resume re-bills nothing.
+- **every required SEARCH key is present** — a missing key raises nowhere: the leg fails, the engine
+  degrades, and you get an empty dossier with `partial=True`. The pre-flight names the missing key,
+  because the engine cannot. `--free-legs-only` requires only `BRAVE_API_KEY`.
+- **`checkpoint_dir` is repo-local** and **`product_type` is in the engine's vocabulary** (scaffold
+  types are aliased for you).
 
 ### What this costs, and what it must never cost
 

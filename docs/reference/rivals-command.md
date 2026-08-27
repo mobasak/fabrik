@@ -79,11 +79,22 @@ at entry. The consequence is that **every wiring mistake yields a dossier that l
 | Trap | Why it is silent | Guard |
 |---|---|---|
 | `total_budget_usd=0` | documented as "run NO research" — still returns a `Dossier` | REJECTED, never treated as unlimited |
+| a negative budget | the same unasked question with a different sign | REJECTED (`<= 0`, not `== 0`) |
 | `legs` keys ≠ `firecrawl`/`exa`/`brave` | must match the shipped packs' leg names | checked, with the fix named |
+| a wired leg with no estimate | disables the ceiling for that leg | checked |
 | free leg estimate > 0 | breaks the ceiling arithmetic from the first call | checked |
 | empty `job_id` | the double-book guard for resume | checked |
+| `checkpoint_dir` outside the repo | a tmpfs reboot drops the checkpoints that make a resume free | checked |
+| **a missing search key** | the leg fails, the engine degrades, and you get an EMPTY dossier with `partial=True` — and the engine cannot tell you WHICH key | checked, naming the key; `--free-legs-only` requires only `BRAVE_API_KEY` |
+| an unknown `product_type` | degrades to Tier-C with no venue hints rather than erroring | checked, with the scaffold aliases listed |
 
-`--preflight-only` runs all of them and exits without spending.
+`--preflight-only` runs all of them and exits without spending. **Never prompt the operator for a
+key** — a missing one is a provisioning escalation, and the guard says so in its own message.
+
+The key autoload itself stays **fail-open but never silent**: if `libs.subagents.load_env` is
+unavailable the driver prints a `note:` and relies on the ambient environment, rather than swallowing
+the failure. Swallowing it would be the same diagnosability gap this command filed upstream against
+the engine's `_safe_research`, which logs a stage label and not the cause.
 
 ### The LLM arity trap (found live, filed upstream)
 
@@ -108,7 +119,7 @@ Measured 2026-08-26 on a live 12-rival scan of "invoice OCR software": `dossier.
 emitted **404 bytes** — the market line, a spend line, and one BEAT item. It never listed the twelve
 rivals it found, never rendered the 12x44 feature matrix, and never showed the pricing models, all of
 which were present in `to_dict()`. `rivals_run.py::render_dossier_md()` renders the decision-grade
-brief from the structured payload instead (8.9 KB on the same data).
+brief from the structured payload instead (**10,032 bytes** on the same data).
 
 Two details that are easy to get wrong and were checked against the real payload rather than assumed:
 
