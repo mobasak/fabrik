@@ -86,3 +86,54 @@ $ python -m pytest tests/enforcement/test_certification_coverage.py -q
 $ python scripts/final_gate.py --check --json
 "status": "success"  (50 passed / 0 failed)
 ```
+
+---
+
+# Second pass — re-invoked on the fixed surface (34d7fab6)
+
+Status: CLOSED — `found: 0, fixed: 0` on the confirming round.
+
+Two more, both invisible to the first pass because it hunted the CODE and these live in what the code
+change *removed* and what it *inferred*.
+
+**1 — the Phase-C rewrite silently deleted a real constraint from BOTH commands.** The old Phase-1
+text carried: *"every `features[]` row maps to the scenario IDs that exercise it — and a feature with
+zero mapped scenarios cannot be reported as working."* My replacement sliced from the `Output:` line
+to the next heading and did not carry that clause forward. The new block covers the open-row half
+(`UNVISITED` blocks the close) and dropped the traceability half.
+
+That is the **same class as the earlier "cross-check declared and never graded" finding**: the plan
+demotes `docs/FEATURES.md` to a cross-check and insists its bidirectional-reconciliation value is
+kept — then the rewrite deleted the one clause that made it real. **Demoting is not discarding.**
+Restored in both sources and re-rendered; pinned by a test that reads both files.
+
+**2 — the resolver produced a FALSE DECLARATION.** `resolve_registry` had a fallback branch reading a
+bare `source:` key as the declaration whenever the file mentioned `certification_registry` anywhere.
+Reproduced:
+
+```
+project.yaml:  type: saas-skeleton
+               # certification_registry is planned      <- a COMMENT
+               external_systems:
+                 source: stripe                          <- unrelated key
+resolved:      how="declared"  source="stripe"           <- ⚠ FALSE
+```
+
+A denominator inferred from an unrelated key is worse than an honest fallback, because `declared` is
+the one state that means *a human chose this*. The branch also re-read the whole file per line.
+Removed; only the declaration key counts now. Verified the four real projects on the box still
+resolve (`transdoc`/`tryton-crm` → `fallback:saas-skeleton`, `job-agent` →
+`fallback:chrome-extension`, `whatsapp-agent` → `fallback:python-api`).
+
+**Watched-fail-first, by accident and worth recording:** the removal edit did not apply on its first
+attempt (ruff had reformatted the target), so the new test ran RED against the unfixed code before
+the fix landed — the strongest evidence a test discriminates, obtained because the edit failed.
+
+## Pass Ledger (second pass)
+
+| Pass | finders | found | new | fixed |
+|---:|---|---:|---:|---:|
+| Pass 1 | native, 6 classes | 2 | 2 | 2 |
+| **Pass 2 (terminal)** | native, same 6 re-swept | **0** | **0** | **0** |
+
+55 tests · gate green · corpus re-rendered, `--check` reports installed == rendered.

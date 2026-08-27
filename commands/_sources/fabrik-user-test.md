@@ -126,6 +126,13 @@ ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are 
 they describe how OUR surface came to exist, not whether a customer can click it, and inherited
 surfaces are exactly what the T3 generated-smoke tier is FOR.
 
+**The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT
+mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
+feature with zero mapped IDs cannot be reported as working.** That clause survived the denominator
+change and is the cross-check's whole value — an independent second opinion is exactly what catches a
+generator that agrees with itself. A large divergence between the doc inventory and the registry is
+REPORTED, not silently preferred either way.
+
 **Tiers set DEPTH, never whether something is tested.** T1 money/tenancy/PII/auth → full
 UI-truth-vs-system-truth · T2 authored or modified → deep · T3 inherited → **generated** smoke. 100%
 is achievable only because the tail is generated; hand-authoring it guarantees the tier is skipped.

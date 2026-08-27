@@ -526,3 +526,32 @@ def test_the_cert_board_pattern_is_wired_into_the_allowlist():
     assert not any(p.match(bad) for p in ds.ALLOWED_PATTERNS), (
         "a T## implementation ticket must NOT be permitted on a cert board"
     )
+
+
+def test_an_unrelated_source_key_is_not_read_as_a_declaration(tmp_path):
+    """A `source:` fallback existed and produced a FALSE declaration: a project.yaml with
+    `source: stripe` under `external_systems:` and the words "certification_registry" in a COMMENT
+    resolved to `declared`, source="stripe". A denominator inferred from an unrelated key is worse
+    than an honest fallback, because `declared` is the one state meaning "a human chose this"."""
+    (tmp_path / "project.yaml").write_text(
+        "name: x\ntype: saas-skeleton\n# certification_registry is planned\n"
+        "external_systems:\n  source: stripe\n",
+        encoding="utf-8",
+    )
+    source, how = cc.resolve_registry(tmp_path)
+    assert how == "fallback:saas-skeleton", (
+        f"an unrelated source: key was read as a declaration ({how})"
+    )
+    assert "stripe" not in source
+
+
+def test_the_features_traceability_clause_survived_the_denominator_change(tmp_path):
+    """The doc inventory was DEMOTED to a cross-check, and the Phase-C rewrite deleted the one clause
+    that gave the cross-check teeth: every FEATURES row maps to the IDs that exercise it, and a
+    feature with zero mapped IDs cannot be reported as working. Demoting is not discarding."""
+    for name in ("fabrik-user-test", "fabrik-service-test"):
+        src = (REPO / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        assert "zero mapped IDs cannot be reported as working" in src, (
+            f"{name}: the FEATURES-traceability clause is missing — demoting the doc inventory to a "
+            f"cross-check must not delete the rule that makes the cross-check real"
+        )

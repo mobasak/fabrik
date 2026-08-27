@@ -184,12 +184,13 @@ def resolve_registry(root: Path) -> tuple[str, str]:
             s = line.strip()
             if s.startswith("type:"):
                 ptype = s.split(":", 1)[1].strip().strip("\"'")
-            elif (
-                s.startswith(f"{DECLARATION_KEY}:")
-                or declared == ""
-                and s.startswith("source:")
-                and DECLARATION_KEY in py.read_text(encoding="utf-8", errors="replace")
-            ):
+            elif s.startswith(f"{DECLARATION_KEY}:"):
+                # ONLY the declaration key. A "bare `source:` also counts" fallback existed here and
+                # produced a FALSE DECLARATION: a project.yaml with `source: stripe` under
+                # `external_systems:` and the words "certification_registry" in a COMMENT resolved
+                # to how="declared", source="stripe". A denominator inferred from an unrelated key
+                # is worse than an honest fallback, because `declared` is the one state that means
+                # "a human chose this". (It also re-read the whole file per line.)
                 declared = s.split(":", 1)[1].strip().strip("\"'")
     except Exception:
         return "", "unknown"
