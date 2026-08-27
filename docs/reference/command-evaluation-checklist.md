@@ -6,7 +6,7 @@ considered sound. **Not every item applies to every command — but every item m
 
 **Sibling checklists, deliberately separate:**
 `docs/orchestrator/epic-to-ticket-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` and
-`.../mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` audit the **Traycer
+`docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` audit the **Traycer
 workflow artifacts** (epics, tickets, tech plans). This one audits the **command corpus itself** —
 the instruction set every agent on this box runs on. Different surface, different failure modes.
 
@@ -20,7 +20,7 @@ do not spend audit attention re-deriving its verdict.** Items below marked **[GA
 set — confirm the gate is green and move on. Everything else is judgement, which is why this
 document exists.
 
-## The 19 surfaces an audit of one command touches
+## The 21 surfaces an audit of one command touches
 
 An audit that reads only `commands/_sources/<cmd>.md` will pass a command whose companions have all
 rotted. The surfaces, grouped by the question they answer:
@@ -47,6 +47,7 @@ rotted. The surfaces, grouped by the question they answer:
 5. Does it carry an `argument-hint:` when it takes arguments? (`design-review` and `fabrik-workflow-review` carry none; `design-review` is deliberately router-excluded, `fabrik-workflow-review` takes an artifact path + type and should have one.)
 6. Is it reachable by the operator the way the TRIGGER clause implies — i.e. is its stem in `skill_router.py::STEM_SKILLS`? **13 stems serve 31 commands**, so most TRIGGER clauses serve model-native matching only. That is defensible; a description that implies auto-routing it does not have is not.
 7. **[GATED]** Does every `/fabrik-x` it names resolve to a real command source?
+7b. **[GATED]** Does every `scripts/**.py` it tells an agent to run actually exist?
 8. Is it in the NEXT map (`assemble_commands.py`), with a successor AND a one-line why? (Currently 31/31 — a new command missing here is the regression to catch.)
 9. Does the named successor match CLAUDE.md § Pipeline, and does § Pipeline match back?
 10. If it is a **gate** (no linear successor), does it say so explicitly — "resume what called it" — rather than naming a stage?
@@ -120,6 +121,7 @@ rotted. The surfaces, grouped by the question they answer:
 60. Does it respect the conflict order — rule pack > ticket for *how*; `spec.shape` canonical for *what*?
 61. Does it honour the HARD STOPS (no `git add -A`, no force-push, provenance trailers, explicit pathspecs, memory limits, no host ports, no `localhost` DB)?
 62. Does it require the Agent Provenance Trailer block as its own paragraph with no blank line inside?
+62b. **[GATED]** Does `Co-Authored-By:` in any commit template it carries match CLAUDE.md's canonical trailer? Six templates once named a retired model.
 63. Do the Traycer chains under `docs/orchestrator/**` still invoke it by a name that exists?
 
 ## Docs & Companions
@@ -163,19 +165,19 @@ rotted. The surfaces, grouped by the question they answer:
 
 Each was reproduced in this corpus. Hunt them by name.
 
-90. **Vacuous convergence loop** — the command instructs "re-run and diff until dry", but the mechanism it calls cannot re-ask. `/fabrik-rivals` Phase 2 told the agent to re-run discovery each round; the engine guards discovery with `if not discovery_done:` (`competitor_intel/orchestrator.py:566`) and persists the flag per `job_id`, which the driver derives deterministically from the market. Round 2 onward could not surface a new rival BY CONSTRUCTION, so "two consecutive dry rounds" auto-satisfied at round 2 and the command reported CONVERGED. → OPEN the code the re-run calls; prove it is not a replay. Every cache, checkpoint, memo or idempotency layer between the loop and the question is a candidate.
+90. **Vacuous convergence loop** — the command instructs "re-run and diff until dry", but the mechanism it calls cannot re-ask. `/fabrik-rivals` Phase 2 told the agent to re-run discovery each round; the engine guards discovery with `if not discovery_done:` (`libs/competitor_intel/orchestrator.py:566`) and persists the flag per `job_id`, which the driver derives deterministically from the market. Round 2 onward could not surface a new rival BY CONSTRUCTION, so "two consecutive dry rounds" auto-satisfied at round 2 and the command reported CONVERGED. → OPEN the code the re-run calls; prove it is not a replay. Every cache, checkpoint, memo or idempotency layer between the loop and the question is a candidate.
 
 91. **`warn_only` check with a non-zero exit path** — `argparse` calls `sys.exit(2)` on a bad flag, and `SystemExit` derives from `BaseException`, so `except Exception` does not catch it. `check_rivals_dossier.py` exited 2 on `--bogus-flag` while its own docstring claimed "always exits 0" — a BLOCKING red across ~46 repos. `check_plan_lock_release.py:454-456` had already solved it with `parse_known_args` and written down why; the new check copied its guard shape but not its parser. → PROBE every argv and root shape; never reason about it.
 
 92. **Cross-repo hard stop misread as banning READS** — the rule governs "create/edit/**commit** files in a repo OTHER than the one you were launched in". `/fabrik-rivals` shipped a two-repo design where a project filed a brief by mail and the operator opened a hub session to run it, turning a one-rival scan into a cross-repo errand. Importing a hub module while writing only into your own tree breaks nothing. → RE-READ the rule's verbs before designing around it.
 
-93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 19 surfaces, not just the source.
+93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 21 surfaces, not just the source.
 
 94. **Reference doc describing a superseded architecture** — the sub-case of 93 that does the most damage, because `INDEX.md` points agents *at* the doc. → Grep the doc for the vocabulary of the removed design ("two modes", "hand-off", the old flag names) after every change.
 
 95. **Advisory output that blows the truncation budget** — `final_gate` cuts advisory output at 500 chars with NO ellipsis. `check_rivals_dossier`'s first draft emitted 544 and lost the REMEDY line — the only line telling the reader what to do — cut mid-word. The cause was charging the budget without charging the "… N more" marker line. A later revision held the invariant at 499/500, i.e. with zero margin. → CHARGE the marker up front; sweep real counts; leave headroom.
 
-96. **A constant that does not mean what it says** — `line[:MAX_LINE - 1] + "..."` yields `MAX_LINE + 2` (measured 222 against a declared 220). Present in two enforcement checks. → Assert the invariant the constant NAMES, not the arithmetic you wrote.
+96. **A constant that does not mean what it says** — `line[:MAX_LINE - 1] + "..."` yields `MAX_LINE + 2` (measured 222 against a declared 220). Was present in BOTH `check_rivals_dossier.py` and `check_plan_lock_release.py` — the second inherited it by copying the first's shape; both carry `- 3` as of 2026-08-27, so this is a class to hunt, not an open defect. → Assert the invariant the constant NAMES, not the arithmetic you wrote.
 
 97. **Fail-silent-green rebuilt inside its own fix** — `_rediscover_reset` returned `[]` for both "no checkpoint yet" and "the re-arm write FAILED"; in the second case discovery is skipped, so a VOIDED round reads as a dry one and counts toward convergence, while the driver prints "discovery re-armed". → Every error path of a truth-telling mechanism must be distinguishable from its success path.
 

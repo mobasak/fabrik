@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review on the command-evaluation checklist: 6 findings, converged at round 3 (2026-08-27)
+
+A checklist is uniquely falsifiable by its own items, so items 32 (verify every cited path), 83
+(every statement factual) and 85 (classify citations) were run AGAINST THE DOC — three of the five
+pass-1 findings came from that. Fixed: two citations that did not resolve (one missing its `libs/`
+prefix, one written with an elided `.../` path); the **"19 surfaces" claim, which the table
+contradicted at 21** — carried forward from an earlier reply after five surfaces were added and never
+re-derived, and propagated to the INDEX row and the CHANGELOG; two of `check_command_corpus.py`'s
+five predicates having no numbered `[GATED]` item, so a manual auditor would silently skip them
+(added as `7b`/`62b` via the sibling checklist's sub-numbering, leaving 100 items unrenumbered); and
+an anti-pattern described in the present tense hours after both its instances were fixed.
+
+One finding REFUTED: a reported heading-level skip was the detecting script misfiring on the first
+heading, not a doc defect.
+
+Report: `docs/development/reviews/2026-08-27-command-evaluation-checklist-review.md`
+
 ### Added — evaluation checklist for the /fabrik-* command corpus (2026-08-27)
 
 `docs/reference/command-evaluation-checklist.md` — the JUDGEMENT half of auditing the corpus, the
@@ -13,7 +30,7 @@ be CHECKED, "N/A because X" is valid, forgetting is not.
 
 Three things it does that a flat list would not:
 
-- **Names the 19 surfaces** one command's audit actually touches. An audit that reads only
+- **Names the 21 surfaces** one command's audit actually touches. An audit that reads only
   `commands/_sources/<cmd>.md` passes a command whose reference doc, INDEX rows, router entry and
   grader have all rotted — which is exactly what happened to `/fabrik-rivals` (4 of its 5 defects
   were stale companions).
