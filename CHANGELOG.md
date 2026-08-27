@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two dead Kilo test modules broke pytest collection repo-wide (2026-08-28)
+
+- `tests/test_kilo_review_validation.py` + `tests/test_kilo_strictness_scenarios.py` imported
+  `scripts.kilo_code_review`, removed by the M0 shrink ruling (`7a8dc281`) — so `pytest tests/`
+  died at COLLECTION (`Interrupted: 2 errors`) before running anything, a standing tax on every
+  session's full-suite run. Both modules exclusively pinned the deliberately-retired enforcer
+  (nothing to re-home); deleted, INDEX row dropped. The two legitimate remaining mentions
+  (a `RETIRED_CORE_SCRIPTS` tombstone assert and a tmp-path fixture filename) verified untouched.
+  Proof: 4777 tests collect with zero errors.
+
 ### Fixed — final_gate --json: tail-preserving truncation with a machine-readable marker; skipped static tier announces itself (2026-08-27)
 
 - A bare `[:500]` on every `--json` output field dropped exactly the line every tool puts

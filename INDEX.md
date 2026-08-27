@@ -233,7 +233,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── test_deploy_validator.py     # deploy_validator.py tests (7 classes, 21 tests)
 │   ├── test_watchdog_db_roles.py    # create_watchdog_roles RO/RW provisioning + registrar wiring (28 tests)
 │   ├── test_watchdog_governance_mount.py # _push_governance ship + /governance:ro mount + WATCHDOG_GOVERNANCE_MOUNT gate, fail-soft (12 tests)
-│   ├── test_kilo_review_validation.py # Kilo review validation tests (validate_review_schema, validate_evidence, validate_plan_coverage)
 │   ├── content/                     # Content pipeline tests
 │   │   ├── test_seo_client.py       # SEOClient driver tests
 │   │   ├── test_tco_client.py       # TCOClient driver tests
