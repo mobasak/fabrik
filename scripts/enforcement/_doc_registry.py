@@ -265,7 +265,10 @@ PROJECT_DOCS: tuple[DocRow, ...] = (
     DocRow(
         "docs/STRATEGIC_BACKLOG.md",
         "docs/STRATEGIC_BACKLOG_TEMPLATE.md",
-        frozenset({"saas"}),
+        # universal by operator rule (2026-08-27, relayed via job-agent 01M11GMK9M):
+        # "STRATEGIC_BACKLOG.md must exist for all projects, no exception." Was saas-only,
+        # which made the rule unenforceable for 11 of 12 types.
+        frozenset({"universal"}),
         "deferred-work / session findings",
         "agent",
     ),

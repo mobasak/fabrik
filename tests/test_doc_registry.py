@@ -35,12 +35,14 @@ reg = _load_registry()
 # --- (a) a headless python-api excludes product/data/gui docs, includes universal+deployed
 def test_python_api_allowlist_excludes_product_and_gui_docs():
     allow = reg.docs_allowlist("python-api")
+    # STRATEGIC_BACKLOG.md left this exclusion list 2026-08-27: universal by operator rule
+    # ("must exist for all projects, no exception") — pinned in
+    # test_strategic_backlog_is_universal_by_operator_rule below.
     for excluded in (
         "BUSINESS_MODEL.md",
         "data-contract.md",
         "ui-design.md",
         "design-system.md",
-        "STRATEGIC_BACKLOG.md",
     ):
         assert excluded not in allow, f"python-api should not allow {excluded}"
     for included in ("README.md", "QUICKSTART.md", "SERVICES.md", "OPERATIONS.md", "RESILIENCE.md"):
@@ -205,3 +207,17 @@ def test_seed_rows_type_aware_and_data_gated():
     assert "docs/BUSINESS_MODEL.md" in saas_no_db  # saas doc is unconditional for saas type
     # None-template rows are never seeded
     assert all(r.template is not None for r in reg.seed_rows("saas-skeleton", needs_database=True))
+
+
+def test_strategic_backlog_is_universal_by_operator_rule():
+    """Operator rule (2026-08-27, relayed via job-agent 01M11GMK9M): "STRATEGIC_BACKLOG.md
+    must exist for all projects, no exception." The row was saas-only, which made the rule
+    unenforceable for 11 of 12 types. Pin: every scaffold type seeds it AND allows it —
+    a re-narrowing of the bucket fails here, loudly."""
+    row = next(r for r in reg.PROJECT_DOCS if r.name == "docs/STRATEGIC_BACKLOG.md")
+    assert row.applies_to == frozenset({"universal"})
+    for t in sorted(reg.ALL_TYPES):
+        assert any(
+            r.name == "docs/STRATEGIC_BACKLOG.md" for r in reg.seed_rows(t)
+        ), f"{t} does not seed STRATEGIC_BACKLOG.md"
+        assert "STRATEGIC_BACKLOG.md" in reg.docs_allowlist(t), f"{t} does not allow it"

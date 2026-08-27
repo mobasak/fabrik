@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — STRATEGIC_BACKLOG.md is universal: every scaffold type seeds and allows it (2026-08-27)
+
+- Operator rule (2026-08-27, relayed via job-agent `01M11GMK9M`): "STRATEGIC_BACKLOG.md must
+  exist for all projects, no exception." The registry scoped it `saas`-only
+  (`_doc_registry.py` — only `saas-skeleton` of 12 types), making the rule unenforceable for
+  11 types; 24 of 39 fleet projects carry the file today. The row is now `universal`: seeded
+  by the scaffolder for every type, allowed in every type's docs allowlist (both consumers
+  verified permissive — zero fleet reds), pinned by
+  `test_strategic_backlog_is_universal_by_operator_rule` (the old saas-only pin updated, not
+  deleted). Both CLAUDE.md Doc Sync Matrix rows drop the "(SaaS)" qualifier. Presence
+  enforcement in existing repos stays each project's backfill, not a new gate.
+
+### Fixed — /fabrik-flows-review's rubric contradicted itself, and `[PRIMARY PATH]` was billed as a denominator it is not (2026-08-27)
+
+- **The review half of transdoc's finding `01M12DN488`.** `b27bb395` scoped the hard exclusions in the
+  AUTHORING command, but the four false CRITICALs came from the REVIEW rubric, where axis F banned file
+  paths two axes above axis G requiring the Contract inputs section to name every entity/field. Axis F now
+  states its scope and names the contradiction (`commands/_sources/fabrik-flows-review.md:69-75`).
+- **`[PRIMARY PATH]` counting rule**, stated in the authoring command and enforced in axis E: a MARKER is
+  that token labelling a step sequence inside a flow; prose about the convention is not one. A naive grep
+  conflated them and manufactured "exactly one" defects in a checker, mid-run, and in a review. The rule now
+  ships verbatim into the artifact so every reader parses it the same way.
+- **Three false denominator claims removed** (`fabrik-flows.md:122`, `fabrik-flows-review.md:63,89`). The
+  gauntlets resolve their coverage denominator from a live registry and demote every doc to a cross-check;
+  `check_certification_coverage.py:441` flags a cert board sourced from a doc. A project following the old
+  line verbatim would have been failed by the gate the same command chain owns. `[PRIMARY PATH]` is the
+  certification DEPTH input — the journey exercised deeply — never the denominator.
+
 ### Fixed — competitor_intel re-vendored: resume re-billing + budget-0-permanently-empty, both live in the hub copy (2026-08-27)
 
 - `libs/competitor_intel/{orchestrator,synth}.py` re-vendored from fabrik-lib HEAD (`43e4324`,

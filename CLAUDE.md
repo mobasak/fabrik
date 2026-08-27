@@ -179,7 +179,7 @@ judgment. *"My change type isn't in the table"* is never a reason to leave a doc
 | End of ticket/run | `docs/LESSONS_LEARNT.md` (canonical name; lowercase `lessons-learnt.md` is legacy-tolerated) |
 | Brand / design-token change (GUI) | re-freeze `docs/design-system.md` (via `/fabrik-ui-design`) |
 | Pricing / positioning change (SaaS) | `docs/BUSINESS_MODEL.md` |
-| Deferred-work / session findings (SaaS) | `docs/STRATEGIC_BACKLOG.md` |
+| Deferred-work / session findings (every project — operator rule 2026-08-27) | `docs/STRATEGIC_BACKLOG.md` |
 
 ## Agent Provenance Trailers (required on all AI-authored commits)
 Git can't distinguish AI agents — every commit is authored by the same user. Trailers are the metadata layer for post-hoc attribution (`git log --format='%h %s %(trailers:key=Agent-Role)'`).
