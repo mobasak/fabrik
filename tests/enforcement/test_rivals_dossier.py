@@ -32,6 +32,8 @@ def _dossier(root: Path, name: str = "crm", *, rivals: int = 3, partial: str = "
     d.mkdir(parents=True, exist_ok=True)
     f = d / f"{name}.md"
     head = (
+        # A HEALTHY dossier carries its scan date — perishable intel with no date is a finding.
+        f"**scanned:** 2026-08-27 · "
         f"**product_type:** `saas` · **rivals:** {rivals} ({rivals} verified, 0 unconfirmed) · "
         f"**review signals:** 8 · **spend:** $0.86 · **partial:** {partial} · "
         f"**truncated:** {truncated}\n"
@@ -221,3 +223,26 @@ def test_a_pathologically_long_dossier_name_still_fits_the_budget(tmp_path, caps
     assert len(out) <= chk.ADVISORY_BUDGET, f"{len(out)} chars"
     assert chk.REMEDY[-25:] in out
     assert max(len(ln) for ln in out.splitlines()) <= chk.MAX_LINE
+
+
+def test_an_undated_dossier_is_a_finding(tmp_path, capsys):
+    """N1: competitive intel is perishable. A dossier with no scan date reads as current forever,
+    and it is the artifact a product spec gets decided on. The grader must say so."""
+    d = tmp_path / "docs" / "reference" / "rivals"
+    d.mkdir(parents=True)
+    (d / "crm.md").write_text("**rivals:** 3 · **partial:** False · **truncated:** False\n", "utf-8")
+    _index(tmp_path, "- `docs/reference/rivals/crm.md`\n")
+    chk.main(["--root", str(tmp_path)])
+    assert "UNDATED" in capsys.readouterr().out.upper()
+
+
+def test_a_dated_dossier_raises_no_date_finding(tmp_path, capsys):
+    d = tmp_path / "docs" / "reference" / "rivals"
+    d.mkdir(parents=True)
+    (d / "crm.md").write_text(
+        "**scanned:** 2026-08-27 · **rivals:** 3 · **partial:** False · **truncated:** False\n",
+        "utf-8",
+    )
+    _index(tmp_path, "- `docs/reference/rivals/crm.md`\n")
+    chk.main(["--root", str(tmp_path)])
+    assert "UNDATED" not in capsys.readouterr().out.upper()

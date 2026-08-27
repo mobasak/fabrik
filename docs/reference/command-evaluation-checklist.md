@@ -20,6 +20,19 @@ do not spend audit attention re-deriving its verdict.** Items below marked **[GA
 set — confirm the gate is green and move on. Everything else is judgement, which is why this
 document exists.
 
+## ⚠️ Evaluate the RENDERED command, not the source alone
+
+`commands/_sources/<cmd>.md` is a TEMPLATE. `{{include:…}}` fragments expand at render time, so
+obligations the agent actually reads — closing the run record by name, the three sanctioned BLOCKED
+cases, the phase count — appear in `~/.claude/commands/<cmd>.md` and in **none** of the sources that
+include them. Auditing the source alone reported three false findings against `/fabrik-rivals` on the
+first calibration run. Read the source for AUTHORED content and the rendered file for CONTRACT
+coverage; `assemble_commands.py --check` proves the two are in sync.
+
+Some obligations live in neither: the 6-line FINAL OUTPUT block and the STATE footer are owed by
+**CLAUDE.md globally**, to every response from every command. Only 2 of 31 sources mention them, and
+that is correct — do not raise 29 findings for a contract no command is supposed to restate.
+
 ## The 21 surfaces an audit of one command touches
 
 An audit that reads only `commands/_sources/<cmd>.md` will pass a command whose companions have all
@@ -63,7 +76,7 @@ rotted. The surfaces, grouped by the question they answer:
 17. Does it name the phase count honestly? The fragment's phase count is computed at render time by `_phase_count`; a hand-written count drifts the moment a phase is added.
 18. Does it close its run record **by name** (`done --command <name>`), never by closing "whatever is live"?
 19. Does it state which of the three sanctioned BLOCKED cases may stop it, and forbid stopping for anything else?
-20. Does it end with the correct output block — the 6-line FINAL OUTPUT for a task-completing run, the 2-line STATE footer otherwise?
+20. Does it avoid CONTRADICTING the global output contract (6-line FINAL OUTPUT on a task-completing run, 2-line STATE footer otherwise)? The obligation is CLAUDE.md-global, not per-command — 2 of 31 sources restate it and that is fine. A finding here means the command tells the agent to end DIFFERENTLY, not that it stayed silent.
 
 ## Fragments & Composition
 
@@ -155,7 +168,7 @@ rotted. The surfaces, grouped by the question they answer:
 84. Does it avoid restating what an upstream command already produced — reference, never duplicate?
 85. Are its citations classified — PROVENANCE (decision inline, tagged) / HOLLOW (inline the minimal decision) / DEPTH-POINTER (marked optional)? A citation the reader must open to act on is a defect.
 86. Does it carry a **question bar** — ask only when the answer materially changes the artifact AND cannot be resolved from repo/convention/rules?
-87. Does it carry a `Guardrails — never` section for hard prohibitions, distinct from the scope boundary?
+87. Does it carry a `Guardrails — never` section for hard prohibitions, distinct from the scope boundary? Only 5 of 31 sources do, so bare absence is NOT a finding — it is a finding when the command has hard prohibitions scattered inline that a reader must assemble themselves (`/fabrik-rivals` had eight).
 88. Is it LEAN — would deleting any sentence change no agent behaviour? Delete it.
 89. Does it follow `docs/reference/MD/ai-prompt-templates.md` (Part A template · Part B agentic patterns · Part C markdown rules)?
 

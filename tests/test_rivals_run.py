@@ -946,3 +946,50 @@ def test_preflight_only_never_mutates_the_checkpoint():
     assert src.index("if args.preflight_only:") < src.index(call), (
         "the re-arm must sit AFTER the --preflight-only early return"
     )
+
+
+# ── N1: competitive intel is PERISHABLE and the dossier carried no date ──────────────────────────
+# Found by re-running /fabrik-rivals against docs/reference/command-evaluation-checklist.md item 28
+# ("external claims carry a cited URL + FETCH DATE"). Rival pricing, feature sets and review
+# sentiment all move; a dossier with no scan date reads as current forever, and it is the artifact a
+# product spec gets decided on. The original 14-aspect audit missed this entirely.
+
+
+def test_the_dossier_header_carries_the_scan_date():
+    out = rr.render_dossier_md({"market": "crm", "scanned_at": "2026-08-27", "competitors": []})
+    assert "2026-08-27" in out, "a dossier with no date reads as current forever"
+
+
+def test_a_dossier_with_no_scan_date_says_undated_rather_than_going_quiet():
+    """Silence here is the failure mode: an undated dossier that LOOKS complete is exactly the
+    fail-silent-green shape. Absence must be visible, not invisible."""
+    out = rr.render_dossier_md({"market": "crm", "competitors": []})
+    assert "UNDATED" in out.upper()
+
+
+def test_the_scan_date_cannot_break_the_header_row():
+    """`scanned_at` is stamped by the driver, but the renderer must stay hostile-input safe like
+    every other field it reads."""
+    out = rr.render_dossier_md({"market": "m", "scanned_at": "2026-08-27 | **INJECTED**\n## FAKE"})
+    assert "\n## FAKE" not in out
+
+
+# ── N2: the scaffold-type mapping was never pinned to the LIVE registry ──────────────────────────
+
+
+def test_every_live_scaffold_type_is_mapped_or_deliberately_rejected():
+    """Checklist item 54 (enumerations grounded from the live registry) + item 100
+    (behavior-without-a-test). The existing alias test proves the mapping's VALUES are real engine
+    product types; NOTHING proved its KEYS cover `SCAFFOLD_TYPES`. Add a 13th scaffold type and
+    /fabrik-rivals silently rejects every project of that type, with no test firing."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(REPO / "src"))
+    from fabrik.scaffold import SCAFFOLD_TYPES
+
+    unmapped = set(SCAFFOLD_TYPES) - set(rr.SCAFFOLD_TO_PRODUCT_TYPE)
+    assert unmapped == {"wordpress"}, (
+        f"unexpected unmapped scaffold type(s): {sorted(unmapped)}. Either add the alias, or — if it "
+        f"is a deliberate rejection like wordpress — widen this test's expectation and say why."
+    )
+    assert not set(rr.SCAFFOLD_TO_PRODUCT_TYPE) - set(SCAFFOLD_TYPES), "dead alias row"

@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import datetime as _dt
 import json
 import os
 import sys
@@ -606,7 +607,15 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     comps = _as_dicts(d.get("competitors"))
     verified = [c for c in comps if str(c.get("verified")) == "True"]
     unconfirmed = [c for c in comps if str(c.get("verified")) != "True"]
+    # ⚠️ The SCAN DATE leads the header, because competitive intel is PERISHABLE in a way the rest
+    # of this payload is not: rival pricing, feature sets and review sentiment all move, and this
+    # artifact is what a product spec gets decided on. An undated dossier reads as current forever.
+    # Absence is spelled LOUDLY — a missing date must be visible, not silent, which is the whole
+    # failure shape this command exists to avoid. (Found by auditing /fabrik-rivals against
+    # docs/reference/command-evaluation-checklist.md item 28; the first audit missed it.)
+    scanned = _s(d.get("scanned_at")).strip()
     out.append(
+        f"**scanned:** {scanned or '⚠️ UNDATED — provenance unknown, do not treat as current'} · "
         f"**product_type:** `{_s(d.get('product_type'))}` · **rivals:** {len(comps)} "
         f"({len(verified)} verified, {len(unconfirmed)} unconfirmed) · "
         f"**review signals:** {len(d.get('review_signal') or []) if isinstance(d.get('review_signal'), list) else 0} · "
@@ -945,6 +954,10 @@ async def _run(args: argparse.Namespace) -> int:
         )
 
     data = dossier.to_dict()
+    # Stamp the scan date HERE, on the driver side, before either artifact is written. The engine's
+    # payload carries no date, and a dossier without one reads as current no matter how old it is.
+    # UTC, so a dossier is comparable across machines.
+    data.setdefault("scanned_at", _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%d"))
     if args.rediscover:
         # Re-union BEFORE anything else touches the checkpoint: the engine has just overwritten
         # `competitors` with this round's discoveries only (orchestrator.py:572), so without this

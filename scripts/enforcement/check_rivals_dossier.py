@@ -43,6 +43,10 @@ DOSSIER_DIR = Path("docs") / "reference" / "rivals"
 RIVALS_RE = re.compile(r"\*\*rivals:\*\*\s*(\d+)")
 PARTIAL_RE = re.compile(r"\*\*partial:\*\*\s*(True|False)", re.IGNORECASE)
 TRUNCATED_RE = re.compile(r"\*\*truncated:\*\*\s*(True|False)", re.IGNORECASE)
+# The scan date. Competitive intel is PERISHABLE — rival pricing, feature sets and review
+# sentiment all move — so an undated dossier reads as current forever while being the artifact a
+# product spec gets decided on. The renderer stamps `**scanned:** YYYY-MM-DD`; absence is a finding.
+SCANNED_RE = re.compile(r"\*\*scanned:\*\*\s*(\d{4}-\d{2}-\d{2})")
 
 SCOPE_NOTE = (
     "grades self-reported provenance only (renderer header); cannot re-ground Tier-C BEAT cards "
@@ -137,6 +141,10 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
             part = PARTIAL_RE.search(text)
             if part and part.group(1).lower() == "true":
                 findings.append(Finding(name, "PARTIAL", "a leg degraded - see degrade_causes"))
+            if SCANNED_RE.search(text) is None:
+                findings.append(
+                    Finding(name, "UNDATED", "no scan date - perishable intel reading as current")
+                )
 
         if not _index_mentions(root, rel):
             findings.append(Finding(name, "UNINDEXED", f"no INDEX.md row for {rel}"))

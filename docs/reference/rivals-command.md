@@ -174,6 +174,19 @@ Two details that are easy to get wrong and were checked against the real payload
   "No page text retrieved for this candidate". They are rendered `❓` and named in a callout — an
   unconfirmed name sitting among real ones is how a fabricated competitor reaches a spec.
 
+## The dossier is DATED, and the date is load-bearing
+
+Competitive intel is perishable in a way most artifacts are not — rival pricing, feature sets and
+review sentiment all move — and this artifact is what a product spec gets decided on. The driver
+stamps `scanned_at` (UTC) into the payload before either artifact is written, and the renderer leads
+the header with it. A payload with no date renders `⚠️ UNDATED — provenance unknown, do not treat as
+current` rather than going quiet: an undated dossier that LOOKS complete is the same fail-silent-green
+shape this command exists to avoid. `check_rivals_dossier.py` grades its presence.
+
+Added 2026-08-27 by auditing the command against `docs/reference/command-evaluation-checklist.md`
+item 28 (external claims carry a cited URL + fetch date). The original 14-aspect audit missed it
+entirely — which is the case for having the checklist.
+
 ## Termination — the command is a LOOP
 
 A single engine run is not a dossier. The run is done only when all of these hold:

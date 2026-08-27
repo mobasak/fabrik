@@ -5,7 +5,8 @@ argument-hint: "[the market/category to scan] [optional: --us <our product> | --
 
 Produce the competitive evidence a product should be spec'd on, so the ANGLE, the FEATURES and the
 PROBLEMS-TO-SOLVE come from real rivals and real reviews instead of vibes. The engine is fabrik-lib's
-`competitor-intel` (vendored at `libs/competitor_intel`, hub-side) driven by
+`competitor-intel` (vendored at `libs/competitor_intel`; the driver resolves it local-first, then
+the hub's copy) driven by
 `scripts/rivals_run.py`; this command owns the brief, the evidence contract, the convergence loop and
 the hand-off into `/fabrik-spec`.
 
@@ -27,12 +28,9 @@ errand. If the engine is in neither place the driver says so and names the fix; 
 a hand-off.
 
 {{include:run-record}}
-{{include:repo-identity}}
 {{include:injection}}
 
 ## ⚠️ Termination contract
-
-Two contracts, one per mode. Never let one mode's "done" stand in for the other's.
 
 **The run is done when ALL of these hold** — this is a LOOP, not a single shot:
 
@@ -142,8 +140,11 @@ Write `docs/reference/rivals/<market>.md` from **`rivals_run.py::render_dossier_
 — NOT from `dossier.to_markdown()`. Measured on a real 12-rival scan: the engine's own markdown emitted
 **404 bytes** (market line, spend, one BEAT item) while the structured payload held all twelve rivals,
 a 12x44 feature matrix and the pricing models. The engine's markdown is a summary; this artifact is
-what a spec gets decided on. Add a header carrying the run's `job_id`, the model, the spend,
-`partial`/`truncated`, whether it ran `--free-legs-only`, and the Pass Ledger.
+what a spec gets decided on. Add a header carrying the **scan DATE** (the driver stamps `scanned_at`; a dossier with no date
+reads as current forever, and competitive intel is perishable — rival pricing, features and review
+sentiment all move), the run's `job_id`, the model, the spend, `partial`/`truncated`, whether it
+ran `--free-legs-only`, and the Pass Ledger. **Re-read the date before trusting an existing
+dossier** — an old one is a starting point for a fresh scan, never evidence about today's market.
 
 **Never let an unconfirmed rival read as a real one.** The engine sets `verified` per competitor; on
 that same run **5 of 12** were `verified: False` ("No page text retrieved"). The renderer marks them
@@ -164,6 +165,22 @@ Then state the hand-off explicitly, because it is the whole point of running bef
 **Scope, stated plainly in the dossier:** this is competitor and entry-opportunity intel, NOT
 market-sizing or demand validation. A spec still needs that separately. Never let a dossier be read as
 proof that a market is big enough.
+
+## Guardrails — never
+
+Scope lives in the phases above; these are the actions that make a RUN defective.
+
+- **Never write a `--rediscover` round's dossier to `docs/reference/rivals/`.** It covers that round's
+  fresh discoveries only; the artifact is the final no-flag round's synthesis over the full union.
+- **Never count a round the driver flagged `!!` as dry.** Discovery was skipped; it could not find.
+- **Never present an unconfirmed rival as a real one.** `verified: False` renders `❓` and is named in
+  the callout — carry that through; a fabricated competitor reaching a spec starts here.
+- **Never assert a trust rail a stage does not have.** BEAT is Tier-C and cannot be re-grounded like
+  the matrix; say so rather than implying uniform provenance.
+- **Never ship an UNDATED dossier**, and never read an old one as current.
+- **Never prompt the operator for an API key** — a missing one is a provisioning escalation.
+- **Never silently fork `libs/competitor_intel`.** A vendored copy cannot fix itself; file upstream.
+- **Never treat `truncated=True` as a footnote.** The money ceiling bound the run; the scan is partial.
 
 {{include:questionbar}}
 

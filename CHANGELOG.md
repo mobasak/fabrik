@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-rivals re-audited against the new checklist: 5 findings the first pass missed (2026-08-27)
+
+Calibration run of `docs/reference/command-evaluation-checklist.md` against command 1 of 31. The
+first, ad-hoc 14-aspect audit had already fixed nine defects in this command; walking the same
+command against the checklist found five more, and two defects in the checklist itself.
+
+- **The dossier carried no DATE** (item 28). Competitive intel is perishable — rival pricing,
+  features and review sentiment all move — and this is the artifact a spec gets decided on, so an
+  undated dossier read as current forever. The driver now stamps `scanned_at` (UTC), the renderer
+  leads the header with it, an absent date renders a loud `⚠️ UNDATED` rather than going quiet, and
+  `check_rivals_dossier.py` grades it.
+- **`SCAFFOLD_TO_PRODUCT_TYPE` was never pinned to the live registry** (items 54 + 100). The mapping
+  is correct today, but nothing imported `SCAFFOLD_TYPES` to prove it: add a 13th scaffold type and
+  `/fabrik-rivals` silently rejects every project of that type with no test firing. Now pinned.
+- **Two more two-mode residues** the earlier fix missed — a termination contract still opening "Two
+  contracts, one per mode" for a command that now has ONE mode, and a "hub-side" engine reference.
+- **`{{include:repo-identity}}` removed** — residue from the deleted two-mode design, sitting beside
+  "there is no mode to pick".
+- **A `Guardrails — never` section added**, consolidating eight hard prohibitions the reader
+  previously had to assemble from across the file.
+
+Two defects found IN the checklist by using it: it did not say to evaluate the **rendered** command
+(fragments expand at render time, so auditing the source alone reported three false findings), and
+its item 20 would have raised ~29 false findings for a contract CLAUDE.md owns globally. Both fixed.
+
 ### Fixed — /fabrik-review on the command-evaluation checklist: 8 findings, converged at round 5 (2026-08-27)
 
 A checklist is uniquely falsifiable by its own items, so items 32 (verify every cited path), 83
