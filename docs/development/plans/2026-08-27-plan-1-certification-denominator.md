@@ -1,6 +1,6 @@
 # Plan — certification denominator: a generated, registry-sourced ledger with a deny-list exit
 
-Status: CONVERGED — 3 rounds, 6 findings fixed; final round a no-op
+Status: CONVERGED — 6 rounds, 9 findings fixed; round 6 a no-op
 
 **Origin:** operator directive 2026-08-27 — *"our /fabrik-user-test and /fabrik-service-test commands
 are not enforcing agents to test all product surface. it must… the goal is to test finished product
@@ -84,6 +84,8 @@ the proposal did not know was absent.
 - `scripts/final_gate.py` — one `run_optional_check` registration, `warn_only=True`
 - `tests/enforcement/test_certification_coverage.py` — **NEW**
 - `docs/reference/certification-denominator.md` — **NEW** subsystem reference
+- the generated per-surface artifacts: `docs/reference/certification/<surface>-ledger.md`
+  (the denominator) and `<surface>-plan.md` (the phased test plan the run executes)
 - `INDEX.md`, `docs/README.md` (dir row already covers `reference/`), `CHANGELOG.md`
 
 ## Behavior Contract
@@ -109,11 +111,18 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
 - **Given** a generator that could not reach its declared registry, **When** it emits the ledger,
   **Then** the refusal is recorded and the grader fails LOUD naming what could not be enumerated —
   never a silently short list.
-- **Given** a project with `type: wordpress`, **When** the grader resolves its registry, **Then** it
-  returns "no registry — type retired" and exits 0 WITHOUT reaching the scaffolder
-  (`src/fabrik/scaffold.py:5783` raises `NotImplementedError`; `:146` keeps the type in
-  `SCAFFOLD_TYPES`, and that combination turned a sibling `warn_only` check into a blocking red
-  across ~46 repos).
+- **Given** the dead legacy string `wordpress` still present in `SCAFFOLD_TYPES`, **When** anything
+  in the grader iterates the frozenset, **Then** it exits 0 without reaching the scaffolder — a pure
+  crash guard, because `scaffold.py:5783` raises `NotImplementedError` while `:146` keeps the string,
+  and a sibling check let that escape and reddened ~46 repos. We ship no WordPress projects; this
+  asserts nothing about certification.
+- **Given** a generated ledger, **When** the command completes Phase 1, **Then** a phased
+  certification PLAN exists at `docs/reference/certification/<surface>-plan.md` with every ID
+  assigned to a phase and every phase carrying a runnable gate — the run is not merely counted, it
+  is planned.
+- **Given** a certification plan whose phases do not partition the ledger exactly, **When** the
+  grader runs, **Then** it is rejected — an ID in NO phase re-opens the `UNVISITED` hole one level
+  up, and an ID in TWO phases double-counts the coverage fraction.
 - **Given** a project with no ledger at all, **When** the grader runs on landing day, **Then** it
   WARNs and exits 0 — advisory rollout, never a hard red.
 - **Given** ANY input at all, including a corrupt ledger and a raising guard path, **When** the
@@ -141,7 +150,38 @@ One row per distinct observable behaviour, risk-ordered, TDD for the risky ones.
 
 ---
 
-## Phase A — the ledger FORMAT and the grader (no command changes yet)
+## ⚠️ The method must be SYSTEMATIC, not just the denominator
+
+Operator, 2026-08-27: *"these two commands/skills — they must be systematic as like
+`/fabrik-plan-after-chat`."* This is a second requirement, and the first draft of this plan missed
+it: fixing the DENOMINATOR (what must be covered) while leaving the METHOD ad-hoc would produce an
+honest number attached to an unrepeatable process.
+
+`/fabrik-plan-after-chat` is systematic because of six concrete mechanisms, every one of which
+already exists in this repo and is reusable here:
+
+| Mechanism | Where it lives today | What certification gets |
+|---|---|---|
+| A run record opened as the command's FIRST act | `scripts/command_run.py` | the run is visible and un-abandonable; the pinned `RUN:` line survives a compaction |
+| Numbered phases in dependency order | the plan schema | certification runs phase by phase, not as one opaque gauntlet |
+| Every claim grounded BEFORE writing | § Phase 1 grounding | every ID traced to the registry row that produced it |
+| A structured ARTIFACT with a fixed schema | the plan file | **the ledger is not enough — the run emits a CERTIFICATION PLAN** |
+| Auto-convergence to an md5-verified no-op via a paired review | `/fabrik-plan-review` | the gauntlet closes on a quiet round, not on the agent's judgement |
+| Gate enforcement of the artifact's shape | `check_convergence.py`, `check_test_proposal.py` | `check_certification_coverage.py` (Phase A) |
+
+**The consequence for the design.** Phase 1 of each command does not merely enumerate a ledger — it
+**generates a certification PLAN** over that ledger and writes it to
+`docs/reference/certification/<surface>-plan.md`: the IDs grouped into phases by risk tier, each
+phase carrying its own runnable gate and evidence slots, in dependency order (T1 journeys before the
+T3 sweep, because a broken auth boundary invalidates everything behind it). Execution then walks
+that plan phase by phase, exactly as `/fabrik-execute-plan` walks an implementation plan — with
+`command_run.py step` at each phase and `round` at each convergence pass.
+
+That is what makes "100% fully" *repeatable* rather than a one-off heroic run: the plan is an
+artifact, so a second run diffs against the first, a resumed run knows where it stopped, and a
+reviewer can see which phase a claim came from.
+
+## Phase A — the two artifact FORMATS and the grader (no command changes yet)
 
 The grader first, deliberately: a contract with no grader is what produced this defect, and building
 the checker before the prose means the prose has something to be true against.
@@ -163,6 +203,26 @@ Machine-readable block with one row per ID:
 | MENU-0142 | T3 | EXERCISED | .tmp/cert/menu-0142.png | registry:ir_ui_menu |
 | ROUTE-POST-/v1/parties | T1 | EXERCISED | tests/e2e/test_parties.py::test_post | registry:app.routes |
 ```
+
+**A1b. Define the certification PLAN artifact** at `docs/reference/certification/<surface>-plan.md`
+— added in round 5, because the Behavior Contract asserted this artifact exists while no phase said
+what it looked like: a contract clause with no grader, which is the precise defect this whole plan
+exists to remove. Caught by the plan's own confirming sweep.
+
+Same schema discipline as an implementation plan, because that is what "systematic like
+`/fabrik-plan-after-chat`" means mechanically:
+
+```
+## Phase T1 — money / tenancy / PII / authorisation      gate: <runnable command>
+| ID | tier | assertion | evidence |
+## Phase T2 — authored or modified surfaces              gate: <runnable command>
+## Phase T3 — inherited (GENERATED smoke)                gate: <runnable command>
+```
+
+Every ID in the ledger appears in exactly one phase (the grader checks the partition is total and
+disjoint — an ID in no phase is the `UNVISITED` hole re-opened one level up, and an ID in two phases
+double-counts the coverage fraction). Phases run in dependency order: T1 first, because a broken auth
+boundary invalidates every result behind it.
 
 **A2. Write `check_certification_coverage.py`** — reads the ledger, computes the fraction, and
 reports. `warn_only=True`, exit 0 on every path, census-first output (the 500-char/10-line advisory
@@ -200,16 +260,17 @@ The genuinely new work, and the part the hub must not guess. 12 `SCAFFOLD_TYPES`
 | `mobile-app` | the navigator route tree |
 | `desktop-app` | the window + application-menu registry |
 | any type wrapping a vendored platform | **that platform's own registry** |
-| `wordpress` | **NONE — retired.** See the trap below. |
 
-⚠️ **`wordpress` is the one gap in the proposal's table (11 of 12), and it is the dangerous kind.**
-`src/fabrik/scaffold.py:5783` raises `NotImplementedError` for it — *"WordPress is out of fabrik:
-scaffolding moved to /opt/wpf (2026-06-17)"* — while `:146` keeps it in `SCAFFOLD_TYPES` "for legacy
-deploy/shape". A sibling advisory check hit exactly this: it iterated `SCAFFOLD_TYPES`, the
-`NotImplementedError` escaped, the non-zero exit turned a `warn_only` row into a **blocking red
-across ~46 repos**. The grader must therefore treat `wordpress` as an explicit, guarded row that
-returns "no registry, type retired" and MUST NOT reach the scaffolder. This is a Behavior Contract
-row, not a comment.
+The table covers **every product type we actually ship**. `SCAFFOLD_TYPES` also still contains the
+string `wordpress` (`src/fabrik/scaffold.py:146`), but **we have no WordPress projects** — zero
+`project.yaml` files declare it, and CLAUDE.md records the type as *"out of fabrik — `/opt/wpf`
+archived 2026-08-07"*. It is dead legacy, **not a product surface**, and it gets no registry row.
+
+It gets one thing only: a **crash guard**. `scaffold.py:5783` raises `NotImplementedError` on it
+while `:146` keeps the string in the frozenset, and a sibling advisory check iterated
+`SCAFFOLD_TYPES`, let that escape, and turned a `warn_only` row into a blocking red across ~46
+repos. So the grader must never reach the scaffolder for it. That is a one-line guard and a
+regression test — nothing about certification.
 
 **B2. The DECLARATION mechanism** — the hub must not infer.
 
@@ -329,11 +390,27 @@ it and the output is signal rather than noise. Not in this plan.
 | 1 | ungradeable-clauses · warn-only-exit · declaration-residual · scaffold-type-coverage · doc-allowlist | 5 | 5 |
 | 2 | the same five, re-swept | 0 | 0 |
 | **3 (gate-driven)** | Behavior Contract FORMAT — the gate found what all three prose rounds missed | 1 | 1 |
+| 4 (operator correction) | `wordpress` framing · the SYSTEMATIC-method requirement the first draft missed | 2 | 2 |
+| 5 | re-swept after the round-4 additions | 1 | 1 |
+| **6 (terminal)** | full re-sweep: contract/phase parity · partition · wordpress · method · residuals | **0** | **0** |
 
 Round 2 made no edits — `md5 b0266c18` unchanged — so this is a genuine no-op exit, not a
 re-derivation. The five round-1 findings were: the `wordpress` gap (the dangerous one), the
 unsettled declaration home, the ungradeable evidence clause, the under-stated `warn_only` exit
 contract, and an allowlist claim resting on a citation rather than an executed verdict.
+
+⚠️ **Round 4 was the OPERATOR, and both corrections were fair.** (a) The plan gave `wordpress` a row
+in the registry table; we ship **zero** WordPress projects and CLAUDE.md records the type as out of
+fabrik, so a dead legacy string had been dressed up as a product surface. It is now a crash guard
+only. (b) More importantly, the first draft fixed the DENOMINATOR and left the METHOD ad-hoc —
+*"they must be systematic as like /fabrik-plan-after-chat"* is a second requirement, and an honest
+coverage number attached to an unrepeatable process is half the job.
+
+⚠️ **Round 5 then caught the defect round 4 introduced** — the new Behavior Contract row asserted a
+certification PLAN artifact exists while no phase defined its format: a contract clause with no
+grader, which is the exact class this plan exists to remove. Phase A1b now defines it, and the
+partition (total and disjoint over the ledger) is itself a graded row. The round that adds
+something is never the last round.
 
 ⚠️ **Round 3 was the GATE, not me, and it is the most instructive round.** `final_gate` rejected the
 plan: *"Behavior Contract missing the Given/When/Then structure"* (`check_test_proposal.py:200-205`).
