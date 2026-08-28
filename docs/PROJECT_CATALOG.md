@@ -11,6 +11,7 @@
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
+| **zitadel** | Umbrella OIDC IdP — the single account every Fabrik SaaS federates to (Epic 1) | Zitadel v4 (docker) | 🔵 Planned | https://auth.ocoron.com | third-party |
 | **proxy** | **Status:** Production Ready - Proxy Management API ✅ | Python | ✅ Production | Multi-service proxy broker | ✅ Current |
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
@@ -26,7 +27,7 @@
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Node.js | 🔨 Development | - | ✅ Current |
 | **fabrik-claim-validator** | Multi-tradition claim validation + substance discovery service. Sibling to fabrik-citation-veri... | FastAPI | 🔨 Development | - | ✅ Current |
 | **gmail-account-creator** | Automated Gmail account creation and management worker. | Python | 🔨 Development | - | ✅ Current |
-| **job-agent** | AI agent orchestration and job processing system | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
+| **job-agent** | LinkedIn Easy Apply Assistant — Chrome MV3 extension (WXT + Preact) with a FastAPI backend | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
 | **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
 | **meb** | MEB curriculum flashcard app for the owner's kids. Phase 1: offline Expo/React Native/TS Androi... | React Native | 🔨 Development | - | ✅ Current |
 | **obsidian-agents** | Obsidian plugin: right-pane chat view that drives Claude Code and Kilo CLI agents via headless ... | Node.js | 🔨 Development | - | ✅ Current |

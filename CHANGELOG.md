@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Zitadel v4 umbrella IdP deploy spec + reference doc (2026-08-28)
+
+- `specs/services/zitadel.yaml` + `docs/reference/zitadel.md` — Epic-1 (Phases A/B): the self-hosted Zitadel v4
+  umbrella OIDC identity provider at `auth.ocoron.com` (own DB on `postgres-main`, Traefik-routed, SMTP→Resend,
+  en+tr login). Deploy spec + runbook + the 7-criteria verification table; the live `fabrik apply` deploy is the
+  operator-gated deploy triad. Produces the OIDC issuer + per-RP client-cred surface + Authorization-v2 grant API
+  that Epic 2 consumes.
+
 ### Fixed — Docker-source compose emitter now honors source.image_command + health.disabled (2026-08-28)
 
 - `src/fabrik/orchestrator/deployer_ssh.py::_generate_docker_compose`: emitted neither a `command:` (so
