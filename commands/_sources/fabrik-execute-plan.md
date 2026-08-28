@@ -588,8 +588,16 @@ looks alive, then reports `completed` with nothing done. Every dispatched subage
 plain **synchronous** shell call (a generous `timeout`) and read its exit output in the SAME turn. **If a
 step is too slow for one synchronous call, SPLIT its scope** (e.g. a big provisioning phase → seed-countries,
 then chart-of-accounts, then fiscal-year, each run and verified synchronously) — never defer a slice to a
-signal that will not arrive. Dispatch every subagent with an explicit *"run synchronously; never background a
-run or wait on a Monitor/notification; split scope if a call is too slow"* instruction in its brief.
+signal that will not arrive. ⚠️ **"A generous `timeout`" is not advice, it is the load-bearing part:
+the Bash tool's DEFAULT is 120s, and a call that exceeds it does not error — it AUTO-BACKGROUNDS.**
+So a subagent obeying this instruction to the letter lands in exactly the state the instruction
+exists to prevent, with no signal that it happened (transdoc, 2026-08-28: a first synchronous
+`npx playwright test` silently backgrounded on a cold dev-server boot). Pass an EXPLICIT
+multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions —
+"split scope" cannot help when the call is a single unsplittable server boot. Dispatch every
+subagent with an explicit *"run synchronously with an explicit multi-minute `timeout` on any
+server-boot / browser-suite / provisioning call; never background a run or wait on a
+Monitor/notification; split scope only when the work genuinely divides"* instruction in its brief.
 
 ### Isolation model: worktrees
 
