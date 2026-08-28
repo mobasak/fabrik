@@ -1958,7 +1958,18 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         text=True,
     )
     if result.returncode != 0:
+        # LOUD, not just a logger.warning: a silent dev-install failure leaves .venv WITHOUT the gate's
+        # toolchain (ruff/mypy/bandit/semgrep), and final_gate.py then refuses under `.venv/bin/python`
+        # with a bare `setup-error` far from this cause (transdoc 01M140E3B). Surface the exact remedy so
+        # the toolchain-less .venv is fixed here, at creation, instead of being discovered at gate time.
+        import click
+
         logger.warning("Failed to install dev dependencies: %s", result.stderr)
+        click.echo(
+            "⚠️  Dev dependencies did not install — .venv is missing the gate toolchain "
+            "(ruff/mypy/bandit/semgrep). The gate will fail with `setup-error` until you run:"
+        )
+        click.echo(f"    {venv_pip} install -r requirements-dev.txt")
 
 
 _SAAS_SKIP_FILES = {"AGENTS.md", "pyproject.toml", "requirements.txt"}

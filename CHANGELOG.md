@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffold surfaces a failed dev-dependency install (toolchain-less .venv) loudly (2026-08-28)
+
+- `src/fabrik/scaffold.py` — the scaffold already ships the gate toolchain (`requirements-dev.txt` carries
+  ruff/mypy/bandit/semgrep and is auto-installed into `.venv` at creation), but a FAILED install was only a
+  `logger.warning`, leaving a toolchain-less `.venv` that made `final_gate.py` refuse under `.venv/bin/python`
+  with a bare `setup-error` far from the cause (transdoc `01M140E3B`, routed via `01M1460TN`). The failure now
+  prints a visible remedy (`⚠️  … run: <venv>/bin/pip install -r requirements-dev.txt`) at creation. No test —
+  a print on a failure branch is trivia.
+
 ### Fixed — competitor_intel re-vendored at cb6c59e: the 8 confirmed defects live in the hub copy are gone (2026-08-28)
 
 - Second re-vendor (`01M12HX6Y6`): fabrik-lib's rounds 9b–12+ fixed 17 more defects, 8 of them
