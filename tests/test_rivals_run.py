@@ -1013,3 +1013,47 @@ def test_all_nameless_wedge_items_render_none_not_empty_bold():
     out = rr.render_dossier_md({"pricing": {"wedge": [{"wedge": "", "rationale": "orphan"}]}})
     assert "- **** " not in out
     assert "_None corroborated._" in out
+
+
+# ── the Pricing wedge is a list[str], and the driver's renderer read it as dicts ────────────────
+# youtube hit it (01M12T7B0W), fabrik-lib routed it with the decisive evidence (01M12VTHP1). The
+# stage's own type is `wedge: list[str]` (competitor_intel/stages.py:36). `_as_dicts` normalises a
+# bare string to {"name": ...}, but the render block read only `wedge`/`opening`/`theme` — keys
+# that helper never emits — so every real wedge was skipped and the section printed the same
+# "_None corroborated._" line used for genuinely empty data. A grounded finding rendered as no
+# finding, which is worse than a crash: the run looked complete.
+
+
+def test_a_bare_string_wedge_renders():
+    out = rr.render_dossier_md(
+        {
+            "market": "m",
+            "competitors": [],
+            "pricing": {"wedge": ["no free tier under $20/mo", "per-seat pricing punishes teams"]},
+        }
+    )
+    assert "no free tier under $20/mo" in out, out
+    assert "per-seat pricing punishes teams" in out, out
+    # Scope to the wedge SECTION. The first version of this assertion split on "###" — but the
+    # next heading is "## White-space", so the slice ran past it and picked up white-space's own
+    # "_None corroborated._". It failed against correct code and nearly sent me to fix the fix.
+    section = out.split("### Pricing wedge")[1].split("\n## ")[0]
+    assert "_None corroborated._" not in section, section
+
+
+def test_a_dict_shaped_wedge_still_renders():
+    """Defensive: the engine emits strings today, but the renderer must not regress if a future
+    stage emits richer entries."""
+    out = rr.render_dossier_md(
+        {"market": "m", "competitors": [], "pricing": {"wedge": [{"wedge": "annual lock-in"}]}}
+    )
+    assert "annual lock-in" in out, out
+
+
+def test_a_genuinely_empty_wedge_still_says_none():
+    """The false-positive side: the `_None corroborated._` line must survive for real emptiness,
+    or the fix trades one silent lie for another."""
+    out = rr.render_dossier_md(
+        {"market": "m", "competitors": [], "pricing": {"wedge": ["", "   "]}}
+    )
+    assert "_None corroborated._" in out, out

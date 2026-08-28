@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-rivals rendered a grounded Pricing-wedge finding as "none corroborated" (2026-08-28)
+
+- `youtube` hit it, `fabrik-lib` routed it with the decisive evidence: `PricingBlock.wedge` is a
+  `list[str]` (`competitor_intel/stages.py:36`), `_as_dicts` normalises a bare string to
+  `{"name": …}`, and `render_dossier_md` read only `wedge`/`opening`/`theme` — keys that helper
+  never emits. Every real wedge was skipped and the section printed the same `_None corroborated._`
+  used for genuinely empty data. **A grounded finding rendered as no finding**, which is worse than
+  a crash: the run looked complete.
+- Fixed by reading `name` first, keeping the dict-shaped keys for a future richer stage. Three tests:
+  the bare-string case, the dict case, and the false-positive side (a genuinely empty wedge must
+  still say `_None corroborated._`).
+- **Their durable fix — delete the duplicate renderer, since `Dossier.to_markdown()` handles wedge
+  correctly — remains blocked:** there is still no `from_dict` in the module, so the driver can only
+  render from the JSON payload it writes before rendering. Reported back rather than silently
+  patched-and-forgotten.
+
+
 ### Fixed — 55-observability now mandates the two Sentry flags that stop secrets reaching GlitchTip (2026-08-28)
 
 - `transdoc` proved, against a running app, that a scaffolded service ships the JWT signing secret,

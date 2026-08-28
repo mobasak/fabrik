@@ -755,7 +755,13 @@ def render_dossier_md(d: dict[str, Any]) -> str:
             # nothing) — the empty-openings artifact from trade-intelligence's live run.
             # Skip nameless items; an all-nameless list gets the same _None_ line the
             # white-space section uses.
-            name = _s(w.get("wedge") or w.get("opening") or w.get("theme"))
+            # `name` FIRST: `PricingBlock.wedge` is a `list[str]` (competitor_intel/stages.py:36)
+            # and `_as_dicts` normalises a bare string to {"name": ...}. Reading only the dict-shaped
+            # keys meant every REAL wedge was skipped and the section printed the same
+            # "_None corroborated._" as genuinely empty data — a grounded finding rendered as no
+            # finding (youtube 2026-08-28; routed by fabrik-lib with the type as evidence). The
+            # other keys stay for a future stage that emits richer entries.
+            name = _s(w.get("name") or w.get("wedge") or w.get("opening") or w.get("theme"))
             if not name.strip():
                 continue
             detail = _s(w.get("rationale") or w.get("evidence") or "")
