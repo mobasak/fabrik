@@ -14,7 +14,7 @@ OR needs_database false → a strict no-op (every other service is byte-identica
 """
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fabrik.orchestrator import DeploymentOrchestrator
 from fabrik.orchestrator.context import DeploymentContext
@@ -101,6 +101,81 @@ def test_db_name_is_name_first_matching_the_registrar() -> None:
         orch._pre_provision_db_for_boot(ctx, ctx.spec)
     assert pg.call_args.args[0] == "svc_name", "db_name must derive from spec.name (registrar parity), not spec.id"
     assert ctx.secrets["DATABASE_URL"] == "postgresql://svc_name:PW@postgres-main:5432/svc_name"
+
+
+def test_infra_postgres_false_override_skips_pre_provision() -> None:
+    # Finding #1: the registrar gates postgres on `needs_database AND _enabled(infra,"postgres")`
+    # (infrastructure.py:204). The pre-provision must honor the same `infra.postgres: false`
+    # override ("I manage this DB myself"), else it creates a DB the operator opted out of.
+    orch = DeploymentOrchestrator()
+    ctx = _ctx(_spec(infra={"postgres": False}))
+    with patch("fabrik.drivers.postgres.create_database") as pg:
+        orch._pre_provision_db_for_boot(ctx, ctx.spec)
+    pg.assert_not_called()
+    assert "DATABASE_URL" not in ctx.secrets
+
+
+def test_dry_run_does_not_seed_a_live_dsn() -> None:
+    # Finding #2: the `if password and not ctx.dry_run` guard (else a `fabrik plan` preview
+    # would seed a real DATABASE_URL). create_database is still called (existence check,
+    # consistent with the registrar), but no DSN is layered into ctx.secrets.
+    orch = DeploymentOrchestrator()
+    ctx = _ctx(_spec())
+    ctx.dry_run = True
+    with patch(
+        "fabrik.drivers.postgres.create_database",
+        return_value={"status": "exists", "password": "PW"},
+    ):
+        orch._pre_provision_db_for_boot(ctx, ctx.spec)
+    assert "DATABASE_URL" not in ctx.secrets, "dry-run must NOT seed a live DSN"
+
+
+def test_create_database_failure_raises_provisioning_error() -> None:
+    # Finding (author): create_database raises RuntimeError/ValueError (postgres.py:130),
+    # which is NOT in deploy()'s caught tuple — so the pre-provision must re-raise it as
+    # ProvisioningError for a clean abort + rollback instead of an uncaught traceback.
+    from fabrik.orchestrator import ProvisioningError
+
+    orch = DeploymentOrchestrator()
+    ctx = _ctx(_spec())
+    with patch(
+        "fabrik.drivers.postgres.create_database",
+        side_effect=RuntimeError("psql: could not connect to postgres-main"),
+    ):
+        try:
+            orch._pre_provision_db_for_boot(ctx, ctx.spec)
+        except ProvisioningError as e:
+            assert "pre-provision failed" in str(e)
+        else:  # pragma: no cover
+            raise AssertionError("expected ProvisioningError on create_database failure")
+
+
+def test_deploy_calls_pre_provision_before_deployer_deploy() -> None:
+    # Finding #3: the whole point of the change is ORDERING — pre-provision must run before
+    # deployer.deploy (the first `up`). Deleting/moving the call site passes every unit test
+    # above, so pin the integration order here via a shared call-recorder.
+    orch = DeploymentOrchestrator(
+        validator=MagicMock(),
+        deployer=MagicMock(),
+        verifier=MagicMock(),
+        rollback_manager=MagicMock(),
+        infrastructure_provisioner=MagicMock(),
+    )
+    orch.validator.load_and_validate.return_value = (_spec(), "hash", [])
+    order: list[str] = []
+    orch.deployer.deploy.side_effect = lambda ctx: order.append("deploy")
+    with (
+        patch.object(orch, "_pre_provision_db_for_boot", side_effect=lambda ctx, spec: order.append("pre")),
+        patch.object(orch, "_load_secrets"),
+        patch.object(orch, "_provision_dns"),
+        patch.object(orch, "_persist_state"),
+    ):
+        try:
+            orch.deploy(Path("/tmp/x.yaml"))
+        except Exception:  # noqa: BLE001 — downstream mocks may raise; we only assert order
+            pass
+    assert "pre" in order and "deploy" in order, f"both steps must run; got {order}"
+    assert order.index("pre") < order.index("deploy"), f"pre-provision must precede deploy; got {order}"
 
 
 def test_created_db_is_tracked_for_rollback() -> None:

@@ -284,7 +284,9 @@ class DeploymentOrchestrator:
         writes it into the INITIAL ``.env``. The post-deploy registrar's
         ``create_database`` is idempotent (DB exists → no password returned → the
         ``.env`` value is preserved by the merge), so this does not double-provision.
-        A service WITHOUT the flag is completely unaffected — strict no-op.
+        A service WITHOUT the flag is completely unaffected — strict no-op. The gate,
+        name derivation, and applicability all mirror the postgres registrar so the
+        pre-provisioned DB is the SAME one the post-deploy registrar later derives.
         """
         deploy_cfg = spec.get("deploy") or {}
         if not (isinstance(deploy_cfg, dict) and deploy_cfg.get("db_before_boot")):
@@ -292,26 +294,41 @@ class DeploymentOrchestrator:
         if not (spec.get("shape") or {}).get("needs_database"):
             return
         from fabrik.drivers.postgres import create_database
-        from fabrik.orchestrator.infrastructure import _rewrite_shared_infra_host
+        from fabrik.orchestrator.infrastructure import _enabled, _rewrite_shared_infra_host
 
-        # Mirror the postgres registrar's name precedence EXACTLY (name-first, then
-        # id — infrastructure.py:413 `spec.get("name") or spec.get("id")`) so the
-        # pre-provisioned DB is the SAME one the post-deploy registrar later derives.
-        # A reversed precedence would split-brain a service with name != id and no
-        # depends.postgres (deploy-plan-review finding #3, 2026-08-28).
-        name = spec.get("name") or spec.get("id")
+        # Honor the SAME applicability the registrar does — the `infra.postgres: false`
+        # override ("I manage this DB myself") must skip the pre-provision too, else we
+        # create a DB the operator explicitly opted out of (review finding #1).
+        infra = spec.get("infra") or {}
+        if not _enabled(infra, "postgres"):
+            return
+        # Mirror the registrar's name precedence (name-first, then id, then "unknown" —
+        # infrastructure.py:413) so the pre-provisioned DB is the SAME one the registrar
+        # derives; a reversed precedence would split-brain a service with name != id and
+        # no depends.postgres (review finding #3), and a missing default a `None` DB (#6).
+        name = spec.get("name") or spec.get("id") or "unknown"
         depends = spec.get("depends", {}) or {}
         db_name = depends.get("postgres") or str(name).replace("-", "_")
         spec_dir = ctx.spec_path.parent if ctx.spec_path else None
-        result = create_database(
-            db_name,
-            db_user=db_name,
-            dry_run=ctx.dry_run,
-            spec_id=name,
-            owner="fabrik",
-            spec_dir=spec_dir,
-            seed_relpath=depends.get("postgres_seed"),
-        )
+        # create_database raises RuntimeError/ValueError (postgres.py:130) — NOT in
+        # deploy()'s caught tuple — so wrap it as ProvisioningError for a clean abort +
+        # rollback (mirrors the registrar's contract, infrastructure.py:179) instead of
+        # an uncaught traceback when postgres-main is unreachable (review finding).
+        try:
+            result = create_database(
+                db_name,
+                db_user=db_name,
+                dry_run=ctx.dry_run,
+                spec_id=name,
+                owner="fabrik",
+                spec_dir=spec_dir,
+                seed_relpath=depends.get("postgres_seed"),
+            )
+        except Exception as e:  # noqa: BLE001 — re-raised as the deploy contract's type
+            raise ProvisioningError(
+                f"db_before_boot pre-provision failed for {db_name}: {e}",
+                resource_type="postgres",
+            ) from e
         # Track the DB so a failed-deploy rollback WARNS about the orphan (postgres
         # rollback is a manual-drop advisory, never a destructive auto-op) instead of
         # leaving it invisible — mirrors the registrar (infrastructure.py:577) (#4a).
