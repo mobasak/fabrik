@@ -629,6 +629,16 @@ Orchestrator merges branches back sequentially.
 
 Each subagent starts **cold** — it has zero context from this conversation. The prompt you give it must be self-contained. Use this template:
 
+⚠️ **State the precedence in the brief, or every finder re-derives it.** A dispatched subagent inherits
+`CLAUDE.md`'s response contract (the FIRST-OUTPUT `RULES ACTIVE` line, the 6-line FINAL OUTPUT block,
+the STATE footer) — written for an OPERATOR-facing turn — while its brief asks for a return VALUE the
+orchestrator will parse. Those collide, and nothing says which wins, so each finder decides for itself
+(reported by brand-identiy-creator `01M150NTHP`). **The brief outranks the response-format contract for
+a dispatched subagent:** return exactly what the brief asks for and nothing else. The response contract
+binds the ORCHESTRATOR's turn, not the subagent's return value — a subagent that wraps its findings in a
+6-line block is handing the parser prose it did not ask for. Put this line IN the brief; do not assume
+it.
+
 ```
 You are executing Task {N} of the fabrik-lib integration plan as an isolated subagent.
 

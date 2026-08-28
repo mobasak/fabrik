@@ -114,6 +114,21 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   turns off the outage-aware routing being claimed), and a fallback ladder with an untested bottom rung.
   ⚠️ **You grade this by reading the plan — no mechanical check exists for it**, by design; never report
   it as gate-enforced.
+- **DEFINEDNESS — is every symbol a ticket CONSUMES defined inside its own read set?** For each ticket,
+  take the symbols/endpoints/wire-shapes it references and ask whether each is reachable from that
+  ticket's own `## Touches` + `## Context Files` + the spine. A ticket that consumes a symbol defined in a
+  file NO ticket lists is **not executable by a cold executor** — the implementer cannot see the thing they
+  must match. ⚠️ **The distinction the reviewer must make, and the reason this is prose and not a check:**
+  a symbol the ticket INTRODUCES (a new env var, constant, column, field) is legitimately absent from the
+  read set — that is what a plan is FOR. Only a CONSUMED symbol is a defect. Measured 2026-08-28 across
+  236 real tickets in the fleet: a mechanical "backticked symbol absent from the read set" detector fires
+  on **23.7%**, and inspection showed a large share were introductions (`TEST_DATABASE_URL`,
+  `WATCH_SECONDS`, `positioning.competitorCards`) — the regex cannot make the consume-vs-introduce call,
+  so it is not shippable as a gate. You can make it, so you own it.
+  Reported by brand-identiy-creator (`01M150NTHP`): on a 9-ticket set, **7 were initially not executable**
+  and the three most serious defects — an unreachable 429 wire shape, unconstructible leg calls whose
+  required args were elided by `...` in the Interfaces, and a fail-open reclassifying profiles as official
+  sites — were each findable ONLY by reading files no ticket listed.
 - **Spec COVERAGE — does this plan actually build the spec, all of it?** Open the cited design spec and
   enumerate its committed surface: every **Chosen approach** element, every row of its **fabrik-lib
   verdict table**, every **success criterion**, and every `shape:` implication. Each one must map to a
