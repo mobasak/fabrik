@@ -12,10 +12,13 @@ process, so an import-time ``register()`` could not be re-run after a registry r
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
 from ..dossier import Signal
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -76,6 +79,15 @@ def enabled_adapters(product_type: str, env: Mapping[str, str]) -> list[Adapter]
             continue
         gate = adapter.key_env
         if gate and not (env.get(gate) or "").strip():
+            # ⚠️ NAMED, not silently skipped. This module had no `logging` import at all, so a consumer
+            # who registered a key-gated adapter and forgot the variable got `[]` — Tier-C only,
+            # `partial=False`, no cause, and not one log line anywhere. That is the "empty market vs
+            # broken wiring" ambiguity `degrade_causes` exists to end, one seam over. It is NOT an
+            # ingestion drop (the adapter is never consulted and the registry is unchanged), so it does
+            # not belong in the seam's population — naming the missing variable is the whole fix.
+            logger.warning(
+                "competitor_intel.adapter_gated_off adapter=%s missing_env=%s", adapter.name, gate
+            )
             continue
         active.append(adapter)
     return active

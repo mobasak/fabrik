@@ -11,7 +11,7 @@ These are PURE functions (no LLM, no network), applied to every claim the synthe
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 
 #: Minimum normalized-quote length to count as grounded — blocks a trivial common substring ("the", "app",
 #: "audit") from grounding a hallucinated claim. A real verbatim review/pricing quote is a phrase, not a token.
@@ -70,7 +70,12 @@ def corroborated(source_urls: Iterable[str], *, min_sources: int = 2) -> bool:
 _LOW_TRUST_MARKERS = ("press", "prnewswire", "businesswire", "sponsored", "partner", "/blog/", "medium.com")
 
 
-def source_weight(source_url: str, *, rating: float | None = None, subject_domain: str | None = None) -> float:
+def source_weight(
+    source_url: str,
+    *,
+    rating: float | None = None,
+    subject_domain: str | Collection[str] | None = None,
+) -> float:
     """A 0.0–1.0 trust weight for a review source. Heuristic, documented, NOT a fake-review classifier:
 
     - a source on the SUBJECT's own domain (self-published) → heavily discounted (0.2);
@@ -78,9 +83,33 @@ def source_weight(source_url: str, *, rating: float | None = None, subject_domai
     - an extreme rating (≤1★ or ≥5★, the band most polluted by fakes/astroturf) → discounted (0.6);
     - the independent 2–4★ band → full weight (1.0);
     - everything else → 0.8.
+
+    ``subject_domain`` accepts ONE domain or a collection of them, and the discount fires if ANY
+    matches. The collection form exists because two discovered rivals can share a display name, and
+    the caller must not have to pick which one's domain to keep — see the orchestrator's
+    ``subject_domains`` build. Passing several domains can only ever *lower* the weight, never raise
+    it, so the ambiguous case fails toward distrust rather than toward fabricated trust.
     """
     url = (source_url or "").lower()
-    if subject_domain and subject_domain.lower() in url:
+    # ⚠️ THE `str` BRANCH MUST COME FIRST. `str` is itself a `Collection[str]`, so falling through to
+    # the iterating branch with a bare domain would test each CHARACTER against the url — `"acme.com"`
+    # would match any url containing "a". This is the classic str-is-a-sequence trap, and here it would
+    # silently collapse EVERY source to the 0.2 self-published weight instead of raising.
+    if isinstance(subject_domain, str):
+        domains: tuple[str, ...] = (subject_domain,)
+    elif isinstance(subject_domain, Iterable):
+        # ⚠️ `Iterable`, NOT a bare `else`. Widening this parameter INVITED a shape the old `str | None`
+        # could not express, and the bare `else` assumed everything non-str is iterable: a caller passing
+        # `subject_domains={"Acme": 7}` — a well-typed Mapping with one bad VALUE — raised
+        # `TypeError: 'int' object is not iterable` straight out of `gap_synthesis`, which this module
+        # documents as a never-raise pure function. `synth.py` type-checks the outer Mapping for exactly
+        # that reason; the check has to reach the values too, and it lives HERE because this is where the
+        # value is finally used. `Iterable` rather than `Collection` on purpose — a generator is Iterable
+        # but not a Collection, and silently ignoring one would be a quieter version of the same bug.
+        domains = tuple(d for d in subject_domain if isinstance(d, str))
+    else:
+        domains = ()  # None, or a scalar we cannot interpret → no self-published discount, never a raise
+    if any(d and d.lower() in url for d in domains):
         return 0.2
     if any(m in url for m in _LOW_TRUST_MARKERS):
         return 0.4

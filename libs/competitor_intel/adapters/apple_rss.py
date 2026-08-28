@@ -84,6 +84,21 @@ class AppleRssAdapter:
         if isinstance(entries, dict):  # a single-review feed can come back as one dict, not a list
             entries = [entries]
         if not isinstance(entries, list):  # empty feed → no reviews
+            # ⚠️ Distinguish "no reviews" from "we could not read the response". A drifted payload
+            # (`feed` or `entry` not the documented shape) discards the whole fetch, and the
+            # orchestrator has no channel for a whole-fetch discard — so this line is the only signal
+            # an operator gets. `None` here is the ordinary empty-feed case and is NOT worth a warning.
+            if data is not None and not isinstance(feed, dict):
+                logger.warning(
+                    "competitor_intel.apple_rss_payload_drift got=%s", type(feed).__name__
+                )
+            else:
+                # INFO, not WARNING — an app with no reviews is ordinary and must not cry wolf. But it
+                # must not be TOTALLY silent either: measured 2026-08-28, this endpoint returns an
+                # empty feed for even the largest apps (see the grounding note below), so an operator
+                # getting zero Tier-A signals needs one line telling them the fetch succeeded and the
+                # feed was simply empty — rather than inferring a bug in their own wiring.
+                logger.info("competitor_intel.apple_rss_empty_feed app_id=%s cc=%s", app_id, cc)
             return []
         out: list[Signal] = []
         app_url = f"https://apps.apple.com/{cc}/app/id{app_id}"
@@ -92,7 +107,32 @@ class AppleRssAdapter:
                 continue
             content = _label(entry.get("content"))
             rating = _label(entry.get("im:rating"))
-            if not content or not rating:  # the app-info entry has neither → skipped
+            if not content:  # no review text → nothing to mine
+                continue
+            # ⚠️ `not rating` USED TO BE a second disjunct here, as a proxy for "this is the app-info
+            # entry". It is the wrong test: rating-unknown is first-class EVERYWHERE else in this module
+            # (`rating_num=None` below, `source_weight(rating=None)` → 0.8), so the proxy silently
+            # discarded every genuine review Apple returns without a rating. But it could not simply be
+            # DELETED either — that would admit the app-info entry, whose `content` is the vendor's own
+            # marketing copy, as a Tier-A "review" of itself.
+            # So: admit an entry only when it POSITIVELY identifies as a customer review — it carries at
+            # least one of `author` / `im:version` / `im:rating`, which the catalogue app-info entry does
+            # not have. Everything else is skipped.
+            # ⚠️ GROUNDING LIMIT, stated because the fixture cannot stand in for the feed: this could NOT
+            # be verified against a live payload. On 2026-08-28 the customerreviews endpoint returned a
+            # well-formed feed envelope with NO `entry` key at all for every probe — 4 app ids
+            # (284882215, 310633997, 324684580, 544007664) × json/xml × us/gb × 4 URL spellings incl.
+            # Apple's documented `sortBy=mostRecent` casing. So the app-info entry's live shape is
+            # UNCONFIRMED, and under that uncertainty the test must fail CLOSED.
+            # ⚠️ IT DID NOT. The first version asked the NEGATIVE question — "does it carry catalogue
+            # fields AND no review markers?" — which short-circuits to False for an entry carrying
+            # NEITHER, admitting it. Review caught it and live-reproduced the exact laundering this
+            # rewrite exists to prevent: `{"content": {"label": "This is the best app description ever,
+            # buy now!"}, "id": ...}` became a Tier-A `Signal`. A negative test cannot fail safe on an
+            # unknown shape, because an unknown shape answers "no" to every question you ask about it.
+            # The positive test also SUBSUMES the catalogue check: a catalogue entry has no review
+            # marker, so it is skipped without naming its fields at all.
+            if not any(k in entry for k in ("author", "im:version", "im:rating")):
                 continue
             # each review's own permalink (entry.id label) → a DISTINCT source_url per review, so N reviews
             # can cross-source-corroborate a BEAT theme. A shared app_url would collapse to one source.

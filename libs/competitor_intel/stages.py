@@ -113,6 +113,11 @@ class UnmetNeed:
     weight: float
     source_urls: list[str]
     quotes: list[str]
+    #: How many grounded quotes the ``[:5]`` bound discarded — 0 when nothing was cut.
+    #: The sibling of ``BeatItem.quotes_omitted``; a bound must publish its residual, or the evidence
+    #: vanishes from the machine-readable ``to_dict()`` as well as the rendered brief.
+    #: Defaulted so existing 4-positional construction keeps working — see README § Gotchas.
+    quotes_omitted: int = 0
 
 
 @dataclass
@@ -122,7 +127,13 @@ class WhiteSpaceBlock:
     def to_dict(self) -> dict[str, Any]:
         return {
             "needs": [
-                {"need": n.need, "weight": n.weight, "source_urls": n.source_urls, "quotes": n.quotes}
+                {
+                    "need": n.need,
+                    "weight": n.weight,
+                    "source_urls": n.source_urls,
+                    "quotes": n.quotes,
+                    "quotes_omitted": n.quotes_omitted,
+                }
                 for n in self.needs
             ]
         }
@@ -147,27 +158,52 @@ async def white_space(sources: Sequence[tuple[str, str]], *, meter: LlmMeter) ->
         return WhiteSpaceBlock()
     # group by normalized need; attach the REAL grounding url; corroboration-gate; source-weight rank
     grouped: dict[str, list[dict[str, str]]] = {}
+    #: per-need count of entries whose evidence could not be grounded, so the gate below can tell a
+    #: group that COLLAPSED from one that simply never had a second voice.
+    lost_attribution: dict[str, int] = {}
     for item in parsed:
         if not isinstance(item, dict):
             continue
         need = str(item.get("need") or "").strip()
         evidence = str(item.get("evidence") or "")
         url = grounded_source(evidence, sources)  # the REAL source url, or None if ungrounded
-        if not need or url is None:
+        if not need:
+            continue
+        if url is None:
+            # ⚠️ COUNTED PER NEED, not merely skipped. The entry is discarded here — BEFORE grouping —
+            # so without this the group at the corroboration gate below cannot tell it ever lost
+            # anything, and the aggregation-cliff report is structurally unreachable on this lane.
+            # Measured: an ungrounded second voice collapsed the need with `drops == {}`.
+            lost_attribution[need.lower()] = lost_attribution.get(need.lower(), 0) + 1
             continue
         grouped.setdefault(need.lower(), []).append({"need": need, "quote": evidence, "url": url})
     needs: list[UnmetNeed] = []
-    for entries in grouped.values():
+    for need_key, entries in grouped.items():
         urls = [e["url"] for e in entries if e["url"]]
         if not corroborated(urls, min_sources=2):
+            # THE AGGREGATION CLIFF, white-space's half — same reasoning as `gap_synthesis`' gate:
+            # reported once per COLLAPSED GROUP, and only when the group had enough entries to qualify
+            # and lost their attribution. A single wish was never a market need.
+            # the same narrowing as `gap_synthesis`' gate: report LOST ATTRIBUTION, not a group that
+            # simply never had two distinct voices — see that gate for the false alarm this avoids.
+            unattributed = (len(entries) - len(urls)) + lost_attribution.get(need_key, 0)
+            if unattributed > 0 and len(set(urls)) + unattributed >= 2:
+                meter.note_drops("white_space_collapsed", need_key, len(entries))
             continue  # one wish is not a market need
+        grounded_quotes = [e["quote"] for e in entries if e["quote"]]
         needs.append(
             UnmetNeed(
                 need=entries[0]["need"],
                 weight=round(sum(source_weight(u) for u in set(urls)), 4),
                 source_urls=sorted(set(urls)),
-                quotes=[e["quote"] for e in entries if e["quote"]][:5],
+                quotes=grounded_quotes[:5],
+                quotes_omitted=max(0, len(grounded_quotes) - 5),
             )
         )
+    # a need whose entries were ALL ungrounded never enters `grouped`, so it never reaches the gate.
+    # It still collapsed, and for the same reason — report it here or it is silent by construction.
+    for need_key, n_lost in lost_attribution.items():
+        if need_key not in grouped and n_lost >= 2:
+            meter.note_drops("white_space_collapsed", need_key, n_lost)
     needs.sort(key=lambda n: -n.weight)
     return WhiteSpaceBlock(needs=needs)

@@ -24,7 +24,14 @@ _SAFE_URL_SCHEMES: Final = ("https://", "http://")
 
 #: Characters that must never survive into rendered output un-escaped. `|` corrupts a markdown TABLE
 #: silently (see the renderer note below); the newline family escapes a bullet and can forge headings.
-_LINE_BREAKS: Final = str.maketrans({"\n": " ", "\r": " ", " ": " ", " ": " "})
+#: ⚠️ ALL TEN codepoints `str.splitlines()` treats as a line boundary — not just the four obvious
+#: ones. The module's own structural safety oracle (`tests/test_render_safety.py`) is `splitlines()`-based,
+#: so the six that used to survive (`\v \f \x1c \x1d \x1e \x85`) could forge a degraded banner or a
+#: heading that the very suite proving this renderer safe could not see. CommonMark does not end lines
+#: on them, so an HTML render was never affected — the exposure is every LINE-BASED consumer, ours included.
+_LINE_BREAKS: Final = str.maketrans(
+    dict.fromkeys("\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029", " ")
+)
 
 #: A dangling head-of-entity left by truncation (`&`, `&a`, `&am`, `&amp`, `&l`, `&lt`, …) — i.e. an `&`
 #: plus up to a few name chars with no closing `;` at the end of a string.
@@ -51,6 +58,141 @@ def _inline(text: str) -> str:
     # stay VISIBLE to the reader (a renderer prints `<script>`) while being inert.
     cleaned = cleaned.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return cleaned.replace("[", "\\[").replace("]", "\\]").strip()
+
+
+#: Upper magnitude for any number this module will render. Beyond it the value is not a plausible
+#: count or weight, and — the load-bearing half — Python 3.11+ caps int→str at
+#: ``sys.get_int_max_str_digits()`` (4300), so rendering a big enough int RAISES instead of printing.
+_MAX_RENDERED_NUMBER: Final = 10**12
+
+#: What a number that cannot be rendered honestly becomes. Not ``"0"`` — that would be a false claim
+#: in place of an absent one.
+_UNRENDERABLE_NUMBER: Final = "n/a"
+
+
+def _seq(value: object) -> list[Any]:
+    """A consumer-supplied "list" field, as a real list — or empty. Never a raise.
+
+    ⚠️ THE SIBLING MISS, THIRD OCCURRENCE IN ONE PHASE, so this sweeps the CLASS instead of the
+    instance. `af2c18f` gave `review_signal`, `rivals_having` and `source_urls` a `len()` guard and
+    left `competitors` THREE LINES AWAY unguarded — `d.competitors = None` then crashed
+    `to_markdown()` with `TypeError`, and that is not even an adversarial input: an upstream stage
+    assigning `None` on an error path produces it. Every list-annotated field on this dataclass is a
+    HINT, not enforcement, and the render must never blow up after the money is already spent.
+    """
+    return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def _obj(value: object, attr: str) -> Any:
+    """A consumer-supplied composite field, or ``None`` if it is not the shape the renderer expects.
+
+    Same class as :func:`_seq`, for the Optional composite fields: `feature_matrix`, `pricing`,
+    `white_space`. Each was gated only on TRUTHINESS (`if self.pricing and self.pricing.wedge`), so a
+    truthy wrong-typed value — a leftover string, a dict from a hand-rolled deserializer — reached the
+    attribute access and raised `AttributeError` mid-render. Duck-typing on the one attribute the
+    renderer needs keeps a consumer's own compatible shape working, which an `isinstance` check
+    against our concrete class would have broken for no gain.
+    """
+    return value if hasattr(value, attr) else None
+
+
+def _count_any(value: object) -> int:
+    """``len()`` of a consumer-supplied sequence, or 0 — never a raise.
+
+    The fields these render (``source_urls``, ``rivals_having``, ``review_signal``) are annotated
+    ``list[...]`` and not enforced. ``len()`` on a non-``Sized`` raises unconditionally, and
+    ``__len__`` is overridable besides — same class as the numeric guards, different function. A count
+    the data cannot support is reported as 0 rather than taking down a render the caller has already
+    paid for.
+    """
+    try:
+        n = len(value)  # type: ignore[arg-type]
+    except Exception:  # noqa: BLE001 — the render must never raise
+        return 0
+    return n if isinstance(n, int) and not isinstance(n, bool) and 0 <= n <= _MAX_RENDERED_NUMBER else 0
+
+
+def _plain_int(value: object) -> int | None:
+    """A BUILTIN ``int`` from an ``int`` (or subclass), touching no dunder on the object itself.
+
+    ⚠️ THIS IS THE THIRD VERSION OF THIS GUARD, and the first two failed the same way in different
+    places: they trusted a method the untrusted object controls.
+
+    v1 checked ``isinstance`` and returned the ORIGINAL object — f-string formatting then called the
+    instance's ``__str__``, so an ``int`` subclass injected markdown straight through the guard.
+    v2 coerced with ``int(value)`` and bounded the magnitude with ``value <= 0`` / ``abs(value)`` —
+    but ``__int__``, ``__abs__``, ``__gt__`` and ``__le__`` are ALL overridable, so a subclass could
+    lie about its size to slip past the bound (then blow up on the very ``str()`` the bound protected)
+    or make the coercion itself raise. Review reproduced both.
+
+    ``int.__int__(value)`` is the BASE class's implementation applied to the instance: a subclass
+    override cannot intercept it, and the result is a plain ``int`` whose comparisons are then the
+    real ones. The ``try`` is the belt to that braces — this module's invariant is that the render
+    must never raise after the money is already spent, and an unrenderable number is worth silence,
+    never an exception.
+    """
+    try:
+        return int.__int__(value)  # type: ignore[arg-type]
+    except Exception:  # noqa: BLE001 — the render must never raise; see the docstring
+        return None
+
+
+def _plain_float(value: object) -> float | None:
+    """The ``float`` twin of :func:`_plain_int` — same reasoning, same base-class technique."""
+    try:
+        return float.__float__(value)  # type: ignore[arg-type]
+    except Exception:  # noqa: BLE001 — the render must never raise
+        return None
+
+
+def _count(value: object) -> int:
+    """A rendered COUNT must be a real non-negative ``int``, or no count is rendered at all.
+
+    ⚠️ Numbers were the one rendered category with NO sanitizer. Every text field in this file goes
+    through :func:`_inline` / :func:`_cell` / :func:`_code_span`; the counts and weights went out raw
+    on the assumption that a dataclass annotated ``int`` holds an ``int``. Python does not enforce
+    that, and ``BeatItem`` / ``UnmetNeed`` are EXPORTED — the README explicitly tells consumers they
+    may construct them. Review reproduced a hand-built ``quotes_omitted`` of
+    ``"3)\n\n![x](javascript:alert(1))\n\n("`` breaking clean out of its list item and injecting an
+    image tag, in a module whose entire `test_render_safety.py` exists to stop exactly that.
+
+    COERCION, not escaping: an escaped non-number would still render the attacker's string as a count.
+    A value that is not a usable count supports no claim, so the correct output is silence.
+    ``bool`` is excluded deliberately — it is an ``int`` subclass, and "True quotes omitted" is not a
+    count either.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    plain = _plain_int(value)
+    if plain is None or plain <= 0 or plain > _MAX_RENDERED_NUMBER:
+        return 0
+    return plain
+
+
+def _number(value: object) -> str:
+    """Render a numeric field (a weight) for an INLINE position.
+
+    The twin of :func:`_count`, and the reason it exists: ``BeatItem.weight`` sits in the same rendered
+    line as ``quotes_omitted`` and carries the identical hand-built-injection gap. It is pre-existing
+    rather than new, but a one-twin fix is how this class of defect keeps coming back here. A real
+    number renders as itself; anything else falls back to the inline escaper rather than going out raw.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return _inline(str(value))
+    if isinstance(value, int):
+        plain = _plain_int(value)
+        if plain is None or abs(plain) > _MAX_RENDERED_NUMBER:
+            return _UNRENDERABLE_NUMBER
+        return str(plain)
+    plain_f = _plain_float(value)
+    if plain_f is None:
+        return _UNRENDERABLE_NUMBER
+    # NaN / ±inf are not weights. `x != x` is the NaN test that does not depend on the object.
+    if plain_f != plain_f or plain_f in (float("inf"), float("-inf")):
+        return _UNRENDERABLE_NUMBER
+    if abs(plain_f) > _MAX_RENDERED_NUMBER:
+        return _UNRENDERABLE_NUMBER
+    return str(plain_f)
 
 
 def _cell(text: str) -> str:
@@ -83,6 +225,28 @@ def _link(label: str, url: str) -> str:
         url.translate(_LINE_BREAKS).replace("<", "%3C").replace(">", "%3E").replace("|", "%7C")
     )
     return f"[{label}](<{safe}>)"
+
+
+def _code_span(text: str, limit: int = 0) -> str:
+    r"""Sanitize CALLER text for a markdown CODE SPAN — a different job from :func:`_inline`.
+
+    ⚠️ A code span is NOT an inline position, and using the inline escaper here was wrong in a way the
+    reader sees. CommonMark honours neither entity references nor backslash escapes inside `` ` ``, so
+    `_inline`'s output rendered LITERALLY: a model label of ``gpt-4 & claude`` displayed as
+    ``gpt-4 &amp; claude``, and ``sonnet[v2]`` as ``sonnet\[v2\]``. For a field whose whole purpose is
+    tracing a brief back to what produced it, showing a value that is not the value supplied defeats it.
+
+    What a code span actually needs is narrower: nothing may CLOSE it and nothing may end the line.
+    Backticks become `'` (the same substitution `_inline` uses) and every one of the ten codepoints
+    `str.splitlines()` breaks on collapses to a space. No entity escaping — inside the span there is
+    nothing to escape.
+
+    ``limit`` of 0 means DO NOT CLIP. An identifier is not an evidence quote: clipping a 134-character
+    `job_id` produced a brief whose job line could not be grepped back to the run it names, which is the
+    one thing that field is for.
+    """
+    out = text.translate(_LINE_BREAKS).replace("`", "'").strip()
+    return _clip(out, limit) if limit > 0 else out
 
 
 def _clip(text: str, limit: int) -> str:
@@ -193,6 +357,35 @@ class Dossier:
     #: line, and a consumer with logs off could not tell a wiring bug from an empty market. A run whose
     #: `degrade_causes` contains `TypeError` is a wiring bug essentially every time.
     degrade_causes: list[str] = field(default_factory=list)
+    #: PROVENANCE — who produced this dossier and under what budget posture. All three are OPTIONAL and
+    #: caller-supplied: the engine never invents them, because only the caller knows which model it drove
+    #: and whether it restricted itself to free legs. They exist because a consumer reported having to
+    #: hand-append `job_id`, `model` and free-legs status into every rendered brief to satisfy its own
+    #: contract — a manual step on EVERY run, easy to forget, and invisible when forgotten.
+    #: ⚠️ `model` is a free-form label (e.g. `claude -p --model sonnet`), NOT a routing key: nothing in
+    #: this module dispatches on it. It is recorded so a brief can be traced back to what produced it.
+    #: ⚠️ `free_legs_only` is read with `is True` / `is False`, NEVER `is not None` — an earlier draft of
+    #: this very comment said `is not None` was correct, which is true for the STRING "no" and would
+    #: reintroduce the inverted budget claim the render path was hardened against. Both channels agree:
+    #: a non-bool is reported as `None` by `to_dict` and renders nothing.
+    job_id: str | None = None
+    model: str | None = None
+    free_legs_only: bool | None = None  # tri-state ON PURPOSE: None = "the caller did not say"
+    #: ELEMENT DROPS the synthesis tail could not report any other way: ``"<site>:<subject>" -> count``.
+    #: ⚠️ This exists because `degrade_causes` deliberately holds only fixed CLASS NAMES, so it can say
+    #: THAT elements were dropped but never WHICH rival lost them — and one `LlmMeter` is shared across
+    #: the whole per-rival loop, so without a per-subject key rival #1 losing two features and rival #3
+    #: losing none are byte-identical. A thin matrix row then reads as "nothing found" when it was
+    #: actually "we dropped it", which is the exact ambiguity this seam exists to end.
+    #: Keys are ``"<site>:<subject>"``. The site is code-controlled. ⚠️ The SUBJECT is not always a
+    #: rival name — an earlier version of this docstring said it was, and that was false for two of the
+    #: four producers: `beat_theme_collapsed` carries a `Signal.aspect` and `white_space_collapsed` an
+    #: LLM-proposed need phrase, both raw model output over scraped text, and both fire on ordinary
+    #: synthesis rather than on an edge case. Since this field is persisted, restored and sticky — the
+    #: same reasons `degrade_causes` is restricted to fixed class names — the subject is bounded and
+    #: newline-flattened where the key is built (`orchestrator._drop_subject`), so no producer can
+    #: route unbounded text into permanent storage.
+    element_drops: dict[str, int] = field(default_factory=dict)
 
     def note_degraded(self, exc: BaseException) -> None:
         """Record the CLASS NAME of a degradation. Never the message — it can carry scraped page text or
@@ -205,24 +398,58 @@ class Dossier:
         return {
             "market": self.market,
             "product_type": self.product_type,
-            "competitors": self.competitors,
-            "review_signal": [s.to_dict() for s in self.review_signal],
-            "feature_matrix": self.feature_matrix.to_dict() if self.feature_matrix else None,
+            "competitors": _seq(self.competitors),
+            # ⚠️ `to_dict()` gets the SAME guards as `to_markdown()`. Hardening only the rendered
+            # brief would repeat this phase's recurring miss one level up: `to_dict()` is the
+            # machine-readable channel a consumer parses, and it crashed on exactly the inputs the
+            # markdown path was just taught to survive.
+            "review_signal": [s.to_dict() for s in _seq(self.review_signal) if hasattr(s, "to_dict")],
+            "feature_matrix": (
+                _obj(self.feature_matrix, "to_dict").to_dict()
+                if _obj(self.feature_matrix, "to_dict") is not None
+                else None
+            ),
             "match_list": [
                 {"feature": m.feature, "rivals_having": m.rivals_having, "universal": m.universal}
-                for m in self.match_list
+                for m in _seq(self.match_list)
             ],
             "beat_list": [
-                {"theme": b.theme, "weight": b.weight, "source_urls": b.source_urls, "quotes": b.quotes}
-                for b in self.beat_list
+                {
+                    "theme": b.theme,
+                    "weight": b.weight,
+                    "source_urls": b.source_urls,
+                    "quotes": b.quotes,
+                    "quotes_omitted": b.quotes_omitted,
+                }
+                for b in _seq(self.beat_list)
             ],
-            "pricing": self.pricing.to_dict() if self.pricing else None,
-            "white_space": self.white_space.to_dict() if self.white_space else None,
+            "pricing": (
+                _obj(self.pricing, "to_dict").to_dict() if _obj(self.pricing, "to_dict") is not None else None
+            ),
+            "white_space": (
+                _obj(self.white_space, "to_dict").to_dict()
+                if _obj(self.white_space, "to_dict") is not None
+                else None
+            ),
             "truncated": self.truncated,
             "partial": self.partial,
             "spend_usd": str(self.spend_usd),
             "status": self.status,
-            "degrade_causes": self.degrade_causes,
+            "degrade_causes": [str(c) for c in _seq(self.degrade_causes)],
+            "element_drops": dict(self.element_drops) if isinstance(self.element_drops, dict) else {},
+            # Provenance — always PRESENT (possibly null) so a renderer can emit the field without a
+            # signature change and without probing for its existence. `free_legs_only` is tri-state:
+            # null means the caller did not say, which is NOT the same as False.
+            "job_id": self.job_id,
+            "model": self.model,
+            # ⚠️ NORMALIZED, not raw. `to_markdown` was hardened against a non-bool inverting the
+            # budget claim; `to_dict` was not — and the dict is a KNOWN renderer input (a consumer
+            # wrote their own renderer off it). A raw `"no"` here makes their `if d["free_legs_only"]:`
+            # print "free legs only" for a run that spent money — the same inversion, through the
+            # other channel. The two channels now agree: a non-bool is `None` in both.
+            "free_legs_only": self.free_legs_only
+            if isinstance(self.free_legs_only, bool)
+            else None,
         }
 
     def to_markdown(self) -> str:
@@ -245,7 +472,39 @@ class Dossier:
         ``to_dict()`` remains the complete machine-readable form; this is complete for a READER, which
         means it truncates per-item detail (quotes, source lists) rather than dropping whole sections.
         """
-        lines: list[str] = [f"# Competitor dossier — {_inline(self.market)}", ""]
+        # ⚠️ `str(...)` — `market` is the ONE field this renderer passes through uncoerced, and a
+        # non-str value (a consumer building it from a list, a config read) does not raise at
+        # entry: the whole run completes and is BILLED, then `to_markdown()` dies on
+        # `.translate`. That is the failure this file guards every other field against.
+        lines: list[str] = [f"# Competitor dossier — {_inline(str(self.market))}", ""]
+        # PROVENANCE LINE — emitted only for the fields the caller actually supplied, so a caller that
+        # sets none gets byte-identical output to before this was added. Reported by a consumer who was
+        # hand-appending job_id/model/free-legs into every brief to satisfy its own contract: a manual
+        # step on every run, and silent when skipped. `free_legs_only` is tri-state, so `is not None`
+        # is the correct test — `if self.free_legs_only` would hide an explicit False, which is exactly
+        # the case a reader most wants stated (this run COULD have spent and chose not to).
+        prov: list[str] = []
+        # ⚠️ Guard on the ESCAPED, CLIPPED value — not the raw one. A whitespace-only `job_id` is truthy,
+        # strips to "" inside `_inline`, and rendered an EMPTY code span; two of them then paired across
+        # the separator and swallowed it (`_job `` · model ``_` reads "job · model", both values gone).
+        # Clipped for the reason every other free-text field is: a caller recording a full CLI invocation
+        # produced a 100,010-character header line dwarfing the brief it heads.
+        for label, raw, limit in (("job", self.job_id, 0), ("model", self.model, 120)):
+            safe = _code_span(str(raw), limit) if raw is not None else ""
+            if safe:
+                prov.append(f"{label} `{safe}`")
+        # ⚠️ `is True` / `is False`, NEVER truthiness — the doctrine this same file states below for
+        # `verified`, which the first draft of this block failed to apply to its own new field. Drivers
+        # assign these post-hoc from YAML/JSON/`os.getenv`, where `"no"` is the natural shape — and
+        # `"no"` is TRUTHY, so a truthiness test rendered "free legs only" for a run that spent money.
+        # Inverting a budget claim is the one error this line must not make; a non-bool renders NOTHING
+        # rather than a guess.
+        if self.free_legs_only is True:
+            prov.append("free legs only")
+        elif self.free_legs_only is False:
+            prov.append("paid legs enabled")
+        if prov:
+            lines += [f"_{' · '.join(prov)}_", ""]
         flags = []
         if self.partial:
             flags.append("partial (some sources degraded)")
@@ -254,10 +513,10 @@ class Dossier:
         if flags or self.degrade_causes:
             if flags:
                 lines.append(f"> ⚠️ {'; '.join(flags)}")
-            if self.degrade_causes:
+            if _seq(self.degrade_causes):
                 # Naming the cause in the BRIEF, not only the logs: "partial" alone is what a consumer
                 # could not distinguish from "this market has no competitors".
-                causes = ", ".join(f"`{_inline(c)}`" for c in self.degrade_causes)
+                causes = ", ".join(f"`{_inline(str(c))}`" for c in _seq(self.degrade_causes))
                 lines.append(">")
                 lines.append(f"> Degraded by: {causes}. A `TypeError` here is almost always a `deps` "
                              f"wiring bug, not an empty market.")
@@ -267,40 +526,62 @@ class Dossier:
         # `is True`, not truthiness: `verified` is produced by the INJECTED engine, and a JSON/YAML
         # round-trip that yields the STRING "false" is truthy — which would both inflate this count and
         # drop the ❓ *unverified* flag below, on the one field that states evidentiary confidence.
-        verified = sum(1 for c in self.competitors if isinstance(c, dict) and c.get("verified") is True)
+        _competitors = _seq(self.competitors)
+        verified = sum(1 for c in _competitors if isinstance(c, dict) and c.get("verified") is True)
         lines.append(
-            f"**Competitors found:** {len(self.competitors)} ({verified} verified)  ·  "
-            f"**Signals:** {len(self.review_signal)}  ·  **Spend:** ${self.spend_usd}"
+            f"**Competitors found:** {len(_competitors)} ({verified} verified)  ·  "
+            # ⚠️ `spend_usd` was the ONE field on this dataclass going out through no sanitizer
+            # at all — not `_inline`, not `str()`. `Dossier` is exported and consumer-buildable, and
+            # `spend_usd: Decimal` is a HINT, not enforcement: setting it to a string containing
+            # newlines injected a full image tag. Pre-existing, surfaced by a sweep rather than by
+            # the fix that prompted the sweep — which is the argument for sweeping.
+            f"**Signals:** {_count_any(self.review_signal)}  ·  **Spend:** ${_inline(str(self.spend_usd))}"
         )
         lines.append("")
         lines.extend(self._competitor_lines())
         lines.extend(self._matrix_lines())
 
-        if self.match_list:
+        if _seq(self.match_list):
             lines.append("## MATCH — table-stakes rivals have")
-            for m in self.match_list:
+            for m in _seq(self.match_list):
                 star = " ★ universal gap" if m.universal else ""
                 rivals = ", ".join(_inline(str(r)) for r in m.rivals_having)
-                lines.append(f"- **{_inline(m.feature)}**{star} — {len(m.rivals_having)} rival(s): {rivals}")
+                lines.append(f"- **{_inline(m.feature)}**{star} — {_count_any(m.rivals_having)} rival(s): {rivals}")
             lines.append("")
-        if self.beat_list:
+        if _seq(self.beat_list):
             lines.append("## BEAT — rivals' corroborated weaknesses (your openings)")
-            for b in self.beat_list:
-                lines.append(f"- **{_inline(b.theme)}** (weight {b.weight}, {len(b.source_urls)} sources)")
+            for b in _seq(self.beat_list):
+                lines.append(
+                    f"- **{_inline(b.theme)}** (weight {_number(b.weight)}, "
+                    f"{_count_any(b.source_urls)} sources)"
+                )
                 for q in b.quotes[:2]:
                     lines.append(f"  - \"{_clip(_inline(str(q)), 300)}\"")
-                if len(b.quotes) > 2:
-                    lines.append(f"  - *(+{len(b.quotes) - 2} more quotes in `to_dict()`)*")
+                # ⚠️ TWO DIFFERENT RESIDUALS, and conflating them is what made this line a false
+                # promise. `in to_dict()` is only true for quotes the payload actually still holds;
+                # `quotes_omitted` were cut by the `[:5]` bound upstream and are in NEITHER channel.
+                # Saying "+N more in to_dict()" over a payload that never held them sent readers to
+                # look for evidence that no longer exists anywhere.
+                in_payload = max(0, len(b.quotes) - 2)
+                omitted = _count(b.quotes_omitted)
+                if in_payload or omitted:
+                    parts = []
+                    if in_payload:
+                        parts.append(f"+{in_payload} more in `to_dict()`")
+                    if omitted:
+                        parts.append(f"{omitted} not retained")
+                    lines.append(f"  - *({'; '.join(parts)})*")
             lines.append("")
-        if self.pricing and (self.pricing.wedge or self.pricing.models):
+        _pricing = _obj(self.pricing, "wedge")
+        if _pricing is not None and (_pricing.wedge or _pricing.models):
             lines.append("## PRICING")
             # The MODELS are the evidence the wedge is derived FROM; rendering only the wedge asked the
             # reader to trust a conclusion whose inputs were in the payload they were not shown.
-            if self.pricing.models:
+            if _pricing.models:
                 lines.append("")
                 lines.append("| Rival | Model | Free tier | Source |")
                 lines.append("|---|---|---|---|")
-                for pm in self.pricing.models:
+                for pm in _pricing.models:
                     src = _link("link", str(pm.source_url or "")) if pm.source_url else "—"
                     # `free_tier` is a display STRING ("yes"/"no"/"❓"), never a bool — and it is never
                     # empty (`stages.py:88` defaults it to ❓). A truthiness test therefore printed "yes"
@@ -312,15 +593,25 @@ class Dossier:
                         f"{_cell(str(pm.free_tier or '')) or '❓'} | {src} |"
                     )
                 lines.append("")
-            if self.pricing.wedge:
+            if _pricing.wedge:
                 lines.append("**Wedge:**")
-                for w in self.pricing.wedge:
+                for w in _pricing.wedge:
                     lines.append(f"- {_inline(str(w))}")
                 lines.append("")
-        if self.white_space and self.white_space.needs:
+        _white_space = _obj(self.white_space, "needs")
+        if _white_space is not None and _white_space.needs:
             lines.append("## WHITE SPACE — corroborated unmet demand")
-            for n in self.white_space.needs:
-                lines.append(f"- **{_inline(n.need)}** (weight {n.weight}, {len(n.source_urls)} sources)")
+            for n in _white_space.needs:
+                # ⚠️ THE SIBLING I MISSED. I fixed `BeatItem.weight` explicitly invoking the
+                # sibling-pair rule ("fixing one twin and leaving the other is how this class keeps
+                # coming back here") and then left `UnmetNeed.weight` — the same field, on the same
+                # kind of exported hand-constructible dataclass, rendered by the same file, twenty
+                # lines away. Review found it. Naming a rule is not applying it: the twin has to be
+                # SEARCHED FOR, not recalled.
+                lines.append(
+                    f"- **{_inline(n.need)}** (weight {_number(n.weight)}, "
+                    f"{_count_any(n.source_urls)} sources)"
+                )
             lines.append("")
         return "\n".join(lines).rstrip() + "\n"
 
@@ -342,21 +633,36 @@ class Dossier:
         """The rivals themselves. Unverified ones are RENDERED, flagged ❓ — never dropped: the discovery
         pack ships them deliberately ("Unverifiable candidates ship with verified=false — never dropped"),
         and hiding them here would silently re-impose the filter the pack refuses to apply."""
-        if not self.competitors:
+        if not _seq(self.competitors):
             return []
         # Display names go through the SAME sanitize+de-duplicate pipeline the matrix uses, so all three
         # sections (COMPETITORS / FEATURE MATRIX / MATCH) name a rival identically. Rendering the raw card
         # name here while the matrix showed "Acme (2)" left the reader — and any consumer joining the
         # sections by string off `to_dict()` — unable to tell which rival was which.
         # Imported locally: `synth` imports `dossier`, so a top-level import is a cycle.
-        from .synth import _uniquify, key_safe
+        from .synth import _US_COLUMN, _uniquify, key_safe
 
+        # ⚠️ `.strip()` AND `reserved=` — the two guards `build_matrix` applies that this call did not,
+        # despite the comment above claiming the SAME pipeline. Both were measured at HEAD:
+        #   · no `.strip()`: the orchestrator seeds the matrix from a STRIPPED name, so two scraped
+        #     rivals `" Acme "` and `"Acme"` become `Acme` / `Acme (2)` as columns — while here they
+        #     stayed two distinct raw strings, collided with neither, and both rendered as the IDENTICAL
+        #     heading `### Acme`. The suffixing exists to keep rivals distinguishable; skipping the strip
+        #     produced two indistinguishable sections and no way to map either to its column.
+        #   · no `reserved=`: a rival literally named `us` is `us (2)` in the matrix and `### us` here —
+        #     and with a real `Us` wired the matrix then carries BOTH `us (2)` (the rival) and `us` (our
+        #     own column), so the heading names our product and the rival identically.
+        # Reserved unconditionally because `build_matrix` reserves unconditionally; matching it only when
+        # `us` is set would reintroduce the divergence on exactly the greenfield path.
         display = _uniquify(
-            key_safe(str(c.get("name") or "")) if isinstance(c, dict) else ""
-            for c in self.competitors
+            (
+                key_safe(str(c.get("name") or "").strip()) if isinstance(c, dict) else ""
+                for c in _seq(self.competitors)
+            ),
+            reserved=(_US_COLUMN,),
         )
         lines = ["## COMPETITORS", ""]
-        for display_name, c in zip(display, self.competitors, strict=True):
+        for display_name, c in zip(display, _seq(self.competitors), strict=True):
             # A card that is not a dict is degenerate input, not a reason to crash a RENDER — the whole
             # module is never-raise, and `to_markdown()` blowing up would take the dossier down after the
             # money was already spent.
@@ -392,7 +698,7 @@ class Dossier:
     def _matrix_lines(self) -> list[str]:
         """The feature matrix as a real markdown table. ``us`` (when present) is rendered LAST so the
         us-vs-them read is a single left-to-right scan ending on our own column."""
-        m = self.feature_matrix
+        m = _obj(self.feature_matrix, "rows")
         if m is None or not m.rows or not m.columns:
             return []
         # Gate the reorder on `has_us`, NOT on the mere presence of the string "us" in `columns`.

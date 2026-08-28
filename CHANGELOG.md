@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — competitor_intel re-vendored at cb6c59e: the 8 confirmed defects live in the hub copy are gone (2026-08-28)
+
+- Second re-vendor (`01M12HX6Y6`): fabrik-lib's rounds 9b–12+ fixed 17 more defects, 8 of them
+  INSIDE the root-cause fixes our `43e4324` copy carried — tier demotion on unstripped strings,
+  non-fixed-point canonical form (resume-key divergence), null-blind shape sweep, element-level
+  checkpoint loss written back as permanent (`status="ok"` on a torn resume), 5× trust inflation
+  on padded names, diverged matrix/heading pipelines. Vendored from committed HEAD (byte-identity
+  verified), 103/103 hub rivals tests green. Contract changes noted for consumers: signals are
+  whitespace-stripped at ingest; five new degrade causes; `CheckpointFieldDropped` now fires on
+  element-level loss.
+
 ### Fixed — flywheel advisory names the third unrecordable cause: the pg driver itself (2026-08-28)
 
 - job-agent's re-diagnosis (`01M13YGMJC`) found the cause neither prior message listed: the DSN

@@ -45,7 +45,13 @@ class HnAlgoliaAdapter:
         )
         try:
             resp = await client.get(url)
-            if getattr(resp, "status_code", 200) != 200:
+            status = getattr(resp, "status_code", 200)
+            if status != 200:
+                # ⚠️ LOGGED, not silently empty. This returned `[]` with no log line at all while the
+                # `except` sibling three lines down logged — so the LIKELIEST real failure (a 429
+                # rate-limit, a 5xx) was the one with zero observability, and the caller could not tell
+                # it from "this rival has no HN discussion".
+                logger.warning("competitor_intel.hn_algolia_http_status status=%s", status)
                 return []
             data = resp.json()
         except Exception as exc:  # noqa: BLE001 — an adapter must never break the run
@@ -53,6 +59,13 @@ class HnAlgoliaAdapter:
             return []
         hits = data.get("hits") if isinstance(data, dict) else None
         if not isinstance(hits, list):
+            # A drifted vendor payload discards the WHOLE fetch. The orchestrator's `dropped` sink
+            # catches per-ELEMENT malformed signals and never a whole-fetch discard, so without this
+            # line the run reports `partial=False status="ok" causes=[]` — indistinguishable from a
+            # rival nobody has discussed.
+            logger.warning(
+                "competitor_intel.hn_algolia_payload_drift got=%s", type(hits).__name__
+            )
             return []
         out: list[Signal] = []
         for hit in hits:
