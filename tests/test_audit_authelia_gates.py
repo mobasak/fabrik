@@ -3,7 +3,7 @@
 Covers Plan §8 + acceptance criterion at
 ``docs/development/plans/2026-04-18-zero-touch-deployment.md:2088``:
 
-    scripts/audit_authelia_gates.py weekly cron prints 7 OK lines, 0 GAP
+    scripts/audit_authelia_gates.py weekly cron prints 5 OK lines, 0 GAP
     lines against the current admin-dashboard inventory. Any GAP →
     Alertmanager → Telegram alert (§8).
 
@@ -14,10 +14,10 @@ router. Policy alone is not enforcement. Middleware alone is not policy.
 Both must be present AND agree for every admin dashboard — any drift
 silently breaks 2FA.
 
-Canonical inventory (7 total — matches plan text):
+Canonical inventory (5 total — coolify + netdata decommissioned 2026-05-30):
 
-  * 6 services expecting authelia-forward middleware:
-    auto, backup, coolify, monitor, netdata, notify
+  * 4 services expecting authelia-forward middleware:
+    auto, backup, monitor, notify
   * 1 service expected to NOT have it (app-layer TOTP, §8.13):
     errors (GlitchTip)
 
@@ -83,15 +83,15 @@ def _router(name: str, host: str, middlewares: list[str] | None) -> dict:
 
 
 def _all_compliant() -> list[dict]:
-    """All 7 canonical admin dashboards present with correct middleware.
+    """All 5 canonical admin dashboards present with correct middleware.
 
-    The audit should print 7 OK lines and exit 0 against this payload."""
+    The audit should print 5 OK lines and exit 0 against this payload.
+    (coolify + netdata were removed from the inventory 2026-08-19 — both
+    platforms left the fleet 2026-05-30; see audit_authelia_gates.py.)"""
     return [
         _router("n8n@docker", "auto.vps1.ocoron.com", ["authelia-forward@docker"]),
         _router("backrest@docker", "backup.vps1.ocoron.com", ["authelia-forward@docker"]),
-        _router("coolify-ui@docker", "coolify.vps1.ocoron.com", ["authelia-forward@docker"]),
         _router("grafana@docker", "monitor.vps1.ocoron.com", ["authelia-forward@docker"]),
-        _router("netdata@docker", "netdata.vps1.ocoron.com", ["authelia-forward@docker"]),
         _router("apprise@docker", "notify.vps1.ocoron.com", ["authelia-forward@docker"]),
         # errors/GlitchTip intentionally NO authelia middleware (§8.13)
         _router("glitchtip-web@docker", "errors.vps1.ocoron.com", []),
@@ -170,10 +170,10 @@ class TestClassify:
 class TestAuditRouters:
     """Full audit against a list of routers — the function the CLI calls."""
 
-    def test_all_compliant_yields_seven_ok_zero_gap(self, audit_module) -> None:
-        """The acceptance criterion: 7 OK lines, 0 GAP lines."""
+    def test_all_compliant_yields_five_ok_zero_gap(self, audit_module) -> None:
+        """The acceptance criterion: 5 OK lines, 0 GAP lines."""
         results = audit_module.audit_routers(_all_compliant())
-        assert len(results) == 7, f"expected 7 results, got {len(results)}"
+        assert len(results) == 5, f"expected 5 results, got {len(results)}"
         assert all(r.state == "OK" for r in results), (
             f"non-OK entries: {[r for r in results if r.state != 'OK']}"
         )
@@ -195,12 +195,12 @@ class TestAuditRouters:
         silently disappeared after a compose PATCH (§8.7 scenario)."""
         routers = _all_compliant()
         for r in routers:
-            if "netdata.vps1" in r["rule"]:
+            if "monitor.vps1" in r["rule"]:
                 r["middlewares"] = []
         results = audit_module.audit_routers(routers)
         gaps = [r for r in results if r.state == "GAP"]
         assert len(gaps) == 1
-        assert gaps[0].host == "netdata"
+        assert gaps[0].host == "monitor"
 
     def test_order_is_stable_and_alphabetical_by_canonical_inventory(self, audit_module) -> None:
         """Cron output is grep-friendly when order is stable. The order
@@ -230,7 +230,7 @@ class TestCLI:
     def test_cli_exits_one_when_any_gap(self, audit_module) -> None:
         routers = _all_compliant()
         for r in routers:
-            if "coolify.vps1" in r["rule"]:
+            if "notify.vps1" in r["rule"]:
                 r["middlewares"] = []  # middleware dropped
         payload = json.dumps(routers)
         with patch.object(audit_module, "ssh", return_value=payload):
@@ -263,8 +263,8 @@ class TestCLI:
             audit_module.main([])
         out = capsys.readouterr().out
         ok_lines = [line for line in out.splitlines() if line.startswith("OK")]
-        assert len(ok_lines) == 7, (
-            f"expected 7 OK lines (plan §8 acceptance criterion), got "
+        assert len(ok_lines) == 5, (
+            f"expected 5 OK lines (plan §8 acceptance criterion), got "
             f"{len(ok_lines)}. Full stdout:\n{out}"
         )
 
@@ -293,7 +293,7 @@ class TestNoSSHSubcommands:
     Useful for CI and for operators cross-referencing against
     vps-complete-inventory.md."""
 
-    def test_inventory_flag_prints_all_7_dashboards(self) -> None:
+    def test_inventory_flag_prints_all_5_dashboards(self) -> None:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--inventory"],
             capture_output=True,
@@ -301,8 +301,11 @@ class TestNoSSHSubcommands:
             timeout=10,
         )
         assert result.returncode == 0, result.stderr
-        for host in ("auto", "backup", "coolify", "errors", "monitor", "netdata", "notify"):
+        for host in ("auto", "backup", "errors", "monitor", "notify"):
             assert host in result.stdout
+        # coolify + netdata were decommissioned (2026-05-30) → must NOT reappear.
+        for gone in ("coolify", "netdata"):
+            assert gone not in result.stdout
 
     def test_help_runs_without_error(self) -> None:
         result = subprocess.run(

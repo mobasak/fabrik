@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Authelia audit tests stale after the 7→5 dashboard decommission (2026-08-28)
+
+- `tests/test_audit_authelia_gates.py` — 5 committed tests failed on master (no gate caught it): they still
+  expected the 7-dashboard inventory, but `audit_authelia_gates.py` was correctly reduced to 5 (commit
+  5e4034aa; `coolify` + `netdata` removed 2026-08-19, both platforms decommissioned 2026-05-30). Updated the
+  fixtures/assertions to the real 5-inventory (gap scenarios re-pointed to current dashboards; added a guard
+  that the two decommissioned hosts never reappear). 17/17 green. Root cause was the inventory drift, not the
+  ruff-format sweep the finding first suspected. (infra finding 01M14TRX.)
+
 ### Fixed — fabrik-mail refused the intra-repo handoff its own contract advertises (2026-08-28)
 
 - `scripts/mail.py`'s star-topology guard was `not _is_hub(frm) and not _is_hub(to)`, which also caught
