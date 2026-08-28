@@ -294,10 +294,12 @@ class DeploymentOrchestrator:
         from fabrik.drivers.postgres import create_database
         from fabrik.orchestrator.infrastructure import _rewrite_shared_infra_host
 
-        name = spec.get("id") or spec.get("name")
-        # Mirror the postgres registrar's db-name derivation (infrastructure.py
-        # _provision_postgres) so the pre-provisioned DB is the SAME one the
-        # post-deploy registrar later sees as already existing.
+        # Mirror the postgres registrar's name precedence EXACTLY (name-first, then
+        # id — infrastructure.py:413 `spec.get("name") or spec.get("id")`) so the
+        # pre-provisioned DB is the SAME one the post-deploy registrar later derives.
+        # A reversed precedence would split-brain a service with name != id and no
+        # depends.postgres (deploy-plan-review finding #3, 2026-08-28).
+        name = spec.get("name") or spec.get("id")
         depends = spec.get("depends", {}) or {}
         db_name = depends.get("postgres") or str(name).replace("-", "_")
         spec_dir = ctx.spec_path.parent if ctx.spec_path else None
@@ -310,6 +312,10 @@ class DeploymentOrchestrator:
             spec_dir=spec_dir,
             seed_relpath=depends.get("postgres_seed"),
         )
+        # Track the DB so a failed-deploy rollback WARNS about the orphan (postgres
+        # rollback is a manual-drop advisory, never a destructive auto-op) instead of
+        # leaving it invisible — mirrors the registrar (infrastructure.py:577) (#4a).
+        ctx.add_resource("postgres", db_name, status=result.get("status"))
         password = result.get("password")
         if password and not ctx.dry_run:
             database_url = f"postgresql://{db_name}:{password}@postgres-main:5432/{db_name}"  # noqa: password is a runtime CSPRNG value from create_database, not a hardcoded secret

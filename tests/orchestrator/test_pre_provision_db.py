@@ -85,3 +85,34 @@ def test_db_name_honors_depends_postgres_override() -> None:
         orch._pre_provision_db_for_boot(ctx, ctx.spec)
     assert pg.call_args.args[0] == "custom_db"
     assert ctx.secrets["DATABASE_URL"] == "postgresql://custom_db:PW@postgres-main:5432/custom_db"
+
+
+def test_db_name_is_name_first_matching_the_registrar() -> None:
+    # Finding #3: the pre-provision MUST use the registrar's precedence (name-first,
+    # infrastructure.py:413 `spec.get("name") or spec.get("id")`). A service with
+    # name != id and no depends.postgres would otherwise split-brain — pre-provision on
+    # one DB, the post-deploy registrar on another. Assert the name wins.
+    orch = DeploymentOrchestrator()
+    ctx = _ctx(_spec(id="svc-id", name="svc_name", depends={}))
+    with patch(
+        "fabrik.drivers.postgres.create_database",
+        return_value={"status": "created", "password": "PW"},
+    ) as pg:
+        orch._pre_provision_db_for_boot(ctx, ctx.spec)
+    assert pg.call_args.args[0] == "svc_name", "db_name must derive from spec.name (registrar parity), not spec.id"
+    assert ctx.secrets["DATABASE_URL"] == "postgresql://svc_name:PW@postgres-main:5432/svc_name"
+
+
+def test_created_db_is_tracked_for_rollback() -> None:
+    # Finding #4a: the pre-provisioned DB must be recorded so a failed-deploy rollback
+    # WARNS about the orphan (postgres rollback is a manual-drop advisory), instead of
+    # leaving a silently-created DB after a first-boot crash.
+    orch = DeploymentOrchestrator()
+    ctx = _ctx(_spec())
+    with patch(
+        "fabrik.drivers.postgres.create_database",
+        return_value={"status": "created", "password": "PW"},
+    ):
+        orch._pre_provision_db_for_boot(ctx, ctx.spec)
+    pg_resources = ctx.get_resources_by_type("postgres")
+    assert any(r.resource_id == "zitadel" for r in pg_resources), "pre-provisioned DB not tracked in ctx.created_resources"

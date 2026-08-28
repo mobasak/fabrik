@@ -23,10 +23,22 @@ role via `create_database` and seeds the resolved `DATABASE_URL` into `ctx.secre
 `_build_env_content` (deployer_ssh.py) writes it into the **initial** `.env` — the container's first boot has
 the DSN, `start-from-init` connects, init succeeds. The post-deploy registrar (:173) runs `create_database`
 again → idempotent (DB exists → no password → `.env` preserved), so **no double-provision**. Opt-in, so every
-other service is byte-identical. Red-first tests: `tests/orchestrator/test_pre_provision_db.py` (4 tests:
-seed-on-flag, strict no-op without the flag, no-op without `needs_database`, `depends.postgres` name
-derivation). **Fabrik-wide follow-up** (make this automatic for all init-at-boot images, or a DB-wait
-wrapper) stays filed at `docs/STRATEGIC_BACKLOG.md` [fleet].
+other service is byte-identical. Red-first tests: `tests/orchestrator/test_pre_provision_db.py` (6 tests:
+seed-on-flag, strict no-op without the flag, no-op without `needs_database`, `depends.postgres` derivation,
+**name-first precedence parity with the registrar (#3)**, **DB tracked for rollback (#4a)**). **Fabrik-wide
+follow-up** (make this automatic for all init-at-boot images, or a DB-wait wrapper) stays filed at
+`docs/STRATEGIC_BACKLOG.md` [fleet].
+
+**Re-review hardening (independent finder, 2026-08-28) — 3 issues found + resolved:** (#3) the pre-provision's
+db-name precedence was reversed vs the registrar (`id`-first vs `name`-first) — a latent split-brain for a future
+`db_before_boot` service with `name != id` and no `depends.postgres`; **fixed** to `name or id`
+(`__init__.py`, matching `infrastructure.py:413`) + a parity test. (#4a) the pre-provisioned DB wasn't tracked;
+**fixed** with `ctx.add_resource` so a failed-deploy rollback warns about the orphan (postgres rollback is a
+manual-drop advisory, never destructive). (#6) the fix rides on docker-compose **`env_file` value interpolation**
+(`ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}`) — a mechanism distinct from the `command:` interpolation the
+emitter verified; **grounded** by a live `docker compose config` test on the box (Compose 2.40.3): the value
+resolves to a real `postgresql://…` (not the literal `${DATABASE_URL}`). Version dependency: env_file
+interpolation is default-on ≥ Compose 2.24; the box is 2.40.3. See `## Evidence`.
 
 **Fallback (a) — manual bootstrap (if `db_before_boot` is ever unavailable):** create the `zitadel` DB+role on
 `postgres-main` out-of-band, write the resolved DSN into `/opt/zitadel/.env`, then `docker compose up -d`.
@@ -190,6 +202,13 @@ pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherw
   *verify:* `dig`/`curl` no longer routes; `psql -l` shows no `zitadel`. **Safe ONLY before any real user/org
   data exists** (a fresh first deploy) — the masterkey is disposable while the DB is empty. Never run against a
   live instance.
+  **⚠️ Recovery after a failed first apply (#4b, re-review):** `db_before_boot` creates the DB **before** the
+  container boots, so a first-boot failure leaves the DB behind (now tracked → the rollback warns about it).
+  A blind `fabrik apply` re-run will NOT re-seed `DATABASE_URL` — `create_database` early-returns on the existing
+  DB with **no password**, so the fresh `.env` regenerates without the DSN and the container re-crashes.
+  **Drop the DB first** (`DROP DATABASE zitadel` as above, empty-DB-only), then re-apply from clean — the
+  pre-provision then re-mints the role password and re-seeds the DSN. (Data-bearing instance → never drop; go
+  via `redeploy`.)
 
 ## Phase 5 — Maintenance-window interactions (healing layer) — `N/A-VPS`
 
@@ -312,6 +331,12 @@ $ ssh vps "sudo docker ps -q | wc -l"   →  31 containers
 $ fabrik plan specs/services/zitadel.yaml → 6 registrars RUN (postgres/gatus/backrest/glitchtip/grafana/prometheus)
 $ grep -qc RESEND_API_KEY /opt/fabrik/.env  →  present   (from_env source present)
 $ git log origin/master..HEAD --oneline →  (empty — spec/doc/emitter all pushed)
+
+# D1-fix grounding (#6): env_file VALUE interpolation on the box (Compose 2.40.3) — the fix rides on this
+$ docker compose version                →  Docker Compose version 2.40.3   (≥ 2.24, env_file interpolation default-on)
+$ printf 'DATABASE_URL=postgresql://USER:PW@postgres-main:5432/zitadel\nZITADEL_DATABASE_POSTGRES_DSN=[dollar]{DATABASE_URL}\n' > .env
+$ docker compose config   # (busybox svc, env_file: .env)
+      ZITADEL_DATABASE_POSTGRES_DSN: postgresql://USER:PW@postgres-main:5432/zitadel   # RESOLVED, not the literal [dollar]{…}
 ```
 Grounding for F1 (masterkey re-mint): `__init__.py:301-303` (generate → load_all, no remote read) vs
 `:306-320` (from_env's remote read) + `deployer_ssh.py:598` (unconditional overlay, no placeholder guard). D1
