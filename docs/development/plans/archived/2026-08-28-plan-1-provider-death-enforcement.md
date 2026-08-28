@@ -1,6 +1,6 @@
 # Plan 1 — Provider-death resilience: the ENFORCEMENT half (infra)
 
-Status: CONVERGED
+Status: EXECUTED
 
 **Spec:** `docs/superpowers/specs/2026-08-28-provider-death-resilience-design.md` (CONVERGED 2b5b45db,
 operator-approved 2026-08-28). **Origin:** operator directive via youtube `01M13YXMCCNS` (acked), plus
@@ -423,3 +423,21 @@ $ python scripts/enforcement/check_command_corpus.py
 $ python scripts/final_gate.py --json
 gate: success | failures: 0
 ```
+
+
+## Execution record
+
+All three phases executed 2026-08-28, each committed with its evidence and pushed:
+
+| Phase | Commit | What landed |
+|---|---|---|
+| A | `61d03d16` | `76-gpu-workers` § Provider Failover corrected (intra-provider diversity · `HTTPStatusError` swap on 402/403/429 · per-`(provider, model)` breaker); `58-resilience` matrix gains `python-api-gpu`; `tests/test_rule_pack_scaffold_coverage.py` |
+| B | `e056a415` | `self-healing` ladder row 10 + the deadman distinction; `58-resilience` § Provider-death resilience (three outcomes, per-route) + 2 Banned Patterns rows |
+| C | `31426294` | `/fabrik-spec-review` §E + `/fabrik-plan-review` pillar rows; corpus rendered from MAIN; CHANGELOG |
+
+Whole-plan review: `docs/development/reviews/2026-08-28-plan-1-provider-death-enforcement-review.md`
+— 2 findings FIXED (a false-negative in my own test regex; an undefined `healthy_chain()` in the corrected
+example), 2 candidates REFUTED against the real lines.
+
+**Still open downstream, neither blocking this plan:** fleet's ack on the §3b divergence (`01M14E2VZM`),
+and fabrik-lib's signature reply for the `health-probe/` chain-rebuild helper (`01M14E3MWN`, spec U1).
