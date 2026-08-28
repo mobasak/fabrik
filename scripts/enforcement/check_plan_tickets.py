@@ -143,6 +143,33 @@ AGENT_TASK_RE = re.compile(r"^Agent-Task:\s*(T\d{2}[a-z]?)\b", re.I | re.M)
 # missing-field/missing-Complexity findings.
 _F = r"^\s*(?:[-*]\s+)?"
 GATE_LINE_RE = re.compile(_F + r"\*{0,2}Gate\*{0,2}[^\S\n]*:", re.I | re.M)
+# A Gate: whose pipeline ENDS in a pure DISPLAY filter throws its exit status away. The shell
+# reports the LAST stage, and `tail`/`head`/`cat`/`less` always succeed — so
+# `pytest server/tests -q | tail -5` is green while pytest exits 4 on a directory that does not
+# exist. Measured live (transdoc, 2026-08-28): pipeline $?=0 while PIPESTATUS(pytest)=4, "no tests
+# ran in 0.00s", against a repo whose real suite is 472 passed. That is the same "44 skipped, exit
+# 0" hole the ${TEST_DATABASE_URL:?} guard exists to close — the guard shut the unset-variable
+# door and the pipe opened a wider one beside it.
+#
+# DISPLAY-only by design. `grep -q`, `grep -c` and `jq` as a final stage ARE the assertion, and
+# flagging them would be wrong: measured fleet-wide, 16 of 805 gates end in some filter but only
+# 2 end in a display filter. The narrow rule is the true one.
+GATE_DISPLAY_TAIL = frozenset({"tail", "head", "cat", "less", "more"})
+GATE_CMD_RE = re.compile(_F + r"\*{0,2}Gate\*{0,2}[^\S\n]*:[^\S\n]*(?P<cmd>[^\n]+)", re.I | re.M)
+
+
+def _gate_masks_exit_status(text: str) -> list[str]:
+    """Gate commands whose final pipeline stage discards the exit status of the thing under test."""
+    bad: list[str] = []
+    for m in GATE_CMD_RE.finditer(_strip_fences(text)):
+        cmd = m.group("cmd").strip().strip("`").strip()
+        if not cmd or "|" not in cmd or len(cmd) > 400:
+            continue
+        tail_seg = cmd.split("|")[-1].strip().strip("`").strip()
+        first = tail_seg.split()[0] if tail_seg.split() else ""
+        if first in GATE_DISPLAY_TAIL:
+            bad.append(cmd[:160])
+    return bad
 INTEGRATION_RE = re.compile(
     _F + r"\*{0,2}Integration\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*true\b", re.I | re.M
 )
@@ -1325,6 +1352,16 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                     f"{t.tid}: {len(t.behaviors)} behaviors > {MAX_BEHAVIORS}",
                     t.path,
                     severity=Severity.WARN,
+                )
+            )
+        for masked in _gate_masks_exit_status(t.text):
+            results.append(
+                _err(
+                    f"{t.tid}: Gate pipes into a display filter, discarding the exit status of the "
+                    f"command under test — {masked!r}. The shell reports the LAST stage and "
+                    "tail/head always succeed, so a failing command reads GREEN. Drop the filter, "
+                    "or put the assertion last.",
+                    t.path,
                 )
             )
         if len(GATE_LINE_RE.findall(_strip_fences(t.text))) > MAX_GATES:

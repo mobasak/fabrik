@@ -56,12 +56,23 @@ The action string is a dotted identifier `<domain>.<verb>` (lowercase, snake_cas
 
 ### `auth.*` — authentication and session events
 
+⚠️ The three `auth.passwordless_*` rows below are additive, not optional: the default IdP
+(`fabrik-lib/fastapi-user-auth`) already WRITES `action="auth.passwordless_login"` in its router.
+Without them a vendored module violates this closed vocabulary by construction, and the vendoring
+project cannot fix it — `.windsurf/rules/` is synced and `check_synced_unmodified.py` correctly
+blocks the local edit (transdoc, 2026-08-28). `binding_mismatch` is a named refusal reason on
+purpose: an approval link opened in a browser that never requested the login must leave its own
+audit trace.
+
 | Action | Triggers | `details` shape | `target_*` |
 | --- | --- | --- | --- |
 | `auth.login_success` | Successful login (any factor) | `{ip, user_agent, mfa_used: bool}` | `user`, user_id |
 | `auth.login_failure` | Wrong password / failed MFA | `{ip, user_agent, reason: "wrong_password" \| "mfa_failed" \| ...}` | `user`, user_id (if known) |
 | `auth.logout` | User-initiated logout | `{ip}` | `user`, user_id |
 | `auth.password_changed` | User changed their own password | `{}` | `user`, user_id |
+| `auth.passwordless_requested` | A magic-link / OTP login was requested | `{ip, user_agent, email_hash}` | `user`, user_id (if known) |
+| `auth.passwordless_login` | Passwordless login succeeded | `{ip, user_agent, via: "link" \| "code"}` | `user`, user_id |
+| `auth.passwordless_refused` | A passwordless approval was REFUSED | `{ip, reason: "expired" \| "already_used" \| "binding_mismatch"}` | `user`, user_id (if known) |
 | `auth.email_changed` | User changed account email | `{old_email_hash, new_email_hash}` (hash, not plain) | `user`, user_id |
 | `auth.mfa_enabled` | User added MFA factor | `{factor_type: "totp" \| "webauthn" \| ...}` | `user`, user_id |
 | `auth.mfa_disabled` | User removed MFA factor | `{factor_type}` | `user`, user_id |

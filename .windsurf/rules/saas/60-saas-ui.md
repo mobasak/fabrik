@@ -80,9 +80,18 @@ Every SaaS project must ship these pages. Traycer ensures each maps to a ticket 
 | **Pricing** | `/pricing` | All tiers side-by-side, feature matrix, annual/monthly toggle. |
 | **Login** | `/login` | FastAPI login (Pattern A, default — `fabrik-lib/fastapi-user-auth`). Legacy Supabase Auth (Pattern B) only if the project already runs on it. |
 | **Signup** | `/signup` | Registration. Redirects to onboarding after email verification. |
-| **Verify email** | `/verify-email` | "Check your email" — shown after signup. Displays sent-to address, resend button, change email link. User cannot enter the app until verified. |
-| **Forgot password** | `/forgot-password` | Email input → triggers reset flow. |
-| **Reset password** | `/reset-password` | Token-validated form. Expires in 1h. |
+| **Verify email** | `/verify-email` | *(password auth only)* "Check your email" — shown after signup. Displays sent-to address, resend button, change email link. User cannot enter the app until verified. Under passwordless: keep as a REDIRECT to `/login`, never a 404. |
+| **Forgot password** | `/forgot-password` | *(password auth only)* Email input → triggers reset flow. Under passwordless there is no password to reset — redirect to `/login`. |
+| **Reset password** | `/reset-password` | *(password auth only)* Token-validated form. Expires in 1h. Under passwordless: redirect to `/login`. |
+| **Magic-link landing** | `/login/link/[token]` | *(passwordless only)* Consumes the emailed token and establishes the session. Must render its own expired / already-used / wrong-browser states — this is where a user lands from a mail client, so it is frequently the FIRST page they ever see. |
+| **Unrequested-login notice** | `/security/unrequested` | *(passwordless only)* PUBLIC page an approval link points to when the browser opening it never requested the login (`binding_mismatch`). Explains what happened and what to do; it must be reachable without a session, because the person seeing it does not have one. |
+
+⚠️ **The four password rows above are NOT launch-blocking for a passwordless project.** The default
+IdP this pack names — `fabrik-lib/fastapi-user-auth` (Pattern A in `core/35-security-auth.md`) —
+ships `passwordless_enabled: bool = True` (`settings.py:38`), so treating `/forgot-password` as a
+required page contradicts the fleet's own default auth module. Read the project's auth mode first;
+`/signup` and `/verify-email` stay as REDIRECTS under passwordless rather than 404s, because links
+to them survive in old emails and bookmarks (transdoc, 2026-08-28).
 | **Terms of Service** | `/terms` | Required before accepting payment (see `88-saas-launch-checklist.md`). |
 | **Privacy Policy** | `/privacy` | Required by GDPR/KVKK + payment processors. |
 

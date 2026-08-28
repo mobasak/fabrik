@@ -1904,3 +1904,54 @@ def test_lowercase_serialized_label_parses(tmp_path: Path) -> None:
         "Touches overlap between T01 and T02" in m
         for m in _errors(cpt.check_plan_dir(plan_dir, context="cli"))
     )
+
+
+# ── a Gate that pipes into a display filter throws away the exit status it exists to check ──────
+# transdoc, 2026-08-28, with hard evidence: five tickets declared
+#   `pytest server/tests -q -p no:randomly 2>&1 | tail -5`
+# against a repo with no `server/tests`. Measured: pipeline $?=0 while PIPESTATUS(pytest)=4,
+# "no tests ran in 0.00s" — while the real root runs 472 passed. check_plan_tickets exited 0 with
+# zero output both before AND after they fixed it, which is what makes it BLIND rather than lenient.
+# Same shape as the "44 skipped, exit 0" hole the ${TEST_DATABASE_URL:?} guard closes: the guard
+# shut the unset-variable door and the pipe opened a wider one beside it.
+
+
+def test_a_gate_piping_into_tail_is_flagged():
+    bad = cpt._gate_masks_exit_status("Gate: pytest server/tests -q -p no:randomly 2>&1 | tail -5")
+    assert bad, "the exact filed shape must be caught"
+
+
+def test_display_filters_are_all_covered():
+    for filt in ("tail -5", "head -20", "cat", "less", "more"):
+        assert cpt._gate_masks_exit_status(f"Gate: pytest tests -q | {filt}"), filt
+
+
+def test_an_asserting_final_stage_is_not_flagged():
+    """The false-positive side, and the reason the rule is display-only. `grep -q`, `grep -c` and
+    `jq` as a final stage ARE the assertion — flagging them would be wrong. Measured fleet-wide:
+    16 of 805 gates end in some filter, only 2 in a display filter."""
+    for cmd in (
+        "Gate: bash -c 'python x.py | grep -q OK'",
+        "Gate: python -m pytest --collect-only -q | grep -c test_x",
+        "Gate: curl -s url | jq -r .note",
+    ):
+        assert not cpt._gate_masks_exit_status(cmd), cmd
+
+
+def test_a_gate_with_no_pipe_is_never_flagged():
+    assert not cpt._gate_masks_exit_status("Gate: pytest tests -q -p no:randomly")
+
+
+def test_a_quoted_gate_inside_a_fence_is_not_counted():
+    """Fenced blocks are QUOTED content — the module's standing rule for every other Gate check."""
+    assert not cpt._gate_masks_exit_status("```\nGate: pytest tests -q | tail -5\n```\n")
+
+
+def test_the_masking_check_is_wired_into_the_audit_not_just_defined():
+    """THE WIRING — the gap that slipped three times today: a helper covered while its call site
+    was not. Asserted by reading the audit body, because building a full plan-set fixture here
+    would test the fixture more than the rule."""
+    src = Path(cpt.__file__).read_text(encoding="utf-8")
+    assert "_gate_masks_exit_status(t.text)" in src, "the helper is defined but never called"
+    call = src.index("_gate_masks_exit_status(t.text)")
+    assert "results.append" in src[call - 200 : call + 400], "its finding never reaches results"
