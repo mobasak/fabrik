@@ -151,16 +151,67 @@ OUTPUT_PATH = (
     / "TASK_SUBAGENT_SELECTION.md"
 )
 
+# Two-level aggregation per set_quality's contract (libs/subagents/pg_ledger.py:500-530):
+# a back-filled score is an APPENDED delta row (status='scored', objective metrics NULL), so
+# n counts OBJECTIVE rows only, success_rate is per-AGENT, and effective quality is the
+# non-NULL max per agent_id (the delta wins over the NULL dispatch row). Canary probe rows
+# (project='canary-grounding') are deliberate 0/5 grounding probes — they feed CANARY_QUERY
+# below, never the organic ranking. The inner HAVING drops orphan deltas (a scored row whose
+# dispatch row was never written — known incident class, FanoutBatch docstring).
+# eff_q = the LATEST non-NULL score, not MAX — the contract's own word (pg_ledger.py:651-654);
+# MAX resurrects human-downgraded verdicts (live: two glm-4.5-air research agents re-scored
+# 4->1 and 4->2 crossed the quality gate under MAX and took rank 1). Orphan scored deltas
+# (dispatch row never landed) keep their verdict in avg_quality per pg_ledger.py:665-667 but
+# add nothing to n and never touch success_rate (no objective run to succeed or fail); a model
+# with ONLY orphans still drops at the outer HAVING. success/cost collapse per-agent — today
+# every agent has exactly one objective row (verified 0/6259 multi-row agents), so both are
+# numerically identical to the old per-row form on real data.
 QUERY = f"""
 SELECT task_type, model,
-       COUNT(*) AS n,
-       AVG(cost_usd) AS avg_cost,
-       AVG(quality_score) AS avg_quality,
-       SUM(CASE WHEN status='done' THEN 1.0 ELSE 0.0 END) / COUNT(*) AS success_rate
-FROM {TABLE}
-WHERE ts > NOW() - INTERVAL '{WINDOW_DAYS} days'
+       SUM(n_obj) AS n,
+       AVG(cost) AS avg_cost,
+       AVG(eff_q) AS avg_quality,
+       AVG(done_i) FILTER (WHERE n_obj > 0) AS success_rate
+FROM (
+    SELECT task_type, model, agent_id,
+           COUNT(*) FILTER (WHERE status <> 'scored') AS n_obj,
+           (array_agg(quality_score ORDER BY ts DESC, id DESC)
+              FILTER (WHERE quality_score IS NOT NULL))[1] AS eff_q,
+           MAX(CASE WHEN status='done' THEN 1.0 ELSE 0.0 END) AS done_i,
+           MAX(cost_usd) AS cost
+    FROM {TABLE}
+    WHERE ts > NOW() - INTERVAL '{WINDOW_DAYS} days'
+      AND project <> 'canary-grounding'
+    GROUP BY task_type, model, agent_id
+) per_agent
 GROUP BY task_type, model
-HAVING COUNT(*) >= {MIN_RUNS}
+HAVING SUM(n_obj) >= {MIN_RUNS}
+""".strip()
+
+# Grounding canary aggregation (plan 2026-08-28-plan-1-canary-grounding, Phase B): per-model
+# average of the binary canary scores, reconciled per agent_id like QUERY. The >=2 floor means
+# one stray row can never trigger the ranking penalty (criterion-1 guarantees 2 probes/model);
+# >30-day rows decay out, so a dead canary cron degrades to "no signal", never a stale penalty.
+CANARY_WINDOW_DAYS = 30
+CANARY_MIN_ROWS = 2
+# An agent whose DISPATCH row never reached status='done' (provider outage, cap, error) is
+# REFUSED outright — an infra failure must never become a grounding penalty (the harness also
+# never scores such units; this is defense in depth). eff_q = latest non-NULL, same as QUERY.
+CANARY_QUERY = f"""
+SELECT model, AVG(eff_q) AS canary_avg
+FROM (
+    SELECT model, agent_id,
+           (array_agg(quality_score ORDER BY ts DESC, id DESC)
+              FILTER (WHERE quality_score IS NOT NULL))[1] AS eff_q
+    FROM {TABLE}
+    WHERE project = 'canary-grounding'
+      AND ts > NOW() - INTERVAL '{CANARY_WINDOW_DAYS} days'
+    GROUP BY model, agent_id
+    HAVING MAX(quality_score) IS NOT NULL
+       AND BOOL_OR(status = 'done')
+) per_agent
+GROUP BY model
+HAVING COUNT(*) >= {CANARY_MIN_ROWS}
 """.strip()
 
 # psql field separator. Tab picked over comma because a comma in a task_type or model_id
@@ -170,6 +221,65 @@ HAVING COUNT(*) >= {MIN_RUNS}
 # `\t` is guaranteed absent from both column values by convention. Note this must match
 # what render() and _query_rows() below use.
 PSQL_FIELD_SEP = "\t"
+
+
+def _grounding_cell(avg: float | None) -> str:
+    """Render a model's canary-grounding signal: ``✓`` at/above the 2.5 threshold, ``✗(X.XX)``
+    below (TWO decimals — one decimal renders 2.49 as the 2.5 threshold and invites false bug
+    reports), ``—`` for no data / below the CANARY_MIN_ROWS floor / decayed past the window."""
+    if avg is None:
+        return "—"
+    return "✓" if avg >= 2.5 else f"✗({avg:.2f})"
+
+
+def _query_canary_rows() -> tuple[str, dict[str, float]]:
+    """Per-model canary averages via the same psql transport as :func:`_query_rows`.
+
+    Returns ("ok", {model: avg}) or ("error", {}) — an error renders every grounding cell as
+    ``—`` and NEVER fails the whole doc (the canary is an overlay signal, not a dependency)."""
+    try:
+        result = subprocess.run(
+            [
+                "sudo",
+                "-n",
+                "-u",
+                "postgres",
+                "psql",
+                "-d",
+                DB_NAME,
+                "-A",
+                "-F",
+                PSQL_FIELD_SEP,
+                "--tuples-only",
+                "-c",
+                CANARY_QUERY,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            print(
+                f"[rank_task_subagents] canary query failed: {result.stderr.strip()[:200]}",
+                file=sys.stderr,
+            )
+            return "error", {}
+        out: dict[str, float] = {}
+        for line in result.stdout.strip().splitlines():
+            if not line.strip():
+                continue
+            try:  # one malformed line degrades ONE row to "—", never the whole canary set
+                model, avg = line.split(PSQL_FIELD_SEP)
+                out[model] = float(avg)
+            except (ValueError, TypeError) as exc:
+                print(
+                    f"[rank_task_subagents] canary line skipped ({exc}): {line[:80]!r}",
+                    file=sys.stderr,
+                )
+        return "ok", out
+    except Exception as exc:
+        print(f"[rank_task_subagents] canary query errored: {exc}", file=sys.stderr)
+        return "error", {}
 
 
 def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]:
@@ -889,7 +999,13 @@ def _judged_benchmark_models(task_type: str) -> list[str]:
     )
 
 
-def _fmt_bench_review_row(rank: int, model: str, review_metrics: dict, tiers: object) -> str:
+def _fmt_bench_review_row(
+    rank: int,
+    model: str,
+    review_metrics: dict,
+    tiers: object,
+    canary: dict[str, float] | None = None,
+) -> str:
     """Render a benchmark-measured review row that SHOWS its metrics (previously all `—`).
 
     Maps `model_review_metrics` into the 8-col table shape so `pick_models` still parses (model at
@@ -902,7 +1018,8 @@ def _fmt_bench_review_row(rank: int, model: str, review_metrics: dict, tiers: ob
     su = f"{rec:.2f}" if rec is not None else "—"
     ac = f"${c1k:.4f}" if c1k is not None else "—"
     aq = f"{prec:.2f}" if prec is not None else "—"
-    return f"| {rank} | `{model}` | {q} | {su} | {ac} | {aq} | {_fmt_tier(tiers, model)} | 0 |"
+    cell = _grounding_cell((canary or {}).get(model))
+    return f"| {rank} | `{model}` | {q} | {su} | {ac} | {aq} | {_fmt_tier(tiers, model)} | {cell} | 0 |"
 
 
 def _review_bench_ran() -> bool:
@@ -1086,10 +1203,18 @@ def _code_bench_ran() -> bool:
         return False
 
 
-def render(rows: list, state: str = "ok", include_full_results: bool = True) -> str:
+def render(
+    rows: list,
+    state: str = "ok",
+    include_full_results: bool = True,
+    canary: dict[str, float] | None = None,
+) -> str:
     """Emit the ranked markdown from aggregated rows.
 
     Rows shape: (task_type, model, n, avg_cost, avg_quality, success_rate).
+    `canary` maps model -> canary-grounding average (CANARY_QUERY); every table row gains a
+    `grounding` cell SECOND-TO-LAST (`n` stays last — fabrik-lib's load_task_ranking parses
+    cells[-1] as the run count; column position is load-bearing). None/missing -> `—`.
     `state` distinguishes a healthy empty pool ("ok" + no rows) from an aggregation
     failure ("error") so the emitted stub tells the operator which one it is —
     otherwise the daily-regenerated "Last refresh" date makes broken indistinguishable
@@ -1107,7 +1232,8 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
         f"Last refresh: {today}\n"
         f"Formula: shrunk_q = (n·avg_q + {SHRINKAGE_K}·tier_baseline) / (n+{SHRINKAGE_K}); "
         f"quality-gate at shrunk_q ≥ {QUALITY_GATE_MIN}; then cost-asc among survivors; "
-        f"top-2 slots require n ≥ {MIN_RUNS_TOP2} | "
+        f"top-2 slots require n ≥ {MIN_RUNS_TOP2}; "
+        f"grounding: canary avg ≥ 2.5 → ✓, below → ✗(score), no/thin/stale data → — | "
         f"tier_baseline T1={TIER_BASELINE[1]}, T2={TIER_BASELINE[2]}, T3={TIER_BASELINE[3]} | "
         f"Window: {WINDOW_DAYS} days | Min runs: {MIN_RUNS}\n\n"
     )
@@ -1120,6 +1246,7 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
             "vendored `_TABLE` default at `/opt/fabrik-lib/subagents/subagents/select.py:58` — "
             "no functional regression, but the ranking is stale until this is fixed.\n"
         )
+    canary = canary or {}
     kept = filter_min_runs(rows)
     # Group by task_type — start early so the CODING fallback can check whether
     # `code` has real fleet data before we decide whether to blend.
@@ -1256,15 +1383,15 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
         if not scored:
             continue
         out.append(f"### {task_type} (n_total={n_total})")
-        # `quality_tier` sits SECOND-TO-LAST so `cells[-1]` stays `n` — that's
-        # what fabrik-lib's `load_task_ranking()` reader parses as the run
-        # count (`libs/subagents/select.py:280`). Column position matters.
+        # `grounding` and `quality_tier` sit before `n`, which stays LAST so `cells[-1]`
+        # is the run count fabrik-lib's `load_task_ranking()` parses (model is `cells[1]`;
+        # the real parse sites are `libs/subagents/select.py:296,303`). Column position matters.
         # `shrunk_q` replaces the old `value` column (formula changed — the
         # score no longer drives rank order; cost does, among gate-survivors).
         out.append(
-            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
+            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |"
         )
-        out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
+        out.append("|---:|---|---:|---:|---:|---:|:-:|:-:|---:|")
         emitted_code_models: set[str] = set()
         emitted_review_models: set[str] = set()
         code_last_rank = 0
@@ -1272,7 +1399,7 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
         for rank, (r, shrunk_q) in enumerate(scored, start=1):
             out.append(
                 f"| {rank} | `{r[1]}` | {shrunk_q:.2f} | {r[5]:.2f} | ${r[3]:.4f} | {r[4]:.2f} | "
-                f"{_fmt_tier(tiers, r[1])} | {r[2]} |"
+                f"{_fmt_tier(tiers, r[1])} | {_grounding_cell(canary.get(r[1]))} | {r[2]} |"
             )
             if task_type == "code":
                 emitted_code_models.add(r[1])
@@ -1297,7 +1424,8 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
                 start=code_last_rank + 1,
             ):
                 out.append(
-                    f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
+                    f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | "
+                    f"{_grounding_cell(canary.get(model))} | 0 |"
                 )
         # REVIEW supplement — same shape: append gate-eligible benchmark models below the fleet
         # review rows so pick_models("review") sees a benched-but-not-yet-fleet-used reviewer.
@@ -1306,7 +1434,7 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
                 [m for m in review_benchmark if m not in emitted_review_models],
                 start=review_last_rank + 1,
             ):
-                out.append(_fmt_bench_review_row(i, model, review_metrics, tiers))
+                out.append(_fmt_bench_review_row(i, model, review_metrics, tiers, canary))
         out.append("")
         emitted_task_types.add(task_type)
 
@@ -1317,12 +1445,13 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
     if "code" not in emitted_task_types and coding_fallback_models:
         out.append("### code (n_total=0, fallback from CODING_SUBAGENT_SELECTION.md)")
         out.append(
-            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
+            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |"
         )
-        out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
+        out.append("|---:|---|---:|---:|---:|---:|:-:|:-:|---:|")
         for rank, model in enumerate(coding_fallback_models, start=1):
             out.append(
-                f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | 0 |"
+                f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | "
+                f"{_grounding_cell(canary.get(model))} | 0 |"
             )
         out.append("")
 
@@ -1336,11 +1465,11 @@ def render(rows: list, state: str = "ok", include_full_results: bool = True) -> 
             "_benchmark rows (`†`): shrunk_q=score5 · success=recall · avg_cost=$/1k · avg_quality=precision · n=0 (no fleet usage yet)_"
         )
         out.append(
-            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | n |"
+            "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |"
         )
-        out.append("|---:|---|---:|---:|---:|---:|:-:|---:|")
+        out.append("|---:|---|---:|---:|---:|---:|:-:|:-:|---:|")
         for rank, model in enumerate(review_benchmark, start=1):
-            out.append(_fmt_bench_review_row(rank, model, review_metrics, tiers))
+            out.append(_fmt_bench_review_row(rank, model, review_metrics, tiers, canary))
         out.append("")
 
     # Human-readable full leaderboards (all measured columns) appended below the router sections.
@@ -1366,7 +1495,8 @@ def _atomic_write(path: Path, content: str) -> None:
 
 def main() -> int:
     state, rows = _query_rows()
-    md = render(rows, state=state)
+    _canary_state, canary = _query_canary_rows()  # "error" -> {} -> every cell renders "—"
+    md = render(rows, state=state, canary=canary)
     # ⚠️ DO NOT overwrite a good doc with the broken-read stub (Phase A.0, 2026-08-12).
     # Alerting on a broken read is necessary but NOT sufficient: writing the stub first means
     # daily_refresh.sh then git-commits and pushes it (:552/:576/:584), fleet-syncing a

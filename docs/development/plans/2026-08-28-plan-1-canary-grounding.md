@@ -88,7 +88,7 @@ forks `libs/subagents`). The probe harness and generator column are hub orchestr
 covers hub-side cron scripts (checked `fabrik-lib/README.md` module table via the spec's verdict
 round, re-confirmed at spec review). No 🆕 candidate yet (spec: "flag if a second consumer appears").
 
-## Phase A — canary probe harness (`scripts/sysadmin/canary_grounding.py`) — ✅ EXECUTED 2026-08-29
+## Phase A — canary probe harness (`scripts/sysadmin/canary_grounding.py`) — ✅ EXECUTED 2026-08-29 (5cbeb833)
 
 Interfaces — Produces: `judge(text: str, path: str) -> int` (0|5, pure); `derive_roster() ->
 list[str]` (deduped union of `pick_models(t, n=N)` for t in `("review","docs","plan")`,
@@ -162,7 +162,7 @@ Steps:
 9. Commit (explicit paths: the script + its test + CHANGELOG entry; trailers `Agent-Role: primary`,
    `Agent-Name: intel`, `Agent-Phase: A`).
 
-## Phase B — generator: canary aggregation + `grounding` column (`scripts/kilo-benchmarks/rank_task_subagents.py`)
+## Phase B — generator: canary aggregation + `grounding` column (`scripts/kilo-benchmarks/rank_task_subagents.py`) — ✅ EXECUTED 2026-08-29
 
 Depends: Phase A (rows must exist in shape). SQL behavior tests run against a THROWAWAY
 `TEST_DATABASE_URL` (skipif unset) — never the live `fabrik_analytics`.

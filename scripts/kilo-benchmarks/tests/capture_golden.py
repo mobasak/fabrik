@@ -351,7 +351,9 @@ def _rows_per_table(text: str) -> dict[str, int]:
                 # blank cells both match the loose pattern, which would split a live table in
                 # two and freeze the real one at 0 rows — and a collection frozen at 0 is
                 # skipped forever by magnitudes_ok.
-                if j + 1 < len(lines) and re.match(r"^\|[\s:|-]*-{3,}[\s:|-]*\|[ \t]*$", lines[j + 1]):
+                if j + 1 < len(lines) and re.match(
+                    r"^\|[\s:|-]*-{3,}[\s:|-]*\|[ \t]*$", lines[j + 1]
+                ):
                     break
                 j += 1
             sizes[key] = sizes.get(key, 0) + (j - i - 2)
@@ -558,8 +560,10 @@ def _db_queries() -> dict[str, str]:
         _rts = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(_rts)
         out["rank_task_subagents.flywheel"] = _rts.QUERY
+        out["rank_task_subagents.canary"] = _rts.CANARY_QUERY
     except Exception as exc:  # noqa: BLE001 — the oracle must survive a missing engine
         out["rank_task_subagents.flywheel"] = f"<UNAVAILABLE: {type(exc).__name__}>"
+        out["rank_task_subagents.canary"] = f"<UNAVAILABLE: {type(exc).__name__}>"
     finally:
         sys.path[:] = _saved_path
     try:
@@ -734,9 +738,7 @@ def verify() -> int:
             # Calling the boolean shapes_equal here threw that away and printed a generic
             # "SHAPE CHANGED", so an operator could not tell a data collapse from a renderer
             # edit — the single most useful thing the oracle knows.
-            why = shape_drift(
-                w.get("shape", {}), g.get("shape", {}), may_empty=rel in MAY_EMPTY
-            )
+            why = shape_drift(w.get("shape", {}), g.get("shape", {}), may_empty=rel in MAY_EMPTY)
             if why:
                 drift.append(f"{rel}: {why}")
 

@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — reviewing predicate 8 found seven defects in it, three of them the class it grades (2026-08-29)
+
+`/fabrik-review` over `728b5847`. Six rounds; the ledger and per-finding dispositions are in
+`docs/development/reviews/2026-08-29-corpus-predicate-8-review.md`.
+
+- **`_CALLSITE_HEAD_RE` over-matched `## Where this runs`** — a section about which REPO you run a
+  command from, present in `/fabrik-deploy-plan` and its review. Their command mentions were being
+  read as caller claims; both were silent only because those two happen to name each other for
+  unrelated pipeline reasons. Narrowed to `call site(s)` / `auto-fires`. The original survey checked
+  the SPELLINGS a heading might use and never opened the sections the regex would then capture.
+- **A `#` inside a fenced block closed the call-sites section**, so every claim below the first shell
+  comment went unexamined — the predicate reporting success because it had stopped asking.
+- **Published numbers were derived from a throwaway prototype whose regex differed from the shipped
+  one.** Corrected in all five places: **460** cross-command mentions (not 439), **17.8%** / **82**
+  one-directional (not 17.5% / 77), **3** claim forms (not 5). Re-derive against the module; never
+  re-quote a prototype.
+- **`_read`** — every corpus read is now race-tolerant. `known_commands` proves a file existed when
+  the SET was built, not when it is READ; on a tree with three concurrent sessions a sibling's rename
+  raised OSError out of a BLOCKING, fleet-synced gate. Predicate 7 had a guard; the other three read
+  sites did not.
+- **The skip must not become the next fail-silent-green** — `main` reported "all sound across N
+  corpus file(s)" with N counting files COLLECTED, so unread files still read as audited. `SKIPPED`
+  now names them, deduped by path (one vanished file appended three entries and over-subtracted),
+  and the count is clamped at 0 (`SKIPPED` can name files outside `_corpus_files`).
+- **The summary line did not name predicate 8** — the `str.replace` that was supposed to add it
+  matched nothing, because the string is split across two source lines, and a silent miss is
+  indistinguishable from a fix. Every later patch in this review asserts its anchor first.
+- 6 new regression tests (38 total). Each proven red before its fix, and the three negative tests
+  from the original commit were retro-proven non-vacuous by targeted mutation.
+
 ### Fixed — one pipeline in two files, and the false caller name that hid it (2026-08-29)
 
 - **`commands/_fragments/test-generation-loop.md`** (new) — the five-step Behavior-Contract
@@ -15,8 +45,8 @@ All notable changes to this project will be documented in this file.
   `/fabrik-review` reactively"* while `fabrik-review.md` carried zero references to it — and
   the false name was concealing the copy above. Grades the two claim forms the corpus actually
   uses (an invocation verb, and a `## Where this auto-fires (N call sites)` section that closes
-  at the next heading). Bare cross-references are deliberately NOT graded: 439 live mentions,
-  17.5% without a back-reference, which would have put 77 findings on the board on day one.
+  at the next heading). Bare cross-references are deliberately NOT graded: 460 live mentions,
+  17.8% without a back-reference, which would have put 82 findings on the board on day one.
   Proven red against the pre-fix corpus at `1a1efac8^`, silent at HEAD; added to `--selftest`
   (both the fires-on-bad and the silent-on-good half) and proven to fail when neutered.
 - **`docs/reference/command-evaluation-checklist.md`** — 22 → **23 surfaces** (new **Callers**
@@ -37,7 +67,14 @@ All notable changes to this project will be documented in this file.
   `—`, never fails the doc). **The organic `QUERY` now honors `set_quality`'s aggregation
   contract** (`pg_ledger.py:500-530`): two-level per-agent aggregation — scored delta rows no
   longer inflate `n` or deflate `success_rate` (a 1-run agent with 1 back-filled score read
-  n=2, success=0.5), orphan deltas dropped, canary rows excluded. Goldens re-frozen surgically
+  n=2, success=0.5); the effective score is the LATEST non-NULL per agent (`ORDER BY ts DESC,
+  id DESC` — MAX resurrected human-downgraded verdicts and had crowned a wrong `research`
+  rank 1); orphan scored deltas keep their verdict in `avg_quality` (per `pg_ledger.py:665-667`)
+  without counting into `n`/success; canary rows excluded; `CANARY_QUERY` refuses agents whose
+  dispatch never reached `status='done'` (a provider outage must never become a grounding
+  penalty — the harness also never scores non-done units) and is frozen into the golden oracle.
+  A suite `conftest.py` provisions the throwaway `TEST_DATABASE_URL` fallback so the DB tests
+  run by default hub-side instead of skipping silently. Goldens re-frozen surgically
   (`db_queries.json` + the doc's 9-column tuple only — a standing foreign-artifact drift in the
   routes/IMAGE_GEN dumps was deliberately NOT frozen over). Real-throwaway-Postgres behavior
   tests (`scripts/kilo-benchmarks/tests/test_canary_grounding_column.py`), all watched red;

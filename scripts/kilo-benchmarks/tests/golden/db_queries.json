@@ -1,5 +1,5 @@
 {
- "rank_task_subagents.flywheel": "SELECT task_type, model,\n       COUNT(*) AS n,\n       AVG(cost_usd) AS avg_cost,\n       AVG(quality_score) AS avg_quality,\n       SUM(CASE WHEN status='done' THEN 1.0 ELSE 0.0 END) / COUNT(*) AS success_rate\nFROM subagent_runs\nWHERE ts > NOW() - INTERVAL '90 days'\nGROUP BY task_type, model\nHAVING COUNT(*) >= 3",
+ "rank_task_subagents.flywheel": "SELECT task_type, model,\n       SUM(n_obj) AS n,\n       AVG(cost) AS avg_cost,\n       AVG(eff_q) AS avg_quality,\n       AVG(done_i) FILTER (WHERE n_obj > 0) AS success_rate\nFROM (\n    SELECT task_type, model, agent_id,\n           COUNT(*) FILTER (WHERE status <> 'scored') AS n_obj,\n           (array_agg(quality_score ORDER BY ts DESC, id DESC)\n              FILTER (WHERE quality_score IS NOT NULL))[1] AS eff_q,\n           MAX(CASE WHEN status='done' THEN 1.0 ELSE 0.0 END) AS done_i,\n           MAX(cost_usd) AS cost\n    FROM subagent_runs\n    WHERE ts > NOW() - INTERVAL '90 days'\n      AND project <> 'canary-grounding'\n    GROUP BY task_type, model, agent_id\n) per_agent\nGROUP BY task_type, model\nHAVING SUM(n_obj) >= 3",
  "rank_task_subagents.quality_tier": "SELECT id, quality_tier FROM agents WHERE quality_tier IS NOT NULL",
  "update_gateway_counts.00": "SELECT count(*) FROM agents WHERE has_reasoning=1 AND status='active'",
  "update_gateway_counts.01": "SELECT count(*) FROM agents WHERE has_tools=1 AND status='active'",
@@ -13,5 +13,6 @@
  "update_gateway_counts.09": "SELECT count(*) FROM agents WHERE via_openrouter=1 AND (via_kilo IS NULL OR via_kilo=0) AND status='active'",
  "update_gateway_counts.10": "SELECT count(*) FROM agents WHERE via_openrouter=1 AND status='active'",
  "update_gateway_counts.11": "SELECT count(*) FROM agents WHERE via_openrouter=1 AND via_kilo=1 AND status='active'",
- "update_gateway_counts.12": "SELECT count(*) FROM agents WHERE via_siliconflow=1 AND status='active'"
+ "update_gateway_counts.12": "SELECT count(*) FROM agents WHERE via_siliconflow=1 AND status='active'",
+ "rank_task_subagents.canary": "SELECT model, AVG(eff_q) AS canary_avg\nFROM (\n    SELECT model, agent_id,\n           (array_agg(quality_score ORDER BY ts DESC, id DESC)\n              FILTER (WHERE quality_score IS NOT NULL))[1] AS eff_q\n    FROM subagent_runs\n    WHERE project = 'canary-grounding'\n      AND ts > NOW() - INTERVAL '30 days'\n    GROUP BY model, agent_id\n    HAVING MAX(quality_score) IS NOT NULL\n       AND BOOL_OR(status = 'done')\n) per_agent\nGROUP BY model\nHAVING COUNT(*) >= 2"
 }

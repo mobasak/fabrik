@@ -176,6 +176,31 @@ def test_run_batch_fail_soft_on_unit_error(monkeypatch, capsys):
     assert "agent-002-test" in out and "simulated record failure" in out  # …and says so, loudly
 
 
+def test_run_batch_never_scores_a_failed_unit(monkeypatch, capsys):
+    # a dead/capped/errored unit has no gradeable output — scoring its empty text 0 would
+    # teach the flywheel a FALSE ZERO from an outage (pg_ledger's own guard class); the unit
+    # is recorded (dispatch row) but NEVER scored, and the report says so
+    def texts(i, spec):
+        return f"CANNOT-GROUND: {cg._LAST_PATHS[i]}"
+
+    recorded, scored = _wire_batch(monkeypatch, texts)
+    real_fake = cg.run_agents
+
+    def with_one_dead(specs, *, repo, **kw):
+        out = real_fake(specs, repo=repo)
+        out[1].status = "error"
+        out[1].text = ""
+        return out
+
+    monkeypatch.setattr(cg, "run_agents", with_one_dead)
+    rc = cg.run_batch(probes_per_model=2)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert len(recorded) == 6  # the dispatch row still lands (provenance)
+    assert len(scored) == 5 and "agent-001-test" not in [s[0] for s in scored]
+    assert "not scored" in out  # loud, named
+
+
 def test_run_batch_cost_alarm_and_unknown_cost(monkeypatch, capsys):
     def texts(i, spec):
         return f"CANNOT-GROUND: {cg._LAST_PATHS[i]}"

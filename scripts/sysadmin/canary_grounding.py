@@ -157,6 +157,14 @@ def run_batch(probes_per_model: int = 2) -> int:
         path = _LAST_PATHS[i]
         try:
             record_agent_run(spec, result, project=PROJECT)
+            if getattr(result, "status", None) != "done":
+                # no gradeable output — scoring empty text 0 would teach a FALSE ZERO from an
+                # outage (pg_ledger's guard class); the dispatch row stands, the unit is not scored
+                print(
+                    f"[canary-grounding] unit {i} ({spec.model}, {result.agent_id}) "
+                    f"status={getattr(result, 'status', '?')} — not scored (no gradeable output)"
+                )
+                continue
             score = judge(getattr(result, "text", "") or "", path)
             set_quality(
                 result.agent_id, score, project=PROJECT, task_type="review", model=spec.model
