@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: CONVERGED
+Status: DRAFT — re-entry to re-bless the post-CONVERGED DNS correction (217e934f); localized, DNS auto-provisioning grounded
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
