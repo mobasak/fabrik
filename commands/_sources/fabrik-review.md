@@ -98,7 +98,28 @@ If an argument was given, treat it as the review target: `$ARGUMENTS`
 (a path, a PR number, or a git range). Otherwise get the diff under review with
 `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then
 `git diff HEAD~1`); if there are uncommitted changes or the range is empty, also
-run `git diff HEAD` and include the working tree. The scope is the full changed
+run `git diff HEAD` and include the working tree.
+
+⚠️ **A FINDER GIVEN A SHA MUST NOT READ THE LIVE TREE — it is probably dirty, and not with your
+changes.** This hub runs three concurrent sessions plus a daily pipeline, so at any moment the working
+tree carries siblings' uncommitted work. A finder handed `HEAD <sha>` and pointed at the live tree
+silently reviews THEIR half-finished code as if it were the surface under review, and reports findings
+against lines that are in no commit. Live case (fabrik-lib `01M15081Q5`): an Opus finder ran three probes
+against the tree, got results contradicting the source it had read, and caught it only because a token it
+observed did not exist at the sha it was given — it could as easily not have noticed.
+
+**So when you hand a finder a sha, materialise that sha:**
+
+```
+$ git archive <sha> | tar -x -C <scratchpad>/review-<sha>
+```
+
+and brief the finder against that path. If a finder must read the live tree instead (a working-tree
+review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at. This is the
+same class as the `Surface:` anchor rule — both are about the finder actually looking at the thing it
+was told to look at.
+
+The scope is the full changed
 surface (the diff) PLUS everything it calls or is called by — trace callers and
 callees, and read the whole enclosing function of each hunk (bugs in unchanged lines
 that a change re-exposes are in scope).

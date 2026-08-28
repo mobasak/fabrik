@@ -57,7 +57,20 @@ Or use helper script:
 
 ### Connecting from Code
 
-Use Pydantic `BaseSettings` (per `10-python.md` § Config Loading) — never raw `os.getenv`:
+Use Pydantic `BaseSettings` (per `10-python.md` § Config Loading) — never raw `os.getenv` **for an
+APPLICATION's settings surface**:
+
+⚠️ **Scope, stated here because this LINE is what `review_rubric.py` injects — without its section.**
+The rubric FLOOR-injects this mandate *and* `35-security-auth`'s "config via env vars only
+(`os.getenv("KEY", "default")`)" into every finder prompt on every review, so a finder reading both
+literally has two rules it cannot both satisfy, and files a false positive on whichever it applies. The
+carve-out: `BaseSettings` governs a SERVICE's config surface (a `Settings` object, DB/Redis DSNs,
+secrets). A **vendored fabrik-lib module** has no settings object by design — it reads its own knobs
+with bare `os.getenv("KEY", "default")`, which is `35-security-auth`'s mandate being satisfied, not this
+one being violated. Live false positive: `health-probe/health_probe.py:55`
+(`float(os.getenv("HEALTH_PROBE_TIMEOUT", "12"))`), reported by fabrik-lib `01M15081Q5`. A rule that
+fires on a legitimate pattern gets `# noqa`'d into uselessness — which costs more than the rule was
+worth.
 
 ```python
 from src.config import get_settings

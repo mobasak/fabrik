@@ -44,7 +44,14 @@ The Behavior Contract goes beyond one-test-per-behavior for these high-risk doma
 ## FastAPI + PostgreSQL (async)
 
 - **Framework**: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`.
-- **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`).
+- **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`) — **when the project has
+  a `pyproject.toml`/`uv.lock`**. ⚠️ **Gate this on the manifest, because this line is FLOOR-injected into
+  finder prompts and a vendored fabrik-lib MODULE has neither by design**: the module recipe ships
+  `requirements.txt` (`fabrik-lib/README.md` § Creating a Reference Implementation), so `uv run` cannot
+  resolve it and `python3 -m pytest` is the only thing that works. Telling a finder the sole working
+  command is banned is a project-scaffold rule leaking into a library review — reported by fabrik-lib
+  (`01M15081Q5`) after it fired on `health-probe/` and `subagents/`, neither of which has a
+  `pyproject.toml`. Check for the manifest before applying this mandate.
 - **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL instance.
 - Override `get_db` via `app.dependency_overrides` to inject a test session.
 - Use **transactional rollbacks** for speed and isolation: open a transaction in the fixture, yield the session, rollback on teardown.
@@ -171,7 +178,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 |---------|-------------|
 | Mocking SQLAlchemy / DB sessions | Real PostgreSQL + async transactional rollback fixtures |
 | Sync `TestClient` with async FastAPI app | `httpx.AsyncClient` with `ASGITransport` |
-| Bare `pytest` command | `uv run pytest` |
+| Bare `pytest` command **in a project with a `pyproject.toml`/`uv.lock`** | `uv run pytest` (a fabrik-lib module ships `requirements.txt` and has neither — `python3 -m pytest` is correct there) |
 | `print()` in test files | `structlog` logger or remove |
 | Jest / Vitest / RTL for Next.js Server Components | Playwright E2E |
 | Detox for React Native | Maestro YAML |
