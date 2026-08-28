@@ -81,6 +81,18 @@ except ImportError:  # direct-script invocation (python scripts/enforcement/…p
     from scripts.enforcement.validate_conventions import CheckResult, Severity
 
 READ_BUDGET_BYTES = 262144  # recalibrated from orchestrator-logged SIZING DEFECT rows
+# The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
+# the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
+# all push them toward completeness. Counting them against a TICKET's budget measures the contract's
+# size, not the ticket's scope, and the two move in opposite directions: the better the contracts
+# get, the smaller every ticket is allowed to be. Measured 2026-08-28 (transdoc): ui-design 163292 +
+# flows 65312 + data-contract 81827 = 310431 = 118% of the whole budget, so a GUI ticket citing its
+# own spec was over before naming a single source file — and Status: EXECUTED became unreachable for
+# a 14-ticket plan that was fully merged, reviewed and green. Exempting can only LOWER a reported
+# total, so this never reddens a plan that passes today.
+BUDGET_EXEMPT_READS = frozenset(
+    {"docs/ui-design.md", "docs/flows.md", "docs/data-contract.md", "docs/design-system.md"}
+)
 MAX_BEHAVIORS = 8
 MAX_GATES = 3
 
@@ -1314,6 +1326,8 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
                 # never walk either.
                 if p.startswith(("/", "~")) or ".." in Path(p).parts:
                     continue
+                if p.strip().lstrip("./") in BUDGET_EXEMPT_READS:
+                    continue  # mandatory shared contract — not this ticket's scope
                 fp = root / p.rstrip("/")
                 if fp.is_file():
                     per_entry[p] = per_entry.get(p, 0) + fp.stat().st_size

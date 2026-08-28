@@ -1955,3 +1955,32 @@ def test_the_masking_check_is_wired_into_the_audit_not_just_defined():
     assert "_gate_masks_exit_status(t.text)" in src, "the helper is defined but never called"
     call = src.index("_gate_masks_exit_status(t.text)")
     assert "results.append" in src[call - 200 : call + 400], "its finding never reaches results"
+
+
+# ── the FROZEN 2-contract artifacts are not a ticket's scope ────────────────────────────────────
+# transdoc, 2026-08-28: a 14-ticket GUI plan — all merged, reviewed, green — could not be marked
+# EXECUTED, because the READ budget escalates WARN→ERROR on the CONVERGED/EXECUTED flip and the
+# three FROZEN contracts exceed the ENTIRE budget by themselves (163292 + 65312 + 81827 = 310431 =
+# 118%). A GUI ticket citing its own spec was over budget before naming a single source file.
+# The commands require citing those contracts AND push them toward completeness, so the budget was
+# punishing tickets for the quality of the artifacts they are told to read.
+
+
+def test_the_frozen_contracts_are_exempt_from_the_read_budget():
+    for f in ("docs/ui-design.md", "docs/flows.md", "docs/data-contract.md", "docs/design-system.md"):
+        assert f in cpt.BUDGET_EXEMPT_READS, f
+
+
+def test_the_exemption_is_narrow():
+    """Only the mandatory shared contracts. Source files, tests and everything else a ticket names
+    still count — the budget's real job is catching an over-scoped TICKET."""
+    for f in ("src/app.py", "tests/test_x.py", "docs/FEATURES.md", "docs/QUICKSTART.md"):
+        assert f not in cpt.BUDGET_EXEMPT_READS, f
+
+
+def test_exempting_can_only_lower_a_total_never_raise_it():
+    """Why this is safe to land on a BLOCKING escalation: the change removes bytes from a sum, so
+    no plan that passes today can start failing."""
+    src = Path(cpt.__file__).read_text(encoding="utf-8")
+    i = src.index("BUDGET_EXEMPT_READS:")
+    assert "continue" in src[i : i + 200], "the exemption must SKIP, never add"
