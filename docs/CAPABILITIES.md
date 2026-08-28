@@ -114,6 +114,7 @@
 - [scripts/docs_updater.py](../INDEX.md) (owner: infra): Fabrik Documentation Updater
 - [scripts/enforcement/_check_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
 - [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): Verify WSL-to-Windows Android SDK communication.
+- [scripts/enforcement/check_certification_coverage.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_certification_coverage.py | scripts/final_gate.py | docs/reference/certification-denominator.md | commands/_sources/fabrik-us
 - [scripts/enforcement/check_command_corpus.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
 - [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): Enforce configuration documentation pattern.
 - [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
@@ -123,6 +124,7 @@
 - [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): Check for code duplication using jscpd.
 - [scripts/enforcement/check_env_example.py](../INDEX.md) (owner: infra): Enforce .env.example completeness.
 - [scripts/enforcement/check_env_updates.py](../INDEX.md) (owner: infra): Enforce .env file population when secrets are mentioned.
+- [scripts/enforcement/check_feedback_duty.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_feedback_duty.py
 - [scripts/enforcement/check_health.py](../INDEX.md) (owner: infra): Check that health endpoints test actual dependencies.
 - [scripts/enforcement/check_hooks_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
 - [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
@@ -135,12 +137,15 @@
 - [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
 - [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
+- [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
 - [scripts/enforcement/check_rule_size.py](../INDEX.md) (owner: infra): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
 - [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
+- [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
 - [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
 - [scripts/enforcement/check_synced_unmodified.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_traefik_labels.py](../INDEX.md) (owner: infra): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
 - [scripts/enforcement/check_traycer_chain.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
+- [scripts/enforcement/check_trigger_routing.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_trigger_routing.py, scripts/final_gate.py | none
 - [scripts/enforcement/check_user_guide.py](../INDEX.md) (owner: infra): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
 - [scripts/enforcement/check_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_vps_docs_severity.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_watchdog.py](../INDEX.md) (owner: infra): Check that services have watchdog scripts.
