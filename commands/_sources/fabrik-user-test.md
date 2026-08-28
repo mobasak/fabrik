@@ -277,6 +277,16 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
   equivalents. Rebuilding mid-run changes every other agent's artifact underneath them. Either
   serialize that agent (finish the parallel round, then rebuild-and-verify alone) or give it its own
   build output dir; never rebuild a shared target while siblings are mid-run.
+- **⚠️ Under a dev server, HYDRATION outruns `load` — a click between them silently does nothing.**
+  The element is in the DOM and the handler is not attached yet, so the click lands on inert HTML and
+  the assertion fails as if the feature were broken. It cost one coder eight failures before the cause
+  was found (transdoc, 2026-08-28). Poll for a hydration signal (a `data-hydrated` attribute, an
+  enabled control, or the first state change the page owns) — never `waitForLoadState('load')` alone.
+- **⚠️ Concurrent runners sharing one build dir turn into a timeout storm that LOOKS like flakiness.**
+  Measured: one run took **24.2 minutes** and lost most desktop tests to compile timeouts, while the
+  same tests pass in **16-42 seconds** run alone. The failures present as flaky assertions, not as
+  contention, so the natural response is to debug the spec — which is the wrong file. Give each
+  concurrent runner its own build output dir before concluding anything about a test.
 - **Surface tooling (defer to the packs):** web/SaaS/website/docs → Playwright MCP (+ `ui-verify`
   specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to
   use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a
