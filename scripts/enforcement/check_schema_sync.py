@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 DATA_CONTRACT_FILE = "docs/data-contract.md"
 
@@ -137,6 +138,46 @@ def _repo_root() -> str:
     return result.stdout.strip() if result.returncode == 0 else "."
 
 
+# A landed DROP is the one direction with no innocent reading. A contract legitimately LEADS the
+# schema mid-plan — that is the pipeline order Fabrik prescribes, and failing there would trap every
+# freeze-before-build plan — but a table the contract still DECLARES while a migration in the same
+# diff DROPS it is unambiguously stale. Any agent grounding on the frozen contract then plans against
+# a dropped table and gets UndefinedTable: the exact failure class the contract exists to prevent,
+# moved one artifact upstream. Filed by transdoc (2026-08-28) with the live case — commit a059c29
+# dropped email_verify_tokens and password_reset_tokens while docs/data-contract.md v9 (Status:
+# FROZEN) still declared both, and final_gate reported success across 53 checks.
+_DROP_TABLE_RE = re.compile(
+    r"""\bdrop_table\(\s*["']([A-Za-z_][\w]*)["']|\bDROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?["`']?([A-Za-z_][\w]*)""",
+    re.I,
+)
+
+
+def _dropped_tables(paths: list[str], root: str) -> set[str]:
+    """Table names a staged migration drops (Alembic `drop_table(...)` or raw `DROP TABLE`)."""
+    out: set[str] = set()
+    for rel in paths:
+        if "alembic/versions/" not in rel and "migrations/" not in rel:
+            continue
+        try:
+            text = Path(root, rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for a, b in _DROP_TABLE_RE.findall(text):
+            out.add((a or b).lower())
+    return out
+
+
+def _contract_declares(root: str, tables: set[str]) -> set[str]:
+    """Of `tables`, those the frozen data contract still declares."""
+    if not tables:
+        return set()
+    try:
+        text = Path(root, DATA_CONTRACT_FILE).read_text(encoding="utf-8", errors="replace").lower()
+    except OSError:
+        return set()
+    return {t for t in tables if re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", text)}
+
+
 def warn_if_data_contract_stale(staged_files: list[str]) -> None:
     """WARN (never fail) if the schema changed but the frozen data contract wasn't updated too.
 
@@ -151,6 +192,20 @@ def warn_if_data_contract_stale(staged_files: list[str]) -> None:
         return
     if DATA_CONTRACT_FILE in staged_files:
         return
+    root = _repo_root()
+    stale = _contract_declares(root, _dropped_tables(staged_files, root))
+    if stale:
+        # HARD on the drop direction only (transdoc's ranked direction 1). No "the contract is
+        # ahead" reading exists for a drop that already landed.
+        names = ", ".join(sorted(stale))
+        print(
+            f"✗ FAIL: {DATA_CONTRACT_FILE} still declares {len(stale)} table(s) this diff DROPS: "
+            f"{names}."
+        )
+        print("    A frozen contract that declares a dropped table sends the next agent to plan")
+        print("    against it — UndefinedTable at build time, from the artifact meant to prevent it.")
+        print("    Run /fabrik-data-contract to re-freeze (bump Version), then re-stage.")
+        raise SystemExit(1)
     print(f"⚠️  WARN: schema changed but {DATA_CONTRACT_FILE} was not updated.")
     print("    The frozen data contract may be drifting from the schema.")
     print("    Re-run /fabrik-data-contract (bump Version) if fields/enums changed; ignore if not.")
