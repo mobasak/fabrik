@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -401,3 +401,7 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 ## BLOCKED: none
 
 **Next command:** /fabrik-deploy-plan-review docs/development/plans/2026-08-28-plan-deploy-zitadel.md — adversarially converge this plan before Gate 2.
+
+## Deploy Ledger
+
+— RUN 1 2026-08-28T21:47:07Z
