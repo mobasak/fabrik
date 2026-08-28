@@ -38,7 +38,11 @@ Sources: <https://zitadel.com/docs/self-hosting/manage/configure/configure> ·
 
 This is a deployed service: the hub runs `fabrik apply` (SSH + Docker Compose); Zitadel is a third-party image
 pulled from `ghcr.io`. The plan authors the spec + this doc; **the deploy itself is the operator-gated triad**
-(`/fabrik-deploy-plan → /fabrik-deploy → /fabrik-deploy-verify`). ⚠️ **The image is FROM scratch — no shell.**
+(`/fabrik-deploy-plan → /fabrik-deploy → /fabrik-deploy-verify`). ⚠️ **KNOWN DEPLOY BLOCKER (D1):** `start-from-init`
+has **no DB-connection retry** and fabrik injects `DATABASE_URL` only *after* the first `docker compose up`, so a
+plain `fabrik apply` crashes before the DSN arrives and rolls back before the DB is created. A **bootstrap**
+(pre-create the `zitadel` DB+role + pre-seed the DSN into the remote `.env` before first `up`) is required — see
+the deploy plan's ⚠️ BLOCKING FINDING. ⚠️ **The image is FROM scratch — no shell.**
 Verify injected env with `docker inspect` (`sudo docker inspect zitadel --format '{{range .Config.Env}}{{println .}}{{end}}'`),
 **never** `docker exec … printenv`.
 

@@ -1,11 +1,34 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: DRAFT
+Status: DRAFT — BLOCKED on D1 (deploy-order/DB-at-boot contradiction; see ⚠️ BLOCKING FINDING below)
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
 Date: 2026-08-28
-Stage: 6-release · deploy triad step 1 (authors only — no `fabrik apply`, no convergence claim)
+Stage: 6-release · deploy triad step 2 (/fabrik-deploy-plan-review found a blocker — does NOT converge)
+
+## ⚠️ BLOCKING FINDING D1 — a plain `fabrik apply` CANNOT stand up Zitadel (deploy-order contradiction)
+
+Grounded this review (Zitadel issues [#5810], [#11942] + the self-hosting troubleshooting doc, fetched
+2026-08-28): **`start-from-init` has NO database-connection retry — it exits immediately if postgres is
+unreachable.** But fabrik's order is container-first: `deploy()` runs `deployer.deploy` (`docker compose up
+-d --wait`) at `orchestrator/__init__.py:163`, and the **postgres registrar injects `DATABASE_URL` only
+afterward** at `:173`. On first apply the container boots with an empty/unresolved `${DATABASE_URL}` →
+`start-from-init` exits → `up --wait` (deployer_ssh.py:515, 120s) raises `DeployError` → the `except` at
+`__init__.py:201` rolls back at `:207` **before** the registrar at `:173` ever runs → **no DB is created**.
+A repeated `fabrik apply` re-crashes identically (the registrar never gets to run), so the naive
+single-apply runbook (S3 below) **will never succeed**. `restart: unless-stopped` only crash-loops the
+container; `--wait` still fails. This is not a tuning issue — Zitadel's init-at-boot model is fundamentally
+incompatible with fabrik's inject-after-deploy ordering.
+
+**Resolution required before Gate 2 (owner: fleet + operator) — the plan stays DRAFT until one lands:**
+(a) a **bootstrap runbook** that makes the `zitadel` DB reachable at the container's FIRST boot — e.g.
+pre-create the DB+role on `postgres-main` and pre-seed the resolved DSN into `/opt/zitadel/.env` (managing
+the DB password out-of-band, since the registrar's post-inject can't run in time), then `docker compose up`;
+validated in staging; OR (b) a **fabrik-machinery enhancement** (provision-before-deploy, or a DB-wait
+wrapper for init-at-boot images) — filed to `docs/STRATEGIC_BACKLOG.md` [fleet]. On a FRESH first deploy the
+masterkey re-mint (F1) is harmless (no data yet), which widens the bootstrap options, but the ordering must
+still be solved. Everything below Phase 0 is otherwise grounded and correct; D1 is the one gating defect.
 
 ## Release readiness — `N/A (third-party image)` + hub-artifact evidence
 
@@ -78,8 +101,11 @@ $ fabrik plan specs/services/zitadel.yaml
 (`infrastructure.py:588` `inject_env(ctx, {"DATABASE_URL": ...})`); `${ZITADEL_MASTERKEY}` +
 `${ZITADEL_ADMIN_PASSWORD}` ← `secrets.generate` (`specs/services/zitadel.yaml:54-56`);
 `${RESEND_API_KEY}` ← `from_env`, **present in the hub `.env`** (verified: `grep -qc RESEND_API_KEY .env` → present).
-The template also injects `LOG_LEVEL`/`PYTHONUNBUFFERED` (python-api default env) — **harmless**, Zitadel
-ignores unknown env.
+**Correction (D4, review):** an earlier draft claimed the python-api template injects `LOG_LEVEL`/`PYTHONUNBUFFERED`
+— it does NOT for a `source.type: docker` service (the compose is built by `_generate_docker_compose`, no
+template rendering; `_build_env_content` seeds `.env` only from the remote `.env` + spec env + secrets). Those
+vars are simply **absent**; the `fabrik plan` preview showed them because `plan` renders the nominal template,
+not the docker path. No unresolved or double-sourced var.
 
 **⚠️ FINDING F1 (CRITICAL — masterkey re-mint = data loss).** `generate` secrets resolve via
 `secrets_manager.load_all(generate)` (`orchestrator/__init__.py:301-303`), which reads only process-env + a
@@ -87,11 +113,17 @@ ignores unknown env.
 `from_env` gets (`__init__.py:306-320`), and even that read targets a hub-local `/opt/zitadel/.env` that will
 never exist for a remote-only service. Consequence: the masterkey is minted on **first** apply into the
 **remote** `/opt/zitadel/.env`, but a **second** `fabrik apply` re-mints a NEW masterkey (the hub resolver
-never sees the remote value) and `inject_env`'s `merged.update()` (`deployer_ssh.py:235`) overlays it →
-**Zitadel can no longer decrypt stored data.** Mitigation is a runbook invariant (S-INV below): **apply once**;
-ship code/image updates with `fabrik redeploy` (code-only, no env re-sync — memory
-[[feedback_redeploy_vs_apply_env_sync]]); never blind-re-apply. The masterkey length is correct — `generate_secret()`
-defaults to 32 `[a-zA-Z0-9]` chars (`secrets.py:12-22`) = Zitadel's hard requirement.
+never sees the remote value) and the secret is layered unconditionally at highest precedence
+(`deployer_ssh.py:598`, `merged[key]=str(value)` — no `_is_placeholder` guard, unlike DATABASE_URL) →
+**Zitadel can no longer decrypt stored data.** Mitigation is a runbook invariant (S-INV below): **apply once**.
+⚠️ **Both `fabrik apply` AND `fabrik redeploy --refresh-infra` re-run `_load_secrets`** (`__init__.py:154`,
+`:387`) and re-mint; only **plain `fabrik redeploy zitadel`** is safe — its non-git branch is bare
+`docker compose up -d --wait` (`deployer_ssh.py:316-333`), no secret re-resolution. **D3 (review): plain redeploy
+also cannot deliver an image bump** (it neither `pull`s nor re-renders the compose for a pinned tag), so a
+Zitadel security patch has no safe fabrik path — redeploy won't fetch it, apply re-mints. Safe upgrade =
+manual in-place: `ssh vps "cd /opt/zitadel && sudo sed -i 's|:v4.17.1|:vNEW|' compose.yaml && sudo docker
+compose pull && sudo docker compose up -d"` (`.env` + masterkey preserved). Masterkey length is correct —
+`generate_secret()` defaults to 32 `[a-zA-Z0-9]` chars (`secrets.py:12-22`) = Zitadel's hard requirement.
 
 **FINDING F2 (A1 placeholder class — does NOT bite here).** The `_is_placeholder` merge guard
 (`deployer_ssh.py:593`) protects an injected real value only when the spec value contains the literal
@@ -133,22 +165,22 @@ pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherw
 2. **S2** — masked from_env preview (confirm the key is present without printing its value):
    `grep -q RESEND_API_KEY /opt/fabrik/.env && echo "RESEND present"`.
    *verify:* prints `RESEND present`. *rollback:* n/a (read-only). *rerunnable:* yes.
-3. **S3** — first deploy: `FABRIK_BUILD_TIMEOUT=1200 fabrik apply specs/services/zitadel.yaml`. This pulls the
-   ~1 GiB scratch image, creates the `zitadel` DB + injects `DATABASE_URL` (`infrastructure.py:588`), mints
-   `ZITADEL_MASTERKEY`+`ZITADEL_ADMIN_PASSWORD`, writes the remote `.env`, renders the compose **with the
-   `command:`** (Phase-0 emitter) and **no healthcheck** (`health.disabled`), and runs `docker compose up -d
-   --wait`. `--wait` returns as soon as the container is *running* — with `health.disabled` there is no
-   healthcheck to block on (`deployer_ssh.py:239`), so init/migrations continue in the background and the apply
-   does not hang. *Expected duration:* image pull + init ≈ 3–8 min. *verify (S5).* *rollback (S-RB).*
-   *rerunnable:* yes-with-caveat — DB create is `IF NOT EXISTS`, but **re-running re-mints the masterkey (F1)**;
-   a failed first apply with NO data yet is safe to re-run (see S-RB); a re-run after data exists is forbidden.
+3. **S3** — ⚠️ **SUPERSEDED BY D1 (does not work as-is).** The naive `fabrik apply specs/services/zitadel.yaml`
+   fails: the container boots before the registrar injects `DATABASE_URL`, `start-from-init` exits (no retry),
+   `up --wait` raises, and the deploy rolls back before the registrar runs (see the ⚠️ BLOCKING FINDING).
+   The working step depends on the chosen resolution (bootstrap runbook vs machinery fix) and MUST be authored
+   before Gate 2. Whatever form it takes: heavy step (`FABRIK_BUILD_TIMEOUT=1200`, ~1 GiB pull + init 3–8 min);
+   on a fresh first deploy the masterkey re-mint (F1) is harmless (no data), so the DB may be (re)created freely
+   until Zitadel first completes init; *verify (S5); rollback (S-RB).*
 4. **S4** — retrieve the admin password: `ssh vps "sudo grep ZITADEL_ADMIN_PASSWORD /opt/zitadel/.env"`.
    *verify:* a 32-char value returned. *rollback:* n/a. *rerunnable:* yes.
 5. **S5** — env-injection proof (scratch image, **no shell** — `docker inspect`, never `docker exec printenv`,
-   `docs/reference/zitadel.md:42`): `ssh vps "sudo docker inspect zitadel --format '{{range .Config.Env}}{{println .}}{{end}}'" | grep -E 'DATABASE_URL|GLITCHTIP_DSN|ZITADEL_MASTERKEY|ZITADEL_EXTERNALDOMAIN'`.
-   *verify:* all four keys present. *rollback:* n/a (read-only). *rerunnable:* yes.
-   **If `DATABASE_URL` is absent** (registrar-injection ordering slip), do **NOT** blind-re-apply (F1) — restart
-   with the existing env: `ssh vps "cd /opt/zitadel && sudo docker compose up -d"`, then re-run S5.
+   `docs/reference/zitadel.md:42`): `ssh vps "sudo docker inspect zitadel --format '{{range .Config.Env}}{{println .}}{{end}}'" | grep -E 'ZITADEL_DATABASE_POSTGRES_DSN=postgresql://|GLITCHTIP_DSN=|ZITADEL_MASTERKEY=.'`.
+   **D2 (review): grep the RESOLVED DSN, not the raw `DATABASE_URL` key** — `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}`
+   (`zitadel.yaml:35`) is what Zitadel actually reads, and `.env`-value interpolation is compose-version-dependent
+   (default-on only since ~v2.24); a bare `DATABASE_URL` key can be present while the consumed DSN is still the
+   literal `${DATABASE_URL}`. Verifying the raw key "cannot fail" in the way that matters. *verify:* the DSN line
+   shows a real `postgresql://…` value + `GLITCHTIP_DSN` present. *rollback:* n/a (read-only). *rerunnable:* yes.
 - **S-RB (rollback, whole-deploy, first-deploy only):**
   `ssh vps "cd /opt/zitadel && sudo docker compose down"` then drop the empty DB
   `ssh vps "sudo docker exec postgres-main psql -U postgres -c 'DROP DATABASE zitadel'"`.
@@ -162,19 +194,22 @@ pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherw
 (`scripts/vps-autoheal.sh:3-8`). With `health.disabled` (`specs/services/zitadel.yaml:63-64`) the compose emits
 **no HEALTHCHECK**, so Docker reports the container's health as *none* — never `unhealthy` — and autoheal never
 acts on it, even during the multi-minute `start-from-init` migration. There is therefore no long-unhealthy
-step to bracket with `window-open/heartbeat/close`. `restart: unless-stopped` (emitter default) safely retries
-init if it crashes (`start-from-init` is idempotent — setup steps are tracked in the DB). This N/A is grounded
-in the autoheal decision predicate, not assumed.
+step to bracket with `window-open/heartbeat/close`. ⚠️ **Caveat (review):** `restart: unless-stopped` (emitter
+default) will crash-loop `start-from-init` UNCAPPED if the DB is unreachable (Docker's own restart policy —
+autoheal's storm-cap governs only autoheal restarts) — this is the surface form of D1, and because there's no
+healthcheck, Gatus (once probing `/debug/ready` per the F-A fix) is what surfaces a persistent crash-loop. This
+Phase-5 N/A (no autoheal window) is grounded in the autoheal predicate; the crash-loop risk itself is D1's.
 
 ## Phase 6 — Verification battery (the deploy's exit gate)
 
 Authored here; `/fabrik-deploy` runs it AFTER the runbook (no deferred gate). Full method table:
 `docs/reference/zitadel.md:70-78`. The load-bearing probes:
 
-- **WRITE-path (B2):** `curl -fsS https://auth.ocoron.com/debug/ready` → `200` — `/debug/ready` is
-  **DB-checked** (`docs/reference/zitadel.md:47`), so a 200 proves the connection pool to `postgres-main` is
-  live post-init (the write path Zitadel used to seed the instance/org/admin rows). Escalated write proof:
-  create a user in Console → row persists.
+- **WRITE-path (B2) — D4/F-D (review): `/debug/ready` → 200 is a READ/connectivity proof, NOT a write proof.**
+  `curl -fsS https://auth.ocoron.com/debug/ready` → `200` proves the connection pool to `postgres-main` is live
+  (DB-checked readiness, `docs/reference/zitadel.md:47`) — it only *indirectly* implies init's row-seeding
+  succeeded. **The real automated write probe is: create a user via the mgmt API / Console → the row persists**
+  (a fresh read returns it). Do not label the 200 a write proof; keep the user-create as the battery's write step.
 - **OIDC discovery:** `curl -s https://auth.ocoron.com/.well-known/openid-configuration | jq .backchannel_logout_supported`
   → `true`; JWKS URI reachable.
 - **Companion reachability:** `postgres-main` from the zitadel container (already implied by a 200 `/debug/ready`).
@@ -184,21 +219,35 @@ Authored here; `/fabrik-deploy` runs it AFTER the runbook (no deferred gate). Fu
 
 ## Phase 7 — Monitoring / backup / DR truth
 
-- **Gatus:** endpoint probing `https://auth.ocoron.com/debug/ready` (registrar auto-registers, `is_public`+domain)
-  **plus a certificate-expiry condition** for the new cert domain (M2). `/debug/ready` is **not** on the
-  Authelia bypass list, but Zitadel isn't behind Authelia, so the probe reaches it (`docs/reference/zitadel.md:49-51`).
-- **Prometheus:** scrape target for `/debug/metrics` (registrar, `exposes_metrics`+domain).
+- **Gatus (F-A, FIXED at source):** the gatus registrar reads `health.path` (`infrastructure.py:762`), which
+  defaults to `/health` — a path Zitadel does NOT serve (404 → permanent false-DOWN). **Fixed by adding
+  `health.path: /debug/ready` to the spec** (`specs/services/zitadel.yaml`, this review) so the registrar probes
+  `https://auth.ocoron.com/debug/ready`. `/debug/ready` is not on the Authelia bypass list, but Zitadel isn't
+  behind Authelia, so the probe reaches it (`docs/reference/zitadel.md:49-51`).
+- **Prometheus (F-B, FIXED at source):** the registrar reads `monitoring.metrics_path` defaulting to `/metrics`
+  (`infrastructure.py:979`) — Zitadel serves `/debug/metrics`. **Fixed by adding a `monitoring: {metrics_path:
+  /debug/metrics}` block to the spec** (this review) so the scrape target is correct.
+- **F-C (review): the Gatus cert-expiry condition claimed earlier does NOT exist.** `add_endpoint` (gatus.py:120)
+  takes no conditions arg and `_build_endpoint_yaml` hardcodes `["[STATUS] == 200"]` (gatus.py:106) — no
+  `[CERTIFICATE_EXPIRATION]` is emittable via the registrar. Cert renewal is Traefik's job (auto-renews before
+  expiry), so the risk is low, but the plan must NOT claim a cert-expiry alert exists. Residual R5: if cert-expiry
+  monitoring is wanted, add a manual Gatus condition post-deploy.
 - **⚠️ FINDING F4 (M3 — paper backup).** The backrest registrar hardcodes `paths=[f"/opt/{name}/data"]`
   (`infrastructure.py:774`) → a `zitadel-data` plan pointed at `/opt/zitadel/data`, which **does not exist**
   (spec `volumes: []`, `specs/services/zitadel.yaml:66`; Zitadel's container is stateless). The **real**
   persistence is the `zitadel` **DB on `postgres-main`**, covered by the **postgres-main-level Backrest plan** —
   exactly the pattern `specs/services/site-provisioner.yaml:9` documents ("backups handled at postgres-main
   level via existing Backrest plans"). **DR relies on the postgres-main backup, not on `zitadel-data`.**
-- **RPO/RTO:** derived from the postgres-main Backrest plan schedule/retention — **read live at deploy** from the
-  Backrest instance on vps1 (`infra/vps1/backrest/compose.yaml` mounts `/backup-postgres`; the schedule lives in
-  Backrest's runtime state, not a repo file). Residual R3 below. Restore = restore the `zitadel` DB from that
-  plan; the masterkey (in the remote `.env`, backed by the box `.env` backup discipline) must be preserved to
-  decrypt it — losing the masterkey makes a DB restore undecryptable (ties to F1).
+- **⚠️ F-E (review): "the postgres-main backup covers the new `zitadel` DB" is asserted, not grounded.** If the
+  postgres-main Backrest plan is per-DB `pg_dump` (an explicit DB list) rather than a whole-cluster/data-dir
+  snapshot, the newly-created `zitadel` DB is **silently outside the backup set until explicitly added** —
+  unrecoverable while the operator believes DR is covered. This is the real DR gap. **Named deploy step (S-DR,
+  before Gate 2 sign-off): read the postgres-main Backrest plan's actual DB list; if `zitadel` is absent, ADD it.**
+- **RPO/RTO:** derived from that plan's schedule/retention — read live at deploy from the Backrest instance on vps1
+  (`infra/vps1/backrest/compose.yaml` mounts `/backup-postgres`; the schedule lives in Backrest's runtime state,
+  not a repo file). Residual R3. Restore = restore the `zitadel` DB from that plan; the masterkey (remote `.env`,
+  under the box `.env` backup discipline) must be preserved to decrypt it — losing it makes a DB restore
+  undecryptable (ties to F1).
 
 ## Phase 8 — First-days posture
 
@@ -262,29 +311,34 @@ $ grep -qc RESEND_API_KEY /opt/fabrik/.env  →  present   (from_env source pres
 $ git log origin/master..HEAD --oneline →  (empty — spec/doc/emitter all pushed)
 ```
 Grounding for F1 (masterkey re-mint): `__init__.py:301-303` (generate → load_all, no remote read) vs
-`:306-320` (from_env's remote read) + `deployer_ssh.py:235` (merged.update overlays). F4 (paper backup):
-`infrastructure.py:774` (`/opt/{name}/data`) vs `specs/services/zitadel.yaml:66` (`volumes: []`).
+`:306-320` (from_env's remote read) + `deployer_ssh.py:598` (unconditional overlay, no placeholder guard). D1
+(deploy-order): `__init__.py:163` (deploy) → `:173` (registrar) → `:201/:207` (rollback-before-registrar) +
+Zitadel [#5810]/[#11942] (no init retry). F4: `infrastructure.py:774` vs `specs/services/zitadel.yaml:66`.
 
 ## Self-audit
 
-**Verified (grounded at path:line / live probe):** surface inference; target headroom; all 6 registrars via
-`fabrik plan`; every `${VAR}` source; the masterkey re-mint path (F1); the placeholder guard is inert here (F2);
+**Verified (grounded at path:line / live probe, re-opened author-blind + 2 native Opus finders):** surface
+inference; target headroom; all 6 registrars via `fabrik plan`; every `${VAR}` source; the masterkey re-mint
+path (F1) + that plain `redeploy` is the only safe update path (D3); the placeholder guard is inert here (F2);
 RESEND from_env present (F3); autoheal N/A via its own predicate (Phase 5); the backrest paper-backup (F4); DNS
-absent (S1).
+absent (S1). **The review CORRECTED:** F-A/F-B (Gatus/Prometheus probed the wrong paths → spec fix), F-C (no
+cert-expiry condition exists), F-D (readiness ≠ write proof), D2 (S5 grepped the wrong var), D4 (LOG_LEVEL drift).
 
-**Assumed / residual (the review + deploy must attack):**
-- **R1 (F1 severity):** the masterkey re-mint path is traced statically; the deploy must PROVE apply-once holds
-  — capture the minted `ZITADEL_MASTERKEY` after S3 and confirm no re-apply occurs. The underlying machinery gap
-  (generate-secrets lack a remote-`.env` preservation read) is a **deployer-hardening item for fleet's beat** →
-  `docs/STRATEGIC_BACKLOG.md`; out of scope for this deploy.
-- **R2:** first-apply DATABASE_URL-injection ordering — S5 verifies presence; S5's fallback restart (not
-  re-apply) handles absence. Confirm at deploy whether the registrar's mid-apply `up --wait` leaves the container
-  already carrying `DATABASE_URL` (expected) or needs the restart.
-- **R3:** exact RPO/RTO numbers — read the postgres-main Backrest plan schedule/retention live at deploy (not a
-  repo file).
-- **R4:** the `zitadel-data` paper-backup plan (F4) — decide at deploy whether to leave it inert (harmless) or
-  suppress it; DR does not depend on it either way.
+**BLOCKING (the plan stays DRAFT until resolved):**
+- **D1** — the deploy-order/DB-at-boot contradiction (see the ⚠️ BLOCKING FINDING). `fabrik apply` cannot stand
+  up `start-from-init` Zitadel; a bootstrap runbook or a machinery fix is required + staging-validated before
+  Gate 2. Machinery gap filed to `docs/STRATEGIC_BACKLOG.md` [fleet].
 
-Status stays **DRAFT** — `/fabrik-deploy-plan-review`'s md5-verified no-op earns `CONVERGED`.
+**Residual (self-service at deploy — exact probe/default stated, no deferred question):**
+- **R1 (F1):** after the (bootstrapped) first init completes, capture the minted `ZITADEL_MASTERKEY` and never
+  run `apply`/`redeploy --refresh-infra` again without pinning it first (S-INV). Machinery gap → backlog.
+- **R3:** RPO/RTO numbers = the postgres-main Backrest plan's live schedule/retention (S-DR reads it at deploy).
+- **R4 (RESOLVED):** the `zitadel-data` paper-backup plan is left **inert** — harmless, DR uses the postgres-main
+  backup (F-E / S-DR). No suppression needed; no decision deferred.
+- **R5:** cert-expiry monitoring is not auto-emitted (F-C) — add a manual Gatus condition post-deploy if wanted;
+  Traefik auto-renewal makes this low-priority.
+
+Status stays **DRAFT** — this review found a blocking defect (D1); it did NOT converge. The plan returns to
+`/fabrik-deploy-plan` (or a fleet redesign of the bootstrap) before a re-review can earn `CONVERGED`.
 
 **Next command:** /fabrik-deploy-plan-review docs/development/plans/2026-08-28-plan-deploy-zitadel.md — adversarially converge this plan before Gate 2.

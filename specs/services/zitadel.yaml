@@ -62,7 +62,13 @@ resources:
   cpu: '0.5'                  # CPU spikes only during password hashing
 health:
   disabled: true              # FROM-scratch image has no shell/wget for a compose HEALTHCHECK (honored by the Phase-0
-                              # emitter fix). Gatus probes /debug/ready (DB-checked readiness) externally instead.
+                              # emitter fix). `disabled` omits ONLY the compose healthcheck.
+  path: /debug/ready          # the gatus registrar reads health.path (infrastructure.py:762, even when disabled) →
+                              # Gatus probes https://auth.ocoron.com/debug/ready (DB-checked). Without this it defaults
+                              # to /health, which Zitadel does not serve (404 → permanent false-DOWN).
+monitoring:
+  metrics_path: /debug/metrics  # the prometheus registrar reads monitoring.metrics_path (infrastructure.py:979) →
+                                # scrapes /debug/metrics. Without this it defaults to /metrics (404 → zero series).
 volumes: []
 companion_services: []
 backup:
