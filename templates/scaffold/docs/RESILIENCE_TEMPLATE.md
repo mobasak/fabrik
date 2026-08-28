@@ -175,6 +175,47 @@ When pause + dispatch interact badly, queues balloon. These five mechanisms keep
 
 ---
 
+## 3b. Provider-death resilience — unattended external-dependency loops (MANDATORY where applicable)
+
+> **Applies to any unattended loop over a paid/free EXTERNAL dependency** — LLM provider chains, a paid API a
+> backfill hammers, any long-running job whose forward progress depends on a third party you don't control.
+> If your project has one, all THREE mechanisms below are required. If it has none, delete this section.
+> Operator directive (2026-08-28): this is a de-facto standard for every service, not a suggestion.
+
+**Why the standard playbook is not enough.** Retry / backoff / circuit-breaker / resumable-checkpoint all
+self-heal a **transient** fault — a quota window resets, a blip passes. They cannot heal a **permanent
+provider-death**: a model or provider that is *down for this whole run* needs a **SWAP**, a decision no retry
+loop is empowered to make. Live incident (youtube RAG backfill, 2026-08-28): a static fallback chain sat
+**stalled 8h at zero progress** while every recovery mechanism ran correctly — the primary free model went
+ReadTimeout-down *while other free models of the same provider stayed up*, both paid fallback tiers were
+billing-gated (`http_402`), the capped last-resort was silently dead, and **nothing alarmed** on 8h of no
+progress. Retry-only "safely gave up" every run.
+
+1. **Health-probe + auto-promote — never retry a dead primary.** Probe the quality-ordered candidate list
+   **once at run start** (cheap, never per-item) and rebuild the working chain from only the **healthy**
+   providers — best primary + N in-provider live survivors. A dead primary **auto-promotes** to the next live
+   provider instead of being retried forever; keep the best candidate first so the chain self-restores on
+   recovery. Degrade gracefully to a still-valid chain if a whole provider is dead; refuse to start (loud) only
+   if NOTHING is healthy.
+2. **A live-survivor fallback ladder.** Three kinds of diversity, all required: **intra-provider** (2+ models
+   of one provider → survives a single-model death) **and** **cross-provider** (→ survives a whole-provider
+   outage) **and** a **last-resort that is actually EXERCISED** — a fallback you never test is a fallback that
+   is silently down (the incident's last rung had an expired credential nobody had run in weeks).
+3. **Zero-progress alarm.** N minutes of no forward progress fires **ONE** loud, operator-facing alert
+   (log + sentinel file + Telegram/Sentry), cleared on recovery. A stall visible only in a logfile is a stall
+   nobody sees. Watch actual *progress* (rows classified, items done), not just error codes — the incident's
+   rate-guard watched only `http_429` and was blind to ReadTimeout/402.
+
+**Vendor, don't re-derive.** A provider-agnostic helper is a fabrik-lib candidate
+(`resilience/health_promote.py` — probe → rebuild-chain + a zero-progress-alarm primitive); reference
+implementation to adapt: youtube `rag/fused_extractor.py::refresh_chain_health` + `probe_nvidia_health`,
+`scripts/rag_backfill_supervisor.sh` alarm helpers, tests
+`test_fused_extractor.py::TestHealthProbeAutoPromote` (watched-fail-first proven). **Test the swap, not just
+the retry:** a test that only proves backoff fires certifies nothing about provider-death — prove the chain
+rebuilds from survivors when the primary is down, and prove the alarm fires on zero progress.
+
+---
+
 ## 4. Per-Kind Addendum
 
 > Apply ONLY the section matching your shape kind. Delete the others.
