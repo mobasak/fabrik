@@ -73,10 +73,27 @@ sys.path.insert(0, str(REPO))
 HUB_LIBS = Path("/opt/fabrik/libs")
 
 
+# Where a repo may keep the engine. `libs/` is the vendored fleet layout; `competitor-intel/`
+# is fabrik-lib's CANONICAL source-of-truth layout (it is the module's home, so it has no
+# `libs/` copy of itself). Checking only the first made a fabrik-lib run resolve to `hub` and
+# silently build its dossier from the hub's VENDORED copy rather than the canonical engine —
+# reported by fabrik-lib (01M14SG0RQ) after running the command from there. A silent
+# wrong-source is worse than a hard failure: the run succeeds and nothing says which code ran.
+_LOCAL_ENGINE_DIRS = (
+    Path("libs") / "competitor_intel",
+    Path("competitor-intel") / "competitor_intel",
+)
+
+
 def _resolve_engine() -> str:
     """Put the engine on sys.path. Returns 'local' or 'hub'; raises PreflightError if neither."""
-    if (REPO / "libs" / "competitor_intel").is_dir():
-        return "local"
+    for rel in _LOCAL_ENGINE_DIRS:
+        if (REPO / rel).is_dir():
+            # The parent is what goes on sys.path — `competitor_intel` is the package.
+            parent = str((REPO / rel).parent)
+            if parent not in sys.path:
+                sys.path.insert(0, parent)
+            return "local"
     if (HUB_LIBS / "competitor_intel").is_dir():
         sys.path.insert(0, str(HUB_LIBS))
         return "hub"
@@ -691,7 +708,9 @@ def render_dossier_md(d: dict[str, Any]) -> str:
             # [:6] truncation printed "9 rival(s):" over 6 names (trade-intelligence live
             # run, via fabrik-lib). Say the truncation out loud instead.
             if len(having) > 6:
-                who = f"{len(having)} rival(s) (top 6 shown): {', '.join(_s(x) for x in having[:6])}"
+                who = (
+                    f"{len(having)} rival(s) (top 6 shown): {', '.join(_s(x) for x in having[:6])}"
+                )
             elif having:
                 who = f"{len(having)} rival(s): {', '.join(_s(x) for x in having)}"
             else:
@@ -1052,7 +1071,17 @@ async def _run(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        from libs.subagents import load_env
+        # Same layout split as _LOCAL_ENGINE_DIRS: `libs/subagents` is the vendored fleet
+        # layout, `subagents/` is fabrik-lib's canonical home for the module. Hard-coding the
+        # first made the autoload raise in the second, and preflight then reported the search
+        # keys "not set" when they were present in that repo's .env (fabrik-lib 01M14SG0RQ).
+        for _cand in (REPO, REPO / "libs"):
+            if (_cand / "subagents").is_dir() and str(_cand) not in sys.path:
+                sys.path.insert(0, str(_cand))
+        try:
+            from libs.subagents import load_env
+        except ModuleNotFoundError:
+            from subagents import load_env  # canonical fabrik-lib layout
 
         load_env(str(REPO))
     except Exception as exc:  # pragma: no cover - the autoload is a convenience, never a hard dep

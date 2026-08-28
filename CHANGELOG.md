@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-rivals resolved the WRONG engine in a repo that owns it (2026-08-28)
+
+- `scripts/rivals_run.py::_resolve_engine` checked only `REPO/libs/competitor_intel`. fabrik-lib's
+  CANONICAL engine lives at `competitor-intel/competitor_intel` (it is the module's home, so it has no
+  vendored copy of itself), so a run from there fell through to the hub fallback and **silently built its
+  dossier from the hub's vendored copy instead of the source of truth**. The function's own error message
+  already named that canonical path — it just never looked there. Reported by fabrik-lib (`01M14SG0RQ`)
+  after running the command from that repo. Proven red-on-revert: fabrik-lib resolved `hub` before, `local`
+  after.
+- Same layout assumption broke the key autoload (`from libs.subagents import load_env`), so preflight
+  reported EXA/BRAVE/FIRECRAWL **"not set" while they were present in that repo's `.env`** — a false
+  negative that sends the operator hunting a provisioning problem that does not exist. Now tolerates both
+  layouts.
+- 4 tests: both layouts resolve `local`, the package parent lands on `sys.path` (resolving "local" without
+  it would still import the hub's copy by name), and a repo with neither never claims `local`.
+
+### Fixed — a bare `git stash pop` can unpark a sibling's work (2026-08-28)
+
+- Both constitutions now ban bare `git stash pop`/`apply` on the shared tree. The stack is SHARED — this
+  hub carries four long-parked entries whose names say whose they are — and a bare pop takes `stash@{0}`,
+  whatever is on top. **Live near-miss:** a `git stash push -q <one file>` failed, the `&&` short-circuited
+  so the guard never ran, and the following bare pop tried to restore a sibling's parked stash over the
+  tree. It failed safely only because their files were dirty; on a clean tree it would have silently
+  unparked another agent's work into the diff. It also made the red-on-revert it was wrapping run with the
+  fix still present, reporting a **false green**.
+- The rule now prescribes the safe form for a revert test — copy the file, `git show HEAD:f > f`, restore —
+  and requires asserting the mutation landed before trusting the result.
+
 ### Added — Zitadel v4 umbrella IdP deploy spec + reference doc (2026-08-28)
 
 - `specs/services/zitadel.yaml` + `docs/reference/zitadel.md` — Epic-1 (Phases A/B): the self-hosted Zitadel v4

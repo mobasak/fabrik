@@ -1057,3 +1057,46 @@ def test_a_genuinely_empty_wedge_still_says_none():
         {"market": "m", "competitors": [], "pricing": {"wedge": ["", "   "]}}
     )
     assert "_None corroborated._" in out, out
+
+
+# --- engine + key-autoload layout resolution (fabrik-lib 01M14SG0RQ) ------------------
+# The driver assumed ONE repo layout (`libs/<pkg>`). A repo whose CANONICAL home for the
+# package is elsewhere — fabrik-lib keeps `competitor-intel/competitor_intel` and
+# `subagents/subagents`, because it IS the module's home and has no vendored copy of
+# itself — fell through to the HUB fallback and silently built its dossier from the hub's
+# VENDORED engine. The run SUCCEEDS, which is what makes it dangerous: nothing in the
+# output says which code produced the result.
+
+
+def test_canonical_layout_resolves_local_not_hub(tmp_path: Path, monkeypatch) -> None:
+    """A repo with the canonical `competitor-intel/competitor_intel` layout must resolve
+    LOCAL. Before the fix this returned 'hub' — the silent wrong-source."""
+    (tmp_path / "competitor-intel" / "competitor_intel").mkdir(parents=True)
+    monkeypatch.setattr(rr, "REPO", tmp_path)
+    assert rr._resolve_engine() == "local"
+
+
+def test_vendored_layout_still_resolves_local(tmp_path: Path, monkeypatch) -> None:
+    """The counter-direction: the fleet's vendored `libs/` layout must not regress."""
+    (tmp_path / "libs" / "competitor_intel").mkdir(parents=True)
+    monkeypatch.setattr(rr, "REPO", tmp_path)
+    assert rr._resolve_engine() == "local"
+
+
+def test_canonical_layout_puts_the_package_parent_on_syspath(tmp_path: Path, monkeypatch) -> None:
+    """Resolving 'local' is not enough — the PARENT of the package must be importable, or
+    the engine resolves by name to whatever else is already on sys.path (i.e. the hub)."""
+    (tmp_path / "competitor-intel" / "competitor_intel").mkdir(parents=True)
+    monkeypatch.setattr(rr, "REPO", tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    rr._resolve_engine()
+    assert str(tmp_path / "competitor-intel") in sys.path
+
+
+def test_neither_layout_falls_back_to_hub_or_raises(tmp_path: Path, monkeypatch) -> None:
+    """A repo with no engine at all must NOT claim 'local'. It takes the hub fallback when
+    the hub copy exists, and raises PreflightError when it does not — never a silent pass."""
+    monkeypatch.setattr(rr, "REPO", tmp_path)
+    monkeypatch.setattr(rr, "HUB_LIBS", tmp_path / "nonexistent-hub")
+    with pytest.raises(rr.PreflightError):
+        rr._resolve_engine()
