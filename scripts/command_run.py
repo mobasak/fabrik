@@ -64,6 +64,8 @@ from typing import Any
 # Rounds needed before the oscillation heuristic may speak at all — below this a
 # rising count is just an early loop widening its net, not a pathology.
 NON_CONVERGENCE_MIN_ROUNDS = 5
+# One advisory, once, when a round counter has advanced this many times inside one phase.
+ROUNDS_PER_PHASE_NOTICE = 5
 # How many trailing findings counts must be non-increasing to look convergent.
 CONVERGENCE_WINDOW = 3
 # Bound on how much of one session's event file the sid join reads — the join is a
@@ -994,6 +996,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
 
     if args.cmd == "round":
         rounds = list(rec.get("rounds") or [])
+        # Stamp the PHASE onto every round. Without it, "rounds since the last step" is not
+        # derivable and the only signal available is "zero rounds at phase N" — which job-agent
+        # (2026-08-28) showed misses the real case: their pinned line read `phase 5/9` for six
+        # hours and eight discovery rounds, faithfully reporting a phase they had left long
+        # before. They HAD rounds — seven — so a zero-rounds threshold could never fire, and the
+        # field that was actually lying (the phase) is the one nothing read. Unlike a phase-N
+        # threshold this cannot be satisfied by calling `step` once at the start.
+        _phase_now = int(rec.get("phase") or 1)
         classes: dict[str, str] = dict(rec.get("classes") or {})
         swept, new_c = _csv(args.classes_swept), _csv(args.classes_new)
         # Sweep first, then open: a class both swept AND re-found this round is
@@ -1003,9 +1013,28 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         for name in new_c:
             classes[name] = "open"
         rounds.append(
-            {"n": len(rounds) + 1, "findings": args.findings, "swept": swept, "new": new_c}
+            {
+                "n": len(rounds) + 1,
+                "findings": args.findings,
+                "swept": swept,
+                "new": new_c,
+                "phase": _phase_now,
+            }
         )
         rec["rounds"], rec["classes"] = rounds, classes
+        # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
+        # while the phase never moves is either a convergence loop legitimately living inside one
+        # phase (correct, and common) or a boundary the agent walked past without recording. Both
+        # deserve exactly one advisory line; neither deserves a refusal, which is why this prints
+        # once at the threshold rather than on every round after it.
+        in_phase = [r for r in rounds if int(r.get("phase") or 0) == _phase_now]
+        if len(in_phase) == ROUNDS_PER_PHASE_NOTICE:
+            sys.stderr.write(
+                f"[command_run] NOTICE — {len(in_phase)} rounds recorded without leaving phase "
+                f"{_phase_now}. If the loop IS this phase, ignore this. If you crossed a phase "
+                "boundary and did not `step`, the pinned RUN: line has been reporting a phase you "
+                "left — true when written, wrong by the time anyone reads it.\n"
+            )
         fields = _queue(
             rec,
             outbox,

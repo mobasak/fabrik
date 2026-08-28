@@ -2651,3 +2651,38 @@ def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:
     oscillating = [43, 11, 30, 13, 22]
     assert "OSCILLATING" in cr.convergence_warning(oscillating, "fabrik-review")
     assert "OSCILLATING" in cr.convergence_warning(oscillating), "default must keep the teeth"
+
+
+def test_rounds_advancing_inside_one_phase_are_noticed_once(run_dir: Path) -> None:
+    """job-agent, 2026-08-28, correcting the threshold I shipped: their pinned line read
+    `phase 5/9` for six hours and eight discovery rounds — a LIVE record faithfully reporting a
+    phase they had left long before. They HAD rounds (seven), so "zero rounds at phase 3" could
+    never fire, and the field that was actually lying — the phase — is the one nothing read.
+
+    Their signal is "rounds recorded SINCE the last step", which unlike a phase-N threshold cannot
+    be satisfied by calling `step` once at the start."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "9", "--terminal", "t")
+    _cr(run_dir, "step", "--phase", "5", "--title", "Iterate")
+    seen = []
+    for _ in range(7):
+        out = _cr(run_dir, "round", "--findings", "1", "--classes-swept", "a", "--classes-new", "b")
+        seen.append("without leaving phase" in out.stderr)
+    assert sum(seen) == 1, f"exactly one advisory, got {sum(seen)}"
+
+
+def test_a_short_in_phase_loop_is_not_noticed(run_dir: Path) -> None:
+    """A convergence loop legitimately lives inside one phase. Two or three rounds there is the
+    normal case and must stay silent."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "9", "--terminal", "t")
+    _cr(run_dir, "step", "--phase", "2", "--title", "x")
+    for _ in range(3):
+        out = _cr(run_dir, "round", "--findings", "1", "--classes-swept", "a", "--classes-new", "b")
+        assert "without leaving phase" not in out.stderr
+
+
+def test_the_notice_never_refuses(run_dir: Path) -> None:
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "9", "--terminal", "t")
+    _cr(run_dir, "step", "--phase", "5", "--title", "x")
+    for _ in range(6):
+        r = _cr(run_dir, "round", "--findings", "1", "--classes-swept", "a", "--classes-new", "b")
+        assert r.returncode == 0
