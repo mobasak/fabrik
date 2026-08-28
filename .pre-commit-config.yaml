@@ -27,10 +27,13 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-      # === FORMATTING HOOKS (called by final_gate.py, not at commit) ===
-      # These are available for final_gate.py to call via:
-      #   pre-commit run trailing-whitespace --all-files
-      #   pre-commit run end-of-file-fixer --all-files
+      # === FORMATTING HOOKS — manual stage, and NOTHING CALLS THEM ===
+      # ⚠️ This block used to say "called by final_gate.py … via `pre-commit run
+      # trailing-whitespace --all-files`". That was false: `grep -n "pre-commit" scripts/final_gate.py`
+      # returns no invocation, and the gate has its own implementation
+      # (`fix_trailing_whitespace()`, final_gate.py:412, wired at :505) which is diff-SCOPED —
+      # deliberately, since `--all-files` on a tree three sessions share would reformat their
+      # uncommitted work. These two stay as a manual escape hatch; run them by hand or not at all.
       - id: trailing-whitespace
         stages: [manual]
       - id: end-of-file-fixer

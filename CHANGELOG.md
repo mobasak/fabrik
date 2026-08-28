@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the CI cutover moved enforcement somewhere nobody installs (2026-08-29)
+
+`/fabrik-review` over `0bd6cf31`. 3 rounds; ledger in
+`docs/development/reviews/2026-08-29-ci-cutover-review.md`. 3 findings → 3 FIXED.
+
+- **`scripts/wsl_startup_hook.sh`** — re-arm `pre-commit install -t pre-push` on every interactive
+  shell. `.git/hooks/` is untracked (`git ls-files .git` → 0), so the gate existed only because one
+  install was typed by hand — and `0bd6cf31` had already deleted the workflows, leaving any other
+  clone with ZERO enforcement. Mirrors the trailer-guard precedent 10 lines above, whose own comment
+  reads *"a guard nobody installs is the inert-check class this repo has been bitten by before."*
+- **`tests/test_push_gate_config.py`** (new, 5 tests) — pins `default_stages: [pre-commit]`, both
+  install hook types, the `--report /tmp/` redirect, the absence of hub workflows, and the pre-push
+  hook SET (so adding one must be argued: pre-push stashes, so a mutating hook re-opens the
+  WIP-rollback failure). Two proven red by config mutation.
+- **`.pre-commit-config.yaml`** — the formatting-hooks comment claimed final_gate calls
+  `pre-commit run trailing-whitespace --all-files`. It never has: `grep -n "pre-commit"
+  scripts/final_gate.py` finds no invocation, and the gate has its own diff-scoped
+  `fix_trailing_whitespace()` (`:412`) — `--all-files` would reformat siblings' uncommitted work.
+- **Fleet directive adjudicated, not executed.** Measured across the 51 remaining workflows:
+  **26 deploy/publish/release** and **3 are scheduled** — a pre-push hook replaces neither. 39 of 51
+  sit in three React repos where only 3 of 13 run a check at all. "Run the CI locally" applies to the
+  checking half; a blanket sweep would delete the Android e2e and release paths.
+
 ### Changed — GitHub Actions off in the hub; the push gate now runs locally (2026-08-29)
 
 Operator directive 2026-08-25 ("we want same checks here, why do we pay them?"); 36 of 46 repos are

@@ -79,6 +79,14 @@ fi
 [ -x "$VENV_PYTHON" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
     "$VENV_PYTHON" "$FABRIK_ROOT/scripts/check_commit_trailers.py" --install >/dev/null 2>&1 )
 
+# Keep the PRE-PUSH gate installed, for exactly the reason stated above and proven the same day it
+# shipped: `.git/hooks/` is untracked, so a fresh clone, a new worktree, or another machine gets NO
+# hook — and since 0bd6cf31 deleted .github/workflows, there is no cloud CI left to catch what the
+# hook misses. The gate existed only because one `pre-commit install -t pre-push` was typed by hand
+# on this box. Same cwd pin, same subshell, same idempotence as the trailer guard.
+[ -x "$FABRIK_ROOT/.venv/bin/pre-commit" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
+    "$FABRIK_ROOT/.venv/bin/pre-commit" install -t pre-push >/dev/null 2>&1 )
+
 # --- Daily pipeline (runs once per WSL boot day) ---
 # Run update if not already run today
 if [ ! -f "$LOCK_FILE" ]; then
