@@ -1590,6 +1590,17 @@ def init_glitchtip() -> bool:
         traces_sample_rate=float(os.environ.get("GLITCHTIP_TRACES_SAMPLE_RATE", "0.05")),
         profiles_sample_rate=float(os.environ.get("GLITCHTIP_PROFILES_SAMPLE_RATE", "0.0")),
         send_default_pii=False,
+        # SECURITY (55-observability.md § Error Reporting): send_default_pii=False + the SDK's default
+        # header filter/EventScrubber already redact auth HEADERS + cookies, but they close NEITHER the
+        # frame-locals NOR the request-body channel. include_local_variables strips frame LOCALS (SDK
+        # default True → a logger.error/exception in a function holding Settings ships the JWT secret +
+        # DB DSN via its repr); max_request_body_size strips the request BODY (attached regardless of
+        # send_default_pii → every auth/webhook/token route leaks its payload on any handled error).
+        # Both remove the data STRUCTURALLY — a before_send name-denylist is not a substitute (it misses
+        # reprs and unlisted names). NOTE: these flags do NOT sanitize free-text log/exception CONTENT —
+        # never interpolate a secret into a log message or exception string (that ships verbatim).
+        include_local_variables=False,
+        max_request_body_size="never",
         integrations=[
             FastApiIntegration(transaction_style="endpoint"),
             StarletteIntegration(transaction_style="endpoint"),
@@ -3451,6 +3462,13 @@ if (dsn) {
       tracesSampleRate: parseFloat(process.env.GLITCHTIP_TRACES_SAMPLE_RATE || '0.05'),
       profilesSampleRate: parseFloat(process.env.GLITCHTIP_PROFILES_SAMPLE_RATE || '0'),
       sendDefaultPii: false,
+      // SECURITY (55-observability.md § Error Reporting): @sentry/node captures frame LOCALS by
+      // default (localVariablesIntegration is on for Node runtimes), so any error inside a function
+      // holding config ships its values — disable it. Unlike Python, the request BODY is NOT the same
+      // exposure here: with sendDefaultPii:false @sentry/node reports body SIZE only, not content
+      // (docs.sentry.io/platforms/javascript/guides/node/data-management/data-collected), so the
+      // Python-only request-body-size init option does not exist on this SDK. Verify on the CAPTURED EVENT.
+      includeLocalVariables: false,
     });
   } catch {
     // @sentry/node not installed; emit a one-time warning rather than crash.

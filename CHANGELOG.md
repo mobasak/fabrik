@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffolded GlitchTip init no longer leaks secrets via frame locals / request body (2026-08-28)
+
+- `src/fabrik/scaffold.py` — the scaffold-emitted `glitchtip_init` (both the Python `sentry_sdk.init` and
+  the Node `Sentry.init`) sent the JWT signing secret, DB DSN, and live request-body values (e.g. one-time
+  passcodes) to GlitchTip on any handled ERROR log: `send_default_pii=False` gates cookies/auth-headers but
+  closes NEITHER the frame-locals channel NOR (in Python) the request-body channel (transdoc `01M13279RB` +
+  correction `01M133NZWN`, routed to fleet via `01M13S4E`). **Python** now sets `include_local_variables=False`
+  + `max_request_body_size="never"`. **Node** sets `includeLocalVariables: false`; it deliberately does NOT set
+  the pack-suggested `maxRequestBodySize: 'never'` — grounded against Sentry docs, that is a Python-only option
+  `@sentry/node` silently ignores, and with `sendDefaultPii: false` Node already reports body size-only, not
+  content (filed to infra `01M13YVJ` to correct `55-observability.md`). Regression-tested (both emitters,
+  red-on-revert). Reviewed to a no-op: `docs/development/reviews/2026-08-28-glitchtip-emitter-secret-leak-review.md`.
+  Fixes the emitted file only — 17 already-scaffolded services keep their vulnerable copy (each is that repo's own fix).
+
 ### Fixed — Flywheel advisory now honors the fleet-wide DSN fallback; a false "UNRECORDABLE" cost a cross-agent finding (2026-08-28)
 
 - `scripts/enforcement/check_subagent_flywheel.py` (`_warn_unrecorded`): the "runs are UNRECORDABLE —
