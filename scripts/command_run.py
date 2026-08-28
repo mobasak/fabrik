@@ -260,13 +260,26 @@ def pinned_line(rec: dict[str, Any]) -> str:
     return out
 
 
-def convergence_warning(series: list[int]) -> str:
+# Commands whose rounds are PER-UNIT, not per-sweep. `/fabrik-execute-plan` in DISPATCHER mode runs
+# N independent per-ticket review loops — round 4 is T11's review, round 5 is T08's — so a 0 followed
+# by a 10 is "the previous ticket converged clean and the next ticket's first review found ten
+# things", not oscillation. The detector's model (one brief, re-swept until dry) is correct for
+# /fabrik-review and the gate commands and structurally wrong here; it fired on a healthy transdoc
+# run (2026-08-28), named a specific wrong cause, and instructed a fix that did not apply. A loud
+# advisory that is confidently wrong costs more than silence, because an agent that believes it
+# starts re-scoping a loop that was converging.
+PER_UNIT_ROUND_COMMANDS = frozenset({"fabrik-execute-plan"})
+
+
+def convergence_warning(series: list[int], command: str = "") -> str:
     """Advisory oscillation diagnosis, or "" — NEVER blocks (a heuristic must not trap).
 
     A converging loop trends DOWN (5 → 3 → 0). A pathological one oscillates
     (43 → 11 → 30 → 13 → 22) because each round RE-SCOPES instead of RE-SWEEPING
     the persisted class ledger.
     """
+    if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
+        return ""  # per-unit rounds: consecutive counts describe different surfaces
     if len(series) < NON_CONVERGENCE_MIN_ROUNDS or len(series) < CONVERGENCE_WINDOW:
         return ""
     window = series[-CONVERGENCE_WINDOW:]
@@ -310,7 +323,9 @@ def _round_report(rec: dict[str, Any]) -> str:
         # drop TO zero is what non-increasing was asking for; the series test alone
         # reads `13 → 22 → 0` as a rise (live smoke, 2026-08-16).
         return "\n".join(lines)
-    warn = convergence_warning([int(r.get("findings", 0)) for r in rounds])
+    warn = convergence_warning(
+        [int(r.get("findings", 0)) for r in rounds], str(rec.get("command") or "")
+    )
     if warn:
         lines.append(warn)
     return "\n".join(lines)

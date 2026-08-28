@@ -2620,3 +2620,34 @@ def test_a_sentinel_mixed_with_real_classes_drops_only_the_sentinel() -> None:
         "dashboard-screens-missing",
         "webhook-false-claim",
     ]
+
+
+def test_the_oscillation_detector_is_silent_for_per_unit_rounds() -> None:
+    """transdoc, 2026-08-28: the detector fired NON-CONVERGENCE on a healthy
+    /fabrik-execute-plan run — `0 → 0 → 10` across rounds that were T11's review then T08's
+    review. Dispatcher mode runs N independent per-ticket loops, not one re-swept brief, so
+    consecutive counts describe DIFFERENT surfaces. It named a specific wrong cause and
+    instructed a fix that did not apply; a confidently wrong advisory costs more than silence,
+    because an agent that believes it starts re-scoping a loop that was converging."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_osc", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    oscillating = [24, 0, 0, 0, 10]
+    assert cr.convergence_warning(oscillating, "fabrik-execute-plan") == ""
+
+
+def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:
+    """The teeth must survive: /fabrik-review and the gate commands DO run one re-swept brief,
+    which is exactly the model the heuristic is right about."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_osc2", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    oscillating = [43, 11, 30, 13, 22]
+    assert "OSCILLATING" in cr.convergence_warning(oscillating, "fabrik-review")
+    assert "OSCILLATING" in cr.convergence_warning(oscillating), "default must keep the teeth"
