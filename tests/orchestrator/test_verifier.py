@@ -72,6 +72,57 @@ class TestDeploymentVerifier:
 
             assert ctx.deployed_url == "https://example.com"
 
+    def test_health_disabled_skips_inband_probe_and_succeeds(self):
+        """A ``health.disabled`` service must NOT gate the deploy on an in-band
+        HTTP probe — liveness is owned by external Gatus + the deployer's
+        readiness poll. Verify: no ``_check_health`` / ``_wait_for_dns`` call,
+        ``verify()`` returns True, and ``deployed_url`` is set.
+
+        Regression: Zitadel deploy RUN 3 (2026-08-28) — the container served
+        /debug/ready 200 in-network, but the verifier's external probe raced
+        DNS/cert propagation, raised VerificationError, and rolled back the
+        whole healthy deploy (incl. the just-created DNS record).
+        """
+        verifier = DeploymentVerifier(max_retries=1)
+        ctx = DeploymentContext(
+            spec_path=Path("zitadel.yaml"),
+            spec={
+                "name": "zitadel",
+                "domain": "auth.ocoron.com",
+                "health": {"disabled": True, "path": "/debug/ready"},
+            },
+        )
+
+        with (
+            patch.object(verifier, "_check_health") as mock_health,
+            patch.object(verifier, "_wait_for_dns") as mock_dns,
+        ):
+            result = verifier.verify(ctx)
+
+        assert result is True
+        mock_health.assert_not_called()
+        mock_dns.assert_not_called()
+        assert ctx.deployed_url == "https://auth.ocoron.com"
+
+    def test_health_enabled_still_probes(self):
+        """The complement: a service WITHOUT health.disabled must still run the
+        in-band probe — the skip is gated strictly on the flag."""
+        verifier = DeploymentVerifier(max_retries=1)
+        ctx = DeploymentContext(
+            spec_path=Path("api.yaml"),
+            spec={"name": "api", "domain": "api.example.com", "health": {"path": "/health"}},
+        )
+
+        with (
+            patch.object(verifier, "_wait_for_dns", return_value=None),
+            patch("fabrik.orchestrator.verifier.urlopen") as mock_urlopen,
+        ):
+            mock_urlopen.return_value = MagicMock(getcode=lambda: 200)
+            result = verifier.verify(ctx)
+
+        assert result is True
+        mock_urlopen.assert_called_once()
+
     def test_health_check_retries(self):
         """Should retry on failure."""
         verifier = DeploymentVerifier(max_retries=3, retry_interval=0)

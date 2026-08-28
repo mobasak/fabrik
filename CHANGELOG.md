@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — verifier rolled back healthy `health.disabled` deploys on an in-band probe race (2026-08-29)
+
+Surfaced live by the Zitadel umbrella-IdP deploy (RUN 3, `auth.ocoron.com` on vps1). A
+`health.disabled` service (a FROM-scratch image like Zitadel with no in-container shell/curl for a
+healthcheck) has no in-band health endpoint the deploy should gate on — liveness is owned by the
+external Gatus probe and by the deployer's post-`up` readiness poll (which already fails a crash-loop
+before verification runs). But `DeploymentVerifier.verify` still ran an in-band HTTPS probe of the
+domain and, on any transient (the DNS-propagation window, ACME/route timing), raised
+`VerificationError` — rolling back an **otherwise-live** deploy, including the just-created DNS record.
+The container had served `/debug/ready` 200 in-network; the external probe simply raced.
+
+- **`src/fabrik/orchestrator/verifier.py`** — `verify()` now skips the in-band HTTP probe when
+  `health.disabled` is set, mirroring `deployer_ssh._compose_up`'s health.disabled handling. The
+  worker/non-HTTP skip and `skip_health_check` paths are unchanged; a service without the flag still
+  probes exactly as before.
+- **`tests/orchestrator/test_verifier.py`** (2 new tests) — pins that a `health.disabled` service
+  skips `_check_health`/`_wait_for_dns`, still returns True and sets `deployed_url`; and the
+  complement, that a service without the flag still probes (red-on-revert verified).
+
 ### Fixed — deleting GitHub workflows silently DISARMED local pytest (2026-08-29)
 
 Found while chasing why the operator still gets CI-failure emails. **The CI cutover had a trap

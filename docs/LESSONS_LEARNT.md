@@ -999,6 +999,28 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## `health.disabled` must be honored by the VERIFIER, not just the deployer — one skip without its twin rolls back a live deploy (2026-08-29)
+
+Zitadel's umbrella-IdP deploy (RUN 3) came fully up — DB pre-provisioned, `start-from-init`
+finished, the container served `/debug/ready` 200 in-network, all six registrars ran — and was then
+**rolled back to nothing** by the post-deploy verifier. Root cause: `health.disabled` was honored in
+exactly one of the two places that gate a deploy. `deployer_ssh._compose_up` correctly dropped
+`--wait` for the FROM-scratch image (no in-container healthcheck), but `DeploymentVerifier.verify`
+still ran its own in-band HTTPS probe of the public domain — and on the DNS-propagation/ACME-timing
+window it raised `VerificationError`, whose rollback deleted the DB, the container, **and the
+just-created Cloudflare DNS record**. That deleted record is why `auth.ocoron.com` read as "never
+provisioned" afterward — a rollback artifact, which I initially misdiagnosed as a DNS-provider
+misroute (the driver routes to Cloudflare via site-provisioner correctly; `_provision_dns`'s "Namecheap
+first" comment is stale, but `DNSClient.add_subdomain` hits `/api/cloudflare/dns/{d}/subdomain`).
+
+Rules: (1) a declarative capability flag (`health.disabled`) must be honored at **every** gate that
+consumes it — grep the flag, not one call site; a half-applied flag fails worse than an unread one
+because the healthy path masks it until a transient trips the other gate. (2) When a resource
+vanishes after a failed run, suspect **rollback deleted it** before inventing a creation-path bug —
+`ctx.add_resource("dns", …)` means DNS is a rolled-back resource. (3) For a `health.disabled` service,
+liveness is owned by the external monitor (Gatus) + the deployer's readiness poll, never the
+verifier's in-band probe. Fix: `verify()` skips the probe on `health.disabled`, mirroring `_compose_up`.
+
 ## Distribution is not enforcement: a duty in 30/30 commands changed nothing until the close REFUSED (2026-08-28)
 
 **Context:** the operator asked three times for agents to proactively report defects in the commands,

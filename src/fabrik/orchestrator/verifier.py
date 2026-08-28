@@ -93,17 +93,36 @@ class DeploymentVerifier:
 
         domain = ctx.spec["domain"]
 
+        # B23: spec field is `health:` per `spec_loader.Spec.health` and
+        # `spec_generator.generate_spec` (line 393-394 emits `Health(...)`
+        # which serializes as `health:`). Reading `healthcheck:` here
+        # silently returns None and falls back to DEFAULT_HEALTHCHECK_PATH
+        # (`/health`), which masked every non-`/health` deploy as a 404
+        # rollback. python-api worked by coincidence (its path is also
+        # `/health`); saas-skeleton (`/api/health`) and docusaurus (`/`)
+        # silently failed verification on every apply.
+        healthcheck = ctx.spec.get("health") or {}
+
+        # A ``health.disabled`` service (e.g. a FROM-scratch image like Zitadel
+        # with no in-container shell/curl for a healthcheck) has no in-band
+        # health endpoint the deploy should gate on — liveness is owned by the
+        # external Gatus probe (which polls health.path on its own cadence) and
+        # by the deployer's post-``up`` readiness poll (which already fails a
+        # crash-loop before we ever reach here). Gating the deploy on an in-band
+        # HTTPS probe instead false-fails a HEALTHY deploy on any transient
+        # (DNS-propagation window, ACME/route timing) and rolls the whole thing
+        # back — including the just-created DNS record. Mirror the deployer's
+        # ``_compose_up`` health.disabled handling: skip the in-band probe here
+        # too. (Zitadel deploy RUN 3, 2026-08-28: the container served
+        # /debug/ready 200 in-network, but the external probe raced DNS/cert and
+        # the VerificationError rolled back an otherwise-live Zitadel.)
+        health_disabled = bool(healthcheck.get("disabled"))
+
         # Health check
-        if not skip_health_check:
-            # B23: spec field is `health:` per `spec_loader.Spec.health` and
-            # `spec_generator.generate_spec` (line 393-394 emits `Health(...)`
-            # which serializes as `health:`). Reading `healthcheck:` here
-            # silently returns None and falls back to DEFAULT_HEALTHCHECK_PATH
-            # (`/health`), which masked every non-`/health` deploy as a 404
-            # rollback. python-api worked by coincidence (its path is also
-            # `/health`); saas-skeleton (`/api/health`) and docusaurus (`/`)
-            # silently failed verification on every apply.
-            healthcheck = ctx.spec.get("health") or {}
+        if skip_health_check or health_disabled:
+            reason = "skip_health_check=True" if skip_health_check else "health.disabled"
+            logger.info("Skipping in-band HTTP health check (%s) for %s", reason, domain)
+        else:
             path = healthcheck.get("path", DEFAULT_HEALTHCHECK_PATH)
 
             url = f"https://{domain}{path}"
@@ -114,8 +133,6 @@ class DeploymentVerifier:
             # _check_health so it can skip the local resolver entirely.
             resolved_ip = self._wait_for_dns(domain, max_wait=120)
             self._check_health(url, resolved_ip=resolved_ip, host_header=domain)
-        else:
-            logger.info("Skipping health check (skip_health_check=True)")
 
         # Admin-dashboard assertions (Phase 4l Track 4).
         # Shape-driven: both checks are OPT-IN and run only when the spec
