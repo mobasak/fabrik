@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Docker-source compose emitter now honors source.image_command + health.disabled (2026-08-28)
+
+- `src/fabrik/orchestrator/deployer_ssh.py::_generate_docker_compose`: emitted neither a `command:` (so
+  `source.image_command` — a real spec_loader field — was silently dropped and the container ran its default
+  CMD) nor honored `health.disabled` (an unconditional `wget --spider` healthcheck that a FROM-scratch/distroless
+  image cannot run, failing `docker compose up -d --wait`). Both are now emitted correctly: the command as a
+  single-quoted YAML scalar (YAML-safe for a colon/`#`/special char; matches Zitadel's official compose form;
+  Compose still interpolates `${VAR}` from `.env`), and the healthcheck omitted when `health.disabled: true`.
+  Non-`image_command` / non-disabled specs (evolution-api-style) are unchanged. Blocking prerequisite for the
+  Zitadel deploy (Epic-1 plan Phase 0); red-on-revert-proven in `tests/test_docker_compose_emitter.py`.
+
 ### Changed — RESILIENCE.md §3b reframed as three provider-death OUTCOMES (route picks the mechanism) (2026-08-28)
 
 - `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` §3b: the provider-death section mandated three MECHANISMS

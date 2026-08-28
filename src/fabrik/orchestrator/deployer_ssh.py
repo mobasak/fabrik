@@ -275,7 +275,9 @@ class SSHDeployer:
             old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
             build_flags = " --no-cache" if force else ""
-            _ssh(f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=_BUILD_TIMEOUT)
+            _ssh(
+                f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=_BUILD_TIMEOUT
+            )
             try:
                 _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
             except (RuntimeError, subprocess.TimeoutExpired) as err:
@@ -895,6 +897,8 @@ def _generate_docker_compose(
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
     health_interval = health.get("interval", "30s")
+    source = spec.get("source", {}) if isinstance(spec.get("source"), dict) else {}
+    image_command = source.get("image_command")
 
     lines = [
         "services:",
@@ -904,16 +908,38 @@ def _generate_docker_compose(
         "    platform: linux/amd64",
         "    restart: unless-stopped",
         "    env_file: .env",
+    ]
+    # Custom container command override (e.g. Zitadel's `start-from-init … --tlsMode external`). Without this
+    # the container runs the image's DEFAULT CMD and the whole directive is silently lost. Docker Compose
+    # interpolates ${VAR} in `command:` from env_file at `up` time (verified on compose 2.40.3), so a
+    # secrets-minted ${ZITADEL_MASTERKEY} expands here exactly as it does in the env.
+    if image_command:
+        # Single-quoted YAML scalar (escape embedded single-quotes by doubling) — keeps a colon, `#`, or
+        # other YAML-special char in the command from breaking the compose, and matches Zitadel's own official
+        # docker-compose form. Compose still interpolates ${VAR} from env_file (interpolation runs on the
+        # parsed string value, after YAML parsing).
+        _q = image_command.replace("'", "''")
+        lines.append(f"    command: '{_q}'")
+    lines += [
         "    deploy:",
         "      resources:",
         "        limits:",
         f"          memory: {memory}",
-        "    healthcheck:",
-        f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
-        f"      interval: {health_interval}",
-        "      timeout: 10s",
-        "      retries: 3",
-        "      start_period: 20s",
+    ]
+    # `health: { disabled: true }` → OMIT the healthcheck. The default `wget --spider` probe needs a shell +
+    # wget, absent from FROM-scratch/distroless images (e.g. Zitadel) — a forced healthcheck there errors,
+    # marks the container unhealthy, and `docker compose up -d --wait` times out. With no healthcheck the
+    # service reports `running` (not `healthy`), `--wait` proceeds, and external Gatus does the readiness probe.
+    if not health.get("disabled"):
+        lines += [
+            "    healthcheck:",
+            f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
+            f"      interval: {health_interval}",
+            "      timeout: 10s",
+            "      retries: 3",
+            "      start_period: 20s",
+        ]
+    lines += [
         "    networks:",
         "      - fabrik",
     ]
