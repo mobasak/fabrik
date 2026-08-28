@@ -15,6 +15,8 @@ import os
 import re
 import subprocess
 import tempfile
+import time
+from collections.abc import Callable
 from typing import Any
 
 from fabrik.orchestrator.context import DeploymentContext
@@ -26,11 +28,65 @@ logger = logging.getLogger(__name__)
 # Shell-safe name pattern — prevents injection in SSH commands.
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
+# health.disabled readiness poll (see _compose_up): `docker compose up --wait` needs a
+# healthcheck a FROM-scratch image can't have, so we `up -d` then poll `docker inspect` for a
+# STABLE running state. Requires _HEALTH_STABLE_REQUIRED consecutive polls at running + an
+# unchanged RestartCount; a crash-loop (exited/restarting/RestartCount climbing) exhausts the
+# polls and fails the deploy — a broken container must never slip through as a false success.
+_HEALTH_POLLS = 6
+_HEALTH_STABLE_REQUIRED = 2
+_HEALTH_POLL_INTERVAL = 4
+
 # `docker compose build` wall-clock cap. 300s starves a heavy FIRST build (review finding
 # 2026-08-10: tryton-crm's image bakes tesseract + language packs + poppler + pinned pip
 # layers — a cold build plausibly exceeds 5 min and the apply died mid-build). Env-tunable
 # per run: FABRIK_BUILD_TIMEOUT=1200 fabrik apply … ; default unchanged for light images.
 _BUILD_TIMEOUT = int(os.getenv("FABRIK_BUILD_TIMEOUT", "300"))
+
+
+def _health_disabled(spec: Any) -> bool:
+    """True when the spec sets ``health.disabled: true`` (no compose HEALTHCHECK is emitted)."""
+    h = spec.get("health") if isinstance(spec, dict) else None
+    return bool(isinstance(h, dict) and h.get("disabled"))
+
+
+def _compose_up(name: str, health_disabled: bool, ssh_fn: Callable[..., str]) -> None:
+    """Bring the compose stack up, waiting for readiness the RIGHT way for the service.
+
+    Healthchecked services use ``up -d --wait`` (unchanged). But ``--wait`` REQUIRES a
+    healthcheck — a ``health.disabled`` container (a FROM-scratch image can't run an in-container
+    probe) makes ``--wait`` exit rc=1 ("no healthcheck configured"), false-failing the deploy even
+    when the container is fine (live S3 halt, Zitadel 2026-08-28). For those, ``up -d`` (no --wait)
+    then an external readiness poll: the container must reach AND HOLD a running state; a crash-loop
+    (exited / restarting / RestartCount climbing) exhausts the polls and raises — a broken container
+    is never mistaken for a success.
+    """
+    if not health_disabled:
+        ssh_fn(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+        return
+    ssh_fn(f"cd /opt/{name} && sudo docker compose up -d", timeout=120)
+    prev_restarts: str | None = None
+    stable = 0
+    status = restarts = ""
+    for _ in range(_HEALTH_POLLS):
+        time.sleep(_HEALTH_POLL_INTERVAL)
+        out = ssh_fn(
+            f"sudo docker inspect -f '{{{{.State.Status}}}} {{{{.RestartCount}}}}' {name}",
+            timeout=15,
+        ).strip()
+        status, _, restarts = out.partition(" ")
+        if status == "running" and restarts == prev_restarts:
+            stable += 1
+            if stable >= _HEALTH_STABLE_REQUIRED:
+                return
+        else:
+            stable = 0
+        prev_restarts = restarts if status == "running" else None
+    raise DeployError(
+        f"{name}: container did not reach a STABLE running state after 'up -d' "
+        f"(health.disabled — no healthcheck to --wait on); last inspect: '{status} {restarts}'. "
+        "Likely a crash-loop — check `sudo docker logs " + name + "`."
+    )
 
 
 def _extract_git_host(repository: str) -> str | None:
@@ -236,7 +292,7 @@ class SSHDeployer:
             env_content = _format_env(merged)
 
             _write_file_to_vps(name, ".env", env_content)
-            _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            _compose_up(name, _health_disabled(ctx.spec), _ssh)
             logger.info("Injected %d env vars into %s and restarted", len(env_vars), name)
 
     def restart(self, name: str, dry_run: bool = False) -> None:
@@ -512,7 +568,7 @@ class SSHDeployer:
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
         _write_file_to_vps(name, ".env", env_content)
-        _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+        _compose_up(name, _health_disabled(spec), _ssh)
 
     def _deploy_local(
         self,
