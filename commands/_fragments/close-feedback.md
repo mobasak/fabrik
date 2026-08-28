@@ -10,7 +10,17 @@ dies in your context when the session ends.
 
 **Then pass it: `done --command <name> --evidence "<proof>" --feedback "<that same line>"`. The close
 REFUSES without it** — and a refused close leaves the record `running`, which the Stop hook blocks the
-turn on. This is not ceremony bolted onto the exit: it is the only moment you still hold the context
+turn on. ⚠️ **If your repo's `command_run.py` predates `--feedback` it will ERROR on the unknown argument
+instead of refusing** — that is a STALE VENDORED COPY, not an exemption. It happens in **sync-excluded**
+repos (fabrik-lib hit it: `01M14V7KH4`), where the box-wide command corpus you are reading is NEWER than
+the repo-local script it tells you to run — new instruction + old tool, the same trap that produced
+`error: unrecognized arguments: --feedback` on the day the refusal landed. Do NOT drop the verdict: close
+with `--evidence` so the record does not stay `running`, **state your `FEEDBACK:` line in the response**
+(it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script
+gets re-synced. A verdict you spoke is information; a verdict you skipped because the parser could not take
+it is not.
+
+This is not ceremony bolted onto the exit: it is the only moment you still hold the context
 to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in
 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands).
 

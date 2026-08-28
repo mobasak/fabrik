@@ -55,7 +55,14 @@ central build-vs-buy verdict.
   re-verified here by `curl` on 2026-08-28). So an **existence or liveness claim** — "this endpoint still
   exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
   returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
-  CODE, not rendered content: `WebFetch`, or `curl -sSI -L -o /dev/null -w '%{http_code}'`. Content is
+  CODE, not rendered content. ⚠️ **The ORCHESTRATOR owns that probe, not the grounder** —
+  `fabrik-researcher` has `Bash` in its `disallowedTools` (`commands/_agents/fabrik-researcher.md:5`),
+  deliberately, because it is read-only. So a dispatched grounder CANNOT run
+  `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail
+  (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so).
+  Division of labour: the grounder returns CONTENT and its source; **you** run the status probe
+  from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
+  it answers about a page rather than reporting a code. Content is
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
   evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
   third-party planning doc inside one).
