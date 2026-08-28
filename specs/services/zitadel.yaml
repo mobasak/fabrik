@@ -1,0 +1,73 @@
+id: zitadel
+kind: service
+template: python-api          # nominal — this is a source.type=docker service (no build); template is unused for docker specs
+domain: auth.ocoron.com       # the umbrella OIDC issuer — publicly routed via Traefik
+shape:
+  kind: service
+  is_public: true             # public issuer: end users hit auth.ocoron.com for login + OIDC discovery/JWKS
+  is_admin_dashboard: false   # Zitadel IS the auth — never behind Authelia
+  has_bearer_api: false       # its OIDC token endpoints are public by design (not an Authelia-bypassed bearer API)
+  has_persistent_data: true   # instance/org/user/event state lives in Postgres → Backrest backups run
+  needs_database: true        # own `zitadel` DB on postgres-main (PostgreSQL 14-18); registrar provisions it + injects DATABASE_URL
+  has_search_feature: false
+  needs_cache: false          # NOT redis — Zitadel manages its own caches
+  exposes_metrics: true       # /debug/metrics (Prometheus, default-on) → prometheus registrar (needs domain, set above)
+expose:
+  http: true
+source:
+  type: docker
+  image: ghcr.io/zitadel/zitadel:v4.17.1   # FROM scratch, amd64, ~1 GiB. Pin the digest at deploy.
+  image_port: 8080            # Zitadel default internal listen (ZITADEL_PORT)
+  # start-from-init = init+setup+start one-shot; --tlsMode external = Traefik terminates TLS, Zitadel serves HTTP.
+  # Emitted verbatim as the compose `command:` (deployer_ssh._generate_docker_compose, Phase 0); compose
+  # interpolates ${ZITADEL_MASTERKEY} from .env at up-time (secrets.generate mints it, exactly 32 chars).
+  image_command: 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external'
+depends:
+  postgres: zitadel           # registrar creates the `zitadel` DB owned by the injected role + injects DATABASE_URL
+env:
+  # --- external access behind Traefik (TLS terminated by Traefik) ---
+  ZITADEL_EXTERNALDOMAIN: auth.ocoron.com
+  ZITADEL_EXTERNALPORT: "443"          # the port END USERS reach (Traefik on 443), not the internal listen
+  ZITADEL_EXTERNALSECURE: "true"       # advertise https to clients
+  ZITADEL_TLS_ENABLED: "false"         # Zitadel serves plain HTTP internally; Traefik does HTTPS (--tlsMode external)
+  ZITADEL_PORT: "8080"
+  # --- database: DSN-only (the registrar injects a single DATABASE_URL, never decomposed keys) ---
+  ZITADEL_DATABASE_POSTGRES_DSN: ${DATABASE_URL}   # registrar-injected DSN for the role that OWNS the `zitadel` DB
+  ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable # internal `fabrik` net — sslmode=disable is correct
+  # --- first-instance admin bootstrap (non-interactive, applied only at init) ---
+  ZITADEL_FIRSTINSTANCE_ORG_NAME: ocoron
+  ZITADEL_FIRSTINSTANCE_INSTANCENAME: ocoron
+  ZITADEL_FIRSTINSTANCE_DEFAULTLANGUAGE: en
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ob@ocoron.com
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD}   # secrets.generate; change-required on first login
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
+  # --- SMTP → Resend (generic SMTP), seeded at first-init on the default instance ---
+  ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: smtp.resend.com:465
+  ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_USER: resend
+  ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_PASSWORD: ${RESEND_API_KEY}
+  ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: "true"
+  ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: noreply@ocoron.com
+  ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: ocoron
+secrets:
+  required: []
+  generate:
+  - ZITADEL_MASTERKEY         # fabrik mints exactly 32 [a-zA-Z0-9] chars = Zitadel's hard requirement; stable-forever (decrypts stored data)
+  - ZITADEL_ADMIN_PASSWORD    # the first-instance human admin's login password
+  from_env:
+  - RESEND_API_KEY            # already present in the hub .env; injected at fabrik apply
+  from_file: {}
+resources:
+  memory: 1G                  # 512 MiB min / 1 GiB recommended (Zitadel docs)
+  cpu: '0.5'                  # CPU spikes only during password hashing
+health:
+  disabled: true              # FROM-scratch image has no shell/wget for a compose HEALTHCHECK (honored by the Phase-0
+                              # emitter fix). Gatus probes /debug/ready (DB-checked readiness) externally instead.
+volumes: []
+companion_services: []
+backup:
+  enabled: true               # has_persistent_data → Backrest
+  frequency: daily
+  retention: 30
+watchdog:
+  enabled: false              # EXPLICIT off — a third-party image can't run the product-aware sidecar; the resolver defaults ON
