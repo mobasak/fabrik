@@ -968,7 +968,14 @@ to merge back. "Finishing" is:
    docs/development/plans/archived/<dir>` (spine, tickets, and Board travel together — never the
    single-file move, which strands the tickets as gate-flagged orphans). Explicit paths either way;
    repoint the lock's `plan` field to the
-   archived path. **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
+   archived path. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
+   AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. Step 5's `Status: EXECUTED`
+   flip is an unstaged working-tree edit, so the rename carries the OLD bytes and the archived plan
+   commits as `IN-PROGRESS` while your tree shows EXECUTED. The commit says `rename … (100%)`, which
+   is the tell. No gate caught it: an IN-PROGRESS plan is simply out of scope for the EXECUTED
+   contract, so a plan can be archived — a claim that nothing is left — while its own status says
+   work continues, and every check stays green (tryton-crm, 2026-08-28; `check_convergence` now flags
+   archived-but-not-EXECUTED as the backstop). **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
    review finding** — archiving IS the "I am 100% sure this is done" act, and a plan in `archived/` is a
    claim that nothing is left. Commit the move with the plan-status commit (explicit paths).
 7. **Push, then name the one decision left.** The commits are on `master` — **PUSH them now** (`git push`;

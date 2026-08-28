@@ -1084,3 +1084,72 @@ def test_a_lookalike_word_does_not_satisfy_the_marker():
     """Token match, not substring: `excerpted`/`no-excerpt` must not clear it."""
     cc = _cc()
     assert cc._unmarked_excerpts("```excerpted\nx\n...\n```\n") == 1
+
+
+# ── an archived plan whose Status still says work continues ──────────────────────────────────────
+# tryton-crm (2026-08-28): `git mv` moves INDEXED content, so their `Status: EXECUTED` flip stayed
+# unstaged and the plan archived as IN-PROGRESS. No gate could see it — `_check_plan` early-returns
+# unless the text claims CONVERGED, and the EXECUTED contract only binds plans that CLAIM EXECUTED,
+# so a plan stranded mid-flight is out of scope for both while the archive claims nothing is left.
+
+
+def _archived_repo(tmp_path, name: str, status: str | None):
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    d = tmp_path / "docs" / "development" / "plans" / "archived"
+    d.mkdir(parents=True)
+    body = f"# Plan\n\n{'Status: ' + status if status else '(no status line)'}\n\nwork\n"
+    (d / name).write_text(body, encoding="utf-8")
+    for args in (["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "a"]):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True)
+    # re-touch so it appears in git status (the check only reads CHANGED files)
+    (d / name).write_text(body + "\ntouched\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_an_archived_plan_still_in_progress_is_flagged(tmp_path):
+    cc = _cc()
+    root = _archived_repo(tmp_path, "2026-08-11-plan-1-quotation.md", "IN-PROGRESS")
+    fails = cc._archived_midflight(root)
+    assert fails and "archived while its own Status" in fails[0], fails
+
+
+def test_an_archived_executed_plan_is_clean(tmp_path):
+    cc = _cc()
+    root = _archived_repo(tmp_path, "2026-08-11-plan-1-done.md", "EXECUTED 2026-08-12")
+    assert cc._archived_midflight(root) == []
+
+
+def test_a_status_less_legacy_archived_plan_is_not_flagged(tmp_path):
+    """The narrowing that made this shippable. The filed proposal — 'flag any archived plan not
+    EXECUTED' — measured 348 of 553 archived docs fleet-wide, nearly all legacy shapes with no
+    Status line at all. A gate that cries wolf on landing gets noqa'd."""
+    cc = _cc()
+    root = _archived_repo(tmp_path, "2026-05-27-plan-legacy.md", None)
+    assert cc._archived_midflight(root) == []
+
+
+def test_a_ticket_file_in_an_archived_plan_set_is_not_flagged(tmp_path):
+    """T## tickets legitimately carry no plan Status; only the dated PLAN file is policed."""
+    cc = _cc()
+    root = _archived_repo(tmp_path, "T01-some-ticket.md", "IN-PROGRESS")
+    assert cc._archived_midflight(root) == []
+
+
+def test_a_broken_git_never_wedges_the_archived_check(tmp_path):
+    """No git repo at all — must return [], never raise, or a blocking gate dies on a bad cwd."""
+    cc = _cc()
+    assert cc._archived_midflight(tmp_path / "nowhere") == []
+
+
+def test_the_archived_check_is_wired_into_main_not_just_defined(tmp_path, capsys, monkeypatch):
+    """THE WIRING. Deleting `fails.extend(_archived_midflight(root))` from main() left all 65 tests
+    green — the helper was covered and its call site was not, so the check could ship unable to
+    fire. Third time this exact gap appeared today; asserting through main() is what closes it."""
+    cc = _cc()
+    root = _archived_repo(tmp_path, "2026-08-11-plan-1-wired.md", "IN-PROGRESS")
+    monkeypatch.setattr("sys.argv", ["check_convergence.py", "--project-root", str(root)])
+    rc = cc.main()
+    out = capsys.readouterr().out + capsys.readouterr().err
+    assert rc != 0 or "archived while its own Status" in out, (rc, out)

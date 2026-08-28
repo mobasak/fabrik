@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `git mv` silently archived a plan as IN-PROGRESS, and CLAUDE.md mandated a kwarg that raises (2026-08-28)
+
+- **The archive step dropped the EXECUTED flip** (`tryton-crm`, `01M12WGB3E`), reproduced here:
+  `git mv` moves the **INDEXED** content, so step 5's working-tree `Status: EXECUTED` edit does not
+  travel with the rename. The commit says `rename … (100%)` — the tell — and the plan archives as
+  `IN-PROGRESS`. **No gate could catch it:** `_check_plan` early-returns unless the text claims
+  CONVERGED, and the EXECUTED contract only binds plans that CLAIM EXECUTED, so a plan stranded
+  mid-flight is out of scope for both while the archive asserts nothing is left.
+- Both of their ranked fixes landed: `/fabrik-execute-plan` Finish step 6 now says to re-stage after
+  the move, and `check_convergence` flags an archived plan whose own Status is mid-flight.
+- **Their proposal was narrowed before shipping, and the measurement is why:** "flag any archived
+  plan not EXECUTED" hits **348 of 553** archived docs fleet-wide — legacy shapes and status-less
+  `T##` tickets, i.e. a gate that cries wolf on landing and gets `noqa`'d. Restricted to a dated
+  PLAN file with an EXPLICIT mid-flight status it measures **6 of 265**, one being their instance.
+- **`CLAUDE.md` mandated a kwarg `fanout` rejects.** § Pointers said a single-shot pool worker "must
+  set `allow_ungrounded=True`" — but `mode="read_only"` sets it for you (`agent.py:1125`) and passing
+  it raises `ValueError` (`:1188`). The guidance now says the explicit kwarg belongs only on a
+  hand-built `AgentSpec`.
+- A main()-level wiring test was added after removing the new check's call site left all 65 tests
+  green — the third time today a helper was covered while its call site was not.
+
+
 ### Fixed — /fabrik-rivals rendered a grounded Pricing-wedge finding as "none corroborated" (2026-08-28)
 
 - `youtube` hit it, `fabrik-lib` routed it with the decisive evidence: `PricingBlock.wedge` is a

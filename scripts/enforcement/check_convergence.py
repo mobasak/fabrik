@@ -461,6 +461,57 @@ def _head_text(root: Path, relpath: str) -> str:
         return ""
 
 
+# Archiving a plan IS the "nothing is left" act, so an archived plan whose own Status still says
+# work continues is a contradiction no other check can see: `_check_plan` early-returns unless the
+# text claims CONVERGED, and the EXECUTED contract only binds plans that CLAIM EXECUTED — so a plan
+# stranded at IN-PROGRESS is out of scope for both, and the gate stays green while the archive lies.
+# Filed by tryton-crm (2026-08-28) after `git mv` carried the INDEXED bytes and left their
+# `Status: EXECUTED` flip unstaged; the commit said `rename … (100%)` and nothing caught it.
+#
+# NARROWED from the filed proposal ("flag any archived plan not EXECUTED"), which measured 348 of
+# 553 archived docs fleet-wide — legacy shapes and status-less T## tickets, i.e. a gate that cries
+# wolf on landing. Restricted to a dated PLAN file carrying an EXPLICIT mid-flight status, it
+# measures 6 of 265, one of them the reported instance.
+_ARCHIVED_PLAN = re.compile(r"/archived/\d{4}-\d{2}-\d{2}-plan-[^/]*\.md$")
+_STATUS_LINE = re.compile(r"^\s*\**Status:\**\s*([A-Za-z][A-Za-z -]*)", re.M)
+_MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING"}
+
+
+def _archived_midflight(root: Path) -> list[str]:
+    """Archived PLAN files whose own Status still claims work is in flight."""
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all", "--", PLANS_DIR],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
+    except Exception:
+        return []
+    fails: list[str] = []
+    for line in out.splitlines():
+        if line[:2] == "??":
+            continue
+        rest = line[3:].strip()
+        dst = (rest.split(" -> ", 1)[1] if " -> " in rest else rest).strip().strip('"')
+        if not _ARCHIVED_PLAN.search("/" + dst.lstrip("/")):
+            continue
+        f = root / dst
+        if not f.is_file():
+            continue
+        m = _STATUS_LINE.search(
+            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))[:4000]
+        )
+        if m and m.group(1).strip().upper() in _MIDFLIGHT:
+            fails.append(
+                f"{dst}: archived while its own Status reads {m.group(1).strip()!r}. Archiving is "
+                "the 'nothing is left' act. If the EXECUTED flip was lost by `git mv` (it moves "
+                "INDEXED content, not your working tree), re-stage: `git add <the archived path>`"
+            )
+    return fails
+
+
 def _executed_targets(root: Path) -> list[Path]:
     """Plans whose EXECUTED claim is NEW this commit — those must carry the review citation.
 
@@ -714,6 +765,7 @@ def main() -> int:
         fails += _check_plan(root, p)
     for p in _executed_targets(root):
         fails += _check_executed_plan(root, p)
+    fails.extend(_archived_midflight(root))
     for p in _changed_md(root, REVIEWS_DIR):
         fails += _check_review(root, p)
 
