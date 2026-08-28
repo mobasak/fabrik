@@ -55,6 +55,27 @@ The pool is a **rule, not a roster: `pick_models(task_type)` returns the flywhee
 
 **The OpenRouter pool is the DEFAULT worker for gradeable text/code fan-out** — review finders, repo-review unit reviewers, doc reconcilers, rules-pack auditors, spec/plan research grounders, code implementers. **Route it through `fanout(task_type, units, *, repo, project, mode="read_only"|"write")`** — where **`repo=` is the project ROOT as an absolute path** (e.g. `repo="/opt/job-agent"`, NEVER a bare name: `repo="job-agent"` called from inside the repo silently nested every ledger/env path under `<root>/<name>/` until the module learned to refuse it — the flywheel rows recorded there were invisible to the gate) — the one-call helper that selects via `pick_models` (flywheel-ranked, family-diverse, NO default price cap), runs parallel-safe, **auto-records each unit to the flywheel UNSCORED**, and recovers a zero-output straggler once; then **back-fill your 0–5 verdict with `set_quality(agent_id, score, project=, task_type=, model=)`** after you judge — a `fanout` row left unscored teaches the flywheel nothing. `run_agents([AgentSpec, …])` is the lower-level primitive for a hand-tuned mix — then YOU owe `record_agent_run(spec, result)` + `results_table` per unit (§ Report every pool run). A single-shot (`tools_enabled=False`) **repo-grounded** worker (`task_type` `review`/`docs`/`plan` — they assert about code they can't see) must set `allow_ungrounded=True` to attest it inlined the content into `task`, or use `tools_enabled=True` for real file reads — the module **refuses** ungrounded single-shot verification (it hallucinates). **The attestation is only as good as the inline: VERIFY the inlined content actually resolved before dispatch** — a `[MISSING: <path>]` marker passed as "source" produced a full, confident, line-numbered fabrication of a file the model never saw (measured 2026-08-28: one model refused honestly in its first sentence, another invented status values, methods and a five-step trace — wrong in exactly the direction that plans the wrong fix). Enforced (not prose) by `scripts/enforcement/check_subagent_flywheel.py`.
 
+⚠️ **NEITHER MODE FITS A READ-ONLY REVIEWER OVER A LARGE FILE — know this before you dispatch.**
+Verified in `libs/subagents/agent.py` at HEAD: `read_only` sets `tools_enabled=False` (`:938`), so the
+unit CANNOT read files and you must INLINE the content — for a 1,950-line contract plus its siblings
+that is most of a context window before the reviewer has read anything. `write` gives real file reads
+but **requires a non-empty, disjoint `owned_paths` per unit** (`:1066`, an explicit raise) because it is
+built to return a DIFF. So a reviewer that CORRECTLY writes nothing returns an empty diff — and
+`AgentStatus` (`:48`) is `done | capped | error | out_of_scope`, with **no value distinguishing
+done-with-findings from done-with-nothing**. The run costs real money and reports success.
+
+Measured (transdoc, 2026-08-28): three dispatches, **~$0.18 for zero usable output**, nothing errored,
+ledger rows read `done`. Note the contrast that makes the gap obvious — the `capped` status DOES say
+*"the output/diff is PARTIAL … do NOT trust a capped diff"*, and that message was the only reason the
+third unit was distrusted. The empty-`done` case has no such signal.
+
+**Until the pool grows a read-only-with-file-reads mode, do NOT fan out a large-file review to the pool.**
+Either inline a BOUNDED extract (the section under review, not the whole contract) and accept
+`read_only`, or run that reviewer NATIVELY (`fabrik-reviewer`, which has real file reads) and keep the
+pool for units whose content genuinely fits inline. **And whichever you pick, treat an empty return as a
+FAILED unit, never a clean one** — check the output length before you score it, because the status will
+not tell you.
+
 **Native Claude Task subagents (`fabrik-*`, subscription-billed) are for GUI + the authoritative/high-risk pass + the decide/refute/merge.** GUI (`fabrik-gui`, browser MCPs — no pool equivalent); the authoritative line-precise verification (`fabrik-reviewer`/Opus on auth / schema / migrations / secrets / concurrency); and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (nothing to rank — that is by nature, not a gap).
 
 **⚠️ BOTH layers, never either/or — native is ADDED ON TOP of the pool breadth, not instead of it.** A *substantial* review / repo-review / rules-audit runs the **pool** breadth layer (`run_agents` finders — recall + they record) **AND** native `fabrik-reviewer` (Opus) for the auth/schema/migrations/secrets/concurrency slices + the decide/merge. "Native for the high-risk pass" does NOT mean native-**only**: a high-risk surface needs the pool breadth *plus* the native authoritative pass. Going all-native and skipping the pool layer lands **zero** flywheel rows (the flywheel learns nothing) — the exact miss `check_subagent_flywheel.py` advisory-WARNs (a big changed surface with no pool run). Trivial one-file reviews may run a single layer; anything substantial runs both.
