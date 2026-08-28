@@ -48,6 +48,8 @@ it (3 further issues) to a clean, md5-verified no-op. Two rounds, three finder d
 | — | (deployed → S3 HALT: `start-from-init` 03_default_instance rejected the alphanumeric admin password on `PasswordComplexityPolicy.HasSymbol`; rolled back per S-RB, DB dropped) | — | — | — |
 | R4-1 | BLOCKED re-entry: admin-password complexity fix (`ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${ZITADEL_ADMIN_PASSWORD}Aa1!"`, interpolation verified on the box); survivor audit (DB dropped, container removed, DNS/.env harmless); ⛔ S3 row ADJUDICATED | 1 | 1 | (BLOCKED) → f1a25bd9 |
 | R4-2 | confirming | 0 | 0 | f1a25bd9 → f1a25bd9 ✓ |
+| — | (re-deploy RUN 2 → S3 HALT: `up -d --wait` false-fails on health.disabled — no healthcheck to --wait on; registrars skipped. Fixed in the deployer 43ced0d3) | — | — | — |
+| R5-1 | deployer up--wait fix re-entry (plan/spec unchanged; `_compose_up` uses `up -d` + readiness poll for health.disabled); survivor audit clean (DB/container 0/0); RUN-2 ⛔ ADJUDICATED | 0 | 0 | 6a369c59 → 6a369c59 ✓ |
 
 Final round: found: 0, fixed: 0. The DNS correction is grounded (`fabrik apply`'s `_provision_dns` calls
 `DNSClient().add_subdomain("ocoron.com","auth","172.93.160.197")` — creates the record, not a manual step);

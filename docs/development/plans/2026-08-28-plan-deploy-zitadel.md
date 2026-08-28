@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: DRAFT — BLOCKED re-entry: deployer up--wait fix landed (43ced0d3), re-converging for the re-deploy
+Status: CONVERGED
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
