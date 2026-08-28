@@ -190,6 +190,29 @@ PROCESSING_DURATION = Histogram("processing_duration_seconds", "Time to process 
 Every Fabrik project ships with a pre-scaffolded GlitchTip / Sentry SDK init module.
 DO NOT create custom Sentry init code or use a different DSN library.
 
+### ⚠️ Two init flags are MANDATORY, and `send_default_pii=False` covers NEITHER
+
+Every `sentry_sdk.init` / `Sentry.init` in the fleet MUST set both:
+
+| Python | Node | Closes |
+|---|---|---|
+| `include_local_variables=False` | `includeLocalVariables: false` | frame LOCALS — the SDK default is `True`, so with `LoggingIntegration`'s ERROR level any `logger.error/exception` in a function holding a settings object ships its **repr**: `DATABASE_URL`, the JWT signing secret, everything |
+| `max_request_body_size="never"` | `maxRequestBodySize: 'never'` | the request BODY, attached irrespective of `send_default_pii` (that flag gates COOKIES). Every auth, payments-webhook and token-exchange route is exposed the moment it logs an error while handling its request |
+
+**A `before_send` denylist is NOT an acceptable substitute — it is the thing that already failed.**
+Sentry scrubs BY VARIABLE NAME: a live probe filtered a local named `token`, missed one named
+`code`, and could not see the signing secret at all because it sat inside a `Settings(...)` repr
+STRING, which name matching cannot look into (transdoc, 2026-08-28: a real one-time passcode and
+JWT secret reached GlitchTip from a scaffolded service). Both flags remove the data
+**structurally**; a denylist only removes the names somebody remembered.
+
+**Verify on the CAPTURED EVENT, never the init kwarg.** Swap the SDK transport in a test, make a
+real dependency raise, and assert on what the event actually contains — asserting the kwarg was
+passed proves you configured it, not that nothing leaks.
+
+⚠️ The scaffold emits both flags as of 2026-08-28. **A project scaffolded BEFORE that date still
+has the old init** — grep your own `glitchtip_init.*` and add them; nothing back-fills it.
+
 **Python projects** (`python-api`, `file-worker`):
 
 - Module: `src/{package}/glitchtip_init.py` — `init_glitchtip()` with `FastApiIntegration`

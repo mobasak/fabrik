@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 55-observability now mandates the two Sentry flags that stop secrets reaching GlitchTip (2026-08-28)
+
+- `transdoc` proved, against a running app, that a scaffolded service ships the JWT signing secret,
+  the DB DSN and a live one-time passcode to GlitchTip on any handled ERROR log — then **corrected
+  their own filing** to add the second, broader channel.
+- **`send_default_pii=False` closes NEITHER.** Frame LOCALS are on by default (any
+  `logger.error/exception` near a settings object ships its repr); the request BODY is attached
+  irrespective of that flag, which gates cookies only — so every auth, payments-webhook and
+  token-exchange route is exposed the moment it logs an error. The pack now requires
+  `include_local_variables=False` **and** `max_request_body_size="never"` (Node equivalents too).
+- **A `before_send` denylist is explicitly rejected**, because it is what already failed: Sentry
+  scrubs BY VARIABLE NAME — it filtered a local named `token`, missed one named `code`, and could
+  not see the secret inside a `Settings(...)` repr string. Both flags remove the data structurally.
+- Also carried in: verify on the CAPTURED EVENT, never the init kwarg.
+- **Beat split:** the scaffold emitter (`src/fabrik/scaffold.py`) is fleet's surface — routed there
+  with the analysis, not edited here. Measured and handed over: **17 of 18** scaffolded
+  `glitchtip_init.py` on the box still carry the vulnerable init; the scaffold fix does not
+  back-fill them.
+
+
 ### Added — a run advancing phases with ZERO rounds recorded now says so (2026-08-28)
 
 - `job-agent` filed a proposal, then **corrected their own filing**: the oscillation advisory had
