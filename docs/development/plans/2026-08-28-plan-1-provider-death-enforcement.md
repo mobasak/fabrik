@@ -1,6 +1,6 @@
 # Plan 1 — Provider-death resilience: the ENFORCEMENT half (infra)
 
-Status: PLANNED
+Status: CONVERGED
 
 **Spec:** `docs/superpowers/specs/2026-08-28-provider-death-resilience-design.md` (CONVERGED 2b5b45db,
 operator-approved 2026-08-28). **Origin:** operator directive via youtube `01M13YXMCCNS` (acked), plus
@@ -48,6 +48,15 @@ exactly the kind `/fabrik-plan-after-chat` forbids. The default the executor app
 If fleet acks and agrees, a follow-up edit drops that sentence. If fleet disagrees, the disagreement is
 already visible in both artifacts. **Phase A is unaffected either way** — it touches no statement of the
 standard.
+
+**The cost of that default, stated rather than glossed.** Until `01M14E2VZM` is answered, a project on the
+gateway path can read fleet's §3b and this rule and get two different instructions: §3b says build the
+probe, the rule says declare which gateway mechanism you rely on. That is a real, temporary inconsistency
+in fleet-wide governance and it is the price of not blocking. It is the right price — §3b as written sends
+19 of 26 measured repos to re-implement their gateway, and waiting silently would leave that live and
+undocumented — but it is a cost, not a free choice, and the executor should not pretend otherwise. Verified
+this is genuinely a no-stop default: every sentence Phase B writes is determined by the CONVERGED spec, so
+nothing in it needs fleet's answer to be written; only the divergence sentence's eventual removal does.
 
 ## Context Ledger
 
@@ -100,8 +109,8 @@ HARD STOP — read only), any `specs/services/*.yaml`.
 
 ## Behavior Contract
 
-Prose-rule changes are largely untestable by design — but three rows here are mechanically assertable, and
-one of them would have caught C1b before a human ever noticed it.
+Prose-rule changes are largely untestable by design — but all four rows here are mechanically assertable,
+and the first would have caught C1b before a human ever noticed it.
 
 - **Given** the live `scaffold.py::SCAFFOLD_TYPES` registry (12 entries) and `58-resilience.md`'s
   Per-Scaffold Applicability matrix, **When** `tests/test_rule_pack_scaffold_coverage.py` compares the
@@ -122,6 +131,14 @@ one of them would have caught C1b before a human ever noticed it.
 
 The first two rows are the anti-regression value of this plan: C1b existed because nothing compared the
 matrix to the registry, and that is a two-line assertion.
+
+**⚠️ What this test does NOT do.** `test_rule_pack_scaffold_coverage.py` mechanically enforces the
+**corpus's internal consistency** — that the rule packs cover every scaffold type and that the worked
+example is not self-defeating. It enforces **nothing about whether any project complies with the
+standard**. Those are different claims and conflating them is exactly the "rule naming enforcement that
+does not exist" defect. Project compliance is prose-enforced at the planning phase (spec § Enforcement),
+and the one honest mechanical promotion target is deferred until fleet's §3b has landed long enough to be
+measured against.
 
 ## Phase A — C1 + C1b: stop the corpus teaching the failure
 
@@ -149,7 +166,12 @@ with the mutation asserted on disk.
 
 ## Phase B — C2: the missing failure class, as a ladder row
 
-**Depends on:** Phase A (same files touched for `58-resilience`; sequential avoids a self-conflict).
+**Depends on:** Phase A — but **not for the reason a file-overlap suggests**. Both phases touch
+`58-resilience.md`, yet in different sections (A: the matrix at `:23-35`; B: Banned Patterns at `:339` plus
+a new section), and this plan runs single-agent with no pool dispatch, so there is no concurrent-edit
+conflict to avoid. The real dependency is **content**: Phase A's corrected `76-gpu-workers` example and
+Phase B's rule text both state the standard, and B must be written against A's corrected wording or the two
+packs will disagree. Stating a file-conflict reason would have been a fake dependency.
 
 **Steps**
 
@@ -192,11 +214,81 @@ both packs ACTIVE (a malformed frontmatter/table silently drops a pack).
 
 **Evidence owed:** verbatim `--check` output before and after the render, and the corpus check.
 
+## Coverage Checklist
+
+Derived from `python scripts/review_rubric.py --changed <the 6 File-Scope paths>`, run this session. Every
+class swept to a verdict; convergence means this table is complete, not that nothing further occurred to
+the reviewer.
+
+| # | Class | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Context Ledger `path:line` grounding | CLEAN | Every citation re-opened this session: `76-gpu-workers:117-120` (static 2-rung), `:126` (transport-only `except`), `:133` (per-provider sentence); `58-resilience:23-35` + `:339`; `self-healing:29-39` (9 rows counted), `:51`, `:54`. See § Evidence. |
+| 2 | READ-budget → plan SHAPE | CLEAN | Re-run with **stderr captured and empty** → 153,977 B < 262,144. Monolith is correct; a silent `find` miscount would have wrongly justified it. |
+| 3 | Watched-fail-first not vacuous | CLEAN | Both Phase-A assertions proven genuinely RED today: matrix 11 rows vs registry 12, missing exactly `python-api-gpu`; `grep -c HTTPStatusError` → **0**. |
+| 4 | Fake dependency / needless serialisation | **FIXED** | Phase B's stated reason was a file-overlap self-conflict — false for a single-agent run. Corrected to the real **content** dependency. |
+| 5 | Deferred-question landmine (`[OPEN → resolve at Phase N]`) | **FIXED** | Verified Phase B is executable end-to-end without fleet's ack; the cost of the divergence is now stated rather than glossed. |
+| 6 | Enforcement overclaim | **FIXED** | Added the explicit note that the new test enforces **corpus consistency**, not project compliance — conflating them is the `oasdiff` defect. |
+| 7 | Internal consistency | **FIXED** | "three rows" vs four Given/When/Then rows. |
+| 8 | Required monolith sections | CLEAN | Context Ledger · File Scope · Evidence · Behavior Contract · Global Constraints — all present, one each. |
+| 9 | Placeholders / "100%" / unknowns overclaim | CLEAN | `grep` for `TBD\|TODO\|FIXME\|100%\|zero unknowns` → no hits. |
+| 10 | Governance-sync blast radius | CLEAN | Both surfaces named in § Global Constraints with the 12-type correctness bar and the render-from-MAIN rule. |
+| 11 | Cross-repo HARD STOP | CLEAN | `templates/scaffold/**`, `/opt/fabrik-lib/**`, `/opt/youtube/**` all in § File Scope DO-NOT. |
+| 12 | Prose-only = under-delivery? | REFUTED | Not under-delivery: the planning phase has no artifact a mechanical check can read but the plan prose itself, and `.windsurf/rules` + the review rubrics ARE that surface. The one honest mechanical target is named and deferred with its measurement precondition. |
+| 13 | Rubric FLOOR (35-security-auth, 25-data-postgres, 30-ops, 12-Factor) | REFUTED | No auth, DB, container, port, secret or service surface — this plan edits three markdown rule packs, two command sources, and one test. |
+
+## Self-audit
+
+- **Passes:** 3 (1 wide → 1 scoped fix → 1 wide closing). Terminal pass `edits: 0`, `new: 0`,
+  md5 `a0bbe60d229ecd376d2614ad3c87c477` stable start→end.
+- **What I could NOT verify and am not claiming:** that fleet will accept the three §3b findings; that
+  `health-probe/`'s interface admits the C4 helper (spec U1, cross-repo, filed as `01M14E3MWN`). Both are
+  recorded as non-blocking in § Open / blocking unknowns, and neither gates any phase in this plan.
+- **Weakest part of this plan, named:** Phase B and C are prose edits whose *quality* no gate can measure.
+  Rows 3–4 of the Behavior Contract prove the corpus still RENDERS and its predicates pass; nothing proves
+  the sentences are good. That is inherent to a prose standard and is why the spec's § Enforcement is
+  explicit about what is and is not mechanically enforced.
+- **Not claimed:** "100%", "zero unknowns", or that this plan makes any project compliant with the standard.
+
 ## Evidence
 
-Each phase above carries an **Evidence owed** line; the executor pastes real command output into this
-section as it goes, per phase, with at least one `path:line` and one fenced output block each. This section
-is deliberately empty until execution — a pre-filled Evidence block is a fabricated one.
+Convergence evidence for the PLAN (produced this session by `/fabrik-plan-review`). Execution evidence is
+appended per phase by `/fabrik-execute-plan` against each phase's **Evidence owed** line — a pre-filled
+execution block would be a fabricated one.
+
+Registry vs matrix, and the failover `except` — the two watched-fail-first claims, proven RED:
+
+```
+$ python -c "…compare 58-resilience matrix rows to scaffold.py::SCAFFOLD_TYPES…"
+registry types: 12
+matrix rows   : 11
+MISSING       : ['python-api-gpu']
+EXTRA         : []
+
+$ sed -n '126p' .windsurf/rules/core/76-gpu-workers.md
+        except (httpx.TimeoutException, httpx.ConnectError):
+$ grep -c "HTTPStatusError" .windsurf/rules/core/76-gpu-workers.md
+0
+```
+
+READ budget with stderr captured (an unchecked `find` stderr is how a bad path silently under-counts and
+wrongly justifies a monolith):
+
+```
+$ find <the 6 File-Scope + Context paths> -type f -exec cat {} + 2>find.err | wc -c
+153977
+$ cat find.err
+[empty]
+```
+
+Self-healing `:51` — proof the existing deadman is an ACK-timeout and therefore does NOT cover this failure
+class, which Phase B step 2 depends on being true:
+
+```
+$ sed -n '51p' .windsurf/rules/core/self-healing.md
+- **Tier C (escalate-only):** … Deadman timer rearms; if operator doesn't ack within
+  `WatchdogConfig.deadman_timeout_seconds` (default 300), the watchdog runs `docker restart
+  <main_container>` as bleed-stop and re-alerts with `[DEADMAN-TIMEOUT]`.
+```
 
 ## Open / blocking unknowns
 
