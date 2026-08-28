@@ -216,6 +216,8 @@ both packs ACTIVE (a malformed frontmatter/table silently drops a pack).
 **Gate:** `assemble_commands.py --check` → `check OK`; `check_command_corpus.py` → `rc=0`;
 `final_gate.py --json` → `success`.
 
+**✅ EXECUTED** — see § Evidence · Phase C.
+
 **Evidence owed:** verbatim `--check` output before and after the render, and the corpus check.
 
 ## Coverage Checklist
@@ -384,3 +386,40 @@ gate: success | failures: 0
 provenance — the same undefined-symbol criticism I levelled at the original's `call_provider`. It now
 carries a comment naming what it does, where to vendor it from (`fabrik-lib/health-probe/`), and when NOT
 to hand-roll it.
+
+
+### Evidence · Phase C (executed 2026-08-28)
+
+Rubric rows added at `commands/_sources/fabrik-spec-review.md` (§E, after "Other mandates") and
+`commands/_sources/fabrik-plan-review.md` (structural pillars). **Both state in the row itself that they
+are graded by an LLM reading the design and that no mechanical check exists** — the plan's § Enforcement
+requires that, and it is the difference between a rubric row and the `oasdiff` defect.
+
+Render performed from `/opt/fabrik` (MAIN checkout — `pwd` verified before rendering; the renderer PRUNES
+installed commands absent from the current tree, so a worktree render would delete master-only artifacts
+box-wide). `--check` was run BEFORE (clean), after the source edits (correctly reported the drift it
+should), and again after the real render:
+
+```
+$ pwd
+/opt/fabrik
+$ python commands/assemble_commands.py --check          # before edits
+check OK — installed commands + skills match rendered sources
+
+$ python commands/assemble_commands.py --check          # after source edits — drift EXPECTED
+ - fabrik-plan-review.md: HAND-EDITED (20 diff lines)
+ - fabrik-spec-review.md: HAND-EDITED (22 diff lines)
+
+$ python commands/assemble_commands.py                  # the real render, from MAIN
+rendered 31 commands -> /home/ozgur/.claude/commands + 31 skills + 4 agents
+
+$ python commands/assemble_commands.py --check          # after
+check OK — installed commands + skills match rendered sources
+
+$ python scripts/enforcement/check_command_corpus.py
+✓ command corpus: web-tool names, chain targets, script paths, trailer models, run records,
+  agent definitions, advertised closes — all sound across 47 corpus file(s)   (rc=0)
+
+$ python scripts/final_gate.py --json
+gate: success | failures: 0
+```

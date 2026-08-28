@@ -103,6 +103,17 @@ items. Treat every claim as unproven until verified against the actual code and 
 
 Also verify the plan's **structural pillars** are present and sound (add/fix any that are missing):
 
+- **Provider-death handling, when the plan steps an unattended external-dependency loop.** If any phase
+  builds a loop whose forward progress depends on a third party (an LLM chain, a paid API, an ingest
+  worker), the plan must step all three outcomes from `58-resilience.md` § Provider-death resilience:
+  no single point of death in the chain · a last rung that is actually **exercised** · an alarm on **zero
+  forward progress**. A plan that steps timeout + retry + backoff + circuit-breaker and none of these is a
+  **DEFECT** — those heal a transient fault, while a permanent provider death needs a SWAP no retry loop
+  can make, and a stall with no progress alarm is invisible for as long as it lasts (measured live: 8h).
+  Catch the two disguises: "we use OpenRouter" without naming WHICH mechanism (pinning `sort`/`order`
+  turns off the outage-aware routing being claimed), and a fallback ladder with an untested bottom rung.
+  ⚠️ **You grade this by reading the plan — no mechanical check exists for it**, by design; never report
+  it as gate-enforced.
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real
   API), every touched `agents-fabrik.md` invariant (`AGENTS.md` is a stub) + `shape.*` flag is listed and grounded.
 - **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing — **except the

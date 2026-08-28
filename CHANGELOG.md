@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Provider-death resilience: the enforcement half of an operator-instructed standard (2026-08-28)
+
+- **The corpus was teaching the pattern that failed.** `.windsurf/rules/core/76-gpu-workers.md`
+  § Provider Failover shipped a worked example reproducing youtube's 8h zero-progress stall: a static
+  two-rung `INFERENCE_CHAIN` with one model per provider (no intra-provider diversity), an `except`
+  catching only `httpx.TimeoutException`/`ConnectError` — so an `http_402` billing-gate did **not** fail
+  over in either branch of the undefined `call_provider` — and a mandated per-*provider* circuit breaker,
+  the wrong resolution for a model-specific death. All three corrected.
+- **`58-resilience.md` gains § Provider-death resilience**, stated as three OUTCOMES with the mechanism
+  chosen by ROUTE rather than three mandated mechanisms. Measured across 43 repos: 26 carry an unattended
+  external-dependency loop and **19 of those route only through OpenRouter**, where hand-rolling a probe
+  re-implements the gateway. Carries the trap only the raw docs show — `sort`/`order` disables load
+  balancing, and outage-aware routing is step 1 *of* load balancing, so pinning a provider silently opts
+  you out of the protection you believe you have.
+- **`self-healing.md` gains ladder row 10** (provider death / silent stall), per that pack's own mandate
+  that a new failure class becomes a row before any response logic — plus the paragraph distinguishing it
+  from the existing Tier-C deadman, which measures *operator silence* and arms only after an alert exists.
+  youtube's loop raised no alert, so the deadman never armed.
+- **`58-resilience.md` Per-Scaffold matrix gains `python-api-gpu`** — it carried 11 rows against the
+  registry's 12 `SCAFFOLD_TYPES`, and the missing one was the single type whose purpose is inference.
+- **`/fabrik-spec-review` §E and `/fabrik-plan-review`** gain a provider-death / silent-stall DEFECT row.
+  Both state explicitly that they are graded by an LLM reading the design — **no mechanical check exists**,
+  deliberately, since a gate firing at 60% fleet incidence is advisory wallpaper.
+- **`tests/test_rule_pack_scaffold_coverage.py`** closes the class that let two of these hide: nothing
+  compared the rule matrix to the live registry, and nothing graded the worked example. Three assertions,
+  all watched RED first and proven red-on-revert. It enforces the **corpus's internal consistency**, not
+  any project's compliance.
+- Spec `docs/superpowers/specs/2026-08-28-provider-death-resilience-design.md`; plan
+  `docs/development/plans/2026-08-28-plan-1-provider-death-enforcement.md`. Scaffold-template half shipped
+  by fleet (`2ec405d4`); the `health-probe/` helper is filed to fabrik-lib (`01M14E3MWN`).
+
 ### Added — Scaffold RESILIENCE.md template mandates provider-death resilience for unattended external-dependency loops (2026-08-28)
 
 - `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` — new mandatory §3b requiring the three mechanisms for any

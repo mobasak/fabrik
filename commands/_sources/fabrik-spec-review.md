@@ -116,6 +116,19 @@ retry/backoff + circuit-breaker + fallback; `/health` tests REAL deps) · **obse
 `/metrics`, never behind auth) · **abuse detection** for a SaaS free tier · **watchdog + cost-budget** for any
 unattended paid-LLM loop · **shape contract** (code matches `shape:`).
 
+**Provider-death / silent-stall — a DEFECT row, because retry/backoff reads as resilience and is not.**
+If the design has an **unattended loop over an external dependency** (an LLM chain, a paid API a backfill
+hammers, any job whose progress depends on a third party), it must state how it satisfies all three of
+`58-resilience.md` § Provider-death resilience: **(1)** no single point of death in the chain, **(2)** a
+last rung that is actually **exercised**, **(3)** an alarm on **zero forward progress**. A design carrying
+timeout + retry + backoff + circuit-breaker and *none* of these is a **DEFECT, not a gap** — those four
+heal a TRANSIENT fault; a permanent provider death needs a SWAP no retry loop can make. Two specific
+things to catch: a design that says "we use OpenRouter" without naming WHICH mechanism (pinning `sort`/
+`order` disables the outage-aware routing it is claiming), and a fallback ladder whose bottom rung has
+never been run. ⚠️ **This row is graded by YOU reading the design — there is no mechanical check for it**,
+deliberately (measured 60% fleet incidence would make one advisory wallpaper). Do not report it as
+gate-enforced.
+
 **⚠️ The specific trap this axis exists to catch:** the 1c research gate makes the spec *more* likely to carry a
 confidently-cited, genuinely-current best practice that is **illegal here** — a Stripe integration with a perfect
 source URL. **A well-cited approach that violates a hard constraint is WORSE than an ungrounded one.** Check the
