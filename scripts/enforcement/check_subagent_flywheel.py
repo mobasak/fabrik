@@ -312,26 +312,52 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         return
     if not unrecorded:
         return
+
     # Name the CAUSE when it is the environment, not the agent: a repo whose .env carries no
     # SUBAGENT_RUNS_DSN cannot record ANY run — record_agent_run fail-opens False silently, so
     # every dispatch lands here and score() later refuses with a misleading "project=None"
     # (job-agent 01M12K8RRD; fleet survey 2026-08-28: the DSN is provisioned in some repos,
     # absent in others). Telling the agent to "score each run" in that state is unactionable.
-    env_file = PROJECT_ROOT / ".env"
-    try:
-        # lstrip("﻿"): a BOM-prefixed line broke startswith and read a provisioned
-        # repo as unrecordable (review round 1). The process-env check honors a DSN that
-        # arrives via CI/secrets-manager with a deliberately clean .env — either source
-        # makes the runs recordable, so either suppresses the absent-DSN claim.
-        has_dsn = bool(os.environ.get("SUBAGENT_RUNS_DSN", "").strip()) or (
-            env_file.exists()
-            and any(
+    # The DSN is recordable if it resolves via ANY layer the runtime's load_env() honors, in its
+    # precedence order: process env → the repo .env (nearest, walking up) → the fleet-wide USER-level
+    # file (~/.config/fabrik/subagents.env, or $SUBAGENTS_ENV_FILE). The last layer is the one this
+    # check used to MISS: a repo with a clean .env still records because the operator set the DSN once
+    # in the shared file (_dotenv.py: "set it there ONCE and EVERY project's pool picks it up"). Omitting
+    # it made this advisory fire "UNRECORDABLE — ask infra" at every fallback-provisioned repo — a false
+    # alarm that cost a cross-agent finding (intel 01M12SZVRD, 2026-08-28: transdoc has no .env yet 64
+    # rows recorded that day via the fallback). We reuse the module's OWN path resolver so the check and
+    # the runtime can never drift on where the shared file lives.
+    def _dsn_in_env_file(path) -> bool:
+        try:
+            # lstrip("﻿"): a BOM-prefixed line broke startswith and read a provisioned repo as
+            # unrecordable (review round 1).
+            return any(
                 line.lstrip("﻿").startswith("SUBAGENT_RUNS_DSN=") and line.split("=", 1)[1].strip()
-                for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines()
+                for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
             )
-        )
-    except OSError:
-        has_dsn = True  # unreadable .env proves nothing — keep the generic message
+        except OSError:
+            return True  # unreadable file proves nothing — do not claim absence
+
+    # Resolve the fleet-wide file inline — mirrors libs/subagents/_dotenv.py::_shared_env_path
+    # ($SUBAGENTS_ENV_FILE override, else ${XDG_CONFIG_HOME:-~/.config}/fabrik/subagents.env). Inlined,
+    # not imported, on purpose: this enforcement check must not hard-depend on the runtime package being
+    # importable (the flywheel tests mock libs.subagents), and the path convention is stable.
+    shared = None
+    try:
+        override = os.environ.get("SUBAGENTS_ENV_FILE")
+        if override:
+            shared = Path(override)
+        else:
+            xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+            shared = Path(xdg) / "fabrik" / "subagents.env"
+    except (KeyError, RuntimeError):  # HOME unset + no passwd entry (minimal container) → skip layer
+        shared = None
+    env_file = PROJECT_ROOT / ".env"
+    has_dsn = (
+        bool(os.environ.get("SUBAGENT_RUNS_DSN", "").strip())
+        or (env_file.exists() and _dsn_in_env_file(env_file))
+        or (shared is not None and shared.is_file() and _dsn_in_env_file(shared))
+    )
     if not has_dsn:
         print(
             f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) are UNRECORDABLE, not "

@@ -393,10 +393,41 @@ def test_unrecorded_warn_names_the_absent_dsn_when_that_is_the_cause(tmp_path, m
     # hermetic: the hub test process itself may carry a real DSN (conftest/.env autoload),
     # and the check honors the process env by design — clear it so ABSENT is actually absent
     monkeypatch.delenv("SUBAGENT_RUNS_DSN", raising=False)
+    # hermetic against the FLEET-WIDE fallback too: the real ~/.config/fabrik/subagents.env on
+    # this box carries the DSN, and the check now honors it (as the runtime does) — point the
+    # resolver at a nonexistent file so "absent" means absent across every layer.
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(tmp_path / "no-such-shared.env"))
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
     assert "SUBAGENT_RUNS_DSN" in out, f"the absent-DSN cause must be named:\n{out}"
     assert "cannot record" in out.lower() or "unrecordable" in out.lower()
+
+
+def test_shared_fallback_dsn_suppresses_unrecordable(tmp_path, monkeypatch, capsys):
+    """intel 01M12SZVRD (2026-08-28): the advisory read ONLY the process env + the repo .env, so a
+    repo with a clean .env that records fine via the fleet-wide ~/.config/fabrik/subagents.env
+    fallback (what load_env actually honors) was falsely told "UNRECORDABLE — ask infra". That false
+    alarm cost a cross-agent finding. When the DSN resolves via the shared file, the advisory MUST NOT
+    claim the runs are unrecordable — it keeps the generic "ran but never scored" message."""
+    import types
+
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    (root / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")  # clean .env — no DSN
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.delenv("SUBAGENT_RUNS_DSN", raising=False)  # not in process env either
+    shared = tmp_path / "subagents.env"  # the operator's fleet-wide file DOES carry the DSN
+    shared.write_text("SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics\n", encoding="utf-8")
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(shared))
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "UNRECORDABLE" not in out, f"shared-file DSN not honored — false unrecordable claim:\n{out}"
 
 
 def test_dsn_detection_survives_bom_and_honors_process_env(tmp_path, monkeypatch, capsys):

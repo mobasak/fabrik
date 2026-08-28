@@ -4,7 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — `git mv` silently archived a plan as IN-PROGRESS, and CLAUDE.md mandated a kwarg that raises (2026-08-28)
+### Fixed — Flywheel advisory now honors the fleet-wide DSN fallback; a false "UNRECORDABLE" cost a cross-agent finding (2026-08-28)
+
+- `scripts/enforcement/check_subagent_flywheel.py` (`_warn_unrecorded`): the "runs are UNRECORDABLE —
+  provision the DSN, ask infra" advisory computed `has_dsn` from **only** the process env + the repo
+  `.env`. But the runtime's `load_env` (`libs/subagents/_dotenv.py`) also honors a **fleet-wide USER-level
+  file** — `~/.config/fabrik/subagents.env` (or `$SUBAGENTS_ENV_FILE`) — where the operator sets
+  `SUBAGENT_RUNS_DSN` **once** and every repo inherits it with no per-`.env` edit. The check missed that
+  layer, so it fired "UNRECORDABLE — ask infra" at every fallback-provisioned repo. That false alarm
+  produced a real cross-agent finding (intel `01M12SZVRD`): a fleet survey grepped repo `.env` files,
+  saw no DSN, and concluded the flywheel was unrecordable — while `transdoc` (no repo `.env`) had **64
+  rows recorded that same day** via the fallback. The advisory now checks all three layers in `load_env`
+  precedence order (process env → repo `.env` → shared file), resolving the shared path inline (mirrors
+  `_dotenv._shared_env_path`; inlined so the enforcement check never hard-depends on the runtime package
+  being importable). Governance-synced — the fix distributes to every project's copy. Red-on-revert-proven
+  test in `test_check_subagent_flywheel.py`.
 
 - **The archive step dropped the EXECUTED flip** (`tryton-crm`, `01M12WGB3E`), reproduced here:
   `git mv` moves the **INDEXED** content, so step 5's working-tree `Status: EXECUTED` edit does not
