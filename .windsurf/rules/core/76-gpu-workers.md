@@ -112,25 +112,50 @@ For interactive workloads (chat, autocomplete, streaming):
 
 ### Provider Failover
 
+**A provider death is not a blip.** Retry/backoff/circuit-breaker all heal a *transient* fault. A model
+that is gone for this whole run needs a **SWAP**, which no retry loop is empowered to make. The chain
+below therefore needs **two kinds of diversity** — and an `except` that catches the errors a dead free
+tier actually returns.
+
 ```python
-# Resilience: primary → fallback → graceful degradation
-INFERENCE_CHAIN = [
-    {"provider": "groq", "model": "llama-3.3-70b-versatile"},
+# Quality-ordered candidates. INTRA-provider diversity (a single model can die while its
+# siblings stay up) AND cross-provider diversity (a whole provider can go down).
+INFERENCE_CANDIDATES = [
+    {"provider": "groq",     "model": "llama-3.3-70b-versatile"},
+    {"provider": "groq",     "model": "llama-3.1-8b-instant"},          # same provider, live sibling
     {"provider": "together", "model": "meta-llama/Llama-4-Maverick-17B-128E"},
 ]
 
 async def infer_with_failover(messages: list[dict]) -> str:
-    for route in INFERENCE_CHAIN:
+    for route in healthy_chain(INFERENCE_CANDIDATES):   # probed once at run start, not per item
         try:
             return await call_provider(route, messages, timeout=30.0)
         except (httpx.TimeoutException, httpx.ConnectError):
-            logger.warning("provider_failover", failed=route["provider"])
-            continue
-    return FALLBACK_RESPONSE  # graceful degradation
+            reason = "transport"
+        except httpx.HTTPStatusError as e:
+            # ⚠️ The clause this example lacked until 2026-08-28. A free tier that goes
+            # billing-gated returns 402; quota returns 429. Both are HTTPStatusError, so a
+            # transport-only except let them PROPAGATE — the remaining rungs were never tried
+            # and the documented failover did not fail over. Retry 5xx; SWAP on 402/403/429.
+            if e.response.status_code < 500 and e.response.status_code not in (402, 403, 429):
+                raise                                   # a real client error: don't mask it
+            reason = f"http_{e.response.status_code}"
+        logger.warning("provider_failover", failed=route["provider"], model=route["model"], reason=reason)
+    return FALLBACK_RESPONSE  # graceful degradation — and it must be an EXERCISED path (below)
 ```
 
 - Every provider in the chain must have a row in `docs/RESILIENCE.md` §2a.
-- Circuit-breaker per provider (not per model) — if Groq is down, don't keep trying Groq.
+- **Circuit-breaker per `(provider, model)`, not per provider.** A per-provider breaker is the wrong
+  resolution for a model-specific death: it writes off live capacity and hides the real failure. Live
+  incident (youtube, 2026-08-28): the primary free model went ReadTimeout-down **while other free models
+  of the same provider stayed up**, and a provider-level view could not see the difference.
+- **Exercise the last rung on a schedule.** An untested fallback is a silently-dead fallback — the same
+  incident's last-resort had an expired credential nobody had run in weeks, so the chain was one rung
+  shorter than its author believed. Prove the SWAP, not just the retry: a test that only asserts backoff
+  fires certifies nothing about provider death.
+- **Routing through OpenRouter?** Then `healthy_chain()` is largely the gateway's job, not yours — see
+  `58-resilience.md` § Provider-death resilience for which outcomes you owe on which route, and for the
+  `sort`/`order` trap that silently opts you out of it.
 
 ### Health Endpoint
 

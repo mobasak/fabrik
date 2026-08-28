@@ -1,0 +1,17 @@
+{
+  "plan": "2026-08-28-plan-1-provider-death-enforcement",
+  "owned_paths": [
+    ".windsurf/rules/core/76-gpu-workers.md",
+    ".windsurf/rules/core/58-resilience.md",
+    ".windsurf/rules/core/self-healing.md",
+    "commands/_sources/fabrik-spec-review.md",
+    "commands/_sources/fabrik-plan-review.md",
+    "tests/test_rule_pack_scaffold_coverage.py",
+    "CHANGELOG.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-28T14:40:00Z",
+  "status": "active",
+  "baseline_commit": "7fbc2b6d",
+  "baseline_gate": "final_gate.py --lean --json = success, 0 failures — no pre-existing red on any owned path; a red at Finish is therefore MINE"
+}

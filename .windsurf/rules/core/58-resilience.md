@@ -23,6 +23,7 @@ Not every scaffold needs the full autonomous pipeline. This matrix defines what 
 | Scaffold | Basic resilience (timeout/retry/CB) | `/health` with dep checks | `docs/RESILIENCE.md` | Pause-state pipeline | Queue-bloat prevention |
 |---|---|---|---|---|---|
 | `python-api` | Yes — every external call | Yes (scaffolded) | Yes | Only if async jobs exist | Only if async jobs exist |
+| `python-api-gpu` | Yes — **and provider-death handling is mandatory** (§ Provider-death resilience; `76-gpu-workers.md` § Provider Failover) | Yes (scaffolded) + report per-provider status | Yes | Yes (inference jobs queue) | Yes |
 | `node-api` | Yes — every external call | Yes (scaffolded) | Yes | Only if async jobs exist | Only if async jobs exist |
 | `file-api` | Yes — every external call | Yes (scaffolded) | Yes | Yes (processes files) | Yes |
 | `file-worker` | Yes — every external call | Yes (scaffolded) | Yes | Yes (core pattern) | Yes (all 5 mechanisms) |

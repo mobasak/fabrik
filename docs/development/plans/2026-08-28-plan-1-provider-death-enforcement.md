@@ -161,6 +161,8 @@ Independent of the divergence and of every other phase. Highest value: it remove
 
 **Gate:** `python -m pytest tests/test_rule_pack_scaffold_coverage.py -q` green + `python scripts/final_gate.py --json` → `success`.
 
+**✅ EXECUTED** — see § Evidence · Phase A.
+
 **Evidence owed:** the red-first output before the fix, the green after, and the red-on-revert transcript
 with the mutation asserted on disk.
 
@@ -300,3 +302,52 @@ $ sed -n '51p' .windsurf/rules/core/self-healing.md
 ## Next
 
 `/fabrik-plan-review` to converge this plan, then `/fabrik-execute-plan`.
+
+
+### Evidence · Phase A (executed 2026-08-28)
+
+Test written FIRST; all three assertions watched RED before either rule pack was touched:
+
+```
+$ python -m pytest tests/test_rule_pack_scaffold_coverage.py -q
+FAILED …::test_every_scaffold_type_has_a_resilience_row
+FAILED …::test_provider_failover_example_handles_http_status_errors
+FAILED …::test_provider_failover_breaker_granularity_is_per_model
+3 failed in 0.19s
+```
+
+Fixes at `path:line` — `.windsurf/rules/core/76-gpu-workers.md` § Provider Failover (candidate list gains
+an intra-provider live sibling; the failover now catches `httpx.HTTPStatusError` and SWAPs on 402/403/429
+while re-raising a genuine client error; breaker granularity corrected to per-`(provider, model)`), and
+`.windsurf/rules/core/58-resilience.md` Per-Scaffold matrix gains the `python-api-gpu` row.
+
+```
+$ python -m pytest tests/test_rule_pack_scaffold_coverage.py -q
+3 passed in 0.30s
+```
+
+**A defect in my own test, caught by the fix.** The first green run still failed the `except` assertion:
+the regex matched only PARENTHESIZED except clauses, and the new `except httpx.HTTPStatusError as e:` is
+unparenthesized — a false negative on correct code. The regex now grades every clause in the section, and
+the widened form was re-proven red against the original file.
+
+Red-on-revert, each mutation asserted on disk and restored (single-file stash of my OWN owned path only —
+never a sibling's):
+
+```
+$ git stash push -q .windsurf/rules/core/76-gpu-workers.md && pytest -q
+2 failed, 1 passed          # except-clause + breaker-granularity assertions
+$ git stash pop -q; grep -c HTTPStatusError .windsurf/rules/core/76-gpu-workers.md
+2
+
+$ git stash push -q .windsurf/rules/core/58-resilience.md
+matrix row present while stashed: 0
+1 failed, 2 passed          # the registry-coverage assertion
+$ git stash pop -q; grep -c python-api-gpu .windsurf/rules/core/58-resilience.md
+1
+```
+
+```
+$ python scripts/final_gate.py --json
+gate: success | blocking: 38 | failures: 0
+```
