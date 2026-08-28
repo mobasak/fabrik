@@ -113,6 +113,30 @@ def _scaffold_python_api(mock_fabrik_root: Path, temp_dir: Path, name: str = "te
     return project_dir
 
 
+def test_create_project_to_tmp_base_does_not_pollute_hub_specs(temp_dir: Path) -> None:
+    """create_project to a NON-/opt base writes its deploy spec UNDER that base — NEVER into the
+    hub's tracked specs/services/. Before the base-relative fix, specs_dir was hardcoded to
+    FABRIK_ROOT regardless of base, so every full test-suite run rewrote all committed specs with
+    the current Shape defaults, dirtying the shared tree (2026-08-27 finding: a new default flag
+    dirtied all committed specs each run, riding through the pre-commit stash/restore)."""
+    from fabrik import scaffold
+
+    hub_specs = scaffold.FABRIK_ROOT / "specs" / "services"  # the REAL /opt/fabrik (unmocked)
+    before = {p.name for p in hub_specs.glob("*.yaml")} if hub_specs.exists() else set()
+    scaffold.create_project(
+        "xtmp-spec-isolation",
+        "regression: scaffold spec must stay under the tmp base",
+        base=temp_dir,
+        project_type="python-api",
+        generate_spec=True,
+    )
+    after = {p.name for p in hub_specs.glob("*.yaml")} if hub_specs.exists() else set()
+    assert after == before, f"scaffold to a tmp base polluted the hub specs/services: {sorted(after - before)}"
+    assert (temp_dir / "specs" / "services" / "xtmp-spec-isolation.yaml").exists(), (
+        "the deploy spec must land UNDER the tmp base instead of the hub"
+    )
+
+
 def _scaffold_chrome_ext(mock_fabrik_root: Path, temp_dir: Path, name: str = "test-ext") -> Path:
     """Helper to run chrome-extension scaffold with mocked root."""
     from fabrik import scaffold

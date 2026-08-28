@@ -5851,7 +5851,16 @@ def create_project(
     # so DB-backed projects deployed without a VPS Postgres database.
     if generate_spec and project_type in SPEC_ENABLED_TYPES:
         try:
-            specs_dir = FABRIK_ROOT / "specs" / "services"
+            # Real /opt scaffolds write their deploy spec to the hub's specs/services/ (where
+            # `fabrik apply` reads it). A scaffold to a NON-/opt base — tests (tmp_path), sandboxes —
+            # writes the spec UNDER that base, so it can never pollute the hub's TRACKED
+            # specs/services/. Before this, `specs_dir` was hardcoded to FABRIK_ROOT regardless of
+            # `base`, so every full test-suite run rewrote all committed specs with whatever the
+            # current Shape defaults are (2026-08-27 finding: a new default flag dirtied 71 tracked
+            # files on the shared tree, riding through the pre-commit stash/restore).
+            specs_dir = (
+                (FABRIK_ROOT if Path(base) == Path("/opt") else Path(base)) / "specs" / "services"
+            )
             # Detect secrets from .env.example for deployment-ready specs
             secrets_from_env, secrets_from_file = _detect_secrets(project_dir)
             spec_path = generate_and_save_spec(
@@ -5863,7 +5872,11 @@ def create_project(
                 secrets_from_file=secrets_from_file,
                 use_database=bool(kwargs.get("use_database", False)),
             )
-            logger.info("Generated spec: %s", spec_path.relative_to(FABRIK_ROOT))
+            try:
+                shown = spec_path.relative_to(FABRIK_ROOT)
+            except ValueError:
+                shown = spec_path  # off-hub (test/sandbox) base — not relative to FABRIK_ROOT
+            logger.info("Generated spec: %s", shown)
         except Exception as exc:
             logger.warning("Spec generation failed: %s", exc)
 
