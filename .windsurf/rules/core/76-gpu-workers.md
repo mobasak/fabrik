@@ -128,8 +128,10 @@ INFERENCE_CANDIDATES = [
 
 async def infer_with_failover(messages: list[dict]) -> str:
     # healthy_chain() = probe the candidates ONCE at run start (never per item) and return only
-    # the live ones, best-first so the chain self-restores on recovery. Vendor it from
-    # fabrik-lib `health-probe/`; do NOT hand-roll it if you route through OpenRouter (see below).
+    # the live ones, best-first so the chain self-restores on recovery. Build it on
+    # fabrik-lib `health-probe/` (it already does pluggable probing + feeds `alerting/`); the
+    # shared chain-rebuild helper on top is REQUESTED, not yet shipped (fabrik-lib 01M14E3MWN),
+    # so today this is project-local. Do NOT hand-roll it at all if you route via OpenRouter.
     for route in healthy_chain(INFERENCE_CANDIDATES):
         try:
             return await call_provider(route, messages, timeout=30.0)
@@ -143,6 +145,8 @@ async def infer_with_failover(messages: list[dict]) -> str:
             if e.response.status_code < 500 and e.response.status_code not in (402, 403, 429):
                 raise                                   # a real client error: don't mask it
             reason = f"http_{e.response.status_code}"
+            # ⚠️ 429 is the one code with TWO correct responses, and which applies depends on
+            # whether a live sibling exists — see the note below before copying this."
         logger.warning("provider_failover", failed=route["provider"], model=route["model"], reason=reason)
     return FALLBACK_RESPONSE  # graceful degradation — and it must be an EXERCISED path (below)
 ```
@@ -156,6 +160,12 @@ async def infer_with_failover(messages: list[dict]) -> str:
   incident's last-resort had an expired credential nobody had run in weeks, so the chain was one rung
   shorter than its author believed. Prove the SWAP, not just the retry: a test that only asserts backoff
   fires certifies nothing about provider death.
+- **A 429 is NOT automatically a swap — reconcile with [`self-healing`](self-healing.md) row 3.** That row
+  prescribes `pause-state.set_global_pause(resource, ttl=Retry-After)` for a vendor rate-limit, and it is
+  right whenever the rate-limited provider is your ONLY route: swapping there just burns the next rung and
+  you lose the `Retry-After` the vendor handed you. Swap on 429 **only when a live sibling exists in the
+  rebuilt chain**; otherwise pause with the vendor's own TTL. The chain above swaps because it is, by
+  construction, a multi-candidate chain — a single-provider caller must take row 3's path instead.
 - **Routing through OpenRouter?** Then `healthy_chain()` is largely the gateway's job, not yours — see
   `58-resilience.md` § Provider-death resilience for which outcomes you owe on which route, and for the
   `sort`/`order` trap that silently opts you out of it.
