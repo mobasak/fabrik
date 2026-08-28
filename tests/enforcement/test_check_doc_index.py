@@ -32,6 +32,30 @@ def test_pipeline_artifacts_are_excluded():
     assert any(p.startswith("docs/superpowers/") for p in cdi.EXCLUDE_PREFIXES)
 
 
+def test_every_per_run_artifact_class_is_excluded_including_certifications():
+    """All FOUR dated, machine-generated, per-run classes — asserted LITERALLY and together,
+    because certifications arrived (2026-08-27) without this exclusion and nothing noticed: one
+    synced command MANDATED `docs/development/certifications/` while this synced check penalised
+    it, so every project reddened its gate on its first certification (job-agent: 16 ERRORs, then
+    16 rows of per-run noise injected into a curated index as the workaround).
+
+    INDEX.md maps DURABLE docs. Board shape, ticket naming, dispositions and evidence paths are
+    already graded by check_certification_coverage.py — that is the check that owns them."""
+    for prefix in (
+        "docs/development/plans/",
+        "docs/development/epics/",
+        "docs/development/reviews/",
+        "docs/development/certifications/",
+    ):
+        assert prefix in cdi.EXCLUDE_PREFIXES, f"{prefix} must be exempt from the INDEX map"
+
+
+def test_a_certification_board_file_is_not_reported_as_unindexed():
+    """The behaviour, not the constant: the path shape /fabrik-user-test actually emits."""
+    board = "docs/development/certifications/2026-08-28-cert-linkedin/TC01-profiles.md"
+    assert any(board.startswith(p) for p in cdi.EXCLUDE_PREFIXES), board
+
+
 def test_would_fail_on_unindexed_doc(monkeypatch):
     """(b)-direction detection: a live doc absent from INDEX is reported."""
     real_run = subprocess.run

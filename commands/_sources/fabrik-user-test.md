@@ -247,6 +247,23 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
   runner **wipes its output directory at the start of every run**, so concurrent agents sharing one
   dir silently erase each other's evidence (observed live: screenshot count went 3→0 mid-run). Same
   root cause as the browser collision — a different shared resource, so it needs its own guard.
+  **Put this line in each subagent's OWN brief, not only here** — an agent that reads only its brief
+  cannot comply with a rule that lives in the orchestrator's prose.
+- **⚠️ COPY evidence into the board's `evidence/` dir BEFORE recording any path — the scoping rule
+  above is necessary and NOT sufficient.** The wipe takes the whole output ROOT, so **one** agent
+  running the bare default erases every sibling's nested dir, including the careful ones: a guard
+  that depends on unanimous compliance is not a guard (job-agent, 2026-08-27 — two agents reported
+  screenshots taken, then `File does not exist` on the same path; one deliverable dir was gone
+  before its report was read). This is not only lost files: `check_certification_coverage.py`
+  grades an EXERCISED row by the evidence path EXISTING on disk, so a sibling's unscoped run can
+  flip a correctly-earned row into `EVIDENCE MISSING`, or leave a recorded path silently rotting.
+  Copy first (`cp <shot> <board>/evidence/<TC>-<slug>.png`), record the BOARD path, and the graded
+  artifact stops depending on any runner's scratch dir.
+- **A GUI agent that must REBUILD to verify its own fix** (an a11y or style defect it is fixing)
+  shares one mutable build target with every sibling — `extension/.output/chrome-mv3` and its
+  equivalents. Rebuilding mid-run changes every other agent's artifact underneath them. Either
+  serialize that agent (finish the parallel round, then rebuild-and-verify alone) or give it its own
+  build output dir; never rebuild a shared target while siblings are mid-run.
 - **Surface tooling (defer to the packs):** web/SaaS/website/docs → Playwright MCP (+ `ui-verify`
   specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to
   use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a

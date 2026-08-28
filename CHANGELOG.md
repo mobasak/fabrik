@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two filed findings: concurrent cert agents erasing evidence, and a check that penalised a mandated directory (2026-08-28)
+
+- **A guard that depends on unanimous compliance is not a guard** (`job-agent`, `01M12MDB3V`).
+  `/fabrik-user-test` Phase 3 already told each parallel agent to scope its `--output=`, but the
+  runner wipes its output ROOT — so **one** agent using the bare default erases every sibling's
+  nested dir, including the compliant ones. Two agents reported screenshots taken and then
+  `File does not exist` on the same path. It is not only lost files:
+  `check_certification_coverage.py:369-381` grades an `EXERCISED` row by its evidence path EXISTING,
+  so a sibling's unscoped run can flip a correctly-earned row into `EVIDENCE MISSING`.
+  Both gauntlets now require evidence to be COPIED into the board's `evidence/` dir BEFORE any path
+  is recorded — which makes the graded artifact independent of every runner's scratch dir — and the
+  scoping rule is now stated to belong in each subagent's OWN brief, since an agent reading only its
+  brief cannot obey a rule kept in the orchestrator's prose. Also notes what a GUI agent must do when
+  its own fix requires rebuilding a shared build target mid-run.
+- **`check_doc_index.py` penalised a directory a synced command MANDATES** (`job-agent`,
+  `01M12MZJX9`). `EXCLUDE_PREFIXES` exempted plans, epics and reviews — every sibling class of dated,
+  per-run, machine-generated artifact — but not `docs/development/certifications/`, which arrived
+  2026-08-27 (my change) without it. Every project reddened its gate on its first certification;
+  job-agent's workaround injected 16 rows of per-run noise into a curated index. Certification boards
+  already have their own grader; INDEX.md maps DURABLE docs. Now excluded, with all four classes
+  asserted literally so the next artifact class cannot arrive unlisted again.
+
+
 ### Fixed — Scaffold spec output is base-relative; test/sandbox scaffolds no longer pollute the hub tree (2026-08-28)
 
 - `src/fabrik/scaffold.py` (`create_project`): `specs_dir` was hardcoded to `FABRIK_ROOT/specs/services`

@@ -204,6 +204,13 @@ Pool-check the matrix for holes (see Subagents) before dispatch.
 - **Dispatch parallel subagents — one per journey-bundle, disjoint fixtures** (no two agents
   mutating the same seeded tenant/queue). Each drives the service directly: HTTP calls, CLI
   invocations, queue publishes, file drops, container stop/start for the degradation legs.
+- **⚠️ COPY every evidence artifact into the board's `evidence/` dir BEFORE recording its path.**
+  An `EXERCISED` row is graded by that path EXISTING on disk (Phase 1b), so evidence left in a
+  runner's scratch dir can be cleared by a sibling, a rebuild, or a cleanup step and silently flip a
+  correctly-earned row into `EVIDENCE MISSING`. Record the BOARD path, never the scratch one — the
+  graded artifact must not depend on another agent's tidiness (filed by job-agent 2026-08-27 after
+  concurrent agents erased each other's evidence in the UI gauntlet; the same rule applies here for a
+  milder reason, and costs one `cp`).
 - **⚠️ VISUAL-DELIVERABLE QA — if a journey's deliverable IS a visual artifact, the proof is EYES ON THE
   RENDERED PIXELS.** Structural checks (file exists, format header, HTTP 200, the right hexes in the
   JSON/CSS, the source SVG's bytes present inside the composed output) prove the pipeline WIRED the right

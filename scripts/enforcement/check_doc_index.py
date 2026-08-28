@@ -32,6 +32,14 @@ EXCLUDE_PREFIXES = (
     "docs/development/plans/",
     "docs/development/epics/",
     "docs/development/reviews/",
+    # Certification boards are the fourth per-run, dated, machine-generated artifact class, and
+    # they arrived (2026-08-27) without this exclusion — so a synced COMMAND mandated the directory
+    # while a synced CHECK penalised it, and every project reddened its gate on its first
+    # certification (job-agent: 16 ERRORs, worked around by injecting 16 per-run rows into a
+    # curated index). Board shape, ticket naming, dispositions and evidence paths already have a
+    # dedicated grader in check_certification_coverage.py; INDEX.md maps DURABLE docs, and a cert
+    # board is a run record.
+    "docs/development/certifications/",
     "docs/superpowers/",
 )
 EXCLUDE_EXACT = {
