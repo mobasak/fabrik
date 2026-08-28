@@ -319,9 +319,16 @@ def _warn_unrecorded(ledger_path: Path) -> None:
     # absent in others). Telling the agent to "score each run" in that state is unactionable.
     env_file = PROJECT_ROOT / ".env"
     try:
-        has_dsn = env_file.exists() and any(
-            line.startswith("SUBAGENT_RUNS_DSN=") and line.split("=", 1)[1].strip()
-            for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        # lstrip("﻿"): a BOM-prefixed line broke startswith and read a provisioned
+        # repo as unrecordable (review round 1). The process-env check honors a DSN that
+        # arrives via CI/secrets-manager with a deliberately clean .env — either source
+        # makes the runs recordable, so either suppresses the absent-DSN claim.
+        has_dsn = bool(os.environ.get("SUBAGENT_RUNS_DSN", "").strip()) or (
+            env_file.exists()
+            and any(
+                line.lstrip("﻿").startswith("SUBAGENT_RUNS_DSN=") and line.split("=", 1)[1].strip()
+                for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines()
+            )
         )
     except OSError:
         has_dsn = True  # unreadable .env proves nothing — keep the generic message

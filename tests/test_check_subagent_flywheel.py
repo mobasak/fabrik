@@ -390,7 +390,40 @@ def test_unrecorded_warn_names_the_absent_dsn_when_that_is_the_cause(tmp_path, m
     import types
     fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
     monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    # hermetic: the hub test process itself may carry a real DSN (conftest/.env autoload),
+    # and the check honors the process env by design — clear it so ABSENT is actually absent
+    monkeypatch.delenv("SUBAGENT_RUNS_DSN", raising=False)
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
     assert "SUBAGENT_RUNS_DSN" in out, f"the absent-DSN cause must be named:\n{out}"
     assert "cannot record" in out.lower() or "unrecordable" in out.lower()
+
+
+def test_dsn_detection_survives_bom_and_honors_process_env(tmp_path, monkeypatch, capsys):
+    """Review round 1 (2026-08-28): a UTF-8 BOM on the DSN line broke startswith (false
+    "unrecordable" on a provisioned repo), and a repo whose DSN arrives via the process
+    environment (CI, secrets manager) with a clean .env was also mis-flagged. Both states
+    must keep the GENERIC advisory, not the absent-DSN claim."""
+    import types
+
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+
+    (root / ".env").write_text("\ufeffSUBAGENT_RUNS_DSN=postgresql://x\n", encoding="utf-8")
+    monkeypatch.delenv("SUBAGENT_RUNS_DSN", raising=False)
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "UNRECORDABLE" not in out, f"BOM-prefixed DSN line read as absent:\n{out}"
+
+    (root / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")
+    monkeypatch.setenv("SUBAGENT_RUNS_DSN", "postgresql://from-ci")
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "UNRECORDABLE" not in out, f"process-env DSN not honored:\n{out}"
