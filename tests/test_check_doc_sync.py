@@ -298,3 +298,104 @@ def test_retry_still_fires_the_resilience_warning(repo):
     _stage(repo, "CHANGELOG.md", "src/app/client.py")
     r = _run(repo)
     assert "RESILIENCE" in r.stdout, r.stdout
+
+
+# ── the [Unreleased]-was-actually-touched rule ────────────────────────────────
+# The quality check asks "does [Unreleased] hold a real entry" — a question about the
+# FILE, not about YOUR change. On a shared tree [Unreleased] almost always holds a
+# sibling's entry, so staging any cosmetic CHANGELOG edit answered it green. These
+# three pin the corrected question: "did this change touch [Unreleased]".
+
+_PRIOR = (
+    "# Changelog\n\n## [Unreleased]\n\n"
+    "### Added — a sibling's entry from another task (2026-08-27)\n- their work\n\n"
+    "## [1.0.0] - 2026-01-01\n\n### Added\n- the old relase note\n"
+)
+
+
+def _commit(repo: Path, msg: str = "base") -> None:
+    subprocess.run(["git", "commit", "-qm", msg], cwd=repo, check=True, timeout=15)
+
+
+def test_a_cosmetic_changelog_edit_does_not_satisfy_the_entry_requirement(repo: Path) -> None:
+    """THE GAP: fixing a typo in an OLD release section stages CHANGELOG.md and leaves
+    [Unreleased] byte-identical — yet the check passed on the strength of the sibling's
+    entry. Staging the file is not the same as having an entry."""
+    _write(repo, "CHANGELOG.md", _PRIOR)
+    _write(repo, "README.md", "# r\n")
+    _stage(repo, "CHANGELOG.md", "README.md")
+    _commit(repo)
+
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", _PRIOR.replace("old relase note", "old release note"))
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 1, r.stdout
+    assert "[Unreleased] section was not" in r.stdout, r.stdout
+
+
+def test_extending_an_existing_unreleased_entry_is_accepted(repo: Path) -> None:
+    """The counter-direction, and the reason the rule is NOT "added a new ### heading":
+    a task that spans commits writes its entry once and extends that prose afterwards.
+    Measured over 223 significant-code commits in 5 repos — every compliant commit
+    touches the section, but many add no new heading."""
+    _write(repo, "CHANGELOG.md", _PRIOR)
+    _write(repo, "README.md", "# r\n")
+    _stage(repo, "CHANGELOG.md", "README.md")
+    _commit(repo)
+
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", _PRIOR.replace("- their work", "- their work\n- and my phase B"))
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout
+
+
+def test_the_rule_fires_in_range_mode_too(repo: Path) -> None:
+    """Positive control for --range, the whole-plan coverage receipt. Ran the real check over
+    200 real hub commits in range mode and it fired 0 times; that number only means "no
+    migration cost" if the range path is capable of firing at all."""
+    _write(repo, "CHANGELOG.md", _PRIOR)
+    _write(repo, "README.md", "# r\n")
+    _stage(repo, "CHANGELOG.md", "README.md")
+    _commit(repo)
+
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", _PRIOR.replace("old relase note", "old release note"))
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    _commit(repo, "phase")
+    r = subprocess.run(
+        [sys.executable, str(CHECK), "--range", "HEAD~1..HEAD"],
+        cwd=repo, capture_output=True, text=True, timeout=30,
+    )
+    assert r.returncode == 1, r.stdout
+    assert "[Unreleased] section was not" in r.stdout, r.stdout
+
+
+def test_range_mode_accepts_a_touched_section(repo: Path) -> None:
+    """The counter-direction for --range: a range that DID extend the section stays green."""
+    _write(repo, "CHANGELOG.md", _PRIOR)
+    _write(repo, "README.md", "# r\n")
+    _stage(repo, "CHANGELOG.md", "README.md")
+    _commit(repo)
+
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", _PRIOR.replace("- their work", "- their work\n- my entry"))
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    _commit(repo, "phase")
+    r = subprocess.run(
+        [sys.executable, str(CHECK), "--range", "HEAD~1..HEAD"],
+        cwd=repo, capture_output=True, text=True, timeout=30,
+    )
+    assert "[Unreleased] section was not" not in r.stdout, r.stdout
+
+
+def test_an_unreadable_baseline_fails_open(repo: Path) -> None:
+    """No HEAD yet (or no CHANGELOG at HEAD) means the question cannot be asked. This is
+    an ERROR row on a governance-sync surface reaching ~46 repos: a check that cannot ask
+    its question must not answer it. Never invent a red from an absent baseline."""
+    _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
+    _write(repo, "CHANGELOG.md", CHANGELOG_OK)
+    _stage(repo, "src/app/handler.py", "CHANGELOG.md")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout

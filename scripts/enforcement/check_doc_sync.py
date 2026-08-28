@@ -155,17 +155,75 @@ def _has_route_change(staged: list[str]) -> bool:
     return False
 
 
+def _unreleased_of(content: str) -> str | None:
+    """The `## [Unreleased]` section of *content*, or None when there is no such heading."""
+    start = content.find("## [Unreleased]")
+    if start == -1:
+        return None
+    nxt = content.find("\n## [", start + 1)
+    return content[start : (nxt if nxt != -1 else len(content))].strip()
+
+
+def _blob(rev: str) -> str | None:
+    """`<rev>:CHANGELOG.md` as text, or None when that revision has no such file.
+
+    None means "cannot be read", never "empty" — every caller must treat it as an
+    unanswerable question rather than as evidence.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "show", f"{rev}:CHANGELOG.md"], capture_output=True, text=True, timeout=15
+        )
+    except Exception:
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def _unreleased_untouched(rng: str | None) -> bool:
+    """True only when this change PROVABLY left `## [Unreleased]` byte-identical.
+
+    `_changelog_quality_ok` asks a question about the FILE — "does [Unreleased] hold a real
+    entry" — which on a shared tree a sibling's entry answers green no matter what you did.
+    Staging any cosmetic CHANGELOG edit (a typo in an old release section) therefore satisfied
+    the ERROR row while the change carried no entry of its own. This asks the question about
+    the CHANGE instead.
+
+    Deliberately NOT "did it add a new `###` heading": a task that spans commits writes its
+    entry once and extends that prose in later commits, which is correct and common (measured
+    over 223 significant-code commits across 5 repos — 0 would fail this rule, 2 would fail the
+    heading rule, and both of those 2 were legitimate extensions).
+
+    Fails OPEN on every unreadable baseline. This feeds an ERROR row on a governance-sync
+    surface that reaches ~46 repos, so an unanswerable question must never become a red.
+    """
+    if rng:
+        # `A..B` / `A...B` — compare the range's own endpoints. An open end means HEAD.
+        parts = rng.split("...") if "..." in rng else rng.split("..")
+        if len(parts) != 2:
+            return False
+        old_rev, new_rev = parts[0].strip(), (parts[1].strip() or "HEAD")
+        if not old_rev:
+            return False
+    else:
+        old_rev, new_rev = "HEAD", ""  # "" == the index, i.e. `git show :CHANGELOG.md`
+    old, new = _blob(old_rev), _blob(new_rev)
+    if old is None or new is None:
+        return False
+    old_sec, new_sec = _unreleased_of(old), _unreleased_of(new)
+    if new_sec is None:
+        return False  # no [Unreleased] at all — _changelog_quality_ok owns that verdict
+    return old_sec == new_sec
+
+
 def _changelog_quality_ok() -> bool:
     """CHANGELOG [Unreleased] has a real ### entry, no placeholders (from check_changelog)."""
     p = Path("CHANGELOG.md")
     if not p.exists():
         return False
     content = p.read_text(encoding="utf-8", errors="replace")
-    start = content.find("## [Unreleased]")
-    if start == -1:
+    section = _unreleased_of(content)
+    if section is None:
         return False
-    nxt = content.find("\n## [", start + 1)
-    section = content[start : (nxt if nxt != -1 else len(content))].strip()
     # Strip fenced code blocks FIRST — a `### …` line that only appears inside a
     # ``` fence ``` (a template/example) is NOT a real changelog entry.
     defenced = re.sub(r"```.+?```", "", section, flags=re.DOTALL)
@@ -275,6 +333,12 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(
             "CHANGELOG.md [Unreleased] is empty or has a placeholder — add a real "
             "### Added/Changed/Fixed entry."
+        )
+    elif sig and "CHANGELOG.md" in staged_set and _unreleased_untouched(rng):
+        errors.append(
+            "CHANGELOG.md was changed but its [Unreleased] section was not — this change has "
+            "no entry of its own (a sibling's existing entry does not count). Add one under "
+            "## [Unreleased], or extend the entry this task already wrote."
         )
 
     # CONFIGURATION ← .env.example changed.

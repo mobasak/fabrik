@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Scaffold RESILIENCE.md template mandates provider-death resilience for unattended external-dependency loops (2026-08-28)
+
+- `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` — new mandatory §3b requiring the three mechanisms for any
+  unattended loop over a paid/free external dependency (LLM chains, hammered APIs): health-probe + auto-promote
+  (never retry a dead primary), a live-survivor fallback ladder (intra + cross-provider + an EXERCISED
+  last-resort), and a zero-progress alarm. Operator-instructed fleet-wide standard (youtube proposal, live 8h
+  zero-progress incident 2026-08-28). This is the FLEET half; the `.windsurf/rules` planning-phase enforcement +
+  `/fabrik-spec-review`/`/fabrik-plan-review` DEFECT-flagging are infra's half (request `01M13YXMC`).
+
+### Fixed — the CHANGELOG gate asked about the FILE, not about your change (2026-08-28)
+
+- `scripts/enforcement/check_doc_sync.py` — `_changelog_quality_ok()` asks "does `[Unreleased]` hold a
+  real `###` entry", which is a question about the file's global state. On a shared tree a sibling's
+  entry answers it green no matter what YOUR change did, so staging any cosmetic CHANGELOG edit (a typo
+  fix in an old release section) satisfied the ERROR row while the change carried no entry of its own.
+  New `_unreleased_untouched()` asks the question about the CHANGE: it fires only when `[Unreleased]` is
+  **provably** byte-identical across the scope's endpoints, in both staged and `--range` mode.
+- Deliberately NOT "must add a new `###` heading" — **measured**: over 223 significant-code commits
+  across 5 repos, the section-touched rule would have failed **0**, while the heading rule would have
+  failed 2, and inspection showed both were legitimate (a task spanning commits writes its entry once
+  and extends that prose afterwards). Zero migration cost is why this lands as a tightening of the
+  existing ERROR row rather than a new advisory.
+- Fails **open** on every unreadable baseline (no HEAD, no `CHANGELOG.md` at the baseline, an
+  unparseable range) — it feeds an ERROR row on a governance-sync surface reaching ~46 repos, and a
+  check that cannot ask its question must not answer it.
+- 5 tests: the gap (watched red first), extension-is-accepted, a `--range` positive control **and** its
+  counter-direction (range mode was previously untested — the wiring gap that recurred four times this
+  session), and fail-open. Red-on-revert proven with the mutation asserted on disk. Validated
+  end-to-end by running the real check in `--range` mode over 200 real hub commits: fired 0 times.
+
 ### Fixed — Scaffold surfaces a failed dev-dependency install (toolchain-less .venv) loudly (2026-08-28)
 
 - `src/fabrik/scaffold.py` — the scaffold already ships the gate toolchain (`requirements-dev.txt` carries

@@ -985,6 +985,17 @@ semgrep login
 - Bug in Y
 ```
 
+### "CHANGELOG.md was changed but its [Unreleased] section was not"
+
+**Cause:** The change staged `CHANGELOG.md` while leaving `## [Unreleased]` byte-identical —
+typically a cosmetic edit to an older release section. On a shared tree `[Unreleased]` almost
+always holds a sibling's entry, so the older "does it have a real entry" question answered green
+regardless of what your change did. Staging the file is not the same as having an entry.
+
+**Fix:** Add your own entry under `## [Unreleased]`, or extend the entry this task already wrote
+(a multi-commit task writes its entry once and extends it — that is accepted, no new `###`
+heading needed). Fails **open** when the baseline revision cannot be read.
+
 ### "opencode.json contains incorrect Kilo-safe list"
 
 **Cause:** Project's opencode.json has wrong instructions.
