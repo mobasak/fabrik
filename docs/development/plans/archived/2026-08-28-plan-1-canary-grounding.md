@@ -1,9 +1,11 @@
 # Canary grounding — build the refuses-ungrounded flywheel axis
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-29
 Date: 2026-08-28
 Spec: docs/superpowers/specs/2026-08-28-refuses-ungrounded-axis-design.md (CONVERGED, approved 2026-08-28)
 Shape: monolith, 3 phases (A→B→C, strict dependency order)
+Completion: phases A (5cbeb833) + B (ec05a490) + C (c3f11d85); final full gate success 2026-08-29; live end-to-end smoke ($0.0017, real ✓ cells).
+Whole-plan review: docs/development/reviews/2026-08-28-plan-1-canary-grounding-review.md
 
 ## What we already agreed (from the approved spec — do not re-litigate)
 
