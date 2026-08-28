@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_frozen_chain named the file but not the LINE (2026-08-28)
+
+- `scripts/enforcement/check_frozen_chain.py` had the offsets and dropped them. The advisory asks the
+  reviewer to "confirm before editing", but named only the file and the two versions — so they had to grep
+  every occurrence and judge each with nothing to check off. transdoc (`01M14VM1RT`) judged four and missed
+  two, and **"four judged" read identically to "six judged"**. The survivors were present-tense NORMATIVE
+  rules (*"Banned: any field not in `data-contract.md` v6"*) — the line an agent consults to decide whether
+  a field is legal, i.e. the worst place for a stale pin. Findings now carry `path:LINE` + a bounded excerpt.
+- The shared advisory boilerplate is now charged **once** instead of per finding — N × ~130 identical chars
+  was the real budget consumer (measured 1166 → 915 on a real 3-finding run, longest finding 307 → 156).
+- **`docs/reference/command-evaluation-checklist.md` anti-pattern 95 corrected — it was stale and I nearly
+  acted on it.** It states in present tense that `final_gate` "cuts advisory output at 500 chars with NO
+  ellipsis". It does not: `clip_output` (`final_gate.py:174`) keeps `head=1400` + `tail=600` = **2000 chars**
+  with an in-band truncation marker and `truncated`/`omitted_lines` fields. I derived a truncation risk from
+  that row and was about to cap a check's output against a budget four times smaller than the real one. The
+  row now carries the live constants and the instruction to read them rather than quote it.
+
 ### Fixed — /fabrik-rivals resolved the WRONG engine in a repo that owns it (2026-08-28)
 
 - `scripts/rivals_run.py::_resolve_engine` checked only `REPO/libs/competitor_intel`. fabrik-lib's

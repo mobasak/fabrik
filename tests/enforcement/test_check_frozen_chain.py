@@ -182,3 +182,38 @@ def test_body_prose_agreeing_with_the_header_is_silent(tmp_path):
         encoding="utf-8",
     )
     assert [f for f in c.check_chain(tmp_path) if "BODY prose" in f] == []
+
+
+# --- transdoc 01M14VM1RT: the WARN had the line number and dropped it ----------
+
+
+def test_body_prose_warn_names_the_line_number(tmp_path):
+    """The advisory says "confirm before editing", but named only the file and the two
+    versions — so a reviewer had to grep every occurrence and judge each with no way to
+    check off what they had covered. transdoc judged four and missed two; four-judged
+    and six-judged read IDENTICALLY. The two survivors were present-tense NORMATIVE
+    rules ("Banned: any field not in data-contract.md v6"), i.e. the line an agent
+    consults to decide whether a field is legal. The checker had the offsets all along."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "data-contract.md").write_text(
+        "**Status:** FROZEN · **Version:** v10\n\n## Fields\n", encoding="utf-8"
+    )
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v12 · frozen against `data-contract.md` **v10**\n"
+        "\n## Rules\n\n"
+        "padding line\n"
+        "Banned: any field not in data-contract.md **v6**\n"
+        "more padding\n"
+        "Required: every field is a data-contract.md **v4** column\n",
+        encoding="utf-8",
+    )
+    body = [f for f in c.check_chain(tmp_path) if "BODY prose" in f]
+    assert len(body) == 2, body
+    # Each finding must carry ITS OWN line number, so two occurrences are distinguishable.
+    assert any("ui-design.md:6" in f for f in body), body
+    assert any("ui-design.md:8" in f for f in body), body
+    # …and the line numbers must be DIFFERENT — one shared number would defeat the point.
+    import re as _re
+    nums = {_re.search(r"ui-design\.md:(\d+)", f).group(1) for f in body}
+    assert len(nums) == 2, nums

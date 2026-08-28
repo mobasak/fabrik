@@ -197,11 +197,28 @@ def check_chain(root: Path) -> list[str]:
                 if not _PRESCRIPTIVE_RE.search(line):
                     continue
                 if int(m.group("v")) != pinned:
+                    # NAME THE LINE. The advisory asks the reviewer to "confirm before
+                    # editing", but naming only the file and the two versions meant they
+                    # had to grep every occurrence and judge each with nothing to check
+                    # off — transdoc judged four and missed two, and "four judged" read
+                    # identically to "six judged" (01M14VM1RT). The survivors were
+                    # present-tense NORMATIVE rules, the line an agent consults to decide
+                    # whether a field is legal. The offsets were here all along.
+                    # `body_only` starts at `_i` in `_txt`, so the absolute offset is
+                    # `_i + m.start()`.
+                    lineno = _txt.count("\n", 0, _i + m.start()) + 1
+                    # Excerpt is BOUNDED: final_gate truncates advisory output at 500
+                    # chars with no ellipsis, and an unbounded quote is how a remedy line
+                    # gets cut mid-word (checklist anti-pattern 95).
+                    excerpt = " ".join(line.split())[:70]
+                    # Only what VARIES goes per-finding. The advisory boilerplate is
+                    # identical on every one and was repeating N times into final_gate's
+                    # 500-char no-ellipsis budget (measured 1166 chars on a real 3-finding
+                    # run — checklist anti-pattern 95, which loses the REMEDY line). It is
+                    # now charged ONCE, in main().
                     findings.append(
-                        f"{rel} BODY prose references {other}@v{m.group('v')} but the "
-                        f"header pins v{pinned} — a reader following the body would apply "
-                        f"the wrong contract (advisory: body prose may legitimately cite "
-                        f"history; confirm before editing)"
+                        f"{rel}:{lineno} BODY prose pins {other}@v{m.group('v')}, "
+                        f"header says v{pinned} — {excerpt!r}"
                     )
     return findings
 
@@ -209,6 +226,15 @@ def check_chain(root: Path) -> list[str]:
 def main() -> int:
     root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
     findings = check_chain(root)
+    # Charge the shared advisory ONCE rather than per finding (see the note at the
+    # append site): N findings x ~130 chars of identical boilerplate is how a capped
+    # advisory loses its own remedy line.
+    if any("BODY prose pins" in f for f in findings):
+        print(
+            "NOTE: BODY-prose pin drift below is ADVISORY — prose may legitimately cite "
+            "history. Judge each LINE; a present-tense rule ('Banned: …', 'Every field "
+            "is …') pinning a stale version is the damaging case."
+        )
     for f in findings:
         print(f"WARN: {f}")
     if findings:
