@@ -122,6 +122,11 @@ STEM_SKILLS: dict[str, str] = {
     # is worse than the gap. `data contract` cannot collide with the ui-design stem above, whose
     # nouns are `design contract` / `ui design contract`.
     "data-contract": "fabrik-data-contract",
+    # /fabrik-features advertised 5 trigger phrases and reached NOTHING (audit 11/31).
+    # A bare `features` stem would be a disaster — "add a features section", "the features
+    # of this API", "feature flag rollout" are ordinary English. Only DISTINCTIVE noun
+    # phrases are matched, probed against 7 adversarial strings with 0 over-fires.
+    "features": "fabrik-features",
     # The Turkish half. `gözden geçir` alone lives in the broad `review` stem and fires on ANY
     # Turkish review phrase regardless of noun — looser than the English side, which at least
     # requires "review this/the/my". Six advertised TR phrases reached the wrong command until
@@ -252,6 +257,14 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "data-contract",
+    ),
+    (
+        re.compile(
+            r"\bFEATURES\.md\b|\bfeature\s+(inventory|contract)\b|\bfeatures\s+list\b"
+            r"|\b(product'?s?|[üu]r[üu]n[üu]n)\s+(features|[öo]zellikleri)\b",
+            re.I,
+        ),
+        "features",
     ),
     # BEFORE design-review: /fabrik-ui-design-review converges the FROZEN docs/ui-design.md, not a
     # rendered screen — its own SKIP says "never a running app (→ /design-review)". The first cut of
