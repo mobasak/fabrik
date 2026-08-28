@@ -52,6 +52,14 @@ fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
    DB/queue/bucket is non-negotiable. Cost-bearing externals (LLM, SMS, paid APIs) run against
    sandbox keys or recorded fixtures; if neither exists, that scenario is a BLOCKED-env finding,
    never a silent skip.
+   - ⚠️ **RECORD how you started it — `<board>/runtime.md` — before any round runs.** This gauntlet
+     stands up a long-lived service that later rounds and parallel subagents re-drive, and it does
+     NOT auto-reload. Write the exact start command, its env, the port, and the git SHA it was
+     started from; a round that restarts it UPDATES that file. **Re-driving after a fix means
+     RESTARTING first** — compare the running process's SHA against `git rev-parse HEAD` before
+     trusting a result that contradicts a landed fix. "The fix didn't work" and "the service
+     predates the fix" produce identical evidence, and only one is a defect (job-agent, 2026-08-28:
+     three near-false findings in one certification from stale-server reads).
 4. **Vendor the harness, don't hand-roll:** `fabrik-lib/api-smoke-test` is the backbone for FastAPI
    services — route inventory (exact equality: no dropped, no un-catalogued route), auth-boundary
    assertions, and an authed fixture with guaranteed cleanup. Vendor it if absent; enhancements go

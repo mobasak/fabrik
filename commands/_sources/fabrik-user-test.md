@@ -50,6 +50,19 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
      to confirm it is reachable and how login works. That probe is not a violation of "the orchestrator
      does not drive" (Phase 3) — the *gauntlet rounds* are the part that must be delegated; scoping a
      checklist for a surface you have not confirmed you can reach is not possible.
+   - ⚠️ **RECORD how you started it — `<board>/runtime.md` — before any round runs.** This command
+     STANDS UP a long-lived service that every later round re-drives, and the service does NOT
+     auto-reload. Without a written recipe each round rediscovers it by archaeology (`/proc/<pid>/
+     environ`, `/proc/<pid>/cmdline`) to reconstruct the env and port. Write the **exact start
+     command, every env var it needs, the port, and the git SHA it was started from**; a round that
+     restarts the backend UPDATES that file. Cheap, and it is not only about time — job-agent's
+     6-round certification produced **three near-false findings from stale-server reads** (a
+     fail-open that looked unfixed, two endpoints that looked still-broken after the fix landed, and
+     a round that opened against a backend predating its own headline fix by ~9 minutes). **A false
+     finding that survives into a report is worse than a slow one.**
+   - **Re-driving after ANY fix means RESTARTING first.** Compare the running process's SHA against
+     `git rev-parse HEAD` before trusting a result that contradicts a landed fix — "the fix didn't
+     work" and "the server predates the fix" produce identical evidence, and only one is a defect.
 4. **Vendor the harnesses, don't hand-roll** (enhancements upstream, never fork):
    - `fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs),
      **`makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer
