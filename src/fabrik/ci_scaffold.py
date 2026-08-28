@@ -202,8 +202,27 @@ def render_ci_local(cfg: CiConfig) -> str:
 
 
 def ci_files(cfg: CiConfig) -> dict[str, str]:
-    """Relative-path -> content for both artifacts (what the scaffolder writes)."""
+    """Relative-path -> content for the artifacts the scaffolder writes.
+
+    ⚠️ **No `.github/workflows/ci.yml`.** Operator directive 2026-08-29: "disable all ci checks for
+    all existing and future repos" — 36 of 46 repos are private, and private repos burn metered
+    Actions minutes. Every existing repo's check workflows were disabled the same day; emitting a
+    fresh one here would re-create the bill one scaffold at a time.
+
+    `render_ci_workflow` is deliberately KEPT and still tested: it is the executable statement of
+    what the checks are, and it is what a repo would re-emit if the decision is ever reversed.
+
+    `.fabrik/run-pytest` is emitted in its place, and that is load-bearing rather than cosmetic —
+    `final_gate.py::_ci_runs_pytest` historically decided local pytest by scanning workflow files
+    for the word "pytest", so a project with NO workflow would silently never run its suite. The
+    marker is what keeps a scaffolded repo's tests inside its own gate.
+    """
     return {
-        ".github/workflows/ci.yml": render_ci_workflow(cfg),
         "scripts/ci_local.sh": render_ci_local(cfg),
+        ".fabrik/run-pytest": (
+            "# Presence of this file makes `final_gate.py` run pytest for this repo.\n"
+            "# Required because this project ships no GitHub workflow: the gate's legacy signal\n"
+            "# was 'a workflow file mentions pytest', so without this marker the suite would sit\n"
+            "# outside every gate and each green would assert nothing about it.\n"
+        ),
     }

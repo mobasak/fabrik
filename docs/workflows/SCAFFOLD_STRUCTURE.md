@@ -59,7 +59,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │       └── .gitignore
 ├── .github/                       # CI (python-api / python-api-gpu / file-api only)
 │   └── workflows/
-│       └── ci.yml                 # generated from src/fabrik/ci_scaffold.py
+│       └── (no ci.yml — CI checks retired fleet-wide 2026-08-29)
 ├── db/
 │   └── schema.sql
 ├── docs/
@@ -78,7 +78,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 │   └── TROUBLESHOOTING.md
 ├── scripts/
 │   ├── enforcement/              # Entire dir copied from Fabrik (49 files, recounted 2026-07-20 via `git ls-files scripts/enforcement/ | wc -l`)
-│   ├── ci_local.sh               # CI local clean-room replica (python API types) — mirrors .github/workflows/ci.yml
+│   ├── ci_local.sh               # local clean-room check runner (python API types)
 │   ├── docs_updater.py
 │   ├── final_gate.py
 │   ├── health_checker.py
@@ -146,7 +146,7 @@ When you run `fabrik scaffold <project-name> --type python-api`, the following s
 | `PORTS.md` | Port allocation tracking |
 | `docs/development/PLANS.md` | Development plans index |
 | `docs/archive/README.md` | Archive directory index |
-| `.github/workflows/ci.yml` + `scripts/ci_local.sh` | **python API types only** — CI workflow + a matching local clean-room replica, both rendered from one source (`src/fabrik/ci_scaffold.py`) so they can't drift. `pgvector/pgvector:pg16` when the project uses a DB, else plain `postgres:16`; run `scripts/ci_local.sh` before pushing test/dep/migration changes. |
+| `scripts/ci_local.sh` + `.fabrik/run-pytest` | **python API types only.** ⚠️ **No `.github/workflows/ci.yml` since 2026-08-29** — operator directive: no CI checks in existing or future repos (36 of 46 repos are private and burn metered Actions minutes; every existing repo's check workflows were disabled that day). `ci_local.sh` is the clean-room runner (`pgvector/pgvector:pg16` with a DB, else `postgres:16`). `.fabrik/run-pytest` is **load-bearing**: `final_gate.py::_ci_runs_pytest` historically decided local pytest by scanning workflow files for the word "pytest", so a project with no workflow would silently never run its suite. `render_ci_workflow` is retained in `ci_scaffold.py` as the statement of what the checks are, and is what a repo re-emits if the decision is reversed. |
 
 ### Copied from Fabrik
 

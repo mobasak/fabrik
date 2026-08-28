@@ -196,7 +196,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 **Purpose:** Full quality gate before Traycer commit
 
 **Pytest (CI parity)** — Tier 2 runs `pytest tests/ -x -q` (900s cap, blocking) **only when the repo's
-own `.github/workflows/*` run pytest**. Rationale: the gate must be equivalent to what CI will reject —
+own `.github/workflows/*` run pytest — OR the repo carries `.fabrik/run-pytest`**. ⚠️ The marker exists because the workflow-scan signal INVERTS during a CI cutover: deleting the workflows disarms local pytest instead of relocating it (measured 2026-08-29: 10 repos ran pytest locally for no reason other than that workflow text). A repo retiring its workflows MUST touch the marker. Rationale: the gate must be equivalent to what CI will reject —
 an agent must not reach `status:success` and still push test-failing code (happened live on
 trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped (no CI red to prevent;
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:

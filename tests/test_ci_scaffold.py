@@ -106,10 +106,21 @@ def test_web_job_only_when_requested():
     assert "web (type-check" in render_ci_workflow(CiConfig(needs_web=True))
 
 
-def test_ci_files_returns_both_paths():
+def test_ci_files_emits_no_github_workflow():
+    """Operator directive 2026-08-29: no CI checks in existing OR future repos. Every existing
+    repo's check workflows were disabled that day; emitting a fresh one per scaffold would
+    re-create the metered-minutes bill one project at a time."""
     files = ci_files(CiConfig(needs_database=True))
-    assert set(files) == {".github/workflows/ci.yml", "scripts/ci_local.sh"}
+    assert not any(f.startswith(".github/") for f in files), files
     assert files["scripts/ci_local.sh"].startswith("#!/usr/bin/env bash")
+
+
+def test_ci_files_emits_the_pytest_marker():
+    """Load-bearing, not cosmetic. `final_gate._ci_runs_pytest` decided local pytest by scanning
+    workflow files for the word "pytest" — so a project with NO workflow would silently never run
+    its suite, and every green would assert nothing about it."""
+    files = ci_files(CiConfig(needs_database=True))
+    assert ".fabrik/run-pytest" in files
 
 
 def test_local_script_is_valid_bash():
@@ -123,15 +134,22 @@ def test_local_script_is_valid_bash():
         assert proc.returncode == 0, f"bash -n rejected the script: {proc.stderr}\n{script}"
 
 
-def test_scaffold_write_ci_files_emits_both(tmp_path):
+def test_scaffold_writes_the_local_runner_and_marker_but_no_workflow(tmp_path):
     from fabrik.scaffold import _write_ci_files
 
     _write_ci_files(tmp_path, needs_database=True)
-    ci = tmp_path / ".github" / "workflows" / "ci.yml"
     local = tmp_path / "scripts" / "ci_local.sh"
-    assert ci.exists() and local.exists()
+    assert local.exists()
     assert local.stat().st_mode & 0o111  # executable
-    assert "python -m pytest" in ci.read_text()
+    assert (tmp_path / ".fabrik" / "run-pytest").exists(), "the suite would sit outside every gate"
+    assert not (tmp_path / ".github").exists(), "a new repo must not be born with CI checks"
+
+
+def test_the_workflow_renderer_is_kept_as_the_statement_of_what_the_checks_are(tmp_path):
+    """`render_ci_workflow` is deliberately retained and still tested even though nothing emits
+    it: it is the executable statement of what the checks ARE, and what a repo re-emits if the
+    decision is reversed. Deleting it would leave the reversal undocumented."""
+    assert "python -m pytest" in render_ci_workflow(CiConfig(needs_database=True))
 
 
 def test_workflow_is_valid_yaml():

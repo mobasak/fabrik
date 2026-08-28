@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CI checks retired fleet-wide, existing and future (2026-08-29)
+
+Operator directive: *"disable all ci checks for all existing and future repos."* 36 of 46 repos are
+private and burn metered Actions minutes.
+
+**Existing — verified fleet-wide: ZERO active workflows remain.** Disabled via `gh workflow disable`
+(a GitHub state change, no writes into any project tree, one command to reverse): `ci.yml` in
+trade-intelligence, tryton-crm, job-agent, fabrik-claim-validator, gmail-account-creator,
+longephedia-vault, session-recall, trading-core, whatsapp-agent · `validate.yml` in proxy ·
+`test.yml` + `validate.yml` in crowdlex (the `youtube` tree's real remote). **Kept, because they are
+not checks:** EAS builds, GitHub releases, version bumps, image compression, and the `stale` bot.
+
+**Two discoveries while sweeping:** `rnfinal` and `rn-kit-sandbox` have **no git remote at all**, so
+26 of the 51 workflow files have never run anywhere; and `supplement-tracker-advisor` has no
+registered workflows despite carrying 13 files. The real active surface was 12 workflows, not 51.
+
+**Future — the scaffold no longer emits CI.**
+- `src/fabrik/ci_scaffold.py::ci_files` drops `.github/workflows/ci.yml` and emits
+  **`.fabrik/run-pytest`** in its place — load-bearing, not cosmetic: `final_gate._ci_runs_pytest`
+  decided local pytest by scanning workflow files for "pytest", so a project born without a workflow
+  would silently never run its suite. `render_ci_workflow` is deliberately KEPT and still tested as
+  the statement of what the checks are, and what a repo re-emits if this is reversed.
+- `templates/mobile-app/.github/workflows/` loses its six CHECK workflows (lint-ts, test, type-check,
+  expo-doctor, e2e-android, e2e-android-maestro); the six delivery/scheduled ones stay.
+- `tests/test_ci_scaffold.py` updated: the two tests that pinned "emits both" now pin "emits no
+  workflow, emits the marker", plus a test that the renderer survives as the reversal path.
+
+**Docs brought current:** `docs/workflows/SCAFFOLD_STRUCTURE.md` (3 stale claims),
+`docs/workflows/FINAL_GATE_WORKFLOW.md` (the pytest condition gained the marker), and
+`docs/STRATEGIC_BACKLOG.md` — **CI-parity Phase 4 closed as MOOT**, exactly as flagged as likely on
+2026-08-25: there is no workflow left to mirror.
+
+⚠️ **Coverage genuinely lost, not relocated:** Android e2e (Maestro / device farm) has no WSL
+substitute — the mobile-app plan says so outright ("WSL dev has NO Android/Java/Maestro").
+
 ### Fixed — verifier rolled back healthy `health.disabled` deploys on an in-band probe race (2026-08-29)
 
 Surfaced live by the Zitadel umbrella-IdP deploy (RUN 3, `auth.ocoron.com` on vps1). A
