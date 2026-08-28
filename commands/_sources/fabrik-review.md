@@ -308,6 +308,15 @@ re-sweeping. Close the run at that verdict with
 
 ## Behavior Contract test generation — the pool authors, you curate (the fix for an untested behavior)
 
+<!-- twin-sync required: this pipeline is /fabrik-generate-tests' — keep the two in step -->
+⚠️ **`/fabrik-generate-tests` is CANONICAL for this pipeline — invoke it** (`/fabrik-generate-tests <the
+phase's Behavior Contract | the module>`) rather than hand-running the steps below. They are reproduced
+here because a reviewer mid-loop needs to see the shape without leaving the page, NOT as a second
+implementation. Audit finding (cmd 13/31, 2026-08-29): `/fabrik-generate-tests` advertises itself as
+"auto-called by … `/fabrik-review` reactively" while this file contained **zero references to it** — the
+advertised wiring did not exist and the same five steps were maintained in two places, so a fix to the
+canonical command would never have reached the review path. **If you change either, change both.**
+
 When Phase-3's test-quality check finds a **behavior with no test** (or the plan's Behavior Contract has uncovered behaviors), generate the missing tests via the pool — cheap where cheap works, you where judgment matters (per `62-using-subagents.md` § Dispatch policy + `.windsurf/rules/core/45-testing-strategy.md`):
 
 1. **Suggest (pool, multi-model)** — `fanout("review", units=[<the same suggest task, code inlined> ×3], mode="read_only")` (3 UNITS → 3 agents on 3 diverse families — one unit = ONE agent; `k` only sizes the model draw, never the fan-out) to each propose the distinct user-observable behaviors; **union** them. A single suggester is the blind spot — diverse families catch what one misses, for cents.
