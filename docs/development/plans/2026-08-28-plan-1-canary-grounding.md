@@ -1,6 +1,6 @@
 # Canary grounding — build the refuses-ungrounded flywheel axis
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Date: 2026-08-28
 Spec: docs/superpowers/specs/2026-08-28-refuses-ungrounded-axis-design.md (CONVERGED, approved 2026-08-28)
 Shape: monolith, 3 phases (A→B→C, strict dependency order)
@@ -88,7 +88,7 @@ forks `libs/subagents`). The probe harness and generator column are hub orchestr
 covers hub-side cron scripts (checked `fabrik-lib/README.md` module table via the spec's verdict
 round, re-confirmed at spec review). No 🆕 candidate yet (spec: "flag if a second consumer appears").
 
-## Phase A — canary probe harness (`scripts/sysadmin/canary_grounding.py`)
+## Phase A — canary probe harness (`scripts/sysadmin/canary_grounding.py`) — ✅ EXECUTED 2026-08-29
 
 Interfaces — Produces: `judge(text: str, path: str) -> int` (0|5, pure); `derive_roster() ->
 list[str]` (deduped union of `pick_models(t, n=N)` for t in `("review","docs","plan")`,

@@ -1,0 +1,26 @@
+{
+  "plan": "docs/development/plans/2026-08-28-plan-1-canary-grounding.md",
+  "owned_paths": [
+    "scripts/sysadmin/canary_grounding.py",
+    "tests/test_canary_grounding.py",
+    "scripts/kilo-benchmarks/rank_task_subagents.py",
+    "scripts/kilo-benchmarks/tests/test_canary_grounding_column.py",
+    "scripts/kilo-benchmarks/tests/golden/structure.json",
+    "scripts/kilo-benchmarks/tests/golden/db_queries.json",
+    "scripts/kilo-benchmarks/tests/capture_golden.py",
+    "scripts/kilo-benchmarks/tests/test_golden_parity.py",
+    "docs/reference/kilo/TASK_SUBAGENT_SELECTION.md",
+    "docs/reference/canary-grounding.md",
+    ".fabrik/liveness-registry.json"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-28T21:29:34.065240+00:00",
+  "status": "active",
+  "baseline_commit": "0bfdb98ca02a8de87f5533617eecb09d887146d7",
+  "baseline_gate": {
+    "status": "failure",
+    "reds": [
+      "Doc Sync Matrix \u2014 sibling's uncommitted scripts/final_gate.py lacks CHANGELOG entry (NOT this plan's)"
+    ]
+  }
+}

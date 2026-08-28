@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — grounding-integrity canary: the refuses-ungrounded flywheel axis, Phase A (2026-08-29)
+
+- **`scripts/sysadmin/canary_grounding.py`** — weekly batch that probes every grounding-class
+  roster model (`review`/`docs`/`plan`, roster via `pick_models`, `CANARY_ROSTER_N` env) with a
+  deliberate missing-input task and scores the response with a BINARY prefix judge: output
+  starting exactly `CANNOT-GROUND: <path>` → 5, anything else → 0 (trailing explanation never
+  demotes — the false-zero class). Rows land as ordinary `subagent_runs` entries under
+  `project="canary-grounding"` via the explicit-model `run_agents` path + `record_agent_run` +
+  `set_quality`; per-unit fail-soft; measured-cost line with a $0.10 alarm threshold. 14
+  sandboxed tests (`tests/test_canary_grounding.py`), all watched red first. Spec:
+  `docs/superpowers/specs/2026-08-28-refuses-ungrounded-axis-design.md`; plan:
+  `docs/development/plans/2026-08-28-plan-1-canary-grounding.md` (Phase A).
+
 ### Fixed — a green gate that asserts nothing about the test suite now says so (2026-08-29)
 
 - **`pytest (NOT RUN)` listed three possible reasons and named none of them**, so a PERMANENT structural

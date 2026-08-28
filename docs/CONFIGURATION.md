@@ -206,6 +206,13 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
 
+### Grounding canary — `CANARY_ROSTER_N`
+
+- `CANARY_ROSTER_N` — how many models `scripts/sysadmin/canary_grounding.py` draws per
+  grounding-class task type (`review`/`docs`/`plan`) via `pick_models` when building the weekly
+  canary roster (deduped union; `anthropic/*` always excluded). Default `8`; hub-local tunable,
+  read at batch start. See `docs/reference/canary-grounding.md`.
+
 ### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
 
 The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagent_runs` via `record_agent_run`, which `pick_models(task_type)` learns from. The module autoloads both vars from `.env` (`_dotenv.py`, non-overriding — a real `export` or a deploy-injected value always wins):
