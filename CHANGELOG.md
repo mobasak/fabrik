@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a run advancing phases with ZERO rounds recorded now says so (2026-08-28)
+
+- `job-agent` filed a proposal, then **corrected their own filing**: the oscillation advisory had
+  not missed anything — it never ran, because `command_run.py round` was never called. Nine
+  discovery rounds completed with zero recorded, discovered only when a round-9 call printed
+  "ROUND 1 recorded". Nothing anywhere had noticed.
+- Their framing is the fix's justification: **a convergence check that depends on a voluntary call
+  from the very agent whose judgement it exists to check is load-bearing on the wrong party** — the
+  same argument CLAUDE.md already makes for why the Stop hook exists rather than more prose.
+- `step` now emits a NOTICE from phase 3 when no round has been recorded, naming what the silence
+  actually means: every round advisory has been quiet because it never ran, not because the loop is
+  healthy. **Advisory, never a refusal** — a one-shot command legitimately records no rounds, and
+  trapping it would be worse than the silence it replaces. Quiet at phase 2, quiet once any round
+  lands; all three sides tested.
+
+
 ### Fixed — a correct commit primed the next one to destroy it; two contracts that could not both be satisfied (2026-08-28)
 
 - **⚠️ Shared-tree work destruction, REPRODUCED** (`transdoc`, `01M13H89PW`). `git commit -- <paths>`

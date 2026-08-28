@@ -939,6 +939,23 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     file=sys.stderr,
                 )
                 return 2
+        # A run that advances phases while recording ZERO rounds has a convergence loop nothing
+        # can see: the oscillation/terminal advisories all key on `round`, so an agent that never
+        # calls it gets silence and reads silence as approval. job-agent (2026-08-28) ran NINE
+        # discovery rounds and recorded none of them, and found out only when a round-9 call
+        # printed "ROUND 1 recorded" — nothing anywhere had noticed. Their own framing is the
+        # argument: a convergence check that depends on a voluntary call from the very agent whose
+        # judgement it exists to check is load-bearing on the wrong party. ADVISORY, not a refusal
+        # — a one-shot command legitimately records no rounds, and trapping it would be worse than
+        # the silence. Fires from phase 3 so a normal two-phase run stays quiet.
+        if target >= 3 and not (rec.get("rounds") or []):
+            sys.stderr.write(
+                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
+                "ZERO rounds recorded. If this command has a convergence loop, every round "
+                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
+                "not because the loop is healthy. Record them: `round --findings <n> "
+                "--classes-swept <…> --classes-new <…>`.\n"
+            )
         rec["phase"] = target
         rec["phase_title"] = args.title
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})

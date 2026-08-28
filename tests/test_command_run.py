@@ -2564,3 +2564,30 @@ def test_the_phase_gate_still_requires_some_artifact(tmp_path) -> None:
     d.mkdir(parents=True)
     (d / "unrelated-notes.md").write_text("nothing to do with a review\n", encoding="utf-8")
     assert not cr._phase_review_exists(str(tmp_path), 1)
+
+
+def test_a_run_advancing_phases_with_zero_rounds_is_noticed(run_dir: Path) -> None:
+    """job-agent, 2026-08-28: NINE discovery rounds ran with zero recorded, and nothing noticed —
+    found only when a round-9 call printed "ROUND 1 recorded". Every round advisory (oscillation,
+    terminal verdict) keys on `round`, so an agent that never calls it gets silence and reads
+    silence as approval. Their framing: a convergence check depending on a voluntary call from the
+    agent whose judgement it checks is load-bearing on the wrong party."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    quiet = _cr(run_dir, "step", "--phase", "2", "--title", "early")
+    assert "ZERO rounds" not in quiet.stderr, "a normal two-phase run must stay quiet"
+    noisy = _cr(run_dir, "step", "--phase", "3", "--title", "later")
+    assert "ZERO rounds recorded" in noisy.stderr, noisy.stderr
+
+
+def test_the_zero_rounds_notice_stops_once_a_round_is_recorded(run_dir: Path) -> None:
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    _cr(run_dir, "round", "--findings", "2", "--classes-swept", "a", "--classes-new", "b")
+    out = _cr(run_dir, "step", "--phase", "4", "--title", "after")
+    assert "ZERO rounds" not in out.stderr, out.stderr
+
+
+def test_the_zero_rounds_notice_never_refuses(run_dir: Path) -> None:
+    """ADVISORY by design: a one-shot command legitimately records no rounds, and trapping it
+    would be worse than the silence it replaces."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    assert _cr(run_dir, "step", "--phase", "3", "--title", "x").returncode == 0
