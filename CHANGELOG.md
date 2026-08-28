@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — generated build artifacts counted against the ticket READ budget (2026-08-28)
+
+- `scripts/enforcement/check_plan_tickets.py` — the READ budget asks *"how many bytes must a coder hold
+  in context"*, but counted committed build outputs, which are a WRITE, not a read. `openapi.json` was
+  **161,606 B = 62%** of one real ticket's measured read-set, and `uv.lock` at **288,726 B exceeds the
+  entire 262,144 budget on its own** — while no agent reads either. Reported by transdoc (`01M14A49ZN`).
+- Exempted by **signature** (`openapi.json`, the five common lockfiles, `*.pyc`/`__pycache__`,
+  `*.min.js`/`*.min.css`) — names that are themselves proof of generation.
+- **The generic detector transdoc also offered was measured and REJECTED.** Their alternative — "a Touches
+  entry not cited in Context Files" — would exempt **1,045 of 1,315 Touches entries (79.5%)** across 266
+  real tickets in 15 repos, and **100% in one repo**, because Touches ("files this ticket changes") and
+  Context Files ("files it reads") are near-disjoint by construction. That deletes the budget rather than
+  narrowing it. The same sweep measured the shipped signature at **6 entries**. They asked to be told if it
+  was another wallpaper case; it was worse, and the number is recorded at the constant.
+- 3 tests incl. the counter-direction (a hand-authored `config/settings.json` must still blow the budget —
+  this is a signature, not "any `.json`"). Watched red first, red-on-revert proven with the mutation
+  asserted on disk.
+
 ### Fixed — two sanctioned migration mechanisms that do not exist (2026-08-28)
 
 - `.windsurf/rules/core/30-ops.md` listed **`fabrik run <app> --command "…"`** ("Fabrik wrapper for the
