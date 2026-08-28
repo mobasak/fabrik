@@ -2,14 +2,20 @@
 
 Status: CONVERGED
 
-Author the two hub artifacts that make `fabrik apply` stand up **Zitadel v4** as the umbrella OIDC IdP at
-`auth.ocoron.com`: the hand-authored deploy spec `specs/services/zitadel.yaml` and the reference/runbook
-`docs/reference/zitadel.md`. This is an **artifact-authoring** plan — the live `fabrik apply` deploy and the
-epic's live Success-Criteria verification are the operator-gated **deploy triad** (`/fabrik-deploy-plan` →
-`/fabrik-deploy` → `/fabrik-deploy-verify`) downstream, NOT this plan's code. Source of truth: the epic
-`docs/development/epics/2026-08-27-epic-1-zitadel-umbrella-idp.md` + the Infrastructure Decisions spec
-`docs/superpowers/specs/2026-08-27-umbrella-sso-infrastructure-decisions.md`. Produces the OIDC issuer +
-per-RP client-cred surface + Authorization-v2 grant API that Epic 2 consumes.
+Stand up **Zitadel v4** as the umbrella OIDC IdP at `auth.ocoron.com`. **A re-review (native-Opus pass)
+un-converged the original 2-file plan: the fabrik docker-compose emitter `_generate_docker_compose`
+(deployer_ssh.py:880) DROPS `source.image_command` and ALWAYS emits a `wget --spider` healthcheck ignoring
+`health.disabled` — so a hand-authored zitadel.yaml alone would deploy BROKEN (default command, and a
+healthcheck the FROM-scratch image can't run).** Zitadel REQUIRES a custom `start-from-init` command and no
+shell-based healthcheck, so this plan now has THREE phases: **Phase 0 enhances the emitter** (fleet deploy
+machinery), then **Phase A authors `specs/services/zitadel.yaml`**, then **Phase B authors
+`docs/reference/zitadel.md`**. The live `fabrik apply` deploy + Success-Criteria verification remain the
+operator-gated **deploy triad** downstream. Source of truth: the epic
+`docs/development/epics/2026-08-27-epic-1-zitadel-umbrella-idp.md` + the CONVERGED Infrastructure Decisions
+spec. Produces the OIDC issuer + per-RP client-cred surface + Authorization-v2 grant API that Epic 2 consumes.
+**Scope note:** Phase 0 touches `src/fabrik/orchestrator/deployer_ssh.py` (fleet deploy machinery), beyond the
+epic's declared owned_paths — justified: it is the blocking prerequisite that makes ANY custom-command /
+scratch-image docker deploy work, and it is squarely fleet's beat.
 
 ## Global Constraints
 
@@ -29,7 +35,7 @@ Every phase inherits these verbatim.
   deploy); no daemonize/PID file; the image ships its own binary (no shell — scratch/distroless).
 - **Zitadel v4 grounded config (official v4.17.0 source `cmd/defaults.yaml` + `cmd/setup/steps.yaml` + docs,
   fetched 2026-08-28 — cited in Evidence; corroborated by a `fabrik-researcher` read of the raw source):**
-  image `ghcr.io/zitadel/zitadel:v4.x` (FROM scratch, amd64, 512 MiB min / **1 GiB recommended**); container
+  image `ghcr.io/zitadel/zitadel:v4.17.1` (FROM scratch, amd64, 512 MiB min / **1 GiB recommended**); container
   command `start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external` (`start-from-init` =
   init+setup+start one-shot); **masterkey EXACTLY 32 chars, stable-forever** (fabrik's 32-char `[a-zA-Z0-9]`
   `secrets.generate` satisfies it — never rotate: it decrypts stored data). **TLS behind Traefik:**
@@ -72,6 +78,39 @@ Every phase inherits these verbatim.
 | Infrastructure Decisions spec (FROZEN context) | DB strategy (own DB on postgres-main), auth (Zitadel v4 issuer), email (SMTP→Resend), observability, domain, shape, env, watchdog-off | `docs/superpowers/specs/2026-08-27-umbrella-sso-infrastructure-decisions.md` |
 | **fabrik-lib consult** | no reusable module applies — Zitadel is a third-party IMAGE, not a capability we build; `oauth-login`/`product-entitlements` are **Epic-2** consumers, out of scope here. No vendor, no fresh build, **no 🆕 candidate.** | `fabrik-lib/README.md` (checked; N/A for a third-party deploy) |
 
+## Phase 0 — Enhance `_generate_docker_compose` (the blocking deploy-machinery prerequisite)
+
+**Deliverable:** teach the docker-source compose emitter to (1) emit `command:` from `source.image_command`
+when set, and (2) OMIT the healthcheck block when `health.disabled: true` — the two gaps that make Zitadel
+undeployable today. Grounded: `_generate_docker_compose` (deployer_ssh.py:880-944) references neither
+`image_command` (dropped everywhere — grep-confirmed) nor `health.disabled` (the `wget --spider` healthcheck
+at :911-916 is unconditional). This is fleet deploy machinery.
+
+**Steps (test-first for the risky path):**
+1. **Watched-fail-first:** add `tests/test_docker_compose_emitter.py` asserting (a) when `source.image_command`
+   is set, the emitted compose contains a `command:` line with that value; (b) when `health.disabled: true`, the
+   emitted compose contains NO `healthcheck:` block. Run → confirm BOTH FAIL red against the current emitter.
+2. Enhance `_generate_docker_compose(name, image, port, domain, spec)`:
+   - read `source = spec.get("source", {})`; if `source.get("image_command")`, append `f"    command: {image_command}"`
+     to `lines` (Docker Compose interpolates `${VAR}` in `command:` from `env_file: .env` at `up` time, exactly
+     as it does for env — so `${ZITADEL_MASTERKEY}` expands from the secrets-minted `.env`).
+   - read `health = spec.get("health", {})`; if `health.get("disabled")`, SKIP emitting the `healthcheck:` block
+     entirely (the service then reports `running` not `healthy` — `docker compose up --wait` waits on `running`,
+     and Gatus does the external readiness probe). Preserve the existing wget healthcheck for the non-disabled case.
+3. Behavior Contract (below).
+4. Run the phase gate → fix to green (both tests now pass; existing emitter tests still green).
+5. `python scripts/enforcement/check_doc_sync.py` — CHANGELOG entry for the emitter change.
+6. `/fabrik-review` on `deployer_ssh.py` + the test — BLOCKING, to a coverage-adjudicated exit. Dispatch:
+   pool-default `fanout("review")` breadth + native Opus on the emitter change (deploy machinery is high-risk).
+7. Commit (explicit paths + trailers).
+
+**Phase 0 Behavior Contract:**
+- **Given** a spec with `source.image_command: "start-from-init --masterkey X --tlsMode external"`, **When** `_generate_docker_compose(...)` runs, **Then** the emitted compose contains a `command:` line carrying that string (deployer_ssh.py:880).
+- **Given** a spec with `health: { disabled: true }`, **When** the emitter runs, **Then** the output contains no `healthcheck:` key (deployer_ssh.py:911).
+- **Given** a spec with NEITHER, **When** the emitter runs, **Then** output is unchanged (the existing wget healthcheck + no command — no regression for evolution-api-style specs).
+
+**Gate:** `python -m pytest tests/test_docker_compose_emitter.py -q` → all pass; `python scripts/final_gate.py --check --json` → success.
+
 ## Phase A — Author `specs/services/zitadel.yaml` (the deploy spec)
 
 **Deliverable:** a hand-authored single-image (`source.type: docker`) service spec whose `shape:` matches the
@@ -92,8 +131,10 @@ registrars and deploys a Zitadel that self-inits its schema, bootstraps an admin
      `has_persistent_data: true`, `needs_database: true`, `has_search_feature: false`, `needs_cache: false`,
      `exposes_metrics: true`
    - `expose: { http: true }` (public — NOT `internal_only`)
-   - `source: { type: docker, image: ghcr.io/zitadel/zitadel:v4.x, image_port: 8080 }`
-   - `command: start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external`
+   - `source: { type: docker, image: ghcr.io/zitadel/zitadel:v4.17.1, image_port: 8080,
+     image_command: 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external' }` — **`image_command`
+     is the real spec_loader field (Source model, spec_loader.py:114); a top-level `command:` is dropped.** Now
+     emitted by Phase 0.
    - `depends: { postgres: zitadel }`
    - `env:` the grounded ZITADEL_* block (externaldomain/port/secure, **`ZITADEL_TLS_ENABLED: "false"`**,
      PORT=8080, **`ZITADEL_DATABASE_POSTGRES_DSN: ${DATABASE_URL}`** + `ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable`,
@@ -103,8 +144,12 @@ registrars and deploys a Zitadel that self-inits its schema, bootstraps an admin
    - `resources: { memory: 1G, cpu: '0.5' }` · `health: { disabled: true }` (scratch image has no curl for a
      compose HEALTHCHECK — Gatus does the external HTTP probe on `/debug/ready`) · `volumes: []` ·
      `companion_services: []` · `backup: { enabled: true, frequency: daily, retention: 30 }` ·
-     `watchdog: { enabled: false }` · `infra: { glitchtip: true }` (inject the DSN env per epic Criterion #6 —
-     present-but-unused; verify with `docker inspect` at deploy)
+     `watchdog: { enabled: false }`. **Do NOT set `infra: { glitchtip: true }`** — `infra:` is
+     negative-override-ONLY (there is no `true` opt-in; infrastructure.py:5-7). glitchtip already fires by DEFAULT
+     for `kind: service` and injects `GLITCHTIP_DSN`; `verify_dsn_injection` (glitchtip.py:417) then checks the
+     env is PRESENT via `docker inspect` (env-presence, not event-delivery) — which the scratch image satisfies
+     (the DSN is injected as env, unused by Zitadel), so the fatal-registrar rollback does NOT trigger, and this
+     IS epic Criterion #6's "DSN injected, verified via docker inspect". Omit the `infra:` block entirely.
 3. **Behavior Contract** (below) — assert the spec parses and its shape/registrar footprint match the epic.
 4. Run the phase gate → fix to green.
 5. `python scripts/enforcement/check_doc_sync.py` + no doc owed by the SPEC file itself (the reference doc is Phase B).
@@ -116,10 +161,11 @@ registrars and deploys a Zitadel that self-inits its schema, bootstraps an admin
 **Phase A Behavior Contract:**
 - **Given** the authored spec, **When** `python3 -c "from fabrik.spec_loader import load_spec; s=load_spec('specs/services/zitadel.yaml'); print(s.shape.needs_database, s.shape.is_public, s.shape.exposes_metrics, s.shape.has_persistent_data)"`, **Then** it loads without error and prints `True True True True` (spec_loader.py:205).
 - **Given** the spec's shape, **When** `fabrik plan specs/services/zitadel.yaml` (read-only preview), **Then** the resolved registrars are exactly postgres + gatus + prometheus + backrest + grafana + glitchtip, and NOT authelia/redis/meilisearch (infrastructure.py:308-317).
+- **Given** the authored spec, **When** the REAL docker emitter renders it — `python3 -c "import yaml; from fabrik.orchestrator.deployer_ssh import _generate_docker_compose; s=yaml.safe_load(open('specs/services/zitadel.yaml')); print(_generate_docker_compose('zitadel', s['source']['image'], s['source']['image_port'], s['domain'], s))"` — **Then** the output CONTAINS a `command:` line carrying `start-from-init … --tlsMode external` AND contains NO `healthcheck:` block. **This is the load-bearing gate the original plan lacked: `fabrik plan` renders the TEMPLATE path, NOT `_generate_docker_compose`, so it is blind to a dropped command / forced healthcheck (native-Opus finding #3). This assertion exercises the real emitter Phase 0 fixed.**
 - **Given** the spec `env`, **When** grepped, **Then** it contains no plaintext secret value — `ZITADEL_MASTERKEY`/`ZITADEL_ADMIN_PASSWORD` resolve via `secrets.generate` and `RESEND_API_KEY` via `from_env` (`grep -E ':\s*(sk-|resend_)' specs/services/zitadel.yaml` returns nothing; core/35).
 - **Given** `watchdog`, **When** read, **Then** `enabled: false` is explicitly present (a missing block defaults ON — infrastructure.py `_register_watchdog`).
 
-**Gate:** `python3 -c "from fabrik.spec_loader import load_spec; load_spec('specs/services/zitadel.yaml')"` exits 0 AND `fabrik plan specs/services/zitadel.yaml` prints the 6 expected registrars.
+**Gate:** `python3 -c "from fabrik.spec_loader import load_spec; load_spec('specs/services/zitadel.yaml')"` exits 0 AND `fabrik plan specs/services/zitadel.yaml` prints the 6 expected registrars AND the real-emitter render (the Behavior-Contract command above) shows `command:` present + no `healthcheck:` — the last is the load-bearing assertion `fabrik plan` cannot make.
 
 ## Phase B — Author `docs/reference/zitadel.md` (the deploy reference + runbook)
 
@@ -163,6 +209,8 @@ Resend delivery test).
 
 ## File Scope (owned paths)
 
+- src/fabrik/orchestrator/deployer_ssh.py
+- tests/test_docker_compose_emitter.py
 - specs/services/zitadel.yaml
 - docs/reference/zitadel.md
 
@@ -196,8 +244,27 @@ $ python scripts/review_rubric.py --changed specs/services/zitadel.yaml docs/ref
 | 8 | behavior-without-a-test | CLEAN — both phases carry a Behavior Contract (Phase A: spec loads + registrar footprint + no-plaintext-secret + watchdog-off; Phase B: each of the 7 Success Criteria has an executable verification + the RESILIENCE rows). |
 | 9 | plan↔reality drift (the DB-injection seam) | FIXED — Pass 1 grounded that the registrar injects ONLY `DATABASE_URL` (infrastructure.py:588); the plan now uses `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` (DSN-only), not the decomposed keys it originally assumed. |
 | 10 | 12-Factor XII — migrations not from startup | CLEAN — Zitadel's `start-from-init` is a one-shot init+setup+start (the documented single-container command), not an app-`lifespan` migration; no Alembic-race pattern. |
+| 11 | deploy-machinery gap — the docker emitter drops the custom command + forces a shell healthcheck | FIXED(2) — the native-Opus re-review grounded that `_generate_docker_compose` (deployer_ssh.py:880) emits neither `command:` (image_command dropped, grep-confirmed) nor honors `health.disabled` (unconditional `wget --spider` at :911). Phase 0 fixes both with red-first tests; without it the spec deploys broken. This is why the original CONVERGED was wrong. |
+| 12 | gate-blindness — the authoring gates never render the real compose | FIXED — native-Opus #3: `fabrik plan` renders the TEMPLATE path, not `_generate_docker_compose`, so a broken compose passes every gate green. Phase A's Behavior Contract + Gate now render the REAL emitter and assert `command:` present + no `healthcheck:`. |
+| 13 | glitchtip fatal-registrar + `infra:` opt-in that doesn't exist | FIXED/REFUTED — native-Opus #5: `infra:{glitchtip:true}` is a no-op (`infra:` is negative-override-only) — REMOVED it. The rollback risk is REFUTED: `verify_dsn_injection` (glitchtip.py:417) checks env-PRESENCE via `docker inspect` (which the injected DSN satisfies), not event delivery — no rollback; glitchtip fires by the `kind:service` default and meets Criterion #6. |
+| 14 | placeholder image tag | FIXED — native-Opus #7: `:v4.x` is not a pullable tag → `:v4.17.1` (real tag; digest pinned at deploy). |
 
 ## Evidence
+
+**Phase 0 (the emitter — the re-review's finding):**
+- Read `src/fabrik/orchestrator/deployer_ssh.py:880-944` — `_generate_docker_compose` emits image /
+  container_name / env_file / deploy.resources / **an unconditional `wget --spider` healthcheck (:911-916)** /
+  networks / traefik labels — but NO `command:`, and no `health.disabled` check:
+```
+$ grep -rnE 'image_command' src/fabrik/ | grep -v spec_loader
+$   # (empty — image_command is dropped by every compose path)
+$ grep -nE 'health.*disabled' src/fabrik/orchestrator/deployer_ssh.py
+$   # (empty — the healthcheck is unconditional)
+```
+- `specs/services/evolution-api.yaml` has NO `image_command` (grep count 0) and a Node image WITH wget — which
+  is exactly why mirroring it hid both gaps at the first convergence.
+- `spec_loader.py:114` — `image_command` is a real `Source` field (so the spec parses); the emitter simply
+  ignores it. `spec_loader.py:105` confirms it lives under `source:`.
 
 **Phase A (the spec):**
 - Read `specs/services/evolution-api.yaml:1-70` — the single-image `source.type:docker` template (shape,
@@ -241,9 +308,14 @@ ABSENT
 ## Self-audit
 
 - **Grounding passes:** (1) spec template — read `evolution-api.yaml` in full; (2) Shape schema — read
-  `spec_loader.py`; (3) registrar behavior — read `infrastructure.py`; (4) Zitadel v4 config — live-grounded via
-  the official docs (context7 + WebFetch), a `fabrik-researcher` corroborating in parallel (fold its verdict at
-  plan-review). (5) rule packs — `select_rules.py` (26 active; the 4 deploy-relevant read).
+  `spec_loader.py` (incl. `source.image_command:114`); (3) registrar behavior — read `infrastructure.py`
+  (`DATABASE_URL`-only injection :588, glitchtip fatal-registrar); (4) Zitadel v4 config — live-grounded via the
+  official v4.17.0 source (context7 + WebFetch + a `fabrik-researcher`); (5) rule packs — `select_rules.py`;
+  **(6) the DEPLOY EMITTER — a native-Opus re-review that EXECUTED `_generate_docker_compose` + docker compose
+  2.40.3 and proved the dropped-command / forced-healthcheck defects that un-converged the first pass (Phase 0
+  now fixes them), refuted the `${VAR}`-literal fear (interpolation works), and caught the glitchtip-no-op +
+  placeholder-tag.** The re-review is why this plan grew a Phase 0 and a real-emitter gate — the first CONVERGED
+  was wrong because it mirrored evolution-api, which never exercises `image_command` or a shell-less image.
 - **(a) Coverage of "what we agreed":** the epic's 2 in-scope items + 7 Success Criteria all map — #1/#3 → the
   spec's `/debug/ready` + Gatus (Phase A spec + Phase B verification); #2 → OIDC discovery (Phase B); #4 → Zitadel
   event store (Phase B doc — native); #5 → i18n en/tr (Phase B post-deploy verify — native); #6 → prometheus +
@@ -269,7 +341,7 @@ and injects `GLITCHTIP_DSN` + verifies via `verify_dsn_injection` (docker inspec
 is present-but-unused; the scratch image runs no SDK).
 
 **Still open (each with a resolution step, none silently deferred) — all are DEPLOY-VERIFY assertions, downstream
-of this authoring plan, not execution-blockers for authoring the two files:**
+of this authoring plan, not execution-blockers for the authoring/emitter phases:**
 1. **Zitadel `init` succeeds against the registrar's pre-created DB with DSN-only config** — grounded as correct
    (owning role has DDL; DSN-only skips DB/user creation) but PROVEN only at deploy. **Resolution:** the
    deploy-verify phase asserts the container reaches healthy + `/debug/ready` returns 200; if init fails for want
@@ -279,3 +351,10 @@ of this authoring plan, not execution-blockers for authoring the two files:**
    fabrik bypass list (`/health`,`/healthz`,`/metrics`,`/api/health`) — but Zitadel is NOT behind Authelia (it IS
    the auth; no authelia registrar), so Gatus/Prometheus probe `/debug/ready` + `/debug/metrics` directly. The
    reference doc records this so a future reader doesn't wrongly add an Authelia bypass.
+3. **First-deploy DSN ordering (native-Opus #8, deploy-verify):** on the FIRST `fabrik apply`, `.env` is written
+   before the postgres registrar injects `DATABASE_URL`, so `${DATABASE_URL}` interpolates empty for the initial
+   `compose up`; the registrar injects post-deploy + restarts. evolution-api (the live template) shares this exact
+   pattern and tolerates it via the orchestration order — and Phase 0's `health.disabled` fix removes the
+   healthcheck that would otherwise make the first `--wait` fail before injection. The deploy-verify phase asserts
+   Zitadel reaches `/debug/ready` 200 after the registrar's inject+restart; if the ordering bites, the contingency
+   is a second `fabrik apply` (env-sync), the documented pattern. A deploy-triad item, not an authoring blocker.
