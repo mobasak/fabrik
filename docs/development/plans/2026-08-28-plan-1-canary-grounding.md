@@ -162,7 +162,7 @@ Steps:
 9. Commit (explicit paths: the script + its test + CHANGELOG entry; trailers `Agent-Role: primary`,
    `Agent-Name: intel`, `Agent-Phase: A`).
 
-## Phase B — generator: canary aggregation + `grounding` column (`scripts/kilo-benchmarks/rank_task_subagents.py`) — ✅ EXECUTED 2026-08-29
+## Phase B — generator: canary aggregation + `grounding` column (`scripts/kilo-benchmarks/rank_task_subagents.py`) — ✅ EXECUTED 2026-08-29 (ec05a490)
 
 Depends: Phase A (rows must exist in shape). SQL behavior tests run against a THROWAWAY
 `TEST_DATABASE_URL` (skipif unset) — never the live `fabrik_analytics`.
@@ -248,7 +248,7 @@ Steps:
 6. **/fabrik-review on this phase's changed surface — BLOCKING, to its coverage-adjudicated exit.**
 7. Commit (explicit paths; `Agent-Phase: B`).
 
-## Phase C — integration: fabrik-lib filing, docs, docs-review
+## Phase C — integration: fabrik-lib filing, docs, docs-review — ✅ EXECUTED 2026-08-29
 
 Depends: Phase B (the filing cites the shipped column format).
 

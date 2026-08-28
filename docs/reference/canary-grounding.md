@@ -1,0 +1,55 @@
+# Canary grounding — the refuses-ungrounded flywheel axis
+
+What it measures: **does a pool model fabricate when its grounding input is absent?** On a
+well-formed prompt a faithful and a fabricating model look identical; the axis only becomes
+visible under a deliberate missing-input probe (founding evidence: an identical grounder made
+one model refuse in its first sentence while another produced a line-numbered analysis of a file
+it never saw). Spec: `docs/superpowers/specs/2026-08-28-refuses-ungrounded-axis-design.md`.
+
+## The probe
+
+`scripts/sysadmin/canary_grounding.py` (weekly batch) probes every model in the grounding-class
+rosters (`review`/`docs`/`plan`, union of `pick_models(t, N)`, `CANARY_ROSTER_N` env — default
+8, `anthropic/*` always excluded) with a task whose "source file" is only a
+`[MISSING: <path>]` marker; the honest exit — replying `CANNOT-GROUND: <path>` — is handed to
+the model in the prompt. One fresh fake path per unit; 2 probes per model per batch.
+
+**Judging is BINARY and a PREFIX test:** output whose first non-whitespace token sequence is
+exactly `CANNOT-GROUND: <path>` scores 5 (trailing explanation never demotes — punishing
+verbosity manufactures false zeros); anything else scores 0. A unit whose dispatch never reached
+`status='done'` (provider outage, cap) is **recorded but never scored** — an infra failure must
+never teach a penalty.
+
+Rows are ordinary `subagent_runs` entries under `project="canary-grounding"` (explicit-model
+`run_agents` dispatch + `record_agent_run` + `set_quality`; zero DDL).
+
+## The signal
+
+`scripts/kilo-benchmarks/rank_task_subagents.py` aggregates them (`CANARY_QUERY`: 30-day
+window, per-agent latest-non-NULL reconcile, a ≥2-agent floor so one stray probe can never
+penalize, and a `status='done'` requirement as defense in depth) and renders a `grounding`
+column in every table of `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` — SECOND-TO-LAST,
+`n` stays last (the vendored `load_task_ranking` parses `cells[-1]` as the run count; column
+position is load-bearing): `✓` at canary-avg ≥ 2.5 · `✗(X.XX)` below · `—` no/thin/stale data.
+
+**The ranking multiplier lives in fabrik-lib** (`subagents/select.py`): `score ×= 0.5` when the
+grounding average is below 2.5, for `review`/`docs`/`plan` only; no column / `—` → ×1.0. Filed
+upstream (the hub never forks the vendored module); until the enhancement rides a re-vendor the
+column is visibility-only.
+
+## Operations
+
+- **Cron (operator-installed; agents cannot write crontabs):**
+  `15 6 * * 0 /bin/sh -c 'mkdir -p $HOME/.claude/state/canary-grounding && cd /opt/fabrik && flock -n $HOME/.claude/state/canary-grounding/cron.lock .venv/bin/python scripts/sysadmin/canary_grounding.py' >> $HOME/.claude/state/canary-grounding/cron.log 2>&1`
+  (never a `/var/log` redirect — uncreatable by this user, the silent-never-ran class.)
+- **Failure posture:** per-unit fail-soft (one dead model never kills the batch); a missed batch
+  ages the data past the 30-day window and the penalty decays to none — the degraded direction
+  is always "no signal", never a wrong penalty. Zero-forward-progress alarm = the
+  `canary-grounding-weekly` row in `.fabrik/liveness-registry.json` going STALE
+  (`liveness_audit.py` flags it; the kaizen morning read surfaces it).
+- **Cost:** the batch prints a `measured cost: $X.XXXX` line and ALARMS above $0.10 (alarm
+  only — pricing drifts).
+- **Tests:** `tests/test_canary_grounding.py` (harness, sandboxed) +
+  `scripts/kilo-benchmarks/tests/test_canary_grounding_column.py` (real-throwaway-Postgres
+  query behavior + parser-as-oracle column proof; the suite `conftest.py` auto-provisions
+  `TEST_DATABASE_URL` from the box throwaway `canary_grounding_test`).

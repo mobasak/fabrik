@@ -1,6 +1,18 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-07-18
+**Last Updated:** 2026-08-29
+
+## Grounding-integrity canary — the refuses-ungrounded flywheel axis (2026-08-29)
+
+Weekly missing-input canary probes (`scripts/sysadmin/canary_grounding.py`) measure, per pool
+model, whether it fabricates when its grounding input is absent — the axis invisible in normal
+scoring. Binary PREFIX judge (`CANNOT-GROUND: <path>` → 5, else 0; provider failures never
+scored), ordinary `subagent_runs` rows under `project="canary-grounding"`, aggregated by the
+selection-doc generator into a `grounding` column (`✓`/`✗(score)`/`—`, ≥2-probe floor, 30-day
+decay) in `TASK_SUBAGENT_SELECTION.md`. The ×0.5 ranking multiplier for `review`/`docs`/`plan`
+is filed to fabrik-lib (`select.py` doc-parser enhancement) and lands with a re-vendor. The same
+change fixed the generator's organic aggregation to honor `set_quality`'s scored-delta contract
+(latest-non-NULL wins; deltas no longer inflate `n`). Reference: `docs/reference/canary-grounding.md`.
 
 ## Review microbench — ground-truth code-review quality for the subagent pool (2026-07-18)
 
