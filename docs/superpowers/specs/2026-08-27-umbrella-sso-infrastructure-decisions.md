@@ -1,6 +1,6 @@
 # Infrastructure Decisions — Umbrella SSO (shared across all epics)
 
-**Status:** PROPOSED 2026-08-27 · **Source:** docs/superpowers/specs/2026-08-27-umbrella-sso-epic-proposal.md
+**Status:** CONVERGED 2026-08-28 (validated by `mega-04-validate` — `docs/development/reviews/2026-08-27-mega-umbrella-sso-validation-review.md` § "Infrastructure Decisions: PASS", cross-epic no-op) · **Source:** docs/superpowers/specs/2026-08-27-umbrella-sso-epic-proposal.md
 Made ONCE here; each epic ticket **references** this file (never duplicates it). Do NOT re-decide in
 epic-to-ticket-workflow.
 

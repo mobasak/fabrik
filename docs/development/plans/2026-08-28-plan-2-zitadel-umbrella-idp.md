@@ -1,6 +1,6 @@
 # Epic 1 — Zitadel Umbrella IdP Deployment (plan)
 
-Status: DRAFT
+Status: CONVERGED
 
 Author the two hub artifacts that make `fabrik apply` stand up **Zitadel v4** as the umbrella OIDC IdP at
 `auth.ocoron.com`: the hand-authored deploy spec `specs/services/zitadel.yaml` and the reference/runbook
@@ -36,12 +36,15 @@ Every phase inherits these verbatim.
   `--tlsMode external` + `ZITADEL_EXTERNALSECURE=true` (advertise https) + **`ZITADEL_TLS_ENABLED=false`**
   (Zitadel serves plain HTTP internally; Traefik terminates TLS). Internal listen `ZITADEL_PORT=8080`,
   `ZITADEL_EXTERNALPORT=443`, `ZITADEL_EXTERNALDOMAIN=auth.ocoron.com`.
-  **DB:** the fabrik postgres registrar PRE-CREATES the `zitadel` DB owned by the injected role, so Zitadel's
-  `init` only creates its SCHEMA inside the existing DB (no `CREATE DATABASE` needed) — set
-  `ZITADEL_DATABASE_POSTGRES_ADMIN_EXISTINGDATABASE=zitadel` and both the ADMIN (init) and USER (runtime) blocks
-  to the ONE registrar role that owns the DB (`HOST=postgres-main`, `PORT=5432`, `DATABASE=zitadel`,
-  `USER_USERNAME`/`USER_PASSWORD` + `ADMIN_USERNAME`/`ADMIN_PASSWORD` = the injected creds,
-  `*_SSL_MODE=disable` — correct for the internal `fabrik` net). **SMTP** env at first-init
+  **DB (GROUNDED against the registrar — infrastructure.py:588): the postgres registrar injects ONLY a single
+  `DATABASE_URL` DSN, never decomposed `POSTGRES_*` keys.** So the spec sets exactly
+  **`ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE=disable`** + **`ZITADEL_DATABASE_POSTGRES_DSN: ${DATABASE_URL}`** —
+  the DSN form is the correct one here because the registrar PRE-CREATES the `zitadel` DB owned by the DSN's role,
+  so Zitadel `init` (DSN-only) SKIPS DB/user creation (it can't, and doesn't need to — the researcher confirmed
+  DSN-only means "init does not create a separate DB/user") and creates only its SCHEMA as the owning role, which
+  has DDL. No decomposed `ADMIN_*`/`USER_*` block is authored (the registrar gives one credential, one role, one
+  DSN — a static scratch-image env cannot shell-split it). Init-succeeds-against-the-pre-created-DB is a
+  deploy-verify assertion (the deploy triad runs `fabrik apply`), not this authoring plan's gate. **SMTP** env at first-init
   (`ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_*` → Resend `smtp.resend.com:465`/`resend`/api-key/`TLS=true`;
   ongoing changes are Console/API). **First admin** non-interactive via `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_*`
   (NOT `DEFAULTINSTANCE`). **Health/metrics (CONFIRMED against source):** liveness `/debug/healthz`, readiness
@@ -76,19 +79,13 @@ epic exactly and whose `env:` carries the grounded Zitadel v4 config, so `fabrik
 registrars and deploys a Zitadel that self-inits its schema, bootstraps an admin, and wires SMTP→Resend.
 
 **Steps:**
-1. **Confirm the registrar's DB-provisioning contract, then map to Zitadel's decomposed keys** (GROUNDED — the
-   researcher resolved the nuance): read `infrastructure.py:566-590` and confirm the postgres registrar
-   PRE-CREATES the `zitadel` DB owned by the injected role and injects a single `DATABASE_URL` DSN. Because the
-   DB already exists (registrar-created) and the scratch image can't shell-parse a DSN, write the DECOMPOSED
-   Zitadel keys: `ZITADEL_DATABASE_POSTGRES_HOST=postgres-main`, `PORT=5432`, `DATABASE=zitadel`,
-   `USER_USERNAME`/`USER_PASSWORD` = the injected role creds, `USER_SSL_MODE=disable`,
-   `ADMIN_USERNAME`/`ADMIN_PASSWORD` = the SAME role, `ADMIN_SSL_MODE=disable`, and
-   **`ADMIN_EXISTINGDATABASE=zitadel`** — the registrar's own DB, so `init` creates only the SCHEMA inside it (no
-   `CREATE DATABASE`, no superuser needed; the owning role has DDL). The injected creds reach the env via the
-   registrar (same mechanism `DATABASE_URL` uses); Phase A wires the decomposed keys to those creds (a small
-   `.env`-mapping note in the spec, resolved with the registrar author if the decomposed form isn't
-   auto-injected — the fallback is `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` for the USER block + the
-   ADMIN block from the same creds).
+1. **DB config is DSN-only** (GROUNDED — `infrastructure.py:588` injects ONLY `DATABASE_URL`, never decomposed
+   keys; verify by reading it): set `ZITADEL_DATABASE_POSTGRES_DSN: ${DATABASE_URL}` +
+   `ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable`. Do NOT author decomposed `ADMIN_*`/`USER_*` keys — the
+   registrar provides one credential/role/DSN, and a static scratch-image env cannot split it. The registrar
+   pre-creates the `zitadel` DB owned by that role, so Zitadel `init` (DSN-only) creates only the schema (it has
+   DDL); DSN-only init does NOT attempt DB/user creation (grounded via the researcher's source read). That init
+   actually succeeds is a **deploy-verify** assertion, downstream of this authoring plan.
 2. Author `specs/services/zitadel.yaml` mirroring `evolution-api.yaml`'s shape, with:
    - `id: zitadel` · `kind: service` · `domain: auth.ocoron.com`
    - `shape:` `kind: service`, `is_public: true`, `is_admin_dashboard: false`, `has_bearer_api: false`,
@@ -99,7 +96,7 @@ registrars and deploys a Zitadel that self-inits its schema, bootstraps an admin
    - `command: start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external`
    - `depends: { postgres: zitadel }`
    - `env:` the grounded ZITADEL_* block (externaldomain/port/secure, **`ZITADEL_TLS_ENABLED: "false"`**,
-     PORT=8080, the decomposed DB keys incl. `ADMIN_EXISTINGDATABASE=zitadel`,
+     PORT=8080, **`ZITADEL_DATABASE_POSTGRES_DSN: ${DATABASE_URL}`** + `ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable`,
      `ZITADEL_FIRSTINSTANCE_ORG_NAME`/`_ORG_HUMAN_USERNAME`/`_ORG_HUMAN_EMAIL_ADDRESS`/`_ORG_HUMAN_PASSWORD=${ZITADEL_ADMIN_PASSWORD}`/`_ORG_HUMAN_PASSWORDCHANGEREQUIRED=true`/`_DEFAULTLANGUAGE=en`,
      the `ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST=smtp.resend.com:465`/`_SMTP_USER=resend`/`_SMTP_PASSWORD=${RESEND_API_KEY}`/`_TLS=true`/`_FROM`/`_FROMNAME` block)
    - `secrets: { required: [], generate: [ZITADEL_MASTERKEY, ZITADEL_ADMIN_PASSWORD], from_env: [RESEND_API_KEY], from_file: {} }`
@@ -174,6 +171,32 @@ Resend delivery test).
 the plan lock, per the shared-tree rules. This plan's scope is disjoint from the sibling
 `2026-08-28-plan-1-provider-death-enforcement` set.)
 
+## Coverage Checklist
+
+Armed by `review_rubric.py --changed specs/services/zitadel.yaml docs/reference/zitadel.md` (FLOOR:
+core/35-security-auth + core/30-ops; MATCHED: deploy/ops packs on the `specs/services/*.yaml` glob):
+
+```
+$ python scripts/review_rubric.py --changed specs/services/zitadel.yaml docs/reference/zitadel.md
+# REVIEW RUBRIC — FLOOR: core/35-security-auth (no hardcoded secret; config = env vars only) ·
+#   core/30-ops (no host ports; container_name mandatory; memory limit; Authelia health-bypass) ·
+#   MATCHED: core/55-observability + core/58-resilience (specs/services + docs/reference globs)
+# + standing recurrence: fail-open/closed · cost/quota edges · boundary/prefix · behavior-without-a-test
+```
+
+| # | Class | Verdict |
+|---|---|---|
+| 1 | core/35 — no plaintext secret in the spec (config = env only) | CLEAN — `ZITADEL_MASTERKEY`/`ZITADEL_ADMIN_PASSWORD` via `secrets.generate`, `RESEND_API_KEY` via `from_env`; Phase-A Behavior Contract greps for a plaintext secret and asserts none. |
+| 2 | core/30-ops — deploy invariants (no host ports, `container_name`, memory limit, Traefik) | CLEAN — Global Constraints + Phase A spec: `source.type:docker`, no `ports:`, `container_name` = the id `zitadel`, `resources.memory: 1G`, Traefik-routed on the domain. |
+| 3 | core/55 — health/metrics/GlitchTip | CLEAN — `/debug/ready` (DB-checked) → Gatus, `/debug/metrics` (default-on) → Prometheus, `GLITCHTIP_DSN` injected + `verify_dsn_injection` (docker inspect) — all grounded (infrastructure.py:17,308,827). |
+| 4 | core/58 — resilience rows | CLEAN — Phase B step 2 authors a `docs/RESILIENCE.md`-style row per failure class (OOM · DB-pool · upstream-timeout) per core/self-healing.md:14. |
+| 5 | fail-open vs fail-closed (the health guard) | CLEAN — `/debug/ready` returns non-200 when `postgres-main` is unreachable (Criterion #3, fail-CLOSED on a dead DB — the correct direction); grounded as DB-checked readiness. |
+| 6 | cost/quota/limit accounting | CLEAN — N/A: no paid LLM / metered API (Zitadel self-host + Resend free tier; Infra Decisions § Cost Guardrails = N/A). |
+| 7 | boundary/sentinel/prefix collisions | REFUTED — the one candidate (Zitadel's `/debug/*` paths vs the fabrik Authelia-bypass list) is a non-issue: Zitadel is NOT behind Authelia (it IS the auth; no authelia registrar), so Gatus/Prometheus hit `/debug/*` directly; recorded in the doc so nobody wrongly adds a bypass. |
+| 8 | behavior-without-a-test | CLEAN — both phases carry a Behavior Contract (Phase A: spec loads + registrar footprint + no-plaintext-secret + watchdog-off; Phase B: each of the 7 Success Criteria has an executable verification + the RESILIENCE rows). |
+| 9 | plan↔reality drift (the DB-injection seam) | FIXED — Pass 1 grounded that the registrar injects ONLY `DATABASE_URL` (infrastructure.py:588); the plan now uses `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` (DSN-only), not the decomposed keys it originally assumed. |
+| 10 | 12-Factor XII — migrations not from startup | CLEAN — Zitadel's `start-from-init` is a one-shot init+setup+start (the documented single-container command), not an app-`lifespan` migration; no Alembic-race pattern. |
+
 ## Evidence
 
 **Phase A (the spec):**
@@ -196,7 +219,16 @@ metrics: /debug/metrics
   https://zitadel.com/docs/self-hosting/manage/tls_modes · https://zitadel.com/docs/apis/observability/health ·
   raw v4.17.0 source `cmd/defaults.yaml` + `cmd/setup/steps.yaml` (github.com/zitadel/zitadel/tree/v4.17.0) — the
   `fabrik-researcher` read the raw tagged source and confirmed every key + the `ZITADEL_TLS_ENABLED=false`,
-  `ADMIN_EXISTINGDATABASE`, `/debug/*` paths, and `tr`-shipped facts.
+  the `/debug/*` health/metrics paths, and the `tr`-shipped facts. (The plan uses the DSN-only DB form —
+  `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` — because the registrar injects only that DSN; the decomposed
+  `ADMIN_*`/`USER_*` keys the researcher also documented are NOT used here.)
+
+- **Masterkey length match (grounded):** `src/fabrik/orchestrator/secrets.py:12-22` — `generate_secret(length=32)`
+  emits EXACTLY 32 `[a-zA-Z0-9]` chars = Zitadel's hard "masterkey must be 32 chars" requirement. So
+  `secrets.generate: [ZITADEL_MASTERKEY]` is correct with no length override.
+- **Deploy prerequisite (grounded present):** `RESEND_API_KEY` IS in the hub `.env`, so the spec's
+  `secrets.from_env: [RESEND_API_KEY]` resolves at `fabrik apply`. Named here so the deploy triad does not hit a
+  missing-key failure. (Not an authoring blocker — the spec declares the dependency; the value already exists.)
 
 **Phase B (the doc):**
 - `ls docs/reference/zitadel.md` → ABSENT (check-before-create):
@@ -225,24 +257,25 @@ ABSENT
 
 ## Residual unknowns
 
-**Resolved (grounded against the v4.17.0 source):** the spec template, Shape flags, registrar behavior; masterkey
-32-char = fabrik's generated policy; the health/readiness/metrics paths (`/debug/ready` DB-checked, `/debug/healthz`
-live, `/debug/metrics` Prometheus default-on via `ZITADEL_METRICS_TYPE: otel`); the DB model (registrar
-pre-creates the DB → `ADMIN_EXISTINGDATABASE=zitadel`, Admin==User==the owning role, `sslmode=disable` internal);
+**Resolved (grounded against the v4.17.0 source + the fabrik registrar):** the spec template, Shape flags,
+registrar behavior; masterkey 32-char = fabrik's generated policy; health/readiness/metrics paths (`/debug/ready`
+DB-checked, `/debug/healthz` live, `/debug/metrics` Prometheus default-on via `ZITADEL_METRICS_TYPE: otel`);
 `ZITADEL_TLS_ENABLED=false` behind Traefik; SMTP-via-env-at-first-init; `tr` shipped natively (Criterion #5).
+**The DB seam is RESOLVED (grounded infrastructure.py:588):** the registrar injects ONLY `DATABASE_URL`, so the
+spec uses `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` (DSN-only) — the registrar pre-creates the DB, so init
+creates only the schema as the owning role; DSN-only init does not attempt DB/user creation. **glitchtip is
+RESOLVED (grounded infrastructure.py:17,827):** the registrar fires for `shape.kind in {service,worker,wordpress}`
+and injects `GLITCHTIP_DSN` + verifies via `verify_dsn_injection` (docker inspect) — exactly Criterion #6 (the DSN
+is present-but-unused; the scratch image runs no SDK).
 
-**Still open (each with a resolution step, none silently deferred):**
-1. **How the decomposed DB creds reach the container** — the registrar injects `DATABASE_URL` (a DSN); Zitadel
-   needs the DECOMPOSED `ZITADEL_DATABASE_POSTGRES_USER_*`/`ADMIN_*` keys (scratch image can't split a DSN).
-   **Resolution:** Phase A step 1 confirms whether the registrar can inject the decomposed keys or the spec must
-   map them; if neither, the fallback `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` (USER) + an ADMIN block is
-   authored. This is a fabrik-registrar seam, resolved at plan-review with the registrar author (infra) if the
-   decomposed injection isn't supported — a named seam, not a silent defer.
-2. **glitchtip DSN inject for a `source.type:docker` service** — the epic wants it injected (Criterion #6) but a
-   scratch image can't run the Sentry SDK. **Resolution:** `infra.glitchtip: true` requests the env; the
-   deploy-verify phase confirms via `docker inspect` that `GLITCHTIP_DSN` is present (Criterion #6 is "injected +
-   inspectable", not "sending events").
-3. **Authelia-bypass path mismatch (non-issue, noted for the doc):** Zitadel's `/debug/*` paths don't match the
+**Still open (each with a resolution step, none silently deferred) — all are DEPLOY-VERIFY assertions, downstream
+of this authoring plan, not execution-blockers for authoring the two files:**
+1. **Zitadel `init` succeeds against the registrar's pre-created DB with DSN-only config** — grounded as correct
+   (owning role has DDL; DSN-only skips DB/user creation) but PROVEN only at deploy. **Resolution:** the
+   deploy-verify phase asserts the container reaches healthy + `/debug/ready` returns 200; if init fails for want
+   of an Admin block, the contingency is a one-time manual schema-init or a registrar note to infra — a
+   deploy-triad contingency, not an authoring blocker.
+2. **Authelia-bypass path mismatch (non-issue, recorded in the doc):** Zitadel's `/debug/*` paths don't match the
    fabrik bypass list (`/health`,`/healthz`,`/metrics`,`/api/health`) — but Zitadel is NOT behind Authelia (it IS
    the auth; no authelia registrar), so Gatus/Prometheus probe `/debug/ready` + `/debug/metrics` directly. The
    reference doc records this so a future reader doesn't wrongly add an Authelia bypass.
