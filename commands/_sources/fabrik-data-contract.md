@@ -161,7 +161,7 @@ then run one MORE pass — the loop terminates ONLY on an edit-free, md5-verifie
   exempt from the no-op rule** — the md5 anti-cheat is measured on the reconciliation *body* during the final
   reconciliation pass (which must be edit-free), so flipping `DRAFT → FROZEN` *after* that verified no-op does
   not re-open the loop.
-- **Do not commit** unless the user says so this turn (`git add` is fine). `docs/data-contract.md` is a
+- **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28). `docs/data-contract.md` is a
   **committed, project-owned** file (not a gitignored synced doc) — the plan and every agent reference it by
   that path.
 - State the **gate coupling** the project relies on: a change to `db/schema.sql` or models must be accompanied

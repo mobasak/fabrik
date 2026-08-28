@@ -129,7 +129,7 @@ Repeat until one demonstrably-thorough pass makes **zero edits**. Each pass chec
   each frozen screen and asserts `@axe-core/playwright` `violations == []` + `toHaveScreenshot` (run in the
   official Playwright Docker image so baselines are byte-stable). Wire it into the project's gate/CI. **Existing
   GUI project:** run this same seeding once as a backfill.
-- **Do not commit** unless the user says so this turn (`git add` is fine). `docs/ui-design.md` is a committed, project-owned file.
+- **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28). `docs/ui-design.md` is a committed, project-owned file.
 - **Hand off to planning — Traycer OR Claude Code (not Traycer-only):** for **Traycer**, the frozen contract is
   pasted/linked as a Context File for the UI epic; for **Claude Code**, **`/fabrik-plan-after-chat`** references
   `docs/ui-design.md` (+ the design system + `docs/data-contract.md`) as the binding UI truth — its phases build

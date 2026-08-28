@@ -168,7 +168,7 @@ before/after the closing pass — identical hashes are the proof). Set `Status: 
 re-freeze via `/fabrik-flows` — never edit in place. Downstream consumers
 (`/fabrik-data-contract`, `/fabrik-ui-design`, the certification gauntlets) read the frozen version only.*
 
-**Do not commit** unless the user says so this turn (`git add` is fine).
+**Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
 
 {{include:questionbar}}
 ## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)

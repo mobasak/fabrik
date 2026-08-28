@@ -139,7 +139,9 @@ The deployer has **no built-in migration step**. This is deliberate — the depl
 
 ### How migrations work
 
-Apps that use Alembic (or any migration framework) must handle migrations in their **container entrypoint**:
+⚠️ **SUPERSEDED — do NOT do this.** `core/30-ops.md` § Release & Admin Processes and `core/10-python.md` both ban it (12-Factor XII): with more than one replica, or a restart storm, concurrent containers race the Alembic version table and wedge the deploy. The rule packs are canonical; this section was stale (transdoc, 2026-08-28 — two synced files, opposite instructions, and a project cannot edit either locally). **Use instead:** `docker compose run --rm <svc> alembic upgrade head`, `fabrik run <app> --command "alembic upgrade head"`, or an idempotent `.fabrik/hooks/post-deploy/` hook. The entrypoint pattern below is kept ONLY as the shape to recognise and remove:
+
+Apps that use Alembic (or any migration framework) historically handled migrations in their **container entrypoint**:
 
 ```dockerfile
 # Dockerfile entrypoint pattern

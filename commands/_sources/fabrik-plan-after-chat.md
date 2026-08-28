@@ -601,7 +601,7 @@ Append, so the downstream converge/execute commands have what they need:
   set — tickets never carry one) — this command writes `Status: DRAFT`, and the enforced
   `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not create a second file or rename
   on convergence.
-- Do **not** commit unless the user says so this turn (`git add` is fine).
+- Do **not** commit unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
 - **Plan set only — BEFORE invoking the review: fix emit-gate findings (WARNs included) and
   `git add` the SPINE.** The `--plan-dir` run is the only place the advisory set (≤8-behavior,
   ≤3-`Gate:`, File-Scope-unparseable, File-Scope-orphan,
