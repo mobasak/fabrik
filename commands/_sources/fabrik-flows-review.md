@@ -119,6 +119,18 @@ closing round — identical hashes are the proof). Your say-so does not substitu
   be designed without a product decision): stop, set `Status: DRAFT`, name the blocker, route to
   `/fabrik-flows`. Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-flows-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
 
+⚠️ **The attestation is an HONEST SELF-REPORT — nothing grades it.** No check reads
+`Independently reviewed:` (`rg "Independently reviewed" scripts/` → no hits), so nothing verifies the line
+is present, that the md5-verified no-op it claims actually happened, or that its `v<N>` still matches the
+contract's current `Version`. In particular it can go **STALE**: bump the contract to v4 and the header
+still reads `Independently reviewed: v3` — the same stale-PIN shape `check_frozen_chain.py` already
+detects for other pins. Saying so here is deliberate, and is what the command-evaluation checklist's
+"contract with no grader" class requires: name the check that decides a terminal condition, **or state
+plainly that none does**. Measured 2026-08-28 before deciding: **2** contracts across the box carry an
+attestation and **0** are stale, out of 9 contracts total — a grader would police a population of two and
+fire on none, so it is recorded as the promotion target rather than built. Extend `check_frozen_chain.py`
+when enough contracts carry the line for a fire-rate to mean something.
+
 **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
 
 ## After the attestation — STOP and ask for the user's approval (do NOT auto-chain)
