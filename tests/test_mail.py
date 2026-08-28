@@ -2369,3 +2369,37 @@ def test_route_preserves_body_and_every_other_header(env):
 def test_route_refuses_a_message_that_is_not_in_the_inbox(env):
     with pytest.raises(mail.MailRefusedError):
         mail.route("01M0000000000000000000000A", "fleet", repo="fabrik")
+
+
+# ---------------------------------------------------------------------------
+# Same-repo (lane -> lane) is NOT project->project — trade-intelligence 01M14VS0XQ
+# ---------------------------------------------------------------------------
+# The star guard was `not _is_hub(frm) and not _is_hub(to)`, which also caught
+# frm == to. But a SELF-send is not cross-repo traffic — no topology is crossed,
+# nothing bypasses the hub's audit trail, and delivery lands in the repo's OWN
+# inbox. Meanwhile the SYNCED constitution advertises exactly this capability
+# ("the shared inbox for a repo's concurrent agents",
+# templates/governance/CLAUDE.md:247).
+#
+# The cost of the gap was concrete: the shared-tree rule FORBIDS a lane from
+# editing a sibling lane's committed file ("report it, don't edit it") — and
+# then there was nowhere to report to. The commonest multi-agent handoff had no
+# channel, so a real failing e2e test lived only in STRATEGIC_BACKLOG.md, which
+# the owning lane reads only by chance.
+
+
+def test_same_repo_lane_to_lane_send_is_allowed(env):
+    """A repo's own shared inbox — the case the synced constitution advertises."""
+    mid = mail.send(to="alpha", kind="finding", body="lane B owns this failing e2e", frm="alpha")
+    assert mid
+    delivered = list((env["mail_root"] / "alpha" / "inbox").glob("*.md"))
+    assert len(delivered) == 1, delivered
+    assert "lane B owns this failing e2e" in delivered[0].read_text(encoding="utf-8")
+
+
+def test_star_topology_still_refuses_a_different_project(env):
+    """The counter-direction, and the reason this is an exemption and not a removal:
+    project -> sibling project must still be refused so nothing bypasses the hub."""
+    with pytest.raises(mail.MailRefusedError) as ei:
+        mail.send(to="beta", kind="finding", body="hi", frm="alpha")
+    assert "star" in str(ei.value).lower()

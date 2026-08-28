@@ -660,7 +660,18 @@ def send(
         raise MailRefusedError(
             f"invalid recipient {to!r}: not fabrik/fabrik-lib and no /opt/{to}/.claude/hooks/mail_notify.py (a repo that can't surface mail)"
         )
-    if not _is_hub(frm) and not _is_hub(to):
+    # SAME-REPO is not project→project. The star exists so a project never mails a
+    # SIBLING project directly, bypassing the hub's audit trail — a self-send crosses
+    # no topology and lands in the repo's OWN inbox, which is precisely the "shared
+    # inbox for a repo's concurrent agents" the synced constitution advertises
+    # (templates/governance/CLAUDE.md). Refusing it left the commonest multi-agent
+    # handoff with NO channel: the shared-tree rule forbids a lane from editing a
+    # sibling lane's committed file and says report it instead — and there was nowhere
+    # to report to (trade-intelligence 01M14VS0XQ, whose failing e2e ended up visible
+    # only in STRATEGIC_BACKLOG.md). The hub-relay workaround does not apply either:
+    # asking infra to relay a message from a repo back to itself is a round trip
+    # through a third party for a purely local handoff.
+    if frm != to and not _is_hub(frm) and not _is_hub(to):
         raise MailRefusedError(
             f"star-topology refusal: {frm}→{to} is project→project; route via the hub (--to fabrik)"
         )

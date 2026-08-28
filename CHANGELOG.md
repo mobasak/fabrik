@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik-mail refused the intra-repo handoff its own contract advertises (2026-08-28)
+
+- `scripts/mail.py`'s star-topology guard was `not _is_hub(frm) and not _is_hub(to)`, which also caught
+  **same-repo** sends. But a self-send crosses no topology, bypasses no audit trail, and delivers to the
+  repo's OWN inbox — which is exactly the *"shared inbox for a repo's concurrent agents"* the synced
+  `templates/governance/CLAUDE.md:247` advertises. The guard now exempts `frm == to`.
+- **The gap had teeth.** The shared-tree rule forbids a lane from editing a sibling lane's committed file
+  (*"report it, don't edit it"*) — and there was nowhere to report to, so the commonest multi-agent handoff
+  had no channel. Reported by trade-intelligence (`01M14VS0XQ`) after a real failing e2e in another lane's
+  code ended up visible only in `STRATEGIC_BACKLOG.md`. The documented workaround ("route via the hub")
+  does not apply: relaying a repo's message back to itself is a round trip through a third party.
+- 2 tests incl. the counter-direction — project → **sibling** project must still be refused, so this is an
+  exemption and not a removal. Red-on-revert proven; verified live by a real same-repo send landing in
+  `/opt/fabrik-mail/trade-intelligence/inbox/`.
+
 ### Fixed — check_frozen_chain named the file but not the LINE (2026-08-28)
 
 - `scripts/enforcement/check_frozen_chain.py` had the offsets and dropped them. The advisory asks the
