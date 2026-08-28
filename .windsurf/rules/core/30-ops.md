@@ -217,7 +217,7 @@ fabrik redeploy <app>
 - `git commit -m "..."`
 - `git push`
 - `fabrik redeploy <app>`
-- Deploy‑time migration scripts in `.fabrik/hooks/post‑deploy/`
+- Deploy‑time migrations as a one-shot `migrate` compose service (see § Release & Admin Processes)
 
 ---
 
@@ -383,9 +383,23 @@ The VPS Traefik uses these entrypoint names:
 
 **✅ Correct:**
 - `docker compose run --rm <svc> alembic upgrade head` (against deployed environment)
-- `fabrik run <app> --command "alembic upgrade head"` (Fabrik wrapper for the above)
-- Deploy-time hooks in `.fabrik/hooks/post‑deploy/` for idempotent migrations
+- A one-shot **`migrate` compose service** the app services gate on:
+  `depends_on: {migrate: {condition: service_completed_successfully}}`. Same image, same env, runs to
+  completion and exits. The deployer's only container step is `docker compose up -d --wait`
+  (`deployer_ssh.py:239`), and `up` honours `depends_on` — so this is automatic, with no operator step
+  and no mechanism the platform lacks. A single `migrate` service also cannot be multiplied by
+  `deploy.replicas` on `api`, so the Alembic version-table race is **structurally impossible** rather
+  than merely avoided. Non-zero exit is the deployer's rollback trigger.
 - Separate admin container/image for heavy admin tasks (same codebase)
+
+> **Two mechanisms were struck from this list on 2026-08-28 because they do not exist** (transdoc
+> `01M14BK0JD`, verified against `/opt/fabrik` before and after filing): **`fabrik run`** — the real CLI
+> answers `Error: No such command 'run'`; and **`.fabrik/hooks/post-deploy/`** — the literal string appears
+> **nowhere** in the platform, and `_post_deploy_sync()` (`cli.py:64`) only refreshes `data/projects.yaml`.
+> This is the expensive kind of wrong: an agent following it writes `.fabrik/hooks/post-deploy/migrate.sh`,
+> sees a file that looks exactly like a migration step, and ships a deploy where migrations never run —
+> the rule producing the very defect it exists to prevent. Do not re-add either without a `path:line` in
+> `src/fabrik/` that executes it.
 
 **Processes are share-nothing:** any state shared across requests MUST go to Redis (`redis-main`) with a TTL. A project using Redis for sessions MUST declare `shape.needs_cache: true` in `specs/services/<id>.yaml`, or `fabrik apply` skips the Redis registrar and the deploy is silently broken.
 

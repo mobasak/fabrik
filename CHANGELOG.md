@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two sanctioned migration mechanisms that do not exist (2026-08-28)
+
+- `.windsurf/rules/core/30-ops.md` listed **`fabrik run <app> --command "…"`** ("Fabrik wrapper for the
+  above") and **deploy-time hooks in `.fabrik/hooks/post-deploy/`** among the ✅ Correct ways to run
+  migrations. Neither exists. Verified by execution, not by reading: the real CLI answers
+  `Error: No such command 'run'`, and the literal string `.fabrik/hooks` appears **nowhere** in the
+  platform — `_post_deploy_sync()` (`cli.py:64`) only refreshes `data/projects.yaml`.
+- **The expensive kind of wrong:** an agent following it writes `.fabrik/hooks/post-deploy/migrate.sh`,
+  sees a file that looks exactly like a migration step, commits it, and ships a deploy where migrations
+  never run — the rule producing the very defect it exists to prevent. Reported by transdoc
+  (`01M14BK0JD`) after their agent checked the platform's code instead of its prose and refused.
+- Struck from all **four** sites (`30-ops.md:220`, `:386`, `:387`, and `docs/operations/fabrik-lifecycle.md:142`
+  — that last one a line added earlier the same day, which had propagated the fiction into a second file
+  while fixing a different one). Replaced with the mechanism transdoc shipped and proved by running: a
+  one-shot **`migrate` compose service** gated by `depends_on: condition: service_completed_successfully`.
+  The deployer's only container step is `docker compose up -d --wait` (`deployer_ssh.py:239`), which
+  honours `depends_on` — so it is automatic, and a single `migrate` service cannot be multiplied by
+  `deploy.replicas`, making the Alembic version-table race structurally impossible rather than avoided.
+- A tombstone records both struck mechanisms and why, so neither is re-added from memory: *"do not re-add
+  either without a `path:line` in `src/fabrik/` that executes it."*
+
 ### Added — Provider-death resilience: the enforcement half of an operator-instructed standard (2026-08-28)
 
 - **The corpus was teaching the pattern that failed.** `.windsurf/rules/core/76-gpu-workers.md`
