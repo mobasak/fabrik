@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: BLOCKED — verify RUN 3: (4) verifier checks the domain before DNS resolves + (5) _provision_dns routed the record to Namecheap not the Cloudflare zone → auth.ocoron.com not live
+Status: DRAFT — BLOCKED re-entry after RUN 3 verify halt; the machinery blocker (verifier in-band probe rolling back a healthy health.disabled deploy) is FIXED + landed on master (1c90bf81); re-converging
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -44,6 +44,28 @@ interpolation is default-on ≥ Compose 2.24; the box is 2.40.3. See `## Evidenc
 `postgres-main` out-of-band, write the resolved DSN into `/opt/zitadel/.env`, then `docker compose up -d`.
 On a FRESH first deploy the masterkey re-mint (F1) is harmless (no data yet), widening the options. This is
 the documented recovery; the primary path is now the clean `fabrik apply` (S3) that (b) makes work.
+
+## ✅ RESOLVED — deploy-machinery findings surfaced live (all fixed + proven)
+
+This deploy stress-tested the machinery: one live `fabrik apply` surfaced FOUR distinct deploy-machinery
+defects across RUN 1–3 (D1 was found earlier at plan-review). Each was fixed at the source and re-proven the
+next run; the ledger below carries the per-run adjudication. Summary of the fixes the next dispatch relies on:
+
+- **D1 — deploy-order / DB-at-boot** → `deploy.db_before_boot` pre-provisions the DB + seeds `DATABASE_URL`
+  before first boot (commit a47d5e20; see the D1 section above). *Proven live RUN 2 (DB pre-created).*
+- **Admin-password complexity** → `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${ZITADEL_ADMIN_PASSWORD}Aa1!"`
+  guarantees the symbol/upper/lower/number Zitadel's default policy requires (commit f1a25bd9).
+  *Proven live RUN 2 (start-from-init cleared 03_default_instance, served /debug/ready 200).*
+- **`up --wait` ↔ `health.disabled`** → `deployer_ssh._compose_up` uses `up -d` (not `--wait`, which needs a
+  healthcheck a scratch image can't have) + an external readiness poll (commit 43ced0d3).
+  *Proven live RUN 3 (deploy reached all six registrars).*
+- **Verifier in-band probe ↔ `health.disabled`** → `DeploymentVerifier.verify` skips the in-band HTTPS
+  probe when `health.disabled` is set, mirroring `_compose_up`; liveness is owned by external Gatus + the
+  deployer's readiness poll (commit 1c90bf81, 2 red-on-revert tests). This is the RUN 3 blocker; a healthy
+  Zitadel had been rolled back (incl. its DNS record) by a transient DNS/ACME-timing probe failure.
+
+All four are landed + pushed on master. The next dispatch runs the amended runbook from S1 with clean slate
+(no container, no DB, `auth.ocoron.com` unresolved — the RUN 3 rollback removed everything; re-probed this turn).
 
 ## Release readiness — `N/A (third-party image)` + hub-artifact evidence
 
@@ -156,9 +178,13 @@ resolves from the hub process-env / hub `.env` (`__init__.py:321-325`) — the v
 not resolve today, but that is expected pre-deploy and requires **no manual action**: `fabrik apply`'s
 `_provision_dns` (`src/fabrik/orchestrator/__init__.py:159`, deploy step 3, BEFORE the container) parses the
 spec `domain` into subdomain `auth` + base `ocoron.com`, resolves `target_vps: vps1 → 172.93.160.197` from its
-`VPS_IPS` table, and creates the A record via site-provisioner (Namecheap → Cloudflare fallback —
-`provision.vps1.ocoron.com`, the fleet's DNS gateway). The runbook only **VERIFIES** it (S1 below), never
-creates it by hand.
+`VPS_IPS` table, and creates the A record via `DNSClient.add_subdomain` → `POST /api/cloudflare/dns/{domain}/subdomain`
+— the **Cloudflare** route through site-provisioner (`provision.vps1.ocoron.com`, the fleet's DNS gateway;
+`ocoron.com` is a Cloudflare-managed zone, NS `kiki/lex.ns.cloudflare.com`). From the hub, `DNSClient` reaches
+the container over SSH (`SITE_PROVISIONER_CONTAINER` + `SITE_PROVISIONER_INTERNAL_URL` in `.env`). The
+line-582 `_provision_dns` code comment still reads "Namecheap first" — that comment is STALE; the primary call
+is the Cloudflare subdomain endpoint (the `CloudflareClient` direct-API path is the on-exception fallback). The
+runbook only **VERIFIES** the record (S1 below), never creates it by hand.
 
 ```
 $ dig +short auth.ocoron.com A         # (empty NOW — fabrik apply's _provision_dns creates it at deploy)
@@ -414,4 +440,4 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 — ⛔ BLOCKED S3 2026-08-28T22:19:58Z RUN 2 — the admin-password fix WORKED (start-from-init cleared all migrations incl. 03_default_instance; container ran, /debug/ready→200, /debug/healthz→200, server listening :8080), BUT `fabrik apply` returned rc=1: `docker compose up -d --wait` REQUIRES a healthcheck, and with health.disabled (scratch image — no in-container shell/curl for one) it exits 1 ("container zitadel has no healthcheck configured"), so deploy() aborts at deployer_ssh.py:515 BEFORE the post-deploy registrars (:173) → gatus/prometheus/glitchtip/backrest/grafana never provisioned → false-failure + incomplete deploy. THIRD deploy-machinery defect (after D1 ordering + password-complexity). Rollback: container down+removed, connections terminated, zitadel DB dropped (RUN-2 instance had only default org/admin, no real data). Fix needed (deployer): for health.disabled services use `docker compose up -d` (NOT --wait, which needs a healthcheck) at deployer_ssh.py:515 (_deploy_docker) AND :239 (inject_env), + an external readiness poll. Then re-converge + clean re-deploy. [ADJUDICATED 2026-08-28 — closed by the deployer fix 43ced0d3: _compose_up uses `up -d` (no --wait) + an external readiness poll for health.disabled services; 5 red-first tests, 122 deployer tests green]
 
 — RUN 3 2026-08-28T22:49:58Z
-— ⛔ BLOCKED verify 2026-08-28T23:01:27Z RUN 3 — the up--wait fix WORKED: deploy() reached the container (up -d + readiness poll passed, restarts=0) AND ran ALL post-deploy registrars (GLITCHTIP_DSN injected, DB DSN resolved, /debug/ready→200 in-network) — then FAILED at the deployer's verify. TWO remaining machinery findings: (4) VERIFIER-DNS-TIMING — DeploymentVerifier.verify does an HTTP health check on the DOMAIN (verifier.py DEFAULT_HEALTHCHECK_PATH) which fails "Name or service not known" before DNS resolves; needs skip_health_check on fresh-domain apply, DNS-tolerant retry, or an in-network probe. (5) DNS-PROVIDER-MISROUTE — _provision_dns tries Namecheap FIRST + only falls back to Cloudflare on Namecheap FAILURE (__init__.py); ocoron.com is a CLOUDFLARE zone (kiki/lex.ns.cloudflare.com), Namecheap "succeeds" without erroring → the record lands in the wrong provider and auth.ocoron.com is NOT in the live Cloudflare zone (verified empty via 1.1.1.1). Rollback: container down+removed, connections terminated, zitadel DB dropped (default data only). Findings 4+5 are the last blockers; findings 1-3 (db_before_boot, Aa1! password, up--wait) all FIXED + proven LIVE this run.
+— ⛔ BLOCKED verify 2026-08-28T23:01:27Z RUN 3 — the up--wait fix WORKED: deploy() reached the container (up -d + readiness poll passed, restarts=0) AND ran ALL post-deploy registrars (GLITCHTIP_DSN injected, DB DSN resolved, /debug/ready→200 in-network) — then FAILED at the deployer's verify. Root cause (ONE machinery finding, corrected 2026-08-29): DeploymentVerifier.verify ran an in-band HTTPS probe of the DOMAIN even for health.disabled services; on the DNS-propagation/ACME timing window it raised VerificationError, whose rollback deleted the container + DB + the just-created DNS record. The two findings originally logged here COLLAPSE into this one: (4) VERIFIER-DNS-TIMING was the real defect; (5) "DNS-PROVIDER-MISROUTE" was a MISDIAGNOSIS — _provision_dns's line-582 comment says "Namecheap first" but the code calls DNSClient.add_subdomain → POST /api/cloudflare/dns/{domain}/subdomain, the CLOUDFLARE route via site-provisioner (src/fabrik/drivers/dns.py:294-316; hub .env has SITE_PROVISIONER_CONTAINER + SITE_PROVISIONER_INTERNAL_URL so DNSClient reaches it over SSH). The record WAS created correctly in the Cloudflare zone and was DELETED by the verify-failure rollback (ctx.add_resource("dns",…), __init__.py:591 → DNS is a rolled-back resource); auth.ocoron.com reading empty via 1.1.1.1 afterward was that rollback artifact, not a misroute. Rollback: container down+removed, connections terminated, zitadel DB dropped (default data only). Findings 1-3 (db_before_boot, Aa1! password, up--wait) all FIXED + proven LIVE this run. [ADJUDICATED 2026-08-29 — closed by the verifier fix 1c90bf81: verify() skips the in-band probe when health.disabled is set (mirroring _compose_up); liveness owned by external Gatus + the deployer's readiness poll; 2 red-on-revert tests, gate green]
