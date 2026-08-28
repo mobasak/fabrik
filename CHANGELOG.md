@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffolded DB-backed projects now document a working TEST_DATABASE_URL (2026-08-28)
+
+- `src/fabrik/scaffold.py` — a DB-backed scaffold emits a QUICKSTART/conftest that treat `TEST_DATABASE_URL`
+  as mandatory (DB-backed tests `skipif` it is unset; the `${TEST_DATABASE_URL:?}` guard blocks an all-SKIP
+  "green"), but the generated `.env.local` / `.env.example` never gave the developer a value — so onboarding hit
+  a guard whose remedy was undocumented (transdoc `01M13G1B6B` item 3, routed to fleet via `01M143VYNT`). Both
+  files now emit `TEST_DATABASE_URL` pointed at a **throwaway** `<db>_test` database — the name the
+  `require_throwaway()` guard accepts (`_DISPOSABLE_NAME = /(_test|throwaway|scratch)$/`), so a mispointed URL
+  errors instead of wiping a dev DB — with the "not optional / all-SKIP is not a pass" note inline. Regression-tested.
 ### Fixed — a Gate line that threw away the exit status of the command under test (2026-08-28)
 
 - Backfilled: `917608b2` shipped this BLOCKING rule in `check_plan_tickets.py` with no CHANGELOG

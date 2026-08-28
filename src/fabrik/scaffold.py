@@ -1809,13 +1809,20 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     use_database = kwargs.get("use_database", False)
     if use_database:
         # Create .env.local for WSL development
-        db_name_dev = name.replace("-", "_") + "_dev"
+        db_base = name.replace("-", "_")
+        db_name_dev = db_base + "_dev"
+        db_name_test = db_base + "_test"  # ends in _test → passes the require_throwaway() guard
         (project_dir / ".env.local").write_text(
             f"# {name} Local Development (WSL)\n"
             f"LOG_LEVEL=DEBUG\n"
             f"SERVICE_NAME={name}\n\n"
             f"# Native PostgreSQL on WSL\n"
-            f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n"
+            f"DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_dev}\n\n"
+            f"# Test DB for `pytest` — a THROWAWAY database (name must end in _test/throwaway/scratch,\n"
+            f"# or tests/conftest.py::require_throwaway() refuses it). DB-backed tests skipif this is unset,\n"
+            f"# so without it the suite reports all-SKIP (a green line that proves nothing). Create it once:\n"
+            f"#   sudo -u postgres psql -c 'CREATE DATABASE {db_name_test};'\n"
+            f"TEST_DATABASE_URL=postgresql://postgres@localhost:5432/{db_name_test}\n"
         )
 
         # Auto-create development database
@@ -1867,6 +1874,16 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
             f"# Optional - uncomment if using database\n# DATABASE_URL=postgresql://user:pass@localhost:5432/{name}_dev\n",
             f"# Database (managed by Fabrik orchestrator on VPS via postgres registrar)\n# Set via project .env (managed by `fabrik apply`): POSTGRES_PASSWORD\nDATABASE_URL=postgresql://postgres:${{POSTGRES_PASSWORD}}@postgres-main:5432/{name.replace('-', '_')}\n",
         )
+        # TEST_DATABASE_URL — NOT optional for `pytest`: DB-backed tests skipif it is unset, so without
+        # it the suite reports an all-SKIP "green" that proves nothing (and conftest's ${TEST_DATABASE_URL:?}
+        # guard blocks that). Point it at a THROWAWAY db whose name ends in _test/throwaway/scratch (the
+        # require_throwaway() guard refuses anything else, so a mispointed URL errors instead of wiping a real DB).
+        if "TEST_DATABASE_URL=" not in env_content:
+            env_content += (
+                f"\n# Test DB for `pytest` — a THROWAWAY database (name must end in _test/throwaway/scratch).\n"
+                f"# Required: DB-backed tests skip without it (an all-SKIP run is NOT a pass).\n"
+                f"TEST_DATABASE_URL=postgresql://postgres@localhost:5432/{name.replace('-', '_')}_test\n"
+            )
         env_example_path.write_text(env_content)
 
     # Create basic test
