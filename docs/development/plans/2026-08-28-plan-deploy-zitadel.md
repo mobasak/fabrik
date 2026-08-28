@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: DRAFT — D1 RESOLVED by the `db_before_boot` machinery fix (awaiting the re-review's CONVERGED flip)
+Status: CONVERGED
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -372,5 +372,25 @@ follow-up stays filed at `docs/STRATEGIC_BACKLOG.md`.
 
 With D1 resolved and every finding fixed, the plan is convergence-ready — the re-review's md5-verified no-op
 earns `CONVERGED`, handing to Gate 2.
+
+## Coverage Checklist
+
+Classes derived from the deploy-plan-review canonical checklist + the four standing recurrence classes, with
+the rubric injected via `python scripts/review_rubric.py --changed <plan + specs/services/zitadel.yaml + the
+orchestrator/deployer/infrastructure paths>` (run at Phase 1 of both review rounds). Every class swept to a
+verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2) + author-blind grounding.
+
+| # | Class | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Secrets flow | CLEAN | F1 re-mint invariant grounded (`__init__.py:301-320`); `db_before_boot` DATABASE_URL coexists with the masterkey (both in `ctx.secrets`); plain `redeploy` proven safe |
+| 2 | Env/config completeness | FIXED | D4 LOG_LEVEL drift corrected; every `${VAR}` traced; DATABASE_URL seeded + env_file interpolation verified live (`docker compose config`, Compose 2.40.3) |
+| 3 | Staged-infra validity | CLEAN | DNS S1 (`auth.ocoron.com`→`172.93.160.197`), 6-registrar `fabrik plan` preview, cert story |
+| 4 | Runbook ordering + timing | FIXED | D1 resolved (`deploy.db_before_boot` pre-provision at step 2b `__init__.py:161`<`:170`); D2 (S5 greps the resolved DSN); stable `S`-ids; S-RB + #4b recovery |
+| 5 | Healing / rollout | CLEAN — N/A-vps | `health.disabled`→no healthcheck→`vps-autoheal.sh:53` (unhealthy-only) never acts; no window bracket needed |
+| 6 | Battery completeness | FIXED | F-D readiness≠write-proof corrected; write path = Console user-create; ACME/cert diag before TLS |
+| 7 | Monitoring + backup/DR truth | FIXED | F-A/F-B fixed at the spec (`health.path`/`monitoring.metrics_path`); F-C cert-expiry dropped; F-E → S-DR backup-coverage step |
+| 8 | Standing recurrence sweep | FIXED | #3 db_name parity (name-first, `__init__.py:302`==`infrastructure.py:413`); #4a orphan-DB tracked; #4b re-run recovery; #6 interpolation grounded; opt-in = byte-identical for other services |
+
+## BLOCKED: none
 
 **Next command:** /fabrik-deploy-plan-review docs/development/plans/2026-08-28-plan-deploy-zitadel.md — adversarially converge this plan before Gate 2.
