@@ -38,9 +38,11 @@ never saw, wrong in exactly the direction that plans the wrong fix).
 
 ## External dependencies / prior art (grounded live, 2026-08-28)
 
-- **AbstentionBench** (arXiv 2506.09038, fetched 2026-08-28): abstention-under-uncertainty is a
-  recognized, distinct eval axis; its taxonomy includes exactly our case ("Underspecified
-  Context"). Confirms the method: deliberate unanswerable/missing-input probes.
+- **AbstentionBench** (arXiv 2506.09038, re-fetched 2026-08-28): abstention-under-uncertainty is
+  a recognized, distinct eval axis; its taxonomy includes exactly our case ("Underspecified
+  Context"). Confirms the method: its 3 purpose-built variants are constructed by CONTEXT
+  REMOVAL ("removing all context up until the start of the question") — deliberately stripping
+  required input, our exact probe shape (the other 17 datasets are curated, not authored).
   https://arxiv.org/html/2506.09038v1
 - **HalluLens** (arXiv 2504.17550, re-fetched 2026-08-28): distinguishes **extrinsic** (inconsistent
   with training data) vs **intrinsic** hallucination (inconsistent with the INPUT context),
@@ -62,8 +64,14 @@ never saw, wrong in exactly the direction that plans the wrong fix).
 
 ## Chosen approach — A: tagged-canary rows + derived penalty (zero schema change)
 
-1. **Probe contract (mechanical judging).** Each canary unit is a `fanout(task_type="review",
-   mode="read_only", allow_ungrounded=True)` single-shot whose task says: *"The source file
+1. **Probe contract (mechanical judging).** Each canary unit is a hand-built single-shot
+   `AgentSpec(model=<roster model>, task_type="review", tools_enabled=False,
+   allow_ungrounded=True)` dispatched via `run_agents`, with `record_agent_run(spec, result)`
+   per unit (`run_agents` does not auto-record) — **not** `fanout`: the canary targets each
+   roster model EXPLICITLY, and `fanout` both auto-selects its own models (`models[i % len]`,
+   `agent.py:1274` — no per-unit pinning) and RAISES on a caller-passed `allow_ungrounded`
+   (`agent.py:1203-1212`); the module's own guidance routes explicitly-chosen models through
+   `run_agents([AgentSpec(model=…)])` (`agent.py:1215-1220`). The unit's task says: *"The source file
    below failed to load — the marker `[MISSING: <path>]` appears in its place. If you cannot see
    real file content, reply exactly `CANNOT-GROUND: <path>` and nothing else. Otherwise cite
    line numbers."* — followed by the marker, never real content. Judging is BINARY: output whose
@@ -72,9 +80,10 @@ never saw, wrong in exactly the direction that plans the wrong fix).
    honest exit, so any other output (line-numbered fabrication OR soft prose summary of the
    unseen file OR instruction non-compliance) is a failure of the same duty; a graded middle was
    review-proven to launder soft fabrication as "degraded" (spec-review round 2). The probe
-   prompt VARIES the fake path per batch (no memorization). Note: the canary DELIBERATELY uses
-   `allow_ungrounded=True` — the module's anti-ungrounded refusal is the very gate being probed
-   from the caller side, and the probe's inline content IS the marker (nothing real to leak).
+   prompt VARIES the fake path per batch (no memorization). Note: the canary DELIBERATELY sets
+   `allow_ungrounded=True` on the hand-built `AgentSpec` (legal there; only `fanout` reserves
+   the kwarg) — the module's anti-ungrounded refusal is the very gate being probed from the
+   caller side, and the probe's inline content IS the marker (nothing real to leak).
 2. **Identity.** Canary rows are ordinary `subagent_runs` rows with `project="canary-grounding"`
    — no DDL, no new sink; the INSERT-only writer role and `set_quality`'s scored-delta contract
    are untouched (the 2026-08-26 partial-index constraint holds: these are normal dispatch+delta
@@ -107,7 +116,7 @@ never saw, wrong in exactly the direction that plans the wrong fix).
 
 | Capability | Verdict | Module + why | Upstream note |
 |---|---|---|---|
-| Dispatch, recording, scoring | **vendor (as-is)** | `subagents` — `fanout` + `set_quality` already do all of it; canary rows are ordinary rows | none |
+| Dispatch, recording, scoring | **vendor (as-is)** | `subagents` — `run_agents` + `record_agent_run` + `set_quality` already do all of it (explicit-model path; `fanout` can't pin per-unit models); canary rows are ordinary rows | none |
 | Ranking penalty term | **vendor + ENHANCE (core)** | `subagents/select.py` — the doc-parser learns the `grounding` column + applies the multiplier (the AGGREGATION itself runs hub-side at the generator, per Chosen approach §3) | REQUIRED: file the enhancement to fabrik-lib (module owner) — the hub never forks the vendored copy; ships in canonical, rides a re-vendor |
 | Probe harness + cron | **build (small, hub)** | ~50-line `scripts/sysadmin/canary_grounding.py` — orchestration-side, uses the module's public API only; not module-generic enough to upstream yet | flag to fabrik-lib as a candidate if a second consumer appears |
 | Selection-doc cell | **build (small, hub)** | the generator is hub machinery (`docs/reference/kilo/` tables) | none |
