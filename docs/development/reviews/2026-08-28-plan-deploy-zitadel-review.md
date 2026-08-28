@@ -43,9 +43,13 @@ it (3 further issues) to a clean, md5-verified no-op. Two rounds, three finder d
 | — | (D1 machinery fix landed: `deploy.db_before_boot`, commit a47d5e20) | — | — | — |
 | R2-1 | all + D1-fix (ordering/idempotency/parity/opt-in), 1 finder | 3 (#3, #4, #6) | 4 | c308edcb → 0369919f |
 | R2-2 | all (confirming) | **0** | **0** | 0369919f → 0369919f ✓ |
+| — | (CONVERGED at 9c37553e; then a localized DNS correction 217e934f was committed WITHOUT the marker → /fabrik-deploy hard-gate-2 refused; re-convergence below) | — | — | — |
+| R3-1 | DNS correction (S1 operator-gate → verification): `_provision_dns` auto-creates the A record via `DNSClient`/site-provisioner (`__init__.py:159`); rest unchanged | 0 | 0 | a290b9a0 → a290b9a0 ✓ |
 
-Final round: found: 0, fixed: 0. The plan's class-sweep summary + `Status: CONVERGED` header writes follow the
-verified no-op (post-convergence, exempt); final plan md5 `b6c659ed`.
+Final round: found: 0, fixed: 0. The DNS correction is grounded (`fabrik apply`'s `_provision_dns` calls
+`DNSClient().add_subdomain("ocoron.com","auth","172.93.160.197")` — creates the record, not a manual step);
+no residual "operator-DNS" framing; every other class unchanged since `9c37553e`. `Status: CONVERGED` re-flipped
+with the `deploy-plan-review` marker as the latest plan-touching commit (satisfies /fabrik-deploy's post-flip gate).
 
 ## Gate
 
