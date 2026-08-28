@@ -216,8 +216,21 @@ def save(sid: str, rec: dict[str, Any]) -> bool:
         return False
 
 
+# Sentinels an agent reaches for to mean "nothing here". Without this they were recorded as
+# LITERAL class names: a genuinely clean round passing `--classes-new "none"` produced
+# `classes open: …, none, …` — the sentinel itself sat in the open list forever, so the loop could
+# never retire it and the ledger contradicted the round it was recording (youtube, 2026-08-28,
+# reproduced twice in one session across two different commands). The empty string already meant
+# "nothing"; these are the words people type when a flag looks like it wants a value.
+_NOTHING_TOKENS = frozenset({"none", "none-yet", "none yet", "nothing", "n/a", "na", "-", "—", "0"})
+
+
 def _csv(raw: str | None) -> list[str]:
-    return [p.strip() for p in (raw or "").split(",") if p.strip()]
+    return [
+        p.strip()
+        for p in (raw or "").split(",")
+        if p.strip() and p.strip().casefold() not in _NOTHING_TOKENS
+    ]
 
 
 def pinned_line(rec: dict[str, Any]) -> str:

@@ -375,7 +375,14 @@ def _checklist_fails(text: str, scan: str) -> list[str]:
             "recurrence classes)"
         ]
     fails: list[str] = []
-    if not RUBRIC_RUN.search(scan):
+    # RAW `text`, not the fence-stripped `scan`: fence-stripping exists so a heading's PRESENCE
+    # cannot be satisfied from a quoted example — correct for headings, wrong for a command
+    # INVOCATION, whose natural home is a fenced block. Searching `scan` demanded evidence that a
+    # command had been RUN while being structurally blind to the one place a command and its output
+    # go, producing a genuinely circular state: put it where it belongs and it is invisible
+    # (job-agent, 2026-08-28 — 4 round-trips before reading the source). This is a BLOCKING check,
+    # so failing a CORRECT plan is the more expensive direction.
+    if not RUBRIC_RUN.search(text):
         fails.append(
             "Coverage Checklist with no review_rubric.py invocation — classes must derive "
             "from the rubric, not from memory"

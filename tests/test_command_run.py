@@ -2591,3 +2591,32 @@ def test_the_zero_rounds_notice_never_refuses(run_dir: Path) -> None:
     would be worse than the silence it replaces."""
     _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
     assert _cr(run_dir, "step", "--phase", "3", "--title", "x").returncode == 0
+
+
+def test_a_nothing_sentinel_is_not_recorded_as_a_class_name() -> None:
+    """youtube, 2026-08-28, reproduced twice in one session across two commands: a genuinely clean
+    round passing `--classes-new "none"` recorded the LITERAL string as an open class, so
+    `classes open: dashboard-screens-missing, …, none` — the sentinel sat in the open list forever
+    and the loop could never retire it. The ledger contradicted the round it was recording."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_csv", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    for sentinel in ("none", "none-yet", "nothing", "n/a", "NA", "-", "0", "None"):
+        assert cr._csv(sentinel) == [], f"{sentinel!r} must not become a class"
+
+
+def test_a_sentinel_mixed_with_real_classes_drops_only_the_sentinel() -> None:
+    """The precision side: dropping the whole list would lose real classes."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_csv2", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    assert cr._csv("a,none,b") == ["a", "b"]
+    assert cr._csv("dashboard-screens-missing,webhook-false-claim") == [
+        "dashboard-screens-missing",
+        "webhook-false-claim",
+    ]

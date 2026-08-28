@@ -1153,3 +1153,26 @@ def test_the_archived_check_is_wired_into_main_not_just_defined(tmp_path, capsys
     rc = cc.main()
     out = capsys.readouterr().out + capsys.readouterr().err
     assert rc != 0 or "archived while its own Status" in out, (rc, out)
+
+
+def test_a_rubric_invocation_inside_a_fence_satisfies_the_checklist_rule():
+    """job-agent, 2026-08-28: the checker demanded evidence that `review_rubric.py` had been RUN
+    while searching the FENCE-STRIPPED text — structurally blind to the one place a command and its
+    output naturally go. Putting the invocation where it belongs made it invisible, a genuinely
+    circular state that cost 4 round-trips. Fence-stripping is right for a heading's PRESENCE and
+    wrong for a command INVOCATION."""
+    cc = _cc()
+    text = (
+        "## Coverage Checklist\n\n| # | Class | Verdict |\n|---|---|---|\n| 1 | x | CLEAN |\n\n"
+        "```\n$ python scripts/review_rubric.py --changed src/a.py\nFLOOR …\n```\n"
+    )
+    fails = cc._checklist_fails(text, cc.FENCE_STRIP.sub("", text))
+    assert not any("review_rubric" in f for f in fails), fails
+
+
+def test_a_checklist_with_no_rubric_invocation_anywhere_still_fails():
+    """The rule must keep its teeth — this is what stops classes being invented from memory."""
+    cc = _cc()
+    text = "## Coverage Checklist\n\n| # | Class | Verdict |\n|---|---|---|\n| 1 | x | CLEAN |\n"
+    fails = cc._checklist_fails(text, cc.FENCE_STRIP.sub("", text))
+    assert any("review_rubric" in f for f in fails), fails

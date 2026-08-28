@@ -197,7 +197,23 @@ Every `sentry_sdk.init` / `Sentry.init` in the fleet MUST set both:
 | Python | Node | Closes |
 |---|---|---|
 | `include_local_variables=False` | `includeLocalVariables: false` | frame LOCALS — the SDK default is `True`, so with `LoggingIntegration`'s ERROR level any `logger.error/exception` in a function holding a settings object ships its **repr**: `DATABASE_URL`, the JWT signing secret, everything |
-| `max_request_body_size="never"` | `maxRequestBodySize: 'never'` | the request BODY, attached irrespective of `send_default_pii` (that flag gates COOKIES). Every auth, payments-webhook and token-exchange route is exposed the moment it logs an error while handling its request |
+| `max_request_body_size="never"` | **n/a — see below** | the request BODY, attached irrespective of `send_default_pii` (that flag gates COOKIES). Every auth, payments-webhook and token-exchange route is exposed the moment it logs an error while handling its request. **PYTHON ONLY** |
+
+⚠️ **The two SDKs are NOT symmetric, and the Node column originally said otherwise — that was my
+error, corrected 2026-08-28 by fleet.** `maxRequestBodySize` is a PYTHON option name;
+`@sentry/node` has no such init key, so a project that dutifully added it got a silently-ignored
+unknown key — a line that reads like a fix and does nothing. In `@sentry/node` the body channel is
+already closed by `sendDefaultPii: false`, which makes the SDK report body **size only, never
+content**. If a project wants it structural regardless of PII, the real control is
+`httpIntegration({ maxIncomingRequestBodySize: 'none' })` — note `'none'`, not `'never'`.
+`includeLocalVariables: false` IS correct and needed for Node (locals default ON for Node runtimes).
+**Never port an option name across SDKs by symmetry; check that SDK's own docs.**
+
+**Python's `EventScrubber()` is ON by default regardless of `send_default_pii`**, and its
+`DEFAULT_DENYLIST` (32 entries, live-checked) already scrubs the `Authorization` header plus
+`api_key`/`token`/`secret` BY KEY. So the HTTP-header channel is closed out of the box — that is the
+one name-based path that works, precisely because Sentry ships and maintains the list rather than a
+project guessing at it.
 
 **A `before_send` denylist is NOT an acceptable substitute — it is the thing that already failed.**
 Sentry scrubs BY VARIABLE NAME: a live probe filtered a local named `token`, missed one named
