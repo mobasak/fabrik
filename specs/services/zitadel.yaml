@@ -45,7 +45,12 @@ env:
   ZITADEL_FIRSTINSTANCE_DEFAULTLANGUAGE: en
   ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
   ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ob@ocoron.com
-  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD}   # secrets.generate; change-required on first login
+  # `Aa1!` suffix GUARANTEES Zitadel's default password-complexity policy (upper+lower+number+symbol+len):
+  # secrets.generate mints 32 alphanumeric chars (NO symbol), which the 03_default_instance setup migration
+  # REJECTS (Errors.User.PasswordComplexityPolicy.HasSymbol → crash-loop; live S3 halt 2026-08-28). The suffix
+  # is throwaway — PASSWORDCHANGEREQUIRED forces a reset on first login. Login password = the retrieved
+  # ZITADEL_ADMIN_PASSWORD value + `Aa1!`. compose env_file interpolation verified on the box (2.40.3).
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${ZITADEL_ADMIN_PASSWORD}Aa1!"
   ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
   # --- SMTP → Resend (generic SMTP), seeded at first-init on the default instance ---
   ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: smtp.resend.com:465

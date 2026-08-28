@@ -45,6 +45,9 @@ it (3 further issues) to a clean, md5-verified no-op. Two rounds, three finder d
 | R2-2 | all (confirming) | **0** | **0** | 0369919f → 0369919f ✓ |
 | — | (CONVERGED at 9c37553e; then a localized DNS correction 217e934f was committed WITHOUT the marker → /fabrik-deploy hard-gate-2 refused; re-convergence below) | — | — | — |
 | R3-1 | DNS correction (S1 operator-gate → verification): `_provision_dns` auto-creates the A record via `DNSClient`/site-provisioner (`__init__.py:159`); rest unchanged | 0 | 0 | a290b9a0 → a290b9a0 ✓ |
+| — | (deployed → S3 HALT: `start-from-init` 03_default_instance rejected the alphanumeric admin password on `PasswordComplexityPolicy.HasSymbol`; rolled back per S-RB, DB dropped) | — | — | — |
+| R4-1 | BLOCKED re-entry: admin-password complexity fix (`ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${ZITADEL_ADMIN_PASSWORD}Aa1!"`, interpolation verified on the box); survivor audit (DB dropped, container removed, DNS/.env harmless); ⛔ S3 row ADJUDICATED | 1 | 1 | (BLOCKED) → f1a25bd9 |
+| R4-2 | confirming | 0 | 0 | f1a25bd9 → f1a25bd9 ✓ |
 
 Final round: found: 0, fixed: 0. The DNS correction is grounded (`fabrik apply`'s `_provision_dns` calls
 `DNSClient().add_subdomain("ocoron.com","auth","172.93.160.197")` — creates the record, not a manual step);

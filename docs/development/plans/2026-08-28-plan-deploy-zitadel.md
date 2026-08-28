@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: DRAFT — BLOCKED re-entry: amending the admin-password complexity fix (S3 halt)
+Status: CONVERGED
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -195,7 +195,10 @@ pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherw
    *rerunnable:* on a FRESH first deploy the masterkey re-mint (F1) is harmless (no data yet), so a re-run is
    safe until Zitadel first completes init; after data exists, updates go via plain `redeploy` only (S-INV).
 4. **S4** — retrieve the admin password: `ssh vps "sudo grep ZITADEL_ADMIN_PASSWORD /opt/zitadel/.env"`.
-   *verify:* a 32-char value returned. *rollback:* n/a. *rerunnable:* yes.
+   ⚠️ **the actual LOGIN password is that value + `Aa1!`** (the spec sets `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD:
+   "${ZITADEL_ADMIN_PASSWORD}Aa1!"` to satisfy Zitadel's default complexity policy — see the S3-halt fix); it is
+   change-required on first login, so the suffix is throwaway. *verify:* a 32-char value returned (login = it + `Aa1!`).
+   *rollback:* n/a. *rerunnable:* yes.
 5. **S5** — env-injection proof (scratch image, **no shell** — `docker inspect`, never `docker exec printenv`,
    `docs/reference/zitadel.md:42`): `ssh vps "sudo docker inspect zitadel --format '{{range .Config.Env}}{{println .}}{{end}}'" | grep -E 'ZITADEL_DATABASE_POSTGRES_DSN=postgresql://|GLITCHTIP_DSN=|ZITADEL_MASTERKEY=.'`.
    **D2 (review): grep the RESOLVED DSN, not the raw `DATABASE_URL` key** — `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}`
@@ -322,7 +325,7 @@ per `fabrik-deploy-plan.md:11-13`.
 | B1 | the deploy ran | `curl https://auth.ocoron.com/debug/ready` | HTTP 200 (DB-checked readiness — pool to postgres-main live) |
 | B2 | the deploy ran | open `https://auth.ocoron.com` in a browser | the branded login UI loads over a valid TLS cert |
 | B3 | the deploy ran | `curl …/.well-known/openid-configuration \| jq .backchannel_logout_supported` | `true` (OIDC issuer live) |
-| B4 | admin credentials retrieved (S4) | sign in as `admin@…` | login succeeds, password-change is required |
+| B4 | admin credentials retrieved (S4: `ZITADEL_ADMIN_PASSWORD` + `Aa1!`) | sign in as `admin@ocoron.com` | login succeeds (complexity policy satisfied), password-change is required |
 | B5 | the deploy ran | a Zitadel verification email is triggered | it is delivered through Resend |
 | B6 | `postgres-main` is unreachable | `curl …/debug/ready` | non-200 (Gatus flags it) |
 | B7 | metrics enabled | Prometheus scrapes `/debug/metrics` | series present; `docker inspect` shows `GLITCHTIP_DSN` |
@@ -389,7 +392,7 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 
 | # | Class | Verdict | Evidence |
 |---|---|---|---|
-| 1 | Secrets flow | CLEAN | F1 re-mint invariant grounded (`__init__.py:301-320`); `db_before_boot` DATABASE_URL coexists with the masterkey (both in `ctx.secrets`); plain `redeploy` proven safe |
+| 1 | Secrets flow | FIXED | F1 re-mint invariant grounded; `db_before_boot` DSN coexists with masterkey; plain `redeploy` safe. **S3-halt fix:** the alphanumeric `secrets.generate` admin password failed Zitadel's HasSymbol policy → `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${ZITADEL_ADMIN_PASSWORD}Aa1!"` guarantees complexity (interpolation verified on the box) |
 | 2 | Env/config completeness | FIXED | D4 LOG_LEVEL drift corrected; every `${VAR}` traced; DATABASE_URL seeded + env_file interpolation verified live (`docker compose config`, Compose 2.40.3) |
 | 3 | Staged-infra validity | CLEAN | DNS auto-provisioned by `fabrik apply` (`_provision_dns` → site-provisioner; S1 verifies, NOT operator-gated), 6-registrar `fabrik plan` preview, cert story |
 | 4 | Runbook ordering + timing | FIXED | D1 resolved (`deploy.db_before_boot` pre-provision at step 2b `__init__.py:161`<`:170`); D2 (S5 greps the resolved DSN); stable `S`-ids; S-RB + #4b recovery |
