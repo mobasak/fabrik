@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a Gate line that threw away the exit status of the command under test (2026-08-28)
+
+- Backfilled: `917608b2` shipped this BLOCKING rule in `check_plan_tickets.py` with no CHANGELOG
+  entry, found by `/fabrik-review` on my own mail-handling work. `check_plan_tickets` counted
+  `Gate:` lines and never asked whether one could RUN; transdoc's five tickets declared
+  `pytest server/tests -q … | tail -5` against a directory that does not exist, and the shell
+  reports the LAST stage — measured `pipeline $?=0` while `PIPESTATUS(pytest)=4`.
+- Narrowed by measurement before shipping: "final stage is not the command under test" flags 16 of
+  805 gates fleet-wide, but `grep -q`, `grep -c` and `jq` as a final stage ARE the assertion.
+  Restricted to a pure DISPLAY filter (`tail`/`head`/`cat`/`less`/`more`) it flags 2 of 805 and
+  still catches the reported shape.
+
+
 ### Fixed — Scaffolded GlitchTip init no longer leaks secrets via frame locals / request body (2026-08-28)
 
 - `src/fabrik/scaffold.py` — the scaffold-emitted `glitchtip_init` (both the Python `sentry_sdk.init` and
