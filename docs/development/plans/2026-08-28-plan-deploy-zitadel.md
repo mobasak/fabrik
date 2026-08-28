@@ -1,34 +1,37 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: DRAFT — BLOCKED on D1 (deploy-order/DB-at-boot contradiction; see ⚠️ BLOCKING FINDING below)
+Status: DRAFT — D1 RESOLVED by the `db_before_boot` machinery fix (awaiting the re-review's CONVERGED flip)
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
 Date: 2026-08-28
-Stage: 6-release · deploy triad step 2 (/fabrik-deploy-plan-review found a blocker — does NOT converge)
+Stage: 6-release · deploy triad step 2 (re-review after the D1 fix)
 
-## ⚠️ BLOCKING FINDING D1 — a plain `fabrik apply` CANNOT stand up Zitadel (deploy-order contradiction)
+## ✅ RESOLVED FINDING D1 — deploy-order/DB-at-boot contradiction (fixed by machinery + fallback runbook)
 
-Grounded this review (Zitadel issues [#5810], [#11942] + the self-hosting troubleshooting doc, fetched
-2026-08-28): **`start-from-init` has NO database-connection retry — it exits immediately if postgres is
-unreachable.** But fabrik's order is container-first: `deploy()` runs `deployer.deploy` (`docker compose up
--d --wait`) at `orchestrator/__init__.py:163`, and the **postgres registrar injects `DATABASE_URL` only
-afterward** at `:173`. On first apply the container boots with an empty/unresolved `${DATABASE_URL}` →
-`start-from-init` exits → `up --wait` (deployer_ssh.py:515, 120s) raises `DeployError` → the `except` at
-`__init__.py:201` rolls back at `:207` **before** the registrar at `:173` ever runs → **no DB is created**.
-A repeated `fabrik apply` re-crashes identically (the registrar never gets to run), so the naive
-single-apply runbook (S3 below) **will never succeed**. `restart: unless-stopped` only crash-loops the
-container; `--wait` still fails. This is not a tuning issue — Zitadel's init-at-boot model is fundamentally
-incompatible with fabrik's inject-after-deploy ordering.
+**The finding (grounded, Zitadel issues [#5810], [#11942] + self-hosting troubleshooting doc):**
+`start-from-init` has **no DB-connection retry — it exits immediately if postgres is unreachable.** But
+fabrik's order is container-first: `deploy()` runs `deployer.deploy` (`up -d --wait`) at
+`orchestrator/__init__.py:163`, and the postgres registrar injects `DATABASE_URL` only afterward at `:173`.
+So a naive `fabrik apply` boots Zitadel with an empty DSN → it exits → `up --wait` (deployer_ssh.py:515)
+raises → rollback at `:207` **before** the registrar runs → no DB → a repeat re-crashes identically.
 
-**Resolution required before Gate 2 (owner: fleet + operator) — the plan stays DRAFT until one lands:**
-(a) a **bootstrap runbook** that makes the `zitadel` DB reachable at the container's FIRST boot — e.g.
-pre-create the DB+role on `postgres-main` and pre-seed the resolved DSN into `/opt/zitadel/.env` (managing
-the DB password out-of-band, since the registrar's post-inject can't run in time), then `docker compose up`;
-validated in staging; OR (b) a **fabrik-machinery enhancement** (provision-before-deploy, or a DB-wait
-wrapper for init-at-boot images) — filed to `docs/STRATEGIC_BACKLOG.md` [fleet]. On a FRESH first deploy the
-masterkey re-mint (F1) is harmless (no data yet), which widens the bootstrap options, but the ordering must
-still be solved. Everything below Phase 0 is otherwise grounded and correct; D1 is the one gating defect.
+**Fix (b) — the durable machinery change (shipped this review):** a new opt-in `deploy.db_before_boot: true`
+(`specs/services/zitadel.yaml`). When set + `needs_database`, the orchestrator's new
+`_pre_provision_db_for_boot` (`__init__.py`, called at step 2b **before** `deployer.deploy`) creates the DB +
+role via `create_database` and seeds the resolved `DATABASE_URL` into `ctx.secrets`, so
+`_build_env_content` (deployer_ssh.py) writes it into the **initial** `.env` — the container's first boot has
+the DSN, `start-from-init` connects, init succeeds. The post-deploy registrar (:173) runs `create_database`
+again → idempotent (DB exists → no password → `.env` preserved), so **no double-provision**. Opt-in, so every
+other service is byte-identical. Red-first tests: `tests/orchestrator/test_pre_provision_db.py` (4 tests:
+seed-on-flag, strict no-op without the flag, no-op without `needs_database`, `depends.postgres` name
+derivation). **Fabrik-wide follow-up** (make this automatic for all init-at-boot images, or a DB-wait
+wrapper) stays filed at `docs/STRATEGIC_BACKLOG.md` [fleet].
+
+**Fallback (a) — manual bootstrap (if `db_before_boot` is ever unavailable):** create the `zitadel` DB+role on
+`postgres-main` out-of-band, write the resolved DSN into `/opt/zitadel/.env`, then `docker compose up -d`.
+On a FRESH first deploy the masterkey re-mint (F1) is harmless (no data yet), widening the options. This is
+the documented recovery; the primary path is now the clean `fabrik apply` (S3) that (b) makes work.
 
 ## Release readiness — `N/A (third-party image)` + hub-artifact evidence
 
@@ -165,13 +168,13 @@ pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherw
 2. **S2** — masked from_env preview (confirm the key is present without printing its value):
    `grep -q RESEND_API_KEY /opt/fabrik/.env && echo "RESEND present"`.
    *verify:* prints `RESEND present`. *rollback:* n/a (read-only). *rerunnable:* yes.
-3. **S3** — ⚠️ **SUPERSEDED BY D1 (does not work as-is).** The naive `fabrik apply specs/services/zitadel.yaml`
-   fails: the container boots before the registrar injects `DATABASE_URL`, `start-from-init` exits (no retry),
-   `up --wait` raises, and the deploy rolls back before the registrar runs (see the ⚠️ BLOCKING FINDING).
-   The working step depends on the chosen resolution (bootstrap runbook vs machinery fix) and MUST be authored
-   before Gate 2. Whatever form it takes: heavy step (`FABRIK_BUILD_TIMEOUT=1200`, ~1 GiB pull + init 3–8 min);
-   on a fresh first deploy the masterkey re-mint (F1) is harmless (no data), so the DB may be (re)created freely
-   until Zitadel first completes init; *verify (S5); rollback (S-RB).*
+3. **S3** — first deploy: `FABRIK_BUILD_TIMEOUT=1200 fabrik apply specs/services/zitadel.yaml`. **D1-fixed:**
+   because `deploy.db_before_boot: true`, the orchestrator pre-creates the `zitadel` DB + role and seeds
+   `DATABASE_URL` into the initial `.env` at **step 2b** (before `deployer.deploy`), so the container's first
+   `start-from-init` boot connects, runs migrations, and completes; the post-deploy registrar (:173) then no-ops
+   on the existing DB. Pulls the ~1 GiB scratch image + init ≈ 3–8 min. *verify (S5); rollback (S-RB).*
+   *rerunnable:* on a FRESH first deploy the masterkey re-mint (F1) is harmless (no data yet), so a re-run is
+   safe until Zitadel first completes init; after data exists, updates go via plain `redeploy` only (S-INV).
 4. **S4** — retrieve the admin password: `ssh vps "sudo grep ZITADEL_ADMIN_PASSWORD /opt/zitadel/.env"`.
    *verify:* a 32-char value returned. *rollback:* n/a. *rerunnable:* yes.
 5. **S5** — env-injection proof (scratch image, **no shell** — `docker inspect`, never `docker exec printenv`,

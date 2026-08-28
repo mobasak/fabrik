@@ -24,6 +24,11 @@ source:
   image_command: 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external'
 depends:
   postgres: zitadel           # registrar creates the `zitadel` DB owned by the injected role + injects DATABASE_URL
+deploy:
+  db_before_boot: true        # start-from-init needs the DB reachable at FIRST boot (no retry) — the orchestrator
+                              # pre-creates the DB + seeds DATABASE_URL into the initial .env BEFORE `up`, closing
+                              # deploy-plan-review finding D1. Without this a plain `fabrik apply` crashes + rolls
+                              # back before the post-deploy registrar ever injects the DSN.
 env:
   # --- external access behind Traefik (TLS terminated by Traefik) ---
   ZITADEL_EXTERNALDOMAIN: auth.ocoron.com

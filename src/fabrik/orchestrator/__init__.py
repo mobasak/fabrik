@@ -153,6 +153,13 @@ class DeploymentOrchestrator:
             # Step 2: Load secrets
             self._load_secrets(ctx, spec)
 
+            # Step 2b: For init-at-boot images (deploy.db_before_boot), provision the
+            # DB + seed DATABASE_URL into ctx.secrets BEFORE the first container boot,
+            # so the initial .env carries it. Closes deploy-plan-review finding D1
+            # (2026-08-28): start-from-init-style images crash on an empty DSN and the
+            # deploy rolls back before the post-deploy registrar ever injects it.
+            self._pre_provision_db_for_boot(ctx, spec)
+
             # Step 3: Provision (DNS)
             self._transition(ctx, DeploymentState.PROVISIONING)
             logger.info("Provisioning resources for %s", spec["name"])
@@ -263,6 +270,54 @@ class DeploymentOrchestrator:
                 "while that integration is dead). Add the real value to /opt/fabrik/.env.",
                 key,
             )
+
+    def _pre_provision_db_for_boot(self, ctx: DeploymentContext, spec: dict) -> None:
+        """Create the DB + seed ``DATABASE_URL`` BEFORE the first container boot.
+
+        Opt-in via ``deploy.db_before_boot: true``. Init-at-boot images (Zitadel
+        ``start-from-init``) run migrations synchronously at startup and need the DB
+        reachable then — but the postgres registrar injects ``DATABASE_URL`` only
+        post-deploy (:meth:`deploy` step 4b), so the container's first boot has an
+        empty DSN, crashes, and the deploy rolls back before the registrar runs
+        (deploy-plan-review 2026-08-28 finding D1). Here we create the DB + role now
+        and seed the DSN into ``ctx.secrets`` so :meth:`SSHDeployer._build_env_content`
+        writes it into the INITIAL ``.env``. The post-deploy registrar's
+        ``create_database`` is idempotent (DB exists → no password returned → the
+        ``.env`` value is preserved by the merge), so this does not double-provision.
+        A service WITHOUT the flag is completely unaffected — strict no-op.
+        """
+        deploy_cfg = spec.get("deploy") or {}
+        if not (isinstance(deploy_cfg, dict) and deploy_cfg.get("db_before_boot")):
+            return
+        if not (spec.get("shape") or {}).get("needs_database"):
+            return
+        from fabrik.drivers.postgres import create_database
+        from fabrik.orchestrator.infrastructure import _rewrite_shared_infra_host
+
+        name = spec.get("id") or spec.get("name")
+        # Mirror the postgres registrar's db-name derivation (infrastructure.py
+        # _provision_postgres) so the pre-provisioned DB is the SAME one the
+        # post-deploy registrar later sees as already existing.
+        depends = spec.get("depends", {}) or {}
+        db_name = depends.get("postgres") or str(name).replace("-", "_")
+        spec_dir = ctx.spec_path.parent if ctx.spec_path else None
+        result = create_database(
+            db_name,
+            db_user=db_name,
+            dry_run=ctx.dry_run,
+            spec_id=name,
+            owner="fabrik",
+            spec_dir=spec_dir,
+            seed_relpath=depends.get("postgres_seed"),
+        )
+        password = result.get("password")
+        if password and not ctx.dry_run:
+            database_url = f"postgresql://{db_name}:{password}@postgres-main:5432/{db_name}"  # noqa: password is a runtime CSPRNG value from create_database, not a hardcoded secret
+            database_url = _rewrite_shared_infra_host(
+                database_url, getattr(ctx, "target_vps", None)
+            )
+            ctx.secrets["DATABASE_URL"] = database_url
+            logger.info("db_before_boot: seeded DATABASE_URL for %s before first boot", db_name)
 
     def _load_secrets(self, ctx: DeploymentContext, spec: dict) -> None:
         """Populate ``ctx.secrets`` from the spec's ``secrets`` block.
