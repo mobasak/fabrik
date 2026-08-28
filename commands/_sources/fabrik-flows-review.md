@@ -79,7 +79,15 @@ present when the project declares i18n · **the hard exclusions (no file paths /
 implementation detail) govern FLOW BODIES only** — the header, R-notes, Contract inputs and the re-freeze
 close-out's Downstream impact table are lifecycle metadata whose entire job is naming entities, fields and
 consumer docs, and axis G below REQUIRES exactly that; raising them under F contradicts G in the same pass ·
-per-flow and spec-wide length within targets · Mermaid only where genuinely multi-party.
+**per-flow length asserted against the NUMBERS, not "within targets"** — `/fabrik-flows` sets
+**target ≤30 lines, HARD SPLIT at 50** (`fabrik-flows.md:120`, `:139-140`): a flow over **30** owes a
+one-line justification; a flow at or over **50** is a DEFECT — split it. State the count you measured per
+flow. ⚠️ **"within targets" was the whole problem**: it named no number, so a closing round that
+re-derives "lengths OK" is not mechanical — the reviewer picks which reading to check against and can
+defend any of them. Measured live (transdoc `01M14Y90D0`): flows at **83** and **53** lines passed
+unremarked through a closing round, and 83 violates even the most lenient reading. A gate whose numbers
+are re-derived per reviewer is an advisory wearing a gate's clothes · Mermaid only where genuinely
+multi-party.
 
 **G) Cross-artifact truth.** No flow contradicts the spec (spot-check the spec's INTENT — the written spec
 can itself be wrong; surface, don't silently pick a side). The **Contract inputs** section lists every
