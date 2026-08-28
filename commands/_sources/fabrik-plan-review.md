@@ -114,6 +114,19 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   turns off the outage-aware routing being claimed), and a fallback ladder with an untested bottom rung.
   ⚠️ **You grade this by reading the plan — no mechanical check exists for it**, by design; never report
   it as gate-enforced.
+- **Spec COVERAGE — does this plan actually build the spec, all of it?** Open the cited design spec and
+  enumerate its committed surface: every **Chosen approach** element, every row of its **fabrik-lib
+  verdict table**, every **success criterion**, and every `shape:` implication. Each one must map to a
+  phase or ticket in this plan. **Report the mapping as a list, not a verdict** — an unmapped spec item
+  is either a DEFECT (the plan silently drops scope the spec committed to) or a deliberate deferral,
+  and a deferral is only legitimate if the plan SAYS SO in `## Open / blocking unknowns` or a
+  `## Deferred` section naming what and why. Silence is the defect.
+  ⚠️ **Nothing else in the pipeline asks this question at a useful time.** `check_spec_convergence.py`
+  grades the SPEC's own convergence claim; `check_stage_artifacts.py` only checks that the plan's cited
+  spec HAS a status; `/fabrik-conformance-review` does compare spec↔implementation but runs at the
+  `gate` stage — after the code exists. Plan review is the last point where a dropped requirement costs
+  a paragraph instead of a rebuild. You grade this by READING both artifacts; there is no mechanical
+  check for it and this row does not pretend otherwise.
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real
   API), every touched `agents-fabrik.md` invariant (`AGENTS.md` is a stub) + `shape.*` flag is listed and grounded.
 - **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing — **except the

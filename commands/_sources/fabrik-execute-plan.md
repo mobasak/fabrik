@@ -488,6 +488,16 @@ reuse the ticket row/file — Board back to 🔵; new rows post-CONVERGED forbid
 same-test failures → 🔴 + `BLOCKED` for that ticket, **continue the Board** (3-strikes-continue: one
 red ticket never halts the others).
 
+**Docs converge with the ticket, not at the end of the plan.** Before a ticket merges, run
+`python scripts/enforcement/check_doc_sync.py` — **any WARNING whose trigger file is in THIS ticket's
+diff is BLOCKING** — then the Tier-1 reconcile on the STAGED diff (`python scripts/doc_reconcile.py`,
+no `--range`: it reads `git diff --cached`), review the applied patches for truth, and stage them so
+they ride the TICKET's own commit. This mirrors the phase-mode loop, which has always done it per
+phase. Without it the dispatcher's only doc gate is D7's whole-plan receipt — so a stale doc surfaces
+at the END of the plan, detached from the ticket that caused it and from the agent that still had the
+context to write it. The receipt then stays what it is meant to be, a *receipt*, rather than the first
+time anyone looks.
+
 ### D5 — Merge protocol (overrides § Merge Protocol for ticket merges)
 
 Merge in `## Merge Order`. Merges are **squash-applied**: code + spine Board flip + applied Deltas staged
