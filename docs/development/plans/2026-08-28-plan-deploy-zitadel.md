@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -412,3 +412,5 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 
 — RUN 2 2026-08-28T22:12:12Z
 — ⛔ BLOCKED S3 2026-08-28T22:19:58Z RUN 2 — the admin-password fix WORKED (start-from-init cleared all migrations incl. 03_default_instance; container ran, /debug/ready→200, /debug/healthz→200, server listening :8080), BUT `fabrik apply` returned rc=1: `docker compose up -d --wait` REQUIRES a healthcheck, and with health.disabled (scratch image — no in-container shell/curl for one) it exits 1 ("container zitadel has no healthcheck configured"), so deploy() aborts at deployer_ssh.py:515 BEFORE the post-deploy registrars (:173) → gatus/prometheus/glitchtip/backrest/grafana never provisioned → false-failure + incomplete deploy. THIRD deploy-machinery defect (after D1 ordering + password-complexity). Rollback: container down+removed, connections terminated, zitadel DB dropped (RUN-2 instance had only default org/admin, no real data). Fix needed (deployer): for health.disabled services use `docker compose up -d` (NOT --wait, which needs a healthcheck) at deployer_ssh.py:515 (_deploy_docker) AND :239 (inject_env), + an external readiness poll. Then re-converge + clean re-deploy. [ADJUDICATED 2026-08-28 — closed by the deployer fix 43ced0d3: _compose_up uses `up -d` (no --wait) + an external readiness poll for health.disabled services; 5 red-first tests, 122 deployer tests green]
+
+— RUN 3 2026-08-28T22:49:58Z
