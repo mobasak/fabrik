@@ -609,6 +609,22 @@ def detect_src_package() -> str:
     return "" if _mypy_config_selects_files() else "."
 
 
+def _skip_note(tool: str) -> str:
+    """A tool that is not installed did not PASS — it was never asked.
+
+    The diff-sensed skip below already says so; a tool-not-installed skip did not, and counted
+    silently green. transdoc (2026-08-28) measured the consequence in a scaffolded project: the
+    `.venv` had neither `ruff` nor `mypy`, while CLAUDE.md advertises `--json` as "the FULL Tier-2
+    gate: mypy + bandit + semgrep". A green run there asserted nothing about the two headline
+    static checks and looked identical to one that ran them — the fail-silent-green shape this
+    corpus exists to remove, in the gate itself.
+    """
+    return (
+        f"\u26a0 {tool} NOT INSTALLED — skipped, not passed; this green asserts nothing about "
+        f"what {tool} checks. Install it in the interpreter running the gate."
+    )
+
+
 def run_static_checks(
     tier: int = 2, changed_files: set[str] | None = None
 ) -> list[tuple[str, bool, str]]:
@@ -738,7 +754,7 @@ def run_static_checks(
             timeout=TIMEOUTS["bandit"],
         )
         if "No module named bandit" in out:
-            results.append(("bandit", True, "(bandit not installed, skipping)"))
+            results.append(("bandit (NOT INSTALLED — skipped)", True, _skip_note("bandit")))
         else:
             results.append(("bandit", code == 0, out if code != 0 else ""))
     else:
@@ -838,7 +854,7 @@ def run_static_checks(
                 timeout=TIMEOUTS["sqlfluff"],
             )
             if "No module named sqlfluff" in out:
-                results.append(("sqlfluff-lint", True, "(sqlfluff not installed, skipping)"))
+                results.append(("sqlfluff (NOT INSTALLED — skipped)", True, _skip_note("sqlfluff")))
             else:
                 results.append(("sqlfluff-lint", code == 0, out if code != 0 else ""))
         else:
@@ -860,7 +876,7 @@ def run_static_checks(
         ]
     )
     if "No module named vulture" in out:
-        results.append(("vulture", True, "(vulture not installed, skipping)"))
+        results.append(("vulture (NOT INSTALLED — skipped)", True, _skip_note("vulture")))
     else:
         results.append(("vulture", code == 0, out if code != 0 else ""))
 

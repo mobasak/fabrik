@@ -17,7 +17,19 @@ Apply when working on API routes, endpoints, or client integration. Skip for pur
 
 - FastAPI path operations + Pydantic models are the sole source of truth for the API schema. Never manually edit `openapi.json`.
 - TypeScript clients (Next.js, React Native, Chrome Extension) must be auto-generated from `openapi.json` via `@hey-api/openapi-ts` or equivalent codegen. Manual typing of API responses in TypeScript is banned.
-- Run `oasdiff breaking --fail-on ERR` against the main-branch `openapi.json` before merge. Any ERR-level breaking change without a version bump fails the build.
+- Run `oasdiff breaking --fail-on ERR` against the main-branch `openapi.json` before merge. Any
+  ERR-level breaking change without a version bump is a defect. ⚠️ **This is an obligation on the
+  AUTHOR, not a build that fails for you** — `oasdiff` is wired into no CI and no `final_gate` check
+  anywhere in the fleet (`grep -rn oasdiff scripts/ .github/` → 0 hits, hub and projects alike). It
+  read as a guarantee and functioned as prose: a live run removed two `/api/v1` paths and dropped a
+  field from a response model's `required` array — both ERR-level — and nothing challenged it
+  (transdoc, 2026-08-28). Run it yourself, or the check does not happen.
+- **A breaking change does NOT always mean `/api/v2`.** For a PRE-RELEASE product retiring a surface
+  its own frozen contract deleted, a version bump is ceremony — and an agent facing only that option
+  either violates the rule silently or ships an absurd `v2`. The sanctioned third path is a
+  **RECORDED EXCEPTION**: state in the PR/plan what broke, who consumes it (verify — a surface with
+  zero consumers is not a breaking change to anyone), and why no bump. An exception you wrote down is
+  reviewable; a silent violation is not.
 
 ## Authentication — every endpoint declares which of the three kinds it is
 
@@ -33,7 +45,7 @@ Full definition: `35-security-auth.md` § API-based systems. The contract-level 
   DELIBERATE, reviewed decision — write it down; "nobody would call that" is not a decision.
 - **It must show up in `openapi.json`.** Declare the schemes (`HTTPBearer` for the user JWT,
   `APIKeyHeader(name="X-Internal-Token")` for M2M) so the generated TypeScript clients and the
-  `oasdiff` breaking-change check see auth as part of the contract. An endpoint whose auth changes
+  `oasdiff` breaking-change review (author-run — see above) see auth as part of the contract. An endpoint whose auth changes
   is an API change.
 - **Never hand-roll the M2M check.** `from internal_auth import require_internal_token` — inline
   `APIKeyHeader` / `require_api_key`, and per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`),
@@ -163,4 +175,4 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 - [ ] All endpoints mounted under `/api/v1/` (or appropriate version prefix).
 - [ ] `openapi.json` generated from code, never manually edited.
 - [ ] TS clients generated from `openapi.json` — no manual API type definitions.
-- [ ] `oasdiff` runs against main branch with no unversioned ERR-level breaks.
+- [ ] `oasdiff` RUN BY YOU against the main branch — no unversioned ERR-level breaks, or a recorded exception. Nothing runs it automatically.
