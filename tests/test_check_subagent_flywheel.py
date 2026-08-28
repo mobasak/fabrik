@@ -523,3 +523,27 @@ def test_dsn_detection_survives_bom_and_honors_process_env(tmp_path, monkeypatch
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
     assert "UNRECORDABLE" not in out, f"process-env DSN not honored:\n{out}"
+
+
+def test_unrecorded_warn_names_the_missing_driver_when_dsn_resolves(tmp_path, monkeypatch, capsys):
+    """job-agent 01M13YGMJC (third cause, the one both prior diagnoses missed): the DSN
+    resolves but `psycopg` is not importable in this interpreter — pg_ledger's sink
+    fail-opens on every call (pg_ledger.py:323 lazy import). When unrecorded runs exist,
+    the DSN resolves, and the driver is missing, the advisory must name the DRIVER."""
+    import types
+
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.setenv("SUBAGENT_RUNS_DSN", "postgresql:///fabrik_analytics")  # DSN resolves
+    monkeypatch.setattr(mod, "_pg_driver_importable", lambda: False)
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "psycopg" in out, f"the missing driver must be named:\n{out}"
+    assert "UNRECORDABLE" in out or "cannot record" in out.lower()

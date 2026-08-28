@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — flywheel advisory names the third unrecordable cause: the pg driver itself (2026-08-28)
+
+- job-agent's re-diagnosis (`01M13YGMJC`) found the cause neither prior message listed: the DSN
+  resolves but `psycopg` is not installed in the project interpreter — `pg_ledger.py:323`
+  lazy-imports it and the sink fail-opens on every call (all 59 of their unrecorded runs). Both
+  earlier diagnoses were steered by the same incomplete cause list. `_warn_unrecorded` now
+  probes driver importability (fail-open) after the 3-layer DSN check and names the driver with
+  the deps-authorization caveat. Red-first test. The canonical cause-#0 message fix is routed to
+  fabrik-lib.
+
 ### Fixed — Scaffolded DB-backed projects now document a working TEST_DATABASE_URL (2026-08-28)
 
 - `src/fabrik/scaffold.py` — a DB-backed scaffold emits a QUICKSTART/conftest that treat `TEST_DATABASE_URL`

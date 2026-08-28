@@ -298,6 +298,18 @@ def _pool_or_declare(ledger_path: Path) -> int:
     return 1
 
 
+def _pg_driver_importable() -> bool:
+    """Can THIS interpreter import the pg sink's lazy optional driver? Approximates the
+    recorder's interpreter (the gate runs under the project's venv, same as fanout does).
+    Fail-open: an unexpected probe error reads as importable — never a false diagnosis."""
+    try:
+        import importlib.util
+
+        return importlib.util.find_spec("psycopg") is not None
+    except Exception:  # noqa: BLE001 — a broken probe proves nothing
+        return True
+
+
 def _warn_unrecorded(ledger_path: Path) -> None:
     """LAYER 2 (advisory, never blocks): WARN on any pool run never record_agent_run-recorded."""
     if not ledger_path.exists():
@@ -382,6 +394,19 @@ def _warn_unrecorded(ledger_path: Path) -> None:
             "False on every call and batch.score() refuses each unit as an orphan. Scoring harder "
             "cannot fix this: provision the DSN (hub-side: the fabrik_analytics per-project "
             "INSERT-only role — ask infra), then re-score from the ledger."
+        )
+        return
+    # Third checkable cause, the one two prior diagnoses missed because no message listed it
+    # (job-agent 01M13YGMJC): the DSN resolves but the OPTIONAL pg driver is not installed in
+    # this interpreter — pg_ledger's sink lazy-imports psycopg (pg_ledger.py:323) and
+    # fail-opens without it. Cheapest check of all, so it is named before "score each run".
+    if not _pg_driver_importable():
+        print(
+            f"SUBAGENT FLYWHEEL (advisory): {len(unrecorded)} pool run(s) are UNRECORDABLE, not "
+            "unscored — the DSN resolves but `psycopg` is not importable in this interpreter, so "
+            "pg_ledger's sink fail-opens on every record_agent_run call. No DSN or database state "
+            "can matter until the driver exists: add `psycopg` to this project's deps (a deps "
+            "change needs its owner's authorization), then re-score from the ledger."
         )
         return
     print(
