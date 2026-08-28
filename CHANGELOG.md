@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the routing check graded only English; six Turkish triggers mis-routed (2026-08-28)
+
+- **My own fail-silent-green, found auditing command 6.** `check_trigger_routing` read the `EN:`
+  clause and reported **"0 mis-routed" over 71 phrases** while **61 Turkish ones went unmeasured** —
+  six of them reaching the wrong command, including `/fabrik-flows-review`'s own
+  `"akış sözleşmesini gözden geçir"`, which landed on `fabrik-review`. A denominator that silently
+  excludes half its subject reports a clean it never established.
+- The Turkish side was looser than the English by construction: the broad `review` stem carries a
+  bare `gözden geçir` alternative that fires on any Turkish review phrase regardless of noun, while
+  the English side at least requires "review this/the/my".
+- Five noun-qualified stems added (`flows-review`, `plan-review`, `doc-converge`, `ui-design`, plus
+  Turkish forms on `docs` and `ui-design-review`), all ordered above the stems that were swallowing
+  them. Two ordering bugs and one Turkish-agglutination bug (`sözleşme**sini**` — a `\b` anchor
+  matches none of the inflected forms) were found by re-measuring after each fix, never by reading.
+- **Result: 132 phrases graded — 66 correct, 0 mis-routed, 66 nowhere (safe).** Was 21/71 correct
+  with 45 unmeasured when this began.
+
+### Fixed — command 6 of 31: the review twins' only blocking-gap exit said "stop" (2026-08-28)
+
+- `/fabrik-flows-review` and `/fabrik-ui-design-review` both end their BLOCKING-gap disposition with
+  "stop, set `Status: DRAFT`, name the blocker" and never name the run-record close. "Stop" leaves
+  the record `running`, which the Stop hook blocks the turn on — so the one exit for a genuinely
+  stuck reviewer was the one that traps it. Both now name `blocked --command <name> --reason … --feedback …`.
+- **Recorded, not fixed (checklist item 37 — an oversight, not a ruling):** the attestation these
+  commands emit, `Independently reviewed: v<N> — /fabrik-<x>-review no-op <date>`, has **no grader**.
+  Nothing reads it, and `/fabrik-flows`' new "do not let a consumer freeze against an unattested
+  contract" rule depends on it. Needs its own check.
+
+
 ### Fixed — three filed machinery findings: a quotable paraphrase, an unrunnable probe, a shared header (2026-08-28)
 
 - **A `WebFetch` answer is a PARAPHRASE, never source text** (`fabrik-lib`, `01M12NVCSK`). Their run

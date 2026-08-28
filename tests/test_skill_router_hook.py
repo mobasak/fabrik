@@ -1097,3 +1097,58 @@ def test_rivals_does_not_swallow_neighbouring_prompts() -> None:
 
 def test_rivals_stem_is_registered() -> None:
     assert hook.STEM_SKILLS["rivals"] == "fabrik-rivals"
+
+
+# ── the TURKISH half: `gözden geçir` alone is not a code review ─────────────────────────────────
+# The broad `review` stem carries a bare `\bg[öo]zden ge[çc]ir\w*` alternative, which fires on ANY
+# Turkish review phrase regardless of its noun — stricter than the English side, which at least
+# demands "review this/the/my". Measured 2026-08-28 across all 61 advertised TR phrases: SIX
+# mis-routed. The EN pass missed them because the grader only read the `EN:` clause.
+
+
+def test_turkish_review_phrases_reach_their_own_command() -> None:
+    assert hook.first_regex_match("akış sözleşmesini gözden geçir") == "flows-review"
+    assert hook.first_regex_match("bu planı gözden geçir") == "plan-review"
+    assert hook.first_regex_match("bu planı sağlamlaştır") == "plan-review"
+    assert hook.first_regex_match("tüm dokümanları gözden geçir") == "docs"
+    assert hook.first_regex_match("bu UI tasarım sözleşmesini gözden geçir") == "ui-design-review"
+
+
+def test_the_turkish_doc_converge_phrase_is_not_the_whole_tree_sweep() -> None:
+    """`/fabrik-doc-converge` is ONE doc; `/fabrik-docs-review` is the tree sweep. Their own
+    descriptions draw that line, and the TR phrase for the single-doc converge reached the sweep."""
+    assert hook.first_regex_match("bu dokümanı koda göre güncelle") == "doc-converge"
+
+
+def test_a_bare_turkish_review_verb_still_reaches_the_code_reviewer() -> None:
+    """Precision guard: adding noun-qualified TR stems above `review` must not strand the bare
+    verb, which is the code reviewer's own advertised Turkish trigger."""
+    assert hook.first_regex_match("bu değişiklikleri gözden geçir") == "review"
+    assert hook.first_regex_match("kodu incele") == "review"
+
+
+def test_the_new_turkish_stems_are_registered() -> None:
+    assert hook.STEM_SKILLS["flows-review"] == "fabrik-flows-review"
+    assert hook.STEM_SKILLS["plan-review"] == "fabrik-plan-review"
+    assert hook.STEM_SKILLS["doc-converge"] == "fabrik-doc-converge"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    for stem in ("flows-review", "plan-review", "doc-converge"):
+        assert order.index(stem) < order.index("review"), f"{stem} must precede `review`"
+
+
+def test_designing_screens_reaches_the_screen_contract_not_the_spec() -> None:
+    """`/fabrik-ui-design`'s remaining mis-route. Distinct from the ambiguous "let's design the
+    app", which /fabrik-spec also advertises and correctly wins (spec precedes screens) — "design
+    the SCREENS" names ui-design's own noun, so it earns a stem instead of a phrase change."""
+    assert hook.first_regex_match("bu ekranları/UI'ı tasarla") == "ui-design"
+    assert hook.first_regex_match("design the screens for this") == "ui-design"
+    assert hook.first_regex_match("lay out the screens") == "ui-design"
+
+
+def test_the_screen_stem_does_not_swallow_the_spec_producer_or_the_ui_review() -> None:
+    assert hook.first_regex_match("let's design the app") == "spec"
+    assert hook.first_regex_match("bu UI tasarım sözleşmesini gözden geçir") == "ui-design-review"
+    assert hook.STEM_SKILLS["ui-design"] == "fabrik-ui-design"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    assert order.index("ui-design-review") < order.index("ui-design"), "review twin first"
+    assert order.index("ui-design") < order.index("spec"), "else `spec` swallows it"

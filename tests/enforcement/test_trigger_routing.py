@@ -47,8 +47,10 @@ def _sources(tmp: Path, entries: dict[str, list[str]]) -> Path:
     d.mkdir()
     for cmd, phrases in entries.items():
         quoted = ", ".join(f'"{p}"' for p in phrases)
+        # No TR clause: these fixtures pin EN-side behaviour, and a dummy TR phrase would be
+        # graded too (correctly) and skew every count. TR has its own tests below.
         (d / f"{cmd}.md").write_text(
-            f"---\ndescription: does a thing. TRIGGER — EN: {quoted}; TR: \"x\" — fires. "
+            f"---\ndescription: does a thing. TRIGGER — EN: {quoted} — fires. "
             f"Stage: gate.\n---\nbody\n",
             encoding="utf-8",
         )
@@ -186,7 +188,7 @@ def _promising(tmp: Path, cmd: str, phrases: list[str]) -> Path:
     d.mkdir()
     quoted = ", ".join(f'"{p}"' for p in phrases)
     (d / f"{cmd}.md").write_text(
-        f'---\ndescription: does a thing. TRIGGER — EN: {quoted}; TR: "x" — fires bare-prose, '
+        f"---\ndescription: does a thing. TRIGGER — EN: {quoted} — fires bare-prose, "
         f"no slash command needed. Stage: utility.\n---\nbody\n",
         encoding="utf-8",
     )
@@ -214,3 +216,49 @@ def test_a_command_that_never_promised_bare_prose_is_not_graded_on_it(tmp_path):
     d = _sources(tmp_path, {"fabrik-flows": ["map the journeys/flows"]})
     _mis, _c, _n, broken = chk.grade(d, _R({}), {"fabrik-flows"})
     assert broken == [], broken
+
+
+# ── BOTH languages, or the denominator lies ─────────────────────────────────────────────────────
+# The first version graded only the `EN:` clause and printed "0 mis-routed" over 71 phrases while
+# 61 Turkish ones went unmeasured — SIX of them mis-routing. A check that silently excludes half
+# its subject reports a clean it never established.
+
+
+def test_turkish_triggers_are_graded_too(tmp_path):
+    d = tmp_path / "_sources"
+    d.mkdir()
+    (d / "fabrik-a.md").write_text(
+        '---\ndescription: x. TRIGGER — EN: "en phrase"; TR: "tr ifadesi" — fires. Stage: gate.\n'
+        "---\nbody\n",
+        encoding="utf-8",
+    )
+    got = dict.fromkeys(ph for _, ph in chk.advertised(d))
+    assert "en phrase" in got, got
+    assert "tr ifadesi" in got, "the TR clause must be graded, not skipped"
+
+
+def test_a_turkish_phrase_reaching_a_different_command_is_a_finding(tmp_path):
+    """The live case: "akış sözleşmesini gözden geçir" (/fabrik-flows-review) fell to the broad
+    `gözden geçir` alternative in the `review` stem and reached fabrik-review, the code reviewer."""
+    d = tmp_path / "_sources"
+    d.mkdir()
+    (d / "fabrik-flows-review.md").write_text(
+        '---\ndescription: x. TRIGGER — EN: "en"; TR: "akış sözleşmesini gözden geçir" — fires. '
+        "Stage: 2-contract.\n---\nbody\n",
+        encoding="utf-8",
+    )
+    mis, _c, _n, _b = chk.grade(
+        d, _R({"akış sözleşmesini gözden geçir": "fabrik-review"}), {"fabrik-review"}
+    )
+    assert mis and mis[0][2] == "fabrik-review", mis
+
+
+def test_a_command_with_only_an_en_clause_still_works(tmp_path):
+    """Not every command carries a TR clause; the TR regex must not drop the EN ones."""
+    d = tmp_path / "_sources"
+    d.mkdir()
+    (d / "fabrik-b.md").write_text(
+        '---\ndescription: x. TRIGGER — EN: "only english" — fires. Stage: gate.\n---\nbody\n',
+        encoding="utf-8",
+    )
+    assert chk.advertised(d) == [("fabrik-b", "only english")]

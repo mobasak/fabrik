@@ -114,6 +114,15 @@ STEM_SKILLS: dict[str, str] = {
     # clause disclaims, so letting the broad `review` stem win points the operator at a gate
     # that says it is not the one (measured 2026-08-28 across all 71 advertised EN triggers).
     "rivals": "fabrik-rivals",
+    # The Turkish half. `gözden geçir` alone lives in the broad `review` stem and fires on ANY
+    # Turkish review phrase regardless of noun — looser than the English side, which at least
+    # requires "review this/the/my". Six advertised TR phrases reached the wrong command until
+    # these were added (2026-08-28); each is noun-qualified so the bare verb still reaches
+    # /fabrik-review, which is its own advertised trigger.
+    "ui-design": "fabrik-ui-design",
+    "flows-review": "fabrik-flows-review",
+    "plan-review": "fabrik-plan-review",
+    "doc-converge": "fabrik-doc-converge",
     "ui-design-review": "fabrik-ui-design-review",
     "design-review": "design-review",
     "workflow-review": "fabrik-workflow-review",
@@ -229,6 +238,39 @@ _HEADLESS_TYPES = {"python-api", "python-api-gpu", "node-api", "file-api", "file
 #     run" collocation itself); "test this end to end" keeps firing
 #     unchanged via the separate end-to-end pattern.
 KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
+    # BEFORE design-review: /fabrik-ui-design-review converges the FROZEN docs/ui-design.md, not a
+    # rendered screen — its own SKIP says "never a running app (→ /design-review)". The first cut of
+    # the design-review stem below matched "review ... UI" and swallowed it; the CONTRACT nouns
+    # (contract / ui-design.md / design system) are what separate the two.
+    (
+        re.compile(
+            r"\b(review|harden|converge|sa[ğg]laml[aá]?[şs]t[ıi]r\w*|g[öo]zden\s+ge[çc]ir\w*)\b"
+            r"[^.]{0,40}\b(ui[- ]design(\.md)?|ui\s+design\s+contract|design\s+contract"
+            r"|design\s+system|ekran\s+s[öo]zle[şs]mesi)\b"
+            r"|\b(ui[- ]design(\.md)?|ui\s+design\s+contract|design\s+contract)\b[^.]{0,40}"
+            r"\b(review|harden|converge|ready|haz[ıi]r\s*m[ıi]|incele\w*)\b"
+            # Turkish names the artifact "UI tasarım sözleşmesi" and puts the verb LAST; the
+            # English alternations above match neither word order nor the inflected noun.
+            r"|\bui\s+tasar[ıi]m\s+s[öo]zle[şs]me\w*"
+            r"|\bekran\s+s[öo]zle[şs]me\w*",
+            re.I,
+        ),
+        "ui-design-review",
+    ),
+    # SCREENS are /fabrik-ui-design's own noun. Ordered AFTER ui-design-review (the review twin
+    # wins on "review this UI design contract") and BEFORE `spec` — otherwise the broad design/spec
+    # stem swallows it, which is how "bu ekranları/UI'ı tasarla" reached /fabrik-spec. The
+    # deliberately ambiguous "let's design the app" is NOT matched here: /fabrik-spec advertises it
+    # too and correctly wins, because a spec precedes screens in the pipeline.
+    (
+        re.compile(
+            r"\b(design|lay\s+out|mock\s+up|wireframe)\b[^.]{0,25}\b(screens?|the\s+ui)\b"
+            r"|\bekranlar[ıi]?\b[^.]{0,25}\btasarla\w*"
+            r"|\bekran\w*\s*/\s*ui'?[ıi]?\s+tasarla\w*",
+            re.I,
+        ),
+        "ui-design",
+    ),
     # BEFORE both `spec` and `review`, because first match wins and BOTH would swallow this.
     # /fabrik-spec-review advertises TRIGGER "review/harden/converge this spec"; without this entry
     # "review this spec" resolved to the `review` stem -> fabrik-review, the CODE-DIFF reviewer,
@@ -311,6 +353,32 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
         ),
         "plan",
     ),
+    # Noun-qualified TURKISH review/converge stems, all above the broad `review`.
+    (
+        # `\w*` not `\b`: Turkish is agglutinative — "sözleşme" appears as "sözleşmesini" here,
+        # and a word-boundary anchor after the stem matches none of its inflected forms.
+        re.compile(r"\bak[ıi][şs]\s+s[öo]zle[şs]me\w*|\byolculuklar\b[^.]{0,25}\beksiksiz\b", re.I),
+        "flows-review",
+    ),
+    (
+        re.compile(
+            r"\bplan[ıi]?\b[^.]{0,25}\b(g[öo]zden\s+ge[çc]ir\w*|sa[ğg]laml[aá]?[şs]t[ıi]r\w*)"
+            r"|\bplan\b[^.]{0,25}\buygulamaya\s+haz[ıi]r\b",
+            re.I,
+        ),
+        "plan-review",
+    ),
+    (
+        # ONE doc reconciled to the code — not the whole-tree sweep (/fabrik-docs-review).
+        # "bu dokümanı" is singular; the sweep's own phrase is "tüm dokümanları".
+        re.compile(r"\bbu\s+d[öo]k[üu]man[ıi]\b[^.]{0,30}\b(koda|g[üu]ncelle\w*|senkron\w*)", re.I),
+        "doc-converge",
+    ),
+    (
+        # The whole-tree Turkish sweep, above `review` so the bare verb does not swallow it.
+        re.compile(r"\bt[üu]m\s+d[öo]k[üu]manlar[ıi]\b|\bd[öo]k[üu]manlar\b[^.]{0,25}\bkodla\b", re.I),
+        "docs",
+    ),
     # /fabrik-rivals had NO stem while its description promised "fires bare-prose, no slash command
     # needed" — 0 of its 3 advertised phrases reached anything. The nouns are unusually distinctive
     # (competitor/rival/rakip), so this is one of the few places a stem can be added without the
@@ -326,21 +394,6 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "rivals",
-    ),
-    # BEFORE design-review: /fabrik-ui-design-review converges the FROZEN docs/ui-design.md, not a
-    # rendered screen — its own SKIP says "never a running app (→ /design-review)". The first cut of
-    # the design-review stem below matched "review ... UI" and swallowed it; the CONTRACT nouns
-    # (contract / ui-design.md / design system) are what separate the two.
-    (
-        re.compile(
-            r"\b(review|harden|converge|sa[ğg]laml[aá]?[şs]t[ıi]r\w*|g[öo]zden\s+ge[çc]ir\w*)\b"
-            r"[^.]{0,40}\b(ui[- ]design(\.md)?|ui\s+design\s+contract|design\s+contract"
-            r"|design\s+system|ekran\s+s[öo]zle[şs]mesi)\b"
-            r"|\b(ui[- ]design(\.md)?|ui\s+design\s+contract|design\s+contract)\b[^.]{0,40}"
-            r"\b(review|harden|converge|ready|haz[ıi]r\s*m[ıi]|incele\w*)\b",
-            re.I,
-        ),
-        "ui-design-review",
     ),
     # /design-review advertises "review this UI" and "check the design and accessibility of this
     # screen"; both fell to the broad `review` stem -> fabrik-review, whose SKIP clause literally

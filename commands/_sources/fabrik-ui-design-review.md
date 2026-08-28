@@ -133,7 +133,7 @@ I found" does not.
   re-freeze** (the edit-free confirming pass above IS the re-freeze convergence). Only then attest.
 - **A BLOCKING gap remains** (a screen needs a field the data contract lacks and you can't reconcile it here; a
   spec task with no resolvable flow): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-ui-design`
-  (or `/fabrik-data-contract` for a field gap). Do NOT attest.
+  (or `/fabrik-data-contract` for a field gap). Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
 
 **Do not commit** unless the user says so this turn (`git add` is fine).
 

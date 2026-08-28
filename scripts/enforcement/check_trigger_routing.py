@@ -46,7 +46,12 @@ SKILLS = Path.home() / ".claude" / "skills"
 
 # The description line, then the EN trigger clause inside it, then each quoted phrase.
 _DESC_RE = re.compile(r"^description:\s*(.+)$", re.M)
+# BOTH languages. The first version of this check graded only the `EN:` clause and reported
+# "0 mis-routed" over 71 phrases while 61 Turkish ones went unmeasured — six of them mis-routing,
+# including this very command's. A denominator that silently excludes half its subject is the
+# fail-silent-green shape the whole enforcement corpus exists to remove, and it shipped here first.
 _EN_RE = re.compile(r"TRIGGER\s*—\s*EN:\s*(.+?)(?:;\s*TR:|—|\bStage:)", re.S)
+_TR_RE = re.compile(r"\bTR:\s*(.+?)(?:\s+—|\bStage:)", re.S)
 _PHRASE_RE = re.compile(r'"([^"]+)"')
 # A description saying "fires bare-prose, no slash command needed" makes a ROUTING PROMISE: the
 # operator can reach it by typing, without the slash. Checklist item 6 draws the line here — most
@@ -93,7 +98,7 @@ def _load_router():
 
 
 def advertised(sources: Path) -> list[tuple[str, str]]:
-    """(command, phrase) for every advertised EN trigger."""
+    """(command, phrase) for every advertised trigger — EN **and** TR."""
     out: list[tuple[str, str]] = []
     for path in sorted(sources.glob("*.md")):
         try:
@@ -103,10 +108,10 @@ def advertised(sources: Path) -> list[tuple[str, str]]:
         desc = _DESC_RE.search(text)
         if not desc:
             continue
-        en = _EN_RE.search(desc.group(1))
-        if not en:
-            continue
-        out.extend((path.stem, ph) for ph in _PHRASE_RE.findall(en.group(1)))
+        for clause_re in (_EN_RE, _TR_RE):
+            clause = clause_re.search(desc.group(1))
+            if clause:
+                out.extend((path.stem, ph) for ph in _PHRASE_RE.findall(clause.group(1)))
     return out
 
 
@@ -200,7 +205,9 @@ def main(argv: list[str] | None = None) -> int:
     budget = ADVISORY_BUDGET - len(head) - len(remedy) - marker_cost
     lines: list[str] = []
     findings = [f'  {c}: "{p}" -> {t}' for c, p, t in misrouted]
-    findings += [f"  {c}: promises bare-prose routing; no advertised phrase reaches it" for c in broken]
+    findings += [
+        f"  {c}: promises bare-prose routing; no advertised phrase reaches it" for c in broken
+    ]
     for row in findings[:MAX_LINES]:
         if len(row) > MAX_LINE:
             row = row[: MAX_LINE - 3] + "..."

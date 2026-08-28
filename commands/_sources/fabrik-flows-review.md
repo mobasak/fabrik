@@ -117,7 +117,7 @@ closing round — identical hashes are the proof). Your say-so does not substitu
   edit-free confirming round IS the re-freeze convergence). Only then attest.
 - **A BLOCKING gap remains** (a criterion with no resolvable journey; a second actor whose journey cannot
   be designed without a product decision): stop, set `Status: DRAFT`, name the blocker, route to
-  `/fabrik-flows`. Do NOT attest.
+  `/fabrik-flows`. Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-flows-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
 
 **Do not commit** unless the user says so this turn (`git add` is fine).
 
