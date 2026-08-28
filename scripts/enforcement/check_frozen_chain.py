@@ -55,6 +55,15 @@ _STATUS_RE = re.compile(
 #: chars after a filename mention within which a bold **vN** counts as its pin
 _PIN_WINDOW = 120
 
+# The attestation /fabrik-flows-review and /fabrik-ui-design-review write into a contract.
+# Tolerant on purpose — the real corpus writes all of these:
+#   "**Independently reviewed:** v2 — …"      (transdoc/flows.md, in a blockquote)
+#   "**Independently reviewed:** **v6 — …**"  (tryton-crm/ui-design.md, bold value)
+#   "> **Independently reviewed: v2 — …**"    (tojlo-mail/ui-design.md)
+# A narrower pattern is what made an earlier count report 2 attestations and 0 stale when
+# the truth was 7 and 6 — the measurement that wrongly justified deferring this check.
+_ATTEST_RE = re.compile(r"Independently\s+reviewed:?\*{0,2}\s*:?\s*\*{0,2}v(\d+)", re.I)
+
 
 def _self_version(text: str) -> tuple[str, int] | None:
     """``(status, version)`` from the first 5 lines, or None (no parseable header)."""
@@ -171,6 +180,31 @@ def check_chain(root: Path) -> list[str]:
         if name not in versions or versions[name][0] == "DRAFT":
             continue
         header_pins = _pins(headers[name], name)
+
+        # ── attestation staleness ────────────────────────────────────────────────
+        # The review twins write `Independently reviewed: v<N>` into the contract and
+        # NOTHING read it (`rg "Independently reviewed" scripts/` → 0 hits), so a
+        # contract could move past its last independent review unnoticed. Measured
+        # across 29 real contracts: 7 carry an attestation, 6 were stale by 1-5
+        # versions.
+        #
+        # NOT "attestation == current version": a contract legitimately carries a
+        # HISTORY of rounds (tryton-crm: v6 · v4 · v2 at v11) and those rounds really
+        # happened. The signal is the NEWEST attestation vs the current version —
+        # everything after it is unreviewed. Absence of any attestation is SILENT:
+        # most contracts have never had a twin run, and demanding one would fire on
+        # 22 of 29.
+        _attests = [int(v) for v in _ATTEST_RE.findall(bodies[name])]
+        if _attests:
+            _newest = max(_attests)
+            _cur = versions[name][1]
+            if _newest < _cur:
+                findings.append(
+                    f"{rel}: newest independent review attests v{_newest} but the "
+                    f"contract is at v{_cur} — {_cur - _newest} version(s) have had no "
+                    f"author-blind pass; re-run the review twin or drop the claim"
+                )
+
         # everything from the first `## ` heading on — _header_block returns a JOINED
         # string, so slicing the original by its length addresses nothing.
         _txt = bodies[name]

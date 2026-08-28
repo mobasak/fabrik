@@ -135,17 +135,23 @@ I found" does not.
   spec task with no resolvable flow): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-ui-design`
   (or `/fabrik-data-contract` for a field gap). Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
 
-⚠️ **The attestation is an HONEST SELF-REPORT — nothing grades it.** No check reads
-`Independently reviewed:` (`rg "Independently reviewed" scripts/` → no hits), so nothing verifies the line
-is present, that the md5-verified no-op it claims actually happened, or that its `v<N>` still matches the
-contract's current `Version`. In particular it can go **STALE**: bump the contract to v4 and the header
-still reads `Independently reviewed: v3` — the same stale-PIN shape `check_frozen_chain.py` already
-detects for other pins. Saying so here is deliberate, and is what the command-evaluation checklist's
-"contract with no grader" class requires: name the check that decides a terminal condition, **or state
-plainly that none does**. Measured 2026-08-28 before deciding: **2** contracts across the box carry an
-attestation and **0** are stale, out of 9 contracts total — a grader would police a population of two and
-fire on none, so it is recorded as the promotion target rather than built. Extend `check_frozen_chain.py`
-when enough contracts carry the line for a fire-rate to mean something.
+⚠️ **The attestation IS graded — since 2026-08-29, by `check_frozen_chain.py`.** It compares the NEWEST
+`Independently reviewed: v<N>` against the contract's current `Version:` and WARNs when the contract has
+moved past its last author-blind pass (`docs/x.md: newest independent review attests v6 but the contract
+is at v11 — 5 version(s) have had no author-blind pass`). A history of rounds is correct and is not drift
+— only the newest entry is graded — and a contract with NO attestation is silent, since most have never
+had a twin run.
+
+**What is still NOT graded:** whether the round you attest actually happened, or was thorough. The check
+proves the claim is CURRENT, not that it is TRUE. Ledger honesty is still on you.
+
+**The measurement that nearly buried this, recorded because the error is instructive.** This section
+previously said a grader would "police a population of two and fire on none", and deferred it on that
+basis. The count came from a regex requiring `reviewed: v` adjacently — which silently missed
+`**Independently reviewed:** v2` and `**Independently reviewed:** **v6`, the two shapes the corpus
+actually writes. The real numbers: **7 contracts carry an attestation and 6 were STALE**, by 1 to 5
+versions. A measurement that under-counts looks exactly like a measurement that found nothing, and it
+was used to justify not building the thing that would have caught it.
 
 **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
 

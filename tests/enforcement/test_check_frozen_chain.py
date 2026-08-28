@@ -217,3 +217,66 @@ def test_body_prose_warn_names_the_line_number(tmp_path):
     import re as _re
     nums = {_re.search(r"ui-design\.md:(\d+)", f).group(1) for f in body}
     assert len(nums) == 2, nums
+
+
+# --- attestation staleness: "reviewed at v6" on a contract now at v11 ---------
+# /fabrik-flows-review and /fabrik-ui-design-review write
+# `Independently reviewed: v<N> — <cmd> no-op <date>` into the contract, and NOTHING
+# read it: `rg "Independently reviewed" scripts/` returned zero hits. So nothing noticed
+# a contract moving past its last independent review.
+#
+# ⚠️ The rule is NOT "attestation == current version". Real contracts carry a HISTORY
+# (tryton-crm: v6 · v4 · v2 on a v11 contract), which is correct — those rounds happened.
+# The signal is the NEWEST attestation vs the current version: everything after it is
+# unreviewed. Measured across 29 real contracts: 7 carry an attestation and 6 are stale
+# by 1-5 versions.
+
+
+def test_attestation_older_than_the_contract_version_is_warned(tmp_path):
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v11\n\n## Rules\n\n"
+        "> **Independently reviewed:** v6 — `/fabrik-ui-design-review` no-op 2026-08-11\n",
+        encoding="utf-8",
+    )
+    out = [f for f in c.check_chain(tmp_path) if "independent review attests" in f]
+    assert len(out) == 1, c.check_chain(tmp_path)
+    assert "v6" in out[0] and "v11" in out[0]
+
+
+def test_attestation_history_uses_the_newest_entry(tmp_path):
+    """A history is correct, not drift — grade the newest entry, never the oldest."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v11\n\n## Rules\n\n"
+        "> **Independently reviewed:** **v6 — no-op 2026-08-11** · **v4 — no-op 2026-08-01** · v2 no-op\n",
+        encoding="utf-8",
+    )
+    out = [f for f in c.check_chain(tmp_path) if "independent review attests" in f]
+    assert len(out) == 1 and "v6" in out[0], out
+
+
+def test_attestation_current_with_the_contract_is_silent(tmp_path):
+    """The counter-direction: a contract reviewed AT its current version is not drift."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v6\n\n## Rules\n\n"
+        "> **Independently reviewed:** v6 — no-op 2026-08-11\n",
+        encoding="utf-8",
+    )
+    assert [f for f in c.check_chain(tmp_path) if "independent review attests" in f] == []
+
+
+def test_a_contract_with_no_attestation_is_silent(tmp_path):
+    """Absence is never a finding — most contracts have no review twin run yet, and a
+    check that demanded one would fire on 22 of 29 real contracts."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v11\n\n## Rules\n\nno attestation here\n",
+        encoding="utf-8",
+    )
+    assert [f for f in c.check_chain(tmp_path) if "independent review attests" in f] == []

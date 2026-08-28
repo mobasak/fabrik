@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the review-twin attestation is now graded as a version pin (2026-08-29)
+
+- `/fabrik-flows-review` and `/fabrik-ui-design-review` write `Independently reviewed: v<N> — <cmd> no-op
+  <date>` into the contract header, and **nothing read it** (`rg "Independently reviewed" scripts/` → 0
+  hits). `check_frozen_chain.py` now compares the **newest** attestation against the contract's current
+  `Version:` and WARNs when the contract has moved past its last author-blind pass.
+- **Newest, not all** — a contract legitimately carries a HISTORY of rounds (`v6 · v4 · v2` on a v11
+  contract); those rounds happened. Absence of any attestation is **silent**: most contracts have never
+  had a twin run, and demanding one would fire on 22 of 29.
+- **Live on landing: 6 of the 7 attested contracts are stale**, by 1–5 versions — tojlo-mail (v2/v3),
+  trade-intelligence (v2/v5), transdoc flows (v4/v8) and ui-design (v16/v19), tryton-crm flows (v5/v6) and
+  ui-design (v6/v11). brand-identiy-creator (v26/v26) is correctly silent.
+- ⚠️ **The measurement that nearly buried this, recorded because the error is instructive.** Both commands
+  previously said a grader "would police a population of two and fire on none", and it was deferred on
+  that basis. That count came from a regex requiring `reviewed: v` adjacently, which silently missed
+  `**Independently reviewed:** v2` and `**Independently reviewed:** **v6` — the two shapes the corpus
+  actually writes. A measurement that under-counts is indistinguishable from one that found nothing, and
+  it was used to justify not building the check that would have caught it. Both commands now state that
+  the attestation IS graded, and that what is still ungraded is whether the attested round was thorough.
+- 4 tests incl. two counter-directions (history uses the newest entry; no attestation is silent).
+  Red-on-revert proven with the mutation asserted on disk; `rc=0` verified for the `warn_only` contract.
+
 ### Fixed — Authelia audit tests stale after the 7→5 dashboard decommission (2026-08-28)
 
 - `tests/test_audit_authelia_gates.py` — 5 committed tests failed on master (no gate caught it): they still
