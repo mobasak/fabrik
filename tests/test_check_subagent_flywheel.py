@@ -18,6 +18,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 CHECK = (
     Path(__file__).resolve().parents[1] / "scripts" / "enforcement" / "check_subagent_flywheel.py"
 )
@@ -428,6 +430,69 @@ def test_shared_fallback_dsn_suppresses_unrecordable(tmp_path, monkeypatch, caps
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
     assert "UNRECORDABLE" not in out, f"shared-file DSN not honored — false unrecordable claim:\n{out}"
+
+
+@pytest.mark.parametrize(
+    "dsn_line",
+    [
+        "export SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics",  # shell-export form
+        "    SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics",  # leading indentation
+        "\texport  SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics",  # tab + export + extra space
+    ],
+)
+def test_dsn_detection_matches_runtime_parser_on_export_and_whitespace(
+    tmp_path, monkeypatch, capsys, dsn_line
+):
+    """Native review 2026-08-28: the raw startswith missed `export SUBAGENT_RUNS_DSN=` and indented
+    lines, but the runtime parser (_dotenv._parse_env_text) strips whitespace + a leading `export `,
+    so such a repo records fine yet the check falsely printed UNRECORDABLE — re-exposing the exact
+    false alarm on the new shared-file layer. The check must agree with what load_env actually loads."""
+    import types
+
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    (root / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")  # clean repo .env
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.delenv("SUBAGENT_RUNS_DSN", raising=False)
+    shared = tmp_path / "subagents.env"
+    shared.write_text(dsn_line + "\n", encoding="utf-8")
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(shared))
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "UNRECORDABLE" not in out, f"runtime-parseable DSN line missed by the check:\n{dsn_line!r}\n{out}"
+
+
+@pytest.mark.parametrize("commented", ["SUBAGENT_RUNS_DSN=# not set yet", "SUBAGENT_RUNS_DSN=#todo"])
+def test_commented_out_dsn_value_is_not_counted_present(tmp_path, monkeypatch, capsys, commented):
+    """Closing review 2026-08-28: a value that is ENTIRELY a `#`-comment is a commented-out placeholder
+    the runtime parser (_dotenv._parse_env_text) treats as empty → NOT loaded → the repo is genuinely
+    unrecordable. The check must NOT count it as a present DSN (that would fail-silent, suppressing a
+    real advisory). So a `#`-only value keeps the UNRECORDABLE advisory."""
+    import types
+
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    (root / ".env").write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.delenv("SUBAGENT_RUNS_DSN", raising=False)
+    shared = tmp_path / "subagents.env"
+    shared.write_text(commented + "\n", encoding="utf-8")
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(shared))
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "UNRECORDABLE" in out, f"commented-out DSN value wrongly counted as present:\n{commented!r}\n{out}"
 
 
 def test_dsn_detection_survives_bom_and_honors_process_env(tmp_path, monkeypatch, capsys):

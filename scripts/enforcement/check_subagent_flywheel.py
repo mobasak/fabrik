@@ -329,12 +329,24 @@ def _warn_unrecorded(ledger_path: Path) -> None:
     # the runtime can never drift on where the shared file lives.
     def _dsn_in_env_file(path) -> bool:
         try:
-            # lstrip("﻿"): a BOM-prefixed line broke startswith and read a provisioned repo as
-            # unrecordable (review round 1).
-            return any(
-                line.lstrip("﻿").startswith("SUBAGENT_RUNS_DSN=") and line.split("=", 1)[1].strip()
-                for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
-            )
+            # Normalize each line the way the runtime parser does (_dotenv.py::_parse_env_text): strip
+            # a leading BOM (review round 1: a BOM broke startswith and read a provisioned repo as
+            # unrecordable) + surrounding whitespace + a leading `export `. Without this the check
+            # disagrees with what load_env actually loads: `export SUBAGENT_RUNS_DSN=…` or an indented
+            # line records fine at runtime yet the raw startswith misses it, re-firing the exact false
+            # "UNRECORDABLE" this advisory exists to avoid (native review 2026-08-28).
+            for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = raw.lstrip("﻿").strip()
+                if line.startswith("export "):
+                    line = line[len("export ") :].lstrip()
+                if line.startswith("SUBAGENT_RUNS_DSN="):
+                    val = line.split("=", 1)[1].strip()
+                    # A value that is empty or begins with `#` is NOT loaded by the runtime
+                    # (_parse_env_text treats a `#`-leading value as a commented-out placeholder →
+                    # empty → skipped), so it is genuinely unrecordable — do not count it as present.
+                    if val and not val.startswith("#"):
+                        return True
+            return False
         except OSError:
             return True  # unreadable file proves nothing — do not claim absence
 
@@ -348,9 +360,14 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         if override:
             shared = Path(override)
         else:
-            xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+            xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
+                os.path.expanduser("~"), ".config"
+            )
             shared = Path(xdg) / "fabrik" / "subagents.env"
-    except (KeyError, RuntimeError):  # HOME unset + no passwd entry (minimal container) → skip layer
+    except (
+        KeyError,
+        RuntimeError,
+    ):  # HOME unset + no passwd entry (minimal container) → skip layer
         shared = None
     env_file = PROJECT_ROOT / ".env"
     has_dsn = (
