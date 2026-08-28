@@ -127,7 +127,10 @@ INFERENCE_CANDIDATES = [
 ]
 
 async def infer_with_failover(messages: list[dict]) -> str:
-    for route in healthy_chain(INFERENCE_CANDIDATES):   # probed once at run start, not per item
+    # healthy_chain() = probe the candidates ONCE at run start (never per item) and return only
+    # the live ones, best-first so the chain self-restores on recovery. Vendor it from
+    # fabrik-lib `health-probe/`; do NOT hand-roll it if you route through OpenRouter (see below).
+    for route in healthy_chain(INFERENCE_CANDIDATES):
         try:
             return await call_provider(route, messages, timeout=30.0)
         except (httpx.TimeoutException, httpx.ConnectError):

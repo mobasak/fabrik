@@ -337,6 +337,45 @@ Why it matters: a terminal mislabeled as transient just costs a retry; a **trans
 
 ---
 
+## Provider-death resilience — unattended external-dependency loops (PLANNING-PHASE requirement)
+
+**Applies to any unattended loop over a paid/free external dependency** — an LLM provider chain, a paid
+API a backfill hammers, any long-running job whose forward progress depends on a third party you do not
+control. Operator directive 2026-08-28: a de-facto standard for every service, not a suggestion. If the
+project has no such loop, this section does not apply.
+
+**Why the rest of this pack is not enough.** Timeout, retry, backoff, circuit-breaker and resumable
+checkpointing all heal a **transient** fault — a quota window resets, a blip passes. None of them heals a
+**permanent provider death**: a model or endpoint that is down for this whole run needs a **SWAP**, a
+decision no retry loop is empowered to make. Live incident (youtube RAG backfill, 2026-08-28): stalled
+**8h at zero progress** while every mechanism in this pack ran correctly. The primary free model went
+ReadTimeout-down *while other free models of the same provider stayed up*; both paid fallback tiers were
+billing-gated (`http_402`); the capped last resort was silently dead; and **nothing alarmed**, because
+zero progress is not an error.
+
+**A plan or spec that introduces such a loop must state how it satisfies all THREE outcomes. A design
+carrying retry/backoff but no provider-death handling and no zero-progress alarm is a DEFECT** — that is
+what `/fabrik-spec-review` §E and `/fabrik-plan-review` grade. **These are OUTCOMES, and the mechanism
+depends on your ROUTE** — measured 2026-08-28 across 43 repos: 26 carry such a loop, and **19 of those 26
+route only through OpenRouter**, where hand-rolling a probe re-implements the gateway.
+
+| # | Required outcome | Routed through OpenRouter (the sanctioned gateway) | Calling a provider endpoint DIRECTLY |
+|---|---|---|---|
+| 1 | **No single point of death in the chain** — one model or endpoint dying must not stop the loop | **Declare** which mechanism you rely on in §2b. Outage-aware routing is step 1 of OpenRouter's DEFAULT strategy, and a `models` request-body array falls back on **any** error (incl. rate-limiting and downtime). ⚠️ **The trap: setting `sort` or `order` DISABLES load balancing — and the outage step is *part of* load balancing.** Pinning a provider silently opts you OUT of the protection you believe you have; if you pin, you owe the `models` array explicitly | **Build it**: probe the quality-ordered candidate list **once at run start** (never per item), rebuild the chain from live survivors, best candidate first so it self-restores on recovery. Vendor `fabrik-lib/health-probe/` — do not re-derive. Needs **intra-provider** diversity (2+ models of one provider) AND **cross-provider** diversity |
+| 2 | **The last rung is actually exercised** | No gateway provides this. Exercise it on a schedule | Same |
+| 3 | **Absence of progress is alarmed** — N minutes of zero forward progress fires ONE operator alert, cleared on recovery | No gateway provides this. Export a monotonically-increasing **progress** counter (rows done, items classified) and alert on it — not on error codes. Threshold ≥ 2 full runs of your loop, as a §7a knob. Deliver via `fabrik-lib/alerting/`, whose title-based dedup IS the "exactly one alert" property | Same |
+
+**"We use OpenRouter" is not a resilience design** — it is the name of a gateway that can be configured
+out of the protection being claimed. Name the mechanism, not the vendor.
+
+> **Note — this rule and the scaffold template currently differ on the gateway path.** The project-facing
+> `docs/RESILIENCE.md` §3b (emitted by the scaffold) states outcome 1 as an unconditional build. This rule
+> scopes it by route, on the measurement above. The divergence is filed as `01M14E2VZM` and is unresolved
+> at time of writing; a divergence written down is a known state, a silently picked winner is not. When it
+> resolves, both say the same thing and this note goes.
+
+---
+
 ## Banned Patterns
 
 | Pattern | Use Instead |
@@ -358,6 +397,8 @@ Why it matters: a terminal mislabeled as transient just costs a retry; a **trans
 | Two error classifiers in different files | One file. Always. |
 | Adding a billable vendor without a balance check Beat task | Proactive check is mandatory for any dep with a balance |
 | Backup that has never been restored to staging | Run §10 drill within 30 days or it doesn't exist |
+| A fallback chain whose **bottom rung has never been executed** | Exercise the last resort on a schedule. An untested fallback is a silently-dead fallback — youtube's last-resort had an expired credential nobody had run in weeks, so the chain was one rung shorter than its author believed |
+| An unattended external-dependency loop with **no zero-progress alarm** | Export a monotonically-increasing progress counter + alert on it (§ Provider-death resilience). Retry/backoff cannot detect an *absence* of events |
 | Scattered ad-hoc token refresh across service calls | Centralize refresh in the Pattern A auth client (legacy Pattern B: SDK handles it) — per `35-security-auth.md` |
 
 ---

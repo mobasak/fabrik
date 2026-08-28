@@ -194,6 +194,8 @@ packs will disagree. Stating a file-conflict reason would have been a fake depen
 **Gate:** `python scripts/final_gate.py --json` → `success`; `python scripts/select_rules.py` still lists
 both packs ACTIVE (a malformed frontmatter/table silently drops a pack).
 
+**✅ EXECUTED** — see § Evidence · Phase B.
+
 **Evidence owed:** the new row rendered, and `select_rules.py` output showing both packs still ACTIVE.
 
 ## Phase C — C2b: the two rubric rows + render
@@ -351,3 +353,34 @@ $ git stash pop -q; grep -c python-api-gpu .windsurf/rules/core/58-resilience.md
 $ python scripts/final_gate.py --json
 gate: success | blocking: 38 | failures: 0
 ```
+
+
+### Evidence · Phase B (executed 2026-08-28)
+
+Landed at `path:line`: `self-healing.md` gains ladder **row 10** (provider death / silent stall) plus a
+paragraph distinguishing it from the Tier-C deadman; `58-resilience.md` gains § Provider-death resilience
+(the three OUTCOMES with a per-route mechanism table, the `sort`/`order` trap, and the divergence note) and
+two § Banned Patterns rows (an unexercised bottom rung; an unattended loop with no zero-progress alarm).
+
+The row-10 distinction is the load-bearing sentence: without it a reader sees
+`deadman_timeout_seconds` and concludes row 10 is redundant. It is not — the deadman measures operator
+silence and arms only after an alert exists; row 10 fires when nothing ever escalated.
+
+```
+$ python -m pytest tests/test_rule_pack_scaffold_coverage.py -q
+3 passed in 0.26s
+
+$ python scripts/select_rules.py | grep -E "58-resilience|self-healing|76-gpu"
+  • core/58-resilience.md — Resilience contract — …
+  • core/76-gpu-workers.md — GPU worker discipline — …
+  • core/self-healing.md — Self-healing escalation ladder — …
+        (all three still ACTIVE — a malformed table or frontmatter silently drops a pack)
+
+$ python scripts/final_gate.py --json
+gate: success | failures: 0
+```
+
+**Phase-A review fix carried here:** the corrected failover example introduced `healthy_chain()` with no
+provenance — the same undefined-symbol criticism I levelled at the original's `call_provider`. It now
+carries a comment naming what it does, where to vendor it from (`fabrik-lib/health-probe/`), and when NOT
+to hand-roll it.

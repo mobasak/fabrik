@@ -37,6 +37,16 @@ Each row reads left-to-right: **Symptom** (an observable signal) → **First res
 | 7 | **Sustained 5xx burst** (downstream API returning 5xx > 50 % for 5 m) | http_5xx_spike rule in `60-watchdog._LOG_TRIGGERS` (>5 matches in window) | Circuit breaker OPEN against that endpoint; serve cached fallback if present (graceful degradation per [58-resilience § Banned Patterns](58-resilience.md) "No fallback on external call failure") | Watchdog Tier A `pause_worker` for the impacted resource if it gates a worker queue | Watchdog Tier C → operator; deadman re-alert if unacked |
 | 8 | **Stuck row locks** (application-level lock held >max_age_sec) | `locked_at` column past `now() − interval` in workers' queue table | Worker's own orphan-sweep task ([75-workers-jobs § Orphan Sweep](75-workers-jobs.md)) | Watchdog Tier A `rotate_locks` (bounded by `max_age_sec` ∈ [30, 86400]) | Watchdog Tier C → operator; investigate why workers crash mid-lock |
 | 9 | **Code-level regression / new critical exception** | new unhandled-exception spike (error-tracker critical) or 5xx tied to a recent deploy | Watchdog **Tier A** stabilize (roll back last deploy / restart) | Watchdog **Tier D** tested code-fix, Telegram-gated (approve / timeout-apply), auto-rollback on regression ([60-watchdog § Tier D](60-watchdog.md)) — opt-in only | Watchdog **Tier C** → operator if the fix can't be made green |
+| 10 | **Provider death / silent stall** (an unattended loop makes ZERO forward progress while running) | the loop's exported progress counter is flat past its threshold — **watch PROGRESS, not error codes**: the motivating incident's rate-guard watched only `http_429` and was blind to ReadTimeout and `http_402` | Rebuild the chain from live survivors (direct-provider path), or rely on the gateway mechanism the project DECLARED (see [58-resilience § Provider-death resilience](58-resilience.md)) | The last-resort rung — which is only a rung if it has actually been **exercised**; an untested fallback is a silently-dead one | ONE operator alert via `alerting/`'s title-based dedup, cleared on recovery |
+
+**⚠️ Row 10 is NOT the deadman timer, and the difference is the whole point.** The Tier-C deadman below
+(`WatchdogConfig.deadman_timeout_seconds`, default 300) measures **operator silence** — it arms only
+*after* a Tier C alert has been raised and not acknowledged, and its action is `docker restart`. Row 10
+fires when **no alert was ever raised**, because zero progress is not an error: it is the *absence* of
+events, and nothing else in this corpus watches for an absence. In the motivating incident (youtube,
+2026-08-28) a backfill sat stalled 8h at zero progress while every mechanism above ran correctly — the
+deadman never armed because nothing escalated, and a container restart would not have helped a process
+that was running fine and finding nothing to do.
 
 **Why a strict order matters:** skipping rightward (e.g., escalating Tier C before letting the circuit breaker try) trains the operator to ignore alerts; falling-back leftward (e.g., re-trying the upstream while the breaker is OPEN) defeats the breaker. The ladder enforces both.
 
