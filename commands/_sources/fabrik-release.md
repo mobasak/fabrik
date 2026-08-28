@@ -74,7 +74,24 @@ gauntlet first). The operator may waive a specific row explicitly this turn; you
 5. **Gate-2 handoff:** print the artifact + checklist verdicts — *"Operator: approve and run `eas submit`
    (TestFlight / Play Internal first ring) — submission is yours."*
 
-## EXTENSION path (Chrome Web Store — per `.windsurf/rules/chrome-ext/89-extension-launch-checklist.md`)
+## EXTENSION path (Web Store **or unpacked** — per `.windsurf/rules/chrome-ext/89-extension-launch-checklist.md`)
+
+0. **Decide the DISTRIBUTION RING first, exactly as the MOBILE path does — steps 2-5 below apply
+   ONLY to the listable ring.** `chrome-extension` covers both, and the unlistable case is not
+   exotic: automation, scraping, internal enterprise tooling, and anything shipping remote code all
+   hit it permanently, not temporarily.
+   - **LISTABLE (Chrome Web Store)** — the extension's behaviour is within Web Store policy.
+     Continue with steps 2-5.
+   - **UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, or enterprise force-install)** —
+     the listing is not "not yet done", it is permanently unavailable. **SKIP steps 2-5 entirely.**
+     Doing them anyway fabricates four privacy-practices answers, a listing-asset check, and a "$5
+     fee, review takes days-to-weeks" hand-off for a submission that will never happen — and step 3's
+     own rule ("never invent a data practice") is violated by the step that compels inventing the
+     artifact those practices describe (job-agent, 2026-08-28, on a LinkedIn-automation extension).
+     Instead: record WHY it is unlistable in `docs/DEPLOYMENT.md § distribution` citing the policy it
+     conflicts with, ship the versioned zip + a load-unpacked / force-install install note, and hand
+     Gate 2 that — never a Dashboard submission.
+   State the ring you chose and the evidence for it; an unstated ring means the next run re-derives it.
 
 1. Build the production zip from the pushed SHA; verify: MV3, secret-grep clean, every permission mapped to a
    using `path:line`, version bumped, no obfuscation, `size-limit` green (checklist § 2).
