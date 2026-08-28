@@ -152,8 +152,12 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   specialists). Catalog + subagents-pool compatibility verdict:
   [docs/reference/nvidia-build.md](reference/nvidia-build.md). Full listing:
   `curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`.
+- `NVIDIA_API_KEY_2` / `_3` / `_4` — spare keys (all probed live HTTP 200, 2026-08-29;
+  same free endpoint, per-key rate limits — spares for parallel harnesses or manual selection
+  `NVIDIA_API_KEY=$NVIDIA_API_KEY_2 <cmd>`; rotation-on-429 inside the pool module is filed to
+  fabrik-lib).
 
-### Mistral La Plateforme — `MISTRAL_API_KEY` (free Experiment tier)
+### Mistral La Plateforme — `MISTRAL_API_KEY` (+ spares, $10/month hard cap)
 
 - `MISTRAL_API_KEY` — Mistral's free Experiment tier at `https://api.mistral.ai/v1`
   (OpenAI-compatible). $0; **per-model** limits: 1 req/s · 500k tok/min · 1B tok/month
@@ -164,6 +168,13 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   `mistral-medium-latest` 7.1s at 40k chars with 10/10 verbatim quotes; `mistral-large-latest`
   times out (>100s) at that size. Full listing:
   `curl -H "Authorization: Bearer $MISTRAL_API_KEY" https://api.mistral.ai/v1/models`.
+- `MISTRAL_API_KEY_2` / `_3` / `_4` — spare keys (same per-key limits; select manually:
+  `MISTRAL_API_KEY=$MISTRAL_API_KEY_2 <cmd>`). ⚠️ As of 2026-08-29 ALL four keys return
+  HTTP 401 on the models probe (key 1 was live when first wired) — an account-side state
+  (revoked-on-regenerate or pending billing activation); re-probe after checking the console.
+- `MISTRAL_MONTHLY_CAP_USD=10` — the HARD monthly budget across ALL Mistral keys combined
+  (operator directive 2026-08-29). Any consumer driving Mistral spend must read it and stop at
+  the cap; there is no per-call cap (sysadmin-loop rule), the cap is monthly and total.
 
 ### Specialty-service bench providers (kilo-benchmarks)
 
