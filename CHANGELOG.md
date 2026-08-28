@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a correct commit primed the next one to destroy it; two contracts that could not both be satisfied (2026-08-28)
+
+- **⚠️ Shared-tree work destruction, REPRODUCED** (`transdoc`, `01M13H89PW`). `git commit -- <paths>`
+  moves HEAD but does not clear a stale blob the shared index still holds for those paths — so the
+  next bare `git commit` by ANY session silently reverts what was just committed, with no conflict,
+  no warning, and the deletion attributed to whoever committed next. Reproduced in a throwaway repo:
+  A's committed line replaced by A's older staged blob on B's unrelated commit. Both constitutions
+  now require `git reset -q HEAD -- <the paths you committed>` after every scoped commit, and note
+  that `--name-only` cannot catch it (a stale blob wears a filename you DO recognise —
+  `git diff --cached --numstat`, expect `0 0`).
+- **`command_run.py step` demanded a filename `/fabrik-execute-plan` forbids** (`transdoc`,
+  `01M12YJZB3`). Dispatcher mode mandates `<plan>-T<id>-review.md` (§ D4) and states the
+  phase-boundary bullet does not apply — so an executor naming artifacts correctly could never
+  satisfy `step`, and one that satisfied `step` had misnamed them. The refusal also justified itself
+  by citing `check_review_coverage`, which rglobs every `.md` under `reviews/` and has **no** phase
+  filter (0 occurrences of `phase-`). The gate now accepts both shapes and the message names both.
+- **`check_review_coverage`'s "no Pass 2" message invited fabricating a round** (`tryton-crm`,
+  `01M12HZCY8`). The rows were there; the parser wants the literal `| Pass 2 |`. The message read as
+  "you did not run a second round" — the one thing an agent is most likely to believe about itself
+  after a long run. I took their SECOND suggestion (fix the message) over the first (accept a bare
+  numeric cell): that parser is hardened across many rounds against exactly that loosening, in the
+  quiet-forgery direction. The message now names the formatting rule and says plainly never to add a
+  round you did not run to satisfy a parser.
+
+
 ### Added — a TRIMMED fence must declare itself (`” ```excerpt ”`); blast radius measured the right way (2026-08-28)
 
 - **tryton-crm's defect 3, on their proposed convention.** I had declined to ship it for want of a

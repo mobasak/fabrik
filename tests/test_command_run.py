@@ -2531,3 +2531,36 @@ def test_the_stop_hooks_remedy_advertises_a_runnable_close() -> None:
         seg = block[block.index(f"command_run.py {verb}") :]
         seg = seg[: seg.index("command_run.py", 10)] if "command_run.py" in seg[10:] else seg
         assert "--feedback" in seg, f"the hook's {verb} remedy omits --feedback:\n{seg}"
+
+
+def test_the_phase_gate_accepts_the_dispatcher_mode_ticket_artifact(tmp_path) -> None:
+    """`/fabrik-execute-plan` § D4 mandates `<plan>-T<id>-review.md` in dispatcher mode — there is
+    no `phase-<N>` there, and its § Plan Status Tracking says the phase-boundary bullet does not
+    apply. Accepting only the phase form made the two contracts unsatisfiable together: an executor
+    naming artifacts correctly per D4 could never satisfy `step`, and one that satisfied `step` had
+    misnamed them (transdoc, 2026-08-28). The refusal also cited check_review_coverage as needing
+    the phase name — it rglobs every .md under reviews/ and has no phase filter at all."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_gate", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    (d / "2026-08-28-plan-1-thing-T02-review.md").write_text("real content\n", encoding="utf-8")
+    assert cr._phase_review_exists(str(tmp_path), 1), "a D4 ticket artifact must satisfy the gate"
+
+
+def test_the_phase_gate_still_requires_some_artifact(tmp_path) -> None:
+    """The precision side: loosening the pattern must not make the gate vacuous."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_gate2", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    (d / "unrelated-notes.md").write_text("nothing to do with a review\n", encoding="utf-8")
+    assert not cr._phase_review_exists(str(tmp_path), 1)

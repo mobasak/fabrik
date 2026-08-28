@@ -367,7 +367,10 @@ def check_file(p: Path) -> list[str]:
         )
     if not PASS2.search(text_s):
         errs.append(
-            "no `Pass 2` in the ledger — minimum two rounds ALWAYS (a clean pass 1 still needs its confirming round)"
+            "no `Pass 2` row in the ledger. Minimum two rounds ALWAYS (a clean pass 1 still needs "
+            "its confirming round) — but if you DID run it, this is a FORMATTING rule, not a "
+            "missing round: rows must be labelled `| Pass 2 |`, not a bare `| 2 |`. Relabel the "
+            "cell; never add a round you did not run to satisfy a parser"
         )
     rows = _table_rows(section)
     if not rows:

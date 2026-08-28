@@ -336,7 +336,15 @@ def _phase_review_exists(root: str, phase: int) -> bool:
     # let a phase-10 review satisfy phase 1 — a project that reviews only its last
     # phase would sail through every earlier boundary (found by re-verification of
     # this very guard, 2026-08-23).
-    pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
+    # PHASE mode names artifacts `…phase-<N>…`; DISPATCHER mode (spine+ticket plan sets) mandates
+    # `<plan>-T<id>-review.md` instead (/fabrik-execute-plan § D4) and its § Plan Status Tracking
+    # says the phase-boundary bullet does NOT apply there. Accepting only the phase form made the
+    # two contracts unsatisfiable together: an executor naming artifacts correctly per D4 could
+    # never satisfy `step`, and one that satisfied `step` had misnamed them (transdoc, 2026-08-28).
+    # A ticket artifact is evidence a review ran, which is all this gate binds.
+    pat = re.compile(
+        rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)|-T\d{{2}}[a-z]?-review\.md$", re.I
+    )
     try:
         for f in d.rglob("*.md"):
             if not f.is_file() or not pat.search(f.name):
@@ -923,9 +931,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             else:
                 print(
                     f"REFUSED — phase {prev} has no review artifact under "
-                    "docs/development/reviews/, so check_review_coverage.py has no subject "
-                    "and would pass on an empty set. Emit the phase review (a filename "
-                    f"containing `phase-{prev}`), or re-run with "
+                    "docs/development/reviews/, so there is nothing for the review gate to "
+                    "read. Emit it as either shape: PHASE mode a filename containing "
+                    f"`phase-{prev}`, DISPATCHER mode `<plan>-T<id>-review.md` "
+                    "(/fabrik-execute-plan D4). Or re-run with "
                     '--review-waived "<reason>" to record a deliberate skip.',
                     file=sys.stderr,
                 )
