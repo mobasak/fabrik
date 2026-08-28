@@ -19,7 +19,7 @@ unknown name yields an EMPTY list, whereupon ``merged.pop("tools")`` runs the
 plan grounded that way was ungrounded, and no gate, test, or human review caught
 it for as long as the text stood.
 
-WHAT IT PROVES (all seven are mechanically decidable — no judgement, no network)
+WHAT IT PROVES (all eight are mechanically decidable — no judgement, no network)
 -------------------------------------------------------------------------------
 1. WEB-TOOL NAMES  — every ``web_tools=[...]`` literal names only real tools,
    imported live from ``WEB_TOOL_NAMES`` rather than copied here (a copy drifts).
@@ -44,7 +44,13 @@ WHAT IT PROVES (all seven are mechanically decidable — no judgement, no networ
    turn open: the machinery documenting an exit that does not work. Found live in 36
    sites the day the refusal landed.
 
-BLOCKING. Each of the seven is a true/false fact about the tree with no tolerance
+8. CALLER CLAIMS   — every command a source CLAIMS calls it ("auto-called by /fabrik-x", or a
+   ``## Where this auto-fires (N call sites)`` section) actually names it back. Found live:
+   ``/fabrik-generate-tests`` advertised ``/fabrik-review`` as a caller while that file carried
+   zero references to it — and the false name was concealing a COPY of its whole pipeline.
+   Bare cross-references are deliberately NOT graded (460 of them live, 17.8% one-directional).
+
+BLOCKING. Each of the eight is a true/false fact about the tree with no tolerance
 band, and every one of them was found VIOLATED in a corpus that looked healthy.
 
 Anti-vacuity: ``--selftest`` feeds a known-bad corpus through the same predicates
@@ -89,17 +95,24 @@ _TRAILER_RE = re.compile(r"Co-Authored-By:\s*(.+?)\s*<")
 # A caller CLAIM — the two forms the corpus actually uses (surveyed, not guessed):
 #   (a) a verb of invocation: "auto-called by /fabrik-x", "invoked by /fabrik-x", "dispatched by …"
 #   (b) a section headed "Where this auto-fires (N call sites)", every bullet of which names one
-# Deliberately NARROW. A bare cross-reference is NOT a claim: the live corpus makes 439 such
-# mentions (SKIP routes, successor pointers, "see also"), 17.5% of which have no back-reference —
-# treating those as defects would fire 77 times on day one and train the reader to skip the check.
-# The claim forms above fire 5 times across 31 sources, and caught the one that was false.
+# Deliberately NARROW. A bare cross-reference is NOT a claim: the live corpus makes 460 such
+# mentions (SKIP routes, successor pointers, "see also"), 17.8% of which have no back-reference —
+# treating those as defects would fire 82 times on day one and train the reader to skip the check.
+# The claim forms above fire 3 times across 31 sources, and caught the one that was false.
+# ⚠️ Those counts are derived with THIS module's _CHAIN_RE and _claimed_callers. The first
+# version quoted 439/17.5%/77/5 from a throwaway prototype whose regex differed from the shipped
+# one — measured numbers that described code nobody would ever run. Re-derive, never re-quote.
 _CLAIM_VERB_RE = re.compile(
     r"(?:auto-)?(?:called|invoked|dispatched|fired|cited)\s+(?:by|from)\b([^.;]*)", re.I
 )
-_CALLSITE_HEAD_RE = re.compile(
-    r"^#{2,4}\s+.*\b(?:call sites?|auto-fires|where this (?:is |auto-)?(?:fires|runs|called))\b",
-    re.I,
-)
+# ⚠️ NARROW on purpose — `call sites?` / `auto-fires` only. The first draft also accepted
+# "where this runs", which matched `## Where this runs` in /fabrik-deploy-plan and its review —
+# sections about which REPO you run the command from (hub vs project), not about who calls it.
+# Both were silent only by coincidence (those two happen to name each other for unrelated
+# pipeline reasons); the day one stopped, this predicate would have fabricated a finding on an
+# unrelated command. Found reviewing this predicate: the survey checked the SPELLINGS a heading
+# might use and never opened the sections the regex would then capture.
+_CALLSITE_HEAD_RE = re.compile(r"^#{2,4}\s+.*\b(?:call sites?|auto-fires)\b", re.I)
 
 
 def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
@@ -132,6 +145,33 @@ def _canonical_trailer_model(repo: Path = REPO) -> str | None:
     return found[0] if found else None
 
 
+# Files this run could NOT read. A skipped read must never be indistinguishable from a clean
+# one: `main` reports "all sound across N corpus file(s)" where N counts files COLLECTED, so a
+# silent skip would claim coverage the run did not have — the exact fail-silent-green shape this
+# check exists to catch, rebuilt inside the fix for the OSError crash.
+SKIPPED: list[str] = []
+
+
+def _read(path: Path) -> str | None:
+    """Read a corpus file, or None if it vanished mid-audit.
+
+    Three sessions plus a daily pipeline share this tree, so every path this check collects can
+    be renamed or deleted between the glob that found it and the read that opens it. An
+    unhandled OSError here is a BLOCKING gate failure for every session in the repo, reported
+    against whichever predicate happened to touch the file first — so the read is tolerant and
+    the caller skips. Unreadable means UNPROVABLE, never violated.
+    """
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        # DEDUPE by path: _read is called from four sites, so one vanished file otherwise
+        # appended three entries and the "files actually audited" arithmetic over-subtracted.
+        entry = f"{path}: {exc.__class__.__name__}"
+        if entry not in SKIPPED:
+            SKIPPED.append(entry)
+        return None
+
+
 def _claimed_callers(body: str) -> dict[str, int]:
     """Map each command this source CLAIMS calls it -> the 1-indexed line making the claim.
 
@@ -142,9 +182,16 @@ def _claimed_callers(body: str) -> dict[str, int]:
     """
     out: dict[str, int] = {}
     in_callsites = False
+    in_fence = False
     head_level = 0
     for lineno, line in enumerate(body.splitlines(), 1):
-        if line.startswith("#"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        # A `#` inside a fenced block is a COMMENT, not a heading. Without this the first
+        # shell comment in a call-sites section closed the section and every claim below it
+        # went unexamined — the check reporting success because it had stopped asking.
+        if line.startswith("#") and not in_fence:
             level = len(line) - len(line.lstrip("#"))
             if _CALLSITE_HEAD_RE.match(line):
                 in_callsites, head_level = True, level
@@ -236,6 +283,7 @@ def audit(
 ) -> list[str]:
     """Return one problem string per real defect; empty means the corpus is sound."""
     problems: list[str] = []
+    SKIPPED.clear()
     files = _corpus_files(sources, fragments, assembler)
     if not files:
         # ⚠️ NOT-APPLICABLE, not a failure — this check is SYNCED to ~46 projects, and the command
@@ -292,7 +340,9 @@ def audit(
     # command" failure the record was built to prevent. A command may carry the shared
     # fragment or its own bespoke `start` block; having neither is the defect.
     for path in sorted(sources.glob("*.md")):
-        body = path.read_text(encoding="utf-8", errors="replace")
+        body = _read(path)
+        if body is None:
+            continue
         if "{{include:run-record}}" not in body and "command_run.py start" not in body:
             problems.append(
                 f"{path.relative_to(repo) if path.is_relative_to(repo) else path}: opens no run "
@@ -301,7 +351,9 @@ def audit(
             )
 
     for path in files:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = _read(path)
+        if text is None:
+            continue
         # Never bare `relative_to`: it raises on any path outside the repo (temp-dir
         # fixtures, a corpus checked from elsewhere) and that ValueError is precisely
         # what left check_doc_sprawl silently inert for weeks.
@@ -377,14 +429,19 @@ def audit(
     # SKIP routes name commands constantly. Only an explicit claim of BEING CALLED is checkable,
     # because only it asserts something about a file other than its own.
     for path in sorted(sources.glob("*.md")):
-        body = path.read_text(encoding="utf-8", errors="replace")
+        body = _read(path)
+        if body is None:
+            continue
         rel = path.relative_to(repo) if path.is_relative_to(repo) else path
         for caller, lineno in _claimed_callers(body).items():
             if caller == path.stem or caller not in known_commands:
                 continue  # self-reference, or a dangling name predicate 2 already reports
-            if f"/{path.stem}" not in (sources / f"{caller}.md").read_text(
-                encoding="utf-8", errors="replace"
-            ):
+            # `known_commands` proves the file existed when the SET was built, not when it is
+            # READ — the race is strictly between those two moments (see _read).
+            caller_body = _read(sources / f"{caller}.md")
+            if caller_body is None:
+                continue
+            if f"/{path.stem}" not in caller_body:
                 problems.append(
                     f"{rel}:{lineno}: claims caller /{caller}, whose source never names "
                     f"/{path.stem} — the advertised wiring does not exist, so either wire it "
@@ -530,8 +587,16 @@ def main(argv: list[str] | None = None) -> int:
     audited = len(_corpus_files(SOURCES, FRAGMENTS, REPO / "commands" / "assemble_commands.py"))
     print(
         "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
-        " run records, agent definitions, advertised closes —"
-        f" all sound across {audited} corpus file(s)"
+        " run records, agent definitions, advertised closes, caller claims —"
+        # max(): SKIPPED can name files outside _corpus_files (orchestrator docs, agent defs),
+        # so a bare subtraction can underflow into a nonsense negative denominator.
+        f" all sound across {max(0, audited - len(SKIPPED))} corpus file(s)"
+        + (
+            f"\n⚠ {len(SKIPPED)} file(s) could NOT be read and were NOT audited "
+            f"(collected {audited}): {', '.join(SKIPPED)}"
+            if SKIPPED
+            else ""
+        )
     )
     return 0
 

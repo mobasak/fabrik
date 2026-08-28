@@ -419,3 +419,105 @@ def test_a_bare_mention_is_not_a_caller_claim(corpus):
         "**Next in the pipeline:** /fabrik-real.\n"
     )
     assert not any("wiring" in p for p in problems), problems
+
+
+def test_a_fenced_comment_does_not_close_the_call_sites_section(corpus):
+    """Found by the review of predicate 8 itself. `_claimed_callers` treated any line starting
+    with `#` as a heading, so a `# comment` inside a fenced block CLOSED the section and every
+    claim below it became invisible — the check reporting success because it stopped asking."""
+    problems = corpus(
+        "## Where this auto-fires (2 call sites)\n"
+        "- Standalone.\n"
+        "\n```bash\n# a comment inside a fence\npython3 scripts/x.py\n```\n\n"
+        "- **`/fabrik-real` (reactive):** when a review finds an untested behavior.\n"
+    )
+    assert any("fabrik-real" in p and "wiring" in p for p in problems), problems
+
+
+def test_where_this_runs_is_not_a_call_sites_section(corpus):
+    """`## Where this runs` in /fabrik-deploy-plan{,-review} is about which REPO you run the
+    command from — hub vs project — not about who calls it. Reading its command mentions as
+    caller claims fabricates a finding the day one of those pipeline neighbours stops naming
+    the other; it was silent only by coincidence."""
+    problems = corpus(
+        "## Where this runs\n"
+        "Same split as `/fabrik-real`: VPS surfaces are hub-side, store surfaces project-side.\n"
+    )
+    assert not any("wiring" in p for p in problems), problems
+
+
+def test_an_unreadable_caller_source_does_not_crash_the_gate(corpus, monkeypatch):
+    """This check is BLOCKING and runs on a tree with three concurrent sessions. `caller in
+    known_commands` proves the file existed when the set was BUILT, not when it is READ — a
+    sibling's rename in between raises OSError out of the gate for every session. Predicate 7,
+    twenty lines above, already guards its read; predicate 8 shipped without one.
+
+    Deleting the file up front would NOT reproduce this: `known_commands` would simply not
+    contain it and the caller would be skipped. The race is strictly between those two moments,
+    so the read itself is what has to fail."""
+    real_read = Path.read_text
+
+    def exploding_read(self, *a, **kw):
+        if self.name == "fabrik-real.md":
+            raise OSError("vanished mid-audit (sibling rename)")
+        return real_read(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", exploding_read)
+    problems = corpus("description: auto-called by /fabrik-real per phase.\n")
+    assert isinstance(problems, list)  # the point is that it RETURNS rather than raising
+
+
+def test_an_unreadable_file_is_reported_not_counted_as_audited(corpus, monkeypatch):
+    """The fix for the OSError crash introduced its own fail-silent-green: `_read` skips the
+    file, `audit` returns clean, and `main` prints 'all sound across N corpus file(s)' with N
+    counting files COLLECTED, not files READ. A check must never claim coverage it did not have.
+    """
+    import check_command_corpus as ccc
+
+    real_read = Path.read_text
+
+    def exploding_read(self, *a, **kw):
+        if self.name == "fabrik-real.md":
+            raise OSError("vanished mid-audit")
+        return real_read(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", exploding_read)
+    corpus("a body with nothing wrong in it\n")
+    assert any("fabrik-real.md" in s for s in ccc.SKIPPED), (
+        f"an unread file left no trace: {ccc.SKIPPED}"
+    )
+
+
+def test_one_unreadable_file_is_counted_once(corpus, monkeypatch):
+    """`_read` is called from four sites, so a single vanished file appended three SKIPPED
+    entries and `main`'s `audited - len(SKIPPED)` over-subtracted — a denominator-honesty fix
+    that lied about the denominator. Dedupe by path, and never report a negative count."""
+    import check_command_corpus as ccc
+
+    real_read = Path.read_text
+
+    def exploding_read(self, *a, **kw):
+        if self.name == "fabrik-real.md":
+            raise OSError("vanished mid-audit")
+        return real_read(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", exploding_read)
+    corpus("description: auto-called by /fabrik-real per phase.\n")
+    hits = [s for s in ccc.SKIPPED if "fabrik-real.md" in s]
+    assert len(hits) == 1, f"one file, {len(hits)} entries: {ccc.SKIPPED}"
+
+
+def test_the_audited_count_never_goes_negative(monkeypatch, capsys):
+    """SKIPPED can name files outside `_corpus_files` (orchestrator docs), so the
+    `audited - len(SKIPPED)` arithmetic can underflow into a nonsense negative denominator —
+    a summary line claiming a negative number of files audited."""
+    import check_command_corpus as ccc
+
+    monkeypatch.setattr(ccc, "audit", lambda *a, **kw: [])
+    monkeypatch.setattr(ccc, "_corpus_files", lambda *a, **kw: [Path("one.md")])
+    ccc.SKIPPED.clear()
+    ccc.SKIPPED.extend(["a.md: OSError", "b.md: OSError", "c.md: OSError"])
+    ccc.main([])
+    out = capsys.readouterr().out
+    assert "across 0 corpus file(s)" in out, out
+    assert "-2 corpus file" not in out, out

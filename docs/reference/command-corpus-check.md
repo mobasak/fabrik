@@ -141,13 +141,22 @@ It surfaced only because the operator asked, in passing, which command was calli
 
 - a verb of invocation: `auto-called by /fabrik-x`, `invoked by`, `dispatched by`, `cited by`, `fired from`
 - a section headed `## Where this auto-fires (N call sites)` — every `/fabrik-x` in it, until the next
-  heading at the same or a higher level closes the section
+  heading at the same or a higher level closes the section (fenced blocks are skipped, so a `#` shell
+  comment inside the section cannot silently end it). The heading match is **`call site(s)` or
+  `auto-fires` only**: a looser draft also caught `## Where this runs`, which in `/fabrik-deploy-plan`
+  and its review is about which REPO you run the command from — not who calls it.
 
 **What does NOT count, deliberately.** A bare cross-reference asserts nothing: successor pointers, `SKIP:`
-routes and "see also" name other commands constantly. Measured across the live corpus: **439** such
-mentions, **17.5%** of them with no back-reference. Grading those would put 77 findings on the board the
+routes and "see also" name other commands constantly. Measured across the live corpus: **460** such
+mentions, **17.8%** of them with no back-reference. Grading those would put 82 findings on the board the
 day it landed and teach every reader to skip this check's output — so the predicate reads only the claim
-forms, of which the corpus makes **5**. Small denominator, zero noise, and it caught the one that was false.
+forms, of which the corpus makes **3** (all in `fabrik-generate-tests.md`). Small denominator, zero
+noise, and it caught the one that was false.
+
+⚠️ **Every number above is derived with the SHIPPED `_CHAIN_RE` + `_claimed_callers`.** The first
+version of this section quoted 439 / 17.5% / 77 / 5 from a throwaway prototype whose regex differed
+from the one that shipped — measured facts about code nobody would ever run. The review of this
+predicate caught it. Re-derive against the module; never re-quote a prototype.
 
 The direction matters: only a claim of BEING CALLED is checkable, because only it asserts something about
 a file other than its own. Proven red against the pre-fix corpus at `1a1efac8^` and silent at HEAD.
