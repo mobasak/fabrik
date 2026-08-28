@@ -33,10 +33,10 @@ Some obligations live in neither: the 6-line FINAL OUTPUT block and the STATE fo
 **CLAUDE.md globally**, to every response from every command. Only 2 of 31 sources mention them, and
 that is correct — do not raise 29 findings for a contract no command is supposed to restate.
 
-## The 21 surfaces an audit of one command touches
+## The 22 surfaces an audit of one command touches
 
 An audit that reads only `commands/_sources/<cmd>.md` will pass a command whose companions have all
-rotted. The surfaces, grouped by the question they answer:
+rotted — or whose paired twin never asserts what it states. The surfaces, grouped by the question they answer:
 
 | Group | Surfaces | Question |
 |---|---|---|
@@ -48,6 +48,7 @@ rotted. The surfaces, grouped by the question they answer:
 | Rules | `.windsurf/rules/**` | Does it contradict a pack, or need one it never names? |
 | Docs | `docs/reference/<subsystem>.md` · `INDEX.md` · `docs/README.md` · `docs/FEATURES.md` · `CHANGELOG.md` | Do the companions still describe what shipped? |
 | Neighbours | `docs/orchestrator/**` | Do the Traycer chains still invoke it by a name that exists? |
+| **Twin** | the command's PAIRED command — `/fabrik-x` ↔ `/fabrik-x-review`, author ↔ reviewer | **Does the twin ASSERT every rule this one STATES?** A rule set in the author and left unasserted in the reviewer is a gate nobody runs. Watch for the reviewer paraphrasing a number away — `/fabrik-flows` set *"target ≤30 lines, hard split at 50"* while `/fabrik-flows-review` said only *"length within targets"*, so the closing round had no number to assert and flows at 83 and 53 lines passed unremarked (transdoc `01M14Y90D0`). Grep the author for numbers, thresholds and MUSTs, then grep the twin for each one. |
 
 ---
 
@@ -204,7 +205,7 @@ Each was reproduced in this corpus. Hunt them by name.
 
 92. **Cross-repo hard stop misread as banning READS** — the rule governs "create/edit/**commit** files in a repo OTHER than the one you were launched in". `/fabrik-rivals` shipped a two-repo design where a project filed a brief by mail and the operator opened a hub session to run it, turning a one-rival scan into a cross-repo errand. Importing a hub module while writing only into your own tree breaks nothing. → RE-READ the rule's verbs before designing around it.
 
-93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 21 surfaces, not just the source.
+93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 22 surfaces, not just the source.
 
 94. **Reference doc describing a superseded architecture** — the sub-case of 93 that does the most damage, because `INDEX.md` points agents *at* the doc. → Grep the doc for the vocabulary of the removed design ("two modes", "hand-off", the old flag names) after every change.
 
