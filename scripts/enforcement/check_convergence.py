@@ -248,9 +248,36 @@ def _nontrivial_fences(text: str) -> int:
 # a NON-TRIVIAL fence, which such a block satisfies easily: the elided command sits above real
 # pasted output. Filed by tryton-crm 2026-08-28 after three probe defects survived a plan that was
 # Status: CONVERGED with check_plan_quality, check_plans, check_convergence and final_gate all
-# green. Measured before landing: 3 hits across 1,134 plan/review docs fleet-wide, all of them the
-# reported defect, zero elsewhere — so this fires on the defect and nothing else.
+# green. Blast radius, measured CORRECTLY on the second try (tryton-crm corrected the first):
+# **0** live hits fleet-wide. The first measurement grepped DOCUMENT TEXT and reported 3 — a PROXY
+# for what this check actually SELECTS, which is the mistake this corpus exists to catch, made
+# while justifying a change to a BLOCKING check. The 3 all sit in one file that `_changed_md`
+# skips (`archived/`) and that `_check_plan` early-returns on (no `CONVERGED` claim). To measure a
+# check's blast radius, run its own selection — never grep for the pattern it looks for.
 ELIDED_PROBE = re.compile(r"^[ \t]*\$[ \t]+\.\.\.", re.M)
+
+
+# An EXCERPT must declare itself. A fence body carrying a bare `...` line has been TRIMMED, and
+# today that is indistinguishable from complete output — a reader cannot tell "this is everything"
+# from "I kept the load-bearing lines", which is the whole defect. Convention proposed by tryton-crm
+# (2026-08-28) after I declined to ship their defect 3 for want of a decidable test; theirs is
+# decidable from the text alone, fails in the safe direction (a forgotten marker is a finding; a
+# spurious one is harmless), and cannot fire on a fence that does not already contain a bare `...`.
+# ONE CHANGE to their proposal, forced by the hub's own violation: the marker is a TOKEN in the
+# info string, not the whole of it — the first trimmed fence found here was ```python, and
+# demanding the info string BE "excerpt" would have traded a language tag for a marker. ```python
+# excerpt keeps both.
+BARE_ELLIPSIS = re.compile(r"^[ \t]*\.\.\.[ \t]*$", re.M)
+_INFO_FENCE = re.compile(r"^[ \t]*(`{3,})([^\n]*)\n(.*?)^[ \t]*\1[ \t]*$", re.M | re.S)
+
+
+def _unmarked_excerpts(text: str) -> int:
+    """Count trimmed fences (a bare `...` line) whose info string is not ``excerpt``."""
+    return sum(
+        1
+        for _, info, body in _INFO_FENCE.findall(text)
+        if BARE_ELLIPSIS.search(body) and "excerpt" not in info.split()
+    )
 
 
 def _elided_probes(text: str) -> int:
@@ -390,6 +417,13 @@ def _check_plan(root: Path, path: Path) -> list[str]:
         fails.append(f"fewer than 1 `file:line` citation per phase (need >= {phases})")
     if _nontrivial_fences(text) < 1:
         fails.append("no non-trivial fenced command-output block (a column name != its values)")
+    unmarked = _unmarked_excerpts(text)
+    if unmarked:
+        fails.append(
+            f"{unmarked} fence(s) TRIMMED (a bare `...` line) without declaring it — open them "
+            "```excerpt so a reader can tell a kept-the-load-bearing-lines excerpt from complete "
+            "output; today the two are indistinguishable"
+        )
     elided = _elided_probes(text)
     if elided:
         fails.append(

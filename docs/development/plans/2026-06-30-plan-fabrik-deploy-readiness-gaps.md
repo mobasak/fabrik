@@ -241,7 +241,7 @@ So `spec.depends.postgres` is **decorative** — fabrik ignores it entirely. Edi
 Original plan said the fix was `db_name = spec.depends.postgres or spec.id.replace("-","_")` at [infrastructure.py:432](src/fabrik/orchestrator/infrastructure.py#L432). **That pseudo-code wouldn't run** for two reasons confirmed by reading the actual code:
 
 1. **`_provision_postgres()` at [infrastructure.py:426](src/fabrik/orchestrator/infrastructure.py#L426) has NO `spec` parameter in scope**:
-   ```python
+   ```python excerpt
    def _provision_postgres(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
        ...
        db_name = name.replace("-", "_")  # line 432

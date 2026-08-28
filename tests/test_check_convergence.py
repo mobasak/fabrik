@@ -1014,3 +1014,73 @@ def test_a_plan_with_a_real_probe_is_not_flagged_for_elision(tmp_path):
         encoding="utf-8",
     )
     assert not any("ELIDED" in f for f in cc._check_plan(root, plan)), cc._check_plan(root, plan)
+
+
+# ── a TRIMMED fence must declare itself ─────────────────────────────────────────────────────────
+# tryton-crm's defect 3, and their proposed convention. I declined to ship it for want of a
+# decidable test and invited a proposal; theirs is decidable from the text alone: a fence body
+# containing a bare `...` line has been trimmed, so its info string must be `excerpt`.
+
+
+def test_a_trimmed_fence_without_the_marker_is_counted():
+    cc = _cc()
+    text = "```\n$ sed -n '784,815p' account.py\n    def get_amount(cls):\n    ...\n```\n"
+    assert cc._unmarked_excerpts(text) == 1
+
+
+def test_a_trimmed_fence_that_declares_itself_is_clean():
+    cc = _cc()
+    text = "```excerpt\n$ sed -n '784,815p' account.py\n    def get_amount(cls):\n    ...\n```\n"
+    assert cc._unmarked_excerpts(text) == 0
+
+
+def test_complete_output_is_never_flagged():
+    """The false-positive side: it fires ONLY on a fence that already contains a bare `...`, so a
+    complete output — however long — is untouched. That is what gives it zero migration pressure."""
+    cc = _cc()
+    text = '```\n$ python scripts/final_gate.py --json\n"status": "success"\n"blocking": 41\n```\n'
+    assert cc._unmarked_excerpts(text) == 0
+
+
+def test_an_ellipsis_inside_a_line_is_not_a_trim_marker():
+    """Only a line that is EXACTLY `...` counts. `foo ... bar` is prose or a real argument."""
+    cc = _cc()
+    assert cc._unmarked_excerpts("```\n$ grep x f\nresult ... continues\n```\n") == 0
+
+
+def test_an_indented_bare_ellipsis_still_counts():
+    """Trimmed code output is usually indented; anchoring on column 0 would miss the common case."""
+    cc = _cc()
+    assert cc._unmarked_excerpts("```\n$ cat f.py\n    def a():\n        ...\n```\n") == 1
+
+
+def test_a_trimmed_fence_is_actually_reported_through_check_plan(tmp_path):
+    """The wiring, not the helper — the mutation that slipped past the elided-probe tests."""
+    import subprocess
+
+    cc = _cc()
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    d = tmp_path / "docs" / "development" / "plans"
+    d.mkdir(parents=True)
+    plan = d / "2026-08-28-plan-3-excerpt.md"
+    plan.write_text(
+        "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\n## Evidence\n\nsrc/app.py:42 — the site\n\n"
+        "```\n$ sed -n '1,40p' src/app.py\ndef handler():\n...\n```\n\n## Self-audit\n\nok.\n",
+        encoding="utf-8",
+    )
+    assert any("TRIMMED" in f for f in cc._check_plan(tmp_path, plan)), cc._check_plan(tmp_path, plan)
+
+
+def test_the_marker_is_a_token_so_a_language_tag_survives():
+    """The hub's own first violation was a ```python fence. Requiring the info string to BE
+    "excerpt" would trade syntax highlighting for the marker; requiring it to CONTAIN the token
+    keeps both. Found by fixing our own corpus before shipping the rule to 46 repos."""
+    cc = _cc()
+    assert cc._unmarked_excerpts("```python excerpt\ndef a():\n    ...\n```\n") == 0
+    assert cc._unmarked_excerpts("```python\ndef a():\n    ...\n```\n") == 1
+
+
+def test_a_lookalike_word_does_not_satisfy_the_marker():
+    """Token match, not substring: `excerpted`/`no-excerpt` must not clear it."""
+    cc = _cc()
+    assert cc._unmarked_excerpts("```excerpted\nx\n...\n```\n") == 1

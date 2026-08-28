@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a TRIMMED fence must declare itself (`” ```excerpt ”`); blast radius measured the right way (2026-08-28)
+
+- **tryton-crm's defect 3, on their proposed convention.** I had declined to ship it for want of a
+  decidable test and invited a proposal; theirs is decidable from the text alone — a fence body with
+  a bare `...` line has been trimmed, so its info string must carry the `excerpt` token. Today
+  "this is complete output" and "I kept the load-bearing lines" are indistinguishable to a reader,
+  which is the whole defect. It fails safe (a forgotten marker is a finding, a spurious one is
+  noise) and cannot fire on a fence that does not already contain a bare `...`.
+- **One change to their proposal, forced by our own corpus:** the marker is a TOKEN in the info
+  string, not the whole of it. The first violation found was the hub's own ```python fence, and
+  demanding the info string BE `excerpt` would have traded a language tag for a marker.
+  ```` ```python excerpt ```` keeps both. The hub's violation is fixed rather than shipped.
+- **The blast-radius method is the real correction here.** My first measurement for the elided-probe
+  rule grepped document TEXT and reported "3 hits, all the reported defect" — tryton-crm showed the
+  live count was **0**: all 3 sat in one file `_changed_md` skips (`archived/`) and `_check_plan`
+  early-returns on. Grepping for the pattern a check looks for is not measuring what it will flag.
+  This rule was measured through the check's own selection from the start: **0 firing today, 2
+  latent** (`trade-intelligence`, `web-ecommerce-factory`), each of which fires only when its own
+  file is next edited.
+
+
 ### Fixed — two filed findings: concurrent cert agents erasing evidence, and a check that penalised a mandated directory (2026-08-28)
 
 - **A guard that depends on unanimous compliance is not a guard** (`job-agent`, `01M12MDB3V`).
@@ -79,8 +100,11 @@ All notable changes to this project will be documented in this file.
   that was `Status: CONVERGED` with `check_plan_quality`, `check_plans`, `check_convergence` and
   `final_gate` all green — the sharpest being a fence reading `$ ... "…"`, which probe duty says to
   re-run and diff, and which cannot be. `check_convergence` now counts `$ ...` command lines inside
-  fences. Measured before landing: **3 hits across 1,134 plan/review docs fleet-wide, all of them the
-  reported defect, zero elsewhere.**
+  fences. **Blast radius corrected 2026-08-28 by tryton-crm:** I first reported "3 hits across
+  1,134 docs" from grepping document TEXT — a proxy for what the check SELECTS. Re-measured through
+  the check's own selection: **0 live hits fleet-wide**; all 3 sit in one file `_changed_md` skips
+  (`archived/`) and `_check_plan` early-returns on (no `CONVERGED` claim). Grepping for the pattern
+  a check looks for is not measuring what it will flag.
 - **`/fabrik-rivals` had two sections sharing the header "## ⚠️ Termination contract"** (`youtube`,
   `01M12QC3H1`) governing two different loops. Renamed the rivals-local one to
   `## ⚠️ DISCOVERY termination`. Their suggested fix (rename the second) would have changed the shared
