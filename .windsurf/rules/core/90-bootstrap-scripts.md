@@ -151,6 +151,39 @@ ssh vps "ssh ozgur@<target-ip> 'sudo fail2ban-client status sshd 2>&1 | head -15
 
 If the fail2ban ban-list shows your dev WSL IP, your only options are: (a) wait 10 min, (b) reboot the target VPS via provider web console (clears state), or (c) get the target to remove your IP via console-login (Vultr, DO, Hetzner all support browser-based console).
 
+## Rule 7 — A cron redirect the RUNNING USER cannot write aborts the job silently, forever
+
+`* * * * * /path/script.sh >> /var/log/thing.log 2>&1` looks correct and is a **permanent silent
+failure** whenever the cron's user cannot create that file. The shell opens the redirect **before**
+exec'ing the script, so the job dies with no output, no log line, and no error anywhere — the script
+never runs, and the absent log looks like "it ran and printed nothing".
+
+Founding incident: `scripts/sysadmin/liveness_audit.py:10-11` — the Claude-config DR backup had never
+once run from cron for exactly this reason. Reproduced again 2026-08-29 (`touch /var/log/x` →
+`Permission denied` for the WSL user), when a plan copied an existing `>> /var/log/…` line verbatim from
+a working precedent and shipped the same defect; only a native Opus reviewer caught it.
+
+**Why the precedent misleads:** the `/var/log/…` redirects that DO work on the VPS work because those
+files were **pre-created** (or the cron runs as root). Copying such a line into a user crontab, or onto
+a box where the file does not exist, silently reproduces the bug. Root-on-VPS and user-on-WSL are
+different worlds and the line looks identical in both.
+
+**Before proposing ANY cron line, prove the redirect target:**
+
+```
+$ sudo -u <the cron's user> test -w "$(dirname /var/log/thing.log)" && echo writable || echo NOT
+```
+
+Prefer a path the user owns outright — `$HOME/.claude/state/<name>.log` or the project's own
+`logs/` — over `/var/log/`. If `/var/log/` is genuinely required, the provisioning step that
+**creates the file with the right owner** is part of the change, not an assumption.
+
+⚠️ **Not mechanically gated, deliberately.** 32 `>> /var/log/` redirects exist across this repo's docs,
+scripts and templates, and most are correct — VPS root cron writing pre-created files. A check flagging
+all of them would fire mostly on legitimate lines, and a rule that is routinely waived teaches agents
+that the gate's findings are advisory. Writability depends on the user and the host; only the author can
+resolve it, which is why this is a rule you apply rather than a check that fires.
+
 ## Cross-references
 
 - Worked example of these rules being applied / discovered: 2026-06-07 first DR drill (commit log entry `bootstrap: bake 4 spoke deps into bootstrap-vps.sh + ...`)
