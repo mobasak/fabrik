@@ -547,3 +547,31 @@ def test_unrecorded_warn_names_the_missing_driver_when_dsn_resolves(tmp_path, mo
     out = capsys.readouterr().out
     assert "psycopg" in out, f"the missing driver must be named:\n{out}"
     assert "UNRECORDABLE" in out or "cannot record" in out.lower()
+
+
+
+def test_driver_probe_error_fails_open_to_the_generic_message(tmp_path, monkeypatch, capsys):
+    """Review round 1: the probe's own failure must read as importable (a broken probe proves
+    nothing) — the advisory then falls through to the GENERIC message, never a false claim."""
+    import types
+
+    mod = _load()
+    root = tmp_path / "myrepo"
+    root.mkdir()
+    ledger = root / ".tmp" / "subagents" / "ledger.jsonl"
+    ledger.parent.mkdir(parents=True)
+    _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.setenv("SUBAGENT_RUNS_DSN", "postgresql:///fabrik_analytics")
+    import importlib.util as _ilu
+
+    def boom(name):
+        raise RuntimeError("probe broke")
+
+    monkeypatch.setattr(_ilu, "find_spec", boom)
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "UNRECORDABLE" not in out, "a broken probe must not produce the driver claim"
+    assert "never" in out and "scored" in out.lower() or "recorded" in out.lower()

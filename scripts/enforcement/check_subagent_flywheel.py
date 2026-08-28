@@ -394,6 +394,14 @@ def _warn_unrecorded(ledger_path: Path) -> None:
             "False on every call and batch.score() refuses each unit as an orphan. Scoring harder "
             "cannot fix this: provision the DSN (hub-side: the fabrik_analytics per-project "
             "INSERT-only role — ask infra), then re-score from the ledger."
+            # Both-absent (review 2026-08-28 round 1): fixing the DSN alone would still not
+            # record — say so now, not on the next red run.
+            + (
+                ""
+                if _pg_driver_importable()
+                else " NOTE: `psycopg` is ALSO missing from this "
+                "interpreter — provisioning the DSN alone will not make runs recordable."
+            )
         )
         return
     # Third checkable cause, the one two prior diagnoses missed because no message listed it
