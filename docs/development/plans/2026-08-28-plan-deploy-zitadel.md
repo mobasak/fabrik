@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: IN-PROGRESS
+Status: BLOCKED — S3 start-from-init rejected the alphanumeric admin password (PasswordComplexityPolicy.HasSymbol)
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -405,3 +405,4 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 ## Deploy Ledger
 
 — RUN 1 2026-08-28T21:47:07Z
+— ⛔ BLOCKED S3 2026-08-28T21:53:43Z start-from-init setup migration 03_default_instance failed: Errors.User.PasswordComplexityPolicy.HasSymbol — the secrets.generate ZITADEL_ADMIN_PASSWORD is 32 alphanumeric chars (NO symbol), but Zitadel's default password-complexity policy requires a symbol → the first-instance admin bootstrap is rejected → container crash-loops. db_before_boot + DNS worked (logs: "database … skipping creation"). Rollback taken: docker compose down + removed; connections terminated; zitadel DB dropped (empty — setup failed pre-data, masterkey encrypted nothing). Residue (harmless): the auth.ocoron.com A record + /opt/zitadel/.env (old secrets) persist; a re-deploy overlays them.
