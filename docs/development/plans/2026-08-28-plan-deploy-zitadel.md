@@ -152,18 +152,23 @@ resolves from the hub process-env / hub `.env` (`__init__.py:321-325`) — the v
 
 ## Phase 3 — Infra prerequisites
 
-**⚠️ DNS (blocking, operator-gated).** `auth.ocoron.com` does **not resolve today**; it must point at vps1
-**before** first apply or Traefik/ACME cannot issue the cert:
+**DNS — AUTO-PROVISIONED by `fabrik apply` (NOT operator-gated, corrected 2026-08-28).** `auth.ocoron.com` does
+not resolve today, but that is expected pre-deploy and requires **no manual action**: `fabrik apply`'s
+`_provision_dns` (`src/fabrik/orchestrator/__init__.py:159`, deploy step 3, BEFORE the container) parses the
+spec `domain` into subdomain `auth` + base `ocoron.com`, resolves `target_vps: vps1 → 172.93.160.197` from its
+`VPS_IPS` table, and creates the A record via site-provisioner (Namecheap → Cloudflare fallback —
+`provision.vps1.ocoron.com`, the fleet's DNS gateway). The runbook only **VERIFIES** it (S1 below), never
+creates it by hand.
 
 ```
-$ dig +short auth.ocoron.com A         # (empty — no record)
+$ dig +short auth.ocoron.com A         # (empty NOW — fabrik apply's _provision_dns creates it at deploy)
 $ dig +short provision.vps1.ocoron.com A
-172.93.160.197                          # vps1 — the A record target auth.ocoron.com needs
+172.93.160.197                          # vps1 — the IP _provision_dns will point auth.ocoron.com at
 ```
 
-→ runbook **S1** (OPERATOR-GATE): create `auth.ocoron.com A → 172.93.160.197`. **Cert story:** new base label on
-the existing `ocoron.com` zone; Traefik's existing ACME resolver issues on first router load (public HTTP-01/DNS-01
-per the hub's Traefik config) — no new resolver needed (same zone as `provision.vps1.ocoron.com`, already issuing).
+**Cert story:** new base label on the existing `ocoron.com` zone; Traefik's existing ACME resolver issues on
+first router load (public HTTP-01/DNS-01 per the hub's Traefik config) — no new resolver needed (same zone as
+`provision.vps1.ocoron.com`, already issuing).
 **Traefik middleware:** `is_admin_dashboard:false` + `is_public:true` (`specs/services/zitadel.yaml:7-8`) → the
 scaffold-emitted public middleware is `gzip@docker` only, **no `authelia-forward`** (CLAUDE.md middleware rule:
 Zitadel is the auth, never behind Authelia). Registrar preview embedded in Phase 2.
@@ -174,9 +179,11 @@ Zitadel is the auth, never behind Authelia). Registrar preview embedded in Phase
 ship via `fabrik redeploy zitadel` (code/image only). A re-`apply` is permitted **only** after the operator
 pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherwise it is a data-loss event.
 
-1. **S1** `OPERATOR-GATE` (`verify: in-session`) — create DNS `auth.ocoron.com A → 172.93.160.197`.
-   *verify:* `dig +short auth.ocoron.com A` → `172.93.160.197`. *rollback:* remove the record (non-destructive; no
-   dependents yet). *rerunnable:* yes (idempotent record set).
+1. **S1** — DNS is created AUTOMATICALLY by S3's `fabrik apply` (`_provision_dns`, `__init__.py:159`, routes
+   `auth.ocoron.com → 172.93.160.197` via site-provisioner) — **no manual/operator step**. This step VERIFIES it
+   post-apply: `dig +short auth.ocoron.com A` → `172.93.160.197` (allow a short propagation window). *rollback:*
+   n/a (a stray A record is harmless; delete via `fabrik.drivers.dns.DNSClient` / site-provisioner if ever needed).
+   *rerunnable:* yes (read-only verify; `_provision_dns` itself is idempotent).
 2. **S2** — masked from_env preview (confirm the key is present without printing its value):
    `grep -q RESEND_API_KEY /opt/fabrik/.env && echo "RESEND present"`.
    *verify:* prints `RESEND present`. *rollback:* n/a (read-only). *rerunnable:* yes.
@@ -305,7 +312,7 @@ per `fabrik-deploy-plan.md:11-13`.
 - `postgres-main`: new `zitadel` database + role.
 - Registrar side-effects: Gatus endpoint, Prometheus target, GlitchTip project, Grafana, a `zitadel-data`
   Backrest plan (paper — F4), Traefik route for `auth.ocoron.com`.
-- DNS: `auth.ocoron.com A` record (S1, operator).
+- DNS: `auth.ocoron.com A` record — auto-created by `fabrik apply`'s `_provision_dns` via site-provisioner (S1 verifies).
 - This plan file.
 
 ## Behavior Contract (one row per user-observable post-deploy behavior)
@@ -324,7 +331,7 @@ per `fabrik-deploy-plan.md:11-13`.
 ## Evidence
 
 ```
-$ dig +short auth.ocoron.com A          →  (empty — DNS prerequisite S1)
+$ dig +short auth.ocoron.com A          →  (empty NOW — fabrik apply's _provision_dns auto-creates it at deploy)
 $ dig +short provision.vps1.ocoron.com A →  172.93.160.197   (vps1 A-record target)
 $ ssh vps "free -h | grep Mem"          →  11Gi total · 7.5Gi available   (fits 1G limit)
 $ ssh vps "sudo docker ps -q | wc -l"   →  31 containers
@@ -384,7 +391,7 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 |---|---|---|---|
 | 1 | Secrets flow | CLEAN | F1 re-mint invariant grounded (`__init__.py:301-320`); `db_before_boot` DATABASE_URL coexists with the masterkey (both in `ctx.secrets`); plain `redeploy` proven safe |
 | 2 | Env/config completeness | FIXED | D4 LOG_LEVEL drift corrected; every `${VAR}` traced; DATABASE_URL seeded + env_file interpolation verified live (`docker compose config`, Compose 2.40.3) |
-| 3 | Staged-infra validity | CLEAN | DNS S1 (`auth.ocoron.com`→`172.93.160.197`), 6-registrar `fabrik plan` preview, cert story |
+| 3 | Staged-infra validity | CLEAN | DNS auto-provisioned by `fabrik apply` (`_provision_dns` → site-provisioner; S1 verifies, NOT operator-gated), 6-registrar `fabrik plan` preview, cert story |
 | 4 | Runbook ordering + timing | FIXED | D1 resolved (`deploy.db_before_boot` pre-provision at step 2b `__init__.py:161`<`:170`); D2 (S5 greps the resolved DSN); stable `S`-ids; S-RB + #4b recovery |
 | 5 | Healing / rollout | CLEAN — N/A-vps | `health.disabled`→no healthcheck→`vps-autoheal.sh:53` (unhealthy-only) never acts; no window bracket needed |
 | 6 | Battery completeness | FIXED | F-D readiness≠write-proof corrected; write path = Console user-create; ACME/cert diag before TLS |
