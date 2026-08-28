@@ -375,6 +375,25 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
         re.compile(r"\bak[ıi][şs]\s+s[öo]zle[şs]me\w*|\byolculuklar\b[^.]{0,25}\beksiksiz\b", re.I),
         "flows-review",
     ),
+    # The ENGLISH half, and it must sit ABOVE the broad `review` stem for the same reason
+    # the two ui-design entries do: "review the flows contract" is a phrase /fabrik-review's
+    # own SKIP clause DISCLAIMS, so letting `review` win points the operator at a gate that
+    # says it is not the one. Only the TR half existed, so the EN triggers mis-routed.
+    #
+    # Why check_trigger_routing scored this 0 mis-routed: it grades the LITERAL advertised
+    # string, `"review/harden the flows contract"` — which contains a slash, matches nothing,
+    # and lands in the tolerated nowhere bucket. The phrase an operator actually types is the
+    # EXPANSION, "review the flows contract", and that reached fabrik-review. The check says
+    # so about itself ("cannot tell whether the phrase is one an operator would ever type");
+    # this is what that limitation costs. (audit cmd 10/31, 2026-08-28)
+    (
+        re.compile(
+            r"\b(review|harden|converge)\b[^.]{0,30}"
+            r"\b(flows?(\.md)?\s+contract|journey\s+contract|flows\.md)\b",
+            re.I,
+        ),
+        "flows-review",
+    ),
     (
         re.compile(
             r"\bplan[ıi]?\b[^.]{0,25}\b(g[öo]zden\s+ge[çc]ir\w*|sa[ğg]laml[aá]?[şs]t[ıi]r\w*)"
