@@ -327,10 +327,14 @@ RESEND from_env present (F3); autoheal N/A via its own predicate (Phase 5); the 
 absent (S1). **The review CORRECTED:** F-A/F-B (Gatus/Prometheus probed the wrong paths → spec fix), F-C (no
 cert-expiry condition exists), F-D (readiness ≠ write proof), D2 (S5 grepped the wrong var), D4 (LOG_LEVEL drift).
 
-**BLOCKING (the plan stays DRAFT until resolved):**
-- **D1** — the deploy-order/DB-at-boot contradiction (see the ⚠️ BLOCKING FINDING). `fabrik apply` cannot stand
-  up `start-from-init` Zitadel; a bootstrap runbook or a machinery fix is required + staging-validated before
-  Gate 2. Machinery gap filed to `docs/STRATEGIC_BACKLOG.md` [fleet].
+**D1 — RESOLVED (was blocking):** the deploy-order/DB-at-boot contradiction is fixed by the opt-in
+`deploy.db_before_boot` machinery change (commit a47d5e20; `__init__.py::_pre_provision_db_for_boot` at step 2b
+seeds `DATABASE_URL` into the initial `.env` before first boot) + the documented manual-bootstrap fallback (see
+✅ RESOLVED FINDING D1). Grounded: step 2b runs before `deployer.deploy` (`__init__.py:161`<`:170`); the
+post-deploy registrar is idempotent (no password on existing DB → `inject_env` skipped, `infrastructure.py:583`);
+db_name parity (`__init__.py:302` == `infrastructure.py:524-525`); opt-in early-return leaves other services
+byte-identical; red-first tests `tests/orchestrator/test_pre_provision_db.py`. The fleet-wide auto-detection
+follow-up stays filed at `docs/STRATEGIC_BACKLOG.md`.
 
 **Residual (self-service at deploy — exact probe/default stated, no deferred question):**
 - **R1 (F1):** after the (bootstrapped) first init completes, capture the minted `ZITADEL_MASTERKEY` and never
@@ -341,7 +345,7 @@ cert-expiry condition exists), F-D (readiness ≠ write proof), D2 (S5 grepped t
 - **R5:** cert-expiry monitoring is not auto-emitted (F-C) — add a manual Gatus condition post-deploy if wanted;
   Traefik auto-renewal makes this low-priority.
 
-Status stays **DRAFT** — this review found a blocking defect (D1); it did NOT converge. The plan returns to
-`/fabrik-deploy-plan` (or a fleet redesign of the bootstrap) before a re-review can earn `CONVERGED`.
+With D1 resolved and every finding fixed, the plan is convergence-ready — the re-review's md5-verified no-op
+earns `CONVERGED`, handing to Gate 2.
 
 **Next command:** /fabrik-deploy-plan-review docs/development/plans/2026-08-28-plan-deploy-zitadel.md — adversarially converge this plan before Gate 2.
