@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a green gate that asserts nothing about the test suite now says so (2026-08-29)
+
+- **`pytest (NOT RUN)` listed three possible reasons and named none of them**, so a PERMANENT structural
+  exclusion read identically to a transient per-diff skip. On the hub the exclusion is permanent —
+  `_ci_runs_pytest()` is false because neither `.github/workflows/ci.yml` nor `docs-check.yml` mentions
+  pytest — which means **every green here has been silent about a 2500-test suite while looking like an
+  ordinary skip**. The exclusion itself is deliberate and correct (`final_gate.py:840`: a CI that never
+  reds has no red to prevent, and a hub-scale ~3h suite would brick every completion gate); what was wrong
+  is that it was indistinguishable from "nothing changed". The message now names which condition fired and
+  says the green asserts nothing about the suite.
+- **New `_uninvoked_test_dirs()`**: the leg runs `pytest tests/` with an explicit path, so tracked suites
+  elsewhere are never collected. It now names them — **5 dirs / 16 tracked test files** on the hub,
+  including `scripts/kilo-benchmarks/tests/`, whose golden-parity ORACLE `daily_refresh.sh:398` treats as a
+  `severity=critical` production gate. Reported by intel (`01M153PX7G`), who found the one; the sweep found
+  five. `templates/**` is excluded — those tests run in the emitted project, not here.
+- The helper resolves via `git ls-files`, never a filesystem walk: the first cut used
+  `Path(".").glob("*/**/tests")` and died with `OSError(ENOMEM)` on a repo carrying a large untracked
+  `vault/`. A gate helper that can crash on a big working tree is worse than the gap it closes — there is a
+  regression guard asserting it stays git-based.
+- 4 tests. Red-on-revert proven with the mutation asserted on disk.
+
 ### Added — the review-twin attestation is now graded as a version pin (2026-08-29)
 
 - `/fabrik-flows-review` and `/fabrik-ui-design-review` write `Independently reviewed: v<N> — <cmd> no-op

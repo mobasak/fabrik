@@ -609,6 +609,48 @@ def detect_src_package() -> str:
     return "" if _mypy_config_selects_files() else "."
 
 
+def _uninvoked_test_dirs() -> list[str]:
+    """Test directories the gate's `pytest tests/` leg never reaches.
+
+    Same fail-silent-green shape as `_skip_note`, one level out: the leg invokes
+    `pytest tests/` with an explicit path, and `pyproject.toml`'s
+    ``testpaths = ["tests"]`` says the same thing — so a suite living anywhere else is
+    never collected, and a green gate looks identical to one that ran it. Measured
+    (intel, 2026-08-29): `scripts/kilo-benchmarks/tests/` holds the golden-parity ORACLE
+    that `daily_refresh.sh:398` treats as a severity=critical production gate. A green
+    Tier-2 asserted nothing about it; drift surfaced only via cron, days later.
+
+    Naming them is the whole fix — the gate does not need to RUN them (an unowned suite
+    could red every session), it needs to stop implying it did.
+    """
+    # `git ls-files` ONLY — never a filesystem walk. The first cut used
+    # `Path(".").glob("*/**/tests")` and died with OSError(ENOMEM) walking a repo that
+    # carries a large untracked `vault/`. Tracked files are also the right SET: an
+    # untracked scratch suite is nobody's contract.
+    try:
+        res = subprocess.run(
+            ["git", "ls-files", "*/test_*.py", "*/tests/*.py"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except Exception:
+        return []
+    if res.returncode != 0:
+        return []
+    dirs = set()
+    for line in res.stdout.splitlines():
+        d = str(Path(line).parent)
+        if d == "tests" or d.startswith("tests/"):
+            continue  # the leg DOES invoke this one
+        if any(part in {".venv", "node_modules", "__pycache__"} for part in Path(d).parts):
+            continue
+        if d.startswith("templates/"):
+            continue  # scaffold TEMPLATES — those tests run in the emitted project, not here
+        dirs.add(d)
+    return sorted(dirs)
+
+
 def _skip_note(tool: str) -> str:
     """A tool that is not installed did not PASS — it was never asked.
 
@@ -833,16 +875,37 @@ def run_static_checks(
             )
         else:
             tail = "\n".join(out.splitlines()[-30:])
-            results.append(("pytest", code == 0, tail if code != 0 else ""))
+            _uninvoked = _uninvoked_test_dirs()
+            if code == 0 and _uninvoked:
+                tail = (
+                    f"\u26a0 this green covers `tests/` ONLY — {len(_uninvoked)} test dir(s) "
+                    f"were never invoked and this run asserts nothing about them: "
+                    f"{', '.join(_uninvoked)}. The leg passes an explicit `tests/` path (and "
+                    f"pyproject's testpaths says the same), so a suite living elsewhere is not "
+                    f"collected. Run it yourself if your change touches it."
+                )
+            results.append(("pytest", code == 0, tail))
     else:
-        results.append(
-            (
-                "pytest (NOT RUN)",
-                True,
-                "no tests/ dir, no CI workflow invoking pytest, or no code changes this diff — "
-                "the suite is OUTSIDE this gate",
+        # SAY WHICH of the three conditions fired. The old message listed all three, so a
+        # PERMANENT structural exclusion ("this repo's CI never runs pytest, so the gate
+        # never will either") read identically to a TRANSIENT one ("nothing changed this
+        # diff"). On the hub that exclusion is permanent — neither workflow mentions
+        # pytest — which makes every green here silent about a 2500-test suite while
+        # looking like an ordinary skip. Same fail-silent-green shape the NOT-INSTALLED
+        # lines fixed (intel 01M153PX7G).
+        if not (PROJECT_ROOT / "tests").is_dir():
+            _why = "no tests/ directory in this repo"
+        elif not _ci_runs_pytest():
+            _why = (
+                "this repo's CI does not invoke pytest, so the gate does not either — "
+                "PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no "
+                "red to prevent, and a hub-scale suite would brick every completion gate), "
+                "but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it "
+                "yourself: `python -m pytest tests/ -q`"
             )
-        )
+        else:
+            _why = "no src/, tests/ or scripts/ changes in this diff"
+        results.append(("pytest (NOT RUN)", True, f"{_why} — the suite is OUTSIDE this gate"))
 
     # SQLFluff (skip if no .sql files changed)
     if not changed or _has_extension(changed, ".sql"):
