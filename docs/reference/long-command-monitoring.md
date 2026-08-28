@@ -167,6 +167,33 @@ Plus a `.last` symlink in `.tmp/jobs/` pointing at the most recent job's basenam
 
 ---
 
+## ⚠️ Three ways the Bash tool's auto-backgrounding bites
+
+None of these is a Fabrik defect — they are harness behaviours, and agents keep rediscovering them
+because every symptom looks like a broken command rather than a tool interaction. Filed
+independently by two agents on 2026-08-28 (job-agent round 8, transdoc `/fabrik-execute-plan`).
+
+**1. The default timeout is 120s, and exceeding it does not error — it AUTO-BACKGROUNDS.**
+A call that boots a server, runs a browser suite, or provisions will silently move to the
+background and look alive forever. Pass an explicit multi-minute `timeout`. This is what makes
+"run synchronously" achievable rather than aspirational — a subagent obeying that instruction
+without a timeout lands in exactly the state the instruction forbids, with no signal.
+
+**2. A detached launch plus a trailing probe in ONE invocation kills the launch.**
+```bash
+# BROKEN — the whole invocation backgrounds (exit 144) and the new process group dies before it binds
+setsid env … uvicorn … & disown; sleep 8; curl …/health
+```
+Issue the launch as its OWN standalone call, then poll health in a SEPARATE call. The symptom
+reads as "the server won't start" — job-agent lost ~3 attempts isolating it.
+
+**3. Piping a long run through a filter loses the output when it backgrounds.**
+`pytest tests/ -q | tail -30` on a ~150s suite: once the run moves to the background the pipe is
+not cumulative and most output is gone. Redirect to a log file and read it afterwards. The symptom
+reads as "the command produced nothing".
+*(Independently, a Gate line ending in `| tail` also throws away the exit status —
+`scripts/enforcement/check_plan_tickets.py` flags that at authoring time.)*
+
 ## Common patterns
 
 **Fire a build, do something else, then check:**
