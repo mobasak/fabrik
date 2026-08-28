@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — GitHub Actions off in the hub; the push gate now runs locally (2026-08-29)
+
+Operator directive 2026-08-25 ("we want same checks here, why do we pay them?"); 36 of 46 repos are
+private and burn metered Actions minutes. **This landed four days late — the 2026-08-25 thread was
+acked `disposition: done` while none of its three steps existed.**
+
+- **`.pre-commit-config.yaml`** — new `push-gate` (pre-push) running `check_duplicates.py`, plus
+  `default_install_hook_types: [pre-commit, pre-push]` and `default_stages: [pre-commit]`.
+- **`.github/workflows/{ci,docs-check}.yml` deleted**; both workflows `disabled_manually` on GitHub.
+- **Scope is PARITY, measured not assumed.** `ci.yml` enforced exactly one thing on push
+  (`check_duplicates`), and `docs-check.yml` triggered on branch `main` while this repo's default is
+  `master` — it had never fired on a push at all. Both are already local scripts, but registered
+  ONLY in `final_gate` Tier 3 (`--systemic`), which the completion gate never runs: proven by
+  `final_gate.py | grep -c "Duplicate Detection"` → Tier 2 = 0, Tier 3 = 1. So disabling Actions
+  without this hook would have silently dropped duplicate detection.
+- **Two pre-push facts corrected by executing the real hook** (`.git/hooks/pre-push`, not
+  `pre-commit run --hook-stage`, which does not reproduce either): pre-push DOES stash — a
+  2026-08-25 finding of mine claimed it does not, from a scratch-repo trial — and a hook with no
+  explicit `stages:` runs at every stage, so the first wiring fired `governance-sync` (which writes
+  into 47 project trees) on every push. Both documented in `docs/workstation/hooks-index.md`.
+- **Hub only.** The other 44 repos still have 51 workflow files and no local gate; that sweep is a
+  cross-repo action and is not taken here.
+
 ### Fixed — Deployer: health.disabled services no longer false-fail on `up --wait` (2026-08-28)
 
 - `src/fabrik/orchestrator/deployer_ssh.py` — `docker compose up -d --wait` REQUIRES a healthcheck; a

@@ -9,6 +9,14 @@
 #
 # Full quality checks: python scripts/final_gate.py
 
+# New clones get BOTH hook types from a bare `pre-commit install`. Without this, the pre-push
+# gate below exists in config and is installed nowhere — config presence is not enforcement.
+default_install_hook_types: [pre-commit, pre-push]
+# Without this, EVERY hook below with no explicit `stages:` also runs at pre-push — proven by
+# running the real hook: the governance-sync (which writes into 47 project trees) and the whole
+# commit-blocker set fired on a push. Pin the default to the commit stage; the push gate opts in.
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -38,6 +46,37 @@ repos:
       # where a pre-commit stash has already reverted uncommitted work once — and re-triggered
       # the "Your pre-commit configuration is unstaged" abort at a second point in the commit.
       # A 3-line shim has neither failure mode. See docs/workstation/hooks-index.md.
+
+      # === PUSH GATE — the local replacement for GitHub Actions ===
+      # Operator directive 2026-08-25 ("we want same checks here, why do we pay them?"): 36 of
+      # 46 repos are private, and private repos burn metered Actions minutes.
+      #
+      # SCOPE IS PARITY, deliberately. `.github/workflows/ci.yml` enforced exactly ONE thing on
+      # push — `check_duplicates.py` — and `docs-check.yml` triggered on branch `main` while
+      # this repo's default is `master`, so it never fired on a push at all. Running the full
+      # Tier-2 gate here would be a NEW tax Actions never charged, on a box where three agents
+      # push constantly; the completion gate stays where the contract puts it (§ Completion
+      # Contract, run before commit). Measured cost of this hook: 0.49s.
+      #
+      # ⚠️ pre-push DOES stash. A 2026-08-25 finding of mine asserted the opposite ("pre-push
+      # operates on rev ranges and leaves the worktree alone") on the strength of a scratch-repo
+      # trial; running the real hook on THIS tree prints "Unstaged files detected / Stashing
+      # unstaged files" every time, and the first wiring attempt hit the follow-on
+      # "Stashed changes conflicted with hook auto-fixes... Rolling back fixes" — the exact
+      # WIP-destruction shape that got the trailer guard removed from pre-commit (NOTE above).
+      # It is survivable ONLY because this hook writes nothing into the tree (see --report), so
+      # there are no auto-fixes to conflict with. Any hook added to this stage MUST stay
+      # non-mutating, or it re-opens that failure on a tree three sessions share.
+      - id: push-gate
+        name: duplicate check before push (replaces GitHub Actions CI)
+        # --report to /tmp: the default writes `duplicate-report.json` INTO the repo, and
+        # pre-commit fails any hook that modifies a tracked file ("files were modified by this
+        # hook") — so the gate went red on a push where the check itself printed PASS.
+        entry: python3 scripts/enforcement/check_duplicates.py --report /tmp/fabrik-duplicate-report.json
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
 
       - id: forbid-secrets
         name: Block forbidden files (.env, keys, certs)

@@ -155,6 +155,29 @@ active enforcement.
 | pre-commit-hooks (large files · merge conflicts · private keys · forbidden `.env`/keys/certs) | Standard commit safety |
 | `command-corpus-check` | Installed `~/.claude/commands` + skills must match the rendered `_sources/` (hand-edits die on re-render) |
 | `governance-sync` | A commit touching a trigger surface auto-distributes governance to all `/opt` projects (trigger set = its `files:` filter — the filter is the truth, not memory) |
+| `push-gate` (**pre-push**, added 2026-08-29) | The local replacement for GitHub Actions. Runs `check_duplicates.py` before every push — parity with what `ci.yml` actually enforced, nothing more. Hub Actions are `disabled_manually` and both workflow files are deleted. **0.49s.** |
+
+⚠️ **Two facts about the pre-push stage, both learned by running the real hook rather than reasoning
+about it** — a 2026-08-25 finding of mine asserted the opposite of the first and was wrong:
+
+1. **pre-push DOES stash.** It prints "Unstaged files detected / Stashing unstaged files" on every
+   push with a dirty tree, which on this shared tree is always. The earlier claim that it "operates
+   on rev ranges and leaves the worktree alone" came from a scratch-repo trial. The first wiring
+   attempt then hit "Stashed changes conflicted with hook auto-fixes... Rolling back fixes" — the
+   WIP-destruction shape that got the trailer guard removed from pre-commit (§5). It is survivable
+   only because `push-gate` writes nothing into the tree (`--report /tmp/…`; the default writes
+   `duplicate-report.json` into the repo, and pre-commit fails any hook that modifies a tracked
+   file — so the gate went red on a push where the check itself printed PASS).
+   **Any hook added to this stage MUST stay non-mutating.**
+2. **A hook with no explicit `stages:` runs at EVERY stage, including pre-push.** Before
+   `default_stages: [pre-commit]` was set, a push fired the whole commit-blocker set *and*
+   `governance-sync`, which writes into 47 project trees. Verified by executing
+   `.git/hooks/pre-push` directly; `pre-commit run --hook-stage pre-push` does NOT reproduce it.
+
+**Install:** `.venv/bin/pre-commit install -t pre-push` (or a bare `pre-commit install`, now that
+`default_install_hook_types` covers both). **A config stanza that is installed nowhere is not
+enforcement** — as of 2026-08-29 this is wired in the hub only; the other 44 repos still have 51
+workflow files and no local push gate.
 
 ## 5. Plain git hooks (NOT managed by pre-commit)
 
