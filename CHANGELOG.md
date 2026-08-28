@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Deployer: health.disabled services no longer false-fail on `up --wait` (2026-08-28)
+
+- `src/fabrik/orchestrator/deployer_ssh.py` — `docker compose up -d --wait` REQUIRES a healthcheck; a
+  `health.disabled` service (a FROM-scratch image can't run an in-container probe) made `--wait` exit rc=1
+  ("no healthcheck configured"), false-failing the deploy BEFORE the post-deploy registrars even when the
+  container was running fine (live Zitadel S3 halt: served `/debug/ready` 200 but the deploy reported failure +
+  skipped gatus/prometheus/glitchtip/backrest). New `_compose_up(name, health_disabled, ssh_fn)`: healthchecked
+  services keep `up -d --wait`; `health.disabled` services use `up -d` + an external readiness poll (`docker
+  inspect` for a STABLE running state — a crash-loop still raises `DeployError`). Wired at `_deploy_docker` +
+  `inject_env`. Red-first tests in `tests/orchestrator/test_compose_up_health_disabled.py`.
+
 ### Fixed — reviewing predicate 8 found seven defects in it, three of them the class it grades (2026-08-29)
 
 `/fabrik-review` over `728b5847`. Six rounds; the ledger and per-finding dispositions are in
