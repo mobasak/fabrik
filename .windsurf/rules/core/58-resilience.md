@@ -368,12 +368,6 @@ route only through OpenRouter**, where hand-rolling a probe re-implements the ga
 **"We use OpenRouter" is not a resilience design** — it is the name of a gateway that can be configured
 out of the protection being claimed. Name the mechanism, not the vendor.
 
-> **Note — this rule and the scaffold template currently differ on the gateway path.** The project-facing
-> `docs/RESILIENCE.md` §3b (emitted by the scaffold) states outcome 1 as an unconditional build. This rule
-> scopes it by route, on the measurement above. The divergence is filed as `01M14E2VZM` and is unresolved
-> at time of writing; a divergence written down is a known state, a silently picked winner is not. When it
-> resolves, both say the same thing and this note goes.
-
 ---
 
 ## Banned Patterns

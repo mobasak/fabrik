@@ -114,6 +114,14 @@ STEM_SKILLS: dict[str, str] = {
     # clause disclaims, so letting the broad `review` stem win points the operator at a gate
     # that says it is not the one (measured 2026-08-28 across all 71 advertised EN triggers).
     "rivals": "fabrik-rivals",
+    # /fabrik-data-contract advertised 5 trigger phrases and reached NOTHING (audit 2026-08-28,
+    # command 7 of 31). Only the DISTINCTIVE noun is matched — `data contract` / `veri sözleşme`.
+    # The generic halves of its own trigger ("map these fields to the DB", "what are our field
+    # names") are deliberately NOT patterned: "fields" appears in ordinary schema talk, and
+    # check_trigger_routing's design is explicit that closing a nowhere-gap with a loose pattern
+    # is worse than the gap. `data contract` cannot collide with the ui-design stem above, whose
+    # nouns are `design contract` / `ui design contract`.
+    "data-contract": "fabrik-data-contract",
     # The Turkish half. `gözden geçir` alone lives in the broad `review` stem and fires on ANY
     # Turkish review phrase regardless of noun — looser than the English side, which at least
     # requires "review this/the/my". Six advertised TR phrases reached the wrong command until
@@ -238,6 +246,13 @@ _HEADLESS_TYPES = {"python-api", "python-api-gpu", "node-api", "file-api", "file
 #     run" collocation itself); "test this end to end" keeps firing
 #     unchanged via the separate end-to-end pattern.
 KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(
+            r"\b(data[- ]contract(\.md)?|veri\s+s[öo]zle[şs]me\w*)\b",
+            re.I,
+        ),
+        "data-contract",
+    ),
     # BEFORE design-review: /fabrik-ui-design-review converges the FROZEN docs/ui-design.md, not a
     # rendered screen — its own SKIP says "never a running app (→ /design-review)". The first cut of
     # the design-review stem below matched "review ... UI" and swallowed it; the CONTRACT nouns
