@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — one pipeline in two files, and the false caller name that hid it (2026-08-29)
+
+- **`commands/_fragments/test-generation-loop.md`** (new) — the five-step Behavior-Contract
+  test-generation pipeline, now the single source rendered into BOTH `/fabrik-generate-tests`
+  (which keeps the per-step detail) and `/fabrik-review` (which needs the shape mid-loop).
+  Verified byte-identical in both rendered commands after a main-checkout render.
+- **`scripts/enforcement/check_command_corpus.py`** — **predicate 8: a CLAIMED caller must
+  actually call.** `/fabrik-generate-tests` advertised itself as *"auto-called by …
+  `/fabrik-review` reactively"* while `fabrik-review.md` carried zero references to it — and
+  the false name was concealing the copy above. Grades the two claim forms the corpus actually
+  uses (an invocation verb, and a `## Where this auto-fires (N call sites)` section that closes
+  at the next heading). Bare cross-references are deliberately NOT graded: 439 live mentions,
+  17.5% without a back-reference, which would have put 77 findings on the board on day one.
+  Proven red against the pre-fix corpus at `1a1efac8^`, silent at HEAD; added to `--selftest`
+  (both the fires-on-bad and the silent-on-good half) and proven to fail when neutered.
+- **`docs/reference/command-evaluation-checklist.md`** — 22 → **23 surfaces** (new **Callers**
+  surface) and **anti-pattern 101, "duplication wearing a citation's clothes"**: a false caller
+  name is usually the label on a copy, so fix both halves — a twin-sync comment asking the next
+  editor to remember is a contract with no grader.
+- **`docs/STRATEGIC_BACKLOG.md`** — records the sweep for the same class: 4 further source pairs
+  share 95 six-line windows (`fabrik-service-test` + `fabrik-user-test` alone at 65), plus the
+  measure's blind spot — it scores the reworded pair that started this at 0.
+
+### Changed — selection-doc generator: grounding column + scored-delta reconcile (2026-08-29)
+
+- **`scripts/kilo-benchmarks/rank_task_subagents.py`** — every ranked table gains a `grounding`
+  cell SECOND-TO-LAST (`n` stays last — `load_task_ranking` parses `cells[-1]`; proven against
+  the REAL parser with `min_n` engaged): `✓` at canary-avg ≥ 2.5, `✗(X.XX)` below, `—` for
+  no/thin/stale data. New `CANARY_QUERY` (30-day window, per-agent reconcile, ≥2-row floor so
+  one stray probe can never trigger a penalty), fail-soft `_query_canary_rows` (an error renders
+  `—`, never fails the doc). **The organic `QUERY` now honors `set_quality`'s aggregation
+  contract** (`pg_ledger.py:500-530`): two-level per-agent aggregation — scored delta rows no
+  longer inflate `n` or deflate `success_rate` (a 1-run agent with 1 back-filled score read
+  n=2, success=0.5), orphan deltas dropped, canary rows excluded. Goldens re-frozen surgically
+  (`db_queries.json` + the doc's 9-column tuple only — a standing foreign-artifact drift in the
+  routes/IMAGE_GEN dumps was deliberately NOT frozen over). Real-throwaway-Postgres behavior
+  tests (`scripts/kilo-benchmarks/tests/test_canary_grounding_column.py`), all watched red;
+  width-invariant test proven red-on-revert against a neutered emitter.
+
 ### Added — grounding-integrity canary: the refuses-ungrounded flywheel axis, Phase A (2026-08-29)
 
 - **`scripts/sysadmin/canary_grounding.py`** — weekly batch that probes every grounding-class

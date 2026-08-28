@@ -38,6 +38,9 @@ Five mechanically decidable facts — no judgement, no network:
 | 4 | `Co-Authored-By:` in commit templates matches CLAUDE.md's canonical trailer | 6 templates naming a retired model |
 | 5 | Every command opens a run record (shared fragment or a bespoke `start` block) | 24 of 27 opened none |
 
+Predicates **6** (agent definitions), **7** (runnable close) and **8** (caller claims) were added later
+and each has its own section below.
+
 BLOCKING, because each is true/false with no tolerance band — and each was found violated
 in a corpus that looked healthy.
 
@@ -124,6 +127,35 @@ review note.
 
 The window is **4 lines**, because the real fragment wraps the flag onto a continuation line — a
 single-line window would flag every correctly-fixed site.
+
+## Predicate 8 — a CLAIMED caller must actually CALL (added 2026-08-29)
+
+`/fabrik-generate-tests` advertised itself as *"auto-called by … `/fabrik-review` reactively"* while
+`fabrik-review.md` carried **zero** references to it. Two harms, and the second is the one that matters:
+the reader is told a call happens that never does, and the false name was CONCEALING why — `/fabrik-review`
+had reproduced the command's entire five-step pipeline inline, so one contract was being maintained in two
+files and a fix to the canonical one could never reach the other. Nothing in this check noticed either half.
+It surfaced only because the operator asked, in passing, which command was calling it.
+
+**What counts as a claim** — surveyed from the corpus, not guessed. Two forms:
+
+- a verb of invocation: `auto-called by /fabrik-x`, `invoked by`, `dispatched by`, `cited by`, `fired from`
+- a section headed `## Where this auto-fires (N call sites)` — every `/fabrik-x` in it, until the next
+  heading at the same or a higher level closes the section
+
+**What does NOT count, deliberately.** A bare cross-reference asserts nothing: successor pointers, `SKIP:`
+routes and "see also" name other commands constantly. Measured across the live corpus: **439** such
+mentions, **17.5%** of them with no back-reference. Grading those would put 77 findings on the board the
+day it landed and teach every reader to skip this check's output — so the predicate reads only the claim
+forms, of which the corpus makes **5**. Small denominator, zero noise, and it caught the one that was false.
+
+The direction matters: only a claim of BEING CALLED is checkable, because only it asserts something about
+a file other than its own. Proven red against the pre-fix corpus at `1a1efac8^` and silent at HEAD.
+
+**When it fires, look for a copy.** The wrong label is the cheap half; a command that names another as its
+caller when it does not call it is often a command that CONTAINS it instead. The fix is both halves —
+correct the claim, then extract the shared contract into `commands/_fragments/` so both render the same
+bytes. A "keep these in step" comment is a contract with no grader.
 
 ## Anti-vacuity
 

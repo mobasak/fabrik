@@ -308,24 +308,17 @@ re-sweeping. Close the run at that verdict with
 
 ## Behavior Contract test generation — the pool authors, you curate (the fix for an untested behavior)
 
-<!-- twin-sync required: this pipeline is /fabrik-generate-tests' — keep the two in step -->
 ⚠️ **`/fabrik-generate-tests` is CANONICAL for this pipeline — invoke it** (`/fabrik-generate-tests <the
-phase's Behavior Contract | the module>`) rather than hand-running the steps below. They are reproduced
-here because a reviewer mid-loop needs to see the shape without leaving the page, NOT as a second
-implementation. Audit finding (cmd 13/31, 2026-08-29): `/fabrik-generate-tests` advertises itself as
-"auto-called by … `/fabrik-review` reactively" while this file contained **zero references to it** — the
-advertised wiring did not exist and the same five steps were maintained in two places, so a fix to the
-canonical command would never have reached the review path. **If you change either, change both.**
+phase's Behavior Contract | the module>`) rather than hand-running it. The steps below are the SAME BYTES
+it runs — both files render them from one shared fragment (`commands/_fragments/test-generation-loop.md`),
+so they cannot drift out of step with the command that owns them. They are shown here because a reviewer
+mid-loop needs the shape without leaving the page, NOT as a second implementation; the per-step DETAIL
+lives only in `/fabrik-generate-tests`. **Edit the fragment, never either copy.**
 
-When Phase-3's test-quality check finds a **behavior with no test** (or the plan's Behavior Contract has uncovered behaviors), generate the missing tests via the pool — cheap where cheap works, you where judgment matters (per `62-using-subagents.md` § Dispatch policy + `.windsurf/rules/core/45-testing-strategy.md`):
+When Phase-3's test-quality check finds a **behavior with no test** (or the plan's Behavior Contract has
+uncovered behaviors), generate the missing tests via the pool:
 
-1. **Suggest (pool, multi-model)** — `fanout("review", units=[<the same suggest task, code inlined> ×3], mode="read_only")` (3 UNITS → 3 agents on 3 diverse families — one unit = ONE agent; `k` only sizes the model draw, never the fan-out) to each propose the distinct user-observable behaviors; **union** them. A single suggester is the blind spot — diverse families catch what one misses, for cents.
-2. **Curate (you)** — evaluate the union: add missing behaviors, cut trivia/dupes, risk-order. You own *what* gets tested (the anti-bloat + anti-gap gate) before any authoring spend.
-3. **Author (pool, parallel)** — `fanout("code", units=[{"task":…, "owned_paths":[<test file>]}, …], mode="write")` — one cheap **pool** author per curated behavior, **disjoint `owned_paths`** so each writes its own test file in parallel. ⚠️ Tool-enabled authors see committed **HEAD** (`workspace.py` `worktree add --detach HEAD`) — **commit the code-under-test first** (or inline it), and each author **self-verifies collection** (`pytest` on its new test) before returning.
-4. **Report + score** — `fanout` returns `(results, results_table)` and auto-records each author UNSCORED; **back-fill** `set_quality(r.agent_id, <0–5>, project=…, task_type="code", model=r.model)` per author (⚠️ never `record_run`, which no-ops; the flywheel check's Layer 2 warns on UNRECORDED runs, not unscored ones — `fanout` already records at dispatch, so nothing catches a missing score but you).
-5. **Fix (you)** — review test-quality (would it fail if the behavior broke? real assertions, no mock-theater?), fix issues, then `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the **applied** code to confirm the tests kill mutants (advisory). You own final quality.
-
-So "test every behavior" (the Behavior Contract) costs **cents + minutes**, not hours of hand-writing — the maintenance-burden objection dissolves. (Proven 2026-07-08: a `pick_models("review")` suggest run proposed the 3 behaviors of a `clamp(x,lo,hi)` for $0.0019 and recorded a flywheel row.)
+{{include:test-generation-loop}}
 
 {{include:subagents-core}}
 ## Reporting

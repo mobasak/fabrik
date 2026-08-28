@@ -361,3 +361,61 @@ def test_the_flag_may_wrap_to_a_continuation_line(corpus):
         '  --feedback "<what you filed, to whom | none — surfaces>"`\n'
     )
     assert not any("--feedback" in p for p in problems), problems
+
+
+# ── Predicate 8: a CLAIMED caller must actually call ───────────────────────────────────────────
+# Found live at cmd 13/31 (2026-08-29): `/fabrik-generate-tests` advertised itself as
+# "auto-called by ... /fabrik-review reactively" while fabrik-review.md contained ZERO references
+# to it. The advertised wiring did not exist — and it was concealing the real defect, that
+# /fabrik-review had reproduced the whole pipeline inline instead of invoking it. A reader who
+# trusts the claim believes a call happens that never does.
+
+
+def test_claimed_caller_that_never_calls_is_caught(corpus):
+    """The founding defect, reduced: X says Y calls it; Y never names X."""
+    problems = corpus("description: auto-called by /fabrik-real per phase.\n")
+    assert any("fabrik-real" in p and "wiring" in p for p in problems), problems
+
+
+def test_claimed_caller_that_really_calls_is_silent(corpus, tmp_path: Path):
+    """The false-positive side: a claim the alleged caller honours must stay silent."""
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\nI invoke /fabrik-probe when a behavior has no test.\n"
+    )
+    problems = corpus("description: auto-called by /fabrik-real per phase.\n")
+    assert not any("wiring" in p for p in problems), problems
+
+
+def test_a_call_sites_section_makes_every_bullet_a_claim(corpus):
+    """The corpus's OTHER claim form. `/fabrik-generate-tests` states its callers under a
+    `## Where this auto-fires (3 call sites ...)` heading, not in a `called by` sentence — a
+    predicate reading only the verb form would have passed the exact file that was wrong."""
+    problems = corpus(
+        "## Where this auto-fires (2 call sites)\n"
+        "- **`/fabrik-real` (reactive):** when a review finds an untested behavior.\n"
+    )
+    assert any("fabrik-real" in p and "wiring" in p for p in problems), problems
+
+
+def test_the_call_sites_section_ends_at_the_next_heading(corpus):
+    """Scope discipline. If the section never closed, every command named anywhere BELOW it
+    would become a fabricated 'claim' — the predicate would then invent defects at the bottom
+    of every long source, which is how a check earns its way into being ignored."""
+    problems = corpus(
+        "## Where this auto-fires (1 call site)\n"
+        "- Standalone only.\n"
+        "\n## Related\n"
+        "See /fabrik-real for adversarial review.\n"
+    )
+    assert not any("wiring" in p for p in problems), problems
+
+
+def test_a_bare_mention_is_not_a_caller_claim(corpus):
+    """The important negative: cross-references, SKIP routes and successor pointers name other
+    commands constantly (439 such mentions across the live corpus). Treating those as claims
+    would fire on 17.5% of them — measured — and a check that cries wolf gets ignored."""
+    problems = corpus(
+        "SKIP: adversarial code review (-> /fabrik-real).\n"
+        "**Next in the pipeline:** /fabrik-real.\n"
+    )
+    assert not any("wiring" in p for p in problems), problems

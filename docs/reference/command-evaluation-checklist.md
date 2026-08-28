@@ -33,7 +33,7 @@ Some obligations live in neither: the 6-line FINAL OUTPUT block and the STATE fo
 **CLAUDE.md globally**, to every response from every command. Only 2 of 31 sources mention them, and
 that is correct — do not raise 29 findings for a contract no command is supposed to restate.
 
-## The 22 surfaces an audit of one command touches
+## The 23 surfaces an audit of one command touches
 
 An audit that reads only `commands/_sources/<cmd>.md` will pass a command whose companions have all
 rotted — or whose paired twin never asserts what it states. The surfaces, grouped by the question they answer:
@@ -49,6 +49,7 @@ rotted — or whose paired twin never asserts what it states. The surfaces, grou
 | Docs | `docs/reference/<subsystem>.md` · `INDEX.md` · `docs/README.md` · `docs/FEATURES.md` · `CHANGELOG.md` | Do the companions still describe what shipped? |
 | Neighbours | `docs/orchestrator/**` | Do the Traycer chains still invoke it by a name that exists? |
 | **Twin** | the command's PAIRED command — `/fabrik-x` ↔ `/fabrik-x-review`, author ↔ reviewer | **Is every rule this one STATES asserted by SOMETHING — the twin OR a gate?** A rule set in the author and asserted nowhere is a gate nobody runs. ⚠️ **Absence from the twin is NOT the finding** — check for a mechanical assertor first. On this surface's first real use (cmd 12/31) it flagged two rules missing from `/fabrik-plan-review`, and BOTH were refuted: `READ_BUDGET_BYTES` is asserted by `check_plan_tickets.py` (6 refs, blocking) and `## Evidence` by `check_convergence.py:149`. A gate is a STRICTER assertor than a prose twin, so gate-covered is the good outcome, not a gap. Grep the author for numbers, thresholds and MUSTs; for each, grep the twin AND `scripts/enforcement/`. Watch for the reviewer paraphrasing a number away — `/fabrik-flows` set *"target ≤30 lines, hard split at 50"* while `/fabrik-flows-review` said only *"length within targets"*, so the closing round had no number to assert and flows at 83 and 53 lines passed unremarked (transdoc `01M14Y90D0`). Grep the author for numbers, thresholds and MUSTs, then grep the twin for each one. |
+| **Callers** | every command this one CLAIMS calls it — and every command that really does | **Does the advertised wiring exist, and is the shared contract single-sourced?** Two questions, and the second is the one that bites. (a) For each caller the command NAMES — in its `description:` or under a `## Where this auto-fires (N call sites)` heading — open that caller's source and grep for this command. `check_command_corpus.py` predicate 8 now grades this mechanically; it fires on the CLAIM forms only, because a bare cross-reference asserts nothing (439 such mentions live, 17.5% with no back-reference — grading those would be wallpaper). (b) A false caller name is usually CONCEALING a copy: `/fabrik-generate-tests` claimed `/fabrik-review` as a caller, and `/fabrik-review` had instead REPRODUCED its five-step pipeline inline, so the same contract was maintained in two files and a fix to the canonical one could not reach the other (**anti-pattern 101**). When two commands must show the same contract, it belongs in `commands/_fragments/` and both `{{include:NAME}}` it — a prose "keep these in step" marker is a contract with no grader (**anti-pattern 100**). |
 
 ---
 
@@ -122,7 +123,7 @@ Phase 6 delegates correctly and names its two legitimate early stops.
 ## Enforcement Backing (the grader question)
 
 35. **Is any part of this command's contract graded by something executable?** A contract with no grader is graded by the agent it constrains.
-36. If a grader exists, name it: `check_review_coverage` (reviews) · `check_convergence` (convergence claims) · `check_plan_tickets` / `check_ticket_breadth` / `check_phase_tests` (plans) · `check_certification_coverage` (cert boards) · `check_rivals_dossier` (dossiers) · `check_command_corpus` (the corpus itself) · the `check_doc_*` family (docs).
+36. If a grader exists, name it: `check_review_coverage` (reviews) · `check_convergence` (convergence claims) · `check_plan_tickets` / `check_ticket_breadth` / `check_phase_tests` (plans) · `check_certification_coverage` (cert boards) · `check_rivals_dossier` (dossiers) · `check_command_corpus` (the corpus itself — incl. predicate 8, caller claims) · the `check_doc_*` family (docs).
 37. If none exists, is that a deliberate ruling or an oversight? Say which.
 38. Does the grader read the artifact the command actually produces, or a proxy for it?
 39. Does the grader state its **denominator** — how many things it examined?
@@ -205,7 +206,7 @@ Each was reproduced in this corpus. Hunt them by name.
 
 92. **Cross-repo hard stop misread as banning READS** — the rule governs "create/edit/**commit** files in a repo OTHER than the one you were launched in". `/fabrik-rivals` shipped a two-repo design where a project filed a brief by mail and the operator opened a hub session to run it, turning a one-rival scan into a cross-repo errand. Importing a hub module while writing only into your own tree breaks nothing. → RE-READ the rule's verbs before designing around it.
 
-93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 22 surfaces, not just the source.
+93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 23 surfaces, not just the source.
 
 94. **Reference doc describing a superseded architecture** — the sub-case of 93 that does the most damage, because `INDEX.md` points agents *at* the doc. → Grep the doc for the vocabulary of the removed design ("two modes", "hand-off", the old flag names) after every change.
 
@@ -220,6 +221,8 @@ Each was reproduced in this corpus. Hunt them by name.
 99. **Data loss across a call you do not own** — the accumulated competitor union lived only in a local variable across `await run(…)`, while the engine overwrites the list mid-call and its `_persist()` is a literal dict that drops any key you add. A raise, or an operator Ctrl-C on a long scan, destroyed rivals already PAID for. → State that must survive a call you do not control goes somewhere durable BEFORE the call.
 
 100. **Contract with no grader** — the whole class 35–44 exists because `/fabrik-user-test`, `/fabrik-service-test` and `/fabrik-rivals` each shipped a multi-condition termination contract that nothing executable ever read. → For each terminal condition, name the check that decides it, or say plainly that none does.
+
+101. **Duplication wearing a citation's clothes** — a command names another as its caller, and the name is false because the second command never *calls* it: it CONTAINS it. `/fabrik-review` restated `/fabrik-generate-tests`' entire five-step pipeline inline, same `fanout("code", …, mode="write")` dispatch, while `/fabrik-generate-tests`' `description:` advertised `/fabrik-review` as a caller — zero references in either direction. The drift was guaranteed, not merely possible; it simply had not been exercised yet. The tell is a wrong or missing caller name, so predicate 8 finds the *label*, and the copy is what you find when you go looking. → Fix BOTH halves: correct the claim, then extract the shared contract to a fragment both render. A twin-sync comment asking the next editor to remember is not a fix.
 
 ## Related
 

@@ -1,5 +1,5 @@
 ---
-description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse) → YOU curate → author in parallel (write-mode, sandboxed, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase (its Execution Loop and dispatcher D4) and cited by /fabrik-plan-review as what a test-light plan owes; /fabrik-review reproduces this pipeline inline and is twin-synced to it. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
+description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse) → YOU curate → author in parallel (write-mode, sandboxed, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase (its Execution Loop and dispatcher D4) and cited by /fabrik-plan-review as what a test-light plan owes; /fabrik-review renders the same shared fragment rather than copying it. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
 argument-hint: "<module|dir|file to test — or a phase's Behavior Contract; omit to infer the behaviors from the current diff>"
 ---
 
@@ -34,6 +34,13 @@ except ImportError:  # not vendored here → this command's pool test-authoring 
 ## The loop — suggest → curate → author → review → apply
 
 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
+
+{{include:test-generation-loop}}
+
+The `###` sections below are the per-step DETAIL for exactly those five steps, and they live only here.
+⚠️ The five-step list above renders from `commands/_fragments/test-generation-loop.md`, which
+`/fabrik-review` renders too — it is the ONE place the shape is defined. **Edit the fragment, not the
+copy**, or the reviewer's view of this pipeline silently stops matching the pipeline.
 
 ### 1. Suggest (pool, multi-model — diversity is the whole point)
 Dispatch **2–3 diverse cheap models** to each propose the distinct user-observable behaviors of the target, then

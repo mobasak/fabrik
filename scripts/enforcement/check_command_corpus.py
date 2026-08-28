@@ -86,6 +86,20 @@ _NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "contex
 _SCRIPT_RE = re.compile(r"(?:/opt/fabrik/|(?<![\w/-]))(scripts/[\w/-]+\.py)")
 _CLOSE_CMD_RE = re.compile(r"command_run\.py\s+(?:done|blocked|handoff)\s+--command")
 _TRAILER_RE = re.compile(r"Co-Authored-By:\s*(.+?)\s*<")
+# A caller CLAIM — the two forms the corpus actually uses (surveyed, not guessed):
+#   (a) a verb of invocation: "auto-called by /fabrik-x", "invoked by /fabrik-x", "dispatched by …"
+#   (b) a section headed "Where this auto-fires (N call sites)", every bullet of which names one
+# Deliberately NARROW. A bare cross-reference is NOT a claim: the live corpus makes 439 such
+# mentions (SKIP routes, successor pointers, "see also"), 17.5% of which have no back-reference —
+# treating those as defects would fire 77 times on day one and train the reader to skip the check.
+# The claim forms above fire 5 times across 31 sources, and caught the one that was false.
+_CLAIM_VERB_RE = re.compile(
+    r"(?:auto-)?(?:called|invoked|dispatched|fired|cited)\s+(?:by|from)\b([^.;]*)", re.I
+)
+_CALLSITE_HEAD_RE = re.compile(
+    r"^#{2,4}\s+.*\b(?:call sites?|auto-fires|where this (?:is |auto-)?(?:fires|runs|called))\b",
+    re.I,
+)
 
 
 def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
@@ -116,6 +130,34 @@ def _canonical_trailer_model(repo: Path = REPO) -> str | None:
         return None
     found = _TRAILER_RE.findall(claude_md.read_text(encoding="utf-8", errors="replace"))
     return found[0] if found else None
+
+
+def _claimed_callers(body: str) -> dict[str, int]:
+    """Map each command this source CLAIMS calls it -> the 1-indexed line making the claim.
+
+    The call-sites section must CLOSE at the next heading of the same or higher level. An
+    unclosed section would turn every command named lower in the file into a fabricated claim,
+    which on a 500-line source means inventing defects — the exact way a check earns its way
+    into being ignored.
+    """
+    out: dict[str, int] = {}
+    in_callsites = False
+    head_level = 0
+    for lineno, line in enumerate(body.splitlines(), 1):
+        if line.startswith("#"):
+            level = len(line) - len(line.lstrip("#"))
+            if _CALLSITE_HEAD_RE.match(line):
+                in_callsites, head_level = True, level
+                continue
+            if in_callsites and level <= head_level:
+                in_callsites = False
+        if in_callsites:
+            for name in _CHAIN_RE.findall(line):
+                out.setdefault(name, lineno)
+        for tail in _CLAIM_VERB_RE.findall(line):
+            for name in _CHAIN_RE.findall(tail):
+                out.setdefault(name, lineno)
+    return out
 
 
 def _corpus_files(sources: Path, fragments: Path, assembler: Path) -> list[Path]:
@@ -321,6 +363,34 @@ def audit(
                     "it, so this instructs a command that cannot succeed"
                 )
 
+    # ── Predicate 8: a CLAIMED caller must actually CALL ───────────────────────────────────────
+    # Found live at cmd 13/31 (2026-08-29): `/fabrik-generate-tests` advertised itself as
+    # "auto-called by … `/fabrik-review` reactively" while fabrik-review.md carried ZERO
+    # references to it. Two harms, and the second is the one that matters: the reader is told a
+    # call happens that never does, AND the false name concealed why — `/fabrik-review` had
+    # REPRODUCED the whole five-step pipeline inline instead of invoking it, so the same
+    # contract was being maintained in two files and a fix to the canonical one could not reach
+    # the other. Nothing in the corpus check noticed either half; the defect surfaced only
+    # because the operator asked who the callers were.
+    #
+    # The claim is directional ON PURPOSE. "X names Y" implies nothing — successor pointers and
+    # SKIP routes name commands constantly. Only an explicit claim of BEING CALLED is checkable,
+    # because only it asserts something about a file other than its own.
+    for path in sorted(sources.glob("*.md")):
+        body = path.read_text(encoding="utf-8", errors="replace")
+        rel = path.relative_to(repo) if path.is_relative_to(repo) else path
+        for caller, lineno in _claimed_callers(body).items():
+            if caller == path.stem or caller not in known_commands:
+                continue  # self-reference, or a dangling name predicate 2 already reports
+            if f"/{path.stem}" not in (sources / f"{caller}.md").read_text(
+                encoding="utf-8", errors="replace"
+            ):
+                problems.append(
+                    f"{rel}:{lineno}: claims caller /{caller}, whose source never names "
+                    f"/{path.stem} — the advertised wiring does not exist, so either wire it "
+                    f"up or drop the claim"
+                )
+
     # ── Predicate 6: agent definitions are GOVERNED ────────────────────────────────────────────
     # Until 2026-08-27 the four subagent definitions lived ONLY in ~/.claude/agents/: no repo
     # source, no generator, not in git, and outside this audit entirely — so the corpus check
@@ -376,6 +446,13 @@ def _selftest() -> int:
             "script path": "run `scripts/enforcement/check_no_such_thing.py`\n",
             "trailer model": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n",
             "run record": "a command body that never opens a run record\n",
+            # Predicate 8: a caller CLAIM the alleged caller does not honour. fabrik-real.md
+            # never names /fabrik-probe, so the advertised wiring does not exist.
+            "caller claim": (
+                "{{include:run-record}}\n"
+                "## Where this auto-fires (1 call site)\n"
+                "- **`/fabrik-real` (reactive):** when a review finds an untested behavior.\n"
+            ),
             # Predicate 7: an advertised close the tool would REFUSE. The good fixture below
             # carries the same command WITH --feedback, so this also pins the false-positive side.
             "advertised close": (
@@ -401,9 +478,16 @@ def _selftest() -> int:
                 failures.append(f"VACUOUS: the {label} predicate did not fire on known-bad input")
             probe.unlink()
 
+        # The honoured-claim half of predicate 8: fabrik-real must name fabrik-good back, or the
+        # good fixture would pass by never making a claim at all — a self-test that dodges the
+        # predicate it is meant to vouch for.
+        (src / "fabrik-real.md").write_text(
+            "placeholder\n{{include:run-record}}\nI invoke /fabrik-good when a behavior is untested.\n"
+        )
         good = src / "fabrik-good.md"
         good.write_text(
             "{{include:run-record}}\n"
+            "description: auto-called by /fabrik-real reactively.\n"
             'fanout("research", web_tools=["web_search","docs_lookup"])\n'
             "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
             "run `scripts/enforcement/check_command_corpus.py`\n"
