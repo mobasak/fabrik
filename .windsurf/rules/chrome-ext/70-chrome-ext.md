@@ -156,6 +156,14 @@ The SW is *ephemeral* — design for termination, never fight it with keepalive-
 The extension authenticates with the backend per `35-security-auth.md`:
 
 - **Pattern A (FastAPI sole IdP — default):** the extension calls the FastAPI backend (`fabrik-lib/fastapi-user-auth`) at `/auth/login/extension`, receives an app-issued JWT in the JSON body, stores it in `chrome.storage.session`, and sends it via the `Authorization: Bearer` header on every API call. The extension talks to your FastAPI backend, never to a third-party auth SDK.
+- **Passwordless sign-in (the DEFAULT — `35-security-auth.md` § Passwordless): use the OTP CODE path.**
+  The user types the 6-digit code into the popup / side panel; the SW posts it to
+  `/auth/passwordless/verify` and keeps the returned JWT in `chrome.storage.session` (content scripts
+  read it via SW messaging, never directly). ⚠️ **A bare mailed magic LINK does not work here** — it
+  opens in an ordinary tab that has no access to `chrome.storage.session`, so the session is minted
+  somewhere the extension cannot see. If a link flow is genuinely wanted, it MUST go through
+  `chrome.identity.launchWebAuthFlow` with the `https://<ext-id>.chromiumapp.org/` redirect below —
+  same mechanism as social login, same user-gesture rule.
 - **Federated OAuth (social login):** use `chrome.identity.launchWebAuthFlow` with **PKCE** — generate the `code_verifier` via `crypto.subtle`, keep it in `chrome.storage.session`, and use the extension's `https://<ext-id>.chromiumapp.org/` redirect URL. The **backend does the code-for-token exchange** (it holds the client secret) and returns the app JWT. **Preserve the user gesture:** `launchWebAuthFlow({ interactive: true })` must fire from the user's click — do the async PKCE prep (`crypto.subtle.digest`) *before* the click, not between click and call, or Chrome may silently refuse to open the auth window once the gesture context is lost. **Never a heavy browser auth SDK** (Auth0-SPA-JS, `oidc-client-ts`, etc.): they assume DOM / `localStorage` / iframes and break in the MV3 service worker.
 - **Pattern B (Supabase Auth) — legacy only, migrate to Pattern A:** older extensions used `supabase-js` with a custom storage adapter wrapping `chrome.storage.session`. New work does NOT use `supabase-js`; the extension calls the FastAPI backend + `fabrik-lib/fastapi-user-auth` (Pattern A) with the JWT in `chrome.storage.session`. See `agents-fabrik.md § Supabase`.
 - **CORS:** backend must include `chrome-extension://<id>` in `allow_origins`. Use `allow_origin_regex` in dev (ID changes per build); exact ID in production (from CWS or crx key).

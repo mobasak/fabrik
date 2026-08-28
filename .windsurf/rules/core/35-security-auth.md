@@ -27,6 +27,34 @@ The auth architecture depends on the project's scaffold type and domain module d
 - Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
 - All clients (Next.js, React Native, Chrome Extension) are API consumers only.
 
+#### Passwordless is the DEFAULT sign-in for every surface (operator ruling, 2026-08-28)
+
+`fastapi-user-auth` ships `passwordless_enabled: bool = True` (`settings.py:38`) and exposes exactly
+two endpoints — `POST /auth/passwordless/request` and `GET|POST /auth/passwordless/verify`. **New
+projects use it as the primary sign-in on every applicable scaffold type**; a password form is an
+ADDITIONAL affordance a project justifies, never the default door.
+
+**Two delivery mechanisms, and the choice is per SURFACE, not per taste:**
+
+| | **OTP code** (user types 6 digits) | **Magic link** (user clicks) |
+|---|---|---|
+| Needs | nothing — a text input | a landing the platform can route to |
+| `saas-skeleton` | ✅ | ✅ `/login/link/[token]` (`saas/60-saas-ui.md`) |
+| `mobile-app` | ✅ | ✅ Universal Links / App Links, already mandated in `mobile-app/80-mobile.md` § Deep linking — custom schemes are fallback only |
+| `chrome-extension` | ✅ **use this** | ⚠️ only via `chrome.identity.launchWebAuthFlow` + the `https://<ext-id>.chromiumapp.org/` redirect the pack already mandates; a bare mailed link lands in a TAB that cannot reach `chrome.storage.session` |
+| `desktop-app` | ✅ **use this** | ⚠️ needs a registered custom protocol handler; the token then goes to `safeStorage` (`desktop-app/72-desktop.md`) |
+
+**The OTP code path is the universal floor** — it needs no platform machinery and works identically
+everywhere, so a surface that cannot cleanly land a link ships the code path rather than a password.
+
+**Headless types (`python-api`, `node-api`, `file-api`, `file-worker`, `python-api-gpu`) are OUT OF
+SCOPE** — they have no human at a keyboard; they use M2M auth per § Service-to-service. So are
+`static-site` and `docusaurus` unless they grow an authenticated area.
+
+**Binding matters:** a verify request whose browser/device did not make the corresponding request is
+REFUSED (`binding_mismatch`) and audited as `auth.passwordless_refused` (`core/app-audit-log.md`).
+An approval link opened somewhere the user did not start must never mint a session silently.
+
 ### Pattern A-compat — FastAPI IdP on a Supabase-shaped schema (migration off Supabase Auth)
 
 Use when a project is **migrating off Supabase Auth** but wants to retain its existing `auth.uid()`-based RLS policies, `auth.users` FKs/triggers, and `authenticated`/`service_role` grants **unchanged** — a verified zero-rewrite, zero-loss migration. This is a third, legitimate position ("Pattern A, Supabase-schema-compatible"), **not** a fork of Pattern A's token rules: FastAPI becomes the sole IdP and the token lifecycle is **exactly Pattern A** (Argon2 / 15-min HS256 access / 7-day opaque PG refresh / Redis denylist). The database keeps Supabase's **PostgreSQL contract**, now owned natively:

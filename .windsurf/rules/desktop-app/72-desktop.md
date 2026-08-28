@@ -149,6 +149,15 @@ db.pragma('kdf_iter = 256000');                          // OWASP 2026 floor
 - Master key is a high-entropy random value generated on first launch + stored via `safeStorage` (below).
 - `kdf_iter = 256000` matches current OWASP recommendations for PBKDF2 iterations.
 
+## Sign-in — passwordless, OTP code path
+
+Per `35-security-auth.md` § Passwordless (the fleet default): sign-in is `fastapi-user-auth`'s
+passwordless flow, and on desktop **use the OTP CODE path** — the user types the 6-digit code in the
+renderer, the MAIN process posts it to `/auth/passwordless/verify`, and the returned JWT goes to
+`safeStorage` (below), never to renderer-accessible storage. A magic LINK requires a registered
+custom protocol handler and OS-level deep-link wiring; that is a real option but it is extra
+machinery for no gain over a code the user is already reading in the same mail.
+
 ## Credential Storage — `safeStorage`
 
 `safeStorage` is the canonical 2026 credential API. **Replaces `keytar`** (which is unmaintained / native-build flaky).
