@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — RESILIENCE.md §3b reframed as three provider-death OUTCOMES (route picks the mechanism) (2026-08-28)
+
+- `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` §3b: the provider-death section mandated three MECHANISMS
+  unconditionally, but infra measured the fleet (60% of repos have an unattended model loop; ~73% of those route
+  ONLY through OpenRouter, which ALREADY does outage-aware routing) — so mechanism 1 was a "build where consume
+  exists" violation for the majority (infra finding, spec 2b5b45db, C3). Reframed as the three OUTCOMES (no single
+  point of death · last rung exercised · zero-progress alarmed) with a per-ROUTE default: gateway path relies on
+  OpenRouter's outage-aware routing + `models` array (with the `sort`/`order`-disables-load-balancing caveat, a
+  declared opt-OUT), direct path uses the bespoke probe+rebuild. Outcome 3 is now a Prometheus progress-counter +
+  `for:`-clause alert (not a bespoke sentinel file — 12-Factor XI), with a `<LOOP>_STALL_ALARM_AFTER_S` knob in
+  §7a. Points at the REAL fabrik-lib modules `health-probe/` + `alerting/` (not the nonexistent
+  `resilience/health_promote.py`). The template + infra's rule now say the same three things.
+
 ### Fixed — generated build artifacts counted against the ticket READ budget (2026-08-28)
 
 - `scripts/enforcement/check_plan_tickets.py` — the READ budget asks *"how many bytes must a coder hold
