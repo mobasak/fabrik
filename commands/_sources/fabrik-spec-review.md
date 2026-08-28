@@ -49,6 +49,16 @@ hallucinated any quoted sentence you cannot find verbatim in the raw source. Liv
 (fabrik-lib): a WebFetch answer supplied a sentence that is nowhere in the page AND inverted the
 mechanism it described; the fabricated quote survived the author's self-review and carried the spec's
 central build-vs-buy verdict.
+- ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
+  cache: it returned a complete, live-looking page for `docs.exa.ai/reference/find-similar-links`, which
+  actually **307s to an HTTP 404** (reproduced twice by brand-identiy-creator `01M14R5WAD`; the 307→404
+  re-verified here by `curl` on 2026-08-28). So an **existence or liveness claim** — "this endpoint still
+  exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
+  returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
+  CODE, not rendered content: `WebFetch`, or `curl -sSI -L -o /dev/null -w '%{http_code}'`. Content is
+  what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
+  evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
+  third-party planning doc inside one).
 
 **Best-practice / approach citations too (the 1c gate):** re-verify every source backing an *approach* choice
 (the current best-practice / leanest / low-maintenance research), not just external API facts — a dead /

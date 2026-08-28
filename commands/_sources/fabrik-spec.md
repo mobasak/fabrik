@@ -130,7 +130,17 @@ build this — never pick an approach from training memory or first instinct:
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
   `firecrawl_scrape`) and match the string: a `WebFetch` reply is a small model's ANSWER about the page,
   not an extract, and quoting it ships a sentence the page does not contain (live 2026-08-27 — the
-  fabricated quote also inverted the mechanism, under the spec's central verdict). "Best practice is X" / "this is the lean option" with **no fresh cited source is a defect**.
+  fabricated quote also inverted the mechanism, under the spec's central verdict).
+- ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
+  cache: it returned a complete, live-looking page for `docs.exa.ai/reference/find-similar-links`, which
+  actually **307s to an HTTP 404** (reproduced twice by brand-identiy-creator `01M14R5WAD`; the 307→404
+  re-verified here by `curl` on 2026-08-28). So an **existence or liveness claim** — "this endpoint still
+  exists", "this SDK method is current", "this page is live" — grounded ONLY through a mirroring fetch
+  returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
+  CODE, not rendered content: `WebFetch`, or `curl -sSI -L -o /dev/null -w '%{http_code}'`. Content is
+  what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
+  evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
+  third-party planning doc inside one). "Best practice is X" / "this is the lean option" with **no fresh cited source is a defect**.
   If the design cites a **standard/RFC** (OAuth, an HTTP spec, a W3C/IETF doc), fetch the primary doc and quote
   the exact clause — don't paraphrase from memory (that's the hallucinated-citation defect `/fabrik-spec-review`
   re-checks; catch it here).
