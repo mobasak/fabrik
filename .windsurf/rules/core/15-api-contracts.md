@@ -19,6 +19,28 @@ Apply when working on API routes, endpoints, or client integration. Skip for pur
 - TypeScript clients (Next.js, React Native, Chrome Extension) must be auto-generated from `openapi.json` via `@hey-api/openapi-ts` or equivalent codegen. Manual typing of API responses in TypeScript is banned.
 - Run `oasdiff breaking --fail-on ERR` against the main-branch `openapi.json` before merge. Any ERR-level breaking change without a version bump fails the build.
 
+## Authentication — every endpoint declares which of the three kinds it is
+
+FastAPI is the API runtime for every Fabrik service, and its auth is **not optional or per-project**.
+Full definition: `35-security-auth.md` § API-based systems. The contract-level obligations here:
+
+- **Every path operation carries an explicit dependency** — `Depends(get_current_user)` (a human's
+  JWT, minted by `fastapi-user-auth`, including via the passwordless flow),
+  `Depends(require_internal_token)` (service-to-service), or a documented public exemption. An
+  endpoint with NO auth dependency is a defect unless it is on the public list below.
+- **The only endpoints that are public by default** are `/health`, `/healthz`, `/metrics`,
+  `/api/health` (Authelia-bypassed on every domain, per `30-ops.md`). Anything else public is a
+  DELIBERATE, reviewed decision — write it down; "nobody would call that" is not a decision.
+- **It must show up in `openapi.json`.** Declare the schemes (`HTTPBearer` for the user JWT,
+  `APIKeyHeader(name="X-Internal-Token")` for M2M) so the generated TypeScript clients and the
+  `oasdiff` breaking-change check see auth as part of the contract. An endpoint whose auth changes
+  is an API change.
+- **Never hand-roll the M2M check.** `from internal_auth import require_internal_token` — inline
+  `APIKeyHeader` / `require_api_key`, and per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`),
+  are banned by `35-security-auth.md`.
+- **Network position is not authorization.** No host `ports:` and a private Docker network are
+  deployment facts; they do not authenticate a caller.
+
 ## Casing Boundary
 
 All internal Python and database columns use `snake_case`. All JSON payloads use `camelCase`. Enforce globally via a shared Pydantic base model:

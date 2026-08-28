@@ -47,9 +47,30 @@ ADDITIONAL affordance a project justifies, never the default door.
 **The OTP code path is the universal floor** — it needs no platform machinery and works identically
 everywhere, so a surface that cannot cleanly land a link ships the code path rather than a password.
 
-**Headless types (`python-api`, `node-api`, `file-api`, `file-worker`, `python-api-gpu`) are OUT OF
-SCOPE** — they have no human at a keyboard; they use M2M auth per § Service-to-service. So are
-`static-site` and `docusaurus` unless they grow an authenticated area.
+`static-site` and `docusaurus` are out of scope unless they grow an authenticated area.
+
+#### API-based systems (`python-api`, `node-api`, `file-api`, `file-worker`, `python-api-gpu`)
+
+**They have no sign-in UI, so "OTP vs magic link" does not apply to THEM — but they are not
+exempt from auth, and two of the three cases below are the passwordless flow seen from the
+server side.** Every inbound request to a Fabrik API is exactly one of three kinds, and the
+service MUST be able to say which:
+
+| Caller | Mechanism | Where it is defined |
+|---|---|---|
+| **A human**, via a SaaS / mobile / extension / desktop client | the app's own **JWT** minted by `fastapi-user-auth` — including by the passwordless endpoints above. The API **validates**, it does not re-authenticate | § Pattern A (Argon2, 15-min access, refresh rotation, `jti` denylist, RLS via `auth.uid()`) |
+| **Another Fabrik service** (Docker-to-Docker on the `fabrik` network) | `X-Internal-Token` + `internal_auth.py`, `hmac.compare_digest`, 403 on reject | § Internal Service Auth (M2M) below — **never** an inline `APIKeyHeader`, never a per-service key name |
+| **Nobody** (genuinely public) | no auth — and it must be a DELIBERATE, listed decision, not an endpoint someone forgot to protect | health/metrics only: `/health`, `/healthz`, `/metrics`, `/api/health` are Authelia-bypassed by design (`core/30-ops.md`) |
+
+**A `python-api` that IS the IdP** — i.e. it vendors `fastapi-user-auth` — owns the passwordless
+endpoints themselves (`/auth/passwordless/request` and `/verify`) and everything in this section
+applies to it directly, not by reference. That is the common case for a SaaS or mobile backend:
+the human-facing surface renders the one-email-field door, and this service is what mints and
+validates the session behind it.
+
+**Network isolation is NOT auth.** Being on the `fabrik` network with no host `ports:` is a
+deployment property, not an authorization one — an API that skips the token check because "only
+our own services can reach it" is unauthenticated the moment anything else lands on that network.
 
 **Binding matters:** a verify request whose browser/device did not make the corresponding request is
 REFUSED (`binding_mismatch`) and audited as `auth.passwordless_refused` (`core/app-audit-log.md`).
