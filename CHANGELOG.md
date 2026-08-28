@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffold spec output is base-relative; test/sandbox scaffolds no longer pollute the hub tree (2026-08-28)
+
+- `src/fabrik/scaffold.py` (`create_project`): `specs_dir` was hardcoded to `FABRIK_ROOT/specs/services`
+  regardless of `base`, so a scaffold to a non-`/opt` base (every scaffold **test**, sandboxes) wrote its
+  deploy spec into the hub's **tracked** `specs/services/`. Each full test-suite run therefore rewrote all 71
+  committed specs with the current Shape defaults — a new default flag (`needs_payments_ingest`) silently
+  dirtied the shared tree on every run, riding through the pre-commit stash/restore (finding `01M11WX8Q`). Now
+  `specs_dir` is base-relative: real `/opt` scaffolds still write to the hub (where `fabrik apply` reads them);
+  a non-`/opt` base writes under itself and can never touch the hub. Kills the class — no future Shape default
+  re-breaks it, so the stale committed specs need no regeneration. Regression test in `test_scaffold_logging.py`.
+
 ### Fixed — the routing check graded only English; six Turkish triggers mis-routed (2026-08-28)
 
 - **My own fail-silent-green, found auditing command 6.** `check_trigger_routing` read the `EN:`
