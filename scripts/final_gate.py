@@ -840,6 +840,24 @@ def run_static_checks(
     # no CI red to prevent, and a hub-scale suite (fabrik: 2500 tests, ~3h)
     # would brick every completion gate. -x stops at the first failure.
     def _ci_runs_pytest() -> bool:
+        """Does this repo expect its suite to pass, so the gate should run it?
+
+        ⚠️ The name is historical: the ONLY signal used to be "a workflow file mentions pytest".
+        That proxy INVERTS the moment a repo moves CI local — deleting `.github/workflows/`
+        silently DISARMS local pytest, so a cutover meant to keep the same checks would remove
+        one. Measured 2026-08-29 across /opt: **10 repos** (trade-intelligence, tryton-crm,
+        job-agent, youtube, session-recall, trading-core, whatsapp-agent, longephedia-vault,
+        gmail-account-creator, fabrik-claim-validator) run pytest locally TODAY for no reason
+        other than the presence of that workflow text.
+
+        So an explicit marker now wins, and the CI scan stays as the legacy fallback: no repo
+        changes behaviour, and a repo retiring its workflows keeps its suite by touching
+        `.fabrik/run-pytest`. Decoupling it entirely was measured and REJECTED for now — 29 repos
+        have `tests/` without a CI mention (fabrik 224 files, seo 147, brand-identiy-creator 118),
+        and switching them all on blind would red every repo with a stale suite on landing day.
+        """
+        if (PROJECT_ROOT / ".fabrik" / "run-pytest").exists():
+            return True
         wf_dir = PROJECT_ROOT / ".github" / "workflows"
         if not wf_dir.is_dir():
             return False
@@ -901,7 +919,9 @@ def run_static_checks(
                 "PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no "
                 "red to prevent, and a hub-scale suite would brick every completion gate), "
                 "but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it "
-                "yourself: `python -m pytest tests/ -q`"
+                "yourself: `python -m pytest tests/ -q`, or make the gate run it every time "
+                "with `mkdir -p .fabrik && touch .fabrik/run-pytest` — required if this repo "
+                "retires its GitHub workflows, since deleting them otherwise disarms this check"
             )
         else:
             _why = "no src/, tests/ or scripts/ changes in this diff"

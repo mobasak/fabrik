@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deleting GitHub workflows silently DISARMED local pytest (2026-08-29)
+
+Found while chasing why the operator still gets CI-failure emails. **The CI cutover had a trap
+pointing the wrong way:** `final_gate.py`'s local pytest ran if and only if a workflow file
+mentioned "pytest", so retiring Actions — the whole direction of travel — would *remove* a check
+rather than relocate it.
+
+- **Measured across `/opt`:** **10 repos** run pytest locally today for no reason other than that
+  workflow text (trade-intelligence, tryton-crm, job-agent, youtube, session-recall, trading-core,
+  whatsapp-agent, longephedia-vault, gmail-account-creator, fabrik-claim-validator). Deleting their
+  workflows would have stopped it, silently, in a green gate.
+- **`scripts/final_gate.py`** — an explicit `.fabrik/run-pytest` marker now wins; the CI scan stays
+  as the legacy fallback, so **no repo changes behaviour**. A repo retiring its workflows keeps its
+  suite with `mkdir -p .fabrik && touch .fabrik/run-pytest`. The `pytest (NOT RUN)` remedy line
+  names the marker and says it is required for a CI cutover.
+- **Full decoupling measured and REJECTED for now:** 29 repos have `tests/` with no CI mention
+  (fabrik 224 test files, seo 147, brand-identiy-creator 118). Switching them all on blind would red
+  every repo with a stale suite on landing day.
+- **`tests/test_pytest_marker.py`** (new, 6 tests) reproduces the disarm, pins the fix, and pins the
+  test's own mirror to the shipped source so it cannot pass while the gate behaves differently.
+
 ### Fixed — the CI cutover moved enforcement somewhere nobody installs (2026-08-29)
 
 `/fabrik-review` over `0bd6cf31`. 3 rounds; ledger in
