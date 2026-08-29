@@ -134,7 +134,7 @@ The section that catches deploy-breakers. For `specs/services/<id>.yaml` + the r
   falls through ONLY when `VAR` is unset/empty — a set, non-empty value wins forever, so derived keys stay
   ABSENT from the spec; (b) a placeholder goes ONLY under the key the registrar actually injects (e.g.
   `DATABASE_URL`); (c) the merge guard is **value-scoped**, not key-scoped — `_is_placeholder`
-  (`deployer_ssh.py:650`) protects an already-injected real value only when the spec's value contains the
+  (used `src/fabrik/orchestrator/deployer_ssh.py:649`; defined `:708` — the docstring is the contract) protects an already-injected real value only when the spec's value contains the
   literal substring `placeholder`; a `CHANGEME` or realistic-looking dummy CLOBBERS the injected real on
   re-apply and takes the service down at `docker compose up --wait`.
 - **`from_env` precedence audit** (the A5 class): `from_env` resolution reads the project's

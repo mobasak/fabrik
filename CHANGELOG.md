@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 17/31: /fabrik-deploy-plan audited clean but for one drifted citation (2026-08-29)
+
+Corpus audit command 17 of 31, first of the deploy triad. The cleanest command so far — freshly
+exercised by this week's zitadel deploy runs, which is exactly why: **surfaces in live use stay
+true**. One finding: the A1-class merge-guard citation said `deployer_ssh.py:650`; the real seam is
+`src/fabrik/orchestrator/deployer_ssh.py` — used at `:649`, defined at `:708` whose docstring IS the
+substring-`placeholder` contract the command describes. Fixed to cite both.
+
+Verified clean, each by execution: `PLAN_NAME_NEW_RE`, `check_stage_artifacts.py`, the 2026-08-10
+seed review doc, and `check_test_proposal.py`'s refusal message quoted VERBATIM (matched across a
+string concat); `_BUILD_TIMEOUT` env knob real; router routes all three trigger phrases (EN + TR) to
+`fabrik-deploy-plan`; the surface table covers all 12 registry types; the twin
+(`/fabrik-deploy-plan-review` class 5) asserts every window number this command sets — the 90-min
+step cap, 120-min touch interval, 5-min PAUSED bound, and the full OWNERSHIP-LOST branch table —
+the strongest twin coverage in the corpus to date.
+
 ### Fixed — cmd 16/31: the gauntlets overstated what /fabrik-release blocks on (2026-08-29)
 
 Corpus audit command 16 of 31 (`/fabrik-release`, 23 surfaces). One finding, cross-command: both
