@@ -168,7 +168,10 @@ the design judgment stay yours.
 ## Phase 2 — Collaborative Q&A (pin intent)
 
 Ask the **minimum** questions to pin the design — **one question at a time**, multiple-choice when possible.
-Pin: purpose, success criteria, hard constraints, explicit **out-of-scope**. Don't overwhelm; don't guess a
+Pin: purpose, **the personas (see the Personas contract in Phase 5 — the PRIMARY persona in the
+operator's OWN words is the one pin that may not be guessed or defaulted; it re-aims everything
+downstream, and transdoc paid nine versions for pinning it on day 8 instead of day 1)**, success
+criteria, hard constraints, explicit **out-of-scope**. Don't overwhelm; don't guess a
 requirement the user can answer in one line. Offer a visual mock only when a question is genuinely clearer
 shown than told (its own message; don't force it).
 
@@ -229,7 +232,18 @@ interfaces — for each you can state *what it does / how you use it / what it d
   create** — if it exists, STOP and ask; never overwrite.
 - Open the spec with **`Status: DRAFT`** — this command writes DRAFT; the adversarial `/fabrik-spec-review`
   flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict.
-- The spec MUST contain: **Goal** · **Chosen approach** · **Rejected alternatives** (+ why) · **External
+- The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
+  2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
+  enumerated — including the ones specs forget (the RECEIVER of anything sent, the payer if distinct
+  from the user, the operator/admin); **(b)** the **PRIMARY persona named in the operator's own
+  words, quoted** — never your paraphrase; **(c)** the primary's **minimal start-to-finish loop
+  walked step by step with the steps COUNTED — the count is a frozen STEP BUDGET** downstream
+  contracts must meet or force a bump (transdoc shipped nine steps before the first file because no
+  budget existed to violate); **(d)** every feature/entity in the spec **traced to a named persona**
+  — an untraceable one is scaffold gravity, not product (the same product carried ~1,100 lines of
+  invitation flow and zero lines of share because the template afforded it and no persona demanded
+  it): justify it or cut it.
+- The spec MUST also contain: **Goal** · **Chosen approach** · **Rejected alternatives** (+ why) · **External
   dependencies** (each with the cited URL + date + grounded facts: endpoint / limits / pricing) ·
   **fabrik-lib verdict table** (capability → vendor / vendor+enhance / build → the module + one-line why +
   any upstream note) · **Shape/infra implications** (scaffold type + `shape:` flags) · **Constraints** ·

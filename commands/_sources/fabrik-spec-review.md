@@ -51,6 +51,18 @@ never written, the "separate spec" never named), is a hollow disposition. Both a
 place. This axis is the checking half of the authoring contract; without it the inventory is graded
 by the agent it constrains.
 
+**A0b) Personas — the section is mandatory, and its claims are re-derived, not admired.** The spec
+MUST carry `## Personas` first among content sections (operator law 2026-08-29); its absence is a
+BLOCKING finding, not a style note. Then check the four claims the section makes: **(1)** the
+enumeration is complete — hunt the personas specs forget (every SEND has a RECEIVER; the payer; the
+operator) and every persona the conversation named; **(2)** the PRIMARY is a VERBATIM operator
+quote — grep the conversation for it; a paraphrase is a finding (the author's summary of the person
+is how a product gets re-aimed at nobody); **(3)** WALK the primary's start-to-finish loop yourself
+and COUNT the steps — your count vs the frozen STEP BUDGET, and a mismatch is a finding against
+whichever is wrong (transdoc: nine steps sat invisible for a week because nobody re-walked);
+**(4)** sample the feature→persona traces — a feature serving no named persona is scaffold gravity
+(the ~1,100-line invitation flow nobody's persona asked for): flag it for justification or cut.
+
 **A) External facts — re-verify LIVE, this session.** For EVERY external claim (API / SDK / endpoint / auth
 model / rate limit / **pricing** / library signature): re-fetch its cited source
 (`mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →

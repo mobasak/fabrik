@@ -49,7 +49,12 @@ merge + **REFUTE** what you can disprove (quote the flow line / spec line / pack
 criterion. A criterion with no journey is missing product; a journey with no criterion is scope creep or a
 missing criterion — resolve which.
 
-**B) Persona completeness.** Every persona's journey has entry → actions → feedback → exit, decision
+**B) Persona completeness.** **The DENOMINATOR is the spec's `## Personas` section — open it and
+diff:** every persona it enumerates is walked in flows.md or explicitly OUT with a reason; a
+silently missing persona is a blocking gap (operator law 2026-08-29). **RE-COUNT the primary
+persona's path against the spec's frozen STEP BUDGET yourself** — the author's count is a claim,
+and a breach is a finding against whichever contract is wrong. Then the per-journey floor: every
+persona's journey has entry → actions → feedback → exit, decision
 points, and error paths. No persona exits into the void ("then they're done" with no confirmed end state).
 
 **C) SECOND-ACTOR completeness.** For every flow that sends/emits anything (email, invite, webhook,

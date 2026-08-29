@@ -79,7 +79,13 @@ journey, or a journey serving no criterion, is a finding — surfaced, never dro
 
 ## Phase 2 — Personas, including every SECOND ACTOR
 
-Identify all personas from the spec — and then hunt the ones specs forget: **for every flow that SENDS
+**The spec's `## Personas` section is this phase's DENOMINATOR** (specs carry it as a mandatory
+first content section, operator law 2026-08-29): every persona it enumerates is WALKED here or
+declared OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect,
+not an editorial choice. **And the primary persona's flow carries the spec's frozen STEP BUDGET:
+count the primary path's steps as you map it; over budget is a FINDING against whichever contract
+is wrong** — that collision is the point (a budget nobody re-counts is how nine steps to the first
+file sat invisible for a week). Then hunt the personas specs forget: **for every flow that SENDS
 something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona
 whose journey must be walked too.** The receiving persona starts in a different context (no session, a
 different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface

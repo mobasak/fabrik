@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the persona law: every spec addresses ALL relevant personas, with a verbatim primary + a frozen step budget (2026-08-29)
+
+- Operator law from the transdoc post-mortem ("it kept drifting — why?"): `/fabrik-spec` now
+  mandates `## Personas` FIRST among content sections — all relevant personas (incl. receivers,
+  payer, operator), the PRIMARY quoted verbatim in the operator's own words, the primary's
+  start-to-finish loop step-COUNTED into a frozen budget, every feature traced to a persona
+  (scaffold-gravity guard: the ~1,100-line invitation flow nobody's persona asked for).
+  `/fabrik-spec-review` gains axis A0b (re-derive, re-walk, re-count — the section's claims are
+  checked, not admired). `/fabrik-flows` takes the spec's persona list as its DENOMINATOR and
+  re-counts the budget; `/fabrik-flows-review` diffs both and re-counts again. Pinned in Phase 2 as
+  the one pin that may not be guessed — transdoc paid nine versions for day-8 instead of day-1.
+
 ### Changed — governance-sync moved to POST-commit (operator decision; the widest-window abort class closed) (2026-08-29)
 
 - The sync was the slowest pre-commit hook (~30s × 47 repos) — the widest window for pre-commit's
