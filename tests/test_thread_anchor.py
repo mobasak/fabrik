@@ -141,3 +141,16 @@ def test_done_and_line_never_block_on_an_open_stdin(tmp_path):
         except sp.TimeoutExpired:
             proc.kill()
             raise AssertionError(f"{args[0]} blocked on stdin")
+
+
+def test_divergence_inside_the_prefix_window_still_dedupes(tmp_path):
+    """Second live recurrence: truncating the key to 72 chars only helped when the texts
+    diverged AFTER char 72 — "…/fabrik-user-test" vs "…/fabrik-user-test (held by the
+    register…)" diverge at ~54 and duplicated again. The CLASS fix is containment: a new
+    anchor whose key extends (or is extended by) an existing key is the same thread."""
+    harvest("NEXT: the corpus audit — command 14 of 31 — /fabrik-user-test", tmp_path)
+    harvest("NEXT: the corpus audit — command 14 of 31 — /fabrik-user-test (held by the register; resumes on your word)", tmp_path)
+    harvest("NEXT: the corpus audit — command 15 of 31 — /fabrik-flows", tmp_path)
+    out = line(tmp_path)
+    assert out.count("corpus audit") == 1, f"still duplicating: {out!r}"
+    assert "15 of 31" in out, "the newest progress must win"

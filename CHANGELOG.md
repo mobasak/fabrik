@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — thread-anchor identity, learned three times in one day (2026-08-29)
+
+The register duplicated the corpus-audit thread twice more after the prefix fix. A constant was
+never the fix: identity is now the leading SUBJECT — with ≥2 em-dash separators the first two
+segments are the key and the churning per-step tail is dropped; a plan/epic/cert PATH keys its own
+thread (a shared-prefix heuristic would merge two different plans, re-creating the founding defect);
+free text falls back to parenthetical-stripped 72 chars with ≥24-char containment. All three rounds
+recorded in `_anchor_key`'s docstring; 13 tests, the new one red-first.
+
 ### Added — THE FIX DIRECTIVE + committed-code ownership, both constitutions (2026-08-29)
 
 Operator asked for "the ultimate directive" for fixes and an end to "not my work" deflection.

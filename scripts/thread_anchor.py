@@ -40,9 +40,9 @@ _NEXT_RE = re.compile(r"^NEXT:\s*(.+?)\s*$", re.M)
 # Long-running shapes worth persisting past the turn that wrote them. Deliberately FEW: every
 # shape added here is a line the injector may print on every prompt of every session.
 _ANCHOR_RES = (
-    re.compile(r"\b\d+\s+of\s+\d+\b", re.I),                      # "command 14 of 31", "TC3 of 12"
+    re.compile(r"\b\d+\s+of\s+\d+\b", re.I),  # "command 14 of 31", "TC3 of 12"
     re.compile(r"docs/development/(?:plans|epics|certifications)/[\w./-]+"),
-    re.compile(r"\bphase\s+[A-Z]\b"),                             # mid-plan position
+    re.compile(r"\bphase\s+[A-Z]\b"),  # mid-plan position
 )
 _MAX_SHOWN = 4
 _MAX_ANCHORS = 12  # hard cap on stored anchors — beyond this the oldest are dropped, loudly
@@ -77,12 +77,38 @@ def _save(session: str, state: dict) -> None:
 
 
 def _anchor_key(text: str) -> str:
-    """Stable identity across progress updates AND rewordings. Digits mask out ("14 of 31" ->
-    "15 of 31" is the same thread advancing); the key then takes only the PREFIX, because the
-    stable subject lives at the front and commentary accretes at the back — found live one hour
-    after shipping, when appending "(now also held by the register)" minted a duplicate anchor
-    that the injected block then showed twice."""
-    return re.sub(r"\d+", "*", text.lower())[:72]
+    """The thread's IDENTITY — learned three times, so the reasoning stays with the code.
+
+    Round 1: full-text keys → appended commentary minted duplicates. Round 2: a 72-char prefix
+    → texts diverging at char ~54 duplicated again (a constant was never the fix). Round 3: raw
+    containment → "… — /fabrik-user-test (in progress)" vs "… — /fabrik-flows" share a subject
+    but neither contains the other.
+
+    What is ACTUALLY stable is the leading SUBJECT: NEXT: lines here read
+    "<subject> — <position> — <per-step tail>", and only the tail churns. So:
+      1. ≥2 em-dash separators → the first two segments ARE the identity
+         ("the corpus audit — command * of *"), and the per-step tail is dropped.
+      2. else a plan/epic/cert PATH is the identity (each slug its own thread — a shared-prefix
+         heuristic here would merge two different plans, losing one: the founding defect again).
+      3. else digits masked, trailing parenthetical stripped, first 72 chars.
+    """
+    s = re.sub(r"\d+", "*", text.lower()).strip()
+    segs = re.split(r"\s+—\s+", s)
+    if len(segs) >= 3:
+        return " — ".join(segs[:2])[:96]
+    m = re.search(r"docs/development/(?:plans|epics|certifications)/[\w./*-]+", s)
+    if m:
+        return m.group(0)[:96]
+    return re.sub(r"\s*\(.*$", "", s)[:72]
+
+
+def _same_thread(a: str, b: str) -> bool:
+    """Equality on canonical keys, plus containment (≥24 chars) as the belt for the
+    free-text fallback, where one wording may simply extend another."""
+    if a == b:
+        return True
+    a, b = (a, b) if len(a) <= len(b) else (b, a)
+    return len(a) >= 24 and b.startswith(a)
 
 
 def _is_anchor(text: str) -> bool:
@@ -104,8 +130,10 @@ def cmd_harvest(session: str, text: str) -> None:
     if _is_anchor(nxt):
         key = _anchor_key(nxt)
         for a in state["anchors"]:
-            if a["key"] == key:
-                a.update(text=nxt, ts=time.time())  # progress update, not a duplicate
+            if _same_thread(a["key"], key):
+                # Progress update, not a duplicate — and the key RE-ROOTS to the newest text,
+                # so a thread whose wording tightens over time keeps one identity.
+                a.update(text=nxt, key=key, ts=time.time())
                 break
         else:
             state["anchors"].append({"key": key, "text": nxt, "ts": time.time()})
@@ -121,11 +149,13 @@ def cmd_line(session: str) -> str:
         return ""
     out = []
     if anchors:
-        out.append("## 🧵 OPEN THREADS (yours — close with `python3 scripts/thread_anchor.py done --match <substr>`)")
+        out.append(
+            "## 🧵 OPEN THREADS (yours — close with `python3 scripts/thread_anchor.py done --match <substr>`)"
+        )
         out += [f"- {a['text']}  ({_age(a['ts'])} ago)" for a in anchors]
     last = state.get("last_next")
     # The latest successor, shown only when it is NOT already an anchor above.
-    if last and (not anchors or _anchor_key(last["text"]) != anchors[0]["key"]):
+    if last and (not anchors or not _same_thread(_anchor_key(last["text"]), anchors[0]["key"])):
         out.append(f"- NEXT (latest): {last['text']}")
     return "\n".join(out)
 
@@ -147,9 +177,12 @@ def main(argv: list[str] | None = None) -> int:
         ap.add_argument("cmd", choices=("harvest", "line", "done"))
         ap.add_argument("--session", default=os.environ.get("CLAUDE_SESSION_ID", ""))
         ap.add_argument("--match", default="")
-        ap.add_argument("--hook", action="store_true",
-                        help="read the hook's stdin JSON for session_id (and, for harvest, use "
-                             "its transcript_path if no text is piped)")
+        ap.add_argument(
+            "--hook",
+            action="store_true",
+            help="read the hook's stdin JSON for session_id (and, for harvest, use "
+            "its transcript_path if no text is piped)",
+        )
         args, _ = ap.parse_known_args(argv)
 
         # Read stdin ONLY where it is part of the contract (harvest text, --hook JSON).
