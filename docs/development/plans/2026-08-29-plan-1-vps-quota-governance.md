@@ -248,7 +248,7 @@ $ grep -n "model_windows" scripts/sysadmin/claude_rotate.py | head -3   # per-mo
 $ grep -n "def is_usage_limit\|def _iso_to_epoch" scripts/sysadmin/claude_rotate.py   # reactive + epoch(None)
 92:def is_usage_limit(text: str) -> bool:
 1083:def _iso_to_epoch(s: object) -> float | None:
-$ sed -n '3376,3379p' scripts/sysadmin/claude_rotate.py    # cap_walled = seven_day.util >= operator weekly_cap (authoritative wall the governor honors)
+$ sed -n '3376,3380p' scripts/sysadmin/claude_rotate.py    # cap_walled = seven_day.util >= operator weekly_cap (authoritative wall the governor honors)
         row["cap_walled"] = bool(
             row["weekly_cap"] is not None
             and isinstance(wu, (int, float))
