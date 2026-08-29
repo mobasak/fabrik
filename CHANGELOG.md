@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Stop hook was REWARDING the deferral it forbids (2026-08-29)
+
+Operator, third time raised: agents park work as "operator decision" when the answer is already in
+the rules, a spec, or is plain read-only work. Prose lost twice because the machinery paid for it.
+
+- **Root cause, mechanical.** `final_gate_stop.py`'s `_GATE_EXEMPT_LOCAL_RE` whitelisted the literal
+  phrases `operator decision`, `approval`, `your call`, `say the word`, `if you want`,
+  `await your…`. Any one of them **disarmed the checkpoint-stall guard**. The constitution forbids
+  handing your work back; the hook blessed it for six magic words, so deferring cost less than
+  acting.
+- **Measured over one session's 905 `NEXT:` lines:** 281 (31%) deferred to the operator. Of 185
+  DISTINCT deferrals only **27 (15%)** named a reason genuinely requiring a human. One read
+  *"awaiting your go on measuring the 29 suites serially — that is read-only"*.
+- **Fix:** the exemption splits. Self-naming gates (`gate 1|2`, `human gate`, `plan approval`,
+  `yours to run`, `operator-gated`) still exempt alone. Bare deferral vocabulary must now sit on a
+  line that also names a CLASS from CLAUDE.md § HARD STOPS — cross-repo, deploy/publish,
+  spend/quota/billing, irreversible/destructive/prod data, policy, or `rule-conflict` **citing the
+  contradiction at `path:line`**. That last is the operator's own carve-out ("if the rule is
+  problematic, inform me") made mechanical so it cannot become a second escape hatch.
+- Verified both directions: 4 classless deferrals no longer exempt, 5 genuine gates still do.
+
+### Changed — READ BEFORE YOU EDIT is now in both constitutions (2026-08-29)
+
+Operator: *"while editing command files and rule files agents must check the file content and do not
+append blindly — this is causing redundant text entry and breaking document integrity."* Added to
+`CLAUDE.md` and `templates/governance/CLAUDE.md` § Behavior.
+
+⚠️ **Measured first, and it did NOT reproduce in this repo:** 0 repeated blocks across 31 command
+sources and every `.windsurf/rules` pack; the 12 duplicate headings found are all legitimate
+structure (`85-payments-billing.md` repeats Checkout/Webhook per PROVIDER; `LESSONS_LEARNT.md`
+repeats `1. Context` per LESSON; `FEATURES.md` repeats `What It Does` per FEATURE). The only real
+duplication is 29 old `CHANGELOG.md` blocks repeated ~1,650 lines apart. The rule ships anyway
+because it governs METHOD, and because an exact-match sweep cannot see a restatement in different
+words — which is the form that actually breaks a document.
+
 ### Fixed — fabrik-mail refused any message quoting a pytest node ID; the same line was 58x too slow (2026-08-29)
 
 Found while mailing measured suite results to 18 repos: the send died on `llm_batch_processor` with

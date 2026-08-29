@@ -63,6 +63,15 @@ what makes an in-flight command visible and un-abandonable.
 
 ## Behavior
 - **Check before create:** verify file does not exist before write. Exists = STOP, ask.
+- **⚠️ READ BEFORE YOU EDIT — never append blindly to a command, rule, or doc file.** Open the file
+  and find where the subject already lives BEFORE writing: the overwhelming majority of "add a rule
+  about X" edits belong INSIDE an existing section, not bolted onto the end. An append that restates
+  something the file already says does not add emphasis — it creates two sources of truth in one
+  document, and the next reader cannot tell which one is current. **The mechanical minimum:** grep
+  the file for the subject's own vocabulary, read the section you land in, then EDIT that section.
+  If the subject genuinely has no home, add the heading deliberately — and say in the commit why a
+  new section was needed. ⚠️ **A restatement in different words is the same defect and no grep will
+  find it** — this one is on your reading, not on a check.
 - **Present before execute:** plan → approval → execute. Read-only calls (`Read`, `Grep`, `Glob`, `LS`) exempt.
 - **Plan-execution override:** when executing a pre-approved plan dispatched via `/execute-plan`, *present-before-execute* is **suspended for the plan's scope** — the plan IS the approval (task-end commits are ALWAYS required per § EXIT; the plan additionally mandates them per phase). Re-applying present-before-execute to a step you judge risky ("I'd better ask before the Company.create hook") is **requesting permission you already have** — a live observed stall, not caution; a genuinely wrong step is a BLOCKED spec-contradiction, never a mid-run ask. Commit per phase (explicit paths only, never `git add -A`), run `/fabrik-review` at phase boundaries, fix autonomously, and obey all other HARD STOPS. **Run the plan to COMPLETION — no partial work, no deferral, no unprompted stopping:** finish every phase FULLY (all steps, all tests, all docs, the `/fabrik-review` no-op) before starting the next; never leave a phase half-done, never defer a step to "later"/"a follow-up"/"the operator", and never pause to ask when a self-service source (the `.windsurf/rules`, `agents-fabrik.md`, `docs/`, `AFCL.md`, codebase `Grep`) can settle it — exhaust those first. The ONLY legitimate reasons to halt autonomous execution are the three BLOCKED cases → Stop only on: 3 consecutive same-test failures, missing infra, or an unresolvable spec contradiction — format: `BLOCKED: <what> — searched: <sources> — missing: <need>`. Anything short of one of those three: keep going.
 - **Invoked command = loaded command:** when the operator invokes `/command`, INVOKE the skill — **never

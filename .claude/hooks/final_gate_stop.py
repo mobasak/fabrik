@@ -655,12 +655,42 @@ _NEXT_ROUND_RE = re.compile(r"^\s*NEXT:[^\n]*?\b(?:round|pass)\s*#?\d+", re.I | 
 # - LOCAL (the line carrying the stall match): human-gate wording exempts the
 #   stall it actually describes, never the whole message.
 _GATE_EXEMPT_GLOBAL_RE = re.compile(r"\bBLOCKED:", re.I)
-_GATE_EXEMPT_LOCAL_RE = re.compile(
-    r"\bgate\s*2\b|\boperator decision\b|\bapproval\b|\bhuman gate\b"
-    r"|\byours to run\b|\bawait\w*\s+(?:your|the operator)\b|\boperator[- ]gated\b"
+# SELF-NAMING gates — these phrases ARE the justification (the two sanctioned human gates,
+# and work whose owner is explicitly not this session). They exempt on their own.
+_GATE_EXEMPT_NAMED_RE = re.compile(
+    r"\bgate\s*[12]\b|\bhuman gate\b|\bplan approval\b|\bdeploy approval\b"
+    r"|\byours to run\b|\boperator[- ]gated\b",
+    re.I,
+)
+# BARE deferral vocabulary. These say "a human decides" WITHOUT saying why, and on their own
+# they are the most over-used escape hatch in the corpus.
+#
+# ⚠️ Measured 2026-08-29 over one session's 905 NEXT: lines: 281 (31%) deferred to the operator,
+# and of 185 DISTINCT deferrals only 27 (15%) named a reason that genuinely requires a human.
+# The other 85% had answers already sitting in the rules, a spec, or were plain read-only work —
+# one literally read "awaiting your go on measuring the 29 suites serially — that is read-only".
+# The operator has objected to this three times; prose lost twice, because THIS list rewarded it:
+# typing "operator decision" disarmed the checkpoint-stall guard outright, so deferring was
+# cheaper than acting. A constitution that forbids the stall cannot beat a hook that blesses it.
+#
+# So a bare phrase no longer exempts by itself — it must sit on the same line as a CLASS naming
+# why a human is structurally required. Everything else is the agent's own work to do.
+_GATE_EXEMPT_BARE_RE = re.compile(
+    r"\boperator decision\b|\bapproval\b|\bawait\w*\s+(?:your|the operator)\b"
     # Conditional OFFER vocabulary — a follow-up gated on the operator's word is
     # a sanctioned stop (live FP: the guard fired on its own author's offer).
     r"|\bsay the word\b|\bon your (?:yes|word|go|approval)\b|\bif you want\b|\byour call\b",
+    re.I,
+)
+# The closed set, derived from CLAUDE.md § HARD STOPS — the cases where proceeding would be
+# unsafe, irreversible, spend real money, or write outside this repo. `rule-conflict` is the
+# operator's own carve-out ("if the rule is problematic, they must inform you") and is the one
+# class that must cite the contradiction, so it cannot become a second bare escape hatch.
+_GATE_CLASS_RE = re.compile(
+    r"\bcross[- ]repo\b|\banother repo\b|\bgate\s*[12]\b|\bplan approval\b"
+    r"|\bdeploy(?:ment)?\b|\bpublish\b|\bspend\b|\bcost\b|\bquota\b|\bbilling\b|\$\d"
+    r"|\birreversible\b|\bdestructive\b|\bprod(?:uction)?\s+data\b|\bpolicy\b"
+    r"|\brule[- ]conflict\b.*?\b[\w./-]+\.\w+:\d+",
     re.I,
 )
 # Tool names whose use in the final turn means a promise was KEPT (work dispatched).
@@ -810,7 +840,11 @@ def _line_exempt(tail: str, match: re.Match[str]) -> bool:
     genuine promises message-wide)."""
     ls = tail.rfind("\n", 0, match.start()) + 1
     le = tail.find("\n", match.end())
-    return bool(_GATE_EXEMPT_LOCAL_RE.search(tail[ls : le if le != -1 else len(tail)]))
+    line = tail[ls : le if le != -1 else len(tail)]
+    if _GATE_EXEMPT_NAMED_RE.search(line):
+        return True
+    # A bare "operator decision" must say WHY a human is structurally required.
+    return bool(_GATE_EXEMPT_BARE_RE.search(line) and _GATE_CLASS_RE.search(line))
 
 
 def _quoted(tail: str, match: re.Match[str]) -> bool:
