@@ -1,6 +1,6 @@
 # Cross-SaaS SSO — the hub `product_entitlements_bridge` module + integration reference
 
-Status: DRAFT
+Status: CONVERGED
 Epic: docs/development/epics/2026-08-27-epic-2-cross-saas-sso-integration.md (epic_n 2, depends_on [1])
 Source of truth: docs/superpowers/specs/2026-08-27-umbrella-sso-infrastructure-decisions.md
 Shape: MONOLITH — one cohesive hub library module (`libs/product_entitlements_bridge/`) + one reference doc; its files overlap, so a spine+ticket set would serialize on shared paths (a monolith is the correct shape).
@@ -40,13 +40,13 @@ never executed here.
 | Source | What binds | Grounded ref |
 |---|---|---|
 | `core/35-security-auth.md` (ACTIVE) | auth-code+PKCE, JWKS validation, subject-keyed federation | pack; oauth-login/README:5-7 |
-| `core/85-payments-billing.md` (ACTIVE) | billing→grant is the reconciler's BillingSource; no double-grant | pack + product-entitlements/protocols.py `BillingSource` |
+| `core/85-payments-billing.md` (ACTIVE) | billing→grant convergence, no double-grant — the RP resolves billing and passes a precomputed `entitled_products` set to the reconciler (the reconciler does NOT inject `BillingSource`; that Protocol is the RP's own seam) | pack + product-entitlements/product_entitlements/protocols.py `BillingSource` :33 |
 | `core/58-resilience.md` (ACTIVE) | timeout+retry+circuit-breaker+classifier on the Zitadel API call; provider-death | pack; infra-decisions § External Services |
 | `core/75-workers-jobs.md` (ACTIVE) | reconciler on PG job queue, idempotent, requeue-on-SIGTERM, never inline >10s | pack; infra-decisions § Background Processing |
 | `core/45-testing-strategy.md` (ACTIVE) | one test per behavior, risk-ordered, TDD the risky | pack |
 | `saas/95-multi-tenant-saas.md` (AVAILABLE→matches) | per-tenant isolation; LocalAuthBridge sets tenant GUC | pack; oauth-login/README:179 |
-| fabrik-lib `oauth-login/` (VENDOR) | `VerifiedIdentity` + `LocalAuthBridge` protocol (RP mints its session) | `/opt/fabrik-lib/oauth-login/` identity.py, protocols.py, reference_adapter.py |
-| fabrik-lib `product-entitlements/` (VENDOR) | the gate (`has_access`/`entitlements_for`/`revoke`) + `GrantSource`/`BillingSource`/`AuditSink` protocols + `GrantCache` (Null/Redis, fail-closed) | `/opt/fabrik-lib/product-entitlements/` protocols.py:57-61, cache.py |
+| fabrik-lib `oauth-login/` (VENDOR) | `VerifiedIdentity` + `LocalAuthBridge` protocol (`create_or_get_user_from_verified_identity` + `mint_app_session`) — RP mints its session | `/opt/fabrik-lib/oauth-login/oauth_login/protocols.py:35` (LocalAuthBridge), `identity.py` (VerifiedIdentity) |
+| fabrik-lib `product-entitlements/` (VENDOR) | the gate + `GrantSource`/`BillingSource`/`AuditSink` protocols (all **async**) + `GrantCache` (Null/Redis, fail-closed) | `/opt/fabrik-lib/product-entitlements/product_entitlements/protocols.py:19` (GrantSource.`product_access`→`frozenset[str]` :25), :33 (BillingSource), :49 (AuditSink); `cache.py` |
 | fabrik-lib audit-log module (VENDOR) | hash-chained audit of grant mutations | fabrik-lib/README index (resolve exact module name at build) |
 | Zitadel Authorization v2 API (EXTERNAL, grounded) | `CreateAuthorization`/`DeleteAuthorization`/`ListAuthorizations`/`UpdateAuthorization` — Connect paths `POST /zitadel.authorization.v2.AuthorizationService/{Method}` (NOT `/v2/authorizations`) | zitadel.com/docs/reference/api/authorization/… (fetched 2026-08-29) |
 | Zitadel back-channel logout (EXTERNAL, grounded) | `backchannel_logout_uri` per RP; logout token carries `sid`/`aud`/`events`; **DeleteAuthorization is NOT a session-termination event** — teardown must also terminate the session | zitadel.com/docs/guides/integrate/back-channel-logout (2026-08-29) |
@@ -67,12 +67,12 @@ never executed here.
 **One responsibility:** a `product-entitlements` `GrantSource` implementation backed by Zitadel's Authorization v2 API, plus the machine-auth client the adapter (and Phase B/C) use.
 
 **Interfaces — Produces:**
-- `libs/product_entitlements_bridge/zitadel_client.py`: `class ZitadelClient(issuer:str, sa_key:dict, project_id:str, org_id:str)` with `create_authorization(user_id, role_keys=None) -> str` (returns authorization id), `delete_authorization(auth_id) -> None` (idempotent — not-found = success), `list_authorizations(user_id) -> list[Authorization]`, `update_authorization(auth_id, role_keys) -> None`, `terminate_user_sessions(user_id) -> None` (Session API — the teardown gotcha). Auth via Private-Key JWT requesting scope `urn:zitadel:iam:org:project:id:zitadel:aud`; Connect paths `POST /zitadel.authorization.v2.AuthorizationService/{Method}`.
-- `libs/product_entitlements_bridge/grant_source.py`: `class ZitadelGrantSource(GrantSource)` (implements product-entitlements' `GrantSource` Protocol, `protocols.py:57`) — `products_for(user_id) -> set[str]` derived from `ZitadelClient.list_authorizations` (project→product mapping), used by the gate's fail-closed coarse-access check.
+- `libs/product_entitlements_bridge/zitadel_client.py`: `class ZitadelClient(issuer:str, sa_key:dict, project_id:str, org_id:str)` with **async** methods `create_authorization(user_id, role_keys=None) -> str` (returns authorization id), `delete_authorization(auth_id) -> None` (idempotent — not-found = success), `list_authorizations(user_id) -> list[Authorization]`, `update_authorization(auth_id, role_keys) -> None`, `terminate_user_sessions(user_id) -> None` (Session API — the teardown gotcha). Async because the `GrantSource` Protocol it feeds is async (`product_entitlements/protocols.py:25`). Auth via Private-Key JWT requesting scope `urn:zitadel:iam:org:project:id:zitadel:aud`; Connect paths `POST /zitadel.authorization.v2.AuthorizationService/{Method}`.
+- `libs/product_entitlements_bridge/grant_source.py`: `class ZitadelGrantSource(GrantSource)` — implements the product-entitlements `GrantSource` Protocol's real method **`async def product_access(self, user_id: str) -> frozenset[str]`** (`/opt/fabrik-lib/product-entitlements/product_entitlements/protocols.py:25`) by mapping `ZitadelClient.list_authorizations` project ids → product keys. This is the method the gate calls on every boundary for the fail-closed coarse-access check.
 
 **Steps:**
 1. `mkdir libs/product_entitlements_bridge`; vendor product-entitlements' `GrantSource` protocol signature (read `/opt/fabrik-lib/product-entitlements/protocols.py` — ground the exact method names/returns; the README shows a Zitadel GrantSource as "one example" but this is the real impl).
-2. **[TDD — highest risk] Write `tests/test_bridge_grant_source.py` FIRST** (fanout `fanout("code", …)` for the per-behavior tests): mock the Connect HTTP layer; assert `products_for` maps `ListAuthorizations(in_user_ids=[u], project_id=...)` results → product set; assert a Zitadel/HTTP error RAISES (so the gate fails CLOSED, never returns ∅-as-allowed). Run → RED.
+2. **[TDD — highest risk] Write `tests/test_bridge_grant_source.py` FIRST** (fanout `fanout("code", …)` for the per-behavior tests): mock the Connect HTTP layer; assert `await product_access(user_id)` maps `ListAuthorizations(in_user_ids=[u], project_id=...)` results → a `frozenset[str]` of products; assert a Zitadel/HTTP error RAISES (so the gate fails CLOSED, never returns ∅-as-allowed). Run → RED.
 3. Implement `zitadel_client.py` (the four Authorization-v2 methods + `terminate_user_sessions` + Private-Key-JWT token mint with the reserved aud scope + timeout/retry/circuit-breaker per `core/58-resilience.md`) and `grant_source.py`. Run tests → GREEN.
 4. **Gate:** `python -m pytest tests/test_bridge_grant_source.py -q` → pass.
 5. `python scripts/enforcement/check_doc_sync.py` + note the new module for `INDEX.md` (Phase C owns the doc writes).
@@ -80,8 +80,8 @@ never executed here.
 7. Commit (explicit paths + provenance trailers).
 
 **Behavior Contract:**
-- **Given** a user with two Zitadel authorizations, **When** `ZitadelGrantSource.products_for(user_id)` runs, **Then** it returns exactly the two mapped products via `ListAuthorizations` (libs/product_entitlements_bridge/grant_source.py).
-- **Given** the Zitadel API errors or times out, **When** `products_for` runs, **Then** it RAISES (the gate denies — fail-closed), never returns an empty-as-allowed set (libs/product_entitlements_bridge/grant_source.py).
+- **Given** a user with two Zitadel authorizations, **When** `await ZitadelGrantSource.product_access(user_id)` runs, **Then** it returns exactly the two mapped products as a `frozenset` via `ListAuthorizations` (libs/product_entitlements_bridge/grant_source.py).
+- **Given** the Zitadel API errors or times out, **When** `product_access` runs, **Then** it RAISES (the gate denies — fail-closed), never returns an empty-as-allowed set (libs/product_entitlements_bridge/grant_source.py).
 - **Given** a service call, **When** the client mints its token, **Then** the token request carries scope `urn:zitadel:iam:org:project:id:zitadel:aud` (libs/product_entitlements_bridge/zitadel_client.py).
 
 ## Phase B — Idempotent billing→grant reconciler
@@ -113,7 +113,7 @@ never executed here.
 - `docs/reference/umbrella-sso-integration.md`: the per-RP pattern — vendor {oauth-login, product-entitlements, product_entitlements_bridge, audit-log}; set `shape.needs_cache: true`; implement the `LocalAuthBridge` (create-or-get user + mint `fastapi-user-auth` session + set tenant GUC from `VerifiedIdentity`); run `reconcile_user_grants` on the PG job queue on billing events; register `backchannel_logout_uri` AND validate the logout token (`sid`/`aud`/`events`); wire `revoke_and_teardown` on grant-revoke; the machine-auth reserved-scope gotcha; the fail-closed cache invariant.
 
 **Steps:**
-1. **[TDD] Write `tests/test_bridge_teardown.py` FIRST** (pool fanout): assert `revoke_and_teardown` calls DeleteAuthorization AND `gate.revoke` (cache invalidation) AND `terminate_user_sessions` — all three, in order; assert the cache is invalidated (a subsequent `has_access` denies). Run → RED.
+1. **[TDD] Write `tests/test_bridge_teardown.py` FIRST** (pool fanout): assert `revoke_and_teardown` calls DeleteAuthorization AND `gate.revoke` (cache invalidation) AND `terminate_user_sessions` — all three, in order. For the "next `has_access` denies" assertion, the **mock `GrantSource.product_access` MUST drop the product after the delete** (mirroring the real DeleteAuthorization) — otherwise `has_access` re-hits the source, re-grants and re-caches, and the assertion tests the mock not the invariant. Run → RED.
 2. Implement `teardown.py`. Run → GREEN.
 3. Author `docs/reference/umbrella-sso-integration.md` (pool `fanout("docs", …)` reconciled + native-verified per `doc_reconcile.py`) — the per-RP integration recipe + the two grounded gotchas (session-teardown, reserved-scope) + the `needs_cache` assertion + a per-RP checklist the dispatched agents follow.
 4. **Doc Sync Matrix:** `INDEX.md` (new module + new doc), `CHANGELOG.md` (feature), `docs/FEATURES.md` (the bridge capability), `docs/README.md` (docs index — new reference doc). Add `docs/reference/umbrella-sso-integration.md` INDEX row.
@@ -126,6 +126,29 @@ never executed here.
 - **Given** a revoked grant, **When** the next boundary `has_access` check runs within the cache TTL, **Then** it DENIES (cache invalidated, source-checked) (libs/product_entitlements_bridge/teardown.py).
 - **Given** an RP agent reads `docs/reference/umbrella-sso-integration.md`, **When** they follow it, **Then** they set `shape.needs_cache: true`, register `backchannel_logout_uri`, and wire session-termination-on-revoke (docs/reference/umbrella-sso-integration.md).
 
+## Coverage Checklist
+
+Classes derived from the rubric run over this plan's File Scope + the four standing recurrence classes:
+
+```
+$ python scripts/review_rubric.py --changed libs/product_entitlements_bridge/ tests/test_bridge_grant_source.py docs/reference/umbrella-sso-integration.md
+# FLOOR: core/35-security-auth (PKCE+JWKS, no NextAuth/Clerk/Auth0, fail-closed auth.uid(), no secrets in code, sticky-sessions BANNED, redis session state), core/25-data-postgres (review migrations) → mapped to the rows below
+```
+
+Every known failure class swept this convergence (rubric classes for the File Scope + the four standing recurrence classes):
+
+| Class | Verdict | Evidence |
+|---|---|---|
+| Claims grounding (fabrik-lib API signatures) | FIXED | pass 1 corrected `products_for`→`product_access(self,user_id)->frozenset[str]` async against `/opt/fabrik-lib/product-entitlements/product_entitlements/protocols.py:25`; gate API `has_access`/`revoke(user_id,product=None)` verified at `entitlements.py`; LocalAuthBridge at `oauth-login/oauth_login/protocols.py:35` |
+| Fail-open vs fail-CLOSED (standing) | CLEAN | coarse access is fail-CLOSED — `product_access` RAISES on Zitadel/Redis error (Phase A behavior contract + Global Constraints); confirmed against product-entitlements `entitlements.py:60-64` (error source → deny) |
+| Cost / quota limits (standing) | CLEAN — N/A | no paid LLM or metered API in scope (infra-decisions § Cost Guardrails N/A); reconciler + adapter call only self-hosted Zitadel |
+| Boundary / sentinel / prefix traps (standing) | CLEAN | grant-cache keys are per-`(user,product)` policy-versioned + percent-encoded (product-entitlements `cache.py` — no delimiter collision); `revoke` invalidation is per-key |
+| Behavior-without-a-test (standing) | CLEAN | each phase carries a Behavior Contract with watched-fail-first RED (grant-source fail-closed, reconciler zero-mutation-on-rerun, teardown three-call + deny) |
+| Security / auth (rubric core/35) | CLEAN | federation = auth-code+PKCE+JWKS via oauth-login (subject-keyed, blocks nOAuth); machine auth = Private-Key JWT + reserved aud scope; zero secrets in code (env-only, Global Constraints) |
+| Idempotency / no double-grant (rubric core/85) | CLEAN | reconciler = List→Create/Update (Create is non-idempotent, grounded); Phase B behavior contract asserts a second unchanged run makes ZERO mutations |
+| Revocation → LIVE-session teardown | FIXED | grounded gotcha baked into Phase C: DeleteAuthorization is NOT a session-termination event, so `revoke_and_teardown` also calls `terminate_user_sessions` (the criterion-#3 linchpin) |
+| Scope / cross-repo leak | CLEAN | File Scope hub-only (verified by the author-blind finder); per-RP work parked as dispatched follow-ups, not executed |
+
 ## Evidence
 
 ```
@@ -135,8 +158,8 @@ $ curl -sS --resolve auth.ocoron.com:443:172.93.160.197 https://auth.ocoron.com/
 https://auth.ocoron.com True    # issuer LIVE, back-channel logout advertised (Epic-1 dependency satisfied)
 ```
 
-- **Phase A** — `product-entitlements/protocols.py:57` (`GrantSource` Protocol — the real signature the adapter implements); Zitadel v2 `CreateAuthorization`/`ListAuthorizations` grounded at `zitadel.com/docs/reference/api/authorization/…` (fetched 2026-08-29, Connect paths, NOT `/v2/authorizations`); machine-auth reserved scope `urn:zitadel:iam:org:project:id:zitadel:aud` (`zitadel.com/docs/guides/integrate/zitadel-apis/access-zitadel-apis`, 2026-08-29).
-- **Phase B** — `product-entitlements/protocols.py` `BillingSource`/`AuditSink`; idempotency pattern grounded: `CreateAuthorization` is non-idempotent → `ListAuthorizations`-first, `UpdateAuthorization` is a full role-replace (zitadel docs, 2026-08-29).
+- **Phase A** — `/opt/fabrik-lib/product-entitlements/product_entitlements/protocols.py:19,25` (`GrantSource` Protocol, real method `async def product_access(self, user_id: str) -> frozenset[str]` — the signature the adapter implements); Zitadel v2 `CreateAuthorization`/`ListAuthorizations` grounded at `zitadel.com/docs/reference/api/authorization/…` (fetched 2026-08-29, Connect paths, NOT `/v2/authorizations`); machine-auth reserved scope `urn:zitadel:iam:org:project:id:zitadel:aud` (`zitadel.com/docs/guides/integrate/zitadel-apis/access-zitadel-apis`, 2026-08-29).
+- **Phase B** — `/opt/fabrik-lib/product-entitlements/product_entitlements/protocols.py:33,49` (`BillingSource.plan_features`, `AuditSink.record`); idempotency pattern grounded: `CreateAuthorization` is non-idempotent → `ListAuthorizations`-first, `UpdateAuthorization` is a full role-replace (zitadel docs, 2026-08-29).
 - **Phase C** — the load-bearing gotcha: `DeleteAuthorization` is NOT a session-termination event → back-channel logout does not auto-fire on grant-revoke → teardown must call the Session API (`zitadel.com/docs/guides/integrate/back-channel-logout`, 2026-08-29); product-entitlements `revoke()` invalidates the fail-closed `GrantCache` (cache.py).
 
 ## Self-audit
