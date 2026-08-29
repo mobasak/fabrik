@@ -89,7 +89,7 @@ never executed here.
 - **Given** the Zitadel API errors or times out, **When** `product_access` runs, **Then** it RAISES (the gate denies — fail-closed), never returns an empty-as-allowed set (libs/product_entitlements_bridge/grant_source.py).
 - **Given** a service call, **When** the client mints its token, **Then** the token request carries scope `urn:zitadel:iam:org:project:id:zitadel:aud` (libs/product_entitlements_bridge/zitadel_client.py).
 
-## Phase B — Idempotent billing→grant reconciler
+## Phase B — Idempotent billing→grant reconciler ✅ EXECUTED 2026-08-29
 
 **One responsibility:** a re-runnable function that converges Zitadel authorizations to what billing says a user is entitled to — no paid-but-locked-out user, no double-grant.
 

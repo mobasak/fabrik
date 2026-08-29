@@ -8,6 +8,13 @@ README.md for the vendoring contract + per-RP wiring.
 from __future__ import annotations
 
 from .grant_source import ZitadelGrantSource
+from .reconciler import ReconcileResult, reconcile_user_grants
 from .zitadel_client import ZitadelClient, ZitadelError
 
-__all__ = ["ZitadelClient", "ZitadelError", "ZitadelGrantSource"]
+__all__ = [
+    "ReconcileResult",
+    "ZitadelClient",
+    "ZitadelError",
+    "ZitadelGrantSource",
+    "reconcile_user_grants",
+]

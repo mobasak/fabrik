@@ -12,7 +12,10 @@ JSON-over-HTTP; the Session-v2 `ListSessions`→`DeleteSession` teardown loop wi
 fail-closed cap; vendored `async-http-client` circuit breaker) and `ZitadelGrantSource` (fail-CLOSED
 `product_access`→frozenset for the fabrik-lib `product-entitlements` gate). 16 tests; auth-critical review
 caught + fixed a token-404 idempotency mask, an inert circuit breaker (wrong `kind` values), and a
-session-teardown under-drain — all with regression guards.
+session-teardown under-drain — all with regression guards. Phase B: `reconcile_user_grants` — idempotent
+List→Create/Update/Delete convergence (zero-mutation on unchanged billing), symmetric per-product
+grant/revoke audit that correctly handles shared roles, best-effort audit that can't lock out a paid user
+(13 tests; review caught + fixed a role-sharing phantom-audit + an audit-aborts-entitlement path).
 
 ### Fixed — cmd 14/31: /fabrik-user-test's anti-mix-up guard could never block (2026-08-29)
 
