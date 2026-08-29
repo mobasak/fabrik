@@ -155,6 +155,7 @@ active enforcement.
 | pre-commit-hooks (large files · merge conflicts · private keys · forbidden `.env`/keys/certs) | Standard commit safety |
 | `command-corpus-check` | Installed `~/.claude/commands` + skills must match the rendered `_sources/` (hand-edits die on re-render) |
 | `governance-sync` | A commit touching a trigger surface auto-distributes governance to all `/opt` projects (trigger set = its `files:` filter — the filter is the truth, not memory) |
+| `thread_anchor.py` (via `final_gate_stop.py` at Stop + `SessionStart`/`UserPromptSubmit` in settings.json) | Thread anchors — durable NEXT:-line memory. Stop harvests the final message's `NEXT:` to `~/.claude/state/threads/<session>.json` (best-effort, 5s cap, skips unsynced projects); the prompt hooks inject ≤4 open anchors, silent when empty. Built 2026-08-29 after 905 NEXT: lines / 0 read-back / an 85-line thread lost to one question. Detail: `docs/reference/thread-anchors.md`. |
 | `push-gate` (**pre-push**, added 2026-08-29) | The local replacement for GitHub Actions. Runs `check_duplicates.py` before every push — parity with what `ci.yml` actually enforced, nothing more. Hub Actions are `disabled_manually` and both workflow files are deleted. **0.49s.** |
 
 ⚠️ **Two facts about the pre-push stage, both learned by running the real hook rather than reasoning
