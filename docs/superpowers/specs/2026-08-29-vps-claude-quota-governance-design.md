@@ -1,6 +1,6 @@
 # Design spec — VPS single-key Claude quota governance (ob@ocoron.com)
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-08-29 · Owner: fleet
 
 ## Goal
@@ -36,32 +36,51 @@ detects usage-limit signals (`is_usage_limit`) AND exposes live per-account head
 it. So this design is mostly **vendor+enhance of existing sysadmin machinery + a thin broker + a router**,
 not new infrastructure.
 
-### Mechanism A — one host claude, a broker containers call (no creds in containers)
+### Mechanism A — one host claude on ob@, a TWO-TIER broker (no creds + no operator shell for containers)
 
-- **Host:** keep `claude-run.sh` as the single entrypoint (runs as operator, one cred home). For the
-  single-key model set it to ob@ (the rotation swap becomes a no-op with one account, but `is_usage_limit`
-  detection stays live for the fallback — Mechanism D).
-- **Containers:** a **host-side broker** — a small stdlib loopback service bound to the Docker bridge gateway
-  (e.g. `172.17.0.1:<port>`, or a unix socket bind-mounted read-only) that accepts a job `{prompt, cwd,
-  tools?}` and runs it through `claude-run.sh` on the host, returning the result. **Containers hold NO
-  credentials** — the one ob@ credential never leaves the host. This is preferred over mounting
-  `~/.claude/.credentials.json` into each container because (a) mounting scatters the secret across N
-  containers, and (b) the mount path has a live unresolved persistence bug (anthropics/claude-code #22066:
-  OAuth re-prompts in containers despite mounted creds) + token-refresh-clobber + machine-binding gotchas
-  (grounded below). The broker also naturally routes every container job through the SAME governor + pool
-  fallback as host jobs.
-- The broker is IP-allowlisted to the Docker bridge subnet + loopback only; it is NOT a public port (no
-  Traefik route, no host `ports:` beyond the bridge-gateway bind). It runs `claude` with the caller's
-  requested tools; a container gets exactly the sysadmin scope the host would give it.
+The credential stays on the host; but a container calling "the host's claude" must NEVER get the operator's
+full-tool shell — that is a container→host confused-deputy (a compromised container would run
+`{prompt:"exfil ~/.ssh", tools:[bash]}` as the operator). So the broker exposes exactly two tiers, and the
+privileged tier is unreachable from a container:
+
+- **Tier 1 — the HOST sysadmin loop (full tools, operator).** `claude-run.sh` stays the single host entrypoint
+  (runs as operator, one cred home, set to ob@; the rotation swap is a no-op with one account, but
+  `is_usage_limit` detection stays live for Mechanism D). Only HOST processes (the healer, host crons) invoke
+  it. It is **never bound to a socket a container can reach.**
+- **Tier 2 — the container broker (COMPLETION-ONLY, no host tools).** A small stdlib loopback service bound to
+  the Docker bridge gateway (or a per-container bind-mounted unix socket) accepts a job `{prompt, model?}` and
+  runs `claude -p` **with an EMPTY tool allowlist (`--allowedTools ""` / no bash/edit/MCP)** — pure
+  prompt→completion, subscription-billed on ob@, with **no filesystem, shell, or network tool access**. A
+  container gets an LLM answer, never an operator shell. Controls, all mandatory: **(a) per-caller
+  authentication** — a per-container shared token (issued at deploy, not IP — every container is on the bridge
+  subnet, so an IP allowlist authorizes the exact threat it should exclude); **(b) per-caller quota budget**
+  (F4) so one misbehaving container cannot drain ob@; **(c) an audit line per job** (caller, prompt hash,
+  tokens); **(d) the class is assigned by the broker from the caller identity, never self-labelled** — a
+  container's work is `routine` by construction, so it is always poolable/sheddable (Mechanism C/D).
+- **Containers hold NO credentials** — preferred over mounting `~/.claude/.credentials.json` because mounting
+  scatters the secret across N containers and hits the live unresolved persistence bug (anthropics/claude-code
+  #22066: OAuth re-prompts despite mounted creds) + token-refresh-clobber + machine-binding gotchas (grounded
+  below).
+- The broker is loopback/bridge-gateway-bound only — no Traefik route, no public host `ports:`. **A container
+  never reaches Tier 1**; the only host-tool claude runs are host-initiated (the sysadmin loop).
 
 ### Mechanism B — event-driven triggering, and the fix always runs
 
-Consumers fire on **real events**, not polling: the watchdog already ingests GlitchTip errors on `:8889`
-(`agent.py _IngestHandler`); the healer runs on an actual incident. Quota then tracks the incident rate
+Consumers fire on **real events**, not polling: the fleet already has an event-driven trigger surface — the
+fabrik-lib **watchdog sidecar** ingests GlitchTip errors on `:8889` (its ingest server + trigger bus, e.g.
+`test_ingest_server.py` / `test_trigger_error_tracker_webhook.py`); the healer runs on an actual incident. Quota then tracks the incident rate
 (rare), not a poll cadence — a polling bot on one account is what burns a weekly cap. **But when an issue
-fires it MUST be fixed** (I3): the governor (D) never blocks an incident fix — it runs on ob@ if there is
-headroom, and if ob@ is exhausted it **falls the fix over to a tools-enabled OpenRouter pool agent**
-(`libs/subagents`, `tools_enabled=True`) so the incident is never dropped because a subscription cap was hit.
+fires it MUST be handled** (I3). The governor (D) never blocks an incident on ob@ — but the honest invariant
+is **"an incident is never DROPPED,"** NOT "always auto-fixed," because a live-host fix (restart a container,
+tail a live log, edit a prod config) needs Claude Code's real tool loop on the host, which ONLY ob@ can do:
+the OpenRouter pool runs its workers in a **bwrap sandbox** (`libs/subagents/sandbox.py` — `--unshare-net`,
+read-only host bind, throwaway git worktree, edits captured as a diff) and **structurally cannot** touch the
+live host. So the incident path is: **ob@ has headroom → autonomous fix on ob@** (the normal case, kept normal
+by the reserve in D); **ob@ exhausted → the pool DIAGNOSES read-only** (summarize the logs/state it's handed,
+propose the fix) **+ Telegram the operator with that proposal for a gated apply** — the incident is escalated
+with a ready diagnosis, never silently dropped. Autonomous fixing degrades to human-gated exactly when quota
+is scarce; the design's real job is to make ob@-exhaustion-during-an-incident RARE (the reserve + pool-offload
++ retiring the keepalive ping), not to pretend a sandboxed model can fix a live host.
 
 ### Mechanism C — pool-offload the bulk, reserve ob@ for the fix
 
@@ -71,24 +90,45 @@ digests, doc-summarization. Only when triage concludes "this needs a real multi-
 session" does it spend ob@'s subscription quota. With one account we push MORE to the pool than the old
 3-account plan did — ob@'s quota is thereby mostly *reserved* for incident-fixing.
 
+**The full ob@-consumer inventory (F5) — every one routes through the governor, no exceptions.** Enumerate the
+live box consumers so nothing spends ob@ unrouted: `bot.py` (watchdog/healer), the kaizen crons
+(`kaizen_*.py`), `weekly_catchup.sh`, `morning-report.sh` / `daily-digest.sh` / `weekly-security.sh`,
+`proactive-check.sh`, `canary_grounding.py`, `ci_health_probe.py`, the daily VPS-docs pipeline's LLM steps,
+plus every container job via the broker. **All of these are `routine` and go to the pool** — only a genuine
+watchdog/healer incident spends ob@. **Retire the keepalive ping under single-key:** `claude-keepalive-rotate.sh`
+runs `claude -p ping` to keep OAuth tokens warm — that earned its keep under multi-account WSL rotation, but on
+a single, regularly-USED ob@ it just burns the 5h/weekly quota this design is conserving, for zero rotation
+benefit. Drop the ob@ ping (a normally-used account needs no keepalive); if a warmth signal is ever wanted,
+use the free `oauth/usage` telemetry probe (Mechanism D), never a billed message.
+
 ### Mechanism D — the quota governor: a headroom-aware router, never a per-call cap
 
 A thin router in front of `claude-run.sh` (host) and the broker (containers). It combines **proactive** and
-**reactive** headroom signals:
+**reactive** headroom signals, and — the key protection — it **reserves ob@ quota for incidents**:
 
+- **Class is assigned SERVER-SIDE from the trigger source, never self-labelled (F4).** An incident is a
+  watchdog/healer event (a real fault); routine is a cron digest / a container completion / a kaizen summary.
+  The governor derives the class from *which trigger fired*, so a caller (a container via the broker) cannot
+  relabel its work `incident` to skip shedding. Every container job is `routine` by construction; each broker
+  caller also carries a per-caller quota budget so one container cannot drain ob@.
+- **The incident reserve — the real mechanism that keeps the fix on ob@.** The governor holds back a slice of
+  ob@'s weekly quota for incidents: **routine work sheds to the pool well BEFORE the cap** (at a reserve
+  threshold, default ≈80% weekly utilization), so when an incident fires there is almost always ob@ headroom
+  left for the autonomous fix. This is what makes "ob@ exhausted during an incident" rare rather than assumed.
 - **Proactive:** before a *routine* ob@ call, read `claude_rotate.py --status --json` → ob@'s
-  `five_hour.utilization` + `seven_day.utilization`. If weekly headroom is below a threshold (the weekly is
-  the binding cap — grounded), route routine work **pool-only** or defer it past the reset.
+  `five_hour.utilization` + `seven_day.utilization`; above the reserve threshold, route routine **pool-only**
+  or defer past the reset. **This status read does NOT spend message quota** — it hits the `oauth/usage` +
+  `oauth/profile` telemetry endpoints (`claude_rotate.py`), not the messages API, so the governor's own
+  headroom probe is free.
 - **Reactive:** if any ob@ call returns an `is_usage_limit` signal, mark ob@ capped until its reset and route
-  subsequent work to the pool (routine) or the pool-fix fallback (incident).
-- **Invariant:** an **incident fix ALWAYS runs** — ob@ if it has headroom, else the tools-enabled pool agent,
-  else an operator alert. The governor NEVER blocks urgent work (honoring the no-per-call-cap rule); it only
-  sheds/offloads the non-urgent when quota is scarce.
-- **Alert:** Telegram the operator on any cap-threshold crossing via the proven `claude-sound.sh mesh-notify`
-  transport (no new alerting machinery).
-- The utilization values are read **live** — never hardcoded caps — because Anthropic does not publish the
-  numeric caps (only per-account Settings → Usage); the governor keys on the live `utilization` % the status
-  probe already returns.
+  subsequent routine work to the pool; an incident in that state escalates via the pool-diagnosis +
+  operator-gated-apply path (Mechanism B) — never a de-facto per-call cap on the fix, and never dropped.
+- **The governor NEVER blocks an incident** (honoring the no-per-call-cap rule) — it only sheds/offloads
+  *routine* work when quota is scarce.
+- **Alert:** Telegram the operator on any reserve-threshold or cap crossing via the proven
+  `claude-sound.sh mesh-notify` transport (no new alerting machinery).
+- Utilization is read **live** — never hardcoded caps — because Anthropic does not publish the numeric caps
+  (only per-account Settings → Usage; grounded); the governor keys on the live `utilization` %.
 
 **No account rotation on the VPS (I5 answered).** Single-key means there is no second account to rotate *to*
 on the box. The only "rotation" is the **mode fallback**: ob@ subscription → OpenRouter pool. The WSL dev box
@@ -107,6 +147,14 @@ keeps its own can@/sarp@/mob@ account rotation (`claude_rotate.py`, out of scope
   a per-call cap breaks the diagnose loop (banned).
 - **A predictive-only OR reactive-only governor.** Rejected — combine both: proactive shedding for routine +
   reactive fallback on a real limit signal.
+- **A broker that runs the operator's FULL-tool claude on caller-supplied tools.** Rejected — a
+  confused-deputy: a compromised container would get host RCE + secret exfil as the operator. The broker's
+  container tier is completion-only (empty tool allowlist, per-caller auth + budget + audit); the full-tool
+  operator claude is host-initiated only and never reachable from a container (Mechanism A).
+- **"The pool autonomously fixes the incident when ob@ is capped."** Rejected — `libs/subagents` workers run
+  in a bwrap sandbox (no network, read-only host, throwaway worktree) and structurally cannot touch the live
+  host. The capped-incident path is pool read-only diagnosis + an operator-gated apply, not an autonomous
+  sandboxed fix (Mechanism B).
 
 ## External dependencies (grounded live 2026-08-29)
 
@@ -135,10 +183,10 @@ keeps its own can@/sarp@/mob@ account rotation (`claude_rotate.py`, out of scope
 | Usage-limit signal detection (reactive) | **VENDOR — `claude_rotate.py::is_usage_limit`** | Regex covers weekly/session/5h/"out of extra usage" |
 | Live per-account headroom (proactive) | **VENDOR — `claude_rotate.py --status --json`** | Returns `five_hour`/`seven_day` utilization + resets; the governor's proactive input |
 | Operator-facing quota board | **VENDOR+ENHANCE — `quota_dashboard.py`** | Add an ob@-VPS panel + the governor's current routing mode |
-| The metered LLM pool (offload + fix fallback) | **VENDOR — `libs/subagents`** | `fanout`/`pick_models` for routine; `tools_enabled=True` agent for the pool-fix fallback |
+| The metered LLM pool (routine offload + capped-incident diagnosis) | **VENDOR — `libs/subagents`** | `fanout`/`pick_models` for routine; a **read-only diagnosis** pass when ob@ is capped (the sandboxed worker cannot fix a live host — Mechanism B), never an autonomous fix |
 | Operator alert transport | **VENDOR — `claude-sound.sh mesh-notify`** | Telegram, proven; no new alerting |
-| The **host broker** (containers → host claude) | **BUILD** (small, justified) | No documented standard exists; a stdlib loopback/socket service on the bridge gateway. `🆕 fabrik-lib candidate`? NO — VPS-fleet-specific glue, not generic |
-| The **governor router** (proactive+reactive routing + fix-always invariant) | **BUILD** (small, justified) | Thin decision layer over the reused status/limit/pool primitives; sysadmin-specific |
+| The **completion-only container broker** (containers → host claude, no creds, no host tools) | **BUILD** (small, justified) | No documented standard exists; a stdlib loopback/socket service, `claude -p` with an EMPTY tool allowlist + per-caller token/budget/audit. `🆕 fabrik-lib candidate`? NO — VPS-fleet-specific glue, not generic |
+| The **governor router** (server-side class + reserve + proactive/reactive routing + never-dropped invariant) | **BUILD** (small, justified) | Thin decision layer over the reused status/limit/pool primitives; sysadmin-specific |
 
 No new fabrik-lib module proposed — the two builds are fleet-specific sysadmin glue over reused primitives.
 
@@ -163,16 +211,15 @@ No new fabrik-lib module proposed — the two builds are fleet-specific sysadmin
 ## Open / blocking unknowns
 
 **Resolved:** the cap model (5h + weekly, no daily, numbers unpublished → read live %); the docker-creds
-gotchas → host-broker chosen; the reuse surface (claude-run/claude_rotate/quota_dashboard/subagents).
+gotchas → two-tier host-broker chosen; the broker confused-deputy → container tier is completion-only (empty
+tool allowlist) + per-caller auth/budget/audit, full-tool claude host-only; the capped-incident path → pool
+read-only diagnosis + operator-gated apply (a sandboxed pool worker cannot fix a live host); the class
+authority → server-side from the trigger source; the ob@-consumer inventory + the keepalive-ping retirement;
+the reuse surface (claude-run/claude_rotate/quota_dashboard/subagents).
 
-**Still-open (each with a resolution step, none blocking the design):**
-- **The exact headroom threshold %** at which routine work sheds to the pool — resolution: pick a conservative
-  default (e.g. shed routine at ≥80% weekly utilization), tune from the live board; a config knob, not a
-  design fork.
-- **Broker transport: loopback HTTP on the bridge gateway vs a bind-mounted unix socket** — resolution: decide
-  at plan time from which container runtimes need it (a socket is tighter but needs a per-container mount; a
-  gateway-bound loopback port is simpler for many containers). Both keep the secret on the host; the choice
-  doesn't change the design.
-- **Whether the tools-enabled pool-fix fallback needs a scoped tool allowlist** (a pool model running bash on
-  the VPS) — resolution: constrain the fallback agent to read-only diagnosis + a proposal by default, escalate
-  to an operator-gated write; grounded at plan time against `libs/subagents` capabilities.
+**Still-open (each a plan-time tuning/wiring choice, none a design fork):**
+- **The exact reserve/shed threshold %** — default ≈80% weekly utilization; tune from the live board.
+- **Broker transport: loopback HTTP on the bridge gateway vs a bind-mounted unix socket** — decide at plan time
+  from which container runtimes need it; both keep the secret on the host.
+- **The broker's per-caller token issuance mechanism** (how a container gets its token at deploy) — resolution:
+  inject at `fabrik apply` time as a per-service env secret, grounded at plan time against the deploy path.
