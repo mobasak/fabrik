@@ -109,6 +109,7 @@ STEM_SKILLS: dict[str, str] = {
     "spec": "fabrik-spec",
     "spec-review": "fabrik-spec-review",
     "plan": "fabrik-plan-after-chat",
+    "review-scoped": "fabrik-review-scoped",
     "review": "fabrik-review",
     # Both sit ABOVE `review` in KEYWORD_STEMS: each is a phrase `fabrik-review`'s own SKIP
     # clause disclaims, so letting the broad `review` stem win points the operator at a gate
@@ -471,6 +472,18 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "workflow-review",
+    ),
+    (
+        # ABOVE the generic review stem (first match wins — the spec-review mis-route lesson):
+        # the light sibling for spontaneous work; the Stop hook's unreviewed-spontaneous block
+        # names these exact phrases.
+        re.compile(
+            r"\b(?:scoped|quick|lite)\s+review\b"
+            r"|\breview\s+(?:my|this)\s+(?:small\s+)?change\w*"
+            r"|\bh[ıi]zl[ıi]\s+incele\w*",
+            re.I,
+        ),
+        "review-scoped",
     ),
     (
         re.compile(

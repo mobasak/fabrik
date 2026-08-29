@@ -407,11 +407,11 @@ def _counter_path(sid: str) -> Path:
     return Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{_safe_sid(sid)}.attempts"
 
 
-_COUNTER_SLOTS = 5
+_COUNTER_SLOTS = 6
 
 
-def _read_counters(counter: Path) -> tuple[int, int, int, int, int]:
-    """(gate, commit, stall, push, run) attempts — tolerates older 3/4-slot files.
+def _read_counters(counter: Path) -> tuple[int, int, int, int, int, int]:
+    """(gate, commit, stall, push, run, review) attempts — tolerates older short files.
 
     Each cause owns its OWN slot: exhausting one cause's cap must never starve
     another's (the alternating-cause escape, 2026-08-07).
@@ -422,9 +422,9 @@ def _read_counters(counter: Path) -> tuple[int, int, int, int, int]:
         vals = [int(p) for p in parts[:_COUNTER_SLOTS]]
         while len(vals) < _COUNTER_SLOTS:
             vals.append(0)
-        return vals[0], vals[1], vals[2], vals[3], vals[4]
+        return vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]
     except Exception:
-        return 0, 0, 0, 0, 0
+        return 0, 0, 0, 0, 0, 0
 
 
 # --- FIFTH cause: an in-flight COMMAND RUN RECORD ----------------------------
@@ -551,6 +551,33 @@ def _ahead_of_upstream(root: Path) -> int | None:
         return int(r.stdout.strip())
     except Exception:
         return None
+
+
+# Spontaneous-work review checkpoint (operator, 2026-08-29). "Spontaneous" is mechanically
+# decidable: every /fabrik-* command opens a run record (corpus predicate 5, gate-enforced), so a
+# session that authored CODE files with NO record at all is record-less BY CONSTRUCTION — plain-chat
+# work. Commanded work exempts itself; docs-only sessions never fire. The remedy is the light
+# /fabrik-review-scoped (same convergence spine, minutes not hours); heavy surfaces escalate to the
+# full /fabrik-review per its own contract.
+_CODE_EXTS = frozenset(
+    {".py", ".sh", ".ts", ".tsx", ".js", ".jsx", ".yaml", ".yml", ".toml", ".sql", ".go", ".rs", ".json"}
+)
+
+
+def _count_code_files(authored: dict[str, int]) -> int:
+    from pathlib import PurePosixPath
+
+    return sum(1 for f in authored if PurePosixPath(f).suffix.lower() in _CODE_EXTS)
+
+
+def decide_review(code_files: int, has_any_record: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
+    """Pure review-checkpoint decision. Returns (action, attempts')."""
+    if code_files == 0 or has_any_record:
+        return "allow", 0
+    attempts += 1
+    if attempts > cap:
+        return "allow_warn_review", attempts
+    return "block_review", attempts
 
 
 def decide_stall(stalled: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
@@ -1088,14 +1115,14 @@ def main(argv: list[str]) -> int:
             the in-flight COMMAND RUN RECORD. Independent counter slots, same
             reset-when-false + warn-through shape."""
             counter = _counter_path(sid)
-            g, c, s_att, p_att, r_att = _read_counters(counter)
+            g, c, s_att, p_att, r_att, v_att = _read_counters(counter)
             run = _run_record(sid)
             run_active = bool(run) and (run or {}).get("state") == "running"
             ahead = _ahead_of_upstream(root)
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
                 counter.write_text(
-                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0}"
+                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0},{v_att}"
                 )
                 reason = (
                     f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
@@ -1144,7 +1171,7 @@ def main(argv: list[str]) -> int:
                 # narrated nothing can still be abandoning /fabrik-review at round 3.
                 r_action, r_att = decide_stall(run_active, r_att)
                 if r_action == "block_stall":
-                    counter.write_text(f"{g},{c},0,{p_att},{r_att}")
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                     _kaizen(
                         "stop_block",
                         ev_sid,
@@ -1177,15 +1204,55 @@ def main(argv: list[str]) -> int:
                         outcome="warned_through",
                         attempt=CAP,
                     )
-                if g == 0 and c == 0 and p_att == 0 and r_att == 0:
+                # SIXTH cause — spontaneous code changes owe a review (operator, 2026-08-29).
+                # "Spontaneous" is mechanical: every command opens a run record (corpus
+                # predicate 5), so code edits with NO record at all are plain-chat work by
+                # construction. The remedy is the light /fabrik-review-scoped; running it
+                # creates the record, which clears this cause on the next stop.
+                v_action, v_att = decide_review(
+                    _count_code_files(authored_map), bool(run), v_att
+                )
+                if v_action == "block_review":
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
+                    _kaizen(
+                        "stop_block", ev_sid, cause="unreviewed-spontaneous",
+                        outcome="blocked", attempt=v_att,
+                    )
+                    sys.stdout.write(
+                        json.dumps({
+                            "decision": "block",
+                            "reason": (
+                                f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
+                                "session edited code files with NO command run record — "
+                                "plain-chat work that skipped every review contract. Run "
+                                "`/fabrik-review-scoped` (minutes: diff-scoped, same "
+                                "convergence spine, fix-in-run) — or the full "
+                                "`/fabrik-review` for gate/hook/enforcement, auth/schema/"
+                                "migration, or multi-file surfaces. Its run record is what "
+                                "clears this block."
+                            ),
+                        }) + "\n"
+                    )
+                    return 0
+                if v_action == "allow_warn_review":
+                    sys.stderr.write(
+                        f"Spontaneous code edits still unreviewed after {CAP} blocked stops — "
+                        "stopping anyway. The review is still owed.\n"
+                    )
+                    warned.append("unreviewed-spontaneous")
+                    _kaizen(
+                        "stop_block", ev_sid, cause="unreviewed-spontaneous",
+                        outcome="warned_through", attempt=CAP,
+                    )
+                if g == 0 and c == 0 and p_att == 0 and r_att == 0 and v_att == 0:
                     counter.unlink(missing_ok=True)
                 else:
-                    counter.write_text(f"{g},{c},0,{p_att},{r_att}")
+                    counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                 # The ONE pass-through: every enforcement cause declined to block, so
                 # this Stop really ends the turn.
                 _kaizen_pass(ev_sid, transcript_p, waived, warned)
                 return 0
-            counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0}")
+            counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")
             kind, snippet = stall  # type: ignore[misc]
             what = (
                 f'promises an action ("{snippet}") that was never dispatched'
@@ -1316,7 +1383,7 @@ def main(argv: list[str]) -> int:
                 )
             # gate/commit causes resolved (or capped) → reset their counters, then
             # the push law + promise-guard still have the last word on THIS stop.
-            counter.write_text(f"0,0,{stall_attempts},{push_attempts},{run_attempts}")
+            counter.write_text(f"0,0,{stall_attempts},{push_attempts},{run_attempts},0")
             return _stall_gate()
 
         # Reset-when-cause-false applies to the stall AND push slots here too: a
@@ -1328,7 +1395,7 @@ def main(argv: list[str]) -> int:
         counter.write_text(
             f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},"
             f"{push_attempts if _ahead_of_upstream(root) else 0},"
-            f"{run_attempts if _run_live else 0}"
+            f"{run_attempts if _run_live else 0},0"
         )
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])

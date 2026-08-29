@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-review-scoped + the Stop hook's SIXTH cause: spontaneous code owes a review (2026-08-29)
+
+Operator: plain-chat work changes the repo, nothing triggers a review, `/fabrik-review` is too
+heavy to type every time, and forgetting is routine. Two pieces, one mechanism:
+
+- **`/fabrik-review-scoped`** (32nd command): the light half of the review pair — rubric-armed,
+  diff-scoped, fix-in-run, loops to a raised-zero no-op with minimum two passes. Deliberately NO
+  review file and NO pool floor: the run record's round ledger IS the artifact, and that asymmetry
+  is stated in the body so nobody "fixes" it. Hard escalation rules to the full `/fabrik-review`
+  (gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, operator-named work, or 3
+  rounds still finding — routing up is a success).
+- **The Stop hook's sixth cause** — and the spontaneity detector is mechanical, not heuristic:
+  every command opens a run record (corpus predicate 5, gate-enforced), so a session that authored
+  CODE files with NO record at all is plain-chat work BY CONSTRUCTION. It blocks (warn-through cap
+  3, the anti-trap law) naming the scoped command; running it creates the record that clears the
+  cause. Commanded work exempts itself; docs-only sessions never fire. Counter file extended 5→6
+  slots, old files read compatibly.
+- Router: `scoped/quick/lite review` + `hızlı incele` → the scoped command, inserted ABOVE the
+  generic `review` stem (the spec-review mis-route lesson); heavy phrasing still routes to the full
+  command — probed in both directions. § 1a in BOTH constitutions now sizes the review to the
+  surface; ORIENT says SIX causes.
+- 5 new hook tests (decision fn, classifier, counter compatibility), red-first; the renderer's own
+  1024-char guard caught the first description draft at 1036 — trimmed, not bypassed.
+
 ### Fixed — cmd 18/31: /fabrik-deploy-plan-review ran a frozen copy of an evolved contract (2026-08-29)
 
 Corpus audit command 18 of 31. The finding is anti-pattern 101's quieter sibling: the command

@@ -66,6 +66,7 @@ NEXT = {
     "fabrik-deploy-plan": "/fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted.",
     "fabrik-deploy-plan-review": "Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>.",
     "fabrik-deploy": "/fabrik-deploy-verify — prove the deployed service against its live checklist.",
+    "fabrik-review-scoped": "resume what you were doing — a gate, not a stage (heavy surfaces escalate to /fabrik-review).",
     "fabrik-review": "resume the phase/plan that invoked it, only after the round is CLEAN (no linear successor — it is a gate, not a stage).",
     "fabrik-conformance-review": "route each cluster to its owner — /fabrik-execute-plan (a converged plan never run) · /fabrik-spec (re-freeze deviation debt) · /fabrik-review (a code defect) · the deploy triad (an operational red). A gate, not a stage — no linear successor.",
     "fabrik-repo-review": "/fabrik-review on each risky fix as you make it, or route findings to a plan ticket.",
