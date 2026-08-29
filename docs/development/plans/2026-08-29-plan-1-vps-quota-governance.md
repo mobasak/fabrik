@@ -1,6 +1,6 @@
 # Plan — VPS single-key Claude quota governance (ob@)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Spec: docs/superpowers/specs/2026-08-29-vps-claude-quota-governance-design.md (CONVERGED)
 Shape: MONOLITH — one cohesive `scripts/sysadmin/` toolset (governor + broker + marshaller) whose files
 call each other; a spine+ticket set would serialize on shared paths. 3 phases.
@@ -91,7 +91,7 @@ rotation, no `ANTHROPIC_API_KEY`, no per-call $ cap, containers hold no creds) i
 - **TDD the risky:** the reserve decision, the fail-safe default, the single-flight lock, the broker's
   empty-tool-allowlist + fail-closed + budget are watched-fail-first.
 
-## Phase A — the governor router (`scripts/sysadmin/quota_governor.py`)
+## Phase A — the governor router (`scripts/sysadmin/quota_governor.py`) — ✅ EXECUTED 2026-08-29
 
 **One responsibility:** decide, per call, whether ob@ or the pool runs it — and never block an incident.
 

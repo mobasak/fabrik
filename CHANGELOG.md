@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — VPS quota governor router (Phase A of vps-claude-quota-governance) (2026-08-29)
+
+- **What:** `scripts/sysadmin/quota_governor.py` — a headroom-aware router for the single-key ob@ VPS
+  Claude. Reads the live `claude_rotate.py --status --json` fleet payload and decides per call:
+  routine → the OpenRouter pool when the account is `cap_walled` (the operator's authoritative weekly
+  cap) OR `max(<every utilization window incl. model_windows>) ≥ RESERVE_PCT`; incident → ob@ (headroom
+  + single-flight `flock` free) else `pool-diagnose`. Fail-SAFE (telemetry failure → routine sheds,
+  the incident fix is never blocked/dropped); None/past reset-epoch handled; env-only config.
+- **Files:** `scripts/sysadmin/quota_governor.py` (new), `tests/test_quota_governor.py` (new, 20 tests).
+
 ### Added — the persona law: every spec addresses ALL relevant personas, with a verbatim primary + a frozen step budget (2026-08-29)
 
 - Operator law from the transdoc post-mortem ("it kept drifting — why?"): `/fabrik-spec` now
