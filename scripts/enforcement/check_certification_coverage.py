@@ -25,10 +25,14 @@ load-bearing:
   operator's advisory ruling covered coverage completeness, never a wrong-agent dispatch, and a
   warn-only safety guard is one nobody reads until after the damage.
 
-⚠️ **Exit 0 on EVERY path**, including this module's own guard. `final_gate.py:198-208` converts a
-non-zero exit from a `warn_only` check into a **blocking red fleet-wide** — `check_plan_lock_release`
-hit that class five times during its build. The blocking verdict above is expressed by the gate row
-being non-advisory, never by a non-zero exit from this file.
+⚠️ **Exit contract: 0 on every path EXCEPT a mix-up finding, whose exit 1 IS the gate verdict.**
+Corpus audit cmd 14/31 (2026-08-29) found the previous contract was typography: this file said
+"BLOCKING", `final_gate` said "BLOCKING by their own flag", and the only registration was
+`warn_only=True` over an unconditional `return 0` — so a board that `/fabrik-execute-plan` would
+dispatch to CODING agents warned and passed. Now the check is registered `advisory=True` (stdout
+preserved, exit code decides): coverage-quality findings still exit 0 (the operator's advisory
+ruling), a mix-up exits 1 and reds the gate. The argparse guard and the crash path still exit 0
+(anti-pattern 91) — only a POSITIVE mix-up verdict may be non-zero.
 
 CLI: `--project-root PATH` (default cwd) · `--json`.
 """
@@ -533,6 +537,9 @@ def main(argv: list[str] | None = None) -> int:
                 "⚠ MIX-UP (BLOCKING, not advisory): a cert board that looks like an "
                 "implementation plan gets dispatched to CODING agents"
             )
+        # The verdict travels in the EXIT CODE (registration is advisory=True, so the gate
+        # reads it) — recorded after the findings print so the remedy lines always land.
+        _mixup_exit = 1 if blocking else 0
         budget = _ADVISORY_BUDGET - len(census) - 60
         shown = blocking + [f for f in findings if not f.blocking]
         # A LIST, not a counter — `emitted` tracks lines actually printed, not loop iterations, so
@@ -549,7 +556,7 @@ def main(argv: list[str] | None = None) -> int:
             _say(line)
             budget -= len(line) + 1
             emitted.append(line)
-        return 0
+        return _mixup_exit
     except Exception as exc:  # never a traceback out of a warn_only check
         try:
             # type name only — repr(exc) can re-embed an unprintable payload and fail in turn.

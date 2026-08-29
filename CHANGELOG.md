@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 14/31: /fabrik-user-test's anti-mix-up guard could never block (2026-08-29)
+
+Corpus audit command 14 of 31, against the 23-surface checklist. The headline: **three files agreed
+the cert-board namespace findings are BLOCKING** — `fabrik-user-test.md:146`, the grader's own
+docstring, and `final_gate.py`'s registration comment ("BLOCKING by their own flag") — **while the
+machinery made blocking impossible**: `check_certification_coverage.py` returned 0 on every path
+under `warn_only=True`. A board wearing `## Ticket Board` — which `/fabrik-execute-plan` dispatches
+to CODING agents — warned and passed. A safety guard that was prose all the way down.
+
+- **The exit code now carries the verdict:** mix-up findings exit 1; registration flips
+  `warn_only=True` → `advisory=True` (stdout preserved, exit decides); row renamed
+  `Certification Coverage (advisory; board mix-up BLOCKS)`. Coverage-quality findings still exit 0 —
+  the operator's advisory ruling survives. Argparse guard and crash path still exit 0
+  (anti-pattern 91). 6 new tests, the two blocking ones proven red-first AND red-on-revert.
+- **"the recorder" now names a runnable thing** — `/opt/tryton-crm/scripts/certification_record.py`
+  (project-local by design; vendored before the first sweep). The first correction cited it as a
+  bare `scripts/` path and the corpus gate's predicate 3 caught it within one render — hub-rooted
+  resolution, working as built, on its own author.
+- **Grader honesty added to Phase 5:** which exit conditions are machine-read (board shape,
+  dispositions, evidence paths, HANDOFF grammar, round ledger) and which bind on honour alone
+  (TWO-dry-sweeps, ×2 reproduction, T2 batch cap) — item 37's ruling, stated instead of implied.
+- Clean surfaces, checked not assumed: router resolves "certify …" through the dynamic `test` stem
+  per project type; `certification_registry` IS read (`check_certification_coverage.py:95`);
+  `term-coverage` carries the gauntlet carve-out; UI-bearing enumeration matches the registry;
+  reference doc `certification-denominator.md` current; NEXT map ↔ Pipeline consistent.
+
 ### Fixed — thread-anchor identity, learned three times in one day (2026-08-29)
 
 The register duplicated the corpus-audit thread twice more after the prefix fix. A constant was

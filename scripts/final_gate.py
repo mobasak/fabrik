@@ -1011,18 +1011,21 @@ def run_consistency_checks(
         )
     )
 
-    # Certification coverage (advisory): /fabrik-user-test and /fabrik-service-test graded their own
+    # Certification coverage: /fabrik-user-test and /fabrik-service-test graded their own
     # denominator. The inventory was PROSE WITH COUNTS authored by the agent later graded against it,
     # and NOTHING read it — there was no certification grader at all. On an inherited surface it
-    # under-counts silently and the run terminates honestly and wrong. Advisory on landing so every
-    # project SEES its real fraction without a release freezing; the anti-mix-up findings inside it
-    # are BLOCKING by their own flag, because a cert board that looks like an implementation plan
-    # gets dispatched to CODING agents.
+    # under-counts silently and the run terminates honestly and wrong. Coverage-quality findings are
+    # advisory on landing so every project SEES its real fraction without a release freezing.
+    # ⚠️ NOT warn_only, deliberately (corpus audit cmd 14/31, 2026-08-29): the anti-mix-up findings
+    # (a cert board wearing `## Ticket Board`, a cert lock in `.fabrik/plan-locks/`) exit 1 and MUST
+    # red the gate — a mis-headed board gets dispatched to CODING agents. Under warn_only that
+    # verdict was typography: three files said BLOCKING while `return 0` + warn_only made blocking
+    # impossible. `advisory=True` preserves the advisory stdout; the exit code carries the verdict.
     results.append(
         run_optional_check(
             "scripts/enforcement/check_certification_coverage.py",
-            "Certification Coverage (advisory)",
-            warn_only=True,
+            "Certification Coverage (advisory; board mix-up BLOCKS)",
+            advisory=True,
         )
     )
 

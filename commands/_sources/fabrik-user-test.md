@@ -158,7 +158,10 @@ reference implementation's first live sweep marked 39 navigation containers `EXE
 screen suite that never touched them because the sweep path skipped the modelless-entry refusal
 (tryton-crm, fixed and re-proven 424→385). And recording stays OUT of the grader by design — a
 checker that can also mark things done will eventually mark things done; retiring an id goes
-through the recorder (evidence mandatory), the grader only reads.
+through the PROJECT'S recorder script — project-local by design, not hub-synced; the reference
+implementation is `/opt/tryton-crm/scripts/certification_record.py` (cross-repo READ to vendor
+from; a project without one vendors it before the first sweep), evidence mandatory, the grader
+only reads.
 
 **The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT
 mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
@@ -403,6 +406,12 @@ Loop **rounds** until dry:
 
 **Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` —
 TWO consecutive dry discovery sweeps** (the loop-until-dry rule: one clean round can be luck).
+**Grader honesty — which exit conditions are machine-read and which are yours:** board shape,
+dispositions, evidence-paths-exist and the registry/ledger are graded by
+`check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF
+grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by
+`command_run.py round`. The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap
+are read by NO check — they bind you on honour, which is exactly why the ledger rows exist.
 A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the
 inventory or matrix is the exact failure this command exists to prevent.
 
