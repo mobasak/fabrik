@@ -681,9 +681,7 @@ def test_strict_mode_actually_runs_green_on_this_box(monkeypatch):
     # correct on the box that produces them and wrong anywhere else. Phase B copies tests/ into
     # the engine repo, so guard rather than red for environmental reasons there.
     missing = [
-        rel
-        for rel in cg.REGISTRY_JSONS + cg.OTHER_OUTPUTS
-        if not (cg.FABRIK_ROOT / rel).exists()
+        rel for rel in cg.REGISTRY_JSONS + cg.OTHER_OUTPUTS if not (cg.FABRIK_ROOT / rel).exists()
     ]
     if missing:
         pytest.skip(f"not the pipeline host — locally-produced artifacts absent: {missing}")
@@ -725,13 +723,8 @@ def test_a_loose_separator_does_not_swallow_the_next_table():
     `|---`, but `.windsurf/rules/ai/25-3d-generation.md` proves 2-dash separators occur, so a
     future renderer emitting `|:-:|--:|` would silently drop a whole table from magnitudes.
     """
-    doc = (
-        "# D\n\n## S\n\n| a | b |\n|---|---|\n"
-        "| 1 | 2 |\n| - | - |\n| 3 | 4 |\n| 5 | 6 |\n"
-    )
-    rows = {
-        k: v for k, v in cg.md_shape(doc)["magnitudes"].items() if k.startswith(cg.SECTION_KEY)
-    }
+    doc = "# D\n\n## S\n\n| a | b |\n|---|---|\n| 1 | 2 |\n| - | - |\n| 3 | 4 |\n| 5 | 6 |\n"
+    rows = {k: v for k, v in cg.md_shape(doc)["magnitudes"].items() if k.startswith(cg.SECTION_KEY)}
     assert rows == {f"{cg.SECTION_KEY} S :: a|b": 4}, (
         f"a dashes-only DATA row split the table: {rows}"
     )
@@ -840,9 +833,7 @@ def test_a_marker_husk_that_keeps_its_table_is_drift():
     spec.loader.exec_module(ugc)
 
     want = json.loads(cg.MANIFEST.read_text())["markers"]
-    zero = dict.fromkeys(
-        re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text()), 0
-    )
+    zero = dict.fromkeys(re.findall(r"counts\[[\"']([a-z_0-9]+)[\"']\]", src.read_text()), 0)
     checked, missed = 0, []
     for pack, category in (getattr(ugc, "PACK_TO_CATEGORY", {}) or {}).items():
         key = f".windsurf/rules/ai/{pack}::GATEWAY_COUNTS"
@@ -956,9 +947,7 @@ def test_marker_rows_count_every_table_not_just_sectioned_ones():
     headless = "| a | b |\n|---|---|\n| 1 | 2 |\n"
     section = "### {}\n\n| a | b |\n|---|---|\n" + "| x | y |\n" * 4
     block = headless + "\n" + section.format("one") + "\n" + section.format("two") + "\n"
-    gutted = (
-        headless + "\n### one\n\n| a | b |\n|---|---|\n\n### two\n\n| a | b |\n|---|---|\n"
-    )
+    gutted = headless + "\n### one\n\n| a | b |\n|---|---|\n\n### two\n\n| a | b |\n|---|---|\n"
     # rows counts EVERY table, sectioned or not.
     assert cg.marker_shape(block)["rows"] == 9
     assert cg.marker_shape(gutted)["rows"] == 1
@@ -970,13 +959,7 @@ def test_marker_rows_count_every_table_not_just_sectioned_ones():
 def test_volatile_stripping_cannot_span_lines():
     """`\\(\\d+[^)]*\\)` matched across newlines, so one unbalanced `(` + digit would delete
     every heading and table header up to the next `)` — a loud structure-changed false red."""
-    block = (
-        "| a | b |\n|---|---|\n"
-        "| x (2 items | 1 |\n"
-        "| y | 2 |\n"
-        "| z | 3 ) |\n"
-        "| w | 4 |\n"
-    )
+    block = "| a | b |\n|---|---|\n| x (2 items | 1 |\n| y | 2 |\n| z | 3 ) |\n| w | 4 |\n"
     assert cg.marker_shape(block)["rows"] == 4, (
         f"volatile stripping ate rows across newlines: {cg.marker_shape(block)}"
     )
@@ -1241,9 +1224,7 @@ def test_a_single_dead_column_is_drift_on_the_small_gateway_packs():
         if base["live_counts"] < 2:
             continue
         for dead in [k for k in keys if k.startswith("with_")]:
-            husk = cg.marker_shape(
-                ugc.render_block(category, {**healthy, dead: 0}, "2026-01-01")
-            )
+            husk = cg.marker_shape(ugc.render_block(category, {**healthy, dead: 0}, "2026-01-01"))
             if husk["live_counts"] == base["live_counts"]:
                 continue  # that count is not rendered for this category
             checked += 1
@@ -1329,14 +1310,15 @@ def test_the_autocommit_commits_a_pathspec_not_the_index():
     # matching those made an earlier version of this assertion read the prose instead.
     lines = sh.splitlines()
     start = next(
-        i for i, ln in enumerate(lines)
+        i
+        for i, ln in enumerate(lines)
         if ln.strip().startswith("git commit") and not ln.lstrip().startswith("#")
     )
     # Widened from 10: a multi-line -m trailer block pushed the pathspec past the window, and
     # this assertion went red while the behavioural test caught the REAL regression (the
     # pathspec had actually been dropped). Read to the end of the command instead.
     end = next(
-        (i for i in range(start, len(lines)) if "echo \"[auto-commit] committed\"" in lines[i]),
+        (i for i in range(start, len(lines)) if 'echo "[auto-commit] committed"' in lines[i]),
         start + 20,
     )
     commit = "\n".join(lines[start : end + 1])
@@ -1550,8 +1532,7 @@ def test_every_commit_template_in_the_command_corpus_parses():
     # match — so a single indented `EOF` (a hard shell syntax error, since `<<-` strips tabs
     # only) slipped through while the count merely dropped 6 -> 5.
     blocks = [
-        b for b in re.findall(r"cat <<'EOF'\n(.*?)\n^EOF$", text, re.S | re.M)
-        if "Agent-Role:" in b
+        b for b in re.findall(r"cat <<'EOF'\n(.*?)\n^EOF$", text, re.S | re.M) if "Agent-Role:" in b
     ]
     expected = len(re.findall(r"cat <<'EOF'\n(?:(?!\ncat <<'EOF').)*?Agent-Role:", text, re.S))
     assert len(blocks) == expected, (
@@ -1573,7 +1554,8 @@ def test_every_commit_template_in_the_command_corpus_parses():
             )
             role = subprocess.run(
                 ["git", "-C", d, "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             ).stdout.strip()
             assert role, (
                 f"template #{i} yields an UNPARSEABLE Agent-Role — a blank line inside the "
@@ -1587,3 +1569,28 @@ def test_every_commit_template_in_the_command_corpus_parses():
                 f"template #{i} has an INDENTED subject line — commits made from it carry the "
                 f"leading whitespace: {subject!r}"
             )
+
+
+def test_query_constant_discovery_catches_new_constants(tmp_path):
+    """The freeze discovers *QUERY constants by NAME PATTERN — a new query constant added to
+    rank_task_subagents.py must land in the snapshot (and thus the drift alarm) with NO
+    capture_golden edit. Hardcoding keys is the class that let ec05a490's canary key ship
+    only because a human remembered (infra relay 01M16TGP)."""
+    mod_file = tmp_path / "fake_rts.py"
+    mod_file.write_text(
+        'QUERY = "SELECT 1"\n'
+        'CANARY_QUERY = "SELECT 2"\n'
+        'EXTRA_STATS_QUERY = "SELECT 3"\n'
+        "NOT_A_QUERY_CONSTANT = 7\n"  # non-str with matching-ish name: ignored
+        'lower_query = "SELECT 4"\n'  # lowercase: not a constant, ignored
+    )
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("fake_rts", mod_file)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    out = cg._query_constants(mod)
+    assert out["rank_task_subagents.flywheel"] == "SELECT 1"  # legacy name kept (parity)
+    assert out["rank_task_subagents.canary"] == "SELECT 2"  # legacy name kept
+    assert out["rank_task_subagents.q_extra_stats_query"] == "SELECT 3"  # the CLASS: discovered
+    assert len(out) == 3

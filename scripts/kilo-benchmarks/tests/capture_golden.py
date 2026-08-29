@@ -534,6 +534,22 @@ def ai_pack_hosts() -> list[Path]:
     return sorted((FABRIK_ROOT / ".windsurf" / "rules" / "ai").glob("*.md"))
 
 
+def _query_constants(mod) -> dict[str, str]:
+    """Freeze EVERY str-valued ``*QUERY`` module constant by NAME PATTERN — a new query
+    constant lands in the snapshot (and the daily drift alarm) with no edit here. The two
+    legacy keys keep their frozen names; discovered extras get ``q_<lowername>`` keys."""
+    legacy = {"QUERY": "rank_task_subagents.flywheel", "CANARY_QUERY": "rank_task_subagents.canary"}
+    out: dict[str, str] = {}
+    for name in dir(mod):
+        if not re.fullmatch(r"(?:[A-Z][A-Z_0-9]*_)?QUERY", name):
+            continue
+        val = getattr(mod, name)
+        if not isinstance(val, str):
+            continue
+        out[legacy.get(name, f"rank_task_subagents.q_{name.lower()}")] = val
+    return out
+
+
 def _db_queries() -> dict[str, str]:
     """The exact SQL live hub consumers issue — read from the MODULE, never hand-typed.
 
@@ -559,8 +575,7 @@ def _db_queries() -> dict[str, str]:
             raise ImportError("no engine module")
         _rts = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(_rts)
-        out["rank_task_subagents.flywheel"] = _rts.QUERY
-        out["rank_task_subagents.canary"] = _rts.CANARY_QUERY
+        out.update(_query_constants(_rts))
     except Exception as exc:  # noqa: BLE001 — the oracle must survive a missing engine
         out["rank_task_subagents.flywheel"] = f"<UNAVAILABLE: {type(exc).__name__}>"
         out["rank_task_subagents.canary"] = f"<UNAVAILABLE: {type(exc).__name__}>"
