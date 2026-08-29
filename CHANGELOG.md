@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 30/31: rivals told agents to write into fabrik-lib; two operating cites had drifted (2026-08-29)
+
+- The § Upstream section instructed appending to `/opt/fabrik-lib/competitor-intel/
+  UPSTREAM_FEEDBACK.md` — a cross-repo WRITE the HARD STOP forbids however invited the file looks;
+  reworded mail-first (`--kind upstream-feedback --ack required`, the owner curates their file).
+  `orchestrator.py:566` (now :1449) and `rivals_run.py:818` (now :1035/:1047) replaced with
+  grep-anchored wording. The checklist's item-22 "Live:" example (repo-identity residue) marked
+  FIXED — cmd 30's re-audit confirmed it gone; all five advertised triggers route; the engine
+  vocab/alias map, legs, render_dossier_md and the --rediscover machinery verified live and CLEAN.
+  Also this turn: fabrik-researcher's tool grant made explicit + caller-format precedence
+  (brand-identiy-creator 01M173CR, 2 landed; RAGAS row-split verified + relayed to intel 01M173P2).
+
 ### Fixed — cmd 29/31: the gate ran the suite under whichever interpreter had ruff; upstream's bare-prose claim was 4/5 fiction (2026-08-29)
 
 - transdoc 01M171R8 landed via a live HUB-mode `/fabrik-upstream` run: `PYTHON` no longer requires

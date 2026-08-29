@@ -103,7 +103,7 @@ Phase 6 delegates correctly and names its two legitimate early stops.
 ## Fragments & Composition
 
 21. Does it include the fragments its shape requires, and NONE it does not? (`run-record` · `term-edit` / `term-coverage` · `grounding-*` · `injection` · `questionbar` · `repo-identity` · `subagents-core` · `autonomy-run`)
-22. Is every included fragment still load-bearing, or is one residue from a superseded design that now contradicts the body? (Live: `/fabrik-rivals` includes `repo-identity` beside "there is no mode to pick".)
+22. Is every included fragment still load-bearing, or is one residue from a superseded design that now contradicts the body? (The founding example — `/fabrik-rivals` including `repo-identity` beside "there is no mode to pick" — was FIXED before cmd 30/31's re-audit confirmed it gone, 2026-08-29; the class stands.)
 23. Does it inline content that a fragment already owns — a divergent copy that will drift?
 24. If it hand-inlines a fragment's text (the orchestrator docs do), does it carry the version marker so drift is detectable?
 25. Does the `term-*` fragment it chose match its surface? A DIFF surface takes `term-coverage`'s wide/scoped/wide round shape; a journey/inventory surface keeps its discovery-until-dry loop.

@@ -109,7 +109,8 @@ The traps, all of which produce a plausible-looking empty dossier rather than an
 ## Phase 2 — converge: dry discovery + the split audit
 
 ⚠️ **Every convergence round MUST pass `--rediscover`, or the loop is vacuous.** The engine discovers
-ONCE per `job_id` (`orchestrator.py:566` guards it on a persisted `discovery_done`), and the driver
+ONCE per `job_id` (the orchestrator guards on a persisted `discovery_done` flag — find the live guard
+with `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), and the driver
 derives `job_id` deterministically from the market — so a plain re-run cannot surface a new rival **by
 construction**, and condition 1 above would auto-satisfy at round 2. That is not a dry market; it is
 the question never being asked. `--rediscover` re-arms the discovery leg while re-billing no mined
@@ -151,8 +152,9 @@ python scripts/rivals_run.py --market "<market>" [--us-name "<our product>"] \
   --out docs/reference/rivals/<slug>
 ```
 
-`--out <slug>` writes BOTH `<slug>.json` and `<slug>.md` (`rivals_run.py:818`) — pass the path WITHOUT
-an extension. Read the dossier from the written file; do not trade a write for a preview.
+`--out <slug>` writes BOTH `<slug>.json` and `<slug>.md` (the flag's own help says exactly this;
+the writes are the `with_suffix` pair in `rivals_run.py` — grep, don't trust a line number) — pass
+the path WITHOUT an extension. Read the dossier from the written file; do not trade a write for a preview.
 
 Write `docs/reference/rivals/<market>.md` from **`rivals_run.py::render_dossier_md(dossier.to_dict())`**
 — not from `dossier.to_markdown()`. ⚠️ **The reason is a SHAPE mismatch, not a quality gap** (corrected
@@ -211,6 +213,9 @@ Scope lives in the phases above; these are the actions that make a RUN defective
 
 ## Upstream
 
-The engine is vendored, so a copy cannot fix itself. A defect belongs upstream: append a dated note to
-`/opt/fabrik-lib/competitor-intel/UPSTREAM_FEEDBACK.md` (symptom + fix) — or mail fabrik-lib — and
-never silently fork `libs/competitor_intel`. Re-vendor to pick up a fix.
+The engine is vendored, so a copy cannot fix itself. A defect belongs upstream — and the channel is
+**fabrik-mail**: `python scripts/mail.py send --to fabrik-lib --kind upstream-feedback --ack required`
+with the symptom + fix + `path:line` evidence in the body. Never append to fabrik-lib's own
+`UPSTREAM_FEEDBACK.md` yourself — `/opt/fabrik-lib` is another repo, and writing there is the
+cross-repo HARD STOP regardless of how invited the file looks (its owner curates it from mail).
+Never silently fork `libs/competitor_intel`. Re-vendor to pick up a fix.
