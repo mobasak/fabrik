@@ -1108,6 +1108,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         "fabrik-user-test",
         "fabrik-service-test",
         "fab-mega-04-validate",
+        # audit cmd 27/31: the same hole a FOURTH time — its ledger is the deliverable
+        # by contract ("that FILE is the deliverable, not this chat"), yet done was ungated
+        "fabrik-conformance-review",
     ):
         # ARTIFACT-BY-FILESYSTEM, RUN-BOUND (rounds 29+31). Round 29 proved `done` accepted any
         # evidence STRING; the first fix then shipped green-by-accident (its own bundled ledger

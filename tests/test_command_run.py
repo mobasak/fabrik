@@ -1566,11 +1566,13 @@ def _artifact_repo(tmp_path, name="repo"):
 def test_cert_and_mega_done_also_require_their_reports(tmp_path):
     """Round-135 HIGH: the artifact guard covered only fabrik-review/repo-review — a
     fabrik-user-test/service-test/fab-mega-04-validate done closed with NO report ever
-    written, the round-29 hole three commands over."""
+    written, the round-29 hole three commands over. Audit cmd 27/31 (2026-08-29) found it a
+    FOURTH time: /fabrik-conformance-review's ledger is its deliverable by contract ("that
+    FILE is the deliverable, not this chat") yet its done was ungated."""
     import subprocess
 
     script = "/opt/fabrik/scripts/command_run.py"
-    for cmd in ("fabrik-user-test", "fab-mega-04-validate"):
+    for cmd in ("fabrik-user-test", "fab-mega-04-validate", "fabrik-conformance-review"):
         # a fresh repo per command: the 2s mtime grace otherwise lets the previous
         # command's report satisfy the next run in a fast-running test
         env, repo = _artifact_repo(tmp_path, name=cmd)
@@ -2571,16 +2573,28 @@ def test_a_run_advancing_phases_with_zero_rounds_is_noticed(run_dir: Path) -> No
     found only when a round-9 call printed "ROUND 1 recorded". Every round advisory (oscillation,
     terminal verdict) keys on `round`, so an agent that never calls it gets silence and reads
     silence as approval. Their framing: a convergence check depending on a voluntary call from the
-    agent whose judgement it checks is load-bearing on the wrong party."""
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    agent whose judgement it checks is load-bearing on the wrong party.
+
+    The notice is LOOP-SHAPED-ONLY (terminal must speak of rounds/no-op/found:/new:) — a
+    one-shot command with terminal "done when X exists" records no rounds legitimately, so
+    these tests declare a loop-shaped terminal to arm it."""
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "no-op round, new: 0")
     quiet = _cr(run_dir, "step", "--phase", "2", "--title", "early")
     assert "ZERO rounds" not in quiet.stderr, "a normal two-phase run must stay quiet"
     noisy = _cr(run_dir, "step", "--phase", "3", "--title", "later")
     assert "ZERO rounds recorded" in noisy.stderr, noisy.stderr
 
 
-def test_the_zero_rounds_notice_stops_once_a_round_is_recorded(run_dir: Path) -> None:
+def test_the_zero_rounds_notice_is_silent_for_a_non_loop_terminal(run_dir: Path) -> None:
+    """The loop-shaped-only gate itself: a one-shot terminal must never draw the notice,
+    however many phases advance (that silence was the fix's whole point)."""
     _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    out = _cr(run_dir, "step", "--phase", "3", "--title", "later")
+    assert "ZERO rounds" not in out.stderr, out.stderr
+
+
+def test_the_zero_rounds_notice_stops_once_a_round_is_recorded(run_dir: Path) -> None:
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "no-op round, new: 0")
     _cr(run_dir, "round", "--findings", "2", "--classes-swept", "a", "--classes-new", "b")
     out = _cr(run_dir, "step", "--phase", "4", "--title", "after")
     assert "ZERO rounds" not in out.stderr, out.stderr
@@ -2589,7 +2603,7 @@ def test_the_zero_rounds_notice_stops_once_a_round_is_recorded(run_dir: Path) ->
 def test_the_zero_rounds_notice_never_refuses(run_dir: Path) -> None:
     """ADVISORY by design: a one-shot command legitimately records no rounds, and trapping it
     would be worse than the silence it replaces."""
-    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "t")
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "no-op round, new: 0")
     assert _cr(run_dir, "step", "--phase", "3", "--title", "x").returncode == 0
 
 

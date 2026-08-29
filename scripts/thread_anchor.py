@@ -120,6 +120,48 @@ def _age(ts: float) -> str:
     return f"{m}m" if m < 120 else f"{m // 60}h"
 
 
+_TAIL_BYTES = 2 * 1024 * 1024
+
+
+def _final_message_text(transcript_path: str) -> str:
+    """Text of the last assistant entry that HAS text blocks, from the transcript tail.
+
+    Skips textless (tool_use/thinking-only) assistant entries: the harness can fire hooks
+    BEFORE the final text entry is flushed, and at that moment the tail ends in the closing
+    tool_use entry (measured live 2026-08-29 via anchor_harvest telemetry: chars=0 at the
+    turn-final Stop while the 4KB message was on disk minutes later). The last flushed text
+    is the best available message; the prompt-side pass catches what this one misses.
+    """
+    try:
+        with open(transcript_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - _TAIL_BYTES))
+            lines = f.read().decode("utf-8", "replace").splitlines()
+        for line in reversed(lines):
+            if '"type"' not in line:
+                continue
+            try:
+                entry = json.loads(line)
+            except Exception:
+                continue
+            if entry.get("type") != "assistant":
+                continue
+            content = (entry.get("message") or {}).get("content")
+            if not isinstance(content, list):
+                continue
+            text = "\n".join(
+                str(b.get("text") or "")
+                for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
+            ).strip()
+            if text:
+                return text
+        return ""
+    except Exception:
+        return ""
+
+
 def cmd_harvest(session: str, text: str) -> None:
     matches = _NEXT_RE.findall(text)
     if not matches:
@@ -191,9 +233,12 @@ def main(argv: list[str] | None = None) -> int:
         needs_stdin = args.cmd == "harvest" or args.hook
         stdin_text = "" if (not needs_stdin or sys.stdin.isatty()) else sys.stdin.read()
         session = args.session
+        transcript_path = ""
         if args.hook and stdin_text:
             try:
-                session = str(json.loads(stdin_text).get("session_id") or session)
+                payload = json.loads(stdin_text)
+                session = str(payload.get("session_id") or session)
+                transcript_path = str(payload.get("transcript_path") or "")
                 stdin_text = ""
             except Exception:
                 pass
@@ -201,8 +246,17 @@ def main(argv: list[str] | None = None) -> int:
             session = "nosession"
 
         if args.cmd == "harvest":
+            # --hook with nothing piped: extract from the payload's transcript (the help
+            # text promised this from day one; the code now delivers it).
+            if not stdin_text and transcript_path:
+                stdin_text = _final_message_text(transcript_path)
             cmd_harvest(session, stdin_text)
         elif args.cmd == "line":
+            # The race-free second harvest pass: at prompt time the PREVIOUS turn's final
+            # message is always flushed, so this catches whatever the Stop-side harvest
+            # raced past (measured chars=0 at a turn-final Stop, 2026-08-29).
+            if transcript_path:
+                cmd_harvest(session, _final_message_text(transcript_path))
             out = cmd_line(session)
             if out:
                 print(out)

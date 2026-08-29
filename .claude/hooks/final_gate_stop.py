@@ -783,11 +783,17 @@ def _final_message_text(transcript_path: str) -> str:
         content = (entry.get("message") or {}).get("content")
         if not isinstance(content, list):
             continue
-        return "\n".join(
+        text = "\n".join(
             str(b.get("text") or "")
             for b in content
             if isinstance(b, dict) and b.get("type") == "text"
         )
+        # Textless (tool_use/thinking-only) entries are SKIPPED, not returned as "": the
+        # harness can fire Stop before the final text entry is flushed, and at that moment
+        # the tail ends in the closing tool_use entry (anchor_harvest measured chars=0 at a
+        # turn-final Stop, 2026-08-29). The last flushed text is the best available message.
+        if text.strip():
+            return text
     return ""
 
 

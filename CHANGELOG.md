@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 27/31: the harvest's true root cause was a flush race; conformance-review's close was ungated (2026-08-29)
+
+- The `anchor_harvest` telemetry (shipped cmd 25) measured the real defect on its first day: the
+  harness fires Stop before the final text entry is flushed, so the extractor read the closing
+  tool_use entry as an empty message (chars=0 vs 3749 ten minutes apart). Fixed as a class:
+  extractors skip textless assistant entries; `line --hook` now harvests from the payload's
+  transcript (race-free at prompt time); `harvest --hook` finally implements what its help text
+  promised. 3 red-first tests; register suite 16 green.
+- `/fabrik-conformance-review` itself audited CLEAN — every gate-grammar claim verified against
+  the live checker — except its `done` was missing from the closer's artifact-gated list while its
+  contract says the ledger IS the deliverable (round-135 hole, a fourth command over); gated +
+  red-first test. Three zero-rounds-notice tests still pinned the pre-loop-shaped-only contract
+  from earlier today; updated to the current one with a new silence guard (suite 117 green).
+
 ### Fixed — cmd 26/31: rules-review's loop never drove the round ledger; its triggers reached nothing (2026-08-29)
 
 - `/fabrik-rules-review`'s Phase-4 convergence loop (and the shared `run-record` fragment) never
