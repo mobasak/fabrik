@@ -65,6 +65,12 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
             "timeout": 10,
             "statusMessage": "Checking fabrik-mail inbox..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/thread_anchor.py\" line --hook",
+            "timeout": 10,
+            "statusMessage": "Recalling open threads..."
           }
         ]
       }
@@ -77,7 +83,7 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\"",
             "timeout": 120,
-            "statusMessage": "Definition of done — verifying final_gate..."
+            "statusMessage": "Definition of done \u2014 verifying final_gate..."
           }
         ]
       }
@@ -97,6 +103,12 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
             "timeout": 10,
             "statusMessage": "Checking fabrik-mail inbox..."
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/thread_anchor.py\" line --hook",
+            "timeout": 10,
+            "statusMessage": "Recalling open threads..."
           }
         ]
       }

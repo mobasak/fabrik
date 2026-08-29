@@ -43,6 +43,7 @@ CORE_SCRIPTS = [
     # cross-repo hard stop does not govern — that rule is about create/edit/COMMIT). Keys already
     # reach every project via the synced libs/subagents autoloader, so nothing else is needed.
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
+    "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
 ]
 
 # Scripts RETIRED from CORE_SCRIPTS — the sync DELETES these from every project copy.

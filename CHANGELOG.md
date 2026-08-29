@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — thread anchors: NEXT: is now durable, multi-slot, and read back every prompt (2026-08-29)
+
+Operator, same day: agents forget where they left off; questions wipe the current task/plan/epic.
+Measured on this session before building: **905 `NEXT:` lines emitted, 0 ever read back**, and the
+corpus-audit thread — carried in 85 consecutive `NEXT:` lines — vanished on one operator question.
+
+- **`scripts/thread_anchor.py`** (new, fleet-synced via CORE_SCRIPTS): `harvest` extracts the final
+  `NEXT:`; long-running shapes (`N of M`, plan/epic/cert paths, `phase X`) become ANCHORS keyed with
+  digits masked so "15 of 31" updates "14 of 31" instead of stacking; `line` prints ≤4 open anchors
+  (+ latest NEXT), silent when empty; `done --match` closes one — including its latest-NEXT echo,
+  a real bug the suite's own red caught.
+- **Wired without new discipline:** `final_gate_stop.py` harvests best-effort at Stop (5s cap,
+  skips unsynced projects); `SessionStart` + `UserPromptSubmit` inject via the proven
+  `mail_notify.py` pattern. Forgetting becomes structurally impossible; *ignoring* stays owned by
+  the Stop hook's stall rules (92998479) — the two close the loop from opposite sides.
+- 10 behavior tests, watched-fail-first (10/10 red before the module existed); the first test IS
+  the founding defect replayed. Anchor #1 registered live: "corpus audit — command 14 of 31".
+- **Item-10 sweep, negative result stated plainly:** the same duplicate detectors run across all
+  42 project repos found NO blind-append damage — every hit is legitimate per-item structure (the
+  two synced hub packs x42, per-table contract headers, a per-idea brainstorm template). The
+  READ-BEFORE-YOU-EDIT rule stays (it governs method and exact-match cannot see reworded
+  restatement), but no existing damage was found anywhere.
+
 ### Fixed — the Stop hook was REWARDING the deferral it forbids (2026-08-29)
 
 Operator, third time raised: agents park work as "operator decision" when the answer is already in
