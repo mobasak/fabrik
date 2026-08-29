@@ -21,9 +21,8 @@ except ImportError:  # direct invocation (`python scripts/enforcement/check_plan
     # parent package — fall back to the sibling import so both call forms work, like every
     # other check in this dir (youtube 01M15AYX5: the raw traceback read as "unrunnable").
     import sys as _sys
-    from pathlib import Path as _P
 
-    _sys.path.insert(0, str(_P(__file__).resolve().parent))
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
     from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 # Check project's own plans directory
