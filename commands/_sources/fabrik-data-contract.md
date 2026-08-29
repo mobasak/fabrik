@@ -67,7 +67,15 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
   (These are ISO/RFC standards, not academic papers — the `fabrik-citation-verifier` MCP does not apply here.)
 - **Reality → fields (Mode B / reconcile always):** parse the live sources at `path:line` —
   `CREATE TABLE`s in `db/schema.sql`, ORM models, Pydantic request models, and the frontend form/Zod fields —
-  and record the **actual** GUI field name and DB column name for each. **If the project has no
+  and record the **actual** GUI field name and DB column name for each. **When enumerating a live Postgres,
+  the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented
+  method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a
+  live production bug):** (1) enumerate **ALL non-system schemas** via `information_schema.schemata` first —
+  never assume `public`; (2) cross-check the table + FK counts via **`pg_class`/`pg_constraint` directly**
+  (privilege-agnostic) — `information_schema` respects SELECT privilege and **silently hides every table the
+  connecting role has no GRANT on** (`pg_class.relacl IS NULL` ⇒ invisible), so its count is "visible to this
+  role in N", never "exists". A count mismatch between the two sources is itself a finding: it names tables
+  the app's own role cannot touch. **If the project has no
   request-validation layer** (common for older APIs that pass `req.body` straight to the DB — no Pydantic/Zod
   body schemas), say so explicitly and collapse the triangle to **GUI ↔ DB (validation is DB-constraint-only)**;
   do not invent a validation layer that isn't there — flag its absence as a reconciliation note.
