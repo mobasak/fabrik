@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the three constitutions cross-reconciled: best-of-all-worlds, seventh universal anchor (2026-08-29)
+
+- Operator-directed three-way review of hub CLAUDE.md, templates/governance/CLAUDE.md, and
+  /opt/fabrik-lib/CLAUDE.md (cross-repo edit operator-approved). Imported fabrik-lib's hard-earned
+  rules fleet-wide: the DENOMINATOR law is now universal anchor #7 (`A bounded search returns "not
+  found in N"` — their four wrong numbers + our trade-intelligence quantifier escape are one class),
+  plus "Read it, don't recall it", the contract-change MIRROR rule, review-before-reply on
+  mail-driven changes, and the trailer parse-verify one-liner. Fixed stale halves: the template's
+  five-anchor list (hub had six), the hub's § UNIVERSAL procedure (the lib checker parses the hub
+  list now — no per-repo script edits), and six fabrik-lib reference-copy rots (missing
+  /opt/fabrik-mail HARD-STOP exception their own mail lane needs, the Kilo-era backlog row, 11-vs-12
+  scaffolds, "wordpress deploy-only", the pre-plan-set .md allowlist, a CHANGELOG contradiction with
+  their own FINAL OUTPUT block). 7×3 anchor matrix green; their drift checker exit 0; loss-check:
+  every removed line was the stale half of an in-place replacement.
+
 ### Fixed — convergence measured method-stability, not truth; and the feedback duty had a classifier hole (2026-08-29)
 
 - trade-intelligence's plan carried two false claims (one in its own Evidence table) through TWO

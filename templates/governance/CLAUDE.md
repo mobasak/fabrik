@@ -80,6 +80,16 @@ what makes an in-flight command visible and un-abandonable.
   deliverable: a prerequisite discovered mid-run is fixed minimally (or BLOCKED as a pre-start finding) and
   you **RETURN to the invoked command in the same run** — delivering a different command's output is
   answering the wrong question, however good the commits look.
+- **Read it, don't recall it.** Before asserting what a script, glob, schema or config DOES, open the
+  code path — the symptom you observed can be real while your mechanism is invented (a filed upstream
+  claim that `select_rules.py` "fails open without project.yaml" crossed a repo boundary before anyone
+  read the line showing it splits purely on glob match). Sibling of READ BEFORE YOU EDIT (writing) and
+  the proxy ban (completion claims): this one governs plain assertions.
+- **Every contract change has a MIRROR — name the shape you just broke.** Changing an interface to fit
+  one caller enumerates the shapes that now FAIL: a keyword-only fix breaks positional-only, a widened
+  type breaks the narrow consumer, a relaxed validator breaks whoever relied on rejection, a new default
+  breaks whoever passed nothing on purpose. A fix with no stated cost is a fix whose cost you did not
+  look for — on a synced or vendored surface that cost lands fleet-wide before anyone notices.
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — what you filed and to whom, or `none` plus the surfaces you exercised. Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not.
 - **Conflict resolution:** rule pack > ticket (for *how* to write). `spec.shape` is canonical for *what* the code must match — orthogonal axis, never up for negotiation. Surface any conflict before proceeding.
@@ -134,7 +144,7 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
 
 ## Completion Contract
 1. **IMPLEMENT** — Stay within ticket Scope; adjacent fixes in same files OK. No hardcoded secrets/localhost (`os.getenv("KEY","default")`), no silent failures. **Behavior Contract:** cover every distinct user-observable behavior / acceptance criterion with a test (one per behavior, risk-ordered, TDD for the risky ones); skip trivia (getters / framework glue / config) — lean-but-complete, NOT 100%-coverage dogma (skip docs-only). **Watched-fail-first** (for tests THIS change adds or modifies): a non-trivial behavior's test must be SEEN RED — either written first and watched fail, or proven red-on-revert after the fact (neuter the change, watch the test fail, then RESTORE and re-run to green; the neutered state is never staged, committed, or left in the tree) — "it passes" is not evidence the test tests anything.
-1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your own diff for bugs, unhandled edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until the gate is green AND a fresh review surfaces nothing new. **EVERY code-changing chunk of work gets a review-family pass, sized to the surface** (operator directive 2026-08-29): spontaneous/plain-chat changes → `/fabrik-review-scoped` (diff-scoped, same convergence spine, minutes — the Stop hook BLOCKS a record-less code-editing session until one runs); heavy surfaces (new mechanism, gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, or anything an operator asked for by name) → the full `/fabrik-review`. Either way: FIX what it finds in the same run — a review that files its findings as someone else's problem has not reviewed.
+1a. **SELF-REVIEW (iterate to a fixed point)** — Don't ship first-draft code. Re-read your own diff for bugs, unhandled edge cases, and deviations from the plan (if any) and the applicable `.windsurf/rules`; fix; re-run the gate. Repeat until the gate is green AND a fresh review surfaces nothing new. **EVERY code-changing chunk of work gets a review-family pass, sized to the surface** (operator directive 2026-08-29): spontaneous/plain-chat changes → `/fabrik-review-scoped` (diff-scoped, same convergence spine, minutes — the Stop hook BLOCKS a record-less code-editing session until one runs); heavy surfaces (new mechanism, gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, or anything an operator asked for by name) → the full `/fabrik-review`. Either way: FIX what it finds in the same run — a review that files its findings as someone else's problem has not reviewed. **And when the change was mail-driven, the review comes BEFORE the reply** — a reply is a claim to another repo about a state you must already have checked (the reply FEELS like the finish line; a post-reply review has immediately found the mirror defect in the fix and forced an addendum).
 2. **GATE** — Run ticket's `Final Gate Instruction` (`scripts/final_gate.py`); fix to `status:"success"`. Flags: **`--json` (std — the FULL Tier‑2 gate: mypy + bandit + semgrep + schema/plan/docs checks)** · `--lean --json` (quick Tier‑1 subset, for fast self-review DURING iteration only — not the completion gate) · `--systemic --json` (Tier‑3 repo-health only: docker/ports/docs-sprawl/deps — NARROWER than Tier‑2, never a completion gate). Add **`--check`** for a READ-ONLY run that never mutates the tree; a bare run auto-fixes + auto-stages **only the files your change touched** (never a whole-tree sweep — the gate scopes every fixer + `ruff` to the diff, incl. your committed-but-unpushed commits). Full tier/mode + per-check reference: `/opt/fabrik/docs/workflows/FINAL_GATE_WORKFLOW.md` (fabrik-upstream; not synced to projects).
 3. **CHANGELOG** — One entry under `## [Unreleased]`: `### Added|Changed|Fixed — Title (YYYY-MM-DD)`. Gate-enforced.
 4. **LESSONS LEARNT** — Ticket field = `none` OR entry in `docs/LESSONS_LEARNT.md`. Silence = failure.
@@ -169,6 +179,7 @@ Skip: stdlib, syntax, Fabrik conventions.
 | destructive script on prod data w/o dry-run | dry-run first, show diff |
 | credentials change w/o backup + diff approval | `cp <f> backups/<f>.backup.$(date +%Y%m%d-%H%M%S)` first |
 | edit a **Fabrik-synced** file (canonical list: `/opt/fabrik/scripts/fabrik_synced_manifest.py` — the `.gitignore` "Fabrik-synced" block is generated from it) | these are centrally distributed from `/opt/fabrik` and **overwritten on every sync** (gate-enforced by `scripts/enforcement/check_synced_unmodified.py`). Never edit locally. If the change is correct for **ALL** projects, make it in `/opt/fabrik/<path>` + re-sync; otherwise propose it upstream — don't fork it here |
+| state a COUNT, a RATIO or a NEGATIVE without its DENOMINATOR | **A bounded search returns "not found in N", never "does not exist".** Originated at fabrik-lib (four wrong numbers in two days: an `awk` range swept past its section → "56 of 56" when the header said 32 · `git log -30` on a 79-commit file → "we edited it" · a regex demanding one literal phrase → "9 of 68" when it was 45 · a lock seeded from a partial list → "0 unexplained" with 35 files out of scope) and re-proven fleet-side 2026-08-29 ("the only beats are X and Y" survived TWO converged reviews; there were seven). When a query bounds itself (`-N`, `head`, a range, a hand-picked path list), state the bound and compare it to the population before believing a negative; if the tool prints a total, READ THE TOTAL. A "0 findings" claim must also say how many subjects it examined. |
 | report a thing WORKS from a PROXY when the real check is executable | **EXECUTE the real check.** Reading, grepping, structural comparison and "it looks right" are NAVIGATION, never EVIDENCE. If the artifact you produced is consumed by a gate, produce it and RUN THAT GATE on it *before* you report — not after the operator pushes back. Cheap tools are fine for finding things; they are banned as the basis of a completion claim whenever an executable check of the real thing exists. **A question asked TWICE is evidence your METHOD is wrong, not the detail** — change the method, do not re-run the same check harder. (Live 2026-08-23: four "yes, it matches" answers from static comparison of a new command; then ONE run of `check_review_coverage.py` against the ledger that command emits found FIVE defects in ninety seconds — including a rubric line the gate strips before reading. The executable check was available from the first minute.) |
 | claim "converged"/"reviewed"/"in-sync"/"100%"/"zero unknowns" without embedded proof + the matching gate green | **PLAN** → `## Evidence` per Phase (≥1 `path:line` AND ≥1 fenced command-output block) + a `## Self-audit`; set `Status: CONVERGED` only after `final_gate.py --check`. **CODE REVIEW** → `docs/development/reviews/<plan>-review.md` embedding the verbatim `final_gate.py --json` `"status":"success"` + a per-Phase verdict. **DOCS** → `docs_updater.py --check` green + a per-file claim→proof line. A column *name* ≠ its values (read them); subagent summaries ≠ proof. `scripts/enforcement/check_convergence.py` fails the gate otherwise. Prompt templates: `docs/reference/convergence-prompts.md` |
 
@@ -221,7 +232,7 @@ Agent-Role: primary
 Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
-Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
+**Verify after committing:** `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` — empty output means the block did not parse. Query: `git log --grep='Agent-Role: subagent'` · `git log --format='%h %(trailers:key=Conflicts-Resolved)'`. Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From` (see the execute-plan skill).
 
 ## UNIVERSAL governance markers (the drift contract)
 
@@ -229,9 +240,10 @@ These rules are **universal** — every repo carries them, hub and project alike
 enforced automatically: your `CLAUDE.md` is byte-synced from the hub template and `check_synced_unmodified.py`
 blocks any local drift, so you cannot fall behind. (A *sync-excluded* repo like `fabrik-lib`, which
 hand-maintains its governance, instead runs `check_governance_drift.py` against the hub's
-`/opt/fabrik/CLAUDE.md`.) The five, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** ·
-**explicit pathspecs only** · **Agent Provenance Trailers** · **NEVER `--force`**. Never reword an anchor in
-place — drift detectors key on the exact substring.
+`/opt/fabrik/CLAUDE.md`.) The seven, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** ·
+**explicit pathspecs only** · **Agent Provenance Trailers** · **NEVER `--force`** · **EXECUTE the real
+check** · **A bounded search returns "not found in N"**. Never reword an anchor in place — drift
+detectors key on the exact substring.
 
 ## Past sessions are searchable (session-recall)
 
