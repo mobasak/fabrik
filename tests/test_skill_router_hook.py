@@ -1224,3 +1224,20 @@ def test_the_inflected_turkish_workflow_artifact_phrase_routes(  # audit cmd 28/
     required the bare nominative and the accusative suffix broke the boundary."""
     assert hook.first_regex_match("bu workflow çıktısını sağlamlaştır") == "workflow-review"
     assert hook.first_regex_match("the workflow failed on step 3") is None
+
+
+def test_all_advertised_upstream_phrases_route(  # audit cmd 29/31
+) -> None:
+    """The description says 'fires bare-prose, no slash needed' — 4 of 5 advertised phrases
+    (1 EN + 3 TR) reached nothing, which made that claim fiction."""
+    assert hook.first_regex_match("file this upstream") == "upstream"
+    assert hook.first_regex_match("apply the upstream proposal from transdoc") == "upstream"
+    assert hook.first_regex_match("bunu üst akışa bildir") == "upstream"
+    assert hook.first_regex_match("bu dosya fabrik'ten geliyor, düzeltemiyorum") == "upstream"
+    assert hook.first_regex_match("projeden gelen öneriyi uygula") == "upstream"
+
+
+def test_git_upstream_chatter_does_not_route() -> None:
+    assert hook.first_regex_match("the upstream branch diverged") is None
+    assert hook.first_regex_match("pull from upstream") is None
+    assert hook.first_regex_match("merge upstream changes into master") is None

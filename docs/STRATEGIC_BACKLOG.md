@@ -148,3 +148,14 @@ runs a FAST curated subset at the gate (seconds, network/integration tests exclu
 suite; (c) OR a scheduled nightly full run that alerts on new failures (the ci-health-probe pattern) without
 gating interactive work. Same reasoning for `iterative_image_editor` (separate repo — its owner adds its marker).
 Do NOT flip the marker until (a) is done. Blocked by: a quiet-tree window for the triage + the subset design.
+
+## [infra] Gate pytest leg — project-declared environment/command (transdoc 01M171R8, 2026-08-29)
+
+The gate now runs the suite under the RIGHT interpreter (the ruff-coupling fix, cmd-29 audit turn) and
+names an exit-4 refusal distinctly (`pytest (SUITE REFUSED — usage error)`), but a project whose suite
+NEEDS environment (`TEST_DATABASE_URL`) still cannot pass the leg — transdoc's conftest deliberately
+refuses rather than skip-to-green. Their ranked ask: honour a project-declared env/command (e.g.
+`.fabrik/pytest-env` or `[tool.fabrik.gate]`) so such repos supply what their suite needs instead of
+carrying a permanent named red. **Measured need: 1 repo** (transdoc; every other marker-armed repo
+passes env-free) — below the build threshold; revisit when a second repo hits it or transdoc asks
+again. Blocked by: nothing — deliberately deferred at n=1.

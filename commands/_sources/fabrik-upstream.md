@@ -42,9 +42,9 @@ proposal has a recomputed evidence table, a `## Severity` blast-radius section, 
 prose-and-table replacement rather than a fenced diff (a conjunctive numbered list of four required changes,
 not ranked options — the only genuinely ranked exemplar is #3); the check-structure exemplar is the one carrying the
 fenced verbatim patches and the `## Impact if not fixed` heading — don't swap the two when citing them). It
-also carries its own annotated row in `INDEX.md` (trade-intelligence's own `INDEX.md:225-227` shows the
-shape — a one-line what/why/impact summary, plus a status marker once a hub reply lands, e.g. `HAND-OFF to
-/opt/fabrik (LANDED e50f3d3d)`) and a matching row in `docs/README.md`'s docs index — the ordinary Doc Sync
+also carries its own annotated row in `INDEX.md` (trade-intelligence's rows show the shape — find them live
+with `grep -n 'HAND-OFF to /opt/fabrik' /opt/trade-intelligence/INDEX.md`, a one-line what/why/impact
+summary plus a status marker once a hub reply lands, e.g. `HAND-OFF to /opt/fabrik (LANDED e50f3d3d)`) and a matching row in `docs/README.md`'s docs index — the ordinary Doc Sync
 Matrix obligation for a new file under `docs/reference/**/*.md`, not an exemption. And the three files (the
 proposal, the `INDEX.md` row, the `docs/README.md` row) are **staged first**, THEN the project's own gate ran
 green THIS run against that staged tree: `python scripts/final_gate.py --check --json` — `--check` never
@@ -138,8 +138,9 @@ Fill a self-check table before calling this done — one row per property, each 
 
 Any `no` means the proposal is not done — fix it, never ship partial. Then close the Doc Sync Matrix
 obligation CLAUDE.md already requires for a new file under `docs/reference/`: add the proposal's own
-annotated row to `INDEX.md` (the trade-intelligence style, `INDEX.md:225-227` — `HAND-OFF to /opt/fabrik
-(...)` naming what/why/impact in one line, with a status marker once the hub replies: `LANDED <sha>` /
+annotated row to `INDEX.md` (the trade-intelligence style — `grep -n 'HAND-OFF to /opt/fabrik'
+/opt/trade-intelligence/INDEX.md` shows live examples — `HAND-OFF to /opt/fabrik (...)` naming
+what/why/impact in one line, with a status marker once the hub replies: `LANDED <sha>` /
 `deferred` / `refuted`) and a matching row in `docs/README.md`'s docs index (the per-file `| [Title](path) |
 one-line description |` table every project's docs index carries). Then, in this order: **stage** the three
 touched files FIRST — the proposal, the `INDEX.md` row, the `docs/README.md` row (explicit pathspecs, e.g.

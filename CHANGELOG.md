@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 29/31: the gate ran the suite under whichever interpreter had ruff; upstream's bare-prose claim was 4/5 fiction (2026-08-29)
+
+- transdoc 01M171R8 landed via a live HUB-mode `/fabrik-upstream` run: `PYTHON` no longer requires
+  `.venv/bin/ruff` to select the venv (the suite ran under `sys.executable` on every global-ruff
+  box — collected, then died or half-passed on app imports); `RUFF` resolves separately (venv →
+  PATH) and the three ruff legs invoke the binary; the toolchain probe follows. Exit-4 refusals now
+  report `pytest (SUITE REFUSED — usage error)` with the remedy inline instead of a plain red.
+  Fleet blast radius measured pre-landing: 3 repos (transdoc fixed; candle/proxy correctly go
+  SETUP-loud). Red-first proven against the HEAD blob; the refusal branch proven through the real
+  gate on a refusing fixture. Their project-declared-env ask is a measured backlog row (n=1).
+- `/fabrik-upstream`'s audit: 4 of 5 advertised trigger phrases (incl. all three TR) reached
+  nothing while the description claims "fires bare-prose, no slash needed" — stem widened with a
+  9-phrase collision matrix (git-upstream chatter still misses); the drifted
+  `INDEX.md:225-227` exemplar cites (now :294-298 and still moving) replaced with live-grep
+  recipes. Router suite 164.
+
 ### Fixed — cmd 28/31: workflow-review carried a phantom type and taught the orphan recipe (2026-08-29)
 
 - `epic-brief` named an artifact no ettw doer produces; the real 01 artifact (decisions lock) has

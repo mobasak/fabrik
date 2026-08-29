@@ -633,7 +633,15 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(
             r"\b(propose|file|send|submit|push)\b(?!\s+from\b)(\s+\w+){0,3}\s+upstream\b"
-            r"|\bupstream\s+(this|it|that)\b",
+            r"|\bupstream\s+(this|it|that)\b"
+            # audit cmd 29/31: the description advertises bare-prose firing, but 4 of 5
+            # advertised phrases (1 EN + 3 TR) reached nothing. Each added form matches the
+            # advertised phrasing tightly — "upstream proposal" as a noun (HUB mode's ask),
+            # and the three TR idioms — so ordinary "upstream" chatter still misses.
+            r"|\bupstream\s+proposal\w*\b"
+            r"|\b[üu]st\s+ak[ıi][şs]a\s+bildir\w*"
+            r"|\bfabrik'?ten\s+geliyor\b"
+            r"|\bprojeden\s+gelen\s+[öo]neri\w*",
             re.I,
         ),
         "upstream",

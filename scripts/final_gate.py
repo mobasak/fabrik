@@ -42,6 +42,7 @@ import contextlib
 import io
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -68,8 +69,15 @@ _KAIZEN_PROBE_TIMEOUT_S = 2.0
 PROJECT_ROOT = Path.cwd()  # Use current working directory, not script location
 VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python"
 VENV_RUFF = PROJECT_ROOT / ".venv" / "bin" / "ruff"
-# Use venv python only if it has the required tools (ruff) installed
-PYTHON = str(VENV_PYTHON) if (VENV_PYTHON.exists() and VENV_RUFF.exists()) else sys.executable
+# The venv owns the APPLICATION's dependencies; where ruff happens to be installed says
+# nothing about that. Coupling the two ran the whole test suite under sys.executable on
+# every box with a global-only ruff — collected fine, then died (or half-passed) on app
+# imports the fallback interpreter never had, and a suite that cannot import the app is
+# not a gate (transdoc 01M171R8, reproduced on pristine HEAD; fleet blast radius measured
+# at 3 repos before landing). ruff is resolved SEPARATELY, venv first then PATH, and the
+# ruff legs invoke the binary — never `PYTHON -m ruff`.
+PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
+RUFF = str(VENV_RUFF) if VENV_RUFF.exists() else (shutil.which("ruff") or "ruff")
 
 
 # The tools the gate SHELLS OUT to with the selected interpreter. A module constant
@@ -92,14 +100,17 @@ def _toolchain_missing(python: str) -> str:
     missing" — otherwise an agent learns to prefer whichever invocation passes,
     which is the single worst thing a completion gate can teach. Probe the chosen
     interpreter for the tools we are about to run and say SETUP out loud instead.
+
+    Since the interpreter/ruff decoupling (transdoc 01M171R8): ruff is probed as the
+    RESOLVED BINARY (`RUFF --version`), because it legitimately lives outside the venv
+    now; only pytest must import under the interpreter that runs the suite.
     """
     import subprocess as _sp
 
+    probes = {"ruff": [RUFF, "--version"], "pytest": [python, "-c", "import pytest"]}
     for mod in REQUIRED_TOOLS:
         try:
-            r = _sp.run(
-                [python, "-c", f"import {mod}"], capture_output=True, timeout=30, check=False
-            )
+            r = _sp.run(probes[mod], capture_output=True, timeout=30, check=False)
         except (OSError, _sp.SubprocessError):
             return mod
         if r.returncode != 0:
@@ -512,13 +523,13 @@ def run_formatting_fixes(
     # Ruff format + fix — changed .py only; skip entirely when none changed.
     if ruff_py:
         code, out = run_cmd(
-            [PYTHON, "-m", "ruff", "format", *ruff_py],
+            [RUFF, "format", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         results.append(("ruff-format", code == 0, out if code != 0 else ""))
 
         code, out = run_cmd(
-            [PYTHON, "-m", "ruff", "check", "--fix", *ruff_py],
+            [RUFF, "check", "--fix", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         # returncode 0 = clean, 1 = issues found (some fixed), other = error
@@ -702,7 +713,7 @@ def run_static_checks(
     ruff_py = _changed_python(changed)
     if ruff_py:
         code, out = run_cmd(
-            [PYTHON, "-m", "ruff", "check", *ruff_py],
+            [RUFF, "check", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         results.append(("ruff", code == 0, out if code != 0 else ""))
@@ -890,6 +901,19 @@ def run_static_checks(
         elif code == 5:  # pytest exit 5 = no tests collected
             results.append(
                 ("pytest (NO TESTS COLLECTED)", True, "pytest ran and collected 0 tests")
+            )
+        elif code == 4:  # pytest exit 4 = UsageError: the suite REFUSED to run
+            # Neither a pass nor a test failure — a plain red here sends the next agent
+            # hunting for a broken test that does not exist (transdoc 01M171R8: their
+            # conftest deliberately refuses without TEST_DATABASE_URL). Red, but named.
+            results.append(
+                (
+                    "pytest (SUITE REFUSED — usage error)",
+                    False,
+                    "exit 4: the suite refused to run (conftest/usage error, not a failing "
+                    "test). The refusal message names the remedy:\n"
+                    + "\n".join(out.splitlines()[-15:]),
+                )
             )
         else:
             tail = "\n".join(out.splitlines()[-30:])
