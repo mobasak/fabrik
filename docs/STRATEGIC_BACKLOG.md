@@ -177,3 +177,14 @@ against HEAD (measured first: post-commit passes NO file list, so a naive stage 
 disables the sync). It can no longer abort a commit and has no stash window; a sync failure prints
 loudly with the manual re-run command. Residual: the `.windsurf/rules/ai/**` renders' missing
 committer stays intel's engine-side item.
+
+## [infra] kaizen coroner books headless claude -p workers as died-silent sessions (2026-08-30)
+
+The digest's first compose flagged hole_count 10→105→116→336; re-derivation by project matched 336
+exactly and named the driver: 315 of 336 are HEADLESS `claude -p` sessions from the rivals driver's
+neutral-cwd invocations (youtube 149, fabrik-lib 117, -tmp 49) — by-design one-shots that never
+emit stop_pass, booked by kaizen_coroner.holes() as silent deaths. Fix direction: the coroner
+classifies known-headless session shapes (neutral-cwd project names, -p transcripts) as their own
+class instead of holes — the metric then measures what it names. Also noted: stop_block_causes
+unpushed=970 dwarfs all others; partly the push law working, partly tonight's transient
+github DNS/SSH resets forcing retry loops — watch, don't build.

@@ -1,0 +1,58 @@
+"""The review-side twin of the re-derivation flip gate (tryton-crm 01M17KHT, direction 3).
+
+The plan-side gate landed first (check_convergence refuses a CONVERGED flip without a
+`method: re-derivation` ledger row); this is the same requirement on CHANGED review
+artifacts — scoped by construction to new/edited reports, so zero legacy reds on landing
+(the deferral's fire-rate concern, measured away: the checker never re-grades unchanged
+files)."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+_spec = importlib.util.spec_from_file_location(
+    "crc_probe", REPO / "scripts" / "enforcement" / "check_review_coverage.py"
+)
+crc = importlib.util.module_from_spec(_spec)
+sys.modules["crc_probe"] = crc
+_spec.loader.exec_module(crc)
+
+
+def _run(text: str) -> list[str]:
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as td:
+        f = Path(td) / "2026-08-30-x-review.md"
+        f.write_text(text, encoding="utf-8")
+        return crc.check_file(f)
+
+_BASE = (
+    "# R\n**Status:** CONVERGED\n**Surface:** abc\n\n"
+    "Rubric: ran `python scripts/review_rubric.py --changed x.py` this pass.\n\n"
+    "## Coverage Checklist\n\n| # | Class | Verdict | Evidence |\n|---|---|---|---|\n"
+    "| 1 | fail-open/fail-closed | CLEAN | hunted x.py guards |\n"
+    "| 2 | cost/quota accounting | CLEAN | limits in x.py:3 |\n"
+    "| 3 | boundary/sentinel/prefix | CLEAN | prefixes in x.py:9 |\n"
+    "| 4 | behavior-without-a-test | CLEAN | tests/test_x.py |\n\n"
+    "## Pass Ledger\n\n"
+)
+
+
+def test_a_review_without_a_rederivation_row_fails():
+    text = _BASE + (
+        "- Pass 1 (WIDE) — method: citation — found: 1, fixed: 1\n"
+        "- Pass 2 (CLOSING) — method: citation — found: 0, fixed: 0\n"
+    )
+    errs = _run(text)
+    assert any("re-deriv" in e for e in errs), errs
+
+
+def test_a_review_with_the_row_passes_that_rule():
+    text = _BASE + (
+        "- Pass 1 (WIDE) — method: citation — found: 1, fixed: 1\n"
+        "- Pass 2 (CLOSING) — method: re-derivation — found: 0, fixed: 0\n"
+    )
+    errs = _run(text)
+    assert not any("re-deriv" in e for e in errs), errs

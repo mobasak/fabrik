@@ -234,6 +234,8 @@ IN_PROGRESS = re.compile(r"^\**Status:\**\s*IN-PROGRESS\b", re.M | re.I)
 PASS2 = re.compile(r"\bPass\s*2\b")
 RUBRIC_RUN = re.compile(r"review_rubric\.py")
 _PATHISH = re.compile(r"[\w-]+[./][\w./-]+")
+# Twin of check_convergence._REDERIVATION_ROW — keep in lockstep (see the check below).
+_REDERIVATION_ROW = re.compile(r"\b(?:pass|round)\b[^\n]{0,160}\bre-?deriv", re.I)
 
 
 def _in_progress(text: str) -> bool:
@@ -371,6 +373,19 @@ def check_file(p: Path) -> list[str]:
             "its confirming round) — but if you DID run it, this is a FORMATTING rule, not a "
             "missing round: rows must be labelled `| Pass 2 |`, not a bare `| 2 |`. Relabel the "
             "cell; never add a round you did not run to satisfy a parser"
+        )
+    # Review-side twin of check_convergence's re-derivation flip gate (tryton-crm 01M17KHT:
+    # eleven citation rounds indistinguishable from a loop that re-derived; six defects
+    # survived a CONVERGED stamp). Scoped to CHANGED review artifacts by this checker's own
+    # construction, so zero legacy reds on landing — the deferral's fire-rate concern,
+    # measured away. Keep the regex in lockstep with check_convergence._REDERIVATION_ROW
+    # (a one-line twin; a shared import would invert that module's existing one-way dep).
+    if not _REDERIVATION_ROW.search(text_s):
+        errs.append(
+            "no re-derivation ledger row — the CLOSING pass must RE-DERIVE every count/"
+            "enumeration/anchor from its primary source and the ledger must say so (a Pass/"
+            "Round row naming `method: re-derivation`); citation rounds alone are "
+            "method-stability, not truth"
         )
     rows = _table_rows(section)
     if not rows:

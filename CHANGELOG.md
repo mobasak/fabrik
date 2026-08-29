@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review-side re-derivation gate lands (direction 3 complete); the digest's first anomaly diagnosed (2026-08-30)
+
+- check_review_coverage now fails any CHANGED review artifact lacking a `method: re-derivation`
+  ledger row — the twin of the plan-side flip gate, red-first, zero legacy reds by the checker's
+  own changed-only scoping (the deferral's fire-rate concern re-measured and dissolved). Both
+  graders now named in term-edit. And the digest's day-one anomaly (hole_count ↑220) re-derived to
+  exactly 336 and attributed: 315 are headless rivals-driver `claude -p` workers the coroner books
+  as silent deaths — a metric-semantics backlog row, not a health incident.
+
 ### Added — the kaizen daily digest: the reader half the pipeline never had (2026-08-30)
 
 - Operator challenge answered with receipts: the sensor+collector were healthy (37k events, daily

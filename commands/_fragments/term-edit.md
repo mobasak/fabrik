@@ -11,8 +11,8 @@ week apart: trade-intelligence (two false claims through TWO no-op stamps) and t
 defects through ELEVEN rounds — the sentence prescribing this pass was IN the command and applied
 in zero rounds, because nothing detected its absence). So the **Pass Ledger carries a `method`
 column** (`citation` | `re-derivation` | `gate`), the exit requires **at least one
-`re-derivation` row**, and for a PLAN flipping to CONVERGED `check_convergence.py` REFUSES the flip
-without one — the form is machine-checked; running the pass honestly is what the token attests.
+`re-derivation` row**, and BOTH graders now demand it: `check_convergence.py` REFUSES a plan's CONVERGED
+flip without one, and `check_review_coverage.py` fails any changed review artifact lacking one — the form is machine-checked; running the pass honestly is what the token attests.
 Convergence under one method is method-stability, not truth. **Minimum two passes, ALWAYS** — even an edit-free pass 1 must be confirmed by an independent pass 2; accuracy outranks pass-count.
 
 Anti-cheat (mechanical, not vibes): record the {{ARTIFACT}}'s `md5sum` at the **start and end of the final pass**. Identical hash = a real no-op → {{DONE_WORD}}. Different hash = you edited → run another pass. A no-op asserted without matching hashes does not count.{{EXEMPT_NOTE}}
