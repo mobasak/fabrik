@@ -115,3 +115,29 @@ but never sets the env that ENABLES Zitadel metrics, so the Prometheus scrape ta
 `ZITADEL_METRICS_TYPE: otel`". FIX: ground the correct Zitadel v4 metrics-enable env, add it to the spec,
 re-apply (`fabrik apply` re-syncs env), confirm `/debug/metrics`=200 + the Prometheus target flips to `up`;
 correct the reference doc's default claim. The IdP itself is fully live + functional — this is monitoring polish.
+
+## [infra] Measure the hub's own test suite — the self-exclusion has let it rot (revisited 2026-08-29)
+
+**Revisit requested by the operator** (3 stale-test findings traced to it). Grounded this session:
+`final_gate.py:842 _ci_runs_pytest()` runs a repo's suite only on a `.fabrik/run-pytest` marker OR a
+CI-workflow pytest mention. **fabrik has neither + 225 test files**, so its suite never runs at the gate —
+"unmeasured." The exclusion was "measured and REJECTED for now" (`final_gate.py:855`) to avoid reding the
+gate with stale suites on landing day.
+
+**Empirical result of running it (2026-08-29): 25 failed, 4964 passed, 5 skipped in 1h20m01s.** Two
+independent reasons a naive `.fabrik/run-pytest` marker is WRONG: (1) it would red every session's gate
+with the 25 failures; (2) an 80-min suite cannot run on every gate touching src/tests/scripts even all-green.
+
+**The 25 are overwhelmingly STALE TESTS (code evolved, tests didn't) — the exact rot the exclusion hid:**
+`test_shape_phase_4k` (Shape gained `has_bearer_api`/`needs_payments_ingest`/`uses_claude_cli`/`claude_cli_home`);
+`test_state::test_save_writes_all_8_fields` (state now writes a 9th field `target_vps`); plus contract-drift in
+gate-canaries, session-orient-hook (×4), kaizen (×3), final-gate-symlinks (×5), scaffold, mail-addressing,
+file-worker-logger, select-rules (this one reads sibling-dirty `.windsurf/rules` + `libs/subagents/select.py` —
+verify vs a clean worktree before attributing). Scoped run: 23 failed / 113 passed in 20s.
+
+**Path to measurement (the revisit's recommendation):** (a) triage + clear the ~25 on a CLEAN worktree
+(distinguish stale-test → update the contract, real-bug → fix, sibling-WIP → ignore); (b) add a marker that
+runs a FAST curated subset at the gate (seconds, network/integration tests excluded), NOT the 80-min full
+suite; (c) OR a scheduled nightly full run that alerts on new failures (the ci-health-probe pattern) without
+gating interactive work. Same reasoning for `iterative_image_editor` (separate repo — its owner adds its marker).
+Do NOT flip the marker until (a) is done. Blocked by: a quiet-tree window for the triage + the subset design.
