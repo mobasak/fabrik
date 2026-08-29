@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Cross-SaaS SSO bridge: Zitadel GrantSource adapter + service-user client (Phase A, 2026-08-29)
+
+`libs/product_entitlements_bridge/` — the ocoron Zitadel composition every relying-party SaaS vendors
+(Epic-2, hub slice). Phase A: `ZitadelClient` (Private-Key-JWT auth; Authorization-v2 over Connect
+JSON-over-HTTP; the Session-v2 `ListSessions`→`DeleteSession` teardown loop with full pagination drain +
+fail-closed cap; vendored `async-http-client` circuit breaker) and `ZitadelGrantSource` (fail-CLOSED
+`product_access`→frozenset for the fabrik-lib `product-entitlements` gate). 16 tests; auth-critical review
+caught + fixed a token-404 idempotency mask, an inert circuit breaker (wrong `kind` values), and a
+session-teardown under-drain — all with regression guards.
+
 ### Fixed — cmd 14/31: /fabrik-user-test's anti-mix-up guard could never block (2026-08-29)
 
 Corpus audit command 14 of 31, against the 23-surface checklist. The headline: **three files agreed

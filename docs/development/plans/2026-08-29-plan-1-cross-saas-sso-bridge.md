@@ -1,6 +1,6 @@
 # Cross-SaaS SSO — the hub `product_entitlements_bridge` module + integration reference
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Epic: docs/development/epics/2026-08-27-epic-2-cross-saas-sso-integration.md (epic_n 2, depends_on [1])
 Source of truth: docs/superpowers/specs/2026-08-27-umbrella-sso-infrastructure-decisions.md
 Shape: MONOLITH — one cohesive hub library module (`libs/product_entitlements_bridge/`) + one reference doc; its files overlap, so a spine+ticket set would serialize on shared paths (a monolith is the correct shape).
@@ -64,7 +64,7 @@ never executed here.
 
 ---
 
-## Phase A — Zitadel Authorization-v2 `GrantSource` adapter + service-user auth client
+## Phase A — Zitadel Authorization-v2 `GrantSource` adapter + service-user auth client ✅ EXECUTED 2026-08-29
 
 **One responsibility:** a `product-entitlements` `GrantSource` implementation backed by Zitadel's Authorization v2 API, plus the machine-auth client the adapter (and Phase B/C) use.
 
@@ -200,6 +200,7 @@ https://auth.ocoron.com True    # issuer LIVE, back-channel logout advertised (E
 
 - libs/product_entitlements_bridge/
 - tests/test_bridge_grant_source.py
+- tests/test_bridge_zitadel_client.py
 - tests/test_bridge_reconciler.py
 - tests/test_bridge_teardown.py
 - docs/reference/umbrella-sso-integration.md

@@ -1,0 +1,14 @@
+{
+  "plan": "2026-08-29-plan-1-cross-saas-sso-bridge",
+  "owned_paths": [
+    "libs/product_entitlements_bridge/",
+    "tests/test_bridge_grant_source.py",
+    "tests/test_bridge_reconciler.py",
+    "tests/test_bridge_teardown.py",
+    "docs/reference/umbrella-sso-integration.md",
+    "tests/test_bridge_zitadel_client.py"
+  ],
+  "branch": "master",
+  "started_at": "MANUAL",
+  "status": "active"
+}
