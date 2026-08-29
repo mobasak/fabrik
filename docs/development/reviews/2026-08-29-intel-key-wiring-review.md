@@ -46,3 +46,14 @@ $ curl …integrate.api.nvidia.com/v1/models  (keys 2,3,4)  → 200 200 200
 $ curl …api.mistral.ai/v1/models  (keys 1,2,3,4)          → 401 401 401 401
 $ crontab -l | grep -c canary_grounding                    → 0 (canary cron not yet installed)
 ```
+
+## Correction (2026-08-29, later the same day)
+
+The Proofs block above is partially INVALID and is retained for the record: `.env` was
+unsourceable (three unquoted values aborted `source` at line ~100), so the "NVIDIA 200 ×3" ran
+against a PUBLIC endpoint with EMPTY keys (bogus/no-auth also 200 — `/v1/models` does not gate)
+and the "Mistral 401 ×4" was the empty-key artifact. Re-verified with grep-read real values
+against GATED endpoints: NVIDIA keys 2–4 → chat completions HTTP 200 ×3 (genuinely live);
+Mistral keys ×4 → HTTP **402** (credits exhausted — matching the operator's ground truth).
+`.env` quoting fixed (4 values), full `source` now clean. The false-verification class
+(public endpoint as key probe + probes reading unset env silently) goes to LESSONS_LEARNT.

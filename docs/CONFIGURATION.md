@@ -152,7 +152,9 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   specialists). Catalog + subagents-pool compatibility verdict:
   [docs/reference/nvidia-build.md](reference/nvidia-build.md). Full listing:
   `curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`.
-- `NVIDIA_API_KEY_2` / `_3` / `_4` — spare keys (all probed live HTTP 200, 2026-08-29;
+- `NVIDIA_API_KEY_2` / `_3` / `_4` — spare keys (verified via GATED chat completions, HTTP
+  200 ×3 on 2026-08-29 — note `/v1/models` is PUBLIC and returns 200 even unauthenticated, so
+  it is NOT a key-liveness probe;
   same free endpoint, per-key rate limits — spares for parallel harnesses or manual selection
   `NVIDIA_API_KEY=$NVIDIA_API_KEY_2 <cmd>`; rotation-on-429 inside the pool module is filed to
   fabrik-lib).
@@ -170,11 +172,11 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   `curl -H "Authorization: Bearer $MISTRAL_API_KEY" https://api.mistral.ai/v1/models`.
 - `MISTRAL_API_KEY_2` / `_3` / `_4` — spare keys (same per-key limits; select manually:
   `MISTRAL_API_KEY=$MISTRAL_API_KEY_2 <cmd>`).
-- ⚠️ **The free tier is a $10/month CREDIT — an exhausted credit returns HTTP 401 until the
-  monthly reset** (operator-confirmed 2026-08-29: all four keys 401'd because the month's
-  credits were spent; this is the expected exhausted state, not key revocation). A 401 from
-  Mistral therefore means "no credit left this month" first — re-probe after the reset before
-  suspecting the key itself.
+- ⚠️ **The free tier is a $10/month CREDIT — an exhausted credit returns HTTP 402 (Payment
+  Required) until the monthly reset** (operator-confirmed + probe-verified with real key
+  values 2026-08-29: all four keys 402). A 402 from Mistral means "no credit left this month" —
+  re-probe after the reset. (A 401 means the KEY is wrong — including the empty-key artifact of
+  a broken `.env` source, which is exactly how an earlier probe misread this state.)
 - `MISTRAL_MONTHLY_CAP_USD=10` — the monthly credit envelope (operator directive 2026-08-29).
   Any consumer driving Mistral usage must read it and budget within the envelope so credit
   lasts the month instead of dying mid-month; no per-call caps (sysadmin-loop rule) — the
