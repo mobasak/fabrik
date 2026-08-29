@@ -280,3 +280,27 @@ def test_a_contract_with_no_attestation_is_silent(tmp_path):
         encoding="utf-8",
     )
     assert [f for f in c.check_chain(tmp_path) if "independent review attests" in f] == []
+
+
+# --- transdoc 01M17S1B: the universal-declarative rule shape was invisible ----
+
+
+def test_universal_declarative_body_pin_is_warned(tmp_path):
+    """transdoc missed the SAME two lines twice (v20 and v21): 'Every field named below
+    is a `data-contract.md` **v10** column' binds a reader at least as hard as a modal
+    and carried none of the prescriptive vocabulary — invisible to the filter that
+    decides what gets line-named. Measured before widening (2026-08-30): +6 newly
+    eligible lines fleet-wide, all in the reporting repo's own chain files."""
+    d = tmp_path / "docs"
+    d.mkdir()
+    (d / "data-contract.md").write_text(
+        "**Status:** FROZEN · **Version:** v11\n\n## Fields\n", encoding="utf-8"
+    )
+    (d / "ui-design.md").write_text(
+        "**Status:** FROZEN · **Version:** v22 · frozen against `data-contract.md` **v11**\n"
+        "\n## Rules\n\nEvery field named below is a `data-contract.md` **v10** column.\n",
+        encoding="utf-8",
+    )
+    body = [f for f in c.check_chain(tmp_path) if "BODY prose" in f]
+    assert len(body) == 1, c.check_chain(tmp_path)
+    assert "v10" in body[0] and "v11" in body[0]

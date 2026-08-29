@@ -118,8 +118,15 @@ _BODY_PIN_RE = re.compile(r"(?P<name>[a-z0-9-]+\.md)[^\n]{0,40}?\*{0,2}v(?P<v>\d
 
 # Prose that BINDS a future reader, as opposed to prose that recounts history. Only a
 # binding sentence can authorise a wrong-version field, which is the damage 1.8 names.
+# Second alternative (transdoc 01M17S1B): a UNIVERSAL DECLARATIVE — "Every field named
+# below is a <doc> vN column" — binds at least as hard as a modal and carried none of
+# them; the same two lines went invisible through TWO converged re-freezes. Measured
+# before widening (2026-08-30, all /opt chain files): +6 newly eligible lines, all in
+# the reporting repo — no wallpaper risk at this vocabulary.
 _PRESCRIPTIVE_RE = re.compile(
-    r"\b(?:banned|forbidden|must|must not|never|only|required|not in|conform|comply)\b", re.I
+    r"\b(?:banned|forbidden|must|must not|never|only|required|not in|conform|comply)\b"
+    r"|\b(?:every|each|all)\b[^\n]{0,60}?\b(?:is|are)\b",
+    re.I,
 )
 
 
@@ -229,6 +236,11 @@ def check_chain(root: Path) -> list[str]:
                 line_end = body_only.find("\n", m.end())
                 line = body_only[line_start : line_end if line_end != -1 else len(body_only)]
                 if not _PRESCRIPTIVE_RE.search(line):
+                    # transdoc's filter-disclosure alternative ("N reported; M filtered")
+                    # was BUILT and REJECTED here after measurement (2026-08-30): with
+                    # the widened regex above, what remains filtered is history prose
+                    # ("v1 pinned … long ago"), and the disclosure fired on the standard
+                    # noise-budget fixture — a counter of benign lines is wallpaper.
                     continue
                 if int(m.group("v")) != pinned:
                     # NAME THE LINE. The advisory asks the reviewer to "confirm before
