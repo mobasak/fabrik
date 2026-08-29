@@ -119,7 +119,7 @@ this box + the VPS), `is_usage_limit` (reactive).
 - **Given** the `--status` probe fails or the row is unparseable, **When** anything routes, **Then** routine→pool + incident→ob@ (fail-safe) (scripts/sysadmin/quota_governor.py).
 - **Given** the single-flight lock is held by a live fix, **When** a second incident arrives, **Then** it routes to `pool-diagnose` (non-blocking, never a concurrent ob@ slot) (scripts/sysadmin/quota_governor.py).
 
-## Phase B — the completion-only container broker (`scripts/sysadmin/claude_broker.py`)
+## Phase B — the completion-only container broker (`scripts/sysadmin/claude_broker.py`) — ✅ EXECUTED 2026-08-30
 
 **One responsibility:** give containers subscription-billed LLM completion on ob@ with NO host tools + NO creds.
 

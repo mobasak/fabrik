@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — completion-only container broker (Phase B of vps-claude-quota-governance) (2026-08-30)
+
+- **What:** `scripts/sysadmin/claude_broker.py` — a loopback broker giving Docker containers
+  subscription-billed Claude completion on the single-key host ob@ account with NO host tools and NO
+  creds. Runs `claude -p --tools "" -- <prompt>` (the documented "disable all tools" form, `--` POSIX
+  end-of-options so a container prompt can't inject a flag) via the host entrypoint. Per-caller token
+  auth (401), per-caller window budget in a stdlib JSON file (429, reset from the live `--status` epoch,
+  counts failures too), forced-`routine` routing through the Phase-A governor (sheds to the pool under
+  the reserve), model-name charset validation, `Content-Length` cap, and FAIL-CLOSED (503) if the
+  tool-disable form isn't the pinned `--tools ""`. Audit line per job (prompt hash, never the raw prompt).
+- **Files:** `scripts/sysadmin/claude_broker.py` (new), `tests/test_claude_broker.py` (new, 19 tests).
+
 ### Added — the re-derivation flip gate: CONVERGED now refuses without a method row (tryton-crm finding, hours after the law landed) (2026-08-29)
 
 - tryton-crm's plan-review ran ELEVEN rounds with the factual-pass sentence IN its command and
