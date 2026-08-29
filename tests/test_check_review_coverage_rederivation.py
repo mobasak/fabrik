@@ -22,7 +22,8 @@ _spec.loader.exec_module(crc)
 
 
 def _run(text: str) -> list[str]:
-    import tempfile, os
+    import tempfile
+
     with tempfile.TemporaryDirectory() as td:
         f = Path(td) / "2026-08-30-x-review.md"
         f.write_text(text, encoding="utf-8")
