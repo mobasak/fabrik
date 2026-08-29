@@ -486,7 +486,7 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             r"\b(review|converge|harden|sa[ğg]laml[aá]?[şs]t[ıi]r\w*|g[öo]zden\s+ge[çc]ir\w*)\b"
             r"[^.]{0,40}\b(epic|ticket\s+breakdown|ticket\s+outline|workflow\s+artifact"
             r"|decisions[- ]lock)\b"
-            r"|\b(epic|ticket\s+breakdown|workflow\s+[çc][ıi]kt[ıi]s[ıi]|workflow\s+artifact)\b"
+            r"|\b(epic|ticket\s+breakdown|workflow\s+[çc][ıi]kt[ıi]\w*|workflow\s+artifact)\b"
             r"[^.]{0,40}\b(review|converge|incele\w*|sa[ğg]laml[aá]?[şs]t[ıi]r\w*)\b",
             re.I,
         ),

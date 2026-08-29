@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 28/31: workflow-review carried a phantom type and taught the orphan recipe (2026-08-29)
+
+- `epic-brief` named an artifact no ettw doer produces; the real 01 artifact (decisions lock) has
+  its dedicated converger `01R-decisions-review`, now excluded explicitly beside 07/09/11.
+  The fanout recipe gained the required `repo=`/`project=` (folder-derived label matching the
+  Phase-3 back-fill — the cmd-25 orphan class, third sighting). The checklist-pre-registered
+  missing `argument-hint` added. The advertised TR trigger's accusative form now routes
+  (`çıktısını` broke the stem's word boundary; router suite 162). R14 wording aligned to the
+  evolved north star (Gate 2 = the operator's go; the triad runs `fabrik apply`, never typed).
+
 ### Fixed — cmd 27/31: the harvest's true root cause was a flush race; conformance-review's close was ungated (2026-08-29)
 
 - The `anchor_harvest` telemetry (shipped cmd 25) measured the real defect on its first day: the

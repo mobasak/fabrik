@@ -1216,3 +1216,11 @@ def test_the_rules_review_stem_is_registered() -> None:
     assert hook.STEM_SKILLS["rules-review"] == "fabrik-rules-review"
     order = [st for _, st in hook.KEYWORD_STEMS]
     assert order.index("rules-review") < order.index("review"), "first match wins"
+
+
+def test_the_inflected_turkish_workflow_artifact_phrase_routes(  # audit cmd 28/31
+) -> None:
+    """'bu workflow çıktısını sağlamlaştır' is an ADVERTISED trigger; the stem's TR noun
+    required the bare nominative and the accusative suffix broke the boundary."""
+    assert hook.first_regex_match("bu workflow çıktısını sağlamlaştır") == "workflow-review"
+    assert hook.first_regex_match("the workflow failed on step 3") is None
