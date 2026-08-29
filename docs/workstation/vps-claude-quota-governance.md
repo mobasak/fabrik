@@ -2,7 +2,7 @@
 
 Box-local runbook for the machinery that keeps the VPS fleet's single system-wide Claude account
 (`ob@ocoron.com`) under its Claude Max caps **without ever capping the sysadmin fix loop**. Built by
-`docs/development/plans/2026-08-29-plan-1-vps-quota-governance.md`.
+`docs/development/plans/archived/2026-08-29-plan-1-vps-quota-governance.md`.
 
 ## The model
 
