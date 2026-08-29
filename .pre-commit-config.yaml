@@ -104,6 +104,17 @@ repos:
         files: '^(commands|docs/orchestrator)/'
         pass_filenames: false
 
+      # COMMIT-MOMENT review grading (2026-08-30): the checker's blocking scan reads `git status`,
+      # so a review COMMITTED without a gate run while dirty escaped blocking forever — observed
+      # live (a phase review failing four blocking rules entered history ungated; the advisory
+      # sweep checks a narrower class set and never saw it). Staged paths get the full battery
+      # here, where the author is present and the artifact is theirs — never a retroactive scan.
+      - id: review-coverage-staged
+        name: Staged review artifacts pass the coverage grammar
+        entry: python3 scripts/enforcement/check_review_coverage.py
+        language: system
+        files: '^docs/development/reviews/.*\.md$'
+
       # POST-COMMIT since the operator decision 2026-08-29: as the slowest pre-commit hook this was
       # the widest window for the tree-delta check to catch an UNRELATED concurrent writer, aborting
       # rules commits while the sync itself succeeded. Post-commit cannot abort and has no stash

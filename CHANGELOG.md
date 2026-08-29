@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review artifacts can no longer enter history ungated (commit-moment coverage grading) (2026-08-30)
+
+- **What:** `check_review_coverage.py` gains explicit positional paths graded with the FULL
+  blocking battery (routing factored into `_grade()` so both paths share one grammar), and a
+  hub-local pre-commit hook (`review-coverage-staged`) passes every staged
+  `docs/development/reviews/*.md` through it. **Why:** the blocking scan reads `git status`,
+  so a review committed without a gate run while dirty escaped blocking forever — observed
+  live 2026-08-30 (a phase review failing four blocking rules entered history ungated; the
+  advisory sweep checks a narrower class set and never saw it). Tests red-first:
+  `tests/test_check_review_coverage_precommit.py`.
+
 ### Added — quota-governance wiring: marshaller, consumer gate, ping-retire, dashboard (Phase C, vps-claude-quota-governance) (2026-08-30)
 
 - **What:** `scripts/sysadmin/incident_context.py` — the host marshaller: when ob@ is capped it

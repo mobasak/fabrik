@@ -1436,12 +1436,78 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
     return out
 
 
+def _grade(p: Path, root: Path) -> list[str]:
+    """Full blocking battery for ONE review artifact — the routing main() always applied.
+
+    Factored out (2026-08-30) so the commit-moment path (explicit paths from the pre-commit
+    hook) grades with the SAME battery as the working-tree scan: a second, weaker grader for
+    staged files would be the exact two-graders drift tryton-crm's 01M17KHT closed.
+    """
+    errs: list[str] = []
+    try:
+        rel = p.relative_to(root)
+    except ValueError:
+        rel = p
+    # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
+    # review file that merely QUOTED the template (even fenced) route here and skip the
+    # checklist gate it actually owed — reproduced 2026-08-18.
+    body = p.read_text(encoding="utf-8", errors="replace")
+    if _is_mega_report(p, body):
+        # a mega validation report is exit-proof-gated, not checklist-gated
+        return [f"{rel}: {e}" for e in check_mega_validation(p, root, live=True)]
+    if CERT_REPORT.search(p.name):
+        errs.extend(f"{rel}: {e}" for e in check_cert_dispositions(p, root))
+        # NO `continue` past a present checklist (round 37): the filename substring routed
+        # a checklist-obligated report — real UNCHECKED rows and all — to the looser cert
+        # grammar and exited green. The corpus already holds an organic precedent name
+        # ("…-fabrik-user-test-first-run-feedback.md"), so this is not adversarial-only.
+        # A filename is a routing HINT; the checklist heading is an OBLIGATION — a report
+        # carrying both shapes answers to both gates.
+        # STRIPPED text for the routing decision (round 39): the raw-text detector routed
+        # an honest cert report into check_file's full obligation set because a FENCED
+        # documentation example quoted the checklist heading — the mirror image of the
+        # class the same commit closed for the HANDOFF grammar, one call site over.
+        if _checklist_section(body) is None:  # strips at the definition since round 41
+            return errs
+    errs.extend(f"{rel}: {e}" for e in check_file(p))
+    return errs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=".", help="repo root (default: cwd)")
+    ap.add_argument(
+        "paths",
+        nargs="*",
+        help="explicit review artifacts to grade (the commit-moment path: the pre-commit "
+        "hook passes the STAGED reviews/*.md here — a review committed without a gate run "
+        "while dirty otherwise escapes the blocking scan forever, observed live 2026-08-30)",
+    )
     args = ap.parse_args()
     root = Path(args.root).resolve()
     failures: list[str] = []
+    if args.paths:
+        for raw in args.paths:
+            p = Path(raw).resolve()
+            if not p.is_file():
+                failures.append(f"{raw}: not a file (staged path vanished?)")
+                continue
+            failures.extend(_grade(p, root))
+        if failures:
+            print("Coverage-checklist gate FAILED (staged review artifacts):")
+            for f in failures:
+                print(f"  - {f}")
+            print(
+                "A review artifact enters history only fully adjudicated — fix it, finish "
+                "the loop, or mark it `Status: IN-PROGRESS` (never invent a round to "
+                "satisfy the parser)."
+            )
+            return 1
+        print(
+            "check_review_coverage: OK — 0 unproven coverage claims across "
+            f"{len(args.paths)} staged review artifact(s)"
+        )
+        return 0
     changed, skip_notes, untracked = _changed_md(root, REVIEWS_DIR)
     # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
     # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
@@ -1467,31 +1533,7 @@ def main() -> int:
         # co-occurred with a committed advisory (round 25, reproduced end-to-end)
         print(note)
     for p in changed:
-        # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
-        # review file that merely QUOTED the template (even fenced) route here and skip the
-        # checklist gate it actually owed — reproduced 2026-08-18.
-        body = p.read_text(encoding="utf-8", errors="replace")
-        if _is_mega_report(p, body):
-            for e in check_mega_validation(p, root, live=True):
-                failures.append(f"{p.relative_to(root)}: {e}")
-            continue  # a mega validation report is exit-proof-gated, not checklist-gated
-        if CERT_REPORT.search(p.name):
-            for e in check_cert_dispositions(p, root):
-                failures.append(f"{p.relative_to(root)}: {e}")
-            # NO `continue` past a present checklist (round 37): the filename substring routed
-            # a checklist-obligated report — real UNCHECKED rows and all — to the looser cert
-            # grammar and exited green. The corpus already holds an organic precedent name
-            # ("…-fabrik-user-test-first-run-feedback.md"), so this is not adversarial-only.
-            # A filename is a routing HINT; the checklist heading is an OBLIGATION — a report
-            # carrying both shapes answers to both gates.
-            # STRIPPED text for the routing decision (round 39): the raw-text detector routed
-            # an honest cert report into check_file's full obligation set because a FENCED
-            # documentation example quoted the checklist heading — the mirror image of the
-            # class the same commit closed for the HANDOFF grammar, one call site over.
-            if _checklist_section(body) is None:  # strips at the definition since round 41
-                continue
-        for e in check_file(p):
-            failures.append(f"{p.relative_to(root)}: {e}")
+        failures.extend(_grade(p, root))
     if failures:
         print("Coverage-checklist gate FAILED:")
         for f in failures:
