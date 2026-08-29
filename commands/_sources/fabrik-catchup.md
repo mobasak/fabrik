@@ -1,5 +1,5 @@
 ---
-description: Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge commands (never reimplements). Stage: utility. Hub weekly `/opt/fabrik/docs/infrastructure/probe-reports/fleet-doc-audit-latest.md` is a re-verified head start if present. TRIGGER — EN: "catch this project up", "where did we leave off here", "is this project stale or behind", "resume work on this project"; TR: "bu projeyi güncelle", "kaldığımız yerden devam edelim", "proje güncel mi" — fires bare-prose, no slash command needed.
+description: Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge commands (never reimplements). Stage: utility. TRIGGER — EN: "catch this project up", "where did we leave off here", "is this project stale or behind", "resume work on this project"; TR: "bu projeyi güncelle", "kaldığımız yerden devam edelim", "proje güncel mi" — fires bare-prose, no slash command needed. SKIP: a whole-tree docs sweep on a HEALTHY project (→ /fabrik-docs-review) · one named doc's deep converge (→ /fabrik-doc-converge) · resuming an approved plan mid-flight (→ /fabrik-execute-plan — catchup measures and routes, it never executes plans).
 argument-hint: "[optional: a doc, area, or finding class to prioritize this pass — omit for the full measure sweep]"
 ---
 
@@ -53,7 +53,7 @@ would silently drop them:
    while the spine still claims work is running); spine says `DRAFT`/`CONVERGED` but an `active` lock
    exists; spine says `EXECUTED` but the plan (file or dir) still sits outside
    `docs/development/plans/archived/`; a lock whose `plan` path does not resolve on disk, or resolves
-   outside `archived/` while its `status` is terminal (`released`/`complete`); a lock whose `plan` path
+   outside `archived/` while its `status` is terminal — the allowlist is {`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; measured live 2026-08-29, `executed` is this tree's MOST COMMON terminal and the old `released`/`complete` example would have mis-flagged four finished locks); a lock whose `plan` path
    resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"` (an abandoned
    run archived by hand without releasing the lock). **Not a finding:** a lock pointing INTO
    `docs/development/plans/archived/` with a terminal `status` is the normal end state for a finished plan

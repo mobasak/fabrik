@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 22/31: /fabrik-catchup — the terminal-vocabulary trap, measured on this very tree (2026-08-29)
+
+- **Probe 1's lock-terminal example `(released/complete)` under-enumerated** — live measurement:
+  this tree's locks carry `executed` ×4 (the MOST COMMON terminal), `released`, `complete`, and
+  `failure`. An agent following the example literally would mis-flag four finished plans as
+  contradictions. Aligned to fabrik-lib's `f8249ec3` allowlist
+  {released, executed, complete, completed, done} — allowlist-not-denylist, an unknown word flags
+  for a human. The same class the mail queue surfaced this morning, caught here by measuring
+  instead of trusting the example.
+- **The last missing SKIP added** (docs-review · doc-converge · execute-plan redirects) — the
+  checklist's no-guidance list is now **EMPTY** (emptied across cmds 20–22); a new command without
+  one is the regression to catch.
+- The renderer's 1024-char guard caught the grown description; trimmed the head-start sentence
+  (fully covered in Phase 0's body) rather than the guard.
+
 ### Fixed — SSO bridge: LIVE all-deny bug — the code read a field the API never returns (2026-08-29)
 
 fabrik-lib's promotion review (`01M16TVAD1`) re-fetched the Zitadel v2 docs live and caught what 35
