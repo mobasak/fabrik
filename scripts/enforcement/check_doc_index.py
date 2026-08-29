@@ -67,19 +67,30 @@ def main() -> int:
     # an en dash) and wraps them in quotes — the escaped form never matches
     # INDEX.md's real text, false-flagging an indexed doc as missing
     # (trade-intelligence upstream, 2026-08-05).
-    tracked = subprocess.run(
-        ["git", "-c", "core.quotePath=false", "ls-files", "docs/**/*.md", "docs/*.md"],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.splitlines()
-    for p in tracked:
+    def _ls(*extra: str) -> list[str]:
+        return subprocess.run(
+            ["git", "-c", "core.quotePath=false", "ls-files", *extra, "docs/**/*.md", "docs/*.md"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.splitlines()
+
+    tracked = _ls()
+    # UNTRACKED docs count as live (transdoc 01M17VA9): tracked-only scoping gave the
+    # AUTHORING run a false green — the run that creates a doc got success, committed on
+    # it, and the missing INDEX row surfaced as the NEXT agent's red (on a shared tree,
+    # somebody else's red, with the authoring context already gone). A doc that exists on
+    # disk under the INDEX-governed tree is a live doc whether or not it is staged; the
+    # per-run pipeline dirs stay excluded, so in-flight drafts there never fire.
+    untracked = set(_ls("--others", "--exclude-standard"))
+    for p in dict.fromkeys([*tracked, *untracked]):
         if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
             continue
         base = Path(p).name
         if p not in index_text and base not in index_text:
-            problems.append(f"live doc not in INDEX.md: {p}")
+            tag = " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
+            problems.append(f"live doc not in INDEX.md: {p}{tag}")
 
     if as_json:
         print(json.dumps({"status": "success" if not problems else "failure", "drift": problems}))

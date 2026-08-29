@@ -94,3 +94,28 @@ def test_ls_files_disables_quotepath(monkeypatch):
     monkeypatch.setattr(cdi.subprocess, "run", fake_run)
     cdi.main()
     assert "core.quotePath=false" in captured["cmd"], captured
+
+
+def test_untracked_doc_fires_on_the_authoring_run(monkeypatch):
+    """transdoc 01M17VA9: tracked-only scoping gave the run that CREATES a doc a false
+    green — it committed on it, and the missing INDEX row surfaced as the next agent's
+    red. An untracked doc under the INDEX-governed tree is live and must be reported
+    to its author, on the run that wrote it."""
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kw):
+        if "ls-files" in cmd:
+
+            class R:
+                stdout = (
+                    "docs/reference/brand-new-proposal.md\n"
+                    if "--others" in cmd
+                    else ""
+                )
+
+            return R()
+        return real_run(cmd, **kw)
+
+    monkeypatch.setattr(cdi.subprocess, "run", fake_run)
+    rc = cdi.main()
+    assert rc == 1

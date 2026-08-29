@@ -188,3 +188,13 @@ classifies known-headless session shapes (neutral-cwd project names, -p transcri
 class instead of holes — the metric then measures what it names. Also noted: stop_block_causes
 unpushed=970 dwarfs all others; partly the push law working, partly tonight's transient
 github DNS/SSH resets forcing retry loops — watch, don't build.
+
+## [infra] Audit the check set for staged-only scoping (transdoc 01M17VA9's meta-question, 2026-08-30)
+
+check_doc_index's tracked-only enumeration gave the run that CREATES a doc a false green (fixed:
+untracked docs under the INDEX-governed tree now count as live). transdoc explicitly flagged the
+class question — how many OTHER gate checks enumerate via `git ls-files`/staged-only scope and
+therefore cannot fire on the run that owes the obligation — as a hub measurement. Sweep
+scripts/enforcement/ for `ls-files`/`diff --cached`-scoped denominators and judge each: some are
+deliberate (sibling-WIP protection, the review-coverage '??' carve-out), some are this defect.
+Next window; measure before changing any.
