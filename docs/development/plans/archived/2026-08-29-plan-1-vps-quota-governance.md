@@ -1,6 +1,7 @@
 # Plan — VPS single-key Claude quota governance (ob@)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-30
+Completion: all 3 phases EXECUTED (81de3697 · 015a71b9 · f532047f) + Finish; final_gate.py --json → success, 0 failures (fresh this turn); 51 module tests green. Whole-plan review: docs/development/reviews/2026-08-29-plan-1-vps-quota-governance-review.md (cross-phase seams sound; incident production trigger cross-repo, filed to fabrik-lib). ROUTINE-conservation half fully wired + proven; INCIDENT half built + tested + invocable, its watchdog trigger is the fabrik-lib integration step.
 Spec: docs/superpowers/specs/2026-08-29-vps-claude-quota-governance-design.md (CONVERGED)
 Shape: MONOLITH — one cohesive `scripts/sysadmin/` toolset (governor + broker + marshaller) whose files
 call each other; a spine+ticket set would serialize on shared paths. 3 phases.
@@ -339,3 +340,13 @@ broker transport (loopback HTTP default); the live `--status --json`
 shape on the VPS (Phase-A step 0 probe — fallback: fleet→legacy shape, both handled); the exact tool-disable
 incantation (Phase-B step 0 probe — fails CLOSED if none is verifiable); the per-consumer
 pure-reasoning-vs-host-tools verdicts (finalized per-row at Phase C against each consumer's actual LLM step).
+
+**Cross-repo integration step (EXECUTED with this note — the whole-plan review's MED #3):** the ROUTINE
+half (governor → gate → shell consumers + broker + `bot.py` `capped()`) is fully wired and proven. The
+INCIDENT half — `route("incident")`, `pool-diagnose`, the marshaller, `mark_capped`/`release_incident` — is
+built, tested, and INVOCABLE via `incident_context.py`'s `run_incident()` + `diagnose` CLI, but its
+PRODUCTION trigger is the GlitchTip error-webhook watchdog, which lives in **fabrik-lib**
+(`fabrik-lib/watchdog/sidecar/agent.py`) — cross-repo, so it cannot be landed from `/opt/fabrik`. The
+remaining wiring (point the watchdog at `incident_context.py diagnose` on a `pool-diagnose` decision, and
+have it call `mark_capped` on a returned usage-limit) is filed to fabrik-lib (fleet beat) and documented in
+`docs/workstation/vps-claude-quota-governance.md`. Until then the incident CLI is operator-invocable by hand.

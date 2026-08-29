@@ -33,7 +33,10 @@ def _default_docker_logs(container: str, lines: int) -> str:
     try:
         out = subprocess.run(
             ["docker", "logs", "--tail", str(lines), container],
-            capture_output=True, text=True, timeout=30, check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         return (out.stdout or "") + (out.stderr or "")
     except Exception as exc:  # noqa: BLE001 — a log-fetch failure is just missing context, not fatal
@@ -42,7 +45,10 @@ def _default_docker_logs(container: str, lines: int) -> str:
 
 def _default_state() -> str:
     parts = []
-    for cmd in (["docker", "ps", "--format", "{{.Names}}\t{{.Status}}"], ["systemctl", "--failed", "--no-legend"]):
+    for cmd in (
+        ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}"],
+        ["systemctl", "--failed", "--no-legend"],
+    ):
         try:
             out = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
             parts.append(f"$ {' '.join(cmd)}\n{out.stdout}")
@@ -68,8 +74,18 @@ def _default_notify(subject: str, detail: str) -> None:
     try:
         sound = Path(os.path.expanduser("~/.claude/bin/claude-sound.sh"))
         if sound.exists():
-            subprocess.run([str(sound), "mesh-notify", "incident-diagnose", str(Path.cwd()),
-                            f"{subject}: {detail}"], capture_output=True, timeout=10, check=False)
+            subprocess.run(
+                [
+                    str(sound),
+                    "mesh-notify",
+                    "incident-diagnose",
+                    str(Path.cwd()),
+                    f"{subject}: {detail}",
+                ],
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
     except Exception:  # noqa: BLE001 — an alert failure must never break the diagnosis path
         pass
 
@@ -122,10 +138,39 @@ class IncidentMarshaller:
         prompt = self._diagnosis_prompt(incident_id, bundle)
         diagnosis = self._pool(prompt, mode="read_only")
         # 4: hand the operator the proposal — NEVER auto-apply (operator-gated).
-        self._notify("incident diagnosis (operator-gated — NOT applied)",
-                     f"{incident_id}: {diagnosis[:400]}")
-        return {"incident_id": incident_id, "bundle_path": str(path),
-                "diagnosis": diagnosis, "applied": False}
+        self._notify(
+            "incident diagnosis (operator-gated — NOT applied)", f"{incident_id}: {diagnosis[:400]}"
+        )
+        return {
+            "incident_id": incident_id,
+            "bundle_path": str(path),
+            "diagnosis": diagnosis,
+            "applied": False,
+        }
+
+    def run_incident(
+        self, webhook: dict, *, containers: list[str], governor: object | None = None
+    ) -> dict:
+        """TERMINAL incident entry — the call site the watchdog/error-webhook invokes.
+
+        Routes the incident through the governor (`route("incident")`):
+        - `ob@` (headroom + single-flight free): return `{"action":"run_on_obat", governor, ...}` so the
+          caller runs the autonomous fix on ob@ and then calls `governor.release_incident()`;
+        - otherwise (`pool-diagnose` — ob@ capped or a fix in flight): marshal a READ-ONLY pool
+          diagnosis over the inlined bundle and hand the operator the proposal (never auto-applied).
+
+        The fix is thus NEVER dropped: it runs on ob@ when it can, and is diagnosed + escalated when it
+        can't. `governor` is injectable for tests; the default is a real `QuotaGovernor`.
+        """
+        gov = governor if governor is not None else _default_governor()
+        incident_id = str(
+            webhook.get("id") or webhook.get("event_id") or webhook.get("issue") or "incident"
+        )
+        dest = gov.route("incident", caller="watchdog")  # type: ignore[attr-defined]
+        if dest == "ob@":
+            return {"action": "run_on_obat", "incident_id": incident_id, "governor": gov}
+        result = self.diagnose(incident_id, webhook, containers=containers)
+        return {"action": "pool_diagnosed", **result}
 
     @staticmethod
     def _diagnosis_prompt(incident_id: str, bundle: dict) -> str:
@@ -139,3 +184,51 @@ class IncidentMarshaller:
             "=== CONTAINER LOG TAILS ===\n"
             + "\n".join(f"--- {c} ---\n{t}" for c, t in bundle["log_tails"].items())
         )
+
+
+def _default_governor() -> object:
+    """A real QuotaGovernor (co-located under scripts/sysadmin/)."""
+    import sys
+
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    from quota_governor import QuotaGovernor  # noqa: PLC0415
+
+    return QuotaGovernor()
+
+
+def _main(
+    argv: list[str] | None = None,
+) -> int:  # pragma: no cover — CLI entry for the webhook source
+    """CLI the watchdog / GlitchTip webhook source invokes: reads the webhook JSON on stdin.
+
+    echo '<webhook json>' | incident_context.py diagnose --containers svc,worker [--incident-id id]
+    """
+    import argparse
+    import sys
+
+    p = argparse.ArgumentParser(description="Incident context marshaller")
+    sub = p.add_subparsers(dest="cmd")
+    d = sub.add_parser("diagnose")
+    d.add_argument("--containers", default="", help="comma-separated container names")
+    d.add_argument("--incident-id", default=None)
+    args = p.parse_args(argv)
+    if args.cmd != "diagnose":
+        p.print_help()
+        return 2
+    try:
+        webhook = json.load(sys.stdin)
+    except (ValueError, OSError):
+        webhook = {}
+    if args.incident_id:
+        webhook.setdefault("id", args.incident_id)
+    containers = [c.strip() for c in args.containers.split(",") if c.strip()]
+    out = IncidentMarshaller().run_incident(webhook, containers=containers)
+    # never print a governor object; report the routing action + any bundle path/diagnosis
+    print(json.dumps({k: v for k, v in out.items() if k != "governor"}))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover — CLI entry
+    raise SystemExit(_main())

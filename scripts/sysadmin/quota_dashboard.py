@@ -220,7 +220,11 @@ def _governor_panel(payload: dict) -> str:
             utils.append(float(u))
     mx = max(utils) if utils else None
     walled = row.get("cap_walled") is True
-    routine = "pool" if (walled or (mx is not None and mx >= _RESERVE_PCT)) else "ob@"
+    # match QuotaGovernor.route(): routine sheds when walled OR headroom is UNKNOWN (mx is None →
+    # schema drift) OR max window >= reserve. (The transient single-flight lock + the file-backed
+    # reactive cap are process/file state this payload-only panel does not read — it reflects the
+    # cap_walled + window signals, the governor's primary inputs.)
+    routine = "pool" if (walled or mx is None or mx >= _RESERVE_PCT) else "ob@"
     incident = "pool-diagnose" if walled else "ob@"
     mx_txt = f"{mx:.0f}%" if mx is not None else "unknown"
     tone = "crit" if walled else ("warn" if routine == "pool" else "ok")

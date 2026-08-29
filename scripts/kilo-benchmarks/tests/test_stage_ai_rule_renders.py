@@ -57,9 +57,9 @@ def test_row_change_inside_marker_qualifies():
 def test_allowed_lines_marker_bounds_inclusive():
     lines = BASE.splitlines()
     allowed = allowed_lines(lines)
-    start = next(i for i, l in enumerate(lines) if "GATEWAY_COUNTS:START" in l)
-    end = next(i for i, l in enumerate(lines) if "GATEWAY_COUNTS:END" in l)
-    date = next(i for i, l in enumerate(lines) if l.startswith("Last content verification"))
+    start = next(i for i, ln in enumerate(lines) if "GATEWAY_COUNTS:START" in ln)
+    end = next(i for i, ln in enumerate(lines) if "GATEWAY_COUNTS:END" in ln)
+    date = next(i for i, ln in enumerate(lines) if ln.startswith("Last content verification"))
     assert {start, start + 1, start + 2, end, date} <= allowed
-    prose = next(i for i, l in enumerate(lines) if l.startswith("Hand-written"))
+    prose = next(i for i, ln in enumerate(lines) if ln.startswith("Hand-written"))
     assert prose not in allowed

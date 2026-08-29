@@ -85,6 +85,19 @@ auth/quota health signal now comes from the FREE `--status --json` profile probe
   prints `ob@` \| `pool` \| `pool-diagnose`.
 - **Incident bundles** land at `~/.claude/state/incidents/<id>.json` for inspection; the pool
   diagnosis is mesh-notify'd to the operator and is **never auto-applied** — the operator applies it.
+- **Wiring the incident source (integration step):** the marshaller's terminal entry is
+  `IncidentMarshaller.run_incident(webhook, containers=)` and its CLI:
+
+  ```
+  echo '<glitchtip webhook json>' | python3 scripts/sysadmin/incident_context.py diagnose --containers <a,b>
+  ```
+
+  It routes the incident through the governor (`route("incident")`): headroom → `{"action":
+  "run_on_obat"}` (the caller runs the autonomous fix on ob@, then `governor.release_incident()`);
+  capped → `{"action": "pool_diagnosed", …}` (a read-only pool diagnosis, operator-gated). The
+  **:8889 GlitchTip error-webhook watchdog** is the production caller — point it at this CLI so a
+  capped incident is diagnosed instead of dropped. Until the watchdog is pointed at it, the entry is
+  operator-invocable by hand (the command above).
 
 ## Invariants (do not break)
 

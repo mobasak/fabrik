@@ -164,7 +164,7 @@ def _run_claude(message: str, resume_session: str | None = None) -> tuple[str, s
         if QuotaGovernor().capped():
             return (
                 "⏳ ob@ is at its quota wall right now — try again after the window resets "
-                "(the governor is conserving quota; the fix loop still runs via pool-diagnose).",
+                "(the governor is conserving quota).",
                 None,
             )
     except Exception:  # noqa: BLE001 — governor unavailable → proceed on ob@ (fail-open)

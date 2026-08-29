@@ -107,3 +107,32 @@ def test_log_tails_bounded_to_configured_lines(tmp_path):
     m, _ = _marshaller(tmp_path, logs=lambda container, lines: seen.__setitem__("lines", lines) or "tail")
     m.build_bundle({"error": "x"}, containers=["svc"])
     assert seen["lines"] == 200  # the INCIDENT_LOG_TAIL_LINES default bounds the inlined size
+
+
+class _Gov:
+    def __init__(self, dest):
+        self.dest = dest
+
+    def route(self, kind, *, caller=None):
+        return self.dest
+
+
+# TERMINAL entry: an incident with ob@ headroom returns "run the fix on ob@" (the caller runs it +
+# releases the lock); the marshaller is NOT invoked.
+def test_run_incident_routes_to_obat_when_headroom(tmp_path):
+    m, d = _marshaller(tmp_path)
+    out = m.run_incident({"id": "i1", "error": "x"}, containers=["svc"], governor=_Gov("ob@"))
+    assert out["action"] == "run_on_obat"
+    assert out["incident_id"] == "i1"
+    assert "governor" in out          # handed back so the caller can release_incident() after the fix
+    assert not (tmp_path / "incidents" / "i1.json").exists()  # no diagnosis marshalled on the ob@ path
+
+
+# TERMINAL entry: a capped incident marshals a read-only pool diagnosis + notifies (never dropped).
+def test_run_incident_marshals_when_capped(tmp_path):
+    m, d = _marshaller(tmp_path)
+    out = m.run_incident({"id": "i2", "error": "OOM"}, containers=["svc"], governor=_Gov("pool-diagnose"))
+    assert out["action"] == "pool_diagnosed"
+    assert out["diagnosis"].startswith("DIAGNOSIS")
+    assert d.get("notifications")                        # operator handed the proposal
+    assert (tmp_path / "incidents" / "i2.json").exists()  # bundle persisted for the read-only worker
