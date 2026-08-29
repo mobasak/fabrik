@@ -61,6 +61,17 @@ NO_EXTERNAL_RE = re.compile(
 # then enumerate residual unknowns / assumptions". A CONVERGED spec with none is claiming omniscience.
 RESIDUAL_RE = re.compile(r"residual|unknown|assumption|open\s+question", re.IGNORECASE)
 
+# Intake Inventory (chat-intake fragment, landed 2026-08-29): a spec is authored ON a conversation,
+# and the conversation's items are its denominator. The live defect: a session finds 10 issues, the
+# operator says spec it, the agent specs a subset and tells no one. DATE-GATED to specs named after
+# the contract landed — retro-grading 21 pre-contract specs would put findings on every board on day
+# one, which is how advisory output earns being skipped (fire rate on landing: 0, measured).
+INTAKE_CUTOFF = "2026-08-30"
+INTAKE_HEAD_RE = re.compile(r"^##\s+Intake Inventory\b", re.M)
+INTAKE_ROW_RE = re.compile(r"^\|\s*I\d+\s*\|(.+)$", re.M)
+INTAKE_DISPO_RE = re.compile(r"\b(IN|OUT-OF-SCOPE|ASK)\b")
+SPEC_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-")
+
 SCOPE_NOTE = (
     "reads the artifact only; cannot re-fetch a cited URL, prove a quote is real, or know whether "
     "the no-op round happened"
@@ -123,6 +134,34 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
             findings.append(
                 Finding(name, "NO-RESIDUAL", "converged without enumerating residual unknowns")
             )
+
+        m = SPEC_DATE_RE.match(name)
+        if m and m.group(1) >= INTAKE_CUTOFF:
+            if not INTAKE_HEAD_RE.search(text):
+                findings.append(
+                    Finding(
+                        name,
+                        "NO-INTAKE",
+                        "no '## Intake Inventory' - the conversation's items are this spec's "
+                        "denominator; without the table, silent subsetting is invisible "
+                        "(chat-intake contract, 2026-08-29)",
+                    )
+                )
+            else:
+                hollow = sum(
+                    1
+                    for row in INTAKE_ROW_RE.findall(text)
+                    if not INTAKE_DISPO_RE.search(row)
+                )
+                if hollow:
+                    findings.append(
+                        Finding(
+                            name,
+                            "HOLLOW-INTAKE",
+                            f"{hollow} inventory row(s) with no IN/OUT-OF-SCOPE/ASK disposition - "
+                            "an undecided row is a silent drop wearing a table",
+                        )
+                    )
 
     return examined, findings
 

@@ -27,7 +27,18 @@ rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
 ## Phase 1 — Adversarial grounding to a fixed point (parallel grounders per axis)
 
 Treat every design claim as unproven until verified. Run repeated passes until one demonstrably-thorough
-pass finds zero new gaps. Cover five axes — one INDEPENDENT grounder each when the spec is large:
+pass finds zero new gaps. Cover SIX axes — one INDEPENDENT grounder each when the spec is large:
+
+**A0) Intake coverage — re-derive the conversation's denominator AUTHOR-BLIND, then diff.** The spec
+carries an `## Intake Inventory` (its authoring contract); do NOT trust it. Re-read the conversation
+that produced the spec — the whole session, `session-recall` post-compact — and enumerate the
+items YOURSELF: every issue found, goal stated, feature requested, constraint, exclusion. Then diff
+both directions: an item in your list with no `I#` row is a SILENT DROP (the exact defect the
+operator chases — a session that found 10 issues and specced some, telling no one); an `I#` with no
+disposition, or an `OUT-OF-SCOPE` whose named destination does not actually exist (the backlog row
+never written, the "separate spec" never named), is a hollow disposition. Both are defects to fix in
+place. This axis is the checking half of the authoring contract; without it the inventory is graded
+by the agent it constrains.
 
 **A) External facts — re-verify LIVE, this session.** For EVERY external claim (API / SDK / endpoint / auth
 model / rate limit / **pricing** / library signature): re-fetch its cited source

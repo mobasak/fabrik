@@ -6,6 +6,7 @@ argument-hint: "[the idea / feature / problem — omit to spec the idea in the c
 Turn a rough idea into an **approved design spec** — *what* to build, *why*, and *which approach* (not the implementation; that's `/fabrik-plan-after-chat`'s job) — with a **HARD GATE**: no code, scaffold, or plan until that spec is written and you approve it.
 
 {{include:run-record}}
+{{include:chat-intake}}
 ## Phase 0 — Scope + decompose
 
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.

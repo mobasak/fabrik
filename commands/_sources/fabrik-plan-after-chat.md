@@ -56,6 +56,7 @@ without stopping). A cross-AI dependency the executor can't satisfy alone is a n
 resolve with its owner before the plan is trusted — never an "open" residual that rides into execution.
 `/fabrik-plan-review` enforces this at convergence; don't hand it a deferred question.
 
+{{include:chat-intake}}
 ## Phase 0.5 — Binding context intake (read BEFORE you select an approach)
 
 **If a `/fabrik-spec` fed this plan, INHERIT its grounding — do not repeat it.** The spec already produced

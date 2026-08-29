@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the conversation is now a DENOMINATOR: Intake Inventory for /fabrik-spec and /fabrik-plan-after-chat (2026-08-29)
+
+Operator: *"they determine 10 issues, and I say /fabrik-spec and they spec only some of them, not
+all — they also don't tell me — and I always chase their missing speccing."* The denominator lived
+in the agent's memory, so subsetting was invisible by construction — the same defect class the
+certification gauntlets solved with generated inventories.
+
+- **`commands/_fragments/chat-intake.md`** (new, rendered into BOTH authoring commands): first act
+  after the run record, re-read the WHOLE conversation (session-recall post-compact), enumerate
+  every item as `I1…In` anchored to the operator's own words, and carry `## Intake Inventory` in
+  the artifact — every row dispositioned IN (section ref) · OUT-OF-SCOPE (why + a NAMED destination
+  that now exists) · ASK. Zero silent drops; the close-out states the split
+  (`Intake: N — X IN, Y OUT-OF-SCOPE, Z ASK`) so the operator sees the subsetting instead of
+  chasing it.
+- **`/fabrik-spec-review` axis A0** — the checking half: re-derive the conversation's item list
+  AUTHOR-BLIND, diff both directions; a silent drop, a dispositionless row, or an OUT-OF-SCOPE
+  whose named destination does not exist are findings.
+- **`check_spec_convergence.py`** — `NO-INTAKE` / `HOLLOW-INTAKE` advisory findings on CONVERGED
+  specs dated ≥ 2026-08-30. Date-gated per the fire-rate doctrine: retro-grading 21 pre-contract
+  specs would put findings on every board on day one; measured landing fire rate **0**. 4 tests,
+  red-first; the date gate proven by mutation.
+- The first test version passed `--project-root` to a check whose flag is `--root` — and
+  `parse_known_args` (the anti-91 guard) silently audited the LIVE tree instead of the fixture.
+  Recorded in the test so the flag inconsistency bites nobody twice.
+
 ### Fixed — daily VPS-docs pipeline now PUSHES after it commits (2026-08-29)
 
 `scripts/update_vps_docs.py` committed `docs(auto): update VPS docs` to shared master but never pushed —
