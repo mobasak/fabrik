@@ -15,7 +15,10 @@ caught + fixed a token-404 idempotency mask, an inert circuit breaker (wrong `ki
 session-teardown under-drain — all with regression guards. Phase B: `reconcile_user_grants` — idempotent
 List→Create/Update/Delete convergence (zero-mutation on unchanged billing), symmetric per-product
 grant/revoke audit that correctly handles shared roles, best-effort audit that can't lock out a paid user
-(13 tests; review caught + fixed a role-sharing phantom-audit + an audit-aborts-entitlement path).
+(13 tests; review caught + fixed a role-sharing phantom-audit + an audit-aborts-entitlement path). Phase C:
+`revoke_and_teardown` (delete grant → bust the whole-user cache → Session-v2 teardown loop so back-channel
+logout tears down LIVE sessions) + `docs/reference/umbrella-sso-integration.md` (the per-RP recipe). 6 tests;
+review caught + fixed a single-product cache-bust fail-open + a wrong `record_event` doc signature. 35 tests total.
 
 ### Fixed — cmd 14/31: /fabrik-user-test's anti-mix-up guard could never block (2026-08-29)
 

@@ -1,6 +1,7 @@
 # Cross-SaaS SSO — the hub `product_entitlements_bridge` module + integration reference
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-29
+Whole-plan review: docs/development/reviews/2026-08-29-plan-1-cross-saas-sso-bridge-review.md (found: 0, fixed: 0 — native Opus ×6 across phases + pool breadth ×3, all refuted)
 Epic: docs/development/epics/2026-08-27-epic-2-cross-saas-sso-integration.md (epic_n 2, depends_on [1])
 Source of truth: docs/superpowers/specs/2026-08-27-umbrella-sso-infrastructure-decisions.md
 Shape: MONOLITH — one cohesive hub library module (`libs/product_entitlements_bridge/`) + one reference doc; its files overlap, so a spine+ticket set would serialize on shared paths (a monolith is the correct shape).
@@ -110,7 +111,7 @@ never executed here.
 - **Given** the same call runs twice with unchanged billing, **When** the second run executes, **Then** it issues ZERO Zitadel mutations (idempotent) (libs/product_entitlements_bridge/reconciler.py).
 - **Given** billing no longer entitles product Y, **When** the reconciler runs, **Then** it `DeleteAuthorization`s Y's grant and audits it (libs/product_entitlements_bridge/reconciler.py).
 
-## Phase C — Revocation→live-session teardown + the integration reference doc + final gate
+## Phase C — Revocation→live-session teardown + the integration reference doc + final gate ✅ EXECUTED 2026-08-29
 
 **One responsibility:** the teardown hook that makes a revoke kill LIVE sessions (not just the next login), and the reference doc the per-RP agents build against.
 

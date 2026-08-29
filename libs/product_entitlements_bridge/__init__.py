@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .grant_source import ZitadelGrantSource
 from .reconciler import ReconcileResult, reconcile_user_grants
+from .teardown import revoke_and_teardown
 from .zitadel_client import ZitadelClient, ZitadelError
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "ZitadelError",
     "ZitadelGrantSource",
     "reconcile_user_grants",
+    "revoke_and_teardown",
 ]

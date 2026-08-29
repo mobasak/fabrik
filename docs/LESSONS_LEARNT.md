@@ -999,6 +999,22 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## The fix for a review finding is the LEAST-reviewed code — re-review it, it often has its own bug (2026-08-29)
+
+Building the SSO-bridge (`libs/product_entitlements_bridge/`), the native-Opus phase review caught a real
+fail-open in EACH phase — and in 2 of 3 phases, the confirming re-review then caught a NEW bug **inside my
+fix for the first finding**: Phase A, the session-teardown pagination fix advanced `offset` while the deletes
+shrank the live set → skipped sessions (re-fixed to re-query-from-front); Phase B, the audit fix anchored
+`grant` to `& entitled` but not `revoke` → phantom revokes with no matching grant (re-fixed to a symmetric
+satisfied-transition). Both first-fixes passed their tests and looked right; the bug was subtler than the
+original. Rule: a review-fix is not done at "tests green" — it gets its OWN adversarial re-review round,
+because a fix is written fast, under the assumption the hard thinking already happened, and is the least-
+scrutinised code in the loop. The execute-plan contract already says "iterate find→fix→re-review until a
+clean round"; this run is the empirical proof that the SECOND round is where the fix's own defect surfaces —
+never stop at the first green after a fix. (Also: the Finish pool-breadth pass refuted all its findings,
+confirming the native rounds were thorough — pool breadth is worth running even when it finds nothing, as
+the negative result is itself evidence.)
+
 ## `health.disabled` must be honored by the VERIFIER, not just the deployer — one skip without its twin rolls back a live deploy (2026-08-29)
 
 Zitadel's umbrella-IdP deploy (RUN 3) came fully up — DB pre-provisioned, `start-from-init`
