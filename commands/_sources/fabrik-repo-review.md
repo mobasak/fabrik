@@ -40,7 +40,9 @@ and say so.
 One reviewer per unit, READ-ONLY — no edits, so parallel workers can't collide. **Scale the
 fan-out to the repo — a big repo is 20+ workers, not 2–3.** Dispatch the bulk of units as
 **cheap flywheel-ranked pool workers** via
-**`fanout("review", units=[<unit code inlined> …], mode="read_only", max_concurrency=…)`** —
+**`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`**
+(`repo=` is REQUIRED; omit `project=` and NOTHING is recorded, making the back-fill below an
+orphan-writer — `FanoutBatch`'s docstring documents seven such rows already in the flywheel) —
 it picks family-diverse, flywheel-ranked models (no default price cap; `max_cost_per_mtok=`
 opt-in) and sets `tools_enabled=False`+`allow_ungrounded=True` for the single-shot
 reviewers. The mass pool fan-out is the **default worker** for gradeable fan-out (per
@@ -141,7 +143,9 @@ deferred backlog) and every class the certification's own fixes touched has been
 surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes
 — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination
 contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
-+ each fix's regression test. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
++ each fix's regression test. No mechanical check reads the scratchpad ledger — the run record's round
+entries (`command_run.py round`, Stop-hook-enforced) are the only graded trace of this loop, so record
+every pass there; the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
 — not just the in-scope tests.
 
 **`found` counts every candidate a unit-reviewer RAISED — including ones you drop as false positives in

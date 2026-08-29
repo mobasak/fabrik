@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 25/31: thread-anchor blackout + repo-review's orphan-writing dispatch recipe (2026-08-29)
+
+- Stop-hook harvest ran BELOW the `final_gate.py` eligibility return and died silently on a
+  post-compact drifted payload (register stale 26m, `final_block_emitted` dark): moved above the
+  return with a `__file__` fallback root + an `anchor_harvest` kaizen event per attempt; red-first
+  test fires the real hook via synthetic Stop payloads (`tests/test_stop_hook_harvest_resilience.py`).
+- `/fabrik-repo-review`'s `fanout` recipe omitted the REQUIRED `repo=` and `project=` kwargs —
+  TypeError on first use, and with `project=None` nothing records, so the taught `set_quality`
+  back-fill writes exactly the orphan rows `FanoutBatch`'s docstring warns about. Recipe aligned
+  to the `/fabrik-review` shape. Router gained a totality-worded `repo-review` stem (its advertised
+  triggers reached nothing; "full project code review" mis-routed to the diff reviewer) + a
+  15-phrase collision matrix. Phase 4 now states plainly that no mechanical check reads the
+  scratchpad ledger — the run record's round entries are the graded trace.
+
 ### Fixed — cmd 24/31: predicate 7 was blind to script-less closes — hiding EIGHT refusable instructions (2026-08-29)
 
 Corpus audit command 24 of 31 (`/fabrik-docs-review`; its trigger gap was pre-fixed at cmd 23). The

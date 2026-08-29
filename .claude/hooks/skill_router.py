@@ -110,6 +110,7 @@ STEM_SKILLS: dict[str, str] = {
     "spec-review": "fabrik-spec-review",
     "plan": "fabrik-plan-after-chat",
     "review-scoped": "fabrik-review-scoped",
+    "repo-review": "fabrik-repo-review",
     "review": "fabrik-review",
     # Both sit ABOVE `review` in KEYWORD_STEMS: each is a phrase `fabrik-review`'s own SKIP
     # clause disclaims, so letting the broad `review` stem win points the operator at a gate
@@ -489,6 +490,21 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "workflow-review",
+    ),
+    (
+        # ABOVE the generic review stem: /fabrik-repo-review's advertised triggers ("audit the
+        # whole repo", "tüm repoyu denetle") reached NOTHING (audit cmd 25/31, 2026-08-29), and
+        # "full project code review" mis-routed to fabrik-review, whose own SKIP disclaims
+        # whole-repo sweeps. A TOTALITY word (whole/entire/full/tüm/tamamı) + a codebase noun is
+        # required, so "audit the auth module" and "review this diff" still miss it.
+        re.compile(
+            r"\b(audit|sweep|review)\b[^.]{0,30}\b(whole|entire|full)\s+(repo(sitory)?|project|codebase)\b(?!\s*plan)"
+            r"|\b(whole|entire|full)\s+(repo(sitory)?|project|codebase)\b(?!\s*plan)[^.]{0,30}\b(audit|sweep|review|bugs?)\b"
+            r"|\bt[üu]m\s+(repo\w*|proje\w*|kod\w*)\b[^.]{0,25}\b(denetle\w*|incele\w*)"
+            r"|\bprojenin\s+tamam\w*\b[^.]{0,25}\b(incele\w*|denetle\w*)",
+            re.I,
+        ),
+        "repo-review",
     ),
     (
         # ABOVE the generic review stem (first match wins — the spec-review mis-route lesson):

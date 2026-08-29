@@ -1152,3 +1152,39 @@ def test_the_screen_stem_does_not_swallow_the_spec_producer_or_the_ui_review() -
     order = [st for _, st in hook.KEYWORD_STEMS]
     assert order.index("ui-design-review") < order.index("ui-design"), "review twin first"
     assert order.index("ui-design") < order.index("spec"), "else `spec` swallows it"
+
+
+# --- /fabrik-repo-review stem (audit cmd 25/31, 2026-08-29) -------------------------------
+# Its advertised triggers ("audit the whole repo", "tüm repoyu denetle") reached NOTHING, and
+# "full project code review" mis-routed to fabrik-review, whose own SKIP disclaims whole-repo
+# sweeps. The stem requires a TOTALITY word + a codebase noun so module-scoped and diff-scoped
+# review phrasing stays where it was.
+
+
+def test_whole_repo_audit_phrases_reach_repo_review() -> None:
+    assert hook.first_regex_match("audit the whole repo") == "repo-review"
+    assert hook.first_regex_match("sweep the entire project for bugs") == "repo-review"
+    assert hook.first_regex_match("full project code review") == "repo-review"
+    assert hook.first_regex_match("do a full codebase audit") == "repo-review"
+    assert hook.first_regex_match("tüm repoyu denetle") == "repo-review"
+    assert hook.first_regex_match("projenin tamamını incele") == "repo-review"
+
+
+def test_the_repo_review_stem_does_not_swallow_its_neighbours() -> None:
+    """Precision guard: scoped review phrasing keeps its own targets, and a totality word
+    attached to a PLAN noun is not a codebase sweep."""
+    assert hook.first_regex_match("review this diff") == "review"
+    assert hook.first_regex_match("code review") == "review"
+    assert hook.first_regex_match("audit the auth module") is None
+    assert hook.first_regex_match("review the deployment plan") == "deploy-plan-review"
+    assert hook.first_regex_match("review this spec") == "spec-review"
+    assert hook.first_regex_match("quick review of my changes") == "review-scoped"
+    assert hook.first_regex_match("the whole project is slow") is None
+    # pre-existing at HEAD (the plan-review stem is noun-tight); pinned so a change is loud:
+    assert hook.first_regex_match("review the full project plan") == "review"
+
+
+def test_the_repo_review_stem_is_registered_above_review() -> None:
+    assert hook.STEM_SKILLS["repo-review"] == "fabrik-repo-review"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    assert order.index("repo-review") < order.index("review"), "first match wins"
