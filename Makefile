@@ -55,7 +55,10 @@ format:
 	ruff check --fix src/
 
 pre-commit:
-	pre-commit run --all-files
+	# review-coverage-staged is commit-moment by design (grades what enters history NOW);
+	# an --all-files sweep would retro-grade legacy review artifacts the checker's own
+	# scan deliberately exempts — the retroactive red that kills a gate.
+	SKIP=review-coverage-staged pre-commit run --all-files
 
 check:
 	python scripts/final_gate.py

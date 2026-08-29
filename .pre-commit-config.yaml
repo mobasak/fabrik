@@ -114,6 +114,9 @@ repos:
         entry: python3 scripts/enforcement/check_review_coverage.py
         language: system
         files: '^docs/development/reviews/.*\.md$'
+        # archived/ parity with the checker's own scan (_changed_md excludes it): archiving a
+        # legacy report is a move, not an endorsement — grading it there is a false red.
+        exclude: '^docs/development/reviews/archived/'
 
       # POST-COMMIT since the operator decision 2026-08-29: as the slowest pre-commit hook this was
       # the widest window for the tree-delta check to catch an UNRELATED concurrent writer, aborting
