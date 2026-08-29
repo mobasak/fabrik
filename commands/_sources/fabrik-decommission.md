@@ -1,5 +1,5 @@
 ---
-description: Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evidence), then one of three named outcomes (archive-source-only, full decommission, migrate-consumers-first), an operator confirmation gate, and only then the source move + hub bookkeeping. Runtime teardown is always a separate, operator-gated step. Stage: utility. TRIGGER — EN: "retire this project", "decommission this service", "archive and shut down X"; TR: "bu projeyi emekliye ayır", "bu servisi kapat ve arşivle" — fires bare-prose, no slash command needed.
+description: Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evidence), then one of three named outcomes (archive-source-only, full decommission, migrate-consumers-first), an operator confirmation gate, and only then the source move + hub bookkeeping. Runtime teardown is always a separate, operator-gated step. Stage: utility. TRIGGER — EN: "retire this project", "decommission this service", "archive and shut down X"; TR: "bu projeyi emekliye ayır", "bu servisi kapat ve arşivle" — fires bare-prose, no slash command needed. SKIP: proving a just-deployed service ALIVE (→ /fabrik-deploy-verify — this command's liveness probe run in the opposite direction) · executing runtime teardown (→ the operator's own `fabrik destroy` — never any command's act).
 argument-hint: "<project or service name to retire — omit to be asked>"
 ---
 
@@ -69,9 +69,9 @@ the Phase 1 outcome and WAIT; an outcome stated but not confirmed is not yet act
 compose app, the Traefik route, every registrar entry the spec's `shape:` block provisioned (GlitchTip
 project, Gatus endpoint, Meilisearch index, Authelia rule, Backrest plan, Postgres/Redis if
 `--drop-data`), the DNS A record, and the Gatus probe itself. The hub-side tool that reverses these is
-`fabrik destroy specs/services/<id>.yaml` (`src/fabrik/cli.py:976` — reverses MeiliSearch, Authelia,
-GlitchTip, Backrest, Gatus, and Postgres/Redis registrars, then the compose app and DNS record; examples
-at `src/fabrik/cli.py:997-999`). Cite it here for the operator to run themselves — this command never
+`fabrik destroy specs/services/<id>.yaml` (`src/fabrik/cli.py::destroy`, def at `:903` — reverses
+MeiliSearch, Authelia, GlitchTip, Backrest, Gatus, and Postgres/Redis registrars, then the compose app
+and DNS record; its own docstring examples at `:924-926`). Cite it here for the operator to run themselves — this command never
 shells out to it and never decides to run it. That compose-destroy step is itself irreversible on the
 remote side: `_destroy_compose` runs `docker compose down` then `sudo rm -rf /opt/<name>` ON THE VPS
 (`src/fabrik/orchestrator/destroyer.py:338-340`) — the remote tree is wiped even though this command's own

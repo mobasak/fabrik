@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 21/31: /fabrik-decommission — two findings, both the audit's recurring classes (2026-08-29)
+
+- **`cli.py` line drift:** `fabrik destroy` cited at `:976` with examples at `:997-999`; the def is
+  `:903` and its docstring examples `:924-926`. Re-cited as `cli.py::destroy` + def line, per the
+  cmd-20 rule (functions move slower than line numbers). `destroyer.py:338-340` verified EXACT —
+  the down+`rm -rf` pair is precisely there; `sync_projects`/`fleet_doc_audit` ranges verified live.
+- **The missing sibling guidance** (checklist item 3 flagged it): SKIP redirects added — liveness
+  proving → `/fabrik-deploy-verify` (the command's own stated twin), teardown execution → the
+  operator's own `fabrik destroy`. The checklist's no-guidance list re-measures 2 → 1
+  (`fabrik-catchup` alone).
+- Verified clean: router routes all three trigger phrases via the `retire` stem; the three-outcome
+  liveness discriminator + AWAITING/EXECUTED dual output forms are the corpus's best
+  found-nothing-vs-could-not-look separation (item 15); every CHANGELOG citation uses dated entry
+  titles, the item-72 model citizen.
+
 ### Fixed — the mail sweep's second wave: five more fixes from the queue (2026-08-29)
 
 Continuing the 35-deep @infra clearance — every fix cites its mail:
