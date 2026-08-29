@@ -170,7 +170,10 @@ tree-delta detection catching a CONCURRENT writer during the slowest hook's ~30s
 contributors: (1) the `.windsurf/rules/ai/**` renders lost their committer at the Phase-D cutover
 (autocommit_pipeline_outputs.sh removed them deliberately — the ai-model-catalog ENGINE owns
 publishing now, and its commit half is intel's to wire); (2) structurally, distribution does not
-need to GATE the commit — a post-commit sync would eliminate the window class entirely. Decision
-owed: move governance-sync to post-commit (operator sign-off — changes the distribute-on-commit
-invariant's timing, not its guarantee). Until then: retry lands it; SKIP=governance-sync only when
-the sync's own receipts prove it already ran (the daf984f5 precedent).
+need to GATE the commit — a post-commit sync would eliminate the window class entirely. DECIDED +
+SHIPPED same day (operator sign-off 2026-08-29): governance-sync is now a POST-COMMIT hook —
+`scripts/governance_sync_postcommit.sh`, always_run + re-applying the config's own `files:` regex
+against HEAD (measured first: post-commit passes NO file list, so a naive stage move silently
+disables the sync). It can no longer abort a commit and has no stash window; a sync failure prints
+loudly with the manual re-run command. Residual: the `.windsurf/rules/ai/**` renders' missing
+committer stays intel's engine-side item.

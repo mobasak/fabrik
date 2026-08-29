@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — governance-sync moved to POST-commit (operator decision; the widest-window abort class closed) (2026-08-29)
+
+- The sync was the slowest pre-commit hook (~30s × 47 repos) — the widest window for pre-commit's
+  tree-delta check to catch an UNRELATED concurrent writer, aborting innocent rules commits twice
+  in one day. Now `stages: [post-commit]` via `scripts/governance_sync_postcommit.sh`: measured
+  first in a scratch repo that post-commit passes NO file list (a `files:`-filtered hook always
+  skips — a naive move would have silently disabled distribution fleet-wide), so the hook is
+  `always_run` and the wrapper re-applies the config's own `files:` regex against HEAD's paths,
+  keeping the trigger set single-sourced. It can no longer abort a commit, has no stash window,
+  and a sync failure prints the manual re-run command loudly. Constitutions' three wording sites
+  updated; fast path live-verified on a real non-trigger HEAD.
+
 ### Fixed — the researcher's fetch-path law + the governance-sync deadlock dispositioned (2026-08-29)
 
 - wef 01M176BR (carried out of a fabrik-researcher subagent per the close-out contract): WebFetch
