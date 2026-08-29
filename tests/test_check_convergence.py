@@ -42,6 +42,11 @@ plus the four standing recurrence classes.
 | boundary/sentinel | CLEAN | db/schema.sql:10 enum matches the handler's writes |
 | behavior-without-a-test | FIXED | added tests/test_handler.py:11 |
 
+## Pass Ledger
+
+- Pass 1 (WIDE) — method: citation — found: 2, fixed: 2
+- Pass 2 (CLOSING) — method: re-derivation — found: 0, fixed: 0
+
 ## Self-audit
 Every claim above traces to a path:line citation and the gate output. No
 runtime-only assumptions remain.
@@ -1176,3 +1181,54 @@ def test_a_checklist_with_no_rubric_invocation_anywhere_still_fails():
     text = "## Coverage Checklist\n\n| # | Class | Verdict |\n|---|---|---|\n| 1 | x | CLEAN |\n"
     fails = cc._checklist_fails(text, cc.FENCE_STRIP.sub("", text))
     assert any("review_rubric" in f for f in fails), fails
+
+
+# --- the re-derivation ledger row (tryton-crm 01M17KHT, 2026-08-29) -----------------------
+# /fabrik-plan-review stamped CONVERGED after ELEVEN rounds with the factual-pass sentence IN
+# the command and applied in ZERO of them — six defects survived, three execution-stalling.
+# Their root cause: the ledger had no METHOD column, so eleven citation rounds were
+# indistinguishable from a loop that re-derived. The flip now REFUSES without >=1
+# re-derivation row. Form is machine-checked; the honesty boundary (writing the token without
+# running the pass) is the same adjudicated limit as BLOCKED evidence — declarative, backstopped
+# by the operator reading the escalation.
+
+
+def _min_converged_plan(ledger_line: str) -> str:
+    return (
+        "**Status:** CONVERGED\n\n## Evidence\n\nsee `a.py:1`\n\n"
+        "```\n$ echo proof\nproof\n```\n\n## Self-audit\n\nok\n\n"
+        "## Pass Ledger\n\n" + ledger_line + "\n"
+    )
+
+
+def test_a_new_converged_plan_without_a_rederivation_row_is_refused(tmp_path):
+    cc = _cc()
+    p = tmp_path / "2026-08-29-plan-1-x.md"
+    p.write_text(_min_converged_plan("- Pass 1 (WIDE) — method: citation — found: 2, fixed: 2"))
+    fails = cc._check_plan(tmp_path, p)
+    assert any("re-deriv" in f for f in fails), fails
+
+
+def test_a_rederivation_row_satisfies_the_flip(tmp_path):
+    cc = _cc()
+    p = tmp_path / "2026-08-29-plan-2-x.md"
+    p.write_text(
+        _min_converged_plan(
+            "- Pass 1 (WIDE) — method: citation — found: 2, fixed: 2\n"
+            "- Pass 2 (CLOSING) — method: re-derivation — found: 0, fixed: 0"
+        )
+    )
+    fails = cc._check_plan(tmp_path, p)
+    assert not any("re-deriv" in f for f in fails), fails
+
+
+def test_a_fence_quoted_rederivation_row_does_not_satisfy(tmp_path):
+    """A DRAFT template quoting the example table must not pre-satisfy the rule."""
+    cc = _cc()
+    p = tmp_path / "2026-08-29-plan-3-x.md"
+    p.write_text(
+        _min_converged_plan("- Pass 1 — method: citation — found: 0, fixed: 0")
+        + "\n```\n| 2 | all | re-derivation | 0 | 0 |\n```\n"
+    )
+    fails = cc._check_plan(tmp_path, p)
+    assert any("re-deriv" in f for f in fails), fails

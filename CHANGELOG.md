@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the re-derivation flip gate: CONVERGED now refuses without a method row (tryton-crm finding, hours after the law landed) (2026-08-29)
+
+- tryton-crm's plan-review ran ELEVEN rounds with the factual-pass sentence IN its command and
+  applied in ZERO — six defects survived the stamp. Their diagnosis (discoverability + no
+  enforcement, a method-blind ledger) landed as three fixes: `term-edit`'s sentence is now its own
+  ⚠️ block naming the three citation-blind classes (count-re-derivation · bounded-search-as-total ·
+  data-integrity) with the `method` ledger column mandated; `check_convergence.py` REFUSES a NEW
+  CONVERGED flip without a `method: re-derivation` Pass-Ledger row (red-first, fence-quoted rows
+  immune, settled-at-HEAD inherited; suite 71 green); both constitutions' denominator rows gain
+  their two new shapes (`-A` context truncation, case-sensitivity). The review-side mechanical twin
+  is a deliberate follow-up pending a fire-rate check. Notably: the mail itself was the new
+  close-out classifier's first in-the-wild firing — filed within hours of the rule that demanded it.
+
 ### Added — mobile component sources + the licence filter (wef finding; gluestack's MIT did not verify) (2026-08-29)
 
 - `80-mobile.md` § Styling gains "Component sources": React Native Reusables (MIT verified from the

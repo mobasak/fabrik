@@ -113,6 +113,11 @@ class _ConvergedSearch:
 
 
 CONVERGED = _ConvergedSearch()
+
+# A Pass/Round-labelled ledger line carrying the re-derivation method token. Deliberately
+# loose on separators (dash/pipe/colon tables all in the wild) and tight on the two anchors:
+# a pass/round label and `re-deriv` within one line.
+_REDERIVATION_ROW = re.compile(r"\b(?:pass|round)\b[^\n]{0,160}\bre-?deriv", re.I)
 # EXECUTED must be the status VALUE (right after `Status:`), not the word
 # "executed" appearing in prose — else a `Status: CLOSED … never executed
 # directly` / `Status: Done … was executed unauthorized` line false-positives.
@@ -437,6 +442,21 @@ def _check_plan(root: Path, path: Path) -> list[str]:
             f"{elided} probe fence(s) whose command is ELIDED (`$ ...`) — probe duty says re-run "
             "the command and diff its output, which an elided command makes impossible; paste the "
             "command you actually ran"
+        )
+    # Re-derivation ledger row (tryton-crm 01M17KHT, 2026-08-29): a plan-review ran ELEVEN
+    # rounds with the factual-pass rule IN its command and applied in ZERO — six defects
+    # survived the CONVERGED stamp, because the ledger had no METHOD notion and eleven
+    # citation rounds are indistinguishable from a loop that re-derived. Scope inherits the
+    # settled-at-HEAD carve-out via _converged_targets (this fn's only caller). Fence-stripped
+    # `scan` so a quoted example table cannot pre-satisfy. Form is machine-checked; writing
+    # the token without running the pass is the same declarative honesty boundary as BLOCKED
+    # evidence (check_review_coverage._blocked_sections' adjudicated limit) — the backstop is
+    # the operator reading the ledger, not a deeper parser.
+    if not _REDERIVATION_ROW.search(scan):
+        fails.append(
+            "claims CONVERGED with no re-derivation Pass-Ledger row — the CLOSING pass must "
+            "RE-DERIVE every count/enumeration/anchor from its primary source (a row naming "
+            "`method: re-derivation`), not re-verify citations; run it, then record it"
         )
     out = [f"{rel}: {x}" for x in fails]
     if _is_spine(path):
