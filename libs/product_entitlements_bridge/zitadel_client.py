@@ -170,7 +170,7 @@ class ZitadelClient:
     async def list_authorizations(self, user_id: str) -> list[dict[str, Any]]:
         body = {"filters": [{"userIdFilter": {"id": user_id}}], "projectId": self.project_id}
         data = await self._post_connect("ListAuthorizations", body)
-        auths = data.get("authorizations", [])
+        auths: list[dict[str, Any]] = data.get("authorizations", [])
         # NORMALIZE HERE, once: the live v2 RESPONSE carries `roles: [{key, displayName, group}]`
         # — `roleKeys` exists only on the Create/Update REQUEST. Every consumer
         # (grant_source, reconciler) reads `roleKeys`, and before this normalization that read
@@ -197,7 +197,7 @@ class ZitadelClient:
         if role_keys:
             body["roleKeys"] = role_keys
         data = await self._post_connect("CreateAuthorization", body)
-        return data.get("id", "")
+        return str(data.get("id", ""))
 
     async def delete_authorization(self, auth_id: str) -> None:
         # Idempotent ONLY on a genuine DeleteAuthorization 404 (the grant is already gone). Keyed on

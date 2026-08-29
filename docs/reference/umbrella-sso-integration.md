@@ -2,8 +2,9 @@
 
 How a relying-party (RP) SaaS federates to the umbrella Zitadel IdP (`auth.ocoron.com`) and enforces
 cross-product entitlements. This is the reference the per-RP agents follow (youtube, transdoc,
-web-ecommerce-factory, + future). The shared machinery lives in `libs/product_entitlements_bridge/`
-(hub) + three fabrik-lib modules; each RP vendors them and supplies its own config + wiring.
+web-ecommerce-factory, + future). The shared machinery is four fabrik-lib modules (the bridge was
+promoted 2026-08-29 as `product-entitlements-bridge/`; the hub's `libs/product_entitlements_bridge/`
+remains its upstream dev source); each RP vendors them and supplies its own config + wiring.
 
 > **Status:** hub bridge module + this reference shipped (Epic-2 hub slice). The per-RP wiring below is
 > **dispatched to each RP's own repo** — the hub cannot write RP files.
@@ -16,8 +17,7 @@ On the shared box, vendor by copy (fabrik-lib is vendor-by-copy, never import):
 cp -r /opt/fabrik-lib/oauth-login            <rp>/vendored/oauth_login
 cp -r /opt/fabrik-lib/product-entitlements   <rp>/vendored/product_entitlements
 cp -r /opt/fabrik-lib/app-audit-log          <rp>/vendored/app_audit_log
-# the bridge (until promoted to a fabrik-lib module — see its README):
-cp -r /opt/fabrik/libs/product_entitlements_bridge  <rp>/vendored/product_entitlements_bridge
+cp -r /opt/fabrik-lib/product-entitlements-bridge/product_entitlements_bridge  <rp>/vendored/product_entitlements_bridge
 ```
 
 The bridge bundles its own HTTP resilience (`_vendor_http/`, a copy of `async-http-client`) — do not
