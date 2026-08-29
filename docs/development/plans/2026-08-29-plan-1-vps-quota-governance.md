@@ -1,6 +1,6 @@
 # Plan — VPS single-key Claude quota governance (ob@)
 
-Status: DRAFT
+Status: CONVERGED
 Spec: docs/superpowers/specs/2026-08-29-vps-claude-quota-governance-design.md (CONVERGED)
 Shape: MONOLITH — one cohesive `scripts/sysadmin/` toolset (governor + broker + marshaller) whose files
 call each other; a spine+ticket set would serialize on shared paths. 3 phases.
@@ -223,6 +223,36 @@ ModuleNotFoundError: No module named 'redis'           # (bare python3 may see a
   verdict criterion (the spec names it) are decided defaults, not `[OPEN]` residuals — the executor applies
   them without stopping. The two Phase-step-0 groundings (Opus window presence; empty-tool-allowlist flag) are
   runnable probes with a defined fallback, not open questions.
+
+## Coverage Checklist
+
+Classes derived from the rubric (not from memory) + the four standing recurrence classes. Ran:
+
+```
+$ python3 scripts/review_rubric.py --changed scripts/sysadmin/quota_governor.py \
+    scripts/sysadmin/claude_broker.py scripts/sysadmin/incident_context.py
+# FLOOR: core/35-security-auth · core/25-data-postgres · core/30-ops · 12-FACTOR (all axes)
+```
+
+Each row adjudicates whether the PLAN's design + Behavior Contracts close the class for a cold executor
+(a plan can't carry a runtime bug in code not yet written — the sweep is: does the design handle the class).
+
+| # | Failure class (rubric / standing) | Swept against | Verdict |
+|---|---|---|---|
+| 1 | **fail-open / fail-silent** (standing) | Fail-SAFE degraded state (Global Constraint + Phase-A BC: `--status` fail → routine=pool, incident=ob@; consumers reach ob@ ONLY via the governor, no bypass) | CLEAN |
+| 2 | **cost/quota accounting** (standing) | the plan's whole subject — multi-window reserve via `max(<payload windows>)` (never hardcoded 2), per-caller budget file with `resets_at_epoch` reset, no per-call $ cap | CLEAN |
+| 3 | **boundary / sentinel** (standing) | budget window reset at `now ≥ resets_at_epoch`; single-flight `flock(LOCK_NB)` held→pool-diagnose boundary; empty-tool-allowlist argv (grounded Phase-B step 0) | CLEAN |
+| 4 | **behavior-without-a-test** (standing) | every Behavior Contract row carries a `(path)`; Phase steps write tests FIRST (TDD), watched-fail-first on the reserve / fail-safe / single-flight / broker-auth risky paths | CLEAN |
+| 5 | **config-via-env / no hardcoded secret** (12-Factor III · core/35) | no `ANTHROPIC_API_KEY`; ob@ cred stays host-side; broker per-caller token; `RESERVE_PCT` env-configurable | CLEAN |
+| 6 | **confused-deputy / auth boundary** (core/35) | broker empty-tool-allowlist (no host tools) + per-caller token 401 + containers hold no creds + class forced server-side (never self-labelled) | CLEAN |
+| 7 | **degrade-don't-block** (core/58) | governor SHEDS routine only, never caps the fix; incident never dropped/blocked/auto-applied-when-capped | CLEAN |
+| 8 | **spec / Global-Constraint contradiction** | Self-audit traces every constraint to the CONVERGED spec; no phase step contradicts it | CLEAN |
+| 9 | **12-Factor IV backing-service swap = config not code / no new dep** | budget store is a stdlib JSON file — no `redis` dep added to the `.venv` (HARD STOP avoided) | FIXED (F2) |
+| 10 | **Evidence reproducibility (proxy-never-evidence)** | Evidence commands re-run live this pass; the redis-absence proof pinned to `.venv/bin/python`, the operative interpreter (bare `python3` sees a user-site redis) | FIXED (F8) |
+| 11 | **ungrounded external/telemetry claim** | Opus-weekly window not assumed present — `_account_status` grounded to parse only `five_hour`+`seven_day` today; reserve iterates the payload's actual windows + Phase-A step 0 probe | FIXED (F1) |
+
+Exit: a full sweep of all 11 classes raised **0 new** findings (F1/F2/F8 fixed in prior passes, re-verified CLEAN
+here); md5-verified no-op confirming pass. No UNCHECKED rows, no `## BLOCKED` escalation owed.
 
 ## Residual unknowns
 
