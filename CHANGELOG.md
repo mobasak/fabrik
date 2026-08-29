@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik-mail refused any message quoting a pytest node ID; the same line was 58x too slow (2026-08-29)
+
+Found while mailing measured suite results to 18 repos: the send died on `llm_batch_processor` with
+*"REFUSED — body contains a high-confidence secret"*. The body's only unusual content was
+`FAILED tests/test_utils.py::TestTokenBucket::test_acquire_tokens`.
+
+- **The false positive.** `_SECRET_HIGH`'s assignment pattern reads a pytest node ID as an
+  assignment: `TOKEN` comes from the class name, `::` satisfies `[:=]`, and `:test_acquire_tokens`
+  is a 19-char `\S{16,}` "value". So fabrik-mail refused to carry a failure report for **any** test
+  whose name contains token / key / secret / password — precisely the failures most worth mailing.
+  Fixed with `[:=](?!:)`.
+- **The performance red, pre-existing and unrelated to the above.** The leading `\b[\w-]{0,64}` was
+  redundant — the engine may start the match at the keyword itself — and quadratic, retrying up to
+  64x64 backtracks at each of ~65k positions. Dropping it and making the trailing run possessive
+  takes `test_generic_scheme_scan_stays_fast`'s 64 KB body from **1.42s to 0.025s**, on every send
+  fleet-wide. ⚠️ **That test was already RED at HEAD** — verified by restoring the HEAD file and
+  re-running. It had been failing unnoticed because the hub does not run its own pytest, the same
+  root cause as the two stale scaffold assertions fixed in 69283980.
+- Making the LEADING run possessive was tried and **rejected**: it swallows the keyword and misses
+  every real secret. Recorded in the comment so it is not re-attempted.
+- **`tests/test_mail.py`** +8: four node-ID shapes that must not be refused, four real assignment
+  forms that must still be. The second set is the half that matters — a false-positive fix that
+  opens a hole is worse than the false positive.
+
 ### Changed — CI checks retired fleet-wide, existing and future (2026-08-29)
 
 Operator directive: *"disable all ci checks for all existing and future repos."* 36 of 46 repos are

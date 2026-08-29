@@ -2403,3 +2403,40 @@ def test_star_topology_still_refuses_a_different_project(env):
     with pytest.raises(mail.MailRefusedError) as ei:
         mail.send(to="beta", kind="finding", body="hi", frm="alpha")
     assert "star" in str(ei.value).lower()
+
+
+# ── The secret scanner must not refuse a pytest node ID ─────────────────────────────────────────
+# Found live 2026-08-29 while mailing measured suite results to 18 repos: the send died on
+# llm_batch_processor's `TestTokenBucket::test_acquire_tokens`. The high-confidence pattern reads a
+# node ID as an assignment — TOKEN from the class name, `::` as the `[:=]`, and `:test_acquire_tokens`
+# as a 19-char `\S{16,}` value. Auth-shaped test names are exactly the failures most worth mailing,
+# so this refused the most useful findings and nothing else.
+
+
+@pytest.mark.parametrize(
+    "node_id",
+    [
+        "FAILED tests/test_utils.py::TestTokenBucket::test_acquire_tokens",
+        "FAILED tests/test_auth.py::TestApiKeyHeader::test_rejects_a_missing_credential",
+        "FAILED tests/test_login.py::TestPasswordPolicy::test_rejects_short_passwords",
+        "FAILED tests/test_crypto.py::TestSecretRotation::test_rotates_on_a_schedule",
+    ],
+)
+def test_a_pytest_node_id_is_not_a_high_confidence_secret(node_id):
+    assert mail._secret_level(node_id) != "high", (
+        f"node ID refused as a secret: {node_id} — `::` must not read as an assignment separator"
+    )
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIKbPxRfiCYEXAMPLEKEY1",
+        "api_token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345",
+        "DB_PASSWORD = hunter2hunter2hunter2hunter2",
+        "SERVICE_INTERNAL_SECRET_KEY:abcdef0123456789abcdef",
+    ],
+)
+def test_real_assignments_are_still_refused(secret):
+    """The false-positive fix must not open a hole — this is the half that matters."""
+    assert mail._secret_level(secret) == "high", f"real secret no longer caught: {secret}"

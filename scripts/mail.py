@@ -121,8 +121,26 @@ _SECRET_HIGH = [
     # this loop: measured at 4.696s on f338fd5d, before round 10.) An identifier
     # is never 64 chars either side of the keyword, so the bound changes nothing
     # real — `AWS_SECRET_ACCESS_KEY=…` still matches.
+    # Two defects, one line, both found 2026-08-29 mailing measured suite results to 18 repos.
+    #
+    # (1) FALSE POSITIVE — a pytest node ID is shaped exactly like an assignment to the old
+    #     pattern: `tests/x.py::TestTokenBucket::test_acquire_tokens` gives TOKEN from the class
+    #     name, `::` for the `[:=]`, and `:test_acquire_tokens` as a 19-char `\S{16,}` "value".
+    #     The send REFUSED outright, and auth-shaped test names are precisely the failures most
+    #     worth mailing. `(?!:)` rejects the first colon of a `::`; the second cannot start a
+    #     match because `[\w-]` never consumes the first.
+    #
+    # (2) PERFORMANCE — the old leading `\b[\w-]{0,64}` was REDUNDANT (the engine may start the
+    #     match at the keyword itself, so a prefix needs no explicit run) and quadratic: it
+    #     retried up to 64x64 backtracks at every one of ~65k positions. Measured on the
+    #     `"PASSWORD-" * 7300` body from test_generic_scheme_scan_stays_fast: **1.42s -> 0.025s**,
+    #     a 58x cut on every send fleet-wide. That test was RED at HEAD before this change — it
+    #     had been failing unnoticed because the hub does not run its own pytest.
+    #     The trailing run is possessive (`{0,64}+`, Python 3.11+) so it cannot backtrack either;
+    #     making the LEADING one possessive was tried and rejected — it swallows the keyword and
+    #     misses every real secret.
     _re.compile(
-        r"\b[\w-]{0,64}(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}\s*[:=]\s*\S{16,}",
+        r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
         _re.I,
     ),
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
