@@ -155,17 +155,25 @@ mandatory-use cases, and the enforcement mesh itself. Fail-open — a broken
 orientation never blocks a session. Running sessions are unaffected;
 the block binds at each NEW session start.
 
-**Session end — three Stop-hook causes.** A session may not end while (a) the
+**Session end — six Stop-hook causes.** A session may not end while (a) the
 gate is red on files IT authored (path-token attribution — a sibling's
 ATTRIBUTED dirt on the shared tree reports instead of blocking; a failure whose
 output names no path stays indeterminate and can still block up to the
-3-attempt cap), (b) its own work sits uncommitted, or
-(c) the final message is a checkpoint-stall: a first-person promise ("I'll run
-it and report"), a permission question the session's own active plan already
-answers, or a **passive obligation** ("Pass 7 is owed", "I still owe the
-confirming round") with no dispatch in the same turn. Negations ("no further
-pass is owed"), causal "due to", credit "owed to", quotations, and named human
-gates are exempt; three blocked attempts warn through.
+3-attempt cap), (b) its own work sits uncommitted, (c) its committed work is
+UNPUSHED (branch ahead of upstream — the task-end push law), (d) the final
+message is a checkpoint-stall: a first-person promise ("I'll run it and
+report"), a permission question the session's own active plan already answers,
+or a **passive obligation** ("Pass 7 is owed") with no dispatch in the same
+turn, (e) a command RUN RECORD is still `running` (close it by name), or
+(f) the session authored CODE files with **no run record at all** —
+spontaneous plain-chat work by construction (every command opens a record), and
+it owes `/fabrik-review-scoped`, whose record clears the cause (added
+2026-08-29). Negations, causal "due to", credit "owed to", quotations, and
+named human gates are exempt — but since 2026-08-29 a bare deferral phrase
+("operator decision", "your call") no longer disarms the stall guard alone: it
+must share its line with a HARD-STOP class (cross-repo · gate 1/2 ·
+deploy/publish · spend · irreversible · policy · rule-conflict at `path:line`).
+Three blocked attempts warn through, per cause, independent counters.
 
 **Every task-completing response** ends with the 6-line FINAL OUTPUT block —
 gate freshness, docs, changelog, lessons, plus `DONE:` (what actually landed)
