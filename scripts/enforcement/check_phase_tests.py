@@ -93,6 +93,8 @@ def _contract_regions(text: str) -> str:
         heading_spans.append((m.start(), end))
         regions.append(text[m.end() : end])
     for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", text):
+        # LOCKSTEP with check_test_proposal._bold_contract_regions — the two checks grade the
+        # same construct and must accept the same grammar (tryton-crm 01M17EKV); edit both.
         # A bold label nested INSIDE a heading region is already captured above — scanning it
         # again would double-count its rows (review finding, live-reproduced: 2 rows printed 3).
         if any(s <= m.start() < e for s, e in heading_spans):

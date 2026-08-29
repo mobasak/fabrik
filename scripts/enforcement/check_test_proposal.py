@@ -44,11 +44,32 @@ def _section(content: str, title_substr: str) -> str | None:
 _FENCE_RE = re.compile(r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)", re.M | re.S)
 
 
+def _bold_contract_regions(stripped: str) -> str:
+    """Monolithic form: a `**Behavior Contract (…):**` bold label opens a region = its
+    contiguous bullet/continuation block. LOCKSTEP with check_phase_tests._contract_regions
+    (:95-107) — two synced checks parsing the same construct with different grammars is the
+    defect tryton-crm 01M17EKV reported (13 valid rows blocking-FAILED here while passing
+    there); change BOTH sites or neither."""
+    regions: list[str] = []
+    for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", stripped):
+        lines: list[str] = []
+        for line in stripped[m.end() :].splitlines():
+            if not line.strip() or re.match(r"^\s*[-*]\s", line) or re.match(r"^\s{2,}\S", line):
+                lines.append(line)
+                continue
+            break  # first prose/heading/label line ends the block
+        regions.append("\n".join(lines))
+    return "\n".join(regions)
+
+
 def _count_behaviors(content: str) -> int:
     """Behaviors = Given/When/Then triples in the Behavior Contract section (proxy: `Given` markers,
-    section extracted AFTER fence-stripping, so quoted content can't hijack or inflate)."""
+    section extracted AFTER fence-stripping, so quoted content can't hijack or inflate). Accepts
+    BOTH real-world forms — the `## Behavior Contract` heading section and, when no heading form
+    exists, the bold-label block (the fallback order keeps mixed documents at the stricter
+    heading-only count, so nothing passing today changes)."""
     stripped = _FENCE_RE.sub("", content)
-    section = _section(stripped, "behavior contract") or ""
+    section = _section(stripped, "behavior contract") or _bold_contract_regions(stripped)
     return len(re.findall(r"\bgiven\b", section, re.IGNORECASE))
 
 
@@ -90,7 +111,12 @@ def evaluate_plan(content: str) -> tuple[bool, str]:
         )
     behaviors = _count_behaviors(content)
     if behaviors < 1:
-        return False, "Behavior Contract enumerates no behavior (a Given/When/Then triple)"
+        return False, (
+            "no Given/When/Then rows found in a parseable Behavior Contract region — accepted "
+            "forms: a `## Behavior Contract` heading section, or a `**Behavior Contract (…):**` "
+            "bold label followed by its contiguous bullet block (a SYNTAX miss looks like this "
+            "too: check the label form before hunting for missing rows)"
+        )
     criteria = _count_criteria(content)
     if criteria and behaviors < criteria:
         return False, (
