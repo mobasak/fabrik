@@ -288,6 +288,21 @@ def write_if_changed(path: Path, new_content: str, dry_run: bool) -> bool:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
+def _push_with_ladder() -> bool:
+    """Push REPO to origin. An unpushed cron commit sits off-box-unprotected (CLAUDE.md § EXIT:
+    push is a task-end law) and trips every interactive session's Stop hook with an "UNPUSHED WORK"
+    nag for a commit that is not theirs. The pipeline is the only writer in this window, so a plain
+    push normally lands; on a concurrent rejection, rebase our commit on top and retry ONCE. NEVER
+    --force. Returns True if pushed; False leaves it committed-local (a session will push it — the
+    pre-fix status quo, now only the exceptional case).
+    """
+    push = subprocess.run(["git", "-C", str(REPO), "push"], capture_output=True, text=True)
+    if push.returncode != 0:
+        subprocess.run(["git", "-C", str(REPO), "pull", "--rebase=merges"], check=False)
+        push = subprocess.run(["git", "-C", str(REPO), "push"], capture_output=True, text=True)
+    return push.returncode == 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Update VPS documentation from live state")
     parser.add_argument("--dry-run", action="store_true", help="Print diff only, no writes")
@@ -373,6 +388,7 @@ def main() -> int:
             check=True,
         )
         print("✅ Committed.")
+        print("✅ Pushed." if _push_with_ladder() else "⚠️  Push failed — commit left local.")
 
     return 0
 

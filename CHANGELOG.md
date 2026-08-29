@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — daily VPS-docs pipeline now PUSHES after it commits (2026-08-29)
+
+`scripts/update_vps_docs.py` committed `docs(auto): update VPS docs` to shared master but never pushed —
+the commit sat off-box-unprotected until some unrelated interactive session's Stop hook nagged
+"UNPUSHED WORK" for a commit that was not theirs (each session then paid a `git log` attribution
+round-trip). Added `_push_with_ladder()`: push, and on a concurrent rejection `pull --rebase=merges`
++ retry once, never `--force`; leaves the commit local only if both pushes fail. 3 grader tests.
+(infra→fleet finding 01M163KJFF.)
+
 ### Fixed — cmd 17/31: /fabrik-deploy-plan audited clean but for one drifted citation (2026-08-29)
 
 Corpus audit command 17 of 31, first of the deploy triad. The cleanest command so far — freshly
