@@ -40,6 +40,15 @@ ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are 
 they describe how OUR surface came to exist, not whether a customer can reach it, and inherited
 surfaces are exactly what the T3 generated-smoke tier is FOR.
 
+**Board grammar, exact (learned by failing the grader — brand-identiy `01M168QED`):** the
+disposition column is headed **`Disposition`** (or `State`) — a `Status` column reads as UNVISITED;
+ONE evidence path per cell (a comma-separated cell fails the existence check whole); ticket files
+are `TC##[a-z]?-<slug>.md` ONLY — any other `.md` beside the spine (a `runtime.md` belongs in the
+board dir but is not a ticket) flags BAD TICKET. **Evidence discipline:** the board's `evidence/`
+dir is NEVER a runner's `--output` dir (runners WIPE their output root at start — passing the sweep
+dir as `--output` deletes cross-run evidence); take explicit `page.screenshot` paths and `cp` to
+`evidence/` IMMEDIATELY (attachments persist only for failing tests).
+
 **Bulk marking is where a deny-list leaks — and the grader never records.** A sweep flag
 (`--tier`/`--kind`/any multi-id form) must pass the SAME per-id refusals as a single mark: the
 reference implementation's first live sweep marked 39 navigation containers `EXERCISED` via a

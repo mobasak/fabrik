@@ -978,7 +978,13 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # judgement it exists to check is load-bearing on the wrong party. ADVISORY, not a refusal
         # — a one-shot command legitimately records no rounds, and trapping it would be worse than
         # the silence. Fires from phase 3 so a normal two-phase run stays quiet.
-        if target >= 3 and not (rec.get("rounds") or []):
+        # …and a LINEAR command (its own declared terminal never mentions rounds/no-op/found)
+        # legitimately steps through phases with zero rounds — firing there is noise that trains
+        # scroll-past (youtube 01M153H14, hit on a 5-phase linear plan run). The terminal string
+        # the run DECLARED at start is the honest signal for whether a loop was ever promised.
+        _terminal = str(rec.get("terminal") or "").lower()
+        _loop_shaped = any(k in _terminal for k in ("round", "no-op", "noop", "found:", "new:"))
+        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
             sys.stderr.write(
                 f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
                 "ZERO rounds recorded. If this command has a convergence loop, every round "

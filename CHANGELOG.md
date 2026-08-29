@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the mail sweep's second wave: five more fixes from the queue (2026-08-29)
+
+Continuing the 35-deep @infra clearance — every fix cites its mail:
+
+- **`command_run.py`'s ZERO-rounds NOTICE is now loop-shaped-only** (youtube `01M153H14`): it reads
+  the run's own DECLARED terminal — mentions of round/no-op/found:/new: — so a linear command stays
+  silent and an unrecorded loop still gets caught.
+- **`check_plans.py` runs both ways** (youtube `01M15AYX5` #1): sibling-import fallback on direct
+  invocation; the raw relative-import traceback read as "unrunnable".
+- **The git-mv both-paths warning** now also sits in `/fabrik-execute-plan`'s Finish step 6, at the
+  exact archive instruction where youtube hit it (`01M1584B0`).
+- **`/fabrik-deploy-plan-review`** names the PLAN's own `## Coverage Checklist` + rubric-run flip
+  requirement (a sibling's zitadel flip redded the shared gate discovering it, `01M1528CN`).
+- **The cert fragment** gains the exact board grammar (`Disposition`/`State` column word,
+  one-evidence-path-per-cell, TC##-only tickets) and the evidence-dir ≠ `--output` discipline
+  (brand-identiy `01M168QED`) — both gauntlets inherit.
+- Plus 5 measured backlog rows (seed-rival driver flag · Scope⊆Touches lint · staged-plan gate
+  semantics · check_doc_links blind spots · MCP-roots contradiction), 3 relays routed to their
+  beats, and the box cleared 36 → 2 @intel-owned.
+
 ### Added — four fixes landed straight from the @infra mail queue (2026-08-29)
 
 The 35-deep @infra backlog's ack-required findings, worked handle-now; each fix cites its mail:

@@ -997,7 +997,10 @@ to merge back. "Finishing" is:
    single-file move, which strands the tickets as gate-flagged orphans). Explicit paths either way;
    repoint the lock's `plan` field to the
    archived path. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
-   AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. Step 5's `Status: EXECUTED`
+   AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. ⚠️ **And the scoped commit
+   must name BOTH paths** — `git commit -- <old-path> <new-path>` — or the deletion half of the
+   rename stays staged-uncommitted and the plan lives at TWO paths in HEAD (youtube `01M1584B0`;
+   the constitutions carry the same clause at the realign rule). Step 5's `Status: EXECUTED`
    flip is an unstaged working-tree edit, so the rename carries the OLD bytes and the archived plan
    commits as `IN-PROGRESS` while your tree shows EXECUTED. The commit says `rename … (100%)`, which
    is the tell. No gate caught it: an IN-PROGRESS plan is simply out of scope for the EXECUTED

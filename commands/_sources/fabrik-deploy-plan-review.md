@@ -87,7 +87,11 @@ finders attack the amended runbook on precisely this axis.
 **Gate-required shape (name the RIGHT gate for each demand):** `check_plan_quality.py`'s modern pillars
 are `## Context Ledger` + `## File Scope` + `## Evidence` (WARN while `DRAFT`, ERROR from `CONVERGED`);
 `check_convergence.py`'s flip contract additionally demands `## Evidence` + a `## Self-audit` block +
-**≥1 DISTINCT `path:line` citation per `Phase`/`Step` heading** + ≥1 nontrivial fenced output. Verify all
+**≥1 DISTINCT `path:line` citation per `Phase`/`Step` heading** + ≥1 nontrivial fenced output. And a
+MONOLITH deploy plan flipping CONVERGED must itself carry `## Coverage Checklist` + an embedded
+`review_rubric.py` invocation (`check_convergence.py:369/:385` — a sibling's zitadel flip redded the
+shared gate discovering this; the review ARTIFACT's Class-verdicts table does not satisfy the PLAN's
+own requirement). Verify all
 of it BEFORE the flip — a missing section or an under-cited phase is a finding to fix, not a style note
 (and an `N/A-<surface>` phase still owes the citation that proves its inapplicability).
 
