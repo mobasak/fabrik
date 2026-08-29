@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — day-closing review: one fix had shipped without its grader (2026-08-29)
+
+`/fabrik-review` over the session's 15 commits; ledger in
+`docs/development/reviews/2026-08-29-todays-work-review.md`. 2 rounds, 1 finding, 1 FIXED.
+
+- **The Stop-hook deferral fix (`92998479`) had only a scratchpad probe** — in the same day THE FIX
+  DIRECTIVE made "fix + grader in the same change" binding. Now
+  `tests/test_stop_hook_deferral_exemption.py` (13 tests): classless deferrals blocked, genuine
+  gates exempt, the rule-conflict citation requirement pinned; red-on-revert proven (the old
+  one-regex exemption reds 6).
+- Verified clean rather than assumed: `thread_anchor.py` in the sync MANIFEST not just the trigger
+  filter; harvest existence-guarded + timeout inside the Stop hook; all six governance drift anchors
+  survive the constitution edits in both files; **fleet fire-rate 0** for the cert mix-up exit-1
+  (no `## Ticket Board` spine, no cert lock in plan-locks, anywhere in /opt); 287 tests green
+  across the day's nine suites.
+
 ### Added — Cross-SaaS SSO bridge: Zitadel GrantSource adapter + service-user client (Phase A, 2026-08-29)
 
 `libs/product_entitlements_bridge/` — the ocoron Zitadel composition every relying-party SaaS vendors
