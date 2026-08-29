@@ -78,6 +78,36 @@ not tell you.
 
 **Native Claude Task subagents (`fabrik-*`, subscription-billed) are for GUI + the authoritative/high-risk pass + the decide/refute/merge.** GUI (`fabrik-gui`, browser MCPs — no pool equivalent); the authoritative line-precise verification (`fabrik-reviewer`/Opus on auth / schema / migrations / secrets / concurrency); and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (nothing to rank — that is by nature, not a gap).
 
+**The THIRD lane — `ai-consult` (fabrik-lib, metered frontier panel): different eyes at a DECISION
+FORK, never breadth.** The pool buys gradeable recall and the flywheel learns from it; native buys
+authority on subscription; `ai-consult` buys the one thing neither can — genuinely foreign frontier
+judgment (the `frontier` roster: 7 seats, 6 vendor families, zero Anthropic — Claude eyes come via
+`claude -p`, never metered). It records nothing to the flywheel and burns real credits, so it fires
+ONLY at these four entry points, and never as a reflex:
+
+1. **Operator-named** — the operator asks for a consult.
+2. **A genuine design fork** in `/fabrik-spec` / `/fabrik-spec-review`: approaches truly balanced,
+   repo/rules/docs cannot settle it, and the question bar is about to ask the operator — a panel run
+   FIRST upgrades that question from "A or B?" to "A or B, and here is what seven foreign models
+   argued." The operator still decides.
+3. **A `BLOCKED: NON-CONVERGENCE` verdict** — the stall breaker names a suspected foundation error;
+   that is precisely when same-family eyes stop helping.
+4. **Pre-freeze on an irreversible heavy surface** (schema, auth model, migration strategy), as an
+   optional named step.
+
+Stinginess rules, all binding: **check the OpenRouter remaining credits FIRST** —
+`curl -s https://openrouter.ai/api/v1/credits -H "Authorization: Bearer $OPENROUTER_API_KEY"`
+(`data.total_credits - data.total_usage`; live-verified 2026-08-29, the balance was $3.65 — one
+7-seat panel is a real slice of that) — and if the balance cannot cover the consult, **ask the
+operator for a credit top-up naming the estimated cost; never spend the tail silently and never
+substitute a degraded panel**. Single-model `consult()` before any panel; the panel only when the
+single opinion conflicts with ours or the fork genuinely needs diversity. Every use reports
+`cost_usd` in the run's evidence (the `Result` carries it). Never for gradeable fan-out — that is
+the pool's job (`/fabrik-review` already names bypassing `fanout` for ai-consult as throwing away
+recording, containment and caps). Live-verify the roster's model IDs before a paid session —
+`curl -s https://openrouter.ai/api/v1/models | python3 -c "import sys,json; print('\n'.join(m['id'] for m in json.load(sys.stdin)['data']))" | grep -x "<id>"`
+(the public models list, no key needed) — the seats were frozen from a past measured run and IDs rot.
+
 **⚠️ BOTH layers, never either/or — native is ADDED ON TOP of the pool breadth, not instead of it.** A *substantial* review / repo-review / rules-audit runs the **pool** breadth layer (`run_agents` finders — recall + they record) **AND** native `fabrik-reviewer` (Opus) for the auth/schema/migrations/secrets/concurrency slices + the decide/merge. "Native for the high-risk pass" does NOT mean native-**only**: a high-risk surface needs the pool breadth *plus* the native authoritative pass. Going all-native and skipping the pool layer lands **zero** flywheel rows (the flywheel learns nothing) — the exact miss `check_subagent_flywheel.py` advisory-WARNs (a big changed surface with no pool run). Trivial one-file reviews may run a single layer; anything substantial runs both.
 
 **Trust = the METHODOLOGY, not a model pin.** A review's trust does NOT come from which pool model ran; it comes from **≥1 native Opus finder as the authoritative decider + every pool finding independently refuted before it is acted on** — both hold regardless of which models the flywheel currently ranks top. So never gate trust on a model name; gate it on the native-Opus-authority + refutation invariant.

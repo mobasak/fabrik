@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — ai-consult as the THIRD dispatch lane: different eyes at a decision fork, credits-checked (2026-08-29)
+
+- Operator-approved: `62-using-subagents.md` § Dispatch policy gains the third lane — fabrik-lib's
+  `ai-consult` (frontier panel: 7 seats, 6 families, zero Anthropic; all 7 IDs live-verified on OR
+  today) fires ONLY at four named entry points (operator-named · a genuine spec fork the question
+  bar would punt · `BLOCKED: NON-CONVERGENCE` · pre-freeze on an irreversible heavy surface), with
+  binding stinginess rules: check OpenRouter remaining credits FIRST (live-verified endpoint;
+  balance was $3.65) and ask the operator for a top-up when short — never spend the tail silently;
+  single-model before panel; report `cost_usd`; never for gradeable fan-out; no Claude models
+  through it. Both CLAUDE.md § Subagent-fan-out bullets carry a pointer clause (62 stays canonical).
+  The confirming review pass caught a dead cite (`check_model_live.py` is gone — replaced with the
+  public models-list curl; the stale memory updated too).
+
 ### Changed — cmd 31/31: the audit closes — researcher liberalized, design-review's rounds wired, silence can no longer pass the grounding gate (2026-08-29)
 
 - `fabrik-researcher` opened to ANY command or plain-chat work needing live grounding (operator
