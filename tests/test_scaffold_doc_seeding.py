@@ -46,10 +46,19 @@ reg = _load_registry()
 # Layer 1 — unit tests of the pure gating decision
 # ---------------------------------------------------------------------------------------
 def test_headless_python_api_skips_product_docs_keeps_deployed_and_universal():
-    for dest in ("docs/BUSINESS_MODEL.md", "docs/STRATEGIC_BACKLOG.md"):
-        assert not scaffold._type_seeds_doc(reg, "python-api", dest), (
-            f"python-api should skip {dest}"
-        )
+    # BUSINESS_MODEL is product-facing and a headless API has no product story to tell.
+    assert not scaffold._type_seeds_doc(reg, "python-api", "docs/BUSINESS_MODEL.md"), (
+        "python-api should skip docs/BUSINESS_MODEL.md"
+    )
+    # ⚠️ STRATEGIC_BACKLOG moved from product-only to UNIVERSAL in 245cb5e7 (2026-08-27,
+    # operator rule: every type seeds it, because every project accrues deferred work). This
+    # assertion still demanded the old contract and had been RED for two days — unnoticed
+    # because the hub's `final_gate` does not run pytest (`_ci_runs_pytest` is false here, and
+    # as of 7051a25a there are no workflow files at all), so nothing on this repo executes its
+    # own suite unless a human does. Found by a background run started for an unrelated reason.
+    assert scaffold._type_seeds_doc(reg, "python-api", "docs/STRATEGIC_BACKLOG.md"), (
+        "STRATEGIC_BACKLOG is universal since 245cb5e7 — every type seeds it"
+    )
     for dest in (
         "docs/SERVICES.md",
         "docs/OPERATIONS.md",
@@ -151,7 +160,10 @@ def test_python_api_seeding_is_type_aware(mock_root: Path):
     assert (p / "docs" / "data-contract.md").exists()  # preserved (grounded deviation)
     # product (saas) docs NOT seeded for a headless api
     assert not (p / "docs" / "BUSINESS_MODEL.md").exists()
-    assert not (p / "docs" / "STRATEGIC_BACKLOG.md").exists()
+    # STRATEGIC_BACKLOG is UNIVERSAL since 245cb5e7 — the integration-layer twin of the same
+    # stale assertion fixed above. Both sites demanded the pre-2026-08-27 contract; the registry
+    # change updated neither, and nothing ran them.
+    assert (p / "docs" / "STRATEGIC_BACKLOG.md").exists()
 
 
 def test_saas_seeding_gets_product_docs(mock_root: Path):
