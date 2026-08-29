@@ -25,8 +25,8 @@ GATE = REPO / "scripts" / "final_gate.py"
 def _constants_under(fake_root: Path) -> tuple[str, str]:
     """Import the gate with cwd=fake_root and return (PYTHON, RUFF)."""
     code = (
-        "import sys, json; sys.path.insert(0, %r); import final_gate as g; "
-        "print(json.dumps([g.PYTHON, getattr(g, 'RUFF', '')]))" % str(GATE.parent)
+        f"import sys, json; sys.path.insert(0, {str(GATE.parent)!r}); import final_gate as g; "
+        "print(json.dumps([g.PYTHON, getattr(g, 'RUFF', '')]))"
     )
     r = subprocess.run(
         [sys.executable, "-c", code],
