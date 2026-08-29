@@ -1,7 +1,21 @@
 # Design spec — fleet CI-health probe (detect CI that never ran)
 
-Status: DRAFT
+Status: IMPLEMENTED 2026-08-15 (commit 0b77d0e7) · external facts re-verified live 2026-08-29
 Date: 2026-08-15 · Owner: infra
+
+> **Review note (`/fabrik-spec-review`, 2026-08-29):** this spec was authored AND shipped in the SAME
+> commit `0b77d0e7` — `scripts/sysadmin/ci_health_probe.py` (probe: reactive zero-step block detection +
+> predictive 80%/100% quota foresight + alert-once with 24h `~/.claude/state/` suppression + fail-soft
+> exit-0), the `recent_failures` never-started filter in `scripts/ci_fix_dispatcher.py`, `tests/test_ci_health_probe.py`
+> (154 lines), and `docs/workstation/ci-health-probe.md`. It is live on cron. So the "Nothing on the box
+> could have seen it" / "no way to distinguish" prose below is HISTORICAL (the pre-fix state the same commit
+> resolved), not current — the dispatcher DOES classify never-started today (`recent_failures`, the zero-step
+> `gh api …/jobs` check). All external claims were re-grounded live this session and STILL HOLD: the
+> `/users/<user>/settings/billing/usage` endpoint returns the claimed `usageItems[]` shape (old
+> `/settings/billing/actions` still 410s); `pricePerUnit: 0.006` confirms the Linux overage; plan=`pro`;
+> included minutes Free 2000 / Pro 3000 / Team 3000 confirmed against docs.github.com (the 2024-25 budgets
+> restructure added spend controls, did NOT remove the per-plan allowances). No design-convergence-for-build
+> is owed — the build exists; this status flip records that reality.
 
 ## The problem, from a live incident
 
