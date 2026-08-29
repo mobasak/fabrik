@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 16/31: the gauntlets overstated what /fabrik-release blocks on (2026-08-29)
+
+Corpus audit command 16 of 31 (`/fabrik-release`, 23 surfaces). One finding, cross-command: both
+certification gauntlets told their reader *"/fabrik-release is BLOCKED while ANY row is open"* —
+but release's actual § Precondition is severity-tiered: **P0/P1, a `NOT-QUIET` ledger, or an
+untouched `DESIGN-GAP` block; P2/P3 surface as ⚠ WARN for the operator's explicit accept.** An
+agent trusting the gauntlets' version would wrongly refuse a release over an open P3. Both gauntlet
+lines now state the tiered contract; release's § Precondition gained the same grader-honesty
+sentence the gauntlets got at cmd 14 (the HANDOFF grammar is machine-graded by
+`check_review_coverage.py`; the severity-tiered blocking binds on honour).
+
+Surfaces verified clean, not assumed: all four cited launch-checklist packs exist (predicate 3 does
+not cover `.windsurf/` paths — checked by hand); router routes "is this ready to release" →
+`fabrik-release`; every `release_cut.py` behavior claim verified in its source (`--version`,
+BREAKING-uppercase → major, empty-`[Unreleased]` refusal, `--no-gh-release` fallback); the Phase-0
+type map covers all 12 registry types; no stale CI references survived the cutover; termination
+contract explicit with an early-stop rule; fragment parity from cmd 15 still md5-proven.
+
 ### Changed — cmd 15/31: the certification gauntlets now share one contract, by construction (2026-08-29)
 
 Corpus audit command 15 of 31 (`/fabrik-service-test`, 23 surfaces). The decisive surface was 52(b):

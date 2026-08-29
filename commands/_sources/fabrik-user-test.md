@@ -312,8 +312,10 @@ prevent. Every survivor terminates in exactly one of:
   (b) **re-run the row's repro — its current color decides, not the ledger's** (a row owned by a
   sibling repo can ONLY be freshness-checked this way). An already-fixed or
   closed-but-never-flipped row becomes a ticket doing nothing. Every handoff ships a **committed RED repro spec** (it fails today; the fix inherits it as its proof)
-  + a HANDED-OFF row naming the route and the owner. **`/fabrik-release` is BLOCKED while any row is
-  open** — that gate is what stops a handoff from rotting.
+  + a HANDED-OFF row naming the route and the owner. **`/fabrik-release` enforces these rows by SEVERITY
+  (its § Precondition, the real contract): an open P0/P1 row, a `NOT-QUIET` ledger, or an untouched
+  `DESIGN-GAP` BLOCKS the release; open P2/P3 rows surface as ⚠ WARN for the operator's explicit
+  accept — never silently passed** — that gate is what stops a handoff from rotting.
 - **REFUTED** — with the contract line or evidence that disproves it.
 
 ## Phase 5 — ITERATE until discovery runs dry (the no-miss engine)

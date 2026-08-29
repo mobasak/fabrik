@@ -227,7 +227,7 @@ terminates in exactly one of:
   ledger's** (a row owned by a sibling repo can ONLY be freshness-checked this way; its log is out of
   reach). A row already fixed, or closed but never flipped, becomes a ticket doing nothing.
   Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
-  **Routes are EXECUTED in Phase 6 of this same run** — a handoff defers sequencing (discovery first), it never exports the work. **`/fabrik-release` stays BLOCKED while any row is open.**
+  **Routes are EXECUTED in Phase 6 of this same run** — a handoff defers sequencing (discovery first), it never exports the work. **`/fabrik-release` enforces these rows by SEVERITY (its § Precondition): P0/P1, `NOT-QUIET`, or an untouched `DESIGN-GAP` BLOCK the release; P2/P3 surface as ⚠ WARN for the operator's explicit accept — never silently passed.**
 - **REFUTED** — with the contract line or evidence that disproves it.
 
 ## Phase 5 — ITERATE until discovery runs dry (the no-miss engine)

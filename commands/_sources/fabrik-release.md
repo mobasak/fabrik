@@ -24,7 +24,9 @@ Read the newest `docs/development/reviews/*-{user,service}-test-*.md` for this p
 `BLOCKED: certification handoff open — <finding> → <route>` and stop. Open P2/P3 rows are printed as a
 ⚠ WARN list in the Gate-2 handoff block — visible for the operator's explicit accept, never silently passed. A handoff is closed when its route ran and its committed red repro is now green.
 This is the gate that makes `/fabrik-user-test` / `/fabrik-service-test` handoffs real work rather than a
-list nobody reads. No certification report at all for a UI/service surface = **BLOCKED** (run the
+list nobody reads. **Grader honesty:** the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports
+are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check —
+it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep. No certification report at all for a UI/service surface = **BLOCKED** (run the
 gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one.
 
 ## Phase 0 — Resolve the surface
