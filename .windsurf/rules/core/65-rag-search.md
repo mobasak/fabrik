@@ -134,11 +134,7 @@ async def embed(texts: list[str], model: str = "qwen/qwen3-embedding-8b") -> lis
 <!-- EMBEDDING_WINNERS:START (auto-managed by embedding_export_markdown.py) -->
 | Role | Use when | Model | Cost | Context |
 |---|---|---|---|---|
-| **Code-specific** | Separate pipeline — IDE semantic search, codebase retrieval | `voyageai/voyage-code-4` | $0.12/M | 32k |
-| **Premium quality** | Separate pipeline — only when max recall needed AND budget allows full re-embed | `voyageai/voyage-4-large` | $0.12/M | 32k |
-| **Premium quality fallback** | Fallback if P1 unavailable | `voyageai/voyage-code-4` | $0.12/M | 32k |
 | **Default (TR+EN)** | Most projects — use ONE model for BOTH ingest and query | `qwen/qwen3-embedding-8b` | $0.01/M | 32k |
-| **Default (TR+EN) fallback** | Fallback if P1 unavailable | `qwen/qwen3-embedding-4b` | $0.02/M | 32k |
 <!-- EMBEDDING_WINNERS:END -->
 
 Full roster: `docs/reference/kilo/KILO_AGENT_SELECTION_GUIDE.md` § Embedding Roster.
@@ -240,7 +236,10 @@ if token_count > budget:
 - [ ] Token counting uses model-specific tokenizer (or `tiktoken` with 15% buffer) — no heuristic `len/4`.
 - [ ] Context budget capped at 85% of per-model limit before LLM dispatch — no hardcoded `128_000`.
 - [ ] Chunk metadata includes document ID and sequence number for citation tracking.
-- [ ] Retrieval eval tests (Faithfulness + Context Precision) exist against a golden dataset.
+- [ ] Retrieval eval tests exist against a golden dataset. Where a GENERATION step is under
+      test, they include Faithfulness + Context Precision (both are generation-side metrics —
+      Faithfulness judges an ANSWER; a non-generative retrieval surface cannot tick them
+      honestly, and `precision_at_k` divides by k, so 4-of-4 at k=10 scores 0.4 by design).
 - [ ] Search feature declared via `shape.has_search_feature: true` — no manual index creation.
 - [ ] `searchableAttributes`, `filterableAttributes`, `sortableAttributes` explicitly declared per index.
 - [ ] Synonyms defined for domain terms; `typo` ranking rule retained.
