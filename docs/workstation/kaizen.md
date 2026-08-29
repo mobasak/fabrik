@@ -266,3 +266,21 @@ re-opens on M1 activation data.
 | `docs/reference/agents/kaizen-log-{infra,fleet}.md` | the role logs — one row per ISO week |
 | `~/.claude/state/kaizen/` | derived-facts store, series, `noise-floor@v1.md` |
 | `~/.claude/kaizen.log` / `~/.claude/kaizen-sweep.log` | the crons' stdout/stderr, incl. every `—` reason |
+
+## The daily digest — the reader half (operator-approved 2026-08-30)
+
+`scripts/sysadmin/kaizen_digest.py` composes ONE short message from the published day-series
+(latest point + delta vs the prior point, highest series version per metric) and `--send` posts it
+to the operator's Telegram via `send-telegram.sh`. Built on the operator's challenge — the
+collector had published real series for days into a log nobody is shown; measurement without a
+reader is wallpaper. An EMPTY store composes a loud warning, never a quiet skip.
+
+Cron (⚠️ operator-installed — agent crontab writes are classifier-blocked on this box):
+
+```
+50 6 * * * /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/kaizen_digest.py --send >> $HOME/.claude/kaizen-digest.log 2>&1
+```
+
+Deliberately NOT in v1 (each a measured follow-up): the closes-without-verdict names (log-only
+today, not a series), the outcomes sweep's 0%-coverage pilot, and the lesson-class taxonomy — the
+analysis half. The digest surfaces what exists; those decide what exists next.

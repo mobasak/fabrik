@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the kaizen daily digest: the reader half the pipeline never had (2026-08-30)
+
+- Operator challenge answered with receipts: the sensor+collector were healthy (37k events, daily
+  runs, real series) but nothing surfaced without asking — measurement without a reader.
+  `kaizen_digest.py` composes latest-point+delta per published series (highest version wins;
+  empty store is LOUD) and `--send` posts to Telegram via the existing helper. First live compose
+  already surfaced a real anomaly (hole_count ↑220 on 08-28) and the stop-cause distribution
+  (unpushed=970). 3 red-first tests. Cron line documented for the operator (agent crontab writes
+  are classifier-blocked). Outcomes-pilot + taxonomy explicitly deferred as measured follow-ups.
+
 ### Added — completion-only container broker (Phase B of vps-claude-quota-governance) (2026-08-30)
 
 - **What:** `scripts/sysadmin/claude_broker.py` — a loopback broker giving Docker containers
