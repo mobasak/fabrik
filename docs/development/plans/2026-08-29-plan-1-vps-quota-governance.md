@@ -154,8 +154,9 @@ and document it.
 **Produces:**
 - `scripts/sysadmin/incident_context.py`: a HOST-side marshaller (a plain script, run BEFORE the pool worker).
   Given an incident (the GlitchTip webhook payload), it writes a bundle to a **stable host path**
-  `~/.claude/state/incidents/<incident_id>.json` — `{webhook, log_tails: {<container>: <docker logs tail,
-  bounded to N lines>}, state: <docker ps + systemctl status>}` — for durability + operator inspection. The
+  `~/.claude/state/incidents/<incident_id>.json` — `{webhook, log_tails: {<container>: <docker logs --tail
+  200, env `INCIDENT_LOG_TAIL_LINES` default 200>}, state: <docker ps + systemctl status>}` — for durability +
+  operator inspection. The concrete 200-line bound is what keeps the inlined bundle size bounded. The
   `pool-diagnose` path then reads that bundle and **INLINES its (bounded) content into the worker's prompt
   text**, dispatching a `libs/subagents` SINGLE-SHOT read-only worker (`fanout(mode="read_only")`, which sets
   `allow_ungrounded` itself). The worker reasons over the inlined bundle and returns a prose diagnosis — it is
@@ -267,7 +268,8 @@ ModuleNotFoundError: No module named 'redis'           # (bare python3 may see a
   traced to the CONVERGED spec.
 - **No deferred questions:** the reserve threshold (default 80, env), `CAP_TTL_S` (default 6h, env), the broker
   transport (loopback HTTP), the budget store (stdlib file), the single-flight semantics (non-blocking →
-  pool-diagnose), the bundle path (`~/.claude/state/incidents/<id>.json`), and the per-consumer verdict
+  pool-diagnose), the bundle path (`~/.claude/state/incidents/<id>.json`), the inlined log-tail bound
+  (`INCIDENT_LOG_TAIL_LINES` default 200 — the concrete knob that bounds bundle size), and the per-consumer verdict
   criterion (the spec names it) are decided defaults, not `[OPEN]` residuals — the executor applies them
   without stopping. The two Phase-step-0 groundings (live payload shape + window set; the tool-disable
   incantation) are runnable probes: the first has a defined fallback (fleet→legacy shape), the second fails
@@ -311,7 +313,8 @@ reach a zero-new, md5-verified no-op before the flip. No UNCHECKED rows, no `## 
 **Resolved (from the spec's two review passes):** the full design — see the spec's `## Open unknowns`.
 
 **Still-open (plan-time tuning/grounding, non-blocking, each with a defined default):** the exact reserve %
-(default 80); `CAP_TTL_S` (default 6h); broker transport (loopback HTTP default); the live `--status --json`
+(default 80); `CAP_TTL_S` (default 6h); the inlined log-tail bound (`INCIDENT_LOG_TAIL_LINES` default 200);
+broker transport (loopback HTTP default); the live `--status --json`
 shape on the VPS (Phase-A step 0 probe — fallback: fleet→legacy shape, both handled); the exact tool-disable
 incantation (Phase-B step 0 probe — fails CLOSED if none is verifiable); the per-consumer
 pure-reasoning-vs-host-tools verdicts (finalized per-row at Phase C against each consumer's actual LLM step).
