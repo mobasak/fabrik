@@ -579,7 +579,12 @@ class DeploymentOrchestrator:
             )
             return
 
-        # Try DNS Manager (Namecheap) first, fall back to Cloudflare
+        # Primary: create the A record via site-provisioner's CLOUDFLARE route —
+        # DNSClient.add_subdomain POSTs /api/cloudflare/dns/{domain}/subdomain
+        # (drivers/dns.py:294), NOT a Namecheap/registrar path. Fallback on any
+        # error: the CloudflareClient direct API. NB the record is a rolled-back
+        # resource (ctx.add_resource("dns", …) below), so a later-step failure
+        # DELETES it — a rollback artifact, not a provisioning miss.
         try:
             dns = DNSClient()
             result = dns.add_subdomain(base_domain, subdomain, vps_ip)
