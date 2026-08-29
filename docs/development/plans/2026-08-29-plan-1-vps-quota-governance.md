@@ -1,6 +1,6 @@
 # Plan — VPS single-key Claude quota governance (ob@)
 
-Status: CONVERGED
+Status: DRAFT
 Spec: docs/superpowers/specs/2026-08-29-vps-claude-quota-governance-design.md (CONVERGED)
 Shape: MONOLITH — one cohesive `scripts/sysadmin/` toolset (governor + broker + marshaller) whose files
 call each other; a spine+ticket set would serialize on shared paths. 3 phases.
@@ -232,7 +232,7 @@ $ sed -n '1232,1235p' scripts/sysadmin/claude_rotate.py    # --status branches t
     if fleet_dirs:
         return _cmd_fleet_status(fleet_dirs, as_json)
     pay = _status_payload()
-$ grep -n "model_windows" scripts/sysadmin/claude_rotate.py | head -3   # per-model weekly (Opus) IS exposed + parsed
+$ grep -n "model_windows" scripts/sysadmin/claude_rotate.py | head -3   # per-model weekly windows stored (model-agnostic by display_name; live payload: Fable)
 3140:        out["model_windows"] = models
 3370:                if c.get("model_windows"):
 3371:                    row["model_windows"] = c["model_windows"]
@@ -253,8 +253,10 @@ ModuleNotFoundError: No module named 'redis'           # (bare python3 may see a
 - **Grounding:** every reuse point resolves to a real `path:line` (Context Ledger + Evidence), re-verified live
   this run. The headroom source is the **live `--status --json` fleet contract** (`accounts[active]` row with
   `five_hour`+`seven_day`+`model_windows`), NOT the internal `_status_payload`/`_account_status` legacy path
-  that `--status --json` bypasses in fleet mode (HIGH-1). The per-model weekly (Opus) window IS exposed and
-  parsed by `_usage_windows`→`model_windows`, so the reserve's `max` iterates it (HIGH-2). The pool-diagnose
+  that `--status --json` bypasses in fleet mode (HIGH-1). `_usage_windows` extracts EVERY per-model
+  `weekly_scoped` window by `display_name` into `model_windows` — model-AGNOSTIC (the live payload carries
+  `Fable`; an Opus weekly sub-limit is covered by the SAME mechanism whenever it appears, not asserted present
+  today), so the reserve's `max` iterates them (HIGH-2). The pool-diagnose
   path INLINES the bundle content into a single-shot `fanout(mode="read_only")` worker (a `tools_enabled=False`
   worker has no file tools and grounded single-shot is refused unless inlined — `loop.py:399`, `agent.py:1152`),
   not a worktree pre-seed nor a path-read the API can't do (HIGH-3). `None`
@@ -300,7 +302,7 @@ Each row adjudicates whether the PLAN's design + Behavior Contracts close the cl
 | 8 | **spec / Global-Constraint contradiction** | Self-audit traces every constraint to the CONVERGED spec; no phase step contradicts it; `claude_rotate.py` + `libs/subagents` explicitly OUT of scope | CLEAN |
 | 9 | **12-Factor IV backing-service swap = config not code / no new dep** | budget store is a stdlib JSON file — no `redis` dep added to the `.venv` (HARD STOP avoided) | CLEAN |
 | 10 | **Evidence reproducibility (proxy-never-evidence)** | Evidence commands re-run live this pass; the live `--status --json` shape, the fleet branch, `model_windows`, and the redis-absence proof (pinned to `.venv/bin/python`) all captured verbatim | FIXED (F8+HIGH-1) |
-| 11 | **ungrounded external/telemetry claim** | data source re-grounded on the LIVE `--status --json` **fleet** contract (`accounts[active]` row), not the legacy `_status_payload`; `model_windows` (Opus weekly) confirmed exposed + parsed; marshaller re-grounded on an INLINED single-shot `fanout(mode="read_only")` worker (a `tools_enabled=False` worker has no file tools; the worktree is internal — neither a worktree pre-seed nor a `--ro-bind` path-read is usable) | FIXED (HIGH-1/2/3) |
+| 11 | **ungrounded external/telemetry claim** | data source re-grounded on the LIVE `--status --json` **fleet** contract (`accounts[active]` row), not the legacy `_status_payload`; `model_windows` confirmed exposed + parsed (model-agnostic by `display_name`; live payload carries `Fable`, Opus covered by the same mechanism if present — not claimed live); marshaller re-grounded on an INLINED single-shot `fanout(mode="read_only")` worker (a `tools_enabled=False` worker has no file tools; the worktree is internal — neither a worktree pre-seed nor a `--ro-bind` path-read is usable) | FIXED (HIGH-1/2/3) |
 | 12 | **mechanism self-consistency (pool dispatch)** | pass-2 caught the first HIGH-3 fix asserting `tools_enabled=False` yet a `--ro-bind` path-read (contradictory — no file tools); re-fixed to inline the bundle content, the canonical read_only single-shot contract | FIXED (pass-2 HIGH) |
 
 Exit: pass 1 (author-blind native Opus grounding + pool breadth) raised 5 (3 HIGH + 2 MED), all CONFIRMED and
