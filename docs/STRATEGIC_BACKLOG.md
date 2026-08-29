@@ -105,3 +105,13 @@ Items move to active development when:
 4. **Resource availability**: External tools / budgets / operator availability — DR drill needs a throwaway VPS purchase.
 
 The hardest discipline here is the second one — resisting the urge to build "propose/ack" speculatively because it sounds important. The Phase 5 plan explicitly says: each new incident teaches; capability expands from incidents, not architecture.
+
+## [fleet] Zitadel /debug/metrics not enabled — Prometheus target DOWN (2026-08-29)
+
+Zitadel v4.17.1 deployed at auth.ocoron.com does NOT serve `/debug/metrics` by default (404) — the
+`specs/services/zitadel.yaml` spec declares `exposes_metrics: true` + `monitoring.metrics_path: /debug/metrics`
+but never sets the env that ENABLES Zitadel metrics, so the Prometheus scrape target is registered but
+`health=down` (404). `docs/reference/zitadel.md:52` wrongly claims metrics is "enabled by default via
+`ZITADEL_METRICS_TYPE: otel`". FIX: ground the correct Zitadel v4 metrics-enable env, add it to the spec,
+re-apply (`fabrik apply` re-syncs env), confirm `/debug/metrics`=200 + the Prometheus target flips to `up`;
+correct the reference doc's default claim. The IdP itself is fully live + functional — this is monitoring polish.
