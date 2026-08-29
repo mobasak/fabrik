@@ -10,5 +10,6 @@
   ],
   "branch": "master",
   "started_at": "MANUAL",
-  "status": "active"
+  "status": "released",
+  "final_commit": "5075887a"
 }
