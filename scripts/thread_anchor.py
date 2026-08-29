@@ -77,9 +77,12 @@ def _save(session: str, state: dict) -> None:
 
 
 def _anchor_key(text: str) -> str:
-    """Stable identity across progress updates: digits vary as a thread advances
-    ("14 of 31" -> "15 of 31"), so they are masked out of the key."""
-    return re.sub(r"\d+", "*", text.lower())[:120]
+    """Stable identity across progress updates AND rewordings. Digits mask out ("14 of 31" ->
+    "15 of 31" is the same thread advancing); the key then takes only the PREFIX, because the
+    stable subject lives at the front and commentary accretes at the back — found live one hour
+    after shipping, when appending "(now also held by the register)" minted a duplicate anchor
+    that the injected block then showed twice."""
+    return re.sub(r"\d+", "*", text.lower())[:72]
 
 
 def _is_anchor(text: str) -> bool:
@@ -149,7 +152,11 @@ def main(argv: list[str] | None = None) -> int:
                              "its transcript_path if no text is piped)")
         args, _ = ap.parse_known_args(argv)
 
-        stdin_text = "" if sys.stdin.isatty() else sys.stdin.read()
+        # Read stdin ONLY where it is part of the contract (harvest text, --hook JSON).
+        # Found live: `done --match …` from an agent's shell — stdin open, not a tty, nothing
+        # piped — blocked forever here, and the 2-minute tool timeout was the only way out.
+        needs_stdin = args.cmd == "harvest" or args.hook
+        stdin_text = "" if (not needs_stdin or sys.stdin.isatty()) else sys.stdin.read()
         session = args.session
         if args.hook and stdin_text:
             try:

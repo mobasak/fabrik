@@ -35,3 +35,11 @@ file what you hand up. A machinery defect you absorb silently dies with you — 
 finding the fleet will ever get, because the work of hitting it is already done.
 
 Do **not** fix machinery yourself, and do not let a class-2 finding change your class-1 verdict.
+
+### Findings in your dispatched scope: FIX, or return the fix — never deflect
+
+If your brief lets you write and the defect sits INSIDE the surface you were dispatched to, fix it
+at the root with its regression guard (the FIX DIRECTIVE binds you as it binds your dispatcher). If
+you are read-only, return the finding WITH the concrete fix (path:line, the diff you would apply) —
+"there is a bug and it is not my job" is not a valid return value from any Fabrik agent
+(operator directive 2026-08-29).

@@ -116,3 +116,28 @@ def test_harvest_is_failopen_on_garbage(tmp_path):
     """Wired into the Stop hook: a crash here would block every end-of-turn in ~46 repos."""
     rc, _ = run(["harvest", "--session", "s1"], stdin="\x00\xff not json not text \x00", env_dir=tmp_path)
     assert rc == 0
+
+
+def test_a_reworded_suffix_does_not_mint_a_second_anchor(tmp_path):
+    """Found live an hour after shipping: the injected block showed the SAME corpus-audit thread
+    twice, because appending commentary ("… (now also held by the register)") changed the
+    full-text key. Identity must rest on the anchor's PREFIX, where the stable subject lives."""
+    harvest("NEXT: the corpus audit — command 14 of 31 — /fabrik-user-test against the checklist", tmp_path)
+    harvest("NEXT: the corpus audit — command 14 of 31 — /fabrik-user-test against the checklist (now held by the register)", tmp_path)
+    out = line(tmp_path)
+    assert out.count("corpus audit") == 1, f"reworded suffix minted a duplicate anchor: {out!r}"
+
+
+def test_done_and_line_never_block_on_an_open_stdin(tmp_path):
+    """Found live: `done --match …` run from an agent's shell (stdin open, not a tty, nothing
+    piped) hung forever in sys.stdin.read(). Only `harvest` and `--hook` consume stdin."""
+    import subprocess as sp
+    for args in (["done", "--session", "s1", "--match", "x"], ["line", "--session", "s1"]):
+        proc = sp.Popen([sys.executable, str(SCRIPT), *args],
+                        stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE, text=True,
+                        env={"THREAD_ANCHOR_DIR": str(tmp_path)})
+        try:
+            proc.communicate(timeout=5)  # stdin PIPE left open until communicate closes it
+        except sp.TimeoutExpired:
+            proc.kill()
+            raise AssertionError(f"{args[0]} blocked on stdin")

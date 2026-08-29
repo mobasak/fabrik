@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — THE FIX DIRECTIVE + committed-code ownership, both constitutions (2026-08-29)
+
+Operator asked for "the ultimate directive" for fixes and an end to "not my work" deflection.
+
+- **§ THE FIX DIRECTIVE** (hub + project constitutions, ahead of the Completion Contract): six
+  CHECKABLE verbs replacing the self-graded adjectives of generic fix-it prompts — measure before
+  touching · fix the class at the root at minimum size · no temporary anything (a stopgap is a
+  BLOCKED/finding, never silent code) · permanent = fix + grader proven red→green · no
+  overengineering, fire-rate measured (rejecting a mechanism after measuring is a valid outcome) ·
+  review your own fix and close what it finds in the same run.
+- **Ownership rewritten** in the shared-repo clause: a sibling's UNCOMMITTED WIP stays untouchable
+  (the data-loss protections are unchanged), but **a defect in COMMITTED code is the repo's, not the
+  author's** — attribution (`git log -S`) decides who to INFORM, never whether to FIX. "Reported,
+  not mine" is no longer a disposition; the gate-red-as-false-positive escape line is deleted.
+- **§ 1a SELF-REVIEW** now escalates: non-trivial changes run a SCOPED `/fabrik-review` on the diff
+  and fix its findings in the same run.
+- **Subagents** get the same duty via `commands/_fragments/agent-feedback.md` (auto-appended to all
+  4 agent definitions): write-enabled → fix in-scope defects; read-only → return the finding WITH
+  the concrete fix. Corpus re-rendered.
+- Also this change: two thread-anchor bugs found live within the hour — a reworded suffix minted a
+  duplicate anchor (key now prefix-based, 72 masked chars) and `done`/`line` blocked forever on an
+  open non-tty stdin (only `harvest`/`--hook` read stdin now). Both watched-fail-first; 12 tests.
+
 ### Added — deep-research engine vendored + free-LLM-provider sweep (2026-08-29)
 
 - **`libs/deep_research/`** + **`libs/web_tools.py`** vendored from fabrik-lib @8337a7f (copy,
