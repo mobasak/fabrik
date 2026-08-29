@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 23/31: /fabrik-doc-converge's English triggers routed to NOTHING (2026-08-29)
+
+Corpus audit command 23 of 31. The command itself is one of the corpus's cleanest — term-edit
+included with a real PARAMS entry (render fully substituted), a per-doc Convergence Contract table
+whose mechanical claims all verified (`check_compose_services` is WARN-only as stated; all four
+spot-checked templates exist), an explicit Guardrails block, and the correct append-only-ledger
+exclusions. One finding, one adjacent same-class fix:
+
+- **The two advertised EN triggers ("converge this doc", "update SERVICES.md to match the code")
+  routed to nothing while the TR one routed.** The stem's EN patterns are now DOC-SHAPED so
+  "converge <doc-like object>" can never capture "converge the deploy plan" or "converge this
+  spec" — proven by a 10-phrase collision matrix, all correct.
+- **Same class, one command over, fixed while the harness was warm:** `fabrik-docs-review`'s own
+  advertised triggers ("review all the docs", "are the docs still accurate") also routed to
+  nothing at HEAD — verified pre-existing against the unmodified router before touching it. EN
+  forms added to the `docs` stem, same matrix-proven.
+
 ### Fixed — cmd 22/31: /fabrik-catchup — the terminal-vocabulary trap, measured on this very tree (2026-08-29)
 
 - **Probe 1's lock-terminal example `(released/complete)` under-enumerated** — live measurement:

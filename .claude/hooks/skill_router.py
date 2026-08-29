@@ -419,12 +419,29 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
     (
         # ONE doc reconciled to the code — not the whole-tree sweep (/fabrik-docs-review).
         # "bu dokümanı" is singular; the sweep's own phrase is "tüm dokümanları".
-        re.compile(r"\bbu\s+d[öo]k[üu]man[ıi]\b[^.]{0,30}\b(koda|g[üu]ncelle\w*|senkron\w*)", re.I),
+        # EN patterns are DOC-SHAPED on purpose (found at cmd 23/31: the description's own two
+        # EN triggers routed to NOTHING while the TR one routed): "converge <a doc>" must never
+        # capture "converge the deploy plan" (deploy-plan-review's phrase) — so the object must
+        # be doc-like (the word doc, a docs/ path, or a NAME.md), and the update form requires
+        # a .md object with match/sync intent.
+        re.compile(
+            r"\bconverge\b[^.]{0,24}\b(?:docs?\b|docs/[\w.-]+|[A-Z][A-Z_]+\.md)"
+            r"|\bupdate\b[^.]{0,30}\.md\b[^.]{0,24}\b(?:match|sync\w*|truth)"
+            r"|\bbu\s+d[öo]k[üu]man[ıi]\b[^.]{0,30}\b(koda|g[üu]ncelle\w*|senkron\w*)",
+            re.I,
+        ),
         "doc-converge",
     ),
     (
-        # The whole-tree Turkish sweep, above `review` so the bare verb does not swallow it.
-        re.compile(r"\bt[üu]m\s+d[öo]k[üu]manlar[ıi]\b|\bd[öo]k[üu]manlar\b[^.]{0,25}\bkodla\b", re.I),
+        # The whole-tree sweep, above `review` so the bare verb does not swallow it. EN forms
+        # added at cmd 23/31 (found while widening doc-converge: docs-review's own advertised
+        # triggers "review all the docs" / "are the docs still accurate" routed to NOTHING).
+        re.compile(
+            r"\bt[üu]m\s+d[öo]k[üu]manlar[ıi]\b|\bd[öo]k[üu]manlar\b[^.]{0,25}\bkodla\b"
+            r"|\breview\s+(?:all\s+)?the\s+docs\b"
+            r"|\bare\s+the\s+docs\b[^.]{0,20}\b(?:accurate|current|up.to.date)",
+            re.I,
+        ),
         "docs",
     ),
     # /fabrik-rivals had NO stem while its description promised "fires bare-prose, no slash command
