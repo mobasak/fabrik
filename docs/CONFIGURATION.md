@@ -170,7 +170,7 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   `mistral-medium-latest` 7.1s at 40k chars with 10/10 verbatim quotes; `mistral-large-latest`
   times out (>100s) at that size. Full listing:
   `curl -H "Authorization: Bearer $MISTRAL_API_KEY" https://api.mistral.ai/v1/models`.
-- `MISTRAL_API_KEY_2` / `_3` / `_4` / `_5` — spare keys (same per-key limits; select manually:
+- `MISTRAL_API_KEY_2` / `_3` / `_4` / `_5` / `_6` — spare keys (same per-key limits; select manually:
   `MISTRAL_API_KEY=$MISTRAL_API_KEY_2 <cmd>`).
 - ⚠️ **The free tier is a $10/month CREDIT — an exhausted credit returns HTTP 402 (Payment
   Required) until the monthly reset** (operator-confirmed + probe-verified with real key
