@@ -122,6 +122,12 @@ reclassified, keep going. A single pass, or "I think I caught them all," is not 
 stable (identical-to-prior) pass is. This converges the AUDIT to completeness; it does **not** fix
 the gaps (fixing is a separate, user-authorized step).
 
+**Record each pass in the run record:** `python3 scripts/command_run.py round --findings <n>
+--classes-swept <the packs swept> --classes-new <…>` — the round ledger is what proves the stable
+pass, and it is this command's persisted trace: the audit itself is deliberately chat-only (the GAP
+table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes
+no artifact), so a run whose rounds are unrecorded has no evidence it converged.
+
 **Run that next pass UNPROMPTED — the moment a pass adds/removes/reclassifies anything you owe it,
 automatically.** Never wait to be asked *"did the audit stabilize?"*; the obligation is yours and
 predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded

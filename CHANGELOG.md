@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 26/31: rules-review's loop never drove the round ledger; its triggers reached nothing (2026-08-29)
+
+- `/fabrik-rules-review`'s Phase-4 convergence loop (and the shared `run-record` fragment) never
+  instructs `command_run.py round`, so the class-ledger machinery went undriven; one Phase-4
+  paragraph now records each pass and states the deliberate persistence ruling (chat-only GAP
+  table + the round ledger as the run's trace). Router gained an audit-intent-anchored
+  `rules-review` stem (all four advertised triggers reached nothing; ordinary "edit the windsurf
+  rules" chatter must never route to a compliance gauntlet) + a 12-phrase collision matrix
+  (3 tests, suite 161). Recipe/Shape-flags/matrix-heading claims all verified live and CLEAN.
+
 ### Fixed — cmd 25/31: thread-anchor blackout + repo-review's orphan-writing dispatch recipe (2026-08-29)
 
 - Stop-hook harvest ran BELOW the `final_gate.py` eligibility return and died silently on a

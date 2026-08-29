@@ -110,6 +110,7 @@ STEM_SKILLS: dict[str, str] = {
     "spec-review": "fabrik-spec-review",
     "plan": "fabrik-plan-after-chat",
     "review-scoped": "fabrik-review-scoped",
+    "rules-review": "fabrik-rules-review",
     "repo-review": "fabrik-repo-review",
     "review": "fabrik-review",
     # Both sit ABOVE `review` in KEYWORD_STEMS: each is a phrase `fabrik-review`'s own SKIP
@@ -490,6 +491,21 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "workflow-review",
+    ),
+    (
+        # /fabrik-rules-review's advertised triggers all reached nothing (audit cmd 26/31,
+        # 2026-08-29). The nouns (rule pack / windsurf rules / kural paket) are distinctive, but an
+        # AUDIT-intent anchor is still required so "edit the windsurf rules" and ordinary
+        # .windsurf/rules chatter never route to a compliance gauntlet; "check" is forward-only —
+        # in the reverse direction it is too weak ("the windsurf rules check on line 5").
+        re.compile(
+            r"\b(audit|check|complian\w*)\b[^.]{0,30}\b(rules?[- ]packs?|windsurf\s+rules?)\b"
+            r"|\b(rules?[- ]packs?|windsurf\s+rules?)\b[^.]{0,30}\b(audit\w*|complian\w*)\b"
+            r"|\bkural\s+paket\w*\b[^.]{0,25}\b(uyum\w*|denetle\w*|kontrol\w*)"
+            r"|\bwindsurf\s+kural\w*\b[^.]{0,25}\b(kontrol\w*|denetle\w*|uyum\w*)",
+            re.I,
+        ),
+        "rules-review",
     ),
     (
         # ABOVE the generic review stem: /fabrik-repo-review's advertised triggers ("audit the

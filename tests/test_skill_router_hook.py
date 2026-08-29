@@ -1188,3 +1188,31 @@ def test_the_repo_review_stem_is_registered_above_review() -> None:
     assert hook.STEM_SKILLS["repo-review"] == "fabrik-repo-review"
     order = [st for _, st in hook.KEYWORD_STEMS]
     assert order.index("repo-review") < order.index("review"), "first match wins"
+
+
+# --- /fabrik-rules-review stem (audit cmd 26/31, 2026-08-29) ------------------------------
+# All four advertised triggers reached nothing. The nouns are distinctive but an AUDIT-intent
+# anchor is required: this box talks about editing .windsurf/rules constantly, and routing that
+# chatter to a compliance gauntlet would be the wallpaper that kills the stem.
+
+
+def test_rules_pack_compliance_phrases_reach_rules_review() -> None:
+    assert hook.first_regex_match("check rules-pack compliance") == "rules-review"
+    assert hook.first_regex_match("audit against the windsurf rule packs") == "rules-review"
+    assert hook.first_regex_match("rules-pack compliance audit") == "rules-review"
+    assert hook.first_regex_match("kural paketlerine uyumu denetle") == "rules-review"
+    assert hook.first_regex_match("windsurf kurallarını kontrol et") == "rules-review"
+
+
+def test_ordinary_windsurf_rules_chatter_does_not_route_to_the_gauntlet() -> None:
+    assert hook.first_regex_match("edit the windsurf rules") is None
+    assert hook.first_regex_match("update the windsurf rule for gpu workers") is None
+    assert hook.first_regex_match("the windsurf rules check on line 5 is stale") is None
+    assert hook.first_regex_match("sync the rule packs to the fleet") is None
+    assert hook.first_regex_match("check the rules for markdown files") is None
+
+
+def test_the_rules_review_stem_is_registered() -> None:
+    assert hook.STEM_SKILLS["rules-review"] == "fabrik-rules-review"
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    assert order.index("rules-review") < order.index("review"), "first match wins"
