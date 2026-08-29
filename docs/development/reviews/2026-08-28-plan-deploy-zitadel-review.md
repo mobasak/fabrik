@@ -50,11 +50,20 @@ it (3 further issues) to a clean, md5-verified no-op. Two rounds, three finder d
 | R4-2 | confirming | 0 | 0 | f1a25bd9 → f1a25bd9 ✓ |
 | — | (re-deploy RUN 2 → S3 HALT: `up -d --wait` false-fails on health.disabled — no healthcheck to --wait on; registrars skipped. Fixed in the deployer 43ced0d3) | — | — | — |
 | R5-1 | deployer up--wait fix re-entry (plan/spec unchanged; `_compose_up` uses `up -d` + readiness poll for health.disabled); survivor audit clean (DB/container 0/0); RUN-2 ⛔ ADJUDICATED | 0 | 0 | 6a369c59 → 6a369c59 ✓ |
+| — | (re-deploy RUN 3 → VERIFY HALT: `DeploymentVerifier.verify` ran an in-band HTTPS probe of the domain even for health.disabled; a DNS/ACME-timing transient raised VerificationError → rollback of a HEALTHY deploy incl. the DNS record. Fixed in the deployer 1c90bf81) | — | — | — |
+| R6-1 | BLOCKED re-entry (verifier health.disabled fix 1c90bf81): adjudicate ⛔ RUN 3, correct finding #5 (the "Namecheap misroute" was a MISDIAGNOSIS — `DNSClient.add_subdomain`→Cloudflare via site-provisioner, `drivers/dns.py:294-316`; record deleted by rollback, not misrouted), add the machinery-findings resolved section; survivor audit RE-PROBED (DB absent, container absent, `.env` survivor — postgres rollback is a no-op, DB dropped out-of-band). 1 native-Opus finder raised 5 evidence-integrity defects | 5 | 5 | (BLOCKED) → 270e549c |
+| R6-2 | confirming — stale-ref sweep (all body `path:line` re-grounded: `deployer_ssh.py:655/649/708`, `__init__.py:166/170/180/216/311/529`, `vps-autoheal.sh:53`, `zitadel.yaml:73-75`; hash `f1a25bd9`→`03265c1d`; rollback-wording corrected + DB-absence probe added to `## Evidence`), raised 0 new | **0** | **0** | 270e549c → 270e549c ✓ |
 
-Final round: found: 0, fixed: 0. The DNS correction is grounded (`fabrik apply`'s `_provision_dns` calls
-`DNSClient().add_subdomain("ocoron.com","auth","172.93.160.197")` — creates the record, not a manual step);
-no residual "operator-DNS" framing; every other class unchanged since `9c37553e`. `Status: CONVERGED` re-flipped
-with the `deploy-plan-review` marker as the latest plan-touching commit (satisfies /fabrik-deploy's post-flip gate).
+Final round: found: 0, fixed: 0. The RUN 3 verify halt was ONE deploy-machinery defect (the verifier's
+in-band probe rolling back a healthy `health.disabled` deploy), fixed at the source (1c90bf81: `verify()`
+skips the in-band probe when `health.disabled` is set, mirroring `_compose_up`; 2 red-on-revert tests). The
+originally-logged "finding #5 DNS-provider misroute" was refuted as a MISDIAGNOSIS and corrected in the plan
+(`DNSClient.add_subdomain` POSTs the Cloudflare subdomain endpoint via site-provisioner; the record was created
+correctly and deleted by the verify-failure rollback — a rollback artifact, `__init__.py:591`). R6-1's finder
+also surfaced evidence-integrity defects (a fabricated commit hash, a false "rollback removed everything"
+mechanism, pervasive stale `path:line` grounding) — all fixed and re-verified against ground truth. All FOUR
+machinery findings (D1 · password · up--wait · verifier) are landed on master; RUN 1-3 ⛔ rows adjudicated.
+`Status: CONVERGED` re-flipped with the `deploy-plan-review` marker as the latest plan-touching commit.
 
 ## Gate
 

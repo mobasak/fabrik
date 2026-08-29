@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: DRAFT — BLOCKED re-entry after RUN 3 verify halt; the machinery blocker (verifier in-band probe rolling back a healthy health.disabled deploy) is FIXED + landed on master (1c90bf81); re-converging
+Status: CONVERGED — re-converged 2026-08-29 after the RUN 3 verify halt; all FOUR deploy-machinery findings (D1 db_before_boot · Aa1! password · up--wait · verifier health.disabled probe 1c90bf81) resolved + landed on master; RUN 1-3 ⛔ rows adjudicated; clean slate re-probed (DB absent, container absent)
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -12,8 +12,8 @@ Stage: 6-release · deploy triad step 2 (re-review after the D1 fix)
 **The finding (grounded, Zitadel issues [#5810], [#11942] + self-hosting troubleshooting doc):**
 `start-from-init` has **no DB-connection retry — it exits immediately if postgres is unreachable.** But
 fabrik's order is container-first: `deploy()` runs `deployer.deploy` (`up -d --wait`) at
-`orchestrator/__init__.py:163`, and the postgres registrar injects `DATABASE_URL` only afterward at `:173`.
-So a naive `fabrik apply` boots Zitadel with an empty DSN → it exits → `up --wait` (deployer_ssh.py:515)
+`orchestrator/__init__.py:170`, and the postgres registrar injects `DATABASE_URL` only afterward at `:180`.
+So a naive `fabrik apply` boots Zitadel with an empty DSN → it exits → the compose-up (deployer_ssh.py `_compose_up`)
 raises → rollback at `:207` **before** the registrar runs → no DB → a repeat re-crashes identically.
 
 **Fix (b) — the durable machinery change (shipped this review):** a new opt-in `deploy.db_before_boot: true`
@@ -54,7 +54,7 @@ next run; the ledger below carries the per-run adjudication. Summary of the fixe
 - **D1 — deploy-order / DB-at-boot** → `deploy.db_before_boot` pre-provisions the DB + seeds `DATABASE_URL`
   before first boot (commit a47d5e20; see the D1 section above). *Proven live RUN 2 (DB pre-created).*
 - **Admin-password complexity** → `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${ZITADEL_ADMIN_PASSWORD}Aa1!"`
-  guarantees the symbol/upper/lower/number Zitadel's default policy requires (commit f1a25bd9).
+  guarantees the symbol/upper/lower/number Zitadel's default policy requires (commit 03265c1d).
   *Proven live RUN 2 (start-from-init cleared 03_default_instance, served /debug/ready 200).*
 - **`up --wait` ↔ `health.disabled`** → `deployer_ssh._compose_up` uses `up -d` (not `--wait`, which needs a
   healthcheck a scratch image can't have) + an external readiness poll (commit 43ced0d3).
@@ -64,8 +64,14 @@ next run; the ledger below carries the per-run adjudication. Summary of the fixe
   deployer's readiness poll (commit 1c90bf81, 2 red-on-revert tests). This is the RUN 3 blocker; a healthy
   Zitadel had been rolled back (incl. its DNS record) by a transient DNS/ACME-timing probe failure.
 
-All four are landed + pushed on master. The next dispatch runs the amended runbook from S1 with clean slate
-(no container, no DB, `auth.ocoron.com` unresolved — the RUN 3 rollback removed everything; re-probed this turn).
+All four are landed + pushed on master. The next dispatch runs the amended runbook from S1 with a clean slate
+for the deploy — **re-probed this turn on vps1: no `zitadel` container, no `zitadel` DB, `auth.ocoron.com`
+unresolved.** NB the postgres rollback is a destructive-NO-OP (`rollback.py` only WARNS, never drops a DB), so
+"the rollback removed everything" would be false: the `zitadel` DB was dropped **out-of-band** during RUN 1–3
+recovery, and `/opt/zitadel/.env` + `/opt/zitadel/` **survive** on the box. Both survivors are harmless — RUN 4's
+fresh secrets overlay `.env` unconditionally (`deployer_ssh.py:655`), and `db_before_boot` re-creates the ABSENT
+DB + re-seeds the DSN (the empty DB makes the F1 masterkey re-mint harmless). S1's pre-flight (`## Evidence`)
+asserts the DB is absent before S3 — the one survivor that WOULD matter (a lingering DB) is checked, not assumed.
 
 ## Release readiness — `N/A (third-party image)` + hub-artifact evidence
 
@@ -151,7 +157,7 @@ not the docker path. No unresolved or double-sourced var.
 never exist for a remote-only service. Consequence: the masterkey is minted on **first** apply into the
 **remote** `/opt/zitadel/.env`, but a **second** `fabrik apply` re-mints a NEW masterkey (the hub resolver
 never sees the remote value) and the secret is layered unconditionally at highest precedence
-(`deployer_ssh.py:598`, `merged[key]=str(value)` — no `_is_placeholder` guard, unlike DATABASE_URL) →
+(`deployer_ssh.py:655`, `merged[key]=str(value)` — no `_is_placeholder` guard, unlike DATABASE_URL) →
 **Zitadel can no longer decrypt stored data.** Mitigation is a runbook invariant (S-INV below): **apply once**.
 ⚠️ **Both `fabrik apply` AND `fabrik redeploy --refresh-infra` re-run `_load_secrets`** (`__init__.py:154`,
 `:387`) and re-mint; only **plain `fabrik redeploy zitadel`** is safe — its non-git branch is bare
@@ -163,7 +169,7 @@ compose pull && sudo docker compose up -d"` (`.env` + masterkey preserved). Mast
 `generate_secret()` defaults to 32 `[a-zA-Z0-9]` chars (`secrets.py:12-22`) = Zitadel's hard requirement.
 
 **FINDING F2 (A1 placeholder class — does NOT bite here).** The `_is_placeholder` merge guard
-(`deployer_ssh.py:593`) protects an injected real value only when the spec value contains the literal
+(`deployer_ssh.py:649` guard, def `:708`) protects an injected real value only when the spec value contains the literal
 `placeholder`. Zitadel's spec carries **no** dummy secret values (secrets are `generate`/`from_env`, not
 literals), and `${DATABASE_URL}` is the exact key the registrar injects — so no realistic-dummy clobber path
 exists. Noted clean.
@@ -176,7 +182,7 @@ resolves from the hub process-env / hub `.env` (`__init__.py:321-325`) — the v
 
 **DNS — AUTO-PROVISIONED by `fabrik apply` (NOT operator-gated, corrected 2026-08-28).** `auth.ocoron.com` does
 not resolve today, but that is expected pre-deploy and requires **no manual action**: `fabrik apply`'s
-`_provision_dns` (`src/fabrik/orchestrator/__init__.py:159`, deploy step 3, BEFORE the container) parses the
+`_provision_dns` (`src/fabrik/orchestrator/__init__.py:166` call, def `:529`, deploy step 3, BEFORE the container) parses the
 spec `domain` into subdomain `auth` + base `ocoron.com`, resolves `target_vps: vps1 → 172.93.160.197` from its
 `VPS_IPS` table, and creates the A record via `DNSClient.add_subdomain` → `POST /api/cloudflare/dns/{domain}/subdomain`
 — the **Cloudflare** route through site-provisioner (`provision.vps1.ocoron.com`, the fleet's DNS gateway;
@@ -205,7 +211,7 @@ Zitadel is the auth, never behind Authelia). Registrar preview embedded in Phase
 ship via `fabrik redeploy zitadel` (code/image only). A re-`apply` is permitted **only** after the operator
 pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherwise it is a data-loss event.
 
-1. **S1** — DNS is created AUTOMATICALLY by S3's `fabrik apply` (`_provision_dns`, `__init__.py:159`, routes
+1. **S1** — DNS is created AUTOMATICALLY by S3's `fabrik apply` (`_provision_dns`, `__init__.py:166`, routes
    `auth.ocoron.com → 172.93.160.197` via site-provisioner) — **no manual/operator step**. This step VERIFIES it
    post-apply: `dig +short auth.ocoron.com A` → `172.93.160.197` (allow a short propagation window). *rollback:*
    n/a (a stray A record is harmless; delete via `fabrik.drivers.dns.DNSClient` / site-provisioner if ever needed).
@@ -249,7 +255,7 @@ pins the remote-minted `ZITADEL_MASTERKEY` into the hub secret source — otherw
 ## Phase 5 — Maintenance-window interactions (healing layer) — `N/A-VPS`
 
 **No window bracket is needed.** `vps-autoheal.sh` only restarts containers Docker marks **UNHEALTHY**
-(`scripts/vps-autoheal.sh:3-8`). With `health.disabled` (`specs/services/zitadel.yaml:63-64`) the compose emits
+(`scripts/vps-autoheal.sh:53`, the `--filter health=unhealthy` predicate). With `health.disabled` (`specs/services/zitadel.yaml:73-75`) the compose emits
 **no HEALTHCHECK**, so Docker reports the container's health as *none* — never `unhealthy` — and autoheal never
 acts on it, even during the multi-minute `start-from-init` migration. There is therefore no long-unhealthy
 step to bracket with `window-open/heartbeat/close`. ⚠️ **Caveat (review):** `restart: unless-stopped` (emitter
@@ -362,6 +368,11 @@ per `fabrik-deploy-plan.md:11-13`.
 ```
 $ dig +short auth.ocoron.com A          →  (empty NOW — fabrik apply's _provision_dns auto-creates it at deploy)
 $ dig +short provision.vps1.ocoron.com A →  172.93.160.197   (vps1 A-record target)
+
+# S1 pre-flight — clean-slate assertion (re-probed 2026-08-29, NOT recalled): DB absent, container absent, .env survivor
+$ ssh vps "sudo docker exec postgres-main psql -U postgres -tAc \"SELECT count(*) FROM pg_database WHERE datname='zitadel'\""  →  0   (DB ABSENT — db_before_boot will create it fresh)
+$ ssh vps "sudo docker ps -aq --filter name=^zitadel | wc -l"  →  0   (no container)
+$ ssh vps "sudo test -f /opt/zitadel/.env && echo SURVIVES"    →  SURVIVES   (harmless — RUN 4 secrets overlay it; the postgres rollback is a no-op so the DB was dropped out-of-band, not by rollback)
 $ ssh vps "free -h | grep Mem"          →  11Gi total · 7.5Gi available   (fits 1G limit)
 $ ssh vps "sudo docker ps -q | wc -l"   →  31 containers
 $ fabrik plan specs/services/zitadel.yaml → 6 registrars RUN (postgres/gatus/backrest/glitchtip/grafana/prometheus)
@@ -375,8 +386,8 @@ $ docker compose config   # (busybox svc, env_file: .env)
       ZITADEL_DATABASE_POSTGRES_DSN: postgresql://USER:PW@postgres-main:5432/zitadel   # RESOLVED, not the literal [dollar]{…}
 ```
 Grounding for F1 (masterkey re-mint): `__init__.py:301-303` (generate → load_all, no remote read) vs
-`:306-320` (from_env's remote read) + `deployer_ssh.py:598` (unconditional overlay, no placeholder guard). D1
-(deploy-order): `__init__.py:163` (deploy) → `:173` (registrar) → `:201/:207` (rollback-before-registrar) +
+`:306-320` (from_env's remote read) + `deployer_ssh.py:655` (unconditional overlay, no placeholder guard). D1
+(deploy-order): `__init__.py:170` (deploy) → `:180` (registrar) → `:216` (rollback-before-registrar) +
 Zitadel [#5810]/[#11942] (no init retry). F4: `infrastructure.py:774` vs `specs/services/zitadel.yaml:66`.
 
 ## Self-audit
@@ -393,7 +404,7 @@ cert-expiry condition exists), F-D (readiness ≠ write proof), D2 (S5 grepped t
 seeds `DATABASE_URL` into the initial `.env` before first boot) + the documented manual-bootstrap fallback (see
 ✅ RESOLVED FINDING D1). Grounded: step 2b runs before `deployer.deploy` (`__init__.py:161`<`:170`); the
 post-deploy registrar is idempotent (no password on existing DB → `inject_env` skipped, `infrastructure.py:583`);
-db_name parity (`__init__.py:302` == `infrastructure.py:524-525`); opt-in early-return leaves other services
+db_name parity (`__init__.py:311` == `infrastructure.py:525`); opt-in early-return leaves other services
 byte-identical; red-first tests `tests/orchestrator/test_pre_provision_db.py`. The fleet-wide auto-detection
 follow-up stays filed at `docs/STRATEGIC_BACKLOG.md`.
 
@@ -425,7 +436,7 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 | 5 | Healing / rollout | CLEAN — N/A-vps | `health.disabled`→no healthcheck→`vps-autoheal.sh:53` (unhealthy-only) never acts; no window bracket needed |
 | 6 | Battery completeness | FIXED | F-D readiness≠write-proof corrected; write path = Console user-create; ACME/cert diag before TLS |
 | 7 | Monitoring + backup/DR truth | FIXED | F-A/F-B fixed at the spec (`health.path`/`monitoring.metrics_path`); F-C cert-expiry dropped; F-E → S-DR backup-coverage step |
-| 8 | Standing recurrence sweep | FIXED | #3 db_name parity (name-first, `__init__.py:302`==`infrastructure.py:413`); #4a orphan-DB tracked; #4b re-run recovery; #6 interpolation grounded; opt-in = byte-identical for other services |
+| 8 | Standing recurrence sweep | FIXED | #3 db_name parity (name-first, `__init__.py:311`==`infrastructure.py:413`); #4a orphan-DB tracked; #4b re-run recovery; #6 interpolation grounded; opt-in = byte-identical for other services |
 
 ## BLOCKED: none
 
