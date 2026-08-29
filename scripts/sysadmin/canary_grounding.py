@@ -22,7 +22,13 @@ it; the kaizen morning read surfaces it). Fail-soft, loud stdout, no logfile (12
 
 Cron (operator-installed; do NOT redirect to /var/log — uncreatable by this user, the
 silent-never-ran class liveness_audit.py:10-11 documents):
-  15 6 * * 0 /bin/sh -c 'mkdir -p $HOME/.claude/state/canary-grounding && cd /opt/fabrik && flock -n $HOME/.claude/state/canary-grounding/cron.lock .venv/bin/python scripts/sysadmin/canary_grounding.py' >> $HOME/.claude/state/canary-grounding/cron.log 2>&1
+  15 6 * * 0 /bin/sh -c 'mkdir -p $HOME/.claude/state/canary-grounding && cd /opt/fabrik && flock -n $HOME/.claude/state/canary-grounding/cron.lock .venv/bin/python scripts/sysadmin/canary_grounding.py >> $HOME/.claude/state/canary-grounding/cron.log 2>&1'
+
+⚠️ The redirect lives INSIDE the quoted shell, AFTER the mkdir. An OUTER redirect is evaluated by
+the spawning shell BEFORE the command runs, so the first-ever fire fails fatally and silently when
+the state dir does not exist yet — the silent-never-ran class this docstring already warns about.
+Caught by executing the exact line pre-schedule (2026-08-29); the corrected form's first real
+batch ran clean the same day (8 models x 2 probes, 16/16 scored, $0.0018).
 """
 
 from __future__ import annotations
