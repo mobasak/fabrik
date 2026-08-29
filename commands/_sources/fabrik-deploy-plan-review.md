@@ -12,44 +12,14 @@ class definitions live in `docs/development/reviews/2026-08-10-tryton-crm-deploy
 re-open every file — the author's memory of a file is not a read.
 
 {{include:run-record}}
-## ⚠️ Termination contract — READ FIRST (the rule agents skip)
+{{include:term-edit}}
 
-This is a LOOP, not a one-shot. It ends — and you may flip `Status: DRAFT → CONVERGED` — **only when a
-full, demonstrably-thorough round makes ZERO edits to the deploy plan** (a genuine no-op pass). Fixes open
-new gaps, so **the pass in which you edited the plan is NEVER the last pass** — it MUST be followed by
-another full round. **Minimum two passes, ALWAYS** — even an edit-free pass 1 must be confirmed by an
-independent pass 2; accuracy outranks pass-count.
-
-Anti-cheat (mechanical, not vibes): record the plan's `md5sum` at the **start and end of the final pass**.
-Identical hash = a real no-op → CONVERGED. Different hash = you edited → run another pass. A no-op
-asserted without matching hashes does not count. (The final `Status: DRAFT → CONVERGED` header flip is a
-post-convergence write, exempt — it does not re-open the loop.)
-
-Maintain a numbered **Pass Ledger** and reproduce it verbatim in the Output block — each row names what
-that pass actually RE-CHECKED (a verification-only look is labelled `VERIFY`, never numbered as a pass; an
-`edits: 0` row for a round that never ran is a **FABRICATED row**, worse than an honest unfinished
-ledger). You are done **only when the last row reads `edits: 0`** with `md5(start) == md5(end)`. Any last
-row with `edits > 0` means you owe the next pass — **run it UNPROMPTED, inside THIS invocation**; never
-end the turn on a non-zero row for the operator to re-invoke — **you return control EXACTLY ONCE: at the
-edit-free, md5-verified no-op** (or at a sanctioned stop below). Three thoughts that each mean *run the
-next pass now*: "it was already done," "the edit was trivial," "it's obviously clean." The final pass must
-also have **raised zero candidates** — a pass that raised 3 and refuted all 3 made no edits but is NOT
-quiet; log every candidate and run the next pass. **There is NO pass ceiling.** The sanctioned endings
-besides the no-op flip: (a) the **batched operator ask** (Phase 2 — one question set, once; record the
-answers and continue the loop in the same invocation); (b) a **BLOCKED escalation**: an axis stuck after
-3 consecutive reconcile attempts → pause it, surface it in the Output block's `## BLOCKED` section (axis
-+ the 3 attempts), keep converging the rest; (c) the **status-guard verdicts** (Phase 0 — the
-already-converged report, the consumed-record route, the complete-deploy route back to
-`/fabrik-deploy`, the EXECUTED / live-IN-PROGRESS refusal, the absent/unrecognized-status refusal, the wrong-repo
-stop) — clean
-hand-backs, not failures. Never self-exit with an "accepted risk". **Context is
-never a reason to stop:** the harness auto-compacts and the run continues — keep going; post-compact, the
-`session-recall` MCP recovers any detail the summary dropped.
-
-| Pass | axes re-checked (secrets · env · infra · ordering · healing/rollout · battery · monitoring/DR · recurrence) | edits made | plan md5 (start → end) |
-|-----:|---|---:|---|
-| 1 | all | 4 | a1b2… → 9f8e… |
-| 2 | all | **0** | 9f8e… → 9f8e… ✓ → **CONVERGED** |
+**Additional sanctioned endings for THIS command** (besides the fragment's no-op flip, stall
+circuit-breaker and per-axis BLOCKED escalation): (a) the **batched operator ask** (Phase 2 — one
+question set, once; record the answers and continue the loop in the same invocation); (b) the
+**status-guard verdicts** (Phase 0 — the already-converged report, the consumed-record route, the
+complete-deploy route back to `/fabrik-deploy`, the EXECUTED / live-IN-PROGRESS refusal, the
+absent/unrecognized-status refusal, the wrong-repo stop) — clean hand-backs, not failures.
 
 ## Where this runs
 
@@ -205,7 +175,9 @@ Only after the md5-verified no-op round:
    file). This is an EDIT-CONVERGENCE review artifact — `check_convergence.py`'s review branch covers it
    (`check_review_coverage.py`'s own contract excludes edit-convergence artifacts, and the artifact must
    not opt itself in — the gate has TWO triggers, both banned from the artifact: the phrase
-   "coverage checklist" must appear NOWHERE — title, prose, or quotes — and the artifact must not name
+   "coverage checklist" must not appear as a HEADING (the gate matches heading-anchored
+   `## …Coverage Checklist` only — its round 27 dropped the prose fallback as an FP source;
+   avoiding the phrase entirely remains the safe habit) — and the artifact must not name
    `/fabrik-review` or `/fabrik-repo-review` either (write "the review loop" when the prose needs the
    concept); the verdict table is titled **Class verdicts**). Its anatomy:
    - the header line + a `## Phase verdicts` section — one verdict line per plan Phase (the per-phase

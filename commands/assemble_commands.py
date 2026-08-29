@@ -382,6 +382,11 @@ def _phase_count(text: str) -> int:
 
 
 PARAMS = {
+    "fabrik-deploy-plan-review": {
+        "term-edit": {"ARTIFACT": "deploy plan", "DONE_ACT": "flip `Status: DRAFT → CONVERGED`", "DONE_WORD": "CONVERGED",
+                      "AXES": "secrets · env · infra · ordering · healing/rollout · battery · monitoring/DR · recurrence",
+                      "EXEMPT_NOTE": " (The final `Status: DRAFT → CONVERGED` header flip is a post-convergence write, exempt — it does not re-open the loop. Converted from a hand-rolled copy 2026-08-29, cmd 18/31: the copy had drifted behind the fragment — no pass SHAPE, no new:/stall-breaker, no probe duty — the exact divergence the fragment exists to prevent.)"},
+    },
     "fabrik-rivals": {
         "term-edit": {"ARTIFACT": "dossier", "DONE_ACT": "declare the dossier CONVERGED (discovery dry + the split trust audit clean)", "DONE_WORD": "CONVERGED",
                       "AXES": "competitors · review signal · feature matrix · MATCH · BEAT · pricing wedge · white-space",

@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 18/31: /fabrik-deploy-plan-review ran a frozen copy of an evolved contract (2026-08-29)
+
+Corpus audit command 18 of 31. The finding is anti-pattern 101's quieter sibling: the command
+hand-rolled its termination contract while ten siblings include `term-edit` — and the fragment had
+EVOLVED past the copy (pass SHAPE wide/scoped/wide, the `new:` column + stall circuit-breaker, and
+the **probe duty** — which matters most here, since deploy plans embed `$`-prefixed probes the
+closing pass must re-run). Converted to `{{include:term-edit}}` + a PARAMS entry; the
+command-specific sanctioned endings (batched ask, status-guard verdicts) stay as an addendum.
+
+Also: the artifact-anatomy claim said the phrase "coverage checklist" triggers
+`check_review_coverage` anywhere — its round 27 made the trigger HEADING-anchored only; corrected
+to the mechanism, keeping the avoid-entirely habit as advice.
+
+Verified real, not assumed: `/fabrik-deploy` implements both cross-command mechanisms this command
+cites — the `deploy-plan-review` marker exemption (:72-73) and the UNADJUDICATED `⛔` row refusal
+(:69) — my first compound grep returned nothing and single-file re-probes found 8 mentions (a
+grep that fails silently reads exactly like absence); router routes all three trigger phrases;
+`check_plan_quality`'s WARN-at-DRAFT / require-at-CONVERGED split matches its docstring.
+
 ### Added — the conversation is now a DENOMINATOR: Intake Inventory for /fabrik-spec and /fabrik-plan-after-chat (2026-08-29)
 
 Operator: *"they determine 10 issues, and I say /fabrik-spec and they spec only some of them, not
