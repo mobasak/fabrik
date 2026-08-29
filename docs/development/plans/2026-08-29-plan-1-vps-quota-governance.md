@@ -204,8 +204,8 @@ $ grep -n "def is_usage_limit" scripts/sysadmin/claude_rotate.py                
 92:def is_usage_limit(text: str) -> bool:
 $ grep -n "sandbox: bool = True" libs/subagents/agent.py                         # pool sandboxed → diagnosis-only
 169:    sandbox: bool = True
-$ python -c "import redis" 2>&1 | tail -1                                        # NO redis dep → stdlib file counter
-ModuleNotFoundError: No module named 'redis'
+$ .venv/bin/python -c "import redis" 2>&1 | tail -1     # the sysadmin/gate interpreter — NO redis dep → stdlib file counter
+ModuleNotFoundError: No module named 'redis'           # (bare python3 may see a user-site redis; the .venv is the operative one)
 ```
 
 ## Self-audit
@@ -213,7 +213,8 @@ ModuleNotFoundError: No module named 'redis'
 - **Grounding:** every reuse point resolves to a real `path:line` (Context Ledger + Evidence). The headroom
   source emits **2 windows today** (5h+weekly), not 3 — the governor's `max` iterates the payload's actual
   windows (Phase-A step 0 grounds Opus), so no hardcoded window count. The budget store is a **stdlib file**
-  (no redis dep — `import redis` fails). The two external facts (Claude Max caps; docker #22066) are the spec's.
+  (no redis dep — `import redis` fails under `.venv/bin/python`, the gate interpreter). The two external facts
+  (Claude Max caps; docker #22066) are the spec's.
 - **Constraint adherence:** no `ANTHROPIC_API_KEY`; no per-call cap (governor sheds routine only); containers
   completion-only; fail-safe; single-flight non-blocking; multi-window reserve; no new dependency — all traced
   to the CONVERGED spec.
