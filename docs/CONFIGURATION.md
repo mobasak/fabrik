@@ -223,6 +223,20 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
 
+### Z.AI Open Platform — `ZAI_API_KEY` (international Zhipu; free GLM-4.7-Flash)
+
+- `ZAI_API_KEY` — Z.AI Open Platform (z.ai/model-api; keys at z.ai/manage-apikey/apikey-list —
+  chat.z.ai is the consumer chatbot, NOT the API console). OpenAI-compatible at
+  `https://api.z.ai/api/paas/v4`. Free tier confirmed by error-code differential 2026-08-29:
+  `glm-4.7-flash` authenticates and serves (no payment wall) while `glm-4.7-flashx` returns
+  1113 "recharge"; bogus key → 401. Claimed: uncapped tokens, 1 concurrent request.
+- ⚠️ **`glm-4.7-flash` is a REASONING model and is DOA at extraction workloads without
+  `"thinking": {"type": "disabled"}`** — measured at 40k-char payload: 86-91s with EMPTY content
+  (reasoning burns the whole budget) vs **74.0s / 48 quote fields** with thinking off +
+  `max_tokens=1500`. Even rescued it sits ~16s under the 90s bar; the free tier also
+  rate-limits hard between calls (codes 1302/1305 — strict serialization + saturation windows).
+  Unmeasured, as always: concurrent-load behavior and per-set yield.
+
 ### Grounding canary — `CANARY_ROSTER_N`
 
 - `CANARY_ROSTER_N` — how many models `scripts/sysadmin/canary_grounding.py` draws per
