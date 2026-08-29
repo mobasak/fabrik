@@ -1,0 +1,67 @@
+# Free-LLM-provider discovery pack (hub, 2026-08-29) — finds FREE-tier LLM API lanes suitable
+# for high-volume long-context extraction workloads. Same engine as competitor-discovery; only
+# this worldview differs. Consumer: intel's provider research for the youtube/crowdlex workload.
+
+query_plan_prompt: |
+  [stage:query-plan] You are a research query planner hunting FREE LLM API access (free tiers,
+  free credits, free community endpoints) usable in production-ish pipelines TODAY. Produce ONLY
+  a JSON object of the shape {"exa": [..], "firecrawl": [..], "brave": [..]} — ranked query
+  strings per leg. Target: providers with OpenAI-compatible chat endpoints, large context
+  (>=60k tokens), and free quotas measured in requests/day or tokens/month (NOT one-off trial
+  credits under $5). Include 2026-current phrasing, community trackers (e.g. "free llm api
+  resources github"), and provider-direct pages. At least 6 brave queries so reallocated budget
+  has queries to spend.
+
+shortlist_prompt: |
+  [stage:shortlist] Merge and dedupe these search rows into a shortlist of REAL, distinct
+  PROVIDERS or free lanes (a gateway's free model pool counts as one lane; exclude anything
+  already known-dead: Groq free (token caps), Cerebras free (8k ctx), SiliconFlow free
+  (revoked), and exclude NVIDIA Build / Mistral La Plateforme / OpenRouter :free / Google
+  Gemini free — already held). Produce ONLY a JSON array, at most {cap} items, each
+  {"name": .., "url": ..}.
+
+verify_prompt: |
+  [stage:extract] From each candidate's page text, produce ONLY a JSON array of evidence-based
+  provider cards, exactly this closed shape per card:
+  {"name","url","verified","free_tier_summary","limits","context_window","openai_compatible",
+  "signup_requirements","workload_fit","source_urls"}.
+  `verified` may be true ONLY when `limits` quotes concrete free-tier numbers (RPM/RPD/TPM/
+  tokens-month) from the page text. `workload_fit` judges: 40k-char inputs, ~1000 calls/day,
+  structured JSON extraction output. Unverifiable candidates ship with verified=false — never
+  dropped.
+
+shortlist_cap: 12
+verify_cap: 8
+
+legs:
+  - {name: exa, cap: 4, num_results: 6}
+  - {name: firecrawl, cap: 3, num_results: 5}
+  - {name: brave, cap: 2, is_free: true, num_results: 6}
+
+card_schema:
+  - {name: name, type: str}
+  - {name: url, type: str}
+  - {name: verified, type: bool, default: false}
+  - {name: free_tier_summary, type: str}
+  - {name: limits, type: str}
+  - {name: context_window, type: str}
+  - {name: openai_compatible, type: str}
+  - {name: signup_requirements, type: str}
+  - {name: workload_fit, type: str}
+  - {name: source_urls, type: list}
+
+fallback_templates:
+  exa:
+    - "free LLM API tier large context {subject}"
+    - "providers offering free LLM inference API 2026"
+  firecrawl:
+    - "free llm api resources"
+    - "{subject} free tier limits"
+  brave:
+    - "free LLM API 2026 requests per day"
+    - "free llm api resources github"
+    - "LLM API free tier comparison 2026"
+
+brief_keys: [subject, project]
+subject_name_key: project
+demote_rule: [verified, limits]   # verified→false unless limits quotes concrete numbers

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — deep-research engine vendored + free-LLM-provider sweep (2026-08-29)
+
+- **`libs/deep_research/`** + **`libs/web_tools.py`** vendored from fabrik-lib @8337a7f (copy,
+  imports fixed per the vendoring protocol; ruff `extend-exclude`d like all vendored dirs). New
+  hub pack `libs/deep_research/packs/free-llm-providers.yaml` (free-tier LLM lane discovery for
+  the youtube/crowdlex workload shape). First run: 12 evidence cards at $0.028 under a $0.50
+  ceiling; 3 verified-but-too-small lanes (Puter 50 RPD, Requesty 200 RPD, free.ai 30k tok/day),
+  GitHub Models probed live → in scheduled RETIREMENT brownout (dead lane), Cloudflare Workers AI
+  context-killed (2–8k). No new deps (PyYAML + httpx already present).
+
+
 ### Added — thread anchors: NEXT: is now durable, multi-slot, and read back every prompt (2026-08-29)
 
 Operator, same day: agents forget where they left off; questions wipe the current task/plan/epic.

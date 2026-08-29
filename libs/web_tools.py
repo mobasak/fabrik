@@ -28,6 +28,7 @@ import json
 import os
 import time
 import unicodedata
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -202,19 +203,70 @@ def _dicts(seq: Any) -> list[dict[str, Any]]:
 
 def _exa_body(args: dict[str, Any]) -> dict[str, Any]:
     """The Exa /search request JSON — shared by the sync and async executors so the
-    query shape (numResults clamp, contents) can never diverge."""
+    query shape (numResults clamp, contents) can never diverge.
+
+    Optional geo/filter fields are ADDITIVE and truthiness-gated: an absent/falsy value leaves the
+    payload byte-identical to the base request, so this is backward-compatible for every caller.
+    Grounded live 2026-08-29 against https://exa.ai/docs/reference/search :
+    - ``category`` → top-level ``category`` (company/publication/news/people/… — other strings are hints);
+    - ``include_domains`` → ``includeDomains`` (camelCase; ≤1200 entries; a ``*.example.com`` wildcard or a
+      ``host/path`` prefix is accepted);
+    - ``user_location`` → ``userLocation`` (two-letter ISO country code, e.g. ``US``);
+    - ``search_type`` → ``type`` (``auto`` default / ``fast`` / ``instant`` at base rate;
+      ``deep-lite`` / ``deep`` / ``deep-reasoning`` cost MORE — the caller's cost estimate must account for it).
+    """
     n = int(args.get("num_results", 10))
-    return {
+    body: dict[str, Any] = {
         "query": str(args["query"]),
         "numResults": min(max(n, 1), 100),
         "contents": {"text": True},
     }
+    if args.get("category"):
+        body["category"] = str(args["category"])
+    include_domains = args.get("include_domains")
+    if include_domains:
+        # Normalize DEFENSIVELY to a list of non-empty domain strings — this is a vendored module, so a
+        # programmatic caller passing the wrong type must get a predictable result, never a silent-wrong
+        # filter: a str is ONE domain (never iterated char-by-char); a list/tuple keeps its truthy entries
+        # as strings (so a None/'' in the list is dropped, not sent as the literal "None"); anything else
+        # (a dict whose keys would silently become domains, an int, bytes iterated as code points) is NOT a
+        # domain list and is ignored rather than turned into a garbage filter. Only send the field if a real
+        # domain survived — so a degenerate value stays byte-identical to the base payload. The rule:
+        # a str is ONE domain; ANY OTHER iterable (list/tuple/set/frozenset/generator) keeps its truthy
+        # entries as strings; but bytes (would iterate as code points) and a Mapping (whose KEYS would
+        # silently become domains) are NOT domain lists and are rejected; a non-iterable (int) likewise.
+        if isinstance(include_domains, str):
+            domains = [include_domains]
+        elif isinstance(include_domains, (bytes, bytearray, Mapping)):
+            domains = []
+        elif isinstance(include_domains, Iterable):
+            domains = [str(d) for d in include_domains if d]
+        else:
+            domains = []
+        if domains:
+            body["includeDomains"] = domains
+    if args.get("user_location"):
+        body["userLocation"] = str(args["user_location"])
+    if args.get("search_type"):
+        body["type"] = str(args["search_type"])
+    return body
 
 
 def _brave_params(args: dict[str, Any]) -> dict[str, Any]:
-    """The Brave /web/search query params — shared by both surfaces (count max 20)."""
+    """The Brave /web/search query params — shared by both surfaces (count max 20).
+
+    Optional geo/language fields are ADDITIVE + truthiness-gated (absent/falsy → byte-identical payload).
+    Grounded live 2026-08-29 against the Brave Web Search API query-params doc:
+    - ``country`` → ``country`` (two-character country code, e.g. ``DE``);
+    - ``search_lang`` → ``search_lang`` (a content-language code, e.g. ``de``).
+    """
     n = int(args.get("num_results", 10))
-    return {"q": str(args["query"]), "count": min(max(n, 1), 20)}
+    params: dict[str, Any] = {"q": str(args["query"]), "count": min(max(n, 1), 20)}
+    if args.get("country"):
+        params["country"] = str(args["country"])
+    if args.get("search_lang"):
+        params["search_lang"] = str(args["search_lang"])
+    return params
 
 
 def _decimal(value: Any) -> Decimal:
@@ -808,15 +860,26 @@ _INT = {"type": "integer"}
 WEB_TOOL_SCHEMAS: list[dict[str, Any]] = [
     _fn(
         "web_search",
-        "Search the web (Exa) for current information; returns ranked title/url/snippet.",
-        {"query": _STR, "num_results": _INT},
+        "Search the web (Exa) for current information; returns ranked title/url/snippet. "
+        "Optional market-scoping: `category` (company/publication/news/people/…), `include_domains` "
+        "(restrict to these hosts; `*.example.com` wildcard ok), `user_location` (ISO-2 country), "
+        "`search_type` (auto/fast/instant at base rate; deep-lite/deep/deep-reasoning cost more).",
+        {
+            "query": _STR,
+            "num_results": _INT,
+            "category": _STR,
+            "include_domains": {"type": "array", "items": {"type": "string"}},
+            "user_location": _STR,
+            "search_type": _STR,
+        },
         ["query"],
     ),
     _fn(
         "web_search_brave",
         "Search the web (Brave) for current information; returns ranked title/url/snippet. "
-        "An alternative engine to `web_search` (Exa) — enable either or both.",
-        {"query": _STR, "num_results": _INT},
+        "An alternative engine to `web_search` (Exa) — enable either or both. Optional market-scoping: "
+        "`country` (2-char country code), `search_lang` (content-language code).",
+        {"query": _STR, "num_results": _INT, "country": _STR, "search_lang": _STR},
         ["query"],
     ),
     _fn(
