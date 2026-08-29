@@ -5,6 +5,8 @@
 
 # Tojlo Design System v1.1
 
+> ⚠️ **A HOUSE identity (mobile), chosen — never defaulted** (operator ruling 2026-08-29): applies only when the project's `docs/design-system.md` declares it; other mobile projects get their identity from brand-identiy-creator per the ladder in `saas/60-saas-ui.md`.
+
 > Single source of truth for the Tojlo brand and all Tojlo product surfaces.
 > **Tojlo inherits every engineering and voice foundation from `ocoron-design-system.md`.** This document specifies only overrides, additions, and Tojlo-specific patterns.
 

@@ -5,7 +5,7 @@
 
 # Ocoron Design System v2.0
 
-> Single source of truth for all Ocoron products, scaffolds, and surfaces.
+> Single source of truth for OCORON-FAMILY products and surfaces. ⚠️ **A HOUSE identity, chosen — never defaulted** (operator ruling 2026-08-29): a SaaS uses this system only when its `docs/design-system.md` header declares it explicitly; every other UI project gets its own identity from brand-identiy-creator (the resolution ladder in `saas/60-saas-ui.md`). This file's STRUCTURAL scales (spacing, density, motion patterns, component patterns) may serve as the interim framework under a BIC brand — the brand tokens themselves must never arrive by default.
 > Every new project references this file. No ad-hoc styling, messaging, or naming decisions.
 
 ---

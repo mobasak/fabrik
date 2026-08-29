@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the design-system LADDER: BIC-first identities, house brands by explicit choice only; shadcn/magicui boundaries (2026-08-29)
+
+- Operator ruling: ocoron/tojlo are HOUSE identities, chosen never defaulted — brand gravity is
+  scaffold gravity's twin. Every UI project resolves `docs/design-system.md` from a
+  brand-identiy-creator full identity; missing → a NAMED BLOCKING step at 2-contract. Wired in
+  `saas/60-saas-ui.md` (the ladder + the skin/structure split: shadcn=structure via the wired MCP,
+  the design system=skin, magicui=motion accents — and NEVER on artifacts a product generates for
+  its customers), both design-system headers, `/fabrik-ui-design` Phase 1 (ADOPT requires the
+  explicit declaration; CREATE routes the brand through BIC first), `/design-review` (judging a
+  BIC-branded product against ocoron tokens is itself a finding). BIC's BHD kit inventoried from
+  the artifact (dual-mode tokens.css/json, surfaces, AA accent-text — a strong marketing-site
+  system) and the 10-item SaaS-app gap list mailed (01M17JNJ, ack-required; headline gaps:
+  semantic/state colors, component patterns, verified contrast table, the design-system.md export).
+
 ### Added — VPS quota governor router (Phase A of vps-claude-quota-governance) (2026-08-29)
 
 - **What:** `scripts/sysadmin/quota_governor.py` — a headroom-aware router for the single-key ob@ VPS

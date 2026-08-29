@@ -40,7 +40,7 @@ Use the design-review agent to comprehensively review the complete diff above, a
 
 Follow and implement THIS project's design contract as the design principles + style guide, in priority order:
 1. **`docs/ui-design.md`** (the FROZEN screen+flow contract from `/fabrik-ui-design`) — the authoritative screens, minimal-click flows + click budgets, per-screen components/states, and screen↔`docs/data-contract.md` field mapping. Judge the UI against THIS: every screen present, flows within budget, all enriched states, no invented field/component.
-2. The **design system**: `.windsurf/rules/core/ocoron-design-system.md` (or `tojlo-design-system.md`) + `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy.
+2. The **design system, resolved by the LADDER** (`saas/60-saas-ui.md`, operator ruling 2026-08-29): the project's own `docs/design-system.md` (BIC-sourced) first; `ocoron-design-system.md` / `tojlo-design-system.md` ONLY on the project's explicit house-identity declaration — plus `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy. Judging a BIC-branded product against ocoron tokens is itself a finding.
 3. A project-local `context/design-principles.md` / `context/style-guide.md` if present.
 If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist.
 {{include:run-record}}

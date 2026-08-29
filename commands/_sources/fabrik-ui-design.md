@@ -41,16 +41,26 @@ Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec
 
 ## Phase 1 — Establish the DESIGN SYSTEM (FORCED FIRST — blocks Phase 2)
 
-You may not design a single screen until this is done. Establish it one of two ways and **state which**:
+You may not design a single screen until this is done. **The resolution LADDER is the law here
+(operator ruling 2026-08-29, canonical in `saas/60-saas-ui.md`): (1) the project's own
+`docs/design-system.md`, sourced from a brand-identiy-creator full identity — the kit's
+`For-Your-Developer/Design-Tokens/` seeds it; (2) MISSING → this phase BLOCKS with the named step
+"generate the identity via brand-identiy-creator" — never fall through to a house brand silently;
+(3) ocoron/tojlo apply only when the project EXPLICITLY declares the house identity.** Establish it
+one of two ways and **state which**:
 
-- **ADOPT (default when the product is an Ocoron / Tojlo brand).** The project uses an existing fabrik design
+- **ADOPT (ONLY on an explicit house-identity declaration — an Ocoron / Tojlo-family product, stated
+  in the `docs/design-system.md` header as "House identity: <x> — chosen, not defaulted").** The project uses an existing fabrik design
   system — `.windsurf/rules/core/ocoron-design-system.md` (parent) or `.windsurf/rules/core/tojlo-design-system.md`,
   plus the mobile variants for RN. **Reference it as the source of truth; do NOT recreate it.** Record: which
   system, any project-specific token overrides (accent, logo), and — when the project uses decorative/ambient
   motion — which copy-and-own sources it draws on (e.g. reactbits.dev), per `ocoron-design-system.md`
   § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here). Nothing more.
-- **CREATE (a new brand / no fitting system).** Author a **lean** project design system — enough to design and
-  build against, NOT a 1,850-line clone. Ground its *structure* in `ocoron-design-system.md` (the template),
+- **CREATE (a new brand / no fitting system).** First route the BRAND itself through
+  brand-identiy-creator (the ladder's step 2 — its kit ships dual-mode tokens.css/tokens.json,
+  logos, typography, voice); what you author here is the SaaS-APP EXTENSION on top of those brand
+  tokens. Author it **lean** — enough to design and
+  build against, NOT a 1,850-line clone. Ground its *structure* in `ocoron-design-system.md` (the STRUCTURAL template only — spacing/density/motion patterns; the brand tokens come from BIC),
   but keep it minimal: **color/surface/text tokens · typography (heading/body/mono) · spacing scale · motion
   tokens · the core component list (Button, Input, Card, Table, Modal, Toast, …) · the enriched states every
   component handles (loading/empty/error/permission-denied/success/partial/disabled) · WCAG 2.2 AA baseline ·

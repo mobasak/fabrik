@@ -28,9 +28,33 @@ The rules below are the *standards* the frozen design and the verification enfor
 
 ---
 
-## Ocoron Design System
+## The design system — a resolution LADDER, never a silent default (operator ruling 2026-08-29)
 
-All SaaS UI projects follow `ocoron-design-system.md` as the single source of truth. Key points for agents:
+House brands are not forced on every SaaS — brand gravity is scaffold gravity's twin (a product
+that looks like the house because nobody chose otherwise). Resolve, in order:
+
+1. **The project's own `docs/design-system.md`, sourced from a brand-identiy-creator full identity**
+   — the mandate for every UI-bearing project. The kit's `For-Your-Developer/Design-Tokens/`
+   (tokens.css + tokens.json, dual-mode) seeds it; the SaaS-app extension set (semantic/state
+   colors, component patterns, contrast table, density, data-viz) comes from BIC as it ships or is
+   authored in the project's `design-system.md` against the BIC brand tokens.
+2. **Missing → a NAMED BLOCKING step at 2-contract**: "generate the identity via
+   brand-identiy-creator" — the pipeline stops there by name; never fall through silently.
+3. **`ocoron-design-system.md` (web) / `tojlo-design-system.md` (mobile) are HOUSE identities a
+   project EXPLICITLY declares** — one header line in its `docs/design-system.md` ("House identity:
+   ocoron — chosen, not defaulted"). Interim hybrid while BIC's app-extension set matures: BIC
+   brand tokens + ocoron's STRUCTURAL scale (spacing/density/motion patterns as framework), declared
+   as interim — brand from BIC, skeleton from the house, never the house BRAND by accident.
+
+**Component toolchain (the skin/structure split):** **shadcn** (via the wired MCP) is STRUCTURE and
+behavior — install real components, never hand-write markup; the project's design system is the
+SKIN — tokens restyle everything, which is exactly why per-project brands and shadcn compose.
+**magicui** (wired MCP) is motion/marketing accents, inside the motion-token budget. ⚠️ **Both are
+for the SaaS's OWN UI only — never for artifacts the product GENERATES for its customers** (produced
+sites, exported pages): those carry the CUSTOMER's brand and their own weight budget, and inheriting
+our component stack couples every customer artifact to our toolchain.
+
+Key points for agents (token discipline — binding whichever system resolves):
 
 - **Design tokens:** CSS custom properties (`--color-*`, `--surface-*`, `--text-*`) or Tailwind theme equivalents. Never raw hex values, arbitrary colors, or hardcoded font names.
 - **Typography:** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data). No substitutions.
