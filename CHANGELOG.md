@@ -360,6 +360,10 @@ acked `disposition: done` while none of its three steps existed.**
 
 ### Fixed — reviewing predicate 8 found seven defects in it, three of them the class it grades (2026-08-29)
 
+- _Attribution note (2026-08-29): this entry was authored by **infra**; it was accidentally swept
+  into `ec05a490` (intel's canary Phase B commit) while sitting unstaged in the shared tree — the
+  commit's trailers misattribute it. Content unchanged; provenance corrected here._
+
 `/fabrik-review` over `728b5847`. Six rounds; the ledger and per-finding dispositions are in
 `docs/development/reviews/2026-08-29-corpus-predicate-8-review.md`.
 
