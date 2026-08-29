@@ -51,6 +51,19 @@ implementation is `/opt/tryton-crm/scripts/certification_record.py` (cross-repo 
 from; a project without one vendors it before the first sweep), evidence mandatory, the grader
 only reads.
 
+**The fifth oracle — reference-data reconciliation (trade-intelligence `01M1580AH`, 2026-08-29).**
+The UI-truth-vs-SYSTEM-truth comparison is blind to a defect ABSENT FROM BOTH SIDES: a levy the API
+never computed and the card therefore never rendered agreed perfectly across four certification
+runs (30 quiet rounds) while silently omitting a ~2.46M TRY line whose ZERO happened to be correct
+— agreement is what the comparison checks, and no number of rounds, personas or viewports can see a
+row missing from both sides. So for every journey whose output is ADJUDICATED CONTENT (levies,
+prices, entitlements, computed rows), at least one scenario per content class reconciles the
+response against an INDEPENDENT reference source — the governing table/ruleset/fixture the domain
+itself names — asserting not just that rendered rows are right but that every row the reference
+implies is PRESENT or its absence individually justified. No independent reference reachable → say
+so in the ledger (`reference-reconciliation: unavailable — <why>`); an unstated missing oracle is
+how this class survives.
+
 **The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT
 mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
 feature with zero mapped IDs cannot be reported as working.** That clause survived the denominator

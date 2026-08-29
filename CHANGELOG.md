@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — four fixes landed straight from the @infra mail queue (2026-08-29)
+
+The 35-deep @infra backlog's ack-required findings, worked handle-now; each fix cites its mail:
+
+- **The fifth oracle** (trade-intelligence `01M1580AH`): reference-data reconciliation joins the
+  certification denominator contract — a defect absent from BOTH sides of the UI-vs-SYSTEM
+  comparison is invisible to it at any round count (a correct-but-silent 0-KKDF line worth ~2.46M
+  TRY survived four certifications). Lands once in `cert-board-contract`; both gauntlets inherit,
+  parity md5-proven.
+- **The already-realized branch** (`01M164EF`): `/fabrik-spec-review` gains the consumed-record
+  mirror — a DRAFT spec whose artifacts already exist verifies impl-matches-spec, re-grounds, and
+  flips terminal `Status: IMPLEMENTED <date> (<commit>)` instead of running ceremony rounds.
+- **The flip-gate authoring gap** (`01M16DDA`): `/fabrik-plan-after-chat` Phase 4 now names the
+  `## Coverage Checklist` + embedded `review_rubric.py` requirement `check_convergence.py:369/:385`
+  enforces (cost a builder 2 gate rounds to discover); mirrored at `/fabrik-plan-review`'s flip.
+- **The `git mv` pathspec clause** (fabrik-lib `01M169S5` item 4, evidence `cc362a0`): both
+  constitutions — name BOTH paths or the staged delete orphans and the file lives at two paths.
+
 ### Fixed — cmd 20/31: /fabrik-deploy-verify's citations had drifted; its DNS evidence re-verified live (2026-08-29)
 
 Corpus audit command 20 of 31, completing the deploy family. Three findings, all the staleness

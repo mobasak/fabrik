@@ -7,6 +7,9 @@ Converge this plan to a fixed point — do not stop after one pass. **Fixed poin
 
 {{include:run-record}}
 {{include:term-edit}}
+(Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage
+Checklist` + an embedded `review_rubric.py` invocation — `check_convergence.py:369/:385`; verify
+both BEFORE the no-op round, or the flip fails after the loop.)
 (This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
 
 {{include:grounding-artifact}}

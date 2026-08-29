@@ -551,6 +551,14 @@ carries none of the three is a defective plan, not a shape difference:
 
 ## Phase 4 — Convergence scaffolding (so /fabrik-plan-review + check_convergence pass)
 
+**⚠️ The CONVERGED flip's gate reads TWO things Phase 4's section list used to omit — author them
+NOW, not at gate time** (cost a builder 2 gate rounds ≈ 12 min to discover by reading
+`check_convergence.py:369-389`; job-agent burned 4 round-trips on the same wall 2026-08-28): a
+MONOLITH plan flipping CONVERGED must ALSO carry **`## Coverage Checklist`** (rubric-derived rows
+plus the four standing recurrence classes) **with an embedded `review_rubric.py` invocation**
+(fenced) — `_checklist_section` at `:369` and `RUBRIC_RUN` at `:385` enforce both mechanically.
+`/fabrik-plan-review` asserts the same two before its flip.
+
 Append, so the downstream converge/execute commands have what they need:
 
 - **`## File Scope (owned paths)`** — the explicit list of files this plan **creates or modifies**

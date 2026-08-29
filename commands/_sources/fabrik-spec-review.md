@@ -17,6 +17,17 @@ against the real world.
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope
 
+**Already-realized guard (mirror of `/fabrik-deploy-plan-review`'s consumed-record route; gap found
+live on `2026-08-15-ci-health-probe-design.md`, authored AND shipped in one commit, DRAFT forever):**
+before converging, check whether the spec's named artifacts ALREADY EXIST in the tree (its scripts,
+tests, docs — `ls` each). If they do, the DRAFT→CONVERGED loop is the wrong ceremony — CONVERGED
+means ready-to-build, and this is built. Instead: verify the implementation MATCHES the spec
+(divergences are findings — fix the spec to record what actually shipped, never the reverse from a
+review), re-ground the external facts that still matter, then flip the literal
+`Status: IMPLEMENTED <date> (<commit>)` — a terminal state, no convergence loop, no approval gate
+(the ship already happened). An implementation that CONTRADICTS the spec's intent is not
+already-realized — that is a real review with findings; run the loop.
+
 The spec under review is `$ARGUMENTS` (if empty, the `/fabrik-spec` design doc under discussion — locate it
 and state which file, e.g. `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`). Scope = every external
 claim + cited URL, every fabrik-lib **vendor / enhance / build** verdict, every approach, every agreed
