@@ -11,7 +11,7 @@ trigger: glob
 
 # 2. Vision AI
 
-Last content verification: 2026-08-16
+Last content verification: 2026-08-18
 
 **Purpose:** Interpret or generate images/video.
 
@@ -38,8 +38,8 @@ Last content verification: 2026-08-16
 
 Either gateway is fine — pick the cheaper rate per model from the bake-off browser. **Note:** these are vision *understanding* models. For image *generation*, use Recraft (branded/vector) or FLUX/BFL (photoreal) directly — not a gateway LLM.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-16 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-16 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-18 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-18 UTC; auto-refreshed from `kilo_agents.db`):*
 
 vision-input across all gateways: **217**
 
@@ -48,13 +48,8 @@ These are vision *understanding* models. Image *generation* (Recraft / FLUX) is 
 
 **Use cases:** content creation, surveillance, document processing.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-16 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-16 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-18 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-18 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
-| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
-|---|---|---|---|---|
-| P1 | `openrouter/auto` | free | 2000k | free |
-| P2 | `nex-agi/nex-n2-mini` | $0.03 | 262k | GA |
-
-To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+*No eligible models today — floors too strict or catalog too thin. See `cache/update.log` for details. Reason: No model satisfies category='vision' floors: min_quality_tier=1, min_context_window_k=1, require_vision=True, require_tools=False, require_reasoning=False, allow_free=False, stability_required=True, sort_key='input_cost_per_m ASC'*
 <!-- OPENROUTER_ROUTES:END -->

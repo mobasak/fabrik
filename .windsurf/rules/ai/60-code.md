@@ -11,7 +11,7 @@ trigger: glob
 
 # 6. Code & Developer AI
 
-Last content verification: 2026-08-16
+Last content verification: 2026-08-18
 
 **Purpose:** Generate or explain code.
 
@@ -25,24 +25,18 @@ Claude Code, GitHub Copilot, Amazon Q Developer, Cursor IDE, Windsurf Cascade.
 
 The code frontier (qwen3.7-max, glm-5.2, grok-4.3, claude-code-tier Sonnet/Opus, gpt-oss-120b) is on both Kilo and OpenRouter, often at different per-token costs. Pick the cheaper gateway per model from the bake-off browser (Coding tab — sorts by Best Code descending). For *embedded* product code-gen, default Claude per the table above; for *dev tooling*, the Fabrik stack already uses Claude Code + Windsurf Cascade + Kilo CLI in parallel.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-16 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-08-16 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-08-18 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-08-18 UTC; auto-refreshed from `kilo_agents.db`):*
 
-code-tagged across all gateways: **66**
+code-tagged across all gateways: **0**
 
 See the Coding tab in the bake-off browser; sort by Best Code descending to compare SWE-bench + Aider + DA-code signals per row.
 <!-- GATEWAY_COUNTS:END -->
 
 **Use cases:** code completion, refactoring, debugging assistance.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-16 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-16 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-18 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-18 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
-| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
-|---|---|---|---|---|
-| P1 | `openai/gpt-5.5` | $5.00 | 1050k | GA |
-| P2 | `openai/gpt-5.4` | $2.50 | 1050k | GA |
-| P3 | `anthropic/claude-opus-4.7` | $5.00 | 1000k | GA |
-
-To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+*No eligible models today — floors too strict or catalog too thin. See `cache/update.log` for details. Reason: No model satisfies category='code' floors: min_quality_tier=2, min_context_window_k=64, require_vision=False, require_tools=True, require_reasoning=False, allow_free=True, stability_required=False, sort_key='tbench_accuracy DESC'*
 <!-- OPENROUTER_ROUTES:END -->

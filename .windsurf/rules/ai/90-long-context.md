@@ -11,7 +11,7 @@ trigger: glob
 
 # 16. Long-Context AI
 
-Last content verification: 2026-08-16
+Last content verification: 2026-08-18
 
 **Purpose:** Process extremely long documents, codebases, or conversations.
 
@@ -23,13 +23,8 @@ Claude Opus 4.8 (1M), Claude Fable 5 (1M), Gemini 2.5 Pro (1M), GPT-4o (128K).
 
 **Use cases:** codebase analysis, book summarization, long-document QA, multi-file reasoning.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-16 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-08-16 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-08-18 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-08-18 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
-| Priority | OpenRouter ID | Cost ($/M in) | Context | Status |
-|---|---|---|---|---|
-| P1 | `x-ai/grok-4.20` | $1.25 | 2000k | GA |
-| P2 | `openrouter/auto` | free | 2000k | free |
-
-To consume via a Fabrik spec: `llm_provider: openrouter` + `llm_model: <P1 id>`. Fallback chain via the OpenRouter `models: [P1, P2, P3]` request parameter.
+*No eligible models today — floors too strict or catalog too thin. See `cache/update.log` for details. Reason: No model satisfies category='long-context' floors: min_quality_tier=1, min_context_window_k=200, require_vision=False, require_tools=False, require_reasoning=False, allow_free=True, stability_required=False, sort_key='context_window_k DESC'*
 <!-- OPENROUTER_ROUTES:END -->
