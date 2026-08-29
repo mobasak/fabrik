@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — cmd 31/31: the audit closes — researcher liberalized, design-review's rounds wired, silence can no longer pass the grounding gate (2026-08-29)
+
+- `fabrik-researcher` opened to ANY command or plain-chat work needing live grounding (operator
+  ruling — the four-caller list read as a whitelist), with the pool-vs-native boundary and
+  session-directive precedence stated in the definition.
+- `/design-review` (cmd 31, the final audit): one finding — its mandated Pass Ledger never drove
+  `command_run.py round`; wired (the rules-review class, second sighting). Cited packs, agent def,
+  NEXT map, deliberate router exclusion and argument-hint absence all verified as pre-cleared.
+- `/fabrik-spec`'s grounding recipe (web-ecommerce-factory 01M174K3): the pairing
+  `mode="read_only"` + `web_tools` is correct by the module's own design (their fix-direction (b)
+  refuted at loop.py's web-branch ordering) — but an empty unit output could pass the BLOCKING
+  gate silently; the recipe now scores silent units 0 and re-grounds. Runtime halves (two models
+  silent under a correct config; 413 unrecorded pool runs / undrained pg_outbox) relayed to intel.
+
 ### Fixed — cmd 30/31: rivals told agents to write into fabrik-lib; two operating cites had drifted (2026-08-29)
 
 - The § Upstream section instructed appending to `/opt/fabrik-lib/competitor-intel/

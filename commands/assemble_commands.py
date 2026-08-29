@@ -361,6 +361,14 @@ for r in results:
     set_quality(r.agent_id, score(r), project="spec-grounding", task_type="research", model=r.model)  # 0=hallucinated/stale · 5=accurate+cited
 ```
 
+⚠️ **An EMPTY (or near-empty) unit output is a FAILED grounding, never a pass** — check `len(r.text)`
+before trusting any unit (web-ecommerce-factory 2026-08-29: two units returned 0 and 82 chars, cost
+still billed, the table rendered normally, and nothing in the return said the run went silent — an
+agent following the recipe hit the BLOCKING grounding gate with no grounding and no error). A silent
+unit gets `set_quality(…, 0 …)` and its fact gets re-grounded — by re-dispatch, or by the
+orchestrator's own shell (`WebSearch` + a raw fetch), which is always a legitimate fallback for this
+gate.
+
 The vendor-ladder verdict (1b), the Q&A (Phase 2), and the decide/refute/merge stay yours — native `fabrik-researcher` (records nothing): verify-sample → Haiku (Sonnet for a nuanced source), Opus for synthesis / vendor-ladder / decide."""
 
 def _phase_count(text: str) -> int:
