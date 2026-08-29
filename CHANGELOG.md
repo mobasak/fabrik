@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the researcher's fetch-path law + the governance-sync deadlock dispositioned (2026-08-29)
+
+- wef 01M176BR (carried out of a fabrik-researcher subagent per the close-out contract): WebFetch
+  is an ANSWER, not an extract — exact-quote checks would fail correct quotes, and PDFs return
+  nothing usable without erroring. The researcher's toolset now carries fetch-path routing law:
+  raw extractors (exa/firecrawl) for string-match and PDFs, the fetch path named in the verdict,
+  UNVERIFIABLE only after the raw path also failed.
+- intel 01M178GME0 (the governance-sync "deadlock"): measurements confirmed, mechanism
+  re-attributed — the sync writes NOTHING in-hub (discovery excludes the hub; write sites audited);
+  the abort is pre-commit's tree-delta catching a CONCURRENT writer inside the slowest hook's
+  ~30s×47-repo window (live regen mtime as evidence), unifying intel's two failures with infra's
+  cmd-26 retries. The `.windsurf/rules/ai/**` renders lost their committer at the Phase-D cutover
+  (engine-side commit half routed back to intel); the structural fix (post-commit sync — kills the
+  window class) is a measured STRATEGIC_BACKLOG row awaiting the operator.
+
 ### Changed — the three constitutions cross-reconciled: best-of-all-worlds, seventh universal anchor (2026-08-29)
 
 - Operator-directed three-way review of hub CLAUDE.md, templates/governance/CLAUDE.md, and

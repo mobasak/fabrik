@@ -159,3 +159,18 @@ refuses rather than skip-to-green. Their ranked ask: honour a project-declared e
 carrying a permanent named red. **Measured need: 1 repo** (transdoc; every other marker-armed repo
 passes env-free) — below the build threshold; revisit when a second repo hits it or transdoc asks
 again. Blocked by: nothing — deliberately deferred at n=1.
+
+## [infra] governance-sync as pre-commit is the widest concurrent-writer window (2026-08-29)
+
+Two sessions hit "files were modified by this hook" aborts in one day (infra cmd-26 retries; intel
+01M178GME0 twice + a justified SKIP on daf984f5). Measured: the sync writes NOTHING inside
+/opt/fabrik (hub excluded from discovery, write-site audit clean) — the abort is pre-commit's
+tree-delta detection catching a CONCURRENT writer during the slowest hook's ~30s×47-repo window
+(evidence: .windsurf/rules/ai mtimes regenerating from a live session mid-window). Root
+contributors: (1) the `.windsurf/rules/ai/**` renders lost their committer at the Phase-D cutover
+(autocommit_pipeline_outputs.sh removed them deliberately — the ai-model-catalog ENGINE owns
+publishing now, and its commit half is intel's to wire); (2) structurally, distribution does not
+need to GATE the commit — a post-commit sync would eliminate the window class entirely. Decision
+owed: move governance-sync to post-commit (operator sign-off — changes the distribute-on-commit
+invariant's timing, not its guarantee). Until then: retry lands it; SKIP=governance-sync only when
+the sync's own receipts prove it already ran (the daf984f5 precedent).
