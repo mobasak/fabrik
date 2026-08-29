@@ -106,6 +106,17 @@ PATHS=(
   docs/traycer/kilo_selected_agents.md
 )
 
+# Phase-D commit-half restoration (2026-08-30, intel — routed via 01M17CKG): the ai-model-catalog
+# engine renders `.windsurf/rules/ai/**` blocks but the cutover left NOTHING committing them, so
+# the dirty packs redded every concurrent session's diff-scoped gates. The bare paths stay OUT of
+# the static list above (the sibling-bundling reasoning there still binds); instead a MARKER-SCOPED
+# feeder qualifies a pack ONLY when its ENTIRE diff sits inside the engine's write surface
+# (auto-managed START/END regions + the verification-date line) — a hand-edit anywhere in the file
+# disqualifies it loudly to stderr and it is never bundled. Helper always exits 0.
+while IFS= read -r _ai_render; do
+  PATHS+=("$_ai_render")
+done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" 2>>/dev/null || true)
+
 # Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
 # empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not
 # exist) made it exit 128 with NOTHING staged — and the guard below then logged "tree already
