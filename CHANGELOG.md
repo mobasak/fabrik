@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — mobile component sources + the licence filter (wef finding; gluestack's MIT did not verify) (2026-08-29)
+
+- `80-mobile.md` § Styling gains "Component sources": React Native Reusables (MIT verified from the
+  raw LICENSE) as the default on Uniwind — the structure/skin split mirroring the web ladder; the
+  LICENCE FILTER as the load-bearing rule (a Fabrik scaffold IS a starter kit; premium UI-kit
+  licences uniformly prohibit that — Tailwind Plus's clause verified verbatim live; permissive-OSI
+  only for anything a scaffold emits, licence read from the raw file, SPDX + date recorded);
+  gluestack-ui demoted to verify-at-adoption (no licence file at repo root, API SPDX null — the
+  filter catching the finding's own recommendation). wef's 0-of-6 measurement reproduced.
+
 ### Added — the design-system LADDER: BIC-first identities, house brands by explicit choice only; shadcn/magicui boundaries (2026-08-29)
 
 - Operator ruling: ocoron/tojlo are HOUSE identities, chosen never defaulted — brand gravity is

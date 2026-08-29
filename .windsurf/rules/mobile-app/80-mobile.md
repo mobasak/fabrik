@@ -140,6 +140,34 @@ The RN client is a **Pattern-A client** (same model as web): it talks to a **sel
 - Never use web CSS properties (`className`, media queries, `hover`) in React Native components.
 - **NativeWind v4** moved to build-time compilation (Metro plugin) — static styles compile to `StyleSheet.create()` objects at build, so static-style performance is equivalent to raw StyleSheet. However, **dynamic styles (theming, responsive, state-driven)** still require React context/bridge; `react-native-unistyles` (C++/JSI, synchronous) is faster for these. **Recommendation:** use `react-native-unistyles` for projects with deep theming (Ocoron Design System dark/light switching) or frequent dynamic style updates. NativeWind v4 is acceptable for static-heavy UIs if the team prefers Tailwind DX. NativeWind v5 (aligns with Tailwind CSS v4 Rust engine) is in preview — not production-ready.
 - For complex adaptive theming with design tokens, `react-native-unistyles` (C++/JSI, zero re-render overhead) is the approved alternative.
+
+### Component sources — where a component COMES FROM (the engine above only styles it)
+
+Measured 2026-08-29 (web-ecommerce-factory, 0 of 6 mobile-pack files named a component source):
+every mobile build was re-answering "hand-roll or adopt a set?" from scratch. The rule, mirroring
+`saas/60-saas-ui.md`'s structure/skin split:
+
+- **Default: React Native Reusables** (`founded-labs/react-native-reusables` — **MIT, licence file
+  read live 2026-08-29**): shadcn/ui's copy-paste model ported to RN, running on **Uniwind** — the
+  engine this pack already accepts and the one all five fabrik-lib `rn-*-kit` modules ship on.
+  Components are STRUCTURE; the project's design system (resolved by the ladder in
+  `saas/60-saas-ui.md` — BIC identity first, tojlo only by explicit declaration) is the SKIN.
+- **Candidate for one set spanning web+RN: gluestack-ui** — ⚠️ its MIT claim did **NOT** verify this
+  session (no licence file at the repo root; the GitHub API reports no SPDX id). Verify at adoption
+  per the filter below; an unverifiable licence is a NO, not a maybe.
+- ⚠️ **THE LICENCE FILTER (load-bearing — a Fabrik scaffold IS a starter kit).** Premium UI-kit
+  licences uniformly prohibit exactly what a scaffolder does — verified verbatim on Tailwind Plus
+  this session (*"website builder" project where end users can build their own websites using
+  components, templates, or libraries included with or derived from Tailwind Plus*; *starter kit
+  using the components, templates, or libraries and making it available either for sale or for
+  free*), with the same clause independently read on Flowbite Pro and shadcnblocks. Their
+  "unlimited end products" grant covers an agency's ONE app — never an emitted starter. So: for
+  anything a scaffold or template emits, **permissive OSI licences only** (MIT / Apache-2.0 / BSD),
+  the licence **read at adoption from the raw licence file** (never the marketing page), and the
+  SPDX id + read-date recorded in the project's `docs/design-system.md` header. Terms you cannot
+  retrieve = not an option (NativeLaunch, native-templates.com: redistribution terms unretrievable).
+- **Produced-artifact mirror:** components adopted here serve the app's OWN UI — artifacts the
+  product generates for its customers never inherit them (same boundary as the web rule).
 - **Uniwind** (`uniwind`, by the Unistyles team — `uni-stack/uniwind`, "from the creators of Unistyles") is an **accepted third styling option**: a **build-time Tailwind-v4 Metro compiler** with `className` DX and **no runtime style parsing** (so the perf reason NativeWind v2/v3 was banned does not apply). It is **NOT** the `react-native-unistyles` C++/JSI runtime — it **re-renders on theme change** (a rare, non-hot-path event — a deliberate dark/light toggle — acceptable for Ocoron theming; not a scroll/gesture/animation path). The zero-re-render synchronous C++ engine is the **unreleased "Uniwind Pro"** tier (the clean future upgrade). Custom tokens are fed via Tailwind-v4 CSS-first `@theme`/`@variant` blocks + the Metro plugin (no `tailwind.config.js`). RN ≥ 0.81, Expo-compatible (incl. Expo Go), MIT, currently v1.x. **Choose raw `react-native-unistyles` when zero-re-render synchronous theming is a hard requirement; Uniwind otherwise** (e.g. when adopting the Obytes template, which ships it).
 
 ### Ocoron Design System (Mobile)
