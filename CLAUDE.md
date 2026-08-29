@@ -266,8 +266,9 @@ shared tree (the fabrik-lib stale commit-push incident, 2026-08-12).
 - `denominator-honesty` — anchor **A bounded search returns "not found in N"** — a count, ratio or negative without its denominator is indistinguishable from having looked at nothing (originated at fabrik-lib, four wrong numbers in two days; re-proven by the trade-intelligence quantifier escape 2026-08-29)
 
 **Adding a universal rule:** write it in § EXIT / § HARD STOPS with its anchor, then add a bullet here —
-fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (since their `01KZXM0XA6`
-hardening), so a new bullet propagates to the drift check without editing any sync-excluded repo's script.
+fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (ruling `01KZXM0XA6` made the
+hub's list canonical; the parse-hardening came later, after `proxy-never-evidence` had to arrive by mail),
+so a new bullet propagates to the drift check without editing any sync-excluded repo's script.
 **Never reword an anchor in place** — detectors key on the exact substring; reword the surrounding prose
 freely, keep the anchor verbatim.
 
