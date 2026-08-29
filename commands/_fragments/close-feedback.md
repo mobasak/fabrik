@@ -37,6 +37,16 @@ actually exercised so the reader knows what your "none" covers.
 - a script, hook, or scaffold emission that did not behave as its own docs describe
 - friction that cost you real time: an ambiguous step, a missing arg, an undocumented prerequisite
 - anything you had to WORK AROUND to finish. A workaround is allowed; an unreported workaround is not
+- ⚠️ **a later pass, a stronger method, or the operator's re-ask caught something a CONVERGED pass
+  of the same command had already stamped.** The false claim was yours; the no-op stamps that
+  SURVIVED it are the machinery's, and that half is always filed. This is the trigger agents
+  misclassify hardest — "my mistake, fixed in-run" — and it is exactly how two converged
+  /fabrik-plan-review passes carrying a false Evidence-table claim produced zero mail
+  (trade-intelligence 2026-08-29, surfaced only because the operator re-asked with a different
+  method and then pasted the result to infra BY HAND — the duty this bullet exists to replace)
+- **you misread the same tool's output more than once in a session** (a `| head`-truncated pipe, a
+  silently-failing compound grep). Twice is a tooling-discipline gap in the machinery's guidance,
+  not a personal slip — file it with the exact pipeline that misled you
 
 ### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)
 
@@ -66,5 +76,9 @@ review) come to you, and you file them under the routing above. They are the che
 will ever get — someone else already did the work of hitting the defect.
 
 **The bar is evidence, not a complaint.** One reproducible `path:line` and the command you ran beats
-a paragraph of impression. If you already fixed it in your own beat, say so and skip the mail — the
-duty is about what you are NOT going to fix yourself.
+a paragraph of impression. **And know which fix discharges the duty: fixing your ARTIFACT never
+does.** Correcting the false claim, the missed row, the wrong verdict heals YOUR run; the mail heals
+the COMMAND that let it survive — both are owed, always. The only fix that replaces the mail is
+fixing the MACHINERY itself (a hub agent, in-beat, in the same run — say so in the FEEDBACK line).
+A "none" verdict asserts all of the above triggers came up empty — it is a claim, and you are
+signing it.

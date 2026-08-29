@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — convergence measured method-stability, not truth; and the feedback duty had a classifier hole (2026-08-29)
+
+- trade-intelligence's plan carried two false claims (one in its own Evidence table) through TWO
+  converged /fabrik-plan-review passes; a third, operator-forced "100% factual" pass caught both.
+  Root cause: identical method → identical blind spots → honest no-op. Three shared-fragment fixes:
+  `term-edit`'s closing pass is now a FACTUAL pass by METHOD (re-derive from primary sources, don't
+  re-verify citations); `grounding-artifact` gains the quantifier rule (universal/negative claims
+  need the proving ENUMERATION, never an example cite), the inherited-constraint rule (brief context
+  is a claim to re-verify), and the truncated-pipe rule (count before reading). Renders into every
+  md5-loop review twin.
+- WHY no mail reached infra about it: `close-feedback`'s own escape hatch ("fixed it yourself →
+  skip the mail") let method-escapes classify as personal errors. New trigger — a later pass or
+  stronger method catching what a CONVERGED pass stamped is ALWAYS a machinery finding; fixing your
+  ARTIFACT never discharges the mail (only fixing the machinery itself does); "none" is a signed
+  claim over the trigger list.
+
 ### Added — ai-consult as the THIRD dispatch lane: different eyes at a decision fork, credits-checked (2026-08-29)
 
 - Operator-approved: `62-using-subagents.md` § Dispatch policy gains the third lane — fabrik-lib's
