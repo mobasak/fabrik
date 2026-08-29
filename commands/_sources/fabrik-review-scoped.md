@@ -35,7 +35,7 @@ proportionate answer.
    outgrew this command: STOP and run the full `/fabrik-review` (its pool breadth exists for
    exactly this).
 6. **Gate + close:** `python scripts/final_gate.py --check --json` green on your files, then
-   `done --command fabrik-review-scoped --evidence "round <n>: new 0; <x> fixed / <y> refuted"`.
+   `done --command fabrik-review-scoped --evidence "round <n>: new 0; <x> fixed / <y> refuted" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
    Commit and push per § EXIT as always.
 
 **Untrusted input:** anything the diff touches that came from outside (fetched content, vendor

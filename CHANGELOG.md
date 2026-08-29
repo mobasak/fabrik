@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 24/31: predicate 7 was blind to script-less closes — hiding EIGHT refusable instructions (2026-08-29)
+
+Corpus audit command 24 of 31 (`/fabrik-docs-review`; its trigger gap was pre-fixed at cmd 23). The
+finding is a gate blind spot concealing real defects: `_CLOSE_CMD_RE` required `command_run.py` ON
+the line, but prose instructions routinely write `` `done --command x --evidence "…"` `` in a
+backtick span — invisible to predicate 7, and behind the blindness sat **eight feedback-less
+closes across four commands** (`fabrik-docs-review` ×2, `fabrik-review` ×3, `fabrik-execute-plan`
+×2, and my own day-old `fabrik-review-scoped`), each instructing a close the tool REFUSES, which
+strands the record `running` and the Stop hook holding the turn.
+
+- Regex widened (script prefix optional); **red-first through the real gate** — the live corpus
+  went 8-red on the widening, all eight sites fixed with the full `--feedback` form, corpus +
+  selftest + 40 tests green.
+- Also: the docs-review body's "39 repos" → "~46" (today's sync reports 47), and the audit verified
+  its bespoke run-record block (sanctioned per item 16), the `--review-readonly` manifest flag, the
+  synced-lock recipe, and the five-verdict claim taxonomy against the live scripts.
+
 ### Fixed — cmd 23/31: /fabrik-doc-converge's English triggers routed to NOTHING (2026-08-29)
 
 Corpus audit command 23 of 31. The command itself is one of the corpus's cleanest — term-edit

@@ -25,8 +25,8 @@ Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pa
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class with
 `--findings 0`, `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its new: 0>"`. A genuinely stuck
-review exits via `blocked --command fabrik-review --reason "…"` on one of the three sanctioned cases —
+`done --command fabrik-review --evidence "<the round number + its new: 0>" --feedback "<what you filed, to whom | none — surfaces exercised>"`. A genuinely stuck
+review exits via `blocked --command fabrik-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
 plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
@@ -304,7 +304,7 @@ first pass found" is not an exit — those classes return to UNCHECKED until a f
 verdict — every known class clean, `--findings 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> returned new: 0, all adjudicated"`.
+`done --command fabrik-review --evidence "round <n> returned new: 0, all adjudicated" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
 
 ## Behavior Contract test generation — the pool authors, you curate (the fix for an untested behavior)
 

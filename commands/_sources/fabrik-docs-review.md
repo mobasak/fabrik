@@ -21,8 +21,8 @@ python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
 `round --findings <discrepancies this pass> --classes-swept <doc/claim classes swept clean>
 --classes-new <classes this pass opened>` per Phase-2/3 pass. The ledger is the doc set — re-sweep the
 SAME docs each pass rather than re-scoping to whichever doc looks suspicious now.
-`done --command fabrik-docs-review --evidence "<the edit-free pass + the verbatim gate line>"` at the
-TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…"` otherwise. **Always name the run
+`done --command fabrik-docs-review --evidence "<the edit-free pass + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the
+TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise. **Always name the run
 you close** — a bare close would end the CALLER when this command runs nested inside one. **Open the
 `RUN:` line on every reply until the run closes.**
 
@@ -56,7 +56,7 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 
 **HUB (`/opt/fabrik`)** — the synced docs ARE the product; a stale claim propagates to every project. Reconcile
 them **harder**, and treat a wrong enumeration (counts, scaffold types, pack lists) as high-severity: it will
-be copied into 39 repos on the next sync.
+be copied into ~46 repos on the next sync.
 
 If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a
 specific doc, or a git range). Otherwise get the change under review with

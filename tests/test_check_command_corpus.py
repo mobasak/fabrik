@@ -521,3 +521,18 @@ def test_the_audited_count_never_goes_negative(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "across 0 corpus file(s)" in out, out
     assert "-2 corpus file" not in out, out
+
+
+def test_a_scriptless_close_is_still_policed(corpus):
+    """Found at cmd 24/31: prose closes like `done --command x --evidence "…"` (no
+    `command_run.py` on the line) were INVISIBLE to predicate 7 — and the blindness hid six
+    real feedback-less closes across four commands, each instructing a close the tool refuses."""
+    problems = corpus('`done --command fabrik-probe --evidence "<proof>"` at the TERMINAL verdict\n')
+    assert any("--feedback" in p for p in problems), f"script-less close escaped: {problems}"
+
+
+def test_a_scriptless_close_with_feedback_is_silent(corpus):
+    problems = corpus(
+        '`done --command fabrik-probe --evidence "<proof>" --feedback "<line>"` at the verdict\n'
+    )
+    assert not any("--feedback" in p for p in problems), problems

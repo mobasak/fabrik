@@ -90,7 +90,11 @@ _NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "contex
 # reproduced with a dead absolute citation, round-5 closing sweep). The absolute prefix is
 # stripped before resolution, so both forms check the same repo-rooted path.
 _SCRIPT_RE = re.compile(r"(?:/opt/fabrik/|(?<![\w/-]))(scripts/[\w/-]+\.py)")
-_CLOSE_CMD_RE = re.compile(r"command_run\.py\s+(?:done|blocked|handoff)\s+--command")
+# The script prefix is OPTIONAL: prose instructions routinely write `done --command x …` in a
+# backtick span with `command_run.py` established lines earlier — and the prefixed-only regex was
+# BLIND to every one of them (found at cmd 24/31: six feedback-less closes across four commands
+# hid behind it, each instructing a close the tool refuses).
+_CLOSE_CMD_RE = re.compile(r"(?:command_run\.py\s+)?\b(?:done|blocked|handoff)\s+--command\s")
 _TRAILER_RE = re.compile(r"Co-Authored-By:\s*(.+?)\s*<")
 # A caller CLAIM — the two forms the corpus actually uses (surveyed, not guessed):
 #   (a) a verb of invocation: "auto-called by /fabrik-x", "invoked by /fabrik-x", "dispatched by …"

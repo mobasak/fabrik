@@ -21,9 +21,9 @@ python3 scripts/command_run.py start --command fabrik-execute-plan --phases <pla
 phase boundary opens its OWN nested record and restores this one when it closes** — so a green phase gate
 never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the
 nested review can never end the plan by accident (it is refused). Close this run with
-`done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>"` only when the
+`done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>" --feedback "<what you filed, to whom | none — surfaces exercised>"` only when the
 LAST phase is EXECUTED; a real halt is
-`blocked --command fabrik-execute-plan --reason "…"` naming one of the
+`blocked --command fabrik-execute-plan --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` naming one of the
 three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec
 contradiction). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
 TASK terminator, and the record is what proves the task is actually over.
