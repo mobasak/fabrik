@@ -190,7 +190,11 @@ def main() -> int:
             f"Monitor(persistent: true, command: \"bash ~/.claude/bin/claude-selfwatch.sh {sid}\","
             " description: \"resume-mesh self-watch\") — it wakes THIS pane automatically when a"
             " turn dies on a healed API error or a lost waker. Zero cost while silent; skip ONLY"
-            " if this session already armed it.\n"
+            " if this session already armed it. The Monitor event IS the wake channel — NEVER a"
+            " `nohup ... &` Bash arm: its wake line lands in /dev/null and the watch still"
+            " consumes the death marker (a wef session revived 13 times became unrevivable the"
+            " day it re-armed that way, 2026-08-30). Each watch fires ONCE — RE-ARM the same way"
+            " first-thing after every delivered wake.\n"
         )
 
     # Reboot sweep (plan 2026-08-10-plan-1, Phase D): a launcher that exports
@@ -241,13 +245,6 @@ def main() -> int:
         " work owes /fabrik-review-scoped — running it creates the record that clears the block); the prompt router suggests the owning /fabrik-* skill;"
         " `python scripts/final_gate.py --json` is the completion gate. Work WITH them — they are"
         " the definition of done, not obstacles.\n"
-        "- **⚠️ ARM YOUR SELF-WATCH NOW (operator-mandated, every interactive session):**"
-        " `nohup bash ~/.claude/bin/claude-selfwatch.sh $CLAUDE_SESSION_ID >/dev/null 2>&1 &`."
-        " The box-local resume mesh detects a mid-stream death (`Connection closed mid-response`"
-        " and its four siblings), writes a death record and Telegrams you — but it can only REVIVE"
-        " a session that armed a waker. Unarmed, the turn dies silently and the run is abandoned"
-        " (observed live 2026-08-16: death recorded + notified in 2s, zero revival, because this"
-        " session never armed). Skip only for headless runs and compact-resume.\n"
         "- **Before ANY claim about hooks, the mesh, death/revival or sounds, READ"
         " `/opt/fabrik/docs/workstation/hooks-index.md`** — it is the authority and it is box-local"
         " (absolute path works from every repo). An infra agent stated four false things about this"

@@ -89,6 +89,28 @@ def test_selfwatch_arm_order_carries_the_real_session_id(tmp_path: Path) -> None
     assert 'command: "bash ~/.claude/bin/claude-selfwatch.sh sid-42-abc"' in out
 
 
+def test_no_branch_teaches_the_nohup_arming_form(tmp_path: Path) -> None:
+    # web-ecommerce-factory, 2026-08-30: a session revived 13 times stopped being
+    # revivable after it re-armed per the STATIC mesh paragraph, which still taught
+    # `nohup ... >/dev/null 2>&1 &`. A watch armed that way prints its ONE wake line
+    # into /dev/null and exits — structurally incapable of waking the pane — while
+    # still consuming the death marker. The Monitor form is the only wake channel;
+    # no branch of this hook may ever emit the nohup form again.
+    _mesh_home(tmp_path)
+    proj = tmp_path / "opt" / "p"
+    proj.mkdir(parents=True)
+    for payload in (
+        {"cwd": str(proj), "session_id": "sid-42-abc"},
+        {"cwd": str(proj), "session_id": "sid-42-abc", "source": "compact"},
+    ):
+        rc, out = _run(proj, tmp_path, json.dumps(payload))
+        assert rc == 0
+        assert "nohup bash" not in out, f"nohup arming form leaked (source={payload.get('source')})"
+        if payload.get("source") != "compact":
+            # the one arm order that prints must mandate the Monitor channel
+            assert "Monitor(persistent: true" in out
+
+
 def test_arm_order_sanitizes_a_garbage_sid(tmp_path: Path) -> None:
     # sid is payload-controlled and lands inside a command the agent will run —
     # anything outside [A-Za-z0-9_-] must be neutralized before embedding.

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — session_orient no longer teaches the nohup self-watch arm that cannot deliver its wake (2026-08-30)
+
+- **What:** the static mesh paragraph in `.claude/hooks/session_orient.py` (fleet-synced) still
+  ordered `nohup bash claude-selfwatch.sh … >/dev/null 2>&1 &` — a watch armed that way prints
+  its ONE wake line into `/dev/null` and exits, structurally incapable of reviving the pane,
+  while still consuming the death marker. The paragraph was a stale duplicate of the mandate
+  commit 50675991 had already fixed in the dynamic arm order (two sources of truth in one hook;
+  the stale twin kept teaching the broken form). **Why it surfaced:** web-ecommerce-factory's
+  session `86cf0e31` was revived 13 times, re-armed nohup-form per the stale text on 08-20/08-22,
+  delivered zero wakes after, and its 08-29 `Connection closed mid-response` death went
+  unrevived. **Fix:** doctrine folded into the correctly-gated dynamic arm order (Monitor form,
+  never-nohup warning, re-arm-after-wake rule); static duplicate deleted — which also flipped 4
+  pre-existing discriminator-test reds green (`tests/test_session_orient_hook.py`, now 22/22
+  with the new red-first no-nohup guard).
+
 ### Fixed — review artifacts can no longer enter history ungated (commit-moment coverage grading) (2026-08-30)
 
 - **What:** `check_review_coverage.py` gains explicit positional paths graded with the FULL
