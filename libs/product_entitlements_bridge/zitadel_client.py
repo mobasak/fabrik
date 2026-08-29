@@ -170,7 +170,21 @@ class ZitadelClient:
     async def list_authorizations(self, user_id: str) -> list[dict[str, Any]]:
         body = {"filters": [{"userIdFilter": {"id": user_id}}], "projectId": self.project_id}
         data = await self._post_connect("ListAuthorizations", body)
-        return data.get("authorizations", [])
+        auths = data.get("authorizations", [])
+        # NORMALIZE HERE, once: the live v2 RESPONSE carries `roles: [{key, displayName, group}]`
+        # — `roleKeys` exists only on the Create/Update REQUEST. Every consumer
+        # (grant_source, reconciler) reads `roleKeys`, and before this normalization that read
+        # was ALWAYS None against real Zitadel: the fail-closed entitlements gate denied
+        # everyone, silently, and the reconciler mutated + emitted phantom grant events on every
+        # run. The 35 mocked tests matched the bug, not the wire (fabrik-lib 01M16TVAD1, caught
+        # promoting this module — their live re-fetch of the API doc found it; the hub's own
+        # README had predicted exactly this mock-not-wire trap).
+        for auth in auths:
+            if "roleKeys" not in auth:
+                auth["roleKeys"] = [
+                    r.get("key") for r in (auth.get("roles") or []) if r.get("key")
+                ]
+        return auths
 
     async def create_authorization(
         self, user_id: str, role_keys: list[str] | None = None

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — SSO bridge: LIVE all-deny bug — the code read a field the API never returns (2026-08-29)
+
+fabrik-lib's promotion review (`01M16TVAD1`) re-fetched the Zitadel v2 docs live and caught what 35
+mocked tests could not: `ListAuthorizations`' RESPONSE carries `roles: [{key, displayName, group}]`
+— `roleKeys` exists only on the Create/Update REQUEST. Every consumer read `auth.get("roleKeys")`
+→ always `None` against real Zitadel → the fail-closed entitlements gate DENIED EVERYONE silently,
+and the reconciler mutated + emitted phantom grant events on every run (idempotence broken). The
+mocks returned `roleKeys`, matching the bug instead of the wire — the exact mock-not-wire trap the
+module's own README predicted.
+
+- **Fixed at ONE seam:** `zitadel_client.list_authorizations` normalizes wire `roles` →
+  `roleKeys`, so every consumer's Protocol stays valid untouched. Red-first: the wire-shape mock
+  corrected to the real response failed against the old pass-through, green after; 35/35.
+- The reported stale Gotcha (#9427 as a live gap) does not exist in the HUB copy — verified by
+  grep; it lives in the promotion copy only, noted back to fabrik-lib.
+
 ### Fixed — cmd 21/31: /fabrik-decommission — two findings, both the audit's recurring classes (2026-08-29)
 
 - **`cli.py` line drift:** `fabrik destroy` cited at `:976` with examples at `:997-999`; the def is

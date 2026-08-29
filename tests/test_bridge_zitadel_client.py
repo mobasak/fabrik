@@ -55,12 +55,23 @@ def test_list_authorizations_mints_token_then_parses():
         if request.url.path.endswith("/ListAuthorizations"):
             seen["auth_header"] = request.headers.get("authorization")
             seen["body"] = json.loads(request.content)
-            return httpx.Response(200, json={"authorizations": [{"id": "a1", "roleKeys": ["pro_user"]}]})
+            # THE REAL WIRE SHAPE (live Zitadel Authorization-v2 ListAuthorizations, fetched
+            # 2026-08-29 by fabrik-lib, mail 01M16TVAD1): the response carries
+            # `roles: [{key, displayName, group}]` — `roleKeys` exists ONLY on the
+            # Create/Update REQUEST. The original mock returned `roleKeys`, matching the
+            # buggy pass-through instead of the API: against real Zitadel every consumer
+            # read None -> the fail-closed gate denied EVERYONE, silently.
+            return httpx.Response(200, json={"authorizations": [
+                {"id": "a1", "roles": [{"key": "pro_user", "displayName": "Pro"}]}
+            ]})
         return httpx.Response(404)
 
     c = _client(handler)
     got = asyncio.run(c.list_authorizations("u1"))
-    assert got == [{"id": "a1", "roleKeys": ["pro_user"]}]
+    # The client NORMALIZES wire `roles:[{key}]` -> `roleKeys:[str]` so every consumer's
+    # Protocol stays valid; the raw roles list is preserved alongside.
+    assert got[0]["id"] == "a1"
+    assert got[0]["roleKeys"] == ["pro_user"]
     assert seen["auth_header"] == "Bearer tok-abc"  # token was minted + attached
     assert seen["body"]["filters"][0]["userIdFilter"]["id"] == "u1"
 
