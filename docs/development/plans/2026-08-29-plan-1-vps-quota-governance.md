@@ -1,6 +1,6 @@
 # Plan — VPS single-key Claude quota governance (ob@)
 
-Status: DRAFT
+Status: CONVERGED
 Spec: docs/superpowers/specs/2026-08-29-vps-claude-quota-governance-design.md (CONVERGED)
 Shape: MONOLITH — one cohesive `scripts/sysadmin/` toolset (governor + broker + marshaller) whose files
 call each other; a spine+ticket set would serialize on shared paths. 3 phases.
