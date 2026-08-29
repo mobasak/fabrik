@@ -36,6 +36,7 @@ class _Router(Protocol):
 
     def route(self, kind: str, *, caller: str | None = None) -> str: ...
 
+
 _DIR = Path(__file__).resolve().parent
 _STATE = Path(os.path.expanduser("~/.claude/state"))
 _ENTRYPOINT = _DIR / "claude-run.sh"
@@ -51,7 +52,11 @@ _MAX_BODY = 1_000_000  # 1 MB — cap the request body so a huge Content-Length 
 
 def _default_run_claude(argv: list[str]) -> str:
     import subprocess
-    out = subprocess.run(argv, capture_output=True, text=True, timeout=600, check=True)
+
+    # the broker has ALREADY routed this job through the governor (forced routine) — bypass the
+    # claude-run.sh gate so it isn't double-gated (which could shed a job the broker meant for ob@).
+    env = {**os.environ, "CLAUDE_GOVERNOR_KIND": "bypass"}
+    out = subprocess.run(argv, capture_output=True, text=True, timeout=600, check=True, env=env)
     return out.stdout
 
 
@@ -130,7 +135,11 @@ class Broker:
         # and never let a completion error escape as an uncaught exception (a caller could otherwise
         # burn quota with error-producing prompts while staying under-budget and un-audited).
         try:
-            text = self._pool_fn(prompt, model) if dest == "pool" else self._run_claude_fn(prompt, model)
+            text = (
+                self._pool_fn(prompt, model)
+                if dest == "pool"
+                else self._run_claude_fn(prompt, model)
+            )
             code, resp, out_len = 200, {"completion": text, "via": dest}, len(text)
         except Exception as exc:  # noqa: BLE001 — a failed completion is a spent attempt, not a crash
             code, resp, out_len = 502, {"error": "completion failed", "via": dest}, 0
@@ -139,14 +148,23 @@ class Broker:
             state[w]["count"] = int(state[w].get("count", 0)) + 1
         budgets[caller] = state
         self._write_budgets(budgets)
-        self._audit({"caller": caller, "prompt_hash": _hash(prompt), "out_len": out_len,
-                     "via": dest, "status": code})
+        self._audit(
+            {
+                "caller": caller,
+                "prompt_hash": _hash(prompt),
+                "out_len": out_len,
+                "via": dest,
+                "status": code,
+            }
+        )
         return code, resp
 
     def _alert_error(self, caller: str, exc: Exception) -> None:
         # best-effort; the audit line already records the failure — this is just extra signal
         with contextlib.suppress(Exception):
-            self._audit({"caller": caller, "event": "completion_error", "error": type(exc).__name__})
+            self._audit(
+                {"caller": caller, "event": "completion_error", "error": type(exc).__name__}
+            )
 
     # ---- claude invocation (pinned tool-disable) ----------------------------
 
@@ -202,7 +220,10 @@ class Broker:
             if isinstance(effective, (int, float)) and now >= effective:
                 win = {"count": 0, "resets_at_epoch": epochs[w]}  # rolled over
             else:
-                win = {"count": int(win.get("count", 0)), "resets_at_epoch": effective}  # None→fresh
+                win = {
+                    "count": int(win.get("count", 0)),
+                    "resets_at_epoch": effective,
+                }  # None→fresh
             state[w] = win
         return state
 
@@ -303,6 +324,8 @@ def serve(host: str = "127.0.0.1", port: int = 8790) -> None:  # pragma: no cove
 
 def _governor_status() -> dict:  # pragma: no cover — used only by serve()
     import sys
+
     sys.path.insert(0, str(_DIR))
     from quota_governor import _default_status_fn  # noqa: PLC0415
+
     return _default_status_fn()

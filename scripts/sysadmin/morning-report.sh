@@ -109,6 +109,8 @@ Keep it under 20 lines. Phone screen friendly. If everything is fine, say so bri
   --no-session-persistence \
   < "$CONTEXT_FILE" 2>/dev/null)
 
+GOV_RC=$?  # exit status of the claude-run.sh call above (75 = governor quota-conservation shed)
+if [ "$GOV_RC" -eq 75 ]; then exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
 if [ -z "$RESULT" ]; then
   RESULT="⚠️ Morning report: Claude failed to generate. Check /var/log/sysadmin-proactive.log"
 fi

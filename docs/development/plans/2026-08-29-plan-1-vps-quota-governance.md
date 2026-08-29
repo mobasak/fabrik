@@ -154,7 +154,7 @@ this box + the VPS), `is_usage_limit` (reactive).
 - **Given** a request without a valid per-caller token, **When** it hits the broker, **Then** it is refused 401 (scripts/sysadmin/claude_broker.py).
 - **Given** a caller over its window budget, **When** it submits, **Then** it is refused 429 / downgraded; a crossed `resets_at_epoch` zeroes the counter and a `None` epoch neither resets nor raises (scripts/sysadmin/claude_broker.py).
 
-## Phase C — context marshaller + wire consumers + retire the ping + dashboard + docs
+## Phase C — context marshaller + wire consumers + retire the ping + dashboard + docs — ✅ EXECUTED 2026-08-30
 
 **One responsibility:** make the pool-diagnosis path real, route the fleet's consumers through the governor,
 and document it.

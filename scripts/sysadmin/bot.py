@@ -154,6 +154,22 @@ def _run_claude(message: str, resume_session: str | None = None) -> tuple[str, s
     global _calls_total, _calls_failed
     _calls_total += 1
 
+    # Quota governor (single-key ob@): an operator request is incident-priority — run on ob@ when
+    # there's headroom, but when ob@ is at its quota WALL, tell the operator rather than burn a
+    # capped call. Lock-FREE capped() check (no single-flight side effect); fail-open if the
+    # governor is unavailable so a broken governor never silences the bot.
+    try:
+        from quota_governor import QuotaGovernor  # co-located; sys.path set at import time
+
+        if QuotaGovernor().capped():
+            return (
+                "⏳ ob@ is at its quota wall right now — try again after the window resets "
+                "(the governor is conserving quota; the fix loop still runs via pool-diagnose).",
+                None,
+            )
+    except Exception:  # noqa: BLE001 — governor unavailable → proceed on ob@ (fail-open)
+        pass
+
     cmd = [
         "claude",
         "-p",

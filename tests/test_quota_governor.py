@@ -273,3 +273,35 @@ def test_single_flight_routine_never_takes_the_lock(tmp_path):
     # a routine call must NOT be blocked by the incident lock — it routes on headroom alone
     gov2 = _gov(tmp_path, payload)
     assert gov2.route("routine") == "ob@"
+
+
+# the CLI (used by claude-run.sh + shell consumers) prints the routing destination on stdout
+def test_cli_route_prints_shed_destination(tmp_path, capsys):
+    gov = _gov(tmp_path, _payload(five_hour=85.0, seven_day=10.0))  # over reserve → shed
+    rc = quota_governor._main(["route", "--kind", "routine", "--caller", "morning-report"], governor=gov)
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == "pool"
+
+
+def test_cli_route_incident_runs_on_obat(tmp_path, capsys):
+    gov = _gov(tmp_path, _payload(five_hour=10.0, seven_day=10.0))
+    rc = quota_governor._main(["route", "--kind", "incident"], governor=gov)
+    assert rc == 0
+    assert capsys.readouterr().out.strip() == "ob@"
+
+
+# capped() is the LOCK-FREE check for the interactive bot — no single-flight side effect.
+def test_capped_true_when_cap_walled(tmp_path):
+    gov = _gov(tmp_path, _payload(seven_day=95.0, weekly_cap=90, cap_walled=True))
+    assert gov.capped() is True
+    # and it did NOT take the incident lock — a real incident can still get ob@
+    other = _gov(tmp_path, _payload(five_hour=10.0, seven_day=10.0))
+    assert other.route("incident") == "ob@"
+
+
+def test_capped_false_below_wall_and_on_status_failure(tmp_path):
+    assert _gov(tmp_path, _payload(five_hour=50.0, seven_day=50.0)).capped() is False
+
+    def boom():
+        raise RuntimeError("status down")
+    assert _gov(tmp_path, boom).capped() is False  # fail-safe: no row → not capped (bot runs)

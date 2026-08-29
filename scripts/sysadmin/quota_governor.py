@@ -101,16 +101,20 @@ class QuotaGovernor:
         alert_fn: Callable[[str, str], None] | None = None,
     ) -> None:
         self.reserve_pct = (
-            reserve_pct if reserve_pct is not None
+            reserve_pct
+            if reserve_pct is not None
             else _env_float("QUOTA_RESERVE_PCT", _DEFAULT_RESERVE_PCT)
         )
         self.cap_ttl_s = (
-            cap_ttl_s if cap_ttl_s is not None
+            cap_ttl_s
+            if cap_ttl_s is not None
             else _env_float("QUOTA_CAP_TTL_S", _DEFAULT_CAP_TTL_S)
         )
         self._status_fn = status_fn or _default_status_fn
         self._now = now_fn or time.time
-        self._cap_state_path = Path(cap_state_path) if cap_state_path else _STATE / "quota-governor-cap.json"
+        self._cap_state_path = (
+            Path(cap_state_path) if cap_state_path else _STATE / "quota-governor-cap.json"
+        )
         self._lock_path = Path(lock_path) if lock_path else _STATE / "quota-governor-incident.lock"
         self._alert = alert_fn or _default_alert
         self._incident_lock_fd: int | None = None
@@ -164,9 +168,20 @@ class QuotaGovernor:
         # now) would write an already-expired cap that does nothing — fall back to a bounded
         # now + CAP_TTL_S so the reactive cap always actually holds (MED-1 + review MED).
         now = self._now()
-        capped_until = epoch if isinstance(epoch, (int, float)) and epoch > now else now + self.cap_ttl_s
+        capped_until = (
+            epoch if isinstance(epoch, (int, float)) and epoch > now else now + self.cap_ttl_s
+        )
         self._write_cap_state({"capped_until_epoch": float(capped_until)})
-        self._alert("ob@ capped (reactive)", f"usage-limit signal; holding until {capped_until:.0f}")
+        self._alert(
+            "ob@ capped (reactive)", f"usage-limit signal; holding until {capped_until:.0f}"
+        )
+
+    def capped(self) -> bool:
+        """True iff ob@ is at its wall (`cap_walled` or a reactive cap) — a LOCK-FREE check for
+        consumers (e.g. the interactive bot) that need the capped state WITHOUT claiming the
+        single-flight incident slot. Fail-safe: a `--status` failure (no row) reads as not-capped."""
+        row = self._active_row()
+        return row is not None and self._is_capped(row)
 
     def release_incident(self) -> None:
         """Release the single-flight incident lock once a fix completes."""
@@ -279,7 +294,34 @@ class QuotaGovernor:
             if str(_DIR) not in sys.path:
                 sys.path.insert(0, str(_DIR))
             from claude_rotate import is_usage_limit  # noqa: PLC0415 — lazy by design
+
             return bool(is_usage_limit(text))
         except Exception:  # noqa: BLE001 — fall back to a local signal if the import is unavailable
             import re
-            return bool(re.search(r"usage limit|rate.?limit|out of extra usage|weekly limit", text, re.I))
+
+            return bool(
+                re.search(r"usage limit|rate.?limit|out of extra usage|weekly limit", text, re.I)
+            )
+
+
+def _main(argv: list[str] | None = None, *, governor: QuotaGovernor | None = None) -> int:
+    """CLI so shell consumers can gate: `quota_governor.py route --kind routine --caller morning-report`
+    prints the destination (`ob@` | `pool` | `pool-diagnose`) on stdout."""
+    import argparse
+
+    p = argparse.ArgumentParser(description="Quota governor router")
+    sub = p.add_subparsers(dest="cmd")
+    r = sub.add_parser("route")
+    r.add_argument("--kind", choices=["routine", "incident"], default="routine")
+    r.add_argument("--caller", default=None)
+    args = p.parse_args(argv)
+    if args.cmd == "route":
+        gov = governor or QuotaGovernor()
+        print(gov.route(args.kind, caller=args.caller))
+        return 0
+    p.print_help()
+    return 2
+
+
+if __name__ == "__main__":  # pragma: no cover — CLI entry
+    raise SystemExit(_main())

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — quota-governance wiring: marshaller, consumer gate, ping-retire, dashboard (Phase C, vps-claude-quota-governance) (2026-08-30)
+
+- **What:** `scripts/sysadmin/incident_context.py` — the host marshaller: when ob@ is capped it
+  assembles an incident bundle (webhook + bounded `docker logs` tails + host state), writes it to
+  `~/.claude/state/incidents/<id>.json`, and INLINES it into a single-shot read-only pool worker for a
+  diagnosis that is mesh-notify'd to the operator and NEVER auto-applied. **Wiring:** `claude-run.sh`
+  now consults the governor (`quota_governor.py route`) before every ob@ call — a routine shed exits 75
+  and the 4 shell consumers (`morning-report`/`weekly-security`/`proactive-check`/`monthly-backup-verify`)
+  skip silently (no false "Claude failed" alarm); `bot.py` uses the lock-free `capped()` check; the
+  broker bypasses the gate (already routed). Gate FAILS OPEN. **Retired the keepalive `claude -p ping`**
+  — its auth/quota health now comes from the free `--status --json` probe (liveness-gated on
+  `source=="live"` OR bounded `age_s`, so a dead token's stale cache is not a false OK). `quota_dashboard.py`
+  gains a governor-routing panel.
+- **Files:** `scripts/sysadmin/incident_context.py` (new), `tests/test_incident_context.py` (new, 6 tests),
+  `quota_governor.py` (CLI + `capped()`), `claude-run.sh`, `claude-keepalive-rotate.sh`, `claude_broker.py`,
+  `bot.py`, `quota_dashboard.py`, the 4 consumer scripts, `docs/workstation/vps-claude-quota-governance.md`.
+
 ### Fixed — the review-side re-derivation gate lands (direction 3 complete); the digest's first anomaly diagnosed (2026-08-30)
 
 - check_review_coverage now fails any CHANGED review artifact lacking a `method: re-derivation`

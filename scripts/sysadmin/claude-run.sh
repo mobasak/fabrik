@@ -47,6 +47,25 @@ TIMEOUT="${CLAUDE_ROTATE_TIMEOUT:-300}"
 # (or /tmp) first so the inherited cwd is traversable after the UID switch. ROTATE/CLAUDE_BIN
 # are absolute, so this cd doesn't affect them. Final fallback is `/` (always world-traversable)
 # — NOT `|| true`, which would leave the inaccessible /root cwd and reintroduce the crash.
+# ── Quota governor gate (single-key VPS quota conservation) ──────────────────────────────────────
+# Route every ob@ claude call through the governor: a ROUTINE call is SHED (skipped, exit 75) when
+# the reserve is hit; an INCIDENT call that is capped routes to pool-diagnose (also 75 — the caller's
+# fix loop owns the escalation). The gate FAILS OPEN — if the governor errors or times out, claude
+# runs anyway, so a broken governor never blocks the sysadmin loop. `CLAUDE_GOVERNOR_KIND=bypass`
+# skips the gate (the broker, which has already routed). Gating this ONE chokepoint wires every shell
+# consumer (morning-report / weekly-security / proactive-check / monthly-backup-verify) at once.
+GOV_KIND="${CLAUDE_GOVERNOR_KIND:-routine}"
+if [ "$GOV_KIND" != "bypass" ] && [ -f "$DIR/quota_governor.py" ]; then
+    GOV_CALLER="${CLAUDE_GOVERNOR_CALLER:-claude-run}"
+    DEST="$(timeout 35 "$PYTHON" "$DIR/quota_governor.py" route --kind "$GOV_KIND" --caller "$GOV_CALLER" 2>/dev/null || true)"
+    case "$DEST" in
+        pool|pool-diagnose)
+            echo "claude-run: governor shed ($DEST) for '$GOV_CALLER' [$GOV_KIND] — skipping ob@ call" >&2
+            exit 75 ;;   # EX_TEMPFAIL — a best-effort routine caller skips this run
+    esac
+    # ob@ / empty / unknown → fail OPEN and run claude below
+fi
+
 cd "/home/$OPERATOR" 2>/dev/null || cd /tmp 2>/dev/null || cd /
 
 if [ "$(id -un)" = "$OPERATOR" ]; then

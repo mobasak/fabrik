@@ -56,6 +56,8 @@ Be concise. Focus on gaps and risks, not on what's working." \
   --no-session-persistence \
   2>/dev/null)
 
+GOV_RC=$?  # exit status of the claude-run.sh call above (75 = governor quota-conservation shed)
+if [ "$GOV_RC" -eq 75 ]; then exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
 if [ -z "$RESULT" ]; then
   RESULT="⚠️ Monthly backup verification: Claude failed to analyze. Check logs."
 fi

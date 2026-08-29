@@ -153,8 +153,11 @@ def _row(acct: dict, active: str | None) -> str:
             note = (
                 f"idle — not the active pointer, so no fleet usage since this window rolled{blind}"
                 if not is_active
-                else f"last read {escape(_fmt_age(age))}, older than the "
-                f"{window_s / 3600:.0f}h window — re-reads on next use"
+                else "last read "
+                + escape(_fmt_age(age))
+                + ", older than the "
+                + (f"{window_s / 3600:.0f}h window" if window_s else "window")
+                + " — re-reads on next use"
             )
             label = "idle" if not is_active else "unknown"
             tone_i = "ok" if not is_active else "warn"
@@ -186,6 +189,45 @@ def _row(acct: dict, active: str | None) -> str:
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         "</tr>"
+    )
+
+
+_RESERVE_PCT = float(os.getenv("QUOTA_RESERVE_PCT", "80"))
+
+
+def _governor_panel(payload: dict) -> str:
+    """The quota governor's current routing verdict for the active ob@ account (single-key VPS).
+
+    Computed from the same payload the table renders — no extra `--status` probe. Mirrors
+    quota_governor.QuotaGovernor.route: routine sheds to the pool when the account is `cap_walled`
+    or `max(<every utilization window incl. model_windows>) >= RESERVE_PCT`; an incident escalates to
+    pool-diagnose only when `cap_walled`.
+    """
+    active = payload.get("active")
+    row = next(
+        (a for a in (payload.get("accounts") or []) if active in (a.get("slugs") or [])), None
+    )
+    if row is None:
+        return ""
+    utils: list[float] = []
+    for k in ("five_hour", "seven_day"):
+        u = (row.get(k) or {}).get("utilization")
+        if isinstance(u, (int, float)):
+            utils.append(float(u))
+    for w in (row.get("model_windows") or {}).values():
+        u = (w or {}).get("utilization")
+        if isinstance(u, (int, float)):
+            utils.append(float(u))
+    mx = max(utils) if utils else None
+    walled = row.get("cap_walled") is True
+    routine = "pool" if (walled or (mx is not None and mx >= _RESERVE_PCT)) else "ob@"
+    incident = "pool-diagnose" if walled else "ob@"
+    mx_txt = f"{mx:.0f}%" if mx is not None else "unknown"
+    tone = "crit" if walled else ("warn" if routine == "pool" else "ok")
+    return (
+        f'<section class="gov banner {tone}"><b>Quota governor · {escape(str(active or "—"))}</b> — '
+        f"max window {mx_txt} · reserve {_RESERVE_PCT:.0f}% · cap_walled {'yes' if walled else 'no'} · "
+        f"routine → <b>{routine}</b> · incident → <b>{incident}</b></section>"
     )
 
 
@@ -221,6 +263,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
         warn_html = f'<section class="warns"><h2>Warnings</h2><ul>{items}</ul></section>'
 
     rows = "".join(_row(a, active) for a in accounts)
+    gov_html = _governor_panel(payload)
     return f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -282,6 +325,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
     <span id="conn">live</span></div>
 </header>
 {banner}
+{gov_html}
 <table>
   <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th><th>Fable 5 weekly remaining</th></tr></thead>
   <tbody>{rows}</tbody>

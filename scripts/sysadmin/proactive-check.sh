@@ -516,6 +516,8 @@ Remember: you run locally on this VPS. Use sudo docker commands directly." \
 
 # ── Send to Telegram if issues found ──────────────────────────────────────
 
+GOV_RC=$?  # exit status of the claude-run.sh call above (75 = governor quota-conservation shed)
+if [ "$GOV_RC" -eq 75 ]; then exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
 if [ -z "$RESULT" ]; then
   # Empty result = Claude FAILED to analyze (auth/quota/timeout/crash), NOT a benign verdict.
   # Fail CLOSED: do not treat unreviewed anomalies as all-clear — escalate so a real problem
