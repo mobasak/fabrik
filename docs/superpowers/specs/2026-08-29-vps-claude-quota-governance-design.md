@@ -54,7 +54,11 @@ privileged tier is unreachable from a container:
   container gets an LLM answer, never an operator shell. Controls, all mandatory: **(a) per-caller
   authentication** — a per-container shared token (issued at deploy, not IP — every container is on the bridge
   subnet, so an IP allowlist authorizes the exact threat it should exclude); **(b) per-caller quota budget**
-  (F4) so one misbehaving container cannot drain ob@; **(c) an audit line per job** (caller, prompt hash,
+  (F4) so one misbehaving container cannot drain ob@ — tracked in a **state store** (`redis-main`, a counter
+  per caller keyed to the ob@ window), decremented per job and **reset on the 5-hour + weekly window
+  boundaries** (so it maps to the real caps); a restarted broker recovers the counters from the store, never
+  forgets them. A caller over budget is refused (or downgraded to pool) — the budget is a mechanism, not a
+  label; **(c) an audit line per job** (caller, prompt hash,
   tokens); **(d) the class is assigned by the broker from the caller identity, never self-labelled** — a
   container's work is `routine` by construction, so it is always poolable/sheddable (Mechanism C/D).
 - **Containers hold NO credentials** — preferred over mounting `~/.claude/.credentials.json` because mounting
@@ -66,19 +70,27 @@ privileged tier is unreachable from a container:
 
 ### Mechanism B — event-driven triggering, and the fix always runs
 
-Consumers fire on **real events**, not polling: the fleet already has an event-driven trigger surface — the
-fabrik-lib **watchdog sidecar** ingests GlitchTip errors on `:8889` (its ingest server + trigger bus, e.g.
-`test_ingest_server.py` / `test_trigger_error_tracker_webhook.py`); the healer runs on an actual incident. Quota then tracks the incident rate
-(rare), not a poll cadence — a polling bot on one account is what burns a weekly cap. **But when an issue
+**The ob@ (incident) path is event-driven**, so ob@'s quota tracks the incident rate (rare), not a poll
+cadence: the fleet already has an event-driven trigger surface — the fabrik-lib **watchdog sidecar** ingests
+GlitchTip errors on `:8889` (its ingest server + trigger bus, e.g. `test_ingest_server.py` /
+`test_trigger_error_tracker_webhook.py`); the healer runs on an actual incident. Scheduled consumers
+(the cron digests/audits below) DO exist and DO run on a cadence (F5) — but they are all **pool-routed**
+(Mechanism C), so they never load ob@'s cap. Only the event-driven incident path spends ob@; a polling bot
+on ob@ is exactly the anti-pattern this split avoids. **But when an issue
 fires it MUST be handled** (I3). The governor (D) never blocks an incident on ob@ — but the honest invariant
 is **"an incident is never DROPPED,"** NOT "always auto-fixed," because a live-host fix (restart a container,
 tail a live log, edit a prod config) needs Claude Code's real tool loop on the host, which ONLY ob@ can do:
 the OpenRouter pool runs its workers in a **bwrap sandbox** (`libs/subagents/sandbox.py` — `--unshare-net`,
 read-only host bind, throwaway git worktree, edits captured as a diff) and **structurally cannot** touch the
 live host. So the incident path is: **ob@ has headroom → autonomous fix on ob@** (the normal case, kept normal
-by the reserve in D); **ob@ exhausted → the pool DIAGNOSES read-only** (summarize the logs/state it's handed,
-propose the fix) **+ Telegram the operator with that proposal for a gated apply** — the incident is escalated
-with a ready diagnosis, never silently dropped. Autonomous fixing degrades to human-gated exactly when quota
+by the reserve in D); **ob@ exhausted → the pool DIAGNOSES read-only** (propose the fix from a
+context bundle) **+ Telegram the operator with that proposal for a gated apply** — the incident is escalated
+with a ready diagnosis, never silently dropped. **A sandboxed pool worker has no network + a read-only host
+bind, so it cannot gather live context itself (F3) — a HOST-side marshaller (a plain script, NOT the capped
+claude) assembles the context bundle** — the trigger payload (the GlitchTip webhook that fired the incident)
++ the relevant `docker logs`/`journalctl` tails + a `docker ps`/state snapshot — **into the worker's worktree
+BEFORE dispatch**; the pool then reasons over that bundle. Without the marshaller the pool can diagnose
+nothing, so it is a named build step, not an afterthought. Autonomous fixing degrades to human-gated exactly when quota
 is scarce; the design's real job is to make ob@-exhaustion-during-an-incident RARE (the reserve + pool-offload
 + retiring the keepalive ping), not to pretend a sandboxed model can fix a live host.
 
@@ -94,8 +106,14 @@ session" does it spend ob@'s subscription quota. With one account we push MORE t
 live box consumers so nothing spends ob@ unrouted: `bot.py` (watchdog/healer), the kaizen crons
 (`kaizen_*.py`), `weekly_catchup.sh`, `morning-report.sh` / `daily-digest.sh` / `weekly-security.sh`,
 `proactive-check.sh`, `canary_grounding.py`, `ci_health_probe.py`, the daily VPS-docs pipeline's LLM steps,
-plus every container job via the broker. **All of these are `routine` and go to the pool** — only a genuine
-watchdog/healer incident spends ob@. **Retire the keepalive ping under single-key:** `claude-keepalive-rotate.sh`
+plus every container job via the broker. Most are `routine` and go to the pool — only a genuine
+watchdog/healer incident spends ob@. **But "routine" is NOT automatically "poolable" (F6):** a consumer whose
+LLM step is **pure reasoning over host-gathered text** (the script gathers via bash, the LLM only reasons)
+pools cleanly; a consumer whose LLM step needs Claude Code's **host tool loop** (a live scan, a proactive
+remediation — `proactive-check.sh` / `weekly-security.sh` are the suspects) **cannot** run in the net-isolated
+read-only sandbox and would be starved if blindly pooled. So each inventory row gets a plan-time verdict —
+**pure-reasoning → pool · needs-host-tools → runs on ob@ as low-priority routine** (governed + sheddable to a
+proposal, never blindly pooled). The blanket "all routine → pool" is replaced by this per-row verdict. **Retire the keepalive ping under single-key:** `claude-keepalive-rotate.sh`
 runs `claude -p ping` to keep OAuth tokens warm — that earned its keep under multi-account WSL rotation, but on
 a single, regularly-USED ob@ it just burns the 5h/weekly quota this design is conserving, for zero rotation
 benefit. Drop the ob@ ping (a normally-used account needs no keepalive); if a warmth signal is ever wanted,
@@ -111,20 +129,35 @@ A thin router in front of `claude-run.sh` (host) and the broker (containers). It
   The governor derives the class from *which trigger fired*, so a caller (a container via the broker) cannot
   relabel its work `incident` to skip shedding. Every container job is `routine` by construction; each broker
   caller also carries a per-caller quota budget so one container cannot drain ob@.
-- **The incident reserve — the real mechanism that keeps the fix on ob@.** The governor holds back a slice of
-  ob@'s weekly quota for incidents: **routine work sheds to the pool well BEFORE the cap** (at a reserve
-  threshold, default ≈80% weekly utilization), so when an incident fires there is almost always ob@ headroom
-  left for the autonomous fix. This is what makes "ob@ exhausted during an incident" rare rather than assumed.
+- **The incident reserve — the real mechanism that keeps the fix on ob@ — spans ALL THREE cap windows (F1).**
+  ob@ has a **5-hour rolling** cap AND a **7-day weekly** cap (both apply) plus a **separately-tracked
+  Opus-weekly** sub-limit; the fix loop consumes all three. So the reserve holds back headroom on EACH: the
+  governor sheds routine to the pool whenever **ANY** window crosses its reserve threshold —
+  `max(five_hour.utilization, seven_day.utilization, opus_weekly.utilization)` ≥ the reserve (default ≈80%).
+  A weekly-only reserve is the trap: weekly could sit at 40% while a routine burst fills the **5-hour** window,
+  5h-capping ob@ exactly when an incident fires. Reserving on the 5h window (the short, fast-filling one) is
+  the load-bearing half — the 5h reset slides, so it recovers fast, but only if routine stops feeding it.
 - **Proactive:** before a *routine* ob@ call, read `claude_rotate.py --status --json` → ob@'s
-  `five_hour.utilization` + `seven_day.utilization`; above the reserve threshold, route routine **pool-only**
-  or defer past the reset. **This status read does NOT spend message quota** — it hits the `oauth/usage` +
-  `oauth/profile` telemetry endpoints (`claude_rotate.py`), not the messages API, so the governor's own
-  headroom probe is free.
+  `five_hour.utilization` + `seven_day.utilization` (+ the Opus-weekly figure); if the MAX across windows is
+  above the reserve threshold, route routine **pool-only** or defer past the (nearest) reset — every window's
+  utilization is a live input, none is fetched-and-discarded. **This status read does NOT spend message
+  quota** — it hits the `oauth/usage` + `oauth/profile` telemetry endpoints (`claude_rotate.py`), not the
+  messages API, so the governor's own headroom probe is free.
 - **Reactive:** if any ob@ call returns an `is_usage_limit` signal, mark ob@ capped until its reset and route
   subsequent routine work to the pool; an incident in that state escalates via the pool-diagnosis +
   operator-gated-apply path (Mechanism B) — never a de-facto per-call cap on the fix, and never dropped.
 - **The governor NEVER blocks an incident** (honoring the no-per-call-cap rule) — it only sheds/offloads
   *routine* work when quota is scarce.
+- **Single-flight fix loop (F2).** The ob@ fix path takes a lock — concurrent incidents SERIALIZE (a bounded
+  incident queue), so the reserve only ever needs headroom for ONE live fix at a time; a second incident
+  waits its turn (or, if ob@ is exhausted by the first, escalates via the pool-diagnosis path). Two racing
+  Opus fix loops are exactly what tips the 5h/Opus window, so serializing is also what keeps the reserve math
+  (one-fix's-worth) valid.
+- **Degraded / unknown-headroom is fail-SAFE (F7).** If the `--status` probe fails (telemetry 5xx, timeout,
+  parse error) or the governor process is unavailable, the default is **routine → pool** (unknown headroom is
+  treated as "no reserve left" — never risk the cap) and **incident → still tries ob@** (never-block).
+  Consumers reach ob@ ONLY through the governor — `claude-run.sh`/the broker refuse a call that did not come
+  through it — so a down governor degrades to pool-for-routine, never a silent bypass that floods ob@.
 - **Alert:** Telegram the operator on any reserve-threshold or cap crossing via the proven
   `claude-sound.sh mesh-notify` transport (no new alerting machinery).
 - Utilization is read **live** — never hardcoded caps — because Anthropic does not publish the numeric caps
@@ -210,14 +243,21 @@ No new fabrik-lib module proposed — the two builds are fleet-specific sysadmin
 
 ## Open / blocking unknowns
 
-**Resolved:** the cap model (5h + weekly, no daily, numbers unpublished → read live %); the docker-creds
-gotchas → two-tier host-broker chosen; the broker confused-deputy → container tier is completion-only (empty
-tool allowlist) + per-caller auth/budget/audit, full-tool claude host-only; the capped-incident path → pool
-read-only diagnosis + operator-gated apply (a sandboxed pool worker cannot fix a live host); the class
-authority → server-side from the trigger source; the ob@-consumer inventory + the keepalive-ping retirement;
-the reuse surface (claude-run/claude_rotate/quota_dashboard/subagents).
+**Resolved (first review):** the docker-creds gotchas → two-tier host-broker; the broker confused-deputy →
+container tier completion-only + per-caller auth/budget/audit, full-tool claude host-only; the capped-incident
+path → pool read-only diagnosis + operator-gated apply; the class authority → server-side from the trigger;
+the consumer inventory + keepalive-ping retirement; the reuse surface.
 
-**Still-open (each a plan-time tuning/wiring choice, none a design fork):**
+**Resolved (second review — these were design-level, not tuning):** the **cap model spans THREE windows**
+(5h-rolling + 7-day-weekly + Opus-weekly) and the reserve sheds on `max(utilization)` across all of them (F1 —
+the 5h window is no longer a read-but-unused signal); the **pool-diagnosis context is marshalled by a
+HOST-side script** (trigger payload + log tails + state snapshot into the worktree before dispatch) since the
+sandboxed worker cannot gather it (F3); the **fix loop is single-flight** so concurrent incidents serialize
+and the one-fix reserve holds (F2); **degraded/unknown-headroom fails SAFE** (routine→pool, incident→ob@; no
+governor bypass) (F7); the **per-caller budget has a `redis-main` counter reset on the 5h+weekly boundaries**
+(F4); **"routine" ≠ "poolable"** — each consumer gets a pure-reasoning-vs-needs-host-tools verdict (F6).
+
+**Still-open (each genuinely a plan-time tuning/wiring choice, none a design fork):**
 - **The exact reserve/shed threshold %** — default ≈80% weekly utilization; tune from the live board.
 - **Broker transport: loopback HTTP on the bridge gateway vs a bind-mounted unix socket** — decide at plan time
   from which container runtimes need it; both keep the secret on the host.
