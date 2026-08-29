@@ -2,6 +2,10 @@
 name: fabrik-researcher
 description: Live external-fact grounding subagent. Dispatched in parallel by the web-research commands (/fabrik-spec-review, /fabrik-plan-after-chat, /fabrik-plan-review, /fabrik-data-contract) to re-verify ONE cited external fact / API detail / field standard against the LIVE web and return a grounded verdict with the source URL + date. Read-only — never edits files or runs shell.
 mcpServers: [exa, brave-search, firecrawl, context7]
+# Explicit allow-list, the fabrik-reviewer convention: deny-list-only granting shipped a
+# researcher whose body advertises Grep/Glob while live dispatches got Read alone — two
+# agents had to spawn Explore subagents to run a grep (brand-identiy-creator 01M173CR).
+tools: Read, Grep, Glob, WebFetch, WebSearch, ToolSearch
 disallowedTools: Edit, Write, MultiEdit, NotebookEdit, Bash
 model: inherit
 color: cyan
@@ -30,4 +34,4 @@ You are a **grounding subagent**. Your job is to verify external facts against t
 
 ## Return format
 
-Return only the verdict(s): `<claim> → VERIFIED|STALE|WRONG|DEAD|UNVERIFIABLE · <the grounded fact> · <URL> · <date>`. One line per claim. No prose padding — your caller merges/refutes your findings, so give it clean, sourced verdicts.
+Return only the verdict(s): `<claim> → VERIFIED|STALE|WRONG|DEAD|UNVERIFIABLE · <the grounded fact> · <URL> · <date>`. One line per claim. No prose padding — your caller merges/refutes your findings, so give it clean, sourced verdicts. **When the dispatching brief specifies its own output format, the caller's format wins** — this line is the default for briefs that specify none, not a contradiction to fight (a live dispatch lost a turn flagging exactly that conflict).
