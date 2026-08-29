@@ -1053,25 +1053,35 @@ def main(argv: list[str]) -> int:
         ev_sid = data.get("session_id")
         _kaizen_bind(str(root))
 
-        if not (root / "scripts" / "final_gate.py").exists():
-            return 0  # not a fabrik-style project → nothing to enforce
-
         # Thread-anchor harvest — durable memory for the NEXT: line. Agents already emit it on
         # every answer (905 in one measured session); this is the read-back half that never
         # existed: the line is persisted to ~/.claude/state/threads/<session>.json and the
         # prompt hooks re-inject the open anchors. Best-effort by construction — a harvest
         # failure must never block a turn, and a project that has not synced the script skips.
+        # BEFORE the eligibility return, with a __file__ fallback: memory must not depend on
+        # enforcement eligibility. A post-compact Stop arrived with a payload whose cwd/
+        # transcript seam silently disabled BOTH consumers of the final message (2026-08-29:
+        # register stale, final_block_emitted dark, everything else fine) — the hook's own
+        # location names its repo when the payload's cannot, and the anchor_harvest event
+        # below is the trace that separates "hook never ran" from "ran and found nothing".
         try:
             _ta = root / "scripts" / "thread_anchor.py"
+            if not _ta.exists():
+                _ta = Path(__file__).resolve().parents[2] / "scripts" / "thread_anchor.py"
             _tp = data.get("transcript_path")
-            if _ta.exists() and _tp:
+            _text = _final_message_text(str(_tp)) if _tp else ""
+            if _ta.exists() and _text:
                 subprocess.run(
                     [sys.executable, str(_ta), "harvest", "--session", sid],
-                    input=_final_message_text(str(_tp)),
+                    input=_text,
                     text=True, capture_output=True, timeout=5,
                 )
+            _kaizen("anchor_harvest", ev_sid, tp=bool(_tp), chars=len(_text))
         except Exception:
             pass
+
+        if not (root / "scripts" / "final_gate.py").exists():
+            return 0  # not a fabrik-style project → nothing to enforce
 
         # SessionStart: record the inherited failing set, then always allow.
         # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the
