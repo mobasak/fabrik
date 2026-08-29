@@ -67,8 +67,8 @@ rotation, no `ANTHROPIC_API_KEY`, no per-call $ cap, containers hold no creds) i
 | Reactive limit signal | `is_usage_limit(text)` — regex over weekly/session/5h/"out of extra usage" | `claude_rotate.py:92` |
 | Epoch parse (may be None) | `_iso_to_epoch(resets_at)` → `float | None` (None on missing/garbage) — every window's `resets_at_epoch` flows through it | `claude_rotate.py:1083-1093` |
 | Host claude entrypoint | `claude-run.sh` runs claude via `claude_rotate` as the operator; `main` forwards `argv[1:]` to `run_claude` | `scripts/sysadmin/claude-run.sh:4-18`, `claude_rotate.py:4013,4110` |
-| The pool (routine offload + sandboxed diagnosis) | `libs/subagents` — `sandbox=True` FAIL-closed default: bwrap `--ro-bind / /` (whole host READ-ONLY) + writable worktree + `--unshare-net`. The worker therefore CAN READ any host path read-only but cannot write outside its worktree or reach the network → diagnosis-only over a host-marshalled bundle it reads by absolute path | `libs/subagents/agent.py:159` (tools_enabled), `:169` (sandbox default), `sandbox.py:14-19` (`--ro-bind / /`) |
-| Pool worktree is INTERNAL (do NOT pre-seed it) | each worker's worktree is created INSIDE `_run_one` via `workspace.create_worktree(repo, agent_id)` — detached from HEAD, path `<repo>/.tmp/subagents/<internal agent_id>`; there is NO pre-dispatch seam and the caller cannot know the path. The marshaller therefore writes to a STABLE host path and passes it in the worker prompt (the `--ro-bind` exposes it), NOT "into the worktree" | `libs/subagents/agent.py:722`, `workspace.py:89-104` |
+| The pool (routine offload + sandboxed diagnosis) | `libs/subagents` — the `pool-diagnose` path is a SINGLE-SHOT read-only worker (`fanout(mode="read_only")`), which by contract requires the material it reasons over to be **INLINED into the worker's prompt text** — it is not a repo/tool-using agent. So the diagnosis is prose over an inlined bundle, sandboxed (`sandbox=True` default), no host writes, no network → diagnosis-only | `libs/subagents/agent.py:1152-1155` (read_only = single-shot, MUST inline), `loop.py:399` (`tools_enabled=False` → `[]` tools), `agent.py:169` (sandbox default) |
+| Why INLINE, not a worktree path or `--ro-bind` read | a `tools_enabled=False` single-shot worker has NO file tools at all (`loop.py:399`); its native file tools are workdir-confined and RAISE on an absolute host path (`tools.py:86-97` `_resolve_in_workdir`→`WorkdirEscapeError`; `cat`/`ls`/`grep` excluded from `DEFAULT_ALLOWED_COMMANDS` `:51`); and the worktree is created INTERNALLY in `_run_one` (detached-HEAD, internal id — no pre-seed seam). Hence the bundle CONTENT is inlined, never handed as a path | `libs/subagents/tools.py:86-97,51`, `agent.py:722`, `workspace.py:89-104` |
 | Per-caller budget store — STDLIB file (NOT redis) | a JSON counter under `~/.claude/state/broker-budgets.json`, keyed by caller+window, reset from `resets_at_epoch`; NO `redis` dep (not importable in `.venv`) | `claude_rotate.py` state-file pattern (`.active-account`, `~/.claude/state/` VM-cut-survivable) |
 | Alert transport | `claude-sound.sh mesh-notify <sid> <cwd> <err>` (Telegram) | `~/.claude/bin/claude-sound.sh:249` |
 | Consumer inventory | the crons/scripts that spend ob@ today (route through the governor) — all verified present under `scripts/sysadmin/` | `bot.py`, `kaizen_*.py`, `weekly_catchup.sh`, `morning-report.sh`, `daily-digest.sh`, `weekly-security.sh`, `proactive-check.sh`, `canary_grounding.py`, `ci_health_probe.py`, `claude-keepalive-rotate.sh` (retire the ping) |
@@ -154,14 +154,15 @@ and document it.
 **Produces:**
 - `scripts/sysadmin/incident_context.py`: a HOST-side marshaller (a plain script, run BEFORE the pool worker).
   Given an incident (the GlitchTip webhook payload), it writes a bundle to a **stable host path**
-  `~/.claude/state/incidents/<incident_id>.json` — `{webhook, log_tails: {<container>: <docker logs tail>},
-  state: <docker ps + systemctl status>}`. The `pool-diagnose` path then dispatches a `libs/subagents`
-  read-only worker whose prompt carries that **absolute host path**; the sandbox's `--ro-bind / /` exposes the
-  file read-only inside the worker so it reasons over the bundle (it cannot fetch live context itself, and it
-  cannot write outside its worktree). **NOT written into the worker's worktree** — that worktree is created
-  internally (`agent.py:722`, detached-HEAD, internal id) with no pre-dispatch seam and `libs/subagents` is
-  out of File Scope; the read-only host bind is the correct, in-scope mechanism. The path then
-  `mesh-notify`s the operator with the proposal for a **gated apply (never auto-applied)**.
+  `~/.claude/state/incidents/<incident_id>.json` — `{webhook, log_tails: {<container>: <docker logs tail,
+  bounded to N lines>}, state: <docker ps + systemctl status>}` — for durability + operator inspection. The
+  `pool-diagnose` path then reads that bundle and **INLINES its (bounded) content into the worker's prompt
+  text**, dispatching a `libs/subagents` SINGLE-SHOT read-only worker (`fanout(mode="read_only")`, which sets
+  `allow_ungrounded` itself). The worker reasons over the inlined bundle and returns a prose diagnosis — it is
+  NOT given the bundle as a path and NOT expected to read files: a `tools_enabled=False` single-shot worker has
+  no file tools (`loop.py:399`) and a grounded single-shot dispatch is refused unless content is inlined
+  (`agent.py:1152`). `libs/subagents` is untouched (out of File Scope) — inlining needs no dispatch-seam edit.
+  The path then `mesh-notify`s the operator with the proposal for a **gated apply (never auto-applied)**.
 - **Wire the consumers** through `QuotaGovernor` (route every ob@ call): `bot.py`, `weekly_catchup.sh`, the
   kaizen crons, `morning-report.sh`/`daily-digest.sh`/`weekly-security.sh`, `proactive-check.sh`,
   `canary_grounding.py`, `ci_health_probe.py`, the daily-VPS-docs pipeline. **Per-consumer verdict:**
@@ -175,8 +176,8 @@ and document it.
   the Doc Sync Matrix rows.
 
 **Steps:**
-1. **[TDD] Write `tests/test_incident_context.py` FIRST**: the marshaller assembles the bundle (webhook payload + a log-tail stub + a state stub) at the host path `~/.claude/state/incidents/<id>.json`; the pool-diagnose path dispatches read-only (assert `tools_enabled=False`/no host-write tool) with the bundle's ABSOLUTE PATH in the worker prompt (not a worktree path), AND `mesh-notify`s + does NOT auto-apply. Run → RED.
-2. Implement `incident_context.py` + the pool-diagnose dispatch (host-path bundle + `--ro-bind` read). GREEN.
+1. **[TDD] Write `tests/test_incident_context.py` FIRST**: the marshaller assembles the bundle (webhook payload + a log-tail stub + a state stub) at the host path `~/.claude/state/incidents/<id>.json`; the pool-diagnose path dispatches a SINGLE-SHOT read-only worker with the bundle's CONTENT inlined into the prompt text (assert the prompt string contains the log-tail/state text — not a bare path), AND `mesh-notify`s + does NOT auto-apply. Run → RED.
+2. Implement `incident_context.py` + the pool-diagnose dispatch (durable host-path bundle + inlined-content single-shot `fanout(mode="read_only")`). GREEN.
 3. Wire the consumers (per-verdict) + retire the ping + the dashboard panel.
 4. **Gate (whole-plan):** `python scripts/final_gate.py --check --json` → success + `check_convergence.py`.
 5. **Doc Sync Matrix:** `docs/workstation/…` + INDEX + CHANGELOG + `docs/RESILIENCE.md` §7 if applicable.
@@ -184,7 +185,7 @@ and document it.
 7. Commit + push.
 
 **Behavior Contract:**
-- **Given** an incident when ob@ is capped, **When** the diagnosis path runs, **Then** the host marshaller has written the bundle to `~/.claude/state/incidents/<id>.json` and passes its absolute path to the read-only pool worker (which reads it via `--ro-bind`), BEFORE the worker is dispatched (scripts/sysadmin/incident_context.py).
+- **Given** an incident when ob@ is capped, **When** the diagnosis path runs, **Then** the host marshaller has written the bundle to `~/.claude/state/incidents/<id>.json` and the single-shot read-only worker's prompt carries the bundle's inlined CONTENT (not a path), BEFORE the worker is dispatched (scripts/sysadmin/incident_context.py).
 - **Given** a pool diagnosis completes, **When** ob@ is capped, **Then** the proposal is mesh-notify'd to the operator and NOT auto-applied (operator-gated) (scripts/sysadmin/incident_context.py).
 - **Given** the single-key model, **When** the keepalive runs, **Then** it no longer issues a billed `claude -p ping` (scripts/sysadmin/claude-keepalive-rotate.sh).
 - **Given** a wired consumer, **When** it needs an LLM step, **Then** it routes through `QuotaGovernor` (never a direct ob@ call) (the consumer scripts).
@@ -204,7 +205,8 @@ and document it.
 
 **Explicitly OUT of scope (do not edit):** `scripts/sysadmin/claude_rotate.py` (the governor READS its
 `--status --json` output; it never modifies the producer — HIGH-1/2 corrected), and `libs/subagents/**` (the
-marshaller uses the `--ro-bind` read-only host bind, never a worktree pre-seed — HIGH-3 corrected).
+pool-diagnose path INLINES the bundle content into a single-shot `fanout(mode="read_only")` worker — no
+dispatch-seam edit, no worktree pre-seed — HIGH-3 corrected).
 
 (Runtime state — `~/.claude/state/broker-budgets.json`, `~/.claude/state/quota-governor-incident.lock`,
 `~/.claude/state/incidents/*.json` — is OUTSIDE the repo, not a File-Scope path. Governance shared-append
@@ -229,15 +231,17 @@ $ sed -n '1232,1235p' scripts/sysadmin/claude_rotate.py    # --status branches t
     if fleet_dirs:
         return _cmd_fleet_status(fleet_dirs, as_json)
     pay = _status_payload()
-$ grep -n "model_windows" scripts/sysadmin/claude_rotate.py | head -2   # per-model weekly (Opus) IS exposed + parsed
+$ grep -n "model_windows" scripts/sysadmin/claude_rotate.py | head -3   # per-model weekly (Opus) IS exposed + parsed
 3140:        out["model_windows"] = models
-3361:            row["model_windows"] = windows.get("model_windows")
+3370:                if c.get("model_windows"):
+3371:                    row["model_windows"] = c["model_windows"]
 $ grep -n "def is_usage_limit\|def _iso_to_epoch" scripts/sysadmin/claude_rotate.py   # reactive + epoch(None)
 92:def is_usage_limit(text: str) -> bool:
 1083:def _iso_to_epoch(s: object) -> float | None:
-$ grep -n "sandbox: bool = True\|ro-bind" libs/subagents/agent.py libs/subagents/sandbox.py   # pool reads host RO
-libs/subagents/agent.py:169:    sandbox: bool = True
-$ grep -n "create_worktree(repo, agent_id)" libs/subagents/agent.py     # worktree is INTERNAL (no pre-seed seam)
+$ grep -n "if tools_enabled else" libs/subagents/loop.py    # tools_enabled=False → [] tools (single-shot prose)
+399:        (list(TOOL_SCHEMAS) if tools_enabled else [])
+$ grep -n "create_worktree" libs/subagents/agent.py     # worktree is INTERNAL (no pre-seed seam) → inline instead
+9:2. each agent gets its **own git worktree** (``workspace.create_worktree``);
 722:                wt = await asyncio.to_thread(workspace.create_worktree, repo, agent_id)
 $ .venv/bin/python -c "import redis" 2>&1 | tail -1     # the sysadmin/gate interpreter — NO redis dep → stdlib file counter
 ModuleNotFoundError: No module named 'redis'           # (bare python3 may see a user-site redis; the .venv is the operative one)
@@ -249,8 +253,10 @@ ModuleNotFoundError: No module named 'redis'           # (bare python3 may see a
   this run. The headroom source is the **live `--status --json` fleet contract** (`accounts[active]` row with
   `five_hour`+`seven_day`+`model_windows`), NOT the internal `_status_payload`/`_account_status` legacy path
   that `--status --json` bypasses in fleet mode (HIGH-1). The per-model weekly (Opus) window IS exposed and
-  parsed by `_usage_windows`→`model_windows`, so the reserve's `max` iterates it (HIGH-2). The marshaller uses
-  the sandbox `--ro-bind / /` read of a host path, not a worktree pre-seed the API can't do (HIGH-3). `None`
+  parsed by `_usage_windows`→`model_windows`, so the reserve's `max` iterates it (HIGH-2). The pool-diagnose
+  path INLINES the bundle content into a single-shot `fanout(mode="read_only")` worker (a `tools_enabled=False`
+  worker has no file tools and grounded single-shot is refused unless inlined — `loop.py:399`, `agent.py:1152`),
+  not a worktree pre-seed nor a path-read the API can't do (HIGH-3). `None`
   `resets_at_epoch` is handled everywhere it is consumed (MED-1). The broker fails CLOSED if the tool-disable
   incantation is unverifiable (MED-2). The budget store is a **stdlib file** (no redis dep — `import redis`
   fails under `.venv/bin/python`, the gate interpreter). The two external facts (Claude Max caps; docker
@@ -292,11 +298,13 @@ Each row adjudicates whether the PLAN's design + Behavior Contracts close the cl
 | 8 | **spec / Global-Constraint contradiction** | Self-audit traces every constraint to the CONVERGED spec; no phase step contradicts it; `claude_rotate.py` + `libs/subagents` explicitly OUT of scope | CLEAN |
 | 9 | **12-Factor IV backing-service swap = config not code / no new dep** | budget store is a stdlib JSON file — no `redis` dep added to the `.venv` (HARD STOP avoided) | CLEAN |
 | 10 | **Evidence reproducibility (proxy-never-evidence)** | Evidence commands re-run live this pass; the live `--status --json` shape, the fleet branch, `model_windows`, and the redis-absence proof (pinned to `.venv/bin/python`) all captured verbatim | FIXED (F8+HIGH-1) |
-| 11 | **ungrounded external/telemetry claim** | data source re-grounded on the LIVE `--status --json` **fleet** contract (`accounts[active]` row), not the legacy `_status_payload`; `model_windows` (Opus weekly) confirmed exposed + parsed; marshaller mechanism re-grounded on the sandbox `--ro-bind` (not a non-existent worktree seam) | FIXED (HIGH-1/2/3) |
+| 11 | **ungrounded external/telemetry claim** | data source re-grounded on the LIVE `--status --json` **fleet** contract (`accounts[active]` row), not the legacy `_status_payload`; `model_windows` (Opus weekly) confirmed exposed + parsed; marshaller re-grounded on an INLINED single-shot `fanout(mode="read_only")` worker (a `tools_enabled=False` worker has no file tools; the worktree is internal — neither a worktree pre-seed nor a `--ro-bind` path-read is usable) | FIXED (HIGH-1/2/3) |
+| 12 | **mechanism self-consistency (pool dispatch)** | pass-2 caught the first HIGH-3 fix asserting `tools_enabled=False` yet a `--ro-bind` path-read (contradictory — no file tools); re-fixed to inline the bundle content, the canonical read_only single-shot contract | FIXED (pass-2 HIGH) |
 
-Exit: an author-blind pass (native Opus grounding + pool breadth) raised 5 (3 HIGH + 2 MED), all CONFIRMED
-against live code and FIXED here; the next full pass must reach a zero-new, md5-verified no-op before the flip.
-No UNCHECKED rows, no `## BLOCKED` escalation owed.
+Exit: pass 1 (author-blind native Opus grounding + pool breadth) raised 5 (3 HIGH + 2 MED), all CONFIRMED and
+FIXED; pass 2 (author-blind native Opus) confirmed those 5 TRUE, REFUTED the scale-mismatch risk, and raised 2
+NEW (1 HIGH mechanism-contradiction + 1 MED Evidence-reproducibility), both FIXED here. The next full pass must
+reach a zero-new, md5-verified no-op before the flip. No UNCHECKED rows, no `## BLOCKED` escalation owed.
 
 ## Residual unknowns
 
