@@ -1,6 +1,6 @@
 # Deploy Plan — Zitadel v4 umbrella IdP (`auth.ocoron.com`)
 
-Status: CONVERGED — re-converged 2026-08-29 after the RUN 3 verify halt; all FOUR deploy-machinery findings (D1 db_before_boot · Aa1! password · up--wait · verifier health.disabled probe 1c90bf81) resolved + landed on master; RUN 1-3 ⛔ rows adjudicated; clean slate re-probed (DB absent, container absent)
+Status: IN-PROGRESS — RUN 4 (operator-dispatched 2026-08-29, "proceed and finish this properly"); all FOUR deploy-machinery findings fixed + landed; clean slate pre-flight green
 Service: zitadel
 Surface: VPS (single-image `source.type: docker`, third-party image — no service repo)
 Target: vps1 (LA hub)
@@ -452,3 +452,5 @@ verdict; two adversarial rounds (2 native Opus finders round 1, 1 finder round 2
 
 — RUN 3 2026-08-28T22:49:58Z
 — ⛔ BLOCKED verify 2026-08-28T23:01:27Z RUN 3 — the up--wait fix WORKED: deploy() reached the container (up -d + readiness poll passed, restarts=0) AND ran ALL post-deploy registrars (GLITCHTIP_DSN injected, DB DSN resolved, /debug/ready→200 in-network) — then FAILED at the deployer's verify. Root cause (ONE machinery finding, corrected 2026-08-29): DeploymentVerifier.verify ran an in-band HTTPS probe of the DOMAIN even for health.disabled services; on the DNS-propagation/ACME timing window it raised VerificationError, whose rollback deleted the container + DB + the just-created DNS record. The two findings originally logged here COLLAPSE into this one: (4) VERIFIER-DNS-TIMING was the real defect; (5) "DNS-PROVIDER-MISROUTE" was a MISDIAGNOSIS — _provision_dns's line-582 comment says "Namecheap first" but the code calls DNSClient.add_subdomain → POST /api/cloudflare/dns/{domain}/subdomain, the CLOUDFLARE route via site-provisioner (src/fabrik/drivers/dns.py:294-316; hub .env has SITE_PROVISIONER_CONTAINER + SITE_PROVISIONER_INTERNAL_URL so DNSClient reaches it over SSH). The record WAS created correctly in the Cloudflare zone and was DELETED by the verify-failure rollback (ctx.add_resource("dns",…), __init__.py:591 → DNS is a rolled-back resource); auth.ocoron.com reading empty via 1.1.1.1 afterward was that rollback artifact, not a misroute. Rollback: container down+removed, connections terminated, zitadel DB dropped (default data only). Findings 1-3 (db_before_boot, Aa1! password, up--wait) all FIXED + proven LIVE this run. [ADJUDICATED 2026-08-29 — closed by the verifier fix 1c90bf81: verify() skips the in-band probe when health.disabled is set (mirroring _compose_up); liveness owned by external Gatus + the deployer's readiness poll; 2 red-on-revert tests, gate green]
+
+— RUN 4 2026-08-29T00:04:01Z
