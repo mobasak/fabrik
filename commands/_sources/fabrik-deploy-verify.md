@@ -8,7 +8,7 @@ in the opposite direction: proving a service that just deployed — via `/fabrik
 executor) or a direct operator `fabrik apply` (the manual path) — is actually ALIVE, with
 the same evidence discipline (a fresh probe this run, never a catalog/registry/env row read as proof).
 This command **verifies only**: no `fabrik apply`, no `fabrik destroy`, no registrar re-run, no file
-mutation beyond the report it writes.
+mutation at all — the verdict table is PRINTED (no report file; the run record is the durable trace).
 
 **Where this runs:** hub-side, from `/opt/fabrik` — the hub carries fleet SSH creds (deploy is
 trigger-not-execute; `agents-fabrik-core.md` § Deploy). A project itself cannot reach its own deployed VPS
@@ -67,10 +67,10 @@ two KNOWN-LIVE sibling domains on the same `target_vps` — the absence-vs-outag
 `/fabrik-decommission`, run in reverse. Use `status.<target_vps>.ocoron.com` (Gatus, live per-VPS —
 `PORTS.md`:28) as one sibling; pick the second from a domain of a currently-deployed spec on the same
 `target_vps` (`grep -l 'target_vps: <vps>' specs/services/*.yaml`, read its `domain:` — e.g.
-`search.vps1.ocoron.com` on vps1, verified resolving `2026-08-07` → `172.93.160.197`;
+`search.vps1.ocoron.com` on vps1, verified resolving `2026-08-29` → `172.93.160.197`;
 `canary.vps2.ocoron.com` on vps2, verified resolving `2026-08-07` → `96.9.214.128`). Never use
 `gatus.<vps>.ocoron.com` / `grafana.<vps>.ocoron.com` as siblings — both NXDOMAIN on vps1 (verified
-`2026-08-07`), a dead-sibling trap. Outcomes: target resolves → **PASS**. Target fails AND both siblings
+`2026-08-29`), a dead-sibling trap. Outcomes: target resolves → **PASS**. Target fails AND both siblings
 resolve → **FAIL** (a real deploy gap — the DNS record never landed or `fabrik apply` didn't reach this
 spec). Target AND siblings ALL fail → **inconclusive** (transient outage or a network-reachability gap
 from this box) — name it, re-probe later, never report it as a verdict either way. **If a designated
@@ -82,7 +82,7 @@ THIS session counts.
 
 **Wildcard-DNS control probe — spoke targets only.** `*.vps2.ocoron.com` and `*.vps3.ocoron.com` carry
 wildcard DNS: ANY subdomain resolves to the host IP whether or not a service is actually deployed there
-(live-verified `dig totally-nonexistent-xyz123.vps2.ocoron.com` → `96.9.214.128`, `2026-08-07`); `vps1` has
+(live-verified `dig totally-nonexistent-xyz987.vps2.ocoron.com` → `96.9.214.128`, `2026-08-29`); `vps1` has
 no wildcard (a random subdomain there NXDOMAINs). Consequence: on `target_vps: vps2/vps3`, a PASS in the
 DNS outcome table above proves only that the wildcard is live, not that this service is deployed —
 resolution is **non-evidentiary** for spokes. Before trusting a spoke target's DNS PASS, run the control
@@ -97,7 +97,7 @@ on its own at the DNS layer.
 
 ## Phase 2 — Health + readiness (real dependency assertions, liveness kept separate) `[anywhere]`
 
-Two distinct checks — never conflate them. Per `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`:270,
+Two distinct checks — never conflate them. Per `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`:307,
 `/healthz` is contractually a **static liveness probe** (always 200, even when degraded); it is never
 dependency-asserting and a static 200 there is CORRECT, not a FAIL.
 
@@ -118,8 +118,9 @@ dependency-asserting and a static 200 there is CORRECT, not a FAIL.
 For every `shape:` flag true in Phase 0, confirm the registrar it obligates actually landed. Because this
 command runs hub-side (see "Where this runs" above), the authoritative `.env` read is the **REMOTE**
 `/opt/<app>/.env` on the target VPS over the fleet SSH path — that is where `inject_env` writes
-(`src/fabrik/orchestrator/deployer_ssh.py`:196-221, called from `infrastructure.py`:567 (postgres), :767
-(glitchtip), :890 (redis)) — never the local project dev `.env` (registrars never touch that file; reading
+(`src/fabrik/orchestrator/deployer_ssh.py::inject_env`, def at `:258`; call sites drift with the
+file — find them live with `grep -n inject_env src/fabrik/orchestrator/infrastructure.py`, e.g.
+`:588` postgres / `:621` watchdog as of 2026-08-29) — never the local project dev `.env` (registrars never touch that file; reading
 it produces a false PASS or FAIL either way). Where a probe endpoint can prove the same fact (a `/metrics`
 body, an admin-route auth challenge, a health body naming its dependencies), **prefer the probe** and use
 the remote `.env` read as corroboration, not the sole source. Registrar obligation table per

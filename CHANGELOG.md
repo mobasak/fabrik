@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cmd 20/31: /fabrik-deploy-verify's citations had drifted; its DNS evidence re-verified live (2026-08-29)
+
+Corpus audit command 20 of 31, completing the deploy family. Three findings, all the staleness
+class — none structural, which continues the deploy-family gradient (17: one drifted line · 18: one
+frozen fragment · 19: zero · 20: drifted citations only):
+
+- **Line-drift cluster:** `inject_env` cited at `deployer_ssh.py:196-221` (def is now `:258`) with
+  call sites `:567/:767/:890` (now `:588/:621/…`). Re-cited as the FUNCTION plus a live-grep recipe
+  — a def moves slower than call sites, and the recipe cannot drift. `/healthz` contract re-cited
+  `RESILIENCE_TEMPLATE.md:270` → `:307`.
+- **"the report it writes" → the verdict table is PRINTED** — the command mutates no files; the run
+  record is the durable trace. The description said "writes" and no path existed to write to.
+- **The 22-day-old DNS evidence re-probed live and HELD:** vps2 wildcard still resolves any
+  nonsense subdomain (`96.9.214.128`), `gatus.vps1` still NXDOMAIN (the dead-sibling trap),
+  `search.vps1`/`status.vps1` both `172.93.160.197`. Dates refreshed to 2026-08-29 on the
+  re-probed facts only.
+- Checklist item 3 re-measured: `fabrik-deploy-verify` and `fabrik-upstream` both carry inline
+  redirects now — the no-guidance list shrinks 4 → 2 (`catchup`, `decommission`).
+
 ### Added — /fabrik-review-scoped + the Stop hook's SIXTH cause: spontaneous code owes a review (2026-08-29)
 
 Operator: plain-chat work changes the repo, nothing triggers a review, `/fabrik-review` is too
