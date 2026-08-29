@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — cmd 15/31: the certification gauntlets now share one contract, by construction (2026-08-29)
+
+Corpus audit command 15 of 31 (`/fabrik-service-test`, 23 surfaces). The decisive surface was 52(b):
+the two gauntlets shared **65 six-line windows** of board/namespace/disposition/execution contract as
+hand-maintained copies — and the drift that predicts had ALREADY happened: the cmd-14 fixes (recorder
+naming, grader-honesty split) existed only in `fabrik-user-test.md`, and both files still claimed the
+grader is `warn_only` after cmd-14 made that false.
+
+- **Four shared fragments** now render into both sources: `cert-board-contract` (registry/denominator,
+  namespace, dispositions, tiers — with the stale `warn_only` claim corrected once and "click it"
+  generalized to "reach it"), `cert-execution` (dry-exit + grader honesty + Phases 6-7),
+  `cert-handoff-grammar`, `cert-visual-deliverable`. Rendered parity md5-proven across all four
+  regions; residual shared windows between the pair: **0** (was 65).
+- Surfaces verified clean: all 7 `shape:` flags exist in `spec_loader.Shape`; `wordpress` is in the
+  live 12-type registry (the deploy-only journey row is legitimate); router resolves headless
+  certification phrasing through the dynamic `test` stem (verified at cmd 14); no caller claims;
+  predicate 8 + corpus check green at 52 files.
+- `docs/STRATEGIC_BACKLOG.md`: the 65-window pair struck from the duplication row; spec/spec-review
+  (11), flows-review/ui-design-review (10), data-contract/flows/ui-design (9) remain, owned by their
+  own upcoming audits.
+
 ### Fixed — day-closing review: one fix had shipped without its grader (2026-08-29)
 
 `/fabrik-review` over the session's 15 commits; ledger in

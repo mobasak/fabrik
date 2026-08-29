@@ -81,71 +81,7 @@ each catches what the others miss:
   `/health`, `/metrics` series, queue introspection) and diff it against the three above.
   **A mounted-but-uncatalogued route, an unused env var, or a Beat job with no owner is a finding.**
 
-Output: the **CERT BOARD + LEDGER**, generated — never hand-written.
-
-⚠️ **The denominator comes from a live REGISTRY, not from this list and not from a doc.** The four
-discovery modes above are demoted to **cross-checks** (their bidirectional-reconciliation value is
-real and is kept). The denominator resolves to a machine-readable registry of the RUNNING system,
-declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND
-records the fallback. A registry that cannot be reached **fails LOUD naming what could not be
-enumerated** — a silently short list rebuilds the defect one layer down.
-
-Why: the inventory used to be PROSE WITH COUNTS, authored by the agent later graded against it, and
-**nothing read it**. On a surface the project authored, the agent's enumeration and reality converge
-and this never bites; on an INHERITED surface it under-counts silently and the run terminates
-HONESTLY AND WRONG. Measured on a `saas-skeleton` wrapping a vendored ERP, immediately after a
-genuine md5-verified `/fabrik-features` no-op: **30 shipped FEATURES rows (~12 browser-reachable)
-against 271 menus / 316 window actions / 80 wizards / 19 reports / 142 model buttons / 867 views —
-93% inherited.** ~12 of ~1,700 would be exercised and the gauntlet would report converged.
-`/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what
-the product SHIPS.
-
-**Two generated artifacts, both inside the run's own board directory so they archive as a unit:**
-
-```
-docs/development/certifications/YYYY-MM-DD-cert-<surface>/
-  YYYY-MM-DD-cert-<surface>.md   ← the spine, carrying `## Test Board`
-  ledger.md                      ← source: · registry_total: · ids_enumerated:
-  TC01-<slug>.md …               ← one ticket per touchpoint GROUP
-```
-
-⚠️ **NAMESPACE — never reuse the implementation plan's.** `## Test Board` (not `## Ticket Board`),
-`TC##[a-z]?-<slug>.md` (not `T##`), `docs/development/certifications/` (not `plans/`), and
-`.fabrik/cert-locks/` (not `.fabrik/plan-locks/`). The heading is load-bearing:
-`/fabrik-execute-plan`'s dispatcher triggers on that **bare string**, so a mis-headed board is
-dispatched to CODING agents holding a lock the Stop hook believes in. `check_certification_coverage.py`
-flags all four as **BLOCKING**, not advisory.
-
-**Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or
-`OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it **advisory** (`warn_only`) by deliberate design — see its docstring — so a board full of `UNVISITED` will NOT redden the gate. **You must therefore paste the grader's verbatim counters into the report** (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface. A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`. `DEFERRED` is
-REJECTED**, with its synonyms — a "later" state is the loophole that lets the whole contract be
-ignored. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are **rejected REASONS**:
-they describe how OUR surface came to exist, not whether a customer can click it, and inherited
-surfaces are exactly what the T3 generated-smoke tier is FOR.
-
-**Bulk marking is where a deny-list leaks — and the grader never records.** A sweep flag
-(`--tier`/`--kind`/any multi-id form) must pass the SAME per-id refusals as a single mark: the
-reference implementation's first live sweep marked 39 navigation containers `EXERCISED` via a
-screen suite that never touched them because the sweep path skipped the modelless-entry refusal
-(tryton-crm, fixed and re-proven 424→385). And recording stays OUT of the grader by design — a
-checker that can also mark things done will eventually mark things done; retiring an id goes
-through the recorder (evidence mandatory), the grader only reads.
-
-**The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT
-mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
-feature with zero mapped IDs cannot be reported as working.** That clause survived the denominator
-change and is the cross-check's whole value — an independent second opinion is exactly what catches a
-generator that agrees with itself. A large divergence between the doc inventory and the registry is
-REPORTED, not silently preferred either way.
-
-**Tiers set DEPTH, never whether something is tested.** T1 money/tenancy/PII/auth → full
-UI-truth-vs-system-truth · T2 authored or modified → deep · T3 inherited → **generated** smoke. 100%
-is achievable only because the tail is generated; hand-authoring it guarantees the tier is skipped.
-
-**Every ticket declares `Runner:`** — `gui` · `service` · `generated-smoke` · `fix`. The dispatcher's
-default unit is a CODER, so an unrouted test ticket puts a coding agent on a browser job. **An issue
-found becomes ANOTHER TICKET on the same board** (`Runner: fix`), and **a fix ticket does not close
-its test ticket** — the test must be re-run green. That is the retest loop, structurally.
+{{include:cert-board-contract}}
 
 ## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer's real subject)
 
@@ -219,17 +155,7 @@ Pool-check the matrix for holes (see Subagents) before dispatch.
   graded artifact must not depend on another agent's tidiness (filed by job-agent 2026-08-27 after
   concurrent agents erased each other's evidence in the UI gauntlet; the same rule applies here for a
   milder reason, and costs one `cp`).
-- **⚠️ VISUAL-DELIVERABLE QA — if a journey's deliverable IS a visual artifact, the proof is EYES ON THE
-  RENDERED PIXELS.** Structural checks (file exists, format header, HTTP 200, the right hexes in the
-  JSON/CSS, the source SVG's bytes present inside the composed output) prove the pipeline WIRED the right
-  inputs — they do NOT prove the rendered result looks right (live defect: every structural check green
-  while a logo could be clipped, card text overflowing the bleed, contrast broken, fonts silently falling
-  back — "content-verified is NOT visually QA'd"). For EVERY image/PDF/SVG/favicon/video-frame deliverable:
-  RENDER it (rasterize PDFs + SVGs first), then INSPECT the pixels with vision (`fabrik-gui` subagents have
-  vision; fan them across artifact classes, adjudicate yourself) against the contract/brand: logo
-  integrity/clipping, palette fidelity, typography actually rendering as the specified face (not a
-  fallback), layout defects, contrast on every surface. A deliverable nobody looked at is an UNCHECKED row,
-  not a PASS.
+{{include:cert-visual-deliverable}}
 - **PAYLOADS ARE READ, NOT JUST SCHEMA-CHECKED** (the headless twin of "screenshots are read"): a
   response can be schema-valid and still wrong — a 200 carrying `{"status":"error"}` in the body, a
   computed field whose VALUE contradicts the inputs, an empty-but-valid list where seeded data must
@@ -312,43 +238,7 @@ terminates in exactly one of:
 3. Reconcile: `endpoints exercised / inventory`, `jobs exercised / inventory`, `journeys completed /
    journey set`, `FEATURES rows verified / total`, `dependencies degraded-tested / RESILIENCE §2`.
 
-**Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` —
-TWO consecutive dry discovery sweeps.** A matrix cell deliberately skipped is listed SKIPPED with
-a reason; silent shrinkage of the inventory or matrix is the exact failure this command prevents.
-
-## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)
-
-Discovery first, fixes second — **and the fixes DO happen in this run, but never in this context.** The
-gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the
-orchestrator ("you dispatch and judge — you do not drive"). Work the HANDED-OFF list on a **hard schedule**
-(no budget-feel exits): **T3 doc re-freezes first** (cheap, bounded) → **T1 leftovers** → **T2 risk-ordered**.
-
-1. **Code-wrong rows (T2)** — for each row, **dispatch a FRESH native subagent** (clean context; seeded with
-   exactly: the committed red repro path, the owning module path, the rubric output) that invokes
-   `/fabrik-review` with `repro: <path>` — the review may not exit until that repro is GREEN (its contract).
-   When it returns, **verify yourself before closing** (a subagent's success is a claim): re-run the repro AND
-   the affected consumer journeys (RESPONSE truth + SYSTEM truth) end-to-end. **T2 batch cap:** more than 3 distinct owning modules on the list is a
-   SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a
-   plan instead of serial review loops.
-2. **Doc-stale rows (T3)**: run the re-freeze now, close the row.
-3. **Design-wrong/missing rows (T4)** — **write a DESIGN-GAP BRIEF, do not run the pipeline**: persist
-   `docs/development/reviews/YYYY-MM-DD-design-gap-<slug>.md` carrying the blocked journey, the missing
-   endpoint/job/contract field, the contract line that should exist, the evidence, and the exact `/fabrik-spec`
-   invocation to start it — then stop that row at `DESIGN-GAP (operator decision)`, surfaced in the report's
-   TOP section. `/fabrik-spec` is built around collaborative Q&A + per-section human approval; an autonomous
-   run driving it must either stall or self-approve the product question — both forbidden. The operator
-   decides whether a spec is warranted; the brief makes that a 2-minute decision.
-
-**No unfalsifiable exits:** if rows remain when this session genuinely cannot continue, the report's final
-ledger row is marked **`NOT-QUIET (routes outstanding)`** and a `## RESUME` block names every open row, its
-repro path, and the verbatim re-invocation command. A truncated run may NEVER present itself as quiet.
-
-## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)
-
-After the last code-changing row closes, run **one full Phase-5 round** (fresh discovery sweep + full
-reconcile — not just affected journeys): Phase 6's fixes are the deepest changes in the run and get the
-deepest re-verification. **The report's final ledger row must be THIS round's** `new inventory: 0 · new
-findings: 0 · fixes applied: 0` — a quiet exit recorded before Phase 6 ran is void.
+{{include:cert-execution}}
 
 ## Subagents — MANDATORY, both layers, per `core/62`
 
@@ -374,15 +264,9 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
 
 ## Report + chain
 
-**Machine-readable disposition rows (gate-parsed by `check_review_coverage.py` — exact grammar):** every
-routed finding appears as one line in the report:
-`HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` ·
-`HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` ·
-`DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open).
-A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review`
-(the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence is what proves
-attribution — see Phase 4); any OPEN HANDOFF row requires the final
-ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`.
+{{include:cert-handoff-grammar}}
+
+
 
 
 `docs/development/reviews/YYYY-MM-DD-service-test-<slug>.md`: the Inventory Ledger + coverage
