@@ -29,14 +29,22 @@ rotation, no `ANTHROPIC_API_KEY`, no per-call $ cap, containers hold no creds) i
 - **The fix is never DROPPED** — ob@ headroom → autonomous fix; ob@ capped → pool read-only diagnosis (from a
   host-marshalled bundle) + operator-gated apply (never auto-applied). Single-flight so concurrent incidents
   don't double-spend.
-- **The reserve spans EVERY window the live `--status --json` payload exposes** — for the active ob@ account
-  that means `five_hour`, `seven_day`, **AND every `model_windows` entry** (the per-model weekly sub-limits —
-  Opus/Fable etc. — which `_usage_windows` already extracts; see the Context Ledger). Shed routine when
-  `max(<every utilization in {five_hour, seven_day} ∪ model_windows.values()>)` ≥ the reserve threshold —
-  **never weekly-only** (a 5h burst, or a per-model weekly wall, can cap ob@ while the top-level weekly is
-  fine). The `max` iterates whatever windows the payload actually carries, so a new window is covered by
-  construction — never a hardcoded count. **Phase-A step 0 grounds the live payload shape** (fleet vs legacy —
-  see below) and enumerates its windows before the parser is written.
+- **The reserve honors every UTILIZATION window the payload exposes AND the fleet's authoritative `cap_walled`
+  flag.** The utilization windows for the active ob@ account are `five_hour`, `seven_day`, **AND every
+  `model_windows` entry** (per-model weekly sub-limits — Fable is the live one; Opus/others covered by the same
+  model-agnostic `_usage_windows` extraction when present; see the Context Ledger). Shed routine when
+  `max(<every utilization in {five_hour, seven_day} ∪ model_windows.values()>)` ≥ the reserve threshold. The
+  `max` iterates whatever windows the payload carries, so a new window is covered by construction — never a
+  hardcoded count. **PLUS**: the row also carries `weekly_cap` (the operator's per-account cap from
+  `caps.json`) and `cap_walled` (bool, derived by the fleet as `seven_day.utilization ≥ weekly_cap` —
+  `claude_rotate.py:3376-3379`). `cap_walled` is the **authoritative** hard-wall signal, and `weekly_cap` is
+  operator-configurable **below** `RESERVE_PCT`; the governor MUST consult it, not just re-derive its own
+  threshold — a `cap_walled: True` account is one the fleet already considers walled. So: routine sheds to pool
+  when `cap_walled OR max(windows) ≥ RESERVE_PCT`; an incident treats `cap_walled` as capped (→ pool-diagnose),
+  exactly like a reactive `is_usage_limit`. `RESERVE_PCT` (default 80) stays the softer proactive-conservation
+  threshold BELOW the operator's hard wall — **never weekly-only** (a 5h burst or a per-model weekly wall can
+  cap ob@ while the top-level weekly is fine). **Phase-A step 0 grounds the live payload shape** (fleet vs
+  legacy) and enumerates its windows + the `weekly_cap`/`cap_walled` keys before the parser is written.
 - **Containers hold NO ob@ creds** — the credential stays on the host; containers reach only the
   completion-only broker (empty tool allowlist), never the operator's full-tool claude.
 - **Fail-SAFE degraded state** — a failed / unparseable `--status` probe / down governor defaults routine →
@@ -63,7 +71,7 @@ rotation, no `ANTHROPIC_API_KEY`, no per-call $ cap, containers hold no creds) i
 | `core/self-healing.md` (ACTIVE) | the escalation ladder (ob@ fix → pool diagnosis → operator gate) this governor orchestrates | pack |
 | `core/35-security-auth.md` (ACTIVE) | broker per-caller token auth; secret (ob@ cred) stays host-side; no secret in code | pack |
 | `core/45-testing-strategy.md` (ACTIVE) | one test per behavior, risk-ordered, TDD the risky | pack |
-| **Headroom source — the LIVE `--status --json` contract (NOT the internal `_status_payload`)** | `claude_rotate.py --status --json` BRANCHES: on a **fleet-mode** box (≥1 scaffolded `~/.claude-fleet/` dir — TRUE on this box AND the single-key VPS) `_cmd_status` returns `_cmd_fleet_status` BEFORE it ever calls `_status_payload`, emitting `{fleet_root, accounts:[{email, slugs, five_hour, seven_day, model_windows, weekly_cap, cap_walled, …}], active, pending, …}`; only an **empty-fleet** box falls through to the legacy `_status_payload` shape. The governor consumes the ACTIVE ob@ account row and reads `five_hour`+`seven_day`+`model_windows` from it. | `claude_rotate.py::_cmd_status` fleet branch :1232-1234, `_cmd_fleet_status`/`_fleet_account_rows` :3202+ storing `model_windows` :3361-3371, `_usage_windows` (parses `five_hour`/`seven_day` + per-model `weekly_scoped`→`model_windows`) :3103-3141, legacy `_status_payload` :1205 (empty-fleet only), `_fleet_dirs` :2642 |
+| **Headroom source — the LIVE `--status --json` contract (NOT the internal `_status_payload`)** | `claude_rotate.py --status --json` BRANCHES: on a **fleet-mode** box (≥1 scaffolded `~/.claude-fleet/` dir — TRUE on this box AND the single-key VPS) `_cmd_status` returns `_cmd_fleet_status` BEFORE it ever calls `_status_payload`, emitting `{fleet_root, accounts:[{email, slugs, five_hour, seven_day, model_windows, weekly_cap, cap_walled, …}], active, pending, …}`; only an **empty-fleet** box falls through to the legacy `_status_payload` shape. The governor consumes the ACTIVE ob@ account row and reads `five_hour`+`seven_day`+`model_windows` (utilization windows) **plus `cap_walled`** (the authoritative operator-cap wall, derived `seven_day.util ≥ weekly_cap` from `caps.json`). | `claude_rotate.py::_cmd_status` fleet branch :1232-1234, `_cmd_fleet_status`/`_fleet_account_rows` :3202+ storing `model_windows` :3361-3371, `cap_walled` derivation :3376-3379, `weekly_cap` from `caps.json` :3157/:3265, `_usage_windows` :3103-3141, legacy `_status_payload` :1205 (empty-fleet only), `_fleet_dirs` :2642 |
 | Reactive limit signal | `is_usage_limit(text)` — regex over weekly/session/5h/"out of extra usage" | `claude_rotate.py:92` |
 | Epoch parse (may be None) | `_iso_to_epoch(resets_at)` → `float | None` (None on missing/garbage) — every window's `resets_at_epoch` flows through it | `claude_rotate.py:1083-1093` |
 | Host claude entrypoint | `claude-run.sh` runs claude via `claude_rotate` as the operator; `main` forwards `argv[1:]` to `run_claude` | `scripts/sysadmin/claude-run.sh:4-18`, `claude_rotate.py:4013,4110` |
@@ -90,12 +98,12 @@ rotation, no `ANTHROPIC_API_KEY`, no per-call $ cap, containers hold no creds) i
 **Interfaces — Consumes:** `claude_rotate.py --status --json` (headroom — the LIVE contract, fleet shape on
 this box + the VPS), `is_usage_limit` (reactive).
 **Produces:**
-- `scripts/sysadmin/quota_governor.py`: `class QuotaGovernor` with `route(kind: Literal["incident","routine"], *, caller: str|None=None) -> Literal["ob@","pool","pool-diagnose"]`. Reads the ACTIVE ob@ account row from `claude_rotate --status --json` and collects its per-window utilizations: `{five_hour, seven_day} ∪ model_windows.values()`. **routine** → `pool` if `max(<those utilizations>)` ≥ `RESERVE_PCT` (default 80, env `QUOTA_RESERVE_PCT`) else `ob@` — the `max` iterates whatever windows the row carries, so the per-model weekly (Opus) wall is covered without a hardcoded count. **incident** → `ob@` if not capped, else `pool-diagnose`. Reactive: a returned `is_usage_limit` marks ob@ capped until the relevant window's `resets_at_epoch`. **None-epoch (MED-1):** a window whose `resets_at_epoch` is `None` is treated as UNKNOWN — never compared with `now`; a reactive cap with a `None` epoch holds for a bounded default `CAP_TTL_S` (env, default 6h ≈ the 5h window) then re-probes, so one unparseable payload never wedges ob@ capped forever. **Fail-safe:** a `--status` failure / unparseable row → routine returns `pool`, incident returns `ob@`. **Single-flight:** an `ob@` incident takes a **non-blocking** `fcntl.flock(LOCK_NB)` on `~/.claude/state/quota-governor-incident.lock`; if the lock is HELD (another fix in flight), the incident routes to `pool-diagnose` + alerts (never blocks a cron, never double-spends ob@ on two concurrent fixes).
+- `scripts/sysadmin/quota_governor.py`: `class QuotaGovernor` with `route(kind: Literal["incident","routine"], *, caller: str|None=None) -> Literal["ob@","pool","pool-diagnose"]`. Reads the ACTIVE ob@ account row from `claude_rotate --status --json` and collects its per-window utilizations: `{five_hour, seven_day} ∪ model_windows.values()`, plus the row's `cap_walled` flag. **routine** → `pool` if `row["cap_walled"]` OR `max(<those utilizations>)` ≥ `RESERVE_PCT` (default 80, env `QUOTA_RESERVE_PCT`) else `ob@` — the `max` iterates whatever windows the row carries (per-model weekly incl.), and `cap_walled` (the fleet's authoritative operator-cap wall, `claude_rotate.py:3376`) is honored even when the operator sets `weekly_cap` below `RESERVE_PCT`. **incident** → `ob@` if not capped, else `pool-diagnose`; **`cap_walled: True` counts as capped** (ob@ is at its operator weekly wall) exactly like a reactive `is_usage_limit`. Reactive: a returned `is_usage_limit` marks ob@ capped until the relevant window's `resets_at_epoch`. **None-epoch (MED-1):** a window whose `resets_at_epoch` is `None` is treated as UNKNOWN — never compared with `now`; a reactive cap with a `None` epoch holds for a bounded default `CAP_TTL_S` (env, default 6h ≈ the 5h window) then re-probes, so one unparseable payload never wedges ob@ capped forever. **Fail-safe:** a `--status` failure / unparseable row → routine returns `pool`, incident returns `ob@`. **Single-flight:** an `ob@` incident takes a **non-blocking** `fcntl.flock(LOCK_NB)` on `~/.claude/state/quota-governor-incident.lock`; if the lock is HELD (another fix in flight), the incident routes to `pool-diagnose` + alerts (never blocks a cron, never double-spends ob@ on two concurrent fixes).
 - Alerts: on a reserve-threshold or cap crossing, call `claude-sound.sh mesh-notify`.
 
 **Steps:**
-0. **Ground the live payload shape + window set:** run `claude_rotate.py --status --json` on the target and read the ACTUAL top-level keys + the active ob@ row's keys. On a fleet-mode box (verified: this box + the VPS both carry `~/.claude-fleet/`) the row carries `five_hour`, `seven_day`, `model_windows` (+ `weekly_cap`/`cap_walled`); on an empty-fleet box it is the legacy `_status_payload` shape. Write the parser to the OBSERVED shape (prefer the fleet `accounts[active]` row; fall back to legacy) and enumerate every window it exposes. Record the observed shape + window list in a code comment. **Do NOT edit `_account_status`/`_status_payload`** — they are the legacy path `--status --json` bypasses in fleet mode; the governor is a READER of the CLI output, it does not modify the producer.
-1. **[TDD — highest risk] Write `tests/test_quota_governor.py` FIRST** (pool fanout): (a) routine sheds to pool when 5h util ≥80 even though weekly is low (multi-window proof); (a2) routine sheds when ONLY a `model_windows` entry (e.g. Opus weekly) ≥80 — the per-model-weekly wall (fed a fleet-shape row fixture); (b) routine runs on ob@ below the reserve; (c) incident always returns ob@ when not capped; (d) incident returns pool-diagnose when ob@ is capped; (e) `--status` failure / unparseable row → routine=pool, incident=ob@ (fail-safe); (f) a reactive `is_usage_limit` marks capped until that window's reset; (f2) a window with `resets_at_epoch = None` never raises and un-caps after `CAP_TTL_S` (None-epoch boundary); (g) single-flight: with the lock held, a second incident returns `pool-diagnose` (non-blocking), the first keeps ob@. Fixtures use the REAL fleet `--status --json` shape. Mock `--status` output + `is_usage_limit` + the lock. Run → RED.
+0. **Ground the live payload shape + window set:** run `claude_rotate.py --status --json` on the target and read the ACTUAL top-level keys + the active ob@ row's keys. On a fleet-mode box (verified: this box + the VPS both carry `~/.claude-fleet/`) the row carries `five_hour`, `seven_day`, `model_windows`, `weekly_cap`, `cap_walled`; on an empty-fleet box it is the legacy `_status_payload` shape. Write the parser to the OBSERVED shape (prefer the fleet `accounts[active]` row; fall back to legacy), enumerate every utilization window, AND read `cap_walled` (the authoritative operator-cap wall). Record the observed shape + window list in a code comment. **Do NOT edit `_account_status`/`_status_payload`** — they are the legacy path `--status --json` bypasses in fleet mode; the governor is a READER of the CLI output, it does not modify the producer.
+1. **[TDD — highest risk] Write `tests/test_quota_governor.py` FIRST** (pool fanout): (a) routine sheds to pool when 5h util ≥80 even though weekly is low (multi-window proof); (a2) routine sheds when ONLY a `model_windows` entry (e.g. Opus weekly) ≥80 — the per-model-weekly wall (fed a fleet-shape row fixture); (b) routine runs on ob@ below the reserve; (c) incident always returns ob@ when not capped; (d) incident returns pool-diagnose when ob@ is capped; (e) `--status` failure / unparseable row → routine=pool, incident=ob@ (fail-safe); (f) a reactive `is_usage_limit` marks capped until that window's reset; (f2) a window with `resets_at_epoch = None` never raises and un-caps after `CAP_TTL_S` (None-epoch boundary); (f3) a row with `cap_walled: True` but `max(windows) < RESERVE_PCT` still sheds routine→pool and routes incident→pool-diagnose (authoritative-wall proof — `weekly_cap` below `RESERVE_PCT`); (g) single-flight: with the lock held, a second incident returns `pool-diagnose` (non-blocking), the first keeps ob@. Fixtures use the REAL fleet `--status --json` shape. Mock `--status` output + `is_usage_limit` + the lock. Run → RED.
 2. Implement `quota_governor.py`. Run → GREEN.
 3. **Gate:** `python -m pytest tests/test_quota_governor.py -q`; ruff; mypy.
 4. `python scripts/enforcement/check_doc_sync.py`.
@@ -105,6 +113,7 @@ this box + the VPS), `is_usage_limit` (reactive).
 **Behavior Contract:**
 - **Given** the ob@ row's 5h-utilization ≥ the reserve but weekly low, **When** a routine job routes, **Then** it goes to `pool` (multi-window reserve) (scripts/sysadmin/quota_governor.py).
 - **Given** ONLY a `model_windows` (Opus/model-weekly) utilization ≥ the reserve, **When** a routine job routes, **Then** it goes to `pool` (the per-model weekly wall is covered) (scripts/sysadmin/quota_governor.py).
+- **Given** the row's `cap_walled` is `True` (operator `weekly_cap` reached, even below `RESERVE_PCT`), **When** a routine job routes, **Then** it goes to `pool`; **When** an incident routes, **Then** it returns `pool-diagnose` (the authoritative fleet wall is honored, not just `RESERVE_PCT`) (scripts/sysadmin/quota_governor.py).
 - **Given** ob@ is capped, **When** an incident routes, **Then** it returns `pool-diagnose`, never blocked (scripts/sysadmin/quota_governor.py).
 - **Given** a window with `resets_at_epoch = None`, **When** anything routes, **Then** no `now ≥ None` comparison is made and the cap un-holds after `CAP_TTL_S` (scripts/sysadmin/quota_governor.py).
 - **Given** the `--status` probe fails or the row is unparseable, **When** anything routes, **Then** routine→pool + incident→ob@ (fail-safe) (scripts/sysadmin/quota_governor.py).
@@ -239,6 +248,12 @@ $ grep -n "model_windows" scripts/sysadmin/claude_rotate.py | head -3   # per-mo
 $ grep -n "def is_usage_limit\|def _iso_to_epoch" scripts/sysadmin/claude_rotate.py   # reactive + epoch(None)
 92:def is_usage_limit(text: str) -> bool:
 1083:def _iso_to_epoch(s: object) -> float | None:
+$ sed -n '3376,3379p' scripts/sysadmin/claude_rotate.py    # cap_walled = seven_day.util >= operator weekly_cap (authoritative wall the governor honors)
+        row["cap_walled"] = bool(
+            row["weekly_cap"] is not None
+            and isinstance(wu, (int, float))
+            and wu >= row["weekly_cap"]
+        )
 $ grep -n "if tools_enabled else" libs/subagents/loop.py    # tools_enabled=False → [] tools (single-shot prose)
 399:        (list(TOOL_SCHEMAS) if tools_enabled else [])
 $ grep -n "create_worktree" libs/subagents/agent.py     # worktree is INTERNAL (no pre-seed seam) → inline instead
@@ -293,7 +308,7 @@ Each row adjudicates whether the PLAN's design + Behavior Contracts close the cl
 | # | Failure class (rubric / standing) | Swept against | Verdict |
 |---|---|---|---|
 | 1 | **fail-open / fail-silent** (standing) | Fail-SAFE degraded state (Global Constraint + Phase-A BC: `--status` fail/unparseable → routine=pool, incident=ob@; consumers reach ob@ ONLY via the governor, no bypass); broker fails CLOSED on the tool-disable assertion (MED-2) | FIXED (MED-2) |
-| 2 | **cost/quota accounting** (standing) | the plan's whole subject — multi-window reserve via `max({five_hour,seven_day} ∪ model_windows)` (incl. per-model weekly), per-caller budget file with `resets_at_epoch` reset, no per-call $ cap | FIXED (HIGH-2) |
+| 2 | **cost/quota accounting** (standing) | multi-window reserve via `max({five_hour,seven_day} ∪ model_windows)` (incl. per-model weekly) **AND the authoritative `cap_walled` flag** (operator `weekly_cap` from caps.json, honored even below `RESERVE_PCT`); per-caller budget file with `resets_at_epoch` reset, no per-call $ cap | FIXED (HIGH-2 + cap_walled) |
 | 3 | **boundary / sentinel** (standing) | budget window reset at `now ≥ resets_at_epoch`; **`None` epoch never compared with `now` and un-holds after `CAP_TTL_S`** (MED-1); single-flight `flock(LOCK_NB)` held→pool-diagnose boundary; tool-disable argv (grounded Phase-B step 0) | FIXED (MED-1) |
 | 4 | **behavior-without-a-test** (standing) | every Behavior Contract row carries a `(path)`; Phase steps write tests FIRST (TDD), watched-fail-first on the reserve / fail-safe / None-epoch / single-flight / broker-auth+fail-closed risky paths; fixtures use the REAL fleet `--status --json` shape | CLEAN |
 | 5 | **config-via-env / no hardcoded secret** (12-Factor III · core/35) | no `ANTHROPIC_API_KEY`; ob@ cred stays host-side; broker per-caller token; `RESERVE_PCT`/`CAP_TTL_S` env-configurable | CLEAN |
@@ -304,11 +319,15 @@ Each row adjudicates whether the PLAN's design + Behavior Contracts close the cl
 | 10 | **Evidence reproducibility (proxy-never-evidence)** | Evidence commands re-run live this pass; the live `--status --json` shape, the fleet branch, `model_windows`, and the redis-absence proof (pinned to `.venv/bin/python`) all captured verbatim | FIXED (F8+HIGH-1) |
 | 11 | **ungrounded external/telemetry claim** | data source re-grounded on the LIVE `--status --json` **fleet** contract (`accounts[active]` row), not the legacy `_status_payload`; `model_windows` confirmed exposed + parsed (model-agnostic by `display_name`; live payload carries `Fable`, Opus covered by the same mechanism if present — not claimed live); marshaller re-grounded on an INLINED single-shot `fanout(mode="read_only")` worker (a `tools_enabled=False` worker has no file tools; the worktree is internal — neither a worktree pre-seed nor a `--ro-bind` path-read is usable) | FIXED (HIGH-1/2/3) |
 | 12 | **mechanism self-consistency (pool dispatch)** | pass-2 caught the first HIGH-3 fix asserting `tools_enabled=False` yet a `--ro-bind` path-read (contradictory — no file tools); re-fixed to inline the bundle content, the canonical read_only single-shot contract | FIXED (pass-2 HIGH) |
+| 13 | **completeness over-claim (updated-method factual re-derivation)** | the closing FACTUAL pass RE-DERIVED every load-bearing fact from primary source (enumerate universals, re-count not re-cite): corrected "Opus IS exposed" → model-agnostic `_usage_windows` (live: `Fable`); and closed the `weekly_cap`/`cap_walled` gap — the governor now honors the fleet's authoritative operator-cap wall, not just `RESERVE_PCT` | FIXED (Opus over-claim + cap_walled) |
 
-Exit: pass 1 (author-blind native Opus grounding + pool breadth) raised 5 (3 HIGH + 2 MED), all CONFIRMED and
-FIXED; pass 2 (author-blind native Opus) confirmed those 5 TRUE, REFUTED the scale-mismatch risk, and raised 2
-NEW (1 HIGH mechanism-contradiction + 1 MED Evidence-reproducibility), both FIXED here. The next full pass must
-reach a zero-new, md5-verified no-op before the flip. No UNCHECKED rows, no `## BLOCKED` escalation owed.
+Exit: pass 1 (author-blind native Opus grounding + pool breadth) raised 5 (3 HIGH + 2 MED), all FIXED; pass 2
+confirmed those TRUE, REFUTED the scale-mismatch risk, raised 2 NEW (HIGH mechanism-contradiction + MED
+Evidence-reproducibility), both FIXED; pass 3 pinned the log-tail bound. Then the operator UPDATED the review
+method (closing pass = FACTUAL re-derivation, not citation re-verification) and a fresh pass under it raised 2
+more the no-op stamps had carried — the Opus over-claim and the `weekly_cap`/`cap_walled` completeness gap —
+both FIXED. The next full pass must reach a zero-new, md5-verified no-op before the flip. No UNCHECKED rows,
+no `## BLOCKED` escalation owed.
 
 ## Residual unknowns
 
