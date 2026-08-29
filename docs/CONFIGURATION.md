@@ -169,12 +169,16 @@ Used by `scripts/kilo-benchmarks/fetch_*_prices.py` to populate `agents.gateway_
   times out (>100s) at that size. Full listing:
   `curl -H "Authorization: Bearer $MISTRAL_API_KEY" https://api.mistral.ai/v1/models`.
 - `MISTRAL_API_KEY_2` / `_3` / `_4` — spare keys (same per-key limits; select manually:
-  `MISTRAL_API_KEY=$MISTRAL_API_KEY_2 <cmd>`). ⚠️ As of 2026-08-29 ALL four keys return
-  HTTP 401 on the models probe (key 1 was live when first wired) — an account-side state
-  (revoked-on-regenerate or pending billing activation); re-probe after checking the console.
-- `MISTRAL_MONTHLY_CAP_USD=10` — the HARD monthly budget across ALL Mistral keys combined
-  (operator directive 2026-08-29). Any consumer driving Mistral spend must read it and stop at
-  the cap; there is no per-call cap (sysadmin-loop rule), the cap is monthly and total.
+  `MISTRAL_API_KEY=$MISTRAL_API_KEY_2 <cmd>`).
+- ⚠️ **The free tier is a $10/month CREDIT — an exhausted credit returns HTTP 401 until the
+  monthly reset** (operator-confirmed 2026-08-29: all four keys 401'd because the month's
+  credits were spent; this is the expected exhausted state, not key revocation). A 401 from
+  Mistral therefore means "no credit left this month" first — re-probe after the reset before
+  suspecting the key itself.
+- `MISTRAL_MONTHLY_CAP_USD=10` — the monthly credit envelope (operator directive 2026-08-29).
+  Any consumer driving Mistral usage must read it and budget within the envelope so credit
+  lasts the month instead of dying mid-month; no per-call caps (sysadmin-loop rule) — the
+  budget is monthly.
 
 ### Specialty-service bench providers (kilo-benchmarks)
 
