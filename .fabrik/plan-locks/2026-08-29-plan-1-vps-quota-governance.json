@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/archived/2026-08-29-plan-1-vps-quota-governance.md",
+  "owned_paths": [
+    "scripts/sysadmin/quota_governor.py",
+    "scripts/sysadmin/claude_broker.py",
+    "scripts/sysadmin/incident_context.py",
+    "scripts/sysadmin/claude-keepalive-rotate.sh",
+    "scripts/sysadmin/quota_dashboard.py",
+    "tests/test_quota_governor.py",
+    "tests/test_claude_broker.py",
+    "tests/test_incident_context.py",
+    "docs/workstation/vps-claude-quota-governance.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-29T22:03:06+03:00",
+  "status": "released",
+  "baseline_commit": "188d8fc9844f5cfda8c7efc1849f34f1e5449c61",
+  "completed_at": "2026-08-30",
+  "final_commit": "bb7a5e94"
+}
