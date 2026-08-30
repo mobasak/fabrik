@@ -3,9 +3,10 @@
 WHY (spec docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md): the operator's
 directive — every agent records decisions with why/what/where/who/when and ALWAYS queries them
 before answering "where is X / did we decide Y". The helper is the fleet-wide read path (one
-command over /opt/*/docs/DECISIONS.md) and carries the design's ONE mechanical check: a
-`supersedes D-NNN` pointer must resolve to an existing row id (the dangling-pointer failure the
-tooling literature names for hand-rolled records).
+command over /opt/*/docs/DECISIONS.md) and carries the design's mechanical integrity checks:
+every `supersedes D-NNN` pointer must resolve to an existing row id (the dangling-pointer
+failure the tooling literature names for hand-rolled records), and no id may appear on two
+rows (the concurrent-mint race — two D-041s, 2026-08-30).
 """
 
 from __future__ import annotations
@@ -107,3 +108,29 @@ def test_check_flags_a_duplicate_row_id_and_exits_1(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 1
     assert "DUPLICATE" in out and "D-002" in out
+
+
+def test_check_resolves_a_lowercase_supersedes_target(tmp_path, capsys):
+    """`supersedes d-001` (lowercase, captured case-preserved by the IGNORECASE regex)
+    must resolve against the uppercase `| D-001 |` row — not report a false DANGLING."""
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-002 | 2026-08-30 | a | supersedes d-001: flipped | why | here |\n"
+        "| D-001 | 2026-08-30 | a | base | why | here |\n"
+    ))
+    assert dec._check(tmp_path) == 0, capsys.readouterr().out
+
+
+def test_lowercase_row_ids_are_not_invisible(tmp_path, capsys):
+    """A row keyed `| d-003 |` must be seen by the parser (normalized to D-003) —
+    an invisible row can carry a duplicate/dangling defect no check can catch."""
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| d-003 | 2026-08-30 | a | lowercase-minted | why | here |\n"
+        "| D-003 | 2026-08-30 | b | uppercase twin | why | there |\n"
+    ))
+    rc = dec._check(tmp_path)
+    out = capsys.readouterr().out
+    assert rc == 1 and "DUPLICATE" in out and "D-003" in out

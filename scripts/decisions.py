@@ -27,7 +27,9 @@ import re
 import sys
 from pathlib import Path
 
-ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|")
+# Case-insensitive + normalized to upper in _rows(): a lowercase-minted `| d-003 |` row
+# must not be invisible to the integrity checks (review 2026-08-30).
+ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|", re.IGNORECASE)
 SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
 
 
@@ -63,7 +65,7 @@ def _rows(path: Path) -> list[tuple[str, list[str]]]:
         if not m:
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        rows.append((m.group(1), cells))
+        rows.append((m.group(1).upper(), cells))
     return rows
 
 
@@ -101,6 +103,7 @@ def _check(root: Path) -> int:
             seen.add(rid)
         for rid, cells in rows:
             for target in SUPERSEDES_RE.findall(" ".join(cells)):
+                target = target.upper()  # the IGNORECASE capture preserves source case
                 if target not in ids:
                     _say(f"DANGLING: {repo} {rid} supersedes {target} which has no row in {path}")
                     bad += 1

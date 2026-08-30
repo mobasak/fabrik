@@ -243,8 +243,10 @@ fleet-visible). NOT a decision: routine fixes, refactors, doc edits — those ar
   signal, § Research grounding). When one fires, the recorded v2 options are a hub-side indexer
   over the per-repo files (files stay the write surface) or year-rotation into `docs/archive/`
   with ids kept stable. Backlog row carries the triggers.
-- **Degradation:** id collision on concurrent append = ordinary merge conflict, visible and
-  trivially fixed; a dangling `supersedes D-NNN` pointer = the helper's one mechanical check;
+- **Degradation:** id collision on concurrent append — DISPROVEN as "ordinary merge conflict,
+  visible" on day one (two D-041s landed with no conflict: appends at different file positions
+  merge cleanly); now caught mechanically by `--check`'s duplicate-id detector alongside the
+  dangling `supersedes D-NNN` pointer check;
   diary drift (routine work creeping in as rows) = the 2-week kaizen measurement tightens the
   write-trigger list.
 - **Supersession/retirement:** of a ROW — new row `supersedes D-NNN`, the old row never touched

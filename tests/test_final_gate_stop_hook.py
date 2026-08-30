@@ -1258,18 +1258,22 @@ def test_distinct_hostile_ids_get_distinct_tmp_files() -> None:
 # --- BLOCKED-escalation exemption regex (review 2026-08-30, manifesto-binding) ---
 
 
-def test_blocked_exemption_does_not_fire_on_hyphenated_prefix() -> None:
-    """`pre-blocked:` in prose (a CHANGELOG bullet an agent may echo) must NOT arm the
-    whole-message BLOCKED exemption — only a real `BLOCKED:` escalation header does."""
-    assert not hook._GATE_EXEMPT_GLOBAL_RE.search(
-        "fabrik-lib mailed to adopt the ledger duty (pre-blocked: no DECISIONS.md there)."
-    )
+def test_blocked_exemption_does_not_fire_on_prose_blocked() -> None:
+    """Lowercase `…blocked:` in prose (a CHANGELOG bullet an agent may echo) must NOT arm
+    the whole-message BLOCKED exemption — the sanctioned escalation header is uppercase
+    `BLOCKED:`, and case is the discriminator (a hyphen-lookbehind alone can't tell
+    `pre-blocked:` from a ticket-glued `T1a-BLOCKED:`)."""
+    for msg in (
+        "fabrik-lib mailed to adopt the ledger duty (pre-blocked: no DECISIONS.md there).",
+        "the run ends here. blocked: on the operator",
+    ):
+        assert not hook._GATE_EXEMPT_GLOBAL_RE.search(msg), msg
 
 
 def test_blocked_exemption_still_fires_on_real_escalations() -> None:
     for msg in (
         "BLOCKED: missing infra — searched: docs — missing: creds",
         "## BLOCKED: NON-CONVERGENCE",
-        "the run ends here. blocked: 3 consecutive same-test failures",
+        "T1a-BLOCKED: 3 consecutive same-test failures",
     ):
         assert hook._GATE_EXEMPT_GLOBAL_RE.search(msg), msg

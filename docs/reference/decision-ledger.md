@@ -21,8 +21,10 @@ FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; des
   full answer.
 - **Rows are immutable.** A changed or reversed decision mints a NEW row whose what-cell opens
   `supersedes D-NNN:`; the old row is never edited (the universal record invariant — supersede,
-  never rewrite). `python3 /opt/fabrik/scripts/decisions.py --check` validates that every
-  supersede pointer resolves (exit 1 on a dangling one) — the design's one mechanical check.
+  never rewrite). `python3 /opt/fabrik/scripts/decisions.py --check` validates ledger integrity:
+  every supersede pointer resolves AND no id appears on two rows (exit 1 on either — the
+  duplicate check exists because two sessions minted D-041 concurrently on 2026-08-30 with no
+  merge conflict to surface it).
 - **Who holds the pen:** the session that made or received the decision. Subagents and the daily
   pipeline never write the ledger — a subagent-surfaced decision is its dispatcher's to record.
 - **What counts:** an operator ruling · a spec/plan approval or Status flip · a retirement/adoption
