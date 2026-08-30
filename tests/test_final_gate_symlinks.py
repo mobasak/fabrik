@@ -17,6 +17,8 @@ def fake_project(tmp_path):
     # Governance files (real copies)
     (project / "AGENTS.md").write_text("# AGENTS\n")
     (project / "AGENTS-compact.md").write_text("# Compact\n")
+    (project / "agents-fabrik.md").write_text("# canonical agents doc\n")
+    (project / "agents-fabrik-core.md").write_text("# platform core\n")
     (project / "opencode.json").write_text("{}\n")
     (project / ".windsurfrules").write_text("# rules\n")
 
@@ -40,7 +42,7 @@ class TestCheckSymlinksWorkflowsIsolation:
         """All real local copies should pass isolation check."""
         import scripts.final_gate as gate
 
-        with patch.object(gate, "FABRIK_ROOT", fake_project):
+        with patch.object(gate, "PROJECT_ROOT", fake_project):
             passed, msg = gate.check_symlinks()
 
         assert passed, f"Expected pass but got: {msg}"
@@ -59,7 +61,7 @@ class TestCheckSymlinksWorkflowsIsolation:
         target.unlink()
         target.symlink_to(external / "evil.md")
 
-        with patch.object(gate, "FABRIK_ROOT", fake_project):
+        with patch.object(gate, "PROJECT_ROOT", fake_project):
             passed, msg = gate.check_symlinks()
 
         assert not passed, "Expected failure for symlinked workflow file"
@@ -78,7 +80,7 @@ class TestCheckSymlinksWorkflowsIsolation:
         target.unlink()
         target.symlink_to(external / "real.md")
 
-        with patch.object(gate, "FABRIK_ROOT", fake_project):
+        with patch.object(gate, "PROJECT_ROOT", fake_project):
             passed, msg = gate.check_symlinks()
 
         assert not passed, "Expected failure for symlinked workflow file"
@@ -96,7 +98,7 @@ class TestCheckSymlinksWorkflowsIsolation:
         symlink_path = fake_project / ".windsurf" / "rules" / "99-bad.md"
         symlink_path.symlink_to(external / "bad-rule.md")
 
-        with patch.object(gate, "FABRIK_ROOT", fake_project):
+        with patch.object(gate, "PROJECT_ROOT", fake_project):
             passed, msg = gate.check_symlinks()
 
         assert not passed, "Expected failure for symlinked rule file"
@@ -118,7 +120,7 @@ class TestCheckSymlinksWorkflowsIsolation:
         shutil.rmtree(wf_dir)
         wf_dir.symlink_to(external_wf)
 
-        with patch.object(gate, "FABRIK_ROOT", fake_project):
+        with patch.object(gate, "PROJECT_ROOT", fake_project):
             passed, msg = gate.check_symlinks()
 
         assert not passed, "Expected failure for symlinked workflows directory"

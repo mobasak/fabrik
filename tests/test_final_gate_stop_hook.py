@@ -309,7 +309,7 @@ def test_baseline_survives_resume_but_not_fresh_start(fake_project: Path) -> Non
 def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
     ctr.write_text("1,2,0")
-    assert hook._read_counters(ctr) == (1, 2, 0, 0, 0)
+    assert hook._read_counters(ctr) == (1, 2, 0, 0, 0, 0)
 
 
 def _run_stop_with_transcript(
@@ -338,7 +338,16 @@ def _run_stop_with_transcript(
     ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
     ctr.unlink(missing_ok=True)
     bl.write_text(json.dumps(baseline))
+    # a DONE run record disarms the SIXTH cause (unreviewed-spontaneous, 6f368aac):
+    # these tests probe attribution/stall shapes, and code-with-no-record would
+    # mask every probe behind the review block
+    run_dir = project / "command-runs"
+    run_dir.mkdir(exist_ok=True)
+    import time as _t
+    (run_dir / f"{sid}.json").write_text(json.dumps(
+        {"state": "done", "command": "fabrik-review-scoped", "updated_ts": _t.time()}))
     env = {**os.environ, "FAKE_FAILS": fake_fails, "FAKE_FAIL_OUTPUT": fail_output,
+           "COMMAND_RUN_DIR": str(run_dir),
            "FAKE_FAIL_OUTPUTS": json.dumps(per_check_outputs or {})}
     proc = subprocess.run(
         [sys.executable, str(_HOOK)],
@@ -706,11 +715,18 @@ def test_next_round_footer_alone_is_a_stall(tmp_path: Path) -> None:
 
 
 def test_next_round_footer_operator_gated_is_exempt(tmp_path: Path) -> None:
-    # Same-line human-gate wording exempts, exactly as for the other patterns.
+    # 2026-08-29 hardening: a bare deferral phrase no longer disarms by itself —
+    # the line must also name a HARD-STOP class (gate 1/2, deploy, cross-repo,
+    # spend, destructive, policy). Both directions asserted.
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text(
-        "Round 6 committed.\n\nNEXT: round 7 — operator decision: resume or reshape."))
+        "Round 6 committed.\n\nNEXT: round 7 — operator decision: Gate 2 approval of the deploy."))
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    tr2 = tmp_path / "t2.jsonl"
+    _turn(tr2, _user(), _asst_text(
+        "Round 6 committed.\n\nNEXT: round 7 — operator decision: resume or reshape."))
+    kind = hook._detect_stall(str(tr2), tmp_path, set())
+    assert kind and kind[0] == "promise", "a bare deferral must not disarm the stall guard"
 
 
 def test_terminal_bare_continuing_is_a_stall(tmp_path: Path) -> None:
@@ -876,13 +892,19 @@ def test_next_operator_decision_line_does_not_blind_the_guard(tmp_path: Path) ->
 
 
 def test_conditional_offer_is_an_operator_gate_not_a_stall(tmp_path: Path) -> None:
-    # Live FP (guard fired on its own author): a follow-up OFFER conditioned on
-    # the operator's word is a sanctioned stop, not a stall.
+    # 2026-08-29 hardening: the offer exempts only when its line names a
+    # HARD-STOP class; a bare "say the word" offer is the stall it always was.
     tr = tmp_path / "t.jsonl"
     _turn(tr, _user(), _asst_text(
-        "This is a command-source change plus a small helper — say the word and "
+        "This is a cross-repo change into another repo — say the word and "
         "I'll run it through the pipeline."))
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    tr2 = tmp_path / "t2.jsonl"
+    _turn(tr2, _user(), _asst_text(
+        "This is a command-source change plus a small helper — say the word and "
+        "I'll run it through the pipeline."))
+    kind = hook._detect_stall(str(tr2), tmp_path, set())
+    assert kind and kind[0] == "promise", "a bare offer must not disarm the stall guard"
 
 
 def test_gate_exemption_suppresses_a_real_promise(tmp_path: Path) -> None:
@@ -964,10 +986,11 @@ def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(tmp
 
 def test_counter_format_round_trips(tmp_path: Path) -> None:
     c = tmp_path / "ctr"
-    for raw, expect in [("3", (3, 0, 0, 0, 0)), ("3,1", (3, 1, 0, 0, 0)),
-                        ("3,1,2", (3, 1, 2, 0, 0)), ("", (0, 0, 0, 0, 0)),
-                        ("x,y", (0, 0, 0, 0, 0)), ("1,2,3,4", (1, 2, 3, 4, 0)),
-                        ("1,2,3,4,5", (1, 2, 3, 4, 5))]:
+    for raw, expect in [("3", (3, 0, 0, 0, 0, 0)), ("3,1", (3, 1, 0, 0, 0, 0)),
+                        ("3,1,2", (3, 1, 2, 0, 0, 0)), ("", (0, 0, 0, 0, 0, 0)),
+                        ("x,y", (0, 0, 0, 0, 0, 0)), ("1,2,3,4", (1, 2, 3, 4, 0, 0)),
+                        ("1,2,3,4,5", (1, 2, 3, 4, 5, 0)),
+                        ("1,2,3,4,5,6", (1, 2, 3, 4, 5, 6))]:
         c.write_text(raw)
         assert hook._read_counters(c) == expect, raw
 
@@ -1132,10 +1155,10 @@ def test_run_record_cause_uses_the_shared_anti_trap_idiom() -> None:
 
 def test_counter_file_gains_a_fifth_slot_tolerating_older_files(tmp_path: Path) -> None:
     ctr = tmp_path / "c.attempts"
-    ctr.write_text("1,2,3")  # a 3-slot file written before the 5th cause existed
-    assert hook._read_counters(ctr) == (1, 2, 3, 0, 0)
+    ctr.write_text("1,2,3")  # a 3-slot file written before the 5th/6th causes existed
+    assert hook._read_counters(ctr) == (1, 2, 3, 0, 0, 0)
     ctr.write_text("1,2,3,4,5")
-    assert hook._read_counters(ctr) == (1, 2, 3, 4, 5)
+    assert hook._read_counters(ctr) == (1, 2, 3, 4, 5, 0)
 
 
 # --- F-R2: freshness must be POSITIVELY PROVEN, or the record fails open ------

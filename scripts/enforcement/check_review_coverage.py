@@ -392,7 +392,10 @@ def check_file(p: Path) -> list[str]:
     # construction, so zero legacy reds on landing — the deferral's fire-rate concern,
     # measured away. Keep the regex in lockstep with check_convergence._REDERIVATION_ROW
     # (a one-line twin; a shared import would invert that module's existing one-way dep).
-    if not _REDERIVATION_ROW.search(text_s):
+    # A sanctioned BLOCKED exit is exempt: it claims a STUCK loop, not a converged truth —
+    # the re-derivation demand guards the truth claim (over-fire caught by the mega-report
+    # fixture battery on landing day, not in the field).
+    if not _REDERIVATION_ROW.search(text_s) and not _blocked_ok(text):
         errs.append(
             "no re-derivation ledger row — the CLOSING pass must RE-DERIVE every count/"
             "enumeration/anchor from its primary source and the ledger must say so (a Pass/"

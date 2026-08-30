@@ -31,6 +31,8 @@ def test_probe_is_silent_on_a_healthy_interpreter(monkeypatch) -> None:
 
 def test_a_broken_interpreter_path_is_reported_not_crashed(monkeypatch) -> None:
     """A nonexistent interpreter must surface as the missing tool, never an OSError
-    escaping the gate's own entry point."""
-    monkeypatch.setattr(fg, "REQUIRED_TOOLS", ("ruff",))
-    assert fg._toolchain_missing("/nonexistent/python") == "ruff"
+    escaping the gate's own entry point. Probed via pytest since the interpreter/ruff
+    decoupling (transdoc 01M171R8): ruff is a resolved BINARY probe and legitimately
+    ignores the interpreter now — pytest is the interpreter-bound tool."""
+    monkeypatch.setattr(fg, "REQUIRED_TOOLS", ("pytest",))
+    assert fg._toolchain_missing("/nonexistent/python") == "pytest"

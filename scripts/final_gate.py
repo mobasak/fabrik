@@ -109,8 +109,12 @@ def _toolchain_missing(python: str) -> str:
 
     probes = {"ruff": [RUFF, "--version"], "pytest": [python, "-c", "import pytest"]}
     for mod in REQUIRED_TOOLS:
+        # Generic interpreter-import fallback: a REQUIRED_TOOLS entry without a bespoke
+        # probe must degrade to a probe, never KeyError the gate (the decoupling landed
+        # with probes for exactly today's two tools and crashed on any other entry).
+        probe = probes.get(mod) or [python, "-c", f"import {mod}"]
         try:
-            r = _sp.run(probes[mod], capture_output=True, timeout=30, check=False)
+            r = _sp.run(probe, capture_output=True, timeout=30, check=False)
         except (OSError, _sp.SubprocessError):
             return mod
         if r.returncode != 0:

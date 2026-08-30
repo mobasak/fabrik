@@ -1361,7 +1361,11 @@ def main(argv: list[str]) -> int:
                 new_failures = set()
 
         counter = _counter_path(sid)
-        gate_attempts, commit_attempts, stall_attempts, push_attempts, run_attempts = (
+        # SIX slots since the sixth cause (6f368aac) — this unpack kept FIVE and crashed
+        # EVERY Stop that reached it, fail-opening the gate/commit/push causes box-wide
+        # for ~12h until the full suite surfaced it (13 reds). The review slot is
+        # PRESERVED on this path, never zeroed: each cause owns its own slot.
+        gate_attempts, commit_attempts, stall_attempts, push_attempts, run_attempts, review_attempts = (
             _read_counters(counter)
         )
 
@@ -1399,7 +1403,7 @@ def main(argv: list[str]) -> int:
                 )
             # gate/commit causes resolved (or capped) → reset their counters, then
             # the push law + promise-guard still have the last word on THIS stop.
-            counter.write_text(f"0,0,{stall_attempts},{push_attempts},{run_attempts},0")
+            counter.write_text(f"0,0,{stall_attempts},{push_attempts},{run_attempts},{review_attempts}")
             return _stall_gate()
 
         # Reset-when-cause-false applies to the stall AND push slots here too: a
@@ -1411,7 +1415,7 @@ def main(argv: list[str]) -> int:
         counter.write_text(
             f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},"
             f"{push_attempts if _ahead_of_upstream(root) else 0},"
-            f"{run_attempts if _run_live else 0},0"
+            f"{run_attempts if _run_live else 0},{review_attempts}"
         )
         if action == "block_commit":
             listed = ", ".join(sorted(own_uncommitted)[:8])

@@ -198,3 +198,14 @@ therefore cannot fire on the run that owes the obligation — as a hub measureme
 scripts/enforcement/ for `ls-files`/`diff --cached`-scoped denominators and judge each: some are
 deliberate (sibling-WIP protection, the review-coverage '??' carve-out), some are this defect.
 Next window; measure before changing any.
+
+## [infra] Canary-completeness debt: 10 registered checks lack CANARIES pairs (2026-08-30)
+
+test_gate_check_canaries' two completeness tests are red (part of the accepted-queued suite reds):
+10 registered checks (check_certification_coverage, check_command_corpus, check_feedback_duty,
+check_frozen_chain, check_pack_reachability, check_plan_lock_release, check_rivals_dossier,
+check_spec_convergence, check_trigger_routing, check_vendored_drift) have neither a canary pair
+in liveness_audit.CANARIES nor a recorded UNREACHABLE/warn_only reason. Accumulated across
+sessions as checks landed without their canaries; none added today. Each needs a deliberately-bad
+fixture proven to trip its check — real authoring work per check, not a fixture tweak. Author in
+batches at the next enforcement window; the two tests are the ledger of what remains.

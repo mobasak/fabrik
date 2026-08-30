@@ -540,7 +540,8 @@ def test_a_blocked_turn_emits_no_final_block(tmp_path: Path) -> None:
 
 def test_operator_override_when_a_human_gate_waives_a_real_stall(tmp_path: Path) -> None:
     proj = _project(tmp_path)
-    text = "Phase B is green.\n\nI'll run the next pass — on your approval.\n"
+    # 2026-08-29 hardening: the waiver line must also name a HARD-STOP class
+    text = "Phase B is green.\n\nI'll run the deploy pass — on your approval of Gate 2.\n"
     proc = _run_stop(proj, tmp_path, "sidover", transcript=_transcript(proj, text=text))
     assert proc.stdout.strip() == ""  # the marker waved the stall through
     overrides = _of_type(_events(tmp_path, "sidover"), "operator_override")
