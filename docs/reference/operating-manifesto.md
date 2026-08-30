@@ -9,7 +9,7 @@ survives a long session.
 
 ## Phase 0: Triage `+`
 
-* **`+` Irreversibility Triage:** Classify the decision before applying any of it. *Reversible* (cheap to undo, contained blast radius) → skip to Phase 4 and let reality do the analysis. *One-way* (structural, public, expensive or impossible to unwind) → run the full loop. Rigor scales with irreversibility, never with how interesting the problem is.
+* **`+` Irreversibility Triage:** Classify the decision before applying any of it. *Reversible* (cheap to undo, contained blast radius) → skip to Phase 4 and let reality do the analysis — **writing a one-line kill criterion at Phase 4 entry** ("this ships and X within Y days, or it's reverted"): the fast-path stays fast, but an experiment with no failure condition is just a deploy, and Phase 5's gate still needs something to measure against. *One-way* (structural, public, expensive or impossible to unwind) → run the full loop. Rigor scales with irreversibility, never with how interesting the problem is.
 * **`+` Decision Budget:** Cap the spend (hours / tokens / €) at classification time. Analysis is a purchase, and an uncapped purchase is how Cost of Delay stays a sentiment.
 
 > **Gate:** the decision is classified, a budget is set, and the depth of everything downstream follows from that classification. Hitting the budget with an unclosed gate forces the default action (Invariant 3).
@@ -111,8 +111,9 @@ already exists and is already enforced — never a parallel system:
   the existing fleet path; a tripwire that pages nobody is a comment.
 - **The parking entry** is a `docs/STRATEGIC_BACKLOG.md` row — one line, no phase, no loop.
 - **Enforcement grows by the standing rollout law:** advisory first, fire rate measured, promoted
-  to a blocking check only on evidence. The first candidate check: a CONVERGED one-way plan whose
-  decision row lacks KILL/BUDGET fields.
+  to a blocking check only on evidence. Candidate checks, in order: (1) a CONVERGED one-way plan
+  whose decision row lacks KILL/BUDGET fields; (2) the WIP limit — count open past-Phase-4 rows in
+  the ledger and warn past 3 (today the only invariant enforced by the operator noticing).
 
 What this document deliberately does NOT add: more reasoning modes, more phases, more
 counterfactual machinery. Phases 2–3 are at diminishing returns; every gain left is in binding,
