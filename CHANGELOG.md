@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `office-extension` scaffold type (Office/Outlook add-ins) (2026-08-30)
+
+- **What:** scaffold type 13. An Office add-in is two deployed surfaces — a hosted taskpane web
+  app + a backend API on the VPS fleet — plus the `manifest.xml` the Office host loads.
+  `_scaffold_office_extension` reuses `_scaffold_saas_skeleton` for the deployable halves (the
+  same precedent `static-site` uses) and emits the manifest with greppable `__HOST_URL__`/GUID
+  placeholders. Registered in `SCAFFOLD_TYPES`, `_TYPE_SCAFFOLDERS`, `TYPE_REQUIRED_FILES`, and
+  the hub CLAUDE.md UI-bearing pipeline list (so ui-design/user-test/design-review run).
+- **Why:** operator ruling — *"tojlo-mail is not saas, it is outlook extension … frontend as
+  outlook extension and backend will be installed in our vps fleet"*. Supersedes my D-037
+  rejection, which weighed deploy shape and ignored product identity (ledger D-039).
+- **Guard:** `tests/test_scaffold_office_extension.py` — registry/dispatch/required-files,
+  not-headless, manifest-over-skeleton (reuse asserted), and XML well-formedness. 4/4 green.
+
+
 ### Changed — feedback substance floor mandatory in all 31 commands (D-036) (2026-08-30)
 
 - command_run.py refuses a bare "none" at close (surfaces-exercised clause required; threshold calibrated against live fixtures); close-feedback fragment re-rendered box-wide; 118 command_run tests green incl. new boundary cases.

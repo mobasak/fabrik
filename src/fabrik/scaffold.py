@@ -150,6 +150,13 @@ SCAFFOLD_TYPES = frozenset(
         "mobile-app",
         "desktop-app",
         "static-site",
+        # Office add-ins (Outlook/Word/Excel) — a HOSTED taskpane web app + backend API + a
+        # manifest.xml the Office host reads. NOT chrome-extension (that is a bundled,
+        # store-distributed artifact with no hosted half and no deploy spec). Operator ruling
+        # 2026-08-30: "tojlo-mail is not saas, it is outlook extension" — the product identity
+        # is the type, not merely the deploy shape. One type covers the family; the manifest
+        # declares which Office host. See docs/DECISIONS.md D-039.
+        "office-extension",
     }
 )
 
@@ -434,6 +441,11 @@ TYPE_REQUIRED_FILES: dict[str, list[str]] = {
         "Dockerfile",
         "compose.yaml",
         "Makefile",
+    ],
+    "office-extension": _SHARED_REQUIRED_FILES
+    + [
+        "manifest.xml",  # the Office host reads this — the add-in half's identity
+        "compose.yaml",
     ],
     "mobile-app": _SHARED_REQUIRED_FILES + ["package.json", "app.config.ts", "src/app/_layout.tsx"],
     "desktop-app": _SHARED_REQUIRED_FILES + ["package.json", "electron/main.js"],
@@ -5721,6 +5733,68 @@ def rent_for_workload(
 
 
 # Dispatch table mapping project types to their scaffolder functions.
+def _scaffold_office_extension(
+    project_dir: Path, name: str, description: str, **kwargs: object
+) -> None:
+    """Office add-in (Outlook/Word/Excel): the saas-skeleton hosted web + backend, plus the
+    add-in manifest.
+
+    Deliberately REUSES ``_scaffold_saas_skeleton`` (the same precedent ``static-site`` uses):
+    an Office add-in's deployable surfaces genuinely ARE a hosted taskpane web app + a backend
+    API, so re-emitting that machinery would be duplication. What makes it an office-extension
+    rather than a SaaS is the ``manifest.xml`` the Office host loads — emitted here — plus the
+    type itself, which is what routes the repo to the GUI pipeline and the web-GUI MCP set.
+    """
+    _scaffold_saas_skeleton(project_dir, name, description, **kwargs)
+    _write_office_manifest(project_dir, name, description)
+
+
+def _write_office_manifest(project_dir: Path, name: str, description: str) -> None:
+    """Emit a minimal, VALID Office Add-in manifest skeleton.
+
+    Placeholders (`__HOST_URL__`, the GUID) are deliberate: the real values are only known at
+    deploy time (the Traefik domain from specs/services/<id>.yaml) and at first publish. They
+    are named so a grep finds every site that must be filled, rather than shipping a
+    plausible-looking wrong URL.
+    """
+    manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!-- Office Add-in manifest (taskpane). Fill __HOST_URL__ with the deployed domain from
+     specs/services/{name}.yaml, and replace the Id GUID before first publish. -->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="MailApp">
+  <Id>00000000-0000-0000-0000-000000000000</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Ocoron</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="{name}"/>
+  <Description DefaultValue="{description}"/>
+  <IconUrl DefaultValue="__HOST_URL__/assets/icon-64.png"/>
+  <AppDomains>
+    <AppDomain>__HOST_URL__</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="__HOST_URL__/taskpane.html"/>
+        <RequestedHeight>250</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadWriteItem</Permissions>
+</OfficeApp>
+"""
+    (project_dir / "manifest.xml").write_text(manifest, encoding="utf-8")
+
+
 _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "python-api": _scaffold_python_api,
     "python-api-gpu": _scaffold_python_api_gpu,  # NEW: Phase 5
@@ -5735,6 +5809,7 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
     "mobile-app": _scaffold_mobile_app,
     "desktop-app": _scaffold_desktop_app,
     "static-site": _scaffold_saas_skeleton,
+    "office-extension": _scaffold_office_extension,
 }
 
 
