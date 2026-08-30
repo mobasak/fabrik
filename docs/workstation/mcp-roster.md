@@ -147,7 +147,9 @@ render.** Disposition: ON for the 6 UI-bearing types, OFF for headless; the hub 
 its hub-class full roster. Its companion `chrome-devtools` (performance/Core-Web-Vitals audits in
 the same loop) takes the same disposition. **Plus the per-repo overlay: `web-ecommerce-factory`
 (D-016)** — wef drives and verifies the ecommerce sites it produces, rendered-surface work its own
-repo type would not otherwise grant.
+repo type would not otherwise grant. (2026-08-30 census note: the operator confirmed wef IS
+`saas-skeleton`, so playwright comes by TYPE and D-016's "type would not grant it" rationale was
+written on a wrong type assumption — the overlay stands, redundant but harmless.)
 
 ## Chrome-devtools — the ruling in full (D-015 + D-019, saved 2026-08-30)
 
