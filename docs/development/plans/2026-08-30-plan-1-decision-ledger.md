@@ -1,10 +1,11 @@
 # Plan 1 — The Decision Ledger (fleet-wide, per the CONVERGED spec)
 
-Status: DRAFT
+Status: CONVERGED (2026-08-30 — /fabrik-plan-review: 3 passes, closing re-derivation, raised 0/edits 0, md5-stable)
 Spec: docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md (CONVERGED, operator-approved
 2026-08-30: "go back to the spec you have created and /fabrik-plan-after-chat on it")
-Shape: MONOLITH — 3 phases, each independently testable; READ set per phase well under 262144
-(largest = Phase B: CLAUDE.md 41k + templates/governance/CLAUDE.md 29k + the two sync scripts ~45k ≈ 115k).
+Shape: MONOLITH — 3 phases, each independently testable; READ set per phase under 262144
+(largest = Phase B, measured: `find CLAUDE.md templates/governance/CLAUDE.md scripts/fabrik_synced_manifest.py
+scripts/sync_enforcement_to_projects.py -type f -exec cat {} + | wc -c` → 170198, stderr clean).
 
 ## Intake Inventory
 
@@ -71,12 +72,14 @@ render-from-MAIN-checkout only · explicit pathspecs + trailers + push per commi
 ## Phase A — the helper, its teeth, and the hub ledger
 
 Files: `scripts/decisions.py` (new) · `tests/test_decisions_helper.py` (new) · `docs/DECISIONS.md`
-(new, hub) · `scripts/enforcement/_doc_registry.py` (add one name).
+(new, hub) · `scripts/enforcement/_doc_registry.py` (add one DocRow) ·
+`templates/scaffold/docs/DECISIONS_TEMPLATE.md` (new — the DocRow's template field is test-enforced
+to exist, so it lands here, not in Phase B).
 
 Interfaces — Produces: `decisions.py` CLI `python3 scripts/decisions.py <term> [--root /opt] [--check]`,
 output lines `repo · D-NNN · when · who · what · where`; exit 0 always on query, `--check` exits 1 on a
-dangling `supersedes D-NNN` pointer (the ONE mechanical row). Registry name `"DECISIONS.md"` in the
-docs-names set. Consumes: nothing upstream.
+dangling `supersedes D-NNN` pointer (the ONE mechanical row). Registry DocRow for `docs/DECISIONS.md`
+(+ its scaffold template file). Consumes: nothing upstream.
 
 1. **Red-first (highest-risk first): write `tests/test_decisions_helper.py` and WATCH IT FAIL** — behaviors:
    (a) Given two tmp repos with ledgers, When queried for a term in one, Then that repo's row prints with
@@ -93,9 +96,14 @@ docs-names set. Consumes: nothing upstream.
    · cache-prune _npx gate (7862d8a2) · ASK-bar (5f07370a) · 1c APPROACH-FLOOR (21f37809) · interrogative
    floor (730a1af5) · governance-sync post-commit move (2026-08-29) · adoption-forces reference (8760e000).
    Gate: `python3 scripts/decisions.py context7` → prints the hub row; `python3 scripts/decisions.py --check` → exit 0.
-4. Add `"DECISIONS.md"` to the docs-names set in `scripts/enforcement/_doc_registry.py` (the SSOT the
-   allowlist derives from — grounded: `docs_allowlist()` today = 16 names, DECISIONS absent).
+4. Add the full **DocRow** to `scripts/enforcement/_doc_registry.py`, mirroring the LESSONS_LEARNT row
+   shape (:194 area): `DocRow("docs/DECISIONS.md", "docs/DECISIONS_TEMPLATE.md", frozenset({"universal"}),
+   "decision made or received", "agent")` — the `template` field is relative to `templates/scaffold/`
+   (:112) and **its existence is enforced by hub-side tests** (:20, `tests/test_doc_registry.py`), so
+   **create `templates/scaffold/docs/DECISIONS_TEMPLATE.md` in THIS step** (header + append/immutability/
+   query rules + a generic D-000 adoption row — inert until fleet wires the scaffolder map, Phase B6).
    Gate: `python3 -c "import sys; sys.path.insert(0,'scripts/enforcement'); import _doc_registry as r; assert any('DECISIONS' in p for p in r.docs_allowlist())"` → silent;
+   `python3 -m pytest tests/test_doc_registry.py -q` → green;
    `python3 scripts/enforcement/check_structure.py` on the hub → no DECISIONS finding.
 5. Closing sequence: phase gate green → `python scripts/enforcement/check_doc_sync.py` + INDEX.md row for
    `scripts/decisions.py` + `docs/DECISIONS.md` → **/fabrik-review on Phase A's changed surface, run to its
@@ -106,8 +114,8 @@ docs-names set. Consumes: nothing upstream.
 Files: `templates/governance/DECISIONS.md` (new — the SEED template: header + one generic D-000
 "decision ledger adopted (governance-sync seed)" row) · `scripts/fabrik_synced_manifest.py` ·
 `scripts/sync_enforcement_to_projects.py` · `tests/test_sync_seed_if_missing.py` (new) · `CLAUDE.md` ·
-`templates/governance/CLAUDE.md` · `templates/scaffold/docs/DECISIONS_TEMPLATE.md` (new, inert until
-fleet wires it — see step 6).
+`templates/governance/CLAUDE.md`. (The scaffold TEMPLATE file already landed in Phase A step 4,
+test-coupled to the DocRow; this phase only mails its wiring — step 6.)
 
 Interfaces — Produces: manifest constant `SEED_IF_MISSING` (dest-relpath set) + pair
 (`templates/governance/DECISIONS.md` → `docs/DECISIONS.md`) added to `iter_synced_pairs`'s template leg;
@@ -136,12 +144,12 @@ project receives it — Depends edge: B after A).
 5. `templates/governance/CLAUDE.md`: the same duties in project-facing wording (write duty · query duty ·
    matrix row · naming exception), correct for all 12 SCAFFOLD_TYPES (type-independent, like CHANGELOG).
    Gate: `grep -c "DECISIONS" templates/governance/CLAUDE.md` ≥ 3.
-6. Scaffold seed (beat-respecting split, grounded): add the inert TEMPLATE file
-   `templates/scaffold/docs/DECISIONS_TEMPLATE.md`; the WIRING line (`"docs/DECISIONS_TEMPLATE.md":
-   "docs/DECISIONS.md"` in `src/fabrik/scaffold.py:270`-area map) is FLEET's scaffolder code — send
+6. Scaffold wiring hand-off (beat-respecting, grounded — the map at `src/fabrik/scaffold.py:265-278`
+   is an ENUMERATED dict, no auto-glob, so the Phase-A template stays inert until wired): send
    `python scripts/mail.py send --to fabrik --to-agent fleet --kind request` citing this plan + the map
-   line, asking fleet to wire it (+ their PROJECT_CATALOG note). Do NOT edit scaffold.py here.
-   Gate: mail id captured in the commit body; template file exists.
+   line, asking fleet to add `"docs/DECISIONS_TEMPLATE.md": "docs/DECISIONS.md"` (+ their
+   PROJECT_CATALOG note). Do NOT edit scaffold.py here.
+   Gate: mail id captured in the commit body.
 7. Closing sequence: phase gates green → `check_doc_sync.py` + doc steps (`.env.example` n/a; CHANGELOG in
    Phase C) → **/fabrik-review on Phase B's changed surface to its adjudicated exit (BLOCKING)** — this is
    the enforcement+governance surface: hunt fail-open/fail-closed on the exists()-skip and the --force
@@ -210,19 +218,19 @@ scope/lock per the shared-append rule; Phase steps name their rows.)
 
 ## Coverage Checklist
 
-| Class | Source | Planned adjudication |
+| Class | Source | Verdict (adjudicated by /fabrik-plan-review over the PLAN) |
 |---|---|---|
-| security-auth floor (35) | rubric FLOOR | no auth surface; helper is read-only stdlib |
-| data-postgres floor (25) | rubric FLOOR | no DB (the spec's own storage decision) |
-| ops floor (30) | rubric FLOOR | no deploy/compose surface |
-| 12-Factor | rubric FLOOR | helper: stdout-only CLI; § Global Constraints binds |
-| python discipline (10) | rubric MATCHED | helper + manifest + sync edits |
-| documentation rules (40) | rubric MATCHED | governance texts, matrix row, reference doc |
-| testing strategy (45) | rubric MATCHED | red-first at A1 and B1 (watched) |
-| fail-open vs fail-closed | standing | the exists()-skip + --force exception (B) — never-overwrite is fail-SAFE toward project data |
-| cost/limit edges | standing | none (no spend surface) |
-| boundary/sentinel/prefix | standing | supersede-pointer regex; SEED_IF_MISSING keyed by dest relpath |
-| behavior-without-a-test | standing | every A/B behavior has a contract row; C is docs/corpus (review-adjudicated) |
+| security-auth floor (35) | rubric FLOOR | CLEAN — no auth surface planned; helper is read-only stdlib |
+| data-postgres floor (25) | rubric FLOOR | CLEAN — no DB anywhere (the spec's own storage decision) |
+| ops floor (30) | rubric FLOOR | CLEAN — no deploy/compose surface planned |
+| 12-Factor | rubric FLOOR | CLEAN — helper is a stdout-only CLI; § Global Constraints carries the non-negotiables verbatim |
+| python discipline (10) | rubric MATCHED | CLEAN — helper/manifest/sync steps cite pack + AFTER-EDIT header planned |
+| documentation rules (40) | rubric MATCHED | CLEAN — every Doc Sync Matrix trigger mapped to an owning step (B4-5, C5) |
+| testing strategy (45) | rubric MATCHED | CLEAN — red-first mandated at A1 and B1 with watch-it-fail gates written into the steps |
+| fail-open vs fail-closed | standing | FIXED(1) — pass 1 moved the template to Phase A so the DocRow's test-enforced template field cannot red A's own gate; the exists()-skip + --force exception is B's hunt focus, named in B7 |
+| cost/limit edges | standing | CLEAN — no spend surface in any phase |
+| boundary/sentinel/prefix | standing | CLEAN — supersede-pointer regex + SEED_IF_MISSING dest-relpath keying both carry contract rows |
+| behavior-without-a-test | standing | CLEAN — 7 G/W/T rows cover every A/B behavior; C is docs/corpus, adjudicated by its phase review |
 
 ```
 $ python scripts/review_rubric.py --changed scripts/decisions.py scripts/sync_enforcement_to_projects.py scripts/fabrik_synced_manifest.py scripts/enforcement/_doc_registry.py CLAUDE.md templates/governance/CLAUDE.md commands/_sources/fabrik-spec.md commands/_fragments/chat-intake.md commands/_fragments/close-feedback.md docs/reference/decision-ledger.md
@@ -249,8 +257,10 @@ $ python scripts/review_rubric.py --changed scripts/decisions.py scripts/sync_en
 
 ## Evidence
 
-- Phase A: `scripts/enforcement/_doc_registry.py` docs-names set read at the :194 area
-  (`"docs/LESSONS_LEARNT.md"` neighbor rows); probe run this session:
+- Phase A: `scripts/enforcement/_doc_registry.py` read at the :194 area (`DocRow("docs/LESSONS_LEARNT.md",
+  "docs/LESSONS_LEARNT_TEMPLATE.md", frozenset({"universal"}), …)` — the row shape to mirror), :112
+  (template path relative to `templates/scaffold/`), :20 (template existence enforced by hub-side
+  tests — `tests/test_doc_registry.py`); probe run this session:
 
 ```
 $ python3 -c "import sys; sys.path.insert(0,'scripts/enforcement'); import _doc_registry as r; al=r.docs_allowlist(); print(len(al), [p for p in al if 'DECISIONS' in p.upper()])"
@@ -286,6 +296,16 @@ e505c20d fleet fix(scaffold): RESILIENCE §3b reframed as three provider-death O
 - Grounding passes: registry probe (16, no DECISIONS) · manifest/copier lines read · scaffold map lines
   read · fragment line numbers read · fabrik-lib no-fit re-confirmed via the spec's verdict table.
 - Not yet a fixed point: /fabrik-plan-review owes the independent convergence.
+
+## Review Pass Ledger (/fabrik-plan-review, solo native — NO-POOL)
+
+| Pass | scope | method | raised | edits | plan md5 |
+|---|---|---|---:|---:|---|
+| Pass 1 | full read + the 7 dispatched seams (registry DocRow shape/:20/:112 · copier :347/:354 · never-overwrite test · scaffold map enumerated-not-glob · corpus wiring lines · File Scope exclusion · read budget) | citation | 2 | 2 | 7d31a9e6 → … |
+| Pass 2 | scoped: the template-move cascade + budget number, cross-refs | citation | 0 | 0 | … |
+| Pass 3 | closing full sweep — every count re-derived (intake 5, behavior 7, 3 phase-review steps, budget 170198 re-measured, governance-file absence grepped 0) | method: re-derivation | 0 | 0 | 8e787ecd |
+| Pass 4 | gate: check_convergence at the flip demanded VERDICT cells in the Coverage Checklist (had "planned adjudication" prose) — rows re-stamped with the review's actual CLEAN/FIXED verdicts | gate | 1 | 1 | → 39e7c040 |
+| Pass 5 | confirm: gate re-run → 0 findings for this plan; md5 39e7c040 stable | method: re-derivation | 0 | 0 | 39e7c040 stable → CONVERGED |
 
 ## Residual unknowns
 
