@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — infrastructure docs reconciled to the single-key ob@ fleet (D-045) (2026-08-30)
+
+- `docs/infrastructure/vps-ai-sysadmin.md` (untouched since 2026-07-20 while the system it documents was rebuilt): the retired-rotation reality replaces the "⚠️ Not live yet" rollout runbook; the quota governor / broker / marshaller / exit-75 gate are named and pointed at their canonical runbook (not duplicated); the keepalive is corrected at 5 sites from a `claude -p ping` to the free `--probe-current` health probe; the vps1 "only 6 cron entries, backport deferred" asymmetry is closed (all 3 hosts carry all 8 — verified live); `sysadmin-actions.jsonl` recorded as present (was "does not exist", 3 months stale); model policy documented (`CLAUDE_SYSADMIN_MODEL=opus` / `CLAUDE_MORNING_MODEL=sonnet`); `QUOTA_RESERVE_PCT=80` added to the env template; Claude CLI 2.1.144→2.1.251; Files Manifest +13 files (9 missing runtime scripts incl. 4 cron routines the "everything needed to rebuild" table had always omitted).
+- `docs/infrastructure/vps-fleet-architecture.md`: § Host-level mechanisms gains the Claude quota-governance row.
+- `scripts/sysadmin/proactive-check.sh`: the `oauth_keepalive` watcher comment claimed the hourly cron "keeps the OAuth token fresh" — untrue since the ping retire, so the code and the doc disagreed at the root.
+
 ### Changed — manifesto bound into the CLAUDE.md contracts (D-044) (2026-08-30)
 
 - Hub + template decision-ledger duties: classify-at-mint (reversible/ONE-WAY), the one-way § Binding field block, Invariant-3 most-reversible-default, pointer to the canonical manifesto. Template § UNIVERSAL enumeration corrected seven→eight anchors (decision-ledger). fabrik-lib mailed to adopt the ledger duty (pre-blocked: no DECISIONS.md there).

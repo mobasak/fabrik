@@ -1,13 +1,44 @@
 # VPS AI System Administrator — Reference
 
-**Last Updated:** 2026-07-13 (`/fabrik-docs-review` — **aro-wake reframed as a push TRIGGER of the host sysadmin, NOT a third AI**: "Three AI layers" → two AIs (host sysadmin + per-project watchdog); the architecture diagram gains the aro-wake wake path and its PATH 2 corrected (Alertmanager → native `telegram_configs`, not Apprise); `watchdog/sidecar/` → `watchdog_sidecar/`; aro-wake **8 → 9** metrics; Step-3 scp list gains the rotation files; `claude-run.sh` manifest corrected (bot + aro-wake call `claude_rotate` directly).) **Prior:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus spoke federation LIVE (17 `job_name`s configured / 16 active as of the 2026-07-19 pushgateway restore); Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-07-09 (**Unified Claude entrypoint `claude-run.sh` + fleet auto-rotation shipped 2026-07-08** — see the boxed *Unified Claude invocation* note below + the *Rollout runbook*; **rotation + alerting hardened via `/fabrik-review` 2026-07-09** — corrupt-snapshot install guard + Apprise `--network fabrik` delivery gating. Prior: Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
+**Last Updated:** 2026-08-30 (`/fabrik-docs-review` — **the single-key ob@ + quota-governance rebuild reconciled against all 3 live hosts**: the VPS no longer rotates accounts (the *Rollout runbook* rewritten from "not live yet" to the retired-rotation reality); the keepalive is a FREE `--probe-current` health probe, **not** a `claude -p ping` (4 sites corrected); the governor/broker/marshaller/exit-75 gate now named + pointed at their canonical runbook; the vps1 "only 6 cron entries, backport deferred" asymmetry is **gone** (all 3 hosts carry all 8, verified live); `sysadmin-actions.jsonl` **exists** on all 3 (the "bot has never acted" note was 3 months stale); model policy split (`CLAUDE_SYSADMIN_MODEL=opus` diagnosis / `CLAUDE_MORNING_MODEL=sonnet` report); CLI v2.1.144→**2.1.251** fleet-wide; Files Manifest + Step-3 ship list gain the 6 missing files; the "Multi-VPS awareness — when VPS2 exists" gap contradicted the doc's own 3-host content.) **Prior:** 2026-07-13 (`/fabrik-docs-review` — **aro-wake reframed as a push TRIGGER of the host sysadmin, NOT a third AI**: "Three AI layers" → two AIs (host sysadmin + per-project watchdog); the architecture diagram gains the aro-wake wake path and its PATH 2 corrected (Alertmanager → native `telegram_configs`, not Apprise); `watchdog/sidecar/` → `watchdog_sidecar/`; aro-wake **8 → 9** metrics; Step-3 scp list gains the rotation files; `claude-run.sh` manifest corrected (bot + aro-wake call `claude_rotate` directly).) **Prior:** 2026-07-12 (`/fabrik-docs-review` reconciliation vs live fleet: Alertmanager sends to Telegram **natively** — it does NOT route via Apprise; Prometheus spoke federation LIVE (17 `job_name`s configured / 16 active as of the 2026-07-19 pushgateway restore); Backrest hook + Apprise `alerts` config **fixed** (Apprise was 204-ing every alert); `fabrik-compose-boot.service` reboot-race unit added fleet-wide; spoke `DOCKER-USER` drift recorded.) **Prior:** 2026-07-09 (**Unified Claude entrypoint `claude-run.sh` + fleet auto-rotation shipped 2026-07-08** — see the boxed *Unified Claude invocation* note below + the *Rollout runbook*; **rotation + alerting hardened via `/fabrik-review` 2026-07-09** — corrupt-snapshot install guard + Apprise `--network fabrik` delivery gating. Prior: Trio Phase 1+2+3+4 LIVE across the FULL FLEET since 2026-06-06; **Phase 5.1.a operator-reversal cron LIVE on full fleet 2026-06-07** via `detect_reversals.py` + `*/5 min` cron entry; **rate-limited 429 wakes now tracked** via `aro_wake_requests_total{status="rate_limited"}` + `AroWakeLowSuccessRate` denominator updated; **stale netdata scrape job removed** 2026-06-07 (caused overnight 24× Telegram flood); **6 bootstrap defenses shipped** including preflight SSH-user-transition trap detection in `bootstrap-vps.sh` + `bootstrap-hub.sh` + new rule pack `.windsurf/rules/core/90-bootstrap-scripts.md`; **DR drill MEASURED end-to-end 2026-06-07**: bootstrap-vps.sh → 3m 13s wall-clock, 9.3× under the ≤30 min target, 15/15 substantive end-state checks.)
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Status:** Live since 2026-05-20
 **Service:** `vps-sysadmin-bot.service` (systemd, `Restart=always`)
 **Bot:** Telegram (`@ocoron_bot`), same bot as Alertmanager notifications
-**Brain:** Claude Code at `/usr/local/bin/claude` (Max subscription, authenticated via `claude auth login`). Version drifts per host as Claude Code auto-updates — vps1 was last observed on v2.1.144; the dev box is on v2.1.153. Check the live value with `claude --version`.
+**Brain:** Claude Code at `/usr/local/bin/claude`, authenticated as **`ob@ocoron.com`** (Claude Max subscription; each host owns its OWN OAuth refresh chain, minted per-host with `claude /login` on 2026-08-30 — see § *Quota governance* below). Version drifts per host as Claude Code auto-updates — **v2.1.251 on all 3 hosts (verified 2026-08-30)**. Check the live value with `claude --version`.
 
-**Unified Claude invocation (2026-07-08):** every sysadmin script calls Claude through `scripts/sysadmin/claude-run.sh` — a drop-in for `claude` that (1) routes through `claude_rotate.py` so a usage/quota limit auto-rotates the active account, and (2) **always runs as the operator account** (`sudo -u ozgur -H` when the caller is root, direct when already ozgur) so **one** credential home `/home/ozgur/.claude` serves every caller. This matters because the cron runs `proactive-check.sh` / `morning-report.sh` / `weekly-security.sh` / `monthly-backup-verify.sh` as **root**, whose own `/root/.claude` has **no credentials** — before this those four scripts' `claude -p` silently failed to authenticate. The 3 pre-existing rotation callers (`bot.py`, `aro-wake/main.py`, `claude-keepalive-rotate.sh`) already run as ozgur through `claude_rotate` and are unchanged. See `docs/CONFIGURATION.md` → *Unified Claude entrypoint*.
+**Unified Claude invocation (2026-07-08, governor-gated since 2026-08-30):** every sysadmin script calls Claude through `scripts/sysadmin/claude-run.sh` — a drop-in for `claude` that (1) **consults the quota governor before every call** (§ *Quota governance* below), (2) routes through `claude_rotate.py`, and (3) **always runs as the operator account** (`sudo -u ozgur -H` when the caller is root, direct when already ozgur) so **one** credential home `/home/ozgur/.claude` serves every caller. This matters because the cron runs `proactive-check.sh` / `morning-report.sh` / `weekly-security.sh` / `monthly-backup-verify.sh` as **root**, whose own `/root/.claude` has **no credentials** — before this those four scripts' `claude -p` silently failed to authenticate. `bot.py`, `aro-wake/main.py` and `claude-keepalive-rotate.sh` already run as ozgur and call `claude_rotate` directly. See `docs/CONFIGURATION.md` → *Unified Claude entrypoint*.
+
+## Quota governance — the single-key ob@ model (2026-08-30)
+
+⚠️ **The VPS fleet does NOT rotate accounts.** Every host runs one system-wide `claude` authenticated as
+**`ob@ocoron.com`**, and the binding constraint is that subscription's **quota** — never an
+`ANTHROPIC_API_KEY`, never a per-call `$` cap. Account rotation (`manager-accounts/` snapshots,
+`claude_rotate.py --next`) remains a **WSL-dev-box** mechanism; the WSL→VPS credential sync was
+**disabled 2026-08-30**, and each host now owns its own ob@ refresh chain (per-host `claude /login`).
+Snapshot directories still present under `~/.claude/manager-accounts/` on the hosts are **inert residue**
+of the retired model — nothing on the VPS rotates onto them.
+
+Four cooperating parts keep the fleet under its caps **without ever capping the fix loop**:
+
+| Part | File | Role |
+|---|---|---|
+| **Governor** | `scripts/sysadmin/quota_governor.py` | Router — returns `ob@` \| `pool` \| `pool-diagnose` from live-or-cached headroom |
+| **Broker** | `scripts/sysadmin/claude_broker.py` | Completion-only `claude` for CONTAINERS (no host tools, no creds). **Tokens not yet minted** — the container half is idle |
+| **Marshaller** | `scripts/sysadmin/incident_context.py` | When ob@ is capped, bundles the incident into a read-only pool diagnosis (operator-gated) |
+| **Gate** | `scripts/sysadmin/claude-run.sh` | The chokepoint — a shed ROUTINE call exits **75** (`EX_TEMPFAIL`) without running claude |
+
+- **`QUOTA_RESERVE_PCT=80`** is pinned in `/opt/fabrik/.env.sysadmin` on all 3 hosts: routine work sheds to
+  the pool at ≥80% utilization on **any** window (5h, weekly, per-model). An **incident always runs** —
+  on ob@ with headroom, else escalated to `pool-diagnose`. The gate **fails OPEN**: a broken governor never
+  blocks the sysadmin loop.
+- **Exit 75 is normal, not an error.** A cron script that exits 75 was *deliberately shed*; the morning
+  report additionally falls back to sending its already-collected context as a **raw report** so the daily
+  heartbeat never dies.
+
+📖 **Canonical runbook (routing rules, telemetry, broker protocol, full env table):**
+[`docs/workstation/vps-claude-quota-governance.md`](../workstation/vps-claude-quota-governance.md) —
+maintained there, deliberately **not** duplicated here.
 
 ---
 
@@ -188,7 +219,7 @@ When deployed, Prometheus rule alerts route via **Alertmanager → Telegram (nat
 | `dr_store` | GitHub API `commits?per_page=1` on `mobasak/fabrik-dr-store` (W9 mirror) | `dr_store_stale[<d>d]` if last commit > 30 d ago | 30 d |
 | `cert_expiry` (existing, scrubbed in W10) | `openssl s_client` against domain list (now: `ocoron.com`, `status/monitor/errors.vps1.ocoron.com`; dropped stale `coolify.vps1.ocoron.com`) | `cert_expiring:<domain>:<d>d` | < 14 d to expiry |
 | `aro_wake` health | `GET http://<host-ip>:8201/health` on this host's aro-wake endpoint, only when `aro-wake.service` is `is-enabled` | `aro_wake_unhealthy[<host-ip>]` | health endpoint not 2xx within 5 s |
-| `oauth_keepalive` | CONTENT **and** mtime of `/var/log/claude-keepalive.log` — the hourly `claude-keepalive-rotate.sh` (pings via account rotation, writes a `KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>` token) keeps the OAuth token fresh AND lets the monitor detect a real auth/quota break (the mtime alone reads "fresh" straight through a 401 outage, since the cron refreshes it hourly) | `oauth_keepalive_stale[<age>s]` (cron dead) · `oauth_keepalive_never_ran` (file absent + cron >2 h old) · `oauth_keepalive_broken[<reason>]` (fresh mtime but a `KEEPALIVE_FAIL`/401/usage-limit token) | mtime > 90 min **OR** a FAIL/401/limit token in the log |
+| `oauth_keepalive` | CONTENT **and** mtime of `/var/log/claude-keepalive.log` — the hourly `claude-keepalive-rotate.sh` writes a `KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>` token so the monitor detects a real auth/quota break (the mtime alone reads "fresh" straight through a 401 outage, since the cron rewrites it hourly). **Since 2026-08-30 this is a pure HEALTH probe** — a quota-free `claude_rotate.py --probe-current --json` metadata GET; it no longer issues a `claude -p ping` and therefore no longer keeps the token warm (a regularly-used ob@ needs no warmth ping, and the ping burned the quota the governor exists to conserve) | `oauth_keepalive_stale[<age>s]` (cron dead) · `oauth_keepalive_never_ran` (file absent + cron >2 h old) · `oauth_keepalive_broken[<reason>]` (fresh mtime but a `KEEPALIVE_FAIL`/401/usage-limit token) | mtime > 90 min **OR** a FAIL/401/limit token in the log |
 
 **`dr_store` token requirement:** the watcher reads `GITHUB_TOKEN` (or `GH_TOKEN`) from `/opt/fabrik/.env.sysadmin` (preferred — it's root-readable and already in scope) or `/opt/fabrik/.env`. Token scope: fine-grained PAT with `Contents: Read` on `mobasak/fabrik-dr-store` only. **Until a token is added, the watcher logs a one-per-hour `WARN: dr_store watcher dormant` line to `/var/log/sysadmin-proactive.log` so the operator knows it's not running.** Adding it:
 
@@ -199,7 +230,9 @@ ssh vps 'sudo bash -c "echo GITHUB_TOKEN=ghp_xxx >> /opt/fabrik/.env.sysadmin"'
 
 **Wall-clock impact:** the W10 additions take ~3 s (1 restic call + 1 wg show + 1 curl). Total `proactive-check.sh` runtime ≈ 6 s on the live hub — well within the 15-min cron interval.
 
-**Live-state at W10 ship (2026-06-01 evening):** all watchers green. Hub backups 2 h old, mesh handshakes < 1 min, no certs < 14 d, dr_store dormant (no token yet). Action log file `/opt/fabrik/logs/sysadmin-actions.jsonl` does not exist — bot has never autonomously acted since 2026-05-20 deployment (safe default).
+**Live-state at W10 ship (2026-06-01 evening):** all watchers green. Hub backups 2 h old, mesh handshakes < 1 min, no certs < 14 d, dr_store dormant (no token yet).
+
+> **Superseded 2026-08-30:** the W10 note above also recorded that `/opt/fabrik/logs/sysadmin-actions.jsonl` did not exist ("bot has never autonomously acted"). It **exists on all 3 hosts today** — 1.6 MB on vps1, ~35–46 KB on the spokes. The bot has been logging conversations and actions for months; treat the file as present when writing any check against it.
 
 ## Multi-host scope (2026-05-31)
 
@@ -266,29 +299,31 @@ Default: **autonomous**. Acts first, reports after.
 |---|---|---|
 | `bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | Telegram bot — spawns Claude Opus per message, JSON output parsing, session management, action logging, health endpoint `:8017` |
 | `system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | Sysadmin brain — role, APIs, classification, playbooks, shift notes, criticality tiers, communication protocol, safety rules |
-| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | Required: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`. Secret fallback: `WATCHDOG_OPENROUTER_KEY` (used only when the Claude Code primary path is unreachable). Host identity (set by the unit + duplicated here for cron-fired scripts): `SYSADMIN_HOST_NAME`, `SYSADMIN_HOST_ROLE`, `SYSADMIN_HOST_IP`, `SYSADMIN_PEER_HOSTS`. Optional (with defaults): `SYSADMIN_PROJECT_DIR=/opt/fabrik`, `SYSADMIN_HEALTH_PORT=8017`, **`SYSADMIN_HEALTH_HOST=127.0.0.1`** (added W5 2026-06-01 — set to `10.99.0.1` to expose `:8017` on the WG mesh interface for future Gatus/Prometheus), `SYSADMIN_MODEL=opus`. Canonical template: `scripts/bootstrap/templates/env.sysadmin.template`. |
+| `.env.sysadmin` | `/opt/fabrik/.env.sysadmin` | Required: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`. Secret fallback: `WATCHDOG_OPENROUTER_KEY` (used only when the Claude Code primary path is unreachable). Host identity (set by the unit + duplicated here for cron-fired scripts): `SYSADMIN_HOST_NAME`, `SYSADMIN_HOST_ROLE`, `SYSADMIN_HOST_IP`, `SYSADMIN_PEER_HOSTS`. Optional (with defaults): `SYSADMIN_PROJECT_DIR=/opt/fabrik`, `SYSADMIN_HEALTH_PORT=8017`, **`SYSADMIN_HEALTH_HOST=127.0.0.1`** (added W5 2026-06-01 — set to `10.99.0.1` to expose `:8017` on the WG mesh interface for future Gatus/Prometheus), `SYSADMIN_MODEL=opus` (the bot's model). **Quota governance (2026-08-30): `QUOTA_RESERVE_PCT=80` is set on all 3 hosts**; `CLAUDE_SYSADMIN_MODEL=opus` / `CLAUDE_MORNING_MODEL=sonnet` select the cron models — full env table in the [governance runbook](../workstation/vps-claude-quota-governance.md). Canonical template: `scripts/bootstrap/templates/env.sysadmin.template`. |
 | Service unit | `/etc/systemd/system/vps-sysadmin-bot.service` | systemd service (`Restart=always`, `After=network.target docker.service`) |
 
 ### Scheduled Routines (cron — `/etc/cron.d/vps-sysadmin`)
 
-> **⚠ Canonical vs live state:** the canonical cron template (`scripts/bootstrap/templates/sysadmin-cron.template`) emits **all 8 routines on every host** — any host bootstrapped via `bootstrap-vps.sh` step_14 gets the full set. The hub-spoke asymmetry seen on the live fleet is a **pre-template artifact**: vps1 was set up by hand before the template existed and still carries only **6 entries** (no `claude-keepalive`, no `daily-digest`); vps2 and vps3 were bootstrapped from the template and carry all **8** (the 6 below + `claude-keepalive` at a hash-staggered minute + `daily-digest.sh` with a hash-staggered minute at 09:00 UTC). Backporting the 2 missing entries to vps1 is on the deferred list. The keepalive/digest cron *minutes* are derived from a SHA1 hash of the hostname (mod 60 / mod 30), so adding a 4th/5th host needs no edit.
+> **✅ Canonical == live (re-verified 2026-08-30, all 3 hosts):** the canonical cron template (`scripts/bootstrap/templates/sysadmin-cron.template`) emits **all 8 routines on every host**, and **every host now carries all 8** — the vps1 hub-spoke asymmetry recorded here previously (vps1 hand-built pre-template with only 6 entries, missing `claude-keepalive` + `daily-digest`) has been **backported and is closed**. Live minutes: keepalive `:27` (vps1) / `:11` (vps2) / `:44` (vps3); daily-digest `09:17` / `09:09` / `09:24` UTC. The keepalive/digest cron *minutes* are derived from a SHA1 hash of the hostname (mod 60 / mod 30), so adding a 4th/5th host needs no edit.
 
 **Core routines (all hosts):**
 
 | Script | Schedule | Uses Claude? | Purpose |
 |---|---|---|---|
 | `proactive-check.sh` | Every 15 min | Only on anomaly | 11 checks (10 PromQL + Prometheus connectivity) + cert expiry. Bash prefilter (zero tokens when healthy). Claude wakes, diagnoses, acts, reports only when something is wrong. |
-| `morning-report.sh` | Daily 08:00 | Always | Collects system state + trends + shift notes + yesterday's actions. Claude formats a concise morning briefing for Telegram. |
+| `morning-report.sh` | Daily 08:00 | Usually (`sonnet`) | Collects system state + trends + shift notes + yesterday's actions. Claude formats a concise morning briefing for Telegram. **On a governor shed it still sends** — the already-collected context goes out as a RAW report at zero Claude cost; only the prose is skipped, so the daily heartbeat never dies. |
 | `weekly-security.sh` | Monday 08:30 | Always | Runs `scripts/audit/03-security.sh`, Claude analyzes against `audit-prompts/03-security-hardening.md` checklist. Reports GREEN/YELLOW/RED. |
 | `weekly-maintenance.sh` | Sunday 03:00 | Never | Pure bash — checks dangling images/volumes, journal size, backup freshness, restart counts, stale containers, cert expiry. Reports what it found. |
 | `monthly-backup-verify.sh` | 1st of month 04:00 | Always | Runs `scripts/audit/06-backup.sh`, Claude analyzes against `audit-prompts/06-backup-disaster-recovery.md` checklist. Reports coverage gaps + recovery confidence. |
 | `detect_reversals.py` | Every 5 min | Never (data-only) | Phase 5.1.a operator-reversal correlator — joins watchdog `state.db` actions against `journalctl _COMM=sudo` operator docker commands within a 5-min window; writes matches to `/opt/fabrik/logs/lessons-pending.jsonl`. |
 
-**Template-added routines (every templated host; live on vps2 + vps3, deferred backport on vps1):**
+> **Model + governor policy (2026-08-30).** The four Claude-using routines reach ob@ through `claude-run.sh`, so the governor can **shed** any of them (exit `75`, no Claude call) when the reserve is hit — an exit-75 line in `/var/log/sysadmin-proactive.log` is a deliberate skip, not a failure. Models split by job: `CLAUDE_SYSADMIN_MODEL` (default **`opus`**) for the diagnosis surfaces — `proactive-check.sh`, `weekly-security.sh`, `monthly-backup-verify.sh` — and `CLAUDE_MORNING_MODEL` (default **`sonnet`**) for the morning report, which is a formatting job over pre-collected context. Both are set in `/opt/fabrik/.env.sysadmin`. The interactive bot reads its own `SYSADMIN_MODEL` (default `opus`, `bot.py:54`).
+
+**Template-added routines (live on all 3 hosts since the 2026-08-30 vps1 backport):**
 
 | Script | Schedule | Uses Claude? | Purpose |
 |---|---|---|---|
-| `claude-keepalive-rotate.sh` | Hourly at a hash-staggered minute — runs as `ozgur`, not root | Always | OAuth keepalive — pings `claude` **through account rotation** (`claude_rotate.py`: on a usage/quota limit, rotates to another `manager-accounts/` account and retries), keeping the credentials fresh, and writes a **content token** (`KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>`) to `/var/log/claude-keepalive.log` so the monitors detect a real 401/quota break, not just a stale mtime. Hash-staggered minute so hosts don't slam the API together. |
+| `claude-keepalive-rotate.sh` | Hourly at a hash-staggered minute — runs as `ozgur`, not root | **No** (quota-free) | **Auth/quota health probe.** Runs `claude_rotate.py --probe-current --json` — a free `api/oauth/usage` metadata GET, **no completion, zero quota** — and writes a content token (`KEEPALIVE_OK` / `KEEPALIVE_FAIL:<reason>`) to `/var/log/claude-keepalive.log` so the monitors detect a real 401/quota break, not just a stale mtime. ⚠️ Despite the filename it neither rotates (single-key ob@) nor pings: the `claude -p ping` was **retired 2026-08-30** because it burned the very quota the governor conserves. Hash-staggered minute so hosts don't slam the API together. |
 | `daily-digest.sh` | Daily 09:00 UTC at a hash-staggered minute | Always | Per-host daily roll-up (Tier A actions / escalations / reverts / consults / health heartbeats) — Telegrammed via the host's own `@SysAdminVPSn` bot. Staggered so per-host digests don't collide. |
 
 ### Operational Records (persistent across sessions)
@@ -758,6 +793,10 @@ scp scripts/sysadmin/bot.py \
     scripts/sysadmin/claude_rotate.py \
     scripts/sysadmin/claude-keepalive-rotate.sh \
     scripts/sysadmin/keepalive-status.sh \
+    scripts/sysadmin/quota_governor.py \
+    scripts/sysadmin/claude_broker.py \
+    scripts/sysadmin/incident_context.py \
+    scripts/sysadmin/quota_dashboard.py \
     vps:/opt/fabrik/scripts/sysadmin/
 
 # Make executable
@@ -797,10 +836,15 @@ SYSADMIN_HOST_ROLE=hub
 SYSADMIN_HOST_IP=<host-ip>
 SYSADMIN_PEER_HOSTS=<csv-of-peer-hostnames>
 
+# Quota governance (see docs/workstation/vps-claude-quota-governance.md)
+QUOTA_RESERVE_PCT=80
+
 # Optional — uncomment to override defaults
 # SYSADMIN_HEALTH_HOST=127.0.0.1   # set to 10.99.0.1 to expose health on WG mesh (W5, 2026-06-01)
 # SYSADMIN_HEALTH_PORT=8017
-# SYSADMIN_MODEL=opus
+# SYSADMIN_MODEL=opus              # model for the interactive Telegram bot
+# CLAUDE_SYSADMIN_MODEL=opus       # diagnosis crons (proactive/security/backup-verify)
+# CLAUDE_MORNING_MODEL=sonnet      # morning report (formatting job)
 # SYSADMIN_PROJECT_DIR=/opt/fabrik
 EOF
 chmod 600 /opt/fabrik/.env.sysadmin'
@@ -847,10 +891,10 @@ ssh vps 'sudo tee /etc/cron.d/vps-sysadmin > /dev/null << "EOF"
 # Monthly backup verification — 1st of month 04:00
 0 4 1 * * root /opt/fabrik/scripts/sysadmin/monthly-backup-verify.sh >> /var/log/sysadmin-proactive.log 2>&1
 
-# OAuth keepalive — hourly at a hash-staggered minute; runs as ozgur, not root.
-# Routed through claude-keepalive-rotate.sh — pings via account rotation (claude_rotate.py:
-# on a usage/quota limit, rotates to another manager-accounts/ snapshot) and writes a CONTENT
-# token (KEEPALIVE_OK / KEEPALIVE_FAIL:<reason>) to /var/log/claude-keepalive.log itself.
+# Auth/quota health probe — hourly at a hash-staggered minute; runs as ozgur, not root.
+# claude-keepalive-rotate.sh runs the FREE claude_rotate.py --probe-current --json metadata
+# GET (no completion, zero quota) and writes a CONTENT token (KEEPALIVE_OK /
+# KEEPALIVE_FAIL:<reason>) to /var/log/claude-keepalive.log itself.
 <KEEPALIVE_MINUTE> * * * * ozgur /opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh > /dev/null 2>&1
 
 # Daily digest — 09:00 UTC at a hash-staggered minute
@@ -904,48 +948,23 @@ ssh vps 'systemctl is-active vps-sysadmin-bot'  # should be "active"
 
 Send "status" on Telegram to confirm it survived.
 
-## Rollout runbook — unify all callers onto one account + enable rotation (operator-run)
+## Rollout runbook — RETIRED (rotation is no longer the VPS model)
 
-⚠️ **Not live yet.** The rotation code (`claude_rotate.py`, `claude-keepalive-rotate.sh`, `claude-run.sh` + the 4 wired root scripts) is committed, but the 3 running VPS still have the pre-rotation setup: the bare keepalive cron, **zero** `manager-accounts` snapshots (so rotation has nothing to rotate to), and root's `/root/.claude` has no creds (so the 4 root cron scripts' claude was silently broken). Run this once, from the **hub** (`/opt/fabrik`), to make all 3 VPS use one account (`/home/ozgur/.claude`) and auto-rotate. **Trigger-not-execute** — these are the operator's commands.
-
-**Prereq (WSL):** ≥2 account snapshots under `~/.claude/manager-accounts/` (mob@ + ob@ present; can@ optional — it joins by glob once captured, no code change).
-
-**1. Push fresh snapshots to every VPS** (rotation targets — the fleet has none today):
-```bash
-DRY_RUN=1 scripts/sysadmin/sync-claude-accounts-to-fleet.sh   # preview
-scripts/sysadmin/sync-claude-accounts-to-fleet.sh             # do it
-```
-
-**2. Deploy the updated scripts to each host** (sysadmin + aro-wake trees rsync dir-level, so `claude-run.sh` + the `claude_rotate.py` twin ship automatically):
-```bash
-for h in vps vps2 vps3; do
-  rsync -a --exclude __pycache__ /opt/fabrik/scripts/sysadmin/ ozgur@$h:/tmp/sysadmin/ \
-    && ssh ozgur@$h 'sudo rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/ && sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh'
-  rsync -a --exclude __pycache__ --exclude templates /opt/fabrik/scripts/aro-wake/ ozgur@$h:/tmp/aro-wake/ \
-    && ssh ozgur@$h 'sudo rsync -a --delete --exclude __pycache__ /tmp/aro-wake/ /opt/fabrik/scripts/aro-wake/ && sudo chown -R ozgur:ozgur /opt/fabrik/scripts/aro-wake'
-done
-```
-
-**3. Re-install the keepalive cron shim** — re-render `/etc/cron.d/vps-sysadmin` from `scripts/bootstrap/templates/sysadmin-cron.template` (swaps the bare `claude -p "ping"` line for `claude-keepalive-rotate.sh`). The 4 root scripts' cron lines are **unchanged** — they now call `claude-run.sh` internally.
-
-**4. Restart the services:**
-```bash
-for h in vps vps2 vps3; do ssh ozgur@$h 'sudo systemctl restart vps-sysadmin-bot aro-wake'; done
-```
-
-**5. Verify (one host):**
-```bash
-ssh ozgur@vps 'python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --list'                    # ≥2 accounts, one active
-ssh ozgur@vps 'sudo /opt/fabrik/scripts/sysadmin/claude-run.sh -p ping'                          # root→ozgur → OK (was 401/broken)
-# force a rotation → confirm active flips to the other account → claude-run.sh -p ping still OK
-```
-
-⚠️ **Standby-token validity** (residual): after the first sync, on one host rotate to a standby account and `claude-run.sh -p ping` — if it 401s, an idle-synced refresh token died between syncs; shorten the WSL sync cadence.
-
-> **Rotation identity, validity & 401 handling (`/fabrik-review` 2026-07-09; live-tested on the fleet).**
-> - **Validity = a usable OAuth token, NOT `organizationUuid`.** Newer Claude Code creds keep the org in `~/.claude.json`, so a valid account's `.credentials.json` has no `organizationUuid` (verified live: ob@ + the WSL active are this format; mob@ is the older org-bearing one). Rotation therefore treats "has `claudeAiOauth.accessToken`" as installable; only an empty / 0-byte / non-JSON / tokenless snapshot is refused. The install chokepoint (fail-soft — active + `.credentials.json.prev` left intact) is what makes an explicit `--switch <corrupt>` print `refusing to activate … unreadable/corrupt credentials` instead of bricking. (`--list` still lists a corrupt snapshot — it only checks the file exists; the guard is at rotate/switch time. The rollout verify above proves a standby is actually usable.)
-> - **Account identity** (to rotate to a *different* account) resolves: live access-token match → live `organizationUuid` (only when it uniquely identifies one snapshot) → a `.active-account` marker written under the lock on every install. An old-format active (fleet mob@) is always re-identified by its org (org never drifts across a token refresh); newer no-org accounts are tracked by the marker.
-> - **A 401 (dead creds) now rotates AND alerts.** A usage/quota limit rotates silently; a `401 Invalid authentication credentials` (the active account's login token is dead) ALSO rotates to a fresh standby **and** fires a one-shot Telegram alert naming the dead account + outcome (recovered to `<standby>`, or "giving up — refresh the fleet snapshots" if every account is dead). The alert is best-effort/fail-soft (stdlib `urllib` → Telegram Bot API, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_OWNER_ID` from env or `/opt/fabrik/.env.sysadmin`); no config/network/decode error can break rotation, and the bot token is never logged. Live-proven on vps1: mob@ (quota-limited) → auto-rotated → ob@ → `PONG`.
+> **Superseded 2026-08-30.** This section used to carry an operator runbook for pushing
+> `manager-accounts/` snapshots to the fleet and enabling account rotation, prefaced "⚠️ Not live yet."
+> Both halves are now false: the rollout **did** happen (every host runs `claude-run.sh`, and all 3 carry
+> 4 snapshot dirs), and rotation was then **retired on the VPS** in favour of the single-key `ob@` model —
+> so there is nothing left to roll out. The dead steps have been deleted rather than polished.
+>
+> **What replaced it:** each host owns its own `ob@` OAuth refresh chain (per-host `claude /login`), the
+> WSL→VPS credential sync is **disabled**, and quota pressure is handled by the governor
+> (§ *Quota governance* above) instead of by rotating accounts. The snapshot directories still on the
+> hosts are inert residue.
+>
+> **Account rotation still exists — on the WSL dev box only.** Its canonical reference (identity
+> resolution, corrupt-snapshot guard, 401-rotate-and-alert behaviour, the caps file) is
+> [`docs/workstation/claude-account-rotation.md`](../workstation/claude-account-rotation.md). Do not
+> re-derive it here; a VPS reader who needs rotation semantics is in the wrong document.
 
 ## Files Manifest (for backup/replication)
 
@@ -954,10 +973,22 @@ Everything needed to rebuild the sysadmin bot from scratch:
 | File | Repo location (WSL) | VPS location | Purpose |
 |---|---|---|---|
 | `scripts/sysadmin/bot.py` | `/opt/fabrik/scripts/sysadmin/bot.py` | same | Telegram bot + session management |
-| `scripts/sysadmin/proactive-check.sh` | `/opt/fabrik/scripts/sysadmin/proactive-check.sh` | same | Two-stage cron script |
-| `scripts/sysadmin/claude-run.sh` | `/opt/fabrik/scripts/sysadmin/claude-run.sh` | same | **Unified Claude entrypoint (2026-07-08)** — drop-in for `claude`; routes every sysadmin call through `claude_rotate.py` as the operator account. The 4 root cron scripts invoke Claude via this; `bot.py` and `aro-wake/main.py` call `claude_rotate.run_claude` directly (already run as `ozgur`). |
-| `scripts/sysadmin/claude_rotate.py` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | same | Rotation core — usage-limit auto-rotation across `manager-accounts/` snapshots (atomic 0600 swap, N-account walk, corrupt-snapshot guard) + the `--list`/`--switch`/`--next` CLI. Byte-identical twin at `scripts/aro-wake/claude_rotate.py`. |
-| `scripts/sysadmin/claude-keepalive-rotate.sh` | `/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh` | same | Hourly OAuth keepalive — pings Claude through rotation, writes the `KEEPALIVE_OK`/`KEEPALIVE_FAIL` content token. |
+| `scripts/sysadmin/proactive-check.sh` | `/opt/fabrik/scripts/sysadmin/proactive-check.sh` | same | Two-stage cron script (bash prefilter → Claude only on anomaly) |
+| `scripts/sysadmin/morning-report.sh` | `/opt/fabrik/scripts/sysadmin/morning-report.sh` | same | Daily 08:00 briefing (`sonnet`); falls back to a RAW report on a governor shed. |
+| `scripts/sysadmin/weekly-security.sh` | `/opt/fabrik/scripts/sysadmin/weekly-security.sh` | same | Monday 08:30 security patrol over `scripts/audit/03-security.sh`. |
+| `scripts/sysadmin/weekly-maintenance.sh` | `/opt/fabrik/scripts/sysadmin/weekly-maintenance.sh` | same | Sunday 03:00 pure-bash hygiene sweep (no Claude). |
+| `scripts/sysadmin/monthly-backup-verify.sh` | `/opt/fabrik/scripts/sysadmin/monthly-backup-verify.sh` | same | 1st-of-month 04:00 backup/DR verification over `scripts/audit/06-backup.sh`. |
+| `scripts/sysadmin/claude-run.sh` | `/opt/fabrik/scripts/sysadmin/claude-run.sh` | same | **Unified Claude entrypoint + governor gate** — drop-in for `claude`; consults `quota_governor.py` (a shed routine call exits `75` without running claude) then invokes `claude_rotate.py` as the operator account. The 4 root cron scripts invoke Claude via this; `bot.py` and `aro-wake/main.py` call `claude_rotate.run_claude` directly (already run as `ozgur`). |
+| `scripts/sysadmin/claude_rotate.py` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | same | Claude invocation core (`run_claude`) + the post-call usage capture and `--probe-current --json` headroom probe the governor and keepalive both read. Its **rotation** half (`--next`/`--switch` across `manager-accounts/`) is **dormant on the VPS** — single-key `ob@`, nothing to rotate to — and remains live only on the WSL dev box. Byte-identical twin at `scripts/aro-wake/claude_rotate.py`. |
+| `scripts/sysadmin/claude-keepalive-rotate.sh` | `/opt/fabrik/scripts/sysadmin/claude-keepalive-rotate.sh` | same | Hourly auth/quota **health probe** — free `--probe-current` metadata GET (no completion), writes the `KEEPALIVE_OK`/`KEEPALIVE_FAIL` content token. |
+| `scripts/sysadmin/keepalive-status.sh` | `/opt/fabrik/scripts/sysadmin/keepalive-status.sh` | same | The `keepalive_reason` classifier `proactive-check.sh` sources for the CONTENT half of the keepalive watcher. |
+| `scripts/sysadmin/quota_governor.py` | `/opt/fabrik/scripts/sysadmin/quota_governor.py` | same | **Quota governor** — the `ob@`/`pool`/`pool-diagnose` router `claude-run.sh` consults before every call. |
+| `scripts/sysadmin/claude_broker.py` | `/opt/fabrik/scripts/sysadmin/claude_broker.py` | same | Completion-only loopback broker for containers (token auth, per-caller budgets, fail-closed). Tokens not yet minted. |
+| `scripts/sysadmin/incident_context.py` | `/opt/fabrik/scripts/sysadmin/incident_context.py` | same | Incident marshaller — bundles a capped-ob@ incident into a read-only pool diagnosis. |
+| `scripts/sysadmin/quota_dashboard.py` | `/opt/fabrik/scripts/sysadmin/quota_dashboard.py` | same | Quota + governor-verdict dashboard. |
+| `scripts/sysadmin/daily-digest.sh` | `/opt/fabrik/scripts/sysadmin/daily-digest.sh` | same | Per-host daily roll-up Telegrammed via the host's own bot. |
+| `scripts/sysadmin/detect_reversals.py` | `/opt/fabrik/scripts/sysadmin/detect_reversals.py` | same | Phase 5.1.a operator-reversal correlator (`*/5 min` cron). |
+| `scripts/sysadmin/peer-protocol.md` | `/opt/fabrik/scripts/sysadmin/peer-protocol.md` | same | The `consult` peer-wake protocol aro-wake implements. |
 | `scripts/sysadmin/system-prompt.txt` | `/opt/fabrik/scripts/sysadmin/system-prompt.txt` | same | Claude Code role + rules |
 | `scripts/bootstrap/templates/vps-sysadmin-bot.service.template` | `/opt/fabrik/scripts/bootstrap/templates/vps-sysadmin-bot.service.template` | `/etc/systemd/system/vps-sysadmin-bot.service` (rendered) | Systemd service unit — renders `{{HOST_NAME}}` + `SYSADMIN_HOST_*`. (Legacy `ops/vps-sysadmin-bot.service` is superseded.) |
 | `.env.sysadmin` | — (VPS only, not in git) | `/opt/fabrik/.env.sysadmin` | Telegram token + owner ID + `WATCHDOG_OPENROUTER_KEY` + host-identity keys (template: `scripts/bootstrap/templates/env.sysadmin.template`) |
@@ -991,7 +1022,7 @@ Everything needed to rebuild the sysadmin bot from scratch:
 | Post-incident review | Structured RCA, tracks recurrence, verifies fix stuck | Shift notes — no structured follow-up | Low |
 | Runbook evolution | "Last time X happened, Y didn't work, so now we do Z" | Playbooks are static in system prompt | Low |
 | Proactive maintenance | "Schedule Loki compaction for Sunday 3am" | Only reacts, doesn't propose scheduled work | Low |
-| Multi-VPS awareness | "This pattern happened on VPS2 last month" | Single VPS only | Future (when VPS2 exists) |
+| Multi-VPS awareness | "This pattern happened on VPS2 last month" | **Partly closed** — vps2/vps3 have run their own bot + proactive checks since 2026-06-06, and vps1 queries fleet-wide Prometheus/Loki; what is still missing is *historical cross-host pattern memory* (each host's shift notes are its own) | Low |
 
 ### Honest rating
 

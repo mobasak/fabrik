@@ -310,12 +310,15 @@ fi
 
 # ── OAuth keepalive heartbeat (trio plan §2.5 + Lesson 75) ────────────────
 #
-# /etc/cron.d/vps-sysadmin runs claude-keepalive-rotate.sh once per hour to keep this
-# host's Claude Code OAuth token fresh (tokens go stale every ~4 days when idle) and to
-# write a CONTENT token (KEEPALIVE_OK / KEEPALIVE_FAIL:<reason>) to the log. Two failure
-# modes, both escalated: (a) mtime > 90 min → the cron itself is dead; (b) a fresh mtime
-# but a FAIL/401/usage-limit token → the ping runs but auth/quota is broken (the mtime-only
-# check reported "fresh" straight through a month-long 401 outage — the bug this fixes).
+# /etc/cron.d/vps-sysadmin runs claude-keepalive-rotate.sh once per hour to probe this
+# host's Claude auth/quota health and write a CONTENT token (KEEPALIVE_OK /
+# KEEPALIVE_FAIL:<reason>) to the log. Since 2026-08-30 it is a HEALTH probe only — a free
+# `claude_rotate.py --probe-current --json` metadata GET; the `claude -p ping` that used to
+# also keep the token warm was retired (it burned the quota the governor conserves), so this
+# watcher no longer implies token freshness. Two failure modes, both escalated: (a) mtime >
+# 90 min → the cron itself is dead; (b) a fresh mtime but a FAIL/401/usage-limit token → the
+# probe runs but auth/quota is broken (the mtime-only check reported "fresh" straight through
+# a month-long 401 outage — the bug this fixes).
 KEEPALIVE_LOG=/var/log/claude-keepalive.log
 if [ ! -e "$KEEPALIVE_LOG" ]; then
     # File doesn't exist yet — first-boot or cron never fired. Allow 2h grace.
