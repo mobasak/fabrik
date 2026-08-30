@@ -27,8 +27,9 @@ from typing import Literal, cast
 import httpx
 
 from . import _transport
-from ._client import ContentStallError
+from ._client import ContentStallError, TransientError
 from .mcp_tools import McpProvider, build_mcp_provider
+from .providers import resolve_provider
 from .select import _MAX_POOL_PRICE_PER_MTOK, provider_max_price
 from .tools import TOOL_SCHEMAS, execute_tool
 from .web_tools import WEB_TOOL_NAMES, WEB_TOOL_SCHEMAS, execute_web_tool
@@ -318,6 +319,7 @@ def run_loop(
     mcp_config: dict[str, dict[str, object]] | str | None = None,
     mcp_allow_unlisted: bool = False,
     mcp_provider: McpProvider | None = None,
+    provider: str = "openrouter",
 ) -> LoopOutcome:
     """Drive one subagent. ``run_fn`` defaults to the vendored OpenRouter transport
     (:func:`_transport.run`); inject a fake for offline tests.
@@ -342,6 +344,18 @@ def run_loop(
     """
     call = run_fn if run_fn is not None else _transport.run
     _defaults = _transport.Liveness()
+    # Pass `provider` to the transport ONLY when non-default (see the two call sites below),
+    # so an injected fixed-arity `run_fn` (a pre-seam offline fake without `**kw`) still works
+    # byte-identically on the default OpenRouter path — backward-compat is sacred. The real
+    # `_transport.run` carries the param with an "openrouter" default, so the default dispatch
+    # is unchanged either way.
+    _route_provider = provider != "openrouter"
+    # Validate + resolve the provider UP FRONT — before building messages or the MCP provider
+    # (which spawns live `npx` subprocesses). Resolving it later (after `build_mcp_provider`)
+    # would leak those subprocesses if an unknown provider raised before the try/finally that
+    # closes them. `AgentSpec.__post_init__` already validates on the sanctioned path; this
+    # guards a DIRECT `run_loop(provider=…)` caller (run_loop is a public export).
+    _pcfg = resolve_provider(provider)
 
     messages: list[dict[str, object]] = []
     if system:
@@ -394,17 +408,29 @@ def run_loop(
         merged["tools"] = advertised  # the loop OWNS tools — authoritative
     else:
         merged.pop("tools", None)  # single-shot / no web tools ⇒ advertise none
-    _apply_max_price(
-        merged, model
-    )  # U1: same-price ceiling (no `sort`), caller-override-safe
-    _apply_latency_prefs(
-        merged
-    )  # L2: opt-in latency-aware routing (deprioritize-safe, no `sort`)
+    # Provider-aware body hygiene: the `provider.*` routing object (max_price / latency / ignore)
+    # is OpenRouter-specific — sending it to a non-OR OpenAI-compatible endpoint (NVIDIA) is at
+    # best ignored, at worst a 400. Gate the injectors on the registry flag ("registry is data").
+    if _pcfg.sends_or_provider_object:
+        _apply_max_price(
+            merged, model
+        )  # U1: same-price ceiling (no `sort`), caller-override-safe
+        _apply_latency_prefs(
+            merged
+        )  # L2: opt-in latency-aware routing (deprioritize-safe, no `sort`)
+    else:
+        # NVIDIA's OpenAI-compatible stream returns usage ONLY when asked; without it
+        # out_tokens=0 → a spurious `recover_caps` "stalled at $0" reroute. OR ships usage
+        # automatically, so this is non-OR only (a caller-set stream_options still wins).
+        merged.setdefault("stream_options", {"include_usage": True})
     body: dict[str, object] | None = merged or None
     total_cost = 0.0
     cost_known = False
     total_out_tokens = 0
-    provider: str | None = None
+    # the SERVED-upstream provider (from the response stream, OR sends it in chunk 0) —
+    # distinct from the request `provider` param (which endpoint we DISPATCHED to). Kept
+    # separate so the two-provider semantics never collide (Phase C flywheel attribution).
+    served_provider: str | None = None
     last_text = ""
     tool_counts: dict[str, int] = {}
     start = time.monotonic()
@@ -421,10 +447,18 @@ def run_loop(
             cost,
             messages,
             error=error,
-            provider=provider,
+            provider=served_provider,
             tool_calls=dict(tool_counts),
             out_tokens=total_out_tokens,
         )
+
+    def _transport_failure(exc: Exception) -> LoopOutcome:
+        # A transport failure with budget remaining is a genuine error; only after the budget
+        # is spent is it a cap. Surfaces any partial text streamed before the failure.
+        text = _partial_fallback(last_text, exc)
+        if time.monotonic() - start >= wall_clock_s:
+            return _finish(text, "capped")
+        return _finish(text, "error", error=str(exc))
 
     # The whole turn loop is wrapped so the MCP provider is ALWAYS torn down: `_finish`
     # closes it on every normal return, but an unguarded raise in the loop (e.g. a
@@ -433,6 +467,11 @@ def run_loop(
     # a safe backstop even when `_finish` already closed.
     try:
         stall_retry_max = _env_int("SUBAGENT_STALL_RETRY_MAX", 2)
+        # Loop-level blind 429 backoff (non-OR only, per `_pcfg.blind_rate_backoff`): a free-tier
+        # endpoint 429s with no Retry-After and no rerouting, and `restart_max=0` disables the
+        # transport's own retry, so THIS loop owns the exponential backoff. Bounded by both this
+        # count and wall_clock. OR is UNCHANGED (its health-aware routing owns congestion).
+        rate_retry_max = _env_int("SUBAGENT_RATE_RETRY_MAX", 4)
         # L1 (plan-2): 20s (down from 60s) so a never-served/congested provider is detected fast, leaving
         # budget for reroutes within wall_clock. This does NOT clip a slow-but-healthy model: the window is
         # idle-since-last-OUTPUT and resets on ANY frame incl. streamed reasoning (see _client.py + the
@@ -454,6 +493,7 @@ def run_loop(
             attempt_body = body
             excluded: list[str] = []
             stalls = 0
+            rate_retries = 0
             while True:
                 remaining = wall_clock_s - (time.monotonic() - start)
                 if remaining <= 0:
@@ -470,7 +510,19 @@ def run_loop(
                     restart_max=0,
                 )
                 try:
-                    result = call(model, messages, body=attempt_body, liveness=liveness)
+                    result = (
+                        call(
+                            model,
+                            messages,
+                            body=attempt_body,
+                            liveness=liveness,
+                            provider=provider,
+                        )
+                        if _route_provider
+                        else call(
+                            model, messages, body=attempt_body, liveness=liveness
+                        )
+                    )
                     break
                 except ContentStallError as exc:
                     if stalls >= stall_retry_max:
@@ -479,25 +531,48 @@ def run_loop(
                         # before the stall (exc.partial) so a capped worker isn't silently empty.
                         return _finish(_partial_fallback(last_text, exc), "capped")
                     stalls += 1
-                    if exc.provider and exc.provider not in excluded:
+                    # provider.ignore is an OR routing object — only build it for a provider that
+                    # sends it. NVIDIA never names a served provider (exc.provider is None) so this
+                    # branch is already inert there, but gate it explicitly for safety.
+                    if (
+                        _pcfg.sends_or_provider_object
+                        and exc.provider
+                        and exc.provider not in excluded
+                    ):
                         excluded.append(
                             exc.provider
                         )  # nameable → exclude it and re-route
                         attempt_body = _with_ignore(body, excluded)
                     # else: zero-chunk hang, provider unknown → blind retry (attempt_body unchanged)
                     continue
+                except TransientError as exc:
+                    # Blind exponential 429 backoff for a non-OR free-tier endpoint (no Retry-After,
+                    # no rerouting). OR / non-429 / exhausted → the normal transport-failure path.
+                    if (
+                        exc.status == 429
+                        and _pcfg.blind_rate_backoff
+                        and rate_retries < rate_retry_max
+                        and wall_clock_s - (time.monotonic() - start) > 0
+                    ):
+                        rate_retries += 1
+                        backoff = (
+                            exc.retry_after
+                            if exc.retry_after is not None
+                            else float(2 ** (rate_retries - 1))
+                        )
+                        # clamp to the REMAINING wall-clock so a long Retry-After / exponential
+                        # step can't overrun the budget (and race the outer dispatch backstop).
+                        remaining = wall_clock_s - (time.monotonic() - start)
+                        time.sleep(max(0.0, min(backoff, 30.0, remaining)))
+                        continue
+                    return _transport_failure(exc)
                 except Exception as exc:  # noqa: BLE001 — transport must never crash the loop
-                    # The transport's ConsultError carries `.partial` — the text streamed before the
-                    # timeout/failure. Surface it (esp. for a single-shot finder whose ONE call ran
-                    # past wall_clock mid-stream) so the worker returns its partial output, not "".
-                    text = _partial_fallback(last_text, exc)
-                    # a failure only after the budget is spent is a cap; a fast failure with budget
-                    # remaining is a genuine error
-                    if time.monotonic() - start >= wall_clock_s:
-                        return _finish(text, "capped")
-                    return _finish(text, "error", error=str(exc))
+                    # The transport's ConsultError carries `.partial` — surfaced by
+                    # `_transport_failure` (esp. for a single-shot finder whose ONE call ran past
+                    # wall_clock mid-stream) so the worker returns its partial output, not "".
+                    return _transport_failure(exc)
             turns += 1
-            provider = result.provider or provider
+            served_provider = result.provider or served_provider
 
             if result.error:
                 return _finish(last_text, "error", error=result.error)
@@ -529,7 +604,7 @@ def run_loop(
                         {
                             "turns": turns,
                             "cost_usd": total_cost if cost_known else None,
-                            "provider": provider,
+                            "provider": served_provider,
                             "tools": [
                                 cast(
                                     "dict[str, object]", tc.get("function") or {}
@@ -597,7 +672,19 @@ def run_loop(
                     ),
                     restart_max=0,
                 )
-                fin = call(model, fin_messages, body=fin_body, liveness=fin_liveness)
+                fin = (
+                    call(
+                        model,
+                        fin_messages,
+                        body=fin_body,
+                        liveness=fin_liveness,
+                        provider=provider,
+                    )
+                    if _route_provider
+                    else call(
+                        model, fin_messages, body=fin_body, liveness=fin_liveness
+                    )
+                )
                 if fin.cost_usd is not None:
                     total_cost += fin.cost_usd
                     cost_known = True

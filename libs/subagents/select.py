@@ -227,6 +227,33 @@ _RANK_CACHE: dict[str, tuple[float, dict[str, list[str]]]] = {}
 _ROW_RE = re.compile(r"^\|(.+)\|$")
 
 
+#: Task kinds whose worker is asked to GROUND a claim in the repo — the only ones the canary
+#: multiplier applies to. A `code` or `text` worker is not being asked to cite anything, so a
+#: grounding score is not evidence about it (spec criterion: absence of signal is never a penalty,
+#: and neither is irrelevance of signal).
+_GROUNDED_TASK_KINDS = frozenset({"review", "docs", "plan"})
+#: What a model scoring below the grounding threshold is worth, relative to its rank position.
+_UNGROUNDED_PENALTY = 0.5
+
+
+def _grounding_is_below_threshold(cell: str) -> bool | None:
+    """Read one `grounding` cell. ``True`` = below threshold, ``False`` = at/above, ``None`` = no signal.
+
+    The hub renders `✓` (avg ≥ 2.5), `✗(X.XX)` (below, two decimals) or `—` (no / thin / stale data).
+    ``None`` is returned for `—` AND for any cell that is not a grounding cell at all — which is how a
+    doc WITHOUT the column is handled without parsing the header: the value in that position is then
+    `quality_tier` (an integer) or similar, matches none of these shapes, and reads as no signal.
+    Absence of the column must never be a penalty, so "unrecognised" and "no data" collapse to the
+    same answer deliberately.
+    """
+    cell = cell.strip().strip("`")
+    if cell.startswith("✗"):
+        return True
+    if cell.startswith("✓"):
+        return False
+    return None
+
+
 def load_task_ranking(
     path: str | None = None, *, min_n: int = 0, max_age_days: int | None = None
 ) -> dict[str, list[str]]:
@@ -260,6 +287,8 @@ def load_task_ranking(
                 return {}
     valid = set(TASK_KINDS)
     out: dict[str, list[str]] = {}
+    penalised: dict[str, set[str]] = {}
+    scores: dict[str, dict[str, float | None]] = {}
     current: str | None = None
     in_fence = False
     for line in text.splitlines():
@@ -304,10 +333,60 @@ def load_task_ranking(
         n = int(n_cell) if n_cell.isdecimal() else 0
         if min_n and n < min_n:
             continue
+        # ⚠️ `grounding` is SECOND-TO-LAST; `n` stays last, which is this parser's own contract and
+        # why the hub put the new column where it did — an older vendored copy reading `cells[-1]`
+        # is unaffected. Verified against the live doc's header:
+        #   | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
+        below = _grounding_is_below_threshold(cells[-2]) if len(cells) >= 3 else None
+        # `shrunk_q` (col 3) is the doc's own score, and the spec says `score *= 0.5`. Rank POSITION
+        # cannot stand in for it: with two rows, halving the leader gives 2×0.5 = 1.0 against the
+        # runner-up's 1×1.0 = 1.0 — a tie, so a stable sort keeps the ungrounded model first and the
+        # penalty does nothing at all. Measured on the spec's own seed case before this line existed.
+        q_cell = cells[2].strip("`") if len(cells) > 2 else ""
+        try:
+            q: float | None = float(q_cell)
+        except ValueError:
+            q = None
         bucket = out.setdefault(current, [])
         if model not in bucket:  # dedup, preserving first-seen (best) rank order
             bucket.append(model)
-    return {k: v for k, v in out.items() if v}
+            penalised.setdefault(current, set())
+            scores.setdefault(current, {})[model] = q
+            if below and current in _GROUNDED_TASK_KINDS:
+                penalised[current].add(model)
+    # ⚠️ THE PENALTY IS APPLIED HERE, AT LOAD, NOT IN `pick_models` — and the reason is the return
+    # type. `pick_models` receives `ranking` as `{task: [models]}`, which carries no grounding data,
+    # so applying it there would mean widening this function's return shape. That shape is consumed by
+    # ~49 vendored copies; changing it is a fleet-wide break to add one multiplier. Re-ordering
+    # instead keeps the contract byte-identical and makes the caller's own idiom
+    # (`pick_models("review", n, ranking=load_task_ranking(doc))`) pick it up with no change at all.
+    #
+    # Rank position IS the score here (there is no numeric score to multiply), so a model's weight is
+    # its distance from the end of the list and the penalty halves it. `sorted` is STABLE, so with no
+    # penalised model the order is unchanged — which is what makes a doc without the column, or one
+    # where every model is `✓`/`—`, a guaranteed no-op rather than a hopefully-no-op.
+    ranked: dict[str, list[str]] = {}
+    for kind, models in out.items():
+        if not models:
+            continue
+        bad = penalised.get(kind, set())
+        if not bad:
+            ranked[kind] = models
+            continue
+        kind_scores = scores.get(kind, {})
+        if any(kind_scores.get(m) is None for m in models):
+            # No usable score column ⇒ no defensible way to apply a multiplier, so DON'T. Absence of
+            # signal is never a penalty (spec criterion 4), and a rank-position stand-in is exactly
+            # what made the multiplier a silent no-op in the two-row case.
+            ranked[kind] = models
+            continue
+        ranked[kind] = sorted(
+            models,
+            key=lambda m: (kind_scores[m] or 0.0)
+            * (_UNGROUNDED_PENALTY if m in bad else 1.0),
+            reverse=True,
+        )
+    return ranked
 
 
 # Canonical hub location of the daily-refreshed ranking. When ``SUBAGENT_SELECTION_DOC`` is unset but

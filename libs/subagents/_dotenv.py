@@ -16,9 +16,14 @@ Design guarantees:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
+
+from ._repo import repo_problem
+
+logger = logging.getLogger(__name__)
 
 # The ONLY keys autoloaded — exactly what subagents reads (transport, flywheel, web/MCP tools,
 # selection doc, live pricing). NOT a general dotenv loader: we never import unrelated secrets.
@@ -145,6 +150,15 @@ def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
     project with no per-repo edit, while a project can still override it in its own `.env`. Returns
     the keys it set. Never raises."""
     loaded: list[str] = []
+    # ⚠️ WARN, never raise — "Never raises" above is a contract callers rely on (``__init__``
+    # autoloads on import). But a bad ``repo`` here produced EXACTLY the reported symptom: a bare
+    # name walks up from a directory that does not exist, finds no ``.env``, and returns [] —
+    # silently keyless, indistinguishable from "no .env configured". This is a PUBLIC export the
+    # README documents as standalone-callable, so the dispatch seams do not cover it; the shared
+    # predicate in ``_repo`` keeps this answer and theirs from drifting apart.
+    problem = repo_problem(repo)
+    if problem is not None:
+        logger.warning("subagents.load_env: %s — loaded no keys from a project .env", problem)
     proj = _find_dotenv(
         repo
     )  # project .env — more specific → applied FIRST (wins over the shared)

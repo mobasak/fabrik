@@ -29,6 +29,8 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+from ._repo import resolve_repo
+
 # Ownership sidecar: `<base>/.owner-<agent_id>` records the PID that created a worktree, so the GC can
 # tell a LIVE agent's worktree (owner still running) from an ORPHAN (owner dead) — dir mtime is a
 # creation-time proxy, NOT a liveness signal. A SIBLING file (not inside the worktree) → never in
@@ -91,6 +93,11 @@ def create_worktree(repo: str, agent_id: str, *, base: str = "HEAD") -> str:
     ``worktree add`` is serialized cross-process (see :func:`_repo_worktree_lock`) so concurrent
     orchestrators in one repo don't contend on git's registry.
     """
+    # ⚠️ BEFORE the mkdir. `run_agents` already resolved `repo`, but this function is importable and
+    # is cited by name in this package's own design docs, so a direct caller reaches the same
+    # `parents=True` that creates the stray `<cwd>/<name>/` the dispatch seams exist to prevent —
+    # measured: a bare name here left the stray dir behind even though `git worktree add` then failed.
+    repo = resolve_repo(repo)
     wt = Path(repo) / ".tmp" / "subagents" / agent_id
     wt.parent.mkdir(parents=True, exist_ok=True)
     with _repo_worktree_lock(repo):

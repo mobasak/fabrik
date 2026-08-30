@@ -9,6 +9,23 @@ httpx==0.28.1          # sync + async OpenRouter client with native SSE streamin
 # so the module runs JSONL-only without it:
 # psycopg[binary]>=3.1
 #
+# ⚠️ ADJUDICATION (2026-08-28, module owner): "optional driver" + "recording is MANDATORY for pool
+# use" cannot both be true, and the contradiction has now cost two consumers real runs — one with 59
+# unrecorded runs, one with 517. The RULING: the driver stays OPTIONAL and the DUTY becomes
+# CONDITIONAL on it, rather than the reverse.
+#
+# Why not simply declare it required: this module's whole value is that it vendors into a project with
+# ONE hard dependency (httpx) and no database. Making psycopg mandatory would force a build dependency
+# on every consumer that never enables the sink — the majority — to serve a flywheel they do not use.
+#
+# What that costs, stated rather than discovered: a project that ENABLES the sink (sets
+# SUBAGENT_RUNS_DSN) and has not installed psycopg records NOTHING, silently, run after run. The duty
+# is therefore enforced where the intent is expressed — at the point a DSN is configured — not at
+# import time. Both diagnostic paths now name the missing driver as cause #0 (the cheapest check),
+# and `flush_outbox(reason_sink=...)` reports a REASON rather than a bare 0.
+#
+# If you set SUBAGENT_RUNS_DSN, install this. If you do not, ignore it — that is the whole rule.
+#
 # OPTIONAL — MCP-client research tools (AgentSpec.mcp_servers). Lazy-imported, and stdio
 # servers additionally need Node/`npx` on the host; absent (or too old to expose
 # streamablehttp_client) ⇒ ImportError is caught and MCP is disabled (no crash). The

@@ -15,8 +15,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
+
+
+def _is_openrouter_host(base_url: str) -> bool:
+    """True iff ``base_url``'s HOST is OpenRouter (exact host or a ``*.openrouter.ai`` subdomain).
+    A host match, not a prefix — so ``https://openrouter.ai.evil.example`` does NOT qualify."""
+    host = (urlparse(base_url).hostname or "").lower()
+    return host == "openrouter.ai" or host.endswith(".openrouter.ai")
 
 __all__ = [
     "OpenRouterClient",
@@ -653,7 +661,12 @@ class OpenRouterClient:
         cost = acc.usage.get("cost")
         if isinstance(cost, (int, float)) and not isinstance(cost, bool):
             return float(cost), False
-        if allow_blocking and acc.gen_id:
+        # The /generation cost-recovery endpoint is OpenRouter-specific; a non-OR OpenAI-compatible
+        # endpoint (NVIDIA) has no such route, so skip the blocking GET there (it would 404 + stall
+        # ~6s). NVIDIA is $0/free anyway, so cost_unknown is the honest, harmless result. Match on
+        # the URL HOST (not a prefix — `openrouter.ai.evil.example` must not slip through); base_url
+        # comes from the provider registry.
+        if allow_blocking and acc.gen_id and _is_openrouter_host(self._base_url):
             recovered = self._fetch_generation_cost(acc.gen_id)
             if recovered is not None:
                 return recovered, False

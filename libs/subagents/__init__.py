@@ -41,10 +41,18 @@ from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
 from .pg_ledger import (
     SUBAGENT_RUNS_DDL,
+    agent_ids_present,
     flush_outbox,
     record_agent_run,
     record_run,
     set_quality,
+    unscored_agent_ids,
+)
+from .providers import (
+    ProviderConfig,
+    UnknownProviderError,
+    known_providers,
+    resolve_provider,
 )
 from .select import (
     TASK_KINDS,
@@ -87,9 +95,19 @@ __all__ = [
     "record_agent_run",
     "set_quality",
     "flush_outbox",
+    # ⚠️ THE FIX THAT STOPPED ONE LAYER SHORT. These two were added to `pg_ledger.__all__` with a
+    # comment saying "a public-looking name that is not exported is a trap for the consumer who needs
+    # it most" — and then not exported HERE, which is the import path the README actually prints. The
+    # README snippet raised ImportError against the shipped package. Same defect, one module up.
+    "agent_ids_present",
+    "unscored_agent_ids",
     "audit_unrecorded",
     "load_env",
     "env_status",
     "SUBAGENT_RUNS_DDL",
     "SAFE_RESEARCH_SERVERS",
+    "resolve_provider",
+    "known_providers",
+    "ProviderConfig",
+    "UnknownProviderError",
 ]

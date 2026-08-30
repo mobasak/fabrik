@@ -68,7 +68,21 @@ _INSERT = (
     "INSERT INTO subagent_runs "
     "(project, agent_id, task_type, model, provider, status, cost_usd, turns, "
     "latency_s, quality_score, tool_calls, session_id) "
-    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)"
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s) "
+    # UNTARGETED on purpose. `subagent_runs` has no unique index on agent_id today, and the hub
+    # reported 995 duplicate agent_ids table-wide (review 205, deploy-triad-gateA 93, …) — any
+    # repeated write of one agent_id duplicated, because nothing rejected it. `ON CONFLICT
+    # (agent_id) DO NOTHING` would be a syntax error against the table as it stands, which is
+    # what made this look like it needed a coordinated two-repo change and therefore stall.
+    #
+    # The bare form needs no coordination: verified against a live Postgres that it is VALID
+    # with no unique constraint (a harmless no-op — 2 inserts, 2 rows) and dedupes the instant
+    # the index exists (2 inserts, 1 row). So it ships now, inert, and starts working by itself
+    # the moment the table's owner adds the constraint. No flag day, no lockstep release.
+    #
+    # ⚠️ It does NOT fix the 995 rows already there; those need a dedupe pass by whoever holds
+    # the DSN. This only stops the count growing.
+    "ON CONFLICT DO NOTHING"
 )
 # The `_INSERT` column order — the outbox serializes a row as a name→value dict so `flush_outbox`
 # can rebuild the exact tuple regardless of dict ordering. Keep in lockstep with `_INSERT`.
@@ -139,17 +153,78 @@ def _is_transient_db_error(exc: BaseException) -> bool:
     retry, whereas a mis-classified rejection retires a good row into quarantine where
     nothing will look for it.
     """
-    name = type(exc).__name__
-    if name in {"OperationalError", "InterfaceError", "PoolError", "AdminShutdown"}:
+    # ⚠️ WALK THE MRO, DO NOT MATCH THE LEAF NAME. This compared `type(exc).__name__` against the
+    # base-class names — and psycopg NEVER raises those bases for a real rejection. It raises
+    # SQLSTATE subclasses: `UniqueViolation`, `NotNullViolation`, `ForeignKeyViolation`,
+    # `CheckViolation`, `InvalidTextRepresentation`. None of their leaf names is `IntegrityError`, so
+    # EVERY genuine row rejection fell through to the default and was classified TRANSIENT — never
+    # quarantined, retried on every flush, failing identically forever. Exactly the "blocking forever"
+    # outcome the quarantine exists to prevent, sitting underneath the two rounds spent fixing the
+    # batch-gating side of the same problem. Verified against the installed psycopg 3.3.3: 6 of 6
+    # rejection classes misclassified.
+    #
+    # It survived every test because the tests define `class IntegrityError(Exception)` by hand — a
+    # fixture that matches the deny-list by construction. Offline mocks hide real-library semantics;
+    # this repo recorded that lesson once already, in ses_transport.
+    names = {c.__name__ for c in type(exc).__mro__}
+    if names & {"OperationalError", "InterfaceError", "PoolError", "AdminShutdown"}:
         return True
+    # ⚠️ THE POISON FAMILY IS CHECKED BEFORE THE TEXT HEURISTIC, and the original order was the bug.
+    # A CLASS is definitive; a substring is a guess. With the text test running first, an
+    # `IntegrityError` whose message merely NAMES a constraint containing "connection" —
+    # `duplicate key value violates unique constraint "subagent_runs_agent_connection_uidx"` — was
+    # classified TRANSIENT. The consequence is the file's own worst bug re-opened by a different
+    # root cause: `all_accounted` goes False, `.flushing` is kept, and on the next flush the rows
+    # that DID commit are re-inserted while the poison row fails identically forever. The docstring
+    # already promised class-based classification; now the code does it.
+    if names & {"IntegrityError", "DataError", "ValueError"}:
+        return False
+    # ⚠️ `ProgrammingError` IS BOTH THINGS, AND SPLITTING IT NEEDS THE SQLSTATE — NOT THE CLASS.
+    # An earlier revision dropped it from the poison set on the argument that "the INSERT is a module
+    # constant, so a ProgrammingError cannot be specific to one row". That argument is FALSE, and a
+    # live reproduction against a real Postgres proved it: psycopg raises a bare, leaf
+    # `ProgrammingError` CLIENT-SIDE when a parameter value cannot be adapted —
+    # `_adapters_map.py:227`, "cannot adapt type 'dict' using placeholder '%s'". That is as
+    # row-specific as a rejection gets, and treating it as transient retried the row forever: the
+    # very defect the MRO fix above was written to close, reopened one commit later by its own
+    # "mirror". Two rounds of this file's history are the same lesson — a claim about what CANNOT
+    # happen deserves an execution, not a plausible sentence.
+    #
+    # The discriminator is provenance, not type: an error raised BY THE SERVER carries a `sqlstate`
+    # (psycopg3) / `pgcode` (psycopg2); one raised client-side before anything was sent does not.
+    #   · no sqlstate  → the driver refused THIS ROW's values      → poison, quarantine it
+    #   · has sqlstate → the server refused the STATEMENT (e.g. `UndefinedColumn` 42703 against a
+    #     table predating `session_id`) → an environment problem every row shares, whose documented
+    #     recovery is `ALTER TABLE` after which the queued rows flush. Quarantining those would move
+    #     the whole outbox out of the retry path recovery depends on.
+    # Verified against the installed driver: psycopg has 44 bare-`ProgrammingError` raise sites and
+    # every one is client-side (conninfo parsing, cursor state, query building, row factories);
+    # server errors arrive only as SQLSTATE-mapped subclasses, which carry the code on the CLASS.
+    #
+    # TWO RESIDUALS, stated rather than discovered later:
+    #  1. a schema mismatch retries until the operator migrates — recoverable, which quarantine is not.
+    #  2. of the client-side sites reachable from `cur.execute(_INSERT, params)`, one is NOT
+    #     row-specific: a placeholder/parameter COUNT mismatch, i.e. `_INSERT` and `_COLS` disagreeing.
+    #     That would quarantine the whole batch. It is a module bug that can never succeed on retry,
+    #     so quarantine (inspectable, loud — a quarantine file appears where none was) is the better
+    #     of the two bad outcomes; it is named here so the next reader does not rediscover it as a
+    #     surprise.
+    # `is not None`, not truthiness: an empty-string sqlstate is still PROVENANCE — it says the server
+    # spoke. Truthiness would read `""` as "no code at all" and quarantine a server-raised error,
+    # stranding the outbox outside the retry path. Unreproducible against a live Postgres (the wire
+    # protocol always populates the field), which is exactly why it is worth spelling out rather than
+    # leaving to a reader to re-derive.
+    if names & {"ProgrammingError", "NotSupportedError"} and (
+        getattr(exc, "sqlstate", None) is None and getattr(exc, "pgcode", None) is None
+    ):
+        return False
     text = str(exc).lower()
     if any(k in text for k in ("could not connect", "server closed", "connection", "timeout")):
         return True
-    # Rejections of the ROW: constraint/type/column problems. Anything explicitly in this
-    # family is poison; anything else falls through to transient.
-    return name not in {
-        "IntegrityError", "DataError", "ProgrammingError", "NotSupportedError", "ValueError",
-    }
+    # Unknown class, no connection-shaped text: treat as TRANSIENT — the safe direction, because a
+    # mis-classified transient costs one retry while a mis-classified rejection retires a good row
+    # into quarantine where nothing will look for it.
+    return True
 
 
 def _flush_row_by_row(
@@ -175,6 +250,7 @@ def _flush_row_by_row(
     landed: list[dict[str, object]] = []
     poison: list[tuple[dict[str, object], str]] = []
     transient = False
+    quarantined: list[tuple[dict[str, object], str]] = []
     for r in rows:
         conn = None
         try:
@@ -202,13 +278,54 @@ def _flush_row_by_row(
                 with contextlib.suppress(Exception):
                     conn.close()
 
-    if poison and not transient:
-        with contextlib.suppress(Exception):
+    # ⚠️ POISON IS A PROPERTY OF THE ROW, NOT OF THE BATCH. This read `if poison and not transient:`,
+    # so a definitively-rejected row that merely SHARED a batch with a flaky one was not quarantined —
+    # it was folded back into the retry set and re-attempted on every flush, invisible to the
+    # quarantine file the README tells operators to inspect, for as long as the intermittent failures
+    # continued. The docstring above promises the opposite ("inspectable rather than either lost or
+    # blocking forever"). Classification is already by error CLASS, deliberately (`_is_transient_db_error`
+    # fails OPEN toward transient), so a row that reached `poison` was rejected on its own merits and
+    # the neighbouring outage does not change that.
+    if poison:
+        # ⚠️ THE SUPPRESSED WRITE WAS A DELETE. This block quarantined poison rows inside
+        # `contextlib.suppress(Exception)` and returned `all_accounted=True` REGARDLESS — and the
+        # caller then unlinks `.flushing`. So when the quarantine write failed (a read-only or full
+        # outbox dir, a path collision) the row was in neither the DB, nor the quarantine, nor the
+        # retry path: destroyed, while `flush_outbox` returned a POSITIVE count and an empty
+        # `reason_sink`. That inverts this file's own premise — "inspectable rather than either lost"
+        # — and these are the scored rows the outbox exists to protect.
+        # A quarantine that did not happen is NOT an accounting: report it unfinished and keep
+        # `.flushing`, so the rows are retried instead of silently dropped.
+        try:
             q = base / "pg_outbox.quarantine.jsonl"
             with q.open("a", encoding="utf-8") as fh:
                 for r, why in poison:
                     fh.write(json.dumps({"row": r, "error": why}, default=str) + "\n")
                 fh.flush()
+        except Exception:  # noqa: BLE001 — could not preserve them, so do not declare them accounted
+            # ⚠️ AND NARROW THE RETRY SET, or the previous fix trades a LOSS for an unbounded
+            # DUPLICATE. Returning `all_accounted=False` makes the caller keep `.flushing` — which
+            # still holds the rows that ALREADY LANDED in their own committed per-row transactions.
+            # If the quarantine dir stays unwritable (read-only mount, full disk), every subsequent
+            # flush re-inserts those rows again, forever. Reproduced: two flushes, `good-1` committed
+            # twice, and it does not converge. The module's at-least-once tolerance is scoped to a
+            # crash between commit and cleanup — bounded, and once.
+            # So rewrite `.flushing` down to the UNACCOUNTED rows only. The poison row is still
+            # retried (and re-quarantined the moment the dir is writable again); the landed ones are
+            # not. If THIS write also fails we are on a wholly unwritable dir and fall back to the
+            # old behaviour — duplicates, never loss — which is the right way round.
+            # ⚠️ EVERYTHING NOT LANDED, not just the poison rows. This named `poison` alone, which was
+            # equivalent while the gate above read `if poison and not transient:` — the branch could
+            # only be reached with zero transient rows. Widening that gate (correctly) made this
+            # branch reachable WITH transient rows present, and it then rewrote `.flushing` to the
+            # poison rows only: a transiently-failed row was not landed, not quarantined (the write
+            # is what just failed) and no longer in the retry set. It vanished, silently, against a
+            # module that promises "duplicates, never loss". A fix that widens a condition owes an
+            # audit of every branch that condition now reaches.
+            _landed = {id(r) for r in landed}
+            _narrow_flushing(base, [r for r in rows if id(r) not in _landed])
+            return landed, False
+        quarantined = list(poison)
     # A transient failure anywhere means the batch is NOT finished: report nothing landed so
     # `.flushing` is retried intact, rather than declaring partial success and dropping the
     # rows that never got their chance.
@@ -218,9 +335,46 @@ def _flush_row_by_row(
     # landed, not quarantined, not retried. It simply vanished, and these are the scored rows
     # the outbox exists to protect.
     if transient:
-        return [], False  # nothing is finished; `.flushing` must survive intact
+        # ⚠️ THE MIRROR OF THE QUARANTINE CASE, and the first fix closed only one of the two. "Nothing
+        # is finished" is true of the BATCH and false of the ROWS: everything in `landed` committed in
+        # its own transaction before the connection died, so retrying the file intact re-inserts them
+        # on every subsequent flush. Keep exactly what is still owed.
+        done = {id(r) for r in landed}
+        # …and drop the quarantined rows too, or the transient path re-adds what we just filed.
+        done |= {id(r) for r, _why in quarantined}
+        _narrow_flushing(base, [r for r in rows if id(r) not in done])
+        return [], False  # this CALL finished nothing; the retry set is now only what is unfinished
     assert len(landed) + len(poison) == len(rows)  # noqa: S101 — accounting invariant
     return landed, True
+
+
+def _narrow_flushing(base: Path, keep: list[dict[str, object]]) -> None:
+    """Rewrite the claimed batch down to the rows still owed a retry. NEVER raises.
+
+    ⚠️ THE RETRY SET IS DURABLE STATE, AND IT WAS ALWAYS THE WHOLE BATCH. Both unfinished paths in
+    :func:`_flush_row_by_row` — a failed quarantine write, and a transient error partway through —
+    return ``all_accounted=False`` so the caller keeps ``.flushing`` for a clean retry. But
+    ``.flushing`` also holds every row that ALREADY LANDED in its own committed per-row transaction,
+    so each later flush re-inserts them. With a persistent cause (a read-only quarantine dir, a row
+    that reliably kills the connection) that never converges: reproduced at 1 duplicate insert per
+    flush, climbing without bound.
+
+    This module's at-least-once tolerance is deliberately scoped to a crash between commit and
+    cleanup — bounded, and once. An unbounded multiplier in the shared ``subagent_runs`` table is a
+    different animal: it inflates cost/turns/latency for one agent_id and silently skews the flywheel
+    ranking that `pick_models` reads.
+
+    Best-effort by design: if THIS write fails too we are on a wholly unwritable directory and the
+    caller falls back to retrying the full batch — duplicates, never loss, which is the right way
+    round when only one of the two is available.
+    """
+    with contextlib.suppress(Exception):
+        tmp = base / "pg_outbox.flushing.residual"
+        with tmp.open("w", encoding="utf-8") as fh:
+            for r in keep:
+                fh.write(json.dumps(r, default=str) + "\n")
+            fh.flush()
+        os.replace(tmp, base / "pg_outbox.flushing.jsonl")
 
 
 def _agent_id_pending_in_outbox(agent_id: str, outbox_dir: str | None) -> bool:
@@ -408,8 +562,17 @@ def record_agent_run(
     connect: Callable[[str], Any] | None = None,
     receipt_dir: str | None = None,
     outbox_dir: str | None = None,
+    reason_sink: list[str] | None = None,
 ) -> bool:
     """Judge-once flywheel write for a (spec, result) pair — the call an orchestrator SHOULD use.
+
+    ``reason_sink`` (optional list): on a ``False`` return, receives a token naming WHY —
+    ``malformed-spec-or-result`` (the spec/result could not be read at all) or
+    ``record-refused`` (the write itself declined; call ``flush_outbox(reason_sink=…)`` for the
+    detail, since the row is queued rather than lost). ⚠️ This closes the LAST bare boolean on the
+    recording path: the README section that documents these tokens is titled "Why did nothing get
+    recorded?", and until now it answered for the two writers and not for the RECORDING call, which
+    is the one an orchestrator actually invokes.
 
     ``record_run`` takes the *merged provenance dict* (:func:`ledger.agent_record`), because the
     flywheel row's ``model`` / ``task_type`` live on the **spec**, not the :class:`~agent.AgentResult`
@@ -438,34 +601,19 @@ def record_agent_run(
         from .ledger import agent_record, write_receipt
 
         record = agent_record(spec, result)
-        # AUTO-0 for the one failure every other net misses (upstream report from /opt/fabrik,
-        # 2026-08-12, hub plan-2 C4): a run whose status is "done" but whose OUTPUT is empty or
-        # whitespace "succeeded" with nothing gradeable. `success_rate` cannot see it — the run
-        # succeeded. `record_run`'s error/capped NULL-coercion does not apply — the status IS done.
-        # That empty output IS a 0-quality verdict, so record it as one.
-        #
-        # ⚠ Deliberately NOT extended to error/capped: those are INFRA failures, and teaching the
-        # ranker a 0 for an infra failure is a false zero — the ranker's `success_rate` already
-        # punishes them. Only when the caller passed no score: an explicit judgment always wins.
-        if quality_score is None:
-            _txt = getattr(result, "text", None)
-            # ⚠ The diff clause is LOAD-BEARING, not a redundant None-check. A mode="write"
-            # coder's value IS its diff: it returns the work as a patch and often says nothing in
-            # `text`. Judging it on `text` alone auto-scores real work 0 — the same false zero the
-            # comment above warns against, aimed at ourselves, and it teaches the ranker to
-            # down-rank coders. Only test_write_unit_with_diff_but_empty_text_stays_null shows
-            # this; the clause is invisible to inspection, so keep the test adjacent to it.
-            # Reported upstream by intel 2026-08-15 after their copy was overwritten twice by our
-            # sync — a vendored copy cannot hold a fix against its own upstream.
-            _diff = getattr(result, "diff", None)
-            if (
-                str(record.get("status") or "") == "done"
-                and isinstance(_txt, str)
-                and not _txt.strip()
-                and not (isinstance(_diff, str) and _diff.strip())
-            ):
-                quality_score = 0.0
+        # ⚠ NO auto-0 for an empty `done` run — an empty is left UNSCORED (NULL), the honest unknown.
+        # (SUPERSEDES the 2026-08-12/08-15 auto-0, reversed by intel 2026-08-29.) That auto-0 did two
+        # jobs — VISIBILITY (the only way an empty surfaced) and VERDICT. da1af57d split them: the
+        # `AgentResult.empty_output` marker (⚠EMPTY in results_table + the fanout harvest warning) now
+        # carries visibility on its own. What remained was only the verdict, and the verdict was measured
+        # usually FALSE: an empty completion is typically output-BUDGET burn (reasoning ate max_tokens — a
+        # CALLER config error, not model failure), so a 0 permanently tanks a good model for the caller's
+        # wrong max_tokens. A 0 must mean "the model did something bad," never "something went wrong" —
+        # same principle as the error/capped NULL-coercion. NULL is ignored by the aggregation's two-level
+        # reconcile, so leaving it unscored is the honest signal; an explicit caller score still wins.
     except Exception:  # noqa: BLE001 — fail-open: a malformed spec/result never raises
+        if reason_sink is not None:
+            reason_sink.append("malformed-spec-or-result")
         return False
     ok = record_run(
         record,
@@ -480,6 +628,12 @@ def record_agent_run(
         # in the DB yet, so it stays unreceipted → audit_unrecorded still flags it until flush_outbox
         # lands it and writes the receipt then. receipt ⟺ in-the-DB.)
         write_receipt(record.get("agent_id"), project, receipt_dir=receipt_dir)
+    elif reason_sink is not None:
+        # ⚠️ NOT "lost". `record_run` returning False means the row went to the OUTBOX (or was
+        # refused outright); `flush_outbox(reason_sink=…)` is where the specific token lives. What
+        # this token fixes is the caller who could not tell "your spec was garbage" from "the DB is
+        # down" — two states with opposite operator responses, behind one bare `False`.
+        reason_sink.append("record-refused")
     return ok
 
 
@@ -494,6 +648,7 @@ def set_quality(
     connect: Callable[[str], Any] | None = None,
     receipt_dir: str | None = None,
     outbox_dir: str | None = None,
+    reason_sink: list[str] | None = None,
 ) -> bool:
     """Back-fill a post-adjudication ``quality_score`` for a run that was recorded UNSCORED (e.g. by
     :func:`agent.fanout`, which auto-records at dispatch, before you've judged the output).
@@ -510,6 +665,14 @@ def set_quality(
     rows (the ``scored`` delta wins over the dispatch ``NULL``); count RUNS from the objective rows
     (``status <> 'scored'``) so a back-fill never inflates ``n``.
 
+    ⚠️ **Score the ``agent_id`` from the result/batch YOU dispatched — never one read out of the ledger
+    file.** The ``agent_id`` belongs on ``AgentResult.agent_id`` (and ``FanoutBatch.score()`` scores your
+    batch for you); ``.tmp/subagents/ledger.jsonl`` is REPO HISTORY across every session, not your dispatch
+    set, and it has no session scoping. Scoring an ``agent_id`` you pulled from that file back-fills a
+    verdict onto ANOTHER session's run — and the INSERT-only latest-wins reconcile means there is no undo
+    (transdoc contaminated 226 rows this way, `01M154PZQ`). If your vendored copy lacks
+    ``AgentResult.agent_id``/``FanoutBatch.score()``, it is STALE — re-vendor rather than reach into the file.
+
     Pass the run's OWN ``task_type``/``model`` — the ``model`` is on the result (``AgentResult.model``,
     stamped by ``run_agents``/``fanout``), the ``task_type`` is the one you dispatched. Both are REQUIRED
     and non-empty (an empty/defaulted bucket silently misattributes the score — this returns ``False``
@@ -524,7 +687,25 @@ def set_quality(
     gone, but the quality verdict — the key flywheel signal — is preserved. FAIL-OPEN: returns ``False``
     on any error (bad score, missing project, no DSN, unreachable DB) and NEVER raises. ``quality_score``
     must be a real number in ``[0, 5]`` (``bool``/``NaN``/``inf`` rejected). ``dsn``/``connect``/
-    ``receipt_dir`` are the injectable DB factory + receipt location, as on :func:`record_agent_run`."""
+    ``receipt_dir`` are the injectable DB factory + receipt location, as on :func:`record_agent_run`.
+
+    ``reason_sink`` (optional list): on a ``False`` return, receives the token(s) naming WHY. The
+    validation branch may append SEVERAL (every missing field, plus a score problem); every other
+    branch appends exactly one. Read the LIST, not ``sink[-1]`` — with two fields wrong,
+    ``sink[-1]`` names only the last, and a caller fixing just that one is still refused. Tokens —
+    ``missing-<field>`` · ``score-is-bool`` · ``score-not-a-number`` · ``score-out-of-range-0-5`` ·
+    ``row-build-failed`` · ``orphan-agent-id`` · ``outboxed-not-committed`` ·
+    ``missing-driver-psycopg`` · ``db-write-failed`` · ``no-dsn-outboxed``. A bare ``False`` told
+    the caller only "no", which is what the upstream report was about."""
+    def _sq_no(reason: str) -> bool:
+        # ⚠️ FOUR OF FIVE `return False` BRANCHES WERE SILENT after the first fix — including the two
+        # that matter most operationally: a GENUINE ORPHAN (this agent_id never ran, so the score is
+        # not real) and OUTBOXED-NOT-COMMITTED (it will land on the next flush). A caller could not
+        # tell those from a validation rejection. Found by the review, after I had already replied.
+        if reason_sink is not None:
+            reason_sink.append(reason)
+        return False
+
     try:
         dsn = dsn or os.getenv("SUBAGENT_RUNS_DSN")
         # validate the verdict up front — a bad score must never reach the flywheel (a bool is an int
@@ -541,6 +722,28 @@ def set_quality(
             # task_type/model are REQUIRED + non-empty: a scored delta with a defaulted/empty bucket
             # (the old `task_type or "code"` / `model or ""`) silently misattributes quality to the
             # wrong (task_type, model) aggregate — worse than a no-op. Reject it.
+            # ⚠️ SAY WHICH FIELD. A bare `False` told the caller only "no", and a consumer scoring
+            # three fanout units got three noes with nothing to act on — reported upstream
+            # 2026-08-28. The rejection is right; the silence was not. Same shape as `flush_outbox`'s
+            # ambiguous `0`, one function over.
+            if reason_sink is not None:
+                for field, value in (
+                    ("agent_id", agent_id), ("project", project),
+                    ("task_type", task_type), ("model", model),
+                ):
+                    if not value:
+                        reason_sink.append(f"missing-{field}")
+                if isinstance(quality_score, bool):
+                    reason_sink.append("score-is-bool")
+                elif not isinstance(quality_score, (int, float)):
+                    reason_sink.append("score-not-a-number")
+                elif not (0.0 <= float(quality_score) <= 5.0):
+                    reason_sink.append("score-out-of-range-0-5")
+            # ⚠️ RETURN DIRECTLY — the specific token above is the whole answer. This used to fall
+            # through to the generic `row-build-failed`, appending a SECOND token AFTER the
+            # specific one, so a caller reading `sink[-1]` (the obvious read) saw an internal
+            # error for a plain caller-side validation rejection and could not tell it from the
+            # real exception path. That inverts this module's own "most specific wins" rule.
             return False
         row = (
             project,
@@ -561,8 +764,9 @@ def set_quality(
             _session_id(),
         )
     except Exception:  # noqa: BLE001 — fail-open: never raises
-        return False
+        return _sq_no("row-build-failed")
     # Try the DB when a DSN is configured; on ANY miss, outbox the scored delta so it isn't lost.
+    db_attempt_failed: str | None = None
     if dsn:
         # ── ORPHAN GUARD (2026-08-14). Refuse to score a run that has no dispatch row.
         #
@@ -576,6 +780,13 @@ def set_quality(
         # this function is documented fail-open and outboxes on any miss, so treating "cannot
         # ask" as "absent" would stop every DB-less vendored copy (CI, offline dev) from scoring
         # at all — trading a 0.8% integrity defect for total loss of the flywheel signal.
+        # ⚠️ OUTBOX FIRST, DB SECOND. Reading the DB first maximised a false-orphan window: a
+        # concurrent `flush_outbox` (the hub wires one into `daily_refresh.sh`) that lands the
+        # dispatch row and unlinks `.flushing` BETWEEN the two reads made both answer "absent", and a
+        # good verdict was discarded. Reading the outbox first closes it — the row is in one place or
+        # the other at every instant, never neither.
+        _ob_first = outbox_dir if outbox_dir is not None else receipt_dir
+        _pending_locally = _agent_id_pending_in_outbox(str(agent_id), _ob_first)
         present = agent_ids_present([str(agent_id)], dsn=dsn, connect=connect)
         if present is not None and str(agent_id) not in present:
             # ⚠ Absent from the DB is NOT automatically an orphan. If the dispatch row is
@@ -583,10 +794,19 @@ def set_quality(
             # away the flywheel's most valuable signal during precisely the outage the
             # outbox exists to survive — while the docstring promised it was preserved.
             # Fall through to the outbox so the score lands AFTER its dispatch row.
-            if not _agent_id_pending_in_outbox(str(agent_id), outbox_dir):
-                return False  # genuine orphan: the run does not exist, so the score is not real
-            _append_outbox(row, outbox_dir)
-            return False  # not committed to the DB — the caller must not read this as landed
+            # ⚠️ ONE RESOLUTION, NOT TWO. `record_agent_run` outboxes the DISPATCH row to
+            # `outbox_dir if outbox_dir is not None else receipt_dir`, and this function's own
+            # terminal append uses that same fallback — but the pending-check and the append here
+            # used bare `outbox_dir`. A caller passing only `receipt_dir` therefore had its dispatch
+            # row written to one directory and looked for in another, so a perfectly good verdict was
+            # discarded as `orphan-agent-id` — exactly the harm the comment above says this guard
+            # exists to prevent. `FanoutBatch.score` already works around it by passing both kwargs,
+            # which means the module knew and the public API still had it.
+            _ob = _ob_first
+            if not _pending_locally:
+                return _sq_no("orphan-agent-id")  # the run does not exist, so the score is not real
+            _append_outbox(row, _ob)
+            return _sq_no("outboxed-not-committed")  # the caller must not read this as landed
         conn = None
         try:
             conn = connect(dsn) if connect is not None else _connect(dsn)
@@ -600,16 +820,29 @@ def set_quality(
 
                 write_receipt(str(agent_id), project, receipt_dir=receipt_dir)
             return True
-        except Exception:  # noqa: BLE001 — fail-open: unreachable/bad insert → outbox below
-            pass
+        except Exception as exc:  # noqa: BLE001 — fail-open: unreachable/bad insert → outbox below
+            # ⚠️ WHICH failure, not merely THAT one. This terminal return covered TWO states with one
+            # token — the comment below said so out loud ("No DSN (dev) OR the DB write failed") while
+            # the token said only `no-dsn-outboxed`. With a DSN set and psycopg missing, the caller was
+            # told to go check their env: a MISLEADING reason, which is worse than none, and the exact
+            # connect-vs-commit defect fixed in `flush_outbox` left standing in its twin one function
+            # over. A missing driver is its own cause and dominates every other check.
+            # ⚠️ NAME THE MODULE, don't assume it. `isinstance(exc, ModuleNotFoundError)` alone
+            # mislabels an INJECTED `connect=` whose own import of some other package fails — the
+            # caller would be told to install psycopg when psycopg was never the problem. A wrong
+            # reason is worse than none; check which module actually went missing.
+            db_attempt_failed = (
+                "missing-driver-psycopg"
+                if isinstance(exc, ModuleNotFoundError) and getattr(exc, "name", None) == "psycopg"
+                else "db-write-failed"
+            )
         finally:
             if conn is not None:
                 with contextlib.suppress(Exception):
                     conn.close()
     # No DSN (dev) or the DB write failed → capture the scored delta locally for flush_outbox.
     _append_outbox(row, outbox_dir if outbox_dir is not None else receipt_dir)
-    return False
-
+    return _sq_no(db_attempt_failed or "no-dsn-outboxed")
 
 def flush_outbox(
     dsn: str | None = None,
@@ -617,6 +850,7 @@ def flush_outbox(
     outbox_dir: str | None = None,
     connect: Callable[[str], Any] | None = None,
     receipt_dir: str | None = None,
+    reason_sink: list[str] | None = None,
 ) -> int:
     """Replay locally-outboxed scored rows to ``subagent_runs`` — run from a machine WITH the DSN (the
     hub, e.g. wired into ``daily_refresh.sh`` next to the ranking regen). This closes the dev→flywheel
@@ -628,8 +862,11 @@ def flush_outbox(
         callers (the hub cron + a manual run) can't both flush the same batch (no-crash double-insert).
         A second caller that can't take the lock returns 0 cleanly.
       * **Atomic claim, no merge** — the live outbox is claimed with a single :func:`os.replace`
-        (atomic); a concurrent :func:`_append_outbox` lands in the claimed file or a fresh live, never a
-        lost gap. A batch already pending in ``.flushing`` (a prior crash / DB outage) is processed
+        (atomic); a concurrent :func:`_append_outbox` that opens its handle AFTER the rename lands in a
+        fresh live. ⚠️ One that opened BEFORE it does NOT: an appended write follows the INODE, so it
+        lands inside the file this flush already read and is unlinked with it. See the README gotcha
+        "a row appended during a claim can be lost" — the window is real, narrow and cross-process, and
+        `_append_outbox` deliberately does not take `pg_outbox.lock` (it must never block a run). A batch already pending in ``.flushing`` (a prior crash / DB outage) is processed
         first and ``live`` is left to accumulate (claimed next run) — there is NO file-merging, so no
         merge-crash double-insert or non-atomic-rewrite loss.
       * **Poison-proof** — parsed LINE BY LINE; any MALFORMED line (bad JSON from a torn write, a
@@ -639,28 +876,65 @@ def flush_outbox(
     On a DB failure the batch stays in ``.flushing`` for the next run. A crash BETWEEN commit and cleanup
     can re-insert the batch once (at-least-once — a rare, minor skew for an aggregate flywheel;
     exactly-once would need a unique dedup key on the shared schema, a hub-coordinated change). FAIL-OPEN:
-    never raises; returns the number of rows flushed (0 on any error / no DSN / lock held / empty)."""
+    never raises; returns the number of rows flushed (0 on any error / no DSN / lock held / empty).
+
+⚠️ **A BARE ``0`` IS MANY DIFFERENT ANSWERS, and a consumer could not tell them apart.** Reported
+    upstream 2026-08-28 by `brand-identiy-creator`: this returned 0 against a 203KB outbox with no hint
+    whether the DSN was unset, the DB unreachable, the lock held, or the file empty — and the rows
+    stayed unscoreable behind that silence (their backlog: 517 runs).
+
+    The return type is a documented contract and stays an ``int``. Pass ``reason_sink=[]`` to receive a
+    machine-readable token instead:
+
+        ``dsn-missing`` · ``outbox-empty`` · ``setup-failed`` · ``lock-held`` · ``claim-failed`` ·
+        ``outbox-unreadable`` · ``all-rows-malformed`` · ``all-rows-rejected`` ·
+        ``missing-driver-psycopg`` · ``db-connect-failed`` · ``db-session-lost-before-insert`` ·
+        ``db-commit-uncertain`` · ``db-failed``
+
+    ⚠️ **It does NOT log.** An earlier version of this docstring said "every zero-return now LOGS a
+    distinct reason" while the code five lines below states, correctly, that this module has NO logger
+    by deliberate convention. That is the same defect the fix itself was written to close — a docstring
+    advertising something the file does not contain — so the wording is now what the code does: the
+    reason travels through the caller's sink, and if you want it logged, log the token.
+    """
+    def _no(reason: str) -> int:
+        # ⚠️ NO LOGGER, deliberately — this module has none, and the convention it states elsewhere is
+        # that "the caller distinguishes the states via the return value". That convention is precisely
+        # what failed here: a bare `0` cannot distinguish five states. So the reason is returned through
+        # the caller's own sink rather than smuggled into a logging setup the module does not have.
+        if reason_sink is not None:
+            reason_sink.append(reason)
+        return 0
+
     try:
         import fcntl
 
         dsn = dsn or os.getenv("SUBAGENT_RUNS_DSN")
         if not dsn:
-            return 0
+            return _no("dsn-missing")
         live = _outbox_path(outbox_dir)
         base = live.parent
         flushing = base / "pg_outbox.flushing.jsonl"
         if not live.exists() and not flushing.exists():
-            return 0
+            return _no("outbox-empty")
         base.mkdir(parents=True, exist_ok=True)
         lock_fh = (base / "pg_outbox.lock").open("w", encoding="utf-8")
     except Exception:  # noqa: BLE001 — fail-open: setup failure never raises
-        return 0
+        return _no("setup-failed")
     try:
         try:
             fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except Exception:  # noqa: BLE001 — another flush holds the lock → skip cleanly
-            return 0
-        return _flush_locked(dsn, live, flushing, base, connect, receipt_dir)
+            return _no("lock-held")
+        try:
+            return _flush_locked(dsn, live, flushing, base, connect, receipt_dir, reason_sink=reason_sink)
+        except Exception:  # noqa: BLE001 — the documented contract is FAIL-OPEN: never raises
+            # ⚠️ THE CONTRACT HAD NO GUARD. This `try` carried only a `finally`, so anything
+            # unexpected out of `_flush_locked` — including the bare `assert` in `_flush_row_by_row`'s
+            # accounting invariant, which sits directly in this call chain — propagated straight out
+            # of a function whose docstring says "never raises" twice. A hub cron calling this would
+            # have died on it. The lock/handle cleanup below was always correct; the promise was not.
+            return _no("internal-error")
     finally:
         with contextlib.suppress(Exception):
             fcntl.flock(lock_fh, fcntl.LOCK_UN)
@@ -675,6 +949,7 @@ def _flush_locked(
     base: Path,
     connect: Callable[[str], Any] | None,
     receipt_dir: str | None,
+    reason_sink: list[str] | None = None,
 ) -> int:
     """The flush critical section, run under the outbox lock. See :func:`flush_outbox`.
 
@@ -683,22 +958,52 @@ def _flush_locked(
     it's claimed on the next flush. The only file mutations are an atomic ``os.replace`` claim and the
     post-commit ``unlink``, so the sole at-least-once window is a crash between commit and unlink (a
     prior over-clever staging/merge introduced a double-insert + a non-atomic-rewrite loss; both gone)."""
+    _db_reason_recorded: list[bool] = []  # THIS invocation only — never the caller's list
+
+    def _no(reason: str) -> int:
+        # ⚠️ THE DB-INTERACTION PATH HAD NO REASONS AT ALL. `flush_outbox` named its four SETUP
+        # failures and then delegated here without the sink — so the reporter's actual scenario (a
+        # 203KB outbox, DB unreachable) still returned a bare silent 0 after the "fix", and the
+        # `db-failed` token the docstring advertised did not exist anywhere in the file. Found by the
+        # review I should have run BEFORE replying.
+        #
+        # ⚠️ FIRST DB REASON WINS. A connect failure propagates to the outer handler, which would then
+        # append `db-commit-uncertain` on top of `db-connect-failed` — and "the commit may have half
+        # landed" is FALSE when the connection never opened. The reason recorded closest to the cause
+        # is the specific one; the outer handler's is the fallback for when nothing more precise ran.
+        if reason_sink is not None:
+            # ⚠️ PER-INVOCATION, not a scan of the caller's list. The rule used to ask whether ANY
+            # `db-` token was already in `reason_sink` — a list the CALLER owns. A caller accumulating
+            # reasons across a retry loop (the natural pattern) had every later db-reason suppressed by
+            # one from a previous call, and was then told "connect failed, nothing was sent" while the
+            # batch may in fact have half-landed. That is the same opposite-branch harm this rule was
+            # written to prevent, recreated across calls instead of within one.
+            if not (reason.startswith("db-") and _db_reason_recorded):
+                reason_sink.append(reason)
+        if reason.startswith("db-"):
+            _db_reason_recorded.append(True)
+        return 0
+
     # 1) Claim the batch. A pending `.flushing` is processed first (live untouched); else atomically
-    #    claim `live` → `flushing` (a concurrent append lands in a fresh `live`, never a lost gap).
+    #    claim `live` → `flushing`. ⚠️ THIS COMMENT USED TO SAY "never a lost gap". It is only true for
+    #    an append whose handle is opened AFTER the rename; a handle opened BEFORE follows the inode
+    #    into `.flushing`, past the read at step 2, and is unlinked on success. Re-enacted
+    #    deterministically (open → os.replace → read → write → unlink): the row is gone. Documented as
+    #    a README gotcha rather than papered over; closing it means locking the append path.
     if not flushing.exists():
         if not live.exists():
-            return 0
+            return _no("outbox-empty")
         try:
             os.replace(live, flushing)
         except Exception:  # noqa: BLE001 — fail-open: a claim failure leaves the file for the next run
-            return 0
+            return _no("claim-failed")
     # 2) Parse LINE BY LINE — anything that is not a COMPLETE _COLS dict (bad JSON, a non-dict, or a row
     #    missing a required column from a stale/cross-version outbox) is quarantined so ONE malformed
     #    line can never brick the good rows.
     try:
         lines = flushing.read_text(encoding="utf-8").splitlines()
     except Exception:  # noqa: BLE001
-        return 0
+        return _no("outbox-unreadable")
     good: list[dict[str, object]] = []
     bad: list[str] = []
     for ln in lines:
@@ -720,7 +1025,7 @@ def _flush_locked(
     if not good:
         with contextlib.suppress(Exception):
             flushing.unlink()
-        return 0
+        return _no("all-rows-malformed")
     # 3) INSERT the good rows in one transaction.
     conn = None
     # ⚠ Distinguishes an EXECUTE-phase failure from a COMMIT-phase one, because only the
@@ -730,11 +1035,43 @@ def _flush_locked(
     # rather than the rare crash-window the module documents. A commit-phase failure
     # therefore leaves `.flushing` intact for a normal retry, exactly as before.
     execute_failed = False
+    _pre_insert = False
+    _conn_usable = True
+    _quarantined = 0
     try:
-        conn = connect(dsn) if connect is not None else _connect(dsn)
+        # ⚠️ CONNECT IS ITS OWN FAILURE. Wrapped together with the commit, a connection that never
+        # opened reported "the commit may have partially landed" — a MISLEADING reason, which is worse
+        # than none: "could not reach the DB, nothing was attempted" and "it may have half-landed,
+        # retry carefully" send a caller down opposite branches. This is the reporter's exact case.
+        try:
+            conn = connect(dsn) if connect is not None else _connect(dsn)
+        except Exception:  # noqa: BLE001 — never reached the server; nothing was sent
+            # Disambiguate the two causes that surface identically here (wef, intel `01M17XKJXM`): a
+            # MISSING psycopg driver vs a genuinely unreachable DB. "pip install psycopg" and "the DB is
+            # down" send the operator down opposite branches, so a single `db-connect-failed` is a
+            # misleading reason (worse than none). When we used the DEFAULT `_connect` (no injected
+            # `connect=`) and psycopg is not importable, name THAT — a zero-cost `find_spec` probe, the
+            # runtime half of the split the hub's gate-time check already makes.
+            import importlib.util  # noqa: PLC0415 — stdlib, lazy
+
+            if connect is None and importlib.util.find_spec("psycopg") is None:
+                _no("missing-driver-psycopg")
+            else:
+                _no("db-connect-failed")
+            raise
+        # ⚠️ EVERYTHING BEFORE THE FIRST ROW IS ALSO "nothing was sent". The connect/commit split fixed
+        # the instance a reviewer named and left the statements between them in the commit-uncertain
+        # bucket: a pooler that accepts the TCP connect and then kills the session, or a restart
+        # between `connect()` and first use, reported "the commit may have half-landed" with zero rows
+        # sent. Marked here so the pre-INSERT window reports what actually happened.
+        _pre_insert = True
+        # capture it HERE: the except handler closes and CLEARS `conn` before the classification runs,
+        # so asking "was it a real connection?" afterwards always saw None
+        _conn_usable = hasattr(conn, "__enter__") and hasattr(conn, "cursor")
         with conn:
             with conn.cursor() as cur:
                 cur.execute("SET LOCAL statement_timeout = 30000")
+                _pre_insert = False  # a statement has now been sent; "nothing was sent" no longer holds
                 try:
                     for r in good:
                         cur.execute(_INSERT, tuple(r.get(c) for c in _COLS))
@@ -764,11 +1101,21 @@ def _flush_locked(
         # ROLLS BACK on the exception, so no row from the failed batch is committed. The
         # per-row retry therefore starts from a clean slate rather than re-inserting
         # anything that already landed.
+        if _pre_insert and not _conn_usable:
+            # the factory handed back something that is not a connection at all — a caller bug, and
+            # blaming "a pooler killed the session" would be the misleading-reason defect again
+            return _no("connect-returned-non-connection")
+        if _pre_insert:
+            # connected, but died before any statement went out — a pooler that accepts the TCP
+            # connect then kills the session, or a restart between connect() and first use.
+            return _no("db-session-lost-before-insert")
         if not execute_failed:
-            return 0  # commit-phase: in doubt, so retry the batch rather than duplicate it
+            return _no("db-commit-uncertain")  # in doubt, so retry rather than duplicate
+        _before_retry = len(good)
         good, all_accounted = _flush_row_by_row(good, dsn, connect, base)
+        _quarantined = _before_retry - len(good)
         if not all_accounted:
-            return 0  # transient: leave `.flushing` intact for a clean retry
+            return _no("db-failed")  # transient: leave `.flushing` intact for a clean retry
         if not good:
             # Every row was rejected. They are quarantined, so the batch is FINISHED —
             # dropping through unlinks `.flushing`. Returning early here (as the first
@@ -776,7 +1123,7 @@ def _flush_locked(
             # the permanent-loop bug this fallback exists to fix, unfixed.
             with contextlib.suppress(Exception):
                 flushing.unlink()
-            return 0
+            return _no("all-rows-rejected")
     finally:
         if conn is not None:
             with contextlib.suppress(Exception):
@@ -796,6 +1143,12 @@ def _flush_locked(
                 )
     with contextlib.suppress(Exception):
         flushing.unlink()
+    # ⚠️ A POSITIVE COUNT IS ALSO MANY ANSWERS. `return len(good)` reports only what LANDED, so a
+    # batch of 100 with 40 quarantined came back as `40` with an empty `reason_sink` — the same
+    # "a bare number tells the caller nothing" defect this whole change set exists to fix, sitting on
+    # the success branch where nobody looked for it.
+    if _quarantined:
+        _no(f"partial-{_quarantined}-quarantined")
     return len(good)
 
 
@@ -805,6 +1158,14 @@ __all__ = [
     "record_agent_run",
     "set_quality",
     "flush_outbox",
+    # ⚠️ These two are non-underscored, docstring-rich, and INTENDED for an external caller —
+    # `unscored_agent_ids`' own docstring says the hub round-close requires it — yet they were in
+    # neither `__all__` nor the README, so the only way to reach them was the private path
+    # `subagents.pg_ledger.unscored_agent_ids`. A public-looking name that is not exported is a trap
+    # for the consumer who needs it most; this repo's Vendoring Contract assumes a reader with only
+    # the README.
+    "agent_ids_present",
+    "unscored_agent_ids",
 ]
 
 
@@ -865,6 +1226,22 @@ def unscored_agent_ids(
     Reads the ledger rather than tracking in-process ``score()`` calls, so a back-fill made
     directly via :func:`set_quality` (which the hub round-close currently requires as its interim)
     is correctly seen as scored instead of being reported as still owed.
+
+    ⚠️ **"With a dispatch row" is load-bearing, and the query used to ignore it.** It asked only which
+    ids were ``scored`` and returned everything else — so an id that was **never dispatched at all**
+    came back as "owed a score", identical to a real unscored run. That is not a cosmetic
+    misclassification: the caller's next move is to score what this returns, and scoring a
+    never-dispatched id creates an INSERT-only ``scored`` delta with no run behind it — the ORPHAN
+    row :meth:`FanoutBatch.score` refuses by name, carrying a real model name into the flywheel.
+    Seven such rows already exist upstream.
+
+    MIRROR (what this change costs): a caller using this to detect ids with no row at all no longer
+    gets them here. :func:`agent_ids_present` answers exactly that question and always did.
+
+    ⚠️ **The empty list is three answers.** ``[]`` means "nothing is owed", "no DSN configured", or
+    "the database could not be read" — this helper is fail-open by design, mirroring the writers, and
+    deliberately has no ``reason_sink``. If you need to tell those apart, check the DSN yourself
+    before calling; an empty result is never evidence that the runs were scored.
     """
     if not agent_ids:
         return []
@@ -877,12 +1254,17 @@ def unscored_agent_ids(
             # Same reasoning as `agent_ids_present`: a read without a statement_timeout
             # can hang forever inside a documented fail-open helper.
             cur.execute("SET LOCAL statement_timeout = 5000")
+            # One pass answers BOTH questions per id: is there a dispatch row (any status that is
+            # not the INSERT-only `scored` delta), and is there already a scored delta.
             cur.execute(
-                "SELECT DISTINCT agent_id FROM subagent_runs "
-                "WHERE agent_id = ANY(%s) AND status = 'scored'",
+                "SELECT agent_id, bool_or(status = 'scored'), bool_or(status <> 'scored') "
+                "FROM subagent_runs WHERE agent_id = ANY(%s) GROUP BY agent_id",
                 (list(agent_ids),),
             )
-            scored = {r[0] for r in cur.fetchall()}
-        return [a for a in agent_ids if a not in scored]
+            state = {r[0]: (bool(r[1]), bool(r[2])) for r in cur.fetchall()}
+        return [
+            a for a in agent_ids
+            if state.get(a, (False, False))[1] and not state.get(a, (False, False))[0]
+        ]
     except Exception:  # noqa: BLE001 — fail-open, mirroring the writer
         return []

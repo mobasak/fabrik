@@ -33,6 +33,7 @@ from ._client import (
     StateCb,
     TokenCb,
 )
+from .providers import resolve_provider
 
 __all__ = ["run", "arun", "Result", "Liveness", "Call", "make_run_id"]
 
@@ -101,26 +102,42 @@ def make_run_id(
     return f"{hashlib.sha1(payload.encode(), usedforsecurity=False).hexdigest()[:12]}-{uuid.uuid4().hex[:6]}"
 
 
-def _resolve_client(client: OpenRouterClient | None) -> OpenRouterClient:
-    """The injected client, or one built from env. OpenRouter-only — the API key
-    is required (never a hardcoded default)."""
+def _resolve_client(
+    client: OpenRouterClient | None, provider: str = "openrouter"
+) -> OpenRouterClient:
+    """The injected client, or one built from the provider registry + env. The API
+    key is required (never a hardcoded default); an unknown provider fails LOUD."""
     if client is not None:
         return client
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    cfg = resolve_provider(provider)
+    api_key = os.getenv(cfg.key_env)
     if not api_key:
+        if cfg.key_env == "OPENROUTER_API_KEY":
+            # keep the well-known, battle-tested onboarding message for the default path
+            raise ConsultError(
+                "OPENROUTER_API_KEY is not set. `run_agents` auto-loads `<repo>/.env` (the curated "
+                "subagents keys), so the usual fix is: put `OPENROUTER_API_KEY=…` in your project's "
+                "`.env` and pass the project root as `repo=`. If you dispatched with `load_dotenv=False`, "
+                "or called the transport directly, export it yourself (`set -a; . ./.env; set +a`). This "
+                "is an env/onboarding gap, NOT 'the pool is unavailable' — wire the key, don't fall back "
+                "to a different runtime."
+            )
         raise ConsultError(
-            "OPENROUTER_API_KEY is not set. `run_agents` auto-loads `<repo>/.env` (the curated "
-            "subagents keys), so the usual fix is: put `OPENROUTER_API_KEY=…` in your project's "
-            "`.env` and pass the project root as `repo=`. If you dispatched with `load_dotenv=False`, "
-            "or called the transport directly, export it yourself (`set -a; . ./.env; set +a`). This "
-            "is an env/onboarding gap, NOT 'the pool is unavailable' — wire the key, don't fall back "
-            "to a different runtime."
+            f"{cfg.key_env} is not set, required for provider {provider!r}. `run_agents` auto-loads "
+            f"`<repo>/.env` (the curated subagents keys) — put `{cfg.key_env}=…` in your project's "
+            "`.env` and pass the project root as `repo=`, or export it yourself. This is an "
+            "env/onboarding gap, NOT 'the provider is unavailable'."
         )
-    return OpenRouterClient(
-        api_key,
-        referer=os.getenv("SUBAGENTS_REFERER"),
-        title=os.getenv("SUBAGENTS_TITLE") or "subagents",
-    )
+    # HTTP-Referer/X-Title are OpenRouter attribution headers — set them ONLY for a
+    # provider that expects them (registry-gated); a non-OR endpoint ignores them at best.
+    if cfg.sends_or_attribution_headers:
+        return OpenRouterClient(
+            api_key,
+            base_url=cfg.base_url,
+            referer=os.getenv("SUBAGENTS_REFERER"),
+            title=os.getenv("SUBAGENTS_TITLE") or "subagents",
+        )
+    return OpenRouterClient(api_key, base_url=cfg.base_url)
 
 
 def _lv(liveness: Liveness | None) -> Liveness:
@@ -240,10 +257,12 @@ def run(
     max_cost_usd: float | None = None,
     on_token: TokenCb | None = None,
     on_state: StateCb | None = None,
+    provider: str = "openrouter",
 ) -> Result:
-    """One synchronous OpenRouter call → :class:`Result`."""
+    """One synchronous call → :class:`Result`. ``provider`` selects the endpoint/key
+    from the registry (default OpenRouter); an injected ``client`` always wins."""
     _validate_cap(max_cost_usd)
-    cli = _resolve_client(client)
+    cli = _resolve_client(client, provider)
     consult_id = make_run_id(model, messages, body)
     raw = _run_raw(
         model,
@@ -271,10 +290,12 @@ async def arun(
     max_cost_usd: float | None = None,
     on_token: TokenCb | None = None,
     on_state: StateCb | None = None,
+    provider: str = "openrouter",
 ) -> Result:
-    """One asynchronous OpenRouter call → :class:`Result`."""
+    """One asynchronous call → :class:`Result`. ``provider`` selects the endpoint/key
+    from the registry (default OpenRouter); an injected ``client`` always wins."""
     _validate_cap(max_cost_usd)
-    cli = _resolve_client(client)
+    cli = _resolve_client(client, provider)
     consult_id = make_run_id(model, messages, body)
     raw = await _arun_raw(
         model,
