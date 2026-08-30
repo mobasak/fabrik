@@ -1,6 +1,6 @@
 # Plan 1 — The Decision Ledger (fleet-wide, per the CONVERGED spec)
 
-Status: IN-PROGRESS (execution started 2026-08-30; was CONVERGED — /fabrik-plan-review x2: converged at 4d848206; post-flip dogfood edit re-reviewed same day — the quote-table conversion had dropped 3 prose constraints, restored + re-verified to a no-op, check_rule_grounding 0 findings)
+Status: EXECUTED 2026-08-30 (phases 0d2ca091 · 18e38d9c · b321ea39; whole-plan review PASS — docs/development/reviews/2026-08-30-decision-ledger-plan-review.md; 48 repos seeded; was CONVERGED — /fabrik-plan-review x2: converged at 4d848206; post-flip dogfood edit re-reviewed same day — the quote-table conversion had dropped 3 prose constraints, restored + re-verified to a no-op, check_rule_grounding 0 findings)
 Spec: docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md (CONVERGED, operator-approved
 2026-08-30: "go back to the spec you have created and /fabrik-plan-after-chat on it")
 Shape: MONOLITH — 3 phases, each independently testable; READ set per phase under 262144
