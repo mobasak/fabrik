@@ -109,11 +109,14 @@ whether enabled or not.
 | `wordpress` | — (universal 4 only) | legacy, out of fabrik |
 
 ¹ rides `shape.needs_database: true`, never the type name.
-² only when the repo's frozen design system is shadcn-based; magicui stays saas-only (operator boundary:
+² only when the repo's frozen design system is shadcn-based; magicui stays saas-only EXCEPT the wef
+overlay (D-017 supersedes the boundary for that one repo) (original operator boundary:
 "use on the SaaS UI, never on produced sites").
 
 **Per-REPO overlays (content-driven, never type-driven):** wef → +playwright (D-016: it drives/verifies
-the ecommerce sites it produces) +pubchem +media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
+the ecommerce sites it produces) +shadcn +magicui (D-017: React/Tailwind storefronts; motion = conversion
+tooling — supersedes the magicui saas-only boundary for wef ONLY, it stands elsewhere) +pubchem
++media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
 here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified) (+serena, operator call).
