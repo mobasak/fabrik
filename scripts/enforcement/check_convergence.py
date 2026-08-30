@@ -389,8 +389,10 @@ def _checklist_fails(text: str, scan: str) -> list[str]:
     # so failing a CORRECT plan is the more expensive direction.
     if not RUBRIC_RUN.search(text):
         fails.append(
-            "Coverage Checklist with no review_rubric.py invocation — classes must derive "
-            "from the rubric, not from memory"
+            "Coverage Checklist with no pasted review_rubric.py OUTPUT (its generated "
+            "`# REVIEW RUBRIC` header) — run it on the real changed paths and paste the "
+            "verbatim output; a prose mention or an unexpanded placeholder is not an "
+            "invocation (trade-intelligence 01M17Z7Q)"
         )
     rows = _table_rows(section)
     if not rows:
