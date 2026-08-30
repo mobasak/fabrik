@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto bound into the CLAUDE.md contracts (D-044) (2026-08-30)
+
+- Hub + template decision-ledger duties: classify-at-mint (reversible/ONE-WAY), the one-way § Binding field block, Invariant-3 most-reversible-default, pointer to the canonical manifesto. Template § UNIVERSAL enumeration corrected seven→eight anchors (decision-ledger). fabrik-lib mailed to adopt the ledger duty (pre-blocked: no DECISIONS.md there).
+
 ### Added — the Operating Manifesto adopted (D-043) (2026-08-30)
 
 - docs/reference/operating-manifesto.md: the operator's phase framework verbatim + five enforcement additions + § Binding onto the decision ledger and the alerting stack.

@@ -116,7 +116,12 @@ what makes an in-flight command visible and un-abandonable.
   is Z like this / what did we build for W": **grep `docs/DECISIONS.md` first, then
   `python3 scripts/decisions.py <term>` fleet-wide** — the row's what+why+where is the full
   answer; the wider hunt is legitimate only after the ledger misses (and its answer then belongs
-  in a new row).
+  in a new row). **Classify at mint time — reversible or ONE-WAY** (the Operating Manifesto's
+  Phase-0 triage; canonical: `docs/reference/operating-manifesto.md`, D-043): a ONE-WAY decision
+  (structural, public, expensive to unwind) grows its row with the § Binding field block —
+  `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` — in the same change; and when a gate
+  cannot close within budget, the most-reversible option wins by default (Invariant 3 — the
+  decision-level sibling of the three BLOCKED cases, which govern execution halts).
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — what you filed and to whom, or `none` plus the surfaces you exercised. Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not.
 - **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project-facing
