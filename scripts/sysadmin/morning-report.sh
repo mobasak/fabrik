@@ -147,7 +147,13 @@ Keep it under 20 lines. Phone screen friendly. If everything is fine, say so bri
   # tool calls by default; the report text is unaffected.
 
 GOV_RC=$?  # exit status of the claude-run.sh call above (75 = governor quota-conservation shed)
-if [ "$GOV_RC" -eq 75 ]; then rm -f "$CONTEXT_FILE"; exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
+if [ "$GOV_RC" -eq 75 ]; then
+  # Governor shed (quota >= reserve). The daily heartbeat must NEVER silently vanish (operator
+  # rule 2026-08-30: "taken care of" > "menu of options") — the data is ALREADY collected, only
+  # the Claude prose is skipped. Send the raw summary at zero quota cost.
+  RESULT="⛔ quota-conserved (governor shed the Claude formatting) — raw report:
+$(head -c 3000 "$CONTEXT_FILE")"
+fi
 if [ -z "$RESULT" ]; then
   RESULT="⚠️ Morning report: Claude failed to generate. Check /var/log/sysadmin-proactive.log"
 fi
