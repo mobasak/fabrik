@@ -175,6 +175,8 @@ project receives it — Depends edge: B after A).
 
 ## Phase C — corpus wiring, reference doc, docs convergence
 
+✅ EXECUTED 2026-08-30 (CHANGELOG verified — landed in A per the recorded deviation; /fabrik-docs-review converged the 7-doc set with 1 fix: the scaffold template's {{date}} placeholder had no substitution mechanism)
+
 Files: `commands/_fragments/chat-intake.md` · `commands/_fragments/close-feedback.md` ·
 `commands/_sources/fabrik-spec.md` · `docs/reference/decision-ledger.md` (new) · CHANGELOG/INDEX/docs-README
 rows (governance surfaces, edited directly — monolith shape).

@@ -26,8 +26,9 @@ agent specs some of them, tells no one, and the operator chases the rest.* Silen
    drop wearing a label) · **ASK** (it joins the batched question set, per the question bar).
 
    ⚠️ **ASK has a bar, and it is the project's own frozen artifacts.** Before ANY item may be
-   ASK, DERIVE its disposition from the goal record — `docs/FEATURES.md`, the rivals dossier,
-   `docs/flows.md`, the spec chain, the Locked Decisions — and cite the row that decides it. An
+   ASK, DERIVE its disposition from the goal record — `docs/DECISIONS.md` (the decision ledger:
+   a prior ruling or rejected option decides an item outright), `docs/FEATURES.md`, the rivals
+   dossier, `docs/flows.md`, the spec chain, the Locked Decisions — and cite the row that decides it. An
    item those artifacts answer is IN or OUT-OF-SCOPE by derivation, never a question; ASK is
    legal only when they genuinely under-determine it, and even then it arrives as a RECOMMENDED
    disposition with the derivation shown — a bare option menu handed to the operator is the

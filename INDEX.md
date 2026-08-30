@@ -421,6 +421,7 @@ docs/
 │   │   └── vast-api.md
 │   ├── architecture.md             # System architecture overview
 │   ├── convergence-prompts.md
+│   ├── decision-ledger.md          # The decision-ledger operational reference (query/append/seed rules)
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-vultr.md
 │   ├── fixtures
@@ -731,6 +732,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_check_ticket_breadth.py](tests/test_check_ticket_breadth.py) | 31 behavior tests for the breadth advisory — narrow ticket silent, broad ticket warns with components + its own accuracy named, the measured anchors (T01 score 5 / T02b score 2), `--strict` flips only the exit code, no-plan-set repo clean and silent, parse errors fail soft, `.claude/` dotfile governance detection (the `lstrip("./")` regression), governance-only ≠ mix, fenced rows never counted, and the test-surface guard (9 test-path shapes recognised, 4 production look-alikes rejected, no split hint may ever peel tests from their code, test-only ticket = 1 area, tests never supply the mix's code half). Each proven red-on-revert. |
 | [test_final_gate_registration.py](tests/enforcement/test_final_gate_registration.py) | AST-semantic pins for final_gate.py registrations: check_phase_tests.py inside the `if tier == 2:` body; the mutation registration inside the FABRIK_MUTMUT pop/try-finally-restore guard — each test also rejects its live-simulated defeating mutant (both shipped regressions, review-caught). |
 | [convergence-prompts.md](docs/reference/convergence-prompts.md) | The 3 canonical direct-agent prompts (PLAN / CODE REVIEW / DOCS), each emitting the artifact its gate inspects. |
+| [decision-ledger.md](docs/reference/decision-ledger.md) | The decision-ledger operational reference — query order (ledger → session-recall → hunt), the immutable-row append rules (supersede-by-new-row, dispatcher holds the pen), where the binding duties live (three CLAUDE.md layers incl. the drift-contract route to sync-excluded repos), and the seed-if-missing distribution (48 repos seeded 2026-08-30; an existing ledger survives even `--force`). |
 | [final_gate_stop.py](.claude/hooks/final_gate_stop.py) | Claude Code `SessionStart` (`--baseline`) + `Stop` hooks — Stop blocks end-of-turn only on gate failures the session INTRODUCED (current − SessionStart baseline), so inherited project debt never traps the agent. Fail-open, loop-capped, scoped. Wired in `.claude/settings.json`. |
 | [test_final_gate_stop_hook.py](tests/test_final_gate_stop_hook.py) | 10 tests: `decide()` loop-guard + baseline-diff integration (inherited→allow, new failure→block, missing-baseline→fail-open, green→allow, --baseline writes snapshot). |
 | [fabrik_synced_manifest.py](scripts/fabrik_synced_manifest.py) | Single source of truth for the centrally-distributed file set — consumed by `sync_enforcement_to_projects.py`, the `scaffold.py` `.gitignore` block, and `check_synced_unmodified.py`. |

@@ -4,7 +4,11 @@
 makes you the only witness to how it actually behaved this run.** A defect you route around silently
 dies in your context when the session ends.
 
-**Before `command_run.py done`, answer this out loud — one line is enough:**
+**Before `command_run.py done`, TWO one-line answers are owed. First the decision line:** did this
+run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption,
+an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → its row
+appended to `docs/DECISIONS.md` in this run's change, or state `no decisions this run`. **Then the
+feedback line:**
 
 > `FEEDBACK: <what you filed, to whom> | none — <the surfaces this run exercised>`
 

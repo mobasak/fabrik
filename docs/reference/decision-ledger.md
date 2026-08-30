@@ -1,0 +1,59 @@
+# The decision ledger — operational reference
+
+Every repo keeps `docs/DECISIONS.md`; every agent writes decisions to it same-change and queries it
+FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; design:
+`docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md`, the why/what/where/who/when record).
+
+## Query (the read path — always BEFORE a wider hunt)
+
+- **In-repo:** `grep -i <term> docs/DECISIONS.md` — or just read it; ledgers are short by design.
+- **Fleet-wide (hub-side):** `python3 /opt/fabrik/scripts/decisions.py <term>` — greps every
+  `/opt/*/docs/DECISIONS.md` plus the hub's own, printing `repo · D-NNN · when · who · what · where`.
+  Box-topology note: the helper assumes the `/opt` single-filesystem layout of this box; the per-repo
+  practice works in any checkout.
+- **Order of recall for decision-shaped questions:** ledger → session-recall → wider hunt. A ledger
+  miss makes the hunt legitimate — and the hunt's answer then belongs in a new row.
+
+## Append (the write path)
+
+- One row per decision, **newest first**: `| D-NNN | when | who | what | why | where |`. WHY ≤ 2
+  lines; WHERE carries the pointers (commit shas · paths · spec/plan/mail ids) that make the row a
+  full answer.
+- **Rows are immutable.** A changed or reversed decision mints a NEW row whose what-cell opens
+  `supersedes D-NNN:`; the old row is never edited (the universal record invariant — supersede,
+  never rewrite). `python3 /opt/fabrik/scripts/decisions.py --check` validates that every
+  supersede pointer resolves (exit 1 on a dangling one) — the design's one mechanical check.
+- **Who holds the pen:** the session that made or received the decision. Subagents and the daily
+  pipeline never write the ledger — a subagent-surfaced decision is its dispatcher's to record.
+- **What counts:** an operator ruling · a spec/plan approval or Status flip · a retirement/adoption
+  (tool, vendor, pattern, module) · an architecture/storage/scope choice · "we built X, it lives at
+  Y" · a rejected option worth not re-proposing. NOT: routine fixes, refactors, doc edits
+  (CHANGELOG's beat). Cross-repo decisions are recorded ONCE in the hub ledger.
+- **Id collisions** (two sessions appending concurrently) are ordinary merge conflicts — visible,
+  trivially renumbered; no lock machinery by design.
+
+## Where the duties live (the binding text, not this doc)
+
+- Hub agents: `/opt/fabrik/CLAUDE.md` § Behavior (the decision-ledger bullet) + Doc Sync Matrix row.
+- Project agents: each repo's `CLAUDE.md` (synced from `templates/governance/CLAUDE.md`).
+- Sync-excluded repos: the `decision-ledger` UNIVERSAL governance marker (hub `CLAUDE.md`
+  § UNIVERSAL governance markers) — their drift check flags a missing clause.
+- Command close-outs: the close-feedback fragment's decision line (row appended, or "no decisions
+  this run").
+- Spec/plan intake: the ledger leads the episodic-memory step (`/fabrik-spec` Phase 0) and the
+  ASK-bar derivation sources (chat-intake fragment).
+
+## Distribution + lifecycle
+
+- **New repos:** the scaffolder seeds `docs/DECISIONS.md` from
+  `templates/scaffold/docs/DECISIONS_TEMPLATE.md` (wiring: fleet's scaffolder map — request
+  01M19GPW7Q).
+- **Existing repos:** seeded once by the governance-sync (`SEED_IF_MISSING` in
+  `scripts/fabrik_synced_manifest.py`) — **an existing ledger is never touched, not even under
+  `--force`** (`sync_single_file(seed_if_missing=True)`; proven byte-identical under both code
+  paths in `tests/test_sync_seed_if_missing.py`). First rollout 2026-08-30: 48 repos seeded.
+- **Growth:** measured escalation triggers (>500 rows in a repo · fleet query >2s · a genuine
+  per-entry lifecycle need) flip the recorded v2 options — hub indexer or year-rotation with stable
+  ids (spec § Lifecycle). Until then: no infrastructure, by design.
+- **Enforcement posture:** advisory-first; adoption measured via kaizen after 2 weeks before any
+  escalation (spec § Enforcement).

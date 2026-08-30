@@ -11,4 +11,4 @@ file first; fleet-wide from the hub: `python3 /opt/fabrik/scripts/decisions.py <
 
 | id | when | who | what (the decision) | why | where |
 |---|---|---|---|---|---|
-| D-000 | {{date}} | operator | decision ledger adopted in this repo (scaffolded) | every decision queryable with why/what/where/who/when — no more reconstruction hunts | /opt/fabrik docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md |
+| D-000 | (scaffold) | operator | decision ledger adopted in this repo (scaffolded) | every decision queryable with why/what/where/who/when — no more reconstruction hunts | /opt/fabrik docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md |
