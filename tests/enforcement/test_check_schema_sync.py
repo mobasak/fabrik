@@ -134,3 +134,14 @@ def test_an_additive_migration_still_only_warns(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(c, "_repo_root", lambda: str(tmp_path))
     c.warn_if_data_contract_stale(["alembic/versions/0008_add.py"])  # must NOT raise
     assert "WARN" in capsys.readouterr().out
+
+
+def test_a_sql_migration_counts(  # youtube 01M180Z9: reproduced with 3 staged .sql migrations
+) -> None:
+    """The .py suffix gate hardcoded one language's extension for a check whose own
+    MIGRATION_DIRS already generalizes the directory — a project on plain .sql
+    migrations (youtube: migrations/044-046.sql, `users` gaining 7 real columns while
+    data-contract.md asserted one 'does not exist') never tripped the staleness WARN."""
+    assert c.migration_added(["migrations/044_add_consent.sql"])
+    assert c.migration_added(["server/migrations/0002_users.sql"])
+    assert not c.migration_added(["migrations/notes.md"])  # still no false positives

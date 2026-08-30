@@ -126,7 +126,12 @@ def migration_added(staged_files: list[str]) -> bool:
     """
     for migration_dir in MIGRATION_DIRS:
         for f in staged_files:
-            if (f.startswith(migration_dir) or ("/" + migration_dir) in f) and f.endswith(".py"):
+            # .py OR .sql (youtube 01M180Z9): hardcoding one language's extension for a
+            # check whose own MIGRATION_DIRS generalizes the directory let a plain-SQL
+            # project stage 3 real migrations — 7 new columns — with EXIT=0, no WARN.
+            if (f.startswith(migration_dir) or ("/" + migration_dir) in f) and f.endswith(
+                (".py", ".sql")
+            ):
                 return True
     return False
 
