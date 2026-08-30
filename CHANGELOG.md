@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — postgres-pro absent-until-configured (D-031) + ORIENT MCP awareness (D-032) (2026-08-30)
+
+- Live: hub `claude mcp list` 15/15 Connected, NO FAILURES; postgres-mcp blocks ~30s on any non-connecting URI (measured 3 shapes) — the emitter now probes at emission and emits only proven URIs; user-level carries the 5; ORIENT gains the assigned-set/catalog/fix-first line (runtime .mcp.json read, synced).
+
 ### Added — scaffold-time .mcp.json emission (2026-08-30)
 
 - scaffold.py `_emit_mcp_config` (crash-safe, after the type patch): new projects open their first Claude window with the ruled per-type/overlay server set; red-first test. Fleet informed (supersedes the 01M19TVBMS request half).

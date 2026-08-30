@@ -27,6 +27,7 @@ ALL_SERVERS = [
     "pubchem", "media-engine", "fabrik-citation-verifier", "grafana",
 ]
 UNIVERSAL6 = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena"}
+U5_NO_DB = UNIVERSAL6 - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
 
 
 @pytest.fixture()
@@ -62,8 +63,10 @@ def servers_of(repo: Path) -> set[str]:
     return set(json.loads((repo / ".mcp.json").read_text())["mcpServers"])
 
 
-def test_headless_gets_exactly_universal_6(tmp_path, defs_file):
-    r = make_repo(tmp_path, "some-api", "python-api")
+def test_headless_gets_exactly_universal_6(tmp_path, defs_file, monkeypatch):
+    monkeypatch.setattr(emitter, "_uri_connects", lambda uri: True)
+    r = make_repo(tmp_path, "some-api", "python-api",
+                  env="DATABASE_URL=postgresql://u:p@localhost:5432/x\n")
     run(tmp_path, defs_file)
     assert servers_of(r) == UNIVERSAL6
 
@@ -71,7 +74,7 @@ def test_headless_gets_exactly_universal_6(tmp_path, defs_file):
 def test_saas_adds_the_web_gui_four(tmp_path, defs_file):
     r = make_repo(tmp_path, "some-saas", "saas-skeleton")
     run(tmp_path, defs_file)
-    assert servers_of(r) == UNIVERSAL6 | {"playwright", "chrome-devtools", "shadcn", "magicui"}
+    assert servers_of(r) == U5_NO_DB | {"playwright", "chrome-devtools", "shadcn", "magicui"}
 
 
 def test_wef_overlay_includes_media_engine_d018(tmp_path, defs_file):
@@ -90,7 +93,11 @@ def test_health_repos_get_d025_overlays(tmp_path, defs_file):
     assert {"maestro", "mobile-mcp"} <= got
 
 
-def test_postgres_pro_env_from_repo_dotenv(tmp_path, defs_file):
+def test_postgres_pro_env_only_when_uri_connects(tmp_path, defs_file, monkeypatch):
+    """The URI is emitted ONLY if it provably connects at emission time — postgres-mcp
+    v1.29 blocks its MCP handshake ~30s on ANY non-connecting URI (DNS and auth alike,
+    both measured 2026-08-30), which reads as a dead server in Claude's 30s timeout."""
+    monkeypatch.setattr(emitter, "_uri_connects", lambda uri: True)
     r = make_repo(tmp_path, "db-api", "python-api",
                   env="DATABASE_URL=postgresql://u:p@localhost:5432/db_api\n")
     run(tmp_path, defs_file)
@@ -98,11 +105,21 @@ def test_postgres_pro_env_from_repo_dotenv(tmp_path, defs_file):
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/db_api"
 
 
-def test_postgres_pro_env_omitted_when_no_database_url(tmp_path, defs_file):
+def test_postgres_pro_env_omitted_when_uri_refused(tmp_path, defs_file):
+    """REAL probe, deterministic refusal: a closed local port refuses instantly."""
+    r = make_repo(tmp_path, "dead-db-api", "python-api",
+                  env="DATABASE_URL=postgresql://u:p@localhost:59999/nope\n")
+    run(tmp_path, defs_file)
+    assert "postgres-pro" not in servers_of(r)
+
+
+def test_postgres_pro_absent_when_no_database_url(tmp_path, defs_file):
+    """postgres-mcp blocks ~30s on ANY non-connecting URI and refuses to start with
+    none — so a repo without a working DB gets NO entry (absent-until-configured);
+    re-emission restores it when .env gains a connecting DATABASE_URL."""
     r = make_repo(tmp_path, "plain-api", "python-api", env="OTHER=1\n")
     run(tmp_path, defs_file)
-    entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
-    assert "env" not in entry
+    assert "postgres-pro" not in servers_of(r)
 
 
 def test_idempotent_second_run_writes_nothing(tmp_path, defs_file):
@@ -141,7 +158,7 @@ def test_claim_validator_never_emitted(tmp_path, defs_file):
 def test_hub_gets_full_defs_set(tmp_path, defs_file):
     r = make_repo(tmp_path, "fabrik", None)
     run(tmp_path, defs_file)
-    assert servers_of(r) == set(ALL_SERVERS)
+    assert servers_of(r) == set(ALL_SERVERS) - {"postgres-pro"}  # no connecting DB in the fixture
 
 
 def test_write_set_containment(tmp_path, defs_file):
@@ -171,4 +188,23 @@ def test_scaffold_helper_emits_mcp_config(tmp_path):
     repo = make_repo(tmp_path, "fresh-api", "python-api")
     _emit_mcp_config(repo)
     assert (repo / ".mcp.json").exists(), "scaffold must emit the repo's ruled .mcp.json"
-    assert servers_of(repo) == UNIVERSAL6
+    assert servers_of(repo) == U5_NO_DB
+
+
+def test_postgres_pro_container_host_rewritten_to_localhost(tmp_path, defs_file):
+    """Live defect 2026-08-30: a .env DATABASE_URL carrying the VPS-side container
+    host (postgres-main) made postgres-mcp block 31.5s in a DNS-failing pool retry
+    — past Claude's 30s handshake timeout. .mcp.json is consumed ONLY by WSL
+    windows, where the env-layer host mapping is localhost (CLAUDE.md two-envs law)."""
+    seen = {}
+    r = make_repo(tmp_path, "vps-env-api", "python-api",
+                  env="DATABASE_URL=postgresql://u:p@postgres-main:5432/appdb\n")
+    real = emitter._uri_connects
+    emitter._uri_connects = lambda uri: seen.setdefault("uri", uri) and True
+    try:
+        run(tmp_path, defs_file)
+    finally:
+        emitter._uri_connects = real
+    assert seen["uri"] == "postgresql://u:p@localhost:5432/appdb", "probe must see the LOCALHOST form"
+    entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
+    assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/appdb"

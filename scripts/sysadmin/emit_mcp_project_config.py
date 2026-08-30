@@ -29,6 +29,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 UNIVERSAL6 = [
@@ -99,7 +101,35 @@ def _database_url(repo: Path) -> str | None:
         m = _DBURL_RE.search(env.read_text(encoding="utf-8", errors="replace"))
     except OSError:
         return None
-    return m.group(1).strip() if m else None
+    if not m:
+        return None
+    # .mcp.json is consumed ONLY by WSL windows (box-local, gitignored): rewrite the
+    # VPS-side container-DNS host to the WSL env-layer form (CLAUDE.md two-envs law).
+    # Verbatim postgres-main made postgres-mcp block 31.5s in a DNS-failing pool retry,
+    # past Claude's 30s handshake timeout (live defect 2026-08-30, hub + apidoccreator).
+    return m.group(1).strip().replace("@postgres-main:", "@localhost:")
+
+
+def _uri_connects(uri: str) -> bool | None:
+    """True/False = probed; None = no probe available (psycopg missing everywhere).
+
+    postgres-mcp v1.29 blocks its MCP handshake ~30s on ANY non-connecting URI
+    (DNS and auth failures alike, both measured 2026-08-30) — past Claude's 30s
+    connect timeout. So a URI is emitted only when it PROVABLY connects; an
+    omitted env means the server starts unconnected in ~2s with tools present.
+    """
+    probe = "import psycopg,sys; psycopg.connect(sys.argv[1], connect_timeout=3).close()"
+    for py in (sys.executable, "/opt/fabrik/.venv/bin/python"):
+        if not Path(py).exists():
+            continue
+        try:
+            r = subprocess.run([py, "-c", probe, uri], capture_output=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if b"ModuleNotFoundError" in r.stderr:
+            continue  # this interpreter has no psycopg — try the next
+        return r.returncode == 0
+    return None
 
 
 def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
@@ -118,10 +148,15 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
             continue
         entry = json.loads(json.dumps(defs[s]))  # deep copy
         if s == "postgres-pro":
+            # postgres-mcp v1.29 blocks its handshake ~30s on ANY non-connecting URI
+            # and refuses to start with none — a repo without a PROVEN-connecting
+            # DATABASE_URL gets NO entry (absent-until-configured; re-emission
+            # restores it). None = unprobeable → trust the URI.
             url = _database_url(repo)
+            if not url or _uri_connects(url) is False:
+                continue
             entry.pop("env", None)
-            if url:
-                entry["env"] = {"DATABASE_URI": url}
+            entry["env"] = {"DATABASE_URI": url}
         out[s] = entry
     return out
 

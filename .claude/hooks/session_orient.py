@@ -130,6 +130,33 @@ def _memory_line(cwd: str) -> str:
     )
 
 
+def _mcp_line(cwd: str) -> str:
+    """The session's ASSIGNED MCP set + catalog pointer + fix-first duty (operator
+    directive 2026-08-30, D-032). Reads the repo's emitted .mcp.json at runtime;
+    fail-safe: any problem degrades to the universal-set line, never crashes."""
+    assigned = "the universal set (no repo .mcp.json here)"
+    try:
+        import json as _json
+
+        mcp = _json.loads((Path(cwd) / ".mcp.json").read_text())
+        names = sorted(mcp.get("mcpServers", {}))
+        if names:
+            assigned = " · ".join(names)
+    except Exception:
+        pass
+    return (
+        f"- **Your ASSIGNED MCPs (this repo):** {assigned} — plus the user-level universal set."
+        " The FULL catalog + every ruling: `/opt/fabrik/docs/workstation/mcp-roster.md` (box-local,"
+        " absolute path works from every repo); need a server this repo lacks? cite the roster row"
+        " and ask the operator — never hand-edit `.mcp.json` (hub-emitted; the ruling changes first)."
+        " **An MCP that fails to connect is FIXED FIRST, before the task** — known classes: corrupted"
+        " `~/.npm/_npx/<hash>` entry → clear that ONE entry, never the whole `_npx`; cold-spawn herd"
+        " timeout → reload the window; postgres-pro needs a CONNECTING `DATABASE_URL` in the repo"
+        " `.env` (then re-run `python3 /opt/fabrik/scripts/sysadmin/emit_mcp_project_config.py"
+        " --repo <this repo>`).\n"
+    )
+
+
 def _governance_line(cwd: str) -> str:
     # Repo identity is CONTENT-based (same discipline as /fabrik-upstream): the
     # hub is wherever the synced-manifest module sits at toplevel — never a
@@ -234,7 +261,8 @@ def main() -> int:
         + "\n"
         + _memory_line(cwd)
         + "\n"
-        "- **Decision-shaped question? LEDGER FIRST:** grep `docs/DECISIONS.md` (fleet-wide:"
+        + _mcp_line(cwd)
+        + "- **Decision-shaped question? LEDGER FIRST:** grep `docs/DECISIONS.md` (fleet-wide:"
         " `python3 /opt/fabrik/scripts/decisions.py <term>`) BEFORE any wider hunt — a prior ruling,"
         " retirement, or rejected option is a structured row there, and structured beats lexical."
         " A decision made or received this run gets its row in the same change.\n"
