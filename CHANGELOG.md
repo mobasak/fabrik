@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 ### Added — the Operating Manifesto adopted (D-043) (2026-08-30)
 
 - docs/reference/operating-manifesto.md: the operator's phase framework verbatim + five enforcement additions + § Binding onto the decision ledger and the alerting stack.
+- Refinements per the operator's closing review (same day): the reversible fast-path writes a one-line kill criterion at Phase 4 entry; the WIP limit named as § Binding candidate check 2.
 
 ### Fixed — the MCP cold-spawn herd killed: local pinned installs (D-042) (2026-08-30)
 

@@ -145,6 +145,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 14 | SCOPED — orchestrator: compound Unicode→BrokenPipe path guarded (red-first monkeypatch test watched RED); date comment normalized to 2026-08-30/31; suites 117 passed, gate success | 0 | 0 | 2 | closing wide sweep owed |
 | Pass 15 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 6a159fe3; own red-on-revert traces (7/7 tests), live query + --check + suites executed; dispatched: 1, returned: 1 | 3 | 3 | 0 | not done (query omits WHY + 2 doc rewords) |
 | Pass 16 | SCOPED — orchestrator: _query now prints ALL six cells incl. WHY (red-first assertion watched RED; live query proven to print the why-cell); CHANGELOG parenthetical de-contradicted; decision-ledger.md format line + renumber-in-place caveat; suites 117 passed, gate success | 0 | 0 | 3 | closing wide sweep owed |
+| Pass 17 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 65528cce; own red-on-revert traces for the 2 highest-risk assertions; live drift-check parser run against the hub file (8/8 anchors parse); dispatched: 1, returned: 1 | 5 | 5 | 0 | not done — 4 of 5 are ONE class: remote descriptions of the tool's contract went stale on the round-16 change |
+| Pass 18 | SCOPED — orchestrator: CLASS fix = de-enumeration (remote docs now point at `--help`/the docstring instead of restating the check inventory and output shape — the domino generator removed, not just the instances); decisions.py docstring updated (it lives WITH the code); CHANGELOG refinement bullet for cfd9ac84's two manifesto edits; suites 117 passed, --check exit 0, gate success | 0 | 0 | 5 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -194,6 +196,12 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | F-X2 | CHANGELOG parenthetical claimed the literal was "kept out of this entry" while `pre-blocked:` sat in the same bullet | FIXED (round 16 — reworded: uppercase example kept out; the lowercase one is inert vs the case-sensitive regex) |
 | F-X3 | in-place renumber leaves D-046 below D-044 — silently violating the documented newest-first read | FIXED (round 16 — decision-ledger.md id-collision bullet now states renumber-in-place keeps position; newest-first is a mint-time convention) |
 
-34 findings → 26 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
+| F-Y1 | decisions.py's own docstring still promised the 6-field output | FIXED (round 18 — 7 fields; the docstring lives with the code, so it stays enumerating) |
+| F-Y2 | docs/DECISIONS.md header: "--check validates supersede pointers" stale | FIXED (round 18 — de-enumerated: points at `--help` as the current inventory) |
+| F-Y3 | v2 spec line 218: 6-field output shape stale | FIXED (round 18 — de-enumerated: "every row cell; the helper's docstring is the contract") |
+| F-Y4 | v2 spec §Enforcement: "ONE narrow mechanical row" self-contradicts §Degradation 14 lines up | FIXED (round 18 — de-enumerated + cross-referenced §Degradation) |
+| F-Y5 | cfd9ac84's two manifesto refinements had no CHANGELOG record; D-043's row enumerates only the original five additions | FIXED-instance (round 18 — CHANGELOG refinement bullet added under the D-043 entry) · ledger-row half REFUTED: rows are adoption-time snapshots, immutable by design; the refinements execute the operator's closing-review instruction on the ADOPTED artifact, and the duty's own "NOT a decision: routine doc edits" clause governs — the living manifesto at D-043's where-cell is the content of record |
+
+39 findings → 31 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
 
 

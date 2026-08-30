@@ -215,7 +215,7 @@ fleet-visible). NOT a decision: routine fixes, refactors, doc edits — those ar
    derivation sources**: `docs/DECISIONS.md` joins the list of frozen artifacts consulted before
    any question reaches the operator.
 3. **The fleet helper:** `scripts/decisions.py` (hub) — `grep -i` over `/opt/*/docs/DECISIONS.md`
-   + the hub's own, printing `repo · id · when · who · what · where`. ~30 lines, stdlib, read-only.
+   + the hub's own, printing every row cell (the helper's docstring is the current output contract). ~30 lines, stdlib, read-only.
 
 ## Distribution (I5)
 
@@ -257,9 +257,10 @@ fleet-visible). NOT a decision: routine fixes, refactors, doc edits — those ar
 
 Day 1: **advisory only** — the close-out line + the Doc Sync Matrix row (judgment-enforced like the
 rest of the matrix's floor). NO mechanical "was a decision recorded" gate: that predicate is not
-mechanically decidable, and a check that nags every commit is wallpaper. ONE narrow mechanical row
-ships with the helper (cheap, precise, zero false positives): **every `supersedes D-NNN` pointer must
-resolve to an existing row id** — the dangling-pointer failure the tooling research names. Measure
+mechanically decidable, and a check that nags every commit is wallpaper. Narrow mechanical integrity
+checks ship with the helper (cheap, precise, zero false positives) — `--check`'s own `--help` is the
+current inventory (at freeze: the dangling `supersedes D-NNN` pointer; § Degradation records the
+duplicate-id check added on day-one evidence). Measure
 adoption after 2 weeks (kaizen can count ledger appends/repo); if ~zero, the escalation candidate is
 a check that a `Status:`-flip commit touches DECISIONS.md in the same change — THAT subset is
 mechanical. Backlog row carries the trigger.

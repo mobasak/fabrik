@@ -16,7 +16,7 @@ Usage:
                                                    # and no id appears on two rows;
                                                    # exit 1 on a dangling pointer or duplicate
 
-Output: `repo · D-NNN · when · who · what · where` per matching row. A repo without a ledger is
+Output: `repo · D-NNN · when · who · what · why · where` per matching row. A repo without a ledger is
 silently skipped (adoption is rolling). Query always exits 0; only --check has a failing exit.
 """
 

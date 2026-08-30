@@ -4,7 +4,7 @@ Append-at-top. One row per decision; rows are IMMUTABLE — a changed decision g
 what-cell opens "supersedes D-NNN:"; the old row is never edited. WHY ≤ 2 lines; the full rationale
 lives at the WHERE links. Subagents and the pipeline never hold the pen — the dispatching session
 appends. Query: grep this file first; fleet-wide: `python3 /opt/fabrik/scripts/decisions.py <term>`
-(`--check` validates supersede pointers).
+(`--check` validates ledger integrity — its own `--help` is the current check inventory).
 
 | id | when | who | what (the decision) | why | where |
 |---|---|---|---|---|---|
