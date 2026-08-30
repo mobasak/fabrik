@@ -197,3 +197,5 @@ scripts/kilo-benchmarks/shortlists.json
 mutants/
 # Serena MCP per-project config (tool-local)
 .serena/
+# Per-repo MCP config (emitted by scripts/sysadmin/emit_mcp_project_config.py; carries resolved DATABASE_URL)
+.mcp.json

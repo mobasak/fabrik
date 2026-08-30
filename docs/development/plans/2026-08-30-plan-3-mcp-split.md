@@ -121,7 +121,7 @@ Selections not covered by a row: `unconstrained`.
 - A3 Manifest: `.mcp.json` joins the generated gitignore block (fleet-wide on next sync);
   CHANGELOG + INDEX rows. Gate + scoped review + commit + push.
 
-### Phase B — rosters (ORDERED: emission BEFORE trim; trim is the LAST mutation)
+### Phase B — rosters (ORDERED: emission BEFORE trim; trim is the LAST mutation) — **B1/B2/B3 EXECUTED 2026-08-30; B4 trim HELD on fabrik-lib ack (01M19TVBJ1)** (review: docs/development/reviews/2026-08-30-plan-3-phase-B-review.md)
 
 - B1 **HOLD-POINT: operator go-word only — the type precondition is MET** (D-026: 10 repos fixed by
   hub under explicit authorization; D-027: candle + exam-coach; census operator-confirmed 42/42).

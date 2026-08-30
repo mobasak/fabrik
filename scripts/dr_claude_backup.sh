@@ -16,6 +16,7 @@
 #   ~/.claude/.claude-manager/*.{json,js}   rotation engine taps + statusline config
 #   ~/.claude/plugins/*.json                which plugins/marketplaces are enabled
 #   ~/.claude-youtube-headless/{.claude.json,settings.json}   the 2nd (headless) profile's config
+#   ~/.claude-fleet/<acct>/.claude.json     per-account rosters the rotator mutates (plan-3)
 #   Windows Claude Desktop claude_desktop_config.json         Desktop MCP roster
 #
 # NOT mirrored (deliberate — regenerable or huge):
@@ -92,6 +93,13 @@ do_backup() {
   mirror "$CLAUDE_DIR/manager-accounts"            "claude/manager-accounts"
   norm_json "$HEADLESS_DIR/.claude.json"   "$DEST/claude-youtube-headless/claude.json"
   mirror "$HEADLESS_DIR/settings.json"             "claude-youtube-headless/settings.json"
+  # fleet account rosters (plan-3 B4 precondition: the trim's DR claim was unfounded
+  # while only the ad-hoc ~/.claude.json was mirrored — these are what the rotator mutates)
+  for acct in "$HOME"/.claude-fleet/*/; do
+    [ -L "${acct%/}" ] && continue   # skip the 'active' symlink (its target is mirrored)
+    [ -f "$acct/.claude.json" ] || continue
+    norm_json "$acct/.claude.json" "$DEST/claude-fleet/$(basename "$acct")/claude.json"
+  done
   mirror "$WIN_DESKTOP_CFG"                        "windows/claude_desktop_config.json"
 
   # selective file sets (dirs carry state we don't want)
