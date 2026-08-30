@@ -192,7 +192,12 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
         # built from NAME LISTS, not iter_synced_pairs, so every new leg must be
         # fed in here explicitly (live regression: dropping CLAUDE.md from
         # GOVERNANCE_FILES silently removed its ignore line fleet-wide).
-        "Governance files": list(GOVERNANCE_FILES) + [dest for _src, dest in GOVERNANCE_TEMPLATES],
+        # SEED_IF_MISSING dests are EXCLUDED: they are project-owned DATA the moment they
+        # exist, and their git history IS the who/when corroboration layer — an ignored
+        # ledger can never be committed (caught live 2026-08-30: the first rollout
+        # gitignored docs/DECISIONS.md in all 48 repos).
+        "Governance files": list(GOVERNANCE_FILES)
+        + [dest for _src, dest in GOVERNANCE_TEMPLATES if dest not in SEED_IF_MISSING],
         "Agent definition-of-done hooks": list(AGENT_HOOK_FILES),
         "Rule packs, workflows and synced reference dirs": synced_dirs,
         "Reference docs (synced from fabrik)": [dest for _src, dest in REFERENCE_DOCS],

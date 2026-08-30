@@ -74,3 +74,15 @@ def test_flag_defaults_off_so_ports_semantics_are_untouched(tmp_path):
     r = sync.sync_single_file(src, dest, force=True)  # no seed flag → forced overwrite as today
     assert r.action == "COPY", r
     assert dest.read_text(encoding="utf-8") == SEED_TEXT
+
+
+def test_seed_if_missing_dests_are_never_gitignored():
+    """The .gitignore Fabrik-synced block must NOT ignore a SEED_IF_MISSING dest: the ledger is
+    project-owned DATA whose git history IS the who/when corroboration layer — an ignored ledger
+    can never be committed, defeating the design (caught live 2026-08-30: the first rollout
+    ignored docs/DECISIONS.md in all 48 repos)."""
+    block = manifest.gitignore_block_text()
+    assert "docs/DECISIONS.md" not in block, block
+    # the neighbors keep their ignore lines — the exclusion is seed-class-only
+    assert "CLAUDE.md" in block
+    assert "PORTS.md" in block
