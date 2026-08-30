@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import subprocess
 import urllib.error
 import urllib.request
@@ -35,19 +36,40 @@ def _probe_stdio(entry: dict, timeout: int) -> str:
     cmd = [entry.get("command", "")] + list(entry.get("args", []))
     if not cmd[0]:
         return "DEAD"
+    if Path(cmd[0]).name == "docker" or cmd[0] == "docker":
+        # a docker-run entry would spawn a REAL container against live infra per
+        # health check, and killing the CLI never stops the container — skip
+        # honestly rather than probe destructively (author-blind review 2026-08-30)
+        return "SKIPPED (docker-run entry — probe would launch a live container)"
+    proc = None
     try:
-        r = subprocess.run(
+        # own session per child so the kill reaches uvx/npx GRANDCHILDREN too —
+        # stdio MCP servers outlive one initialize and reparent to 1 otherwise
+        # (6 orphaned serena processes measured; author-blind review 2026-08-30)
+        proc = subprocess.Popen(
             cmd,
-            input=_INIT.encode(),
-            capture_output=True,
-            timeout=timeout,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
             env=None if not entry.get("env") else {**os.environ, **entry["env"]},
         )
+        out, _err = proc.communicate(input=_INIT.encode(), timeout=timeout)
+        return "CONNECTED" if b'"jsonrpc"' in out else "DEAD"
     except subprocess.TimeoutExpired:
         return "TIMEOUT"
     except OSError:
         return "DEAD"
-    return "CONNECTED" if b'"jsonrpc"' in r.stdout else "DEAD"
+    finally:
+        if proc is not None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+            try:
+                proc.wait(timeout=3)
+            except Exception:
+                pass
 
 
 def _probe_http(entry: dict, timeout: int) -> str:

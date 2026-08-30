@@ -707,12 +707,26 @@ def _feedback_verdict(text: str | None) -> tuple[str, list[str]]:
     # PAST TENSE only. `filed?` also matched the bare infinitive, so "nothing to FILE" read as a
     # filing — the negation of the sentence lost to one optional character. A verdict claims a
     # COMPLETED act or it is not a claim.
-    filed_verb = re.search(r"\b(filed|sent|routed|mailed|raised|reported)\b", low) is not None
+    filed_verb = _has_filing_verb(low)
     if re.match(r"^(none|nothing|n/?a)\b", low) and not filed_verb:
         return "none", []
     if beats or filed_verb:
         return "filed", beats
     return ("filed" if len(stripped) > 3 else "none"), beats
+
+
+def _has_filing_verb(low: str) -> bool:
+    """A filing verb NOT negated within the 3 preceding tokens — 'not filed anywhere'
+    is a none, not a filing (author-blind review 2026-08-30: bare verb presence
+    inflated the diligence metric with attributions that never happened)."""
+    for m in re.finditer(r"\b(filed|sent|routed|mailed|raised|reported)\b", low):
+        preceding = low[: m.start()].split()[-3:]
+        if not any(re.fullmatch(r"(not|never|no|nothing|nowhere|\w+n't)", t.strip(".,;:—–-")) for t in preceding):
+            return True
+    return False
+
+
+_VACUOUS_WORDS = frozenset({"nothing", "here", "to", "report", "at", "all", "really", "else", "new", "found"})
 
 
 def _feedback_lacks_substance(text: str) -> bool:
@@ -724,12 +738,17 @@ def _feedback_lacks_substance(text: str) -> bool:
     stripped = text.strip()
     low = stripped.lower()
     if not re.match(r"^(none|nothing|n/?a)\b", low):
-        return False  # a filing (or prose) — the verdict classifier grades it
+        # the FILED path owes the same floor: a bare 'filed'/'sent' names no what,
+        # no whom (the refusal text itself demands 'filed <what> to <beat>').
+        return len(re.sub(r"\s", "", low)) < 12
     # everything after the none-token must say SOMETHING real (>= 6 non-space chars —
     # kills bare/decoration-only nones without rejecting honest terse verdicts like
     # 'none — swept it'; calibrated against the live fixture corpus, not vibed)
     rest = re.sub(r"^(none|nothing|n/?a)\b[\s.,:;—–-]*", "", low)
-    return len(re.sub(r"\s", "", rest)) < 6
+    # strip vacuous elaborations ('nothing to report') and punctuation runs — a
+    # bare none in a costume is still a bare none
+    words = [w for w in re.findall(r"[a-z0-9./_-]+", rest) if w not in _VACUOUS_WORDS]
+    return len("".join(words)) < 6
 
 
 def _build_parser() -> argparse.ArgumentParser:

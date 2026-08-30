@@ -208,3 +208,27 @@ def test_postgres_pro_container_host_rewritten_to_localhost(tmp_path, defs_file)
     assert seen["uri"] == "postgresql://u:p@localhost:5432/appdb", "probe must see the LOCALHOST form"
     entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/appdb"
+
+
+def test_default_defs_chain_always_carries_postgres_pro():
+    """BLOCKER regression (author-blind review 2026-08-30): the hub's own emitted
+    .mcp.json lost postgres-pro (D-031) while ALSO being the default defs source —
+    a default-invocation re-emission silently deleted the server from every
+    qualifying repo. The static catalog (mcp_defs.json) now heads the chain and
+    must always carry the full template set."""
+    defs = emitter._load_defs(None)
+    assert "postgres-pro" in defs, "the defs chain must never lose a ruled server's template"
+    assert "context7" not in defs and "github" not in defs, "retired servers stay out"
+
+
+def test_sqlalchemy_driver_suffix_normalized(tmp_path, defs_file, monkeypatch):
+    """MAJOR regression: postgresql+asyncpg:// DSNs failed the psycopg probe AND would
+    choke postgres-mcp itself — normalize the scheme for both probe and emission."""
+    seen = {}
+    monkeypatch.setattr(emitter, "_uri_connects", lambda uri: seen.setdefault("uri", uri) and True)
+    r = make_repo(tmp_path, "async-api", "python-api",
+                  env="DATABASE_URL=postgresql+asyncpg://u:p@localhost:5432/adb\n")
+    run(tmp_path, defs_file)
+    assert seen["uri"] == "postgresql://u:p@localhost:5432/adb"
+    entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
+    assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/adb"

@@ -166,3 +166,26 @@ def test_bare_none_refused_substance_floor():
     assert not cr._feedback_lacks_substance("none — swept it")  # terse but real
     assert not cr._feedback_lacks_substance("none — surfaces exercised: mail.py send seam, rubric derivation")
     assert not cr._feedback_lacks_substance("filed the stale-twin finding to infra (01M1XXXX)")
+
+
+def test_negated_filing_verb_stays_none():
+    """MAJOR regression: 'not filed anywhere' counted as a filing — the negation
+    lost to bare verb presence, inflating the diligence metric."""
+    assert cr._feedback_verdict("none — not filed anywhere, swept infra rules")[0] == "none"
+    assert cr._feedback_verdict("none — never filed, checked fleet specs only")[0] == "none"
+    assert cr._feedback_verdict("filed the stale-twin to infra")[0] == "filed"
+
+
+def test_bare_filed_lacks_substance():
+    """MAJOR regression: a vacuous 'filed' passed the floor a vacuous 'none' failed."""
+    assert cr._feedback_lacks_substance("filed")
+    assert cr._feedback_lacks_substance("sent.")
+    assert not cr._feedback_lacks_substance("filed the corpus defect to infra (01M1X)")
+
+
+def test_stopword_none_lacks_substance():
+    """MAJOR regression: 'none — nothing to report' is the bare none in a costume."""
+    assert cr._feedback_lacks_substance("none — nothing")
+    assert cr._feedback_lacks_substance("none: nothing to report")
+    assert cr._feedback_lacks_substance("none))))))")
+    assert not cr._feedback_lacks_substance("none — swept it")

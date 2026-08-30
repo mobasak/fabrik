@@ -39,3 +39,16 @@ def test_reply_kind_exempt():
 def test_headers_matched_loosely():
     body = "**What:** a thing\n- where: f.py:1\nWHEN: today\nwho: me\nWhy: proven\nHow: so\nSystemic: class\n"
     assert mail._structure_gaps("request", body) == []
+
+
+def test_empty_headers_and_quoted_blocks_do_not_satisfy():
+    """MAJOR regression: empty 'WHY:' lines, quoted forwards ('> WHY: x') and code-fence
+    templates satisfied the checker — structure without content, or someone else's."""
+    empty = "WHAT:\nWHERE:\nWHEN:\nWHO:\nWHY:\nHOW:\nSYSTEMIC:\n"
+    assert len(mail._structure_gaps("finding", empty)) == 7
+    quoted = "\n".join(f"> {k}: real content here" for k in
+                       ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC"))
+    assert len(mail._structure_gaps("finding", quoted)) == 7
+    fenced = "```\n" + "\n".join(f"{k}: template" for k in
+                                 ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC")) + "\n```\n"
+    assert len(mail._structure_gaps("finding", fenced)) == 7

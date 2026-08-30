@@ -158,10 +158,19 @@ def _mcp_line(cwd: str) -> str:
     try:
         import json as _json
 
-        mcp = _json.loads((Path(cwd) / ".mcp.json").read_text())
-        names = sorted(mcp.get("mcpServers", {}))
+        raw = (Path(cwd) / ".mcp.json").read_text()
+        try:
+            servers = _json.loads(raw).get("mcpServers", {})
+            names = sorted(servers) if isinstance(servers, dict) else []
+        except Exception:
+            # a BROKEN file is not an ABSENT file — fix-first applies to the config too
+            names = []
+            assigned = "⚠️ .mcp.json EXISTS but is malformed/unreadable — fix it first (re-run the emitter)"
         if names:
-            assigned = " · ".join(names)
+            shown = names[:40]
+            assigned = " · ".join(shown) + (f" · (+{len(names) - 40} more)" if len(names) > 40 else "")
+    except FileNotFoundError:
+        pass
     except Exception:
         pass
     return (

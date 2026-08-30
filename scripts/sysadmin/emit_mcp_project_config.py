@@ -73,6 +73,13 @@ _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
 
 def _load_defs(defs_arg: str | None) -> dict[str, dict]:
     candidates = ([Path(defs_arg)] if defs_arg else []) + [
+        # the STATIC hand-curated catalog heads the chain (BLOCKER regression,
+        # author-blind review 2026-08-30): the hub's own emitted .mcp.json is
+        # DERIVED/conditional (it legitimately lacks postgres-pro per D-031), so
+        # using it as the defs source made a default re-emission strip the server
+        # from every qualifying repo. Templates live in mcp_defs.json; derived
+        # files are fallbacks only.
+        Path(__file__).resolve().parent / "mcp_defs.json",
         Path("/opt/fabrik/.mcp.json"),
         Path.home() / ".claude-fleet/active/.claude.json",
     ]
@@ -107,7 +114,11 @@ def _database_url(repo: Path) -> str | None:
     # VPS-side container-DNS host to the WSL env-layer form (CLAUDE.md two-envs law).
     # Verbatim postgres-main made postgres-mcp block 31.5s in a DNS-failing pool retry,
     # past Claude's 30s handshake timeout (live defect 2026-08-30, hub + apidoccreator).
-    return m.group(1).strip().replace("@postgres-main:", "@localhost:")
+    url = m.group(1).strip().replace("@postgres-main:", "@localhost:")
+    # SQLAlchemy dialect suffixes (postgresql+asyncpg://...) choke psycopg's parser
+    # AND postgres-mcp itself — normalize for both the probe and the emitted URI
+    # (3 live repos were wrongly denied the server; author-blind review 2026-08-30).
+    return re.sub(r"^postgres(ql)?\+\w+://", "postgresql://", url)
 
 
 def _uri_connects(uri: str) -> bool | None:

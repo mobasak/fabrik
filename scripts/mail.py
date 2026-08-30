@@ -641,9 +641,25 @@ def _structure_gaps(kind: str, body: str) -> list[str]:
     Advisory tier: send() WARNS on gaps and never refuses (measured-rollout law)."""
     if kind not in _STRUCTURED_KINDS:
         return []
+    # only AUTHORED lines count: skip fenced code blocks (templates) and blockquotes
+    # (forwarded/quoted mail) — someone else's structure is not yours; and a header
+    # needs CONTENT after the colon (>= 2 non-space chars) — an empty 'WHY:' is not
+    # a root cause (author-blind review 2026-08-30).
+    authored = []
+    fenced = False
+    for line in body.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or stripped.startswith(">"):
+            continue
+        authored.append(line)
+    text = "\n".join(authored)
     gaps = []
     for key in _STRUCTURE_KEYS:
-        if not _re.search(rf"(?im)^[\s>*#-]*{key}\b[^:\n]{{0,24}}:", body):
+        m = _re.search(rf"(?im)^[\s*#-]*{key}\b[^:\n]{{0,24}}:(.*)$", text)
+        if not m or len(_re.sub(r"\s", "", m.group(1))) < 2:
             gaps.append(key)
     return gaps
 
@@ -663,14 +679,6 @@ def send(
     frm = frm or _current_repo()
     _safe_name(to, "recipient")
     _safe_name(frm, "sender")
-    _gaps = _structure_gaps(kind, body)
-    if _gaps:
-        print(
-            f"[mail-structure advisory, D-035] this {kind} is missing mandatory sections: "
-            f"{', '.join(_gaps)} — the 5W1H + factual-WHY + SYSTEMIC contract "
-            "(docs/reference/fabrik-mail.md § The message contract). Sent anyway (advisory tier).",
-            file=sys.stderr,
-        )
     to_agent = _safe_agent(to_agent or "")
     if ack and ack not in ("required", "no"):  # vocabulary check subsumes any separator
         # P3-1: `ack` is the SECOND raw-interpolated frontmatter value (the CLI
@@ -730,6 +738,18 @@ def send(
     if level == "high":
         raise MailRefusedError(
             "refusing send: body contains a high-confidence secret — messages never carry credentials"
+        )
+    # D-035 advisory AFTER every unconditional refusal above — printing 'Sent anyway'
+    # before a guard that then raises was a false log line (author-blind review
+    # 2026-08-30). The auto-path guards below can still HOLD, but a HOLD is not a
+    # refusal of the body's structure.
+    _gaps = _structure_gaps(kind, body)
+    if _gaps:
+        print(
+            f"[mail-structure advisory, D-035] this {kind} is missing mandatory sections: "
+            f"{', '.join(_gaps)} — the 5W1H + factual-WHY + SYSTEMIC contract "
+            "(docs/reference/fabrik-mail.md § The message contract). Sent anyway (advisory tier).",
+            file=sys.stderr,
         )
     # D6: the recipient/star checks above run BEFORE the guards — a real
     # misconfiguration (exit 2) must never be masked by a benign HOLD (exit 3).

@@ -559,8 +559,8 @@ def _warn_agent_name_mismatch(trailers: dict[str, list[str]]) -> None:
     differs is the mis-signed-day class — warn loudly, never reject (a wrong warning
     must not block a shared tree; promotion waits on measured fire rate). Env unset
     (every project repo, unnamed hub windows) or no Agent-Name trailer → silent."""
-    env_name = os.environ.get("CLAUDE_AGENT", "").strip()
-    signed = [v.strip() for v in trailers.get("agent-name", []) if v.strip()]
+    env_name = os.environ.get("CLAUDE_AGENT", "").strip().lower()
+    signed = [v.strip().lower() for v in trailers.get("agent-name", []) if v.strip()]
     if not env_name or not signed or env_name in signed:
         return
     print(
