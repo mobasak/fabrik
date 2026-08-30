@@ -1,9 +1,9 @@
 # Plan 3 — The MCP split implementation (per-repo .mcp.json + user-level trim)
 
-**Status:** CONVERGED (review round 1: 4 findings — write-set test, fabrik-lib dark-window reorder, invariant command, B-ref renumber — fixed in-file; round 2 fresh pass: 0 new)
+**Status:** CONVERGED (round 1: 4 findings fixed; round 2: graders caught 17 digest-format defects, fixed; AUTHOR-BLIND round 3 (operator-invoked, native finder, 32 claims re-derived): 9 findings — wef D-018 omission, shadcn² conditional source, DR fleet-dir gap, HARD-STOP create-verb argument, youtube-headless profile, count/range, BC↔A1 parity, gitignore provenance group, malformed-yaml behavior — ALL fixed in-file; round 4 fresh pass: 0 new)
 **Date:** 2026-08-30
 **Owner:** infra (hub session) — NO-POOL standing directive: solo native, no pool/subagent dispatch
-**Authority:** docs/DECISIONS.md D-013..D-024 (the complete MCP adjudication, 17/17 servers ruled) +
+**Authority:** docs/DECISIONS.md D-003 (context7) + D-013..D-024 (the complete MCP adjudication — every roster row ruled: 16 active + 2 retired + 1 planned) +
 docs/workstation/mcp-roster.md (the living roster record) + operator this turn: "do so", "be aware we
 have claude account rotation, do not break it", "be sure all agents and subagents can use our mcps
 properly".
@@ -58,14 +58,14 @@ MATCHED set derived: `python scripts/review_rubric.py --changed scripts/sysadmin
 | "tool access = the agent-type frontmatter (`tools` / `mcpServers` / `disallowedTools`)" | .windsurf/rules/core/62-using-subagents.md:19 | Runtime-A reachability audit (C1) checks each agent's frontmatter names against the per-repo sets. |
 | "Never restate tool lists in a command brief — the access lives in the agent-type file (Runtime A) or the `AgentSpec` (Runtime B)." | .windsurf/rules/core/62-using-subagents.md:13 | The emitter encodes SETS (rulings), never touches command briefs or agent files. |
 | "Edit existing docs instead of creating new ones." | .windsurf/rules/core/40-documentation.md:167 | Only new .md is this plan (allowlisted path); everything else edits existing docs. |
-| 6 | .windsurf/rules/core/40-documentation.md:61 | "Source, config, or Docker file changed" | A3/C3 carry both rows. |
+| "Source, config, or Docker file changed" | .windsurf/rules/core/40-documentation.md:61 | A3/C3 carry both rows. |
 | "cp <file> <file>.backup.$(date +%Y%m%d-%H%M%S)" | .windsurf/rules/core/35-security-auth.md:297 | Every roster-config mutation is followed by `dr_claude_backup.sh` (the stronger, versioned form already mandated by memory/contract); `.env` files are only READ, never edited. |
 | "swapping ANY attached backing service (DB, cache, object storage) is a **config change, never a code change**." | .windsurf/rules/core/25-data-postgres.md:270 | postgres-pro's per-repo URI lives in emitted CONFIG (env block), resolved from the repo's own `.env` `DATABASE_URL` — no code decides hosts. |
 | "Inside a container, `localhost` resolves to the container itself" | .windsurf/rules/core/30-ops.md:37 | Checked-N/A consciously: windows + MCP servers run on the WSL HOST, so a `localhost` PG URI in `.mcp.json` is correct here; the ban binds containers. |
 | "Use type hints for all function signatures" | .windsurf/rules/core/10-python.md:150-152 | The emitter is fully typed, modern syntax. |
 | "a non-trivial behavior's test proves something only if it has been SEEN RED" | .windsurf/rules/core/45-testing-strategy.md:21 | A1 is red-first by construction: every listed behavior watched red before the emitter exists (test 10 included). |
 | "a commit touching the governance-sync trigger surfaces" | CLAUDE.md § Sync-consciousness | The pack-62 edit (C2) is a synced-surface commit — correct for all repos by construction (it documents box topology, not repo behavior). |
-| "create/edit/**commit** files in a repo OTHER than the one you were launched in (cross-repo)" | CLAUDE.md § HARD STOPS | The emitter writing `.mcp.json` into `/opt/*` is a NEW sanctioned distribution path of the same class as the governance-sync (operator-ordered by the split ruling) — minted as a decision row, and it writes ONLY the gitignored `.mcp.json`, nothing else, never commits in target repos. |
+| "create/edit/**commit** files in a repo OTHER than the one you were launched in (cross-repo)" | CLAUDE.md § HARD STOPS | The rule bans create/edit/commit alike — the exemption must cover the CREATE verb, and it does, by the same reasoning that exempts the governance-sync (which creates/edits files in every project repo on each hub commit): CLAUDE.md § Sync-consciousness sanctions hub→fleet platform distribution as a class, the operator ordered THIS distribution (the split rulings + "do so"), the decision row records the minting, B1 runs only on the operator's go-word, and the write-set is one gitignored file (test 10), never a commit in a target repo. |
 
 Selections not covered by a row: `unconstrained`.
 
@@ -73,7 +73,8 @@ Selections not covered by a row: `unconstrained`.
 
 - `scripts/sysadmin/emit_mcp_project_config.py` (NEW — AFTER-EDIT header pointing at mcp-roster.md + fabrik_synced_manifest.py)
 - `tests/test_emit_mcp_project_config.py` (NEW)
-- `scripts/fabrik_synced_manifest.py` (gitignore block gains `.mcp.json`)
+- `scripts/dr_claude_backup.sh` (mirror set gains `~/.claude-fleet/*/.claude.json` — B4 precondition)
+- `scripts/fabrik_synced_manifest.py` (gitignore block gains `.mcp.json` as a NEW distinctly-named group — 'MCP config (emitted by emit_mcp_project_config.py)' — never appended to an existing sync-provenance group whose header names a different pusher)
 - `tests/test_sync_seed_if_missing.py` (extend: gitignore-block assertion for `.mcp.json`)
 - `.claude/settings.json` + its synced source in AGENT_HOOK_FILES flow (`enableAllProjectMcpServers: true`)
 - `.windsurf/rules/core/62-using-subagents.md` (§ mcp.json source-of-truth gains the per-repo layer)
@@ -85,12 +86,14 @@ Selections not covered by a row: `unconstrained`.
 
 - **Given** a fixture repo with `type: python-api`, **When** the emitter runs, **Then** its `.mcp.json` contains exactly the universal 6.
 - **Given** a fixture repo with `type: saas-skeleton`, **When** the emitter runs, **Then** the set adds playwright, chrome-devtools, shadcn, magicui.
-- **Given** a fixture repo named as an overlay holder (wef shape), **When** the emitter runs, **Then** the D-016/017/019/022 grants are present.
+- **Given** a fixture repo named as an overlay holder (wef shape), **When** the emitter runs, **Then** the D-016/017/018/019/022 grants are present — media-engine (D-018) included.
 - **Given** a repo `.env` carrying `DATABASE_URL`, **When** the emitter runs, **Then** postgres-pro's env block carries it as `DATABASE_URI`; **Given** no `DATABASE_URL`, **Then** the env block is OMITTED entirely.
 - **Given** an emitted `.mcp.json` already current, **When** the emitter re-runs, **Then** no file is written (idempotence) — and `--check` never writes in any state.
 - **Given** an untyped or `.git`-less directory, **When** the emitter runs, **Then** it is skipped.
 - **Given** the hub repo, **When** the emitter runs, **Then** the full 16-server set is emitted.
 - **Given** a full-tree snapshot of a fixture repo, **When** an emission run completes, **Then** the only created/mutated path is `.mcp.json` (write-set containment).
+- **Given** fabrik-claim-validator's MCP endpoint absent from the source table (D-022 planned row), **When** any repo's set is derived, **Then** no claim-validator entry is emitted anywhere.
+- **Given** a repo with a malformed `project.yaml` or unreadable `.env`, **When** the fleet-wide run hits it, **Then** that repo is SKIPPED with a logged reason and the run continues (fail-open per-repo; the logged skip list is DONE-WHEN-2's checkable remainder).
 - **Mocked:** nothing — real temp-dir fixture repos with real `project.yaml`/`.env` files; the live `/opt` tree is never a test target.
 
 ## Phases
@@ -99,17 +102,21 @@ Selections not covered by a row: `unconstrained`.
 
 - A1 **Red-first tests**, watched red before implementing:
   (1) headless repo type → exactly universal 6; (2) saas repo → universal 6 + playwright,
-  chrome-devtools, shadcn, magicui; (3) overlay repo (wef fixture) → + the D-016/017/019/022 grants;
+  chrome-devtools, shadcn, magicui; (3) overlay repo (wef fixture) → + the D-016/017/018/019/022 grants INCLUDING media-engine (D-018) — the overlay table is derived from mcp-roster.md's per-repo-overlay row text, never a hand-copied D-ref shorthand;
   (4) postgres-pro env carries the repo's `.env` `DATABASE_URL` as `DATABASE_URI` when present, and
   OMITS the env block when absent (server starts unconnected — degraded, never wrong-DB);
   (5) idempotence: second run writes nothing (mtime/content unchanged); (6) `--check` never writes;
   (7) untyped/`.git`-less dirs skipped; (8) fabrik-claim-validator absent until its endpoint entry
-  is added to the source table; (9) hub repo → full 16-server set; (10) **write-set containment**:
+  is added to the source table; (9) hub repo → full 16-server set; (11) malformed `project.yaml` / unreadable `.env` → skip-and-log, run continues; (10) **write-set containment**:
   after an emission run over a fixture repo, the ONLY path created/mutated under the repo is
   `.mcp.json` (full-tree snapshot diff) — the digest-row-12 claim as a test, not an assertion.
 - A2 Implement `emit_mcp_project_config.py`: server DEFINITIONS mirrored from the live
   `~/.claude.json` shapes (stdio commands/args, citation-verifier `type: http` url); SET DERIVATION
-  from `project.yaml::type` + the per-type table + overlay table, every row commented with its D-ref;
+  from `project.yaml::type` + the per-type table + overlay table, every row commented with its D-ref.
+  ⚠️ Conditional grants have NO type-level derivation path: shadcn on `desktop-app`/`static-site` is
+  granted only when the repo's frozen design system is shadcn-based (roster footnote ²) — those repos
+  earn shadcn via an explicit per-repo OVERLAY row (checked against the repo's `docs/design-system.md`
+  at adjudication time, recorded with a D-ref), never emitted from the bare type;
   `--repo <path>` single-repo mode; `--check` diff mode; default = all typed `/opt` repos + the hub.
 - A3 Manifest: `.mcp.json` joins the generated gitignore block (fleet-wide on next sync);
   CHANGELOG + INDEX rows. Gate + scoped review + commit + push.
@@ -136,7 +143,10 @@ Selections not covered by a row: `unconstrained`.
   import json,sys; print(hash(json.dumps(json.load(open('$f'))['mcpServers'],sort_keys=True)))"; done | sort -u | wc -l   # MUST print 1
   ```
 
-  then `dr_claude_backup.sh`. ⚠️ Never edit an account dir by hand; never touch the `active`
+  then `dr_claude_backup.sh` — **which B4 FIRST extends to mirror `~/.claude-fleet/*/.claude.json`**
+  (author-blind finding: its WHAT-IS-MIRRORED set covers `~/.claude.json` + `~/.claude/settings.json`
+  but 0 mentions of claude-fleet — the DR claim for the riskiest mutation was unfounded until this
+  extension). ⚠️ Never edit an account dir by hand; never touch the `active`
   symlink. Windows pick the trim up on reload — sequencing means no window ever lacks a server its
   repo grants.
 
@@ -172,6 +182,10 @@ Selections not covered by a row: `unconstrained`.
   emitter for that repo (idempotent).
 - **`${VAR}` unset behavior** (grounded): Claude Code warns and loads the server with unexpanded
   text — why A1 test 4 mandates OMITTING the env block rather than emitting an unexpandable var.
+- **The `~/.claude-youtube-headless/` profile** (separate `CLAUDE_CONFIG_DIR`, 2.3 GB, outside
+  `_fleet_root()` — the rotator never touches it): B4 trims its `mcpServers` to the universal 6 by the
+  same source roster, as an explicitly MANUAL step (it is outside the rotator's law by design), and the
+  youtube repo's own `.mcp.json` carries its grants.
 - **fabrik-gui/shadcn absence** in chrome-extension/docusaurus repos: C1 probes tolerance; if a
   declared-but-absent server breaks agent spawn, the fix is a per-type set addition (roster + D-row),
   not an agent edit.
