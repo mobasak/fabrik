@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mail-sweep batch: seven enforcement/corpus defects from six repos' findings, each red-first (2026-08-30)
+
+- **What:** one handle-now sweep over 13 fabrik-mail findings produced seven landed fixes:
+  the two Behavior-Contract graders share one grammar (tryton-crm; bold-label form accepted,
+  lockstep comments both sites) · finder-death accounting in both review-family termination
+  fragments (wef; a dead finder's partition is never counted swept) · frozen-chain advisory
+  sees universal-declarative pins (transdoc; widening measured at +6 lines fleet-wide first,
+  the disclosure alternative built-measured-REJECTED) · data-contract Reality grounding
+  un-bounds the Postgres enumeration (youtube; all schemas + privilege-agnostic cross-check) ·
+  INDEX drift fires on the run that creates the doc (transdoc; untracked docs count) · a
+  rubric MENTION is no longer an invocation (trade-intelligence; the generated output header
+  is the proof, raw-text search, both graders via one imported definition) · an IN-PROGRESS
+  review skeleton is exempt from the convergence-evidence demand (fabrik-lib; the flip
+  re-arms it) · schema-sync migration gate accepts .sql (youtube). Plus: researcher fetch
+  routing loses its phantom firecrawl arm and gains the NEEDS-RAW-FETCH handoff (wef), the
+  changelog placeholder scan judges the entry being shipped rather than 25k lines of history
+  (hub sibling), and three harness-hazard TROUBLESHOOTING rows (classifier hiccup · Read
+  disagreeing with the file · the 600s watchdog pattern measured across 3 repos).
+
 ### Fixed — session_orient no longer teaches the nohup self-watch arm that cannot deliver its wake (2026-08-30)
 
 - **What:** the static mesh paragraph in `.claude/hooks/session_orient.py` (fleet-synced) still
