@@ -1,6 +1,6 @@
 # Review — manifesto binding into the CLAUDE.md contracts (cfd9ac84 + 5420a575)
 
-Status: IN-PROGRESS
+Status: CONVERGED — round 25 (wide, non-author) returned new: 0 with every candidate adjudicated
 
 Surface: 5420a5755476d874f88d4ef8ca4e4bfd88108dcd + git diff HEAD md5 efbae5b5343fec5c4bc2c3fb4b09e414
 (working-tree dirt is siblings'; the reviewed surface is the two committed SHAs cfd9ac84..5420a575)
@@ -103,7 +103,77 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 - **Both patterns:** Never store JWTs in `localStorage` or `sessionStorage` on web. Never store JWTs in AsyncStorage or MMKV on mobile.
 - **Chrome Extension (MV3) specifics:** `chrome.storage.session` defaults to `TRUSTED_CONTEXTS`, so **content scripts cannot read the token** — keep it in the SW / extension-page context and have content scripts fetch it via SW-mediated messaging (`chrome.runtime.sendMessage`), not a direct read. For social login use `chrome.identity.launchWebAuthFlow` with **PKCE** (`code_verifier` via `crypto.subtle`, held in `storage.session`, redirect `https://<ext-id>.chromiumapp.org/`); the **backend** does the code-for-token exchange. **Never a heavy browser auth SDK** (Auth0-SPA-JS, `oidc-client-ts`) — they assume DOM/`localStorage`/iframes and break in the service worker. Pin a manifest `key` so the extension ID (and thus the `chrome-extension://<id>` CORS origin) is stable across machines. Full detail: `chrome-ext/70-chrome-ext.md`.
 - **Never rely solely on `middleware.ts` for access control.** CVE-2025-29927 allows complete middleware bypass via header manipulation.
-- `CORSMiddleware` in FastAPI must populate `allow_origins` from environment variables (Pyda```
+- `CORSMiddleware` in FastAPI must populate `allow_origins` from environment variables (Pydantic Settings). Never hardcode origins.
+**Never** write inline `APIKeyHeader` / `require_api_key`. **Never** use per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`). Scaffold `python-api` auto-emits `internal_auth.py`, `metrics.py` (REQUEST_COUNT / ERROR_COUNT / ACTIVE_JOBS / PROCESSING_COUNT), `/metrics` endpoint (Authelia-bypassed), and `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`.
+- => Mandate: config via env vars only (`os.getenv("KEY", "default")`); **ZERO secrets/constants in code**. Apply the open-source litmus test to every change. **BANNED**: grouped/named env config sets (e.g. a `config/production.yml` or a `settings.production` group) — env vars are granular and orthogonal, set per deploy. (The pack already covers secret handling — cross-reference existing secret patterns and extend with config orthogonality.)
+- [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
+
+### core/25-data-postgres.md
+- Use Pydantic `BaseSettings` (per `10-python.md` § Config Loading) — never raw `os.getenv` **for an
+- ⚠️ **Scope, stated here because this LINE is what `review_rubric.py` injects — without its section.**
+- Never blindly trust `--autogenerate`. Always review `upgrade()` and `downgrade()` for unintended column drops, rename misinterpretations, and ENUM alterations before committing.
+- > **Critical:** import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID` subclass). **PostgreSQL 18** (released Sep 2025) added native `uuidv7()` — if your instance is PG18+, you can use `DEFAULT uuidv7()` at the schema level instead of app-side generation. On PG16/17, generate app-side as above.
+- Foreign keys must declare `ON DELETE` behaviour explicitly — `CASCADE` if children cannot exist without the parent, `RESTRICT` to protect audit trails. Never rely on the implicit default.
+- This section owns the **canonical** engine, session, and `get_db`. `10-python.md` imports from here — never redefines its own.
+- Database `AsyncSession` must be scoped to the route handler via `Depends()`. Never open sessions or transactions in global middleware — this holds connections during serialisation and I/O, exhausting the pool.
+**BANNED as a server-side backing service** (dev, test, and prod alike):
+**⚠️ SCOPE — this ban is about BACKING SERVICES, not client-local storage.** It does **NOT** apply to:
+- **`desktop-app`** — SQLite is the **mandated** engine there (`desktop-app/72-desktop.md` § Local Persistence: `better-sqlite3` + SQLCipher; *"Production builds MUST encrypt the local SQLite file"*).
+**12-Factor IV (Backing Services) — generalised:** swapping ANY attached backing service (DB, cache, object storage) is a **config change, never a code change**. The handle lives in `DATABASE_URL` / `REDIS_URL` / storage env — the code *reads* it, the code does not *decide* it. Never `if ENV == "prod":` branching to pick a host. (See § PostgreSQL Host Selection, which already mandates this for the DB.)
+
+### core/30-ops.md
+- All services deploy via `fabrik apply` (SSH + Docker Compose) on the `fabrik` network. Traefik routes external traffic — services do NOT bind host ports.
+- **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below. **12‑Factor VII (Port binding):** "the app is self‑contained and exports HTTP by binding to a port; it does not rely on runtime injection of a webserver" — which is exactly WHY no host `ports:`.
+- **`container_name: <name>` is mandatory.** Same `_validate_compose()` gate refuses any service without it. Stable names are required so Gatus endpoints, inter-service URLs, and `docker exec`/`docker inspect` keys don't drift per redeploy. Use the bare service name (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`, `site-provisioner`, etc.) — never UUID-suffixed names.
+- `fabrik redeploy <app>` SSHes to the VPS and runs `git pull` + `docker compose up -d --wait` against the **GitHub remote**, NOT the local `/opt/<app>` clone. Skipping `git push` redeploys the previous remote commit — the VPS never sees local changes.
+**Mandate:** build → release → run are strictly separated. Releases are IMMUTABLE; the git SHA is the release ID. NEVER hot‑patch a running container (no `docker exec` to edit code/config in place, no in‑place code mutation on the VPS). Any change = a new build + a new release via `fabrik apply` / `fabrik redeploy`.
+- Runtime database migrations that modify the app container (migrations MUST be run as separate deploy‑time steps)
+**Mandate:** WSL dev and the VPS run the SAME backing services (PostgreSQL + Redis), same major version. NEVER substitute a different backing service in dev (no SQLite standing in for Postgres, no in‑memory dict standing in for Redis). The same code must run unmodified in both environments.
+**Invariant:** Never use `ports:` in compose.yaml to expose internal services to the host. All external traffic must go through Traefik.
+**Health endpoints (`/health`, `/healthz`, `/metrics`, `/api/health`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring. The bypass is **resource-based, not domain-bound** — applies on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file` middleware). Never protect these paths.
+**CRITICAL:** Use `web`/`websecure` in Traefik labels — never `http`/`https` (those entrypoints do not exist). The scaffolder emits the correct entrypoint names; if you hand-write labels, match these exactly.
+**Mandate:** migrations and admin tasks run as a ONE‑OFF process against the DEPLOYED image + env — identical environment to regular processes. NEVER run admin tasks from a laptop against prod, NEVER via `docker exec` into a live container, and **ABSOLUTELY NEVER auto-run migrations from app startup/`lifespan`** (concurrent replicas race the Alembic version table → wedged deploy).
+- > sees a file that looks exactly like a migration step, and ships a deploy where migrations never run —
+- > the rule producing the very defect it exists to prevent. Do not re-add either without a `path:line` in
+**Processes are share-nothing:** any state shared across requests MUST go to Redis (`redis-main`) with a TTL. A project using Redis for sessions MUST declare `shape.needs_cache: true` in `specs/services/<id>.yaml`, or `fabrik apply` skips the Redis registrar and the deploy is silently broken.
+- "A twelve-factor app never relies on implicit existence of system-wide packages"
+**Mandate:** any binary the app shells out to (ffmpeg, yt-dlp, poppler, tesseract…) MUST be `apt-get install`-ed AND version-pinned in the Dockerfile, with a `shutil.which()` startup probe that fails fast. Never assume `curl`/ImageMagick/ffmpeg exist in the image — they don't by default.
+
+### 12-FACTOR (all twelve axes)
+- I codebase: shared code → fabrik-lib, never two apps in one repo
+- II deps: every shelled-out binary installed + pinned in the Dockerfile
+- III config: granular env vars; no secrets in code; no grouped env sets
+- IV backing services: swappable by DSN/config change only
+- V build/release/run: releases immutable; never hot-patch a container
+- VI processes: stateless; session state → redis-main; no sticky sessions
+- VII port binding: bind in-container; Traefik routes; no host ports:
+- VIII concurrency: scale out; never daemonize or write PID files
+- IX disposability: SIGTERM returns in-flight jobs to the queue; jobs idempotent
+- X dev/prod parity: same backing services everywhere; no SQLite-for-Postgres
+- XI logs: unbuffered stdout only; the app never writes/rotates a logfile
+- XII admin: migrations/one-offs run against the deployed release, never startup
+
+## MATCHED — packs whose globs hit the changed paths
+
+### core/40-documentation.md  (hit: CHANGELOG.md, CLAUDE.md, docs/DECISIONS.md)
+- **Tier-1 (cheap-pool author → verify → converge):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
+- Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`. ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it: git parses only the LAST paragraph, and only if it is all-trailers. A blank line before `Co-Authored-By:` demotes everything above it to prose; so does a prose line glued to the top of the block. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because the old example here shipped the blank line.
+- **No skipped heading levels** — `##` to `###`, never `##` to `####`
+- **Fenced code blocks only** — never indented code (AI treats it inconsistently)
+
+# promote-to-check_*: 38 injected mandate(s) look deterministically greppable
+| `chrome-extension` | ✅ **use this** | ⚠️ only via `chrome.identity.launchWebAuthFlow` + the `https://<ext-id>.chromiumapp.org/` redirect the pack already mandates; a bare mailed link lands in a TAB that cannot reach `chrome.storage.session` |
+| `desktop-app` | ✅ **use this** | ⚠️ needs a registered custom protocol handler; the token then goes to `safeStorage` (`desktop-app/72-desktop.md`) |
+| **Another Fabrik service** (Docker-to-Docker on the `fabrik` network) | `X-Internal-Token` + `internal_auth.py`, `hmac.compare_digest`, 403 on reject | § Internal Service Auth (M2M) below — **never** an inline `APIKeyHeader`, never a per-service key name |
+- > **Fail-closed invariant (hard, every mode).** `auth.uid()` and `current_tenant_id()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed claims — wrap the body in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: an error-open helper turns one bad/empty JWT into a full cross-tenant read. This is the single most security-critical line in the build — verify it explicitly with a no-context probe (`SELECT auth.uid()` → `NULL`).
+- The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via Pydantic Settings. Never hardcode it.
+- => Mandate: processes are stateless/share-nothing. **STICKY SESSIONS ARE BANNED** (not just file-based sessions). Session state goes to `redis-main` (Redis) with a TTL. Never in-process memory, never on local disk. Any design that assumes "the same user hits the same process" is a violation.
+- **Pattern B (legacy / migration-only):** The Supabase client SDK handles token storage. On mobile, wrap with `expo-secure-store` (never AsyncStorage or MMKV for tokens). See `80-mobile.md` § Backend Integration.
+- **Both patterns:** Never store JWTs in `localStorage` or `sessionStorage` on web. Never store JWTs in AsyncStorage or MMKV on mobile.
+- **Chrome Extension (MV3) specifics:** `chrome.storage.session` defaults to `TRUSTED_CONTEXTS`, so **content scripts cannot read the token** — keep it in the SW / extension-page context and have content scripts fetch it via SW-mediated messaging (`chrome.runtime.sendMessage`), not a direct read. For social login use `chrome.identity.launchWebAuthFlow` with **PKCE** (`code_verifier` via `crypto.subtle`, held in `storage.session`, redirect `https://<ext-id>.chromiumapp.org/`); the **backend** does the code-for-token exchange. **Never a heavy browser auth SDK** (Auth0-SPA-JS, `oidc-client-ts`) — they assume DOM/`localStorage`/iframes and break in the service worker. Pin a manifest `key` so the extension ID (and thus the `chrome-extension://<id>` CORS origin) is stable across machines. Full detail: `chrome-ext/70-chrome-ext.md`.
+- **Never rely solely on `middleware.ts` for access control.** CVE-2025-29927 allows complete middleware bypass via header manipulation.
+- `CORSMiddleware` in FastAPI must populate `allow_origins` from environment variables (Pyda
+```
 
 ## Coverage Checklist
 
@@ -153,6 +223,7 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 22 | SCOPED — orchestrator: both line-count claims dropped for the load-bearing "stdlib-only" (grep = 0 remaining "~30 lines"); gate success | 0 | 0 | 1 | closing wide sweep owed |
 | Pass 23 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 0a073013; live red-on-revert on all 4 fixed behaviors (copy→neuter→test→restore, byte-identical restore verified); dispatched: 1, returned: 1 | 2 | 1 | 0 | not done (a HYPHENATED "~30-line" variant escaped round-21's grep; the field-block candidate is a re-raise of adjudicated F-B1/F-C5 → new: 1) |
 | Pass 24 | SCOPED — orchestrator: third site fixed; variant-proof sweep run ("30.line" + "~[0-9]" over all 12 files — every other numeric claim verified legitimate: ~46 repos, ~25-line headers, ~30s timeouts); gate success | 0 | 0 | 1 | closing wide sweep owed |
+| Pass 25 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 3142a961; re-ran suites (117 passed) + --check (exit 0) + --help + live query; own red-on-revert on the hook regex; 8/8 anchor byte-parity; 46/46 ledger rows parsed; residual-claim greps all clean; dispatched: 1, returned: 1 | 0 | 0 | 0 | → EXIT (new: 0, all adjudicated — the no-op round) |
 
 ## Per-finding disposition ledger
 
@@ -220,3 +291,47 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 Precision note (round-20 commit message): "grep proves 0 remaining … claims" — the raw-string grep count is 1, at spec § Degradation line 248, which QUOTES the disproven phrase inside its own DISPROVEN clause; zero remaining CLAIMS is accurate, the raw count is stated here for denominator honesty.
 
 
+
+
+## Verdict
+
+CONVERGED at pass 25. Wide-round new: trajectory 11→6→4→4→3→3→2→3→5→1→1→1→0 (the round-17 bump
+was one class — remote-description staleness — whose generator was removed at round 18 by
+de-enumeration). 42 findings total: **34 FIXED** (each with its commit; every code fix carries a
+red-first regression test) **+ 8 REFUTED** (each with quoted proof) **+ 1 residual-pre-existing**
+(the global BLOCKED-exemption's quote-blindness — deliberate design, rollout law governs any guard).
+Commits: b1960ccc · 713a6ca2 · 6a6b45ea · 01634957 · 5818e02e · 92a269c1 · 6a159fe3 · 65528cce ·
+a8ad5035 · d436311c · 0a073013 · 3142a961. Mechanical gates green at every fix round and at close.
+
+Method note: the closing rounds 19-25 each verified the fixes by REAL execution (live queries,
+copy-neuter-restore red-on-revert with byte-identical restore checks, re-derived counts) —
+method: re-derivation held through the tail.
+
+
+## Per-phase verdicts
+
+### Phase 0 — Establish scope: DONE
+Surface pinned (commits cfd9ac84+5420a575 + mail 01M1A4T3VQ7CAGXJCSVXAE6XYQ); hub lens applied; no prior anchor for this scope (stated; full wide pass 1 run). Evidence: this file's Surface/Scope/Anchor header lines.
+
+### Phase 1 — Independent finders: DONE
+Every wide pass used FRESH non-author native finders (2+2+1+1+1+1+1+1 across the wide series, incl. one method: re-derivation pass); the verbatim rubric above was injected into every brief. Evidence: Pass Ledger finder manifests (dispatched/returned counts per row).
+
+### Phase 2 — Verify/refute: DONE
+8 REFUTED, each with quoted proof in the disposition ledger (e.g. F-B1 at docs/reference/operating-manifesto.md:12 reversible definition; F-E3 corpus grep ~25 uppercase occurrences, 0 lowercase).
+
+### Phase 3 — Prove & fix: DONE
+34 FIXED across 12 commits (b1960ccc..3142a961); every code fix shipped with a red-first regression test — e.g. tests/test_final_gate_stop_hook.py:1261 (BLOCKED exemption) and tests/test_decisions_helper.py:95 (duplicate-id) — watched RED then green; closing finders independently re-traced red-on-revert.
+
+### Phase 4 — Converge: DONE
+Exit at pass 25: full fresh non-author wide round, new: 0, every candidate adjudicated; minimum-two-rounds and the last-fix-re-checked conditions both satisfied (round-23's fix re-swept by round 25).
+
+## Close-out gate (verbatim summary of the final green run, re-run after this file's last edit)
+
+```json
+{
+"status": "success",
+"tier": 2,
+"passed": 55,
+"failed": 0
+}
+```
