@@ -816,6 +816,8 @@ def main() -> int:
         "fabrik-mail",  # fabrik-mail DATA store (<repo>/{inbox,archive} mailboxes) — NOT a project;
         # syncing governance into it pollutes the mailbox root (the `is_dir()` discovery would
         # otherwise adopt it). It is the operator-sanctioned neutral mail path, code lives in the hub.
+        "Traycer",  # Traycer tool install dir (root-owned) — the chronic "2 failed" on every sync
+        "microsoft",  # vendor install dir (root-owned) — same class
     }
 
     # Discover projects
