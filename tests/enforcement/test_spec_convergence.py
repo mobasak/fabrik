@@ -163,3 +163,44 @@ def test_no_module_constant_is_dead():
     src = (REPO / "scripts" / "enforcement" / "check_spec_convergence.py").read_text(encoding="utf-8")
     for name in [n for n in dir(chk) if n.isupper() and not n.startswith("_")]:
         assert src.count(name) > 1, f"{name} is defined and never used"
+
+
+# --- APPROACH-FLOOR (2026-08-30): the 1c gate becomes countable at the flip -----
+
+
+def _floor_spec(root, urls: str, name: str = "2026-08-30-floor-design.md"):
+    body = (
+        CONVERGED
+        + "## Intake Inventory\n\n| I# | Item | Disposition | Where |\n|---|---|---|---|\n"
+        + "| I1 | x | IN | here |\n\n"
+        + "purely internal machinery — no external facts.\n\n"
+        + f"## Chosen approach\n\n{urls}\n\nResidual unknowns: none material.\n"
+    )
+    return _spec_file(root, name=name, body=body)
+
+
+def test_internal_only_claim_does_not_waive_the_approach_floor(tmp_path):
+    """The self-exemption that shipped a spec on one summariser fetch (2026-08-30): the
+    'purely internal' statement waives 1a facts, never the 1c approach floor. A converged
+    spec dated >= the floor cutoff with <2 distinct cited URLs is flagged."""
+    _floor_spec(tmp_path, "grounded in one fetch: https://adr.github.io/ (fetched 2026-08-30)")
+    _, findings = chk._audit(tmp_path)
+    assert any(f.label == "APPROACH-FLOOR" for f in findings), [f.label for f in findings]
+
+
+def test_two_distinct_dated_sources_satisfy_the_floor(tmp_path):
+    _floor_spec(
+        tmp_path,
+        "https://adr.github.io/ (fetched 2026-08-30) and "
+        "https://martinfowler.com/bliki/ArchitectureDecisionRecord.html (fetched 2026-08-30, via exa search)",
+    )
+    _, findings = chk._audit(tmp_path)
+    assert not any(f.label == "APPROACH-FLOOR" for f in findings), [f.label for f in findings]
+
+
+def test_pre_cutoff_specs_are_not_retro_graded_by_the_floor(tmp_path):
+    """Measured 2026-08-30: 14 of 20 historical CONVERGED specs would red on a blanket
+    floor — date-gated exactly like the intake rule, or the advisory floods day one."""
+    _floor_spec(tmp_path, "no urls at all here", name="2026-08-27-old-design.md")
+    _, findings = chk._audit(tmp_path)
+    assert not any(f.label == "APPROACH-FLOOR" for f in findings), [f.label for f in findings]

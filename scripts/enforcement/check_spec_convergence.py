@@ -67,6 +67,16 @@ RESIDUAL_RE = re.compile(r"residual|unknown|assumption|open\s+question", re.IGNO
 # the contract landed — retro-grading 21 pre-contract specs would put findings on every board on day
 # one, which is how advisory output earns being skipped (fire rate on landing: 0, measured).
 INTAKE_CUTOFF = "2026-08-30"
+
+# The 1c APPROACH floor (2026-08-30): a CONVERGED spec needs >=2 DISTINCT cited URLs backing its
+# approach — and the NO_EXTERNAL escape does NOT waive this one. That escape exists for 1a (facts:
+# a design can truly have no vendor API); the approach space always exists, and "purely internal"
+# is the exact self-exemption that shipped a decision-ledger spec on one summariser fetch the day
+# this floor landed (the mandated search then overturned its row semantics in ten minutes).
+# DATE-GATED like the intake rule: measured 2026-08-30, 14 of 20 historical CONVERGED specs would
+# red on a blanket floor — a day-one board-flooder is how an advisory earns being skipped.
+FLOOR_CUTOFF = "2026-08-30"
+FLOOR_MIN_URLS = 2
 INTAKE_HEAD_RE = re.compile(r"^##\s+Intake Inventory\b", re.M)
 INTAKE_ROW_RE = re.compile(r"^\|\s*I\d+\s*\|(.+)$", re.M)
 INTAKE_DISPO_RE = re.compile(r"\b(IN|OUT-OF-SCOPE|ASK)\b")
@@ -136,6 +146,19 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
             )
 
         m = SPEC_DATE_RE.match(name)
+        if m and m.group(1) >= FLOOR_CUTOFF:
+            distinct_urls = set(URL_RE.findall(text))
+            if len(distinct_urls) < FLOOR_MIN_URLS:
+                findings.append(
+                    Finding(
+                        name,
+                        "APPROACH-FLOOR",
+                        f"{len(distinct_urls)} distinct cited URL(s) < {FLOOR_MIN_URLS} — the 1c "
+                        "approach floor. 'Purely internal' waives 1a facts, NEVER the approach "
+                        "research: every design shape has a field practice to consult (the "
+                        "self-exemption class, 2026-08-30)",
+                    )
+                )
         if m and m.group(1) >= INTAKE_CUTOFF:
             if not INTAKE_HEAD_RE.search(text):
                 findings.append(

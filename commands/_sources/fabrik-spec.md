@@ -155,8 +155,17 @@ build this — never pick an approach from training memory or first instinct:
   does not know your constraints — it will confidently recommend **Stripe**, **Pinecone**, or a direct
   **OpenAI SDK**, all with excellent citations. **A well-cited best-practice that violates a hard constraint is
   WORSE than no research.** Cut it, and pick the best option that *survives* the constraints (then cite THAT).
-- **BLOCKING:** do NOT present Phase-3 approaches until the approach space is grounded in cited current
-  best-practice research (or a named BLOCKING unknown + resolution step).
+- **BLOCKING, with a COUNTABLE floor (2026-08-30):** do NOT present Phase-3 approaches until the
+  approach space is grounded in cited current best-practice research (or a named BLOCKING unknown +
+  resolution step). The floor is mechanical and `check_spec_convergence.py` enforces it at the
+  CONVERGED flip: **≥2 distinct cited live sources (URL + fetched-date) backing the approach, from
+  ≥2 different tools, at least one via a real SEARCH** (exa/brave) — a single direct fetch of a page
+  you already believed is confirmation-shopping, not research. ⚠️ **"This design is internal-only"
+  waives 1a (facts), NEVER 1c (approach)** — every design shape has a field practice to consult,
+  and the internal-only claim is the exact self-exemption that shipped a decision-ledger spec on one
+  summariser fetch the same day this floor landed: ten minutes of the mandated search then overturned
+  its row semantics (supersede-never-edit) and exposed its missing adoption mechanics. One WebFetch
+  is not grounding; the command's own fetch-path law calls it an ANSWER about a page.
 
 **Parallelism — the DEFAULT for multi-unit grounding, not a maybe.** Grounding **2+ independent deps/capabilities
 → `fanout` them in parallel** (recipe in **§ Subagents** below): a serial grounding that could have been

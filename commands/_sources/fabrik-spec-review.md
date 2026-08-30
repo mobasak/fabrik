@@ -106,6 +106,16 @@ central build-vs-buy verdict.
 stale / hallucinated best-practice citation, or an approach claimed "lean/low-maintenance/best-practice" with
 **no current cited source**, is the same defect. **Kill research-theater:** a citation that does not actually
 support the leanness / maintenance / best-practice claim it is attached to is a defect.
+**AUDIT THE 1c FLOOR before anything else in this section (countable, 2026-08-30 —
+`check_spec_convergence.py` enforces it at the flip you are about to make):** count the DRAFT's
+distinct approach-backing sources — **fewer than 2 distinct URLs with fetched-dates, or all of them
+from one tool, or summariser-only grounding (WebFetch answers with no search leg) = the run REOPENS
+1c and does the research itself before any other pass** — the review is the second chance, not a
+rubber stamp. ⚠️ An author's "internal-only, no research needed" claim waives 1a facts, NEVER the
+approach floor: that exact self-exemption shipped a spec on one summariser fetch the day this floor
+landed, and the mandated search then overturned its core semantics in ten minutes. If YOU do the
+reopened research, your sources enter the spec with tool + URL + date, and the flip happens only
+after they do.
 
 **B) fabrik-lib verdict — audit against real module capability.** For EACH capability's vendor/enhance/build
 call, OPEN the real module (`/opt/fabrik-lib/README.md` + the module's own `README.md`/API) and confirm it:
