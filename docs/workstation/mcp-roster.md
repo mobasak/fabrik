@@ -123,7 +123,7 @@ transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATI
 here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
-**Headcount effect (post-D-020):** headless types run **6 servers instead of 16**; web-GUI types
+**Headcount effect (post-D-021):** headless types run **6 servers instead of 16**; web-GUI types
 8-10; mobile-app 8.
 
 ## Playwright — the ruling in full (D-015 + D-016, operator-saved verbatim rationale)
