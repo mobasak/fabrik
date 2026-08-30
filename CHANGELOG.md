@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
   Spec: `docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md` (11/11 intake, 8 cited sources).
 - **Measured:** 5 helper behaviors red-first (collection red watched) → 5/5; registry tests 14/14;
   the seeded ledger answers a real query (`decisions.py context7` → D-003) on day one.
+- **Fixed (post-ship review, 894dffdc):** the first rollout gitignored `docs/DECISIONS.md` in all 48
+  repos via the manifest-derived block — no project could commit a ledger row, killing the git
+  who/when layer. SEED_IF_MISSING dests are now excluded from the block (red-first); the fix's own
+  sync rewrote every project's `.gitignore` (verified: `git check-ignore` exits 1 on samples).
 
 ### Added — the rule-grounding floor: computed read-set + quote-verified Constraints Digest (2026-08-30)
 
