@@ -31,6 +31,15 @@ on demand — zero context cost), but the *processes* spawn regardless. That is 
 **Measured 2026-08-30** (a few windows open, post-restart): 34 processes, **2.2 GB RSS** already.
 At ~13 sessions the same roster measured ~23 GB (intel finding 01KZX92Q).
 
+**⚠️ Fetch-at-spawn fragility (observed live 2026-08-30):** 13 of 18 servers are `npx -y`/`uvx`
+fetch-at-spawn. After cache-prune's weekly `rm -rf ~/.npm/_npx` (00:06) + a WSL restart (13:40),
+every window cold-fetched 13 servers simultaneously — connect timeouts, and the harness marks them
+disconnected for the whole session (only the 5 locally-installed servers survived: session-recall,
+grafana, media-engine, maestro, citation-verifier). A cold `npx` spawn succeeds in <25 s once the
+herd is gone — the registry was fine; the simultaneity wasn't. Fixes that compose with the split:
+pin/install servers locally instead of `npx @latest` per spawn, and/or drop the `_npx` wipe from
+cache-prune (it re-downloads weekly for no gain). A window reload reconnects on the warm cache.
+
 ---
 
 ## The 18 servers
