@@ -42,11 +42,11 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | **session-recall** | past-session search (`search_chats`/`get_chat`) — governance-mandated by ORIENT + commands | ALL repos | 201 MB / 4p | **ON everywhere** |
 | **context7** | live library/framework docs (`resolve-library-id`, `query-docs`) | all coding types, plan/build phases | 364 MB / 7p | **ON everywhere** |
 | **exa** | web search + raw fetch — grounding order #1 in every spec/review command | all repos, design/review phases | 183 MB / 4p | **ON everywhere** |
-| github | GitHub API (PRs, issues, code search) | PR/issue automation | 173 MB / 4p | OFF — the `gh` CLI in Bash covers it |
-| brave-search | second search engine (cross-check fallback in the grounding order) | research-heavy: hub, wef, intel | 384 MB / 7p | OFF; ON research repos |
-| firecrawl | scrape/crawl (raw HTML) | crawling repos (wef) — connection flaky in practice | light | OFF; ON wef |
+| github | GitHub API (PRs, issues, code search) | NAMED in /fabrik-spec's grounding order (2 refs) — otherwise `gh` CLI covers it | 173 MB / 4p | OFF once the corpus swaps those 2 refs to `gh` CLI (phantom-arm law: never a named-but-absent server) |
+| brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
+| firecrawl | scrape/crawl (raw HTML) — NAMED as a fallback arm in 5 pipeline commands, but flaky/absent in live sessions (wef 01M17XXF measured it gone) | grounding fallback + wef crawling | light | corpus decision: swap the 5 fallback refs to orchestrator `curl` (the NEEDS-RAW-FETCH path) → then ON wef only; until then it is a phantom arm either way |
 | playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test | UI types: saas-skeleton, static-site, docusaurus, chrome-extension, desktop-app | 102 MB / 2p | ON UI types only |
-| chrome-devtools | deep browser debug/perf traces | same UI types; overlaps playwright | 321 MB / 5p | OFF; enable per debug session |
+| chrome-devtools | deep browser debug/perf traces | DECLARED in fabrik-gui's own mcpServers allow-list — the GUI build/certify subagent needs it wherever it dispatches | 321 MB / 5p | ON web-GUI types (with playwright); the agent's allow-list is the evidence |
 | shadcn | SaaS UI component registry (MIT-B pair, operator-wired) | saas-skeleton | light | ON saas-skeleton only |
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
 | mobile-mcp | device/emulator automation | mobile-app | light | ON mobile-app only |
@@ -63,36 +63,55 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 
 ---
 
-## Per-scaffold-type default sets (the inverse view)
+## Per-scaffold-type default sets (rebuilt 2026-08-30 from a corpus scan, not pipeline intuition)
 
-**Base trio — every type, every repo:** `session-recall` + `context7` + `exa`.
-Derivation per type follows what its pipeline actually exercises: UI-bearing types run
-`/design-review` + `/fabrik-user-test` (browser needed); DB-backed shapes freeze data contracts and
-debug live schemas; headless types certify via `/fabrik-service-test` (no browser, ever).
+**Method:** grep every `mcp__server__` reference + name mention across the rendered corpus (32
+commands, agent defs, fragments, rule packs), read each ambiguous hit in context, and let COMMANDS
+decide — a server a universal command names must exist everywhere it runs, or the reference is a
+phantom arm (the wef 01M17XXF defect class).
 
-| Scaffold type | MCPs beyond the trio | Why |
+**Universal base — every type, every repo (command-evidence):**
+
+| Server | Evidence |
+|---|---|
+| `session-recall` | named by 22 commands + ORIENT mandate |
+| `exa` | grounding order #1 in 7 pipeline commands (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan) |
+| `brave-search` | named in the same grounding orders (6 commands) — every repo runs these |
+| `context7` | grounding order + /design-review + fabrik-researcher + /fabrik-ui-design |
+
+Two more are named by universal commands but recommended for CORPUS EDITS instead of universal cost
+(operator decision): `github` (2 refs in /fabrik-spec — swap to the `gh` CLI, zero processes) and
+`firecrawl` (5 fallback refs — flaky/absent in live sessions already; swap to the orchestrator-`curl`
+NEEDS-RAW-FETCH path the researcher def now teaches). Until those edits land, both are phantom arms
+whether enabled or not.
+
+| Scaffold type | Beyond the universal 4 | Evidence |
 |---|---|---|
-| `python-api` | postgres-pro¹ | headless; DB inspection at data-contract/debug time |
-| `python-api-gpu` | postgres-pro¹ | headless inference; models reached via APIs, no MCP involved |
+| `python-api` | postgres-pro¹ | no command names it — ad-hoc DB inspection utility, flag-driven |
+| `python-api-gpu` | postgres-pro¹ | as python-api |
 | `node-api` | postgres-pro¹ | as python-api |
-| `file-api` | postgres-pro¹ | file-processing APIs are often DB-less — ¹only when `shape.needs_database` |
-| `file-worker` | postgres-pro¹ | headless worker; same DB conditionality |
-| `saas-skeleton` | playwright · shadcn · magicui · postgres-pro | full GUI: build-verification loop + design-review + the operator's MIT-B UI pair + DB |
-| `chrome-extension` | playwright | bundled-Chromium side-load testing (the packs mandate it) |
-| `mobile-app` | mobile-mcp · maestro | device automation + UI test flows (maestro only here — heaviest server) |
-| `desktop-app` | playwright | Electron UI verification |
-| `static-site` | playwright | rendered-site design-review + user-test |
-| `docusaurus` | playwright | reader-journey certification |
-| `wordpress` | — (trio only) | legacy, out of fabrik — no active development |
+| `file-api` | postgres-pro¹ | as python-api |
+| `file-worker` | postgres-pro¹ | as python-api |
+| `saas-skeleton` | playwright · chrome-devtools · shadcn · magicui · postgres-pro | fabrik-gui declares `mcpServers: [playwright, shadcn, chrome-devtools]`; /fabrik-ui-design drives the shadcn MCP by name; magicui = the operator's SaaS pair |
+| `chrome-extension` | playwright · chrome-devtools | fabrik-gui dispatches here (MV3 loop via bundled Chromium) |
+| `mobile-app` | maestro · mobile-mcp | the Build-Verification Loop's mobile branch: "mobile (RN): Maestro MCP + Mobile Next MCP" (plan-after-chat/execute-plan/user-test) + 80-mobile pack |
+| `desktop-app` | playwright · chrome-devtools · shadcn² | Electron web UI → fabrik-gui's set; ²shadcn when the design system is shadcn-based (ui-design: "when the system is shadcn-based") |
+| `static-site` | playwright · chrome-devtools · shadcn² | rendered-site design-review/user-test via fabrik-gui |
+| `docusaurus` | playwright · chrome-devtools | reader-journey certification via fabrik-gui |
+| `wordpress` | — (universal 4 only) | legacy, out of fabrik |
 
-¹ `postgres-pro` rides the spec's `shape.needs_database: true`, not the type — a DB-less `file-api`
-doesn't get it.
+¹ rides `shape.needs_database: true`, never the type name.
+² only when the repo's frozen design system is shadcn-based; magicui stays saas-only (operator boundary:
+"use on the SaaS UI, never on produced sites").
 
-**Per-REPO overlays (content-driven, never type-driven):** wef → +firecrawl +pubchem +media-engine
-+brave-search · brand-identiy-creator, youtube → +media-engine · transdoc → +fabrik-citation-verifier ·
-the hub → +grafana +brave-search (+serena, operator call for large codebases) · any research-heavy
-repo → +brave-search. `github` stays OFF everywhere (`gh` CLI covers it); `chrome-devtools` is
-enabled per debugging session, never by default.
+**Per-REPO overlays (content-driven, never type-driven):** wef → +pubchem +media-engine (+firecrawl
+if the corpus drops it from the grounding order) · brand-identiy-creator, youtube → +media-engine ·
+transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
+here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
+vendored-client example prose, verified) (+serena, operator call).
+
+**Headcount effect:** headless types run **4-5 servers instead of 18**; web-GUI types 7-9;
+mobile-app 6.
 
 ## Status of the split (decision pending)
 
