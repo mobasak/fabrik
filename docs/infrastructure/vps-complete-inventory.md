@@ -5,14 +5,21 @@
 **Hosts:** **vps1** (LA, hub) · **vps2** (Coventry UK, spoke) · **vps3** (Coventry UK, spoke). **The fleet is settled at 3 permanent hosts.** Any `vps4` you see in drill logs/reports is the **disposable drill identity** — a throwaway Vultr instance the `fabrik vultr drill` subsystem spins up and auto-destroys; it is NOT a permanent fleet member. (`fabrik vultr provision` can add a real 4th spoke, but none is currently provisioned.)
 **Network:** Wireguard mesh `10.99.0.0/24` over UDP `51820`, MTU `1420`, hub-and-spoke topology
 **Deploy model:** SSH + Docker Compose (no Coolify; removed 2026-05-30 — see `docs/development/plans/archived/2026-05-30-coolify-residue-cleanup.md`)
-**Host software baseline (2026-08-03):** all 3 hosts on **Node.js 22 + Claude Code `2.1.220`** (npm-global,
-`/usr/bin/claude`; vps1 migrated Node 18→22 — its only host Node consumer was claude, `n8n` is containerized).
-Weekly self-update via a per-host root cron (`npm i -g @anthropic-ai/claude-code@latest`, Sun 04/05/06 UTC).
-**Claude credential rotation (fixed 2026-08-03):** WSL `claude-manager` holds 3 accounts (mob/ob/can); a WSL
-cron (`0 */6 * * * sync-claude-accounts-to-fleet.sh`, snapshots-only) keeps every host's
-`~/.claude/manager-accounts/` fresh; a per-host hourly keepalive (`/etc/cron.d/vps-sysadmin` →
-`claude-keepalive-rotate.sh` → `claude_rotate.py`) auto-rotates the active on a quota-limit or 401. The
-missing WSL sync was the cause of the earlier fleet-wide 401. Full detail: [`vps-status.md`](vps-status.md).
+**Host software baseline:** all 3 hosts on **Node.js 22 + Claude Code** (npm-global, `/usr/bin/claude`;
+auto-updated weekly so the pinned number rots — 2.1.251 as of 2026-08-30). Self-update root crons are
+**staggered since 2026-08-30**: hub Sun (the canary) → vps2 Mon 05:00 → vps3 Mon 06:00 local, so a bad
+CLI release burns one host for one day, never the fleet.
+**Claude credentials (per-host grants since 2026-08-30):** each VPS owns its OWN ob@ OAuth refresh
+chain (a `claude /login` per host) — chains are single-use-refresh, so the earlier shared-chain and
+WSL-push models both produced refresh-race 401s. The WSL→fleet credential sync cron
+(`sync-claude-accounts-to-fleet.sh`, `SYNC_ACTIVE=auto`) is **DISABLED** (commented in the WSL
+crontab 2026-08-30): a push would overwrite the per-host grants. WSL `manager-accounts` holds 4
+account snapshots (mob/ob/can/sarp) as DR material only. The per-host hourly keepalive
+(`/etc/cron.d/vps-sysadmin` → `claude-keepalive-rotate.sh`) is now a **quota-free health probe**
+(`claude_rotate.py --probe-current` — the `claude -p ping` was retired under quota governance); a
+dead chain pages via Telegram and heals by re-`/login` on that host. Quota conservation: the
+**quota governor** sheds routine Claude work at ≥80% on every usage window
+(`docs/workstation/vps-claude-quota-governance.md`). Full detail: [`vps-status.md`](vps-status.md).
 
 ## Quick state (current — container counts re-verified live 2026-07-12: vps1=31, vps2=5, vps3=5; 16 compose stacks on vps1, 3 on each spoke)
 

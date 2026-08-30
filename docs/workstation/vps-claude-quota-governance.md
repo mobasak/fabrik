@@ -127,12 +127,22 @@ stops both, so its cache ages past the bound and the alarm fires).
   entrypoint; live probes (5h 2% / weekly 90% / Fable 48% at validation time); the governor
   CONSERVING for real — `routine → pool` at 90% weekly ≥ the 80% reserve while `incident → ob@`
   everywhere; keepalive OK; post-call cache persisted.
-- **⚠ Shared ob@ OAuth grant (temporary):** all 3 hosts + the WSL `~/.claude-fleet/ob/` dir
-  currently share ONE refresh chain (pushed 2026-08-30 to heal a dead hub chain + a lapsed-payment
-  outage). Refresh tokens are single-use — the first owner to refresh invalidates the others, so
-  expect keepalive `401_auth` FAILs within days. Durable fix: one `claude /login` as ob@ PER VPS
-  (per-host grants), then optionally retire the WSL ob fleet dir. Until then, re-push via
-  `sync-claude-accounts-to-fleet.sh` + `claude_rotate.py --switch ob` heals a stolen chain.
+- **✅ Per-host OAuth grants (RESOLVED 2026-08-30 evening):** every VPS now owns its OWN ob@
+  refresh chain (a `claude /login` per host, driven via tmux with the operator authorizing in the
+  browser) — the earlier shared-chain state (one chain pushed to 3 hosts to heal a dead hub chain +
+  a lapsed-payment outage) is gone, and with it the refresh-race 401 class. Each host's snapshot
+  was re-captured (`--capture-current`) and live-verified (probe + keepalive OK ×3). If a chain
+  ever dies again: keepalive pages via Telegram; heal = re-`/login` on that host (or the snapshot
+  re-push as the stopgap).
+- **Operator caps (set 2026-08-30):** `QUOTA_RESERVE_PCT=80` is pinned in
+  `/opt/fabrik/.env.sysadmin` on all 3 hosts (the governor sheds routine at ≥80% on EVERY window —
+  5h, weekly, per-model), and WSL `~/.claude-fleet/caps.json` carries `ob@ocoron.com: 80` so the
+  WSL rotation never flips onto ob@ past 80% weekly (caps.json is weekly-only by design; there is
+  no 5h knob in WSL rotation — the 5h 80% is enforced by the governor where ob@ actually works).
+- **The morning heartbeat never dies:** on a governor shed the morning report sends the
+  already-collected context as a RAW report (zero Claude cost — only the prose is skipped);
+  live-proven with a forced shed. Model policy: diagnosis surfaces run `opus` (Opus 5), the
+  morning report runs `sonnet` (Sonnet 5) — see the config table.
 - **Datacenter vantage:** `api.anthropic.com/api/oauth/usage` 429s VPS IPs; `_oauth_get` falls back
   to `platform.claude.com` with a named User-Agent (Cloudflare 403s python's default UA). Both
   measured live on vps1; without the fallback the governor's telemetry silently blanks on a VPS.
