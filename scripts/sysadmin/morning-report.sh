@@ -48,7 +48,9 @@ except: print('  cannot query')
 
   echo ""
   echo "--- TLS cert expiry ---"
-  for domain in ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com coolify.vps1.ocoron.com; do
+  # coolify.vps1 removed 2026-08-30 (audit): the subdomain was decommissioned 2026-05-31 —
+  # proactive-check dropped it 2026-06-01; this loop had kept silently probing a dead name.
+  for domain in ocoron.com status.vps1.ocoron.com monitor.vps1.ocoron.com errors.vps1.ocoron.com; do
     expiry=$(echo | timeout 5 openssl s_client -servername "$domain" -connect "$domain":443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
     if [ -n "$expiry" ]; then
       expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null)
@@ -91,7 +93,11 @@ except: print('  cannot query')
 SYS_PROMPT=""
 [ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
 
-RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model opus \
+# Model: the morning report is a FORMATTING task (summarize a pre-collected context file into
+# 20 phone lines) — not diagnosis. Sonnet does it indistinguishably for a fraction of the Opus
+# quota; on the single-key ob@ this is the cheapest daily saving (audit 2026-08-30). Override
+# with CLAUDE_MORNING_MODEL=opus to restore the old behavior.
+RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model "${CLAUDE_MORNING_MODEL:-sonnet}" \
   "Generate a concise daily morning report for Telegram. Format:
 
 💚 or ⚠️ or 🔥 — one-line overall status
