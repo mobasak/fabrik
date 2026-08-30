@@ -119,6 +119,24 @@ stops both, so its cache ages past the bound and the alarm fires).
   capped incident is diagnosed instead of dropped. Until the watchdog is pointed at it, the entry is
   operator-invocable by hand (the command above).
 
+## Deployed state + known caveats (2026-08-30 fleet validation)
+
+- **Validated live on all 3 hosts** (vps1/vps2/vps3): real completions through the gated
+  entrypoint; live probes (5h 2% / weekly 90% / Fable 48% at validation time); the governor
+  CONSERVING for real — `routine → pool` at 90% weekly ≥ the 80% reserve while `incident → ob@`
+  everywhere; keepalive OK; post-call cache persisted.
+- **⚠ Shared ob@ OAuth grant (temporary):** all 3 hosts + the WSL `~/.claude-fleet/ob/` dir
+  currently share ONE refresh chain (pushed 2026-08-30 to heal a dead hub chain + a lapsed-payment
+  outage). Refresh tokens are single-use — the first owner to refresh invalidates the others, so
+  expect keepalive `401_auth` FAILs within days. Durable fix: one `claude /login` as ob@ PER VPS
+  (per-host grants), then optionally retire the WSL ob fleet dir. Until then, re-push via
+  `sync-claude-accounts-to-fleet.sh` + `claude_rotate.py --switch ob` heals a stolen chain.
+- **Datacenter vantage:** `api.anthropic.com/api/oauth/usage` 429s VPS IPs; `_oauth_get` falls back
+  to `platform.claude.com` with a named User-Agent (Cloudflare 403s python's default UA). Both
+  measured live on vps1; without the fallback the governor's telemetry silently blanks on a VPS.
+- **Broker tokens are NOT yet minted** — the container half is idle until the operator writes
+  `~/.claude/broker-tokens.json` per host.
+
 ## Invariants (do not break)
 
 - The fix is NEVER dropped — capped ob@ → pool-diagnose + operator gate, never silence.
