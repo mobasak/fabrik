@@ -1,6 +1,6 @@
 # The Decision Ledger — every agent records decisions, every agent queries them first
 
-Status: CONVERGED (2026-08-30 — /fabrik-spec-review ×2: run 1 converged at md5 bc452c00; run 2 (operator's approval-dialogue questions as new intake) added the JSONL rejected-alternative + I8/I9 rows, re-converged to a no-op)
+Status: CONVERGED (2026-08-30 — /fabrik-spec-review converged, then re-converged folding each approval-dialogue round's intake: JSONL rejection + I8/I9, subagent/pipeline pen rule + I10; every round closed on a raised-0/edits-0 md5-stable pass)
 Date: 2026-08-30
 Scale verdict: **feature-scale** — one plan (governance text + template + seed + search helper + corpus wiring).
 Surface: `templates/governance/CLAUDE.md` + `CLAUDE.md` + `templates/scaffold/` + `commands/_fragments/` + one hub helper script + per-repo `docs/DECISIONS.md`.
@@ -47,8 +47,9 @@ personas contract's receiver check: no external party is touched.)
 | I7 | "when i ask something, about a build, feature, decision i want a full answer not struggling ais around to find it" | IN — the full-answer bar (what+why+where in one lookup; builds and features are queryable, not only rulings) | § Query duty · § Success criteria |
 | I8 | "why did you decide to create decisions.md? but not db, or jsonl file?" (approval dialogue, 2026-08-30) | IN — JSONL adjudicated as a named rejected alternative | § Approaches 5 · § Storage decision |
 | I9 | "what will happen to the file if it grows too much?" (approval dialogue, 2026-08-30) | IN — measured escalation triggers + v2 options | § Storage decision (hybrid para) |
+| I10 | "does it take into account roles? consumers of the built?" (approval dialogue, 2026-08-30) | IN — consumer roles enumerated; who-cell is role attribution; subagent/pipeline pen rule added | § Personas · § Entry format 2 · § Write duty 5 |
 
-Intake: 9 items — 9 IN, 0 OUT-OF-SCOPE, 0 ASK.
+Intake: 10 items — 10 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 ## The motivating failure (why this exists)
 
@@ -197,6 +198,11 @@ fleet-visible). NOT a decision: routine fixes, refactors, doc edits — those ar
    receiving agent appends the row in its next commit.
 4. **Cross-repo decisions** (hub rules affecting all repos): recorded ONCE in the hub ledger;
    project ledgers record only project-local decisions — no fan-out duplication.
+5. **Subagents and the daily pipeline never hold the pen.** A subagent (pool or native) that
+   surfaces a decision-shaped finding hands it to its DISPATCHING session, which appends the row —
+   the same law that governs subagent findings and mail (subagents are ephemeral and cannot own a
+   duty). The daily pipeline's automated runs mint rows only through the duties above (its
+   close-outs included); the `who` cell then names the responsible agent, never "a subagent".
 
 ## Query duty (I3, I7)
 
