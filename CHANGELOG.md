@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `scripts/retype_project.py`: non-destructive project retype + scaffold backfill (2026-08-30)
+
+- **What:** corrects `project.yaml::type` and backfills ONLY the new type's missing required
+  files. Safety contract, each clause a test: never overwrites/deletes/merges (an existing file
+  always wins) · every skip is REPORTED · refuses a git-dirty repo · dry-run by default
+  (`--apply` to write) · refuses an unregistered type.
+- **Why:** the type census went wrong because `type` is set once at scaffold time and never
+  re-verified; correcting it means the repo owes its new type's files. There is no in-place
+  rescaffold path by design (`create_project` RAISES on an existing dir), so the only
+  non-destructive route is scaffold-to-temp then copy-only-missing.
+- **Guard:** `tests/test_retype_project.py` (7 tests), never-overwrite clause mutation-proven
+  (guard removed → red; restored → green).
+
+
 ### Added — `office-extension` scaffold type (Office/Outlook add-ins) (2026-08-30)
 
 - **What:** scaffold type 13. An Office add-in is two deployed surfaces — a hosted taskpane web
