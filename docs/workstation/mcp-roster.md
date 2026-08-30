@@ -42,7 +42,7 @@ cache-prune (it re-downloads weekly for no gain). A window reload reconnects on 
 
 ---
 
-## The servers (16 active + 2 retired)
+## The servers (16 active + 2 retired + 1 planned)
 
 Weight = measured RSS on 2026-08-30 across live processes (per-window cost scales with window count).
 
@@ -63,8 +63,9 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED 2026-08-30 (D-020: universal, operator word)**; crash FIXED same day (`uvx --with 'mcp<2'` pin, synced to all 5 fleet rosters). ⚠️ per-repo `DATABASE_URI` still owed by the split implementation — the single user-level URI pointed at a dead :15432, and local PG creds are per-repo |
 | grafana | fleet observability (Prometheus/Loki/dashboards) — runs as a docker container per window | hub (deploy/monitoring, fleet beat) | docker | ON hub only |
 | media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED 2026-08-30 (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
-| pubchem | chemistry database lookups | chemical-commerce content (wef/bhdtrade) | light | ON wef only |
-| fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt` service) | dossier/research: transdoc | service | ON transdoc only |
+| pubchem | chemistry database lookups | chemical-commerce content (wef) + the health/verification pair | light | ON wef + fabrik-citation-verifier + fabrik-claim-validator — **RULED 2026-08-30 (D-022)**; future health repos get it at adoption |
+| fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED 2026-08-30 (D-022: the health pair is cross-wired MCP↔MCP)** |
+| fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
 | serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED 2026-08-30 (D-021: adopt-and-wire)**. Root cause of prior zero usage was zero corpus wiring, not quality; now named in plan-after-chat's grounding phase + review's adjudication. Measured trial: still unused after wiring = a retirement case with evidence |
 
 **Net effect of the split as RULED:** a typical headless API repo drops 16 → **6** servers (the
@@ -120,7 +121,10 @@ the ecommerce sites it produces) +chrome-devtools (D-019: rides with playwright 
 tooling — supersedes the magicui saas-only boundary for wef ONLY, it stands elsewhere) +pubchem
 +media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
-here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
+here") · **the health pair (D-022): fabrik-citation-verifier ↔ fabrik-claim-validator cross-wired as
+MCPs to each other, both +pubchem** (claim-validator's MCP server is still owed by its repo — see
+the planned row) — standing rule: any future health project gets all three overlays at adoption ·
+hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
 **Headcount effect (post-D-021):** headless types run **6 servers instead of 16**; web-GUI types
@@ -172,7 +176,7 @@ Three servers were NOT herd victims; they are broken independently, each probed 
 |---|---|---|
 | firecrawl | ~~CRASHED at startup~~ **FIXED 2026-08-30**: the `FSLegacyMainResolve` error was a corrupted `~/.npm/_npx/12b05d58…` cache entry (the 2026-08-30 wipe incident's residue — `mcp-proxy` present, its `@modelcontextprotocol/server` dep missing). Cleared the one entry; clean respawn verified. If it recurs after a cache event: clear the entry, never the whole `_npx` | the curl-swap candidate is DEAD (D-013: firecrawl universal) |
 | postgres-pro | ~~`uvx postgres-mcp` crashes: `No module named 'mcp.server.fastmcp'`~~ **FIXED 2026-08-30 (D-020)**: the mcp 2.x SDK renamed FastMCP; postgres-mcp is v1 code. Pinned `uvx --with 'mcp<2' postgres-mcp` via the rotator — MCP initialize handshake verified (`postgres-mcp 1.29.1` responds), all 5 fleet rosters carry the pin. Residue: `DATABASE_URI` layer is per-repo (split-plan item) — the old URI targeted dead :15432 | done — URI repoint rides the split |
-| fabrik-citation-verifier | config points at `http://127.0.0.1:8033/mcp` (type: http) but only the REST API on :8032 is up — :8033 answers nothing (curl 000) | the owning repo restarts its MCP endpoint or the roster repoints; connected this morning, so the endpoint died today |
+| fabrik-citation-verifier | ~~:8033 answers nothing (curl 000)~~ **RESOLVED 2026-08-30**: `:8033/mcp` answers 406 to a bare GET — the normal streamable-HTTP MCP response, i.e. the server is UP (REST `:8032/health` 200 alongside). The morning outage was transient; no roster change needed | none — watch for recurrence |
 
 `maestro` is a fourth, milder case: slow cold start (JVM), flappy across reloads — works once warm.
 
