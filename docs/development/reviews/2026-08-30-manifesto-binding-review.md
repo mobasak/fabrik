@@ -141,6 +141,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 10 | SCOPED — orchestrator: SIGPIPE fix red-first→green (10 passed), gate success; 2 REFUTED with proof | 0 | 0 | 1 | closing wide sweep owed |
 | Pass 11 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 5818e02e; own red-on-revert traces of all 3 code fixes (all genuinely red); suites 115 passed, --check exit 0, UTF-8 query verified; dispatched: 1, returned: 1 | 3 | 3 | 0 | not done (changelog recurrence + 2 residues) |
 | Pass 12 | SCOPED — orchestrator: fixed all three (CHANGELOG bullet for the late code fixes; _say BrokenPipeError→SystemExit(0) red-first for the library path; BLOCKED-analogy prose de-ambiguated in both contracts); suites 116 passed, gate success | 0 | 0 | 3 | closing wide sweep owed |
+| Pass 13 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 92a269c1; built real os.pipe/TextIOWrapper repros (not mocks); own red-on-revert traces; suites 116 passed, --check exit 0; dispatched: 1, returned: 1 | 2 | 2 | 0 | not done (1 compound-path gap + 1 date nit) |
+| Pass 14 | SCOPED — orchestrator: compound Unicode→BrokenPipe path guarded (red-first monkeypatch test watched RED); date comment normalized to 2026-08-30/31; suites 117 passed, gate success | 0 | 0 | 2 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -183,6 +185,9 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | F-V2 | SIGPIPE guard is __main__-only; library callers of main() got tracebacks (finder proved the guard load-bearing by removing it) | FIXED (round 12 — _say catches BrokenPipeError → SystemExit(0); red-first monkeypatch test) |
 | F-V3 | "decision-level sibling of the three BLOCKED cases" readable as ambiguity-licenses-halting — the opposite of Invariant 3 | FIXED (round 12 — both contracts now read "classification ambiguity never halts a decision; only the three BLOCKED cases halt execution") |
 
-29 findings → 21 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
+| F-W1 | _say's UnicodeEncodeError fallback print unguarded against BrokenPipeError — the compound path (non-UTF-8 stdout + closed pipe) escaped as a traceback for library callers; round-12's test only exercised the first print | FIXED (round 14 — inner guard added; red-first compound-path test) |
+| F-W2 | one comment stamped "review 2026-08-31" while the batch's CHANGELOG/DECISIONS references say 2026-08-30 (the review spans midnight) | FIXED (round 14 — comment reads "manifesto-binding review, 2026-08-30/31") |
+
+31 findings → 23 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
 
 

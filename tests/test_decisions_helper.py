@@ -181,3 +181,25 @@ def test_say_exits_cleanly_on_broken_pipe_without_signal_guard(monkeypatch, caps
         assert e.code == 0
     else:
         raise AssertionError("BrokenPipeError escaped _say (or was swallowed silently)")
+
+
+def test_say_survives_unicode_fallback_hitting_a_closed_pipe(monkeypatch):
+    """The compound path: non-UTF-8 stdout makes every row take the UnicodeEncodeError
+    fallback, whose own print() can hit the closed pipe — must still exit cleanly."""
+    import builtins
+
+    calls = {"n": 0}
+
+    def _flaky(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise UnicodeEncodeError("ascii", "·", 0, 1, "boom")
+        raise BrokenPipeError
+
+    monkeypatch.setattr(builtins, "print", _flaky)
+    try:
+        dec._say("row · with · dots")
+    except SystemExit as e:
+        assert e.code == 0
+    else:
+        raise AssertionError("compound Unicode→BrokenPipe path escaped _say")

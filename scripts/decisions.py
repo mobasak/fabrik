@@ -35,15 +35,20 @@ SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
 
 def _say(line: str) -> None:
     # UTF-8 straight through — the ledger is saturated with ·/—/§ and printing their
-    # backslash escapes made every real row unreadable (review 2026-08-31). The fallback
+    # backslash escapes made every real row unreadable (manifesto-binding review,
+    # 2026-08-30/31). The fallback
     # keeps the tool alive on a non-UTF-8 stdout instead of crashing.
+    # Library callers (import + main()) bypass the __main__ SIGPIPE guard — a closed
+    # downstream (`| head`) is a clean exit, never a traceback, on BOTH print paths
+    # (a non-UTF-8 stdout routes EVERY row through the fallback print).
     try:
         print(line)
     except UnicodeEncodeError:
-        print(line.encode("ascii", "backslashreplace").decode("ascii"))
+        try:
+            print(line.encode("ascii", "backslashreplace").decode("ascii"))
+        except BrokenPipeError:
+            raise SystemExit(0) from None
     except BrokenPipeError:
-        # Library callers (import + main()) bypass the __main__ SIGPIPE guard —
-        # a closed downstream (`| head`) is a clean exit, never a traceback.
         raise SystemExit(0) from None
 
 
