@@ -72,6 +72,27 @@ def _now_ts() -> float:
     return time.time()
 
 
+def _entry_epoch(value: Any) -> float | None:
+    """A log entry's ``ts`` as epoch seconds, or None when unparseable.
+
+    The actions log has TWO writer formats: this script's own float epochs AND bot.py's
+    ``datetime.now().isoformat()`` strings (naive ISO, no tz). Comparing the raw value against a
+    float cutoff crashed on the first bot-written entry (TypeError str<float, live on all 3 hosts
+    every 5 minutes, found 2026-08-30) — which silently killed the reversal detector, a safety
+    layer. Naive ISO is interpreted as LOCAL time, matching how bot.py writes it."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str):
+        from datetime import datetime
+
+        try:
+            dt = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        return dt.timestamp()
+    return None
+
+
 def _emit_warning(msg: str) -> None:
     print(f"[detect_reversals] WARN {msg}", file=sys.stderr)
 
@@ -181,7 +202,8 @@ def collect_host_sysadmin_actions() -> list[dict[str, Any]]:
                     entry = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if entry.get("ts", 0) < cutoff:
+                entry_ts = _entry_epoch(entry.get("ts"))
+                if entry_ts is None or entry_ts < cutoff:
                     continue
                 # Future-compat: only count entries with explicit action_name.
                 action_name = entry.get("action_name")
@@ -190,7 +212,7 @@ def collect_host_sysadmin_actions() -> list[dict[str, Any]]:
                     rows.append(
                         {
                             "source": "host_sysadmin",
-                            "ts": entry["ts"],
+                            "ts": entry_ts,
                             "action_name": action_name,
                             "target": target,
                         }

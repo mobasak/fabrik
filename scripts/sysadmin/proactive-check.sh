@@ -469,9 +469,9 @@ if [ "$RATE_COUNT" -ge "$RATE_LIMIT" ]; then
   echo "Rate limited ($RATE_COUNT/$RATE_LIMIT this hour). Skipping Claude."
   exit 0
 fi
-
-# Increment counter
-echo $((RATE_COUNT + 1)) > "${RATE_FILE}.count"
+# NOTE: the counter increments AFTER the claude call, and only when the governor did NOT shed
+# (a shed run wakes nothing — pre-incrementing let 5 sheds exhaust the hourly wake budget with
+# zero analyses; found in the 2026-08-30 way-of-working audit).
 
 # ── Stage 2: Collect context + wake Claude ────────────────────────────────
 
@@ -492,7 +492,7 @@ $(sudo docker events --since 15m --until now --filter event=die --filter event=o
 SYS_PROMPT=""
 [ -f "$SYSTEM_PROMPT_FILE" ] && SYS_PROMPT=$(cat "$SYSTEM_PROMPT_FILE")
 
-RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model opus \
+RESULT=$("$PROJECT_DIR/scripts/sysadmin/claude-run.sh" -p --model "${CLAUDE_SYSADMIN_MODEL:-opus}" \
   "Proactive health check found anomalies. Analyze this data and act autonomously per your system prompt rules.
 
 If the anomalies are benign (e.g. a scheduled restart, normal CPU spike), respond with exactly ALL_CLEAR.
@@ -518,6 +518,8 @@ Remember: you run locally on this VPS. Use sudo docker commands directly." \
 
 GOV_RC=$?  # exit status of the claude-run.sh call above (75 = governor quota-conservation shed)
 if [ "$GOV_RC" -eq 75 ]; then exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
+# A REAL wake happened (claude ran, successfully or not) — consume one of the hourly wake slots.
+echo $((RATE_COUNT + 1)) > "${RATE_FILE}.count"
 if [ -z "$RESULT" ]; then
   # Empty result = Claude FAILED to analyze (auth/quota/timeout/crash), NOT a benign verdict.
   # Fail CLOSED: do not treat unreviewed anomalies as all-clear — escalate so a real problem
