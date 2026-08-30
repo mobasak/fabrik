@@ -7,6 +7,12 @@
 set -uo pipefail
 
 PROJECT_DIR="/opt/fabrik"
+# Operator overrides (CLAUDE_MORNING_MODEL, …) live in .env.sysadmin — cron's env is minimal,
+# so without this source the documented override is inoperative (audit finding 6).
+if [ -r /opt/fabrik/.env.sysadmin ]; then
+    # shellcheck disable=SC1091
+    set -a; . /opt/fabrik/.env.sysadmin 2>/dev/null; set +a
+fi
 SYSTEM_PROMPT_FILE="$PROJECT_DIR/scripts/sysadmin/system-prompt.txt"
 SHIFT_NOTES="$PROJECT_DIR/logs/sysadmin-shift-notes.md"
 ACTION_LOG="$PROJECT_DIR/logs/sysadmin-actions.jsonl"
@@ -57,6 +63,9 @@ except: print('  cannot query')
       now_epoch=$(date +%s)
       days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
       echo "  $domain: ${days_left}d remaining"
+    else
+      # loud, not silent: an unprobeable domain hid the dead coolify.vps1 for 3 months (audit f8)
+      echo "  $domain: PROBE FAILED (no cert / unreachable)"
     fi
   done
 
@@ -74,7 +83,27 @@ except: print('  cannot query')
   echo ""
   echo "--- Yesterday's actions ---"
   if [ -f "$ACTION_LOG" ]; then
-    grep "$(date -d yesterday +%Y-%m-%d)" "$ACTION_LOG" 2>/dev/null | tail -10 || echo 'none'
+    # BOTH writer formats: bot.py writes ISO strings, aro-wake/daily-digest write float epochs —
+    # the old date-string grep silently excluded every autonomous action (audit finding 12).
+    python3 - "$ACTION_LOG" <<'PYEOF2' || echo 'none'
+import json, sys, time
+from datetime import datetime
+def ep(v):
+    if isinstance(v,(int,float)) and not isinstance(v,bool): return float(v)
+    if isinstance(v,str):
+        try: return datetime.fromisoformat(v).timestamp()
+        except ValueError: return None
+    return None
+day_ago = time.time() - 86400
+rows = []
+for line in open(sys.argv[1]):
+    try: e = json.loads(line)
+    except ValueError: continue
+    t = ep(e.get("ts"))
+    if t is not None and t >= day_ago:
+        rows.append(line.rstrip())
+print("\n".join(rows[-10:]) if rows else "none")
+PYEOF2
   else
     echo 'no action log yet'
   fi
@@ -111,12 +140,14 @@ Shift notes: anything to carry forward
 
 Keep it under 20 lines. Phone screen friendly. If everything is fine, say so briefly." \
   --system-prompt "$SYS_PROMPT" \
-  --permission-mode bypassPermissions \
   --no-session-persistence \
   < "$CONTEXT_FILE" 2>/dev/null)
+  # bypassPermissions dropped (audit finding 7): this is a FORMATTING job over a pre-collected
+  # context file — it needs no tools, so it gets no autonomous authority. Headless -p denies
+  # tool calls by default; the report text is unaffected.
 
 GOV_RC=$?  # exit status of the claude-run.sh call above (75 = governor quota-conservation shed)
-if [ "$GOV_RC" -eq 75 ]; then exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
+if [ "$GOV_RC" -eq 75 ]; then rm -f "$CONTEXT_FILE"; exit 0; fi  # routine shed — skip this best-effort run silently, no false alarm
 if [ -z "$RESULT" ]; then
   RESULT="⚠️ Morning report: Claude failed to generate. Check /var/log/sysadmin-proactive.log"
 fi

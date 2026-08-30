@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — sysadmin way-of-working audit: reversal detector revived, digest metrics un-zeroed, wake-slot accounting, model policy (2026-08-30)
+
+- **What (measured live on all 3 hosts):** `detect_reversals.py` crashed every 5 minutes for as long
+  as bot.py's ISO `ts` disagreed with its float cutoff — the reversal-detector safety layer was dead;
+  fixed with tolerant `_entry_epoch()` (TDD red→green, mutation-proofed positive control, test moved
+  to `tests/` where gates actually collect it). The SAME class lived at 5 sites in `daily-digest.sh`
+  (Tier-A/escalation/consult counts silently pinned to 0; the missed-digest alarm dead) — class-fixed.
+  `proactive-check.sh`: a governor shed burned one of the 5 hourly wake slots (increment moved
+  post-call, gated on rc≠75) and the fix's own hour-rollover gap (stale counter → hour-long false
+  rate-limit) closed via on-disk reset. `morning-report.sh`: dead `coolify.vps1` cert probe removed,
+  probe failures now LOUD (the fail-silent that hid it for 3 months), "Yesterday's actions" now parses
+  BOTH ts formats (autonomous actions were invisible), `bypassPermissions` dropped (formatting needs no
+  root authority), model → sonnet (`CLAUDE_MORNING_MODEL`); diagnosis consumers stay opus
+  (`CLAUDE_SYSADMIN_MODEL`), both operable via `.env.sysadmin` (now actually sourced).
+  `system-prompt.txt`: rotation-era OAuth block rewritten for the single-key + governor reality
+  (3 live-measured failure classes; shed = skip, not pool; cap arming correctly attributed to
+  `claude_rotate.py::run_claude`).
+- **Review:** /fabrik-review (pool ×2 + native Opus) — 17 candidates → 13 fixed/1 deferred/refuted
+  rest; report `docs/development/reviews/2026-08-30-sysadmin-way-of-working-audit-review.md`.
+
+
 ### Changed — Plan-3 EXECUTED + archived: the MCP split is fully live (2026-08-30)
 
 - B4 trim done (rotator-synced, md5-invariant proven across all rosters; youtube-headless set to the 6; DR-backed x2); whole-plan review PASS; the plan's own invariant command was found vacuous at execution (per-process hash()) and fixed to md5. fabrik-lib interim: universal 6 until 01M19TVBJ1 lands (operator-waived).

@@ -41,12 +41,19 @@ if [ -r "$ACTIONS_LOG" ]; then
     TIER_A_COUNT=$(python3 -c "
 import json
 import sys
+from datetime import datetime
+def _ep(v):
+    if isinstance(v,(int,float)) and not isinstance(v,bool): return float(v)
+    if isinstance(v,str):
+        try: return datetime.fromisoformat(v).timestamp()
+        except ValueError: return None
+    return None
 n = 0
 with open('$ACTIONS_LOG') as fh:
     for line in fh:
         try:
             r = json.loads(line)
-            if r.get('ts', 0) >= $DAY_AGO and r.get('result_excerpt', '').lower().startswith('tier a'):
+            if (_ep(r.get('ts')) or 0) >= $DAY_AGO and r.get('result_excerpt', '').lower().startswith('tier a'):
                 n += 1
         except (json.JSONDecodeError, ValueError):
             pass
@@ -54,12 +61,19 @@ print(n)
 " 2>/dev/null || echo "0")
     ESCALATIONS=$(python3 -c "
 import json
+from datetime import datetime
+def _ep(v):
+    if isinstance(v,(int,float)) and not isinstance(v,bool): return float(v)
+    if isinstance(v,str):
+        try: return datetime.fromisoformat(v).timestamp()
+        except ValueError: return None
+    return None
 n = 0
 with open('$ACTIONS_LOG') as fh:
     for line in fh:
         try:
             r = json.loads(line)
-            if r.get('ts', 0) >= $DAY_AGO and 'escalate' in r.get('result_excerpt', '').lower():
+            if (_ep(r.get('ts')) or 0) >= $DAY_AGO and 'escalate' in r.get('result_excerpt', '').lower():
                 n += 1
         except (json.JSONDecodeError, ValueError):
             pass
@@ -67,12 +81,19 @@ print(n)
 " 2>/dev/null || echo "0")
     CONSULTS_RECV=$(python3 -c "
 import json
+from datetime import datetime
+def _ep(v):
+    if isinstance(v,(int,float)) and not isinstance(v,bool): return float(v)
+    if isinstance(v,str):
+        try: return datetime.fromisoformat(v).timestamp()
+        except ValueError: return None
+    return None
 n = 0
 with open('$ACTIONS_LOG') as fh:
     for line in fh:
         try:
             r = json.loads(line)
-            if r.get('ts', 0) >= $DAY_AGO and r.get('source') == 'consult':
+            if (_ep(r.get('ts')) or 0) >= $DAY_AGO and r.get('source') == 'consult':
                 n += 1
         except (json.JSONDecodeError, ValueError):
             pass
@@ -132,6 +153,13 @@ fi
 # ============================================================================
 MISSED_WARN=$(python3 <<PYEOF
 import json, time
+from datetime import datetime
+def _ep(v):
+    if isinstance(v,(int,float)) and not isinstance(v,bool): return float(v)
+    if isinstance(v,str):
+        try: return datetime.fromisoformat(v).timestamp()
+        except ValueError: return None
+    return None
 deadline = time.time() - 48*3600
 sent_dates, attempted_dates = set(), set()
 try:
@@ -139,8 +167,9 @@ try:
         for line in f:
             try: r = json.loads(line)
             except Exception: continue
-            if r.get("ts", 0) < deadline: continue
-            d = time.strftime("%Y-%m-%d", time.gmtime(r["ts"]))
+            _t = _ep(r.get("ts"))
+            if _t is None or _t < deadline: continue
+            d = time.strftime("%Y-%m-%d", time.gmtime(_t))
             if r.get("source") == "daily_digest": attempted_dates.add(d)
             elif r.get("source") == "daily_digest_sent": sent_dates.add(d)
 except FileNotFoundError:
@@ -160,6 +189,13 @@ PYEOF
 # ============================================================================
 ACTION_BULLETS=$(python3 <<PYEOF
 import json, time
+from datetime import datetime
+def _ep(v):
+    if isinstance(v,(int,float)) and not isinstance(v,bool): return float(v)
+    if isinstance(v,str):
+        try: return datetime.fromisoformat(v).timestamp()
+        except ValueError: return None
+    return None
 deadline = time.time() - 24*3600
 bullets = []
 try:
@@ -167,12 +203,13 @@ try:
         for line in f:
             try: r = json.loads(line)
             except Exception: continue
-            if r.get("ts", 0) < deadline: continue
+            _t = _ep(r.get("ts"))
+            if _t is None or _t < deadline: continue
             src = r.get("source")
             if src not in ("alertmanager", "consult", "manual"): continue
             ex = (r.get("result_excerpt") or "")[:180]
             if not ex: continue
-            ts_str = time.strftime("%H:%M:%SZ", time.gmtime(r["ts"]))
+            ts_str = time.strftime("%H:%M:%SZ", time.gmtime(_t))
             bullets.append(f"  • [{ts_str}] {ex}")
             if len(bullets) >= 5: break
 except FileNotFoundError:

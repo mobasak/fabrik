@@ -460,8 +460,12 @@ RATE_HOUR=$(cat "${RATE_FILE}.hour" 2>/dev/null || echo "")
 RATE_COUNT=$(cat "${RATE_FILE}.count" 2>/dev/null || echo "0")
 
 if [ "$RATE_HOUR" != "$CURRENT_HOUR" ]; then
-  # New hour — reset counter
+  # New hour — reset counter ON DISK too. The increment moved after the claude call (audit
+  # 2026-08-30), so a shed first-run of a new hour would otherwise exit before ever writing
+  # .count — leaving LAST hour's count live and falsely rate-limiting the whole new hour
+  # (native-review finding 1, reproduced by simulation).
   echo "$CURRENT_HOUR" > "${RATE_FILE}.hour"
+  echo 0 > "${RATE_FILE}.count"
   RATE_COUNT=0
 fi
 

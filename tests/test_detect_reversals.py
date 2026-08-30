@@ -14,7 +14,11 @@ from __future__ import annotations
 import json
 import time
 
-import detect_reversals  # co-located; pytest prepends this dir to sys.path
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "sysadmin"))
+import detect_reversals  # noqa: E402 — lives in scripts/sysadmin/, collected from tests/ (gate-visible)
 
 
 def _write_log(tmp_path, entries):
@@ -49,6 +53,21 @@ def test_collect_host_actions_survives_iso_ts_entries(tmp_path, monkeypatch):
     targets = [r["target"] for r in rows]
     assert "n8n" in targets
     assert "ghost" not in targets
+
+
+def test_iso_entry_is_collected_with_local_epoch(tmp_path, monkeypatch):
+    # POSITIVE control (mutation guard): a fresh bot-style naive-local ISO entry WITH an action
+    # must be collected, and its parsed epoch must be ≈ now. A mutation that reads naive ISO as
+    # UTC shifts the epoch by the host's UTC offset (hours) — failing both assertions on any
+    # non-UTC host and the approx assertion's intent everywhere.
+    import datetime as dt
+    log = _write_log(tmp_path, [
+        {"ts": dt.datetime.now().isoformat(), "action_name": "docker restart", "target": "fresh"},
+    ])
+    monkeypatch.setattr(detect_reversals, "ACTIONS_LOG_PATH", log)
+    rows = detect_reversals.collect_host_sysadmin_actions()
+    assert [r["target"] for r in rows] == ["fresh"], "a fresh ISO-ts action must be collected"
+    assert abs(rows[0]["ts"] - time.time()) < 30, "naive ISO must parse as LOCAL time (epoch ≈ now)"
 
 
 def test_collect_host_actions_honors_cutoff_for_iso_entries(tmp_path, monkeypatch):

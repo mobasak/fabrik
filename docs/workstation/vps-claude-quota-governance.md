@@ -92,6 +92,8 @@ stops both, so its cache ages past the bound and the alarm fires).
 | `QUOTA_CAP_TTL_S` | `21600` (6h) | bounded reactive-cap hold when a reset epoch is missing/None |
 | `PROBE_CACHE_MAX_AGE_S` | `7200` (2h) | how old a cached usage reading may drive a reserve decision |
 | `CLAUDE_ROTATE_NO_USAGE_CAPTURE` | unset | `1` disables the post-call capture + cap-signal hooks |
+| `CLAUDE_SYSADMIN_MODEL` | `opus` | model for the diagnosis consumers (proactive-check, weekly-security, monthly-backup-verify); set in `/opt/fabrik/.env.sysadmin` on the host |
+| `CLAUDE_MORNING_MODEL` | `sonnet` | model for the morning report (a formatting task); `opus` restores the old behavior; set in `.env.sysadmin` |
 | `INCIDENT_LOG_TAIL_LINES` | `200` | `docker logs --tail` bound for the inlined incident bundle |
 | `CLAUDE_GOVERNOR_KIND` | `routine` | `incident` \| `bypass` per call |
 | `CLAUDE_GOVERNOR_CALLER` | `claude-run` | caller label |

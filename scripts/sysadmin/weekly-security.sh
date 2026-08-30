@@ -7,6 +7,11 @@
 set -uo pipefail
 
 PROJECT_DIR="/opt/fabrik"
+# Operator overrides (CLAUDE_SYSADMIN_MODEL, …) live in .env.sysadmin — cron's env is minimal (audit f6).
+if [ -r /opt/fabrik/.env.sysadmin ]; then
+    # shellcheck disable=SC1091
+    set -a; . /opt/fabrik/.env.sysadmin 2>/dev/null; set +a
+fi
 SYSTEM_PROMPT_FILE="$PROJECT_DIR/scripts/sysadmin/system-prompt.txt"
 
 echo "$(date -Iseconds) Running weekly security patrol..."

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: tests/test_detect_reversals.py
 """Detect operator reversals of AI actions (trio plan Phase 5.1.a).
 
 Runs as a `*/5 min` cron on each host. Correlates AI actions (from two
@@ -179,6 +180,9 @@ def collect_sidecar_actions() -> list[dict[str, Any]]:
     return rows
 
 
+_warned_bad_ts = [False]  # once-per-run rate limit for the unparseable-ts WARN
+
+
 def collect_host_sysadmin_actions() -> list[dict[str, Any]]:
     """Read recent AI-action entries from sysadmin-actions.jsonl.
 
@@ -203,7 +207,14 @@ def collect_host_sysadmin_actions() -> list[dict[str, Any]]:
                 except json.JSONDecodeError:
                     continue
                 entry_ts = _entry_epoch(entry.get("ts"))
-                if entry_ts is None or entry_ts < cutoff:
+                if entry_ts is None:
+                    # LOUD, per the module's defensive contract: a silent drop is how the
+                    # detector died undetected the first time (audit finding 9). Once per run.
+                    if not _warned_bad_ts[0]:
+                        _warned_bad_ts[0] = True
+                        _emit_warning(f"unparseable ts {entry.get('ts')!r} — entry skipped")
+                    continue
+                if entry_ts < cutoff:
                     continue
                 # Future-compat: only count entries with explicit action_name.
                 action_name = entry.get("action_name")
