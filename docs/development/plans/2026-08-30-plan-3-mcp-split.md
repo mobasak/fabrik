@@ -1,6 +1,6 @@
 # Plan 3 — The MCP split implementation (per-repo .mcp.json + user-level trim)
 
-**Status:** CONVERGED (round 1: 4 findings fixed; round 2: graders caught 17 digest-format defects, fixed; AUTHOR-BLIND round 3 (operator-invoked, native finder, 32 claims re-derived): 9 findings — wef D-018 omission, shadcn² conditional source, DR fleet-dir gap, HARD-STOP create-verb argument, youtube-headless profile, count/range, BC↔A1 parity, gitignore provenance group, malformed-yaml behavior — ALL fixed in-file; round 4 fresh pass: 0 new)
+**Status:** CONVERGED (post-flip delta round 2026-08-30: B1 hold rewritten to the D-026/D-027 reality + image-generation condemned-list exclusion — the ordering-based exclusion died when hub took over the type fixes; prior history: round 1: 4 findings fixed; round 2: graders caught 17 digest-format defects, fixed; AUTHOR-BLIND round 3 (operator-invoked, native finder, 32 claims re-derived): 9 findings — wef D-018 omission, shadcn² conditional source, DR fleet-dir gap, HARD-STOP create-verb argument, youtube-headless profile, count/range, BC↔A1 parity, gitignore provenance group, malformed-yaml behavior — ALL fixed in-file; round 4 fresh pass: 0 new)
 **Date:** 2026-08-30
 **Owner:** infra (hub session) — NO-POOL standing directive: solo native, no pool/subagent dispatch
 **Authority:** docs/DECISIONS.md D-003 (context7) + D-013..D-024 (the complete MCP adjudication — every roster row ruled: 16 active + 2 retired + 1 planned) +
@@ -22,8 +22,8 @@ reaching the servers it declares.
    from `project.yaml::type` + the per-type table + the per-repo overlay table (each row carrying its
    D-ref), and writes an idempotent `.mcp.json`; `--check` diffs without writing; red-first tests
    cover derivation, idempotence, overlay, URI resolution, and skip rules.
-2. The fleet-wide emission run has produced `.mcp.json` in every typed repo (post fleet's D-023 type
-   fixes), `.mcp.json` is gitignored fleet-wide via the manifest's generated block, and
+2. The fleet-wide emission run has produced `.mcp.json` in every typed repo (types corrected by the
+   hub under explicit operator authorization — D-026/D-027; census operator-confirmed 42/42), `.mcp.json` is gitignored fleet-wide via the manifest's generated block, and
    `claude mcp list` (or the config read) in 3 sample repos of different classes shows exactly the
    ruled set.
 3. All account-dir rosters are trimmed to the universal 6 via `claude_rotate.py --sync-mcp` (never a
@@ -106,7 +106,7 @@ Selections not covered by a row: `unconstrained`.
   (4) postgres-pro env carries the repo's `.env` `DATABASE_URL` as `DATABASE_URI` when present, and
   OMITS the env block when absent (server starts unconnected — degraded, never wrong-DB);
   (5) idempotence: second run writes nothing (mtime/content unchanged); (6) `--check` never writes;
-  (7) untyped/`.git`-less dirs skipped; (8) fabrik-claim-validator absent until its endpoint entry
+  (7) untyped/`.git`-less dirs skipped + CONDEMNED-list repos (image-generation, D-023 archival) skipped by name; (8) fabrik-claim-validator absent until its endpoint entry
   is added to the source table; (9) hub repo → full 16-server set; (11) malformed `project.yaml` / unreadable `.env` → skip-and-log, run continues; (10) **write-set containment**:
   after an emission run over a fixture repo, the ONLY path created/mutated under the repo is
   `.mcp.json` (full-tree snapshot diff) — the digest-row-12 claim as a test, not an assertion.
@@ -123,7 +123,11 @@ Selections not covered by a row: `unconstrained`.
 
 ### Phase B — rosters (ORDERED: emission BEFORE trim; trim is the LAST mutation)
 
-- B1 **HOLD-POINT: requires fleet's D-023 type-fix ack + operator go-word.** Run the emitter
+- B1 **HOLD-POINT: operator go-word only — the type precondition is MET** (D-026: 10 repos fixed by
+  hub under explicit authorization; D-027: candle + exam-coach; census operator-confirmed 42/42).
+  ⚠️ **image-generation is EXPLICITLY EXCLUDED by name** (a CONDEMNED list in the emitter, D-023
+  archival still pending with fleet) — the old exclusion rode B1-waits-for-fleet ordering, which
+  died when the hub took over the type fixes; relying on it would emit into a condemned repo. Run the emitter
   fleet-wide; spot-verify 3 repos of different classes (headless / saas / overlay) by reading the
   emitted files + `claude mcp list` in one of them.
 - B2 Hub's own `/opt/fabrik/.mcp.json` (full set) + `enableAllProjectMcpServers: true` into the
