@@ -149,6 +149,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 18 | SCOPED — orchestrator: CLASS fix = de-enumeration (remote docs now point at `--help`/the docstring instead of restating the check inventory and output shape — the domino generator removed, not just the instances); decisions.py docstring updated (it lives WITH the code); CHANGELOG refinement bullet for cfd9ac84's two manifesto edits; suites 117 passed, --check exit 0, gate success | 0 | 0 | 5 | closing wide sweep owed |
 | Pass 19 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at a8ad5035; grep-swept every remaining enumeration site (6/6 non-code files agree with the code); 8/8 anchors byte-parity; red-on-revert re-traced; dispatched: 1, returned: 1 | 1 | 1 | 0 | not done (3 more disproven-claim sites inside the v2 spec) |
 | Pass 20 | SCOPED — orchestrator: all three upstream spec sites de-enumerated/pointed at § Degradation (grep proves 0 remaining "ordinary merge conflict"/"one mechanical" claims); gate success | 0 | 0 | 1 | closing wide sweep owed |
+| Pass 21 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at d436311c; hand-reconstructed pre-fix behaviors for both code fixes (genuine regressions proven); 8/8 anchor grep-parity; all cross-refs verified against live CLI output; dispatched: 1, returned: 1 | 1 | 1 | 0 | not done (spec's "~30 lines" vs the 167-line helper, 2 sites) |
+| Pass 22 | SCOPED — orchestrator: both line-count claims dropped for the load-bearing "stdlib-only" (grep = 0 remaining "~30 lines"); gate success | 0 | 0 | 1 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -206,6 +208,10 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 
 | F-Z1 | v2 spec lines 95-99/117/156 still taught the disproven "id collision = visible merge conflict / one mechanical row" model its own § Degradation refutes | FIXED (round 20 — all three sites point at § Degradation/`--check`; grep = 0 remaining) |
 
-40 findings → 32 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
+| F-Z2 | v2 spec claimed the helper is "~30 lines" twice; it is 167 (the adjacent clause was fixed at round 18, the count missed — existence≠correspondence again) | FIXED (round 22 — count dropped; "stdlib-only" is the load-bearing claim) |
+
+41 findings → 33 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
+
+Precision note (round-20 commit message): "grep proves 0 remaining … claims" — the raw-string grep count is 1, at spec § Degradation line 248, which QUOTES the disproven phrase inside its own DISPROVEN clause; zero remaining CLAIMS is accurate, the raw count is stated here for denominator honesty.
 
 

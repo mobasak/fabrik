@@ -217,7 +217,7 @@ fleet-visible). NOT a decision: routine fixes, refactors, doc edits — those ar
    derivation sources**: `docs/DECISIONS.md` joins the list of frozen artifacts consulted before
    any question reaches the operator.
 3. **The fleet helper:** `scripts/decisions.py` (hub) — `grep -i` over `/opt/*/docs/DECISIONS.md`
-   + the hub's own, printing every row cell (the helper's docstring is the current output contract). ~30 lines, stdlib, read-only.
+   + the hub's own, printing every row cell (the helper's docstring is the current output contract). Stdlib-only, read-only.
 
 ## Distribution (I5)
 
@@ -286,7 +286,7 @@ design-time citations, not dependencies.
 | Capability | Verdict | Why |
 |---|---|---|
 | ledger storage | BUILD (a doc template, not code) | no module covers governance doc shapes; not module-shaped |
-| fleet query | BUILD (`scripts/decisions.py`, ~30 lines stdlib) | grep wrapper; below the new-module bar (process tooling, not reusable product code); no existing module greps /opt-wide |
+| fleet query | BUILD (`scripts/decisions.py`, stdlib-only) | grep wrapper; below the new-module bar (process tooling, not reusable product code); no existing module greps /opt-wide |
 | distribution | VENDOR existing machinery | scaffolder templates + `sync_enforcement_to_projects.py` seed-if-missing — both exist |
 
 No fabrik-lib candidates — nothing here clears the ≥2-project-types code-reuse bar; it is process.
