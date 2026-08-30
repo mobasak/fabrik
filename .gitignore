@@ -199,3 +199,10 @@ mutants/
 .serena/
 # Per-repo MCP config (emitted by scripts/sysadmin/emit_mcp_project_config.py; carries resolved DATABASE_URL)
 .mcp.json
+
+# Duplicate-detection reports — TOOL OUTPUT, never source. check_duplicates.py's default
+# writes duplicate-report.json (+ a sibling jscpd-report.json) into the repo root; the push
+# gate was fixed to redirect to /tmp (enforced by tests/test_push_gate_config.py), but these
+# two stayed TRACKED from before that fix and churn on every run. Ignored 2026-08-30.
+/duplicate-report.json
+/jscpd-report.json

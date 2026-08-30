@@ -1,13 +1,43 @@
 {
   "status": "pass",
-  "duplicated_lines": 5317,
-  "percentage": 4.77,
+  "duplicated_lines": 5587,
+  "percentage": 4.18,
   "threshold": 7.0,
-  "duplicate_count": 75,
+  "duplicate_count": 78,
   "duplicates": [
     {
-      "lines": 3905,
-      "tokens": 25868,
+      "lines": 11,
+      "tokens": 54,
+      "firstFile": "scripts/archived/kilo_code_review.py",
+      "secondFile": "scripts/archived/kilo_docs_enforcer.py"
+    },
+    {
+      "lines": 12,
+      "tokens": 58,
+      "firstFile": "scripts/archived/kilo_code_review.py",
+      "secondFile": "scripts/archived/kilo_docs_enforcer.py"
+    },
+    {
+      "lines": 139,
+      "tokens": 755,
+      "firstFile": "scripts/archived/kilo_code_review.py",
+      "secondFile": "scripts/archived/kilo_docs_enforcer.py"
+    },
+    {
+      "lines": 11,
+      "tokens": 59,
+      "firstFile": "scripts/archived/kilo_code_review.py",
+      "secondFile": "scripts/archived/kilo_docs_enforcer.py"
+    },
+    {
+      "lines": 18,
+      "tokens": 85,
+      "firstFile": "scripts/archived/kilo_code_review.py",
+      "secondFile": "scripts/archived/kilo_code_review.py"
+    },
+    {
+      "lines": 4135,
+      "tokens": 27887,
       "firstFile": "scripts/aro-wake/claude_rotate.py",
       "secondFile": "scripts/sysadmin/claude_rotate.py"
     },
@@ -34,36 +64,6 @@
       "tokens": 75,
       "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
       "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
-    },
-    {
-      "lines": 12,
-      "tokens": 156,
-      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
-      "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
-    },
-    {
-      "lines": 14,
-      "tokens": 112,
-      "firstFile": "scripts/bootstrap/bootstrap-hub.sh",
-      "secondFile": "scripts/bootstrap/bootstrap-spoke-restore.sh"
-    },
-    {
-      "lines": 42,
-      "tokens": 463,
-      "firstFile": "scripts/bootstrap/bootstrap-spoke-restore.sh",
-      "secondFile": "scripts/bootstrap/bootstrap-vps.sh"
-    },
-    {
-      "lines": 17,
-      "tokens": 86,
-      "firstFile": "scripts/bootstrap/bootstrap-spoke-restore.sh",
-      "secondFile": "scripts/sysadmin/install-docker-user-rules.sh"
-    },
-    {
-      "lines": 11,
-      "tokens": 57,
-      "firstFile": "scripts/check_commit_trailers.py",
-      "secondFile": "scripts/check_commit_trailers.py"
     }
   ]
 }
