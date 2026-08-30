@@ -8,7 +8,7 @@ FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; des
 
 - **In-repo:** `grep -i <term> docs/DECISIONS.md` — or just read it; ledgers are short by design.
 - **Fleet-wide (hub-side):** `python3 /opt/fabrik/scripts/decisions.py <term>` — greps every
-  `/opt/*/docs/DECISIONS.md` plus the hub's own, printing `repo · D-NNN · when · who · what · where`.
+  `/opt/*/docs/DECISIONS.md` plus the hub's own, printing `repo · D-NNN · when · who · what · why · where`.
   Box-topology note: the helper assumes the `/opt` single-filesystem layout of this box; the per-repo
   practice works in any checkout.
 - **Order of recall for decision-shaped questions:** ledger → session-recall → wider hunt. A ledger
@@ -34,7 +34,9 @@ FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; des
 - **Id collisions** (two sessions appending concurrently) do NOT reliably surface as merge
   conflicts — appends at different file positions merge cleanly (proven live: two D-041s,
   2026-08-30). Detection is `--check`'s duplicate-id check; the fix is renumbering the
-  later-minted row. Still no lock machinery by design.
+  later-minted row IN PLACE (only the id cell changes — the row keeps its file position, so
+  id order ≠ position for a renumbered row; newest-first is a mint-time convention). Still no
+  lock machinery by design.
 
 ## Where the duties live (the binding text, not this doc)
 

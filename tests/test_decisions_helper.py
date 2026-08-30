@@ -55,6 +55,7 @@ def test_query_prints_the_matching_row_with_repo_and_fields(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "alpha" in out and "D-001" in out and "74ad8a06" in out, out
+    assert "45 lifetime calls" in out, out  # the WHY cell — the field the duty exists for
     assert "beta" not in out, out
 
 

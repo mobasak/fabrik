@@ -91,7 +91,13 @@ def _query(root: Path, term: str) -> None:
         for rid, cells in _rows(path):
             if needle in " ".join(cells).lower():
                 padded = cells + [""] * (6 - len(cells))
-                _say(f"{repo} · {rid} · {padded[1]} · {padded[2]} · {padded[3]} · {padded[5]}")
+                # ALL six cells — the duty this tool serves promises "what+why+where is
+                # the full answer", and WHY was the one field the output omitted
+                # (review 2026-08-31; the D-000 directive is ABOUT the why).
+                _say(
+                    f"{repo} · {rid} · {padded[1]} · {padded[2]} · {padded[3]} · "
+                    f"{padded[4]} · {padded[5]}"
+                )
                 hits += 1
     if not hits:
         _say(

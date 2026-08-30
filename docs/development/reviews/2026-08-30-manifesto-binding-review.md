@@ -143,6 +143,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 12 | SCOPED — orchestrator: fixed all three (CHANGELOG bullet for the late code fixes; _say BrokenPipeError→SystemExit(0) red-first for the library path; BLOCKED-analogy prose de-ambiguated in both contracts); suites 116 passed, gate success | 0 | 0 | 3 | closing wide sweep owed |
 | Pass 13 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 92a269c1; built real os.pipe/TextIOWrapper repros (not mocks); own red-on-revert traces; suites 116 passed, --check exit 0; dispatched: 1, returned: 1 | 2 | 2 | 0 | not done (1 compound-path gap + 1 date nit) |
 | Pass 14 | SCOPED — orchestrator: compound Unicode→BrokenPipe path guarded (red-first monkeypatch test watched RED); date comment normalized to 2026-08-30/31; suites 117 passed, gate success | 0 | 0 | 2 | closing wide sweep owed |
+| Pass 15 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 6a159fe3; own red-on-revert traces (7/7 tests), live query + --check + suites executed; dispatched: 1, returned: 1 | 3 | 3 | 0 | not done (query omits WHY + 2 doc rewords) |
+| Pass 16 | SCOPED — orchestrator: _query now prints ALL six cells incl. WHY (red-first assertion watched RED; live query proven to print the why-cell); CHANGELOG parenthetical de-contradicted; decision-ledger.md format line + renumber-in-place caveat; suites 117 passed, gate success | 0 | 0 | 3 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -188,6 +190,10 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | F-W1 | _say's UnicodeEncodeError fallback print unguarded against BrokenPipeError — the compound path (non-UTF-8 stdout + closed pipe) escaped as a traceback for library callers; round-12's test only exercised the first print | FIXED (round 14 — inner guard added; red-first compound-path test) |
 | F-W2 | one comment stamped "review 2026-08-31" while the batch's CHANGELOG/DECISIONS references say 2026-08-30 (the review spans midnight) | FIXED (round 14 — comment reads "manifesto-binding review, 2026-08-30/31") |
 
-31 findings → 23 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
+| F-X1 | contracts promise "what+why+where is the full answer" but _query never printed the WHY cell — the field the D-000 directive is about | FIXED (round 16 — all six cells printed; red-first test; decision-ledger.md format line updated; live output verified) |
+| F-X2 | CHANGELOG parenthetical claimed the literal was "kept out of this entry" while `pre-blocked:` sat in the same bullet | FIXED (round 16 — reworded: uppercase example kept out; the lowercase one is inert vs the case-sensitive regex) |
+| F-X3 | in-place renumber leaves D-046 below D-044 — silently violating the documented newest-first read | FIXED (round 16 — decision-ledger.md id-collision bullet now states renumber-in-place keeps position; newest-first is a mint-time convention) |
+
+34 findings → 26 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
 
 
