@@ -18,6 +18,10 @@ import subprocess
 import time
 
 import claude_rotate  # co-located; pytest prepends this dir to sys.path
+
+# the REAL function, bound before the autouse hermetic fixture stubs the module attr —
+# the _oauth_get host-fallback tests exercise THIS, not the stub
+_REAL_OAUTH_GET = claude_rotate._oauth_get
 import pytest
 
 
@@ -1328,3 +1332,50 @@ def test_run_claude_capture_kill_switch(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: called.append(2))
     claude_rotate.run_claude(["claude", "-p", "hi"], timeout=5, cwd=".", env={})
     assert called == []
+
+
+def test_oauth_get_falls_back_to_platform_host_on_429(monkeypatch):
+    # Measured live on vps1 (2026-08-30): api.anthropic.com 429s datacenter IPs while
+    # platform.claude.com serves the SAME token 200 — a 429 is a HOST verdict, so the GET must
+    # fall through to the sibling host instead of blanking the governor's telemetry.
+    import io
+    import urllib.error
+    import urllib.request
+
+    calls = []
+
+    class _Resp(io.StringIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        url = req.full_url
+        calls.append(url)
+        if "api.anthropic.com" in url:
+            raise urllib.error.HTTPError(url, 429, "Too Many Requests", None, None)
+        return _Resp('{"five_hour": {"utilization": 9.0}}')
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    out = _REAL_OAUTH_GET("usage", "tok", timeout_s=1, attempts=1)
+    assert out == {"five_hour": {"utilization": 9.0}}
+    assert any("api.anthropic.com" in u for u in calls)
+    assert any("platform.claude.com" in u for u in calls)
+
+
+def test_oauth_get_401_is_definitive_no_host_fallback(monkeypatch):
+    # a dead token must NOT be retried across hosts (401/403 = token verdict, not host verdict)
+    import urllib.error
+    import urllib.request
+
+    calls = []
+
+    def fake_urlopen(req, timeout=None):
+        calls.append(req.full_url)
+        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", None, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    assert _REAL_OAUTH_GET("usage", "tok", timeout_s=1, attempts=2) is None
+    assert len(calls) == 1, "one attempt, one host — definitive"

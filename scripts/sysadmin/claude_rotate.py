@@ -1131,22 +1131,31 @@ def _oauth_get(
         timeout_s = _env_float("OAUTH_GET_TIMEOUT_S", 8.0)
     if attempts is None:
         attempts = max(1, int(_env_float("OAUTH_GET_ATTEMPTS", 2.0)))
-    req = urllib.request.Request(
-        f"https://api.anthropic.com/api/oauth/{path}",
-        headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
-    )
-    for i in range(attempts):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout_s) as r:
-                return json.load(r)
-        except urllib.error.HTTPError as e:
-            if e.code < 500:
-                return None  # 4xx is definitive (dead/wrong token) — do not retry
-            # 5xx is a transient server error → fall through to the retry
-        except Exception:
-            pass  # timeout / URLError / socket / malformed JSON — transient, retry
-        if i < attempts - 1:
-            time.sleep(backoff_s * (i + 1))
+    # TWO hosts, tried in order. Measured live on vps1 (2026-08-30): the SAME valid token got
+    # HTTP 429 from api.anthropic.com (datacenter-IP throttling — every VPS probe blanked, which
+    # silently starved the governor's usage capture) and HTTP 200 from platform.claude.com. A 429
+    # is a HOST verdict, not a token verdict — falling through to the sibling host turns a
+    # permanently-throttled vantage into a working probe. 401/403 stays definitive (dead/wrong
+    # token — no host will differ); 5xx retries the same host.
+    for host in ("api.anthropic.com", "platform.claude.com"):
+        req = urllib.request.Request(
+            f"https://{host}/api/oauth/{path}",
+            headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
+        )
+        for i in range(attempts):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout_s) as r:
+                    return json.load(r)
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    return None  # definitive (dead/wrong token) — no other host will differ
+                if e.code < 500:
+                    break  # 429/other-4xx: this HOST refuses — try the next host
+                # 5xx is a transient server error → fall through to the retry
+            except Exception:
+                pass  # timeout / URLError / socket / malformed JSON — transient, retry
+            if i < attempts - 1:
+                time.sleep(backoff_s * (i + 1))
     return None
 
 
