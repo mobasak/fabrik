@@ -157,9 +157,11 @@ build this — never pick an approach from training memory or first instinct:
   WORSE than no research.** Cut it, and pick the best option that *survives* the constraints (then cite THAT).
 - **BLOCKING, with a COUNTABLE floor (2026-08-30):** do NOT present Phase-3 approaches until the
   approach space is grounded in cited current best-practice research (or a named BLOCKING unknown +
-  resolution step). The floor is mechanical and `check_spec_convergence.py` enforces it at the
-  CONVERGED flip: **≥2 distinct cited live sources (URL + fetched-date) backing the approach, from
-  ≥2 different tools, at least one via a real SEARCH** (exa/brave) — a single direct fetch of a page
+  resolution step). The floor: **≥2 distinct cited live sources (URL + fetched-date) backing the approach, from
+  ≥2 different tools, at least one via a real SEARCH** (exa/brave). `check_spec_convergence.py`
+  enforces the COUNTABLE subset at the CONVERGED flip (≥2 distinct URLs, date-gated — it reads the
+  artifact only and cannot verify tools or search legs; claiming it could would be the
+  enforcement-overclaim defect); `/fabrik-spec-review`'s floor audit owns the rest — a single direct fetch of a page
   you already believed is confirmation-shopping, not research. ⚠️ **"This design is internal-only"
   waives 1a (facts), NEVER 1c (approach)** — every design shape has a field practice to consult,
   and the internal-only claim is the exact self-exemption that shipped a decision-ledger spec on one
