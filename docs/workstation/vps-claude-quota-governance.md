@@ -15,22 +15,38 @@ three cooperating parts plus a gate.
 
 | Part | File | What it does |
 |---|---|---|
-| **Governor** | `scripts/sysadmin/quota_governor.py` | The router. `QuotaGovernor.route("routine"\|"incident", caller=)` reads the LIVE `claude_rotate.py --status --json` fleet payload and returns `ob@` \| `pool` \| `pool-diagnose`. |
+| **Governor** | `scripts/sysadmin/quota_governor.py` | The router. `QuotaGovernor.route("routine"\|"incident", caller=)` reads `claude_rotate.py --probe-current --json` (live-or-cached single-key headroom) and returns `ob@` \| `pool` \| `pool-diagnose`. |
 | **Broker** | `scripts/sysadmin/claude_broker.py` | Loopback service giving CONTAINERS completion-only claude (`claude -p --tools "" -- <prompt>`) with no host tools / no creds. Token auth, per-caller budgets, FAIL-CLOSED. |
 | **Marshaller** | `scripts/sysadmin/incident_context.py` | When ob@ is capped, assembles an incident bundle (webhook + bounded log tails + host state) and INLINES it into a read-only pool worker for a diagnosis — operator-gated, never auto-applied. |
 | **Gate** | `scripts/sysadmin/claude-run.sh` | The shared entrypoint now consults the governor before every ob@ call. |
 
-## Routing rules
+## Routing rules (single-key bootstrap semantics, canary-corrected 2026-08-30)
 
-- **routine** → `pool` when the account is `cap_walled` (the operator's authoritative `caps.json`
-  weekly cap) **OR** `max(<every utilization window: five_hour, seven_day, model_windows>) ≥
-  RESERVE_PCT` (default 80); else `ob@`. The `max` covers per-model weekly walls (Fable today; Opus if
-  its weekly sub-limit appears) by construction.
-- **incident** → `ob@` when there is headroom AND the single-flight `flock` is free; else
-  `pool-diagnose`. A `cap_walled` account, a reactive `is_usage_limit` signal, or a fix already in
-  flight all route to `pool-diagnose` — the fix is escalated, **never blocked or dropped**.
-- **Fail-SAFE:** a `--status` failure / unparseable row → routine sheds to `pool`, an incident still
-  runs on `ob@`. A `None`/past reset epoch is bounded by `CAP_TTL_S` (default 6h), never `now ≥ None`.
+- **routine** → `pool` ONLY on affirmative evidence: the account is capped (`cap_walled` or the
+  reactive cap) **OR** a KNOWN `max(<every utilization window: five_hour, seven_day,
+  model_windows>) ≥ RESERVE_PCT` (default 80); else `ob@` — **including unknown headroom**
+  (probe failure / expired cache). Why: on the single-key VPS only a real claude call ever
+  refreshes the token that produces telemetry, so "unknown → shed" wedges the whole loop (proven
+  live on vps1 and rolled back). The `max` covers per-model weekly walls by construction.
+- **incident** → `ob@` when not capped AND the single-flight `flock` is free; else `pool-diagnose`.
+  A capped account or a fix already in flight routes to `pool-diagnose` — the fix is escalated,
+  **never blocked or dropped**.
+- **The reactive cap is the over-cap backstop** (file state — works with dark telemetry): when a
+  claude call's FINAL result still carries a usage-limit, `run_claude` pipes it to
+  `quota_governor.py mark-capped` → routine sheds until the window reset (or a bounded `CAP_TTL_S`,
+  default 6h, when the epoch is missing — never `now ≥ None`).
+
+## Headroom telemetry (how the governor SEES usage on a single-key host)
+
+There is no quota-free way to refresh a stale token (`/v1/oauth/token` is Cloudflare-403'd), so:
+
+- **Post-call capture:** after every real claude call — the one moment the token is guaranteed
+  fresh — `run_claude` captures the account's usage (quota-free `api/oauth/usage` GET) into
+  `~/.claude/state/current-usage-cache.json`. The 15-min proactive-check keeps it minutes old.
+  Kill-switch: `CLAUDE_ROTATE_NO_USAGE_CAPTURE=1`.
+- **`claude_rotate.py --probe-current --json`** (the governor's source): LIVE when the stored token
+  works, else the cache within `PROBE_CACHE_MAX_AGE_S` (default 7200s), else
+  `source:"unavailable"` (→ bootstrap-run). The keepalive health probe reads the same command.
 
 ## How consumers are wired
 
@@ -51,7 +67,9 @@ than burn a capped call or degrade to a tool-less pool answer).
 
 The keepalive (`claude-keepalive-rotate.sh`) **no longer issues a `claude -p ping`** — a
 regularly-used ob@ needs no warmth ping, and the ping burned the quota being conserved. Its
-auth/quota health signal now comes from the FREE `--status --json` profile probe (no completion).
+auth/quota health signal now comes from the FREE `--probe-current --json` probe (no completion):
+OK on a `live` reading or a recently-refreshed cache; FAIL when neither exists (a dead account
+stops both, so its cache ages past the bound and the alarm fires).
 
 ## The broker (containers)
 
@@ -70,8 +88,10 @@ auth/quota health signal now comes from the FREE `--status --json` profile probe
 
 | Var | Default | Effect |
 |---|---|---|
-| `QUOTA_RESERVE_PCT` | `80` | routine sheds to the pool at/above this utilization on any window |
+| `QUOTA_RESERVE_PCT` | `80` | routine sheds to the pool at/above this KNOWN utilization on any window |
 | `QUOTA_CAP_TTL_S` | `21600` (6h) | bounded reactive-cap hold when a reset epoch is missing/None |
+| `PROBE_CACHE_MAX_AGE_S` | `7200` (2h) | how old a cached usage reading may drive a reserve decision |
+| `CLAUDE_ROTATE_NO_USAGE_CAPTURE` | unset | `1` disables the post-call capture + cap-signal hooks |
 | `INCIDENT_LOG_TAIL_LINES` | `200` | `docker logs --tail` bound for the inlined incident bundle |
 | `CLAUDE_GOVERNOR_KIND` | `routine` | `incident` \| `bypass` per call |
 | `CLAUDE_GOVERNOR_CALLER` | `claude-run` | caller label |

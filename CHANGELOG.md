@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — single-key quota governance made functional: cache-backed headroom + bootstrap routing (2026-08-30)
+
+- **What:** the hub canary proved the direct probe insufficient (stale token between calls; the
+  direct oauth refresh is Cloudflare-403'd, so an on-demand read has no quota-free freshness). Landed
+  the full as-planned design: (1) `run_claude` post-call usage capture — right after a real claude
+  call (the one fresh-token moment), a quota-free `api/oauth/usage` GET persists the reading to
+  `~/.claude/state/current-usage-cache.json`, and a FINAL still-limited result pipes to the new
+  `quota_governor.py mark-capped`; (2) `--probe-current` v2 — live → cache (≤ `PROBE_CACHE_MAX_AGE_S`,
+  default 2h) → unavailable; (3) governor BOOTSTRAP semantics — routine sheds only on affirmative
+  evidence (active cap or KNOWN `max_util ≥ reserve`); unknown headroom runs on ob@, because on a
+  single-key host only a real call refreshes the telemetry-producing token ("unknown → shed" wedged
+  the loop, proven live on vps1 + rolled back). Keepalive health repointed `--status` →
+  `--probe-current` (its fleet-shape classifier would have FAILed every single-key run).
+- **Proof:** full lifecycle locally — cold-start bootstrap → post-call cache 62%/44% → reserve shed at
+  `QUOTA_RESERVE_PCT=40` while an uncapped incident still runs → mark-capped sheds routine/escalates
+  incident; keepalive OK(live)/OK(cache)/FAIL(none). Governor 28/28 (6 TDD red→green), rotate 56 pass
+  (13 pre-existing failures attributed by HEAD-revert), broker+incident 55/55 unchanged.
+
 ### Added — Plan 3: the MCP split implementation, CONVERGED (2026-08-30)
 
 - docs/development/plans/2026-08-30-plan-3-mcp-split.md — per-repo .mcp.json emission + rotation-safe user-level trim + subagent reachability; reviewed across 7 seams, both graders green.
