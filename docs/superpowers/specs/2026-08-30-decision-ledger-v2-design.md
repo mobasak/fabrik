@@ -94,9 +94,10 @@ Method: two independent SEARCH legs + raw-fetch verification of every quoted str
   practice is failing silently"*).
 - **Hand-rolled numbering has a known failure mode**: id collisions on concurrent merge + stale index
   + dangling supersede pointers — https://whychose.com/seo/adr-tooling-comparison (2026-05-31). With
-  up-to-3 concurrent agents per repo this WILL happen here; the design treats an id collision as an
-  ordinary git merge conflict (visible, trivially fixed) and adds no lock machinery — but the
-  advisory check (§ Enforcement) inherits "supersede pointer must resolve" as its one mechanical row.
+  up-to-3 concurrent agents per repo this WILL happen here; the design adds no lock machinery —
+  detection is mechanical via `--check` (§ Enforcement; § Degradation records that the original
+  "collision = visible merge conflict" assumption was DISPROVEN on day one and the duplicate-id
+  check added on that evidence).
 - **Don't backfill** — *"Write ADRs for decisions going forward. Don't backfill historical decisions
   unless someone is actively confused by one"* — https://docsio.co/blog/architecture-decision-record
   (2026-04-30). Matches § Out of scope.
@@ -114,7 +115,7 @@ Method: two independent SEARCH legs + raw-fetch verification of every quoted str
 (supersede-by-new-row, never edit — § Entry format rule 3); (b) the single-file-log choice is now
 grounded in a named field practice with a scale rule and an outgrow signal, not asserted; (c) the
 seed row D-000 records the adoption decision itself (field convention); (d) the enforcement check
-gains its one mechanical row (supersede pointers resolve); (e) agent-memory field practice
+gains its mechanical integrity rows (see § Enforcement / § Degradation); (e) agent-memory field practice
 independently corroborates flat-file-in-repo for exactly our writer/reader personas.
 
 ## Storage decision (I2): FILE, per repo — postgres REJECTED (this is itself ledger row D-001)
@@ -153,9 +154,10 @@ Query: grep this file first; fleet-wide: `python3 /opt/fabrik/scripts/decisions.
 | D-003 | 2026-08-30 | operator+infra | context7 MCP retired from window roster | 45 lifetime calls vs 364MB/window; WebFetch covers it | 74ad8a06 · docs/workstation/mcp-roster.md |
 ```
 
-1. **id**: `D-NNN`, monotonic per repo (collision on concurrent append = ordinary merge conflict,
-   visible and trivially fixed — no lock machinery; the field's known hand-rolled failure mode,
-   accepted deliberately at our scale).
+1. **id**: `D-NNN`, monotonic per repo (no lock machinery; collision on concurrent append is the
+   field's known hand-rolled failure mode, accepted deliberately at our scale — caught by
+   `--check`'s duplicate-id detector, since § Degradation disproved the "visible merge conflict"
+   assumption on day one).
 2. **who**: `operator` · `infra|fleet|intel` · the repo's agent · `operator+<agent>` when the
    operator ruled and the agent executed. The commit's trailers corroborate.
 3. **Rows are immutable — supersede, never edit** (the universal invariant, § Research grounding):

@@ -147,6 +147,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 16 | SCOPED — orchestrator: _query now prints ALL six cells incl. WHY (red-first assertion watched RED; live query proven to print the why-cell); CHANGELOG parenthetical de-contradicted; decision-ledger.md format line + renumber-in-place caveat; suites 117 passed, gate success | 0 | 0 | 3 | closing wide sweep owed |
 | Pass 17 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 65528cce; own red-on-revert traces for the 2 highest-risk assertions; live drift-check parser run against the hub file (8/8 anchors parse); dispatched: 1, returned: 1 | 5 | 5 | 0 | not done — 4 of 5 are ONE class: remote descriptions of the tool's contract went stale on the round-16 change |
 | Pass 18 | SCOPED — orchestrator: CLASS fix = de-enumeration (remote docs now point at `--help`/the docstring instead of restating the check inventory and output shape — the domino generator removed, not just the instances); decisions.py docstring updated (it lives WITH the code); CHANGELOG refinement bullet for cfd9ac84's two manifesto edits; suites 117 passed, --check exit 0, gate success | 0 | 0 | 5 | closing wide sweep owed |
+| Pass 19 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at a8ad5035; grep-swept every remaining enumeration site (6/6 non-code files agree with the code); 8/8 anchors byte-parity; red-on-revert re-traced; dispatched: 1, returned: 1 | 1 | 1 | 0 | not done (3 more disproven-claim sites inside the v2 spec) |
+| Pass 20 | SCOPED — orchestrator: all three upstream spec sites de-enumerated/pointed at § Degradation (grep proves 0 remaining "ordinary merge conflict"/"one mechanical" claims); gate success | 0 | 0 | 1 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -202,6 +204,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | F-Y4 | v2 spec §Enforcement: "ONE narrow mechanical row" self-contradicts §Degradation 14 lines up | FIXED (round 18 — de-enumerated + cross-referenced §Degradation) |
 | F-Y5 | cfd9ac84's two manifesto refinements had no CHANGELOG record; D-043's row enumerates only the original five additions | FIXED-instance (round 18 — CHANGELOG refinement bullet added under the D-043 entry) · ledger-row half REFUTED: rows are adoption-time snapshots, immutable by design; the refinements execute the operator's closing-review instruction on the ADOPTED artifact, and the duty's own "NOT a decision: routine doc edits" clause governs — the living manifesto at D-043's where-cell is the content of record |
 
-39 findings → 31 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
+| F-Z1 | v2 spec lines 95-99/117/156 still taught the disproven "id collision = visible merge conflict / one mechanical row" model its own § Degradation refutes | FIXED (round 20 — all three sites point at § Degradation/`--check`; grep = 0 remaining) |
+
+40 findings → 32 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
 
 
