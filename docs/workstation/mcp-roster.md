@@ -55,7 +55,7 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
 | **firecrawl** | scrape/crawl (raw HTML) — fallback arm in 5 pipeline commands | ALL repos (operator ruling 2026-08-30, D-013: universal, no exception) | light | **ON everywhere** — the startup crash was a CORRUPTED npx cache entry (wipe-incident residue), cleared + respawn verified 2026-08-30; the curl-swap candidate is DEAD per the ruling |
 | playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test; NEVER crawling (no grounding order names it — the research chain is exa/brave/firecrawl) | the 6 UI-bearing types | 102 MB / 2p | ON UI types only — **RULED 2026-08-30 (D-015)** |
-| chrome-devtools | deep browser debug/perf traces (Core-Web-Vitals in the Build-Verification Loop) | DECLARED in fabrik-gui's own mcpServers allow-list | 321 MB / 5p | ON web-GUI types (with playwright) — **RULED 2026-08-30 (D-015)** |
+| chrome-devtools | deep browser debug/perf traces (Core-Web-Vitals in the Build-Verification Loop) | DECLARED in fabrik-gui's own mcpServers allow-list | 321 MB / 5p | ON web-GUI types (with playwright) — **RULED 2026-08-30 (D-015 + D-019: rides with playwright everywhere playwright is granted, overlays included — § ruling in full)** |
 | shadcn | SaaS UI component registry (MIT-B pair, operator-wired) | saas-skeleton | light | ON saas-skeleton only |
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
 | mobile-mcp | device/emulator automation | mobile-app | light | ON mobile-app only |
@@ -114,7 +114,7 @@ overlay (D-017 supersedes the boundary for that one repo) (original operator bou
 "use on the SaaS UI, never on produced sites").
 
 **Per-REPO overlays (content-driven, never type-driven):** wef → +playwright (D-016: it drives/verifies
-the ecommerce sites it produces) +shadcn +magicui (D-017: React/Tailwind storefronts; motion = conversion
+the ecommerce sites it produces) +chrome-devtools (D-019: rides with playwright wherever granted) +shadcn +magicui (D-017: React/Tailwind storefronts; motion = conversion
 tooling — supersedes the magicui saas-only boundary for wef ONLY, it stands elsewhere) +pubchem
 +media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
@@ -142,6 +142,25 @@ its hub-class full roster. Its companion `chrome-devtools` (performance/Core-Web
 the same loop) takes the same disposition. **Plus the per-repo overlay: `web-ecommerce-factory`
 (D-016)** — wef drives and verifies the ecommerce sites it produces, rendered-surface work its own
 repo type would not otherwise grant.
+
+## Chrome-devtools — the ruling in full (D-015 + D-019, saved 2026-08-30)
+
+Chrome-devtools is playwright's MEASURING companion, never its duplicate: playwright DRIVES the
+screen (navigate, click, type, screenshot, a11y snapshot — does it work?); chrome-devtools MEASURES
+it (Core-Web-Vitals via `lighthouse_audit` LCP/CLS/INP, `performance_analyze_insight` traces,
+CPU/network THROTTLING for the loading/slow states, console + network inspection — is it fast?).
+Neither replaces the other, and the corpus binds both by name in the same loops:
+
+- `fabrik-ui-design.md:187` — `lighthouse_audit` (LCP/CLS/INP) + `performance_analyze_insight` in the design gate
+- `fabrik-user-test.md:166,227` — throttling produces the loading/slow screen states; "a slow screen fails 'easy to use'"
+- `fabrik-plan-review.md:283` + `fabrik-execute-plan.md:209` — the CWV budget in the Build-Verification Loop
+- `fabrik-execute-plan.md:199` — `fabrik-gui` declares it in its own mcpServers allow-list
+
+**Who needs it — exactly playwright's set, by rule:** chrome-devtools RIDES WITH playwright
+everywhere playwright is granted — the 6 UI-bearing types (D-015) AND every per-repo playwright
+overlay (D-019: wef gets +chrome-devtools with its D-016 playwright — CWV on a produced storefront
+is conversion tooling, a slow shop loses sales). `mobile-app` stays out (maestro/mobile-mcp loop);
+headless types have nothing to measure. Like playwright, it is NEVER a crawling/research tool.
 
 ## Chronic non-connectors — root-caused 2026-08-30 (distinct from the herd outage)
 
