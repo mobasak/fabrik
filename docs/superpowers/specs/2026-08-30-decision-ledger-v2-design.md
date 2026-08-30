@@ -331,8 +331,8 @@ CHANGELOG). Rotation-safe: nothing keyed to account dirs; plain files in each re
 5. **Structured data file (JSONL/CSV, one record per line)** — REJECTED (operator asked, 2026-08-30):
    machine-parsing is its only advantage, and no program consumes the ledger — the readers are
    agents-in-chat and the operator, for whom a markdown table renders, scans, and self-documents its
-   columns; JSONL renders as noise and needs a schema doc. Grep works identically on both; the ~30-line
-   helper parses either trivially. Field practice keeps decision records and agent-memory files as
+   columns; JSONL renders as noise and needs a schema doc. Grep works identically on both; the
+   stdlib helper parses either trivially. Field practice keeps decision records and agent-memory files as
    markdown-in-repo (§ Research grounding), and the governance doc family + doc-discipline machinery
    (allowlist, sync matrix) already govern the .md shape. Concurrent-append merge behavior is the same
    in both formats.

@@ -151,6 +151,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 20 | SCOPED — orchestrator: all three upstream spec sites de-enumerated/pointed at § Degradation (grep proves 0 remaining "ordinary merge conflict"/"one mechanical" claims); gate success | 0 | 0 | 1 | closing wide sweep owed |
 | Pass 21 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at d436311c; hand-reconstructed pre-fix behaviors for both code fixes (genuine regressions proven); 8/8 anchor grep-parity; all cross-refs verified against live CLI output; dispatched: 1, returned: 1 | 1 | 1 | 0 | not done (spec's "~30 lines" vs the 167-line helper, 2 sites) |
 | Pass 22 | SCOPED — orchestrator: both line-count claims dropped for the load-bearing "stdlib-only" (grep = 0 remaining "~30 lines"); gate success | 0 | 0 | 1 | closing wide sweep owed |
+| Pass 23 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 0a073013; live red-on-revert on all 4 fixed behaviors (copy→neuter→test→restore, byte-identical restore verified); dispatched: 1, returned: 1 | 2 | 1 | 0 | not done (a HYPHENATED "~30-line" variant escaped round-21's grep; the field-block candidate is a re-raise of adjudicated F-B1/F-C5 → new: 1) |
+| Pass 24 | SCOPED — orchestrator: third site fixed; variant-proof sweep run ("30.line" + "~[0-9]" over all 12 files — every other numeric claim verified legitimate: ~46 repos, ~25-line headers, ~30s timeouts); gate success | 0 | 0 | 1 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -210,7 +212,10 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 
 | F-Z2 | v2 spec claimed the helper is "~30 lines" twice; it is 167 (the adjacent clause was fixed at round 18, the count missed — existence≠correspondence again) | FIXED (round 22 — count dropped; "stdlib-only" is the load-bearing claim) |
 
-41 findings → 33 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
+| F-Z3 | a third "~30-line" claim (hyphenated variant) escaped round-21's "~30 lines" grep — the denominator lesson applied to my own sweep pattern | FIXED (round 24 — "stdlib helper"; variant-proof grep "30.line" = 0 across all 12 files) |
+| (re-raise) | D-044/45/46 lack the § Binding field block | already adjudicated (F-B1 REFUTED round 1, F-C5 round 3); round-23's finder independently traced mint order — D-045/D-046 were minted BEFORE the classify-at-mint duty existed (c1d867ea/86271c1f < 5420a575), which strengthens the refutation |
+
+42 findings → 34 FIXED + 8 REFUTED + 1 residual-pre-existing — sums (F-T4/F-Y5 counted FIXED for their in-scope instances).
 
 Precision note (round-20 commit message): "grep proves 0 remaining … claims" — the raw-string grep count is 1, at spec § Degradation line 248, which QUOTES the disproven phrase inside its own DISPROVEN clause; zero remaining CLAIMS is accurate, the raw count is stated here for denominator honesty.
 
