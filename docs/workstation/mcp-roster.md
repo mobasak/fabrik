@@ -137,7 +137,7 @@ Three servers were NOT herd victims; they are broken independently, each probed 
 
 `/opt/apidoccreator` (docs-registry, port 8302) is the box's own crawling/docs service: registers any
 docs URL, auto-detects OpenAPI/llms.txt/sitemap/HTML, scrapes, LLM-generates + chunks, serves via
-REST — and ships its own MCP server (`docs-mcp` console script → `src/docs_registry/mcp_server.py`,
+REST — and ships its own MCP server (`docs-mcp` console script → `/opt/apidoccreator/src/docs_registry/mcp_server.py`,
 4 tools: list_docs · get_doc · search…). It is NOT in the 18-server roster — never connected to any
 Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replacement for
 already-registered sources; decision rides the same split.
