@@ -18,11 +18,12 @@ import subprocess
 import time
 
 import claude_rotate  # co-located; pytest prepends this dir to sys.path
+import pytest
 
 # the REAL function, bound before the autouse hermetic fixture stubs the module attr —
-# the _oauth_get host-fallback tests exercise THIS, not the stub
+# the _oauth_get host-fallback tests exercise THIS, not the stub (fixtures stub at
+# test time, so import order is irrelevant to the binding; only the fixture is not)
 _REAL_OAUTH_GET = claude_rotate._oauth_get
-import pytest
 
 
 @pytest.fixture(autouse=True)

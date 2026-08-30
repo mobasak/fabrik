@@ -207,6 +207,11 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
             + [f"scripts/{s}" for s in RUN_SCRIPTS]
         ),
         "Vendored fabrik-lib modules (synced fleet-wide)": [f"{d}/" for d in VENDORED_DIRS],
+        # NOT sync-pushed: the hub's emit_mcp_project_config.py writes this per repo
+        # (plan-3); inline resolved DATABASE_URL makes it uncommittable by design.
+        "MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's resolved DATABASE_URL)": [
+            ".mcp.json"
+        ],
     }
 
 

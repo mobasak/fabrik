@@ -98,7 +98,7 @@ Selections not covered by a row: `unconstrained`.
 
 ## Phases
 
-### Phase A — the emitter (hub-side, executable NOW; no fleet-wide writes)
+### Phase A — the emitter (hub-side, executable NOW; no fleet-wide writes) — **EXECUTED 2026-08-30** (review: docs/development/reviews/2026-08-30-plan-3-phase-A-review.md)
 
 - A1 **Red-first tests**, watched red before implementing:
   (1) headless repo type → exactly universal 6; (2) saas repo → universal 6 + playwright,

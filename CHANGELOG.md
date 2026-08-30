@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Plan-3 Phase A: the per-repo MCP emitter (2026-08-30)
+
+- scripts/sysadmin/emit_mcp_project_config.py — derives each repo's .mcp.json from live project.yaml type + the roster's per-type sets + overlay rulings (D-003..D-027); 13 red-first tests incl. write-set containment and condemned-list skip; .mcp.json joins the manifest gitignore block as its own provenance group.
+
 ### Fixed — single-key quota governance made functional: cache-backed headroom + bootstrap routing (2026-08-30)
 
 - **What:** the hub canary proved the direct probe insufficient (stale token between calls; the

@@ -1,0 +1,162 @@
+# AFTER-EDIT: scripts/sysadmin/emit_mcp_project_config.py | none
+"""Plan-3 A1 — the emitter's 11 contracted behaviors, written red-first.
+
+Real temp-dir fixture repos with real project.yaml/.env files; the live /opt
+tree is never a test target. Server DEFINITIONS come from a fixture defs file
+passed via --defs, so no test depends on the box's live rosters.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+_SCRIPT = Path(__file__).resolve().parent.parent / "scripts/sysadmin/emit_mcp_project_config.py"
+_spec = importlib.util.spec_from_file_location("emit_mcp_project_config", _SCRIPT)
+emitter = importlib.util.module_from_spec(_spec)
+sys.modules["emit_mcp_project_config"] = emitter
+_spec.loader.exec_module(_spec and emitter)
+
+ALL_SERVERS = [
+    "session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena",
+    "playwright", "chrome-devtools", "shadcn", "magicui", "maestro", "mobile-mcp",
+    "pubchem", "media-engine", "fabrik-citation-verifier", "grafana",
+]
+UNIVERSAL6 = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena"}
+
+
+@pytest.fixture()
+def defs_file(tmp_path: Path) -> Path:
+    defs = {
+        name: {"type": "stdio", "command": "npx", "args": ["-y", f"{name}-mcp"]}
+        for name in ALL_SERVERS
+    }
+    defs["fabrik-citation-verifier"] = {"type": "http", "url": "http://127.0.0.1:8033/mcp"}
+    p = tmp_path / "defs.json"
+    p.write_text(json.dumps({"mcpServers": defs}))
+    return p
+
+
+def make_repo(root: Path, name: str, rtype: str | None, env: str | None = None) -> Path:
+    d = root / name
+    (d / ".git").mkdir(parents=True)
+    if rtype is not None:
+        (d / "project.yaml").write_text(f"name: {name}\ntype: {rtype}\n")
+    if env is not None:
+        (d / ".env").write_text(env)
+    return d
+
+
+def run(root: Path, defs: Path, check: bool = False) -> list[str]:
+    argv = ["--root", str(root), "--defs", str(defs)]
+    if check:
+        argv.append("--check")
+    return emitter.main(argv)
+
+
+def servers_of(repo: Path) -> set[str]:
+    return set(json.loads((repo / ".mcp.json").read_text())["mcpServers"])
+
+
+def test_headless_gets_exactly_universal_6(tmp_path, defs_file):
+    r = make_repo(tmp_path, "some-api", "python-api")
+    run(tmp_path, defs_file)
+    assert servers_of(r) == UNIVERSAL6
+
+
+def test_saas_adds_the_web_gui_four(tmp_path, defs_file):
+    r = make_repo(tmp_path, "some-saas", "saas-skeleton")
+    run(tmp_path, defs_file)
+    assert servers_of(r) == UNIVERSAL6 | {"playwright", "chrome-devtools", "shadcn", "magicui"}
+
+
+def test_wef_overlay_includes_media_engine_d018(tmp_path, defs_file):
+    r = make_repo(tmp_path, "web-ecommerce-factory", "saas-skeleton")
+    run(tmp_path, defs_file)
+    got = servers_of(r)
+    assert {"media-engine", "pubchem"} <= got, "D-016/017/018/019/022 overlay grants missing"
+    assert {"playwright", "chrome-devtools", "shadcn", "magicui"} <= got
+
+
+def test_health_repos_get_d025_overlays(tmp_path, defs_file):
+    r = make_repo(tmp_path, "supplement-tracker-advisor", "mobile-app")
+    run(tmp_path, defs_file)
+    got = servers_of(r)
+    assert {"fabrik-citation-verifier", "pubchem"} <= got, "D-025 health overlays missing"
+    assert {"maestro", "mobile-mcp"} <= got
+
+
+def test_postgres_pro_env_from_repo_dotenv(tmp_path, defs_file):
+    r = make_repo(tmp_path, "db-api", "python-api",
+                  env="DATABASE_URL=postgresql://u:p@localhost:5432/db_api\n")
+    run(tmp_path, defs_file)
+    entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
+    assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/db_api"
+
+
+def test_postgres_pro_env_omitted_when_no_database_url(tmp_path, defs_file):
+    r = make_repo(tmp_path, "plain-api", "python-api", env="OTHER=1\n")
+    run(tmp_path, defs_file)
+    entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
+    assert "env" not in entry
+
+
+def test_idempotent_second_run_writes_nothing(tmp_path, defs_file):
+    r = make_repo(tmp_path, "some-api", "python-api")
+    run(tmp_path, defs_file)
+    before = (r / ".mcp.json").stat().st_mtime_ns
+    run(tmp_path, defs_file)
+    assert (r / ".mcp.json").stat().st_mtime_ns == before
+
+
+def test_check_mode_never_writes(tmp_path, defs_file):
+    r = make_repo(tmp_path, "some-api", "python-api")
+    run(tmp_path, defs_file, check=True)
+    assert not (r / ".mcp.json").exists()
+
+
+def test_untyped_gitless_and_condemned_skipped(tmp_path, defs_file):
+    untyped = make_repo(tmp_path, "no-yaml", None)
+    gitless = tmp_path / "not-a-repo"
+    gitless.mkdir()
+    (gitless / "project.yaml").write_text("name: not-a-repo\ntype: python-api\n")
+    condemned = make_repo(tmp_path, "image-generation", "python-api")
+    run(tmp_path, defs_file)
+    assert not (untyped / ".mcp.json").exists()
+    assert not (gitless / ".mcp.json").exists()
+    assert not (condemned / ".mcp.json").exists(), "condemned repo must be skipped BY NAME"
+
+
+def test_claim_validator_never_emitted(tmp_path, defs_file):
+    r = make_repo(tmp_path, "fabrik-claim-validator", "python-api")
+    run(tmp_path, defs_file)
+    assert "fabrik-claim-validator" not in servers_of(r)
+    assert {"fabrik-citation-verifier", "pubchem"} <= servers_of(r)
+
+
+def test_hub_gets_full_defs_set(tmp_path, defs_file):
+    r = make_repo(tmp_path, "fabrik", None)
+    run(tmp_path, defs_file)
+    assert servers_of(r) == set(ALL_SERVERS)
+
+
+def test_write_set_containment(tmp_path, defs_file):
+    make_repo(tmp_path, "some-api", "python-api", env="DATABASE_URL=postgresql://x@h/d\n")
+    before = {p.relative_to(tmp_path) for p in tmp_path.rglob("*")}
+    run(tmp_path, defs_file)
+    after = {p.relative_to(tmp_path) for p in tmp_path.rglob("*")}
+    assert after - before == {Path("some-api/.mcp.json")}
+
+
+def test_malformed_yaml_skipped_run_continues(tmp_path, defs_file, capsys):
+    bad = make_repo(tmp_path, "broken", None)
+    (bad / "project.yaml").write_text("::: not yaml :::\n")
+    good = make_repo(tmp_path, "good-api", "python-api")
+    run(tmp_path, defs_file)
+    assert not (bad / ".mcp.json").exists()
+    assert (good / ".mcp.json").exists(), "one bad repo must not strand the rest"
+    assert "broken" in capsys.readouterr().out

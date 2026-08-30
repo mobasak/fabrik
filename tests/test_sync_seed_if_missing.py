@@ -86,3 +86,12 @@ def test_seed_if_missing_dests_are_never_gitignored():
     # the neighbors keep their ignore lines — the exclusion is seed-class-only
     assert "CLAUDE.md" in block
     assert "PORTS.md" in block
+
+
+def test_mcp_config_group_in_gitignore_block():
+    """Plan-3 A3: .mcp.json is gitignored fleet-wide via its OWN provenance group —
+    it is emitted by emit_mcp_project_config.py, not the sync, so it must not ride
+    a group whose header names a different pusher (author-blind review finding 8)."""
+    block = manifest.gitignore_block_text()
+    assert "# MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's resolved DATABASE_URL)" in block
+    assert "\n.mcp.json\n" in block
