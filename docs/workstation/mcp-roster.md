@@ -112,14 +112,33 @@ whether enabled or not.
 ² only when the repo's frozen design system is shadcn-based; magicui stays saas-only (operator boundary:
 "use on the SaaS UI, never on produced sites").
 
-**Per-REPO overlays (content-driven, never type-driven):** wef → +pubchem +media-engine (+firecrawl
-if the corpus drops it from the grounding order) · brand-identiy-creator, youtube → +media-engine ·
+**Per-REPO overlays (content-driven, never type-driven):** wef → +playwright (D-016: it drives/verifies
+the ecommerce sites it produces) +pubchem +media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
 here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified) (+serena, operator call).
 
 **Headcount effect:** headless types run **3-4 servers instead of 17**; web-GUI types 7-9;
 mobile-app 6.
+
+## Playwright — the ruling in full (D-015 + D-016, operator-saved verbatim rationale)
+
+Playwright is NEVER a crawling tool: no grounding order in the corpus names it — the research chain
+is exa → brave → firecrawl (+ raw `curl`). Its job is the opposite direction: it drives **our own
+running screens** — navigate, click, type, screenshot at 375/768/1440, accessibility snapshots — for
+the Build-Verification Loop, `/design-review`, and `/fabrik-user-test`'s web branch. Firecrawl reads
+*other people's* sites; playwright verifies *ours*.
+
+**Who needs it — every UI-bearing type:** `saas-skeleton` · `chrome-extension` (the only sanctioned
+MV3 test harness — `launchPersistentContext`) · `desktop-app` (Electron UI) · `static-site` ·
+`docusaurus` (rendered-site certification) · `mobile-app` is NOT in this set (its loop is
+maestro/mobile-mcp). The `fabrik-gui` agent declares playwright by name. **Headless types
+(python-api, python-api-gpu, node-api, file-api, file-worker) have zero use for it — nothing to
+render.** Disposition: ON for the 6 UI-bearing types, OFF for headless; the hub keeps it only via
+its hub-class full roster. Its companion `chrome-devtools` (performance/Core-Web-Vitals audits in
+the same loop) takes the same disposition. **Plus the per-repo overlay: `web-ecommerce-factory`
+(D-016)** — wef drives and verifies the ecommerce sites it produces, rendered-surface work its own
+repo type would not otherwise grant.
 
 ## Chronic non-connectors — root-caused 2026-08-30 (distinct from the herd outage)
 
