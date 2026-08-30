@@ -25,7 +25,10 @@ compaction tool**.
 
 What it does each run:
 
-- **Package caches (capped):** npm >3G · uv >2G · pip >2G · selenium >2G · puppeteer >1G · `pre-commit gc`
+- **Package caches (capped):** npm >3G · `_npx` >1.5G (**no longer wiped unconditionally** — the
+  2026-08-30 outage: weekly `_npx` wipe + WSL restart = every window cold-fetching 13 MCP servers past
+  the harness's 30 s connect timeout, dead for the whole session; see mcp-roster.md) · uv >2G ·
+  pip >2G · selenium >2G · puppeteer >1G · `pre-commit gc`
 - **Docker (safe):** dangling-image prune · build-cache prune · stopped-container prune (>14d) ·
   dangling-volume **reporting only** (volumes are never auto-deleted — data lives there)
 - **Logs / session dirs:** VS Code server logs (>1d) + VSIX cache · Kilo `log/` + `.cache/kilo/packages`
