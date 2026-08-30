@@ -145,3 +145,22 @@ def test_query_output_preserves_unicode(tmp_path, capsys):
     assert rc == 0
     assert "·" in out and "em—dash § row" in out, out
     assert "\\xb7" not in out and "\\u2014" not in out, out
+
+
+def test_piped_output_dies_silently_on_closed_pipe(tmp_path):
+    """`decisions.py <term> | head -1` must not traceback — the default Python SIGPIPE
+    handling raises BrokenPipeError when head exits early on a big result set."""
+    rows = "\n".join(
+        f"| D-{i:03d} | 2026-08-30 | a | filler row {i} padded {'x' * 120} | why | here |"
+        for i in range(3000)
+    )
+    _repo(tmp_path, "big", (
+        "| id | when | who | what (the decision) | why | where |\n|---|---|---|---|---|---|\n"
+        + rows + "\n"
+    ))
+    r = subprocess.run(
+        f"{sys.executable} {REPO / 'scripts' / 'decisions.py'} filler --root {tmp_path} | head -n 1",
+        shell=True, capture_output=True, text=True, timeout=60,
+    )
+    assert "D-" in r.stdout
+    assert "BrokenPipeError" not in r.stderr and "Traceback" not in r.stderr, r.stderr[-500:]

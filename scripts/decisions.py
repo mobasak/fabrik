@@ -142,4 +142,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
+    # Die silently on a closed pipe (`decisions.py <term> | head`) like every other
+    # well-behaved filter — Python's default SIGPIPE handling tracebacks instead.
+    import contextlib
+    import signal
+
+    with contextlib.suppress(ValueError, OSError, AttributeError):
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     raise SystemExit(main(sys.argv[1:]))
