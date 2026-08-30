@@ -154,7 +154,7 @@ Selections not covered by a row: `unconstrained`.
   symlink. Windows pick the trim up on reload — sequencing means no window ever lacks a server its
   repo grants.
 
-### Phase C — subagents + docs (with B, same gate)
+### Phase C — subagents + docs (with B, same gate) — **EXECUTED 2026-08-30** (review: docs/development/reviews/2026-08-30-plan-3-phase-C-review.md)
 
 - C1 Reachability matrix, EXECUTED not asserted: for each Runtime-A agent with `mcpServers`
   frontmatter (fabrik-gui: playwright/shadcn/chrome-devtools · fabrik-researcher: exa/brave-search)

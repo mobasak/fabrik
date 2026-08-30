@@ -10,18 +10,27 @@ see all of it. Adding a server without its row here is the defect this doc exist
 
 ---
 
-## Config topology — and the rotation law
+## Config topology — and the rotation law (POST-SPLIT, 2026-08-30)
 
-The roster is defined in **five** `.claude.json` files, all currently identical (**16 servers** since 2026-08-30 — context7 + github retired):
+Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: project beats user):
 
-| File | Role |
-|---|---|
-| `~/.claude.json` | the ad-hoc leftover from pre-fleet days — `claude_rotate.py::_roster_source` explicitly calls syncing FROM it "a REAL hazard" once the fleet exists |
-| `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` | one per account; the **active** account's file (via the `~/.claude-fleet/active` symlink) is what live sessions read |
+| Layer | File | Content |
+|---|---|---|
+| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: universal 6 + per-type + overlays (this doc's tables are canonical); hub + fabrik-lib carry the full 16 |
+| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | today still the full 16; **trims to the universal 6 at plan-3 B4** (held on fabrik-lib's ack) |
+| POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
+| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; manual trim rides B4 |
 
-**⚠️ ROTATION LAW:** never hand-edit one file. A roster change goes through `claude_rotate.py`'s
-roster-sync (`_roster_source` accepts a slug/dir/file to seed from) so all four account dirs stay
-identical — otherwise the next quota rotation flips sessions onto a different roster mid-day.
+**Never hand-edit an emitted `.mcp.json`** — change the ruling (ledger + this doc), re-run the
+emitter (idempotent; `--check` to preview). `enableAllProjectMcpServers: true` in the synced
+`.claude/settings.json` suppresses the per-repo approval dialog (every `.mcp.json` here is
+hub-emitted — single-operator model, decision row in plan-3).
+
+**⚠️ ROTATION LAW (unchanged):** never hand-edit one account file. A user-level roster change goes
+through `claude_rotate.py`'s roster-sync (`_roster_source` accepts a slug/dir/file to seed from) so
+all account dirs stay identical — otherwise the next quota rotation flips sessions onto a different
+roster mid-day. `dr_claude_backup.sh` now mirrors the fleet account rosters too (plan-3 B4
+precondition).
 
 **Process model:** every VS Code Claude window spawns its OWN copy of every enabled server
 (most run 2 processes: npx wrapper + server). Tool *schemas* are deferred (ToolSearch loads them

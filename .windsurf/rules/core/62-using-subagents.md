@@ -186,7 +186,17 @@ Auth/identity/session/crypto · schema/migrations · secrets/`.env`/keys · secu
 
 ## The mcp.json source-of-truth
 
-The canonical MCP server list is a hub-owned standard-format file — `/opt/fabrik/mcp.json` (`{"mcpServers": {name: {type, command, args, env}}}`, keys via `${ENV}` expansion, never inline). The pool's MCP client reads it via `AgentSpec.mcp_config` (path → unwrap the `mcpServers` key; dict → the bare server map). Adding a tool touches exactly: `claude mcp add` (main agent) → `mcpServers` in the relevant Runtime-A agent type → this `mcp.json` (pool) — never a command brief.
+The canonical MCP server list is a hub-owned standard-format file — `/opt/fabrik/mcp.json` (`{"mcpServers": {name: {type, command, args, env}}}`, keys via `${ENV}` expansion, never inline). The pool's MCP client reads it via `AgentSpec.mcp_config` (path → unwrap the `mcpServers` key; dict → the bare server map).
+
+**Since the 2026-08-30 MCP split, MAIN-AGENT servers are per-repo:** each repo's `.mcp.json`
+(project scope — gitignored, because postgres-pro's env carries the repo's resolved `DATABASE_URL`)
+is EMITTED by the hub's `scripts/sysadmin/emit_mcp_project_config.py` from the roster-ruled sets in
+`docs/workstation/mcp-roster.md`; the user-level rosters carry only the universal 6. Never hand-edit
+an emitted `.mcp.json` — change the roster/ledger ruling, then re-run the emitter.
+
+Adding a tool touches exactly: the roster ruling + emitter table (main agents, per repo) →
+`mcpServers` in the relevant Runtime-A agent type → `/opt/fabrik/mcp.json` (pool) — never a command
+brief.
 
 ## Report every pool run — the results table AND the flywheel (both, always)
 

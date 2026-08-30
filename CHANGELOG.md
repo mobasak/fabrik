@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan-3 Phases B+C: fleet .mcp.json emitted, topology docs + pack 62 current (2026-08-30)
+
+- 39 repos emitted (38 CREATE + 1 UPDATE); enableAllProjectMcpServers synced; dr_claude_backup.sh mirrors fleet rosters; pack 62 + mcp-roster topology teach the per-repo layer; D-028..D-030 minted. B4 trim held on fabrik-lib ack.
+
 ### Added — Plan-3 Phase A: the per-repo MCP emitter (2026-08-30)
 
 - scripts/sysadmin/emit_mcp_project_config.py — derives each repo's .mcp.json from live project.yaml type + the roster's per-type sets + overlay rulings (D-003..D-027); 13 red-first tests incl. write-set containment and condemned-list skip; .mcp.json joins the manifest gitignore block as its own provenance group.
