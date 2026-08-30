@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check for hardcoded secrets and credentials."""
-# AFTER-EDIT: tests/test_enforcement.py | none
+# AFTER-EDIT: tests/test_enforcement.py, tests/test_check_secrets_placeholders.py | none
 
 from __future__ import annotations
 

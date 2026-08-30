@@ -30,3 +30,29 @@ def test_cache_read_shapes(tmp_path, monkeypatch):
     assert c and c["report"]["serena"] == "DEAD"
     f.write_text("garbage{")
     assert watch.read_cache("/opt/x") is None
+
+
+# ── the banner is a RATIO shown to every session; both halves must mean the same ──
+
+def test_skipped_excluded_from_both_halves_of_the_ratio():
+    """Live shape (2026-08-30): 15 assigned, grafana SKIPPED (docker-run, unprobed),
+    maestro genuinely dead. The banner said '1/15' — numerator over 14 measured
+    servers, denominator over 15 assigned. Unprobed is not dead, and it is not a
+    denominator either."""
+    report = {f"s{i}": "CONNECTED" for i in range(13)}
+    report["grafana"] = "SKIPPED (docker-run entry — probe would launch a live container)"
+    report["maestro"] = "TIMEOUT"
+    b = watch.liveness_banner(report, 5)
+    assert "1/14 probed" in b, f"denominator must exclude the unprobed entry: {b}"
+    assert "grafana" not in b, "an unprobed server is never named as dead"
+    assert "maestro" in b
+
+
+def test_all_connected_plus_a_skip_raises_no_banner():
+    """A skip alone must never fire the fix-first mandate — that was the false alarm."""
+    report = {"exa": "CONNECTED", "grafana": "SKIPPED (docker-run entry)"}
+    assert watch.liveness_banner(report, 1) is None
+
+
+def test_a_real_death_still_banners():
+    assert "1/1 probed" in watch.liveness_banner({"serena": "DEAD"}, 0)

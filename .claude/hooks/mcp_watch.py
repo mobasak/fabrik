@@ -82,6 +82,29 @@ def _refresh_detached(cwd: str) -> None:
         pass
 
 
+def liveness_banner(report: dict, age_m: int) -> str | None:
+    """The dead-server banner, or None when nothing is provably dead.
+
+    Pure so the counting is testable: it is a RATIO shown to every session, and both
+    halves must mean the same thing. A SKIPPED entry (docker-run — deliberately not
+    probed) is excluded from the numerator, so it must also be excluded from the
+    denominator; counting it said "1/15 NOT live" when only 14 were ever measured.
+    Unprobed is not dead, and a ratio whose halves disagree teaches the reader to
+    distrust the banner — which is how a fix-first mandate decays into wallpaper.
+    """
+    dead = {n: v for n, v in report.items()
+            if v != "CONNECTED" and not str(v).startswith("SKIPPED")}
+    if not dead:
+        return None
+    probed = sum(1 for v in report.values() if not str(v).startswith("SKIPPED"))
+    return (
+        f"⚠️ MCP HEALTH ({age_m}m ago): {len(dead)}/{probed} probed "
+        f"server(s) NOT live — {', '.join(sorted(dead))}. FIX FIRST before the task "
+        "(known classes: docs/workstation/mcp-roster.md; re-probe: "
+        "python3 /opt/fabrik/scripts/sysadmin/mcp_health.py)."
+    )
+
+
 def main() -> int:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -105,16 +128,9 @@ def main() -> int:
         cache = read_cache(cwd)
         now = time.time()
         if cache and now - cache.get("ts", 0) <= _TTL_S:
-            dead = {n: v for n, v in cache["report"].items()
-                    if v != "CONNECTED" and not str(v).startswith("SKIPPED")}
-            if dead:
-                age_m = int((now - cache["ts"]) / 60)
-                lines.append(
-                    f"⚠️ MCP HEALTH ({age_m}m ago): {len(dead)}/{len(cache['report'])} assigned "
-                    f"server(s) NOT live — {', '.join(sorted(dead))}. FIX FIRST before the task "
-                    "(known classes: docs/workstation/mcp-roster.md; re-probe: "
-                    "python3 /opt/fabrik/scripts/sysadmin/mcp_health.py)."
-                )
+            banner = liveness_banner(cache["report"], int((now - cache["ts"]) / 60))
+            if banner:
+                lines.append(banner)
         else:
             _refresh_detached(cwd)
 

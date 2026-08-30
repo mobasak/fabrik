@@ -116,6 +116,20 @@ Items move to active development when:
 
 The hardest discipline here is the second one — resisting the urge to build "propose/ack" speculatively because it sounds important. The Phase 5 plan explicitly says: each new incident teaches; capability expands from incidents, not architecture.
 
+## [infra] test_kaizen_sends_one_addressed_obligation_per_beat is RED — brittle source-text assertion (2026-08-31)
+
+`tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` fails on a
+**pristine `git archive HEAD` checkout**, so it is committed debt, not WIP. It asserts against the
+*source text* of the kaizen sender — `assert '"--to-agent", beat' in argv` — and the real code now builds
+that argv differently while still looping `for beat in ("infra", "fleet")`. So the D-036/addressing
+INVARIANT it guards may well still hold; what broke is the test's grip on it.
+
+Found while re-running the mail suite after an unrelated `_structure_gaps` fix (attributed against HEAD
+before assuming). Left for the beat that owns kaizen + the mail machinery. Worth fixing properly rather
+than deleting: assert the *behaviour* (each beat receives exactly one addressed obligation) instead of a
+substring of the implementation — a source-text assertion re-breaks on every legitimate refactor, which
+is how a real guard gets deleted in annoyance.
+
 ## [fleet] aro-wake's claude_rotate twin is STALE ON ALL 3 HOSTS — its Claude calls bypass the governor (2026-08-30)
 
 The repo's twin invariant is restored (both copies byte-identical, `test_rotate_twin_copies_are_byte_identical`

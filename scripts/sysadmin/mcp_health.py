@@ -92,9 +92,10 @@ def _probe_stdio(entry: dict, timeout: int) -> str:
                 if proc.poll() is not None and not buf:
                     return "DEAD"  # exited without ever answering
                 continue
-            chunk = (
-                proc.stdout.read1(65536) if hasattr(proc.stdout, "read1") else proc.stdout.read(1)
-            )
+            # read1: one buffered read of whatever has arrived, never blocking for a
+            # full 64K. stdout is always a BufferedReader here (Popen + PIPE at the
+            # default bufsize), so this attribute is guaranteed — verified, not assumed.
+            chunk = proc.stdout.read1(65536)
             if not chunk:  # EOF
                 return "CONNECTED" if b'"jsonrpc"' in buf else "DEAD"
             buf += chunk
@@ -109,6 +110,16 @@ def _probe_stdio(entry: dict, timeout: int) -> str:
                 os.killpg(proc.pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError, OSError):
                 pass
+            # communicate() used to close these for us; the hand-rolled read loop must
+            # do it explicitly or every probe leaves pipes for the GC — harmless under
+            # refcounting but it emits ResourceWarning per server, which is a hard
+            # error under `-W error` (CI) and noise everywhere else.
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                try:
+                    if stream is not None:
+                        stream.close()
+                except OSError:
+                    pass
             try:
                 proc.wait(timeout=3)
             except Exception:
