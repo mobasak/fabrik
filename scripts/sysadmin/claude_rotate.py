@@ -1140,7 +1140,14 @@ def _oauth_get(
     for host in ("api.anthropic.com", "platform.claude.com"):
         req = urllib.request.Request(
             f"https://{host}/api/oauth/{path}",
-            headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "anthropic-beta": "oauth-2025-04-20",
+                # Cloudflare bot-blocks urllib's default "Python-urllib/3.x" UA on
+                # platform.claude.com (measured on vps1: default UA → 403, this UA → 200 with
+                # the same token). A named UA is also just honest client identification.
+                "User-Agent": "claude-rotate/1.0",
+            },
         )
         for i in range(attempts):
             try:
