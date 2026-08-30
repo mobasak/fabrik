@@ -3,8 +3,10 @@
 """Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
 
 Decide, per call, whether the active ob@ account or the OpenRouter pool runs the work — and NEVER
-block an incident. This is a READER of `claude_rotate.py --status --json` output (the LIVE fleet
-contract), not a modifier of the rotation machinery.
+block an incident. This is a READER of `claude_rotate.py --probe-current --json` — a quota-free live
+probe of the single-key host's current account (the VPS has no `~/.claude-fleet` scaffold, so the
+`--status` fleet payload never lights up; `--probe-current` emits ob@'s live headroom in the same
+one-account shape). It does not modify the rotation machinery.
 
 Routing (see docs/development/plans/2026-08-29-plan-1-vps-quota-governance.md):
   routine  → `pool` when the account is walled (`cap_walled`, the operator's authoritative weekly
@@ -14,9 +16,10 @@ Routing (see docs/development/plans/2026-08-29-plan-1-vps-quota-governance.md):
 
 The reserve iterates EVERY utilization window the payload carries — `five_hour`, `seven_day`, and
 every `model_windows` entry (per-model weekly sub-limits, e.g. Fable/Opus) — so a new window is
-covered by construction. Grounded shape (fleet-mode `--status --json`, verified live 2026-08-29):
-`{active:<slug>, accounts:[{email, slugs:[…], five_hour:{utilization,resets_at_epoch},
-seven_day:{…}, model_windows:{<model>:{utilization,resets_at_epoch}}, weekly_cap, cap_walled}]}`.
+covered by construction. Grounded shape (`--probe-current --json`, single-account, verified live
+2026-08-30): `{active:"current", accounts:[{email, slugs:["current"],
+five_hour:{utilization,resets_at_epoch}, seven_day:{…},
+model_windows:{<model>:{utilization,resets_at_epoch}}, weekly_cap, cap_walled, source}]}`.
 
 Config is env-only (12-Factor III): QUOTA_RESERVE_PCT (default 80), QUOTA_CAP_TTL_S (default 21600
 = 6h). No secrets, no new dependency (stdlib only). State lives under ~/.claude/state/ (VM-cut
@@ -60,9 +63,18 @@ def _env_float(name: str, default: float) -> float:
 
 
 def _default_status_fn() -> dict:
-    """Run the LIVE `--status --json` CLI and return the parsed fleet payload (reader contract)."""
+    """Return ob@'s LIVE headroom as the one-account fleet payload the governor parses.
+
+    The governor runs ONLY on the single-key VPS (one system-wide ob@, no rotation, no
+    `~/.claude-fleet` scaffold), so `claude_rotate.py --status --json` would take its non-fleet path
+    and emit only PARKED manager-account snapshots (null telemetry) — unreadable as headroom. Instead
+    read `claude_rotate.py --probe-current --json`: a quota-free live `api/oauth/usage` probe of the
+    current account (`CLAUDE_CONFIG_DIR` or `~/.claude`) emitted as `{active:"current",
+    accounts:[{slugs:["current"], five_hour, seven_day, model_windows, weekly_cap, cap_walled}]}` —
+    the exact shape `_active_row`/`_max_util` consume, so the governor logic is unchanged. Reader
+    contract preserved (a subprocess call, no import of claude_rotate internals)."""
     out = subprocess.run(
-        [sys.executable, str(_DIR / "claude_rotate.py"), "--status", "--json"],
+        [sys.executable, str(_DIR / "claude_rotate.py"), "--probe-current", "--json"],
         capture_output=True,
         text=True,
         timeout=30,

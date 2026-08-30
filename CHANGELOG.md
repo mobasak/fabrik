@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — quota governor reads single-key VPS headroom (deploy blocker) (2026-08-30)
+
+- **What:** the governor read `claude_rotate.py --status --json`, whose fleet payload only lights up
+  with a `~/.claude-fleet` scaffold. The VPS is single-key (no scaffold) → `--status` emits parked
+  manager-account snapshots with null telemetry → the governor read None → **routine always shed**
+  (morning-report/weekly-security/etc. would stop). Added `claude_rotate.py --probe-current --json`:
+  a quota-free live `api/oauth/usage` GET of the current account (`CLAUDE_CONFIG_DIR`/`~/.claude`)
+  emitted in the one-account shape the governor already parses; repointed the governor's status
+  source to it. No fleet scaffold, no VPS auth-layout change, no rotation.
+- **Why:** deploy grounding found the build plan assumed a fleet payload on the VPS that doesn't
+  exist (claude_rotate.py was out of the plan's scope). Live-proven: `route routine → ob@` at 50%
+  utilization (regression gone). Additive read-only command — does not touch `run_claude`/`--status`.
+- **Guard:** `test_probe_current_emits_governor_shape` + `test_probe_current_failsoft_on_unreadable_token`
+  (scripts/sysadmin/test_claude_rotate.py). Reviewed via /fabrik-review-scoped (round 1 new:0).
+
 ### Fixed — docusaurus scaffold no longer publishes internal governance/strategy docs (leak-guard) (2026-08-30)
 
 - **What:** a scaffolded docusaurus site publishes its entire `docs/` tree, so internal Fabrik docs

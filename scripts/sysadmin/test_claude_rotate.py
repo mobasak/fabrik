@@ -1176,3 +1176,37 @@ def test_cli_switch_empty_or_ambiguous_errors_without_touching_active(tmp_path, 
     assert claude_rotate._read_org(active) == "org-mob", (
         "active identity never changed on a bad switch"
     )
+
+
+# ── --probe-current: single-key headroom source for the governor (VPS) ────────────────────────
+def test_probe_current_emits_governor_shape(monkeypatch, capsys):
+    # A single-key host has no fleet scaffold, so --probe-current does a live usage GET of the
+    # current account and emits the ONE-account fleet shape the governor reads (active="current",
+    # slugs=["current"], live windows) — so the governor routes on real headroom instead of shedding.
+    monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(
+        claude_rotate,
+        "_oauth_get",
+        lambda path, token, **k: {
+            "five_hour": {"utilization": 12.0, "resets_at": "2026-08-30T20:00:00Z"},
+            "seven_day": {"utilization": 34.0, "resets_at": "2026-09-01T00:00:00Z"},
+        },
+    )
+    assert claude_rotate.main(["--probe-current", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["active"] == "current"
+    acc = payload["accounts"][0]
+    assert acc["slugs"] == ["current"], "governor matches active against slugs"
+    assert acc["five_hour"]["utilization"] == 12.0
+    assert acc["seven_day"]["utilization"] == 34.0
+    assert acc["source"] == "live"
+
+
+def test_probe_current_failsoft_on_unreadable_token(monkeypatch, capsys):
+    # No readable token → null windows + source="unavailable", NEVER raises. The governor reads that
+    # as headroom-unknown (sheds routine, still runs incidents) rather than crashing the sysadmin loop.
+    monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: None)
+    assert claude_rotate.main(["--probe-current", "--json"]) == 0
+    acc = json.loads(capsys.readouterr().out)["accounts"][0]
+    assert acc["five_hour"] is None and acc["seven_day"] is None
+    assert acc["source"] == "unavailable"

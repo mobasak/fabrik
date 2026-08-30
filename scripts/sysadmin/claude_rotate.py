@@ -3979,6 +3979,55 @@ def _cmd_drift_check() -> int:
     return 0
 
 
+def _cmd_probe_current(as_json: bool) -> int:
+    """Governor headroom source for a SINGLE-KEY host (the VPS): probe the CURRENT account
+    (``CLAUDE_CONFIG_DIR`` or ``~/.claude``) LIVE and emit it in the fleet payload shape the
+    governor already reads — one account, ``active="current"``, ``slugs=["current"]``.
+
+    This is the VPS single-key path (no ``~/.claude-fleet`` scaffold, no rotation): a quota-free
+    ``api/oauth/usage`` GET of the live token → five_hour/seven_day/model_windows, exactly what the
+    governor's reserve iterates. ``--status`` (fleet mode) only lights up with scaffolded fleet dirs,
+    and the non-fleet manager-accounts listing carries only PARKED snapshots (null telemetry) — so a
+    single-key host needs this direct probe to have ANY live headroom.
+
+    Fail-soft: an unreadable token or a telemetry miss emits the row with null windows and
+    ``source="unavailable"`` (the governor reads that as headroom-unknown → sheds routine, runs
+    incidents), NEVER raises. weekly_cap is left None here (the operator's authoritative cap needs an
+    identity the usage GET does not carry; reserve_pct + the reactive cap are the single-key
+    conservation path — a hard weekly cap is a documented follow-up)."""
+    cfg_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    tok = _read_access_token(cfg_dir / ".credentials.json")
+    windows = _usage_windows(_oauth_get("usage", tok)) if tok else None
+    row: dict = {
+        "email": "current",
+        "slugs": ["current"],
+        "five_hour": None,
+        "seven_day": None,
+        "weekly_cap": None,
+        "cap_walled": False,
+        "source": "live" if windows else "unavailable",
+    }
+    if windows:
+        row.update(windows)  # five_hour, seven_day, and model_windows when present
+    payload = {"active": "current", "accounts": [row]}
+    if as_json:
+        print(json.dumps(payload, indent=1))
+        return 0
+
+    def _p(w: object) -> str:
+        return (
+            f"{w['utilization']:.0f}%"
+            if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
+            else "-"
+        )
+
+    print(
+        f"current account: session {_p(row.get('five_hour'))}  "
+        f"weekly {_p(row.get('seven_day'))}  ({row['source']})"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI. Two modes:
 
@@ -4014,7 +4063,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
-            " | --drift-check | --status | --tick | --touch | --pause-switch"
+            " | --drift-check | --status | --probe-current | --tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
             " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
         )
@@ -4034,6 +4083,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_drift_check()
     if args[0] == "--status":
         return _cmd_status(as_json="--json" in args[1:])
+    if args[0] == "--probe-current":
+        return _cmd_probe_current(as_json="--json" in args[1:])
     if args[0] == "--tick":
         return _cmd_tick()
     if args[0] == "--touch":
