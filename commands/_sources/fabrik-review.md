@@ -199,7 +199,7 @@ level → passes for the wrong reason); **incomplete mocks** (fewer fields than 
 in test, fails in integration); mock setup that is >50% of the test. Flag any of these as a test-quality
 finding. **When a finding hinges on what a 3rd-party library / SDK / API *actually* returns** (an incomplete
 mock, or a cross-file contract break against an external signature), confirm the real shape with
-`mcp__context7` (library docs) rather than asserting it from memory — the only place this code-vs-code review
+a `WebFetch` of the library's official docs rather than asserting it from memory — the only place this code-vs-code review
 reaches for an external tool.
 
 **12-Factor checklist (one finder OWNS this class — these are GREPPABLE, so there is no excuse for missing them).**

@@ -68,7 +68,7 @@ one of two ways and **state which**:
   pack if it's a reusable brand). Live-ground any external choice (a font's license, a color-contrast ratio) —
   repo-first, then `mcp__exa__web_search_exa` → `WebSearch` →
   `mcp__brave-search__brave_web_search`; for a **component library's real API** (Radix, NativeWind, Tamagui)
-  use `mcp__context7` — cite it. For the **component set itself**, drive the connected **shadcn MCP**
+  `WebFetch` the library's official docs — cite them. For the **component set itself**, drive the connected **shadcn MCP**
   (`mcp__shadcn__search_items_in_registries` to find the real component, `mcp__shadcn__view_items_in_registries`
   for its API, `mcp__shadcn__get_audit_checklist` before finalizing) rather than naming components from memory.
 

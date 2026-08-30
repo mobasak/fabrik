@@ -29,8 +29,7 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
 
 - Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`) → then **live research**:
   `mcp__exa__web_search_exa` → `WebSearch` / `WebFetch` → `mcp__brave-search__brave_web_search` →
-  `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` → `mcp__context7` (`resolve-library-id` +
-  `query-docs`) for library/framework docs → `mcp__github` (`search_code` / `get_file_contents` /
+  `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` → `WebFetch` on the library's OFFICIAL docs site for framework/API detail → `mcp__github` (`search_code` / `get_file_contents` /
   `list_commits`) to read a dependency's ACTUAL source, confirm a signature, or check its latest release/open
   issues when docs are thin or a claim needs verifying against the real repo.
 - Capture the **real** endpoint / signature / auth model / limits / pricing and **cite the source URL + the
@@ -120,14 +119,14 @@ Grounding the FACTS (1a) is **not** grounding the APPROACH. Before Phase 3, rese
 build this — never pick an approach from training memory or first instinct:
 
 - Use the wired tools (`mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search`
-  → `mcp__firecrawl__firecrawl_search` → `mcp__context7`) to find, for the **core** of the design, the
+  → `mcp__firecrawl__firecrawl_search`) to find, for the **core** of the design, the
   **current best-practice / pro-grade / LEANEST / lowest-maintenance** way the field actually does this now:
   the standard library/pattern, the fewest moving parts, the simplest thing that is still production-grade
   (not a toy, not gold-plated).
 - Bias explicitly toward **low/no-maintenance** (managed/boring/proven over shiny; fewer components; within
   the fabrik self-host default) and **lean** (the smallest design that meets the goal — YAGNI).
 - **Cite the source + date** for each best-practice/leanness claim in the spec's Chosen-approach section, and
-  **actually fetch it this session** (`WebFetch` / `firecrawl_scrape` / `mcp__context7`) — a claim you didn't
+  **actually fetch it this session** (`WebFetch` / `firecrawl_scrape`) — a claim you didn't
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
   `firecrawl_scrape`) and match the string: a `WebFetch` reply is a small model's ANSWER about the page,
   not an extract, and quoting it ships a sentence the page does not contain (live 2026-08-27 — the

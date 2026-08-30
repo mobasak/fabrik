@@ -11,7 +11,7 @@ the final report; never "shall I continue / proceeding unless you redirect."
 2. the `.windsurf/rules/` packs (the surface pack + core) — binding on how the product must behave
 3. `docs/` (QUICKSTART / OPERATIONS / CONFIGURATION / TROUBLESHOOTING) + `AFCL.md`
 4. `grep` / `Read` the codebase — the router / handler / schema / the actual symbol
-5. research online — `mcp__context7` for a library/API detail → `WebSearch` / `WebFetch`; cite the URL
+5. research online — `WebFetch` the library's official docs for an API detail → `WebSearch`; cite the URL
 
 Only a question that **materially changes what "correct" means** AND that all five sources fail to settle may
 even be considered — and if it truly stops you establishing the oracle to run at all, that is the pre-start

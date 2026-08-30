@@ -90,7 +90,7 @@ real source, and check BOTH directions:
 - **Doc → live source (EXTERNAL claims):** a claim about a 3rd-party API / SDK / endpoint,
   **pricing**, a rate limit, a library **version**, or an ISO/RFC **standard** is NOT
   verifiable against local code — re-verify it **LIVE** (`mcp__exa__web_search_exa` →
-  `WebSearch` → `mcp__brave-search__brave_web_search` → `mcp__context7` for library docs;
+  `WebSearch` → `mcp__brave-search__brave_web_search` → official-docs `WebFetch` for library detail;
   a standard/RFC → fetch the primary doc and quote the clause).
   A live-checkable external claim is **VERIFIED-or-WRONG**, never parked as UNVERIFIABLE —
   a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches.

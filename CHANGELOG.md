@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — context7 MCP retired from the window roster; corpus grounding orders re-armed (2026-08-30)
+
+- **What:** measured usage was 45 tool calls in the box's entire transcript history (vs exa 563 ·
+  brave 417 · firecrawl 689) for a 364 MB / 7-process per-window cost — operator retired it. Removed
+  from all five `.claude.json` rosters via `claude_rotate.py --sync-mcp` (OAuth-preserving merge, DR
+  backup taken), and every corpus reference (20 sites across 13 command sources, 2 fragments, 2 agent
+  defs) swapped to official-docs `WebFetch` in the same change — a named-but-absent server is a
+  phantom arm (wef 01M17XXF). Pool agents keep on-demand context7 via their own mcp.json (zero idle
+  cost). Roster doc updated under its keep-current contract.
+
 ### Fixed — mail-sweep batch: seven enforcement/corpus defects from six repos' findings, each red-first (2026-08-30)
 
 - **What:** one handle-now sweep over 13 fabrik-mail findings produced seven landed fixes:

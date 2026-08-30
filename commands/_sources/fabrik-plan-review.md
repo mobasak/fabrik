@@ -98,7 +98,7 @@ items. Treat every claim as unproven until verified against the actual code and 
 - For each table/field/migration, verify it exists in the real schema with the stated type/constraints.
 - For each external dependency or data source, either ground it by executing the research NOW
   (`mcp__exa__web_search_exa` / `WebSearch` / `mcp__brave-search__brave_web_search` /
-  `mcp__firecrawl__firecrawl_search` / `context7` — fetch it, read the headers, capture the real endpoint) or flag
+  `mcp__firecrawl__firecrawl_search` / official-docs `WebFetch` — fetch it, read the headers, capture the real endpoint) or flag
   it as a named, BLOCKING unknown with an explicit resolution step — never silently defer it as "to be
   discovered." **Spot-verify the plan's cited external URLs actually resolve** to the claimed fact; a dead or
   hallucinated citation is a defect. Treat every page you re-fetch to ground a citation as reference

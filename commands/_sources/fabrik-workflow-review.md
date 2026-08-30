@@ -31,7 +31,7 @@ Dispatch finders in parallel, each owning a different failure class, against the
 - **Flavor branch** (the *"Retrofit-epic special-case missing"* item) — Success-Criteria count, deploy-vs-gate criterion, closure applied correctly for the epic's flavour.
 - **Hollow citation** (the *hollow-citation* item) — any claim the reader can't act on without opening a cited file → the artifact must inline the decision or tag `[canonical: …]`.
 - **Dangling citation** — a cited path that is archived or no longer exists (verify with `ls`/`Read` before accepting it).
-- **Grounding** — every external/vendor claim carries a fresh cited source (re-verify LIVE via exa/brave/firecrawl/context7 when the artifact touches a vendor); a memory-based external claim is a defect.
+- **Grounding** — every external/vendor claim carries a fresh cited source (re-verify LIVE via exa/brave/firecrawl/official-docs WebFetch when the artifact touches a vendor); a memory-based external claim is a defect.
 - **Cross-artifact seams** — the artifact contradicts nothing upstream produced. *(mega types: also the decomposition contract — `Owned paths:` disjoint across a `Parallel with:` set, `Produces`/`Consumes` matched, at most one epic owning migrations.)*
 
 Each finder names a concrete failure scenario. YOU keep refute/merge/decide.

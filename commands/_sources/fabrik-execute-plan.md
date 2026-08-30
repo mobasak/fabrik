@@ -134,7 +134,7 @@ When you encounter uncertainty, resolve it yourself in this order — do NOT ask
 | 4 | `agents-fabrik.md` (the canonical map; `AGENTS.md` is a stub) | Infra map, service topology, DB schemas |
 | 5 | `docs/` + `AFCL.md` | Configuration, troubleshooting, known friction |
 | 6 | `grep` / `Read` the codebase | Existing patterns, function signatures, imports |
-| 7 | `mcp__context7` (library docs) → `mcp__exa__web_search_exa` / `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
+| 7 | official-docs `WebFetch` (library detail) → `mcp__exa__web_search_exa` / `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
 | 8 | **STOP and ask the user** | Only after 3 failed resolution attempts across levels 1-7 |
 
 Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missing: <what you need>`

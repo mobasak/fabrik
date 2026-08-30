@@ -56,7 +56,7 @@ CREATED (not adopted), confirm it defines every component the screens reference 
 the design system never defined is a defect on one side or the other; reconcile it. **For a shadcn-based system,
 verify each referenced component actually exists** via the connected **shadcn MCP**
 (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`), and re-check any component-library API
-the contract leans on (Radix/NativeWind/Tamagui) with `mcp__context7`; a contract naming a component that isn't
+the contract leans on (Radix/NativeWind/Tamagui) via `WebFetch` of their official docs; a contract naming a component that isn't
 real is a defect.
 
 **B) Data-wiring vs the FROZEN data contract.** For **every** field any screen reads or writes, OPEN

@@ -12,7 +12,7 @@ see all of it. Adding a server without its row here is the defect this doc exist
 
 ## Config topology — and the rotation law
 
-The roster is defined in **five** `.claude.json` files, all currently identical (18 servers):
+The roster is defined in **five** `.claude.json` files, all currently identical (**17 servers** since 2026-08-30 — context7 retired):
 
 | File | Role |
 |---|---|
@@ -42,14 +42,14 @@ cache-prune (it re-downloads weekly for no gain). A window reload reconnects on 
 
 ---
 
-## The 18 servers
+## The servers (17 active + 1 retired)
 
 Weight = measured RSS on 2026-08-30 across live processes (per-window cost scales with window count).
 
 | MCP | What it does | Who actually needs it (scaffold types / repos) | Weight | Recommended default |
 |---|---|---|---|---|
 | **session-recall** | past-session search (`search_chats`/`get_chat`) — governance-mandated by ORIENT + commands | ALL repos | 201 MB / 4p | **ON everywhere** |
-| **context7** | live library/framework docs (`resolve-library-id`, `query-docs`) | all coding types, plan/build phases | 364 MB / 7p | **ON everywhere** |
+| ~~context7~~ | live library/framework docs | **RETIRED 2026-08-30 (operator decision):** measured usage was 45 tool calls in the box's ENTIRE transcript history (vs exa 563 · brave 417 · firecrawl 689) for 364 MB / 7 procs per-window; official-docs `WebFetch` covers the need. Removed from all 5 rosters via `claude_rotate.py --sync-mcp` + every corpus reference swapped to official-docs WebFetch same-change (phantom-arm law). Pool agents keep on-demand context7 via their own mcp.json (zero idle cost) | — | OFF everywhere |
 | **exa** | web search + raw fetch — grounding order #1 in every spec/review command | all repos, design/review phases | 183 MB / 4p | **ON everywhere** |
 | github | GitHub API (PRs, issues, code search) | NAMED in /fabrik-spec's grounding order (2 refs) — otherwise `gh` CLI covers it | 173 MB / 4p | OFF once the corpus swaps those 2 refs to `gh` CLI (phantom-arm law: never a named-but-absent server) |
 | brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
@@ -68,7 +68,7 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | serena | LSP semantic code navigation | large codebases (hub, trade-intelligence, youtube) | light idle | operator call — useful, but a per-window process everywhere |
 
 **Net effect of the recommended split:** a typical headless API repo drops 18 → **3** servers
-(session-recall + context7 + exa); the full roster survives only where each server is consumed.
+(session-recall + exa + brave-search); the full roster survives only where each server is consumed.
 
 ---
 
@@ -79,14 +79,13 @@ commands, agent defs, fragments, rule packs), read each ambiguous hit in context
 decide — a server a universal command names must exist everywhere it runs, or the reference is a
 phantom arm (the wef 01M17XXF defect class).
 
-**Universal base — every type, every repo (command-evidence):**
+**Universal base — every type, every repo (command-evidence; context7 left this set 2026-08-30):**
 
 | Server | Evidence |
 |---|---|
 | `session-recall` | named by 22 commands + ORIENT mandate |
 | `exa` | grounding order #1 in 7 pipeline commands (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan) |
 | `brave-search` | named in the same grounding orders (6 commands) — every repo runs these |
-| `context7` | grounding order + /design-review + fabrik-researcher + /fabrik-ui-design |
 
 Two more are named by universal commands but recommended for CORPUS EDITS instead of universal cost
 (operator decision): `github` (2 refs in /fabrik-spec — swap to the `gh` CLI, zero processes) and
@@ -94,7 +93,7 @@ Two more are named by universal commands but recommended for CORPUS EDITS instea
 NEEDS-RAW-FETCH path the researcher def now teaches). Until those edits land, both are phantom arms
 whether enabled or not.
 
-| Scaffold type | Beyond the universal 4 | Evidence |
+| Scaffold type | Beyond the universal 3 | Evidence |
 |---|---|---|
 | `python-api` | postgres-pro¹ | no command names it — ad-hoc DB inspection utility, flag-driven |
 | `python-api-gpu` | postgres-pro¹ | as python-api |
@@ -119,7 +118,7 @@ transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATI
 here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified) (+serena, operator call).
 
-**Headcount effect:** headless types run **4-5 servers instead of 18**; web-GUI types 7-9;
+**Headcount effect:** headless types run **3-4 servers instead of 17**; web-GUI types 7-9;
 mobile-app 6.
 
 ## Chronic non-connectors — root-caused 2026-08-30 (distinct from the herd outage)
