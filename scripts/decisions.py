@@ -41,6 +41,10 @@ def _say(line: str) -> None:
         print(line)
     except UnicodeEncodeError:
         print(line.encode("ascii", "backslashreplace").decode("ascii"))
+    except BrokenPipeError:
+        # Library callers (import + main()) bypass the __main__ SIGPIPE guard —
+        # a closed downstream (`| head`) is a clean exit, never a traceback.
+        raise SystemExit(0) from None
 
 
 def _ledgers(root: Path) -> list[tuple[str, Path]]:

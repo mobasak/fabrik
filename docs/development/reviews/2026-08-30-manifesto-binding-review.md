@@ -139,6 +139,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 8 | SCOPED — orchestrator: fixed all four (unicode output red-first→green, live query proven; spec beat-split line; AFTER-EDIT header; CHANGELOG bait reworded + regex-proven gone), suite 9 passed | 0 | 0 | 4 | closing wide sweep owed |
 | Pass 9 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 01634957; ran suites (114 passed) + --check (exit 0 over 49 fleet ledgers) + live UTF-8 query + corpus grep; 6-way --check-description consistency verified; dispatched: 1, returned: 1 | 3 | 3 | 0 | not done (3 PLAUSIBLE nits) |
 | Pass 10 | SCOPED — orchestrator: SIGPIPE fix red-first→green (10 passed), gate success; 2 REFUTED with proof | 0 | 0 | 1 | closing wide sweep owed |
+| Pass 11 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer at 5818e02e; own red-on-revert traces of all 3 code fixes (all genuinely red); suites 115 passed, --check exit 0, UTF-8 query verified; dispatched: 1, returned: 1 | 3 | 3 | 0 | not done (changelog recurrence + 2 residues) |
+| Pass 12 | SCOPED — orchestrator: fixed all three (CHANGELOG bullet for the late code fixes; _say BrokenPipeError→SystemExit(0) red-first for the library path; BLOCKED-analogy prose de-ambiguated in both contracts); suites 116 passed, gate success | 0 | 0 | 3 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -177,6 +179,10 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | F-U2 | renumbered D-046 sits below D-044 (not top-of-file) | REFUTED — deliberate: renumber-in-place was the minimal mutation of a SIBLING's committed row; append-at-top governs minting, and a corrected id is not a re-mint |
 | F-U3 | _say/BrokenPipeError: `decisions.py <term> | head` tracebacks (pre-existing, class-adjacent to the round-8 _say fix) | FIXED (round 10 — SIGPIPE restored to SIG_DFL at entry; red-first subprocess test with a 3000-row ledger watched RED, then green) |
 
-26 findings → 18 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
+| F-V1 | the review's OWN round-8/10 code fixes (UTF-8, SIGPIPE) landed with no CHANGELOG bullet — recurrence of F-C2's class inside the review that caught it | FIXED (round 12 — bullet added covering both; strengthens the STRATEGIC_BACKLOG case for the correspondence check: 2 more misses measured) |
+| F-V2 | SIGPIPE guard is __main__-only; library callers of main() got tracebacks (finder proved the guard load-bearing by removing it) | FIXED (round 12 — _say catches BrokenPipeError → SystemExit(0); red-first monkeypatch test) |
+| F-V3 | "decision-level sibling of the three BLOCKED cases" readable as ambiguity-licenses-halting — the opposite of Invariant 3 | FIXED (round 12 — both contracts now read "classification ambiguity never halts a decision; only the three BLOCKED cases halt execution") |
+
+29 findings → 21 FIXED + 7 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
 
 

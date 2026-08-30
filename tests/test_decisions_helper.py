@@ -164,3 +164,20 @@ def test_piped_output_dies_silently_on_closed_pipe(tmp_path):
     )
     assert "D-" in r.stdout
     assert "BrokenPipeError" not in r.stderr and "Traceback" not in r.stderr, r.stderr[-500:]
+
+
+def test_say_exits_cleanly_on_broken_pipe_without_signal_guard(monkeypatch, capsys):
+    """Library callers (import + main()) get no __main__ SIGPIPE guard — _say itself
+    must turn a BrokenPipeError into a clean exit, not a traceback."""
+    import builtins
+
+    def _boom(*a, **k):
+        raise BrokenPipeError
+
+    monkeypatch.setattr(builtins, "print", _boom)
+    try:
+        dec._say("row")
+    except SystemExit as e:
+        assert e.code == 0
+    else:
+        raise AssertionError("BrokenPipeError escaped _say (or was swallowed silently)")

@@ -120,8 +120,8 @@ what makes an in-flight command visible and un-abandonable.
   Phase-0 triage; canonical: `docs/reference/operating-manifesto.md`, D-043): a ONE-WAY decision
   (structural, public, expensive or impossible to unwind) grows its row with the § Binding field
   block — `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` — in the same change; under
-  ambiguity the default is the most-reversible option (manifesto Invariant 3 — the decision-level
-  sibling of the three BLOCKED cases, which govern execution halts).
+  ambiguity the default is the most-reversible option (manifesto Invariant 3 — classification
+  ambiguity never halts a decision; only the three BLOCKED cases halt execution).
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — what you filed and to whom, or `none` plus the surfaces you exercised. Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not.
 - **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project-facing

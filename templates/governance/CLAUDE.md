@@ -79,8 +79,8 @@ what makes an in-flight command visible and un-abandonable.
   from every repo): a ONE-WAY decision (structural, public, expensive or impossible to unwind)
   grows its row with the manifesto § Binding field block —
   `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` — in the same change; under ambiguity
-  the default is the most-reversible option (manifesto Invariant 3 — the decision-level sibling of
-  the three BLOCKED cases, which govern execution halts).
+  the default is the most-reversible option (manifesto Invariant 3 — classification ambiguity
+  never halts a decision; only the three BLOCKED cases halt execution).
 - **⚠️ READ BEFORE YOU EDIT — never append blindly to a command, rule, or doc file.** Open the file
   and find where the subject already lives BEFORE writing: the overwhelming majority of "add a rule
   about X" edits belong INSIDE an existing section, not bolted onto the end. An append that restates
