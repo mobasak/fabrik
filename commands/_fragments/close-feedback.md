@@ -62,7 +62,9 @@ actually exercised so the reader knows what your "none" covers.
 
 ```bash
 python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel> --kind finding --ack required
-# body on stdin: what you ran · what you expected · what happened · evidence at path:line · your fix direction
+# body on stdin — the D-035 contract (docs/reference/fabrik-mail.md § The message contract):
+# WHAT/WHERE/WHEN/WHO/WHY(factual root cause)/HOW/SYSTEMIC(the class) mandatory;
+# ABDUCTIVE (alternatives ruled out) when WHY is inferred; INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL where they carry weight
 ```
 
 Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it. **In a PROJECT repo**,

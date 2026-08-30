@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the inter-agent mail contract, advisory (D-035) (2026-08-30)
+
+- 5W1H + factual-WHY + SYSTEMIC mandatory on finding/request/upstream-feedback; reasoning modes (abductive/inductive/deductive/counterfactual) where applicable; mail.py warns on gaps (4 red-first tests + live proof); fabrik-mail.md contract section; close-feedback body template re-rendered box-wide.
+
 ### Added — MCP + identity forcing pairs, advisory-first (D-033, D-034) (2026-08-30)
 
 - mcp_health.py (assigned-vs-live diff, 4 red-first tests, live-proven) + the failure-moment rule in both CLAUDE.md surfaces; ORIENT unnamed-hub-session warning + commit-msg Agent-Name/CLAUDE_AGENT mismatch advisory (both branches proven).

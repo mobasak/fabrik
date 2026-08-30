@@ -130,7 +130,8 @@ what makes an in-flight command visible and un-abandonable.
   the box mesh, fabrik-mail · **fleet** — `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding,
   `docs/PROJECT_CATALOG.md` · **intel** — models, benchmarks, the flywheel, author-blind review.
   Send with `python scripts/mail.py send --to fabrik --to-agent <role> --kind finding` carrying
-  reproducible evidence at `path:line`; genuinely unsure ⇒ `--broadcast --ack no`. In-beat findings
+  the D-035 message contract — 5W1H + factual WHY + SYSTEMIC, reasoning modes where applicable
+  (`docs/reference/fabrik-mail.md` § The message contract; send warns on gaps); genuinely unsure ⇒ `--broadcast --ack no`. In-beat findings
   you simply FIX — the duty is about the ones that are not yours to fix, which are exactly the ones
   that otherwise die in your context when the session ends. (Live 2026-08-27: a command-corpus audit
   raised nine real defects, two of them squarely on other beats, and filed zero mail until asked.)

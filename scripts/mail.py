@@ -627,6 +627,27 @@ def _warn_if_duplicate(to: str, body: str) -> None:
         return  # a duplicate hint must NEVER be able to block a send
 
 
+_STRUCTURED_KINDS = frozenset({"finding", "request", "upstream-feedback"})
+_STRUCTURE_KEYS = ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC")
+
+
+def _structure_gaps(kind: str, body: str) -> list[str]:
+    """The D-035 message contract (operator directive 2026-08-30): substantive mail
+    carries 5W1H + a FACTUAL root cause (WHY) + SYSTEMIC (the class, never just the
+    instance); ABDUCTIVE/INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL sections are optional,
+    applied where they fit. Returns the MISSING mandatory keys; [] when compliant or
+    exempt (reply/relay/ack traffic). Header match is deliberately loose — a line
+    starting with the key (any case, markdown decoration tolerated) followed by ':'.
+    Advisory tier: send() WARNS on gaps and never refuses (measured-rollout law)."""
+    if kind not in _STRUCTURED_KINDS:
+        return []
+    gaps = []
+    for key in _STRUCTURE_KEYS:
+        if not _re.search(rf"(?im)^[\s>*#-]*{key}\b[^:\n]{{0,24}}:", body):
+            gaps.append(key)
+    return gaps
+
+
 def send(
     to: str,
     kind: str,
@@ -642,6 +663,14 @@ def send(
     frm = frm or _current_repo()
     _safe_name(to, "recipient")
     _safe_name(frm, "sender")
+    _gaps = _structure_gaps(kind, body)
+    if _gaps:
+        print(
+            f"[mail-structure advisory, D-035] this {kind} is missing mandatory sections: "
+            f"{', '.join(_gaps)} — the 5W1H + factual-WHY + SYSTEMIC contract "
+            "(docs/reference/fabrik-mail.md § The message contract). Sent anyway (advisory tier).",
+            file=sys.stderr,
+        )
     to_agent = _safe_agent(to_agent or "")
     if ack and ack not in ("required", "no"):  # vocabulary check subsumes any separator
         # P3-1: `ack` is the SECOND raw-interpolated frontmatter value (the CLI

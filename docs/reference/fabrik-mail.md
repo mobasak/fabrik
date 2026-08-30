@@ -172,6 +172,33 @@ OWN archive AND the recipient sends a `reply` (`mail.py send --re <id> --kind re
 disposition) to the ORIGINAL sender's inbox. Acks live in the recipient's mailbox and never travel, so
 **without the reply the requester's next session never learns it resolved.** Reply is the closure.
 
+## The message contract (D-035, operator directive 2026-08-30)
+
+Substantive kinds (`finding` · `request` · `upstream-feedback`) carry a **structured reasoning
+body** — a reader in another repo reconstructs your situation ONLY from the text, so the structure
+is the transfer format, not ceremony. `mail.py send` WARNS on gaps (advisory tier; fire rate
+measured before anything blocks). `reply`/`relay` are exempt (closure traffic).
+
+**MANDATORY — a line per key, `KEY: …` (any case, markdown decoration fine):**
+
+| Key | Contract |
+|---|---|
+| `WHAT:` | the claim/ask in one line |
+| `WHERE:` | evidence — `path:line`, repo, mail/commit ids |
+| `WHEN:` | observed date + the run/context it surfaced in |
+| `WHO:` | who owns it / who is affected |
+| `WHY:` | the **FACTUAL root cause** — reproduced or measured, never guessed; genuinely unknown ⇒ write `WHY: unknown — not yet reproduced` explicitly |
+| `HOW:` | how found / how to reproduce + your fix direction |
+| `SYSTEMIC:` | the CLASS and blast radius, never just the instance (the fix-the-class law applied to reporting) |
+
+**APPLY-WHERE-APPLICABLE (optional headings, use when they carry weight):**
+
+- `ABDUCTIVE:` — when WHY is inferred rather than reproduced: the best explanation AND the
+  alternatives you ruled out (an inferred cause with no rejected rivals is a guess wearing a header).
+- `INDUCTIVE:` — the pattern over instances ("4th occurrence of this class: ids …").
+- `DEDUCTIVE:` — from the standing rule to this case ("pack X mandates Y, this violates it").
+- `COUNTERFACTUAL:` — what would have happened without the defect/with the fix (sizes the stakes).
+
 ## Surfacing + untrusted input
 
 The hook (`mail_notify.py`) resolves the repo by the git main-checkout basename (`$MAIN` — worktrees
