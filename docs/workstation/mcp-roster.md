@@ -62,7 +62,7 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | maestro | mobile/web UI test flows — **heaviest server on the box** | mobile-app | **724 MB / 4p** | ON mobile-app only |
 | postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | `needs_database` repos during data-contract/debug | light | OFF; ON DB-backed repos |
 | grafana | fleet observability (Prometheus/Loki/dashboards) — runs as a docker container per window | hub (deploy/monitoring, fleet beat) | docker | ON hub only |
-| media-engine | image/video generation (`/opt/iterative_image_editor`) | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only |
+| media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED 2026-08-30 (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
 | pubchem | chemistry database lookups | chemical-commerce content (wef/bhdtrade) | light | ON wef only |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt` service) | dossier/research: transdoc | service | ON transdoc only |
 | serena | LSP semantic code navigation | large codebases (hub, trade-intelligence, youtube) | light idle | operator call — useful, but a per-window process everywhere |
