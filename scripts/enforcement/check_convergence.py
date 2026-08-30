@@ -762,6 +762,19 @@ def _check_review(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
     text = path.read_text(encoding="utf-8", errors="replace")
+    # An in-flight review is not making a convergence claim yet (fabrik-lib 01M180SP):
+    # the termination contract MANDATES creating the report before pass 1, and this
+    # check redded the fresh skeleton for lacking an embedded green gate it cannot yet
+    # have — a chicken-and-egg hit twice in one session. Header-zone IN-PROGRESS is the
+    # sanctioned mid-loop state (check_review_coverage._in_progress is the ONE
+    # definition, imported so the two graders cannot drift); the flip re-arms this.
+    try:
+        from .check_review_coverage import _in_progress  # noqa: PLC0415 — local: soft dep
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import _in_progress  # noqa: PLC0415
+    if _in_progress(text):
+        return []
     # Claims are read on fence-STRIPPED text — a fenced claim word is a quotation
     # (grammar template, example), not a claim.
     if not _claims_reviewed(FENCE_STRIP.sub("", text)):

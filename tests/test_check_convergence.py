@@ -1240,3 +1240,24 @@ def test_a_fence_quoted_rederivation_row_does_not_satisfy(tmp_path):
     )
     fails = cc._check_plan(tmp_path, p)
     assert any("re-deriv" in f for f in fails), fails
+
+
+def test_an_in_progress_review_skeleton_is_not_a_convergence_claim(tmp_path):
+    """fabrik-lib 01M180SP: the termination contract MANDATES creating the review file
+    before pass 1, and _check_review immediately redded it for lacking an embedded green
+    gate it cannot yet have — a chicken-and-egg hit twice in one session. Header-zone
+    Status: IN-PROGRESS is the sanctioned mid-loop state (the coverage grader already
+    honors it); the flip back to CONVERGED re-arms this check."""
+    cc = _cc()
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    f = d / "2026-08-30-x-review.md"
+    f.write_text(
+        "# Review — x\n**Status:** IN-PROGRESS\n**Surface:** abc\n\n"
+        "This review is mid-loop; classes reviewed so far: none.\n",
+        encoding="utf-8",
+    )
+    assert cc._check_review(tmp_path, f) == []
+    flipped = f.read_text().replace("IN-PROGRESS", "CONVERGED")
+    f.write_text(flipped, encoding="utf-8")
+    assert cc._check_review(tmp_path, f), "the flip must re-arm the evidence demand"
