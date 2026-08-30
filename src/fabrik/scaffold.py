@@ -290,6 +290,30 @@ SHARED_TEMPLATE_MAP = {
 # saas-skeleton scaffolder so it IS DB-backed). Non-DB types just get a harmless, deletable stub.
 _NO_DATA_CONTRACT_TYPES = frozenset({"docusaurus"})
 
+# Docusaurus publishes its ENTIRE docs/ tree to a world-readable site (the scaffold imports the full
+# Fabrik docs tree — see _scaffold_docusaurus's B43 note). These internal Fabrik docs must NOT be
+# published, however they arrive in docs/: they are still kept in docs/ (git + governance — e.g. the
+# DECISIONS ledger MUST exist in every repo), but go into the docusaurus content-docs `exclude` so
+# they exist-but-do-not-publish. Three arrival paths, all covered here (rendered as `**/<name>` so a
+# nested copy is caught too):
+#   - scaffold-SEEDED governance/strategy: DECISIONS (shas/mail-ids), LESSONS_LEARNT, STRATEGIC_BACKLOG
+#   - PIPELINE-generated internal contracts (docusaurus is UI-bearing → /fabrik-flows + /fabrik-ui-design
+#     write these into the SAME published docs/ tree): flows (personas/funnels), ui-design, design-system
+#   - defensive: BUSINESS_MODEL + data-contract do NOT seed to docusaurus today (product/data buckets,
+#     the latter also blocked by _NO_DATA_CONTRACT_TYPES) but are listed so a hand-authored copy never leaks
+# (fleet+infra finding 01M19JJNWK; measured 2026-08-30: 0 live docusaurus projects fleet-wide, so this
+# closes the class at the generator with no live leak to retro-fix. Add any new internal doc here.)
+_DOCUSAURUS_UNPUBLISHED_DOCS: tuple[str, ...] = (
+    "DECISIONS.md",
+    "LESSONS_LEARNT.md",
+    "STRATEGIC_BACKLOG.md",
+    "flows.md",
+    "ui-design.md",
+    "design-system.md",
+    "BUSINESS_MODEL.md",
+    "data-contract.md",
+)
+
 
 def _load_doc_registry() -> ModuleType | None:
     """Import the canonical doc registry HUB-SIDE. scaffold runs on the hub, so the
@@ -5263,6 +5287,11 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
     pkg["description"] = description
     (project_dir / "package.json").write_text(json.dumps(pkg, indent=2) + "\n")
 
+    # Internal governance/strategy docs are seeded into docs/ but must NOT publish to the
+    # world-readable site (see _DOCUSAURUS_UNPUBLISHED_DOCS). Rendered into the content-docs
+    # `exclude` below, AFTER Docusaurus's own defaults so partial/test excludes are preserved.
+    _gov_excludes = "".join(f"            '**/{d}',\n" for d in _DOCUSAURUS_UNPUBLISHED_DOCS)
+
     # Generate docusaurus.config.js (preserves full template contract including
     # OpenAPI plugin/theme, docItemComponent, and apiSidebar navbar item).
     config_js = (
@@ -5315,6 +5344,18 @@ def _scaffold_docusaurus(project_dir: Path, name: str, description: str, **kwarg
         "      ({\n"
         "        docs: {\n"
         "          sidebarPath: './sidebars.js',\n"
+        "          // Fabrik: Docusaurus's own default excludes, THEN internal governance/strategy\n"
+        "          // docs that are seeded into docs/ (git + governance) but must not publish to a\n"
+        "          // world-readable site (decision rows carry shas/mail-ids). See scaffold.py\n"
+        "          // _DOCUSAURUS_UNPUBLISHED_DOCS. Setting `exclude` replaces the plugin default,\n"
+        "          // so the defaults are re-listed here first.\n"
+        "          exclude: [\n"
+        "            '**/_*.{js,jsx,ts,tsx,md,mdx}',\n"
+        "            '**/_*/**',\n"
+        "            '**/*.test.{js,jsx,ts,tsx}',\n"
+        "            '**/__tests__/**',\n"
+        f"{_gov_excludes}"
+        "          ],\n"
         "        },\n"
         "        blog: false,\n"
         "        theme: {\n"

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docusaurus scaffold no longer publishes internal governance/strategy docs (leak-guard) (2026-08-30)
+
+- **What:** a scaffolded docusaurus site publishes its entire `docs/` tree, so internal Fabrik docs
+  living there would land on a world-readable site. Added `_DOCUSAURUS_UNPUBLISHED_DOCS` and a
+  content-docs `exclude` (rendered `**/<name>`, after docusaurus's own 4 defaults) covering seeded
+  governance (DECISIONS/LESSONS_LEARNT/STRATEGIC_BACKLOG), pipeline-generated contracts
+  (flows/ui-design/design-system), and defensively BUSINESS_MODEL/data-contract. Docs stay SEEDED
+  (present for git + governance) but are not published — present-but-unpublished.
+- **Why:** fleet+infra finding 01M19JJNWK (raised while wiring the DECISIONS seed). Measured: 0 live
+  docusaurus projects fleet-wide (39 project.yaml + registry), so this closes the class at the
+  generator with no retro-fix.
+- **Guard:** `tests/test_scaffold_doc_seeding.py::test_docusaurus_config_excludes_internal_governance_docs`
+  (red-on-revert proven; asserts entries inside the exclude array + the docs still SEED). Reviewed via
+  /fabrik-review (pool + native Opus): the native pass caught the pipeline-generated-doc gap self-review
+  missed. `node --check` confirms the generated config is valid JS.
+
 ### Fixed — scaffolder now seeds docs/DECISIONS.md for new projects (decision-ledger B6 wiring) (2026-08-30)
 
 - **What:** wired `"docs/DECISIONS_TEMPLATE.md": "docs/DECISIONS.md"` into `SHARED_TEMPLATE_MAP`

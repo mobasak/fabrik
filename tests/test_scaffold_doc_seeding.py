@@ -236,6 +236,27 @@ def test_deployment_doc_is_in_the_template_map_and_gated_to_deployed():
     assert not scaffold._type_seeds_doc(reg, "chrome-extension", "docs/DEPLOYMENT.md")
 
 
+def test_docusaurus_config_excludes_internal_governance_docs(tmp_path):
+    # fleet+infra finding 01M19JJNWK: Docusaurus publishes the whole docs/ tree, so internal Fabrik
+    # docs in docs/ (seeded governance: DECISIONS/LESSONS_LEARNT/STRATEGIC_BACKLOG; pipeline
+    # contracts: flows/ui-design/design-system) would land on a world-readable site. They must stay
+    # PRESENT (governance requires docs/DECISIONS.md in every repo) but be content-docs EXCLUDED.
+    proj = tmp_path / "proj-docs"
+    proj.mkdir()
+    scaffold._scaffold_docusaurus(proj, "mysite", "A docs site")
+    cfg = (proj / "docusaurus.config.js").read_text()
+    # the entries must live INSIDE the docs-preset exclude ARRAY, not merely somewhere in the file
+    start = cfg.index("exclude: [")
+    block = cfg[start : cfg.index("]", start)]
+    for d in scaffold._DOCUSAURUS_UNPUBLISHED_DOCS:
+        assert f"'**/{d}'" in block, f"{d} must be in the docusaurus content-docs exclude array"
+    # setting `exclude` replaces the plugin default, so the defaults must be re-listed in the array
+    assert "'**/_*.{js,jsx,ts,tsx,md,mdx}'" in block, "docusaurus default excludes must be preserved"
+    # PRESENT half of present-but-unpublished: the seeded governance docs still SEED to docusaurus
+    for dest in ("docs/DECISIONS.md", "docs/LESSONS_LEARNT.md", "docs/STRATEGIC_BACKLOG.md"):
+        assert scaffold._type_seeds_doc(reg, "docusaurus", dest), f"{dest} must still SEED to docusaurus"
+
+
 def test_decisions_doc_is_in_the_template_map_and_universal():
     # Same class as the 2026-08-07 DEPLOYMENT regression (decision-ledger plan-1 B6):
     # the registry declares docs/DECISIONS.md (universal governance surface) but the
