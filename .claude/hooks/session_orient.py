@@ -130,6 +130,26 @@ def _memory_line(cwd: str) -> str:
     )
 
 
+def _identity_line(cwd: str) -> str:
+    """Hub-only advisory (D-034): an UNNAMED hub session is always a mistake — three
+    sessions share this tree and the role hook binds only through CLAUDE_AGENT (a
+    window /rename never reaches hooks; a full day was once mis-signed). Project
+    repos (no manifest file) and named sessions get nothing."""
+    try:
+        is_hub = (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file()
+        if is_hub and not os.environ.get("CLAUDE_AGENT", "").strip():
+            return (
+                "- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.** Three sessions"
+                " share this tree; the role charter, beat routing and Agent-Name trailers all"
+                " key on the env var (a window rename never reaches hooks — the mis-signed-day"
+                " class). Ask the operator which role this window is, or work without beat"
+                " claims until named.\n"
+            )
+    except Exception:
+        pass
+    return ""
+
+
 def _mcp_line(cwd: str) -> str:
     """The session's ASSIGNED MCP set + catalog pointer + fix-first duty (operator
     directive 2026-08-30, D-032). Reads the repo's emitted .mcp.json at runtime;
@@ -261,6 +281,7 @@ def main() -> int:
         + "\n"
         + _memory_line(cwd)
         + "\n"
+        + _identity_line(cwd)
         + _mcp_line(cwd)
         + "- **Decision-shaped question? LEDGER FIRST:** grep `docs/DECISIONS.md` (fleet-wide:"
         " `python3 /opt/fabrik/scripts/decisions.py <term>`) BEFORE any wider hunt — a prior ruling,"

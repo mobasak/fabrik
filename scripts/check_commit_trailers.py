@@ -554,6 +554,23 @@ def install(force: bool = False) -> int:
     return 0
 
 
+def _warn_agent_name_mismatch(trailers: dict[str, list[str]]) -> None:
+    """ADVISORY (D-034): a session with CLAUDE_AGENT set signing an Agent-Name that
+    differs is the mis-signed-day class — warn loudly, never reject (a wrong warning
+    must not block a shared tree; promotion waits on measured fire rate). Env unset
+    (every project repo, unnamed hub windows) or no Agent-Name trailer → silent."""
+    env_name = os.environ.get("CLAUDE_AGENT", "").strip()
+    signed = [v.strip() for v in trailers.get("agent-name", []) if v.strip()]
+    if not env_name or not signed or env_name in signed:
+        return
+    print(
+        f"\n⚠️  [advisory] Agent-Name mismatch: this session is CLAUDE_AGENT={env_name} "
+        f"but the commit signs Agent-Name: {', '.join(signed)} — the mis-signed-day class "
+        f"(D-034). Commit proceeds; fix the trailer if the env var is right.\n",
+        file=sys.stderr,
+    )
+
+
 def main(argv: list[str]) -> int:
     if len(argv) >= 2 and argv[1] == "--install":
         return install(force="--force" in argv[2:])
@@ -633,6 +650,7 @@ def main(argv: list[str]) -> int:
         return 0
     # any() over the values: one non-empty value is provenance, exactly as git reports it.
     if any(trailers.get(REQUIRED.lower(), [])):
+        _warn_agent_name_mismatch(trailers)
         return 0
 
     print(

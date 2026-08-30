@@ -88,6 +88,13 @@ what makes an in-flight command visible and un-abandonable.
   deliverable: a prerequisite discovered mid-run is fixed minimally (or BLOCKED as a pre-start finding) and
   you **RETURN to the invoked command in the same run** — delivering a different command's output is
   answering the wrong question, however good the commits look.
+- **An MCP tool failure is a FIX-FIRST event, never a detour.** Your ORIENT block names your
+  ASSIGNED servers; a tool error or an assigned-but-absent server is a broken tool, and silently
+  routing around it (grep instead of serena, curl instead of firecrawl) is the absorb-the-friction
+  defect. Diagnose against the known classes (`/opt/fabrik/docs/workstation/mcp-roster.md` § the
+  servers; `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py` diffs assigned-vs-live in seconds),
+  fix or file with the evidence, and SAY SO in the response — a fallback is allowed, an unreported
+  one is not. (Advisory tier, D-033 — fire rate measured before anything blocks.)
 - **Read it, don't recall it.** Before asserting what a script, glob, schema or config DOES, open the
   code path — the symptom you observed can be real while your mechanism is invented (fabrik-lib filed
   upstream that `select_rules.py` "fails open without project.yaml"; it splits purely on glob match and
