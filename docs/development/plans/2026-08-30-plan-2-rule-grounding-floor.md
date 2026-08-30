@@ -1,6 +1,6 @@
 # Plan 2 — The rule-grounding floor (computed read-set + quote-verified digest)
 
-Status: DRAFT
+Status: CONVERGED (2026-08-30 — /fabrik-plan-review: 3 passes, closing re-derivation, raised 0/edits 0, md5-stable)
 Origin: operator, this turn — *"partially, not the full contract. this is wrong. this is why ai agents
 are drifting they dont read relevant rules fully. what do you suggest?"* → proposal accepted verbatim:
 *"build it"* (spec skipped on the stated recommendation; mechanical extension of the two floors shipped today).
@@ -34,7 +34,7 @@ Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 | Source | What binds | Grounded ref |
 |---|---|---|
-| the gate block's single home | ONE fragment feeds both commands — edit once, render | commands/_fragments/grounding-rules.md:1 (marker `rule-grounding-gate v1`; included by fabrik-spec.md + fabrik-plan-after-chat.md, grep-verified) |
+| the gate block's homes | ONE fragment feeds both commands (edit once, render) — PLUS nine INLINED copies in docs/orchestrator/ (pass-1 review catch; B0 updates all nine) | commands/_fragments/grounding-rules.md:1 (marker; included by fabrik-spec.md + fabrik-plan-after-chat.md) + the nine B0 paths |
 | companion cite fragment | digest-citation law lives elsewhere and is NOT touched | commands/_fragments/grounding-rules-cite.md:8 (`rule-grounding-cite v1`, inlined into orchestrator docs) |
 | Traycer twin | the fragment's marker says an operator-owned Traycer copy exists | grounding-rules.md:1 twin-sync note — NOT editable from here; flagged to operator in close-out |
 | warn_only registration model | how the check joins the gate | scripts/final_gate.py:1100-1106 (`run_optional_check("scripts/enforcement/check_spec_convergence.py", "Spec convergence", warn_only=True)`) |
@@ -84,9 +84,16 @@ printing controlled `### pack  (hit: …)` lines — hermetic, no glob re-implem
    Gate: `python3 -m pytest tests/enforcement/test_rule_grounding.py -q` → red for the right reasons.
 2. Implement the check mirroring `check_spec_convergence.py`'s frame (guards, `_say` ASCII print,
    ADVISORY_BUDGET cap, census line with denominator: `N CONVERGED in-window plan(s) examined`).
-   Digest row grammar: first cell = the quote (backtick/bold tolerated), second cell `path[:line]`;
-   integrity = normalised-whitespace substring of the cited FILE (line drift tolerated by design —
-   packs move; the quote is the proof of reading, the line is a courtesy). Gate: suite green.
+   Digest row grammar, stated here not discovered at execution: first cell = the quote — normalise
+   by stripping backticks/bold asterisks/outer straight-or-curly quotes, then collapsing whitespace
+   runs to single spaces (the wrapped-line lesson: a true quote must not flag); second cell = the
+   cited path — first token matching `[\w./-]+` with an optional `:NNN` suffix stripped before the
+   file read; integrity = normalised substring of the cited FILE (line drift tolerated by design —
+   packs move; the quote proves the reading, the line is a courtesy). Gate: suite green.
+2b. `scripts/review_rubric.py:227` — the `### {rel}  (hit: …)` emission already has a programmatic
+   consumer inside `final_gate` (the sensor at review_rubric.py:280-287 parses it back); add the
+   lockstep comment naming BOTH consumers (the sensor + `check_rule_grounding.py`) so a format
+   change cannot silently break completeness grading. Gate: `grep -c check_rule_grounding scripts/review_rubric.py` → 1.
 3. Register in `scripts/final_gate.py` beside the spec-convergence block (:1100 area), same terms:
    `run_optional_check("scripts/enforcement/check_rule_grounding.py", "Rule grounding (plans)",
    warn_only=True)`. Gate: `python scripts/final_gate.py --check --json` → success, and the new
@@ -103,6 +110,13 @@ Files: `commands/_fragments/grounding-rules.md` (v1→v2) · `commands/_sources/
 Interfaces — Consumes: Phase A's finding names + the MATCHED grammar (the fragment text names the
 exact command and the check by name). Produces: nothing downstream.
 
+0. **The inlined twins (pass-1 review catch — the phantom-twin class):** NINE docs/orchestrator files
+   inline the full v1 block (grep-proven: 00-trigger-fabrik.md:27 · 02-core-flows-fabrik.md:24 ·
+   03-tech-plan-fabrik.md:26+:34 · 06-ticket-breakdown-fabrik.md:22 · EVALUATION_CHECKLIST_FOR_EPIC:267 ·
+   mega 00-trigger:79 · mega 03-expand:38 · mega 04-cross-epic:34 · mega EVALUATION_CHECKLIST:203).
+   Update EVERY inlined copy to the v2 body + marker in the same change as the fragment — re-derive
+   the list at execution with `grep -rn "rule-grounding-gate v1" docs/orchestrator/` and require the
+   post-edit count to be 0. (The Traycer copy stays operator-owned — close-out flag only.)
 1. `grounding-rules.md` → marker `rule-grounding-gate v2`, body: run `select_rules.py` for the ACTIVE
    census; **the MUST-READ-FULL set is COMPUTED** — FLOOR + every pack
    `python scripts/review_rubric.py --changed <the surfaces this artifact will touch>` MATCHES —
@@ -146,9 +160,22 @@ exact command and the check by name). Produces: nothing downstream.
 - scripts/enforcement/check_rule_grounding.py
 - tests/enforcement/test_rule_grounding.py
 - scripts/final_gate.py
+- scripts/review_rubric.py
 - commands/_fragments/grounding-rules.md
 - commands/_sources/fabrik-plan-review.md
 - docs/development/plans/2026-08-30-plan-1-decision-ledger.md
+- docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md
+- docs/orchestrator/epic-to-ticket-workflow/02-core-flows-fabrik.md
+- docs/orchestrator/epic-to-ticket-workflow/03-tech-plan-fabrik.md
+- docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md
+- docs/orchestrator/epic-to-ticket-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
+- docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md
+- docs/orchestrator/mega-epic-breakdown/03-expand-epic-files-fabrik.md
+- docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md
+- docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md
+
+Serialization note: plan-1's execution has not started; plan-2 executes FIRST (this session), so the
+plan-1 dogfood edit cannot collide with a live plan-1 lock. Both plans are this agent's.
 
 (CHANGELOG.md, INDEX.md, docs/LESSONS_LEARNT.md are shared-append surfaces outside the scope/lock;
 Phase B names their rows.)
@@ -230,7 +257,9 @@ commands/_sources/fabrik-spec.md
 
 | Pass | scope | method | raised | edits | plan md5 |
 |---|---|---|---:|---:|---|
-| Pass 1 | (to be run) | citation | | | |
+| Pass 1 | full read + 6 dispatched seams; caught the NINE inlined orchestrator twins (grep), the existing programmatic consumer of the rubric format (review_rubric.py:280-287 → lockstep comment step 2b), the unstated digest normalization rules, the plan-1 lock-collision question (serialization note) | citation | 4 | 4 | 51f56e26 → … |
+| Pass 2 | scoped: B0 + File Scope growth + 2b + Context-Ledger row correction, cross-refs | citation | 0 | 0 | … |
+| Pass 3 | closing full sweep — counts re-derived (intake 5, behaviors 7, File Scope 16 paths incl. 9 orchestrator, marker greps re-run: 1 fragment + 9 inlined files + cite-companion untouched; own first count said 17 — the grep said 16, the grep wins) | method: re-derivation | 1 | 1 | stable → CONVERGED |
 
 ## Residual unknowns
 
