@@ -160,9 +160,44 @@ def check_changelog_quality() -> bool:
         print("WARNING: CHANGELOG.md [Unreleased] section has no ### entry")
         return False
 
-    # Check for placeholder text (only in actual entries, not in examples)
+    # Check for placeholder text — SCOPED to the entry being shipped NOW (sibling
+    # finding 01M17VSR): entries are prepended atop [Unreleased] and the hub's section
+    # is 25k lines that never release, so a whole-section substring scan fails every
+    # future run on any HISTORICAL entry quoting TODO/xxx (six such lines live today,
+    # one of them documenting this exact class for check_doc_sync). The staged diff's
+    # added lines are the truest "now"; with nothing staged, the newest (first) ###
+    # entry block is. History is settled — it is not this run's placeholder.
+    staged_added = ""
+    try:
+        _diff = subprocess.run(
+            ["git", "diff", "--cached", "--", "CHANGELOG.md"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+        staged_added = "\n".join(
+            ln[1:] for ln in _diff.splitlines() if ln.startswith("+") and not ln.startswith("+++")
+        )
+    except OSError:
+        pass
+    if staged_added.strip():
+        scan_scope = staged_added
+    else:
+        _entries = re.split(r"(?m)^###\s", unreleased_content)
+        scan_scope = "### " + _entries[1] if len(_entries) > 1 else unreleased_content
     # Remove code blocks and examples from the check
-    content_to_check = re.sub(r"```.+?```", "", unreleased_content, flags=re.DOTALL)
+    content_to_check = re.sub(r"```.+?```", "", scan_scope, flags=re.DOTALL)
+    # An inline code span whose ENTIRE content is a placeholder token is DOCUMENTATION —
+    # the same rule check_doc_sync landed and this check never received (sibling finding
+    # 01M17VSR: an old [Unreleased] entry quoting `<brief title>` false-failed every
+    # standalone mid-stage run in the hub). A span carrying a token WITH a task
+    # (`TODO: wire the OOM alert`) is unfinished work and still fires.
+    content_to_check = re.sub(
+        r"`\s*<?(?:brief title|description|todo|fixme|xxx)>?\s*`",
+        "",
+        content_to_check,
+        flags=re.IGNORECASE,
+    )
     placeholders = ["<Brief Title>", "<description>", "TODO", "FIXME", "xxx"]
     for placeholder in placeholders:
         if placeholder.lower() in content_to_check.lower():
