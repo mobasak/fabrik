@@ -153,3 +153,16 @@ def test_blocked_owes_a_verdict_too(monkeypatch, tmp_path):
                                  "--terminal", "t"])
     rc = _run(monkeypatch, tmp_path, ["blocked", "--command", "fabrik-probe", "--reason", "r"])
     assert rc == 1
+
+
+def test_bare_none_refused_substance_floor():
+    """D-036: a bare 'none' (no surfaces named) is REFUSED at close — semantically
+    identical to the silence the field exists to end. 'none — <surfaces>' passes."""
+    assert cr._feedback_lacks_substance("none")
+    assert cr._feedback_lacks_substance("none.")
+    assert cr._feedback_lacks_substance("N/A")
+    assert cr._feedback_lacks_substance("nothing")
+    assert cr._feedback_lacks_substance("none — x")  # decoration + noise is still bare
+    assert not cr._feedback_lacks_substance("none — swept it")  # terse but real
+    assert not cr._feedback_lacks_substance("none — surfaces exercised: mail.py send seam, rubric derivation")
+    assert not cr._feedback_lacks_substance("filed the stale-twin finding to infra (01M1XXXX)")

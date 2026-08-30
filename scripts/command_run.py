@@ -715,6 +715,23 @@ def _feedback_verdict(text: str | None) -> tuple[str, list[str]]:
     return ("filed" if len(stripped) > 3 else "none"), beats
 
 
+def _feedback_lacks_substance(text: str) -> bool:
+    """D-036 substance floor (operator, 2026-08-30 — the 5th ask, first MECHANICAL one):
+    a bare ``none``/``nothing``/``n/a`` is byte-equivalent to the silence the field
+    exists to end, so the close REFUSES it. A ``none`` passes only when it carries the
+    surfaces-exercised clause (what your "nothing" actually covered); a filing passes
+    on its filing verb. Presence is checked by the caller; this grades SUBSTANCE."""
+    stripped = text.strip()
+    low = stripped.lower()
+    if not re.match(r"^(none|nothing|n/?a)\b", low):
+        return False  # a filing (or prose) — the verdict classifier grades it
+    # everything after the none-token must say SOMETHING real (>= 6 non-space chars —
+    # kills bare/decoration-only nones without rejecting honest terse verdicts like
+    # 'none — swept it'; calibrated against the live fixture corpus, not vibed)
+    rest = re.sub(r"^(none|nothing|n/?a)\b[\s.,:;—–-]*", "", low)
+    return len(re.sub(r"\s", "", rest)) < 6
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # ⚠️ NOT `--session-*`: argparse resolves abbreviations, so a second flag sharing the
     # `--sess` prefix makes the long-standing `--sess <id>` spelling AMBIGUOUS and every
@@ -1308,6 +1325,20 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "  Genuinely nothing: --feedback 'none — <the surfaces you exercised>'\n"
             "`none` is a valid verdict and is counted separately; silence is not a verdict. "
             "See commands/_fragments/close-feedback.md."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    if _feedback_is_required(rec) and _feedback_lacks_substance(
+        str(getattr(args, "feedback", "") or "")
+    ):
+        msg = (
+            f"REFUSED — a bare 'none' is byte-equivalent to the silence this field exists to end "
+            f"(D-036 substance floor). Close /{live} with either:\n"
+            "  a filing:          --feedback 'filed <what> to <infra|fleet|intel> (<id>)'\n"
+            "  a substantive none: --feedback 'none — surfaces exercised: <what your run actually "
+            "touched of the machinery>'\n"
+            "Name the surfaces so the reader knows what your 'nothing' covers."
         )
         sys.stderr.write(f"[command_run] {msg}\n")
         print(msg)

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — feedback substance floor mandatory in all 31 commands (D-036) (2026-08-30)
+
+- command_run.py refuses a bare "none" at close (surfaces-exercised clause required; threshold calibrated against live fixtures); close-feedback fragment re-rendered box-wide; 118 command_run tests green incl. new boundary cases.
+
 ### Added — the inter-agent mail contract, advisory (D-035) (2026-08-30)
 
 - 5W1H + factual-WHY + SYSTEMIC mandatory on finding/request/upstream-feedback; reasoning modes (abductive/inductive/deductive/counterfactual) where applicable; mail.py warns on gaps (4 red-first tests + live proof); fabrik-mail.md contract section; close-feedback body template re-rendered box-wide.

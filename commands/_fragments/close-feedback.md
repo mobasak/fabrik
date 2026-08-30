@@ -28,9 +28,11 @@ This is not ceremony bolted onto the exit: it is the only moment you still hold 
 to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in
 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands).
 
-**"none" is a valid verdict and it must be STATED, never left as silence.** Silence and "I found
-nothing" are byte-identical to the reader, and only one of them is information. Name the surfaces you
-actually exercised so the reader knows what your "none" covers.
+**"none" is a valid verdict ONLY with its surfaces named — a BARE "none" is now REFUSED by the
+parser (D-036, the operator's 5th ask made mechanical).** Write `none — surfaces exercised: <what
+your run actually touched of the machinery>`; silence and a bare "none" are byte-identical to the
+reader, and the close will not accept either. This step is MANDATORY on every run of every command —
+the record stays `running` (and the Stop hook blocks the turn) until a substantive verdict lands.
 
 ### File it when this run hit any of these
 
