@@ -177,7 +177,10 @@ today's ranked reviewers (e.g. to justify a pick or spot a benchmark), read that
 since moved past — that drift is exactly the bug this points-at-the-table rule prevents.
 
 YOU (the dispatching session) remain the refute/merge/decide-clean and
-prove-and-fix authority — the finders only report. (If neither mechanism is available, run genuinely
+prove-and-fix authority — the finders only report. When adjudicating a caller/impact claim
+("nothing else calls this", "every consumer handles None"), derive the call-site list with the
+`serena` MCP (`find_referencing_symbols` — real references, not name collisions) before ruling;
+`Grep` remains the tool for strings, config and prose the language server doesn't index. (If neither mechanism is available, run genuinely
 independent passes and do not let a later pass narrow an earlier one.) Cover, across the finders: logic errors, off-by-one,
 null/empty/None handling, idempotency, effective-dating/ordering, fail-open vs
 fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup,

@@ -12,7 +12,7 @@ see all of it. Adding a server without its row here is the defect this doc exist
 
 ## Config topology — and the rotation law
 
-The roster is defined in **five** `.claude.json` files, all currently identical (**17 servers** since 2026-08-30 — context7 retired):
+The roster is defined in **five** `.claude.json` files, all currently identical (**16 servers** since 2026-08-30 — context7 + github retired):
 
 | File | Role |
 |---|---|
@@ -42,7 +42,7 @@ cache-prune (it re-downloads weekly for no gain). A window reload reconnects on 
 
 ---
 
-## The servers (17 active + 1 retired)
+## The servers (16 active + 2 retired)
 
 Weight = measured RSS on 2026-08-30 across live processes (per-window cost scales with window count).
 
@@ -65,10 +65,11 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED 2026-08-30 (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
 | pubchem | chemistry database lookups | chemical-commerce content (wef/bhdtrade) | light | ON wef only |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt` service) | dossier/research: transdoc | service | ON transdoc only |
-| serena | LSP semantic code navigation | large codebases (hub, trade-intelligence, youtube) | light idle | operator call — useful, but a per-window process everywhere |
+| serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED 2026-08-30 (D-021: adopt-and-wire)**. Root cause of prior zero usage was zero corpus wiring, not quality; now named in plan-after-chat's grounding phase + review's adjudication. Measured trial: still unused after wiring = a retirement case with evidence |
 
-**Net effect of the recommended split:** a typical headless API repo drops 18 → **3** servers
-(session-recall + exa + brave-search); the full roster survives only where each server is consumed.
+**Net effect of the split as RULED:** a typical headless API repo drops 16 → **6** servers (the
+universal set: session-recall + exa + brave-search + firecrawl + postgres-pro + serena); the full
+roster survives only hub-class (hub + fabrik-lib, D-015).
 
 ---
 
@@ -88,25 +89,26 @@ phantom arm (the wef 01M17XXF defect class).
 | `brave-search` | named in the same grounding orders (6 commands) — every repo runs these |
 | `firecrawl` | RULED universal 2026-08-30 (D-013, "no exception"); its crash was a corrupted npx-cache entry, fixed same day |
 | `postgres-pro` | RULED universal 2026-08-30 (D-020) — operator: "fix postgres-pro and wire it all type of projects"; overrides the shape-driven proposal |
+| `serena` | RULED universal 2026-08-30 (D-021: adopt-and-wire) — corpus now names it for symbol-level grounding (plan-after-chat + review); unused-after-wiring = measured retirement case |
 
 (The old "swap github/firecrawl out via corpus edits" recommendation is resolved: `github` RETIRED
 end-to-end per D-014 — corpus now teaches the `gh` CLI; `firecrawl` went the other way, universal
 per D-013.)
 
-| Scaffold type | Beyond the universal 5 | Evidence |
+| Scaffold type | Beyond the universal 6 | Evidence |
 |---|---|---|
-| `python-api` | — (universal 5 only) | no command names anything type-specific for headless |
-| `python-api-gpu` | — (universal 5 only) | as python-api |
-| `node-api` | — (universal 5 only) | as python-api |
-| `file-api` | — (universal 5 only) | as python-api |
-| `file-worker` | — (universal 5 only) | as python-api |
+| `python-api` | — (universal 6 only) | no command names anything type-specific for headless |
+| `python-api-gpu` | — (universal 6 only) | as python-api |
+| `node-api` | — (universal 6 only) | as python-api |
+| `file-api` | — (universal 6 only) | as python-api |
+| `file-worker` | — (universal 6 only) | as python-api |
 | `saas-skeleton` | playwright · chrome-devtools · shadcn · magicui | fabrik-gui declares `mcpServers: [playwright, shadcn, chrome-devtools]`; /fabrik-ui-design drives the shadcn MCP by name; magicui = the operator's SaaS pair |
 | `chrome-extension` | playwright · chrome-devtools | fabrik-gui dispatches here (MV3 loop via bundled Chromium) |
 | `mobile-app` | maestro · mobile-mcp | the Build-Verification Loop's mobile branch: "mobile (RN): Maestro MCP + Mobile Next MCP" (plan-after-chat/execute-plan/user-test) + 80-mobile pack |
 | `desktop-app` | playwright · chrome-devtools · shadcn² | Electron web UI → fabrik-gui's set; ²shadcn when the design system is shadcn-based (ui-design: "when the system is shadcn-based") |
 | `static-site` | playwright · chrome-devtools · shadcn² | rendered-site design-review/user-test via fabrik-gui |
 | `docusaurus` | playwright · chrome-devtools | reader-journey certification via fabrik-gui |
-| `wordpress` | — (universal 5 only) | legacy, out of fabrik |
+| `wordpress` | — (universal 6 only) | legacy, out of fabrik |
 
 ¹ (retired footnote) postgres-pro rode `shape.needs_database` until D-020 made it universal.
 ² only when the repo's frozen design system is shadcn-based; magicui stays saas-only EXCEPT the wef
@@ -119,10 +121,10 @@ tooling — supersedes the magicui saas-only boundary for wef ONLY, it stands el
 +media-engine (firecrawl now universal per D-013) · brand-identiy-creator, youtube → +media-engine ·
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
 here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
-vendored-client example prose, verified) (+serena, operator call).
+vendored-client example prose, verified).
 
-**Headcount effect (post-D-020):** headless types run **5 servers instead of 16**; web-GUI types
-7-9; mobile-app 7.
+**Headcount effect (post-D-020):** headless types run **6 servers instead of 16**; web-GUI types
+8-10; mobile-app 8.
 
 ## Playwright — the ruling in full (D-015 + D-016, operator-saved verbatim rationale)
 

@@ -142,6 +142,10 @@ Treat every intended step as unproven until verified against the real code/schem
 
 - For each file/function/symbol the plan will touch, **OPEN it and read the actual lines** — capture the
   real `path:line`. A path that looks right is not grounding; a column name is not its values (read them).
+  **Symbol-level questions go through the `serena` MCP first** — `find_symbol` (the definition body
+  without reading the whole file), `find_referencing_symbols` (every real call-site, where a grep of a
+  common name drowns in false hits) — with `Grep` as the fallback and the tool for prose/config/cross-file
+  strings the language server doesn't index.
 - For each table/field/migration, confirm it exists with the stated type/constraints in the real schema.
 - For each external dependency or data source, **ground it to 100% truth NOW — never infer from training.**
   Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`); if unresolved, escalate to **live external
