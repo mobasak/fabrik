@@ -63,6 +63,37 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 
 ---
 
+## Per-scaffold-type default sets (the inverse view)
+
+**Base trio — every type, every repo:** `session-recall` + `context7` + `exa`.
+Derivation per type follows what its pipeline actually exercises: UI-bearing types run
+`/design-review` + `/fabrik-user-test` (browser needed); DB-backed shapes freeze data contracts and
+debug live schemas; headless types certify via `/fabrik-service-test` (no browser, ever).
+
+| Scaffold type | MCPs beyond the trio | Why |
+|---|---|---|
+| `python-api` | postgres-pro¹ | headless; DB inspection at data-contract/debug time |
+| `python-api-gpu` | postgres-pro¹ | headless inference; models reached via APIs, no MCP involved |
+| `node-api` | postgres-pro¹ | as python-api |
+| `file-api` | postgres-pro¹ | file-processing APIs are often DB-less — ¹only when `shape.needs_database` |
+| `file-worker` | postgres-pro¹ | headless worker; same DB conditionality |
+| `saas-skeleton` | playwright · shadcn · magicui · postgres-pro | full GUI: build-verification loop + design-review + the operator's MIT-B UI pair + DB |
+| `chrome-extension` | playwright | bundled-Chromium side-load testing (the packs mandate it) |
+| `mobile-app` | mobile-mcp · maestro | device automation + UI test flows (maestro only here — heaviest server) |
+| `desktop-app` | playwright | Electron UI verification |
+| `static-site` | playwright | rendered-site design-review + user-test |
+| `docusaurus` | playwright | reader-journey certification |
+| `wordpress` | — (trio only) | legacy, out of fabrik — no active development |
+
+¹ `postgres-pro` rides the spec's `shape.needs_database: true`, not the type — a DB-less `file-api`
+doesn't get it.
+
+**Per-REPO overlays (content-driven, never type-driven):** wef → +firecrawl +pubchem +media-engine
++brave-search · brand-identiy-creator, youtube → +media-engine · transdoc → +fabrik-citation-verifier ·
+the hub → +grafana +brave-search (+serena, operator call for large codebases) · any research-heavy
+repo → +brave-search. `github` stays OFF everywhere (`gh` CLI covers it); `chrome-devtools` is
+enabled per debugging session, never by default.
+
 ## Status of the split (decision pending)
 
 Proposed 2026-08-30, operator decision pending: trim the user-level roster to the universal trio;
