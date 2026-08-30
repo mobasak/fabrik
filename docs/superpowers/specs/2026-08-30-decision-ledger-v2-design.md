@@ -46,10 +46,11 @@ personas contract's receiver check: no external party is touched.)
 | I6 | "with why, what, where, who, when" | IN — the frozen row shape | § Entry format |
 | I7 | "when i ask something, about a build, feature, decision i want a full answer not struggling ais around to find it" | IN — the full-answer bar (what+why+where in one lookup; builds and features are queryable, not only rulings) | § Query duty · § Success criteria |
 | I8 | "why did you decide to create decisions.md? but not db, or jsonl file?" (approval dialogue, 2026-08-30) | IN — JSONL adjudicated as a named rejected alternative | § Approaches 5 · § Storage decision |
-| I9 | "what will happen to the file if it grows too much?" (approval dialogue, 2026-08-30) | IN — measured escalation triggers + v2 options | § Storage decision (hybrid para) |
+| I9 | "what will happen to the file if it grows too much?" (approval dialogue, 2026-08-30) | IN — measured escalation triggers + v2 options | § Lifecycle |
 | I10 | "does it take into account roles? consumers of the built?" (approval dialogue, 2026-08-30) | IN — consumer roles enumerated; who-cell is role attribution; subagent/pipeline pen rule added | § Personas · § Entry format 2 · § Write duty 5 |
+| I11 | "where are we writing where to document this implementation? … are that kind of things written in specs or in plans?" (approval dialogue, 2026-08-30) | IN — the WHERE-documented answer is in the artifact, not only in chat | § Documentation landing sites |
 
-Intake: 10 items — 10 IN, 0 OUT-OF-SCOPE, 0 ASK.
+Intake: 11 items — 11 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 ## The motivating failure (why this exists)
 
@@ -334,12 +335,26 @@ CHANGELOG). Rotation-safe: nothing keyed to account dirs; plain files in each re
 ## Out of scope (each with its destination)
 
 - **Postgres/hybrid backend + semantic retrieval** → rejected above; revisit triggers recorded in
-  the backlog row (§ Storage decision).
+  the backlog row (§ Lifecycle).
 - **Per-decision ADR files** → rejected (§ Approaches 2); the row + WHERE links carry the load.
 - **Backfilling history** → field practice says don't (Docsio, cited); only this week's hub
   decisions seed the hub ledger — wrong-memory rows are worse than absent rows.
 - **A web UI / non-engineer browsing layer** (log4brains class) → no audience; the operator reads
   through agents. If that changes, the whychose outgrow signal governs.
+
+## Documentation landing sites (WHERE the implementation gets documented)
+
+- **`docs/reference/decision-ledger.md`** (hub, new) — the dedicated operational reference per the
+  Doc Sync Matrix's new-subsystem row: how to query, how to append, the supersede rule, the
+  escalation triggers. NOT `docs/workstation/` — the ledger is fleet governance, not box-local;
+  the one box-topology dependency (the /opt-wide helper) gets a single line saying so.
+- **`INDEX.md` + `docs/README.md` rows** for the new doc and helper — same change, gate-enforced.
+- **Each repo's `DECISIONS.md` self-documents** — its header carries the append rule and query
+  command, so an agent landing on it cold needs no external doc.
+- **The governance clauses** (both CLAUDE.md files + the Doc Sync Matrix row) are the binding text —
+  they are the write/query duties' home, not a description of them.
+- **`docs/CHANGELOG.md` + `docs/LESSONS_LEARNT.md`** entries ride the implementing plan's commits
+  as usual.
 
 ## Beat split
 
