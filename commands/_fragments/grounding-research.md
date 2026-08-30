@@ -9,5 +9,5 @@
 Alternatives` exist (mega-epic path), CONSUME them — do NOT re-research settled verdicts. If they do
 NOT exist (standalone run), run the N3k ladder HERE before any tech selection: owned services
 (`scripts/service_catalog.json`) → repo docs → `/opt/fabrik-lib/README.md` vendor ladder → LIVE
-research (exa / brave / firecrawl / official-docs WebFetch, plus GitHub for a dependency's real latest release).
+research (exa / brave / firecrawl / official-docs WebFetch, plus GitHub for a dependency's real latest release). **A mandated arm whose server is dead/absent is a FIX-FIRST event (D-033/D-041) — diagnose or escalate and SAY SO; silently skipping the arm is the absorb-the-friction defect.**
 Cite URL + fetch date on every external claim, and emit both artifacts.

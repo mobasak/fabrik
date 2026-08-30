@@ -103,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", default=".", help="repo root (default: cwd)")
     ap.add_argument("--timeout", type=int, default=8)
+    ap.add_argument("--cache-out", help="also write {ts, report} JSON here (the mcp_watch hook's cache)")
     args = ap.parse_args(argv)
     repo = Path(args.repo)
     if not (repo / ".mcp.json").is_file():
@@ -113,6 +114,14 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # advisory: a broken probe never blocks anyone
         print(f"mcp-health: probe failed open ({type(exc).__name__}) — no verdict")
         return 0
+    if args.cache_out:
+        try:
+            import time as _time
+
+            Path(args.cache_out).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.cache_out).write_text(json.dumps({"ts": _time.time(), "report": report}) + "\n")
+        except OSError:
+            pass  # cache write is best-effort; the printed report stands
     bad = {n: v for n, v in report.items() if v != "CONNECTED"}
     for name, verdict in sorted(report.items()):
         print(f"{name}: {verdict}")

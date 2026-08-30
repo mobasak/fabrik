@@ -234,32 +234,17 @@ def test_sqlalchemy_driver_suffix_normalized(tmp_path, defs_file, monkeypatch):
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/adb"
 
 
-def test_catalog_placeholders_overlaid_from_later_sources(tmp_path, monkeypatch):
+def test_catalog_placeholders_overlaid_from_later_sources(tmp_path):
     """Push-protection regression 2026-08-30: the committed catalog carries ${VAR}
-    placeholders only; real env values overlay from the later gitignored sources."""
+    placeholders only; _load_defs overlays real values from the LATER chain sources
+    (here: the live gitignored hub .mcp.json, which carries grafana's real env)."""
     cat = tmp_path / "cat.json"
     cat.write_text(json.dumps({"mcpServers": {
-        "grafana": {"command": "docker", "args": [], "env": {"GRAFANA_URL": "${GRAFANA_URL}"}}}}))
-    donor = tmp_path / "donor.json"
-    donor.write_text(json.dumps({"mcpServers": {
-        "grafana": {"command": "docker", "args": [], "env": {"GRAFANA_URL": "https://real.example"}}}}))
-    monkeypatch.setattr(emitter.Path, "home", classmethod(lambda cls: tmp_path / "nohome"))
-    defs = emitter._load_defs.__wrapped__(None) if hasattr(emitter._load_defs, "__wrapped__") else None
-    # direct chain test: catalog first, donor second
-    import types
-    real_isfile = emitter.Path.is_file
-    order = [cat, donor]
-    loaded = None
-    servers_chain = [json.loads(p.read_text())["mcpServers"] for p in order]
-    merged = json.loads(json.dumps(servers_chain[0]))
-    for donor_servers in servers_chain[1:]:
-        for name, entry in merged.items():
-            env = entry.get("env") or {}
-            dn = (donor_servers.get(name) or {}).get("env") or {}
-            for k, v in env.items():
-                if isinstance(v, str) and v.startswith("${") and k in dn:
-                    env[k] = dn[k]
-    assert merged["grafana"]["env"]["GRAFANA_URL"] == "https://real.example"
+        "grafana": {"command": "docker", "args": [],
+                    "env": {"GRAFANA_URL": "${GRAFANA_URL}"}}}}))
+    defs = emitter._load_defs(str(cat))
+    got = defs["grafana"]["env"]["GRAFANA_URL"]
+    assert not got.startswith("${"), "placeholder must be overlaid from the gitignored chain"
 
 
 def test_committed_catalog_carries_no_token_shapes():
