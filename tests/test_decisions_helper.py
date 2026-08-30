@@ -89,3 +89,21 @@ def test_cli_runs_standalone(tmp_path):
         timeout=30,
     )
     assert r.returncode == 0 and "D-001" in r.stdout, (r.returncode, r.stdout, r.stderr)
+
+
+def test_check_flags_a_duplicate_row_id_and_exits_1(tmp_path, capsys):
+    """Two rows minted with the same D-NNN (concurrent sessions, stale max-id reads —
+    live case: two D-041s, 2026-08-30) make every `supersedes D-NNN` ambiguous;
+    --check must name the collision and fail."""
+    _repo(tmp_path, "hub", (
+        "# Decisions\n\n"
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-002 | 2026-08-30 | a | first | why | here |\n"
+        "| D-002 | 2026-08-30 | b | second | why | there |\n"
+        "| D-001 | 2026-08-30 | a | base | why | here |\n"
+    ))
+    rc = dec._check(tmp_path)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "DUPLICATE" in out and "D-002" in out

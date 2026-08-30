@@ -10,10 +10,11 @@ fleet-wide query the duty names.
 Usage:
     python3 scripts/decisions.py <term>            # case-insensitive substring over all ledgers
     python3 scripts/decisions.py <term> --root /opt
-    python3 scripts/decisions.py --check           # the ONE mechanical check: every
+    python3 scripts/decisions.py --check           # mechanical integrity: every
                                                    # `supersedes D-NNN` pointer must resolve
-                                                   # to an existing row id in the same ledger;
-                                                   # exit 1 on a dangling pointer
+                                                   # to an existing row id in the same ledger,
+                                                   # and no id appears on two rows;
+                                                   # exit 1 on a dangling pointer or duplicate
 
 Output: `repo · D-NNN · when · who · what · where` per matching row. A repo without a ledger is
 silently skipped (adoption is rolling). Query always exits 0; only --check has a failing exit.
@@ -76,8 +77,10 @@ def _query(root: Path, term: str) -> None:
                 _say(f"{repo} · {rid} · {padded[1]} · {padded[2]} · {padded[3]} · {padded[5]}")
                 hits += 1
     if not hits:
-        _say(f"no ledger row matches {term!r} — the wider hunt is legitimate now "
-             "(and its answer belongs in a new row)")
+        _say(
+            f"no ledger row matches {term!r} — the wider hunt is legitimate now "
+            "(and its answer belongs in a new row)"
+        )
 
 
 def _check(root: Path) -> int:
@@ -85,14 +88,27 @@ def _check(root: Path) -> int:
     for repo, path in _ledgers(root):
         rows = _rows(path)
         ids = {rid for rid, _ in rows}
+        seen: set[str] = set()
+        for rid, _cells in rows:
+            # Concurrent sessions minting from stale max-id reads produce two rows with one
+            # id (live case: two D-041s, 2026-08-30) — every `supersedes` to it is ambiguous.
+            if rid in seen:
+                _say(
+                    f"DUPLICATE: {repo} has more than one {rid} row in {path} — "
+                    "renumber the later-minted row to the next free id"
+                )
+                bad += 1
+            seen.add(rid)
         for rid, cells in rows:
             for target in SUPERSEDES_RE.findall(" ".join(cells)):
                 if target not in ids:
                     _say(f"DANGLING: {repo} {rid} supersedes {target} which has no row in {path}")
                     bad += 1
     if bad:
-        _say(f"-> {bad} dangling supersede pointer(s) — a superseded row is never deleted; "
-             "restore it or fix the pointer")
+        _say(
+            f"-> {bad} ledger integrity defect(s) — a superseded row is never deleted "
+            "(restore it or fix the pointer); a duplicated id gets renumbered"
+        )
         return 1
     return 0
 
@@ -101,8 +117,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Query every repo's docs/DECISIONS.md at once.")
     parser.add_argument("term", nargs="?", help="case-insensitive substring to find")
     parser.add_argument("--root", default="/opt", help="fleet root (default: /opt)")
-    parser.add_argument("--check", action="store_true",
-                        help="validate supersede pointers; exit 1 on a dangling one")
+    parser.add_argument(
+        "--check", action="store_true", help="validate supersede pointers; exit 1 on a dangling one"
+    )
     args = parser.parse_args(argv)
     root = Path(args.root)
     if args.check:

@@ -681,7 +681,9 @@ _NEXT_ROUND_RE = re.compile(r"^\s*NEXT:[^\n]*?\b(?:round|pass)\s*#?\d+", re.I | 
 #   legitimately runs past the 600-char tail cut.
 # - LOCAL (the line carrying the stall match): human-gate wording exempts the
 #   stall it actually describes, never the whole message.
-_GATE_EXEMPT_GLOBAL_RE = re.compile(r"\bBLOCKED:", re.I)
+# (?<![\w-]) not \b: a hyphenated prefix ("pre-blocked:") is prose, not an escalation
+# header, and \b matches at the - → B transition (review finding 2026-08-30).
+_GATE_EXEMPT_GLOBAL_RE = re.compile(r"(?<![\w-])BLOCKED:", re.I)
 # SELF-NAMING gates — these phrases ARE the justification (the two sanctioned human gates,
 # and work whose owner is explicitly not this session). They exempt on their own.
 _GATE_EXEMPT_NAMED_RE = re.compile(

@@ -1253,3 +1253,23 @@ def test_tmp_path_helpers_keep_plain_ids_stable() -> None:
 def test_distinct_hostile_ids_get_distinct_tmp_files() -> None:
     assert hook._counter_path("a.b") != hook._counter_path("a b")
     assert hook._baseline_path("a.b") != hook._baseline_path("a b")
+
+
+# --- BLOCKED-escalation exemption regex (review 2026-08-30, manifesto-binding) ---
+
+
+def test_blocked_exemption_does_not_fire_on_hyphenated_prefix() -> None:
+    """`pre-blocked:` in prose (a CHANGELOG bullet an agent may echo) must NOT arm the
+    whole-message BLOCKED exemption — only a real `BLOCKED:` escalation header does."""
+    assert not hook._GATE_EXEMPT_GLOBAL_RE.search(
+        "fabrik-lib mailed to adopt the ledger duty (pre-blocked: no DECISIONS.md there)."
+    )
+
+
+def test_blocked_exemption_still_fires_on_real_escalations() -> None:
+    for msg in (
+        "BLOCKED: missing infra — searched: docs — missing: creds",
+        "## BLOCKED: NON-CONVERGENCE",
+        "the run ends here. blocked: 3 consecutive same-test failures",
+    ):
+        assert hook._GATE_EXEMPT_GLOBAL_RE.search(msg), msg

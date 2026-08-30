@@ -76,11 +76,11 @@ what makes an in-flight command visible and un-abandonable.
   in a new row. NOT a decision: routine fixes, refactors, doc edits — those are CHANGELOG's beat.
   **Classify at mint time — reversible or ONE-WAY** (the Operating Manifesto's Phase-0 triage;
   canonical: `/opt/fabrik/docs/reference/operating-manifesto.md` — box-local absolute path, works
-  from every repo): a ONE-WAY decision (structural, public, expensive to unwind) grows its row with
-  the manifesto § Binding field block — `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` —
-  in the same change; and when a gate cannot close within budget, the most-reversible option wins
-  by default (Invariant 3 — the decision-level sibling of the three BLOCKED cases, which govern
-  execution halts).
+  from every repo): a ONE-WAY decision (structural, public, expensive or impossible to unwind)
+  grows its row with the manifesto § Binding field block —
+  `CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT` — in the same change; under ambiguity
+  the default is the most-reversible option (manifesto Invariant 3 — the decision-level sibling of
+  the three BLOCKED cases, which govern execution halts).
 - **⚠️ READ BEFORE YOU EDIT — never append blindly to a command, rule, or doc file.** Open the file
   and find where the subject already lives BEFORE writing: the overwhelming majority of "add a rule
   about X" edits belong INSIDE an existing section, not bolted onto the end. An append that restates
@@ -267,10 +267,10 @@ These rules are **universal** — every repo carries them, hub and project alike
 enforced automatically: your `CLAUDE.md` is byte-synced from the hub template and `check_synced_unmodified.py`
 blocks any local drift, so you cannot fall behind. (A *sync-excluded* repo like `fabrik-lib`, which
 hand-maintains its governance, instead runs `check_governance_drift.py` against the hub's
-`/opt/fabrik/CLAUDE.md`.) The eight, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** ·
-**explicit pathspecs only** · **Agent Provenance Trailers** · **NEVER `--force`** · **EXECUTE the real
-check** · **A bounded search returns "not found in N"** · **its row in `docs/DECISIONS.md` in the SAME
-change**. Never reword an anchor in place — drift
+`/opt/fabrik/CLAUDE.md`.) The eight, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** · **explicit pathspecs only** ·
+**Agent Provenance Trailers** · **NEVER `--force`** · **EXECUTE the real check** ·
+**A bounded search returns "not found in N"** · **its row in `docs/DECISIONS.md` in the SAME change**.
+Never reword an anchor in place — drift
 detectors key on the exact substring.
 
 ## Past sessions are searchable (session-recall)
