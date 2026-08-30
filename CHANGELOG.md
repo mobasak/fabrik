@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Plan 3: the MCP split implementation, CONVERGED (2026-08-30)
+
+- docs/development/plans/2026-08-30-plan-3-mcp-split.md — per-repo .mcp.json emission + rotation-safe user-level trim + subagent reachability; reviewed across 7 seams, both graders green.
+- check_rule_grounding.py: truncation marker no longer claims a direct run shows more (it never did — advisory budget).
+
 ### Fixed — quota governor reads single-key VPS headroom (deploy blocker) (2026-08-30)
 
 - **What:** the governor read `claude_rotate.py --status --json`, whose fleet payload only lights up

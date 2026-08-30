@@ -262,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
         budget -= len(line) + 1
         emitted += 1
     if emitted < len(findings):
-        _say(f"  ... {len(findings) - emitted} more finding(s) - run the check directly")
+        _say(f"  ... {len(findings) - emitted} more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed")
     _say(f"  -> {REMEDY}")
     return 0
 
