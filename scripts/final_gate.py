@@ -1105,6 +1105,19 @@ def run_consistency_checks(
         )
     )
 
+    # Rule grounding. Same advisory terms as its siblings: always exits 0, warn_only, silent where
+    # no CONVERGED in-window plan exists. Date-gated (>= 2026-08-30) so nothing is retro-graded.
+    # Grades the COUNTABLE subset of the rule-grounding gate — per-pack verbatim quotes + rubric-
+    # MATCHED completeness; reading quality stays with /fabrik-plan-review (operator ruling
+    # 2026-08-30: partial rule-reading is the drift mechanism).
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_rule_grounding.py",
+            "Rule grounding (plans)",
+            warn_only=True,
+        )
+    )
+
     # Close-out feedback duty. Same terms as its three advisory siblings above: tier-independent,
     # always exits 0 by contract, warn_only so a finding never reddens ~46 synced repos. Silent when
     # no run closed in the window. Baseline at landing: 11 closes, 11 without a verdict — which is

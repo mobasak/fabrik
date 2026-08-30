@@ -224,6 +224,9 @@ def build_rubric(changed: list[str], workflow: str | None, root: Path) -> str:
             if not matched_any:
                 out.append("\n## MATCHED — packs whose globs hit the changed paths")
                 matched_any = True
+            # ⚠️ MACHINE-READ format — two programmatic consumers parse this exact line shape:
+            # the sensor below (:~287) and check_rule_grounding.py::MATCHED_LINE_RE (completeness
+            # grading). Changing `### {rel}  (hit:` silently breaks both — keep in lockstep.
             out.append(f"\n### {rel}  (hit: {', '.join(sorted(set(hits))[:3])})")
             lines = _mandate_lines(body)
             out.extend(lines)
