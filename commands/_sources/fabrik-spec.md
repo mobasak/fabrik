@@ -261,7 +261,13 @@ interfaces — for each you can state *what it does / how you use it / what it d
   it): justify it or cut it.
 - The spec MUST also contain: **Goal** · **Why this exists** (the motivating failure or need, concrete —
   what breaks/costs today, and HOW the chosen approach resolves exactly that; a spec that cannot point at
-  the pain it removes is scaffold gravity at document scale) · **Chosen approach** · **Rejected
+  the pain it removes is scaffold gravity at document scale. **Market-facing specs additionally name the
+  primary persona's ADOPTION FORCES by id** from
+  `/opt/fabrik/docs/reference/product-adoption-forces.md` — the 32 `AF-n` forces under the JTBD
+  push/pull-vs-anxiety/habit umbrella — e.g. *"rides AF-1 triggered by AF-23; blocked mainly by
+  AF-17"*: naming the force is what later drives channel choice, and a per-persona naming beats a
+  per-product one (buyer/user/team often ride different forces). Internal/infra specs cite forces
+  only when a real adoption question exists — an internal tool still fights AF-17 habit) · **Chosen approach** · **Rejected
   alternatives** (+ why — and the enumeration MUST cover the obvious adjacent variants of the chosen
   shape: the other storage format, per-X vs single-X, buy vs build; **an alternative the operator has to
   ask about is a spec defect**, live 2026-08-30: "why not db, or jsonl file?" — JSONL was never
