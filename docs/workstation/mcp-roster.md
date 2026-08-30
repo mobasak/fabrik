@@ -122,6 +122,27 @@ vendored-client example prose, verified) (+serena, operator call).
 **Headcount effect:** headless types run **4-5 servers instead of 18**; web-GUI types 7-9;
 mobile-app 6.
 
+## Chronic non-connectors — root-caused 2026-08-30 (distinct from the herd outage)
+
+Three servers were NOT herd victims; they are broken independently, each probed to its exact error:
+
+| Server | Root cause (verbatim evidence) | Fix direction |
+|---|---|---|
+| firecrawl | `npx firecrawl-mcp` CRASHES at startup on this Node: `FSLegacyMainResolve` ESM resolve error — never connected in any session for days (also wef 01M17XXF) | strengthens the corpus edit: swap its 5 fallback refs to orchestrator `curl`, drop the server |
+| postgres-pro | `uvx postgres-mcp` crashes: `No module named 'mcp.server.fastmcp'` — the mcp 2.x SDK renamed FastMCP; postgres-mcp is v1 code | pin `uvx --with 'mcp<2' postgres-mcp` in the roster (via the rotator sync) |
+| fabrik-citation-verifier | config points at `http://127.0.0.1:8033/mcp` (type: http) but only the REST API on :8032 is up — :8033 answers nothing (curl 000) | the owning repo restarts its MCP endpoint or the roster repoints; connected this morning, so the endpoint died today |
+
+`maestro` is a fourth, milder case: slow cold start (JVM), flappy across reloads — works once warm.
+
+## Our OWN crawling MCP — built and never wired (found 2026-08-30)
+
+`/opt/apidoccreator` (docs-registry, port 8302) is the box's own crawling/docs service: registers any
+docs URL, auto-detects OpenAPI/llms.txt/sitemap/HTML, scrapes, LLM-generates + chunks, serves via
+REST — and ships its own MCP server (`docs-mcp` console script → `src/docs_registry/mcp_server.py`,
+4 tools: list_docs · get_doc · search…). It is NOT in the 18-server roster — never connected to any
+Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replacement for
+already-registered sources; decision rides the same split.
+
 ## Status of the split (decision pending)
 
 Proposed 2026-08-30, operator decision pending: trim the user-level roster to the universal trio;
