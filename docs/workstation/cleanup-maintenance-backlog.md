@@ -1,6 +1,6 @@
 # Workstation Cleanup & Maintenance Backlog
 
-**Date:** 2026-08-03
+**Date:** 2026-08-03 · **Validated live:** 2026-08-30 (all three automation pieces proven running; numbers below refreshed)
 **Status:** 🟡 OPEN ITEMS — the big cleanup is done (~90 GB reclaimed); this tracks what's left.
 **Affects:** Local WSL2 dev box (Ubuntu-24.04) + its Windows host. NOT the VPS fleet.
 
@@ -18,8 +18,9 @@
 
 ## A. Disk reclaim — optional / deferred
 
-- **A1. WSL `ext4.vhdx` compaction (~81 GB dead air).** File is 358 GB
-  (`C:\Users\user\AppData\Local\wsl\{4719c2ec-…}\ext4.vhdx`); real in-guest usage 277 GB.
+- **A1. WSL `ext4.vhdx` compaction (~200 GB dead air as of 2026-08-30).** File is now 555 GB
+  (`C:\Users\user\AppData\Local\wsl\{4719c2ec-…}\ext4.vhdx`); real in-guest usage 355 GB
+  (was 358 GB physical / 277 GB used on 2026-08-03 — the gap widened ~120 GB in a month).
   `diskpart compact` and `Optimize-VHD -Mode Full` **both confirmed ineffective** — WSL2 does not
   propagate `fstrim` discard down to deallocate vhdx blocks, so nothing to reclaim. The **only** reliable
   method is a full **`wsl --export` → `--unregister` → `--import`** rebuild (tar → `D:\`).
@@ -29,8 +30,8 @@
 
 - **A2. Stopped test containers — ✅ DONE (2026-08-03).** No stopped containers remain: `wpf-test-*` and
   `tojlo-*` are gone; `crm-dev-postgres` and `ti-dev-pg` turned out to be live dev stacks and are running.
-  Residual image slack is now 6.4 GB reclaimable of 17.1 GB (43 images, 7 active) — `docker image prune -f`
-  runs weekly inside `cache-prune.sh`, so no manual action.
+  Residual image slack 2026-08-30: 12.5 GB reclaimable of 17.9 GB (25 images, 8 active) — the weekly
+  prune removes DANGLING only by design, so tagged-unused images accumulate; still no manual action owed.
 
 - **A3. nvm `v22.22.2` (412 MB).** No longer hosts any MCP server — every MCP in `~/.claude.json` and in
   Claude Desktop's config runs under `/usr/bin/node`, `npx`, or a venv. The one remaining consumer is the
@@ -54,6 +55,13 @@
 ## C. Follow-ups tied to your own fixes
 
 - **C1.** ✅ DONE (2026-08-03) — Factory is retired: the weekly cron line (Sun 02:00, plaintext `FACTORY_API_KEY`) was removed (crontab backed up to `~/backups/`). NOTE for the calendar-orchestration-engine owner: its `enrichWithAI/classifyWithAI/curateEvents` scripts still reference `FACTORY_API_KEY` — the pipeline needs an OpenRouter migration before it can run again.
+- **A4. Dangling docker volumes — 62.5 GB reclaimable (measured 2026-08-30, the one real accumulating leak).**
+  852 dangling anonymous volumes (was 534 on 08-22, 847 on 08-30 — `cache-prune.sh` reports them weekly by
+  design and never deletes, and the NOTE has had no reader). All are unreferenced anon hashes from dev
+  compose stacks; 3 named volumes are active and untouched by any prune. OPERATOR-GATED (volume deletion
+  is data-destructive): dry-run review `docker volume ls -f dangling=true`, then `docker volume prune -f`
+  reclaims the 62.5 GB. Until approved, the weekly NOTE keeps counting.
+
 - **C2. grafana-MCP orphan reaper.** The `mcp/grafana` containers leak on MCP reconnect churn (config already
   has `--rm`; orphans stay "Up" after ungraceful disconnects, so `--rm` never fires). 10 are up right now, the
   oldest ~18h. Harmless (~0 disk). Optional: add a reaper line to `~/.local/bin/cache-prune.sh` to remove idle
