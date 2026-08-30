@@ -48,6 +48,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     RETIRED_CORE_SCRIPTS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
+    SEED_IF_MISSING,
     VENDORED_DIRS,
     gitignore_block_text,
     iter_synced_pairs,
@@ -322,6 +323,7 @@ def sync_single_file(
     dry_run: bool = False,
     backup: bool = False,
     force: bool = False,
+    seed_if_missing: bool = False,
 ) -> SyncResult:
     """Sync a single file with hash comparison and optional backup.
 
@@ -330,11 +332,20 @@ def sync_single_file(
         destination: Destination file path
         dry_run: If True, report only without writing
         backup: If True, create timestamped backup before overwriting
-        force: If True, skip hash comparison and always overwrite
+        force: If True, skip hash comparison and always overwrite — EXCEPT a
+            seed_if_missing destination, which force never touches (see below)
+        seed_if_missing: If True, an EXISTING destination is skipped unconditionally —
+            including under --force. The dest is project-owned DATA the moment it exists
+            (manifest SEED_IF_MISSING: the decision ledger holds per-repo rows; any
+            overwrite is data loss). Copy happens only via the not-exists branch below.
 
     Returns:
         SyncResult with action taken and details
     """
+    # Seed-class short-circuit BEFORE the symlink/force branches: an existing dest is
+    # untouchable, whatever else the flags say.
+    if seed_if_missing and destination.exists() and not destination.is_symlink():
+        return SyncResult("SKIP", source, destination, "seed-if-missing: project-owned")
     # Replace symlinks with real copies (symlinks break workspace isolation)
     if destination.is_symlink():
         if dry_run:
@@ -537,8 +548,15 @@ def sync_scripts_to_project(
             source = FABRIK_ROOT / src_rel
             if source.exists():
                 destination = project_dir / dest_rel
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
                 result = sync_single_file(
-                    source, destination, dry_run=dry_run, backup=backup, force=force
+                    source,
+                    destination,
+                    dry_run=dry_run,
+                    backup=backup,
+                    force=force,
+                    seed_if_missing=dest_rel in SEED_IF_MISSING,
                 )
                 file_results.append(result)
 

@@ -92,6 +92,8 @@ GOVERNANCE_FILES = [
 # same template source.
 GOVERNANCE_TEMPLATES = [
     ("templates/governance/CLAUDE.md", "CLAUDE.md"),
+    # Seed-if-missing (SEED_IF_MISSING): copied once when absent, then project-owned forever.
+    ("templates/governance/DECISIONS.md", "docs/DECISIONS.md"),
 ]
 
 # Governance directories → synced recursively, with orphan pruning.
@@ -134,7 +136,14 @@ AGENT_HOOK_FILES = [
 # (e.g. every project tracks its OWN ports in PORTS.md). Excluded from the
 # "unmodified" gate check — the sync still WARN-skips these when the local copy
 # is newer, so a project's edits survive.
-SEEDED_NOT_ENFORCED = {"PORTS.md"}
+SEEDED_NOT_ENFORCED = {"PORTS.md", "docs/DECISIONS.md"}
+
+# STRICTLY seed-if-missing (stronger than the newer-mtime tolerance above): the dest is
+# project-owned DATA from the moment it exists — the sync copies it ONCE and never again,
+# not even under --force. The decision ledger holds per-repo decision rows; any overwrite
+# is data loss (spec: docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md
+# § Distribution — "the sync NEVER touches an existing ledger").
+SEED_IF_MISSING = {"docs/DECISIONS.md"}
 
 # Reference docs → (source relpath, dest relpath). Path-preserved unless noted.
 REFERENCE_DOCS = [

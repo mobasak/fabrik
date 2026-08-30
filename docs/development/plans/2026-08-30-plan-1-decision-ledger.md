@@ -126,6 +126,8 @@ dangling `supersedes D-NNN` pointer (the ONE mechanical row). Registry DocRow fo
 
 ## Phase B — distribution (seed-if-missing) + governance duties
 
+✅ EXECUTED 2026-08-30 (deviations recorded: tests/test_governance_template_split.py contract pin extended — adjacent fix outside File Scope, owned by no other plan; operator's mid-phase three-CLAUDE.md catch handled via the `decision-ledger` UNIVERSAL marker + fabrik-lib heads-up mail 01M19GPWBV — the sync-excluded third copy is reached by the drift contract, never by a cross-repo edit; fleet wiring mail 01M19GPW7Q)
+
 Files: `templates/governance/DECISIONS.md` (new — the SEED template: header + one generic D-000
 "decision ledger adopted (governance-sync seed)" row) · `scripts/fabrik_synced_manifest.py` ·
 `scripts/sync_enforcement_to_projects.py` · `tests/test_sync_seed_if_missing.py` (new) · `CLAUDE.md` ·

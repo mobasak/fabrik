@@ -39,7 +39,12 @@ def _tmp_fabrik(tmp_path: Path) -> Path:
 
 def test_manifest_lists_template_not_governance_file() -> None:
     assert "CLAUDE.md" not in manifest.GOVERNANCE_FILES
-    assert manifest.GOVERNANCE_TEMPLATES == [(TEMPLATE_REL, "CLAUDE.md")]
+    assert manifest.GOVERNANCE_TEMPLATES == [
+        (TEMPLATE_REL, "CLAUDE.md"),
+        # decision-ledger seed (SEED_IF_MISSING class — copied once when absent, then
+        # project-owned; plan-1 2026-08-30)
+        ("templates/governance/DECISIONS.md", "docs/DECISIONS.md"),
+    ]
 
 
 def test_iter_synced_pairs_yields_template_sourced_claude(tmp_path: Path) -> None:

@@ -100,6 +100,16 @@ what makes an in-flight command visible and un-abandonable.
   breaks whoever passed nothing on purpose (fabrik-lib's `Denylist` incident: the "free" fix wasn't). A
   fix with no stated cost is a fix whose cost you did not look for — on a synced or vendored surface
   that cost lands fleet-wide before anyone notices.
+- **The decision ledger (write + query — operator directive 2026-08-30).** A DECISION made or
+  received this run — an operator ruling, a spec/plan approval or Status flip, a
+  retirement/adoption, an architecture/storage/scope choice, "we built X at Y", a rejected option
+  worth not re-proposing — gets its row in `docs/DECISIONS.md` in the SAME change (rows immutable;
+  a changed decision is a NEW row `supersedes D-NNN`). Subagents and the pipeline never hold the
+  pen — the dispatching session appends. And before answering "where is X / did we decide Y / why
+  is Z like this / what did we build for W": **grep `docs/DECISIONS.md` first, then
+  `python3 scripts/decisions.py <term>` fleet-wide** — the row's what+why+where is the full
+  answer; the wider hunt is legitimate only after the ledger misses (and its answer then belongs
+  in a new row).
 - **Stay on task:** no unsolicited advice or process commentary.
 - **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — what you filed and to whom, or `none` plus the surfaces you exercised. Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not.
 - **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project-facing
@@ -222,6 +232,7 @@ judgment. *"My change type isn't in the table"* is never a reason to leave a doc
 | Deploy config changed (deployed types) | `docs/DEPLOYMENT.md` |
 | Doc added/removed in `docs/` | `docs/README.md` (docs index) |
 | End of ticket/run | `docs/LESSONS_LEARNT.md` (canonical name; lowercase `lessons-learnt.md` is legacy-tolerated) |
+| Decision made or received (ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected-option) | `docs/DECISIONS.md` — same change; rows immutable, supersede-by-new-row |
 | Brand / design-token change (GUI) | re-freeze `docs/design-system.md` (via `/fabrik-ui-design`) |
 | Pricing / positioning change (SaaS) | `docs/BUSINESS_MODEL.md` |
 | Deferred-work / session findings (every project — operator rule 2026-08-27) | `docs/STRATEGIC_BACKLOG.md` |
@@ -265,6 +276,7 @@ shared tree (the fabrik-lib stale commit-push incident, 2026-08-12).
 - `no-force-push` — anchor **NEVER `--force`** — a force-push on a shared branch destroys sibling commits
 - `proxy-never-evidence` — anchor **EXECUTE the real check** — a cheap proxy is navigation, never the basis of a completion claim when the real check can be run
 - `denominator-honesty` — anchor **A bounded search returns "not found in N"** — a count, ratio or negative without its denominator is indistinguishable from having looked at nothing (originated at fabrik-lib, four wrong numbers in two days; re-proven by the trade-intelligence quantifier escape 2026-08-29)
+- `decision-ledger` — anchor **its row in `docs/DECISIONS.md` in the SAME change** — a decision made or received and never recorded is re-litigated or reconstructed by hunt; the ledger is also queried FIRST on any where-is/did-we-decide question (operator directive 2026-08-30)
 
 **Adding a universal rule:** write it in § EXIT / § HARD STOPS with its anchor, then add a bullet here —
 fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (ruling `01KZXM0XA6` made the
@@ -279,12 +291,14 @@ Full Claude Code history on this box is indexed locally. MCP tools: **`search_ch
 `project=`/`after=` filters) · **`get_chat`** (read a session window) · **`recent_chats`** (latest sessions).
 USE THEM when: resuming work ("continue where we left off"), the user references a prior decision/discussion
 not in this conversation ("as we decided", "the bug we fixed"), or after compaction when earlier context is
-unclear. Never claim no previous conversation exists without searching first.
+unclear. Never claim no previous conversation exists without searching first. **Ledger first:** for a
+DECISION-shaped question, `docs/DECISIONS.md` + `scripts/decisions.py` come BEFORE session-recall —
+structured rows beat lexical transcripts (a decision phrased differently is invisible to recall).
 
 ## Pointers (detail in packs)
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
-- **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
+- **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `DECISIONS.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.
 - **Authoring a prompt** (system prompt · subagent brief · skill · tool/function description · `AGENTS.md`): follow `docs/reference/MD/ai-prompt-templates.md` — the template (Part A) + the agentic patterns you MUST enforce (Part B: termination contract · evidence-before-assertion · path:line grounding · question bar · untrusted-input) + the markdown rules (Part C). Distil, don't dump.
 - **Same code in 2 envs:** WSL dev (PG localhost, `.env`) · VPS Docker (`postgres-main`, `compose.yaml`). Must run unmodified. (Supabase retired as a runtime target — self-host by default; see `agents-fabrik.md` § Supabase.)
 - **Health endpoint:** test real deps (`await db.execute("SELECT 1")`).
