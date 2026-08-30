@@ -8,6 +8,11 @@ with a hard timeout; http/sse → TCP+HTTP reach. A server that cannot answer
 within the timeout IS dead for Claude's purposes (its own connect timeout is
 30s; postgres-mcp's blocked-handshake class measured 2026-08-30).
 
+KNOWN LIMITATION (measured 2026-08-30): maestro (JVM) starts but answers the
+handshake slowly and exits when the probe closes stdin — this probe reports it
+DEAD while Claude's own 30s keep-stream-open handshake connects it. Treat a
+maestro-only DEAD as "probably cold-start"; confirm via `claude mcp list`.
+
 ADVISORY CONTRACT: always exits 0 — it reports, run records cite it, nothing
 blocks on it until its fire rate earns promotion (the measured-rollout law).
 
