@@ -234,3 +234,14 @@ def test_deployment_doc_is_in_the_template_map_and_gated_to_deployed():
     assert scaffold.SHARED_TEMPLATE_MAP.get("docs/DEPLOYMENT_TEMPLATE.md") == "docs/DEPLOYMENT.md"
     assert scaffold._type_seeds_doc(reg, "python-api", "docs/DEPLOYMENT.md")
     assert not scaffold._type_seeds_doc(reg, "chrome-extension", "docs/DEPLOYMENT.md")
+
+
+def test_decisions_doc_is_in_the_template_map_and_universal():
+    # Same class as the 2026-08-07 DEPLOYMENT regression (decision-ledger plan-1 B6):
+    # the registry declares docs/DECISIONS.md (universal governance surface) but the
+    # template landed inert until SHARED_TEMPLATE_MAP carried it — seeding iterates the
+    # MAP, so an unmapped registry doc is silently never seeded for any type.
+    assert scaffold.SHARED_TEMPLATE_MAP.get("docs/DECISIONS_TEMPLATE.md") == "docs/DECISIONS.md"
+    # universal: EVERY scaffold type seeds it — a headless api, a saas, and a client app alike
+    for t in ("python-api", "saas-skeleton", "chrome-extension", "docusaurus"):
+        assert scaffold._type_seeds_doc(reg, t, "docs/DECISIONS.md"), f"{t} should seed docs/DECISIONS.md"

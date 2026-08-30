@@ -274,6 +274,7 @@ SHARED_TEMPLATE_MAP = {
     "docs/FEATURES_TEMPLATE.md": "docs/FEATURES.md",
     "docs/STRATEGIC_BACKLOG_TEMPLATE.md": "docs/STRATEGIC_BACKLOG.md",
     "docs/LESSONS_LEARNT_TEMPLATE.md": "docs/LESSONS_LEARNT.md",
+    "docs/DECISIONS_TEMPLATE.md": "docs/DECISIONS.md",  # decision ledger (universal governance surface); existing repos seeded-if-missing via the sync
     "docs/data-contract-template.md": "docs/data-contract.md",  # frozen field dictionary; filled by /fabrik-data-contract
     # kilo-consult-workflow.md removed 2026-07-11 — `kilo consult` superseded by the OpenRouter
     # fabrik-lib consult module; no longer seeded (template archived, kilo_consult.py dormant).

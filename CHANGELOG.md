@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffolder now seeds docs/DECISIONS.md for new projects (decision-ledger B6 wiring) (2026-08-30)
+
+- **What:** wired `"docs/DECISIONS_TEMPLATE.md": "docs/DECISIONS.md"` into `SHARED_TEMPLATE_MAP`
+  (`src/fabrik/scaffold.py`). The registry declared the doc (universal) and the template landed in
+  Phase A, but seeding iterates the MAP — so the template was inert and DECISIONS.md was silently
+  never seeded into any new scaffold. Exact same class as the 2026-08-07 DEPLOYMENT regression.
+- **Guard:** `tests/test_scaffold_doc_seeding.py::test_decisions_doc_is_in_the_template_map_and_universal`
+  (red-on-revert proven: map assertion returns `None` without the wiring). Existing repos are covered
+  by the sync's seed-if-missing pair (infra, Phase B) — this closes the NEW-project path.
+
 ### Added — the decision ledger: every agent records decisions, every agent queries them first (2026-08-30)
 
 - **What:** per-repo `docs/DECISIONS.md` (immutable rows `id|when|who|what|why|where`, append-at-top,
