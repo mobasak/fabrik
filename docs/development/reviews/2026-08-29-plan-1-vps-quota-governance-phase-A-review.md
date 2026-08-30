@@ -1,5 +1,7 @@
 # Phase A review — quota_governor.py (VPS single-key quota governance)
 
+**Status:** IN-PROGRESS — the coverage grader fails this report on rules in force at its commit time (no rubric run recorded, no Pass 2 row); committed ungated through the pre-hook bypass closed by 1ab80afc. Its author's run is EXECUTED+archived and only the author can attest the missing rounds, so it is marked the grader's sanctioned mid-loop state instead of inventing them (infra, 2026-08-30; asks 01M17S8QXE + 01M1803AS5).
+
 **Surface:** `scripts/sysadmin/quota_governor.py` + `tests/test_quota_governor.py`
 **Plan:** docs/development/plans/2026-08-29-plan-1-vps-quota-governance.md (Phase A — the governor router)
 **Status:** DONE — coverage-adjudicated exit, found: 0 on production

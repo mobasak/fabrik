@@ -1,5 +1,7 @@
 # Phase C review — marshaller + consumer wiring + ping-retire + dashboard + docs
 
+**Status:** IN-PROGRESS — the coverage grader fails this report on rules in force at its commit time (no rubric run recorded, no Pass 2 row); committed ungated through the pre-hook bypass closed by 1ab80afc. Its author's run is EXECUTED+archived and only the author can attest the missing rounds, so it is marked the grader's sanctioned mid-loop state instead of inventing them (infra, 2026-08-30; asks 01M17S8QXE + 01M1803AS5).
+
 **Surface:** `scripts/sysadmin/incident_context.py` (new) + `tests/test_incident_context.py` (new);
 governor CLI + `capped()` in `quota_governor.py`; the `claude-run.sh` governor gate; broker bypass
 env in `claude_broker.py`; the `bot.py` `capped()` wiring; the 4 shell-consumer shed-skip guards
