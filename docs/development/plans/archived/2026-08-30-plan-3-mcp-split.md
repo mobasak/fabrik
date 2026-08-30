@@ -1,6 +1,6 @@
 # Plan 3 — The MCP split implementation (per-repo .mcp.json + user-level trim)
 
-**Status:** CONVERGED (post-flip delta round 2026-08-30: B1 hold rewritten to the D-026/D-027 reality + image-generation condemned-list exclusion — the ordering-based exclusion died when hub took over the type fixes; prior history: round 1: 4 findings fixed; round 2: graders caught 17 digest-format defects, fixed; AUTHOR-BLIND round 3 (operator-invoked, native finder, 32 claims re-derived): 9 findings — wef D-018 omission, shadcn² conditional source, DR fleet-dir gap, HARD-STOP create-verb argument, youtube-headless profile, count/range, BC↔A1 parity, gitignore provenance group, malformed-yaml behavior — ALL fixed in-file; round 4 fresh pass: 0 new)
+**Status:** EXECUTED 2026-08-30 — whole-plan review: docs/development/reviews/2026-08-30-plan-3-mcp-split-review.md (PASS, quiet final pass found: 0) — all phases complete (B4 trim done under operator waiver; fabrik-lib interim = universal 6 until their .mcp.json lands, mail 01M19TVBJ1). Prior: CONVERGED (post-flip delta round 2026-08-30: B1 hold rewritten to the D-026/D-027 reality + image-generation condemned-list exclusion — the ordering-based exclusion died when hub took over the type fixes; prior history: round 1: 4 findings fixed; round 2: graders caught 17 digest-format defects, fixed; AUTHOR-BLIND round 3 (operator-invoked, native finder, 32 claims re-derived): 9 findings — wef D-018 omission, shadcn² conditional source, DR fleet-dir gap, HARD-STOP create-verb argument, youtube-headless profile, count/range, BC↔A1 parity, gitignore provenance group, malformed-yaml behavior — ALL fixed in-file; round 4 fresh pass: 0 new)
 **Date:** 2026-08-30
 **Owner:** infra (hub session) — NO-POOL standing directive: solo native, no pool/subagent dispatch
 **Authority:** docs/DECISIONS.md D-003 (context7) + D-013..D-024 (the complete MCP adjudication — every roster row ruled: 16 active + 2 retired + 1 planned) +
@@ -144,8 +144,11 @@ Selections not covered by a row: `unconstrained`.
 
   ```bash
   for f in ~/.claude-fleet/*/.claude.json; do python3 -c "
-  import json,sys; print(hash(json.dumps(json.load(open('$f'))['mcpServers'],sort_keys=True)))"; done | sort -u | wc -l   # MUST print 1
+  import json,hashlib; print(hashlib.md5(json.dumps(json.load(open('$f'))['mcpServers'],sort_keys=True).encode()).hexdigest())"; done | sort -u | wc -l   # MUST print 1
   ```
+  (Execution finding: the original command used bare `hash()`, which is per-process salted — it
+  printed 5 for byte-identical files and could NEVER print 1 across invocations. A vacuous checker
+  that survived both review rounds; replaced with md5 at execution, invariant then proven = 1.)
 
   then `dr_claude_backup.sh` — **which B4 FIRST extends to mirror `~/.claude-fleet/*/.claude.json`**
   (author-blind finding: its WHAT-IS-MIRRORED set covers `~/.claude.json` + `~/.claude/settings.json`

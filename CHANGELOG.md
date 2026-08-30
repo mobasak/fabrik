@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Plan-3 EXECUTED + archived: the MCP split is fully live (2026-08-30)
+
+- B4 trim done (rotator-synced, md5-invariant proven across all rosters; youtube-headless set to the 6; DR-backed x2); whole-plan review PASS; the plan's own invariant command was found vacuous at execution (per-process hash()) and fixed to md5. fabrik-lib interim: universal 6 until 01M19TVBJ1 lands (operator-waived).
+
 ### Changed — Plan-3 Phases B+C: fleet .mcp.json emitted, topology docs + pack 62 current (2026-08-30)
 
 - 39 repos emitted (38 CREATE + 1 UPDATE); enableAllProjectMcpServers synced; dr_claude_backup.sh mirrors fleet rosters; pack 62 + mcp-roster topology teach the per-repo layer; D-028..D-030 minted. B4 trim held on fabrik-lib ack.

@@ -17,9 +17,9 @@ Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: 
 | Layer | File | Content |
 |---|---|---|
 | PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: universal 6 + per-type + overlays (this doc's tables are canonical); hub + fabrik-lib carry the full 16 |
-| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | today still the full 16; **trims to the universal 6 at plan-3 B4** (held on fabrik-lib's ack) |
+| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **TRIMMED to the universal 6, 2026-08-30** (rotator-synced, md5-identical across all 5 fleet files + the ad-hoc; DR-backed). fabrik-lib interim: universal 6 until their own .mcp.json lands (01M19TVBJ1, operator-waived wait) |
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
-| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; manual trim rides B4 |
+| PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **set to the universal 6, 2026-08-30** (its roster was EMPTY before — DR history 039d2c7) |
 
 **Never hand-edit an emitted `.mcp.json`** — change the ruling (ledger + this doc), re-run the
 emitter (idempotent; `--check` to preview). `enableAllProjectMcpServers: true` in the synced
