@@ -9,7 +9,7 @@
       ],
       "command": "npx",
       "env": {
-        "BRAVE_API_KEY": "BSAHDPH1mCIo0QpH530oQNSIj5bXlLI"
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
       },
       "type": "stdio"
     },
@@ -28,7 +28,7 @@
       ],
       "command": "npx",
       "env": {
-        "EXA_API_KEY": "2c496fa3-fe92-40d1-aa7f-1d50a00ebd24"
+        "EXA_API_KEY": "${EXA_API_KEY}"
       },
       "type": "stdio"
     },
@@ -43,7 +43,7 @@
       ],
       "command": "npx",
       "env": {
-        "FIRECRAWL_API_KEY": "fc-1cdee0a1aa7f45db87b193079a196bc5"
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
       },
       "type": "stdio"
     },
@@ -63,7 +63,7 @@
       "command": "docker",
       "env": {
         "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}",
-        "GRAFANA_URL": "https://monitor.vps1.ocoron.com"
+        "GRAFANA_URL": "${GRAFANA_URL}"
       },
       "type": "stdio"
     },

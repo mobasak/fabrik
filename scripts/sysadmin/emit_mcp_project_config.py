@@ -83,12 +83,29 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
         Path("/opt/fabrik/.mcp.json"),
         Path.home() / ".claude-fleet/active/.claude.json",
     ]
+    loaded: dict[str, dict] | None = None
     for p in candidates:
-        if p.is_file():
-            data = json.loads(p.read_text())
-            servers = data.get("mcpServers")
-            if isinstance(servers, dict) and servers:
-                return servers
+        if not p.is_file():
+            continue
+        data = json.loads(p.read_text())
+        servers = data.get("mcpServers")
+        if not (isinstance(servers, dict) and servers):
+            continue
+        if loaded is None:
+            loaded = json.loads(json.dumps(servers))  # deep copy
+        else:
+            # SECRET OVERLAY: the committed catalog carries ${VAR} placeholders, never
+            # real tokens (a live Grafana token in the catalog was caught by GitHub
+            # push protection, 2026-08-30) — real values ride the LATER, gitignored
+            # sources in this same chain (hub .mcp.json / fleet roster).
+            for name, entry in loaded.items():
+                env = entry.get("env") or {}
+                donor = (servers.get(name) or {}).get("env") or {}
+                for k, v in env.items():
+                    if isinstance(v, str) and v.startswith("${") and k in donor:
+                        env[k] = donor[k]
+    if loaded is not None:
+        return loaded
     raise SystemExit("emit_mcp: no server definitions source found (pass --defs)")
 
 

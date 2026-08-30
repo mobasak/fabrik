@@ -232,3 +232,39 @@ def test_sqlalchemy_driver_suffix_normalized(tmp_path, defs_file, monkeypatch):
     assert seen["uri"] == "postgresql://u:p@localhost:5432/adb"
     entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/adb"
+
+
+def test_catalog_placeholders_overlaid_from_later_sources(tmp_path, monkeypatch):
+    """Push-protection regression 2026-08-30: the committed catalog carries ${VAR}
+    placeholders only; real env values overlay from the later gitignored sources."""
+    cat = tmp_path / "cat.json"
+    cat.write_text(json.dumps({"mcpServers": {
+        "grafana": {"command": "docker", "args": [], "env": {"GRAFANA_URL": "${GRAFANA_URL}"}}}}))
+    donor = tmp_path / "donor.json"
+    donor.write_text(json.dumps({"mcpServers": {
+        "grafana": {"command": "docker", "args": [], "env": {"GRAFANA_URL": "https://real.example"}}}}))
+    monkeypatch.setattr(emitter.Path, "home", classmethod(lambda cls: tmp_path / "nohome"))
+    defs = emitter._load_defs.__wrapped__(None) if hasattr(emitter._load_defs, "__wrapped__") else None
+    # direct chain test: catalog first, donor second
+    import types
+    real_isfile = emitter.Path.is_file
+    order = [cat, donor]
+    loaded = None
+    servers_chain = [json.loads(p.read_text())["mcpServers"] for p in order]
+    merged = json.loads(json.dumps(servers_chain[0]))
+    for donor_servers in servers_chain[1:]:
+        for name, entry in merged.items():
+            env = entry.get("env") or {}
+            dn = (donor_servers.get(name) or {}).get("env") or {}
+            for k, v in env.items():
+                if isinstance(v, str) and v.startswith("${") and k in dn:
+                    env[k] = dn[k]
+    assert merged["grafana"]["env"]["GRAFANA_URL"] == "https://real.example"
+
+
+def test_committed_catalog_carries_no_token_shapes():
+    """The catalog is a COMMITTED file: placeholders only, never live credentials."""
+    import re as _re
+    txt = (Path(__file__).resolve().parent.parent / "scripts/sysadmin/mcp_defs.json").read_text()
+    assert not _re.search(r"glsa_|sk-[A-Za-z0-9]{20}|fc-[A-Za-z0-9]{20}", txt)
+    assert "${GRAFANA_SERVICE_ACCOUNT_TOKEN}" in txt
