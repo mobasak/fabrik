@@ -78,7 +78,10 @@ source** (taken from memory). Freshness binds — a citation you did not re-open
 prompt *about* a page) runs a small model over the document and returns an ANSWER — so re-fetching
 through it satisfies the letter of "re-open each cited URL" and defeats its purpose. **A quotation mark
 in a spec is a claim that those exact words appear at that URL**: to quote, pull the RAW document
-(`raw.githubusercontent.com`, view-source, `firecrawl_scrape`) and match the string. Flag as
+(`raw.githubusercontent.com`, view-source, `firecrawl_scrape`) and match the string — **normalising
+whitespace first** (raw HTML wraps lines mid-sentence, so a bare `grep -c` on a true quote returns 0;
+strip tags + collapse whitespace before matching, or a REAL quote gets flagged fabricated — the
+inverse error, hit live 2026-08-30 on a martinfowler.com quote). Flag as
 hallucinated any quoted sentence you cannot find verbatim in the raw source. Live 2026-08-27
 (fabrik-lib): a WebFetch answer supplied a sentence that is nowhere in the page AND inverted the
 mechanism it described; the fabricated quote survived the author's self-review and carried the spec's

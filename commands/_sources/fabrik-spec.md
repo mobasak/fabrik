@@ -128,7 +128,9 @@ build this — never pick an approach from training memory or first instinct:
 - **Cite the source + date** for each best-practice/leanness claim in the spec's Chosen-approach section, and
   **actually fetch it this session** (`WebFetch` / `firecrawl_scrape`) — a claim you didn't
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
-  `firecrawl_scrape`) and match the string: a `WebFetch` reply is a small model's ANSWER about the page,
+  `firecrawl_scrape`) and match the string — normalising whitespace first (raw HTML wraps lines
+  mid-sentence; a bare `grep -c` on a true quote returns 0 and flags a REAL quote as fabricated,
+  hit live 2026-08-30): a `WebFetch` reply is a small model's ANSWER about the page,
   not an extract, and quoting it ships a sentence the page does not contain (live 2026-08-27 — the
   fabricated quote also inverted the mechanism, under the spec's central verdict).
 - ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
