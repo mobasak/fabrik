@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md
+"""Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
+
+The read half of the decision ledger (spec: docs/superpowers/specs/
+2026-08-30-decision-ledger-v2-design.md). The operator's directive: agents ALWAYS query the
+ledger before answering "where is X / did we decide Y / why is Z like this" — this is the
+fleet-wide query the duty names.
+
+Usage:
+    python3 scripts/decisions.py <term>            # case-insensitive substring over all ledgers
+    python3 scripts/decisions.py <term> --root /opt
+    python3 scripts/decisions.py --check           # the ONE mechanical check: every
+                                                   # `supersedes D-NNN` pointer must resolve
+                                                   # to an existing row id in the same ledger;
+                                                   # exit 1 on a dangling pointer
+
+Output: `repo · D-NNN · when · who · what · where` per matching row. A repo without a ledger is
+silently skipped (adoption is rolling). Query always exits 0; only --check has a failing exit.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|")
+SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
+
+
+def _say(line: str) -> None:
+    print(line.encode("ascii", "backslashreplace").decode("ascii"))
+
+
+def _ledgers(root: Path) -> list[tuple[str, Path]]:
+    """(repo-name, ledger-path) for every repo under root with a ledger, root's own included."""
+    out: list[tuple[str, Path]] = []
+    own = root / "docs" / "DECISIONS.md"
+    if own.is_file():
+        out.append((root.name, own))
+    try:
+        for entry in sorted(root.iterdir()):
+            p = entry / "docs" / "DECISIONS.md"
+            if entry.is_dir() and p.is_file():
+                out.append((entry.name, p))
+    except OSError:
+        pass
+    return out
+
+
+def _rows(path: Path) -> list[tuple[str, list[str]]]:
+    """(id, cells) per data row; header/separator rows carry no D-NNN id and never match."""
+    rows: list[tuple[str, list[str]]] = []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return rows
+    for line in text.splitlines():
+        m = ROW_RE.match(line.strip())
+        if not m:
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        rows.append((m.group(1), cells))
+    return rows
+
+
+def _query(root: Path, term: str) -> None:
+    needle = term.lower()
+    hits = 0
+    for repo, path in _ledgers(root):
+        for rid, cells in _rows(path):
+            if needle in " ".join(cells).lower():
+                padded = cells + [""] * (6 - len(cells))
+                _say(f"{repo} · {rid} · {padded[1]} · {padded[2]} · {padded[3]} · {padded[5]}")
+                hits += 1
+    if not hits:
+        _say(f"no ledger row matches {term!r} — the wider hunt is legitimate now "
+             "(and its answer belongs in a new row)")
+
+
+def _check(root: Path) -> int:
+    bad = 0
+    for repo, path in _ledgers(root):
+        rows = _rows(path)
+        ids = {rid for rid, _ in rows}
+        for rid, cells in rows:
+            for target in SUPERSEDES_RE.findall(" ".join(cells)):
+                if target not in ids:
+                    _say(f"DANGLING: {repo} {rid} supersedes {target} which has no row in {path}")
+                    bad += 1
+    if bad:
+        _say(f"-> {bad} dangling supersede pointer(s) — a superseded row is never deleted; "
+             "restore it or fix the pointer")
+        return 1
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Query every repo's docs/DECISIONS.md at once.")
+    parser.add_argument("term", nargs="?", help="case-insensitive substring to find")
+    parser.add_argument("--root", default="/opt", help="fleet root (default: /opt)")
+    parser.add_argument("--check", action="store_true",
+                        help="validate supersede pointers; exit 1 on a dangling one")
+    args = parser.parse_args(argv)
+    root = Path(args.root)
+    if args.check:
+        return _check(root)
+    if not args.term:
+        parser.error("a query term is required unless --check")
+    _query(root, args.term)
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main(sys.argv[1:]))

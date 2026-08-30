@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the decision ledger: every agent records decisions, every agent queries them first (2026-08-30)
+
+- **What:** per-repo `docs/DECISIONS.md` (immutable rows `id|when|who|what|why|where`, append-at-top,
+  supersede-by-new-row) + the fleet query `scripts/decisions.py` (one grep over `/opt/*/docs/DECISIONS.md`;
+  `--check` validates supersede pointers, the design's one mechanical check) + hub ledger seeded with
+  D-000..D-010 (this week's proven decisions, each `where` citing a real sha/path) + `docs/DECISIONS.md`
+  DocRow in the doc registry (allowlist 16 → 17) + scaffold template. Phases B/C add the seed-if-missing
+  distribution, both CLAUDE.md write/query duties, corpus wiring, and `docs/reference/decision-ledger.md`.
+- **Why (operator, verbatim):** *"all ai agents must keep a decision ledger/diary … and always query it.
+  i dont want to struggle like this again … i want a full answer not struggling ais around to find it."*
+  Spec: `docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md` (11/11 intake, 8 cited sources).
+- **Measured:** 5 helper behaviors red-first (collection red watched) → 5/5; registry tests 14/14;
+  the seeded ledger answers a real query (`decisions.py context7` → D-003) on day one.
+
 ### Added — the rule-grounding floor: computed read-set + quote-verified Constraints Digest (2026-08-30)
 
 - **What:** the rule-grounding gate (fragment v2, both planning commands + two orchestrator trigger

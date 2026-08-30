@@ -1,0 +1,91 @@
+"""Behaviour tests for `scripts/decisions.py` — the fleet decision-ledger query helper.
+
+WHY (spec docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md): the operator's
+directive — every agent records decisions with why/what/where/who/when and ALWAYS queries them
+before answering "where is X / did we decide Y". The helper is the fleet-wide read path (one
+command over /opt/*/docs/DECISIONS.md) and carries the design's ONE mechanical check: a
+`supersedes D-NNN` pointer must resolve to an existing row id (the dangling-pointer failure the
+tooling literature names for hand-rolled records).
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+_spec = importlib.util.spec_from_file_location("decisions", REPO / "scripts" / "decisions.py")
+assert _spec and _spec.loader
+dec = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(dec)
+
+LEDGER_A = (
+    "# Decisions\n\n"
+    "Append-at-top. One row per decision; rows are IMMUTABLE.\n\n"
+    "| id | when | who | what (the decision) | why | where |\n"
+    "|---|---|---|---|---|---|\n"
+    "| D-002 | 2026-08-30 | operator+agent | supersedes D-001: retirement reversed | new evidence | abc123 |\n"
+    "| D-001 | 2026-08-29 | agent | context7 retired from roster | 45 lifetime calls | 74ad8a06 |\n"
+    "| D-000 | 2026-08-01 | operator | decision ledger adopted | struggle class | spec sha |\n"
+)
+LEDGER_DANGLING = (
+    "# Decisions\n\n"
+    "| id | when | who | what (the decision) | why | where |\n"
+    "|---|---|---|---|---|---|\n"
+    "| D-005 | 2026-08-30 | agent | supersedes D-004: flipped | measured | def456 |\n"
+    "| D-000 | 2026-08-01 | operator | ledger adopted | seed | spec |\n"
+)
+
+
+def _repo(root: Path, name: str, ledger: str | None) -> Path:
+    d = root / name / "docs"
+    d.mkdir(parents=True, exist_ok=True)
+    if ledger is not None:
+        (d / "DECISIONS.md").write_text(ledger, encoding="utf-8")
+    return root / name
+
+
+def test_query_prints_the_matching_row_with_repo_and_fields(tmp_path, capsys):
+    _repo(tmp_path, "alpha", LEDGER_A)
+    _repo(tmp_path, "beta", LEDGER_A.replace("context7", "meilisearch"))
+    rc = dec.main(["context7", "--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "alpha" in out and "D-001" in out and "74ad8a06" in out, out
+    assert "beta" not in out, out
+
+
+def test_check_names_a_dangling_supersede_pointer_and_exits_1(tmp_path, capsys):
+    _repo(tmp_path, "gamma", LEDGER_DANGLING)
+    rc = dec.main(["--check", "--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 1, out
+    assert "D-004" in out and "gamma" in out, out
+
+
+def test_check_passes_when_every_pointer_resolves(tmp_path, capsys):
+    _repo(tmp_path, "alpha", LEDGER_A)  # D-002 supersedes D-001, which exists
+    rc = dec.main(["--check", "--root", str(tmp_path)])
+    assert rc == 0, capsys.readouterr().out
+
+
+def test_repos_without_a_ledger_are_silently_skipped(tmp_path, capsys):
+    _repo(tmp_path, "alpha", LEDGER_A)
+    _repo(tmp_path, "no-ledger", None)
+    rc = dec.main(["retired", "--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "no-ledger" not in out, out
+
+
+def test_cli_runs_standalone(tmp_path):
+    _repo(tmp_path, "alpha", LEDGER_A)
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "decisions.py"), "context7", "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert r.returncode == 0 and "D-001" in r.stdout, (r.returncode, r.stdout, r.stderr)

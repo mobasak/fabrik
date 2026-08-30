@@ -128,6 +128,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 /opt/fabrik/                         # Fabrik monorepo root
 ├── README.md                        # Project overview
 ├── CHANGELOG.md                     # Version history
+├── docs/DECISIONS.md                # The hub decision ledger (immutable rows, supersede-by-new-row; query via scripts/decisions.py)
 ├── INDEX.md                         # THIS FILE - Master file index + docs navigation
 ├── AGENTS.md                        # AI agent briefing (copied into projects)
 ├── Makefile                         # Common dev/ops targets
@@ -152,6 +153,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── infrastructure/                  # VPS-level system files (Coolify-era systemd units
 │                                    # removed 2026-05-30; directory may be empty)
 ├── scripts/                         # Automation and tooling scripts
+│   ├── decisions.py                 # Fleet decision-ledger query (grep /opt/*/docs/DECISIONS.md; --check = supersede pointers)
 │   ├── final_gate.py                # Mandatory pre-commit quality gate
 │   ├── ci_fix_dispatcher.py         # GitHub CI failure → headless coder-AI fix run (hourly cron)
 │   ├── docs_updater.py              # Auto-update docs structure

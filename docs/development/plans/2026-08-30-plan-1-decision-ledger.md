@@ -1,6 +1,6 @@
 # Plan 1 — The Decision Ledger (fleet-wide, per the CONVERGED spec)
 
-Status: CONVERGED (2026-08-30 — /fabrik-plan-review x2: converged at 4d848206; post-flip dogfood edit re-reviewed same day — the quote-table conversion had dropped 3 prose constraints, restored + re-verified to a no-op, check_rule_grounding 0 findings)
+Status: IN-PROGRESS (execution started 2026-08-30; was CONVERGED — /fabrik-plan-review x2: converged at 4d848206; post-flip dogfood edit re-reviewed same day — the quote-table conversion had dropped 3 prose constraints, restored + re-verified to a no-op, check_rule_grounding 0 findings)
 Spec: docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md (CONVERGED, operator-approved
 2026-08-30: "go back to the spec you have created and /fabrik-plan-after-chat on it")
 Shape: MONOLITH — 3 phases, each independently testable; READ set per phase under 262144
@@ -83,6 +83,8 @@ round restored the three prose constraints the first conversion dropped.)
   sha/path) — no archaeology.
 
 ## Phase A — the helper, its teeth, and the hub ledger
+
+✅ EXECUTED 2026-08-30 (Phase-A commit; CHANGELOG entry moved here from C step 5 by the ERROR-tier same-change law — C now verifies it)
 
 Files: `scripts/decisions.py` (new) · `tests/test_decisions_helper.py` (new) · `docs/DECISIONS.md`
 (new, hub) · `scripts/enforcement/_doc_registry.py` (add one DocRow) ·
