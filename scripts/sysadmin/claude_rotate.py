@@ -856,6 +856,20 @@ def run_claude(
                 f"{why} Re-capture a fresh account (claude auth login / claude-manager). "
                 f"(alerts quiet ~12h)"
             )
+    # ── governor telemetry hooks (single-key quota governance, 2026-08-30) — both best-effort ──
+    # A real claude call is the ONE moment the stored token is guaranteed fresh (the CLI just
+    # rolled the chain; the direct oauth refresh is Cloudflare-403'd), so capture the account's
+    # usage into the current-usage cache HERE — the governor's --probe-current reads it when the
+    # token has gone stale between calls. And when the FINAL result still carries a usage-limit
+    # (rotation exhausted or unavailable — the single-key case), signal the governor's reactive
+    # cap so the NEXT routine call sheds instead of burning another attempt. Kill-switch:
+    # CLAUDE_ROTATE_NO_USAGE_CAPTURE=1 disables both (and keeps old callers byte-identical).
+    if not os.environ.get("CLAUDE_ROTATE_NO_USAGE_CAPTURE"):
+        final_text = (result.stdout or "") + "\n" + (result.stderr or "")
+        if is_usage_limit(final_text):
+            _signal_governor_capped(final_text)
+        else:
+            _capture_current_usage()
     return result
 
 
@@ -3979,25 +3993,75 @@ def _cmd_drift_check() -> int:
     return 0
 
 
+def _current_usage_cache_path() -> Path:
+    """Single-key current-account usage cache (SEPARATE from the fleet cache — different shape,
+    different writer: this one is keyed by nothing, it is THE one account's last good reading)."""
+    return _rotate_state_dir() / "current-usage-cache.json"
+
+
+def _capture_current_usage() -> dict | None:
+    """Quota-free live usage snapshot of the CURRENT account (``CLAUDE_CONFIG_DIR`` or
+    ``~/.claude``), persisted to the current-usage cache on success. Returns the windows dict or
+    None; NEVER raises.
+
+    The stored access token is only reliably fresh right AFTER a claude call (the CLI rolls the
+    refresh chain itself; the direct ``/v1/oauth/token`` refresh is Cloudflare-403'd — see
+    ``_keepwarm_refresh``), which is why ``run_claude`` calls this post-call: each real sysadmin
+    claude run leaves behind a current headroom reading for the governor, at zero quota cost
+    (``api/oauth/usage`` is metadata, not a completion)."""
+    try:
+        cfg_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+        tok = _read_access_token(cfg_dir / ".credentials.json")
+        if not tok:
+            return None
+        windows = _usage_windows(_oauth_get("usage", tok))
+        if windows is None:
+            return None
+        _write_json_atomic(_current_usage_cache_path(), {"ts": time.time(), **windows})
+        return windows
+    except Exception:  # noqa: BLE001 — telemetry capture must never break a claude call/probe
+        return None
+
+
+def _signal_governor_capped(final_text: str) -> None:
+    """Best-effort reactive-cap wiring: pipe a final still-limited claude response to
+    ``quota_governor.py mark-capped`` so the governor sheds ROUTINE work until the window resets.
+    This is the backstop that makes the governor's bootstrap-on-unknown routing safe on the
+    single-key VPS. No-op when the governor is not co-located; never raises."""
+    gov = Path(__file__).resolve().parent / "quota_governor.py"
+    if not gov.is_file():
+        return
+    try:
+        subprocess.run(
+            [sys.executable, str(gov), "mark-capped"],
+            input=final_text,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001 — the cap signal is advisory; the call result stands
+        pass
+
+
 def _cmd_probe_current(as_json: bool) -> int:
-    """Governor headroom source for a SINGLE-KEY host (the VPS): probe the CURRENT account
-    (``CLAUDE_CONFIG_DIR`` or ``~/.claude``) LIVE and emit it in the fleet payload shape the
-    governor already reads — one account, ``active="current"``, ``slugs=["current"]``.
+    """Governor headroom source for a SINGLE-KEY host (the VPS): the CURRENT account
+    (``CLAUDE_CONFIG_DIR`` or ``~/.claude``) in the one-account fleet payload shape the governor
+    reads — ``active="current"``, ``slugs=["current"]``.
 
-    This is the VPS single-key path (no ``~/.claude-fleet`` scaffold, no rotation): a quota-free
-    ``api/oauth/usage`` GET of the live token → five_hour/seven_day/model_windows, exactly what the
-    governor's reserve iterates. ``--status`` (fleet mode) only lights up with scaffolded fleet dirs,
-    and the non-fleet manager-accounts listing carries only PARKED snapshots (null telemetry) — so a
-    single-key host needs this direct probe to have ANY live headroom.
+    Reading order (canary-corrected 2026-08-30): LIVE first — a quota-free ``api/oauth/usage`` GET
+    of the stored token (works whenever the token is fresh, i.e. shortly after any claude call);
+    else the CURRENT-USAGE CACHE written by ``_capture_current_usage`` after every real claude run,
+    accepted within ``PROBE_CACHE_MAX_AGE_S`` (default 7200s — the 15-min proactive-check cron
+    keeps it minutes old in steady state); else ``source="unavailable"`` with null windows. The
+    governor treats unavailable as bootstrap-run (its single-key semantics), so a cold start can
+    never wedge the loop.
 
-    Fail-soft: an unreadable token or a telemetry miss emits the row with null windows and
-    ``source="unavailable"`` (the governor reads that as headroom-unknown → sheds routine, runs
-    incidents), NEVER raises. weekly_cap is left None here (the operator's authoritative cap needs an
-    identity the usage GET does not carry; reserve_pct + the reactive cap are the single-key
-    conservation path — a hard weekly cap is a documented follow-up)."""
-    cfg_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    tok = _read_access_token(cfg_dir / ".credentials.json")
-    windows = _usage_windows(_oauth_get("usage", tok)) if tok else None
+    ``--status`` fleet mode only lights up with scaffolded fleet dirs, and the non-fleet
+    manager-accounts listing carries only PARKED snapshots (null telemetry) — so a single-key host
+    needs this probe to have ANY headroom source. weekly_cap stays None (the operator's
+    authoritative cap needs an identity the usage GET does not carry; reserve_pct + the reactive
+    cap are the single-key conservation path). Fail-soft throughout; never raises."""
     row: dict = {
         "email": "current",
         "slugs": ["current"],
@@ -4005,10 +4069,25 @@ def _cmd_probe_current(as_json: bool) -> int:
         "seven_day": None,
         "weekly_cap": None,
         "cap_walled": False,
-        "source": "live" if windows else "unavailable",
+        "source": "unavailable",
     }
-    if windows:
-        row.update(windows)  # five_hour, seven_day, and model_windows when present
+    windows = _capture_current_usage()
+    if windows is not None:
+        row.update(windows)
+        row["source"] = "live"
+    else:
+        try:
+            cached = json.loads(_current_usage_cache_path().read_text())
+            age = time.time() - float(cached["ts"])
+            max_age = float(os.environ.get("PROBE_CACHE_MAX_AGE_S") or 7200.0)
+            if 0 <= age <= max_age:
+                for key in ("five_hour", "seven_day", "model_windows"):
+                    if cached.get(key) is not None:
+                        row[key] = cached[key]
+                row["source"] = "cache"
+                row["age_s"] = round(age, 1)
+        except Exception:  # noqa: BLE001 — a bad/absent cache reads as unavailable, never raises
+            pass
     payload = {"active": "current", "accounts": [row]}
     if as_json:
         print(json.dumps(payload, indent=1))

@@ -87,20 +87,37 @@ def test_incident_pool_diagnose_when_capped(tmp_path):
     assert gov.route("incident") == "pool-diagnose"
 
 
-# (e) --status failure / unparseable row → routine=pool, incident=ob@ (fail-SAFE)
-def test_fail_safe_on_status_failure(tmp_path):
+# (e) telemetry failure / unparseable row → routine=ob@ TOO (single-key BOOTSTRAP semantics,
+# reversed 2026-08-30 after the hub canary): on the single-key VPS the ONLY thing that refreshes
+# the token — and thus the only source of future telemetry — is a real claude call, so
+# "no telemetry → shed" wedged the loop permanently (every routine cron exited 75, the token
+# stayed stale, telemetry never arrived; proven live on vps1 and rolled back). Routine sheds only
+# on AFFIRMATIVE evidence (known reserve breach or an active cap); the reactive cap is the
+# backstop that ends an over-cap run after its first limit hit.
+def test_bootstrap_runs_routine_on_status_failure(tmp_path):
     def boom():
-        raise RuntimeError("claude_rotate --status failed")
+        raise RuntimeError("claude_rotate --probe-current failed")
     gov = _gov(tmp_path, boom)
-    assert gov.route("routine") == "pool"
+    assert gov.route("routine") == "ob@"
     assert gov.route("incident") == "ob@"
 
 
-def test_fail_safe_on_unparseable_row(tmp_path):
-    # active slug names no account → no row → fail-safe
+def test_bootstrap_runs_routine_on_unparseable_row(tmp_path):
+    # active slug names no account → no row → bootstrap (run, so telemetry can ever arrive)
     gov = _gov(tmp_path, {"active": "nope", "accounts": [_payload()["accounts"][0]]})
-    assert gov.route("routine") == "pool"
+    assert gov.route("routine") == "ob@"
     assert gov.route("incident") == "ob@"
+
+
+def test_reactive_cap_still_sheds_routine_when_telemetry_is_dark(tmp_path):
+    # The backstop that makes bootstrap safe: a marked cap outranks missing telemetry —
+    # routine sheds even though the probe returns nothing.
+    def boom():
+        raise RuntimeError("probe down")
+    gov = _gov(tmp_path, boom, now=1000.0)
+    gov.mark_capped("Claude usage limit reached. Resets at 3pm")
+    assert gov.route("routine") == "pool"
+    assert gov.route("incident") == "pool-diagnose"
 
 
 # (f) a reactive is_usage_limit marks ob@ capped until the window reset
@@ -142,9 +159,11 @@ def test_none_epoch_in_window_does_not_crash_routing(tmp_path):
     assert gov.route("incident") == "ob@"
 
 
-# fail-OPEN guard: a row PRESENT but with NO parseable utilization window (schema drift) must NOT
-# be read as 0% headroom — routine sheds to pool; an incident still runs on ob@ (never dropped).
-def test_routine_sheds_when_utilization_unparseable(tmp_path):
+# a row PRESENT but with NO parseable utilization window (schema drift / probe "unavailable"):
+# single-key bootstrap semantics (2026-08-30) — routine RUNS on ob@, because on the single-key VPS
+# only a real claude call ever refreshes the token that produces telemetry ("shed on unknown"
+# wedged the loop; proven live). The cap_walled flag + the reactive cap remain the shed triggers.
+def test_routine_bootstraps_when_utilization_unparseable(tmp_path):
     drifted = {
         "active": "ob",
         "accounts": [{
@@ -155,8 +174,23 @@ def test_routine_sheds_when_utilization_unparseable(tmp_path):
         }],
     }
     gov = _gov(tmp_path, drifted)
-    assert gov.route("routine") == "pool"      # headroom unknown → shed, never assume 0%
-    assert gov.route("incident") == "ob@"      # the fix still runs on ob@ (fail-safe, never dropped)
+    assert gov.route("routine") == "ob@"       # unknown headroom, no cap evidence → bootstrap run
+    assert gov.route("incident") == "ob@"      # the fix still runs on ob@ (never dropped)
+
+
+def test_cap_walled_sheds_even_with_unparseable_windows(tmp_path):
+    # the authoritative wall outranks bootstrap: cap_walled=True sheds routine with dark windows
+    walled = {
+        "active": "ob",
+        "accounts": [{
+            "email": "ob@ocoron.com", "slugs": ["ob"],
+            "five_hour": None, "seven_day": None,
+            "cap_walled": True, "weekly_cap": 90,
+        }],
+    }
+    gov = _gov(tmp_path, walled)
+    assert gov.route("routine") == "pool"
+    assert gov.route("incident") == "pool-diagnose"
 
 
 # reactive cap with a PAST/zero seven_day epoch must fall back to a bounded now+CAP_TTL_S, not write
@@ -288,6 +322,30 @@ def test_cli_route_incident_runs_on_obat(tmp_path, capsys):
     rc = quota_governor._main(["route", "--kind", "incident"], governor=gov)
     assert rc == 0
     assert capsys.readouterr().out.strip() == "ob@"
+
+
+def test_cli_mark_capped_reads_stdin_and_sets_reactive_cap(tmp_path, capsys, monkeypatch):
+    # the run_claude wiring: on a final usage-limit result, claude_rotate pipes the response text to
+    # `quota_governor.py mark-capped` — the reactive cap that makes bootstrap-on-unknown safe.
+    import io
+    payload = _payload(five_hour=10.0, seven_day=10.0, seven_day_epoch=2000.0)
+    gov = _gov(tmp_path, payload, now=1000.0)
+    monkeypatch.setattr("sys.stdin", io.StringIO("Claude usage limit reached. Resets at 3pm"))
+    rc = quota_governor._main(["mark-capped"], governor=gov)
+    assert rc == 0
+    assert gov.route("routine") == "pool"           # capped now sheds routine
+    assert gov.route("incident") == "pool-diagnose"
+
+
+def test_cli_mark_capped_no_op_on_plain_text(tmp_path, monkeypatch):
+    # non-limit text must NOT cap (the CLI is called on every final-limit suspicion; only a real
+    # usage-limit render arms the cap)
+    import io
+    gov = _gov(tmp_path, _payload(five_hour=10.0, seven_day=10.0))
+    monkeypatch.setattr("sys.stdin", io.StringIO("all healthy, nothing to report"))
+    rc = quota_governor._main(["mark-capped"], governor=gov)
+    assert rc == 0
+    assert gov.route("routine") == "ob@"
 
 
 # capped() is the LOCK-FREE check for the interactive bot — no single-flight side effect.

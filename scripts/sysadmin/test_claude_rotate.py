@@ -18,6 +18,19 @@ import subprocess
 import time
 
 import claude_rotate  # co-located; pytest prepends this dir to sys.path
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_governor_hooks(monkeypatch, tmp_path):
+    """Keep the suite hermetic against the 2026-08-30 governor-telemetry hooks: run_claude now
+    fires a post-call usage capture (urllib GET — NOT covered by the suite's subprocess mocks) and,
+    on a final usage-limit, a subprocess signal to quota_governor.py (which would pollute the
+    fake_run call counts of the rotation tests). Neutralize both by default and sandbox the state
+    dir; the dedicated hook tests re-patch what they measure."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "rotate-state"))
+    monkeypatch.setattr(claude_rotate, "_oauth_get", lambda *a, **k: None)
+    monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: None)
 
 # Grounded usage-limit renders (claude-auto-retry README + Anthropic errors docs, 2026-07-07)
 USAGE_LIMIT_STRINGS = [
@@ -1210,3 +1223,108 @@ def test_probe_current_failsoft_on_unreadable_token(monkeypatch, capsys):
     acc = json.loads(capsys.readouterr().out)["accounts"][0]
     assert acc["five_hour"] is None and acc["seven_day"] is None
     assert acc["source"] == "unavailable"
+
+
+def test_probe_current_falls_back_to_cache_when_token_stale(monkeypatch, tmp_path, capsys):
+    # The canary-found gap (2026-08-30): between claude calls the stored token goes stale and the
+    # live GET fails — the probe must then serve the LAST GOOD reading (written post-call by
+    # run_claude) within PROBE_CACHE_MAX_AGE_S, so the governor keeps a real reserve decision.
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: None)  # stale token
+    (state / "current-usage-cache.json").write_text(json.dumps({
+        "ts": time.time() - 300,  # 5 minutes old — well within the 7200s default
+        "five_hour": {"utilization": 61.0, "resets_at_epoch": 1.0},
+        "seven_day": {"utilization": 44.0, "resets_at_epoch": 2.0},
+        "model_windows": {"Fable": {"utilization": 40.0, "resets_at_epoch": 2.0}},
+    }))
+    assert claude_rotate.main(["--probe-current", "--json"]) == 0
+    acc = json.loads(capsys.readouterr().out)["accounts"][0]
+    assert acc["source"] == "cache"
+    assert acc["five_hour"]["utilization"] == 61.0
+    assert acc["model_windows"]["Fable"]["utilization"] == 40.0
+    assert 250 <= acc["age_s"] <= 600
+
+
+def test_probe_current_expired_cache_reads_unavailable(monkeypatch, tmp_path, capsys):
+    # A reading older than PROBE_CACHE_MAX_AGE_S must NOT drive a reserve decision — emit
+    # unavailable (the governor bootstraps + the reactive cap guards the over-cap case).
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setenv("PROBE_CACHE_MAX_AGE_S", "100")
+    monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: None)
+    (state / "current-usage-cache.json").write_text(json.dumps({
+        "ts": time.time() - 5000,
+        "five_hour": {"utilization": 61.0, "resets_at_epoch": 1.0},
+        "seven_day": {"utilization": 44.0, "resets_at_epoch": 2.0},
+    }))
+    assert claude_rotate.main(["--probe-current", "--json"]) == 0
+    acc = json.loads(capsys.readouterr().out)["accounts"][0]
+    assert acc["source"] == "unavailable"
+    assert acc["five_hour"] is None
+
+
+def test_probe_current_live_success_writes_cache(monkeypatch, tmp_path, capsys):
+    # A live probe must persist its reading — that is what keeps the cache warm for the next
+    # stale-token probe.
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(
+        claude_rotate,
+        "_oauth_get",
+        lambda path, token, **k: {
+            "five_hour": {"utilization": 12.0, "resets_at": "2026-08-30T20:00:00Z"},
+            "seven_day": {"utilization": 34.0, "resets_at": "2026-09-01T00:00:00Z"},
+        },
+    )
+    assert claude_rotate.main(["--probe-current", "--json"]) == 0
+    acc = json.loads(capsys.readouterr().out)["accounts"][0]
+    assert acc["source"] == "live"
+    cached = json.loads((state / "current-usage-cache.json").read_text())
+    assert cached["five_hour"]["utilization"] == 12.0
+    assert isinstance(cached["ts"], float)
+
+
+def test_run_claude_success_captures_usage(monkeypatch):
+    # The fresh-token moment: right after a successful claude call, run_claude captures the
+    # account's usage into the cache (quota-free) — the governor's between-calls headroom source.
+    captured = []
+    monkeypatch.setattr(claude_rotate.subprocess, "run", lambda *a, **k: _cp(stdout="ok", rc=0))
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_capture_current_usage", lambda: captured.append(1) or None)
+    claude_rotate.run_claude(["claude", "-p", "hi"], timeout=5, cwd=".", env={})
+    assert captured == [1], "exactly one post-call capture on success"
+
+
+def test_run_claude_final_limit_signals_governor(monkeypatch):
+    # Single-key host, rotation exhausted (1 account): the FINAL result still carries the limit →
+    # run_claude signals the governor's reactive cap so the NEXT routine call sheds.
+    signals = []
+    limit_out = "You've hit your weekly limit · resets 3pm"
+    monkeypatch.setattr(claude_rotate.subprocess, "run", lambda *a, **k: _cp(stdout=limit_out, rc=1))
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: signals.append(text))
+    captured = []
+    monkeypatch.setattr(claude_rotate, "_capture_current_usage", lambda: captured.append(1))
+    claude_rotate.run_claude(["claude", "-p", "hi"], timeout=5, cwd=".", env={})
+    assert len(signals) == 1 and limit_out in signals[0], "final limit → one governor signal"
+    assert captured == [], "no usage capture on a limited call (the reading would be the wall)"
+
+
+def test_run_claude_capture_kill_switch(monkeypatch):
+    # CLAUDE_ROTATE_NO_USAGE_CAPTURE=1 keeps run_claude byte-identical to the pre-hook behavior.
+    called = []
+    monkeypatch.setenv("CLAUDE_ROTATE_NO_USAGE_CAPTURE", "1")
+    monkeypatch.setattr(claude_rotate.subprocess, "run", lambda *a, **k: _cp(stdout="ok", rc=0))
+    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))
+    monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
+    monkeypatch.setattr(claude_rotate, "_capture_current_usage", lambda: called.append(1))
+    monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: called.append(2))
+    claude_rotate.run_claude(["claude", "-p", "hi"], timeout=5, cwd=".", env={})
+    assert called == []

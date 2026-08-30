@@ -6,8 +6,11 @@
 # The `claude -p ping` WARMTH ping was RETIRED under the single-key ob@ model (2026-08-30,
 # vps-claude-quota-governance): a regularly-USED ob@ account needs no keep-warm completion, and that
 # ping burned the very quota the governor exists to conserve. The health SIGNAL now comes from the
-# FREE `claude_rotate.py --status --json` profile probe — it hits the auth/profile endpoint (proving
-# the token works + the API is reachable) and spends NO completion quota. Same log contract:
+# FREE `claude_rotate.py --probe-current --json` probe — a quota-free api/oauth/usage GET of the
+# CURRENT account (canary-corrected 2026-08-30: `--status` emits the fleet shape only where a
+# ~/.claude-fleet scaffold exists; on the single-key VPS it lists parked snapshots with null
+# telemetry, so this classifier would have FAILed every run). --probe-current emits the same
+# fields the classifier reads (slugs/source/age_s) on BOTH host shapes. Same log contract:
 #   KEEPALIVE_OK <iso8601>              — auth healthy (active account reports live quota windows)
 #   KEEPALIVE_FAIL:<reason> <iso8601>   — 401_auth | probe_error
 # Single-run overwrite (matches the cron's `>` redirect). No token bytes / response content written.
@@ -19,8 +22,8 @@ PYTHON="${CLAUDE_ROTATE_PYTHON:-python3}"
 
 now="$(date -Is)"
 
-# FREE health signal: the status probe checks auth/profile, never a completion → no quota burned.
-OUT="$(timeout 40 "$PYTHON" "$DIR/claude_rotate.py" --status --json 2>/dev/null)" || true
+# FREE health signal: the usage probe is a metadata GET, never a completion → no quota burned.
+OUT="$(timeout 40 "$PYTHON" "$DIR/claude_rotate.py" --probe-current --json 2>/dev/null)" || true
 
 # Classify from the parsed payload: healthy iff the ACTIVE account reports a numeric five_hour
 # utilization (the token worked + the API answered); a failed/empty/broken probe → a FAIL reason.
@@ -36,13 +39,13 @@ row = next((a for a in accts if active in (a.get("slugs") or [])), accts[0] if a
 if not row:
     print("no_active_account"); raise SystemExit
 fh = row.get("five_hour") or {}
-# CRITICAL (2026-08-30 review): `--status --json` on a fleet box is a CACHE read — it makes a LIVE
-# probe only when the active token is <8h fresh; otherwise (incl. when a DEAD token`s live probe
-# returns None) it serves the last-known window with source="cache" + a growing age_s. A numeric
-# utilization ALONE does NOT prove the token is live. So health = a numeric reading that is EITHER
-# source="live" (freshly proven) OR RECENTLY cached (the */5 tick keeps the cache <~1h fresh; a dead
-# token stops the cache refreshing, so age grows past the bound and we flag it). Preserves the
-# retired ping`s liveness guarantee without burning a completion.
+# CRITICAL (2026-08-30 review): `--probe-current --json` serves LIVE when the stored token still
+# works, else the current-usage CACHE that run_claude refreshes after every real claude call, with
+# a growing age_s. A numeric utilization ALONE does NOT prove the account is healthy. So health = a
+# numeric reading that is EITHER source="live" (freshly proven) OR RECENTLY cached (the 15-min
+# proactive-check keeps the cache minutes old; a dead account stops both the live probe AND the
+# cache refreshing, so age grows past the bound and we flag it). Preserves the retired ping`s
+# liveness guarantee without burning a completion.
 util_ok = isinstance(fh.get("utilization"), (int, float))
 source = row.get("source")
 age = row.get("age_s")

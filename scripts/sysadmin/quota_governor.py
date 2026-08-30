@@ -8,9 +8,14 @@ probe of the single-key host's current account (the VPS has no `~/.claude-fleet`
 `--status` fleet payload never lights up; `--probe-current` emits ob@'s live headroom in the same
 one-account shape). It does not modify the rotation machinery.
 
-Routing (see docs/development/plans/2026-08-29-plan-1-vps-quota-governance.md):
-  routine  → `pool` when the account is walled (`cap_walled`, the operator's authoritative weekly
-             cap) OR `max(<every utilization window>)` >= RESERVE_PCT; else `ob@`.
+Routing (see docs/development/plans/2026-08-29-plan-1-vps-quota-governance.md; bootstrap
+semantics 2026-08-30, hub-canary evidence):
+  routine  → `pool` ONLY on affirmative evidence: the account is walled (`cap_walled` / the
+             reactive cap) OR a KNOWN `max(<every utilization window>)` >= RESERVE_PCT; else `ob@`
+             — including UNKNOWN headroom (probe failure / stale cache), because on the single-key
+             VPS only a real claude call refreshes the token that produces telemetry, so
+             "unknown → shed" wedges the loop (proven live 2026-08-30). The reactive cap — file
+             state, readable even with dark telemetry — is the over-cap backstop.
   incident → `ob@` when the account is not capped AND the single-flight lock is free; else
              `pool-diagnose` (a capped account, or a fix already in flight — never blocked).
 
@@ -136,25 +141,36 @@ class QuotaGovernor:
     def route(self, kind: str, *, caller: str | None = None) -> str:
         """Return "ob@" | "pool" | "pool-diagnose" for a "routine" | "incident" call.
 
-        Fail-SAFE: any `--status` failure / unparseable row → routine sheds to the pool, an incident
-        still runs on ob@ (the fix is never dropped because telemetry hiccupped).
+        SINGLE-KEY BOOTSTRAP SEMANTICS (reversed 2026-08-30, hub-canary evidence): routine sheds
+        ONLY on affirmative evidence — an active cap (`cap_walled` / the reactive cap) or a KNOWN
+        `max_util >= reserve`. Unknown headroom (probe failure, unparseable row, stale cache) RUNS
+        on ob@: on the single-key VPS the only thing that ever refreshes the token — and therefore
+        the only future source of telemetry — is a real claude call, so the previous
+        "unknown → shed" wedged the loop permanently (every routine cron exited 75, the token
+        stayed stale, telemetry never arrived; proven live on vps1 2026-08-30 and rolled back).
+        The reactive cap (`mark_capped`, wired from `run_claude`'s final-limit signal) is the
+        backstop that ends an over-cap run after its first limit hit — the reactive-cap check
+        works even when telemetry is fully dark (it is file-state, not payload-state).
+        An incident is never blocked and never dropped, exactly as before.
         """
         row = self._active_row()
-        if row is None:
-            return "pool" if kind == "routine" else "ob@"
+        # The reactive cap is FILE state — consultable even when the probe/payload is dark.
+        capped = self._is_capped(row) if row is not None else self._reactive_cap_active()
 
-        capped = self._is_capped(row)
         if kind == "routine":
-            m = self._max_util(row)
-            # m is None → the row is present but carries NO parseable utilization window (schema
-            # drift): headroom is UNKNOWN, so shed to the pool rather than assume 0% and burn ob@.
-            if capped or m is None or m >= self.reserve_pct:
+            if capped:
                 return "pool"
+            m = self._max_util(row) if row is not None else None
+            if m is not None and m >= self.reserve_pct:
+                return "pool"
+            # known headroom below reserve, OR unknown headroom (bootstrap) → run on ob@
             return "ob@"
 
         # incident — never blocked, never dropped
         if capped:
             return "pool-diagnose"
+        if row is None:
+            return "ob@"  # telemetry dark, no cap evidence → the fix runs (never dropped)
         if self._acquire_incident_lock():
             return "ob@"
         # another fix is in flight — shed to a read-only diagnosis, never a second ob@ slot
@@ -191,9 +207,12 @@ class QuotaGovernor:
     def capped(self) -> bool:
         """True iff ob@ is at its wall (`cap_walled` or a reactive cap) — a LOCK-FREE check for
         consumers (e.g. the interactive bot) that need the capped state WITHOUT claiming the
-        single-flight incident slot. Fail-safe: a `--status` failure (no row) reads as not-capped."""
+        single-flight incident slot. A probe failure (no row) still consults the REACTIVE cap
+        (file state — the wall the operator most needs surfaced survives dark telemetry)."""
         row = self._active_row()
-        return row is not None and self._is_capped(row)
+        if row is None:
+            return self._reactive_cap_active()
+        return self._is_capped(row)
 
     def release_incident(self) -> None:
         """Release the single-flight incident lock once a fix completes."""
@@ -326,10 +345,19 @@ def _main(argv: list[str] | None = None, *, governor: QuotaGovernor | None = Non
     r = sub.add_parser("route")
     r.add_argument("--kind", choices=["routine", "incident"], default="routine")
     r.add_argument("--caller", default=None)
+    sub.add_parser("mark-capped")  # response text on stdin; no-op unless it carries a limit signal
     args = p.parse_args(argv)
     if args.cmd == "route":
         gov = governor or QuotaGovernor()
         print(gov.route(args.kind, caller=args.caller))
+        return 0
+    if args.cmd == "mark-capped":
+        # The reactive-cap wiring: claude_rotate.run_claude pipes a final still-limited response
+        # here so the NEXT routine call sheds (the backstop that makes bootstrap-on-unknown safe).
+        import sys as _sys
+
+        gov = governor or QuotaGovernor()
+        gov.mark_capped(_sys.stdin.read())
         return 0
     p.print_help()
     return 2
