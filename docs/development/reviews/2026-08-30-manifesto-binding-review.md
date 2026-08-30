@@ -109,24 +109,60 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 
 | class | verdict | evidence |
 |---|---|---|
-| FLOOR: security-auth / data-postgres / ops (code classes) | UNCHECKED | |
-| 12-Factor (all twelve axes) | UNCHECKED | |
-| 40-documentation: markdown rules (heading levels, fenced blocks) | UNCHECKED | |
-| 40-documentation: trailer discipline on both commits | UNCHECKED | |
-| cross-file contract consistency (hub bullet ↔ template bullet ↔ manifesto § Binding ↔ D-044 row) | UNCHECKED | |
-| anchor integrity (drift-detector substring keys; verbatim anchor phrases) | UNCHECKED | |
-| restatement / two-sources-of-truth (READ BEFORE YOU EDIT class) | UNCHECKED | |
-| factual claims + denominators (counts, "seven→eight", 0/3, drift-check output, mail claims) | UNCHECKED | |
-| path existence (every path cited in the edits + the mail) | UNCHECKED | |
-| fail-open vs fail-closed on every gate/guard (standing) | UNCHECKED | |
-| cost/quota/limit accounting edges (standing) | UNCHECKED | |
-| boundary/sentinel/prefix collisions (standing) | UNCHECKED | |
-| behavior-without-a-test (standing) | UNCHECKED | |
+| FLOOR: security-auth / data-postgres / ops (code classes) | CLEAN | Finder B sweep: all 5 originally-changed files are .md; no code/compose/deps/env/schema hunk in cfd9ac84..5420a575 (examined: all 6 hunks). Round-1 fixes added 2 code files — re-swept by closing round |
+| 12-Factor (all twelve axes) | CLEAN | same sweep — prose-only original surface; fix commit touches a hook regex + a CLI check, no factor axis engaged |
+| 40-documentation: markdown rules (heading levels, fenced blocks) | CLEAN | Finder A: all hunks examined — no skipped levels, no unfenced code, tables intact |
+| 40-documentation: trailer discipline on both commits | CLEAN | `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` → `primary` on cfd9ac84 AND 5420a575; Agent-Name=infra both (2/2 examined; b1960ccc verified post-commit: review-fix) |
+| cross-file contract consistency (hub ↔ template ↔ manifesto ↔ D-044) | FIXED(2) | F-A5 one-way definition drift + F-A3 verbatim Invariant-3 copy — both fixed in b1960ccc |
+| anchor integrity (drift-detector substring keys) | FIXED(2) | F-A1 new anchor line-wrapped + F-A2 pre-existing EXECUTE-the-real-check wrap — both single-line at b1960ccc (grep -c = 1 each inside § UNIVERSAL) |
+| restatement / two-sources-of-truth | FIXED(1)+REFUTED(1) | F-A3 fixed (de-verbatimed); F-A4 field-list duplication REFUTED as bounded: token `CLASS/BUDGET/KILL` greppable, exactly 3 repo sites + manifesto template — a rename is a one-grep sweep |
+| factual claims + denominators | REFUTED(2) | F-B1 (D-044 lacks its own field block): REFUTED — D-044 is REVERSIBLE by the manifesto's own triage (undo = revert 2 commits + governance re-sync, byte-exact restore; no external party, no sunk cost), so no block owed. F-B2 ("0/3" population unnamed): REFUTED — all three contracts are named in the same row's what-cell |
+| path existence (every path cited in edits + mail) | CLEAN | Finder B: 5/5 paths exist incl. templates/governance/DECISIONS.md; decisions.py verified to sweep /opt (read `_ledgers`) |
+| mail-claims precision | FIXED(2) | F-B3 (D-000 quote attribution) + F-B4 ("verbatim" elided 2 boilerplate lines) — precision addendum sent on-thread: 01M1A65N6D41TBTCG20R0K9YD5 |
+| hook-regex collision (fail-open/boundary class) | FIXED(1) | F-B5: `\bBLOCKED:` matched `pre-blocked:` (repro'd live) — regex → `(?<![\w-])BLOCKED:` + 2 red-first tests (collision test watched RED, then green); CHANGELOG line reworded to kill the live instance |
+| ledger-dup-id (boundary/sentinel class) | FIXED(1) | F-B6: two D-041 rows (concurrent-mint race, fleet's 86271c1f after mine f7c93e5c); `_check` collapsed ids into a set so it was invisible. DUPLICATE detector added (red-first test watched RED), Grafana row renumbered → D-046 (0 supersede refs; only prose D-041 citation is hooks-index → my row), fleet informed: 01M1A65N917TKVX83YXKAS2VE2 |
+| fail-open vs fail-closed on every gate/guard (standing) | CLEAN | the one guard touched (BLOCKED exemption) tightened toward fail-closed; hook suite 105→107 passed |
+| cost/quota/limit accounting edges (standing) | CLEAN | no accounting surface in the diff (examined: all hunks) |
+| behavior-without-a-test (standing) | FIXED-adjacent | both code fixes shipped WITH red-first regression tests in the same commit; doc edits are docs-only (Behavior Contract exempts) |
 
 ## Pass Ledger
 
-(populated per pass)
+| pass | finders | found | new | fixed | verdict |
+|---|---|---|---|---|---|
+| Pass 1 | WIDE — 2 native author-blind fabrik-reviewer subagents (A: consistency/anchors/restatement/markdown · B: claims/paths/trailers/parser-consumed-text) + orchestrator mechanical sweep; dispatched: 2, returned: 2 | 11 | 11 | 0 | not done |
+| Pass 2 | SCOPED — orchestrator re-check of every fix + callers (regex repro before/after, anchor single-line greps, clause consistency greps, suites 111 passed, decisions.py --check 0→1→0, final_gate --json success) | 0 | 0 | 6 | fixes landed b1960ccc; closing wide sweep owed |
+| Pass 3 | WIDE — 2 FRESH non-author fabrik-reviewer subagents (C: full-class defect sweep incl. the two code fixes + test quality · D: re-derivation of every count/enumeration/anchor from primary source — method: re-derivation, 7/7 items MATCHED, 0 mismatches); dispatched: 2, returned: 2 | 7 | 6 | 0 | not done (C5 partially re-raises adjudicated F-B1 → new: 6) |
+| Pass 4 | SCOPED — orchestrator re-check of every round-3 fix (hook suite 105 passed post-regex-change, decisions suite 8 passed, both new decisions tests + T1a test watched RED first, gate success) | 0 | 0 | 5 | fixes landed 713a6ca2; closing wide sweep owed |
+| Pass 5 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer, all classes over cfd9ac84..713a6ca2; ran suites (113 passed) + decisions.py --check (exit 0) + corpus grep for sanctioned BLOCKED formats (all-caps only, ~25 occurrences); dispatched: 1, returned: 1 | 4 | 4 | 0 | not done (2 CONFIRMED doc-staleness residues) |
+| Pass 6 | SCOPED — orchestrator: fixed both round-5 CONFIRMED items (decision-ledger.md id-collision sentence; decisions.py --check argparse help), --help verified, suite 8 passed | 0 | 0 | 2 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
-(populated as candidates are raised)
+| # | finding | state |
+|---|---|---|
+| F-A1 | template § UNIVERSAL: new decision-ledger anchor split across newline (also self-raised by orchestrator) | FIXED (b1960ccc — single-line) |
+| F-A2 | same enumeration: pre-existing `EXECUTE the real check` anchor wrapped | FIXED (b1960ccc) |
+| F-A3 | Invariant-3 operative sentence copied near-verbatim into both contracts, contradicting D-044's "point, don't copy" | FIXED (b1960ccc — summary+pointer, verbatim sentence grep = 0 in both) |
+| F-A4 | field list duplicated at 3 sites + manifesto | REFUTED — bounded: unique greppable token, 4 known sites, § Binding candidate check 1 is the eventual detector |
+| F-A5 | one-way definition dropped "or impossible" vs canonical | FIXED (b1960ccc — restored in both contracts) |
+| F-B1 | D-044 itself carries no § Binding field block | REFUTED — D-044 is reversible (revert+resync restores prior state; contained, no sunk cost); block is owed by ONE-WAY rows only |
+| F-B2 | "0/3 contracts" denominator population unnamed | REFUTED — the row's what-cell names all three (hub CLAUDE.md, template, fabrik-lib CLAUDE.md) |
+| F-B3 | mail dressed a paraphrase as a D-000 row quote | FIXED — on-thread precision addendum 01M1A65N6D41TBTCG20R0K9YD5 (quote is operator's original directive verbatim; attribution corrected) |
+| F-B4 | mail's "verbatim output" elided 2 header lines | FIXED — same addendum (excerpt acknowledged; shown lines were verbatim) |
+| F-B5 | Stop-hook BLOCKED exemption matches `pre-blocked:` (whole-message false exemption) | FIXED (b1960ccc — `(?<![\w-])BLOCKED:` + red-first tests + CHANGELOG reword) |
+| F-B6 | duplicate D-041 ledger ids; --check blind to duplicates | FIXED (b1960ccc — detector + test + renumber to D-046 + fleet mail) |
+
+| F-C1 | round-3: `(?<![\w-])BLOCKED:` overcorrected — `T1a-BLOCKED:` stopped matching | FIXED (713a6ca2 — case-sensitive `\bBLOCKED:`; uppercase header is the discriminator; tests re-grounded red-first) |
+| F-C2 | two code fixes landed with no CHANGELOG entry | FIXED (713a6ca2 — entry added; the check_changelog correspondence gap parked in STRATEGIC_BACKLOG, measure-first) |
+| F-C3 | docs/reference/decision-ledger.md § Append: "one mechanical check" stale (AFTER-EDIT coupling) | FIXED (713a6ca2) |
+| F-C4 | tests/test_decisions_helper.py module docstring: "ONE mechanical check" self-contradicted | FIXED (713a6ca2) |
+| F-C5 | D-044/D-045 carry no § Binding field block | REFUTED for D-044 (re-raise of F-B1 — reversible, adjudicated round 1) · D-045 is a sibling's row outside this diff → Residual (pre-existing, owner fleet; § Binding candidate check 1 is the systemic detector) |
+| F-C6 | decisions.py case blindness: lowercase `supersedes d-001` false-DANGLING; lowercase row ids invisible | FIXED (713a6ca2 — ROW_RE IGNORECASE + .upper() normalization both sides; 2 red-first tests) |
+| F-C7 | v2 spec § Degradation: "id collision = ordinary merge conflict, visible" — disproven live | FIXED (713a6ca2 — spec updated to the measured reality) |
+| F-E1 | decision-ledger.md line 34 STILL carried the disproven id-collision sentence (missed by round-3's fix of the same doc) | FIXED (round 6 — sentence corrected to the measured behavior) |
+| F-E2 | decisions.py --check argparse help stale ("validate supersede pointers" only) | FIXED (round 6 — help names both integrity checks; --help verified live) |
+| F-E3 | sentence-case `Blocked:` would not exempt (false-negative class of the case-sensitive regex) | REFUTED — deliberate recorded trade-off: the sanctioned format is all-caps everywhere (closing finder grepped the corpus: ~25 occurrences, 0 lowercase sanctioned), and the fail direction is bounded (a missed exemption blocks-then-warns-through after 3 attempts; it never silently waives a stall) |
+| F-E4 | new regex tests assert the regex object, not the _detect_stall end-to-end path | REFUTED — the regex object IS the changed unit and the tests are red-on-revert (closing finder traced all three revert directions); the end-to-end exemption path keeps its pre-existing integration tests (hook test file lines ~827/919) |
+
+19 findings → 13 FIXED + 5 REFUTED + 1 residual-pre-existing (D-045 half of F-C5; F-B1 half REFUTED) — sums.
+

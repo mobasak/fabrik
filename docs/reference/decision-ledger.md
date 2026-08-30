@@ -31,8 +31,10 @@ FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; des
   (tool, vendor, pattern, module) · an architecture/storage/scope choice · "we built X, it lives at
   Y" · a rejected option worth not re-proposing. NOT: routine fixes, refactors, doc edits
   (CHANGELOG's beat). Cross-repo decisions are recorded ONCE in the hub ledger.
-- **Id collisions** (two sessions appending concurrently) are ordinary merge conflicts — visible,
-  trivially renumbered; no lock machinery by design.
+- **Id collisions** (two sessions appending concurrently) do NOT reliably surface as merge
+  conflicts — appends at different file positions merge cleanly (proven live: two D-041s,
+  2026-08-30). Detection is `--check`'s duplicate-id check; the fix is renumbering the
+  later-minted row. Still no lock machinery by design.
 
 ## Where the duties live (the binding text, not this doc)
 

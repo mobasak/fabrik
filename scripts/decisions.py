@@ -121,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("term", nargs="?", help="case-insensitive substring to find")
     parser.add_argument("--root", default="/opt", help="fleet root (default: /opt)")
     parser.add_argument(
-        "--check", action="store_true", help="validate supersede pointers; exit 1 on a dangling one"
+        "--check",
+        action="store_true",
+        help="ledger integrity: supersede pointers resolve + no duplicate ids; exit 1 on either",
     )
     args = parser.parse_args(argv)
     root = Path(args.root)
