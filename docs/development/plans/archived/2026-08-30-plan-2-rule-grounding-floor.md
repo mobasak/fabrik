@@ -1,6 +1,6 @@
 # Plan 2 — The rule-grounding floor (computed read-set + quote-verified digest)
 
-Status: CONVERGED (2026-08-30 — /fabrik-plan-review: 3 passes, closing re-derivation, raised 0/edits 0, md5-stable)
+Status: EXECUTED (2026-08-30 — both phases shipped: 4b97f5e4 Phase A, 65c50e23 Phase B; phase reviews to no-op; live check 2 examined / 0 findings; landing fire rate measured)
 Origin: operator, this turn — *"partially, not the full contract. this is wrong. this is why ai agents
 are drifting they dont read relevant rules fully. what do you suggest?"* → proposal accepted verbatim:
 *"build it"* (spec skipped on the stated recommendation; mechanical extension of the two floors shipped today).
