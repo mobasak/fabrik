@@ -422,6 +422,7 @@ docs/
 │   ├── architecture.md             # System architecture overview
 │   ├── convergence-prompts.md
 │   ├── decision-ledger.md          # The decision-ledger operational reference (query/append/seed rules)
+- [operating-manifesto.md](docs/reference/operating-manifesto.md) — the ADOPTED decision manifesto (D-043): 6 phases with checkable gates, 5 invariants (budget, default-action, tripwires, anti-renegotiation, WIP limit), bound to the decision ledger + Gatus/Alertmanager
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-vultr.md
 │   ├── fixtures

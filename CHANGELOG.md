@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the Operating Manifesto adopted (D-043) (2026-08-30)
+
+- docs/reference/operating-manifesto.md: the operator's phase framework verbatim + five enforcement additions + § Binding onto the decision ledger and the alerting stack.
+
 ### Fixed — the MCP cold-spawn herd killed: local pinned installs (D-042) (2026-08-30)
 
 - 11 fetch-at-spawn servers now local installs; catalog/emission/rosters localized; hub resolves 15/15 Connected in 9.2s (was 60-90s with timeouts). nvm-upgrade caveat documented.
