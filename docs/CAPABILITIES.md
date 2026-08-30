@@ -118,7 +118,6 @@
 - [scripts/enforcement/check_command_corpus.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
 - [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): Enforce configuration documentation pattern.
 - [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
-- [scripts/enforcement/check_doc_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_doc_index.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): Check for code duplication using jscpd.
@@ -178,6 +177,7 @@
 - [scripts/sync_gatus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
 - [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
+- [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_claude_broker.py | scripts/sysadmin/quota_governor.py
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
 - [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
@@ -187,6 +187,7 @@
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
+- [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json | none
 - [scripts/traycer_mirror.py](../INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): Traycer Report Writer
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -243,6 +244,7 @@
 - [payments](/opt/fabrik-lib/payments/README.md) (owner: external:fabrik-lib): payments/
 - [pdf-extract](/opt/fabrik-lib/pdf-extract/README.md) (owner: external:fabrik-lib): pdf-extract — positional text extract + overlay re-render for PDFs
 - [product-entitlements](/opt/fabrik-lib/product-entitlements/README.md) (owner: external:fabrik-lib): product-entitlements/
+- [product-entitlements-bridge](/opt/fabrik-lib/product-entitlements-bridge/README.md) (owner: external:fabrik-lib): product-entitlements-bridge
 - [proxy-pool](/opt/fabrik-lib/proxy-pool/README.md) (owner: external:fabrik-lib): proxy-pool
 - [rag](/opt/fabrik-lib/rag/README.md) (owner: external:fabrik-lib): RAG Template
 - [request-metering](/opt/fabrik-lib/request-metering/README.md) (owner: external:fabrik-lib): request-metering
@@ -360,6 +362,7 @@
 - [fabrik-release](../CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
 - [fabrik-repo-review](../CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
 - [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
+- [fabrik-review-scoped](../CLAUDE.md) (owner: infra): LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surfac
 - [fabrik-rivals](../CLAUDE.md) (owner: infra): Competitive evidence BEFORE a spec exists — drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feed
 - [fabrik-rules-review](../CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f
 - [fabrik-service-test](../CLAUDE.md) (owner: infra): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
@@ -369,4 +372,4 @@
 - [fabrik-ui-design-review](../CLAUDE.md) (owner: infra): Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/
 - [fabrik-upstream](../CLAUDE.md) (owner: infra): Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-out
 - [fabrik-user-test](../CLAUDE.md) (owner: infra): End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — the UI/workflow QC engineer. Builds the element inve
-- [fabrik-workflow-review](../CLAUDE.md) (owner: infra): Force a Traycer-workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER `-fabrik` doers (ettw 00–06, mega 00/02/03; the `type` you
+- [fabrik-workflow-review](../CLAUDE.md) (owner: infra): Force a Traycer-workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER `-fabrik` doers (ettw 00, 02–06, mega 00/02/03; the `type`
