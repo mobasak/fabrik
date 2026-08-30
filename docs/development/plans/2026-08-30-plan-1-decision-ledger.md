@@ -1,6 +1,6 @@
 # Plan 1 — The Decision Ledger (fleet-wide, per the CONVERGED spec)
 
-Status: CONVERGED (2026-08-30 — /fabrik-plan-review: 3 passes, closing re-derivation, raised 0/edits 0, md5-stable)
+Status: CONVERGED (2026-08-30 — /fabrik-plan-review x2: converged at 4d848206; post-flip dogfood edit re-reviewed same day — the quote-table conversion had dropped 3 prose constraints, restored + re-verified to a no-op, check_rule_grounding 0 findings)
 Spec: docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md (CONVERGED, operator-approved
 2026-08-30: "go back to the spec you have created and /fabrik-plan-after-chat on it")
 Shape: MONOLITH — 3 phases, each independently testable; READ set per phase under 262144
@@ -59,8 +59,12 @@ Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | "explicit pathspecs only" | CLAUDE.md | every phase commit; never bundle sibling files |
 | "Merge-time render only: NEVER bare-render `commands/assemble_commands.py` from a worktree" | CLAUDE.md | Phase C renders from the MAIN checkout |
 | "kebab-case" | CLAUDE.md | naming; `DECISIONS.md` joins the named exceptions in B4 |
+| "new `.md` outside allowlist" | CLAUDE.md:191 | `docs/DECISIONS.md` needs the registry add (A4) or 46 gates red the seed |
+| "modify deps files (`pyproject.toml`/`requirements.txt`/`package.json`/`uv.lock`/`package-lock.json`)" | CLAUDE.md:180 | HARD STOP — no new deps anywhere in this plan (stdlib helper) |
+| "commands are rules, not changelogs" | docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md:302 | Phase C fragment/source edits stay present-tense rule text |
 
-(Converted from the original prose digest by plan-2's rule-grounding floor — the quote-table dogfood.)
+(Converted from the original prose digest by plan-2's rule-grounding floor; the post-flip review
+round restored the three prose constraints the first conversion dropped.)
 
 ## Global Constraints (every phase inherits)
 
@@ -315,6 +319,8 @@ e505c20d fleet fix(scaffold): RESILIENCE §3b reframed as three provider-death O
 | Pass 3 | closing full sweep — every count re-derived (intake 5, behavior 7, 3 phase-review steps, budget 170198 re-measured, governance-file absence grepped 0) | method: re-derivation | 0 | 0 | 8e787ecd |
 | Pass 4 | gate: check_convergence at the flip demanded VERDICT cells in the Coverage Checklist (had "planned adjudication" prose) — rows re-stamped with the review's actual CLEAN/FIXED verdicts | gate | 1 | 1 | → 39e7c040 |
 | Pass 5 | confirm: gate re-run → 0 findings for this plan; md5 39e7c040 stable | method: re-derivation | 0 | 0 | 39e7c040 stable → CONVERGED |
+| Pass 6 (round 2, post-flip) | operator-prompted re-review of the dogfood delta: the quote-table conversion DROPPED 3 prose constraints (allowlist · no-new-deps · commands-are-rules) — restored as quote rows | citation | 1 | 1 | 7c11f4e3 → … |
+| Pass 7 (round 2 closing) | check_rule_grounding re-run (1 examined / 0 findings) + 3 quotes spot-grepped verbatim myself + 9 digest rows counted + check_convergence 0 | method: re-derivation | 0 | 0 | 236faeee → re-CONVERGED |
 
 ## Residual unknowns
 
