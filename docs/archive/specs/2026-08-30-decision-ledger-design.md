@@ -1,6 +1,6 @@
 # The Decision Ledger — every agent records decisions, every agent queries them first
 
-Status: DRAFT
+Status: REJECTED (operator, 2026-08-30) — archived; authored in violation of the 1c research floor (one summariser fetch), the violation that made the floor mechanical (check_spec_convergence APPROACH-FLOOR)
 Date: 2026-08-30
 Scale verdict: **feature-scale** — one plan (governance text + template + seed + search helper + corpus wiring).
 Surface: `templates/governance/CLAUDE.md` + `CLAUDE.md` + `templates/scaffold/` + `commands/_fragments/` + one hub helper script + per-repo `docs/DECISIONS.md`.
