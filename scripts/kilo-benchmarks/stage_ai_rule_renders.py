@@ -31,7 +31,10 @@ from pathlib import Path
 
 REPO = Path("/opt/fabrik")
 GLOB = ".windsurf/rules/ai/*.md"
-_MARKER_START = re.compile(r"<!--\s*[A-Z_0-9]+:START\b")
+# START qualifies ONLY with the engine's own self-description — every live engine marker
+# carries "(auto-managed by <script>)" on its START line; a human's START-shaped comment
+# must never open an allowed region (false-qualify auto-publishes fleet-wide).
+_MARKER_START = re.compile(r"<!--\s*[A-Z_0-9]+:START\b.*auto-managed by")
 _MARKER_END = re.compile(r"<!--\s*[A-Z_0-9]+:END\s*-->")
 _DATE_LINE = re.compile(r"^Last content verification: \d{4}-\d{2}-\d{2}\s*$")
 
@@ -46,8 +49,11 @@ def allowed_lines(lines: list[str]) -> set[int]:
             allowed.add(i)
             continue
         if _MARKER_END.search(line):
-            allowed.add(i)
-            depth = max(0, depth - 1)
+            # an END closes (and belongs to) an engine region ONLY if one is open — a stray
+            # END inserted in prose is a hand-edit, not an engine line
+            if depth > 0:
+                allowed.add(i)
+                depth -= 1
             continue
         if depth > 0 or _DATE_LINE.match(line):
             allowed.add(i)
@@ -90,6 +96,10 @@ def qualifying_paths(repo: Path = REPO) -> list[str]:
             new = (repo / rel).read_text(encoding="utf-8")
         except Exception as exc:
             print(f"[stage-ai-renders] SKIP {rel}: unreadable ({exc})", file=sys.stderr)
+            continue
+        if old == new:
+            # mode-only/metadata dirt — content identical; staging would auto-commit a chmod
+            print(f"[stage-ai-renders] SKIP {rel}: content identical (mode-only change?)", file=sys.stderr)
             continue
         ok, offender = diff_is_engine_only(old, new)
         if ok:

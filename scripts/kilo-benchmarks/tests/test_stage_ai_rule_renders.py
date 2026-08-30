@@ -63,3 +63,34 @@ def test_allowed_lines_marker_bounds_inclusive():
     assert {start, start + 1, start + 2, end, date} <= allowed
     prose = next(i for i, ln in enumerate(lines) if ln.startswith("Hand-written"))
     assert prose not in allowed
+
+
+def test_rogue_human_start_region_disqualifies():
+    # PURE INSERTION: a sibling appends their own START-shaped comment region (no "auto-managed
+    # by") without touching any existing line — the old side offers no catch, so the region must
+    # NOT self-allow on the new side. False-qualify auto-publishes fleet-wide (finding F2).
+    new = BASE + "<!-- NOTE:START -->\nSIBLING EDIT INSIDE FAKE REGION\n<!-- NOTE:END -->\n"
+    ok, offender = diff_is_engine_only(BASE, new)
+    assert not ok
+
+
+def test_rogue_end_line_in_prose_disqualifies():
+    # PURE INSERTION of a stray END with no open engine region — must not self-allow
+    new = BASE + "<!-- GATEWAY_COUNTS:END -->\n"
+    ok, offender = diff_is_engine_only(BASE, new)
+    assert not ok
+
+
+def test_identical_content_reports_not_engine_only():
+    # mode-only dirt: content identical -> the caller must SKIP, not stage a chmod
+    ok, offender = diff_is_engine_only(BASE, BASE)
+    assert ok  # no changed lines — but qualifying_paths must skip old==new BEFORE calling this
+
+
+def test_allowed_lines_exact_set():
+    lines = BASE.splitlines()
+    allowed = allowed_lines(lines)
+    start = next(i for i, ln in enumerate(lines) if "GATEWAY_COUNTS:START" in ln)
+    end = next(i for i, ln in enumerate(lines) if "GATEWAY_COUNTS:END" in ln)
+    date = next(i for i, ln in enumerate(lines) if ln.startswith("Last content verification"))
+    assert allowed == set(range(start, end + 1)) | {date}  # EXACT — nothing else is engine-owned

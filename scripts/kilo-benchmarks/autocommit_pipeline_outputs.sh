@@ -115,7 +115,9 @@ PATHS=(
 # disqualifies it loudly to stderr and it is never bundled. Helper always exits 0.
 while IFS= read -r _ai_render; do
   PATHS+=("$_ai_render")
-done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" 2>>/dev/null || true)
+# helper stderr flows to THIS script's stderr (the pipeline log) — the SKIP warnings are
+# the "disqualifies loudly" half of the contract, and a helper crash must be visible too
+done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" || true)
 
 # Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
 # empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not
