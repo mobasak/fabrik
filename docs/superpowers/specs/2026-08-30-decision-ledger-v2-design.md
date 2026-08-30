@@ -133,9 +133,8 @@ Why file beats postgres here, each reason load-bearing:
 - **Cross-repo query stays one command** (§ Query duty) because /opt is one filesystem.
 
 **Hybrid (per-repo file + hub indexer) is deliberately v2, not now:** the grep-over-/opt query below
-is O(46 files) and instant; an indexer is machinery with no measured need yet. Revisit only if
-ledgers grow past grep usefulness (backlog row, measured triggers: >2s fleet query, >500 rows in any
-repo, or the whychose outgrow signal — a genuine need for per-entry status lifecycle).
+is O(46 files) and instant; an indexer is machinery with no measured need yet. The measured
+escalation triggers live in § Lifecycle.
 
 ## Entry format (I6 — the frozen row)
 
@@ -231,6 +230,25 @@ fleet-visible). NOT a decision: routine fixes, refactors, doc edits — those ar
   persona law · design-system ladder · governance-sync post-commit move · ASK-bar · the 1c
   APPROACH-FLOOR · this very storage decision) — the format proven on real rows on day 1.
 - **Naming:** `DECISIONS.md` joins CLAUDE.md's naming-exceptions list (sibling of FEATURES.md).
+
+## Lifecycle
+
+- **Adoption (day 1):** hub ledger created and seeded with this week's real decisions; scaffolder
+  seeds D-000 in new repos; existing ~46 seeded-if-missing on the next sync. First proof = a seed
+  row answering a real question in ≤2 steps.
+- **Growth:** slow by construction — rows are one-liners and the write trigger excludes routine
+  work (1,000 rows ≈ ~100KB; grep answers instantly). Measured escalation triggers: **>500 rows in
+  any repo · fleet query >2s · a genuine need for per-entry status lifecycle** (the field's outgrow
+  signal, § Research grounding). When one fires, the recorded v2 options are a hub-side indexer
+  over the per-repo files (files stay the write surface) or year-rotation into `docs/archive/`
+  with ids kept stable. Backlog row carries the triggers.
+- **Degradation:** id collision on concurrent append = ordinary merge conflict, visible and
+  trivially fixed; a dangling `supersedes D-NNN` pointer = the helper's one mechanical check;
+  diary drift (routine work creeping in as rows) = the 2-week kaizen measurement tightens the
+  write-trigger list.
+- **Supersession/retirement:** of a ROW — new row `supersedes D-NNN`, the old row never touched
+  (§ Entry format 3). Of the SYSTEM — a successor design mints its adoption as the final row of
+  every ledger it replaces; the files remain in git history, still greppable.
 
 ## Enforcement (measured-first, per the fix directive)
 

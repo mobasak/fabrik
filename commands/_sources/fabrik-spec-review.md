@@ -55,7 +55,10 @@ by the agent it constrains.
 MUST carry `## Personas` first among content sections (operator law 2026-08-29); its absence is a
 BLOCKING finding, not a style note. Then check the four claims the section makes: **(1)** the
 enumeration is complete — hunt the personas specs forget (every SEND has a RECEIVER; the payer; the
-operator) and every persona the conversation named; **(2)** the PRIMARY is a VERBATIM operator
+operator; **the AUTOMATED consumers — subagents, pipelines, cron, calling services — and for every
+duty or mechanism the spec creates, the NAMED role that holds it: a duty with no holder is a finding**,
+the exact hole an operator had to probe with "does it take into account roles?" 2026-08-30) and every
+persona the conversation named; **(2)** the PRIMARY is a VERBATIM operator
 quote — grep the conversation for it; a paraphrase is a finding (the author's summary of the person
 is how a product gets re-aimed at nobody); **(3)** WALK the primary's start-to-finish loop yourself
 and COUNT the steps — your count vs the frozen STEP BUDGET, and a mismatch is a finding against
@@ -143,6 +146,14 @@ how you use it / what it depends on*)?
 contradictions (architecture vs. features); ambiguity (a requirement readable two ways → pick one, make it
 explicit); **coverage** (every "What we agreed"/requirement maps to a design element — list any gap);
 success criteria that are actually testable; correct `shape:` flags (DB/cache/metrics/search/auth/admin).
+**Then WALK THE INTERROGATIVE FLOOR cold (`/fabrik-spec` Phase 5): answer WHO / WHY / WHAT / HOW /
+WHEN / WHERE yourself, from the artifact alone, each at its named section** — WHO incl. automated
+consumers + every duty's role-holder · WHY the motivating pain + how the approach resolves it · WHEN
+the `## Lifecycle` section with measured growth/escalation triggers (its absence is a finding, not a
+nit) · WHERE incl. the documentation landing sites. **A question on the floor you can only answer by
+asking the author is a hole in the artifact** — the operator's approval dialogue is not the place
+these get discovered (live 2026-08-30: roles, growth, and doc-home all surfaced as operator questions
+against a twice-converged spec; the rejected-alternative variant "why not jsonl" made a fourth).
 
 **E) Fabrik hard constraints + architectural mandates — the DEAD-ON-ARRIVAL audit (`/fabrik-spec` § 1b-bis).**
 A spec can be beautifully researched and still be **unbuildable here**. Audit the chosen approach (and every

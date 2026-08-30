@@ -247,7 +247,11 @@ interfaces — for each you can state *what it does / how you use it / what it d
 - The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
   2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
   enumerated — including the ones specs forget (the RECEIVER of anything sent, the payer if distinct
-  from the user, the operator/admin); **(b)** the **PRIMARY persona named in the operator's own
+  from the user, the operator/admin, **and the AUTOMATED consumers: subagents, pipelines, cron jobs,
+  other services that will call or feed the built thing — every duty or mechanism the spec creates
+  names WHICH role holds it**, because a duty with no named holder lands on nobody: the operator had
+  to ask "does it take into account roles?" before a spec stated whose pen records a
+  subagent-surfaced decision, 2026-08-30); **(b)** the **PRIMARY persona named in the operator's own
   words, quoted** — never your paraphrase; **(c)** the primary's **minimal start-to-finish loop
   walked step by step with the steps COUNTED — the count is a frozen STEP BUDGET** downstream
   contracts must meet or force a bump (transdoc shipped nine steps before the first file because no
@@ -255,12 +259,31 @@ interfaces — for each you can state *what it does / how you use it / what it d
   — an untraceable one is scaffold gravity, not product (the same product carried ~1,100 lines of
   invitation flow and zero lines of share because the template afforded it and no persona demanded
   it): justify it or cut it.
-- The spec MUST also contain: **Goal** · **Chosen approach** · **Rejected alternatives** (+ why) · **External
+- The spec MUST also contain: **Goal** · **Why this exists** (the motivating failure or need, concrete —
+  what breaks/costs today, and HOW the chosen approach resolves exactly that; a spec that cannot point at
+  the pain it removes is scaffold gravity at document scale) · **Chosen approach** · **Rejected
+  alternatives** (+ why — and the enumeration MUST cover the obvious adjacent variants of the chosen
+  shape: the other storage format, per-X vs single-X, buy vs build; **an alternative the operator has to
+  ask about is a spec defect**, live 2026-08-30: "why not db, or jsonl file?" — JSONL was never
+  adjudicated) · **`## Lifecycle`** (the WHEN axis, a mandated heading: adoption/first-run · what happens
+  as it GROWS — with measured scale/escalation triggers, never "we'll see" · degradation/failure behavior ·
+  how it is superseded or retired; the growth question is the one operators always ask and specs never
+  answer, live 2026-08-30: "what will happen to the file if it grows too much?") · **External
   dependencies** (each with the cited URL + date + grounded facts: endpoint / limits / pricing) ·
   **fabrik-lib verdict table** (capability → vendor / vendor+enhance / build → the module + one-line why +
-  any upstream note) · **Shape/infra implications** (scaffold type + `shape:` flags) · **Constraints** ·
+  any upstream note) · **Shape/infra implications** (scaffold type + `shape:` flags) · **Documentation
+  landing sites** (WHERE the implementation will be documented, per the Doc Sync Matrix — the dedicated
+  reference doc's path, the index rows, what each repo-local artifact self-documents; "where do we write
+  this down" is an operator question a converged spec has already answered) · **Constraints** ·
   **Open/blocking unknowns** (resolved vs still-open, each open one with a named resolution step). Do not
   write "100% / zero unknowns."
+- **The interrogative floor — a spec is complete when the six questions are answered at NAMED sections,
+  checkable by a reader who asks them cold:** WHO (Personas — human AND automated consumers, every duty's
+  role-holder) · WHY (Why this exists — the pain, the goal) · WHAT (Goal + Chosen approach) · HOW (the
+  approach's mechanics + how it resolves the motivating failure) · WHEN (Lifecycle — adoption, growth
+  triggers, retirement) · WHERE (Surface/Shape + Documentation landing sites). A question on this list
+  that the operator must ask in the approval dialogue was a hole in the artifact, not a dialogue — three
+  in one approval (roles, growth, doc-home) is what made this floor explicit.
 - **Spec self-review (fresh eyes, fix inline):** placeholder scan (no `TBD`/`TODO`/vague requirement);
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the

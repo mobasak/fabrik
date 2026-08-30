@@ -77,6 +77,15 @@ INTAKE_CUTOFF = "2026-08-30"
 # red on a blanket floor — a day-one board-flooder is how an advisory earns being skipped.
 FLOOR_CUTOFF = "2026-08-30"
 FLOOR_MIN_URLS = 2
+
+# The interrogative floor (2026-08-30): WHO and WHEN are mandated SECTIONS, not style choices.
+# Measured need: against a twice-converged spec the operator had to ask "does it take into account
+# roles?" (WHO — automated consumers, every duty's role-holder) and "what will happen to the file
+# if it grows too much?" (WHEN — lifecycle, growth triggers). Same date gate as the approach floor:
+# only the countable subset (heading presence) is enforced here; /fabrik-spec-review's interrogative
+# walk owns whether the sections actually ANSWER their questions.
+PERSONAS_HEAD_RE = re.compile(r"^##\s+Personas\b", re.M)
+LIFECYCLE_HEAD_RE = re.compile(r"^##\s+Lifecycle\b", re.M)
 INTAKE_HEAD_RE = re.compile(r"^##\s+Intake Inventory\b", re.M)
 INTAKE_ROW_RE = re.compile(r"^\|\s*I\d+\s*\|(.+)$", re.M)
 INTAKE_DISPO_RE = re.compile(r"\b(IN|OUT-OF-SCOPE|ASK)\b")
@@ -157,6 +166,27 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
                         "approach floor. 'Purely internal' waives 1a facts, NEVER the approach "
                         "research: every design shape has a field practice to consult (the "
                         "self-exemption class, 2026-08-30)",
+                    )
+                )
+        if m and m.group(1) >= FLOOR_CUTOFF:
+            if not PERSONAS_HEAD_RE.search(text):
+                findings.append(
+                    Finding(
+                        name,
+                        "NO-PERSONAS",
+                        "no '## Personas' - WHO consumes this (incl. automated actors) and which "
+                        "role holds each duty is a mandated section (interrogative floor, "
+                        "2026-08-30)",
+                    )
+                )
+            if not LIFECYCLE_HEAD_RE.search(text):
+                findings.append(
+                    Finding(
+                        name,
+                        "NO-LIFECYCLE",
+                        "no '## Lifecycle' - WHEN: adoption, growth with measured triggers, "
+                        "retirement. The growth question operators always ask and specs never "
+                        "answer (interrogative floor, 2026-08-30)",
                     )
                 )
         if m and m.group(1) >= INTAKE_CUTOFF:

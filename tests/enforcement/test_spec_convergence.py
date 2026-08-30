@@ -204,3 +204,45 @@ def test_pre_cutoff_specs_are_not_retro_graded_by_the_floor(tmp_path):
     _floor_spec(tmp_path, "no urls at all here", name="2026-08-27-old-design.md")
     _, findings = chk._audit(tmp_path)
     assert not any(f.label == "APPROACH-FLOOR" for f in findings), [f.label for f in findings]
+
+
+def _structured_spec(root, sections: str, name: str = "2026-08-30-struct-design.md"):
+    """A floor-satisfying CONVERGED spec whose SECTION set is the variable under test."""
+    body = (
+        CONVERGED
+        + "## Intake Inventory\n\n| I# | Item | Disposition | Where |\n|---|---|---|---|\n"
+        + "| I1 | x | IN | here |\n\n"
+        + "https://adr.github.io/ (fetched 2026-08-30) and "
+        + "https://martinfowler.com/bliki/ArchitectureDecisionRecord.html (fetched 2026-08-30)\n\n"
+        + sections
+        + "\nResidual unknowns: none material.\n"
+    )
+    return _spec_file(root, name=name, body=body)
+
+
+def test_a_new_converged_spec_without_personas_fires(tmp_path):
+    """The interrogative floor (2026-08-30): WHO is a mandated section, not a style choice —
+    the operator had to ask 'does it take into account roles?' against a twice-converged spec."""
+    _structured_spec(tmp_path, "## Lifecycle\n\ngrowth triggers: >500 rows -> indexer.\n")
+    _, findings = chk._audit(tmp_path)
+    assert any(f.label == "NO-PERSONAS" for f in findings), [f.label for f in findings]
+    assert not any(f.label == "NO-LIFECYCLE" for f in findings), [f.label for f in findings]
+
+
+def test_a_new_converged_spec_without_lifecycle_fires(tmp_path):
+    """WHEN is a mandated section: 'what will happen to the file if it grows too much?' is the
+    question operators always ask and specs never answer (2026-08-30)."""
+    _structured_spec(tmp_path, "## Personas\n\nthe operator; the writer agents.\n")
+    _, findings = chk._audit(tmp_path)
+    assert any(f.label == "NO-LIFECYCLE" for f in findings), [f.label for f in findings]
+    assert not any(f.label == "NO-PERSONAS" for f in findings), [f.label for f in findings]
+
+
+def test_pre_cutoff_specs_are_not_graded_for_personas_or_lifecycle(tmp_path):
+    """Date-gated like the intake + approach rules: retro-grading historical specs floods the
+    advisory on day one, which is how advisory output earns being skipped."""
+    _structured_spec(tmp_path, "no mandated sections at all\n", name="2026-08-27-old2-design.md")
+    _, findings = chk._audit(tmp_path)
+    assert not any(f.label in ("NO-PERSONAS", "NO-LIFECYCLE") for f in findings), [
+        f.label for f in findings
+    ]
