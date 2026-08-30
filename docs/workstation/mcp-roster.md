@@ -60,7 +60,7 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
 | mobile-mcp | device/emulator automation | mobile-app | light | ON mobile-app only |
 | maestro | mobile/web UI test flows — **heaviest server on the box** | mobile-app | **724 MB / 4p** | ON mobile-app only |
-| postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | `needs_database` repos during data-contract/debug | light | OFF; ON DB-backed repos |
+| postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED 2026-08-30 (D-020: universal, operator word)**; crash FIXED same day (`uvx --with 'mcp<2'` pin, synced to all 5 fleet rosters). ⚠️ per-repo `DATABASE_URI` still owed by the split implementation — the single user-level URI pointed at a dead :15432, and local PG creds are per-repo |
 | grafana | fleet observability (Prometheus/Loki/dashboards) — runs as a docker container per window | hub (deploy/monitoring, fleet beat) | docker | ON hub only |
 | media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED 2026-08-30 (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
 | pubchem | chemistry database lookups | chemical-commerce content (wef/bhdtrade) | light | ON wef only |
@@ -86,29 +86,29 @@ phantom arm (the wef 01M17XXF defect class).
 | `session-recall` | named by 22 commands + ORIENT mandate |
 | `exa` | grounding order #1 in 7 pipeline commands (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan) |
 | `brave-search` | named in the same grounding orders (6 commands) — every repo runs these |
+| `firecrawl` | RULED universal 2026-08-30 (D-013, "no exception"); its crash was a corrupted npx-cache entry, fixed same day |
+| `postgres-pro` | RULED universal 2026-08-30 (D-020) — operator: "fix postgres-pro and wire it all type of projects"; overrides the shape-driven proposal |
 
-Two more are named by universal commands but recommended for CORPUS EDITS instead of universal cost
-(operator decision): `github` (2 refs in /fabrik-spec — swap to the `gh` CLI, zero processes) and
-`firecrawl` (5 fallback refs — flaky/absent in live sessions already; swap to the orchestrator-`curl`
-NEEDS-RAW-FETCH path the researcher def now teaches). Until those edits land, both are phantom arms
-whether enabled or not.
+(The old "swap github/firecrawl out via corpus edits" recommendation is resolved: `github` RETIRED
+end-to-end per D-014 — corpus now teaches the `gh` CLI; `firecrawl` went the other way, universal
+per D-013.)
 
-| Scaffold type | Beyond the universal 3 | Evidence |
+| Scaffold type | Beyond the universal 5 | Evidence |
 |---|---|---|
-| `python-api` | postgres-pro¹ | no command names it — ad-hoc DB inspection utility, flag-driven |
-| `python-api-gpu` | postgres-pro¹ | as python-api |
-| `node-api` | postgres-pro¹ | as python-api |
-| `file-api` | postgres-pro¹ | as python-api |
-| `file-worker` | postgres-pro¹ | as python-api |
-| `saas-skeleton` | playwright · chrome-devtools · shadcn · magicui · postgres-pro | fabrik-gui declares `mcpServers: [playwright, shadcn, chrome-devtools]`; /fabrik-ui-design drives the shadcn MCP by name; magicui = the operator's SaaS pair |
+| `python-api` | — (universal 5 only) | no command names anything type-specific for headless |
+| `python-api-gpu` | — (universal 5 only) | as python-api |
+| `node-api` | — (universal 5 only) | as python-api |
+| `file-api` | — (universal 5 only) | as python-api |
+| `file-worker` | — (universal 5 only) | as python-api |
+| `saas-skeleton` | playwright · chrome-devtools · shadcn · magicui | fabrik-gui declares `mcpServers: [playwright, shadcn, chrome-devtools]`; /fabrik-ui-design drives the shadcn MCP by name; magicui = the operator's SaaS pair |
 | `chrome-extension` | playwright · chrome-devtools | fabrik-gui dispatches here (MV3 loop via bundled Chromium) |
 | `mobile-app` | maestro · mobile-mcp | the Build-Verification Loop's mobile branch: "mobile (RN): Maestro MCP + Mobile Next MCP" (plan-after-chat/execute-plan/user-test) + 80-mobile pack |
 | `desktop-app` | playwright · chrome-devtools · shadcn² | Electron web UI → fabrik-gui's set; ²shadcn when the design system is shadcn-based (ui-design: "when the system is shadcn-based") |
 | `static-site` | playwright · chrome-devtools · shadcn² | rendered-site design-review/user-test via fabrik-gui |
 | `docusaurus` | playwright · chrome-devtools | reader-journey certification via fabrik-gui |
-| `wordpress` | — (universal 4 only) | legacy, out of fabrik |
+| `wordpress` | — (universal 5 only) | legacy, out of fabrik |
 
-¹ rides `shape.needs_database: true`, never the type name.
+¹ (retired footnote) postgres-pro rode `shape.needs_database` until D-020 made it universal.
 ² only when the repo's frozen design system is shadcn-based; magicui stays saas-only EXCEPT the wef
 overlay (D-017 supersedes the boundary for that one repo) (original operator boundary:
 "use on the SaaS UI, never on produced sites").
@@ -121,8 +121,8 @@ transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATI
 here") · hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified) (+serena, operator call).
 
-**Headcount effect:** headless types run **3-4 servers instead of 17**; web-GUI types 7-9;
-mobile-app 6.
+**Headcount effect (post-D-020):** headless types run **5 servers instead of 16**; web-GUI types
+7-9; mobile-app 7.
 
 ## Playwright — the ruling in full (D-015 + D-016, operator-saved verbatim rationale)
 
@@ -169,7 +169,7 @@ Three servers were NOT herd victims; they are broken independently, each probed 
 | Server | Root cause (verbatim evidence) | Fix direction |
 |---|---|---|
 | firecrawl | ~~CRASHED at startup~~ **FIXED 2026-08-30**: the `FSLegacyMainResolve` error was a corrupted `~/.npm/_npx/12b05d58…` cache entry (the 2026-08-30 wipe incident's residue — `mcp-proxy` present, its `@modelcontextprotocol/server` dep missing). Cleared the one entry; clean respawn verified. If it recurs after a cache event: clear the entry, never the whole `_npx` | the curl-swap candidate is DEAD (D-013: firecrawl universal) |
-| postgres-pro | `uvx postgres-mcp` crashes: `No module named 'mcp.server.fastmcp'` — the mcp 2.x SDK renamed FastMCP; postgres-mcp is v1 code | pin `uvx --with 'mcp<2' postgres-mcp` in the roster (via the rotator sync) |
+| postgres-pro | ~~`uvx postgres-mcp` crashes: `No module named 'mcp.server.fastmcp'`~~ **FIXED 2026-08-30 (D-020)**: the mcp 2.x SDK renamed FastMCP; postgres-mcp is v1 code. Pinned `uvx --with 'mcp<2' postgres-mcp` via the rotator — MCP initialize handshake verified (`postgres-mcp 1.29.1` responds), all 5 fleet rosters carry the pin. Residue: `DATABASE_URI` layer is per-repo (split-plan item) — the old URI targeted dead :15432 | done — URI repoint rides the split |
 | fabrik-citation-verifier | config points at `http://127.0.0.1:8033/mcp` (type: http) but only the REST API on :8032 is up — :8033 answers nothing (curl 000) | the owning repo restarts its MCP endpoint or the roster repoints; connected this morning, so the endpoint died today |
 
 `maestro` is a fourth, milder case: slow cold start (JVM), flappy across reloads — works once warm.
