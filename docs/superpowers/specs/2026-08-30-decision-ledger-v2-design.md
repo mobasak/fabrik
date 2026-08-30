@@ -1,6 +1,6 @@
 # The Decision Ledger — every agent records decisions, every agent queries them first
 
-Status: CONVERGED (2026-08-30 — /fabrik-spec-review: 2 passes, closing pass re-derivation method, raised 0 / edits 0, md5 bc452c00 stable)
+Status: CONVERGED (2026-08-30 — /fabrik-spec-review ×2: run 1 converged at md5 bc452c00; run 2 (operator's approval-dialogue questions as new intake) added the JSONL rejected-alternative + I8/I9 rows, re-converged to a no-op)
 Date: 2026-08-30
 Scale verdict: **feature-scale** — one plan (governance text + template + seed + search helper + corpus wiring).
 Surface: `templates/governance/CLAUDE.md` + `CLAUDE.md` + `templates/scaffold/` + `commands/_fragments/` + one hub helper script + per-repo `docs/DECISIONS.md`.
@@ -45,8 +45,10 @@ personas contract's receiver check: no external party is touched.)
 | I5 | "all decisions will be recorded in all repos from now on" | IN | § Distribution · § Write duty |
 | I6 | "with why, what, where, who, when" | IN — the frozen row shape | § Entry format |
 | I7 | "when i ask something, about a build, feature, decision i want a full answer not struggling ais around to find it" | IN — the full-answer bar (what+why+where in one lookup; builds and features are queryable, not only rulings) | § Query duty · § Success criteria |
+| I8 | "why did you decide to create decisions.md? but not db, or jsonl file?" (approval dialogue, 2026-08-30) | IN — JSONL adjudicated as a named rejected alternative | § Approaches 5 · § Storage decision |
+| I9 | "what will happen to the file if it grows too much?" (approval dialogue, 2026-08-30) | IN — measured escalation triggers + v2 options | § Storage decision (hybrid para) |
 
-Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
+Intake: 9 items — 9 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 ## The motivating failure (why this exists)
 
@@ -296,6 +298,14 @@ CHANGELOG). Rotation-safe: nothing keyed to account dirs; plain files in each re
 4. **Semantic memory service (agentmemory/mem0 class)** — REJECTED for v1: retrieval machinery with
    a service dependency; our declined-semantic-search precedent applies; structured rows make grep
    sufficient. Sits behind the v2 trigger with the hybrid indexer.
+5. **Structured data file (JSONL/CSV, one record per line)** — REJECTED (operator asked, 2026-08-30):
+   machine-parsing is its only advantage, and no program consumes the ledger — the readers are
+   agents-in-chat and the operator, for whom a markdown table renders, scans, and self-documents its
+   columns; JSONL renders as noise and needs a schema doc. Grep works identically on both; the ~30-line
+   helper parses either trivially. Field practice keeps decision records and agent-memory files as
+   markdown-in-repo (§ Research grounding), and the governance doc family + doc-discipline machinery
+   (allowlist, sync matrix) already govern the .md shape. Concurrent-append merge behavior is the same
+   in both formats.
 
 ## Out of scope (each with its destination)
 
