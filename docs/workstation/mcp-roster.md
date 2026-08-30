@@ -54,8 +54,8 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | ~~github~~ | GitHub API (PRs, issues, code search) | **RETIRED 2026-08-30 (D-014):** every corpus ref swapped to the `gh` CLI (`gh search code`/`gh api` — authenticated, zero idle processes) in the same change; removed from all 5 rosters via the rotator (16 servers remain) | — | OFF everywhere |
 | brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
 | **firecrawl** | scrape/crawl (raw HTML) — fallback arm in 5 pipeline commands | ALL repos (operator ruling 2026-08-30, D-013: universal, no exception) | light | **ON everywhere** — the startup crash was a CORRUPTED npx cache entry (wipe-incident residue), cleared + respawn verified 2026-08-30; the curl-swap candidate is DEAD per the ruling |
-| playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test | UI types: saas-skeleton, static-site, docusaurus, chrome-extension, desktop-app | 102 MB / 2p | ON UI types only |
-| chrome-devtools | deep browser debug/perf traces | DECLARED in fabrik-gui's own mcpServers allow-list — the GUI build/certify subagent needs it wherever it dispatches | 321 MB / 5p | ON web-GUI types (with playwright); the agent's allow-list is the evidence |
+| playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test; NEVER crawling (no grounding order names it — the research chain is exa/brave/firecrawl) | the 6 UI-bearing types | 102 MB / 2p | ON UI types only — **RULED 2026-08-30 (D-015)** |
+| chrome-devtools | deep browser debug/perf traces (Core-Web-Vitals in the Build-Verification Loop) | DECLARED in fabrik-gui's own mcpServers allow-list | 321 MB / 5p | ON web-GUI types (with playwright) — **RULED 2026-08-30 (D-015)** |
 | shadcn | SaaS UI component registry (MIT-B pair, operator-wired) | saas-skeleton | light | ON saas-skeleton only |
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
 | mobile-mcp | device/emulator automation | mobile-app | light | ON mobile-app only |
@@ -143,6 +143,11 @@ Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replac
 already-registered sources; decision rides the same split.
 
 ## Status of the split (decision pending — PARTIALLY RULED)
+
+**fabrik-lib is HUB-CLASS (operator ruling 2026-08-30, D-015): full roster, exactly like /opt/fabrik —
+it builds modules for every scaffold type and its agent needs the whole toolbox. (Today this is
+automatic: the roster is USER-level, every window on the box loads it; the split implementation must
+preserve fabrik-lib + hub at full set while trimming project windows.)**
 
 **Operator ruling 2026-08-30 (D-013): session-recall · exa · brave-search · firecrawl are UNIVERSAL —
 every project, no exception. Any trim below excludes these four; the firecrawl→curl corpus swap is DEAD.**
