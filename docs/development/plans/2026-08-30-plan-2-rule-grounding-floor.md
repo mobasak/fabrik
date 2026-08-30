@@ -53,6 +53,10 @@ Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | "Watched-fail-first (for tests THIS change adds or modifies): a non-trivial behavior's test must be SEEN RED" | CLAUDE.md § Completion Contract | Phase A step 1 runs the suite red before implementing |
 | "NEVER bare-render `commands/assemble_commands.py` from a worktree" | CLAUDE.md § Behavior (Merge-time render only) | Phase B renders from the MAIN checkout only |
 | "measured, not vibed — before adding any new rule/check/mechanism, measure its fire rate" | CLAUDE.md § THE FIX DIRECTIVE 5 | date-gate + live fire-rate measurement in Phase B step 4 |
+| "Use type hints for all function signatures" | .windsurf/rules/core/10-python.md:150 | the check + its tests fully typed |
+| "a non-trivial behavior's test proves something only if it has been SEEN RED" | .windsurf/rules/core/45-testing-strategy.md:21 | A1 collection-red watched before implementing |
+| "🔴 = the gate **hard-blocks the commit** if it's stale (`check_doc_sync` ERROR-tier)." | .windsurf/rules/core/40-documentation.md:21 | INDEX/CHANGELOG rows ride the B batch, never deferred |
+| "**Operational** agents (sysadmin, watchdog, bootstrap) run via **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`." | .windsurf/rules/ai/50-agentic.md:19 | matched via the docs/orchestrator globs; nothing here introduces an API-key workflow |
 
 ## Global Constraints (both phases inherit)
 

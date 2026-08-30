@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the rule-grounding floor: computed read-set + quote-verified Constraints Digest (2026-08-30)
+
+- **What:** the rule-grounding gate (fragment v2, both planning commands + two orchestrator trigger
+  docs + both evaluation checklists) now computes the MUST-READ pack set (FLOOR +
+  `review_rubric.py --changed <surfaces>` MATCHED) instead of demanding all ACTIVE packs, and the
+  Constraints Digest is a table whose every row carries a verbatim pack quote + `file:line`. New
+  advisory `check_rule_grounding.py` (warn_only, date-gated >= 2026-08-30) grades CONVERGED plans:
+  NO-DIGEST / PACK-NOT-IN-DIGEST / QUOTE-NOT-FOUND; `/fabrik-plan-review` gains the digest audit row.
+- **Why:** operator ruling — *"this is why ai agents are drifting they dont read relevant rules
+  fully"* — after an honest "partially, not the full contract" answer. An unfollowable 26-pack duty
+  teaches skimming; a quote you can grep is proof the pack was open, self-assertion is not.
+- **Measured:** 8 behaviors red-first; landing fire rate 2/2 in-window plans redded correctly and
+  were dogfooded clean same-day (plan-1 prose digest → quote table; plan-2 gained its 4 MATCHED-pack
+  rows); historical corpus untouched by the date gate. Spec-side grading deliberately deferred until
+  the plan-side has two weeks of fire-rate data.
+
 ### Changed — context7 MCP retired from the window roster; corpus grounding orders re-armed (2026-08-30)
 
 - **What:** measured usage was 45 tool calls in the box's entire transcript history (vs exa 563 ·

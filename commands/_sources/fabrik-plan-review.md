@@ -77,6 +77,13 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
    with evidence naming the paths hunted before you may write `Status: CONVERGED`.**
    `check_convergence.py` enforces this on the flip — a checklist that is missing, unparsed, unadjudicated,
    or not derived from a recorded `review_rubric.py` invocation fails the gate.
+3. **Constraints-Digest audit (the rule-grounding floor, 2026-08-30).** The rubric run from step 1
+   IS the plan's computed MUST-READ set — now audit the plan's `## Constraints Digest` against it:
+   every MATCHED pack must be named in the digest, and you spot-verify **≥2 digest quotes verbatim
+   in their cited files yourself** (whitespace-normalised — source lines wrap). A MATCHED pack the
+   digest never names, or a quote you cannot find, is a FINDING: the author selected against packs
+   that were never open. `check_rule_grounding.py` grades the countable subset at the flip; YOUR
+   audit owns whether the quotes are load-bearing rather than decorative.
 
 **Why this command specifically.** `/fabrik-plan-after-chat` says it itself: *"12-Factor (all twelve) —
 BINDING on what the plan is allowed to STEP. The plan is exactly where a 12-Factor violation gets WRITTEN

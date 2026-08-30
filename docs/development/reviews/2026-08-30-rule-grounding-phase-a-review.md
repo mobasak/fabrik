@@ -25,7 +25,7 @@ Prior-report anchor: none for this surface (new files) — full WIDE pass 1.
 | # | Class | Verdict | Evidence |
 |---|---|---|---|
 | 1 | security-auth floor (35) | CLEAN | read-only stdlib CLI; subprocess is the repo's own script by --root-resolved path, bounded args, no shell=True |
-| 2 | data-postgres floor (25) | CLEAN | grep of the 4 changed files for sql/session/engine/psycopg: 0 hits — check_rule_grounding.py reads only .md plan files |
+| 2 | data-postgres floor (25) | CLEAN | grep of the 4 changed files for sql/engine/psycopg/asyncpg: 0 DB-API hits (the word "session" appears once, in the check's docstring prose, not as a DB session) — check_rule_grounding.py reads only .md plan files |
 | 3 | ops floor (30) | CLEAN | grep of the 4 changed files for compose/ports/docker/traefik: 0 hits — no service, no deploy artifact touched |
 | 4 | 12-Factor | CLEAN | stdout-only, env-free, no daemon; timeout=120 bounds the one subprocess |
 | 5 | python discipline (10) | CLEAN | sibling-mirrored frame (guards, _say, budget charged-up-front); AFTER-EDIT header present; module-level compiled regexes |
@@ -47,7 +47,13 @@ Prior-report anchor: none for this surface (new files) — full WIDE pass 1.
 Pass 2 = the no-op: `new: 0`, everything adjudicated. (Minimum-two-rounds satisfied; no fix pass
 existed to confirm.)
 
-## Verdict
+## Phase A verdict
 
-Phase A clean. The check's first live run correctly reds both in-window plans on exactly the
-defects the plan's B4 dogfood step exists to fix — the floor grading its own author first.
+Phase A verdict: PASS — clean. The check's first live run correctly reds both in-window plans on
+exactly the defects the plan's B4 dogfood step exists to fix — the floor grading its own author
+first. Gate at commit time (verbatim summary of the `python scripts/final_gate.py --check --json`
+run in this phase):
+
+```json
+{"status": "success", "tier": 2, "passed": 55, "failed": 0}
+```

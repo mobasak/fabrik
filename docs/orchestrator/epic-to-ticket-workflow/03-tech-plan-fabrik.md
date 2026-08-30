@@ -23,7 +23,7 @@
 
 # Tech Plan
 
-<!-- n3k-research-clause v1 · companion to rule-grounding-gate v1 -->
+<!-- n3k-research-clause v1 · companion to rule-grounding-gate v2 -->
 ⚠️ **N3k research inheritance (BINDING):** if upstream artifacts `## fabrik-lib Verdict` + `## Rejected
 Alternatives` exist (mega-epic path), CONSUME them — do NOT re-research settled verdicts. If they do
 NOT exist (standalone run), run the N3k ladder HERE before any tech selection: owned services
@@ -31,7 +31,7 @@ NOT exist (standalone run), run the N3k ladder HERE before any tech selection: o
 research (exa / brave / firecrawl / context7, plus GitHub for a dependency's real latest release).
 Cite URL + fetch date on every external claim, and emit both artifacts.
 
-<!-- rule-grounding-cite v1 · companion to rule-grounding-gate v1 (commands/_fragments/grounding-rules.md) -->
+<!-- rule-grounding-cite v1 · companion to rule-grounding-gate v2 (commands/_fragments/grounding-rules.md) -->
 ⚠️ **Constraints-Digest citation (BINDING):** every architecture, tool, or dependency selection in this
 step cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides
 with a digest row is DEAD. If no digest artifact exists upstream, STOP — run the Rule-grounding gate

@@ -264,8 +264,8 @@ These items port the enforcement/research disciplines that make the standalone d
 
 138. **Flywheel back-fill on any pool fanout** — if the command dispatches a `fanout` (grounders / reconcilers / finders — `03-tech-plan`, `06-ticket-breakdown`, `07`, `08`, `10` all do), does it require the `set_quality(...)` back-fill after merge+refute (an unrecorded pool run teaches the flywheel nothing — `check_subagent_flywheel.py` WARNs), and forbid hand-rolling `run_agents`+`record_run`? And keep the core JUDGMENT single-agent where the discipline demands it? → ADD the `set_quality` obligation wherever a fanout is mentioned.
 
-## Governance Grounding (rule-grounding-gate v1)
+## Governance Grounding (rule-grounding-gate v2)
 
-139. Does the artifact carry a CONSTRAINTS DIGEST — one row per MUST/BAN/anti-pattern from the ACTIVE rule packs (`rule | pack:line | implication`), from fresh reads, and does every architecture/tool/dependency selection cite a digest row or state `unconstrained`?
+139. Does the artifact carry a CONSTRAINTS DIGEST — one row per MUST/BAN/anti-pattern from the COMPUTED must-read set (FLOOR + `review_rubric.py --changed <the surfaces>` MATCHED packs), **every row a VERBATIM quote + `file:line`** (the quote is the proof the pack was open — `check_rule_grounding.py` grades the countable subset on plans), and does every architecture/tool/dependency selection cite a digest row or state `unconstrained`?
 140. Are `## fabrik-lib Verdict` + `## Rejected Alternatives` present — one verdict row per feature (`vendor / wrap / build`) citing the module's own README from a fresh read, never from memory?
-141. Is every rejected external best-practice that collides with a digest row rejected WITH the rule citation (rule, not taste) — and is any digest missing a rule an ACTIVE pack contains flagged as INCOMPLETE-DIGEST?
+141. Is every rejected external best-practice that collides with a digest row rejected WITH the rule citation (rule, not taste) — and is any digest missing a rule a MUST-READ pack contains flagged as INCOMPLETE-DIGEST?

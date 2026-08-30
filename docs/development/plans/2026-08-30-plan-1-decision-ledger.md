@@ -49,9 +49,18 @@ Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | governance sync triggers | CLAUDE.md + templates/governance/ + fragments distribute fleet-wide on commit | .pre-commit-config.yaml governance-sync files-filter |
 | fabrik-lib README | no module fits (grep: 1 irrelevant hit); helper is process tooling below the module bar — spec verdict table | /opt/fabrik-lib/README.md |
 
-Constraints digest: kebab-case naming with named exceptions (CLAUDE.md:287) · new-.md allowlist
-(CLAUDE.md § HARD STOPS + `_doc_registry`) · commands-are-rules (present-tense, no changelog prose) ·
-render-from-MAIN-checkout only · explicit pathspecs + trailers + push per commit · no new deps.
+## Constraints Digest
+
+| rule (verbatim) | where | implication here |
+|---|---|---|
+| "Use type hints for all function signatures" | .windsurf/rules/core/10-python.md:150 | `decisions.py` fully typed |
+| "a non-trivial behavior's test proves something only if it has been SEEN RED" | .windsurf/rules/core/45-testing-strategy.md:21 | A1/B1 red-first, watched |
+| "🔴 = the gate **hard-blocks the commit** if it's stale (`check_doc_sync` ERROR-tier)." | .windsurf/rules/core/40-documentation.md:21 | INDEX/CHANGELOG rows land same-change, never deferred |
+| "explicit pathspecs only" | CLAUDE.md | every phase commit; never bundle sibling files |
+| "Merge-time render only: NEVER bare-render `commands/assemble_commands.py` from a worktree" | CLAUDE.md | Phase C renders from the MAIN checkout |
+| "kebab-case" | CLAUDE.md | naming; `DECISIONS.md` joins the named exceptions in B4 |
+
+(Converted from the original prose digest by plan-2's rule-grounding floor — the quote-table dogfood.)
 
 ## Global Constraints (every phase inherits)
 

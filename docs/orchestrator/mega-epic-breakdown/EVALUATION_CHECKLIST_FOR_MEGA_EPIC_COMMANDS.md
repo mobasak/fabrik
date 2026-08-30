@@ -200,8 +200,8 @@ These items port the enforcement/research disciplines that make the standalone d
 
 108. **Flywheel back-fill on any optional fanout** — if the command MAY dispatch a read-only consistency/citation fanout, does it require the `set_quality(...)` back-fill after merge+refute (an unrecorded pool run teaches the flywheel nothing — `check_subagent_flywheel.py` WARNs), and forbid hand-rolling `run_agents`+`record_run`? And does it keep the command's core JUDGMENT single-agent (only the mechanical read-only check fans out)? → ADD the `set_quality` obligation wherever an optional fanout is mentioned; state plainly that the judgment itself is never fanned out.
 
-## Governance Grounding (rule-grounding-gate v1)
+## Governance Grounding (rule-grounding-gate v2)
 
-109. Does the artifact carry a CONSTRAINTS DIGEST — one row per MUST/BAN/anti-pattern from the ACTIVE rule packs (`rule | pack:line | implication`), from fresh reads, and does every architecture/tool/dependency selection cite a digest row or state `unconstrained`?
+109. Does the artifact carry a CONSTRAINTS DIGEST — one row per MUST/BAN/anti-pattern from the COMPUTED must-read set (FLOOR + `review_rubric.py --changed <the surfaces>` MATCHED packs), **every row a VERBATIM quote + `file:line`** (the quote is the proof the pack was open — `check_rule_grounding.py` grades the countable subset on plans), and does every architecture/tool/dependency selection cite a digest row or state `unconstrained`?
 110. Are `## fabrik-lib Verdict` + `## Rejected Alternatives` present — one verdict row per feature (`vendor / wrap / build`) citing the module's own README from a fresh read, never from memory?
-111. Is every rejected external best-practice that collides with a digest row rejected WITH the rule citation (rule, not taste) — and is any digest missing a rule an ACTIVE pack contains flagged as INCOMPLETE-DIGEST?
+111. Is every rejected external best-practice that collides with a digest row rejected WITH the rule citation (rule, not taste) — and is any digest missing a rule a MUST-READ pack contains flagged as INCOMPLETE-DIGEST?
