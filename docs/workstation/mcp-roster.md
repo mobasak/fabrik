@@ -53,7 +53,7 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | **exa** | web search + raw fetch — grounding order #1 in every spec/review command | all repos, design/review phases | 183 MB / 4p | **ON everywhere** |
 | github | GitHub API (PRs, issues, code search) | NAMED in /fabrik-spec's grounding order (2 refs) — otherwise `gh` CLI covers it | 173 MB / 4p | OFF once the corpus swaps those 2 refs to `gh` CLI (phantom-arm law: never a named-but-absent server) |
 | brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
-| firecrawl | scrape/crawl (raw HTML) — NAMED as a fallback arm in 5 pipeline commands, but flaky/absent in live sessions (wef 01M17XXF measured it gone) | grounding fallback + wef crawling | light | corpus decision: swap the 5 fallback refs to orchestrator `curl` (the NEEDS-RAW-FETCH path) → then ON wef only; until then it is a phantom arm either way |
+| **firecrawl** | scrape/crawl (raw HTML) — fallback arm in 5 pipeline commands | ALL repos (operator ruling 2026-08-30, D-013: universal, no exception) | light | **ON everywhere** — the startup crash was a CORRUPTED npx cache entry (wipe-incident residue), cleared + respawn verified 2026-08-30; the curl-swap candidate is DEAD per the ruling |
 | playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test | UI types: saas-skeleton, static-site, docusaurus, chrome-extension, desktop-app | 102 MB / 2p | ON UI types only |
 | chrome-devtools | deep browser debug/perf traces | DECLARED in fabrik-gui's own mcpServers allow-list — the GUI build/certify subagent needs it wherever it dispatches | 321 MB / 5p | ON web-GUI types (with playwright); the agent's allow-list is the evidence |
 | shadcn | SaaS UI component registry (MIT-B pair, operator-wired) | saas-skeleton | light | ON saas-skeleton only |
@@ -127,7 +127,7 @@ Three servers were NOT herd victims; they are broken independently, each probed 
 
 | Server | Root cause (verbatim evidence) | Fix direction |
 |---|---|---|
-| firecrawl | `npx firecrawl-mcp` CRASHES at startup on this Node: `FSLegacyMainResolve` ESM resolve error — never connected in any session for days (also wef 01M17XXF) | strengthens the corpus edit: swap its 5 fallback refs to orchestrator `curl`, drop the server |
+| firecrawl | ~~CRASHED at startup~~ **FIXED 2026-08-30**: the `FSLegacyMainResolve` error was a corrupted `~/.npm/_npx/12b05d58…` cache entry (the 2026-08-30 wipe incident's residue — `mcp-proxy` present, its `@modelcontextprotocol/server` dep missing). Cleared the one entry; clean respawn verified. If it recurs after a cache event: clear the entry, never the whole `_npx` | the curl-swap candidate is DEAD (D-013: firecrawl universal) |
 | postgres-pro | `uvx postgres-mcp` crashes: `No module named 'mcp.server.fastmcp'` — the mcp 2.x SDK renamed FastMCP; postgres-mcp is v1 code | pin `uvx --with 'mcp<2' postgres-mcp` in the roster (via the rotator sync) |
 | fabrik-citation-verifier | config points at `http://127.0.0.1:8033/mcp` (type: http) but only the REST API on :8032 is up — :8033 answers nothing (curl 000) | the owning repo restarts its MCP endpoint or the roster repoints; connected this morning, so the endpoint died today |
 
@@ -142,9 +142,12 @@ REST — and ships its own MCP server (`docs-mcp` console script → `/opt/apido
 Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replacement for
 already-registered sources; decision rides the same split.
 
-## Status of the split (decision pending)
+## Status of the split (decision pending — PARTIALLY RULED)
 
-Proposed 2026-08-30, operator decision pending: trim the user-level roster to the universal trio;
+**Operator ruling 2026-08-30 (D-013): session-recall · exa · brave-search · firecrawl are UNIVERSAL —
+every project, no exception. Any trim below excludes these four; the firecrawl→curl corpus swap is DEAD.**
+
+Proposed 2026-08-30, remainder of the decision pending: trim the user-level roster to the universal set above;
 each repo gains a project-level `.mcp.json` with its extras — emitted per scaffold type by the
 scaffolder (fleet's beat) and backfilled to existing repos; every roster edit applied via the
 rotator's sync (the rotation law above). When implemented, update this doc's table with the
