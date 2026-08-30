@@ -2,31 +2,24 @@
   "mcpServers": {
     "brave-search": {
       "args": [
-        "-y",
-        "@brave/brave-search-mcp-server",
         "--transport",
         "stdio"
       ],
-      "command": "npx",
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/brave-search-mcp-server",
       "env": {
         "BRAVE_API_KEY": "${BRAVE_API_KEY}"
       },
       "type": "stdio"
     },
     "chrome-devtools": {
-      "args": [
-        "chrome-devtools-mcp@latest"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/chrome-devtools-mcp",
       "env": {},
       "type": "stdio"
     },
     "exa": {
-      "args": [
-        "-y",
-        "exa-mcp-server"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/exa-mcp-server",
       "env": {
         "EXA_API_KEY": "${EXA_API_KEY}"
       },
@@ -37,11 +30,8 @@
       "url": "http://127.0.0.1:8033/mcp"
     },
     "firecrawl": {
-      "args": [
-        "-y",
-        "firecrawl-mcp"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/firecrawl-mcp",
       "env": {
         "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
       },
@@ -76,11 +66,8 @@
       "type": "stdio"
     },
     "magicui": {
-      "args": [
-        "-y",
-        "@magicuidesign/mcp@latest"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/mcp",
       "env": {},
       "type": "stdio"
     },
@@ -97,38 +84,27 @@
       "type": "stdio"
     },
     "mobile-mcp": {
-      "args": [
-        "-y",
-        "@mobilenext/mobile-mcp@latest"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/mcp-server-mobile",
       "env": {},
       "type": "stdio"
     },
     "playwright": {
-      "args": [
-        "@playwright/mcp@latest"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/playwright-mcp",
       "env": {},
       "type": "stdio"
     },
     "postgres-pro": {
       "args": [
-        "--with",
-        "mcp<2",
-        "postgres-mcp",
         "--access-mode=restricted"
       ],
-      "command": "/home/ozgur/.local/bin/uvx",
+      "command": "/home/ozgur/.local/bin/postgres-mcp",
       "type": "stdio"
     },
     "pubchem": {
-      "args": [
-        "-y",
-        "@cyanheads/pubchem-mcp-server"
-      ],
-      "command": "npx",
+      "args": [],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/pubchem-mcp-server",
       "env": {
         "PATH": "/home/ozgur/.nvm/versions/node/v24.16.0/bin:/usr/bin:/bin"
       },
@@ -136,16 +112,13 @@
     },
     "serena": {
       "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
         "start-mcp-server",
         "--context",
         "ide-assistant",
         "--enable-web-dashboard",
         "false"
       ],
-      "command": "/home/ozgur/.local/bin/uvx",
+      "command": "/home/ozgur/.local/bin/serena",
       "env": {},
       "type": "stdio"
     },
@@ -157,10 +130,9 @@
     },
     "shadcn": {
       "args": [
-        "shadcn@latest",
         "mcp"
       ],
-      "command": "npx",
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/shadcn",
       "env": {},
       "type": "stdio"
     }

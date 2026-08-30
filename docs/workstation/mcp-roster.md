@@ -40,7 +40,7 @@ on demand — zero context cost), but the *processes* spawn regardless. That is 
 **Measured 2026-08-30** (a few windows open, post-restart): 34 processes, **2.2 GB RSS** already.
 At ~13 sessions the same roster measured ~23 GB (intel finding 01KZX92Q).
 
-**⚠️ Fetch-at-spawn fragility (observed live 2026-08-30):** 13 of 18 servers are `npx -y`/`uvx`
+**⚠️ Fetch-at-spawn fragility — FIXED 2026-08-30 (D-042): every npx/uvx fetch-at-spawn server is now a LOCAL PINNED INSTALL** (npm -g for the 9 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. Historical record of the fragility this fixes: 13 of 18 servers are `npx -y`/`uvx`
 fetch-at-spawn. After cache-prune's weekly `rm -rf ~/.npm/_npx` (00:06) + a WSL restart (13:40),
 every window cold-fetched 13 servers simultaneously — connect timeouts, and the harness marks them
 disconnected for the whole session (only the 5 locally-installed servers survived: session-recall,

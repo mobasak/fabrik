@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the MCP cold-spawn herd killed: local pinned installs (D-042) (2026-08-30)
+
+- 11 fetch-at-spawn servers now local installs; catalog/emission/rosters localized; hub resolves 15/15 Connected in 9.2s (was 60-90s with timeouts). nvm-upgrade caveat documented.
+
 ### Added — `scripts/retype_project.py`: non-destructive project retype + scaffold backfill (2026-08-30)
 
 - **What:** corrects `project.yaml::type` and backfills ONLY the new type's missing required
