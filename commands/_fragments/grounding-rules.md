@@ -1,4 +1,4 @@
-<!-- rule-grounding-gate v2 · twin-sync required: Traycer "My Workflow" fab-mega-00-trigger carries a copy of this block; nine docs/orchestrator/ files inline it (grep the marker) -->
+<!-- rule-grounding-gate v2 · twin-sync required: nine docs/orchestrator/ files inline this block (grep the marker). The Traycer path needs NO separate copy — fab-mega-00-trigger is a thin wrapper (docs/orchestrator/_traycer-skills/) reading the canonical 00-trigger doc, one of the nine (the old server-side "My Workflow" copy is retired wiring; operator-confirmed no paste surface exists, 2026-08-30) -->
 ## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)
 Before the first architecture, tool, or dependency selection:
 - Run `python scripts/select_rules.py` at the PROJECT root for the ACTIVE census. **The MUST-READ-FULL
