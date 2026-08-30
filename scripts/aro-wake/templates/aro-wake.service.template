@@ -2,6 +2,16 @@
 Description=aro-wake — push-trigger entry point for the {{HOST_NAME}} sysadmin AI
 After=network.target wg-quick@wg0.service
 Wants=network-online.target
+# StartLimit* are [Unit] keys, NOT [Service]. They sat in [Service] from the
+# original template, where systemd IGNORES them — measured live on vps1
+# 2026-08-31: "/etc/systemd/system/aro-wake.service:27: Unknown key name
+# 'StartLimitIntervalSec' in section 'Service', ignoring." So with Restart=always
+# and no working rate limit, a crash-looping aro-wake would have restarted
+# forever, unthrottled, instead of stopping after 5 tries in 300s. The sibling
+# vps-sysadmin-bot.service.template already places them correctly — this was the
+# lone outlier, and systemd confirmed it is the only ignored key on the box.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -24,8 +34,7 @@ ExecStart=/opt/fabrik/.venv-aro-wake/bin/uvicorn main:app \
     --no-access-log
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
+# (StartLimitIntervalSec / StartLimitBurst live in [Unit] above — see the note there.)
 
 # Host identity passed to main.py via env.
 # ARO_WAKE_PEER_HOSTS uses CSV format (name:ip,name:ip) — NOT bare JSON.

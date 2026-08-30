@@ -116,56 +116,6 @@ Items move to active development when:
 
 The hardest discipline here is the second one — resisting the urge to build "propose/ack" speculatively because it sounds important. The Phase 5 plan explicitly says: each new incident teaches; capability expands from incidents, not architecture.
 
-## [infra] test_kaizen_sends_one_addressed_obligation_per_beat is RED — brittle source-text assertion (2026-08-31)
-
-`tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` fails on a
-**pristine `git archive HEAD` checkout**, so it is committed debt, not WIP. It asserts against the
-*source text* of the kaizen sender — `assert '"--to-agent", beat' in argv` — and the real code now builds
-that argv differently while still looping `for beat in ("infra", "fleet")`. So the D-036/addressing
-INVARIANT it guards may well still hold; what broke is the test's grip on it.
-
-Found while re-running the mail suite after an unrelated `_structure_gaps` fix (attributed against HEAD
-before assuming). Left for the beat that owns kaizen + the mail machinery. Worth fixing properly rather
-than deleting: assert the *behaviour* (each beat receives exactly one addressed obligation) instead of a
-substring of the implementation — a source-text assertion re-breaks on every legitimate refactor, which
-is how a real guard gets deleted in annoyance.
-
-## [fleet] aro-wake's claude_rotate twin is STALE ON ALL 3 HOSTS — its Claude calls bypass the governor (2026-08-30)
-
-The repo's twin invariant is restored (both copies byte-identical, `test_rotate_twin_copies_are_byte_identical`
-green), but the **deployed** `scripts/aro-wake/claude_rotate.py` is still `07cb7fcc`, **dated 2026-08-03**, on
-vps1+vps2+vps3 — while `scripts/sysadmin/claude_rotate.py` is current (`c34f09d7`) on all three (verified).
-
-Impact, bounded and specific: `aro-wake` is **active** on every host and calls `claude_rotate.run_claude`
-(`scripts/aro-wake/main.py:547`), so **alert-triggered wakes run Claude without the post-call usage capture
-and without the reactive cap signal** — that traffic is invisible to the quota governor, and its `_oauth_get`
-lacks the datacenter-vantage fix (`api.anthropic.com` 429 → `platform.claude.com` fallback + named UA). The
-main sysadmin path is unaffected. Not a correctness break: aro-wake still runs and still answers; the
-governor just under-counts.
-
-Deliberately NOT deployed in the run that found it: shipping a 218 KB module replacement into the live
-alert path requires an `aro-wake` restart plus a `/wake` smoke test on each host — a deploy task with its
-own verification, not a tail-end side effect of a defect-fix run. FIX: rsync the aro-wake tree to all 3,
-`systemctl restart aro-wake`, then `curl http://<mesh-ip>:8201/health` + one real wake per host, and confirm
-the usage cache advances afterwards.
-
-## [fleet] claude_rotate suite: 13 RED tests, one common cause (found 2026-08-30)
-
-`python -m pytest scripts/sysadmin/test_claude_rotate.py` → **13 failed, 58 passed**, and the same 13
-fail on a **pristine `git archive HEAD` checkout**, so this is committed debt, not anyone's WIP. Clustered
-by error, they share one root cause: `_rotate_active_account()` and `_activate_snapshot()` return `None`
-where the tests expect the activated account slug (`assert None == 'ob-dir'` — 7 of the 13 verbatim).
-
-Found while re-syncing the `claude_rotate.py` twins; NOT caused by that change (attributed by re-running
-the suite against HEAD before touching anything). Deliberately parked rather than fixed inline: the
-operator's request that surfaced it was a 5-item defect list, and a rotation-machinery regression is a
-distinct workstream that deserves its own diagnosis, not a scope-creep fix at the end of another run.
-
-Priority note: **rotation is retired on the VPS** (D-045 — single-key `ob@`), so this does not touch the
-fleet's operational path. It is the **WSL dev box's** rotation that is unguarded while these are red, and
-the box rotates accounts on every quota wall. Fix direction: start at the `None` return — one cause
-plausibly clears all 13. Not urgent, but a 13-red suite is also how a real regression hides.
-
 ## [fleet] Zitadel /debug/metrics not enabled — Prometheus target DOWN (2026-08-29)
 
 Zitadel v4.17.1 deployed at auth.ocoron.com does NOT serve `/debug/metrics` by default (404) — the

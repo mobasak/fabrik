@@ -133,9 +133,24 @@ groups:
         # didn't run — not a failure of the LLM path). Excluding it keeps the
         # SLI honest: ratio = (successful Claude calls) / (attempted Claude
         # calls), not (all received requests).
+        # WINDOW SIZED TO THE TRAFFIC, not to a round number. Measured 2026-08-31:
+        # ~1811 alertmanager wakes in 30d on vps1 = ~2.5/hour, and they arrive in
+        # bursts (Alertmanager group_interval 5m / repeat_interval 30m). Over a 10m
+        # window MOST evaluations therefore see ZERO requests, so numerator and
+        # denominator are both 0, the ratio is NaN, `NaN < 0.90` is false, and the
+        # `for: 15m` clock never even starts. That is why this alert stayed SILENT
+        # through a 30-day stretch that was 74% failures (1344 fail / 467 success) —
+        # a real outage the SLO was supposed to catch and structurally could not.
+        # Fix: measure over 6h (so a burst is inside the window) and require a
+        # MINIMUM VOLUME before judging a ratio, so the alert is meaningful rather
+        # than merely non-NaN.
         expr: |
-          sum(rate(aro_wake_requests_total{status="success"}[10m])) by (host)
-            / sum(rate(aro_wake_requests_total{status!="rate_limited"}[10m])) by (host) < 0.90
+          (
+            sum(increase(aro_wake_requests_total{status="success"}[6h])) by (host)
+              / sum(increase(aro_wake_requests_total{status!="rate_limited"}[6h])) by (host) < 0.90
+          )
+          and
+          sum(increase(aro_wake_requests_total{status!="rate_limited"}[6h])) by (host) >= 5
         for: 15m
         labels:
           severity: warning
