@@ -655,11 +655,50 @@ def _structure_gaps(kind: str, body: str) -> list[str]:
         if fenced or stripped.startswith(">"):
             continue
         authored.append(line)
-    text = "\n".join(authored)
+
+    # A SECTION HEADER is: optional markdown decoration, the key at the START of the
+    # line, an optional qualifier, then the colon. Every clause below fixes a verdict
+    # this checker got WRONG on real mail (all three measured 2026-08-30):
+    #   1. the qualifier budget was 24 chars, which rejected the qualified form the
+    #      contract itself invites ("WHY (factual root cause, measured):" = 37) and
+    #      told a compliant author they were missing sections they had;
+    #   2. leading WHITESPACE was allowed, so an INDENTED illustration ("    WHY:")
+    #      inside a mail that merely QUOTES the contract satisfied the check — the
+    #      worse direction, since it certifies an unstructured mail as compliant;
+    #   3. content was required INLINE after the colon, so a section whose body is a
+    #      block on the following lines (a command, a list, a table) read as empty.
+    # An empty section is still a gap: the look-ahead stops at the next header.
+    def _hdr(k: str):
+        return _re.compile(rf"(?i)^[*#\-]{{0,3}} ?{k}\b[^:\n]{{0,120}}:(.*)$")
+
+    def substantive(s: str) -> bool:
+        return len(_re.sub(r"\s", "", s)) >= 2
+
+    any_header = _re.compile(
+        rf"(?i)^[*#\-]{{0,3}} ?(?:{'|'.join(_STRUCTURE_KEYS)})\b[^:\n]{{0,120}}:"
+    )
+
     gaps = []
     for key in _STRUCTURE_KEYS:
-        m = _re.search(rf"(?im)^[\s*#-]*{key}\b[^:\n]{{0,24}}:(.*)$", text)
-        if not m or len(_re.sub(r"\s", "", m.group(1))) < 2:
+        pat = _hdr(key)
+        found = False
+        for i, line in enumerate(authored):
+            m = pat.match(line)
+            if not m:
+                continue
+            if substantive(m.group(1)):
+                found = True
+                break
+            for nxt in authored[i + 1 :]:  # body on the following lines?
+                if not nxt.strip():
+                    continue
+                if any_header.match(nxt):
+                    break  # the very next thing is another header => this one is empty
+                found = substantive(nxt)
+                break
+            if found:
+                break
+        if not found:
             gaps.append(key)
     return gaps
 

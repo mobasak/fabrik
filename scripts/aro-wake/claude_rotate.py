@@ -856,6 +856,20 @@ def run_claude(
                 f"{why} Re-capture a fresh account (claude auth login / claude-manager). "
                 f"(alerts quiet ~12h)"
             )
+    # ── governor telemetry hooks (single-key quota governance, 2026-08-30) — both best-effort ──
+    # A real claude call is the ONE moment the stored token is guaranteed fresh (the CLI just
+    # rolled the chain; the direct oauth refresh is Cloudflare-403'd), so capture the account's
+    # usage into the current-usage cache HERE — the governor's --probe-current reads it when the
+    # token has gone stale between calls. And when the FINAL result still carries a usage-limit
+    # (rotation exhausted or unavailable — the single-key case), signal the governor's reactive
+    # cap so the NEXT routine call sheds instead of burning another attempt. Kill-switch:
+    # CLAUDE_ROTATE_NO_USAGE_CAPTURE=1 disables both (and keeps old callers byte-identical).
+    if not os.environ.get("CLAUDE_ROTATE_NO_USAGE_CAPTURE"):
+        final_text = (result.stdout or "") + "\n" + (result.stderr or "")
+        if is_usage_limit(final_text):
+            _signal_governor_capped(final_text)
+        else:
+            _capture_current_usage()
     return result
 
 
@@ -1117,22 +1131,38 @@ def _oauth_get(
         timeout_s = _env_float("OAUTH_GET_TIMEOUT_S", 8.0)
     if attempts is None:
         attempts = max(1, int(_env_float("OAUTH_GET_ATTEMPTS", 2.0)))
-    req = urllib.request.Request(
-        f"https://api.anthropic.com/api/oauth/{path}",
-        headers={"Authorization": f"Bearer {token}", "anthropic-beta": "oauth-2025-04-20"},
-    )
-    for i in range(attempts):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout_s) as r:
-                return json.load(r)
-        except urllib.error.HTTPError as e:
-            if e.code < 500:
-                return None  # 4xx is definitive (dead/wrong token) — do not retry
-            # 5xx is a transient server error → fall through to the retry
-        except Exception:
-            pass  # timeout / URLError / socket / malformed JSON — transient, retry
-        if i < attempts - 1:
-            time.sleep(backoff_s * (i + 1))
+    # TWO hosts, tried in order. Measured live on vps1 (2026-08-30): the SAME valid token got
+    # HTTP 429 from api.anthropic.com (datacenter-IP throttling — every VPS probe blanked, which
+    # silently starved the governor's usage capture) and HTTP 200 from platform.claude.com. A 429
+    # is a HOST verdict, not a token verdict — falling through to the sibling host turns a
+    # permanently-throttled vantage into a working probe. 401/403 stays definitive (dead/wrong
+    # token — no host will differ); 5xx retries the same host.
+    for host in ("api.anthropic.com", "platform.claude.com"):
+        req = urllib.request.Request(
+            f"https://{host}/api/oauth/{path}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "anthropic-beta": "oauth-2025-04-20",
+                # Cloudflare bot-blocks urllib's default "Python-urllib/3.x" UA on
+                # platform.claude.com (measured on vps1: default UA → 403, this UA → 200 with
+                # the same token). A named UA is also just honest client identification.
+                "User-Agent": "claude-rotate/1.0",
+            },
+        )
+        for i in range(attempts):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout_s) as r:
+                    return json.load(r)
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    return None  # definitive (dead/wrong token) — no other host will differ
+                if e.code < 500:
+                    break  # 429/other-4xx: this HOST refuses — try the next host
+                # 5xx is a transient server error → fall through to the retry
+            except Exception:
+                pass  # timeout / URLError / socket / malformed JSON — transient, retry
+            if i < attempts - 1:
+                time.sleep(backoff_s * (i + 1))
     return None
 
 
@@ -3979,6 +4009,120 @@ def _cmd_drift_check() -> int:
     return 0
 
 
+def _current_usage_cache_path() -> Path:
+    """Single-key current-account usage cache (SEPARATE from the fleet cache — different shape,
+    different writer: this one is keyed by nothing, it is THE one account's last good reading)."""
+    return _rotate_state_dir() / "current-usage-cache.json"
+
+
+def _capture_current_usage() -> dict | None:
+    """Quota-free live usage snapshot of the CURRENT account (``CLAUDE_CONFIG_DIR`` or
+    ``~/.claude``), persisted to the current-usage cache on success. Returns the windows dict or
+    None; NEVER raises.
+
+    The stored access token is only reliably fresh right AFTER a claude call (the CLI rolls the
+    refresh chain itself; the direct ``/v1/oauth/token`` refresh is Cloudflare-403'd — see
+    ``_keepwarm_refresh``), which is why ``run_claude`` calls this post-call: each real sysadmin
+    claude run leaves behind a current headroom reading for the governor, at zero quota cost
+    (``api/oauth/usage`` is metadata, not a completion)."""
+    try:
+        cfg_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+        tok = _read_access_token(cfg_dir / ".credentials.json")
+        if not tok:
+            return None
+        windows = _usage_windows(_oauth_get("usage", tok))
+        if windows is None:
+            return None
+        _write_json_atomic(_current_usage_cache_path(), {"ts": time.time(), **windows})
+        return windows
+    except Exception:  # noqa: BLE001 — telemetry capture must never break a claude call/probe
+        return None
+
+
+def _signal_governor_capped(final_text: str) -> None:
+    """Best-effort reactive-cap wiring: pipe a final still-limited claude response to
+    ``quota_governor.py mark-capped`` so the governor sheds ROUTINE work until the window resets.
+    This is the backstop that makes the governor's bootstrap-on-unknown routing safe on the
+    single-key VPS. No-op when the governor is not co-located; never raises."""
+    gov = Path(__file__).resolve().parent / "quota_governor.py"
+    if not gov.is_file():
+        return
+    try:
+        subprocess.run(
+            [sys.executable, str(gov), "mark-capped"],
+            input=final_text,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001 — the cap signal is advisory; the call result stands
+        pass
+
+
+def _cmd_probe_current(as_json: bool) -> int:
+    """Governor headroom source for a SINGLE-KEY host (the VPS): the CURRENT account
+    (``CLAUDE_CONFIG_DIR`` or ``~/.claude``) in the one-account fleet payload shape the governor
+    reads — ``active="current"``, ``slugs=["current"]``.
+
+    Reading order (canary-corrected 2026-08-30): LIVE first — a quota-free ``api/oauth/usage`` GET
+    of the stored token (works whenever the token is fresh, i.e. shortly after any claude call);
+    else the CURRENT-USAGE CACHE written by ``_capture_current_usage`` after every real claude run,
+    accepted within ``PROBE_CACHE_MAX_AGE_S`` (default 7200s — the 15-min proactive-check cron
+    keeps it minutes old in steady state); else ``source="unavailable"`` with null windows. The
+    governor treats unavailable as bootstrap-run (its single-key semantics), so a cold start can
+    never wedge the loop.
+
+    ``--status`` fleet mode only lights up with scaffolded fleet dirs, and the non-fleet
+    manager-accounts listing carries only PARKED snapshots (null telemetry) — so a single-key host
+    needs this probe to have ANY headroom source. weekly_cap stays None (the operator's
+    authoritative cap needs an identity the usage GET does not carry; reserve_pct + the reactive
+    cap are the single-key conservation path). Fail-soft throughout; never raises."""
+    row: dict = {
+        "email": "current",
+        "slugs": ["current"],
+        "five_hour": None,
+        "seven_day": None,
+        "weekly_cap": None,
+        "cap_walled": False,
+        "source": "unavailable",
+    }
+    windows = _capture_current_usage()
+    if windows is not None:
+        row.update(windows)
+        row["source"] = "live"
+    else:
+        try:
+            cached = json.loads(_current_usage_cache_path().read_text())
+            age = time.time() - float(cached["ts"])
+            max_age = float(os.environ.get("PROBE_CACHE_MAX_AGE_S") or 7200.0)
+            if 0 <= age <= max_age:
+                for key in ("five_hour", "seven_day", "model_windows"):
+                    if cached.get(key) is not None:
+                        row[key] = cached[key]
+                row["source"] = "cache"
+                row["age_s"] = round(age, 1)
+        except Exception:  # noqa: BLE001 — a bad/absent cache reads as unavailable, never raises
+            pass
+    payload = {"active": "current", "accounts": [row]}
+    if as_json:
+        print(json.dumps(payload, indent=1))
+        return 0
+
+    def _p(w: object) -> str:
+        return (
+            f"{w['utilization']:.0f}%"
+            if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
+            else "-"
+        )
+
+    print(
+        f"current account: session {_p(row.get('five_hour'))}  "
+        f"weekly {_p(row.get('seven_day'))}  ({row['source']})"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI. Two modes:
 
@@ -4014,7 +4158,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --next | --capture-current"
-            " | --drift-check | --status | --tick | --touch | --pause-switch"
+            " | --drift-check | --status | --probe-current | --tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
             " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
         )
@@ -4034,6 +4178,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_drift_check()
     if args[0] == "--status":
         return _cmd_status(as_json="--json" in args[1:])
+    if args[0] == "--probe-current":
+        return _cmd_probe_current(as_json="--json" in args[1:])
     if args[0] == "--tick":
         return _cmd_tick()
     if args[0] == "--touch":

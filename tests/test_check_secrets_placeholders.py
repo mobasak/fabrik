@@ -84,3 +84,33 @@ def test_dsn_command_substitution_is_skipped(tmp_path):
 
 def test_dsn_real_password_still_flagged(tmp_path):
     assert _scan(tmp_path, "postgresql://user:Xk9realpw2@host:5432/db")
+
+
+# ── vendor tokens this box issues (added after a LIVE MISS, 2026-08-30) ───────────
+# A literal Grafana token reached a commit in scripts/sysadmin/mcp_defs.json and only
+# GitHub push protection stopped it: check_secrets had no Grafana pattern. These pin
+# the gap closed, and pin that the ${VAR} form the catalog uses stays clean.
+
+def test_grafana_service_account_token_is_caught(tmp_path):
+    """The exact miss: a glsa_ literal in the MCP catalog must not reach a commit."""
+    f = tmp_path / "mcp_defs.json"
+    f.write_text('{"env": {"GRAFANA_SERVICE_ACCOUNT_TOKEN": '
+                 '"glsa_FAKEfake0123456789abcdefFAKEfake_12ab34cd"}}')
+    assert cs.check_file(f), "a literal glsa_ token must be caught"
+
+
+def test_openrouter_and_firecrawl_keys_are_caught(tmp_path):
+    f = tmp_path / "conf.json"
+    f.write_text('{"OPENROUTER_API_KEY": "sk-or-v1-' + "0123456789abcdef" * 4 + '",\n'
+                 ' "FIRECRAWL_API_KEY": "fc-' + "0123456789abcdef" * 2 + '"}')
+    assert len(cs.check_file(f)) >= 2, "both vendor keys must be caught"
+
+
+def test_placeholder_form_of_those_keys_is_clean(tmp_path):
+    """The catalog's real shape — ${VAR} references — must stay green, or the check
+    is wallpaper the next author learns to ignore."""
+    f = tmp_path / "mcp_defs.json"
+    f.write_text('{"env": {"GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}",'
+                 ' "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}",'
+                 ' "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"}}')
+    assert cs.check_file(f) == [], "placeholders are the CORRECT form"

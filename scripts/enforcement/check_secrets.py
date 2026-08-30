@@ -22,6 +22,16 @@ SECRET_PATTERNS = [
     (r"gho_[a-zA-Z0-9]{36}", "GitHub OAuth Token"),
     (r"sk_live_[a-zA-Z0-9]{24,}", "Stripe Live Key"),
     (r"rk_live_[a-zA-Z0-9]{24,}", "Stripe Restricted Key"),
+    # Vendor tokens this box actually issues, added 2026-08-30 after a LIVE MISS: a
+    # literal Grafana service-account token reached a COMMIT in mcp_defs.json and was
+    # stopped only by GitHub's push protection — this scanner had no Grafana pattern,
+    # so the whole incident (history rewrite + a 4.5-month-old token rotated) traces
+    # to a gap here. Each prefix below was confirmed PRESENT in this box's own config
+    # before being added (fire rate measured, not guessed); each shape is specific
+    # enough that a placeholder or prose mention cannot match.
+    (r"glsa_[A-Za-z0-9_]{32,}", "Grafana Service Account Token"),
+    (r"sk-or-v1-[0-9a-f]{48,}", "OpenRouter API Key"),
+    (r"fc-[0-9a-f]{32}", "Firecrawl API Key"),
     # The (?!\$\{|\$[A-Z]|<) lookahead skips passwords that are SHELL VARIABLES
     # (${POSTGRES_PASSWORD}, $PGPASS) or ANGLE-BRACKET PLACEHOLDERS (<pw>,
     # <password>) in docstrings/READMEs — both are the correct way to REFERENCE
