@@ -63,7 +63,7 @@ Weight = measured RSS on 2026-08-30 across live processes (per-window cost scale
 | postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED 2026-08-30 (D-020: universal, operator word)**; crash FIXED same day (`uvx --with 'mcp<2'` pin, synced to all 5 fleet rosters). ⚠️ per-repo `DATABASE_URI` still owed by the split implementation — the single user-level URI pointed at a dead :15432, and local PG creds are per-repo |
 | grafana | fleet observability (Prometheus/Loki/dashboards) — runs as a docker container per window | hub (deploy/monitoring, fleet beat) | docker | ON hub only |
 | media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED 2026-08-30 (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
-| pubchem | chemistry database lookups | chemical-commerce content (wef) + the health/verification pair | light | ON wef + fabrik-citation-verifier + fabrik-claim-validator — **RULED 2026-08-30 (D-022)**; future health repos get it at adoption |
+| pubchem | chemistry database lookups | chemical-commerce content (wef) + the health/verification pair + the health projects | light | ON wef + fabrik-citation-verifier + fabrik-claim-validator (D-022) + longephedia-vault + supplement-tracker-advisor — **D-025 sweep**: the health-overlay predicate applied to the EXISTING fleet, not only future adoptions |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED 2026-08-30 (D-022: the health pair is cross-wired MCP↔MCP)** |
 | fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
 | serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED 2026-08-30 (D-021: adopt-and-wire)**. Root cause of prior zero usage was zero corpus wiring, not quality; now named in plan-after-chat's grounding phase + review's adjudication. Measured trial: still unused after wiring = a retirement case with evidence |
@@ -110,6 +110,7 @@ per D-013.)
 | `static-site` | playwright · chrome-devtools · shadcn² | rendered-site design-review/user-test via fabrik-gui |
 | `docusaurus` | playwright · chrome-devtools | reader-journey certification via fabrik-gui |
 | `wordpress` | — (universal 6 only) | legacy, out of fabrik |
+| `office-extension` (PENDING fleet adoption — proposal 01M19PSJN3) | playwright · chrome-devtools | the taskpane is a hosted web page — same UI-bearing logic as D-015/D-019; row activates with the type |
 
 ¹ (retired footnote) postgres-pro rode `shape.needs_database` until D-020 made it universal.
 ² only when the repo's frozen design system is shadcn-based; magicui stays saas-only EXCEPT the wef
@@ -123,7 +124,7 @@ tooling — supersedes the magicui saas-only boundary for wef ONLY, it stands el
 transdoc → +fabrik-citation-verifier (data-contract's only mention is a NEGATIVE — "does not apply
 here") · **the health pair (D-022): fabrik-citation-verifier ↔ fabrik-claim-validator cross-wired as
 MCPs to each other, both +pubchem** (claim-validator's MCP server is still owed by its repo — see
-the planned row) — standing rule: any future health project gets all three overlays at adoption ·
+the planned row) — standing rule: any health project gets all three overlays at adoption — and the EXISTING fleet swept against that predicate 2026-08-30 (D-025, operator-prompted audit): **longephedia-vault** (longevity ontology/RAG) and **supplement-tracker-advisor** (health supplement tracking/advisory) → +fabrik-citation-verifier +fabrik-claim-validator(when built) +pubchem ·
 hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
