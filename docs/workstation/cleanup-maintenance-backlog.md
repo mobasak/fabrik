@@ -56,11 +56,14 @@
 
 - **C1.** ✅ DONE (2026-08-03) — Factory is retired: the weekly cron line (Sun 02:00, plaintext `FACTORY_API_KEY`) was removed (crontab backed up to `~/backups/`). NOTE for the calendar-orchestration-engine owner: its `enrichWithAI/classifyWithAI/curateEvents` scripts still reference `FACTORY_API_KEY` — the pipeline needs an OpenRouter migration before it can run again.
 - **A4. Dangling docker volumes — 62.5 GB reclaimable (measured 2026-08-30, the one real accumulating leak).**
-  852 dangling anonymous volumes (was 534 on 08-22, 847 on 08-30 — `cache-prune.sh` reports them weekly by
-  design and never deletes, and the NOTE has had no reader). All are unreferenced anon hashes from dev
-  compose stacks; 3 named volumes are active and untouched by any prune. OPERATOR-GATED (volume deletion
-  is data-destructive): dry-run review `docker volume ls -f dangling=true`, then `docker volume prune -f`
-  reclaims the 62.5 GB. Until approved, the weekly NOTE keeps counting.
+  ATTRIBUTED 2026-08-30 by content classification of all 852: **845 are trade-intelligence test-harness
+  leaks** (~68 MB postgres-16 initdb dirs holding only `ti_test*`/`ti_runreuse_*`/`ti_applyevt_*` throwaway
+  DBs — root cause `run_db_suite_clean.sh:74` `docker rm -f` without `-v`; finding filed to ti with the
+  one-line fix + tmpfs upgrade). **4 outliers to KEEP pending review:** a Tryton filestore (4 MB,
+  0fc56309…), a REAL `trade_intelligence` PG17 dev DB (75 MB, e3cd193c…), a MariaDB (224 MB, 40211115…)
+  + WordPress wp-content (600 MB, 13b421db…) pair from the retired wpf era. 3 empty. Operator declined a
+  blanket prune (tryton translation-loss precedent — correct call: the outliers ARE data). If ever
+  approved, delete ONLY the classified ti set, never `docker volume prune`.
 
 - **C2. grafana-MCP orphan reaper.** The `mcp/grafana` containers leak on MCP reconnect churn (config already
   has `--rm`; orphans stay "Up" after ungraceful disconnects, so `--rm` never fires). 10 are up right now, the
