@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — scaffold-time .mcp.json emission (2026-08-30)
+
+- scaffold.py `_emit_mcp_config` (crash-safe, after the type patch): new projects open their first Claude window with the ruled per-type/overlay server set; red-first test. Fleet informed (supersedes the 01M19TVBMS request half).
+
 ### Fixed — sysadmin way-of-working audit: reversal detector revived, digest metrics un-zeroed, wake-slot accounting, model policy (2026-08-30)
 
 - **What (measured live on all 3 hosts):** `detect_reversals.py` crashed every 5 minutes for as long

@@ -5738,6 +5738,24 @@ _TYPE_SCAFFOLDERS: dict[str, Callable[..., None]] = {
 }
 
 
+def _emit_mcp_config(project_dir: Path) -> None:
+    """Emit the new repo's ruled ``.mcp.json`` via the hub emitter (plan-3 MCP split).
+
+    Crash-safe by contract: a failed emission never breaks a scaffold — the repo is
+    covered by the next hub-wide emission run instead. The emitter derives the set
+    from the repo's ``project.yaml`` type + the roster-ruled overlay tables, so this
+    call must come AFTER the type patch."""
+    emitter = FABRIK_ROOT / "scripts/sysadmin/emit_mcp_project_config.py"
+    try:
+        subprocess.run(
+            [sys.executable, str(emitter), "--repo", str(project_dir)],
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass  # next fleet emission run covers it
+
+
 def _post_scaffold_sync(project_dir: Path) -> None:
     """Post-scaffold hook: update project registry and PROJECT_CATALOG.md.
 
@@ -5931,6 +5949,10 @@ def create_project(
 
     # Post-scaffold hook: sync project registry
     _post_scaffold_sync(project_dir)
+
+    # MCP split (plan-3, D-028/D-029): emit the repo's ruled .mcp.json (gitignored)
+    # so the FIRST Claude window opens with the correct per-type/overlay server set.
+    _emit_mcp_config(project_dir)
 
     # Auto-generate deployment spec for supported types.
     # ``use_database`` propagates the CLI ``--db`` flag through so the emitted

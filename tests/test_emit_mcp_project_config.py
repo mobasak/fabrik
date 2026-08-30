@@ -160,3 +160,15 @@ def test_malformed_yaml_skipped_run_continues(tmp_path, defs_file, capsys):
     assert not (bad / ".mcp.json").exists()
     assert (good / ".mcp.json").exists(), "one bad repo must not strand the rest"
     assert "broken" in capsys.readouterr().out
+
+
+def test_scaffold_helper_emits_mcp_config(tmp_path):
+    """Plan-3 follow-up (operator 2026-08-30): NEW projects get their .mcp.json at
+    scaffold time via scaffold._emit_mcp_config — crash-safe, real emitter subprocess."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from fabrik.scaffold import _emit_mcp_config
+
+    repo = make_repo(tmp_path, "fresh-api", "python-api")
+    _emit_mcp_config(repo)
+    assert (repo / ".mcp.json").exists(), "scaffold must emit the repo's ruled .mcp.json"
+    assert servers_of(repo) == UNIVERSAL6
