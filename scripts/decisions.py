@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md
+# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md
 """Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
 
 The read half of the decision ledger (spec: docs/superpowers/specs/
@@ -34,7 +34,13 @@ SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
 
 
 def _say(line: str) -> None:
-    print(line.encode("ascii", "backslashreplace").decode("ascii"))
+    # UTF-8 straight through — the ledger is saturated with ·/—/§ and printing their
+    # backslash escapes made every real row unreadable (review 2026-08-31). The fallback
+    # keeps the tool alive on a non-UTF-8 stdout instead of crashing.
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        print(line.encode("ascii", "backslashreplace").decode("ascii"))
 
 
 def _ledgers(root: Path) -> list[tuple[str, Path]]:

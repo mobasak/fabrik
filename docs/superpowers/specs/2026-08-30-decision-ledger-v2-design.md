@@ -361,7 +361,7 @@ CHANGELOG). Rotation-safe: nothing keyed to account dirs; plain files in each re
 ## Beat split
 
 - **infra (this repo, my beat):** both CLAUDE.md governance clauses · close-feedback fragment ·
-  command Phase-0 wiring · `scripts/decisions.py` (incl. the supersede-pointer check) · the hub
+  command Phase-0 wiring · `scripts/decisions.py` (incl. the supersede-pointer + duplicate-id checks) · the hub
   ledger + seed rows · naming exception · sync seed-if-missing entry.
 - **fleet:** scaffolder template seed (`templates/scaffold/`) + PROJECT_CATALOG note.
 - **No fabrik-lib involvement** — governance + one stdlib script; the new-module bar is not met.

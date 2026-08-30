@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — Stop-hook BLOCKED-exemption regex + decision-ledger integrity checks (2026-08-30)
 
-- `.claude/hooks/final_gate_stop.py` — the whole-message BLOCKED-escalation exemption matched lowercase prose (`pre-blocked:` in a CHANGELOG bullet armed it, verified live); now case-sensitive `\bBLOCKED:` — the sanctioned uppercase header is the discriminator, and a ticket-glued `T1a-BLOCKED:` still exempts. Red-first tests both directions.
+- `.claude/hooks/final_gate_stop.py` — the whole-message BLOCKED-escalation exemption matched lowercase prose (`pre-blocked:` in a CHANGELOG bullet armed it, verified live); now case-sensitive `\bBLOCKED:` — the sanctioned uppercase header is the discriminator, and a ticket-id-glued uppercase header still exempts. Red-first tests both directions. (The literal example string lives only in the hook comment and its tests — kept out of this entry so a message echoing it cannot arm the exemption.)
 - `scripts/decisions.py --check` — now also fails on DUPLICATE row ids (two D-041s were minted concurrently with no merge conflict to surface it; the later-minted Grafana row renumbered to D-046) and normalizes id case so a lowercase-minted row is never invisible to integrity checks. Red-first tests; coupled docs (`docs/reference/decision-ledger.md`, the v2 spec § Degradation) brought current.
 
 ### Fixed — three enforcement checks that were reporting false verdicts (2026-08-30)

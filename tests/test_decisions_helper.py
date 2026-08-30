@@ -134,3 +134,14 @@ def test_lowercase_row_ids_are_not_invisible(tmp_path, capsys):
     rc = dec._check(tmp_path)
     out = capsys.readouterr().out
     assert rc == 1 and "DUPLICATE" in out and "D-003" in out
+
+
+def test_query_output_preserves_unicode(tmp_path, capsys):
+    """The ledger is saturated with `·`/`—`/`§`; the query tool must print them, not
+    their backslash escapes (live defect: every real row printed `\\xb7` for `·`)."""
+    _repo(tmp_path, "alpha", LEDGER_A.replace("context7", "em—dash § row"))
+    rc = dec.main(["em—dash", "--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "·" in out and "em—dash § row" in out, out
+    assert "\\xb7" not in out and "\\u2014" not in out, out

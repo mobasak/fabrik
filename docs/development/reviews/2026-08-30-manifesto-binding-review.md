@@ -135,6 +135,8 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | Pass 4 | SCOPED — orchestrator re-check of every round-3 fix (hook suite 105 passed post-regex-change, decisions suite 8 passed, both new decisions tests + T1a test watched RED first, gate success) | 0 | 0 | 5 | fixes landed 713a6ca2; closing wide sweep owed |
 | Pass 5 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer, all classes over cfd9ac84..713a6ca2; ran suites (113 passed) + decisions.py --check (exit 0) + corpus grep for sanctioned BLOCKED formats (all-caps only, ~25 occurrences); dispatched: 1, returned: 1 | 4 | 4 | 0 | not done (2 CONFIRMED doc-staleness residues) |
 | Pass 6 | SCOPED — orchestrator: fixed both round-5 CONFIRMED items (decision-ledger.md id-collision sentence; decisions.py --check argparse help), --help verified, suite 8 passed | 0 | 0 | 2 | closing wide sweep owed |
+| Pass 7 | WIDE (closing) — 1 FRESH non-author fabrik-reviewer, all classes over the 12-file surface at 6a6b45ea; ran suites (113 passed) + --check (exit 0) + --help + live queries; dispatched: 1, returned: 1 | 4 | 4 | 0 | not done (1 CONFIRMED pre-existing tool bug + 3 residues) |
+| Pass 8 | SCOPED — orchestrator: fixed all four (unicode output red-first→green, live query proven; spec beat-split line; AFTER-EDIT header; CHANGELOG bait reworded + regex-proven gone), suite 9 passed | 0 | 0 | 4 | closing wide sweep owed |
 
 ## Per-finding disposition ledger
 
@@ -164,5 +166,11 @@ Hub lens: these files ARE the product — template distributes to ~46 repos on s
 | F-E3 | sentence-case `Blocked:` would not exempt (false-negative class of the case-sensitive regex) | REFUTED — deliberate recorded trade-off: the sanctioned format is all-caps everywhere (closing finder grepped the corpus: ~25 occurrences, 0 lowercase sanctioned), and the fail direction is bounded (a missed exemption blocks-then-warns-through after 3 attempts; it never silently waives a stall) |
 | F-E4 | new regex tests assert the regex object, not the _detect_stall end-to-end path | REFUTED — the regex object IS the changed unit and the tests are red-on-revert (closing finder traced all three revert directions); the end-to-end exemption path keeps its pre-existing integration tests (hook test file lines ~827/919) |
 
-19 findings → 13 FIXED + 5 REFUTED + 1 residual-pre-existing (D-045 half of F-C5; F-B1 half REFUTED) — sums.
+| F-T1 | decisions.py `_say()` backslash-mangles every non-ASCII char — the mandated fleet query tool printed `\xb7` for `·` on every real row (pre-existing, unchanged by this diff; the diff hardened the duty around it) | FIXED (round 8 — UTF-8 straight through with UnicodeEncodeError fallback; red-first test; live query proven readable) |
+| F-T2 | a 6th stale `--check` description: v2 spec § Beat split "incl. the supersede-pointer check" | FIXED (round 8) |
+| F-T3 | decisions.py AFTER-EDIT header omitted the v2 spec (the coupling this review itself exercised twice) | FIXED (round 8) |
+| F-T4 | global BLOCKED-exemption has no quote-guard, and this round's CHANGELOG entry carried the literal `T1a-BLOCKED:` — live bait for a message echoing it | FIXED-instance (round 8 — CHANGELOG reworded, regex-proven no match in the entry; the literal now lives only in the hook comment + tests, which final-turn messages do not echo) · the quote-guard mechanism itself: pre-existing deliberate design (global by rationale — header must not split from detail at the tail cut), Residual (a) with the rollout law governing any future guard |
+
+23 findings → 17 FIXED + 5 REFUTED + 1 residual-pre-existing — sums (F-T4 counted FIXED for its in-scope instance; its mechanism half is the recorded residual design property).
+
 
