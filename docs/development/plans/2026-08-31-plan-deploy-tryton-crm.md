@@ -1,12 +1,17 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: CONVERGED  (re-converged 2026-08-31 after the A1/A2 amendment + the predecessor step-diff; the earlier CONVERGED flip was FALSE and is recorded as such in the Pass Ledger)
+Status: IN-PROGRESS  (RUN 1 live — see § Deploy Ledger. Was CONVERGED at fa36a1dd; the deploy flips it and only a full battery restores a terminal status.)
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
 converged, never executed). That plan was authored for the **v0.1.0** cut; **295 commits** have landed
 since and the repo is now tagged v0.3.0. It is superseded, not deleted — its Phase-2 findings seeded the
 spec annotations this plan re-verifies.
+
+## Deploy Ledger
+
+- RUN 1 — `/fabrik-deploy` STARTED 2026-08-31T14:48:50Z (operator Gate-2 dispatch). Pre-flight GREEN: code pushed (0 unpushed; lone dirty `.gitignore` never ships — VPS pulls from GitHub), healing state clear (`pause` + `pause.owner` both ABSENT), clean slate (0 tryton containers on vps1), Gate 2 re-verified (Status CONVERGED, newest plan commit `fa36a1dd` carries `deploy-plan-review 2026-08-31-plan-deploy-tryton-crm`, 0 unadjudicated ⛔ rows).
+
 
 **Release readiness — proven FRESH in the SERVICE's repo this run:**
 
