@@ -23,7 +23,7 @@ sources rather than breadth-first across all 41 reviews; the unread set is named
 | `/opt/tryton-crm/CHANGELOG.md` | 6277 lines | ❌ unread | — |
 | `/opt/tryton-crm/docs/*.md` (17 surfaces) | — | ⚠️ 1 (`CLAUDE.md` spec block) | — |
 | Hub artifacts | 2 plans · 2 reviews · spec | ✅ read in the prior session (see § 5) | — |
-| session-recall | **60 sessions enumerated** | ❌ **WEAKEST SURFACE — 8 tool calls total; ZERO session bodies read** | **The true denominator, measured only on re-challenge:** of 60 sessions, **57 are the identical UI-QA subagent prompt**. The real history is essentially **ONE long session, `a0cc0bfb`** (spanning 2026-07-08 → 08-31, seq >11,700), plus 2 CI auto-fix runs. My `n=25` did surface all 3 substantive sessions — but I **read none of them**. Every finding in this report came from FILES (AFCL, LESSONS_LEARNT, STRATEGIC_BACKLOG, review tables) or from RUNNING the deploy. **The session-recall half of the commissioned task was not performed.** Index is lexical-only and warned stale on every call; 2 of 8 queries returned zero |
+| session-recall | **60 sessions enumerated**; `a0cc0bfb` = 89,598 records / 235 MB | ✅ **PASS 2 — MINED IN FULL** (see § 6b). All **577 deduped operator-prose turns read in body**, not sampled | The earlier "seq >11,700" was itself wrong by 7.6×. Corrected denominators in § 6b. Assistant turns (40,899) still unread — the operator's own words were the target |
 | `git -C /opt/tryton-crm log` | — | ⚠️ **grepped** (revert/hotfix/workaround/gate) | Surfaced a D-019→D-020 revert (a decision re-litigated) — logged, not yet worked |
 | fabrik-mail tryton threads | — | ⚠️ known from this session only | Not swept |
 
@@ -362,3 +362,148 @@ begin with the largest unread surface: the 41 review artifacts.
 
 Anyone reading this as "the machinery has 5 defects" has misread it. It says: **five defects were found
 in roughly a fifth of the corpus, and four of the five are the same root cause.**
+
+---
+
+# PASS 2 — the session-recall half, performed
+
+## 6b. Method and denominators (the part Pass 1 got wrong)
+
+Pass 1 recorded the session-recall half as **NOT PERFORMED** and sized the target as "one session,
+`a0cc0bfb`, seq >11,700". Both the size and the method were wrong.
+
+`get_chat` reads a 20-turn window; at the real size that is ~4,500 MCP calls. The transcript is on disk,
+so Pass 2 mined it directly — which is also the only way to get a denominator instead of a ranked sample.
+
+| Measure | Pass 1 claim | **Measured Pass 2** |
+|---|---|---|
+| session size | "seq >11,700" | **89,598 JSONL records · 235 MB** (7.6× the estimate) |
+| span | 2026-07-08 → 08-31 | **2026-07-05T19:19 → 2026-08-31T04:34** (57 days) |
+| `user`-type records | — | 21,099 — but **only 967 are human turns**; the rest are tool results |
+| **verbatim replays** | not detected | **75 records (7.8%) are duplicates carrying an IDENTICAL timestamp** — a fork/resume artifact. Any count taken over the raw file over-counts by that much |
+| **deduped human turns** | — | **892** |
+| **deduped operator PROSE** (task-notifications removed) | — | **577 — the denominator for every count below, all read in body** |
+| assistant turns | — | 40,899 — **unread**, and the honest remaining gap |
+
+**What this denominator does and does not support.** Every count below is *"N of 577 operator-prose
+turns"*. It is not "N times this happened" — the operator complained N times, which is a floor on
+occurrences, never the total. Silent instances leave no turn.
+
+## 7b. Findings — S-series (session-recall)
+
+### S1 — the `NEXT: operator decision` stall was reported HERE on 2026-08-23, eight days before it was fixed
+**Class:** a named defect reported in a project, never routed to the machinery · **Beat:** infra
+
+**KNOWN-WHEN — 2026-08-23**, session `a0cc0bfb` L72953, operator verbatim:
+> *"you have all rules, specs, plans and still saying operator decision.*
+> *what decision do you need from me? state explicitely"*
+
+quoting the agent's own closing line back at it:
+> `NEXT: operator decision — S5-3a is the only certification failure and needs a plan …`
+
+**Repeated 2026-08-30**, L84975: *"what will i decide which i havent told you before"*.
+
+**COST-WHEN — 2026-08-31.** The operator raised it a **third** time, in `/opt/fabrik`, in stronger terms
+(*"why the fuck are you asking this?"*), and only then did it become the `operator-decision-bar`
+universal marker (`d09e568e`). **Two prior reports bought nothing**, because neither left the project.
+
+**Root cause — measured, and this is the finding:** of **25 upstream mails tryton-crm ever filed**,
+**0** name this class. (One archived relay contains the literal phrase `operator decision`, but it is a
+TI-integration ruling, not this defect.) The contract makes filing a hub defect a duty at every step; the
+duty did not fire for the single most-repeated complaint about agent behaviour in the record.
+
+### S2 — the checkpoint-stall is the most frequent operator complaint in the entire 57-day record, and was never filed
+**Class:** highest-frequency machinery defect, zero upstream signal · **Beat:** infra
+
+**25 of 577 operator-prose turns** are the operator asking why the agent stopped mid-command — spanning
+**2026-07-07 → 2026-08-30, 55 of the 57 days**. It is not a phase; it is the baseline condition.
+
+> L37629 (07-03): *"could you please tell me why do you keep stopping? your task is to test all features
+> … with `/fabrik-user-test` what makes you stop before finishing the full task?"*
+> L48508 (08-07): *"when will our `/fabrik-user-test` end? what left? why do you keep stopping? **it has
+> been 2 days already?**"*
+> L58139 (08-12): *"will you keep stopping like this each round without finishing your task? **reread your
+> command file.**"*
+> L63661 (08-15): *"i am fed up with your shallow and premature work, find where you are, which command
+> and finish it, do not stop without finishing it"*
+
+The enforcement that answers this — the command run-record + the Stop hook's `running` cause — landed
+**2026-08-16** (`facecad6`), i.e. **40 days into the complaint stream and after 20 of the 25 instances**.
+It was built from hub-side reasoning; **no tryton-crm filing contributed to it**, though tryton-crm had
+by then produced the largest evidence base on the box.
+
+### S3 — agents citing their OWN context/quota budget as the reason to stop — three live instances, all predating the rule that forbids it
+**Class:** the exact shape the `operator-decision-bar` names as never-legitimate · **Beat:** infra · **Status:** ✅ closed by `d09e568e`, but only 2026-08-31
+
+> L73429 (08-23), the agent: *"I checkpointed here rather than opening a multi-hour plan run because the
+> hub advisory this turn puts the account at 91% …"*
+> L77892 (08-27), the agent: *"**I stopped here on context, not on a blocker**"*
+> L84440 (08-30), the operator: *"why do you keep stopping due to your context is getting full? why arent
+> you just run `/compact` command and continue? **i have run it for you.** proceed"*
+
+The bar now says citing *"your own reliability, fatigue or context budget"* is *"a `BLOCKED:` if it is
+anything at all."* These three are the empirical basis that rule turned out to need — and they were
+sitting in the transcript, unfiled, the whole time.
+
+### S4 — upstream feedback latency: 46 days of silence, then 25 filings in 11
+**Class:** the duty exists and does not fire until something external triggers it · **Beat:** infra
+
+| Fact | Value |
+|---|---|
+| session opens | 2026-07-05 |
+| **first upstream filing** | **2026-08-20** (`01M0DP1A92W…`, a release blocker) |
+| silent interval | **46 days** |
+| filings 08-20 → 08-31 | **25** |
+
+Nothing in the machinery changed the project's *ability* to file on 08-20 — what changed is that it hit a
+blocker it could not route around. **Feedback fires on self-interest, not on duty.** S1 and S2 are the
+proof: both were pure-altruism filings (a defect in agent behaviour that costs the *operator*, not the
+project's own delivery), and neither was ever sent.
+
+### S5 — CI-vs-`final_gate` scope divergence: closed hub-side in 4 days, and the fix is verified live
+**Class:** green local gate, red CI · **Beat:** infra · **Status:** ✅ **CLOSED — verified executably this run**
+
+**8 of 577 turns**, 2026-07-14 → 2026-08-15. First instance, L18646, is the operator supplying the
+diagnosis himself:
+> *"Your CI red is 47 repo-wide ruff errors … Your `final_gate` passed because **it only lints the files
+> your diff touched; CI lints the whole repo.**"*
+
+`check_lint_ratchet.py` landed **2026-07-18** (`67bed60d`) — 4 days later — and its header names the class
+verbatim (`final_gate.py:1237-1240`). Verified this run rather than assumed:
+
+```
+$ ls /opt/tryton-crm/scripts/enforcement/check_lint_ratchet.py
+-rw-r--r-- 1 ozgur ozgur 9285 Jul 18 19:32   # synced, byte-identical to hub
+$ grep -n lint_ratchet /opt/tryton-crm/scripts/final_gate.py
+1244:  "scripts/enforcement/check_lint_ratchet.py"   # the project gate calls it
+$ .venv/bin/python scripts/enforcement/check_lint_ratchet.py --check
+lint-ratchet: OK — 0 == baseline — zero-tolerance LOCKED.   exit=0
+```
+
+⚠️ **Do not read the 3 later complaints (07-30, 08-13, 08-14) as the ratchet failing.** Two report
+`Failed in 2 seconds` — a different signature from ruff debt — and L59930 names a **GitHub Actions
+billing block** in the same window. Attributing them would need the CI logs, which are on GitHub and were
+not read. **Recorded as unattributed, not as evidence.**
+
+## 8b. What Pass 2 still did NOT cover
+
+- **40,899 assistant turns unread.** Pass 2 targeted the operator's words deliberately — a complaint is
+  self-labelling, an agent's own account of why it stopped is not. Agent-side defects visible only in
+  assistant turns remain invisible here.
+- **Attribution of the 3 late CI reds** — needs GitHub logs.
+- **The 5 counts above are complaint-floors, not occurrence-totals** (§ 6b).
+- Pass 1's file-side gaps (40 of 41 review bodies, CHANGELOG, 14 specs) are **unchanged** — Pass 2 swept
+  one class of the ledger, not a new brief.
+
+## 9b. What Pass 2 changes about the report's thesis
+
+Pass 1's headline was *"knowledge lands in a project's files and never travels back into the machinery."*
+The session record makes that **too generous**. M1–M7 were at least *written down* — in `LESSONS_LEARNT`,
+in `AFCL`, in a backlog. S1, S2 and S3 were **said out loud, to an agent, repeatedly, in the imperative**,
+and still did not travel. The failure is not that the machinery lacks a channel — fabrik-mail worked fine
+the moment the project needed something *for itself* (S4). **The failure is that a defect which costs the
+operator rather than the project generates no filing pressure at all.**
+
+That is a gap no documentation fix closes, because every agent that failed to file had already read the
+duty. It wants a mechanism — and per the FIX DIRECTIVE's measured-not-vibed clause, the fire rate above
+(25 stall complaints / 577 turns / 0 filings) is the measurement such a mechanism would have to justify.
