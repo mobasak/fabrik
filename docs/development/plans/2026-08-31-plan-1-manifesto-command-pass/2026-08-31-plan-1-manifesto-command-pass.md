@@ -78,7 +78,7 @@ Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | Fragments manifesto baseline (all 21 shared fragments) | — | ⛓️ | ✅ | (this commit) |
-| T02 | /design-review — 63b manifesto conformance + fixes + per-command review | T01 | ⛓️ | ⬜ | |
+| T02 | /design-review — 63b manifesto conformance + fixes + per-command review | T01 | ⛓️ | ✅ | (this commit) |
 | T03 | /fabrik-catchup — 63b manifesto conformance + fixes + per-command review | T02 | ⛓️ | ⬜ | |
 | T04 | /fabrik-conformance-review — 63b manifesto conformance + fixes + per-command review | T03 | ⛓️ | ⬜ | |
 | T05 | /fabrik-data-contract — 63b manifesto conformance + fixes + per-command review | T04 | ⛓️ | ⬜ | |

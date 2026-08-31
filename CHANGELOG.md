@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T02: /design-review (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 N/A. One fix the scoped verifier caught after an initial all-CONFORM stamp: the OBJECTIVE's "report and nothing else" now binds the dispatched agent's return value, not the parent command's closing response (which still owes RUN:/FEEDBACK/completion-footer). Two enforcement candidates parked (command_run done-round-check → after T22; render live-agents default → promoted, fixed separately).
+
 ### Changed — manifesto pass T01: fragment baseline (2026-08-31)
 
 - All 21 shared command fragments adjudicated against checklist 63b (verdict table in the T01 review artifact): 18 CONFORM, 1 N/A-mechanism, 2 FIXED — `close-feedback.md`'s decision line now carries D-044's classify-at-mint + one-way § Binding field block (renders into all 32 commands), and `questionbar.md`'s decide-rule gains the Invariant-3 most-reversible default for genuinely under-determined calls. One tension seeded to T22 (term-coverage's new:0 exit vs check_convergence's literal found:0 demand) per plan carry.

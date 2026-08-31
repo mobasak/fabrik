@@ -234,3 +234,13 @@ was no pre-call snapshot to prove it). Fix direction: `render()` requires an exp
 or `_emit_agents` refuses/warns when overwriting a file its own `agent_drift` check would call
 HAND-EDITED. Out of plan-1's File Scope (the renderer is not a source/fragment); parked per the
 rollout law — the trigger for promotion is a second live mutation.
+
+## [infra] command_run.py `done` never reads round content — the found:0/new:0 conventions are honour-bound at close (found by T02's verifier, 2026-08-31)
+
+`_close()` checks name/state/artifact-existence (6 named commands)/feedback substance — never the last
+round's `findings`. A `/design-review` (or any round-convention command) can close `done` after a
+`findings: 5` round. Enforcement candidate under the rollout law — but NOT a naive `findings != 0`
+refusal: the sanctioned `new: 0` exit legitimately closes with `found > 0` standing rows (the exact
+fabrik-review-vs-check_convergence tension T22 of the manifesto pass adjudicates). Design the check
+AFTER T22 settles which exit vocabulary is canonical; promotion trigger = T22's ruling + one measured
+false close.
