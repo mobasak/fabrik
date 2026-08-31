@@ -83,8 +83,28 @@ Explicitly NOT mutated: `/opt/tryton-crm` on the **hub** (read-only source of tr
 
 **`target_vps: vps1`.** Not a preference — a constraint. The stack needs `postgres-main` and
 `redis-main`, which are **hub-only**; a spoke would pay a WireGuard round-trip on every query and every
-proteus RPC (`agents-fabrik-core.md` § Fleet: spokes reach shared infra at `10.99.0.1:<port>`). Measured
-headroom this run:
+proteus RPC (`agents-fabrik-core.md` § Fleet: spokes reach shared infra at `10.99.0.1:<port>`).
+
+**The round-trip is now MEASURED, not asserted: 135 ms** (`ping -c 4` from vps1, this run — vps2
+135.3 ms avg, vps3 136.2 ms avg, 0% loss; matches `vps-fleet-architecture.md`:127). trytond's ORM issues
+every query over `DATABASE_URL`, so on a spoke each one crosses the Atlantic: even 20 queries per request
+is 2.7 s of pure network latency before any work happens. For an ERP this is disqualifying, which is what
+turns "hub-only infra" from a preference into a constraint.
+
+⚠️ **State the trade-off this forces, because the fleet's architecture argues the other way.**
+`vps-fleet-architecture.md`:211 is explicit that "the reason vps2 + vps3 exist is **independent tenant
+landing zones**", and its Planned table still carries `First real tenant on a spoke | W4 | pending`. This
+deploy puts a PUBLIC, multitenant, tenant-self-service CRM on the **hub** — the same host as
+`postgres-main` serving every other project, the observability HQ, the backup destination and admin
+ingress. That is a real blast-radius concession, accepted here because the latency above leaves no
+alternative, not because the isolation argument is wrong. What holds the line instead: per-service memory
+limits (the fabrik invariant), no host `ports:` (`_validate_compose`:832 refuses them, so only Traefik
+routes reach it), and the tenant routers terminating at Traefik. **What is NOT mitigated: resource
+contention on the hub** — see the 4 G ceiling against 7.5 Gi available below, which is why Phase 8 watches
+memory first. If tryton-crm ever outgrows that headroom the answer is a dedicated host with its own
+Postgres, not a spoke on the shared mesh.
+
+Measured headroom this run:
 
 ```
                total        used        free      shared  buff/cache   available
@@ -367,7 +387,10 @@ items by design (headings would inflate the citation denominator). Grounding for
    typeable from the open internet — and `TRYTOND_RPC_PASSWORD`, an M2M secret sitting in the bridge's
    env, is that account's password. "One credential, two exposure classes."
 8. **S3a-3 · ⛔ FOUND BY THE STEP-DIFF (predecessor S10) · OPERATOR-GATE · verify: in-session** —
-   propagate the RPC credential. `create_rpc_service_user.py` **GENERATES** a fresh 32-char password
+   ⚠️ **FIRST ACTION, before waiting on the operator: re-touch the autoheal pause** (the S4 command).
+   This is the only step that can stall unboundedly — it waits on a human — and the pause goes STALE at
+   2 h, after which healing silently resumes and can restart trytond mid-runbook. Heartbeat, then wait.
+   Propagate the RPC credential. `create_rpc_service_user.py` **GENERATES** a fresh 32-char password
    (`:48-51`) and prints it **once**; `--write-env` targets `parents[2]/.env` and is DEAD in-container. So
    the moment S3a-2 runs, the `TRYTOND_RPC_PASSWORD` already in `/opt/tryton-crm/.env` goes **STALE** — it
    no longer matches the Tryton user, and the bridge cannot authenticate. Capture the printed value and
@@ -389,8 +412,28 @@ items by design (headings would inflate the citation denominator). Grounding for
    *Verify:* the command reports deployment complete; `ssh vps 'sudo docker ps --filter name=trytond --format "{{.Status}}"'` shows `(healthy)`.
    *Rollback:* S-RB.
 11. **S4 · `window-heartbeat`** — refresh the pause with the stem-guarded form (both files must exist, or
-   `OWNERSHIP-LOST` → stop and disambiguate). No single in-window step may exceed 90 minutes; S3 is the
-   only long one and is bounded by `FABRIK_BUILD_TIMEOUT=1200` (20 min).
+   `OWNERSHIP-LOST` → stop and disambiguate).
+   *Command (the heartbeat IS a `touch` — the guard reads the file's mtime, so re-touching is the whole
+   mechanism):*
+   `ssh vps "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] && grep -q \"^2026-08-31-plan-deploy-tryton-crm \" /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause && echo REFRESHED || echo OWNERSHIP-LOST'"`
+   ⚠️ **The invariant is CUMULATIVE, not per-step — the previous wording had the wrong one.** It said "no
+   single in-window step may exceed 90 minutes", but `fabrik-autoheal` measures
+   `now - mtime(/run/fabrik-autoheal/pause)` and **ignores a pause older than 7200 s** (read live from
+   `/usr/local/bin/fabrik-autoheal`:42-48: `STALE pause file (>2h) ignored — healing resumes`). Six
+   consecutive 20-minute steps each satisfy the old 90-minute rule and still age the pause past two hours,
+   at which point healing silently resumes **and nothing in the runbook notices** — autoheal only logs it
+   to syslog. The real rule: **re-touch whenever more than ~60 minutes have elapsed since the last touch,
+   measured from the file, not from your sense of how long a step took.**
+   ⚠️ **This heartbeat sits AFTER the run's only operator gate (S3a-3, step 8), which is the one step that
+   can stall unboundedly** — it waits on a human to capture a printed password and write it into two
+   `.env` files. **So S3a-3 re-touches the pause as its FIRST action, before waiting on anything**, using
+   the command above; a run that pauses for coffee at step 8 must not come back to a healed-out stack.
+   *Verify (any in-window step, cheap):* `ssh vps 'echo $(( $(date +%s) - $(stat -c %Y /run/fabrik-autoheal/pause) ))s old'`
+   — over ~3600 s, re-touch before continuing; over 7200 s the window was NOT held and the steps taken
+   since are suspect (check `journalctl -t fabrik-autoheal` for `RESTARTED` lines before trusting any
+   verify that passed in that gap).
+   ⚠️ `/run` is a tmpfs — a host reboot clears the pause AND its owner file. After any reboot mid-runbook,
+   re-open the window from S2 rather than heartbeating a file that no longer exists.
 12. **S5 · retryable** — DSN ordering check. `.env` is written before `DATABASE_URL` is injected on a first
    deploy (the evolution-api pattern). Confirm the real DSN landed rather than assuming the two-pass is
    needed.
