@@ -213,7 +213,8 @@ wildcard against, so even renaming the resolver would not work. The acme store h
 domain (evidence below). Consequence: the primary router (`tryton-crm.vps1.ocoron.com`,
 `certresolver=letsencrypt`, `compose.yaml:70`) is **fine**; every tenant `<slug>.tojlo.com` would fail
 TLS. Behavior **B5 cannot pass** until a DNS-01 `cloudflare` resolver exists on vps1 — which needs a
-Cloudflare API token, an operator credential. Carried as **S0b**, and mailed to tryton-crm
+fleet work — the Cloudflare credential already lives in `/opt/fabrik/.env` AND in the site-provisioner
+container, and `drivers/dns.py` already drives Cloudflare through it. Carried as **S0b**, mailed to tryton-crm
 (`01M1AXWSG8CWZX4D6WAJFV5E4C` — see Self-audit) because the compose's expectation and the fleet's reality must be
 reconciled by one side or the other.
 - **Network** — external `fabrik` network confirmed present on vps1 this run.
@@ -272,15 +273,21 @@ items by design (headings would inflate the citation denominator). Grounding for
    the allowlist, never to "anyone"). So a tenant whose `org_id` is not `bhd-group` will 403 until it
    is added here. That is correct isolation, not a defect — but it makes the allowlist a
    per-tenant-onboarding step, which `docs/reference/tenant-onboarding.md` should carry.
-2. **S0b · `OPERATOR-GATE` · verify: in-session · BLOCKS behavior B5 only** — the tenant wildcard TLS.
-   Either (a) add a DNS-01 `cloudflare` certresolver to `/opt/traefik/traefik.yml` on vps1 with a
-   Cloudflare API token (operator credential) and restart traefik, or (b) accept launching with the
-   tenant `<slug>.tojlo.com` half TLS-less and defer the brand router. **The rest of the runbook does not
-   depend on this** — the primary `tryton-crm.vps1.ocoron.com` router uses `letsencrypt` and is
-   unaffected — so S0b may be deferred without blocking S1–S13, provided B5 is explicitly descoped.
-   *Verify (a):* `sudo grep -A4 cloudflare /opt/traefik/traefik.yml` shows a `dnsChallenge`, then after
-   the first router load `*.tojlo.com` appears in the acme store.
-   *Rollback:* restore the backed-up `traefik.yml` and restart traefik.
+2. **S0b · FLEET WORK (NOT an operator gate — corrected 2026-08-31) · retryable · blocks behavior B5 only**
+   — the tenant wildcard TLS. The first draft called this an `OPERATOR-GATE` needing "a Cloudflare API
+   token from the operator". **That ask was fabricated, and the correction matters more than the step:**
+   the fleet already holds the credential in TWO places — `/opt/fabrik/.env` carries
+   `CLOUDFLARE_API_TOKEN` *and* `CLOUDFLARE_ZONE_ID_TOJLO` (the exact zone), and the live
+   `site-provisioner` container on vps1 (healthy, up 4 weeks) carries `CLOUDFLARE_API_TOKEN` + account id
+   + email. `src/fabrik/drivers/dns.py` is already a full Cloudflare client through site-provisioner
+   (`/api/cloudflare/dns/*`, `/api/cloudflare/zones/*`). DNS and its credentials are FLEET-AUTOMATED;
+   none of this is the operator's homework.
+   *Action:* back up `/opt/traefik/traefik.yml`, add a DNS-01 `cloudflare` certresolver using the
+   existing `CLOUDFLARE_API_TOKEN`, restart traefik.
+   *Verify:* `sudo grep -A4 cloudflare /opt/traefik/traefik.yml` shows a `dnsChallenge`; after the first
+   router load `*.tojlo.com` appears in `/opt/traefik/acme.json`.
+   *Rollback:* restore the backup, restart traefik. The primary `tryton-crm.vps1.ocoron.com` router uses
+   `letsencrypt` throughout and is unaffected either way.
 2. **S1 · retryable** — pre-flight re-proof: service gate green, branch pushed, target DB still absent,
    `fabrik` network present.
    *Verify:* the four commands in `## Evidence` reproduce their outputs.
@@ -492,7 +499,7 @@ recurrence classes. A class is CLEAN only with executed evidence, never with an 
 | B3 | healer restarting a mid-migration container | window S2/S4/S8 bracketed + labeled | CLEAN — no in-window step > 90 min |
 | M2 | monitoring that does not actually watch | Gatus + Prometheus target `tryton-crm:8000` | CLEAN — explicit target; cert-expiry condition required |
 | M3 | a paper backup pointed at an unused path | `backrest.py:342-360` + `postgres.py:377,470` read | CLEAN — `postgres-tryton` at `/opt/backups/postgres/tryton/`; S13 confirms a real snapshot |
-| TLS/cert | a router requesting a resolver that does not exist | live `traefik.yml:22-28` + acme store | **FIXED** — no `cloudflare` resolver exists and a wildcard needs DNS-01; carried as gate S0b + mailed to tryton-crm |
+| TLS/cert | a router requesting a resolver that does not exist | live `traefik.yml:22-28` + acme store | **FIXED** — no `cloudflare` resolver exists and a wildcard needs DNS-01; carried as S0b (FLEET work — the CF credential is already on the box) + mailed |
 | bounded-search | a negative asserted from a narrow query | tag-delta re-run without the `-- src/` filter; seeder re-grepped with no exclusions | CLEAN — both claims survived on complete enumerations |
 | count-honesty | a stated count never re-counted | closing re-derivation pass below | **FIXED** — the commit count was overstated by one and is corrected to 22 |
 
@@ -549,11 +556,25 @@ documented in their own `.env.example:24` (`bhd-group`), and the token shape was
 `internal_auth.py:78-112` — S0 was executed on that basis and verified against their live parser.
 What remains open is only (a): which way to reconcile the `cloudflare` resolver gap — add a DNS-01
 resolver to vps1's traefik (fleet work, needs a Cloudflare API token) vs defer the brand router vs it
-is not needed at launch. **S0b is the only outstanding gate, and it blocks behavior B5 alone.**
+is not needed at launch. **S0b is the only outstanding item — and it is FLEET work, not an operator gate. It blocks behavior B5 alone.**
 
 **Remaining genuine unknowns, and they are unknowable before the deploy runs — not deferred questions:**
 trytond's first-boot init wall-clock against `FABRIK_BUILD_TIMEOUT=1200`, and whether ACME issues the
 primary cert promptly (S13.2 is the gate for exactly that).
+
+**Author error corrected on the operator's challenge (recorded because the no-op round did NOT catch
+it — that half is the machinery's, and it is filed):** the CONVERGED plan named S0b an `OPERATOR-GATE`
+requiring "a Cloudflare API token from the operator". The fleet already holds that credential in two
+places (`/opt/fabrik/.env` incl. `CLOUDFLARE_ZONE_ID_TOJLO`; the live site-provisioner container), and
+`drivers/dns.py` already drives Cloudflare through site-provisioner. The gap itself is real and
+unchanged — traefik has no `cloudflare` resolver and no `*.tojlo.com` cert — but the disposition was
+wrong: fleet work, not an operator ask. Root cause is worth naming precisely because it is not
+forgetfulness: the standing guidance covers DNS **records** ("a deploy plan's DNS step is a dig
+VERIFICATION, never an operator gate") and I applied it correctly to the A record; TLS **issuance** is
+the adjacent case that guidance does not name, so the unexamined default "credential ⇒ operator gate"
+filled the gap. Filed to infra as `01M1AYTV7F3PRS0R3914EC4CKX` with the concrete ask: a capability-check
+step in /fabrik-deploy-plan Phase 3 and the review's class list — *an OPERATOR-GATE naming a credential
+requires proof of fleet absence first*.
 
 **Corpus divergence found while authoring (a defect for the operator, per Phase 0's instruction):** the
 command's Phase-0 surface table enumerates **12** scaffold types, but the live registry
