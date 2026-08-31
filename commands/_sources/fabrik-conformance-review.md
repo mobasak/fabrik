@@ -192,9 +192,9 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
 
 The ledger doc (Surface hash · Inventory table · Coverage Checklist · Pass Ledger), committed —
 that FILE is the deliverable, not this chat. Then, in the reply: the verdict distribution across
-the five values; every non-CONFORMS row with its `path:line` gaps; the four cluster lists
-(never-executed · operational reds · inert surfaces · refreeze debt) each naming the command it was
-routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named,
+the five values; every non-CONFORMS row with its `path:line` gaps; the cluster lists — enumerated
+from PHASE 3's own list, never a literal restated here (counts drift) — each naming the command it
+was routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named,
 rows that could not be proven today and why, and any spec-refreeze debt the operator must decide on
 rather than an agent.
 
