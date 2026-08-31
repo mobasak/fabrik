@@ -24,6 +24,8 @@ Operate on the current project (cwd). **Two sanctioned modes — state which run
 - **EARLY (pre-build, right after `/fabrik-spec-review` approval):** the source of truth is the APPROVED
   SPEC (+ `docs/flows.md` if the journeys are already frozen), not the code. Write one row per planned
   feature with `(Planned)` in the Description cell — the product decision, pinned before `/fabrik-flows`
+  (the decision itself was MINTED by the spec approval's `docs/DECISIONS.md` row at `/fabrik-spec-review`;
+  rows here transcribe it, which is why a row with no spec basis is invented scope)
   walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs
   screens for it. No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec
   capability a row, every row traceable to the spec — a row with no spec basis is invented scope).
@@ -31,7 +33,13 @@ Operate on the current project (cwd). **Two sanctioned modes — state which run
   multi-modal sweep below. **Planned-row reconciliation:** a `(Planned)` row whose capability now ships
   flips to shipped (drop the marker, fill Endpoint/Module + how-to-exercise); a `(Planned)` row with NO
   code at certification time is un-shipped scope — surface it to the operator, never silently delete; a
-  shipped capability with no Planned row is scope creep or an honest addition — surface which.
+  shipped capability with no Planned row is scope creep or an honest addition — surface which. An operator
+  disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its
+  `docs/DECISIONS.md` row lands in the same change (CLAUDE.md § the decision ledger).
+
+Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then
+reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the
+spec once it exists).
 
 The artifact is `docs/FEATURES.md` (scaffold-seeded from
 `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections,

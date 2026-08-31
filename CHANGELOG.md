@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T14: /fabrik-features (2026-08-31)
+
+- 63b verdict: 3 CONFORM, 2 FIXED, 1 N/A. The EARLY-mode "product decision" now states its ledger provenance (minted at /fabrik-spec-review; rows transcribe it); an operator disposition on surfaced un-shipped scope / scope-creep is a RECEIVED decision minting its `docs/DECISIONS.md` row same-change; mode ambiguity (missing FEATURES.md, EARLY-with-shipped-code) gains reversible defaults. Verifier 14-for-14: the all-CONFORM initial stamp fell — including a downstream-gate misattribution (check_certification_coverage gates user-test/service-test, not this command's own loop).
+
 ### Changed — manifesto pass T13: /fabrik-execute-plan (2026-08-31)
 
 - 63b verdict: 3 CONFORM, 2 FIXED, 1 corrected. A received operator ruling (MESSY-resume, flaky-quarantine, blocked-resume) now mints its `docs/DECISIONS.md` row — orchestrator's pen — committed WITH the spine-Evidence record as the FIRST commit after the ruling, closing the second-crash orphan window. D6's dead-coder force-remove now captures a salvage diff (`add -N` for untracked visibility) before destruction, converting the one ONE-WAY act in the command to reversible. Verifier round 13-for-13 falsification: 2 CONFIRMED artifact defects + both source gaps verifier-surfaced.
