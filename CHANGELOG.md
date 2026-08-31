@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T15: /fabrik-flows (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 1 FIXED, 1 honest-split. The flows FREEZE (a Status flip with zero prior `docs/DECISIONS.md` reference) now mints its row same-change, classified at mint (normally reversible-by-re-freeze, mirroring the data-contract wording), staged WITH the artifact in the same COMMIT. Verifier 15-for-15: headline catch was the T14-established one-way-conflation class reproduced by this very ticket's initial stamp, plus the T03 staging-atomicity class.
+
 ### Changed — manifesto pass T14: /fabrik-features (2026-08-31)
 
 - 63b verdict: 3 CONFORM, 2 FIXED, 1 N/A. The EARLY-mode "product decision" now states its ledger provenance (minted at /fabrik-spec-review; rows transcribe it); an operator disposition on surfaced un-shipped scope / scope-creep is a RECEIVED decision minting its `docs/DECISIONS.md` row same-change; mode ambiguity (missing FEATURES.md, EARLY-with-shipped-code) gains reversible defaults. Verifier 14-for-14: the all-CONFORM initial stamp fell — including a downstream-gate misattribution (check_certification_coverage gates user-test/service-test, not this command's own loop).

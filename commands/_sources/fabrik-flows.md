@@ -168,6 +168,11 @@ arc set).
 
 Then converge: re-walk the whole artifact; fix; repeat until a full pass makes **zero edits** (md5 the file
 before/after the closing pass — identical hashes are the proof). Set `Status: FROZEN`, bump `Version`.
+**The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change** (CLAUDE.md § the
+decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one. Classify at mint —
+a flows freeze is normally reversible-by-re-freeze, so the plain row suffices unless the operator rules
+otherwise — and stage the row WITH the artifact in the commit below: same-change means same COMMIT, not
+same run.
 **Present the frozen contract + the flow index to the user** — the freeze stands unless they redirect. **`FROZEN` is not `attested`:** handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next).
 
 **Freeze law (verbatim into the artifact):** *any journey/persona/flow change = bump `Version` +
