@@ -117,7 +117,7 @@ def test_a_report_written_to_the_fragments_own_spec_passes_check_file(tmp_path):
         "| 4 | behavior-without-a-test | CLEAN | hunted tests/test_a.py + a.py handlers |\n\n"
         "## Pass Ledger\n\n"
         # the CANONICAL row shape term-coverage.md pins verbatim: method FIRST, counters adjacent,
-        # finders after — both regex windows (QUIET_PASS 40ch, _REDERIVATION_ROW 160ch) satisfied
+        # finders after — D-053: the graders bind same-line only; no char windows remain
         "| Pass 1 | method: citation | found: 3 | new: 3 | fixed: 3 | finders: pool-a, native-opus |\n"
         "| Pass 2 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: native-opus (non-author) |\n"
     )

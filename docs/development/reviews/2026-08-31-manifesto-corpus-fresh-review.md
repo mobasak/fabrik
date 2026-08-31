@@ -497,3 +497,24 @@ enumeration (clean-tree `git diff HEAD` md5 anchors nothing); plan-review's doub
 deduped. Round-7 fixes: 12/14 HOLD, 2 defective→fixed here. Cited re-raises: deploy-plan's
 no-verdict fallback (fail-closed by construction, disposition holds); `.envrc` outside never-route
 (documented property).
+
+## Resumed closing rounds (post-D-053, on the operator's finish-it directive)
+
+| Pass | method | found | new | fixed | finders |
+|---|---|---|---|---|---|
+| Pass 14 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 native Opus (non-author) over the D-053 delta + 554-file fleet re-derivation |
+
+Round 14's headline was a genuine catch against MY OWN re-grounding: the first uncapped
+`_REDERIVATION_ROW` matched bare prose ("9 anchors re-derived") — 6 of the 8 flips my safety
+measurement blessed were the gate LOSING a real block (the measurement classified flip DIRECTION,
+never criterion honesty). Fixed by the finder's Option A: the METHOD CELL is the anchor
+(`method: re-derivation`, bold/colon variants tolerated), same-line, any gap — restoring the
+tryton-crm-incident contract while keeping D-053's ordering-independence. Re-measured against the
+ORIGINAL cap: 0 newly-pass, 38 legacy prose-matches would newly fail if re-graded (they never are —
+the checker grades CHANGED artifacts only; and they satisfied the old cap by prose accident, which
+is precisely the recall the amendment removes). Regression tests: prose rows must NOT match, three
+method-cell variants must, and the twins are asserted pattern-identical (9/9 green). Also fixed:
+the stale adjacency guarantee in QUIET_PASS's design comment, the stale window comment in the test
+fixture, and this report's premature "appended below" self-description (this section is that
+append). D-053's ledger row stands — its decision (same-line binding, ordering not load-bearing)
+is unchanged; the anchor tightening is the same decision landing correctly, recorded here.

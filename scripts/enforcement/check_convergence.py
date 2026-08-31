@@ -117,9 +117,12 @@ CONVERGED = _ConvergedSearch()
 # A Pass/Round-labelled ledger line carrying the re-derivation method token. Deliberately
 # loose on separators (dash/pipe/colon tables all in the wild) and tight on the two anchors:
 # a pass/round label and `re-deriv` within one line.
-# D-053: 160-char cap removed — a mandated dispatched/returned manifest before the method cell
-# pushed `re-derivation` out of the window (measured: 179-char gap on a compliant row).
-_REDERIVATION_ROW = re.compile(r"\b(?:pass|round)\b[^\n]*\bre-?deriv", re.I)
+# D-053 (amended by the resumed closing round): the 160-char cap made cell ordering
+# load-bearing; the FIRST uncapped form then matched bare prose ("anchors re-derived") and
+# lost the block on 6 real files. The anchor is the METHOD CELL, not the word — same-line,
+# any gap, `method: re-derivation` (bold/colon variants tolerated).
+_REDERIVATION_ROW = re.compile(
+    r"\b(?:pass|round)\b[^\n]*\bmethod\W{0,4}\s*:?\s*\*{0,2}\s*re-?deriv", re.I)
 # EXECUTED must be the status VALUE (right after `Status:`), not the word
 # "executed" appearing in prose — else a `Status: CLOSED … never executed
 # directly` / `Status: Done … was executed unauthorized` line false-positives.
@@ -144,7 +147,8 @@ _TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
 # deliberately ZERO-FALSE-POSITIVE signal: a genuinely-converged review ALWAYS
 # has one, so this never cries wolf (the failure mode that gets a fleet gate
 # ``# noqa``'d — worse than a false-accept). It rejects a prose-only "found:0"
-# (no adjacent ``fixed:0``) and a cited review with no quiet round at all. It does
+# with no same-LINE ``fixed:0`` (D-053: same-line, any gap — the old adjacency window is
+# gone) and a cited review with no quiet round at all. It does
 # NOT try to prove the quiet round was the FINAL one — that DEPTH (no UNCHECKED
 # rows, every class adjudicated, the loop truly converged) is
 # check_review_coverage.py's job when the review is staged. This gate's ceiling
