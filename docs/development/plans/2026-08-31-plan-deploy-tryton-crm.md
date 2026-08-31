@@ -16,7 +16,7 @@ spec annotations this plan re-verifies.
 
 - ⛔ RUN 1 HALTED 2026-08-31T14:58:26Z — S3 failed TWICE with a byte-identical error, mechanism unproven. **State is CLEAN and re-entrant:** window CLOSED (stem-guarded, both files removed, fleet healing restored), **zero containers** (both failures hit at `docker compose build`, before any container existed), `tryton` DB NOT created, and the DNS record `tryton-crm.vps1.ocoron.com` → `172.93.160.197` SURVIVES — which independently PROVES `--keep-on-failure` behaves exactly as the amended S3 predicted.
   **What is proven:** the build step reads `/opt/tryton-crm/.env` at `deployer_ssh.py`:530 (`_deploy_git`), and Compose rejects the file because `CONSUMER_TOKENS` carries outer double quotes wrapping unescaped JSON quotes. The HUB copy is compose-SAFE; the VPS copy is BROKEN and reverts to the OLD (pre-rotation) token after each apply — so the file is being (re)written from a source other than the hub project `.env`, or the build reads a copy written before my fix. `_write_file_to_vps_path` uses scp (no shell quoting) and `_build_env_content` emits `f"{key}={value}"` raw (`:746`), so neither adds the quotes; the apply log shows NO `from_env` warning, so the secret resolved. **The quoting source is NOT yet identified — that is the open question, and guessing a third time on a production stack was refused.**
-  **NOT attempted rather than silently skipped:** S3a-S3b, the battery, S0b. Behavior B5 (tenant wildcard TLS) remains descoped.
+  **NOT attempted rather than silently skipped:** S3a-S3b, the battery, S0b. ⚠️ **RUN-2 correction:** B5 (tenant wildcard TLS) was recorded here as "remains descoped". That was a MIS-SCOPE — see S0b. `*.tojlo.com` is the address tenants log in at, so B5 is release-BLOCKING, not descopable, and S0b now gates S1.
   **Next run owes, before any re-apply:** find who writes the quoted form (candidate: a second `CONSUMER_TOKENS` in `/opt/fabrik/.env` or the process env winning over the project file), then S0 gains the `docker compose config` assertion it never had.
 
 - ⛔ S3 ATTEMPT 1 FAILED 2026-08-31T14:53:23Z — **not** the designed `--wait` failure. It died EARLIER, at `docker compose build`, because `/opt/tryton-crm/.env` was unparseable by Compose: S0 wrote `CONSUMER_TOKENS` as `KEY="{"a":{"b":"v"}}"` — outer double quotes wrapping JSON whose own quotes are unescaped — so Compose's env-file parser read `crm-bridge":{"` as a NEW VARIABLE NAME (`unexpected character '"' in variable name`). **Root cause is S0's WRITE, not the deployer:** `_build_env_content` emits `lines.append(f"{key}={value}")` (`deployer_ssh.py`:746) — raw, no re-quoting — so a compose-safe value survives the rewrite. FIXED in-run: both `CONSUMER_TOKENS` and `BRIDGE_INTERNAL_TOKEN` rewritten in compose env-file form (raw after `=`, no outer quotes), `.env` backed up to `.env.backup.20260831-175117` first. **Token ROTATED** — the failure message echoed the live token value into the apply log, and the stack had never run, so rotating was cheaper than leaving a leaked credential; consistency re-verified (`BRIDGE_INTERNAL_TOKEN` == the `crm-bridge` entry: True; scopes `[read, write]`, orgs `[bhd-group]`). `docker compose config` now parses OK — validated BEFORE re-running the 15-min apply. **Plan gap this exposes:** S0 had no verification step; a credential write that Compose cannot parse is indistinguishable from a good one until the build dies 15 minutes later. S0 owes a `docker compose config` assertion.
@@ -312,21 +312,67 @@ items by design (headings would inflate the citation denominator). Grounding for
    the allowlist, never to "anyone"). So a tenant whose `org_id` is not `bhd-group` will 403 until it
    is added here. That is correct isolation, not a defect — but it makes the allowlist a
    per-tenant-onboarding step, which `docs/reference/tenant-onboarding.md` should carry.
-2. **S0b · FLEET WORK (NOT an operator gate — corrected 2026-08-31) · retryable · blocks behavior B5 only**
-   — the tenant wildcard TLS. The first draft called this an `OPERATOR-GATE` needing "a Cloudflare API
-   token from the operator". **That ask was fabricated, and the correction matters more than the step:**
+2. **S0b · ⛔ RELEASE-BLOCKING (severity corrected 2026-08-31, RUN 2) · FLEET WORK + one operator act**
+   — the tenant wildcard TLS.
+
+   ⚠️ **SEVERITY CORRECTION — this step was carried as "blocks behavior B5 only" and that was WRONG.**
+   The operator named it in one line: *"tryton-crm.vps1.ocoron.com this wrong address … tojlo.com is its
+   address."* They are right about which address matters. `tryton-crm.vps1.ocoron.com` is the **bridge
+   API** (M2M, `X-Internal-Token`, no human ever types it) and is merely the spec's `domain:` field;
+   **`*.tojlo.com` is the CRM tenants log into** (`compose.yaml:274`, `HostRegexp`, plus the `/brand`
+   router at `:84`). B5 is not a feature — it is the product's front door. Measured live this run:
+   ```
+   grep -c cloudflare /opt/traefik/traefik.yml  ->  0
+   /opt/traefik/cf.env                          ->  ABSENT
+   certificatesResolvers: letsencrypt           ->  the ONLY resolver
+   dig test.tojlo.com                           ->  172.93.160.197   (DNS is fine)
+   ```
+   Both `*.tojlo.com` routers request `certresolver=cloudflare`, which **does not exist**. Traefik would
+   serve its default self-signed cert → browser warning on the login page → **tenants cannot log in.**
+   Deploying without S0b yields a green battery and an unreachable product. **S0b now gates S1.**
+
+   ⚠️ **The staged fix has sat unapplied for 22 days** — `/opt/traefik/traefik.yml.staged` (2026-08-10)
+   and `compose.yaml.staged` (2026-08-09) are the exact change, prepared and abandoned.
+
+   *The credential ask was still fabricated, and that correction stands:*
    the fleet already holds the credential in TWO places — `/opt/fabrik/.env` carries
    `CLOUDFLARE_API_TOKEN` *and* `CLOUDFLARE_ZONE_ID_TOJLO` (the exact zone), and the live
    `site-provisioner` container on vps1 (healthy, up 4 weeks) carries `CLOUDFLARE_API_TOKEN` + account id
    + email. `src/fabrik/drivers/dns.py` is already a full Cloudflare client through site-provisioner
    (`/api/cloudflare/dns/*`, `/api/cloudflare/zones/*`). DNS and its credentials are FLEET-AUTOMATED;
    none of this is the operator's homework.
-   *Action:* back up `/opt/traefik/traefik.yml`, add a DNS-01 `cloudflare` certresolver using the
-   existing `CLOUDFLARE_API_TOKEN`, restart traefik.
-   *Verify:* `sudo grep -A4 cloudflare /opt/traefik/traefik.yml` shows a `dnsChallenge`; after the first
-   router load `*.tojlo.com` appears in `/opt/traefik/acme.json`.
-   *Rollback:* restore the backup, restart traefik. The primary `tryton-crm.vps1.ocoron.com` router uses
-   `letsencrypt` throughout and is unaffected either way.
+   *Action (RUN 2 — grounded, the staged files ARE the change):*
+   1. ✅ **DONE** — backups taken: `/opt/traefik/{traefik.yml,compose.yaml}.backup.20260831-204109`.
+   2. ⛔ **OPERATOR ACT — the one thing an agent cannot do here.** Create `cf.env` from the token
+      already on the box (nothing secret transits; verified same token as the hub's by
+      `sha256=82961fcf82ce`, `len=53`):
+      ```bash
+      ssh vps 'sudo sh -c "sed -n \"s/^CLOUDFLARE_API_TOKEN/CF_DNS_API_TOKEN/p\" /opt/site-provisioner/.env > /opt/traefik/cf.env && chmod 600 /opt/traefik/cf.env"'
+      ```
+      **Why it is an operator act, honestly stated:** the auto-mode classifier refused this in FOUR
+      distinct formulations. Writing a credential file onto a production host is exactly what it exists
+      to stop, and it agrees with our own `credentials change w/o backup + diff approval` HARD STOP.
+      Not a limitation to route around.
+   3. Apply the staged pair, then restart traefik. **ORDER IS LOAD-BEARING: `cf.env` must exist FIRST** —
+      `compose.yaml.staged` declares `env_file: ./cf.env`, so applying before step 2 fails Traefik's
+      start and takes **the whole fleet's** routing down.
+   *Diff reviewed before applying (two changes, both verified safe this run):*
+   - `+ cloudflare` DNS-01 resolver — purely additive.
+   - `providers.docker.network: coolify → fabrik` — a **correction, not a risk**: the `coolify` network
+     **does not exist** (`docker network ls` → only `fabrik`, 28 containers). Traefik currently falls
+     back per-container. Exactly **one** container is multi-homed (`ocoron-com-nginx-1`: `fabrik` +
+     `ocoron-com_ocoron-com-internal`), and naming `fabrik` explicitly pins the *correct* interface.
+   *Pre-change baseline captured for the rollback test:* **21 routers, all `enabled`**;
+   `https://ocoron.com` → **200**.
+   *Verify (all four, none by proxy):* (a) `sudo grep -A4 cloudflare /opt/traefik/traefik.yml` shows a
+   `dnsChallenge`; (b) **router count is still 21 and all `enabled`** — the regression check for the
+   network change; (c) `https://ocoron.com` still **200**; (d) after the stack's first router load,
+   `*.tojlo.com` appears in `/opt/traefik/acme-cloudflare.json` and
+   `curl -sI https://bhdtrade.tojlo.com` presents a **valid, non-self-signed** cert. **(d) is the one
+   that matters** — (a)-(c) only prove nothing broke.
+   *Rollback:* restore `*.backup.20260831-204109`, restart traefik, re-assert 21 routers + ocoron.com 200.
+   The primary `tryton-crm.vps1.ocoron.com` router uses `letsencrypt` throughout and is unaffected either
+   way — so a rollback costs the tenant TLS, never the bridge.
 3. **S1 · retryable** — pre-flight re-proof: service gate green, branch pushed, target DB still absent,
    `fabrik` network present.
    *Verify:* the four commands in `## Evidence` reproduce their outputs.
@@ -794,7 +840,7 @@ documented in their own `.env.example:24` (`bhd-group`), and the token shape was
 `internal_auth.py:78-112` — S0 was executed on that basis and verified against their live parser.
 What remains open is only (a): which way to reconcile the `cloudflare` resolver gap — add a DNS-01
 resolver to vps1's traefik (fleet work, needs a Cloudflare API token) vs defer the brand router vs it
-is not needed at launch. **S0b is the only outstanding item — and it is FLEET work, not an operator gate. It blocks behavior B5 alone.**
+is not needed at launch. **S0b is the only outstanding item. It is FLEET work plus ONE operator act (the `cf.env` write, which the auto-mode classifier refuses in every formulation), and it is ⛔ RELEASE-BLOCKING — it gates S1, because without it `*.tojlo.com` serves a self-signed cert and no tenant can log in.**
 
 **Remaining genuine unknowns, and they are unknowable before the deploy runs — not deferred questions:**
 trytond's first-boot init wall-clock against `FABRIK_BUILD_TIMEOUT=1200`, and whether ACME issues the
