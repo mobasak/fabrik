@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T26: /fabrik-service-test + cert-handoff-grammar fragment (2026-08-31)
+
+- 63b verdict: 3 CONFORM, 2 FIXED, 1 N/A. The HANDOFF P0–P3 digit finally gets ASSIGNMENT CRITERIA at the fragment root (release blocks on it, the grader parses-never-validates it; blast-radius tiers + take-the-higher-when-torn + operator-waives-down-with-minted-row — /fabrik-user-test inherits on render); the credential-to-pool vector closed (a pool worker driving an authed journey held real credentials — native or scoped-throwaway-revoked now; the T21/T25 class, third occurrence). Verifier 26-for-26.
+
 ### Changed — manifesto pass T25: /fabrik-rules-review (2026-08-31)
 
 - 63b verdict: 3 CONFORM, 2 FIXED, 1 N/A. Phase 0 now greps `docs/DECISIONS.md` alongside the ADR in BOTH modes (a ledger-row-accepted deviation is not a GAP; the HUB-mode heading had scoped the step out); the T21-class secrets carve-out lands for pool-excerpt inlining (a non-secrets pack's unit could ship a literal `.env` secret to a pool API); the round-ledger counting gains D-048 semantics — standing gaps re-listed are cited, not counted, so TERMINAL is reachable while real gaps stand. Verifier 25-for-25.

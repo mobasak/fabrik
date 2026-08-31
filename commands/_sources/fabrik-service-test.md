@@ -249,6 +249,10 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
   fixtures). Unlike the GUI twin there is no browser requirement, so **pool workers
   (`fanout(..., mode="write")`, disjoint `owned_paths`) can drive** — use them; add native agents
   for the high-risk legs (auth/tenant-isolation/migrations/concurrency/destructive degradation).
+  **Credential carve-out (the repo-review/rules-review class): credential material never enters a
+  pool prompt** — a journey that needs a live credential (sandbox keys included — they are real
+  paid credentials) runs NATIVE, or the pool worker gets a scoped THROWAWAY credential minted for
+  it and revoked after the round; never paste a shared fixture token into a pool unit's task text.
 - **≥1 pool `fanout` dispatch for gradeable breadth** (auto-records → `set_quality` back-fill):
   matrix-hole critique, boundary/invalid-value derivation from `data-contract.md`, error-catalog
   and status-code conformance audit, log/metric triage, finding-triage second opinions. All-native
