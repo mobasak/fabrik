@@ -728,10 +728,16 @@ def _parse_env(content: str) -> dict[str, str]:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
-        # Strip surrounding quotes
+        # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
+        # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
+        # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
+        # the next write escapes them AGAIN, so a value grows a backslash per apply.
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            quote = value[0]
             value = value[1:-1]
+            if quote == '"':
+                value = value.replace('\\"', '"').replace("\\\\", "\\")
         result[key] = value
     return result
 
@@ -740,9 +746,28 @@ def _format_env(env: dict[str, str]) -> str:
     """Format a dict as .env file content."""
     lines = []
     for key, value in sorted(env.items()):
-        # Quote values with spaces or special chars
-        if any(c in value for c in (" ", "#", "'", '"', "\n")):
-            value = f'"{value}"'
+        # QUOTE ONLY WHEN THE FILE FORMAT REQUIRES IT, and ESCAPE when we do.
+        #
+        # The old rule quoted on any space/#/quote and wrapped WITHOUT escaping:
+        # `value = f'"{value}"'`. A JSON secret contains `"`, so it shipped as
+        # `K="{"a":"b"}"` and Compose read the first inner quote as a NEW VARIABLE
+        # NAME — `failed to read .env: unexpected character '"' in variable name`.
+        # That broke `docker compose build` for EVERY value carrying a quote, i.e.
+        # every JSON-valued secret on the fleet (measured live 2026-08-31 on
+        # tryton-crm's CONSUMER_TOKENS; two byte-identical apply failures).
+        #
+        # A compose env_file takes the value RAW to end-of-line, so spaces and
+        # quotes need no wrapper at all. Only three things genuinely do: leading or
+        # trailing whitespace (a bare value would be stripped), an embedded newline,
+        # and `#` (some dotenv parsers start an inline comment at ` #`).
+        # ...plus the AMBIGUOUS case: a value whose own content starts AND ends with a
+        # quote (e.g. the JSON string `"foo"`). Emitted bare it is indistinguishable
+        # from a wrapper, and the reader would strip the value's real quotes. Quoting
+        # + escaping makes it self-describing. (Pre-existing round-trip bug, reachable
+        # before this change too; closed here rather than left for the next caller.)
+        _ambiguous = len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"')
+        if value != value.strip() or "\n" in value or "#" in value or _ambiguous:
+            value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
         lines.append(f"{key}={value}")
     return "\n".join(lines) + "\n" if lines else ""
 
