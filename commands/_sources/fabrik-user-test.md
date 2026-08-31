@@ -344,7 +344,14 @@ independent-eyes recall this command exists for. Floors, enforced:
 - **≥1 pool `fanout` dispatch for the gradeable non-browser breadth** (auto-records →
   `set_quality` back-fill): matrix-hole critique (Phase 2), boundary-value derivation from
   `data-contract.md`, extracted-string i18n/copy audit, crawler-output triage, finding-triage
-  second opinions. All-native here = zero flywheel rows — and `check_subagent_flywheel.py` BLOCKS on a substantial code change with zero pool runs unless the work declares `NO-POOL: <reason>` in an in-cycle commit (or sets `FABRIK_NO_POOL`) (
+  second opinions. **Credential carve-out (the service-test class, full form): pool units never receive
+  seeded credentials or live session material — STRIP tokens/cookies/signed URLs from crawler output AND
+  from console/network captures before any pool unit (finding-triage included) sees them; a triage that
+  needs the live material runs NATIVE, or on a scoped throwaway credential revoked after the round** (an
+  authed SPA's crawl embeds session tokens in URLs, a network capture carries Authorization headers; a
+  pool prompt is a third-party API). **And REDACT live credential material from COMMITTED evidence too**
+  — network captures and on-screen key-reveal screenshots land in the board's `evidence/` dir and ride
+  the certification commit; a committed token outlives every session. All-native here = zero flywheel rows — and `check_subagent_flywheel.py` BLOCKS on a substantial code change with zero pool runs unless the work declares `NO-POOL: <reason>` in an in-cycle commit (or sets `FABRIK_NO_POOL`) (
   `check_subagent_flywheel.py`).
   - **Pool unavailable (missing key, 402/quota exhausted mid-run, network) = a BLOCKED-env finding
     to REPORT, not a silent skip** (same treatment as a missing mail-catcher): record it in the

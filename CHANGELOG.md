@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T32: /fabrik-user-test (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 1 FIXED, 1 N/A. The full-form credential carve-out lands: tokens/cookies/signed URLs stripped from crawler output AND console/network captures before any pool unit sees them (a capture carries Authorization headers), native-or-throwaway for needing triage — plus the committed-evidence redaction rule: a token in a certification-committed screenshot/capture outlives every session. Verifier 32-for-32 — my first cut was thinner than the T26 template it cited.
+
 ### Changed — manifesto pass T31: /fabrik-upstream (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED. The stale SEEDED_NOT_ENFORCED list (missing `docs/DECISIONS.md`, added the day before) → live-set pointer; a claim landed by RANKED OPTIONS is a hub design call minting in the landing commit (verbatim-diff fixes stay row-less); DEFERRED claims land as append-only `docs/STRATEGIC_BACKLOG.md` rows ("a deferral named only in a mail reply dies with the thread"); the round-trip grammar gains DEFERRED/REFUTED dispositions (accept-or-challenge, never a re-send). Verifier 31-for-31.
