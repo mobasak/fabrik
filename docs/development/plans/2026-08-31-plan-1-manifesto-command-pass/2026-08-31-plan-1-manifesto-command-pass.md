@@ -103,7 +103,7 @@ Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | T24 | /fabrik-rivals — 63b manifesto conformance + fixes + per-command review | T23 | ⛓️ | ✅ | (this commit) |
 | T25 | /fabrik-rules-review — 63b manifesto conformance + fixes + per-command review | T24 | ⛓️ | ✅ | (this commit) |
 | T26 | /fabrik-service-test — 63b manifesto conformance + fixes + per-command review | T25 | ⛓️ | ✅ | (this commit) |
-| T27 | /fabrik-spec — 63b manifesto conformance + fixes + per-command review | T26 | ⛓️ | ⬜ | |
+| T27 | /fabrik-spec — 63b manifesto conformance + fixes + per-command review | T26 | ⛓️ | ✅ | (this commit) |
 | T28 | /fabrik-spec-review — 63b manifesto conformance + fixes + per-command review | T27 | ⛓️ | ⬜ | |
 | T29 | /fabrik-ui-design — 63b manifesto conformance + fixes + per-command review | T28 | ⛓️ | ⬜ | |
 | T30 | /fabrik-ui-design-review — 63b manifesto conformance + fixes + per-command review | T29 | ⛓️ | ⬜ | |

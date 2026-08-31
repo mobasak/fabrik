@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T27: /fabrik-spec (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 FIXED. A bar-clearing Phase-2 answer is by construction an operator ruling — it now mints its `docs/DECISIONS.md` row IN the authoring session (same for rejected alternatives worth not re-proposing): "the spec's own prose dies with the spec, the ledger row does not" — the T08 abandoned-DRAFT class, whose reasoning shape my initial routing defense had reproduced. The /fabrik-spec-review approval mint (T28's obligation) covers only the approval itself. Verifier 27-for-27.
+
 ### Changed — manifesto pass T26: /fabrik-service-test + cert-handoff-grammar fragment (2026-08-31)
 
 - 63b verdict: 3 CONFORM, 2 FIXED, 1 N/A. The HANDOFF P0–P3 digit finally gets ASSIGNMENT CRITERIA at the fragment root (release blocks on it, the grader parses-never-validates it; blast-radius tiers + take-the-higher-when-torn + operator-waives-down-with-minted-row — /fabrik-user-test inherits on render); the credential-to-pool vector closed (a pool worker driving an authed journey held real credentials — native or scoped-throwaway-revoked now; the T21/T25 class, third occurrence). Verifier 26-for-26.

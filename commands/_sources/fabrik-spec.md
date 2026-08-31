@@ -201,6 +201,11 @@ Fabrik convention (naming = kebab-case per `CLAUDE.md`; auth = Pattern A; DB hos
 security tradeoff, conflicting requirements, or anything irreversible/destructive. When several real
 questions clear the bar, you may batch them — encourage substantive dialogue, just not trivia one drip at a
 time. A stopped turn asking "what should I name this?" is a defect this bar exists to prevent.
+**Every bar-clearing answer is by construction an operator ruling — mint its `docs/DECISIONS.md` row in
+this authoring session** (classified at mint; the same for a rejected alternative worth not re-proposing):
+a DRAFT abandoned before CONVERGED must still carry the ruling somewhere greppable — the spec's own prose
+dies with the spec, the ledger row does not (the abandoned-DRAFT class, per `/fabrik-deploy-plan`'s law;
+the /fabrik-spec-review approval mint covers only the approval itself, never these).
 
 ## Phase 3 — Approaches (2–3) + recommendation
 
