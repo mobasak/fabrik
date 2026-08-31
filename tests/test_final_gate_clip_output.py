@@ -68,3 +68,32 @@ def test_unknown_check_still_tells_you_to_re_run_the_script():
     assert d["truncated"] is True
     assert d["rerun"] is None
     assert "re-run this check's own script" in str(d["output"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A green pytest that SKIPPED asserts nothing about the skipped tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_skip_advisory_names_the_count_and_is_warn_prefixed():
+    """tryton-crm 2026-08-28 Pass 12: 'the security suite had DELETED ITSELF from a
+    green gate' — 26 cross-tenant tests skipped on a 429 misread as 'unreachable', and
+    skips do not fail, so those guarantees were absent from every green gate in that
+    window. web-ecommerce-factory filed the same class independently.
+    """
+    out = "===== 33 passed, 26 skipped, 0 failed in 12.3s ====="
+    got = fg.skip_advisory(out, "original tail")
+    assert got.startswith("\u26a0"), (
+        "must be WARN-prefixed — passing-check output only reaches --json when it is"
+    )
+    assert "26 test(s)" in got
+    assert "original tail" in got, "the real pytest tail must survive the prefix"
+
+
+def test_no_advisory_when_nothing_skipped():
+    assert fg.skip_advisory("===== 33 passed in 4.1s =====", "tail") == "tail"
+
+
+def test_no_advisory_on_an_explicit_zero_skipped():
+    """`0 skipped` is the honest green the projects fixed TOWARD — never flag it."""
+    assert fg.skip_advisory("33 passed, 0 skipped in 4.1s", "tail") == "tail"

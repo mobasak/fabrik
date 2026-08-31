@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a green pytest that SKIPPED now says so (M6) (2026-08-31)
+
+- A green `pytest` run that skipped tests asserts nothing about them, and the count was invisible: passing-check output only reaches `--json` when ⚠-prefixed. Two projects found this independently. tryton-crm's 2026-08-28 review, Pass 12: **"the security suite had DELETED ITSELF from a green gate"** — all 26 cross-tenant isolation tests were skipping on a 429 that `conftest` classified as "trytond not reachable" (a bare `except Exception → skip`), and because the gate runs `pytest tests/` and skips do not fail, those guarantees were absent from EVERY green gate in that window; web-ecommerce-factory filed the same class ("pytest NOT RUN is invisible"). New pure `skip_advisory()` prefixes the tail with the skip COUNT and why it matters. Advisory, never blocking — an environment-gated skip is legitimate, an unexamined one is the defect. Red-on-revert proven; `0 skipped` never flags.
+
 ### Fixed — a truncated gate row now names the command that prints the FULL set (2026-08-31)
 
 - `clip_output` stated THAT output was omitted but never how to see it, so a reader could scope a fix to the preview and leave the check RED. tryton-crm paid for exactly that on 2026-07-30 — a truncated "Doc Link Integrity" row listed 3 docs while the check's own script listed 7 — and wrote the rule ("re-run that check's own script directly") into `/opt/tryton-crm/docs/LESSONS_LEARNT.md`:907-927, where the hub never saw it; the same cost recurred hub-side 2026-08-31. Truncated rows now carry the exact `python scripts/enforcement/<check>.py` in-band AND as a machine-readable `rerun` field, via a name→script registry recorded at check registration. Unknown checks degrade to the generic instruction rather than silence. Live: the two currently-truncated rows name `check_review_coverage.py` and `check_vendored_drift.py`.

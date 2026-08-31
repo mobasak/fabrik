@@ -193,6 +193,32 @@ def run_ai_fixes(tool: str, tool_output: str | None = None) -> tuple[bool, str]:
 _CHECK_SCRIPTS: dict[str, str] = {}
 
 
+def skip_advisory(pytest_output: str, tail: str) -> str:
+    """Prefix ``tail`` with a ⚠ advisory when a GREEN pytest run skipped tests.
+
+    A green pytest that SKIPPED asserts nothing about the skipped tests, and the count
+    is invisible: passing-check output only reaches ``--json`` when it starts with ⚠.
+    Two projects found this independently. tryton-crm's 2026-08-28 review, Pass 12:
+    "the security suite had DELETED ITSELF from a green gate" — all 26 cross-tenant
+    isolation tests were skipping on a 429 that conftest classified as "trytond not
+    reachable" (a bare ``except Exception -> skip``), and since the gate runs
+    ``pytest tests/`` and skips do not fail, those guarantees were absent from EVERY
+    green gate in that window. web-ecommerce-factory filed the same class.
+
+    Advisory, never blocking: an environment-gated skip is legitimate; an UNEXAMINED
+    one is the defect. Returns ``tail`` unchanged when nothing skipped.
+    """
+    m = re.search(r"(\d+) skipped", pytest_output)
+    if not m or int(m.group(1)) == 0:
+        return tail
+    return (
+        f"\u26a0 this green SKIPPED {m.group(1)} test(s) and asserts NOTHING about them. "
+        "A suite that silently skips is indistinguishable from one that passes — read WHY "
+        "each skipped before trusting this green (a skip on a transient error, e.g. a "
+        "throttle misread as 'service unreachable', deletes a whole suite from the gate).\n"
+    ) + tail
+
+
 def clip_output(
     output: str, head: int = 1400, tail: int = 600, check_name: str | None = None
 ) -> dict[str, object]:
@@ -962,6 +988,7 @@ def run_static_checks(
                     f"pyproject's testpaths says the same), so a suite living elsewhere is not "
                     f"collected. Run it yourself if your change touches it."
                 )
+            tail = skip_advisory(out, tail)
             results.append(("pytest", code == 0, tail))
     else:
         # SAY WHICH of the three conditions fired. The old message listed all three, so a
