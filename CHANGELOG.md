@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T01: fragment baseline (2026-08-31)
+
+- All 21 shared command fragments adjudicated against checklist 63b (verdict table in the T01 review artifact): 18 CONFORM, 1 N/A-mechanism, 2 FIXED — `close-feedback.md`'s decision line now carries D-044's classify-at-mint + one-way § Binding field block (renders into all 32 commands), and `questionbar.md`'s decide-rule gains the Invariant-3 most-reversible default for genuinely under-determined calls. One tension seeded to T22 (term-coverage's new:0 exit vs check_convergence's literal found:0 demand) per plan carry.
+
 ### Changed — command-evaluation checklist gains the manifesto surface (2026-08-31)
 
 - docs/reference/command-evaluation-checklist.md: 23 → **24 surfaces** (operating-manifesto.md joins the Governance row) + item **63b** — every command audited for manifesto conformance (checkable gates, ledger routing with the one-way field block, rigor-scales-with-irreversibility, labeled evidence, captured disorder, most-reversible default). Operator directive for the commands/skills manifesto pass.
