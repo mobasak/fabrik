@@ -130,10 +130,14 @@ I found" does not.
 - **Clean no-op (no edits):** the FROZEN contract stands. Add a one-line attestation to its header —
   `Independently reviewed: v<N> — /fabrik-ui-design-review no-op <YYYY-MM-DD>` — and report the Pass Ledger.
 - **You edited the contract:** editing a FROZEN artifact re-opens it — per the freeze rule, **bump `Version` and
-  re-freeze** (the edit-free confirming pass above IS the re-freeze convergence). Only then attest.
+  re-freeze** (the edit-free confirming pass above IS the re-freeze convergence). The bump is a Status-flip
+  event: **mint its `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-ui-design`
+  freeze law; classify at mint — plain row normally). Only then attest.
 - **A BLOCKING gap remains** (a screen needs a field the data contract lacks and you can't reconcile it here; a
   spec task with no resolvable flow): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-ui-design`
-  (or `/fabrik-data-contract` for a field gap). Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
+  (or `/fabrik-data-contract` for a field gap). The FROZEN→DRAFT flip is a Status flip — **mint its
+  `docs/DECISIONS.md` row in the same commit** (it reverses a readiness claim consumers may have acted on;
+  classify at mint). Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
 
 ⚠️ **The attestation IS graded — since 2026-08-29, by `check_frozen_chain.py`.** It compares the NEWEST
 `Independently reviewed: v<N>` against the contract's current `Version:` and WARNs when the contract has
