@@ -138,9 +138,10 @@ the repo on GitHub:
    the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn't count) →
    major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow
    version).
-2. `python scripts/release_cut.py --execute` (no-remote repo, operator-waived: add `--no-push` —
-   the script's push step hardcodes `origin` and would die mid-cut, stranding a local tag on a
-   graduated CHANGELOG) — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
+2. `python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked
+   branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote
+   exists — the script's bare `git push` dies without an upstream and its TAG push hardcodes
+   `origin`, either way mid-cut, stranding a local tag on a graduated CHANGELOG) — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
    CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the
    graduated entries as notes (`gh` missing is non-fatal: tag-only cut). Include the printed plan in
    the report. **The cut is decision-shaped — "built X at vY" — mint its `docs/DECISIONS.md` row and

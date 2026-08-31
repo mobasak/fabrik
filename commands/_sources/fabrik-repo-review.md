@@ -178,7 +178,8 @@ The coverage ledger; per-unit findings with verdicts; the fixes with their regre
 tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the
 DEFERRED-BACKLOG list — **APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this
 run's change** (file absent — 19 of 43 /opt repos lack it, measured 2026-08-31 — → seed it from
-`templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first, then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern
+`/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first (hub-absolute — the
+template is NOT synced into projects; the bare relative path resolves only in the hub), then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern
 a file three sessions touch; the Doc Sync Matrix's deferred-work row, operator rule 2026-08-27 —
 a chat-only backlog dies with the session), ready to fold into
 `docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any

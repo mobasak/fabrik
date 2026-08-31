@@ -29,7 +29,9 @@ smoke) is TERMINAL — one of the four token FAMILIES (the Output block's row-sp
 spec-voided NOT-RUN): **PASS (with evidence: a command's real output, this
 run) · FAIL (with evidence + a named route) · INCONCLUSIVE (the probe cannot discriminate — the
 re-probe instruction is the route) · NOT-RUN (<the cause> — the early-stop and store-guard branches'
-honest token, never silence)** — and the verdict table has been printed. A checklist item without a
+honest token, never silence)** — and the verdict table has been printed (EXCEPT the Phase-0 store-surface hand-back, which emits its
+own two-line closing form INSTEAD of the Output block — never manufacture n/a rows for fields that
+do not exist on that path). A checklist item without a
 fresh-this-run command output is not a verdict, it is a guess (`n/a (not obligated)` is the one
 exception — it cites the spec flag that voids the obligation instead of a command output). You never perform a fix, redeploy, or
 registrar mutation yourself: a FAIL's route is always one of `/fabrik-review` (a code-side defect), a

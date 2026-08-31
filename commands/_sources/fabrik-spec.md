@@ -203,7 +203,9 @@ questions clear the bar, you may batch them — encourage substantive dialogue, 
 time. A stopped turn asking "what should I name this?" is a defect this bar exists to prevent.
 **Every bar-clearing answer is by construction an operator ruling — mint its `docs/DECISIONS.md` row
 staged in the same commit as the spec edit the ruling produced (same-change means same COMMIT, not
-same run — the `/fabrik-flows` disambiguation)** (classified at mint; the same for a rejected alternative worth not re-proposing):
+same run — the `/fabrik-flows` disambiguation; this command otherwise instructs no commit, so the
+mint clause IS the commit instruction: stage the row WITH the spec edit and commit them together
+per CLAUDE.md § EXIT)** (classified at mint; the same for a rejected alternative worth not re-proposing):
 a DRAFT abandoned before CONVERGED must still carry the ruling somewhere greppable — the spec's own prose
 dies with the spec, the ledger row does not (the abandoned-DRAFT class, per `/fabrik-deploy-plan`'s law;
 the /fabrik-spec-review approval mint covers only the approval itself, never these).

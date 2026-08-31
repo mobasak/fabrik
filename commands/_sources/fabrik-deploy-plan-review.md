@@ -89,7 +89,8 @@ are `## Context Ledger` + `## File Scope` + `## Evidence` (WARN while `DRAFT`, E
 `check_convergence.py`'s flip contract additionally demands `## Evidence` + a `## Self-audit` block +
 **≥1 DISTINCT `path:line` citation per `Phase`/`Step` heading** + ≥1 nontrivial fenced output. And a
 MONOLITH deploy plan flipping CONVERGED must itself carry `## Coverage Checklist` + an embedded
-`review_rubric.py` invocation (`check_convergence.py:369/:385` — a sibling's zitadel flip redded the
+`review_rubric.py` invocation (`_checklist_section` and `RUBRIC_RUN` in `check_convergence.py` —
+grep the symbols, line anchors into that file drift — a sibling's zitadel flip redded the
 shared gate discovering this; the review ARTIFACT's Class-verdicts table does not satisfy the PLAN's
 own requirement). Verify all
 of it BEFORE the flip — a missing section or an under-cited phase is a finding to fix, not a style note

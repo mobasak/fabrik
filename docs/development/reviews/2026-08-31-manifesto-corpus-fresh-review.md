@@ -406,3 +406,31 @@ fabrik-review's example row order (both parse, cosmetic); rules-review HUB-mode 
 MACHINERY → recorded: `_is_archived` silently inflates any naive retro-impact denominator (31 sets
 scanned, only 7 graded); the GOVERNANCE_FILES 5→7 expansion shipped unmeasured in round 3 — round 6
 measured it (7 live sets, 0→0, retro-safe) and the measurement now lives in the constant's comment.
+
+## Round 7 — same-ledger re-sweep (native Opus, non-author; state acc3f82a)
+
+Round-6 fixes: 12/12 HOLD (each re-derived against live grader code — QUIET_PASS 40-char window
+probed exact, _ledger_shapes fallback traced, gitignore root-anchor verified). 9 findings
+(3 CONFIRMED / 3 PLAUSIBLE / 3 LOW), all FIXED:
+
+1. Two sibling line-anchor citations of check_convergence already stale by ~5 lines (the class the
+   plan-review fix closed at ONE location) → symbol anchors in deploy-plan-review + plan-after-chat.
+2. The STRATEGIC_BACKLOG seed template resolves in 1 of 43 repos (not synced) → hub-absolute paths.
+3. Release's --no-push carve-out missed the untracked-branch case its own Phase 0 sanctions
+   (release_cut's bare `git push` dies without an upstream → mid-cut strand) → widened to the probe.
+4. generate-tests' spliced sentence re-asserted the false guarantee via a dangling antecedent →
+   rewritten (write-mode reads a committed secret off disk, no inlining needed).
+5. deploy-verify Termination vs the store-surface hand-back (opposed instructions; an agent would
+   manufacture n/a rows) → explicit exception.
+6. cert-handoff header overstated: DESIGN-GAP has NO parser (1 hit fleet-wide, a comment) →
+   honour-bound scoping; the "vanishes from obligations" implication corrected.
+7. term-coverage's "the two never render into a conflict" was falsifiable — they DO co-render in
+   both gauntlets → the diff-vs-non-diff scoping stated as the resolver.
+8. Three mint clauses cited "the same commit" in commands that never instruct one (spec, features,
+   plan-review) → stage-with-artifact-commit-together clauses.
+9. deploy-plan's @{u} clause named the fail-open but carried no fallback probe → release's fallback
+   verbatim.
+
+MACHINERY (the finder's, on my own brief): the round-7 dispatch brief itself cited
+assemble_commands.py:713 for a fix that lives at :716 — the same line-anchor class as finding 1,
+in the reviewing machinery's own prompt. Recorded as the class's persistence proof.

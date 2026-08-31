@@ -1,4 +1,6 @@
-**Machine-readable disposition rows (gate-parsed by `check_review_coverage.py` — exact grammar):** every
+**Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by
+`check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only
+`/fabrik-release`'s untouched-DESIGN-GAP block catches it):** every
 routed finding appears as one line in the report:
 `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` ·
 `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` ·
@@ -14,6 +16,6 @@ money mischarged · **P1** = a journey a real consumer cannot complete, or a fai
 **P3** = doc-drift, cosmetic payload issues. When torn between two tiers, take the HIGHER —
 the operator can waive down (their waiver mints its ledger row); nobody catches a silent under-tier
 (the grader parses the digit, never validates it). Only the two `HANDOFF` forms carry the digit —
-`DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1`, it
-matches nothing and vanishes from the OPEN-row obligations (`/fabrik-release` blocks on an
-operator-untouched DESIGN-GAP regardless).
+`DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows at all (honour-bound), and the digit
+falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP
+regardless of decoration.

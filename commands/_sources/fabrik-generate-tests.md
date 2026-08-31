@@ -77,8 +77,10 @@ for r in results:                        # the SUGGEST results from step 1 (befo
 ### 3. Commit the code-under-test FIRST (mandatory)
 Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`) — which is
 also the secrets boundary: a worktree carries only tracked files, so an UNCOMMITTED `.env`/key never
-reaches a pool author — but committed HEAD is exactly where a LEAKED secret lives (the carve-out binds
-both modes; a repo with a committed key gets NATIVE authors), and never reaches a
+reaches a pool author — but committed HEAD is exactly where a LEAKED secret lives, and a write-mode
+pool author READS it off disk with no inlining needed (the carve-out binds BOTH modes; a repo with a
+committed key gets NATIVE authors). Never inline secret material into a task text either — and code
+that is neither committed nor inlined never reaches a
 pool author UNLESS you inline it into a task text — never do that (the corpus-wide secrets carve-out
 family; a behavior that needs a live credential is authored NATIVE instead). So the code the
 tests target MUST be committed (or fully inlined into the author task). Commit it now if it isn't — **explicit

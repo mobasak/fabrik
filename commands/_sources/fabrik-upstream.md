@@ -244,7 +244,8 @@ Name, per claim, exactly one outcome:
 - **Deferred** — confirmed real but out of scope for this pass (e.g. touches an unrelated concern); name why
   and where it is now tracked — **the default tracker is an owner-tagged row APPENDED to
   `docs/STRATEGIC_BACKLOG.md` in this run's change** (file absent → seed from
-  `templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first, then append) (append-only: never rewrite or reflow existing
+  `/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first — hub-absolute, the
+  template is not synced — then append) (append-only: never rewrite or reflow existing
   rows — the shared-tree rules govern a file three sessions touch; the Doc Sync Matrix's deferred-work
   row; a deferral named only in a mail reply dies with the thread), unless a live plan/ticket already
   owns it (then cite that).

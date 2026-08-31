@@ -295,7 +295,8 @@ assumption, and out-of-scope risk that remains, separating ones the plan resolve
 fixes, no additions, no re-grounding. That edit-free round is mandatory and is the ONLY thing that earns
 `Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach an edit-free round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
-**The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row (classify at mint; plain row
+**The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped
+plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row
 normally) STAGED in the same commit as the flip, together with a row for each operator ruling RESOLVED
 during this review** (an answered real question is a received decision — CLAUDE.md § the decision ledger).
 
