@@ -349,11 +349,13 @@ next registry-drift recurrence.
 - **check_review_coverage formatting-fix ratchet** (01M1CA0WJ3): a parser-visible formatting repair
   to a COMMITTED review escalates advisory→hard gate; exempt edits whose parsed counter rows are
   value-identical before/after.
-- **Synced per-repo DECISIONS duplicate-id gate check** (01M1CBJWQS — measured 4 collisions/day
-  under 3 lanes): ~5-line check in the synced set + WARN when minted id ≤ origin/HEAD max.
-  SEQUENCING RULED 2026-08-31 (D-057, mail 01M1CKAVPA → wef2): wef2 repairs all SIX pairs
-  (class grew: +D-031/039/040) in one commit, referenced-side-keeps rule; the check lands
-  WARN-first only AFTER wef2's repair-landed reply arrives. Trigger: that reply.
+- ~~**Synced per-repo DECISIONS duplicate-id gate check**~~ ✅ **LANDED 2026-09-01** (01M1CBJWQS →
+  D-057 sequencing → wef repair 5a58c11 + reply 01M1CW4S = the trigger → `check_decisions_unique.py`,
+  WARN-tier, keyed on the row ID CELL per wef's repair-experience request, 0/49 fleet ledgers firing
+  at landing). Remaining half deliberately unbuilt: the origin/HEAD stale-max WARN needs a fetch —
+  revisit only if collisions recur despite detection + pull-before-mint. wef's generalization
+  learning recorded in the check docstring: BOTH-CITED is the common case; first-committed carries
+  the tiebreak.
 - **mcp-config-changed hook precision** (01M1BXBRKM): name WHICH servers changed / suppress when
   the repo-assigned set is unaffected (false-fired on wef3 AND on this session today).
 - **tech-stack guide engine-neutral ecommerce row** (01M19G0HM0 + correction 01M19G66X8): replace

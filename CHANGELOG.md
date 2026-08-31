@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — decision-ledger duplicate-id gate check, WARN-tier (2026-09-01)
+
+`check_decisions_unique.py` in the synced enforcement set, wired into the gate scoped to
+`docs/DECISIONS.md` edits. Keyed on the row's ID CELL (`^| D-NNN |`), never prose mentions —
+wef's hand repair (01M1CW4S) measured 20+ legitimate prose id references a naive matcher would
+red on. Lands WARN-first per the D-057 sequencing, AFTER wef's repair-landed reply (their
+trigger request honored); fleet fire rate at landing measured 0 duplicates in 49 ledgers.
+Detection complements pull-before-mint discipline; the origin/HEAD stale-max half stays
+unbuilt (needs a fetch; the gate stays offline-fast).
+
 ### Fixed — redis registrar reads the envelope registry; failed registrars can no longer exit green (2026-08-31)
 
 Two halves of finding 01M1CKEK (tryton-crm deploy, fleet). (1) The live registry at

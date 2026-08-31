@@ -1287,6 +1287,18 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_doc_sync.py", "Doc Sync Matrix")
         )
+        # Decision-ledger duplicate ids (D-057 sequencing; upstream 01M1CBJWQS —
+        # 4 collisions/day measured under 3 concurrent lanes). WARN-tier at
+        # landing; keyed on the row's ID CELL, never prose mentions. Scoped to
+        # ledger edits — a collision is introduced exactly there.
+        if not changed or "docs/DECISIONS.md" in changed:
+            results.append(
+                run_optional_check(
+                    "scripts/enforcement/check_decisions_unique.py",
+                    "Decision Ledger (unique ids)",
+                    advisory=True,
+                )
+            )
         # Subagent flywheel — WARN when a POOL run (run_agents) ran but was never scored+recorded
         # (ledger − receipts, reconciled locally since the subagent_runs writer role is INSERT-only).
         # BLOCKING (operator-approved 2026-07-10): Layer 1 "pool-or-declare" fails the gate when a
