@@ -309,7 +309,10 @@ print; proceed to Phase 5 directly.
    `BLOCKED: convergence record missing — operator decision (the deploy is live; the record must be
    regenerated honestly, never fabricated)`.
 3. Write the literal `Status: EXECUTED <date>` + a one-line completion stamp (what shipped — or the
-   store handoff — and the battery verdict), citing
+   store handoff — and the battery verdict) — **and mint the `docs/DECISIONS.md` row for it in this
+   same flip commit** (the ledger duty's "built X at Y" trigger: what deployed, where, the battery
+   verdict; classified at mint — a routine deploy is reversible-by-redeploy, the plain row suffices) —
+   citing
    `Whole-plan review: docs/development/reviews/<plan-stem>-review.md` (`check_convergence.py` refuses
    an `EXECUTED` plan without that stem-matched, quiet-pass citation), and archive
    (`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`).
