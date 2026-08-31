@@ -16,7 +16,7 @@ sources rather than breadth-first across all 41 reviews; the unread set is named
 |---|---|---|---|
 | `/opt/tryton-crm/AFCL.md` | 187 lines | ✅ **read in full** | — |
 | `/opt/tryton-crm/docs/LESSONS_LEARNT.md` | 1850 lines · **89 headings** | ⚠️ **all 89 headings scanned; 1 entry read in full** (`:907-927`) | 88 entries unread in body. The heading grep matched only 7 on machinery vocabulary — a lesson phrased without those words is invisible to this pass |
-| `/opt/tryton-crm/docs/development/reviews/*.md` | **41** | ⚠️ **0 of 41 read**; filenames + dates enumerated only | The single largest unread surface. Step 3 of the brief is NOT done |
+| `/opt/tryton-crm/docs/development/reviews/*.md` | **41** | ⚠️ **41 of 41 grepped** (machinery-vocabulary rank + accusation-shape scan); **1 of 41 read in body** | Body-reading still 1/41. A finding phrased outside the grep's vocabulary remains invisible — R1 was found this way, so others plausibly exist |
 | `/opt/tryton-crm/docs/superpowers/specs/*.md` | 14 | ❌ **0 of 14** | Not started |
 | `/opt/tryton-crm/docs/development/plans/*.md` | 3 | ❌ **0 of 3** | Not started |
 | `/opt/tryton-crm/docs/STRATEGIC_BACKLOG.md` | 909 lines | ❌ unread | Brief ranks this high-yield |
@@ -44,7 +44,7 @@ pack carries it.
 ## 3. Findings
 
 ### M1 — the gate's JSON summary TRUNCATES, and nothing in our machinery says so
-**Class:** gate reports a partial failure set that reads as complete · **Beat:** infra · **Status:** NEW
+**Class:** gate reports a partial failure set that reads as complete · **Beat:** infra · **Status:** ✅ **FIXED `9fc4bd7d`** (truncated rows now carry the rerun command in-band + as a `rerun` field; red-on-revert proven; live-verified)
 
 **KNOWN-WHEN — 2026-07-30**, `/opt/tryton-crm/docs/LESSONS_LEARNT.md`:907-927. The project hit it,
 diagnosed it exactly, and wrote the rule:
@@ -210,11 +210,48 @@ Prior session, same subject, all pushed:
 
 ---
 
+## 6b. Pass 2 — the 41 review artifacts (PARTIAL) and one important refutation
+
+**Method:** ranked all 41 by machinery-vocabulary density, then grepped all 41 for
+accusation-shaped statements (`the command/gate/checker did not|never|missed`, `no command carries`,
+`should have caught`, `false positive|negative`), then deep-read the strongest hit. **41 of 41 grepped;
+1 of 41 read in body.** Still partial — but no longer zero.
+
+### R1 — REFUTED: `check_secrets` expansion false positive was FIXED
+`2026-08-04-user-test-tryton-crm-gui.md`:593-601 documents a real, well-diagnosed defect:
+> *"`check_secrets.py:43-46` matches `(?:password|secret|api_key|token)\s*[:=]\s*['\"][^'\"\n]{8,}['\"]`.
+> It has a negative-lookahead for env-var *name* strings but none for a **variable expansion**"* — so
+> `SAO_TEST_PASSWORD="$TRYTOND_ADMIN_PASSWORD"` tripped it on length alone, containing no secret.
+> *"it cost three gate cycles in this run … the scanner fires on the shape of a line, so **every attempt
+> to document the false positive reproduces it**."*
+
+**Verified live this run — the defect is GONE.** `check_secrets.py`:60 now reads
+`r"(?:password|secret|api_key|token)\s*[:=]\s*['\"](?!\$[({A-Za-z_])[^'\"\n]{8,}['\"]"` — the
+expansion lookahead is present — and the exact reported line probes clean:
+```
+printf 'SAO_TEST_PASSWORD="$TRYTOND_ADMIN_PASSWORD"\n' > fp_probe.sh
+python3 scripts/enforcement/check_secrets.py fp_probe.sh   → exit 0
+```
+
+**This REFUTES the candidate and QUALIFIES my own S1.** Knowledge does sometimes flow back: a
+project-found scanner defect reached the hub and was fixed. S1 is therefore not "the upstream path is
+broken" — it is narrower and more accurate: **the path works when a finding is filed AS a defect against
+a named hub file, and fails when the finding is written as a LESSON in the project's own log.** M1's
+truncation rule was the latter and sat unharvested for 32 days; this scanner bug was the former and was
+fixed. That distinction is the actionable part, and it changes recommendation 1.
+
+### R2 — supporting evidence for M1, found independently
+Three separate 2026-08-2x/3x reviews record the project building truncation-honesty for its OWN tooling:
+*"the unresolved print cap **announces its own truncation** (`first 20 of 355`, tested)"*. The project
+independently invented the discipline the hub gate lacked — while the hub gate's own truncation stayed
+silent about what to run. M1 (`9fc4bd7d`) closes that asymmetry.
+
 ## 7. Pass Ledger
 
 | Pass | Sources swept | Findings raised | Edits | md5 (start → end) |
 |---:|---|---:|---:|---|
 | 1 | AFCL (full) · LESSONS_LEARNT (89 headings + 1 entry) · CLAUDE.md spec block · live `fabrik` probe · hub cross-checks | **5** | file created | — → `(initial)` |
+| 2 | all 41 reviews ranked + grepped for accusation-shaped statements; 1 read in body; 2 live probes | **1 raised → REFUTED** (R1) + 1 supporting (R2) | §6b added; S1 narrowed; M1 marked fixed | `(initial)` → `(pass2)` |
 
 **NOT TERMINAL.** The brief's termination contract requires a pass that raises zero findings and makes
 zero edits, with a matching md5 pair. Pass 1 raised 5 and created the file. **Pass 2 is owed** and must
