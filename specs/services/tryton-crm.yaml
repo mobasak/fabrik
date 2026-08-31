@@ -32,6 +32,23 @@ source:
   branch: mobasak/tryton-crm
 depends:
   postgres: tryton            # registrar creates the shared `tryton` DB + role, injects DATABASE_URL
+deploy:
+  # ⛔ REQUIRED — measured live 2026-08-31 (RUN 2), not a precaution.
+  # trytond is an INIT-AT-BOOT image (CRM_INIT_ON_BOOT=1 runs the baked
+  # /opt/crm-init/10-init-modules.sh synchronously at startup) AND its healthcheck
+  # asserts the DB is a *Tryton* DB via common.db.list() (compose.yaml:262).
+  # Without this flag the postgres registrar runs POST-deploy (orchestrator step 4b),
+  # so the initial .env ships a DATABASE_URL whose user AND dbname are both the
+  # literal string "placeholder" (observed verbatim on vps1 this run).
+  # trytond then dials a database named "placeholder",
+  # the healthcheck can never pass, `up -d --wait` blocks to the deployer's 120s ssh
+  # timeout and the apply raises — before the registrar that would have fixed the DSN.
+  # A deadlock by construction, and exactly the class this flag was built for
+  # (orchestrator/__init__.py:277-289, the Zitadel start-from-init case, D1 2026-08-28).
+  # Pre-provisioning creates the `tryton` DB + role and seeds the REAL DSN into the
+  # initial .env; the post-deploy registrar's create_database is idempotent, so this
+  # does not double-provision.
+  db_before_boot: true
 infrastructure:
   database: local
   storage: local
