@@ -224,6 +224,20 @@ doc entries in the same commit; caught by a review finder, fixed by hand). A cor
 the miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't
 build wallpaper. Trigger: the next occurrence of a code change landing entry-less.
 
+## [infra] tests/orchestrator/test_infrastructure.py's dispatch tests SSH to PROD (measured 2026-08-31)
+
+`TestProvisionDispatch` calls `provision()` with only the per-registrar drivers patched —
+`_provision_shared_analytics` and `_provision_watchdog` run REAL: observed live as pytest child
+processes `ssh vps sudo docker build -t fabrik/watchdog:my-project` and `ssh vps mkdir -p
+/tmp/fabrik-watchdog-build` during a plain local test run, and the box carries a
+`fabrik/watchdog:my-project` image built 5 HOURS EARLIER by a previous unnoticed run (leftover;
+junk image, removable). A unit suite that mutates the shared VPS on every run is both a prod
+hazard and why the suite takes minutes. Fix direction: an autouse fixture (or conftest guard)
+that patches `fabrik.drivers.ssh.ssh`/`scp_to_vps` to raise in tests unless a marker opts in —
+which also converts the two unpatched provisioning paths into loud failures instead of silent
+prod writes. My new `test_registrar_failures_not_green.py` patches both explicitly.
+Trigger: next test-infra window; the guard is one conftest fixture.
+
 ## [infra] Concurrent pre-commit stash windows DELETED 15 dirty files from the shared tree (live 2026-08-31, recovered)
 
 The daily pipeline's auto-commit (a216a4c2, VPS-docs updater, 19:30 UTC) triggered THREE pre-commit

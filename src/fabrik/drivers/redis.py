@@ -47,6 +47,7 @@ import logging
 import re
 import shlex
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fabrik.drivers.ssh import scp_to_vps, ssh
@@ -81,6 +82,30 @@ def _validate_service_name(name: str) -> None:
         )
 
 
+def extract_assignments(data: dict) -> dict[str, int]:
+    """Return the ``{service: db_index}`` map from either registry shape.
+
+    The live file is a versioned ENVELOPE — ``{"version": 1, "last_updated":
+    ..., "assignments": {...}, "free_indexes": [...]}`` (same convention as
+    the postgres driver's allocations file); the flat ``{service: index}``
+    map is the legacy shape this driver used to assume. Bare ``int()`` over
+    envelope values crashed on the ``last_updated`` timestamp and the deploy
+    printed green anyway (finding 01M1CKEK, tryton-crm 2026-08-31) — so the
+    envelope had NEVER been read successfully. Shared with ``audit_redis``,
+    which had the same blind spot (``sid in <envelope>`` is always False).
+    """
+    inner = data["assignments"] if isinstance(data.get("assignments"), dict) else data
+    out: dict[str, int] = {}
+    for k, v in inner.items():
+        if isinstance(v, bool) or not isinstance(v, int | str) or (isinstance(v, str) and not v.isdigit()):
+            raise RuntimeError(
+                f"Redis registry entry {k!r} has non-integer db index {v!r} — "
+                f"fix {REDIS_REGISTRY_PATH} by hand before deploying"
+            )
+        out[str(k)] = int(v)
+    return out
+
+
 def _read_registry() -> dict[str, int]:
     """Load the registry, returning ``{}`` when the file is absent.
 
@@ -99,13 +124,27 @@ def _read_registry() -> dict[str, int]:
         raise RuntimeError(f"Redis registry at {REDIS_REGISTRY_PATH} is not valid JSON: {e}") from e
     if not isinstance(data, dict):
         raise RuntimeError(f"Redis registry at {REDIS_REGISTRY_PATH} must be a JSON object")
-    # Be liberal in what we accept: coerce values to int.
-    return {str(k): int(v) for k, v in data.items()}
+    return extract_assignments(data)
 
 
 def _write_registry(registry: dict[str, int]) -> None:
-    """Atomically replace the registry file."""
-    body = json.dumps(registry, indent=2, sort_keys=True) + "\n"
+    """Atomically replace the registry file, always in the envelope shape.
+
+    The envelope is what lives on the box and what the postgres driver's
+    allocations file also uses; writing the legacy flat map here would
+    strip the metadata the envelope carries. ``free_indexes`` lists every
+    unassigned index over the full ``0..15`` range — index 0 appears free
+    in the FILE because it is unassigned; the driver's own allocator still
+    never hands it out (``REDIS_FIRST_INDEX`` reserves it for CLI use).
+    """
+    used = set(registry.values())
+    envelope = {
+        "version": 1,
+        "last_updated": datetime.now(UTC).isoformat(timespec="seconds"),
+        "assignments": dict(sorted(registry.items())),
+        "free_indexes": [i for i in range(REDIS_LAST_INDEX + 1) if i not in used],
+    }
+    body = json.dumps(envelope, indent=2, sort_keys=True) + "\n"
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(body)
         local_tmp = f.name

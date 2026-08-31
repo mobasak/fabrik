@@ -1,6 +1,17 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 145: a "unit" test that only patches the drivers it asserts on runs everything else FOR REAL — check what provision-style dispatchers call beyond your mocks before running the suite
+
+Running `tests/orchestrator/test_infrastructure.py` locally spawned `ssh vps sudo docker build ...`
+child processes: `TestProvisionDispatch` patches the drivers it ASSERTS on but `provision()` also
+calls `_provision_shared_analytics` and `_provision_watchdog`, both unpatched → real SSH writes to
+the production box on every local run (a leftover `fabrik/watchdog:my-project` image, built 5 hours
+before mine, proved earlier runs had done it silently). Two halves: when WRITING tests for a
+dispatcher, patch (or disable via the spec) every path the dispatcher reaches, not just the ones
+under assertion; when RUNNING an unfamiliar suite, a near-zero-CPU "slow test" is a network call —
+look at its child processes before waiting on it. Backlog carries the conftest ssh-guard fix.
+
 # Lesson 144: validate the DEPLOY TARGET's actual state before building against it — a spec that out-of-scopes its data source inherits that source's assumptions unverified
 
 The vps-quota-governance build (spec → plan → 3-phase execute, all CONVERGED) shipped a governor

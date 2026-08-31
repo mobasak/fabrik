@@ -36,6 +36,11 @@ Error philosophy (mostly non-fatal):
   ``grafana.py`` is non-fatal by contract; ``authelia.py`` raises on
   structural failures; ``postgres.py`` raises on identifier
   validation).
+* **Non-fatal is not invisible** (01M1CKEK): every swallowed failure is
+  also recorded on ``ctx.registrar_failures`` via :meth:`_nonfatal`; the
+  CLI refuses the ✅ banner and exits nonzero when the list is non-empty.
+  The deploy itself still completes and nothing rolls back — a re-run of
+  ``fabrik apply`` retries the idempotent registrars.
 * **The one exception is glitchtip's DSN-injection step** — if
   ``verify_dsn_injection`` returns False after .env injection + docker
   compose restart, the method ROLLS BACK the GlitchTip project (to avoid an
@@ -398,6 +403,19 @@ class InfrastructureProvisioner:
     def __init__(self, deployer: Any | None = None) -> None:
         self._deployer = deployer
 
+    @staticmethod
+    def _nonfatal(ctx: DeploymentContext, registrar: str, e: Exception) -> None:
+        """Record an applicable registrar's failure without aborting the deploy.
+
+        Non-fatal is a property of the deploy PROCESS, not of the deployed
+        system: the remaining registrars still run and no rollback fires,
+        but the failure lands on ``ctx.registrar_failures`` so the CLI can
+        refuse the green banner and exit nonzero (01M1CKEK — a
+        ``needs_cache`` service deployed with no REDIS_URL under a ✅).
+        """
+        logger.warning("%s provisioning failed (non-fatal): %s", registrar, e)
+        ctx.registrar_failures.append(f"{registrar}: {e}")
+
     @property
     def deployer(self) -> Any:
         """Lazy-load SSHDeployer if not injected."""
@@ -466,7 +484,16 @@ class InfrastructureProvisioner:
         if should_run["watchdog"]:
             self._provision_watchdog(name, ctx, dry_run)
 
-        logger.info("Infrastructure provisioning complete for %s", name)
+        if ctx.registrar_failures:
+            logger.error(
+                "Infrastructure provisioning for %s finished with %d FAILED "
+                "registrar(s): %s — the deploy will NOT exit green",
+                name,
+                len(ctx.registrar_failures),
+                "; ".join(ctx.registrar_failures),
+            )
+        else:
+            logger.info("Infrastructure provisioning complete for %s", name)
 
     # ── individual registrars ────────────────────────────────────────────── #
 
@@ -742,7 +769,7 @@ class InfrastructureProvisioner:
 
             logger.info("postgres: %s → %s", db_name, result.get("status"))
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
-            logger.warning("postgres provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "postgres", e)
 
     def _provision_gatus(
         self,
@@ -764,7 +791,7 @@ class InfrastructureProvisioner:
             ctx.add_resource("gatus", name, status=result.get("status"))
             logger.info("gatus: %s → %s", name, result.get("status"))
         except Exception as e:  # noqa: BLE001
-            logger.warning("gatus provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "gatus", e)
 
     def _provision_backrest(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         try:
@@ -776,7 +803,7 @@ class InfrastructureProvisioner:
             ctx.add_resource("backrest", plan_id, status=result.get("status"))
             logger.info("backrest: %s → %s", plan_id, result.get("status"))
         except Exception as e:  # noqa: BLE001
-            logger.warning("backrest provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "backrest", e)
 
     def _provision_glitchtip(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         """Provision GlitchTip project + inject DSN into container + verify.
@@ -841,7 +868,7 @@ class InfrastructureProvisioner:
             # DSN verification failures are fatal per the contract above.
             raise
         except Exception as e:  # noqa: BLE001
-            logger.warning("glitchtip provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "glitchtip", e)
 
     def _provision_grafana(
         self,
@@ -868,7 +895,7 @@ class InfrastructureProvisioner:
                 ctx.add_resource("grafana_annotation_id", str(aid), status=result.get("status"))
             logger.info("grafana: %s → %s", name, result.get("status"))
         except Exception as e:  # noqa: BLE001
-            logger.warning("grafana annotation failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "grafana", e)
 
     def _provision_authelia(
         self,
@@ -912,7 +939,7 @@ class InfrastructureProvisioner:
             ctx.add_resource("authelia", domain)
             logger.info("authelia: %s → protected", domain)
         except Exception as e:  # noqa: BLE001
-            logger.warning("authelia provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "authelia", e)
 
     def _provision_redis(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         """Reserve a Redis logical-DB index and inject ``REDIS_URL`` (G4).
@@ -949,7 +976,7 @@ class InfrastructureProvisioner:
             self.deployer.inject_env(ctx, {"REDIS_URL": redis_url})
             logger.info("redis: REDIS_URL injected into .env and container restarted")
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
-            logger.warning("redis provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "redis", e)
 
     def _provision_prometheus(
         self,
@@ -1001,7 +1028,7 @@ class InfrastructureProvisioner:
             ctx.add_resource("prometheus", name, status=result.get("status"))
             logger.info("prometheus: %s -> %s", name, result.get("status"))
         except Exception as e:  # noqa: BLE001
-            logger.warning("prometheus provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "prometheus", e)
 
     def _provision_meilisearch(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         try:
@@ -1014,7 +1041,7 @@ class InfrastructureProvisioner:
             ctx.add_resource("meilisearch", index_uid, status=result.get("status"))
             logger.info("meilisearch: %s → %s", index_uid, result.get("status"))
         except Exception as e:  # noqa: BLE001
-            logger.warning("meilisearch provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "meilisearch", e)
 
     def _provision_watchdog(self, name: str, ctx: DeploymentContext, dry_run: bool) -> None:
         """Build/refresh the per-project watchdog sidecar image + inject sidecar service.
@@ -1051,7 +1078,7 @@ class InfrastructureProvisioner:
             ctx.add_resource("watchdog", name, status=result.get("status") if result else "ok")
             logger.info("watchdog: %s → %s", name, result.get("status") if result else "ok")
         except Exception as e:  # noqa: BLE001
-            logger.warning("watchdog provisioning failed (non-fatal): %s", e)
+            self._nonfatal(ctx, "watchdog", e)
 
 
 __all__ = (

@@ -53,6 +53,11 @@ class DeploymentContext:
     error: str | None = None
     error_step: str | None = None
 
+    # Applicable registrars that FAILED (swallowed as non-fatal so the deploy
+    # finishes, but a required step that did not happen must not exit green —
+    # the CLI reads this to refuse the ✅ banner and exit nonzero; 01M1CKEK).
+    registrar_failures: list[str] = field(default_factory=list)
+
     @property
     def app_name(self) -> str | None:
         """Preferred name for what's stored in :attr:`coolify_uuid`.

@@ -531,6 +531,21 @@ def apply(
         )
 
         if ctx.state == DeploymentState.COMPLETE:
+            if ctx.registrar_failures:
+                # A shape-required step that did not happen must not exit
+                # green (01M1CKEK: needs_cache deploy shipped with no
+                # REDIS_URL under a ✅). The app is up and nothing rolled
+                # back — re-run `fabrik apply` after fixing; registrars
+                # are idempotent.
+                click.echo(
+                    f"⚠️  Deployment finished but {len(ctx.registrar_failures)} "
+                    f"registrar(s) FAILED — the deployed system is incomplete:"
+                )
+                for failure in ctx.registrar_failures:
+                    click.echo(f"   ✗ {failure}")
+                _emit_glitchtip_webhook_reminder(spec_path)
+                _post_deploy_sync()
+                raise SystemExit(2)
             click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
             _emit_glitchtip_webhook_reminder(spec_path)
             _post_deploy_sync()

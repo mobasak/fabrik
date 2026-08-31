@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — redis registrar reads the envelope registry; failed registrars can no longer exit green (2026-08-31)
+
+Two halves of finding 01M1CKEK (tryton-crm deploy, fleet). (1) The live registry at
+`/opt/monitoring/configs/redis/assignments.json` is a versioned envelope (same convention as the
+postgres allocations file), but `_read_registry` assumed a flat map and ran bare `int()` over the
+values — crashing on `last_updated` on EVERY read since 2026-05-15; `extract_assignments` now
+parses both shapes (shared with `audit_redis`, which had the same blind spot), writes emit the
+envelope, and a non-integer index raises a repairable error naming the file. Proven against the
+live vps1 file. (2) Every applicable registrar's swallowed failure now lands on
+`ctx.registrar_failures`; `fabrik apply` refuses the ✅ banner and exits 2 when the list is
+non-empty (deploy still completes, nothing rolls back, re-run retries the idempotent registrars).
+Pinned by `tests/drivers/test_redis.py` + `tests/orchestrator/test_registrar_failures_not_green.py`,
+red-on-revert proven (9 fail at HEAD).
+
 ### Fixed — final_gate vulture: per-repo whitelist for interface-signature false positives (2026-08-31)
 
 The gate ran vulture with no suppression mechanism, so required-but-unused interface parameters

@@ -243,8 +243,10 @@ def audit_redis(spec: Any) -> AuditResult:
     import json
 
     try:
-        assignments = json.loads(out) if out else {}
-    except json.JSONDecodeError as e:
+        from fabrik.drivers.redis import extract_assignments
+
+        assignments = extract_assignments(json.loads(out)) if out else {}
+    except (json.JSONDecodeError, RuntimeError, AttributeError) as e:
         return AuditResult(
             status="unknown",
             detail=f"assignments.json invalid: {e}",
