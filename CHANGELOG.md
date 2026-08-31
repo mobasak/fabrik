@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
 
+### Changed — manifesto pass T05: /fabrik-data-contract (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 FIXED — a FREEZE/re-freeze bump is a Status flip, so Phase 4 now mints its docs/DECISIONS.md row in the SAME change (classified at mint). Verifier also corrected 4 estimated verdict anchors and re-argued (c) via one-way-by-nature classification; anchor-grep discipline adopted for the rest of the pass.
+
 ### Changed — manifesto pass T04: /fabrik-conformance-review + subagents-core fragment (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED — PHASE 4's exit parenthetical had resurrected the retired found:-keyed rule (now verbatim-consistent with the corrected new:-keyed fragment), and SUPERSEDED verdicts gained their cluster + SAME-change docs/DECISIONS.md row (a discovered retirement is a ledger event). Fragment fix (orchestrator-applied, renders into every pool-bearing command): subagents-core now names a STANDING NO-POOL directive as policy, distinct from the pool-exhaustion exception.

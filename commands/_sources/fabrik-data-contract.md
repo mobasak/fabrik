@@ -163,6 +163,10 @@ then run one MORE pass — the loop terminates ONLY on an edit-free, md5-verifie
 
 ## Phase 4 — Freeze + wire the truth
 
+- **The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the
+  SAME change** (the ledger duty names "approval/Status flip" as a trigger; classify at mint —
+  a contract freeze is normally reversible-by-re-freeze, so the plain row suffices unless the
+  operator rules otherwise).
 - Set the header: **`Status: FROZEN` · `Version: v<N>` · `Date: <YYYY-MM-DD>` · `Mode: A|B|C`**. Add the freeze
   rule verbatim: *"Frozen — no agent adds a field, column, or enum value not listed here. Any change = bump
   Version + re-freeze via `/fabrik-data-contract`."* **This status/header write is a post-convergence action,
