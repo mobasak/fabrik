@@ -224,6 +224,25 @@ doc entries in the same commit; caught by a review finder, fixed by hand). A cor
 the miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't
 build wallpaper. Trigger: the next occurrence of a code change landing entry-less.
 
+## [infra] Concurrent pre-commit stash windows DELETED 15 dirty files from the shared tree (live 2026-08-31, recovered)
+
+The daily pipeline's auto-commit (a216a4c2, VPS-docs updater, 19:30 UTC) triggered THREE pre-commit
+stash processes within 2 seconds (`~/.cache/pre-commit/patch1788204608-32641`, `patch1788204610-32730`,
+`patch1788204610-32863` — preserved in the session scratchpad). The earliest patch records the true
+WIP (15 files `M`); the two later ones record the same files as `deleted file mode` — the deletion
+happened INSIDE the first hook window, and the last stash-restore faithfully restored the broken
+state. Result: 15 tracked dirty files (two sessions' WIP incl. `docs/DECISIONS.md` and
+`scripts/final_gate.py`) vanished from the working tree with no process left to restore them.
+Recovered same-hour by hand: `git checkout -- <15 paths>` + `git apply` of the earliest patch
+(excluding the one survivor file) + the later patch's DECISIONS.md hunk; verified against the
+session-start status snapshot, tests green. CLASS: concurrent `pre-commit` runs share one working
+tree and one stash namespace; their checkout/apply interleaving is destructive — the same class as
+the documented pre-commit-stash near-misses, now with a measured data-loss occurrence. Fix
+direction (measure first): serialize hook runs with a repo-scoped lock (flock in a pre-commit
+local hook or wrapping the pipeline's commit path), and/or make the pipeline's auto-commit refuse
+to run while the tree carries foreign dirty files. Trigger for promotion: this row IS the second
+occurrence class-wide — a third means build it without further debate.
+
 ## [infra] assemble_commands.render() silently defaults agents_dest to the LIVE ~/.claude/agents (found by a review finder 2026-08-31)
 
 `render(dest)` with `agents_dest=None` resolves to the live installed agents dir
