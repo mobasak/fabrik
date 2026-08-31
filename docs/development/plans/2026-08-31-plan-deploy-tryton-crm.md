@@ -564,6 +564,31 @@ is not needed at launch. **S0b is the only outstanding item — and it is FLEET 
 trytond's first-boot init wall-clock against `FABRIK_BUILD_TIMEOUT=1200`, and whether ACME issues the
 primary cert promptly (S13.2 is the gate for exactly that).
 
+**THE SPEC'S JUSTIFICATION FOR A SECOND GOTENBERG IS FALSE — measured 2026-08-31, on the operator's
+challenge "dont we have gotenberg installed in the vps?".** The spec (and my plan, which repeated it)
+says the stack needs its own `crm-gotenberg` because "the code default `http://gotenberg:3000` would
+resolve to the basic-auth'd standalone → 401". Probed live from inside the `fabrik` network:
+
+```
+standalone gotenberg: image gotenberg/gotenberg:8.32.0, running, mem 512M, network fabrik, alias `gotenberg`
+GET  /health                          -> 200   (no credentials)
+POST /forms/chromium/convert/html     -> 200   (no credentials, real conversion route)
+```
+
+It is NOT basic-auth'd in practice. Root cause of the discrepancy, proven rather than guessed: the
+container sets `GOTENBERG_API_ENABLE_BASIC_AUTH=true` as an ENV VAR, but gotenberg 8.32 enables basic
+auth only via the **CLI flag** `--api-enable-basic-auth` (its own `--help`: "Enable basic
+authentication - will look for the GOTENBERG_API_BASIC_AUTH_USERNAME and
+GOTENBERG_API_BASIC_AUTH_PASSWORD environment variables"). The container's `Cmd` is bare `gotenberg`,
+so the flag is never passed and the env var is inert.
+
+TWO CONSEQUENCES. (1) **Capacity/architecture:** `crm-gotenberg` (1G) is redundant — the stack can
+point at the existing shared `gotenberg:3000`, taking the deploy from 4 containers to 3 and freeing
+1G. (2) **Security, separate from this deploy:** a service whose config SAYS it is protected and
+measurably is not, is the believed-protected class. On a single-operator box with a trusted internal
+network the practical exposure is low, and enabling the flag now would break any current consumer that
+sends no credentials — so it is recorded here, not changed mid-deploy-prep.
+
 **A LIVE DEFECT the deploy would have hit, found by the operator's push to use site-provisioner
 (2026-08-31):** the hub's `SITE_PROVISIONER_API_KEY` did not authenticate. Proven by hash, never by
 value — hub key len 32 / `sha256[0:16]=0a69b0dd…` vs the live container's `API_KEY` len 12 /
