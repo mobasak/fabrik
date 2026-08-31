@@ -40,7 +40,7 @@ compliance drift is suspected) — not per-commit.
 {{include:grounding-artifact}}
 - Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.
 
-## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode only step 4 applies)
+## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub's own ledger + ADR record accepted deviations too)
 
 1. **Establish the real stack.** Read `project.yaml::type`, then CONFIRM by grep (`package.json` vs
    `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint. Labels lie; the code is truth.
@@ -50,10 +50,12 @@ compliance drift is suspected) — not per-commit.
    `exposes_metrics`). These decide which features are INTENTIONALLY on/off — a feature that's off
    because its flag is false is spec-consistent, not a gap.
 3. **Read the project's ADR / architecture-decisions doc FIRST** (e.g.
-   `docs/reference/architecture-decisions.md`). The packs assume a particular stack (language,
-   framework, DB, migration tool, id scheme); wherever the ADR records this project deliberately
-   differs, that mismatch is an ADR-accepted deliberate decision, NOT a gap — and the same holds for
-   ANY deviation the ADR accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`,
+   `docs/reference/architecture-decisions.md`) **AND grep `docs/DECISIONS.md`** — the fleet-wide
+   decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger
+   row is exactly as deliberate as an ADR-accepted one. The packs assume a particular stack (language,
+   framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately
+   differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for
+   ANY deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`,
    single-tenant). Capture the accepted-deviation list before auditing anything.
 4. If an argument was given, scope the audit to it: `$ARGUMENTS` (a specific pack or rules subdir).
    Otherwise audit all applicable packs.
@@ -78,7 +80,11 @@ dispatches through `fanout` (it records to the flywheel either way).
 **Division of labor — read_only units cannot touch the filesystem, so build their prompts
 accordingly:** each unit's prompt inlines its pack's text + the Phase-0 ground truth + the
 RELEVANT CODE EXCERPTS you (the orchestrator) select for that pack's subject (grep-driven —
-config files, the entrypoint, the modules the pack governs). The unit then:
+config files, the entrypoint, the modules the pack governs). **Secrets carve-out (mirrors
+`/fabrik-repo-review`): never inline secret-material content (`.env` values, `secrets/`, key
+files) into a POOL unit's excerpts — a pack whose audit needs those files gets the NATIVE
+finder, and an unavoidable config excerpt is redacted first; secret contents never go to
+pool APIs. The unit then:
 
 - Extracts that pack's "Done When" / requirements / Banned Patterns.
 - For EACH requirement, judges it against the inlined excerpts and cites `path:line` from them —
@@ -123,7 +129,10 @@ stable (identical-to-prior) pass is. This converges the AUDIT to completeness; i
 the gaps (fixing is a separate, user-authorized step).
 
 **Record each pass in the run record:** `python3 scripts/command_run.py round --findings <n>
---classes-swept <the packs swept> --classes-new <…>` — the round ledger is what proves the stable
+--classes-swept <the packs swept> --classes-new <…>` — where **`<n>` counts gaps NEW or
+RECLASSIFIED this pass, never the standing gap-table size: a standing gap re-listed by a later
+pass is CITED, not counted (D-048), so the stable pass honestly records `--findings 0` and the
+TERMINAL verdict is reachable while real gaps stand** — the round ledger is what proves the stable
 pass, and it is this command's persisted trace: the audit itself is deliberately chat-only (the GAP
 table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes
 no artifact), so a run whose rounds are unrecorded has no evidence it converged.

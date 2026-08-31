@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T25: /fabrik-rules-review (2026-08-31)
+
+- 63b verdict: 3 CONFORM, 2 FIXED, 1 N/A. Phase 0 now greps `docs/DECISIONS.md` alongside the ADR in BOTH modes (a ledger-row-accepted deviation is not a GAP; the HUB-mode heading had scoped the step out); the T21-class secrets carve-out lands for pool-excerpt inlining (a non-secrets pack's unit could ship a literal `.env` secret to a pool API); the round-ledger counting gains D-048 semantics — standing gaps re-listed are cited, not counted, so TERMINAL is reachable while real gaps stand. Verifier 25-for-25.
+
 ### Changed — manifesto pass T24: /fabrik-rivals (2026-08-31)
 
 - 63b verdict: 5 CONFORM + 1 N/A — the pass's first zero-source-fix ticket; the source conforms. The fixes landed elsewhere: D-050 minted (the 2026-08-26 no-ceiling + no-claude-p operator ruling pair had ZERO ledger rows despite verbatim in-code provenance — the T20 unminted-standing-policy class), and the verdict honestly splits mechanical per-round measurement from the self-graded two-dry-rounds count (check_rivals_dossier's own admission). Verifier 24-for-24.
