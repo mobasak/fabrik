@@ -1,6 +1,6 @@
 # Fresh standalone review — manifesto pass cumulative corpus diff
 
-Status: IN-PROGRESS
+Status: CLOSED
 Surface: 145fb69396ea791e190c48e4db23d90ff98a5386 + `git diff 0ddfbb96..HEAD -- commands/_sources commands/_fragments | md5sum` = 0fe2a7dbb9162112ff1f6e96c8502a91 (36 files, +290/−100, wc-derived)
 
 Anchor adjudication: newest prior report for this scope is `2026-08-31-plan-1-manifesto-command-pass-review.md`, whose `Surface:` is a PATH + commit range — not a comparable hash, so it CANNOT match by construction (the contract's execute-plan-receipt clause). This run therefore does NOT inherit its CLEAN rows and runs the full WIDE pass 1. Zero commits touched `commands/` between the archive commit (631d917e) and HEAD, so the surface is exactly the manifesto pass's diff.
@@ -182,6 +182,11 @@ Dispatch mode: pool-default (operator did not renew NO-POOL) — `fanout("review
 | Pass 11 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: 1 native Opus |
 | Pass 12 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 1 native Opus |
 | Pass 13 | method: re-derivation | found: 5 | new: 5 | fixed: 5 | finders: 1 native Opus |
+| Pass 14 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 native Opus (non-author) over the D-053 delta + 554-file fleet re-derivation |
+| Pass 15 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 native Opus (non-author) — executed 11 regex variants + red-on-revert in an isolated copy |
+| Pass 16 | method: re-derivation | found: 7 | new: 7 | fixed: 3 | finders: 1 native Opus (non-author) — 4 of 7 were a sibling's mid-flight retrospective artifact, ROUTED by mail 01M1CC9SKM, out of scope |
+| Pass 17 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 1 native Opus (non-author) — mutation-proved the tc-guard false-green |
+| Pass 18 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: 1 native Opus (non-author) — dispatched: 1, returned: 1; V1-V4 all confirmed, 4 classes clean, standing dispositions re-proven |
 
 Every candidate ever raised is terminal (FIXED/REFUTED/cited) in the disposition sections above —
 the loop stopped on its stall breaker below, was re-grounded via D-053, and its resumed closing round is appended at the end of this report.
@@ -500,9 +505,7 @@ no-verdict fallback (fail-closed by construction, disposition holds); `.envrc` o
 
 ## Resumed closing rounds (post-D-053, on the operator's finish-it directive)
 
-| Pass | method | found | new | fixed | finders |
-|---|---|---|---|---|---|
-| Pass 14 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 native Opus (non-author) over the D-053 delta + 554-file fleet re-derivation |
+(rows for Pass 14-18 live in the MAIN Pass Ledger table above — one ledger group, per the grader.)
 
 Round 14's headline was a genuine catch against MY OWN re-grounding: the first uncapped
 `_REDERIVATION_ROW` matched bare prose ("9 anchors re-derived") — 6 of the 8 flips my safety
@@ -524,7 +527,10 @@ fixture, and this report's premature "appended below" self-description (this sec
 append). D-053's ledger row stands — its decision (same-line binding, ordering not load-bearing)
 is unchanged; the anchor tightening is the same decision landing correctly, recorded here.
 
-| Pass 15 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 native Opus (non-author) — executed 11 regex variants + red-on-revert in an isolated copy |
+
+Round 18 is the QUIET exit: every candidate ever raised is terminal, the final fresh non-author
+round found nothing and changed nothing, and the standing dual-grammar candidate is CITED to its
+D-053 disposition (re-proven live this round), never counted.
 
 Round 15: (1) term-edit's own example rows failed the amended regex (the dual-specification class
 minting again — fixed with method-labelled rows + prose, and the guard now asserts BOTH fragments'
