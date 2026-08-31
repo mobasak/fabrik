@@ -443,7 +443,7 @@ class InfrastructureProvisioner:
         # spec without its own DB but with the watchdog enabled can still
         # write to cost_ledger. Idempotent at the DB level — every call
         # after the first is a no-op.
-        self._provision_shared_analytics(dry_run)
+        self._provision_shared_analytics(ctx, dry_run)
 
         should_run = {k: v[0] for k, v in resolved.items()}
 
@@ -497,7 +497,7 @@ class InfrastructureProvisioner:
 
     # ── individual registrars ────────────────────────────────────────────── #
 
-    def _provision_shared_analytics(self, dry_run: bool) -> None:
+    def _provision_shared_analytics(self, ctx: DeploymentContext, dry_run: bool) -> None:
         """Ensure the shared ``fabrik_analytics`` DB + ``cost_ledger`` exist.
 
         Called unconditionally from :meth:`provision` — does NOT depend on
@@ -528,7 +528,11 @@ class InfrastructureProvisioner:
                 analytics_result.get("schema_applied"),
             )
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
-            logger.warning("shared analytics provisioning failed (non-fatal): %s", e)
+            # Unconditional platform step, so its failure is applicable by
+            # definition — the watchdog's cost_ledger writes depend on it
+            # (review finding: it was the one swallow the 01M1CKEK rewire
+            # left invisible).
+            self._nonfatal(ctx, "shared-analytics", e)
 
     def _provision_postgres(
         self,

@@ -57,6 +57,36 @@ def test_failed_redis_registrar_is_recorded_and_others_still_run():
     gatus.assert_called_once()  # failure did not short-circuit later registrars
 
 
+def test_failed_shared_analytics_is_recorded():
+    # Unconditional platform step — the watchdog's cost_ledger depends on it;
+    # it was the one swallow the first rewire left invisible (review pass 1,
+    # finder 3's dying finding).
+    prov = InfrastructureProvisioner(deployer=MagicMock())
+    ctx = _ctx(
+        {
+            "name": "plain-svc",
+            "domain": "plain.example.com",
+            "shape": {"kind": "service", "is_public": True},
+            "watchdog": {"enabled": False},
+        }
+    )
+    ctx.coolify_uuid = "plain-svc"
+
+    with (
+        patch(
+            "fabrik.drivers.postgres.ensure_shared_analytics_db",
+            side_effect=RuntimeError("pg down"),
+        ),
+        patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
+        patch("fabrik.drivers.glitchtip.create_project", return_value={"status": "created", "dsn": "http://x@h/1"}),
+        patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
+        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+    ):
+        prov.provision(ctx)
+
+    assert ctx.registrar_failures == ["shared-analytics: pg down"]
+
+
 def test_all_green_records_no_failures():
     prov = InfrastructureProvisioner(deployer=MagicMock())
     ctx = _ctx(
