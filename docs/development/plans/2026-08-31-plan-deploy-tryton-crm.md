@@ -1,6 +1,6 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: CONVERGED
+Status: DRAFT  (re-opened 2026-08-31 — post-flip amendment A1/A2; the CONVERGED flip is void until re-review)
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
@@ -193,7 +193,7 @@ code. Routing truth is the compose's Traefik labels.
   the A record), so the runbook's DNS step is a `dig` **verification**, never an operator gate.
 
 ⛔ **BLOCKER 2 — the tenant wildcard cannot be issued as the fleet stands. Probed live, not assumed.**
-The compose declares a second router `tryton-crm-brand` requesting
+The compose declares TWO routers requesting `certresolver=cloudflare`, not one — `tryton-crm-brand` AND the tenant front door `trytond-saas` (`compose.yaml:277`). The first draft named only the brand router, understating the scope. Both request
 `tls.certresolver=cloudflare` with `domains[0].main=tojlo.com` / `sans=*.tojlo.com`
 (`/opt/tryton-crm/compose.yaml:86-88`). Live traefik on vps1 (`/opt/traefik/traefik.yml:22-28`) defines
 **exactly one** resolver:
@@ -308,10 +308,50 @@ items by design (headings would inflate the citation denominator). Grounding for
    and the Redis index, writes `.env`, brings the stack up, runs the 7 registrars.
    *Verify:* command reports deployment complete; `ssh vps 'sudo docker ps --format "{{.Names}}" | grep -E "^(tryton-crm|trytond|trytond-worker|crm-gotenberg)$"'` → 4 lines.
    *Rollback:* S-RB below.
-5. **S4 · `window-heartbeat`** — refresh the pause with the stem-guarded form (both files must exist, or
+5. **S3a · ⛔ THE STEP THE FIRST PLAN MISSED · retryable · ~10 min** — initialise the Tryton database.
+   **`fabrik apply` in S3 WILL FAIL WITHOUT THIS, and the failure is not optional.** Proven mechanically:
+   `deployer_ssh.py:64-65` runs `docker compose up -d --wait` for a health-enabled service (this spec sets
+   `health.disabled: false`), and trytond's healthcheck asserts the database is a *Tryton* database via
+   `common.db.list()` (`compose.yaml:262`). The postgres registrar creates an **empty** PG database, and
+   **nothing initialises the Tryton schema**: `Dockerfile.trytond` bakes `/opt/crm-init/10-init-modules.sh`
+   into the image, the compose sets **no `command:`** for trytond, and the base `tryton/tryton:8.0`
+   entrypoint is a bare `exec "$@"` that scans no init directory. So the healthcheck can never pass, and
+   `--wait` blocks until the deployer's 120 s ssh timeout and raises.
+   *Command (uses the BAKED script, deliberately — see the warning below):*
+   `ssh vps 'cd /opt/tryton-crm && sudo docker compose run --rm trytond sh /opt/crm-init/10-init-modules.sh'`
+   *Verify:* `ssh vps "sudo docker compose -f /opt/tryton-crm/compose.yaml run --rm trytond python3 -c \"import xmlrpc.client;print('tryton' in xmlrpc.client.ServerProxy('http://trytond:8000/rpc/',allow_none=True).common.db.list())\""` → `True`.
+   *Rollback:* S-RB (drop the database); the init is idempotent, so a partial run is re-runnable rather than
+   corrupting.
+   ⚠️ **Do NOT substitute the inline command in the project's `OPERATIONS.md` §5b.** It activates a SUBSET —
+   9 modules, and `account_payment_clearing` is **absent** from it (0 occurrences there vs 2 in the baked
+   script). The script's own comment records why that matters: without that module "a cheque settles
+   NOTHING… a fresh production deploy [gets] `account_dunning` with no way to settle one by cheque." A CRM
+   initialised from the §5b snippet comes up looking healthy and silently cannot reconcile payments. Filed
+   to tryton-crm.
+6. **S3a-2 · ⛔ FOUND BY SWEEPING THE NEW COLD-START CLASS, not by the checklist row · retryable** —
+   create the bridge's trytond service user. `10-init-modules.sh` invokes ONLY `init_company.py`
+   (`scripts/trytond/10-init-modules.sh:110`); it does **not** create `crm-bridge-svc`. But `.env` sets
+   `TRYTOND_RPC_USER=crm-bridge-svc`, and `proteus_client._connect()` (`src/tryton_crm/proteus_client.py:145`)
+   authenticates to trytond as that login. On a fresh database that user does not exist, so **every
+   bridge→trytond call raises `ProteusConnectionError` while `/health` still reports fine** — the stack
+   looks deployed and is functionally dead for anything touching the ERP.
+   *Command:* `ssh vps 'cd /opt/tryton-crm && sudo docker compose run --rm -v /opt/tryton-crm/scripts:/scripts:ro trytond python3 /scripts/trytond/create_rpc_service_user.py'`
+   *Verify:* a proteus connect as `crm-bridge-svc` succeeds — proven by battery item S13.3 (the write path),
+   which cannot pass without it.
+   *Rollback:* S-RB.
+   ⚠️ **Do NOT "fix" a failure here by letting `TRYTOND_RPC_USER` fall back to `admin`.** That default is
+   what `create_rpc_service_user.py` exists to eliminate, and its docstring states the stakes exactly:
+   trytond's login form accepts any user on any host, so on a public `<slug>.tojlo.com` `admin` becomes
+   typeable from the open internet — and `TRYTOND_RPC_PASSWORD`, an M2M secret sitting in the bridge's
+   env, is that account's password. "One credential, two exposure classes."
+6. **S3b · retryable** — re-run `fabrik apply specs/services/tryton-crm.yaml` so `up -d --wait` now passes
+   with trytond healthy, and the post-deploy registrars (which S3 never reached) actually run.
+   *Verify:* the command reports deployment complete; `ssh vps 'sudo docker ps --filter name=trytond --format "{{.Status}}"'` shows `(healthy)`.
+   *Rollback:* S-RB.
+8. **S4 · `window-heartbeat`** — refresh the pause with the stem-guarded form (both files must exist, or
    `OWNERSHIP-LOST` → stop and disambiguate). No single in-window step may exceed 90 minutes; S3 is the
    only long one and is bounded by `FABRIK_BUILD_TIMEOUT=1200` (20 min).
-6. **S5 · retryable** — DSN ordering check. `.env` is written before `DATABASE_URL` is injected on a first
+9. **S5 · retryable** — DSN ordering check. `.env` is written before `DATABASE_URL` is injected on a first
    deploy (the evolution-api pattern). Confirm the real DSN landed rather than assuming the two-pass is
    needed.
    *Verify:* `ssh vps 'sudo docker exec trytond printenv TRYTOND_DATABASE_URI | sed "s|//[^@]*@|//***@|"'` → a
@@ -322,11 +362,11 @@ items by design (headings would inflate the citation denominator). Grounding for
    value is protected. Note the compose already softens this case for the worker: `trytond-worker` runs an
    inline psycopg readiness poll that **waits rather than crash-looping** on an unready DSN
    (`compose.yaml:332-345`), so a placeholder DSN on first apply does not take down `up --wait`.
-7. **S6 · retryable** — confirm the injected secrets are non-empty **without printing them**:
+10. **S6 · retryable** — confirm the injected secrets are non-empty **without printing them**:
    `ssh vps 'sudo docker exec trytond sh -c "test -n \"\$BRIDGE_INTERNAL_TOKEN\" && echo SET || echo EMPTY"'` → `SET`.
    *Rollback:* fix on the hub, re-run S3.
-8. **S7 · retryable** — DNS verification (not a gate): `dig +short tryton-crm.vps1.ocoron.com` → vps1's IP.
-9. **S8 · `window-close`** — stem-guarded close, ordered AFTER any rollback the window's steps might need:
+11. **S7 · retryable** — DNS verification (not a gate): `dig +short tryton-crm.vps1.ocoron.com` → vps1's IP.
+12. **S8 · `window-close`** — stem-guarded close, ordered AFTER any rollback the window's steps might need:
    `ssh vps "sudo bash -c '[ -f /run/fabrik-autoheal/pause.owner ] && grep -q \"^2026-08-31-plan-deploy-tryton-crm \" /run/fabrik-autoheal/pause.owner && rm -f /run/fabrik-autoheal/pause /run/fabrik-autoheal/pause.owner || echo OWNERSHIP-LOST'"`
    *Verify (CONDITIONAL, never rc alone — `OWNERSHIP-LOST` exits 0):* PASS = both files gone, **or**
    `OWNERSHIP-LOST` with a FOREIGN owner confirmed by a fresh `cat` (first token ≠ this stem). Both files
@@ -334,7 +374,7 @@ items by design (headings would inflate the citation denominator). Grounding for
    ours = half-landed close → re-run the guarded close ONCE. `pause` present with owner ABSENT = the
    operator's bare-touch contract → **never remove it**.
    **WAIT BOUND: 30 minutes** on a foreign pause before giving up.
-10. **S-RB · rollback, executable** — `ssh vps 'cd /opt/tryton-crm && sudo docker compose down'` then
+13. **S-RB · rollback, executable** — `ssh vps 'cd /opt/tryton-crm && sudo docker compose down'` then
     `ssh vps 'sudo docker exec postgres-main psql -U postgres -c "DROP DATABASE IF EXISTS tryton"'`.
     *Verify:* zero tryton containers, `tryton` absent from `pg_database`. The filestore volume is retained
     deliberately (it is empty on a first deploy; dropping data is never automatic — CLAUDE.md volume rule).
@@ -369,6 +409,11 @@ Grounded in the route surface at `src/tryton_crm/main.py:53`.
 - **S13.5 — companion reachability from the app container**, by name:
   `ssh vps 'sudo docker exec tryton-crm sh -c "wget -qO- http://crm-gotenberg:3000/health"'` — proves the
   rename beat the standalone `gotenberg` alias.
+- **S13.9 — can it actually do its job?** Run the project's own read-only probe:
+  `docker compose run --rm -v /opt/tryton-crm/scripts:/scripts:ro trytond python3 /scripts/trytond/check_send_readiness.py`.
+  Its docstring states the case for it: "A tenant can pass every visible setup step and still be unable
+  to do the one thing the CRM is for" (measured: of 1,929 user rows, 3 carried a mailbox). Read-only, so
+  it is safe as an exit-gate item.
 - **S13.6 — seeded-fixture assertion:** zero `cert-role-%` logins in the live DB.
 - **S13.7 — worker queue drain:** no stuck rows after a write; `trytond-worker` logs show it consuming.
 - **S13.8 — Prometheus target up:** job `fabrik-tryton-crm` (`drivers/prometheus.py:95`) reports `up 1`.
@@ -395,6 +440,29 @@ Read live this run, never asserted:
   02:00, volumes at 03:00). For a multitenant CRM system-of-record that is the single most important
   number in this section, and it is a deliberate accepted risk at launch, not an oversight. Anything
   tighter needs a schedule change, which is out of scope for this deploy.
+
+## Cold-start boundary — what the DEPLOY owes vs what the FIRST TENANT owes
+
+Pass 7 swept the 20 scripts under `scripts/trytond/` that no init path invokes, and the useful output is
+not a longer runbook — it is a line drawn in the right place:
+
+**DEPLOY-SCOPE (in the runbook; without these the SERVICES do not work):** Tryton schema + module
+activation and the company seed (S3a), and the bridge's RPC service user (S3a-2). Each is proven above to
+be invoked by nothing today.
+
+**TENANT-SCOPE (NOT deploy steps — first-tenant onboarding, and Phase 8 carries them):** these do not stop
+the stack from running; they make a *tenant* silently wrong, which is worse than broken and is why they
+are named rather than omitted.
+- `configure_turkish_vat.py` — "a fresh tenant has **zero taxes defined** (measured 2026-08-11:
+  `account_tax` = 0 rows). Tryton does not refuse an invoice without a tax — it simply raises one with
+  **no VAT line at all**, which is silently wrong rather than loudly broken."
+- `setup_cheque_clearing.py` — the cheque settlement route; the *vadeli çek* is the common case in Turkish
+  B2B, and `account_payment_clearing` (activated by S3a) is necessary but not sufficient without it.
+- catalogue/tariff imports and `provision_tenant.py` — business data, deliberately out of a deploy plan.
+
+The remaining uninvoked scripts are backfills (`backfill_*`, `migrate_*`, `fix_*`, `unmerge_*`) that act on
+EXISTING data and are correctly irrelevant to a fresh database, plus certification tooling
+(`seed_role_probe_users.py`, `purge_probe_companies.py`) and translation export.
 
 ## Phase 8 — First-days posture
 
@@ -503,6 +571,8 @@ recurrence classes. A class is CLEAN only with executed evidence, never with an 
 | M3 | a paper backup pointed at an unused path | `backrest.py:342-360` + `postgres.py:377,470` read | CLEAN — `postgres-tryton` at `/opt/backups/postgres/tryton/`; S13 confirms a real snapshot |
 | TLS/cert | a router requesting a resolver that does not exist | live `traefik.yml:22-28` + acme store | **FIXED** — no `cloudflare` resolver exists and a wildcard needs DNS-01; carried as S0b (FLEET work — the CF credential is already on the box) + mailed |
 | bounded-search | a negative asserted from a narrow query | tag-delta re-run without the `-- src/` filter; seeder re-grepped with no exclusions | CLEAN — both claims survived on complete enumerations |
+| **cold-start** | a first deploy to a FRESH datastore whose init nothing invokes | base-image entrypoint read, compose `command:` grepped, `Dockerfile.trytond` COPY traced, `_compose_up` read | **FIXED** — trytond self-initialises NOWHERE; `up -d --wait` would have hard-failed. Runbook gains S3a (baked script) + S3b (re-apply). THIS CLASS DID NOT EXIST in either deploy command — filed to infra `01M1BJ01K6KWP9RDE0KKYHWETH` |
+| module-completeness | an init runbook that activates a SUBSET | diffed OPERATIONS.md §5b against the baked MODULES set | **FIXED** — §5b omits `account_payment_clearing` (0 vs 2 occurrences); S3a pins the baked script and warns against the snippet. Filed to tryton-crm `01M1BJ0XZHNGVS4G558F9DNYGD` |
 | count-honesty | a stated count never re-counted | closing re-derivation pass below | **FIXED** — the commit count was overstated by one and is corrected to 22 |
 
 ## Pass Ledger
@@ -511,7 +581,11 @@ recurrence classes. A class is CLEAN only with executed evidence, never with an 
 |---|---|---|---|---|
 | Pass 1 | residual attack + code re-derivation (`from_env`, `_is_placeholder`, backrest, live traefik/acme) | 4 (2 new blockers, 2 residuals proven) | yes | not done — plan corrected |
 | Pass 2 | method: re-derivation — every count/enumeration RE-COUNTED from primary source, not re-cited | **1** (commit count 23→22; the 4G sum re-confirmed after a flawed `G→000M` conversion in my own probe) | 1 correction | md5 stable after |
-| Pass 3 | confirmation sweep across all 10 classes | **0** | **0** | **CONVERGED — no-op, md5 stable** |
+| Pass 3 | confirmation sweep across all 10 classes | **0** | **0** | no-op, md5 stable — CONVERGED (VOID, see Pass 4) |
+| Pass 5 | confirmation over the A1/A2 amendment (10 checks) | **0** | 0 | md5 stable — but the new cold-start class had been ADDED, not SWEPT |
+| Pass 6 | **swept the cold-start class properly** — asked what other STATE a fresh deploy needs | **1 FATAL** (`crm-bridge-svc` created by nothing; bridge→trytond dead, and the obvious workaround re-exposes the superuser) | 1 amendment | not converged — sweeping a class beats adding its row |
+| Pass 7 | swept the remaining cold-start surfaces (20 uninvoked scripts, redis, filestore, bridge-DB) | **0 new deploy blockers** — but produced the deploy-vs-tenant BOUNDARY + battery item S13.9 | 2 additions | the sweep converged: what remained was tenant-scope, correctly outside a deploy plan |
+| Pass 4 | **operator challenge** — "will all services work when deployed automatically?" Lifecycle/cold-start audit, a question no prior pass asked | **2 FATAL** (trytond init invoked by nothing; §5b module subset) + 1 scope error (S0b covers 2 routers, not 1) | 3 amendments | Status re-opened to DRAFT — the Pass-3 CONVERGED stamp was FALSE |
 
 Re-derived in pass 2, each re-counted rather than re-read: commits `v0.3.0..HEAD` = **22**
 (`git rev-list --count` — the DRAFT's 23 was a visual miscount of a log listing); files changed = **9**;
@@ -652,6 +726,29 @@ the adjacent case that guidance does not name, so the unexamined default "creden
 filled the gap. Filed to infra as `01M1AYTV7F3PRS0R3914EC4CKX` with the concrete ask: a capability-check
 step in /fabrik-deploy-plan Phase 3 and the review's class list — *an OPERATOR-GATE naming a credential
 requires proof of fleet absence first*.
+
+**WHY THE FIRST THREE PASSES WERE SHALLOW — the operator's question, answered structurally rather than
+apologetically (2026-08-31).** Passes 1-3 were not lazy; they were *thorough about the wrong axis*. They
+audited the deploy as a CONFIGURATION problem and did it well: every `shape:` flag re-verified, every
+`${VAR}` traced, the A1 placeholder guard read at source, all five `from_env` secrets audited by presence
+AND by resolver, the backrest registrar's real path list, the live cert store. Those found genuine
+blockers. But **an empty database is a STATE, not a configuration**, and no amount of correct config
+initialises it. Nothing in three passes asked *what state must exist before this config is meaningful*.
+
+That blind spot is inherited, not invented. Both deploy commands mention initialisation only in terms of
+its CONSEQUENCES — `/fabrik-deploy-plan:191` "unhealthy longer than its healthcheck tolerates (migrations,
+module init)" (the healing-window class), `:251` "restart-policy interactions for first boot",
+`/fabrik-deploy-plan-review:8` "a missing restart-AFTER-init", `:68`/`:79` migration *rollback*. Every
+mention presupposes the init runs. **Not one asks who invokes it.** Reading Phase 5 I correctly bracketed
+the healer around a long-running module init — I modelled the TIMING of a step that did not exist. Filed
+to infra as the cold-start class (`01M1BJ01K6KWP9RDE0KKYHWETH`) with the concrete corpus change, because
+fixing this plan heals my artifact while the command that certified it stays broken for the next service.
+
+**And the convergence machinery certified it anyway.** Pass 3 swept ten classes to an md5-verified no-op
+and flipped CONVERGED. The no-op was real; the class list was incomplete, so convergence proved only that
+I had stopped finding things *within the frame I had already chosen*. A no-op round is evidence of
+exhaustion, not of coverage — that distinction is the reusable lesson here, and it is why the operator's
+one-line challenge outperformed three adversarial passes.
 
 **Corpus divergence found while authoring (a defect for the operator, per Phase 0's instruction):** the
 command's Phase-0 surface table enumerates **12** scaffold types, but the live registry
