@@ -21,5 +21,5 @@ Maintain a numbered **Pass Ledger** and reproduce it verbatim in your report —
 
 | Pass | axes re-checked ({{AXES}}) | method | raised | new: | edits made | {{ARTIFACT}} md5 (start → end) |
 |-----:|---|---|---:|---:|---:|---|
-| 1 | all | citation | 9 | 9 | 7 | a1b2… → 9f8e… |
-| 2 | all | **re-derivation** | 0 | 0 | **0** | 9f8e… → 9f8e… ✓ → **{{DONE_WORD}}** |
+| Pass 1 | all | citation | 9 | 9 | 7 | a1b2… → 9f8e… |
+| Pass 2 | all | **re-derivation** | 0 | 0 | **0** | 9f8e… → 9f8e… ✓ → **{{DONE_WORD}}** |
