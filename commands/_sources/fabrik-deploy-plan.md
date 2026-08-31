@@ -118,6 +118,9 @@ Name the target VPS and defend it with data, not vibes: current memory headroom 
 `free -h` / container count via the fleet SSH path), shared-infra locality (a service on `postgres-main` /
 `redis-main` wants vps1 — a spoke pays the WireGuard round-trip per query), latency to its users, and the
 service's own `resources.memory` claim against what remains. Record the decision as `target_vps: <vps>` +
+its `docs/DECISIONS.md` row IN THIS AUTHORING COMMIT (an architecture/scope choice per the ledger
+duty — the row names the chosen target, the data that defended it, and the rejected alternative,
+so an abandoned DRAFT still leaves the ruling findable; classified at mint, normally reversible) +
 the evidence block. A spoke target must note the mesh addressing consequence (`10.99.0.1:<port>`, never
 `postgres-main`).
 
@@ -284,6 +287,9 @@ defect). Batching binds per DECISION POINT: a question that only becomes KNOWABL
 answer (Phase 0's surface ask resolving the surface is what makes the surface-specific decisions
 askable at all) joins a follow-up batch carrying everything knowable at that point — dripping is
 asking what was already knowable at the last ask, not asking what has only just become knowable.
+**Every answered batch mints its `docs/DECISIONS.md` row(s) in the same authoring commit** — an
+operator ruling received here (a waiver, a rollout %, a domain pick) is a ledger trigger by name,
+and a DRAFT that never converges must still carry the ruling somewhere greppable.
 
 ## Output
 

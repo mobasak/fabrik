@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
 
+### Changed — manifesto pass T08: /fabrik-deploy-plan (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 FIXED. The target-VPS pick and every answered operator batch now mint their docs/DECISIONS.md rows in the AUTHORING commit — the verifier's abandoned-DRAFT scenario proved a ruling in a never-converged plan is ungreppable. T07's seeded CONVERGED-flip finding formally wired into T09's Context Files. Two verdict cells corrected (per-step vs plan-level kill rules; the command's own Self-audit as its disorder capture).
+
 ### Changed — manifesto pass T07: /fabrik-deploy (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED, 1 ROUTED. Phase 5 now mints the "built X at Y" docs/DECISIONS.md row in the EXECUTED flip commit (classified at mint). The verifier refuted two of the author's (b) premises with zero-hit greps — an invented "routine operations" carve-out and an "already-minted" claim (nothing in the deploy triad mints the CONVERGED-flip row → seeded to T09). Armed-tripwires adjudicated as delegated to the plan-review's watching-surface class.

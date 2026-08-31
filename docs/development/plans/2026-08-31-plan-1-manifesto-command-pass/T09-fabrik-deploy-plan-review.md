@@ -18,6 +18,7 @@ Docs: CHANGELOG.md entry via the orchestrator Deltas mechanism (command contract
 - **Given** fixes applied to `commands/_sources/fabrik-deploy-plan-review.md` (any NEW fragment-level finding applied by the orchestrator under the plan File Scope and recorded in this ticket's review artifact) — OR the honest all-CONFORM/no-change outcome, which still writes the verdict table and runs a scoped verification review over it, **When** /fabrik-review runs on the ticket's changed surface, **Then** it converges to a new: 0 round with every finding FIXED or REFUTED, `python commands/assemble_commands.py --check` is green, and the ticket's commit is pushed (docs/reference/operating-manifesto.md:4)
 
 ## Context Files
+- docs/development/reviews/2026-08-31-plan-1-manifesto-command-pass-T07-fabrik-deploy-review.md — carries the SEEDED finding: nothing in the deploy triad mints the CONVERGED-flip ledger row; T09 adjudicates adding the row-mint to this command's Phase 3 flip
 - docs/development/plans/2026-08-31-plan-1-manifesto-command-pass/2026-08-31-plan-1-manifesto-command-pass.md — the spine; its Execution Discipline binds every step incl. the no-change case
 - docs/development/reviews/2026-08-31-plan-1-manifesto-command-pass-T01-fragments-baseline-review.md — T01's fragment verdict ledger (exists once T01 merges; the verify-only reference)
 - commands/_sources/fabrik-deploy-plan-review.md
