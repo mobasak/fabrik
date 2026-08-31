@@ -516,8 +516,9 @@ is precisely the recall the amendment removes). CORRECTION (round 15): the sente
 never appended (my commit body said the same — a false claim a finder caught by executing the
 suite against the reverted defect: 82/82 stayed green). The guard NOW exists:
 `test_d053_amendment_anchors_on_the_method_cell_not_prose` — prose-negative both twins, three
-method-cell variants, twin pattern+flags identity, and BOTH fragments' shipped example rows
-asserted against the grader (the dual-specification class guard). Also fixed:
+method-cell variants, twin pattern+flags identity, term-edit's shipped example row asserted
+against the grader, and term-coverage's canonical TEMPLATE asserted as a substituted literal
+(round 16 corrected an earlier substring-only half of this guard). Also fixed:
 the stale adjacency guarantee in QUIET_PASS's design comment, the stale window comment in the test
 fixture, and this report's premature "appended below" self-description (this section is that
 append). D-053's ledger row stands — its decision (same-line binding, ordering not load-bearing)
