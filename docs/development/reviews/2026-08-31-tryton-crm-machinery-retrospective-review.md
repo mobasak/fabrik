@@ -73,6 +73,37 @@ lesson exists in exactly one place — a project's own file — where the next a
 
 ---
 
+### M6 — a green `pytest` that SKIPPED asserts nothing, and the gate did not say so
+**Class:** the gate's green is silent about its own blind spot · **Beat:** infra ·
+**Status:** ✅ **FIXED `3dbbccbb`** (pure `skip_advisory()`; red-on-revert proven)
+
+**The highest-cost finding in the retrospective, and the only one found INDEPENDENTLY by two
+projects.**
+
+**KNOWN-WHEN — 2026-08-28**, `/opt/tryton-crm/docs/development/reviews/2026-08-28-review-money-surface-suite.md`,
+Pass 12 row, verbatim:
+> *"**The security suite had deleted itself from a green gate.** All 26 cross-tenant tests were skipping
+> on a 429 throttle that `conftest.py` classified as 'trytond not reachable' — a bare
+> `except Exception → skip`. **`final_gate.py` runs `pytest tests/`, and skips do not fail**, so the
+> isolation guarantees were absent from every green gate in that window."*
+
+**CORROBORATED independently** — an unread `web-ecommerce-factory` finding in the hub mailbox names the
+same class from its own evidence: *"final_gate — … **pytest NOT RUN is invisible** …"*. Two projects,
+different symptoms, one hub defect.
+
+**COST-WHEN — the window itself.** Every green gate in that period asserted cross-tenant isolation it had
+not tested, on a **multitenant CRM**. The project fixed its `conftest`; the GATE half stayed ours —
+`results.append(("pytest", code == 0, tail))` passes a run with N skips, and passing-check output only
+reaches `--json` when ⚠-prefixed, so nothing prefixed it.
+
+**Why it survived:** the leg already had two guards of exactly this shape — `_uninvoked_test_dirs()` and
+exit-5 no-tests-collected — both of which SAY what the green does not cover. The skip case is the third
+member of that family and was simply missing. Now: `skip_advisory()` names the count and why it matters.
+Advisory, never blocking — an environment-gated skip is legitimate; an **unexamined** one is the defect,
+and tryton's was a transient throttle misread as a permanent outage. `0 skipped` never flags.
+
+---
+
 ### M2 — `/fabrik-execute-plan`'s parallelism is FILE-scoped; the real contention is the CONTAINER
 **Class:** a safety model that guarantees the wrong disjointness · **Beat:** infra · **Status:** NEW
 
@@ -252,6 +283,7 @@ silent about what to run. M1 (`9fc4bd7d`) closes that asymmetry.
 |---:|---|---:|---:|---|
 | 1 | AFCL (full) · LESSONS_LEARNT (89 headings + 1 entry) · CLAUDE.md spec block · live `fabrik` probe · hub cross-checks | **5** | file created | — → `(initial)` |
 | 2 | all 41 reviews ranked + grepped for accusation-shaped statements; 1 read in body; 2 live probes | **1 raised → REFUTED** (R1) + 1 supporting (R2) | §6b added; S1 narrowed; M1 marked fixed | `(initial)` → `(pass2)` |
+| 3 | findings-table extraction across all 41 reviews (machinery rows, CLEAN/N/A/REFUTED filtered out) | **1 raised → M6, CONFIRMED + FIXED** | M6 added; M1/M6 marked fixed | `(pass2)` → `(pass3)` |
 
 **NOT TERMINAL.** The brief's termination contract requires a pass that raises zero findings and makes
 zero edits, with a matching md5 pair. Pass 1 raised 5 and created the file. **Pass 2 is owed** and must
