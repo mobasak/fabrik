@@ -507,3 +507,103 @@ operator rather than the project generates no filing pressure at all.**
 That is a gap no documentation fix closes, because every agent that failed to file had already read the
 duty. It wants a mechanism — and per the FIX DIRECTIVE's measured-not-vibed clause, the fire rate above
 (25 stall complaints / 577 turns / 0 filings) is the measurement such a mechanism would have to justify.
+
+---
+
+# PASS 3 — the corrected denominator, and the infra findings the first two passes could not see
+
+## 6c. I repeated an inherited number instead of measuring it
+
+Pass 1 wrote *"of 60 sessions, 57 are the identical UI-QA subagent prompt … the real history is
+essentially ONE long session."* Pass 2 **quoted that forward and mined the one session**, calling the
+half complete. Neither pass ever counted the directory.
+
+| | claimed (P1, repeated by P2) | **measured (P3)** |
+|---|---|---|
+| session files | 60 | **342** |
+| corpus | — | **391 MB / 95,954 records** |
+| subagent-noise sessions | 57 | **334** (313 + 16 + 5, three translation-QA prompt clusters) |
+| **substantive sessions** | 3 | **8** (distinct first-prompts appearing once) |
+| a0cc0bfb share | "essentially all" | **89,598 of 95,954 records = 93.4%** — the *conclusion* was right |
+
+So Pass 1's **kind** was right and its **magnitude** was wrong by ~6×, and Pass 2 inherited both. This is
+the `denominator-honesty` marker failing inside the very document that cites it. Recorded as the finding
+it is, not as a correction in passing.
+
+**The load-bearing error was not the count — it was the AXIS.** Pass 2 read 577 operator-prose turns and
+declared the session "mined in full". It never read a single **assistant** turn. But the commission was
+*problems regarding our infra*, and infra problems appear as **tool failures**, which live in tool_result
+records the operator never sees. Pass 2 mined the complaints and mistook them for the corpus.
+
+**Pass 3 denominator: 19,908 tool_result records across all 342 files · 357 carry `is_error` (1.8%).**
+
+## 7c. Findings — I-series (tool-failure axis)
+
+### I1 — the auto-mode permission classifier goes DOWN, and when it does the agent cannot run Bash at all
+**Class:** a harness dependency outage presenting as an agent that stopped working · **Beat:** infra
+(box/workstation) · **31 occurrences, 2026-07-08 → 2026-08-30**
+
+```
+claude-opus-4-8 is temporarily unavailable, so auto mode cannot determine the safety of Bash
+right now. Wait briefly and then try this action again.
+```
+
+Blocked tool distribution: **Bash ×25 · Agent ×5 · an MCP tool ×1**. Worst day 2026-07-13 (5).
+
+**Why this matters more than its count.** S2 recorded 25 operator complaints of *"why do you keep
+stopping"* and attributed them to agent discipline. **Some fraction of them are this** — the agent could
+not execute, the operator saw silence, and neither party had the vocabulary for it. Pass 2 asserted S2's
+cause without ever looking at the tool-failure axis that contains the alternative explanation.
+
+⚠️ **I am not claiming this explains the stalls.** Both are real and I have not measured the overlap;
+correlating them needs the assistant-turn narrative around each of the 31, which is Pass 4. **The honest
+statement is that S2's causal claim is now UNDER-DETERMINED, and Pass 2 stated it as settled.**
+
+**Still live:** this class hit **this session** — `git push` denied twice by the same classifier before
+succeeding on retry. Not historical.
+
+### I2 — Playwright MCP is the /fabrik-user-test engine, and it failed 13 times
+**Class:** the certification command's driver is unreliable · **Beat:** infra · **2026-07-10 → 08-22**
+
+`browserBackend.callTool: Timeout 60000ms exceeded` navigating to `localhost:18000`; target-closed;
+`"[ref=fNeN]" does not match any elements`; `browser_evaluate sent no response for Ns; aborting`.
+
+`/fabrik-user-test` **is** this MCP. The operator's sharpest and longest-running frustration
+(*"when will our /fabrik-user-test end? … it has been 2 days already?"*) sits on top of a driver failing
+on a 60-second navigation timeout. No command or doc tells an agent what to do when the browser backend
+times out mid-gauntlet.
+
+### I3 — the harness sleep-guard fired 26 times; it is NOT ours, and our doc does not teach the blocked pattern
+**Class:** measured fire rate on a guard outside our control · **Beat:** infra (awareness) ·
+**2026-07-11 → 2026-08-29**
+
+```
+Blocked: sleep 45 followed by: cat …/tasks/blx83n6bp.output tail -15 …
+To wait for a condition, use Monitor with an until-loop
+```
+
+**Checked before filing, and it refuted my first hypothesis.** I expected our
+`docs/reference/long-command-monitoring.md` to be teaching the blocked pattern. It is not — its only
+`sleep` reference (`:185`) is a **BROKEN** example it explicitly warns against. So this is agent
+improvisation meeting a harness guard, **not** a hub doc defect. Recorded as a fire-rate datum, not a bug,
+and deliberately **not** filed as a hub finding.
+
+### I4 — the ordinary friction floor, for completeness
+`File has not been read yet` ×21 · `File has been modified since read` ×6 · `String to replace not found`
+×12 · user tool-rejections ×19 · classifier denials ×3. **No hub defect claimed** — recorded so the 357
+is fully accounted for rather than mined selectively.
+
+## 8c. What is STILL not covered — and it is the largest gap in the document
+
+- **40,899 assistant turns in a0cc0bfb: unread.** Pass 3 mined the *structured* error field, which is a
+  precise but narrow slice. An infra defect the agent narrated in prose but that did not raise
+  `is_error` — a gate misread, a silently-wrong MCP answer, a workaround — is **still invisible**.
+- **The I1↔S2 overlap: unmeasured** (§ I1).
+- **7 of the 8 substantive non-a0cc0bfb sessions: unopened.** They are 0.6% of records, but one is a
+  **CI auto-fix run** and CI-vs-gate is an open thread in this very report.
+- **334 translation-QA sessions:** classified by first prompt only; **bodies never scanned** for infra
+  errors. Their tool_results ARE in the 19,908 denominator, so I1–I4's counts include them — but no
+  targeted read was done.
+
+**Three passes in, the honest status is: the operator-complaint axis is exhausted, the structured
+tool-error axis is swept, and the assistant-narrative axis — the largest — has not been started.**
