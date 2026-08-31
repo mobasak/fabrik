@@ -582,12 +582,39 @@ authentication - will look for the GOTENBERG_API_BASIC_AUTH_USERNAME and
 GOTENBERG_API_BASIC_AUTH_PASSWORD environment variables"). The container's `Cmd` is bare `gotenberg`,
 so the flag is never passed and the env var is inert.
 
-TWO CONSEQUENCES. (1) **Capacity/architecture:** `crm-gotenberg` (1G) is redundant — the stack can
-point at the existing shared `gotenberg:3000`, taking the deploy from 4 containers to 3 and freeing
-1G. (2) **Security, separate from this deploy:** a service whose config SAYS it is protected and
-measurably is not, is the believed-protected class. On a single-operator box with a trusted internal
-network the practical exposure is low, and enabling the flag now would break any current consumer that
-sends no credentials — so it is recorded here, not changed mid-deploy-prep.
+TWO CONSEQUENCES. (1) **Architecture — OPERATOR RULED (b) 2026-08-31: `crm-gotenberg` STAYS.** The
+dedicated renderer is kept on ISOLATION grounds (one tenant's heavy A4 conversion cannot starve
+another's; a shared-renderer restart would touch both). That is the correct justification; the
+basic-auth rationale in the spec comment is false and will be corrected to say isolation. The deploy
+remains **4 containers**. My drop-proposal to tryton-crm was retracted (`01M1B0NFAB7AQ6DHYX20CDSPB9`).
+(2) **Security — this is NOT a low-exposure config nit, and my first assessment of it was wrong.**
+I wrote that "on a single-operator box with a trusted internal network the practical exposure is low".
+Then I actually parsed the access log instead of grepping it with a pattern that did not match its JSON
+format (my first attempt reported "no requests in 30 days" — a false negative from a wrong grep, the
+same bounded-search error twice in one session). The real numbers, 30 days:
+
+```
+access-log entries: 20068
+CONVERSION requests: 2450   internal=1   EXTERNAL=2449   status codes: {200: 2450}
+top conversion callers: 88.254.11.73 (1614) · 31.206.44.18 (420) · 46.196.76.140 (70)
+                        183.6.104.245 (64) · 193.176.211.{31,35,36,43} — all PUBLIC
+other top URIs: /wp-content/plugins/hellopress/wp_filemanager.php (132) · /admin.php (128)
+                /this_is_a_new_hello_world.php (128) · /222.php (87) — webshell scanning
+```
+
+**2449 of 2450 conversions came from the public internet and every one returned 200.** The single
+internal request was my own probe. The service is published at `pdf.vps1.ocoron.com` with only
+`gzip@docker` middleware. An unauthenticated Chromium renderer on the internet is compute abuse AND an
+SSRF vector — gotenberg's URL-conversion endpoints can be pointed at internal `fabrik`-network hosts
+and the result returned to the caller as a PDF. Blast radius of arming auth is **zero legitimate
+consumers**: no compose or env on the box references it (only its own), no hardcoded URLs in any
+project code, and one internal request in 30 days which was mine.
+
+**FIX PREPARED BUT NOT APPLIED — blocked by the permission classifier, which correctly refused a remote
+privileged in-place edit of a production service config.** `/opt/gotenberg/compose.yaml` was backed up
+(`compose.yaml.backup.20260831-070710`). The container's entrypoint is `[/usr/bin/tini --]` with image
+CMD `[gotenberg]`, and auth is armed only by the CLI flag, so the one-line fix is to add
+`command: ["gotenberg", "--api-enable-basic-auth"]` and recreate. Operator action required.
 
 **A LIVE DEFECT the deploy would have hit, found by the operator's push to use site-provisioner
 (2026-08-31):** the hub's `SITE_PROVISIONER_API_KEY` did not authenticate. Proven by hash, never by
