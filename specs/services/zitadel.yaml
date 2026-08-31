@@ -86,4 +86,11 @@ backup:
   frequency: daily
   retention: 30
 watchdog:
-  enabled: false              # EXPLICIT off — a third-party image can't run the product-aware sidecar; the resolver defaults ON
+  enabled: true              # Operator policy 2026-08-31 (D-052): EVERY project gets a watchdog.
+                             # Supersedes the previous "a third-party image can't run the
+                             # product-aware sidecar" opt-out, which was wrong for the DEFAULT
+                             # config: the sidecar builds from /opt/fabrik-lib/watchdog/
+                             # watchdog_sidecar (drivers/watchdog.py:125) and only needs the
+                             # project's SOURCE for the code-fix tiers — propose_fix_prs /
+                             # auto_code_fix, both default false. Ops-only monitoring watches the
+                             # CONTAINER, not the repo, so it works against ghcr.io/zitadel/zitadel.

@@ -132,7 +132,7 @@ backup:
   frequency: daily
   retention: 30
 watchdog:
-  enabled: false
+  enabled: true
   daily_budget_usd: 1.0
   daily_invocations_cap: 200
   auto_tier_b: false

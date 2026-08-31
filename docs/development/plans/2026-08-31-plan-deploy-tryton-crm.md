@@ -324,7 +324,9 @@ items by design (headings would inflate the citation denominator). Grounding for
      `_rollback_compose` is unreachable here and `/opt/tryton-crm` survives for S3a to init.
    *Verify:* the command FAILS at the `--wait` step with trytond unhealthy — that is the PASS condition
    here. Assert all four containers exist and the DNS record survived:
-   `ssh vps 'sudo docker ps -a --format "{{.Names}}" | grep -E "^(tryton-crm|trytond|trytond-worker|crm-gotenberg)$"'` → 4 lines,
+   `ssh vps 'sudo docker ps -a --format "{{.Names}}" | grep -E "^(tryton-crm|trytond|trytond-worker|crm-gotenberg)$"'` → 4 lines
+   (the `tryton-crm-watchdog` sidecar from D-052 is injected by the post-deploy registrar, which S3 never
+   reaches — expect it only after S3b, making the final count **5**),
    and `dig +short tryton-crm.vps1.ocoron.com` → `172.93.160.197` (proves `--keep-on-failure` held).
    If the dig is EMPTY the flag was omitted — re-run S3 with it; S3b will recreate the record either way.
    *Rollback:* S-RB below.
@@ -526,7 +528,7 @@ spoke), not from the spec's registrar list. The question each row answers is not
 | gotenberg (shared) | ❌ **by operator ruling** | dedicated `crm-gotenberg` kept for isolation (ruling (b), 2026-08-31); the shared instance now has basic auth armed (D-047) |
 | browserless / n8n | ❌ | no code path in this stack reaches either |
 | zitadel | ❌ **deferred** | tenant login is Tryton-native; umbrella-SSO federation is Epic 2, not this deploy |
-| **watchdog** | ❌ **DISABLED — the one genuine open decision** | `watchdog.enabled: false` in the spec, so no sidecar and no `WATCHDOG_DB_URL_RO`. The capability is live (`fabrik/watchdog` image + a running `watchdog-test`). For a multitenant CRM system-of-record with a 24h RPO this is worth an explicit operator yes/no rather than an inherited default — it is the only capability this deploy leaves on the table without a stated reason. Not a blocker: enabling it later is a spec edit + `fabrik apply`, no redeploy of the stack |
+| **watchdog** | ✅ **ENABLED — operator ruling D-052, 2026-08-31** | Was `enabled: false`; the operator ruled "every project gets a watchdog" and all 15 real project specs were flipped. This deploy therefore ALSO provisions the sidecar: `_register_watchdog` injects `fabrik/watchdog:tryton-crm` into the compose and, because `needs_database: true`, injects `WATCHDOG_DB_URL_RO` **and** `WATCHDOG_DB_URL_RW` (`infrastructure.py`:322-335). Caps carried from the spec: `daily_budget_usd: 1.0`, `daily_invocations_cap: 200`, `propose_fix_prs: false`, `auto_code_fix: false` — ops-only, no code-fix tier. **S13 must now also assert the sidecar**: `ssh vps 'sudo docker ps --format "{{.Names}}" \| grep tryton-crm-watchdog'` and `WATCHDOG_DB_URL_RO` present in the remote `.env`. Note the container count moves from 4 to **5** |
 
 **Verdict:** the observability spine (logs, metrics, alerts, dashboards, error tracking) attaches
 AUTOMATICALLY and needs nothing from this runbook — the earlier worry that a deploy might silently miss it

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every project gets a watchdog (operator ruling D-052) (2026-08-31)
+
+- The platform default was already `enabled=true` for `kind ∈ {service, worker, wordpress}`; the defect was that 15 REAL project specs carried an explicit `watchdog: {enabled: false}` override, so the default never applied. All 15 flipped. Scaffolder test fixtures (`test-*`, `guide-proj`, `noguide-proj`, `my-docs-site`, `image-broker`, `evolution-api`) are not projects and stay as-is — `test-guide-disabled` asserts the disabled path by name. Retired `wpf` excluded. Supersedes zitadel's per-spec opt-out comment, which was wrong for the default config: the sidecar builds from `/opt/fabrik-lib/watchdog/watchdog_sidecar` and needs project SOURCE only for the code-fix tiers (both default `false`); ops-only monitoring watches the container. Cost ceiling, stated: `daily_budget_usd: 1.0` × 15 IF all deploy and saturate; only zitadel is deployed today.
+
 ### Fixed — a backrest plan that archives NOTHING now reports `drift`, not `present` (2026-08-31)
 
 - `_provision_backrest` hardcodes `paths = [/opt/<name>/data]` (`infrastructure.py`:773-774) for every `has_persistent_data` service, regardless of where that service actually persists. A service using a named volume therefore gets a plan pointed at a directory that never exists — a PAPER BACKUP that reads green and archives nothing. Live on the fleet: `/opt/zitadel/data` is absent while the `zitadel-data` plan points at it (zitadel keeps all state in postgres and mounts nothing). `audit_backrest` now probes the plan's paths on the host and returns `drift` when they are absent, so the existing `fabrik_audit_drift_total` metric and `FabrikRegistrarDrift` alert surface it. Path probe fails OPEN — a broken SSH read never manufactures a finding. Verified live: zitadel now reports `drift — backrest plan zitadel-data exists but archives NOTHING`.
