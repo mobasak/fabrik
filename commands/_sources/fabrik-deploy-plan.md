@@ -153,6 +153,19 @@ The section that catches deploy-breakers. For `specs/services/<id>.yaml` + the r
 
 ## Phase 3 — Infra prerequisites `[hub-side]` (VPS)
 
+**CAPABILITY CHECK before ANY operator gate naming a credential:** prove fleet ABSENCE first — key
+NAMES in `/opt/fabrik/.env` (names, never values), the live `site-provisioner` container env, and
+`src/fabrik/drivers/` (live case: an agent asked the operator for a Cloudflare token the fleet held
+in two places, with a full DNS client at `drivers/dns.py`). An operator gate for a credential the
+fleet already holds is a manufactured gate.
+
+**COLD START (name the init AND its invoker):** if the target needs any first-boot initialization
+(DB schema/modules, migrations, seed data), the plan names it AND proves what INVOKES it —
+entrypoint path:line, compose `command:`, or an explicit runbook step. The registrar creates an
+EMPTY database; an image whose entrypoint scans no init dir will hang `docker compose up --wait`
+to the ssh timeout (live: tryton-crm). `needs_database: true` with no init step ⇒ write "no init
+required because <reason>" or the plan is incomplete.
+
 Resolvers and cert story (a new base domain needs its resolver/DNS-01 path staged BEFORE first router
 load), DNS records, registrar preview — `fabrik plan specs/services/<id>.yaml` output embedded — Traefik
 network/middleware expectations, and any staged config files with their activation step.

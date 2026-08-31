@@ -42,6 +42,11 @@ These are the **native** types — used for GUI, the authoritative/high-risk pas
 
 The pool is a **rule, not a roster: `pick_models(task_type)` returns the flywheel-ranked models for the task, best-first — take the top that clears your bar.** **Name no model rosters or per-stage rankings in this pack** — they are the flywheel's *output* and live in ONE place: the module's vendored `_TABLE` (fallback seed) + the synced per-task table **`/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`** — one `### <task_type>` section each (`code · docs · plan · research · review · spec`), rows ranked by real recorded runs (`shrunk_q · success · avg_cost · n`; `[benchmark]` = a never-run candidate). `pick_models` **auto-reads that hub doc** (`_HUB_SELECTION_DOC` in `select.py`, overridable via `SUBAGENT_SELECTION_DOC`) and prefers its empirical order over `_TABLE`. Copying any model name into this pack is the drift this pack exists to avoid.
 
+**Dispatch-size ceiling is real:** a `read_only` unit's task text rides one API request — a full
+multi-file diff inlined into one unit can 413/400 at the provider and the unit DIES having swept
+nothing (measured live). Split oversized surfaces across units, and state any excerpt's BOUND inside
+the task text (a finder given a truncated excerpt reads absence-in-window as absence).
+
 **No default price cap.** Per-run task cost is pennies regardless of $/Mtok (a review/spec/research fan-out especially), and a blanket cap would exclude the flywheel's top-ranked models. Price is **opt-in**: pass `max_cost_per_mtok=` to `pick_models`/`fanout` *only* when you want a hard budget ceiling for a run; `allow_above_cap=` is a **no-op**.
 
 **Select with `pick_models(task_type, …)` — never hand-pick, never name a model in prose.** It returns the flywheel-ranked pool best-first (`prefer="value"` biases toward cheapest-that-clears-the-bar; `exclude=` drops a model). **No `anthropic/*` via the pool** — Claude is subscription-native; use the `fabrik-reviewer` Claude Code subagent, not the pool. Don't invent OpenRouter IDs — verify any ID against the table, not memory.

@@ -287,3 +287,45 @@ fire rate at promotion time: 7 files enumerated ≥3 registry types with ≥1 om
 in-round; the checker would have been red on real drift, green after). Fix direction: import
 SCAFFOLD_TYPES, fail when a corpus file enumerates ≥3 registry types yet omits one. Promote on the
 next registry-drift recurrence.
+
+## [infra] Mailbox-clear 2026-08-31 — accepted-direction majors (each cites its finding mail)
+
+- **final_gate --json honesty cluster** (01M19R99M, 01M1CAE2F4): `degraded:[...]` key for
+  NOT-INSTALLED tools; `passed` as a list of check names; a status-level warning when the diff adds
+  N test files and the gate ran none; tolerate DECLARED opt-in skips in the skip-advisory.
+- **Stop-hook resumed-session false positive** (01M19970HP): `final_gate_stop.py:573-580,1228-1229`
+  re-fires "UNREVIEWED SPONTANEOUS WORK" after a record closed — scope the authored set to
+  uncommitted∩dirty, or let a closed review-family record satisfy has_any_record.
+- **transdoc post-mortem corpus candidates** (01M19YFM2F): walking-skeleton mandate, seam-test
+  floor (generated OpenAPI client only), core-journey certification at phase boundaries, MVP tier
+  in FEATURES EARLY — four dispositions, each a design change; take as one corpus pass.
+- **READ-budget waiver for narrow edits to a pre-existing monolith** (01M1A6SSEY — youtube is
+  mechanically BLOCKED on this): line-range Touches syntax or a gate-recognized waiver line.
+  PRIORITY: a live plan cannot flip.
+- **check_review_coverage formatting-fix ratchet** (01M1CA0WJ3): a parser-visible formatting repair
+  to a COMMITTED review escalates advisory→hard gate; exempt edits whose parsed counter rows are
+  value-identical before/after.
+- **Synced per-repo DECISIONS duplicate-id gate check** (01M1CBJWQS — measured 4 collisions/day
+  under 3 lanes): ~5-line check in the synced set + WARN when minted id ≤ origin/HEAD max.
+  SEQUENCING: land AFTER the operator sequences web-ecommerce-factory's D-023/024/025 repair.
+- **mcp-config-changed hook precision** (01M1BXBRKM): name WHICH servers changed / suppress when
+  the repo-assigned set is unaffected (false-fired on wef3 AND on this session today).
+- **tech-stack guide engine-neutral ecommerce row** (01M19G0HM0 + correction 01M19G66X8): replace
+  the Vendure default with the choice criterion (copyleft tolerance, payment-provider availability);
+  point iyzico-reaching projects at fabrik-lib payments/ first.
+- **release HANDOFF closed-by overlay** (01M1A00DS1): an appendable `closed-by <commit/test>` line
+  in the grammar so closure doesn't require editing a ratcheted report.
+- **waitForHydration adoption** (01M1B0BHZN): replace the hand-rolled networkidle+waitFor pattern
+  in the certification fragment with fabrik-lib's `@fabrik/ui-verify` primitive.
+- **deploy triad remainder from the consolidated v3** (01M1C95A2S): infra-wiring FLOOR (name the 10
+  registrars), supersede step-diff, rollback-on-failure semantics, cumulative window expiry, S0
+  credential write-time verification, citation-precision check. (F11 quoting + F12 redaction +
+  F14 amend-trailer + cold-start + capability-check are DONE.)
+- **[fleet] subagents fleet re-vendor sweep** (01M1B35GKQ): NVIDIA_API_KEY dotenv fix + lane_chain
+  landed upstream; every vendored copy behind.
+- **[intel→fabrik-lib] fanout resilience** (01M1CGKVWC): pre-flight credits check, 402/404 unit
+  re-route to next ranked model, dead-unit count surfaced in the return. OPERATOR: OpenRouter
+  credits tail is SPENT — top-up needed.
+- **I1 watch item** (01M1CCNMGT): auto-mode permission-classifier outages (31× in one project) are
+  indistinguishable from agent stalls — harness-level; watch for recurrence post-CLI-updates —
+  and it fired AGAIN on this very session while this row was being written.

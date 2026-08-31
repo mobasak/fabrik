@@ -367,6 +367,11 @@ independent-eyes recall this command exists for. Floors, enforced:
 
 {{include:cert-handoff-grammar}}
 
+**Fixture-grade SEEDED DATA in a live tenant is a FINDING, never scenery:** a seeder under
+`scripts/**`/`tests/**` that mutated a REAL database with self-disclaiming data ("approximation,
+NOT a customs declaration") passes every mechanical gate green — hunt for it explicitly (live:
+tryton-crm, 24/42 products mis-coded by a name-prefix heuristic under a CONVERGED plan).
+
 
 
 

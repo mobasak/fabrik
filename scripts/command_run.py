@@ -1309,10 +1309,15 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 return bool(_re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | re.I))
 
             if all(_midloop(f) for f in candidates):
+                # Name the candidates (01M19X16Z: an agent burned ~15 min discovering a
+                # SIBLING's uncommitted mid-loop review had poisoned this working-tree walk).
+                roster = ", ".join(str(f) for f in candidates) or "<none>"
                 msg = (
                     f"REFUSED — every report this /{live} run persisted declares "
                     "`Status: IN-PROGRESS` (mid-loop). A terminal `done` needs a report "
-                    "that has actually closed its loop; finish it, or close as `blocked`."
+                    "that has actually closed its loop; finish it, or close as `blocked`. "
+                    f"Candidates examined (working-tree walk — a SIBLING's uncommitted "
+                    f"mid-loop review can appear here): {roster}"
                 )
                 sys.stderr.write(f"[command_run] {msg}\n")
                 print(msg)

@@ -40,9 +40,20 @@ DEFAULT_SSH_HOST = "vps"
 _B64_PIPE = re.compile(r"echo\s+[A-Za-z0-9+/=]{20,}\s*\|\s*base64\s+-d")
 
 
+_SECRETY_ASSIGN = re.compile(
+    r"(\w*(?:TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL)S?\w*\s*=\s*)(\S+)", re.I
+)
+
+
 def _redact(cmd: str) -> str:
-    """Return ``cmd`` with any base64→``base64 -d`` payload masked for logging."""
-    return _B64_PIPE.sub("echo <redacted-base64> | base64 -d", cmd)
+    """Return ``cmd`` with base64 payloads AND secret-shaped assignments masked.
+
+    The assignment mask (F12, 2026-08-31): a failing .env-write echoed the whole
+    heredoc — CONSUMER_TOKENS included — through the error path; base64 masking
+    alone never touched it.
+    """
+    out = _B64_PIPE.sub("echo <redacted-base64> | base64 -d", cmd)
+    return _SECRETY_ASSIGN.sub(r"\1<redacted>", out)
 
 
 def _ssh_host() -> str:
@@ -92,8 +103,12 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         check=False,
     )
     if result.returncode != 0:
+        # _redact the FAILURE surface too (F12, 01M1C95A2S: a failing .env-write heredoc
+        # echoed a live CONSUMER_TOKENS bearer token verbatim into the apply log twice —
+        # the debug line above redacts the command, but the error path shipped raw stderr,
+        # forcing a mid-deploy credential rotation).
         raise RuntimeError(
-            f"SSH to {host!r} failed (rc={result.returncode}): {result.stderr.strip()}"
+            f"SSH to {host!r} failed (rc={result.returncode}): {_redact(result.stderr.strip())}"
         )
     return result.stdout.strip()
 

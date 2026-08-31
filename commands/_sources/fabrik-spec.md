@@ -80,7 +80,7 @@ research is.** (Grounded in `agents-fabrik.md` § Planning Constraints + § Arch
 
 **Hard constraints — a cited "best practice" that trips one is DEAD ON ARRIVAL:**
 
-- **LLM gateway = OpenRouter ONLY.** Never a direct vendor SDK (`openai`, `@anthropic-ai/sdk`, `google-cloud-aiplatform`).
+- **LLM gateway = OpenRouter by DEFAULT; vendor SDKs and PAID direct vendor APIs stay banned** (`openai`, `@anthropic-ai/sdk`, `google-cloud-aiplatform`). Direct FREE-TIER OpenAI-compatible HTTP endpoints ARE allowed when dispatched through the `subagents` provider registry (`providers.py`/`nvidia_models.py` — adopted fleet practice, e.g. youtube's chat_nvidia/chat_mistral chain; raw httpx to a `/v1`, never an SDK).
 - **Vector-DB ban.** pgvector on `postgres-main` only — **Pinecone / Qdrant / Weaviate / Milvus = reject.**
 - **Billing routing.** TR domestic → **iyzico**; international → **Paddle** (MoR); mobile digital goods → **RevenueCat + IAP**. ⚠️ **Stripe is NOT available to the TR entity — never design around it.**
 - **Email two-stream** — transactional and marketing on separate streams/subdomains.

@@ -288,12 +288,18 @@ class QuotaGovernor:
             return {}
 
     def _write_cap_state(self, state: dict) -> None:
-        self._cap_state_path.parent.mkdir(parents=True, exist_ok=True)
-        # pid-unique tmp so two concurrent mark_capped() calls never race the same rename
-        # (the single-flight lock guards incidents, not mark_capped).
-        tmp = self._cap_state_path.with_suffix(f".{os.getpid()}.json.tmp")
-        tmp.write_text(json.dumps(state))
-        os.replace(tmp, self._cap_state_path)
+        # Degrade on OSError like every neighbour (01M1A7NHCD: a disk-full/perms slip here
+        # turned a usage-limit SIGNAL into an exception inside run_claude — the one write
+        # in this class that raised while _read_cap_state/_acquire_incident_lock swallow).
+        try:
+            self._cap_state_path.parent.mkdir(parents=True, exist_ok=True)
+            # pid-unique tmp so two concurrent mark_capped() calls never race the same rename
+            # (the single-flight lock guards incidents, not mark_capped).
+            tmp = self._cap_state_path.with_suffix(f".{os.getpid()}.json.tmp")
+            tmp.write_text(json.dumps(state))
+            os.replace(tmp, self._cap_state_path)
+        except OSError:
+            pass  # a lost cap-state write degrades to "not capped" — the safe, quiet direction
 
     def _acquire_incident_lock(self) -> bool:
         """Non-blocking flock. True + hold on acquire; False when a fix is in flight OR the lock

@@ -215,7 +215,10 @@ it proves nothing — it was written after the code and never watched fail); ass
 `*-mock` test IDs instead of real behavior; **test-only methods on production classes** (a method only ever
 called from tests); **over-mocking** that removes a side-effect the test depends on (mock at the wrong
 level → passes for the wrong reason); **incomplete mocks** (fewer fields than the real API returns → passes
-in test, fails in integration); mock setup that is >50% of the test. Flag any of these as a test-quality
+in test, fails in integration); mock setup that is >50% of the test; **a wall-clock TIME BOMB** — code
+calling `datetime.now()`/`time.time()`/`date.today()` while its callers or tests inject a `now` (the
+test is green only while real time sits inside its fixture's window; live case: a 7-pass converged
+review stamped one clean, red two weeks later). Flag any of these as a test-quality
 finding. **When a finding hinges on what a 3rd-party library / SDK / API *actually* returns** (an incomplete
 mock, or a cross-file contract break against an external signature), confirm the real shape with
 a `WebFetch` of the library's official docs rather than asserting it from memory — the only place this code-vs-code review

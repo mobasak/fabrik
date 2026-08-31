@@ -220,7 +220,11 @@ ground**, `fanout` one INDEPENDENT grounder per phase/dependency/ticket — **po
 …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents),
 native `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
 findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
-the next pass. Only a single-phase MONOLITH plan loops solo — a plan SET always fans out per ticket (the
+the next pass. Only a GREENFIELD single-phase MONOLITH plan loops solo — a monolith that modifies or
+wires into EXISTING code still owes ≥1 author-blind native pass (live proof: a ~40-line monolith's
+author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the
+plan's core mechanism — every anchor was real, the defect was the author's inference) — and a plan
+SET always fans out per ticket (the
 Phase-0 per-ticket mandate), regardless of how few tickets it has.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you

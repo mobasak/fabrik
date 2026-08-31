@@ -5,6 +5,7 @@ This command almost always runs against a project with **existing code, a live D
 - **Open the real file** at every cited `path:line` and confirm the symbol / signature / behavior is actually there — re-read it THIS run (a plausible-looking path is not proof).
 - **Read the real schema** (migration / model / `\d <table>`) for every table, column, enum, index, or FK named — the name is not its type, and "should exist" is not "exists".
 - **Trace the touching points** — the callers, callees, siblings, configs, and migrations each {{SUBJECT}} wires into — and confirm it agrees with them, not only with itself.
+- **A negative claim about a FUNCTION'S BEHAVIOUR ("never returns X", "always raises") is proven by enumerating its CONTROL-FLOW exits — `grep -n 'return\|raise'` over the whole `def` — never by the branches the artifact happens to cite** (live escape: "route() never returns run_on_obat" survived three converged passes citing 3 of 4 return sites; the 4th falsified it in one grep).
 - **A UNIVERSAL or NEGATIVE claim ("the only", "no other", "all N", "never", "the sole") needs the
   ENUMERATION that proves it — the command + the count (`grep -c … → 7`), never an example citation.**
   A `path:line` proves the example exists; it can never prove "only". (trade-intelligence 2026-08-29:

@@ -104,6 +104,18 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
                 for k, v in env.items():
                     if isinstance(v, str) and v.startswith("${") and k in donor:
                         env[k] = donor[k]
+                        if p == Path("/opt/fabrik/.mcp.json"):
+                            # 01M1A3A698: donor #2 is this emitter's OWN prior output —
+                            # filling from it re-wrote a REVOKED Grafana token twice while
+                            # printing "OK". A rotation must edit the donor FIRST; this
+                            # warning is the tell.
+                            print(
+                                f"emit_mcp: WARNING — {name}.env.{k} filled from the "
+                                "emitter's own prior output (/opt/fabrik/.mcp.json); if "
+                                "this credential was rotated, update the donor first or "
+                                "this re-writes the stale value",
+                                file=__import__("sys").stderr,
+                            )
     if loaded is not None:
         return loaded
     raise SystemExit("emit_mcp: no server definitions source found (pass --defs)")

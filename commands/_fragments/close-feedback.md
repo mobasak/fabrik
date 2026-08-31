@@ -17,6 +17,10 @@ feedback line:**
 
 > `FEEDBACK: <what you filed, to whom> | none — <the surfaces this run exercised>`
 
+**A "filed" claim MUST name a durable artifact — the mail id, or a COMMITTED path.** A cross-repo
+write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never
+tracked on any branch — 4 of 5 unrecoverable). No artifact = not filed.
+
 **Then pass it: `done --command <name> --evidence "<proof>" --feedback "<that same line>"`. The close
 REFUSES without it** — and the TEXT is persisted and READ: the operator reviews every verdict via
 `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be
