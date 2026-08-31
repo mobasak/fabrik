@@ -303,10 +303,30 @@ items by design (headings would inflate the citation denominator). Grounding for
    line newer than the touch in the healer's log, **bounded at 5 minutes** — no `PAUSED` within 5 min
    means the healer cron is absent or wedged → halt.
    *Rollback:* the S8 guarded close.
-5. **S3 · retryable · ~5-15 min** — `FABRIK_BUILD_TIMEOUT=1200 fabrik apply specs/services/tryton-crm.yaml`
+5. **S3 · retryable · ~5-15 min · ⛔ EXPECTED TO FAIL, AND MUST CARRY `--keep-on-failure`** —
+   `FABRIK_BUILD_TIMEOUT=1200 fabrik apply specs/services/tryton-crm.yaml --keep-on-failure`
    from `/opt/fabrik`. Builds `Dockerfile.trytond`, creates the `tryton` DB + role, injects `DATABASE_URL`
-   and the Redis index, writes `.env`, brings the stack up, runs the 7 registrars.
-   *Verify:* command reports deployment complete; `ssh vps 'sudo docker ps --format "{{.Names}}" | grep -E "^(tryton-crm|trytond|trytond-worker|crm-gotenberg)$"'` → 4 lines.
+   and the Redis index, writes `.env`, brings the stack up.
+   ⚠️ **This step does NOT reach the registrars, and its failure is the DESIGNED path** — S3a proves
+   `up -d --wait` cannot pass before the Tryton schema exists. Two consequences were mis-stated by the
+   previous revision of this step, both re-derived from the orchestrator this run:
+   - **The old verify criterion ("command reports deployment complete") was UNREACHABLE** and directly
+     contradicted S3a's own "`fabrik apply` in S3 WILL FAIL WITHOUT THIS". A step whose success
+     criterion cannot be met is a step that reads as broken when it is behaving exactly as designed.
+   - **Without `--keep-on-failure` the failure DELETES the DNS record this step just created.**
+     `deploy()` runs `_provision_dns` (step 3, `orchestrator/__init__.py`:163) which records
+     `add_resource("dns", domain, zone=…)`; `deployer.deploy` (step 4) then raises `DeployError` on the
+     `--wait` timeout; the handler at `:213-216` sees a NON-empty `created_resources` and rolls back,
+     and `_rollback_dns` (`rollback.py`:186) deletes the record — raising `RollbackError` if that
+     delete itself fails. `--keep-on-failure` (`cli.py`:420, plumbed to `deploy(keep_on_failure=…)` at
+     `:529`) suppresses exactly this. The app itself is never torn down either way: no code path
+     records a `"compose"` resource (grep of every `add_resource(` call in `src/fabrik/`), so
+     `_rollback_compose` is unreachable here and `/opt/tryton-crm` survives for S3a to init.
+   *Verify:* the command FAILS at the `--wait` step with trytond unhealthy — that is the PASS condition
+   here. Assert all four containers exist and the DNS record survived:
+   `ssh vps 'sudo docker ps -a --format "{{.Names}}" | grep -E "^(tryton-crm|trytond|trytond-worker|crm-gotenberg)$"'` → 4 lines,
+   and `dig +short tryton-crm.vps1.ocoron.com` → `172.93.160.197` (proves `--keep-on-failure` held).
+   If the dig is EMPTY the flag was omitted — re-run S3 with it; S3b will recreate the record either way.
    *Rollback:* S-RB below.
 6. **S3a · ⛔ THE STEP THE FIRST PLAN MISSED · retryable · ~10 min** — initialise the Tryton database.
    **`fabrik apply` in S3 WILL FAIL WITHOUT THIS, and the failure is not optional.** Proven mechanically:
@@ -462,10 +482,56 @@ Read live this run, never asserted:
   `src/fabrik/drivers/postgres.py:377` and `:470`. So this deploy will create **`postgres-tryton` at
   `/opt/backups/postgres/tryton/`**. S13 still confirms the plan produced a real snapshot — a registered
   plan pointed at a directory `pre-backup.sh` never populated is a paper backup.
+- ⚠️ **The `tryton-crm-data` plan this deploy creates will be a PAPER BACKUP — do not read it as protection.**
+  `_provision_backrest` hardcodes `paths = [f"/opt/{name}/data"]` (`infrastructure.py`:773-774) for every
+  `has_persistent_data` service, regardless of where that service's data actually lives. This stack's
+  persistent data is the **named volume** `trytond-filestore` (`compose.yaml`:376-377, mounted at
+  `/var/lib/trytond/db` in both trytond and the worker); nothing writes `/opt/tryton-crm/data`. So the plan
+  named after the service will archive a directory that does not exist. **The data IS protected** — by the
+  global `docker-volumes` plan above — but by a plan whose name does not mention this service. An operator
+  asking "is tryton-crm backed up?" will find `tryton-crm-data`, see a green plan, and be reassured by the
+  wrong artifact. **This is a fleet class, not a tryton quirk, and it is already live:** `/opt/zitadel/data`
+  is likewise ABSENT on vps1 (checked this run) while the `zitadel-data` plan exists and points at it —
+  zitadel keeps all state in postgres and mounts nothing. Routed to fleet as a registrar-vs-reality defect;
+  S13's backup assertion must therefore verify a real snapshot from `docker-volumes` and `postgres-tryton`,
+  never from `tryton-crm-data`.
 - **RPO/RTO — derived from those cron values, not from memory: RPO is up to 24 hours** (nightly dumps at
   02:00, volumes at 03:00). For a multitenant CRM system-of-record that is the single most important
   number in this section, and it is a deliberate accepted risk at launch, not an oversight. Anything
   tighter needs a schedule change, which is out of scope for this deploy.
+
+## Phase 7b — Infra-utilization matrix (operator directive 2026-08-31: "everything is there for a purpose and our deployments must utilize them")
+
+Enumerated from the LIVE fleet this run (`docker ps` on all three hosts: 32 containers on vps1, 5 on each
+spoke), not from the spec's registrar list. The question each row answers is not "did a registrar run" but
+"does this deploy actually USE the capability that is sitting there".
+
+| Capability (live vps1) | Used? | Mechanism — verified this run |
+|---|---|---|
+| traefik v2.11 | ✅ | compose labels: bridge router + tenant `HostRegexp(*.tojlo.com)`. No host `ports:` (forbidden at `deployer_ssh.py`:832) |
+| postgres-main | ✅ | registrar creates `tryton` DB + role, injects `DATABASE_URL` |
+| redis-main | ✅ | `needs_cache: true` → registrar assigns a dedicated index (shared db0 is a key-collision risk) |
+| prometheus | ✅ | `monitoring.target: tryton-crm:8000`, `scheme: http` — explicit target wins (`infrastructure.py`:986-990). Prometheus IS on the `fabrik` net (verified), so the target resolves |
+| **alertmanager + apprise** | ✅ **automatic** | `configs/prometheus/rules/alerts.yml` matches `container_last_seen{name!=""}` — every container, by name. All 4 of this stack's containers inherit ContainerDown/OOM/Restart/HighMemory with zero per-service config |
+| **loki + promtail** | ✅ **automatic** | promtail scrapes `/var/lib/docker/containers/*/*log` with a DROP-list, not an allow-list (config read on vps1) — a new container ships logs the moment it starts. Confirmed: 26 containers currently in loki's `container_name` label |
+| **grafana** | ✅ **automatic** | dashboards are generic and label-driven (`20-containers.json`, `10-databases.json`) — no per-service dashboard is needed or provisioned |
+| cadvisor + node-exporter | ✅ automatic | scrape all containers / the host |
+| gatus | ✅ | registrar endpoint on the stable compose service name; **S6b** adds the cert-expiry condition |
+| glitchtip | ✅ **fully wired, verified end-to-end** | registrar injects the DSN rewritten to `glitchtip-web:8000` (`glitchtip-sdk-integration-setup.md`:31-40 — the public URL would 401 behind Authelia). The app CONSUMES it: `sentry-sdk[fastapi]>=2.18.0` in `requirements.txt`:8, `glitchtip_init.py`:24-36, and `init_glitchtip()` is actually CALLED at `main.py`:25. An injected DSN nothing calls is the usual failure here; this is not that |
+| backrest | ⚠️ partial | per-DB `postgres-tryton` + the global `docker-volumes`/`opt-configs` plans are real; the service-named `tryton-crm-data` plan is a PAPER backup (see Phase 7) |
+| site-provisioner | ✅ | DNS is fleet-automated — the runbook's DNS step is a `dig` verification, never an operator gate |
+| pushgateway | ✅ indirect | carries `fabrik_audit_drift_total` from `audit_all_registrars.py` |
+| authelia | ❌ **by design** | `is_admin_dashboard: false` — forward-auth would block tenant self-service login outright |
+| meilisearch | ❌ | `has_search_feature: false` — Tryton has its own search |
+| gotenberg (shared) | ❌ **by operator ruling** | dedicated `crm-gotenberg` kept for isolation (ruling (b), 2026-08-31); the shared instance now has basic auth armed (D-047) |
+| browserless / n8n | ❌ | no code path in this stack reaches either |
+| zitadel | ❌ **deferred** | tenant login is Tryton-native; umbrella-SSO federation is Epic 2, not this deploy |
+| **watchdog** | ❌ **DISABLED — the one genuine open decision** | `watchdog.enabled: false` in the spec, so no sidecar and no `WATCHDOG_DB_URL_RO`. The capability is live (`fabrik/watchdog` image + a running `watchdog-test`). For a multitenant CRM system-of-record with a 24h RPO this is worth an explicit operator yes/no rather than an inherited default — it is the only capability this deploy leaves on the table without a stated reason. Not a blocker: enabling it later is a spec edit + `fabrik apply`, no redeploy of the stack |
+
+**Verdict:** the observability spine (logs, metrics, alerts, dashboards, error tracking) attaches
+AUTOMATICALLY and needs nothing from this runbook — the earlier worry that a deploy might silently miss it
+does not hold for this stack. The two real gaps are the paper-backup plan (Phase 7) and the watchdog
+decision above.
 
 ## Cold-start boundary — what the DEPLOY owes vs what the FIRST TENANT owes
 
