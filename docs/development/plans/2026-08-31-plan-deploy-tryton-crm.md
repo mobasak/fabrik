@@ -1,6 +1,6 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: DRAFT  (re-opened 2026-08-31 — post-flip amendment A1/A2; the CONVERGED flip is void until re-review)
+Status: CONVERGED  (re-converged 2026-08-31 after the A1/A2 amendment + the predecessor step-diff; the earlier CONVERGED flip was FALSE and is recorded as such in the Pass Ledger)
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
@@ -612,6 +612,8 @@ recurrence classes. A class is CLEAN only with executed evidence, never with an 
 | Pass 5 | confirmation over the A1/A2 amendment (10 checks) | **0** | 0 | md5 stable — but the new cold-start class had been ADDED, not SWEPT |
 | Pass 6 | **swept the cold-start class properly** — asked what other STATE a fresh deploy needs | **1 FATAL** (`crm-bridge-svc` created by nothing; bridge→trytond dead, and the obvious workaround re-exposes the superuser) | 1 amendment | not converged — sweeping a class beats adding its row |
 | Pass 7 | swept the remaining cold-start surfaces (20 uninvoked scripts, redis, filestore, bridge-DB) | **0 new deploy blockers** — but produced the deploy-vs-tenant BOUNDARY + battery item S13.9 | 2 additions | the sweep converged: what remained was tenant-scope, correctly outside a deploy plan |
+| Pass 10 | confirmation over the step-diff amendments (8 structural checks) | **0** | 0 | md5 stable |
+| Pass 11 | **independent coverage re-check**: every predecessor step subject (S0-S13) matched against this plan | **0** — 14/14 covered | 0 | **CONVERGED** — two consecutive zero-finding passes, the second from an INDEPENDENT source |
 | Pass 9 | **step-level diff vs the predecessor runbook** — the independent source the operator named, NOT my own sweep | **4** (S7, S10, S12, battery ordering) | 3 steps + ordering + renumber | the check that was missing; it found more than passes 4-8 combined |
 | Pass 4 | **operator challenge** — "will all services work when deployed automatically?" Lifecycle/cold-start audit, a question no prior pass asked | **2 FATAL** (trytond init invoked by nothing; §5b module subset) + 1 scope error (S0b covers 2 routers, not 1) | 3 amendments | Status re-opened to DRAFT — the Pass-3 CONVERGED stamp was FALSE |
 
