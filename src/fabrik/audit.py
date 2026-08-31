@@ -286,6 +286,23 @@ def audit_gatus(spec: Any) -> AuditResult:
     )
 
 
+def _missing_host_paths(paths: list[str]) -> list[str]:
+    """Return the subset of ``paths`` that do NOT exist on the backup host.
+
+    Fail-OPEN by design: if the probe itself fails we return ``[]`` (report nothing
+    missing) rather than inventing a drift finding from a broken SSH read — the same
+    discipline the rest of this module uses, where an unprovable claim collapses to
+    ``unknown`` instead of a confident wrong answer.
+    """
+    if not paths:
+        return []
+    probe = "; ".join(f"test -e {shlex.quote(p)} || echo {shlex.quote(p)}" for p in paths)
+    ok, out = _ssh_check(f"sudo sh -c {shlex.quote(probe)}")
+    if not ok:
+        return []
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
 def audit_backrest(spec: Any) -> AuditResult:
     sid = _spec_id(spec)
     applicable = _resolved_for(spec).get("backrest", (False, "n/a"))
@@ -314,11 +331,31 @@ def audit_backrest(spec: Any) -> AuditResult:
     # real id first; keep the bare `sid` as a fallback for hand-made plans.
     for candidate in (f"{sid}-data", sid):
         if candidate in plans:
+            paths = plans[candidate].get("paths", []) or []
+            # A registered plan is not protection — `_provision_backrest` hardcodes
+            # `/opt/<name>/data` (infrastructure.py:773-774) regardless of where the
+            # service actually persists, so a service using a NAMED VOLUME gets a plan
+            # pointed at a directory that never exists. That is a PAPER BACKUP: it reads
+            # green and archives nothing. Live on the fleet 2026-08-31 — `/opt/zitadel/data`
+            # is absent while the `zitadel-data` plan points at it. Report `drift` so the
+            # existing fabrik_audit_drift_total metric and the FabrikRegistrarDrift alert
+            # surface it, instead of a false `present`.
+            missing = _missing_host_paths(paths)
+            if missing:
+                return AuditResult(
+                    status="drift",
+                    detail=(
+                        f"backrest plan {candidate} exists but archives NOTHING — "
+                        f"path(s) absent on host: {', '.join(missing)}"
+                    ),
+                    expected={"plan_id": candidate, "paths": paths},
+                    actual={"missing_paths": missing},
+                )
             return AuditResult(
                 status="present",
                 detail=f"backrest plan {candidate} exists",
                 expected={"plan_id": candidate},
-                actual={"paths": plans[candidate].get("paths", [])},
+                actual={"paths": paths},
             )
     return AuditResult(
         status="missing",

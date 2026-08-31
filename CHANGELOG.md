@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a backrest plan that archives NOTHING now reports `drift`, not `present` (2026-08-31)
+
+- `_provision_backrest` hardcodes `paths = [/opt/<name>/data]` (`infrastructure.py`:773-774) for every `has_persistent_data` service, regardless of where that service actually persists. A service using a named volume therefore gets a plan pointed at a directory that never exists — a PAPER BACKUP that reads green and archives nothing. Live on the fleet: `/opt/zitadel/data` is absent while the `zitadel-data` plan points at it (zitadel keeps all state in postgres and mounts nothing). `audit_backrest` now probes the plan's paths on the host and returns `drift` when they are absent, so the existing `fabrik_audit_drift_total` metric and `FabrikRegistrarDrift` alert surface it. Path probe fails OPEN — a broken SSH read never manufactures a finding. Verified live: zitadel now reports `drift — backrest plan zitadel-data exists but archives NOTHING`.
+
 ### Fixed — backrest registrar audit could never report `present` (2026-08-31)
 
 - `audit_backrest` matched a bare spec id while `_provision_backrest` writes `f"{name}-data"` (`infrastructure.py`:773) — the two never agreed, so every `has_persistent_data` service that HAD a backup plan audited as `missing`. A structural false-MISSING on the backup registrar, the worst direction for it to fail. Live proof: zitadel reported "no backrest plan for zitadel" while both `zitadel-data` and `postgres-zitadel` existed; post-fix it reports `backrest plan zitadel-data exists`. The pre-existing test asserted `present` for `id == sid`, a convention the registrar never emits, so it passed against the defect — replaced with the registrar's real id, proven red-on-revert.
