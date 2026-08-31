@@ -142,10 +142,13 @@ here is **prove, then hand to the owner** — and an unrouted finding is an unfi
 
 - **Prove each surviving verdict**: the anchor is `path:line` plus a FRESH run, never a green from
   last week. A row you cannot prove today is PARTIAL, and say why.
-- **Cluster** the survivors: never-executed · operational reds · inert surfaces · refreeze debt.
+- **Cluster** the survivors: never-executed · operational reds · inert surfaces · refreeze debt ·
+  supersessions (each successor named).
 - **Route each cluster to its owning command** — `/fabrik-execute-plan` for a converged plan never
   run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep
-  surfaced · the deploy triad for an operational red. A conformance review that ends in a list
+  surfaced · the deploy triad for an operational red · a SUPERSEDED row is a discovered
+  retirement/adoption: it mints its `docs/DECISIONS.md` row in the ledger-commit of THIS run (the
+  SAME-change law; the dispatching session appends — never the verifier). A conformance review that ends in a list
   nobody owns has not finished.
 
 ## PHASE 4 — CONVERGE (the loop — you are here after EVERY pass, not once)
@@ -158,8 +161,10 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
   downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
   rows that already passed. The **closing round runs non-author verifiers** on the full inventory.
-- **DONE requires all of:** the final round raised **`new: 0`** with every found candidate adjudicated (`found:` counts candidates you refuted
-  in adjudication — a round that raised 3 and refuted 3 is not quiet); **every Inventory row
+- **DONE requires all of:** the final round raised **`new: 0`** with every found candidate adjudicated
+  (`new:` counts candidates FIRST raised that round: a round raising 3 FRESH candidates and refuting
+  all 3 is `new: 3` — not quiet; a round merely RE-RAISING already-adjudicated candidates is `new: 0`
+  — quiet, per the corrected exit in the termination contract above); **every Inventory row
   terminal** (no `PENDING`); **every Checklist row adjudicated** `CLEAN` / `FIXED(n)` /
   `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with `found:` / `new:` /
   `fixed:` per round, each row naming the verifiers dispatched for THAT round.

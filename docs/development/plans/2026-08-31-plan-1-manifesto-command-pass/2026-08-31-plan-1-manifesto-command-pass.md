@@ -80,7 +80,7 @@ Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | T01 | Fragments manifesto baseline (all 21 shared fragments) | — | ⛓️ | ✅ | (this commit) |
 | T02 | /design-review — 63b manifesto conformance + fixes + per-command review | T01 | ⛓️ | ✅ | (this commit) |
 | T03 | /fabrik-catchup — 63b manifesto conformance + fixes + per-command review | T02 | ⛓️ | ✅ | (this commit) |
-| T04 | /fabrik-conformance-review — 63b manifesto conformance + fixes + per-command review | T03 | ⛓️ | ⬜ | |
+| T04 | /fabrik-conformance-review — 63b manifesto conformance + fixes + per-command review | T03 | ⛓️ | ✅ | (this commit) |
 | T05 | /fabrik-data-contract — 63b manifesto conformance + fixes + per-command review | T04 | ⛓️ | ⬜ | |
 | T06 | /fabrik-decommission — 63b manifesto conformance + fixes + per-command review | T05 | ⛓️ | ⬜ | |
 | T07 | /fabrik-deploy — 63b manifesto conformance + fixes + per-command review | T06 | ⛓️ | ⬜ | |
