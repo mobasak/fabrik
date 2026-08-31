@@ -1,6 +1,6 @@
 # The commands/skills manifesto pass — evaluate + update all 32 commands against the Operating Manifesto
 
-Status: CONVERGED
+Status: IN-PROGRESS
 
 Operator directive (2026-08-31, verbatim): "create a plan which will walk you through all commands/skills,
 and you will evaluate and update each against docs/reference/operating-manifesto.md without stopping. one by
