@@ -8,7 +8,8 @@ Converge this plan to a fixed point — do not stop after one pass. **Fixed poin
 {{include:run-record}}
 {{include:term-edit}}
 (Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage
-Checklist` + an embedded `review_rubric.py` invocation — `check_convergence.py:369/:385`; verify
+Checklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in
+`check_convergence.py` (grep for the symbols — line anchors into that file drift); verify
 both BEFORE the no-op round, or the flip fails after the loop.)
 (This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
 
@@ -294,6 +295,9 @@ assumption, and out-of-scope risk that remains, separating ones the plan resolve
 fixes, no additions, no re-grounding. That edit-free round is mandatory and is the ONLY thing that earns
 `Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach an edit-free round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
+**The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row (classify at mint; plain row
+normally) STAGED in the same commit as the flip, together with a row for each operator ruling RESOLVED
+during this review** (an answered real question is a received decision — CLAUDE.md § the decision ledger).
 
 **An edit-free round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
 adjudicated too.** Zero edits on a pass that never swept a class proves only that you did not look there

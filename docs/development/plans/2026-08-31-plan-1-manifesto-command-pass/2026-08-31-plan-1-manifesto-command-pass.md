@@ -95,7 +95,7 @@ Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | T16 | /fabrik-flows-review — 63b manifesto conformance + fixes + per-command review | T15 | ⛓️ | ✅ | (this commit) |
 | T17 | /fabrik-generate-tests — 63b manifesto conformance + fixes + per-command review | T16 | ⛓️ | ✅ | (this commit) |
 | T18 | /fabrik-plan-after-chat — 63b manifesto conformance + fixes + per-command review | T17 | ⛓️ | ✅ | (this commit) |
-| T19 | /fabrik-plan-review — 63b manifesto conformance + fixes + per-command review | T18 | ⛓️ | ⬜ | |
+| T19 | /fabrik-plan-review — 63b manifesto conformance + fixes + per-command review | T18 | ⛓️ | ✅ | (this commit) |
 | T20 | /fabrik-release — 63b manifesto conformance + fixes + per-command review | T19 | ⛓️ | ⬜ | |
 | T21 | /fabrik-repo-review — 63b manifesto conformance + fixes + per-command review | T20 | ⛓️ | ⬜ | |
 | T22 | /fabrik-review — 63b manifesto conformance + fixes + per-command review | T21 | ⛓️ | ⬜ | |
