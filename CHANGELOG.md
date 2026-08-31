@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T33: /fabrik-workflow-review (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 1 FIXED, 1 N/A — the final command ticket. The artifact-vs-stale-lock disposition fork lands (a finding proving the artifact right and the decisions LOCK stale routes to 09-revise-requirements, the propagation owner — never fix the artifact into agreeing with a stale lock). The 5×-fixed secrets carve-out class earns its first genuine REFUTATION: workflow artifacts are value-free planning documents by their doers' own contracts (04:112, 06:97) — the free pass is argued, not lucky. Verifier 33-for-33.
+
 ### Changed — manifesto pass T32: /fabrik-user-test (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 1 FIXED, 1 N/A. The full-form credential carve-out lands: tokens/cookies/signed URLs stripped from crawler output AND console/network captures before any pool unit sees them (a capture carries Authorization headers), native-or-throwaway for needing triage — plus the committed-evidence redaction rule: a token in a certification-committed screenshot/capture outlives every session. Verifier 32-for-32 — my first cut was thinner than the T26 template it cited.
