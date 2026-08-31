@@ -247,3 +247,15 @@ refusal: the sanctioned `new: 0` exit legitimately closes with `found > 0` stand
 fabrik-review-vs-check_convergence tension T22 of the manifesto pass adjudicates). Design the check
 AFTER T22 settles which exit vocabulary is canonical; promotion trigger = T22's ruling + one measured
 false close.
+
+## [infra] release_cut.py stages only CHANGELOG.md — a same-commit DECISIONS.md cut-row is impossible; the versioning-adoption carve-out itself has no ledger row (found by T20's verifier, 2026-08-31)
+
+`release_cut.py:149,162` hardcodes `git add -- CHANGELOG.md` / `git commit -- CHANGELOG.md`, so the
+manifesto-pass mint law ("built X at vY" → its `docs/DECISIONS.md` row) cannot ride the cut commit —
+`/fabrik-release` now instructs an ADJACENT commit in the same push and says why (the honest recipe,
+not the preferred one). Fix direction when promoted: `release_cut.py` stages `docs/DECISIONS.md` when
+modified (or gains `--extra-path`), restoring same-COMMIT atomicity. Related provenance gap the same
+verifier measured: the "versioning adoption" carve-out the command description cites ("the one
+sanctioned publish-shaped act") has ZERO hits in `docs/DECISIONS.md` — the standing policy lives only
+in prose; mint its provenance row when the operator confirms. Out of plan-1's File Scope (scripts/).
+Promotion trigger: the first cut that actually mints a row (proves the two-commit shape in anger).

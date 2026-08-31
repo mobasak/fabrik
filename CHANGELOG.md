@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T20: /fabrik-release (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 FIXED. An operator P2/P3 waiver now mints its `docs/DECISIONS.md` row (the accepted risk outlives the chat); the version cut mints "built X at vY" — with the HONEST adjacent-commit recipe, because release_cut.py's commit stages only CHANGELOG.md by hardcoded pathspec (same-COMMIT restoration backlogged); the push precondition is upstream-relative (`@{u}..HEAD`) — the `origin/master` hardcode errors on half the fleet, live-reproduced. Verifier 20-for-20: my fresh mint clause had prescribed a commit the governed script makes impossible.
+
 ### Changed — manifesto pass T19: /fabrik-plan-review (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED. The CONVERGED flip — a Status flip that minted nothing — now mints its `docs/DECISIONS.md` row (classified at mint, staged with the flip), plus a row per operator ruling RESOLVED during the review; reconciled with T16's non-minting attestation via the annotation-vs-Status-flip distinction. The stale `check_convergence.py:369/:385` line anchors (drifted to :374/:390) replaced with grep-able symbol references. Verifier 19-for-19 — including my own fabricated T18-conflation claim, struck.

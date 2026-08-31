@@ -27,7 +27,9 @@ This is the gate that makes `/fabrik-user-test` / `/fabrik-service-test` handoff
 list nobody reads. **Grader honesty:** the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports
 are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check —
 it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep. No certification report at all for a UI/service surface = **BLOCKED** (run the
-gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one.
+gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one —
+and a waiver granted is a RECEIVED decision: **mint its `docs/DECISIONS.md` row in this run's change**
+(CLAUDE.md § the decision ledger), so the accepted risk outlives this chat.
 
 ## Phase 0 — Resolve the surface
 
@@ -39,7 +41,9 @@ gauntlet first). The operator may waive a specific row explicitly this turn; you
 2. Universal preconditions (all surfaces, verify with real commands, not memory):
    - `python scripts/final_gate.py --check --json` → `"status":"success"` **this run** (a stale green is not evidence).
    - Working tree clean for this project's scope; work committed AND pushed (`git status --short`, `git log
-     origin/master..HEAD` empty) — the VPS pulls from the remote, and a store zip must be reproducible from a SHA.
+     @{u}..HEAD` empty — upstream-relative, never a hardcoded `origin/master`: the fleet splits across
+     `master`/`main`/fork-convention branches and the hardcoded form errors on half of it) — the VPS pulls
+     from the remote, and a store zip must be reproducible from a SHA.
    - `CHANGELOG.md [Unreleased]` describes what this release ships.
    - **Docs truth is dated, not assumed:** every registry-obligated key doc for this type
      (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/`CONFIGURATION`/`DEPLOYMENT` for deployed types)
@@ -125,7 +129,11 @@ the repo on GitHub:
 2. `python scripts/release_cut.py --execute` — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
    CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the
    graduated entries as notes (`gh` missing is non-fatal: tag-only cut). Include the printed plan in
-   the report.
+   the report. **The cut is decision-shaped — "built X at vY" — mint its `docs/DECISIONS.md` row and
+   commit it IMMEDIATELY AFTER the cut commit, before anything else, in the same push** (classify at
+   mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2's decision, not yours to
+   row). Adjacent-commit, not same-commit, is deliberate here: `release_cut.py`'s commit stages ONLY
+   `CHANGELOG.md` by hardcoded pathspec — writing the row first would silently strand it.
 3. **Surfaces with an artifact-embedded version reconcile, never fork:** extension (`manifest.json`
    version) and mobile (app version / EAS) pass it explicitly — `--execute --version <that version>` —
    so the tag, the Release, and the store artifact carry ONE identity; the checklist's own
