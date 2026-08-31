@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T13: /fabrik-execute-plan (2026-08-31)
+
+- 63b verdict: 3 CONFORM, 2 FIXED, 1 corrected. A received operator ruling (MESSY-resume, flaky-quarantine, blocked-resume) now mints its `docs/DECISIONS.md` row — orchestrator's pen — committed WITH the spine-Evidence record as the FIRST commit after the ruling, closing the second-crash orphan window. D6's dead-coder force-remove now captures a salvage diff (`add -N` for untracked visibility) before destruction, converting the one ONE-WAY act in the command to reversible. Verifier round 13-for-13 falsification: 2 CONFIRMED artifact defects + both source gaps verifier-surfaced.
+
 ### Changed — manifesto pass T12: /fabrik-docs-review (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED. A DEAD sweep retiring a whole documented subsystem is now a decision-shaped RETIREMENT minting its `docs/DECISIONS.md` row SAME-change (routine dead-line deletion stays row-less doc hygiene); synced docs read as binding context in a project are now explicitly OUTSIDE Phase 1's claim-ledger denominator (in-denominator on the HUB, where they are reconciled). Verifier round: 12th consecutive falsification of the initial stamps — 3 systematic +3 anchor miscounts + 1 verdict grounded on hub-CLAUDE.md vocabulary absent from the command.

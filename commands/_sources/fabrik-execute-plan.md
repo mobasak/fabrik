@@ -62,7 +62,11 @@ TASK terminator, and the record is what proves the task is actually over.
        run's to continue vs. a sibling's to leave`. **Never guess:** on this shared tree, uncommitted residue
        on "your" paths can be an unlocked sibling's or the daily pipeline's, and
        no prose heuristic can tell — resetting destroys a sibling's work, adopting publishes it. The operator
-       rules once; the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or
+       rules once — and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by
+       the orchestrator — the dispatching session holds the pen) is committed WITH the spine-Evidence record
+       as the FIRST commit after the ruling, before any resumed work, so a second crash cannot orphan it
+       (CLAUDE.md § the decision ledger; the same law binds every operator ruling this run receives — the
+       D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or
        reverts anything. (The five governance surfaces — CHANGELOG/INDEX/docs README/FEATURES/
        LESSONS_LEARNT — are OUTSIDE every plan's lock by grammar; residue there is never resolved by this
        rule alone — see the dispatcher MESSY-resume sweep for the one case where it can be yours.)
@@ -516,7 +520,10 @@ dispatch — pool tickets record `worktree_path/branch: null` (fanout captures d
 crashed pool unit leaves no partial writes; recovery = re-dispatch the unit). **Dead-coder procedure
 (native):** recorded path missing/erroring, or dirty with state ≠ merged → **salvage check first**
 (`git -C <wt> log <base_commit>..HEAD --oneline` non-empty → returned work → rebase → acceptance review;
-fixups → fresh coder per D2); otherwise log the dirty file list to spine Evidence, then
+fixups → fresh coder per D2); otherwise capture the tree's uncommitted content first —
+`git -C <wt> add -N . && git -C <wt> diff > <scratchpad>/salvage-<ticket>.diff` (`-N` makes untracked
+files visible to the diff; cheap, and it converts the force-remove from ONE-WAY destruction into a
+reversible act) — log the dirty file list to spine Evidence, then
 `git worktree remove --force` + re-dispatch fresh — fully autonomous; coder worktrees are disposable,
 never resumed. Orchestrator partial-diff assessment is capped (`git diff --stat` + ≤3 files/500 lines;
 larger → straight to a fresh coder's salvage review — the orchestrator does not read big diffs at its
