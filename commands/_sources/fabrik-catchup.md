@@ -14,9 +14,9 @@ which owns its own convergence loop.
 
 This is a bounded MEASURE → QUEUE → EXECUTE run, not an open-ended loop. You are done **only when a
 fresh re-run of Phase 0 MEASURE raises zero new queue items** — every prior finding is now fixed,
-explicitly `BLOCKED`, or **report-only** (a candidate dead consumer reference that is already named in
-this run's report counts as accounted-for on re-measure, not a new item — it stays un-committed by design;
-see Phase 2's Exception) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
+explicitly `BLOCKED`, or **report-only** (BOTH report-only classes count as accounted-for on re-measure,
+not new items, once named in this run's report: a candidate dead consumer reference, and a genuinely
+undecidable reconcile downgraded per Phase 2 — each stays un-committed by design; see Phase 2) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
 --json` reports `"status":"success"` **in this same run**. Executing one item can surface another (a doc
 converge can expose a fresher staleness elsewhere) — **the pass in which you executed any queue item is
 never the last MEASURE**; run Phase 0 again, unprompted, before you stop. Three thoughts that each mean
@@ -95,8 +95,8 @@ its evidence (`path:line` or the command output that raised it), and its **route
 | `docs/FEATURES.md` incomplete or stale | `/fabrik-features` |
 | `docs/data-contract.md` stale vs the live schema | `/fabrik-data-contract` |
 | `docs/ui-design.md` stale vs the built screens (GUI project types only) | `/fabrik-ui-design` |
-| Plan spine `Status:` vs lock contradiction | a named reconcile action — fix the spine header or the lock file to match reality (never both silently); state which was wrong and why |
-| Spec `shape:` flag lying vs code | a named reconcile action — flip the flag in `specs/services/<id>.yaml` to match the code, or fix the code to match an intentionally-true flag; state which |
+| Plan spine `Status:` vs lock contradiction | a named reconcile action — fix the spine header or the lock file to match reality (never both silently); state which was wrong and why; genuinely undecidable → report-only per Phase 2 |
+| Spec `shape:` flag lying vs code | a named reconcile action — flip the flag in `specs/services/<id>.yaml` to match the code, or fix the code to match an intentionally-true flag; state which; genuinely undecidable → report-only per Phase 2 |
 | Candidate dead consumer reference | **report only, no auto-fix** — name the reference + why it looks retired, and hand actual retirement to the operator via `/fabrik-decommission` (hub-side runbook); this command never docker-probes liveness or removes/repoints from a project |
 
 ## Phase 2 — EXECUTE (one item at a time)
@@ -104,7 +104,12 @@ its evidence (`path:line` or the command output that raised it), and its **route
 Work the queue top to bottom. Per item: run its routed command or reconcile action, verify the fix by
 re-running the exact probe that raised it, then commit — explicit pathspecs only, Agent Provenance
 Trailers, **one commit per item** (never batch unrelated items into one commit — a bisect needs the
-granularity). A routed command owns its own termination contract (e.g. `/fabrik-doc-converge` converges
+granularity). Two manifesto laws bind the reconcile actions specifically: **a DECISION-SHAPED
+reconcile** (a deliberate `shape:` flag flip, a Status re-ruling — anything beyond restoring a record
+to observed truth) **carries its `docs/DECISIONS.md` row IN THE SAME commit** (the SAME-change law;
+a truth-restoring correction needs no row); and **a reconcile whose true side is genuinely
+undecidable from the tree downgrades to a REPORT-ONLY item naming both candidate truths** — the
+most-reversible disposition (manifesto Invariant 3), never a silent guess. A routed command owns its own termination contract (e.g. `/fabrik-doc-converge` converges
 to its own edit-free no-op) — catchup dispatches to it and moves to the next queue item once that command
 reports done; it never re-implements that command's convergence loop itself. **Exception:** a candidate
 dead consumer reference is never auto-executed — it stays a reported, un-committed item; move to the next
