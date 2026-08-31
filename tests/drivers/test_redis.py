@@ -13,6 +13,7 @@ the envelope (never the flat map that would strip the metadata).
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -53,6 +54,37 @@ class TestExtractAssignments:
         with pytest.raises(RuntimeError, match="non-integer"):
             redis_driver.extract_assignments({"svc": True})
 
+    def test_unicode_digit_raises_runtimeerror_not_valueerror(self):
+        # "²".isdigit() is True but int("²") raises — the parse must stay
+        # inside the RuntimeError contract (review finding, pass 1).
+        with pytest.raises(RuntimeError, match="non-integer"):
+            redis_driver.extract_assignments({"svc": "²"})
+
+    def test_historically_accepted_string_forms_still_parse(self):
+        # The old bare int() accepted " 7"/"+7"; the hardening must not
+        # turn a long-working hand-edited registry into a hard failure.
+        assert redis_driver.extract_assignments({"a": " 7", "b": "+3"}) == {"a": 7, "b": 3}
+
+    def test_out_of_range_index_rejected(self):
+        with pytest.raises(RuntimeError, match="out-of-range"):
+            redis_driver.extract_assignments({"svc": -5})
+        with pytest.raises(RuntimeError, match="out-of-range"):
+            redis_driver.extract_assignments({"svc": 999999})
+
+    def test_double_booked_index_rejected(self):
+        # Two services on one logical DB defeats the isolation the registry
+        # exists for — parse must refuse, not silently return the collision.
+        with pytest.raises(RuntimeError, match="double-books"):
+            redis_driver.extract_assignments({"svc-a": 3, "svc-b": 3})
+
+    def test_newer_envelope_version_refused(self):
+        # A v2 writer's file must not be read (and later clobbered back to v1).
+        with pytest.raises(RuntimeError, match="version 1 only"):
+            redis_driver.extract_assignments({"version": 2, "assignments": {"a": 1}})
+
+    def test_empty_envelope_parses_empty(self):
+        assert redis_driver.extract_assignments({"version": 1, "assignments": {}}) == {}
+
 
 class TestReadRegistry:
     def test_reads_the_live_envelope_over_ssh(self):
@@ -62,6 +94,31 @@ class TestReadRegistry:
     def test_absent_file_is_empty_registry(self):
         with patch.object(redis_driver, "ssh", return_value="{}"):
             assert redis_driver._read_registry() == {}
+
+
+class TestAcquireHoldsTheLock:
+    def test_acquire_serializes_via_file_lock(self):
+        # postgres.py wraps its allocations mutation in file_lock; the redis
+        # docstring claims the same convention — the lock IS half of it
+        # (review finding, pass 1: concurrent applies double-book last-free).
+        entered = []
+
+        class _Lock:
+            def __enter__(self):
+                entered.append(True)
+                return Path("/tmp/fake-lock")
+
+            def __exit__(self, *a):
+                return False
+
+        with (
+            patch.object(redis_driver, "file_lock", return_value=_Lock()) as fl,
+            patch.object(redis_driver, "ssh", return_value=json.dumps(LIVE_ENVELOPE)),
+        ):
+            result = redis_driver.acquire_db_index("authelia", dry_run=True)
+        fl.assert_called_once()
+        assert entered == [True]
+        assert result["db_index"] == 3  # existing assignment read under the lock
 
 
 class TestWriteRegistry:

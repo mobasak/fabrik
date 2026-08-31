@@ -51,6 +51,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.locks_local import file_lock
 
 logger = logging.getLogger(__name__)
 
@@ -94,15 +95,51 @@ def extract_assignments(data: dict) -> dict[str, int]:
     envelope had NEVER been read successfully. Shared with ``audit_redis``,
     which had the same blind spot (``sid in <envelope>`` is always False).
     """
-    inner = data["assignments"] if isinstance(data.get("assignments"), dict) else data
+    if isinstance(data.get("assignments"), dict):
+        version = data.get("version")
+        if version is not None and version != 1:
+            raise RuntimeError(
+                f"Redis registry at {REDIS_REGISTRY_PATH} is version {version!r}; this "
+                f"driver understands version 1 only — refusing to read (a write here "
+                f"would silently downgrade the newer schema)"
+            )
+        inner = data["assignments"]
+    else:
+        inner = data
     out: dict[str, int] = {}
     for k, v in inner.items():
-        if isinstance(v, bool) or not isinstance(v, int | str) or (isinstance(v, str) and not v.isdigit()):
+        # bool first: it subclasses int, and True silently becoming index 1
+        # would double-book whoever legitimately holds 1. int() (not
+        # .isdigit()) does the string parse so historically-accepted forms
+        # like " 7" keep working while unicode digits int() rejects fail.
+        if isinstance(v, bool) or not isinstance(v, int | str):
             raise RuntimeError(
                 f"Redis registry entry {k!r} has non-integer db index {v!r} — "
                 f"fix {REDIS_REGISTRY_PATH} by hand before deploying"
             )
-        out[str(k)] = int(v)
+        try:
+            idx = int(v)
+        except ValueError:
+            raise RuntimeError(
+                f"Redis registry entry {k!r} has non-integer db index {v!r} — "
+                f"fix {REDIS_REGISTRY_PATH} by hand before deploying"
+            ) from None
+        if not 0 <= idx <= REDIS_LAST_INDEX:
+            raise RuntimeError(
+                f"Redis registry entry {k!r} has out-of-range db index {idx} "
+                f"(valid 0..{REDIS_LAST_INDEX}) — fix {REDIS_REGISTRY_PATH}"
+            )
+        out[str(k)] = idx
+    by_index: dict[int, list[str]] = {}
+    for svc, idx in out.items():
+        by_index.setdefault(idx, []).append(svc)
+    double_booked = {i: svcs for i, svcs in by_index.items() if len(svcs) > 1}
+    if double_booked:
+        raise RuntimeError(
+            f"Redis registry double-books db index(es) {double_booked} — two services "
+            f"sharing one logical DB defeats the isolation this registry exists for; "
+            f"fix {REDIS_REGISTRY_PATH} by hand before deploying"
+        )
     return out
 
 
@@ -215,6 +252,15 @@ def acquire_db_index(
     """
     _validate_service_name(service_name)
 
+    # WSL-side serialization of the read-modify-write, mirroring
+    # postgres.py's allocations lock — two concurrent `fabrik apply` runs
+    # otherwise both read the same lowest-free index and the second write
+    # silently double-books it (last-writer-wins on the scp+mv).
+    with file_lock("redis-assignments", timeout_seconds=15.0):
+        return _acquire_locked(service_name, container, dry_run)
+
+
+def _acquire_locked(service_name: str, container: str, dry_run: bool) -> dict:
     registry = _read_registry()
     if service_name in registry:
         idx = registry[service_name]

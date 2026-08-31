@@ -116,3 +116,36 @@ def test_cli_stays_green_without_failures():
     result = _invoke_apply(_completed_ctx([]))
     assert result.exit_code == 0
     assert "✅ Deployment complete" in result.output
+
+
+def _invoke_refresh(ctx: DeploymentContext):
+    from fabrik import cli as fabrik_cli
+
+    orch = MagicMock()
+    orch.refresh_infrastructure.return_value = ctx
+    runner = CliRunner()
+    with (
+        patch("fabrik.orchestrator.DeploymentOrchestrator", return_value=orch),
+        patch.object(fabrik_cli, "_post_deploy_sync"),
+    ):
+        return runner.invoke(
+            fabrik_cli.cli,
+            ["redeploy", "--refresh-infra", "--spec", "specs/services/tryton-crm.yaml"],
+        )
+
+
+def test_refresh_infra_exits_2_on_failed_registrar():
+    # The refresh path is exactly how failed registrars get RE-RUN — a green
+    # banner here would re-swallow the very failure being retried (found by
+    # the review of the apply-path fix; same contract, second exit).
+    ctx = _completed_ctx(["redis: boom"])
+    result = _invoke_refresh(ctx)
+    assert result.exit_code == 2
+    assert "redis: boom" in result.output
+    assert "✅ Infrastructure refreshed" not in result.output
+
+
+def test_refresh_infra_green_without_failures():
+    result = _invoke_refresh(_completed_ctx([]))
+    assert result.exit_code == 0
+    assert "✅ Infrastructure refreshed" in result.output

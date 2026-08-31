@@ -1279,6 +1279,18 @@ def redeploy(
                 click.echo("   (dry-run — no changes will be applied)")
             orch = DeploymentOrchestrator()
             ctx = orch.refresh_infrastructure(spec_path=spec, dry_run=dry_run)
+            if ctx.registrar_failures:
+                # Same contract as `apply` (01M1CKEK): a required step that
+                # did not happen must not exit green — and this refresh path
+                # is exactly how failed registrars get re-run.
+                click.echo(
+                    f"⚠️  Refresh finished but {len(ctx.registrar_failures)} "
+                    f"registrar(s) FAILED:"
+                )
+                for failure in ctx.registrar_failures:
+                    click.echo(f"   ✗ {failure}")
+                _post_deploy_sync()
+                raise SystemExit(2)
             click.echo(f"✅ Infrastructure refreshed for {ctx.spec.get('name')} ({ctx.app_name})")
             if ctx.created_resources:
                 click.echo(f"   Tracked resources: {len(ctx.created_resources)}")
