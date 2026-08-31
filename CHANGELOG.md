@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — assemble_commands render() no longer mutates live ~/.claude/agents on inspection renders (2026-08-31)
+
+- `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
+
 ### Changed — manifesto pass T02: /design-review (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 N/A. One fix the scoped verifier caught after an initial all-CONFORM stamp: the OBJECTIVE's "report and nothing else" now binds the dispatched agent's return value, not the parent command's closing response (which still owes RUN:/FEEDBACK/completion-footer). Two enforcement candidates parked (command_run done-round-check → after T22; render live-agents default → promoted, fixed separately).

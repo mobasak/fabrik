@@ -706,7 +706,14 @@ def _emit_agents(dest: Path, frags: dict[str, str]) -> None:
 def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None = None):
     dest.mkdir(parents=True, exist_ok=True)
     frags = {p.stem: p.read_text().rstrip("\n") for p in FRAG.glob("*.md")}
-    _emit_agents(agents_dest if agents_dest is not None else AGENTS, frags)
+    if agents_dest is None:
+        # Follow dest: only a render aimed at the LIVE commands dir may touch the LIVE agents
+        # dir. An inspection render (`--dest /tmp/x`, or a bare `render(tmpdir)` import call)
+        # used to silently overwrite ~/.claude/agents — measured live TWICE by review finders
+        # on 2026-08-31 (STRATEGIC_BACKLOG promotion trigger), which is why this derives
+        # instead of defaulting.
+        agents_dest = AGENTS if dest == OUT else dest / "_agents"
+    _emit_agents(agents_dest, frags)
     errs = []
     emitted: list[tuple[str, str]] = []
     for s in sorted(SRC.glob("*.md")):
@@ -799,7 +806,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     print(
         f"rendered {n} commands -> {dest}"
         + (f" + {n} skills -> {skills_dest}" if skills_dest else "")
-        + f" + {n_agents} agents -> {agents_dest if agents_dest is not None else AGENTS}"
+        + f" + {n_agents} agents -> {agents_dest}"
     )
 
 def check():

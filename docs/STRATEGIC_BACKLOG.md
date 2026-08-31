@@ -234,6 +234,9 @@ was no pre-call snapshot to prove it). Fix direction: `render()` requires an exp
 or `_emit_agents` refuses/warns when overwriting a file its own `agent_drift` check would call
 HAND-EDITED. Out of plan-1's File Scope (the renderer is not a source/fragment); parked per the
 rollout law — the trigger for promotion is a second live mutation.
+**PROMOTED + FIXED 2026-08-31:** the second live mutation was measured the same day (T02's verifier's
+`--dest` probe); `render()` now derives `agents_dest` from dest (live AGENTS only when dest == OUT,
+else `dest/_agents`), red-first proven with 2 regression tests (tests/test_assemble_agents_dest.py).
 
 ## [infra] command_run.py `done` never reads round content — the found:0/new:0 conventions are honour-bound at close (found by T02's verifier, 2026-08-31)
 
