@@ -24,15 +24,18 @@ violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS pr
 ## ⚠️ Termination contract
 
 You are done when EVERY checklist item below (DNS, health/readiness, registrar obligations, Gatus, logs,
-smoke) carries a verdict — **PASS (with evidence: a command's real output, this run) or FAIL (with
-evidence + a named route)** — and the verdict table has been printed. A checklist item without a
+smoke) is TERMINAL — one of exactly FOUR tokens: **PASS (with evidence: a command's real output, this
+run) · FAIL (with evidence + a named route) · INCONCLUSIVE (the probe cannot discriminate — the
+re-probe instruction is the route) · NOT-RUN (<the cause> — the early-stop and store-guard branches'
+honest token, never silence)** — and the verdict table has been printed. A checklist item without a
 fresh-this-run command output is not a verdict, it is a guess. You never perform a fix, redeploy, or
 registrar mutation yourself: a FAIL's route is always one of `/fabrik-review` (a code-side defect), a
 rollback note (name the prior known-good SHA, do not roll back), or a registrar re-apply **ask** to the
 operator (`fabrik apply` reruns registrars; you name that, you never run it) — routes are asks, never
 actions. **Context is never a reason to stop:** the harness auto-compacts and the run continues. If >3
 items FAIL on the same root cause (e.g. the whole VPS is unreachable), stop early and report that cause
-rather than exhausting the checklist against a dead host.
+rather than exhausting the checklist against a dead host — every unreached item then carries
+`NOT-RUN (<the shared root cause>)` in the verdict table, so the early stop stays fillable and honest.
 
 ## Phase 0 — Resolve the target
 
@@ -45,7 +48,9 @@ rather than exhausting the checklist against a dead host.
    submitted artifact came from a pushed SHA), the store-side review/rollout state in the vendor
    console, and the first-ring crash/ANR signal — none of which this command probes, and none of
    which a `dig` against a domain can answer. That hand-back is a clean terminal ending, not a
-   `BLOCKED:`. ⚠️ The pipeline docs currently route store surfaces here post-submit; until a store
+   `BLOCKED:` — and it emits its OWN two-line closing form instead of the Output block (whose
+   domain/target fields do not exist on this path): `DEPLOY-VERIFY: <project> — STORE SURFACE, handed
+   back` + `NEEDS: <the three store verifications named above>`. ⚠️ The pipeline docs currently route store surfaces here post-submit; until a store
    analogue exists that routing is aspirational, and this guard is what keeps it honest at the point
    of use rather than discovering it mid-run (backlog: *Store-terminal adjudication*, blocked on the
    first real store release to ground what the analogue must probe).
@@ -175,8 +180,9 @@ closest exercisable-row concept it defines, per `templates/scaffold/docs/FEATURE
 Exercise each against the LIVE service **only if it is read-only** — a GET, a
 read query, a status check. **Never execute a mutating row against the live service** — if the top 3
 include one, name it, state what it would need (a scoped-safe payload + the operator's explicit go), and
-substitute the next read-only row instead. Each exercised row is **PASS** (the response matches what
-the FEATURES row promises) or **FAIL** (with the exact request/response), routed to `/fabrik-review` for a
+substitute the next read-only row instead. Each exercised row is **PASS** (the response CONTAINS the row's promised observable — quote BOTH the
+promise and the matching response fragment in the verdict; a match with nothing quotable is
+INCONCLUSIVE, never PASS) or **FAIL** (with the exact request/response), routed to `/fabrik-review` for a
 response-truth defect or to `/fabrik-features` if the row itself is stale against what the service now
 does.
 
@@ -185,11 +191,11 @@ does.
 ```
 DEPLOY-VERIFY: <project> @ <domain> (target_vps: <vps1|vps2|vps3>)
 DNS: PASS | FAIL (siblings resolved, target didn't) | inconclusive (re-probe — siblings also failed) | discriminator void (sibling NXDOMAIN)
-HEALTH/READYZ: PASS | FAIL — <evidence>
-REGISTRARS: <n> obligated, <n> PASS, <n> FAIL, <n> not-project-verifiable (informational)
-GATUS: PASS | FAIL | missing
-LOGS: PASS (clean window) | FAIL — <signature>
-SMOKE: <n>/3 rows PASS
+HEALTH/READYZ: PASS | FAIL — <evidence> | NOT-RUN (<cause>)
+REGISTRARS: <n> obligated, <n> PASS, <n> FAIL, <n> not-project-verifiable (informational), <n> NOT-RUN
+GATUS: PASS | FAIL | missing | NOT-RUN (<cause>)
+LOGS: PASS (clean window) | FAIL — <signature> | NOT-RUN (<cause>)
+SMOKE: <n>/3 rows PASS | NOT-RUN (<cause>)
 VERDICT: DEPLOY CONFIRMED LIVE | DEPLOY VERIFICATION FAILED — <n> FAIL routed below
 ROUTES: <one line per FAIL: item — route — what the operator/route must do> | none
 ```

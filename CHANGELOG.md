@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
 
+### Changed — manifesto pass T10: /fabrik-deploy-verify (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED — the binary PASS/FAIL vocabulary made the early-stop, inconclusive-DNS and store-guard endings literally unfillable against the Output block. Now four terminal tokens (PASS/FAIL/INCONCLUSIVE/NOT-RUN with cause), the store hand-back gets its own two-line form, and Phase 6's smoke PASS must quote both the promise and the response fragment (else INCONCLUSIVE).
+
 ### Changed — manifesto pass T09: /fabrik-deploy-plan-review (+T07 mirror fixup) (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED-twice. The CONVERGED flip mints its docs/DECISIONS.md row — and the verifier proved instruction-without-recipe strands the row (no gate watches DECISIONS.md), so the staging/commit steps now name it in BOTH triad files (fabrik-deploy.md's identical gap fixed via the sanctioned D4 back-flip). Flip-backs explicitly scoped as incident records, not decisions. Closes T07's seeded finding.
