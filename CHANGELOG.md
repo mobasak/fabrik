@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T29: /fabrik-ui-design (2026-08-31)
+
+- 63b verdict: 3 CONFORM, 3 FIXED, +1 mint. The UI freeze mints its ledger row (T05/T15 law mirrored); the freeze law names the in-review re-freeze as its sanctioned exception (the T16 gap, reproduced verbatim on this surface); the secrets carve-out lands on the design-time pool fan-out (a component file can carry an inline key — the T21 class, FOURTH occurrence); D-051 records the unminted 2026-08-29 design-system LADDER ruling (commit-body + rule-pack provenance). Verifier 29-for-29.
+
 ### Changed — manifesto pass T28: /fabrik-spec-review (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED — three mints land: the CONVERGED flip (T19 class), the T18-ROUTED APPROVAL MINT ("the approving turn's session mints … /fabrik-plan-after-chat's spec-fed skip cites exactly this row" — closing the route opened at T18), and the verifier-caught IMPLEMENTED flip (verbatim "built X at Y"). The spec-pipeline decision chain is now complete: authoring-session rulings (T27) → flip rows (here) → approval row (here). Verifier 28-for-28 — incl. two citations of nonexistent lines in the sections I claimed close reading of.

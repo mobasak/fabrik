@@ -129,7 +129,10 @@ Repeat until one demonstrably-thorough pass makes **zero edits**. Each pass chec
 
 ## Phase 7 — Freeze + hand off
 
-- Set the header: **`Status: FROZEN` · `Version: v<N>` · `Date: <YYYY-MM-DD>` · `Surface: …` · `Design system: <adopted/created>`**. Add the freeze rule verbatim: *"Frozen — no agent adds a screen, flow, component, or field not listed here. Any change = bump Version + re-freeze via `/fabrik-ui-design`."*
+- Set the header: **`Status: FROZEN` · `Version: v<N>` · `Date: <YYYY-MM-DD>` · `Surface: …` · `Design system: <adopted/created>`**. Add the freeze rule verbatim: *"Frozen — no agent adds a screen, flow, component, or field not listed here. Any change = bump Version + re-freeze via `/fabrik-ui-design` (or `/fabrik-ui-design-review`'s in-review re-freeze, its sanctioned exception) — never edit in place."*
+  **The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row, classified
+  at mint (normally reversible-by-re-freeze, plain row), STAGED with the artifact in the same commit**
+  (CLAUDE.md § the decision ledger — the /fabrik-flows and /fabrik-data-contract law, mirrored).
 - **Seed the build-verification gate into the project (this is where the per-project CODE deps wire — so non-GUI
   projects never carry them).** The global *agent* tooling (Playwright + shadcn MCP, the `frontend-design`
   skill, the `/design-review` command) is already fleet-wide, user-level, and needs nothing here. Seed
@@ -228,7 +231,11 @@ Two subagent regimes — keep them distinct:
   **UNSCORED** → after you reconcile, **back-fill your verdict** with `set_quality(r.agent_id, score,
   project="ui-design", task_type="docs", model=r.model)` (a `fanout` row left unscored teaches the flywheel
   nothing; ⚠️ never hand-roll `run_agents`+`record_run` — it no-ops). Guard the import
-  (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). The **UX judgment** —
+  (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). **Secrets carve-out
+  (the repo-review/rules-review/service-test class): a route/component file can carry an inline key
+  (a Stripe publishable, a Maps key, a forgotten test token) — never inline secret-material content
+  into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted
+  first.** The **UX judgment** —
   flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays **yours (Opus)**, never a pool worker.
 - **Build-time (the Build Verification Loop — NATIVE, no pool).** Driving a running screen needs the browser
   MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have **no pool equivalent** — so
