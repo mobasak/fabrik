@@ -434,3 +434,23 @@ probed exact, _ledger_shapes fallback traced, gitignore root-anchor verified). 9
 MACHINERY (the finder's, on my own brief): the round-7 dispatch brief itself cited
 assemble_commands.py:713 for a fix that lives at :716 — the same line-anchor class as finding 1,
 in the reviewing machinery's own prompt. Recorded as the class's persistence proof.
+
+## Rounds 7-8 — same-ledger re-sweeps (native Opus, non-author; the first round-8 dispatch DIED on
+an API stall having swept nothing — recorded dispatched: 1, returned: 0, re-dispatched)
+
+Round 7 (state acc3f82a): 9 findings, all FIXED — stale sibling line anchors (2 files), hub-absolute
+seed paths, release --no-push widened to untracked branches, the generate-tests dangling antecedent,
+deploy-verify's store-surface Termination exception, cert-handoff's overstated gate-parsed claim
+(DESIGN-GAP has NO parser — 1 comment hit fleet-wide), the co-render falsifiable sentence, three
+commit-less mint clauses, deploy-plan's missing fallback probe. Round-6 fixes: 12/12 HOLD.
+
+Round 8 (state 0f1137c8): found: 3 · new: 3 (+2 low) — plan-after-chat:574 kept stale misattributed
+anchors 4 lines below the ban (deleted); term-coverage's "no pick to make" REFUTED by executing
+_grade on a synthetic cert report (a cert report with a Coverage Checklist is ALSO graded by
+check_file → rows must be `Pass k` + found:/fixed: pair; fleet's two real cert reports already merge
+the grammars — the fragment now states the mechanical truth); generate-tests' tautology-wearing-a-
+prohibition (deleted, sanctioned inline path restored); repo-review added to the non-diff Surface
+enumeration (clean-tree `git diff HEAD` md5 anchors nothing); plan-review's doubled staging clause
+deduped. Round-7 fixes: 12/14 HOLD, 2 defective→fixed here. Cited re-raises: deploy-plan's
+no-verdict fallback (fail-closed by construction, disposition holds); `.envrc` outside never-route
+(documented property).

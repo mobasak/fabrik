@@ -79,10 +79,9 @@ Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add 
 also the secrets boundary: a worktree carries only tracked files, so an UNCOMMITTED `.env`/key never
 reaches a pool author — but committed HEAD is exactly where a LEAKED secret lives, and a write-mode
 pool author READS it off disk with no inlining needed (the carve-out binds BOTH modes; a repo with a
-committed key gets NATIVE authors). Never inline secret material into a task text either — and code
-that is neither committed nor inlined never reaches a
-pool author UNLESS you inline it into a task text — never do that (the corpus-wide secrets carve-out
-family; a behavior that needs a live credential is authored NATIVE instead). So the code the
+committed key gets NATIVE authors). Never inline SECRET material into a task text (the corpus-wide
+carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret
+code MAY be inlined, that is the sanctioned read_only path. So the code the
 tests target MUST be committed (or fully inlined into the author task). Commit it now if it isn't — **explicit
 pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree** (mid-pipeline is
 exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code.

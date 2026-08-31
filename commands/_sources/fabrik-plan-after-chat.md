@@ -571,7 +571,9 @@ NOW, not at gate time** (cost a builder 2 gate rounds ≈ 12 min to discover by 
 drift); job-agent burned 4 round-trips on the same wall 2026-08-28): a
 MONOLITH plan flipping CONVERGED must ALSO carry **`## Coverage Checklist`** (rubric-derived rows
 plus the four standing recurrence classes) **with an embedded `review_rubric.py` invocation**
-(fenced) — `_checklist_section` at `:369` and `RUBRIC_RUN` at `:385` enforce both mechanically.
+(fenced) — `_checklist_section` and `RUBRIC_RUN` enforce both mechanically (both live in
+`check_review_coverage.py` and are imported by `check_convergence.py`'s flip gate — grep the
+symbols, never a line anchor).
 `/fabrik-plan-review` asserts the same two before its flip.
 
 Append, so the downstream converge/execute commands have what they need:
