@@ -36,3 +36,10 @@ Outcome: 1 FIX + 1 ROUTED — seventh consecutive falsified stamp: (b) rested on
 | A5 | armed-tripwires binding unadjudicated | FIXED — stated as DELEGATED to the plan-review's watching-surface class (its :137) |
 | A6 | battery-red escape hatch hunt | CLEAN — none found (3 exit branches checked) |
 | A7 | unbounded-wait hunt | CLEAN — none found (4 wait sites, all bounded with named escapes) |
+
+## Fixup round (T09's verifier, sanctioned ✅→🔵→✅ back-flip)
+
+T09's verifier found the SAME instruction-vs-recipe mirror gap here: Phase 5 step 3 minted the row
+but step 4's explicit-pathspec commit enumeration never named `docs/DECISIONS.md` — the row would be
+left unstaged by a literal reader. Step 4 now names it. Producer-originated defect, fixed under the
+D4 back-flip in T09's merge commit (`Agent-Task: T09`, this note is the T07-side record).

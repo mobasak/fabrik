@@ -316,8 +316,8 @@ print; proceed to Phase 5 directly.
    `Whole-plan review: docs/development/reviews/<plan-stem>-review.md` (`check_convergence.py` refuses
    an `EXECUTED` plan without that stem-matched, quiet-pass citation), and archive
    (`git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`).
-4. **Commit the flip + archive — plus the recovered artifact when step 2's recovery ran — together
-   (ONE commit; explicit pathspecs covering BOTH halves of the `git mv`** — committing the destination
+4. **Commit the flip + archive + the step-3 `docs/DECISIONS.md` row — plus the recovered artifact when step 2's recovery ran — together
+   (ONE commit; explicit pathspecs covering the ledger row AND BOTH halves of the `git mv`** — committing the destination
    alone leaves the pre-flip plan alive at the old path, a proven double-deploy vector — **with the
    provenance trailers) and PUSH** — an uncommitted flip is an unfinished task, and an unpushed one can
    be silently reverted by the next pre-commit stash cycle, losing the record that the deploy ran.

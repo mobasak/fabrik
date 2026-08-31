@@ -174,7 +174,10 @@ Only after the md5-verified no-op round:
 
 1. Write the literal `Status: CONVERGED` (arrows describe transitions; the FILE carries only the
    target literal — an arrow form is invisible to every gate regex). The flip is the LAST content act — a plan edited after its flip is
-   `DRAFT` again in fact, whatever the header says; re-run the loop.
+   `DRAFT` again in fact, whatever the header says; re-run the loop. **The flip is a Status flip — mint
+   its `docs/DECISIONS.md` row in the SAME flip commit** (the ledger duty's trigger by name: which
+   deploy plan converged, for which service/target, after how many rounds; classified at mint —
+   normally reversible, a plan re-opens by flip-back; the flip-BACKS themselves are incident/evidence records carried by the plan's own ⛔ ledger and immediate commits — not decisions, no row).
 2. **Persist the review** to `docs/development/reviews/<plan-stem>-review.md` (same stem as the plan
    file). This is an EDIT-CONVERGENCE review artifact — `check_convergence.py`'s review branch covers it
    (`check_review_coverage.py`'s own contract excludes edit-convergence artifacts, and the artifact must
@@ -198,14 +201,14 @@ Only after the md5-verified no-op round:
      step-3 pre-artifact run — see the sequence below);
    - the `## BLOCKED` section (`none` when quiet).
 3. **Two gate runs break the bootstrap circularity — the anatomy is proven, not asserted:**
-   (a) stage the flipped PLAN only; (b) run `python scripts/final_gate.py --check --json` → fix until
+   (a) stage the flipped PLAN + its `docs/DECISIONS.md` flip row (step 1's mint — staged together or the SAME-commit contract silently breaks); (b) run `python scripts/final_gate.py --check --json` → fix until
    `"status": "success"` and capture the fenced output (the artifact is still untracked, so the review
    gates don't demand an embed that doesn't exist yet; fixes at this step are to staging/format issues
    OUTSIDE the plan body — a fix that must touch the PLAN means the flip was premature: the loop
    re-opens and the flip is redone after); (c) write the artifact WITH that fence embedded; (d) stage
    the artifact; (e) re-run the gate → `"status": "success"` now proves the artifact itself passes its
    review branch — print this run in your session output (the artifact's embedded fence is (b)'s run);
-   (f) **commit both and PUSH** (ONE commit, explicit pathspecs, Agent
+   (f) **commit all three — plan, artifact, ledger row — and PUSH** (ONE commit, explicit pathspecs, Agent
    Provenance Trailers + `Agent-Context: deploy-plan-review <plan-stem>` — the marker `/fabrik-deploy`'s
    post-flip-edit gate exempts; use it on EVERY status commit this command makes: the CONVERGED flip,
    the inputs-changed flip-back, and the ⛔ re-entry flips). An uncommitted flip is what the next
