@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T34: the whole-plan integration receipt (2026-08-31)
+
+- The pass is COMPLETE: 32/32 command sources + 21 fragments evaluated against 63b, 33 verifier rounds falsified 33 initial stamps, three ledger rulings minted (D-048/D-050/D-051), the decision-mint law wired end-to-end through the pipeline. The whole-plan cumulative-diff review found the two cross-ticket termination bugs only the aggregate exposes — design-review and execute-plan D7 still counted re-raises — fixed via the D4 sanctioned back-flip in this commit. Receipt: docs/development/reviews/2026-08-31-plan-1-manifesto-command-pass-review.md (Coverage Checklist + Pass Ledger found:0·fixed:0 + gate 54/0 + 6 routed observations); 34 INDEX.md rows added.
+
 ### Changed — manifesto pass T33: /fabrik-workflow-review (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 1 FIXED, 1 N/A — the final command ticket. The artifact-vs-stale-lock disposition fork lands (a finding proving the artifact right and the decisions LOCK stale routes to 09-revise-requirements, the propagation owner — never fix the artifact into agreeing with a stale lock). The 5×-fixed secrets carve-out class earns its first genuine REFUTATION: workflow artifacts are value-free planning documents by their doers' own contracts (04:112, 06:97) — the free pass is argued, not lucky. Verifier 33-for-33.

@@ -110,7 +110,7 @@ Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | T31 | /fabrik-upstream — 63b manifesto conformance + fixes + per-command review | T30 | ⛓️ | ✅ | (this commit) |
 | T32 | /fabrik-user-test — 63b manifesto conformance + fixes + per-command review | T31 | ⛓️ | ✅ | (this commit) |
 | T33 | /fabrik-workflow-review — 63b manifesto conformance + fixes + per-command review | T32 | ⛓️ | ✅ | (this commit) |
-| T34 | Integration — whole-plan receipt, gates, docs convergence | T33 | ⛓️ | ⬜ | |
+| T34 | Integration — whole-plan receipt, gates, docs convergence | T33 | ⛓️ | ✅ | (this commit) |
 
 ## Merge Order
 

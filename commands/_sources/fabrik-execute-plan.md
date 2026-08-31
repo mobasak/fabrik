@@ -551,7 +551,9 @@ flight, all salvage procedures complete). ONE whole-plan validation — internal
 spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a full run of **every ticket's
 Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 pool
 finders + the native authoritative seat (**Fable substitutes for Opus here**), adding ~1 pool finder per
-2 tickets; NO round cap; closes only on `found: 0, fixed: 0`. A flaky test is itself a finding (fix or
+2 tickets; NO round cap; closes only on `found: 0, fixed: 0` **(re-raises of already-adjudicated
+standing rows are CITED, never counted — D-048; counting them makes this terminal gate unreachable
+whenever a standing accepted-risk row stays true)**. A flaky test is itself a finding (fix or
 quarantine-with-recorded-ruling — never an excuse to loop). Validation findings are FIXED by fresh
 coders/units bound to the owning ticket's Touches through the per-ticket review loop (cross-cutting
 findings split along Touches); a producer-originated defect surfacing here (or at the Integration seam
