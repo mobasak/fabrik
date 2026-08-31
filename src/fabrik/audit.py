@@ -307,17 +307,23 @@ def audit_backrest(spec: Any) -> AuditResult:
     except json.JSONDecodeError as e:
         return AuditResult(status="unknown", detail=f"config.json invalid: {e}")
     plans = {p.get("id"): p for p in cfg.get("plans", [])}
-    if sid in plans:
-        return AuditResult(
-            status="present",
-            detail=f"backrest plan {sid} exists",
-            expected={"plan_id": sid},
-            actual={"paths": plans[sid].get("paths", [])},
-        )
+    # The registrar creates `f"{name}-data"` (infrastructure.py:773) — never a bare
+    # `sid`. Matching `sid` alone could therefore NEVER hit, so this audit reported
+    # `missing` for every service that in fact had a plan (live 2026-08-31: zitadel
+    # reported "no backrest plan" while `zitadel-data` existed). Check the registrar's
+    # real id first; keep the bare `sid` as a fallback for hand-made plans.
+    for candidate in (f"{sid}-data", sid):
+        if candidate in plans:
+            return AuditResult(
+                status="present",
+                detail=f"backrest plan {candidate} exists",
+                expected={"plan_id": candidate},
+                actual={"paths": plans[candidate].get("paths", [])},
+            )
     return AuditResult(
         status="missing",
         detail=f"no backrest plan for {sid}",
-        expected={"plan_id": sid},
+        expected={"plan_id": f"{sid}-data"},
         actual={"plan_ids": sorted(plans)},
     )
 

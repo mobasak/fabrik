@@ -190,6 +190,20 @@ class TestAuditBackrest:
         assert r.status == "present"
         assert r.actual["paths"] == ["/data"]
 
+    def test_present_for_the_id_the_registrar_actually_creates(self):
+        """`_provision_backrest` writes `f"{name}-data"` (infrastructure.py:773).
+
+        Matching only a bare `sid` made `missing` structurally unreachable-to-avoid:
+        every service with a real plan audited as MISSING (zitadel, live 2026-08-31).
+        """
+        spec = _spec_dict(shape={"has_persistent_data": True})
+        config = '{"plans": [{"id": "test-svc-data", "paths": ["/opt/test-svc/data"]}]}'
+        with patch.object(audit, "_ssh_check", return_value=(True, config)):
+            r = audit_backrest(spec)
+        assert r.status == "present"
+        assert r.expected["plan_id"] == "test-svc-data"
+        assert r.actual["paths"] == ["/opt/test-svc/data"]
+
     def test_missing_when_no_plan(self):
         spec = _spec_dict(shape={"has_persistent_data": True})
         config = '{"plans": [{"id": "other"}]}'
