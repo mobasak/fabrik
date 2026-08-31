@@ -610,8 +610,20 @@ and the result returned to the caller as a PDF. Blast radius of arming auth is *
 consumers**: no compose or env on the box references it (only its own), no hardcoded URLs in any
 project code, and one internal request in 30 days which was mine.
 
-**FIX PREPARED BUT NOT APPLIED — blocked by the permission classifier, which correctly refused a remote
-privileged in-place edit of a production service config.** `/opt/gotenberg/compose.yaml` was backed up
+**✅ FIXED AND VERIFIED 2026-08-31 — the operator applied it, and it is proven live from both sides.**
+`command: ["gotenberg", "--api-enable-basic-auth"]` added to `/opt/gotenberg/compose.yaml` and the
+container recreated (running `Cmd=[gotenberg --api-enable-basic-auth]`). Independently confirmed:
+
+```
+unauthenticated POST /forms/chromium/convert/html -> 401   (was 200)
+authenticated   POST /forms/chromium/convert/html -> 200   (legitimate use intact)
+GET /health                                        -> 200   (monitoring unaffected)
+access-log status codes since restart              -> {401: 2, 200: 2}
+```
+
+The 2449-per-month unauthenticated public conversion path is closed, and the SSRF vector with it.
+(Original note, kept for the record:) the fix was prepared but not applied by me — the permission
+classifier correctly refused a remote privileged in-place edit of a production service config. `/opt/gotenberg/compose.yaml` was backed up
 (`compose.yaml.backup.20260831-070710`). The container's entrypoint is `[/usr/bin/tini --]` with image
 CMD `[gotenberg]`, and auth is armed only by the CLI flag, so the one-line fix is to add
 `command: ["gotenberg", "--api-enable-basic-auth"]` and recreate. Operator action required.
