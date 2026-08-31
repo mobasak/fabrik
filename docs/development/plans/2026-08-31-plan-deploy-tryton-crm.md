@@ -727,6 +727,34 @@ filled the gap. Filed to infra as `01M1AYTV7F3PRS0R3914EC4CKX` with the concrete
 step in /fabrik-deploy-plan Phase 3 and the review's class list — *an OPERATOR-GATE naming a credential
 requires proof of fleet absence first*.
 
+**FULL INVESTIGATION (2026-08-31, operator-directed) — the root cause is NOT the missing cold-start
+class. Both steps were in the plan I superseded.** `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md`
+carries them at exact lines, with commands and verification clauses:
+
+```
+:284   6. **S6 — Tryton module init (the window's sensitive step; expected 8-10 min, cap 90).**
+          ssh vps "sudo docker exec -e TRYTON_DB=tryton trytond /opt/crm-init/10-init-modules.sh"
+:313   9. **S9 — create the RPC service user (B1 — the dev-port trap).**
+          ssh vps "sudo docker exec -e TRYTOND_TEST_HOST=localhost:8000 trytond python3 /opt/crm-init/create_rpc_service_user.py"
+```
+
+I opened that file, read its header, and marked it `Status: SUPERSEDED` myself. **STALENESS-AXIS
+COLLAPSE:** a deploy runbook has two independent axes — WHAT ships (version-sensitive: 295 commits,
+genuinely stale) and HOW it is brought up (the initialisation procedure, version-INSENSITIVE and still
+exactly correct). I measured axis 1 rigorously and generalised "stale" across both, discarding a valid
+procedure because its payload had moved. I even instructed myself into it: my own arguments said "treat
+every one of its claims as STALE-until-re-proven", after which I re-proved its SPEC ANNOTATIONS and never
+its RUNBOOK. I mined the predecessor for hazards and not for steps.
+
+The class propagated the same way: the triad's own class list was distilled from
+`docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md` (cited at
+`fabrik-deploy-plan:11-13`), whose checklist reads "autoheal x init interaction | FIXED | worst-case
+time-to-unhealthy ~190s vs 8-10 min init" and "B2 restart-after-init added". The init was known, timed,
+and had a fleet-wide autoheal-pause built around it — but the distillation kept the HAZARDS and dropped
+the STEPS, because a human was running them and "who invokes this" was never a finding. Filed as
+`01M1BKSYW3WPTS8C6MQGTF674N` asking for a SUPERSEDE CONTRACT (step-level diff: every predecessor step
+carried forward or explicitly retired) plus a `step-continuity` review class.
+
 **WHY THE FIRST THREE PASSES WERE SHALLOW — the operator's question, answered structurally rather than
 apologetically (2026-08-31).** Passes 1-3 were not lazy; they were *thorough about the wrong axis*. They
 audited the deploy as a CONFIGURATION problem and did it well: every `shape:` flag re-verified, every
