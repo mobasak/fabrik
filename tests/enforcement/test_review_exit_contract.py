@@ -197,12 +197,16 @@ def test_d053_amendment_anchors_on_the_method_cell_not_prose():
     te = (frag / "term-edit.md").read_text(encoding="utf-8")
     tc = (frag / "term-coverage.md").read_text(encoding="utf-8")
     te_row = next(
-        (ln for ln in te.splitlines() if "re-derivation** |" in ln and ln.startswith("| Pass")), None
+        (ln for ln in te.splitlines()
+         if "method:" in ln and "re-deriv" in ln and ln.startswith("| Pass")), None
     )
     assert te_row is not None, "term-edit's shipped example re-derivation row not found"
     assert crc._REDERIVATION_ROW.search(te_row), te_row
+    import re as _re
+
     tc_row = next(
-        (ln for ln in tc.splitlines() if "method: citation|re-derivation|gate" in ln), None
+        (s for s in _re.findall(r"`([^`\n]*)`", tc) if "method: citation|re-derivation|gate" in s),
+        None,
     )
     assert tc_row is not None, "term-coverage's canonical row template not found"
     literal = tc_row.replace("citation|re-derivation|gate", "re-derivation")
