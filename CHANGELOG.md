@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — command-evaluation checklist gains the manifesto surface (2026-08-31)
+
+- docs/reference/command-evaluation-checklist.md: 23 → **24 surfaces** (operating-manifesto.md joins the Governance row) + item **63b** — every command audited for manifesto conformance (checkable gates, ledger routing with the one-way field block, rigor-scales-with-irreversibility, labeled evidence, captured disorder, most-reversible default). Operator directive for the commands/skills manifesto pass.
+
 ### Fixed — Stop-hook BLOCKED-exemption regex + decision-ledger integrity checks (2026-08-30)
 
 - `.claude/hooks/final_gate_stop.py` — the whole-message BLOCKED-escalation exemption matched lowercase prose (`pre-blocked:` in a CHANGELOG bullet armed it, verified live); now case-sensitive `\bBLOCKED:` — the sanctioned uppercase header is the discriminator, and a ticket-id-glued uppercase header still exempts. Red-first tests both directions. (The uppercase escalation-header example lives only in the hook comment and its tests — kept out of this entry so an echo cannot arm the exemption; the lowercase `pre-blocked:` above is inert against the case-sensitive regex.)

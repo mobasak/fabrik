@@ -33,7 +33,7 @@ Some obligations live in neither: the 6-line FINAL OUTPUT block and the STATE fo
 **CLAUDE.md globally**, to every response from every command. Only 2 of 31 sources mention them, and
 that is correct — do not raise 29 findings for a contract no command is supposed to restate.
 
-## The 23 surfaces an audit of one command touches
+## The 24 surfaces an audit of one command touches
 
 An audit that reads only `commands/_sources/<cmd>.md` will pass a command whose companions have all
 rotted — or whose paired twin never asserts what it states. The surfaces, grouped by the question they answer:
@@ -44,7 +44,7 @@ rotted — or whose paired twin never asserts what it states. The surfaces, grou
 | Wiring | `assemble_commands.py` (NEXT map + PARAMS) · `~/.claude/commands` · `~/.claude/skills` · `.claude/hooks/skill_router.py` | Successor named, rendered==installed, can it fire? |
 | Grader | `scripts/enforcement/**` · `scripts/final_gate.py` | Is any of the contract executable? |
 | Fleet | `scripts/fabrik_synced_manifest.py` · `src/fabrik/scaffold.py` · `.pre-commit-config.yaml` | Works in a project? In a NEW project? Blast radius known? |
-| Governance | hub `CLAUDE.md` · `templates/governance/CLAUDE.md` · `agents-fabrik.md` | In the pipeline chain AND the Orient table — in BOTH? |
+| Governance | hub `CLAUDE.md` · `templates/governance/CLAUDE.md` · `agents-fabrik.md` · `docs/reference/operating-manifesto.md` | In the pipeline chain AND the Orient table — in BOTH? And do the command's phases/gates conform to the manifesto's phase gates (D-043/D-044)? |
 | Rules | `.windsurf/rules/**` | Does it contradict a pack, or need one it never names? |
 | Docs | `docs/reference/<subsystem>.md` · `INDEX.md` · `docs/README.md` · `docs/FEATURES.md` · `CHANGELOG.md` | Do the companions still describe what shipped? |
 | Neighbours | `docs/orchestrator/**` | Do the Traycer chains still invoke it by a name that exists? |
@@ -158,6 +158,7 @@ Phase 6 delegates correctly and names its two legitimate early stops.
 62. Does it require the Agent Provenance Trailer block as its own paragraph with no blank line inside?
 62b. **[GATED]** Does `Co-Authored-By:` in any commit template it carries match CLAUDE.md's canonical trailer? Six templates once named a retired model.
 63. Do the Traycer chains under `docs/orchestrator/**` still invoke it by a name that exists?
+63b. **Does it conform to the Operating Manifesto** (`docs/reference/operating-manifesto.md`, canonical — ADOPTED D-043, bound into governance D-044)? Map the command onto the manifesto's shape and check the load-bearing intersections, not vocabulary: (a) its termination contract is a **checkable gate**, not a feeling of thoroughness (manifesto preamble); (b) if it makes or receives decisions, it routes them to the ledger and a ONE-WAY decision grows the § Binding field block (`CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT`); (c) its rigor scales with irreversibility (Phase 0) — a reversible surface gets the fast path with a kill criterion, not the full loop; (d) evidence discipline matches Phase 1 (every load-bearing premise **verified or assumption, labeled**; ground before asserting); (e) it captures disorder as data (Phase 5 — findings/lessons/feedback recorded, not narrated); (f) under ambiguity it defaults to the most-reversible option (Invariant 3) rather than stalling or halting. "N/A because X" is valid per item; a command whose loop can never close (no gate, no budget, no default action) is the finding.
 
 ## Docs & Companions
 
@@ -206,7 +207,7 @@ Each was reproduced in this corpus. Hunt them by name.
 
 92. **Cross-repo hard stop misread as banning READS** — the rule governs "create/edit/**commit** files in a repo OTHER than the one you were launched in". `/fabrik-rivals` shipped a two-repo design where a project filed a brief by mail and the operator opened a hub session to run it, turning a one-rival scan into a cross-repo errand. Importing a hub module while writing only into your own tree breaks nothing. → RE-READ the rule's verbs before designing around it.
 
-93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 23 surfaces, not just the source.
+93. **Stale companion** — the command source gets fixed and its reference doc, `INDEX.md` rows, router entry and grader do not move with it. Four of five defects on `/fabrik-rivals` were this class; the reference doc still routed project agents into the two-repo workflow that had already been deleted, which is exactly how an agent got stuck. → After any contract change, walk all 24 surfaces, not just the source.
 
 94. **Reference doc describing a superseded architecture** — the sub-case of 93 that does the most damage, because `INDEX.md` points agents *at* the doc. → Grep the doc for the vocabulary of the removed design ("two modes", "hand-off", the old flag names) after every change.
 
