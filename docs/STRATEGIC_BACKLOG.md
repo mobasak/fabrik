@@ -307,7 +307,9 @@ next registry-drift recurrence.
   value-identical before/after.
 - **Synced per-repo DECISIONS duplicate-id gate check** (01M1CBJWQS — measured 4 collisions/day
   under 3 lanes): ~5-line check in the synced set + WARN when minted id ≤ origin/HEAD max.
-  SEQUENCING: land AFTER the operator sequences web-ecommerce-factory's D-023/024/025 repair.
+  SEQUENCING RULED 2026-08-31 (D-057, mail 01M1CKAVPA → wef2): wef2 repairs all SIX pairs
+  (class grew: +D-031/039/040) in one commit, referenced-side-keeps rule; the check lands
+  WARN-first only AFTER wef2's repair-landed reply arrives. Trigger: that reply.
 - **mcp-config-changed hook precision** (01M1BXBRKM): name WHICH servers changed / suppress when
   the repo-assigned set is unaffected (false-fired on wef3 AND on this session today).
 - **tech-stack guide engine-neutral ecommerce row** (01M19G0HM0 + correction 01M19G66X8): replace
