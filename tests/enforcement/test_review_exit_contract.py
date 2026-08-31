@@ -132,3 +132,32 @@ def test_a_report_written_to_the_fragments_own_spec_passes_check_file(tmp_path):
     p.write_text(stripped, encoding="utf-8")
     errs2 = crc.check_file(p)
     assert any("re-derivation" in e for e in errs2), errs2
+
+
+def test_d053_window_caps_removed_ordering_no_longer_load_bearing(tmp_path):
+    """D-053 re-grounding: the 40-char QUIET_PASS and 160-char _REDERIVATION_ROW windows made
+    cell ORDERING load-bearing — a compliant row with a long finder manifest before the method
+    cell (measured 179-char gap) was reported absent. Same-line is the constraint; the gap is not."""
+    import importlib.util as ilu
+
+    spec2 = ilu.spec_from_file_location(
+        "ccv", REPO / "scripts" / "enforcement" / "check_convergence.py"
+    )
+    assert spec2 and spec2.loader
+    ccv = ilu.module_from_spec(spec2)
+    spec2.loader.exec_module(ccv)
+
+    long_manifest_row = (
+        "| Pass 2 | found: 0 | new: 0 | fixed: 0 | finders: pool-deepseek-v3.2-exp, "
+        "pool-gemini-3-flash-preview, pool-qwen3-max, native-fabrik-reviewer-opus (non-author), "
+        "dispatched: 5, returned: 4, partitions re-covered: 1 | method: re-derivation |"
+    )
+    gap = long_manifest_row.index("re-derivation") - long_manifest_row.index("Pass")
+    assert gap > 160, f"fixture must exceed the old cap to discriminate (gap={gap})"
+    assert ccv._REDERIVATION_ROW.search(long_manifest_row), "179-char gap must match post-D-053"
+    assert crc._REDERIVATION_ROW.search(long_manifest_row), "lockstep twin must agree"
+    wide_quiet_row = (
+        "| Pass 3 | found: 0 | new: 0 | interim-notes: sixty more characters of cell content "
+        "sit between the two counters here | fixed: 0 |"
+    )
+    assert ccv.QUIET_PASS.search(wide_quiet_row), "same-line quiet pair must match at any gap"

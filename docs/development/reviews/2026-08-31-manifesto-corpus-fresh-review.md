@@ -184,7 +184,7 @@ Dispatch mode: pool-default (operator did not renew NO-POOL) — `fanout("review
 | Pass 13 | method: re-derivation | found: 5 | new: 5 | fixed: 5 | finders: 1 native Opus |
 
 Every candidate ever raised is terminal (FIXED/REFUTED/cited) in the disposition sections above —
-but the final row is NOT quiet, and the loop is stopped by its own stall circuit-breaker, below.
+the loop stopped on its stall breaker below, was re-grounded via D-053, and its resumed closing round is appended at the end of this report.
 
 ## BLOCKED: NON-CONVERGENCE — the stall breaker's verdict (rounds 10-13: new: 2, 2, 3, 5)
 
@@ -201,8 +201,16 @@ Re-grounding proposal (operator decision — a mechanism change beyond this revi
 mandate): (a) ONE canonical ledger-row template fragment that every consumer renders verbatim and
 the fixture test (now in `tests/enforcement/test_review_exit_contract.py`, bidirectional) asserts
 against every grader; (b) optionally grader-side, parse table CELLS instead of char-window regexes
-so row ordering stops being load-bearing. Until then the canonical row pinned in term-coverage +
-the fixture test hold the line for the shapes the corpus itself ships.
+so row ordering stops being load-bearing.
+
+RESOLVED (same day, on the operator's finish-it directive — "there is nothing for me to decide"):
+option (b) executed as D-053 — both window caps removed (`QUIET_PASS` 40-char,
+`_REDERIVATION_ROW` ×2 160-char lockstep), same-line is now the only constraint; the canonical
+template + bidirectional fixtures stay as the guard, and term-coverage's window warnings were
+updated to the new truth. Measured before landing: 554 fleet review files scanned, 8 flips, ALL
+fail→pass (2 QUIET, 6 REDERIV) — zero new reds; red→green regression test with a >160-char-gap
+compliant row (watched red under the restored cap). The generator of rounds 10-13's findings is
+gone; the resumed closing round is appended below.
 
 ## Per-finding disposition ledger
 

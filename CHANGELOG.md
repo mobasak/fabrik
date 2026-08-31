@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-053: grader window caps removed; the corpus review's BLOCKED re-grounding executed (2026-08-31)
+
+`QUIET_PASS` (40-char) and both `_REDERIVATION_ROW` twins (160-char) now bind same-line only —
+cell ordering and finder-manifest length stop being load-bearing, closing the fresh corpus review's
+NON-CONVERGENCE (rounds 10-13 were all window mismatches of the dual-specified grammar). Measured:
+554 fleet review files, 8 flips, all fail→pass; red→green test with a >160-char-gap compliant row.
+
 ### Fixed — `_format_env` shipped unparseable `.env` files for every JSON-valued secret (2026-08-31)
 
 - `deployer_ssh.py::_format_env` wrapped quote-containing values in double quotes **without escaping the inner quotes**. A JSON secret contains `"`, so it shipped as `K="{"a":"b"}"` and Compose read the first inner quote as a NEW VARIABLE NAME — `failed to read .env: unexpected character '"' in variable name` — breaking `docker compose build` for **every value carrying a quote on the fleet**, not one project. Found live during the tryton-crm deploy: two byte-identical apply failures on `CONSUMER_TOKENS`.
