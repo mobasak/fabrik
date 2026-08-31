@@ -25,7 +25,8 @@ means ready-to-build, and this is built. Instead: verify the implementation MATC
 (divergences are findings — fix the spec to record what actually shipped, never the reverse from a
 review), re-ground the external facts that still matter, then flip the literal
 `Status: IMPLEMENTED <date> (<commit>)` — a terminal state, no convergence loop, no approval gate
-(the ship already happened). An implementation that CONTRADICTS the spec's intent is not
+(the ship already happened). **That flip is a "built X at Y" Status flip — mint its
+`docs/DECISIONS.md` row STAGED in the same commit** (CLAUDE.md § the decision ledger). An implementation that CONTRADICTS the spec's intent is not
 already-realized — that is a real review with findings; run the loop.
 
 The spec under review is `$ARGUMENTS` (if empty, the `/fabrik-spec` design doc under discussion — locate it
@@ -253,7 +254,9 @@ Do not promise "100% accuracy" — iterate to a fixed point, then enumerate resi
 out-of-scope risks, separating **resolved** from **still-open** (each open one with a named resolution step).
 **Convergence = a full grounding round (all axes + merge/refute) that produced ZERO edits.** That edit-free
 round is the ONLY thing that earns `Status: CONVERGED` — flip it in place (`/fabrik-spec` wrote
-`Status: DRAFT`); your say-so or "I fixed what I found" does not. If a BLOCKING unknown remains — an
+`Status: DRAFT`); your say-so or "I fixed what I found" does not. **The flip is a Status flip — mint its
+`docs/DECISIONS.md` row STAGED in the same commit as the flip** (classify at mint; plain row normally —
+CLAUDE.md § the decision ledger). If a BLOCKING unknown remains — an
 external fact you cannot verify live, or a fabrik-lib capability you cannot confirm — stop at
 `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 
@@ -273,7 +276,11 @@ field-freeze / UI / plan work begins. Once the md5-verified no-op round earns `S
     `static-site`, `docusaurus`}) → next is **`/fabrik-ui-design`**.
   - **Else** (headless `python-api`/`node-api`/`file-api`/`file-worker`) → next is
     **`/fabrik-plan-after-chat <spec>`**.
-- Only **on the user's explicit approval (a later turn)** does the applicable next command run. If they ask
+- Only **on the user's explicit approval (a later turn)** does the applicable next command run. **The
+  approval is a RECEIVED decision — the approving turn's session mints its `docs/DECISIONS.md` row in
+  that turn's change** (what was approved + the chosen approach, referencing the spec path; this is the
+  mint downstream commands rely on — `/fabrik-plan-after-chat`'s spec-fed skip cites exactly this row).
+  If they ask
   for changes instead, **re-open the loop** on their feedback (back to a full grounding pass). Never end at
   the gate on an unconverged `DRAFT` — converge first, then stop for approval.
 

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T28: /fabrik-spec-review (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED — three mints land: the CONVERGED flip (T19 class), the T18-ROUTED APPROVAL MINT ("the approving turn's session mints … /fabrik-plan-after-chat's spec-fed skip cites exactly this row" — closing the route opened at T18), and the verifier-caught IMPLEMENTED flip (verbatim "built X at Y"). The spec-pipeline decision chain is now complete: authoring-session rulings (T27) → flip rows (here) → approval row (here). Verifier 28-for-28 — incl. two citations of nonexistent lines in the sections I claimed close reading of.
+
 ### Changed — manifesto pass T27: /fabrik-spec (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED. A bar-clearing Phase-2 answer is by construction an operator ruling — it now mints its `docs/DECISIONS.md` row IN the authoring session (same for rejected alternatives worth not re-proposing): "the spec's own prose dies with the spec, the ledger row does not" — the T08 abandoned-DRAFT class, whose reasoning shape my initial routing defense had reproduced. The /fabrik-spec-review approval mint (T28's obligation) covers only the approval itself. Verifier 27-for-27.
