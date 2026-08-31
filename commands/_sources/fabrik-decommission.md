@@ -18,7 +18,7 @@ and Phase 1 must state one of the three named outcomes explicitly before the Pha
 confirmation gate, which must itself receive the operator's explicit go-ahead before Phase 2 touches a
 single file. You are done only when Phase 2's **receipts table** accounts for every bookkeeping surface
 (source location, file count, catalog, fleet audit, PORTS row, spec disposition, memory record,
-runtime-teardown disposition) with `path:line` or command-output evidence — a cell filled from memory
+decision-ledger row, runtime-teardown disposition) with `path:line` or command-output evidence — a cell filled from memory
 instead of a fresh command is not a receipt. Runtime teardown (containers, Traefik route, registrar
 entries, DNS, Gatus probe) is NEVER one of this run's own actions, in any outcome — it is always NAMED as
 a separate, explicitly operator-gated follow-up, never executed inline. Two legitimate stops, both before
@@ -72,7 +72,9 @@ project, Gatus endpoint, Meilisearch index, Authelia rule, Backrest plan, Postgr
 `fabrik destroy specs/services/<id>.yaml` (`src/fabrik/cli.py::destroy`, def at `:903` — reverses
 MeiliSearch, Authelia, GlitchTip, Backrest, Gatus, and Postgres/Redis registrars, then the compose app
 and DNS record; its own docstring examples at `:924-926`). Cite it here for the operator to run themselves — this command never
-shells out to it and never decides to run it. That compose-destroy step is itself irreversible on the
+shells out to it and never decides to run it — and cite WITH it the ledger obligation: the hub
+session that executes the destroy mints the superseding ONE-WAY row (§ Binding field block) in that
+same change. That compose-destroy step is itself irreversible on the
 remote side: `_destroy_compose` runs `docker compose down` then `sudo rm -rf /opt/<name>` ON THE VPS
 (`src/fabrik/orchestrator/destroyer.py:338-340`) — the remote tree is wiped even though this command's own
 hub-side move to `/opt/archived/<name>` is preserved untouched; that VPS-side wipe, not the hub-side
@@ -127,13 +129,16 @@ command exists to gate rather than silently execute.
      corrected only by a fresh DNS probe, `CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07)).
    - CHANGELOG entry per the Doc Sync Matrix (`Changed` for archive-source-only, `Removed` once a real
      teardown lands).
+   - The `docs/DECISIONS.md` retirement row (see the Receipts table's Decision-ledger row for its exact
+     classification semantics) — minted HERE, in this same bookkeeping change, never deferred to the
+     run close.
 
 ## Receipts (Termination — every row filled with evidence, or the run isn't done)
 
 A run that stops at Phase 1.5 (the mandatory operator-confirmation gate) has not reached Phase 2 and owes
 none of these rows yet — it emits the AWAITING form of the Output block instead, with FILES and RECEIPTS
 both marked `n/a (pre-execution)`. Paused runs emit the AWAITING form; only EXECUTED runs (operator
-confirmed, Phase 2 ran) owe this 8-surface reconciliation.
+confirmed, Phase 2 ran) owe this 9-surface reconciliation.
 
 | Surface | Before | After | Evidence |
 |---|---|---|---|
@@ -144,6 +149,7 @@ confirmed, Phase 2 ran) owe this 8-surface reconciliation.
 | `PORTS.md` row | live | RETIRED + date + reason | diff |
 | Spec (`specs/services/<id>.yaml`) | present | `git rm`'d (real teardown) or annotated (source-only) | diff / `git rm` output |
 | Memory record | — | written, archived-source vs dead-service stated separately | quoted entry |
+| Decision ledger | — | the retirement ROW minted in `docs/DECISIONS.md` in Phase 2's own change (the ledger duty's "retirement/adoption" trigger), classified at mint as REVERSIBLE — the archive move is undoable and nothing irreversible has happened yet. The later `fabrik destroy` is a NEW decision: the hub session that runs it mints a superseding ONE-WAY row carrying the § Binding field block in THAT change (rows are immutable — never "grow" an existing one); this run only NAMES that obligation alongside the teardown command | the row, quoted |
 | Runtime teardown | — | NAMED as the operator's own `fabrik destroy` call, or n/a | — never executed here |
 
 ## Output (always, last thing)
@@ -172,7 +178,7 @@ DECOMMISSION: <name> — outcome: archive-source-only | full decommission | migr
 CONSUMER SWEEP: <N refs across <M> files | none>
 LIVENESS: live | dead (siblings resolved, target didn't) | inconclusive (re-probe — siblings also failed)
 FILES: tracked <before>→<after>, uncommitted <before>→<after>, total <before>→<after> — match | MISMATCH
-RECEIPTS: all 8 surfaces reconciled | outstanding: <name them>
+RECEIPTS: all 9 surfaces reconciled | outstanding: <name them>
 RUNTIME TEARDOWN: named for the operator (`fabrik destroy specs/services/<id>.yaml`) | n/a — service stays live
 ```
 

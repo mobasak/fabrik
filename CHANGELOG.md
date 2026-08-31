@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
 
+### Changed — manifesto pass T06: /fabrik-decommission (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 FIXED-after-falsification. A decommission is the ledger's "retirement/adoption" trigger and never minted a row — now: a REVERSIBLE retirement row in Phase 2's own bookkeeping change, and the later `fabrik destroy` is a NEW decision whose executor mints the superseding ONE-WAY row (§ Binding field block) in THAT change — the verifier killed the author's first wording ("that row grows"), which violated row immutability and classified a future act at mint. Receipts 8→9 surfaces.
+
 ### Changed — manifesto pass T05: /fabrik-data-contract (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED — a FREEZE/re-freeze bump is a Status flip, so Phase 4 now mints its docs/DECISIONS.md row in the SAME change (classified at mint). Verifier also corrected 4 estimated verdict anchors and re-argued (c) via one-way-by-nature classification; anchor-grep discipline adopted for the rest of the pass.
