@@ -1093,3 +1093,22 @@ command's Phase-0 surface table enumerates **12** scaffold types, but the live r
 (D-039) and never added to the table. The registry won (this run needed only `saas-skeleton`, which is
 mapped either way), but the table is stale and an `office-extension` service would resolve to no surface
 row at all.
+
+- ✅ **RUN 4 — 2026-09-01 — the tenant route is FIXED and PROVEN; three registrars remain unlanded (my fault).**
+  Deployed tryton-crm `4a7c331` (their fix: plain dots — Traefik v2's gorilla/mux `QuoteMeta`s literals
+  outside `{…}`, so the hand-written `\.` demanded a hostname containing a backslash).
+  **Routing verified live, hub-side:** `bhdtrade.tojlo.com/` **200** · `zzznope.tojlo.com/` **200** (any
+  subdomain, as designed) · `tryton-crm.vps1.ocoron.com/health` **200** · **5/5 containers healthy** ·
+  `REDIS_URL` now present (was the RUN 3 fail). `/brand` 404 and `/tryton` 405 are **backend** answers,
+  discriminated by response headers (`server: uvicorn` with rate-limit headers; `server: gunicorn`,
+  `allow: OPTIONS`) — not routing. Apex `tojlo.com` 404 is BY DESIGN.
+  ⚠️ **NOT EXECUTED — `backrest`, `glitchtip`, `prometheus` failed to provision**, all
+  `kex_exchange_identification: Connection reset by peer`. **Cause was mine**: I ran probes and SSH calls
+  concurrently with `fabrik apply` and tripped vps1's sshd rate limit — the SAME error I made in RUN 2
+  (the watchdog registrar) after writing "batch remote checks into one SSH call" as the lesson. The
+  corrective re-apply was killed by my own `pkill -f "bin/fabrik apply"`, whose pattern matched the
+  wrapping shell (exit 144). Window CLOSED stem-guarded, healing restored.
+  **What the machinery got RIGHT:** the deploy refused to exit green and named all three incomplete
+  registrars — the fail-loud behaviour whose absence I filed as `01M1CKEKJYF8XWAS9EWAJ2BJJZ`.
+  **Remaining, mechanical:** one clean `fabrik apply` with NO concurrent SSH lands the three registrars;
+  then the battery and the EXECUTED flip.
