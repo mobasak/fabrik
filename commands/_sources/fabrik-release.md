@@ -28,8 +28,10 @@ list nobody reads. **Grader honesty:** the HANDOFF grammar and NOT-QUIET↔RESUM
 are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check —
 it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep. No certification report at all for a UI/service surface = **BLOCKED** (run the
 gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one —
-and a waiver granted is a RECEIVED decision: **mint its `docs/DECISIONS.md` row in this run's change**
-(CLAUDE.md § the decision ledger), so the accepted risk outlives this chat.
+and a waiver granted is a RECEIVED decision: **mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its
+own commit, BEFORE `release_cut.py` runs** (Phase 0's own precondition demands `@{u}..HEAD` empty —
+an unpushed waiver commit would block the release on its own mandated act) — the cut's hardcoded `-- CHANGELOG.md` pathspec would
+strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat.
 
 ## Phase 0 — Resolve the surface
 
@@ -42,8 +44,18 @@ and a waiver granted is a RECEIVED decision: **mint its `docs/DECISIONS.md` row 
    - `python scripts/final_gate.py --check --json` → `"status":"success"` **this run** (a stale green is not evidence).
    - Working tree clean for this project's scope; work committed AND pushed (`git status --short`, `git log
      @{u}..HEAD` empty — upstream-relative, never a hardcoded `origin/master`: the fleet splits across
-     `master`/`main`/fork-convention branches and the hardcoded form errors on half of it) — the VPS pulls
-     from the remote, and a store zip must be reproducible from a SHA.
+     `master`/`main`/fork-convention branches and the hardcoded form errors on half of it; no upstream
+     configured at all — the fleet has no-remote repos, D-026 — → `git log HEAD --not --remotes`
+     (THIS branch only; `--branches` would catch a sibling session's parked branches on a shared tree)
+     AND — only when `git remote` is actually EMPTY — state in the report that nothing is
+     off-box-protected AND treat the precondition as UNSATISFIABLE: a no-remote repo cannot meet
+     the push law (the fallback returns the whole history — that is the true answer, not "the
+     probe ran"), so the release is BLOCKED unless the operator waives it this turn — the waiver
+     row then commits LOCALLY (the PUSH half of the waiver clause is likewise impossible there,
+     and `release_cut.py` runs with `--no-push`). A remoted repo whose branch merely lacks a
+     tracking ref just lists its genuinely-unpushed commits, no such statement.
+     Reading the `@{u}` fatal as "nothing unpushed" is the fail-open this clause kills) —
+     the VPS pulls from the remote, and a store zip must be reproducible from a SHA.
    - `CHANGELOG.md [Unreleased]` describes what this release ships.
    - **Docs truth is dated, not assumed:** every registry-obligated key doc for this type
      (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/`CONFIGURATION`/`DEPLOYMENT` for deployed types)
@@ -126,11 +138,15 @@ the repo on GitHub:
    the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn't count) →
    major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow
    version).
-2. `python scripts/release_cut.py --execute` — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
+2. `python scripts/release_cut.py --execute` (no-remote repo, operator-waived: add `--no-push` —
+   the script's push step hardcodes `origin` and would die mid-cut, stranding a local tag on a
+   graduated CHANGELOG) — graduates `[Unreleased]` → `[X.Y.Z] — date` in the
    CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the
    graduated entries as notes (`gh` missing is non-fatal: tag-only cut). Include the printed plan in
    the report. **The cut is decision-shaped — "built X at vY" — mint its `docs/DECISIONS.md` row and
-   commit it IMMEDIATELY AFTER the cut commit, before anything else, in the same push** (classify at
+   commit AND push it IMMEDIATELY AFTER the cut, before anything else — `release_cut.py --execute`
+   has ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push (it lands
+   after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked)** (classify at
    mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2's decision, not yours to
    row). Adjacent-commit, not same-commit, is deliberate here: `release_cut.py`'s commit stages ONLY
    `CHANGELOG.md` by hardcoded pathspec — writing the row first would silently strand it.

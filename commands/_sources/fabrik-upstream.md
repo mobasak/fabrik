@@ -237,11 +237,14 @@ Name, per claim, exactly one outcome:
 
 - **Landed** — applied; cite the commit + `path:line` of the fix. **A claim landed by choosing among
   RANKED OPTIONS (property 2's design-call branch) is an architecture choice, not a routine fix — mint
-  its `docs/DECISIONS.md` row in the landing commit** (CLAUDE.md § the decision ledger); a verbatim-diff
+  its `docs/DECISIONS.md` row in the landing commit, classified at mint — a ranked-option landing on a
+  SYNCED surface is structural and fleet-wide, so adjudicate ONE-WAY honestly (§ Binding field block)
+  rather than defaulting to plain** (CLAUDE.md § the decision ledger); a verbatim-diff
   defect fix stays the routine carve-out, no row.
 - **Deferred** — confirmed real but out of scope for this pass (e.g. touches an unrelated concern); name why
   and where it is now tracked — **the default tracker is an owner-tagged row APPENDED to
-  `docs/STRATEGIC_BACKLOG.md` in this run's change** (append-only: never rewrite or reflow existing
+  `docs/STRATEGIC_BACKLOG.md` in this run's change** (file absent → seed from
+  `templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first, then append) (append-only: never rewrite or reflow existing
   rows — the shared-tree rules govern a file three sessions touch; the Doc Sync Matrix's deferred-work
   row; a deferral named only in a mail reply dies with the thread), unless a live plan/ticket already
   owns it (then cite that).

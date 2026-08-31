@@ -35,7 +35,8 @@ Operate on the current project (cwd). **Two sanctioned modes — state which run
   code at certification time is un-shipped scope — surface it to the operator, never silently delete; a
   shipped capability with no Planned row is scope creep or an honest addition — surface which. An operator
   disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its
-  `docs/DECISIONS.md` row lands in the same change (CLAUDE.md § the decision ledger).
+  `docs/DECISIONS.md` row lands in the same change, classified at mint (drop/keep/adopt of un-shipped
+  scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger).
 
 Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then
 reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the

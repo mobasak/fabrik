@@ -60,9 +60,9 @@ inspection.
   MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit
   is not a second convergence, so the one-doc guardrail is untouched. Only a ripple that would itself
   need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the
-  staleness stated in the commit body — never silently. (No gate fires on doc↔doc pairs —
-  check_doc_sync keys on code files — so this law is honour-bound here; that is why the commit-body
-  statement is mandatory.)
+  staleness stated in the commit body — never silently. (The only doc→doc rule `check_doc_sync` carries is
+  added/removed/renamed-file → INDEX.md — an edit-in-place ripple fires nothing, so this law is honour-bound
+  here; that is why the commit-body statement is mandatory.)
 
 ## Phase 3 — Converge (LOOP to a no-op)
 

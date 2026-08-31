@@ -16,7 +16,9 @@ proportionate answer.
 
 1. **Scope = this session's own work:** `git diff HEAD` (uncommitted) plus `git log
    @{u}..HEAD --format=%h` (upstream-relative — never a hardcoded `origin/<branch>`; no upstream
-   configured (fresh/no-remote repo) → `git log --branches --not --remotes --format=%h`) filtered
+   configured (fresh/no-remote repo) → scope to `git diff HEAD` plus THIS session's own commits this
+   turn — never `git log --branches --not --remotes`, which is a push-status probe that resolves the
+   ENTIRE repo history as the scope and routes every scoped review up to the heavy `/fabrik-review`) filtered
    to YOUR commits (trailer check — never a sibling's; two same-role sessions are
    trailer-INDISTINGUISHABLE, so when ownership is ambiguous scope to the uncommitted diff you
    KNOW is yours and say so), or

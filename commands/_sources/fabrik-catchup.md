@@ -106,8 +106,9 @@ re-running the exact probe that raised it, then commit — explicit pathspecs on
 Trailers, **one commit per item** (never batch unrelated items into one commit — a bisect needs the
 granularity). Two manifesto laws bind the reconcile actions specifically: **a DECISION-SHAPED
 reconcile** (a deliberate `shape:` flag flip, a Status re-ruling — anything beyond restoring a record
-to observed truth) **carries its `docs/DECISIONS.md` row IN THE SAME commit** (the SAME-change law;
-a truth-restoring correction needs no row); and **a reconcile whose true side is genuinely
+to observed truth) **carries its `docs/DECISIONS.md` row IN THE SAME commit, classified at mint** (the SAME-change law;
+plain row normally — a reconcile is by construction reversible, and the undecidable case already
+downgrades to report-only; a truth-restoring correction needs no row); and **a reconcile whose true side is genuinely
 undecidable from the tree downgrades to a REPORT-ONLY item naming both candidate truths** — the
 most-reversible disposition (manifesto Invariant 3), never a silent guess. A routed command owns its own termination contract (e.g. `/fabrik-doc-converge` converges
 to its own edit-free no-op) — catchup dispatches to it and moves to the next queue item once that command

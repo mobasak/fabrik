@@ -301,6 +301,27 @@ def test_bc16_governance_file_in_touches_errors(tmp_path: Path) -> None:
     assert any("governance file" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
 
 
+def test_bc16_decisions_ledger_in_touches_errors(tmp_path: Path) -> None:
+    """docs/DECISIONS.md is the sixth governance surface: per-run shared-append (close-out
+    decision line) AND pen-holder-restricted (CLAUDE.md § the decision ledger — subagents
+    never hold the pen). A ticket touching it hands a coder subagent exactly that pen."""
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- docs/DECISIONS.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    assert any("governance file" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+def test_bc16_strategic_backlog_in_touches_errors(tmp_path: Path) -> None:
+    """docs/STRATEGIC_BACKLOG.md is the seventh governance surface (Doc Sync Matrix deferred-work
+    append; repo-review/upstream mandate per-run appends — the CHANGELOG collision class)."""
+    t1 = T01.replace("- src/app/schema.py", "- src/app/schema.py\n- docs/STRATEGIC_BACKLOG.md")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    assert any("governance file" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
 def test_bc16_governance_file_in_context_files_is_fine(tmp_path: Path) -> None:
     t1 = T01.replace("- docs/small-context.md", "- docs/small-context.md\n- CHANGELOG.md")
     plan_dir = _build(

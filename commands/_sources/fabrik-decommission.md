@@ -138,7 +138,8 @@ command exists to gate rather than silently execute.
 A run that stops at Phase 1.5 (the mandatory operator-confirmation gate) has not reached Phase 2 and owes
 none of these rows yet — it emits the AWAITING form of the Output block instead, with FILES and RECEIPTS
 both marked `n/a (pre-execution)`. Paused runs emit the AWAITING form; only EXECUTED runs (operator
-confirmed, Phase 2 ran) owe this 9-surface reconciliation.
+confirmed, Phase 2 ran) owe the full Receipts-table reconciliation — every row below, count derived
+from the table itself.
 
 | Surface | Before | After | Evidence |
 |---|---|---|---|
@@ -149,7 +150,7 @@ confirmed, Phase 2 ran) owe this 9-surface reconciliation.
 | `PORTS.md` row | live | RETIRED + date + reason | diff |
 | Spec (`specs/services/<id>.yaml`) | present | `git rm`'d (real teardown) or annotated (source-only) | diff / `git rm` output |
 | Memory record | — | written, archived-source vs dead-service stated separately | quoted entry |
-| Decision ledger | — | the retirement ROW minted in `docs/DECISIONS.md` in Phase 2's own change (the ledger duty's "retirement/adoption" trigger), classified at mint as REVERSIBLE — the archive move is undoable and nothing irreversible has happened yet. The later `fabrik destroy` is a NEW decision: the hub session that runs it mints a superseding ONE-WAY row carrying the § Binding field block in THAT change (rows are immutable — never "grow" an existing one); this run only NAMES that obligation alongside the teardown command | the row, quoted |
+| Decision ledger | — | the retirement ROW minted in the HUB's `/opt/fabrik/docs/DECISIONS.md` in Phase 2's own change (never the archived project's — that ledger leaves the fleet query path with the move) (the ledger duty's "retirement/adoption" trigger), classified at mint as REVERSIBLE — the archive move is undoable and nothing irreversible has happened yet. The later `fabrik destroy` is a NEW decision: the hub session that runs it mints a superseding ONE-WAY row carrying the § Binding field block in THAT change (rows are immutable — never "grow" an existing one); this run only NAMES that obligation alongside the teardown command | the row, quoted |
 | Runtime teardown | — | NAMED as the operator's own `fabrik destroy` call, or n/a | — never executed here |
 
 ## Output (always, last thing)
@@ -178,7 +179,7 @@ DECOMMISSION: <name> — outcome: archive-source-only | full decommission | migr
 CONSUMER SWEEP: <N refs across <M> files | none>
 LIVENESS: live | dead (siblings resolved, target didn't) | inconclusive (re-probe — siblings also failed)
 FILES: tracked <before>→<after>, uncommitted <before>→<after>, total <before>→<after> — match | MISMATCH
-RECEIPTS: all 9 surfaces reconciled | outstanding: <name them>
+RECEIPTS: all <N> surfaces reconciled (N = the Receipts-table row count — count the table, never restate a literal; counts drift) | outstanding: <name them>
 RUNTIME TEARDOWN: named for the operator (`fabrik destroy specs/services/<id>.yaml`) | n/a — service stays live
 ```
 

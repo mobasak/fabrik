@@ -1,5 +1,5 @@
 ---
-description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until every Coverage-Checklist class is CLEAN/FIXED/REFUTED and a full fresh round returns found:0·new:0 with every candidate adjudicated (re-raises of adjudicated standing rows cited, not counted; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
+description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until every Coverage-Checklist class is CLEAN/FIXED/REFUTED and a full fresh round returns found:0·new:0·fixed:0 with every candidate adjudicated (re-raises of adjudicated standing rows cited, not counted; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 
@@ -11,7 +11,7 @@ first and then DEPTH.
 ## Run record — open it FIRST, keep it current, close it only at the no-op round
 
 This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a full fresh round that
-returns **`found: 0 · new: 0`** with every candidate ever raised adjudicated** (a re-raise of an
+returns **`found: 0 · new: 0 · fixed: 0`** with every candidate ever raised adjudicated** (a re-raise of an
 already-adjudicated STANDING row is cited in its row, never counted — see § Reporting). Open the record before Phase 0 does anything else:
 
 ```bash
@@ -45,9 +45,10 @@ plan. A mismatched name is refused; closing an already-closed run is a warned no
 (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):
 
 ```bash
-# The lock records exactly what was distributed to THIS project (~190 paths). PORTS.md is
-# SEEDED_NOT_ENFORCED — projects may edit it, so it stays a normal review target.
-python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vx 'PORTS.md'
+# The lock records exactly what was distributed to THIS project (~220 paths). PORTS.md +
+# docs/DECISIONS.md are SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py) — projects may
+# edit them, so they stay normal review targets.
+python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
 # Covers: AGENTS.md · CLAUDE.md · .windsurfrules · AGENTS-compact.md · .windsurf/rules/** (all packs)
 #         scripts/enforcement/** (all checks — counts drift, list is computed) · final_gate.py · select_rules.py · review_rubric.py · hooks · reference docs
 ```
@@ -68,7 +69,10 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 - **A synced file appearing IN THE DIFF is ITSELF a CONFIRMED finding:** *"synced file modified —
   `git checkout -- <path>`, then propose the change upstream in `/opt/fabrik` (it is correct for ALL projects
   or it is not correct)."* Do **NOT** silently exclude it — excluding **hides** the violation.
-- **`PORTS.md` is the exception** (`SEEDED_NOT_ENFORCED`): projects MAY edit it → review it normally. This is
+- **The `SEEDED_NOT_ENFORCED` set is the exception** (read the live set in `fabrik_synced_manifest.py` —
+  today `PORTS.md` + `docs/DECISIONS.md`; a hand-copied list here goes stale, this one did): projects MAY
+  edit these → review them normally — NEVER `git checkout --` a project's `docs/DECISIONS.md` (its rows
+  are project-owned data the close-out duty mandates; reverting it is data loss). This is
   exactly why the list is **computed, not written by hand**.
 
 **HUB (`/opt/fabrik`)** — these files **ARE the product**, and they carry the **widest blast radius in the
@@ -137,7 +141,18 @@ model** — for differently-biased recall breadth that **auto-records to the fly
 schema / secrets / concurrency) + the decide/refute/merge you own. A high-risk surface needs the pool breadth
 *plus* the native pass; going all-native (skipping the pool layer) lands **zero** flywheel rows and
 `check_subagent_flywheel.py` BLOCKS it (exit 1) on a substantial code change, unless the run declares `NO-POOL: <reason>` in an in-cycle commit message or sets `FABRIK_NO_POOL`. (Evidence it earns its cost: cheap pool finders have caught
-real bugs that an Opus-only self-review missed — complementary recall, not redundant.) The two mechanisms:
+real bugs that an Opus-only self-review missed — complementary recall, not redundant.)
+⚠️ **Secrets carve-out — the one sanctioned all-native slice (mirror: `/fabrik-execute-plan` D4 + the
+repo-review/rules-review/service-test/ui-design/user-test family):** a diff hunk touching
+secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-Sync-Matrix file every
+env-var change touches, `check_plan_tickets.py`'s own carve-out — `secrets/`, key/cert files) is
+reviewed **NATIVE-ONLY** — a
+`read_only` pool unit inlines the raw hunk into its task text, which ships the literal secret to a
+third-party API. Partition, don't skip: pool breadth runs on the non-secret remainder, the native
+Opus finder covers the secret-bearing hunks, and the flywheel floor is satisfied by the remainder
+(a diff that is ENTIRELY secret-material → all-native with `NO-POOL: secrets-only surface` declared —
+the waiver form the flywheel check reads; the "zero pool dispatches" flywheel bullet in Phase 4
+describes exactly this case). The two mechanisms:
 
 - **Claude finders (native · subscription · the authoritative pass):** the **`fabrik-reviewer`** Claude Code agent
   (`subagent_type: "fabrik-reviewer"`). **Floor — at least one Opus, ALWAYS:** every review dispatches **≥1 native
@@ -245,7 +260,9 @@ NOT accept an unfixed CONFIRMED or PLAUSIBLE finding.**
 - **FIXED** — reproduce it with a runnable test/execution FIRST, fix it, keep the test as a regression guard
   (verify red→green). A deliberate design decision that resolves it (e.g. choosing fail-open with a logged
   warning) counts as FIXED **only if you actually made the change and recorded why** — and that disposition
-  is decision-shaped: **mint its `docs/DECISIONS.md` row staged in the fix commit** (CLAUDE.md § the
+  is decision-shaped: **mint its `docs/DECISIONS.md` row staged in the fix commit, classified at mint —
+  a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when
+  the guard protects shared or production data)** (CLAUDE.md § the
   decision ledger; a mechanical bug-fix stays row-less — the carve-out class).
   - **A test that passes because the environment cannot express the failure has proven nothing** —
     "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser
@@ -350,10 +367,10 @@ graders (2026-08-31): `check_convergence.py`'s QUIET_PASS demands a `found: 0 ·
 impossible (transdoc, 2026-08-27), while suppressing it would hide a real observation; citing-not-counting
 does neither. `new:` stays the stopped-learning signal.
 
-You may claim completion **only** when the last row is `found: 0 · new: 0` from a demonstrably-thorough
+You may claim completion **only** when the last row is `found: 0 · new: 0 · fixed: 0` (all three counters ON the row — the graders parse the `found:`/`fixed:` pair and refuse a row without it) from a demonstrably-thorough
 pass, with every candidate ever raised adjudicated. A ledger ending on a row with fresh candidates is an
 unfinished review — run the next pass. A ledger with a single row is only valid if that row is
-`found: 0 · new: 0` from a demonstrably-thorough pass.
+`found: 0 · new: 0 · fixed: 0` from a demonstrably-thorough pass.
 
 **Emit a per-finding disposition ledger — this is what makes a skipped finding impossible to hide.** Every
 candidate raised by any finder across all rounds appears as one row ending in exactly ONE terminal state:

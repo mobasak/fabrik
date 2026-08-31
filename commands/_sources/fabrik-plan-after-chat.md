@@ -33,7 +33,10 @@ First capture the **source of truth** — do NOT invent scope:
   the § Binding field block), and STAGE the rows WITH the plan file in Phase 5's commit — same change means
   same commit** (CLAUDE.md § the decision ledger). The same law covers a batched REAL question the user
   answers mid-run (an operator ruling — the trivia the bar auto-decides stays row-less). Spec-fed plans
-  skip only what the spec approval's own row minted (`/fabrik-spec-review` § after-CONVERGED owns that
+  skip only what the spec approval's own row minted — and the skip is VERIFIED, never assumed:
+  `grep docs/DECISIONS.md` for the spec path first; row absent (the approval arrived in a bare
+  conversational turn no command contract bound) → mint it HERE before planning, then proceed
+  (`/fabrik-spec-review` § after-CONVERGED owns that
   mint) — a decision made HERE always rows HERE.
 - Then branch, and **state which branch you took and why**:
   - **RICH** (the chat/args already pin the goal AND the approach) → skip brainstorming, go to Phase 1.
@@ -266,8 +269,8 @@ a roll-up mismatch, but a contract numbered on BOTH sides passes silently with s
 line**, never a comma list or a category, extending the built-in never-route set
 `scripts/enforcement/` · `scripts/final_gate.py` · `alembic/` · `db/migrations/` · `secrets/` ·
 `.env` + `.env.*` except `.env.example` — `.envrc` is NOT covered) · `## Context Ledger` · `## File Scope (owned paths)` (**a literal-path
-superset of every ticket's Touches, receipt artifacts included** — but the four governance files + `docs/LESSONS_LEARNT.md`
-(the fifth shared-append surface — any run may append it: entry or `none`) go
+superset of every ticket's Touches, receipt artifacts included** — but the seven governance files (`check_plan_tickets.py::GOVERNANCE_FILES` is the live list — CHANGELOG · INDEX · docs/README · FEATURES · LESSONS_LEARNT · DECISIONS · STRATEGIC_BACKLOG)
+go
 in NEITHER Touches NOR File Scope: they are orchestrator-applied shared-append surfaces governed by
 the shared-tree rules, deliberately OUTSIDE the plan lock (locking `CHANGELOG.md` would make every
 pair of concurrent plans BLOCK on scope overlap; a listed or covering entry is a DEDICATED gate ERROR — File Scope builds the lock) —
@@ -304,11 +307,11 @@ balanced QUOTES and trailing sentence punctuation resolve (even `` **`path`** ``
 `` `path/`. ``), and any surviving quote/backtick/comma/semicolon/colon residue is a LOUD finding (a comma list
 drops nothing silently — it ERRORs; a `path:NN` citation collapses to the path first); parens are never stripped (route groups are literal); the
 Board's CELL parser uses different — not stricter — single-pass rules; **exclusively owned** — a path in two
-tickets needs a Depends edge or a Serialized row; the governance files CHANGELOG/INDEX/docs
-README/FEATURES + docs/LESSONS_LEARNT.md — and its legacy lowercase alias `docs/lessons-learnt.md`,
-still live in older projects (the scaffolder now emits the uppercase name) — are NEVER in Touches, they are orchestrator-applied — and never own a directory that
-CONTAINS one: a `docs/` entry covers `docs/README.md` + `docs/FEATURES.md` +
-`docs/LESSONS_LEARNT.md` and ERRORs; enumerate the doc paths instead) · `Gate:` tier (≤3 `Gate:` lines — WARN above) · `Complexity:` ∈
+tickets needs a Depends edge or a Serialized row; the governance files (all SEVEN — the live list is `check_plan_tickets.py::GOVERNANCE_FILES`; the
+legacy lowercase alias `docs/lessons-learnt.md` still lives in older projects) are NEVER in
+Touches, they are orchestrator-applied — and never own a directory that CONTAINS one: a `docs/`
+entry covers EVERY docs-resident governance file (README, FEATURES, LESSONS_LEARNT, DECISIONS,
+STRATEGIC_BACKLOG) and ERRORs; enumerate the doc paths instead) · `Gate:` tier (≤3 `Gate:` lines — WARN above) · `Complexity:` ∈
 **`simple|complex|native|never-route`** (exact token — the gate ERRORs on anything else, e.g.
 `medium`; write label and value BARE — `Complexity: simple` — a backticked value ERRORs; a bolded
 label/value is now parsed; the LABEL forms neither gate parses — `__Complexity__:`, a backticked
@@ -578,7 +581,7 @@ Append, so the downstream converge/execute commands have what they need:
   for a plan
   SET it is a superset of every ticket's
   Touches, receipt artifacts included; be exhaustive — grounded from Phase 1 — **except the
-  governance files** CHANGELOG/INDEX/docs README/FEATURES + docs/LESSONS_LEARNT.md, which stay OUT
+  governance files** (all SEVEN — read `check_plan_tickets.py::GOVERNANCE_FILES`, the live list; hand-copied enumerations here have gone stale twice), which stay OUT
   of File Scope in both
   shapes: they are shared-append surfaces outside the plan lock, per the spine grammar). This is the contract that lets **multiple plans run
   concurrently in one project without collisions**: `/fabrik-execute-plan` locks on it and refuses to

@@ -171,4 +171,205 @@ Dispatch mode: pool-default (operator did not renew NO-POOL) — `fanout("review
 
 ## Per-finding disposition ledger
 
-(pending)
+Pool layer (4 finders, 4 partitions, full diff inlined each). Candidates clustered; every cluster terminal:
+
+1. **flows-review re-pinned drifting line anchors** (`fabrik-flows.md:126`, `:145-146` — raised by u1#41 + u4#2) → **FIXED**: the diff itself de-anchored `check_convergence.py` cites to symbols with the stated reason "line anchors drift", then re-pinned fresh numbers here — same defect class, inconsistent treatment. Cite converted to section + grep anchor (`fabrik-flows-review.md:88`).
+2. **decommission hardcoded "all 9 surfaces" template count** (u4#1) → **FIXED**: count verified correct today (9 Receipts-table rows) but the diff's own 8→9 edit proves the drift class; template made self-deriving ("N = the Receipts-table row count").
+3. **release/deploy `@{u}..HEAD` lacks the no-upstream fallback review-scoped has** (u2#1, u3#5 detached-HEAD variant) → **REFUTED**: for release/deploy the upstream is constitutive — the VPS pulls from the GitHub remote, so a repo without one CANNOT release and the loud `fatal: no upstream` is the correct fail-closed block; review-scoped's fallback exists because its surface (own-work scoping) legitimately occurs in fresh/no-remote repos. Different contexts, both correct.
+4. **release adjacent-commit cut-mint vs SAME-change law** (u2#3) → **REFUTED as new defect / standing**: deliberate, reasoned in-source, and already tracked — `docs/STRATEGIC_BACKLOG.md:253-258` carries the `release_cut.py` staging-gap row with the fix direction. No gate enforces mint staging (verified: `check_convergence.py` scans plans/ + reviews/ only), so no unresolvable runtime conflict exists.
+5. **repo-review backlog appends deleted by doc-converge** (u2#4) → **REFUTED**: doc-converge's STRATEGIC_BACKLOG contract (`fabrik-doc-converge.md:40`) deletes only items "a landed plan already shipped (delete, cite the plan)" — owner-tagged appends with real triggers survive; an uncited drop is named a miss by the same row.
+6. **decommission REVERSIBLE row understates completed teardown** (u2#5) → **REFUTED**: every Phase-2 surface is git-tracked bookkeeping (revertible); runtime teardown is explicitly "never executed here" and named as the operator's own separate ONE-WAY decision.
+7. **doc-converge ripple edit fails check_convergence on the rippled file** (u2#6) → **REFUTED**: `check_convergence.py:6-21,46-47` scans `docs/development/plans/` + `docs/development/reviews/` only — a rippled README/sibling doc never enters its scan.
+8. **upstream lists docs/DECISIONS.md as SEEDED_NOT_ENFORCED vs immutable rows** (u2#7) → **REFUTED**: `fabrik_synced_manifest.py:140` confirms the set `{"PORTS.md", "docs/DECISIONS.md"}` — the claim is factually right; project-editable (append rows) and row-immutability (content law) are orthogonal; no command instructs reflowing the ledger. (Manifest docstring `:331` still says the set is singular — pre-existing, out of corpus scope, already routed as receipt standing-observation 4.)
+9. **conformance-review PENDING rows block termination on external delay** (u3#3) → **REFUTED**: `ROUTED(n)` is a first-class terminal token (`fabrik-conformance-review.md:182-183`) — a finding awaiting an external owner is routed, hence terminal.
+10. **review-scoped `--branches --not --remotes` over-includes** (u3#4) → **REFUTED**: the fallback output is explicitly "filtered to YOUR commits (trailer check)" in the same sentence, and the trailer-ambiguous case is handled two lines later (scope to the uncommitted diff).
+11. **generate-tests fanout=None guard missing** (u3#6) → **REFUTED**: the guard is prose the executing agent interprets, placed "before step 1 ever calls it" (`fabrik-generate-tests.md:34-37`).
+12. **term-coverage "(FLOOR" unclosed parenthesis** (u1#4) → **REFUTED**: the line reads "(FLOOR + MATCHED + workflow checklist)" — closed; the finder misread diff wrapping.
+13. **D-048 undefined** (u1, several) → **REFUTED**: `docs/DECISIONS.md` carries exactly one D-048 row.
+14. **cite-not-count lets a wrong refutation become unchallengeable** (u1#10 vicinity) → **REFUTED**: `found:` is defined on the predicate "NEEDS adjudication" — a re-raise carrying materially new evidence needs re-adjudication and therefore counts; only evidence-free re-raises are cited.
+15. **stall-breaker semantics ambiguous** (u1#13/#14) → **REFUTED**: "non-decreasing and nonzero counts" distributes over the 3-round streak (plural), and the all-zero case is explicitly named CONVERGENCE in the same paragraph.
+16. **inventory-hash enumeration order not canonical** (u1#7) → **REFUTED**: a spurious hash mismatch degrades to the FULL wide pass — the explicitly-designed safe direction.
+17. **`git add -N` salvage misses ignored files** (u1#38) → **REFUTED**: ignored files are disposable by definition; the salvage strictly improves on the previously-unconditional force-remove.
+18. **external-definition ambiguity cluster** (u1: callers/callees, non-author context, Tier-1, Doc Sync Matrix, CLAUDE.md §-refs, MCP availability, ~15 items) → **REFUTED (cluster)**: each reference resolves to a real existing definition (`62-using-subagents.md` § Role separation, CLAUDE.md § Doc Sync Matrix / § the decision ledger, the rendered run-record fragment); a command source is not required to inline its dependency graph.
+19. **deploy-verify "three store verifications" reference** (u1#30) → verified consistent by the finder itself — no defect.
+
+Native Opus layer (15 findings — 8 CONFIRMED · 6 PLAUSIBLE · 1 MACHINERY; every one terminal):
+
+20. **conformance-review DONE clause keyed on `new: 0` alone; blocking grader reads `found:`** (N1, CONFIRMED — the third D-048 straggler, proven by executing `check_review_coverage.py:467` on fixtures) → **FIXED**: DONE clause rewritten to the `found: 0 · new: 0 · fixed: 0` D-048 form naming the grader (`fabrik-conformance-review.md:164-169`).
+21. **Operative QUIET sentences name a two-token shape both graders reject** (N2, CONFIRMED — `found: 0 · new: 0` literal fails `QUIET_PASS` and `_pass_counters`, proven by execution) → **FIXED**: `term-coverage.md:15` (+ the `:24` streak mention) now name all THREE counters and say why; `fabrik-review.md` description + `:14` + `:353` + `:356` likewise.
+22. **fabrik-review itself lacks the secrets carve-out while mandating pool ON TOP** (N3, CONFIRMED) → **FIXED**: partition carve-out added before "The two mechanisms:" (native-only secret hunks, pool on the remainder, `NO-POOL: secrets-only surface` for all-secret diffs); the Phase-4 zero-pool bullet now has its authorizing text. Companion: `fabrik-generate-tests.md` states the worktree-committed-HEAD secrets boundary. Remaining fanout callers (deploy-plan-review, plan-review, plan-after-chat, workflow-review) adjudicated: their pool content is planning text that by its own doers' contracts carries no secret VALUES (the T33 structural refutation, artifact on file) — no carve-out added, vocabulary-injection rule.
+23. **docs/DECISIONS.md missing from the governance-collision set** (N4, CONFIRMED) → **FIXED**: added to `check_plan_tickets.py::GOVERNANCE_FILES` (now six, with the pen-holder rationale in the comment) + regression test `test_bc16_decisions_ledger_in_touches_errors` (red-on-revert proven by file-copy neuter, 131/131 after restore) + execute-plan's three enumerations updated (`:70`, `:469` D3, `:531` MESSY-resume sweep — the last also discharges N14).
+24. **release "in the same push" impossible — `release_cut.py --execute` already pushed** (N5, CONFIRMED, verified at `release_cut.py:167-170`) → **FIXED**: wording now says the row rides its OWN push and lands outside the `vX.Y.Z` tag, honestly.
+25. **classify-at-mint absent from the seven highest-ONE-WAY-risk mints** (N6, CONFIRMED) → **FIXED(7)**: repo-review (security deferral = archetypal ONE-WAY), upstream (synced-surface ranked options), docs-review (retirement), conformance-review (discovered retirement), features (dispositions), catchup (decision-shaped reconcile), fabrik-review (deliberate fail-open → TRIPWIRE).
+26. **design-review's cite-not-count points at a ledger its report format doesn't have** (N7, CONFIRMED) → **FIXED**: `Standing:` line under the Pass Ledger is now the citation carrier, mandated whenever a standing finding is re-raised.
+27. **release `@{u}` with no no-upstream fallback; D-026 no-remote repos exist** (N8, CONFIRMED — overturns this review's own pool-round refutation #3 for the RELEASE context; the deploy context's refutation stands, a deploy without a remote is constitutively impossible) → **FIXED**: fallback + the mandatory "nothing is off-box-protected" statement added to the release precondition.
+28. **spec-review approval mint has no change to ride on an approval-only turn** (N9, PLAUSIBLE→REAL) → **FIXED**: "THE ROW ITSELF IS THE CHANGE — append + commit standalone, immediately"; names the downstream spec-fed-skip hole it closes.
+29. **close-feedback same-change mint vs chat-only/read-only runs** (N10, PLAUSIBLE→REAL) → **FIXED at fragment root** (32 consumers): row-is-the-change clause — resolves rules-review/design-review/deploy-verify at once.
+30. **release waiver row stranded by the cut's hardcoded pathspec** (N11, PLAUSIBLE→REAL) → **FIXED**: waiver row committed as its own commit BEFORE `release_cut.py` runs.
+31. **prompt-scoped carve-outs leave the tool channel open on `mode="write"` workers** (N12, PLAUSIBLE) → **REFUTED**: write-mode pool workers run in worktrees of committed HEAD (`workspace.py worktree add --detach HEAD`) — a worktree carries tracked files only, so `.env`/key material is absent by construction; committed secrets are a pre-existing Tier-1 violation with their own gates (private-key pre-commit hook, bandit). The generate-tests boundary sentence (finding 22 companion) now states this in-corpus.
+32. **cert-handoff-grammar severity block splits the three-row grammar enumeration** (N13, PLAUSIBLE→REAL) → **FIXED**: severity paragraph moved below the DESIGN-GAP row; grammar rows now contiguous. Both consumers verified (user-test, service-test — denominator 2).
+33. **execute-plan crash-safety claim names a surface the MESSY-resume sweep doesn't probe** (N14, PLAUSIBLE→REAL) → **FIXED** by finding 23's `:531` edit (DECISIONS.md explicitly in the sweep, with the received-ruling cross-reference).
+34. **MACHINERY: `check_review_coverage.py` blocking vs committed-advisory read different counters** (N15) → **FIXED in-beat**: `_committed_nonquiet` re-keyed to `found:` per D-048 (the divergence let a `found: 2 | new: 0` report be refused uncommitted and accepted committed); measured before landing — 0 committed reports newly fire (11 advisory lines before AND after, all pre-existing categories). Contract tests updated to D-048 (`tests/enforcement/test_review_exit_contract.py`, 7/7; the superseded `new:`-preference test was watched RED against the new code before being rewritten — the honest red). MACHINERY note 3 (no fixture test for corpus exit strings) → measure-first backlog row appended to `docs/STRATEGIC_BACKLOG.md`.
+
+Count check (round 1): 19 pool clusters (2 FIXED · 16 REFUTED · 1 no-defect) + 15 native (13 FIXED · 1 REFUTED · 1 FIXED-machinery+backlog) = 34 raised, 34 terminal.
+
+## Round 3 — closing sweep that refused to close (3 pool + 1 native Opus, non-author)
+
+Pool layer (3 fresh units over the post-round-1 surface): 14 clusters — **2 FIXED** (the "pair vs
+three counters" wording in my own round-1 fix, term-coverage; the STANDING-scope sharpening — a
+re-raise carrying evidence the standing disposition does not cover NEEDS adjudication and counts,
+raised independently by two finders across rounds) · **12 REFUTED**, the notable ones: qwen's
+CONFIRMED "crash bug — `f` is the filename" refuted EMPIRICALLY (the test suite executes that exact
+path green; a filename would ValueError the whole suite), the SEEDED_NOT_ENFORCED/pen-holder
+conflation (scopes: sync-overwrite policy vs within-run role), the release fallback over-inclusion
+(fail direction is closed; superseded anyway by the round-3 rewrite), the stranded-parenthetical and
+Standing-grammar style items (chat-only report, no parser).
+
+Native layer: 26 findings, most-severe first — **21 FIXED · 5 REFUTED/cited**:
+
+1. **term-edit fragment (12 consumers) still carried the pre-D-048 absolute** — the transdoc
+   unreachable-termination class one fragment over; the whole-plan pass's T33 stamp ("same
+   semantics, no collision") was WRONG → D-048 carve-out with the new-evidence counter-rule added
+   at the fragment root.
+2. `check_file`'s blocking message still taught "refuted counts as found" → D-048 wording.
+3. Release waiver commit broke Phase 0's own pushed-precondition → COMMIT AND PUSH + the cross-ref.
+4. deploy-verify: NOT-RUN/INCONCLUSIVE tokens had no Output slots and the binary VERDICT converted
+   an early stop to a green → all slots added + `VERIFICATION INCOMPLETE` arm + the zero-FAIL rule.
+5. **My own measurement claim was false at fleet scale** — "0 newly fire" was hub-only (11→11) on a
+   file that SYNCS to ~46 repos; the finder ran the differential across 13 /opt repos with review
+   corpora: 24→25, one newly-firing honest pre-D-048 close (/opt/youtube). The denominator-honesty
+   anchor, violated by the reviewer mid-review → comment restated with the fleet denominator.
+6. `_NEW_TOKEN` left as dead code with a false comment → deleted (grep: 0 remaining hits).
+7. One of my two rewritten tests was trivially-passing (green under both impls) → deleted; the
+   discriminating test is the guard.
+8. review-scoped's no-upstream fallback resolved the ENTIRE repo history as the review SCOPE
+   (a push-status probe misused as a scope) → scope-to-diff + own-commits rewrite.
+9. STRATEGIC_BACKLOG append mandated with no create-if-missing (absent in 19 of 43 /opt repos,
+   measured) → seed-from-template clauses (repo-review, upstream).
+10. decommission: the `:141` "9-surface" literal (the exact drift the same file's fix forbids) →
+    table-derived; the ledger row never said WHICH repo's ledger and the natural reading archives
+    it → HUB's ledger, explicitly.
+11. Six binding strengths for the same-change law; `/fabrik-spec`'s "in this authoring session"
+    the weakest → same-COMMIT wording (flows' disambiguation); conformance's ambiguous
+    "ledger-commit" disambiguated. (The CLAUDE.md-matching "in this run's change"/"SAME change"
+    phrasings retained — they are the governing text's own vocabulary.)
+12. spec-review→plan-after-chat approval mint was a circular deferral (the minting command has
+    terminated by the approval turn; the consumer skipped on faith) → plan-after-chat now
+    VERIFIES the row (grep) and mints if absent.
+13. execute-plan's Deltas grammar admitted a `### DECISIONS` heading the pen-holder law forbids →
+    explicit exception.
+14. `.env*` in the new fabrik-review carve-out swallowed `.env.example`
+    (check_plan_tickets' own explicit exemption) → aligned in fabrik-review + repo-review +
+    rules-review.
+15. cert-handoff severity block: moved to the END (grammar rows + gate rules now contiguous) +
+    the DESIGN-GAP-carries-no-digit warning (HANDOFF_ROW regex has no DESIGN-GAP severity slot).
+16. Salvage diff written to a session-private scratchpad while claiming crash-reversibility →
+    durable `.fabrik/plan-locks/<stem>-salvage-<ticket>.diff`.
+17. generate-tests' STOP remedy misdiagnosed the likely ImportError → print the real error +
+    requirements install.
+18. doc-converge's "no gate fires on doc↔doc" overreach → precise (INDEX.md add/rename rule named).
+19. close-feedback's row-is-the-change vs read-only commands' no-artifact contracts → supersedes
+    clause at the fragment root (32 consumers).
+20. Release fallback could catch a sibling's parked branches → `git log HEAD --not --remotes`.
+21. `fabrik_synced_manifest.py:331` stale hand-copied docstring (the exact class the same round's
+    upstream fix warns about, in the file that defines the constant) → points at the constant.
+22. STRATEGIC_BACKLOG meets GOVERNANCE_FILES' own admission criterion → seventh surface + comment +
+    membership test (132/132 green).
+23. QUIET_PASS satisfiable by pasting the contract sentence → fence-only note in the fragment.
+24. "Length-discipline" hyphen vs the source's "Length discipline:" → exact-cased cite.
+
+REFUTED/cited (native): the DECISIONS.md create-if-missing candidate (the finder itself refuted it:
+43/43 repos carry the file); rivals' exit-vocabulary restatement (consistent once term-edit is
+fixed — cited to fix 1); the design-review dispatched-agent Standing-obligation question (not
+determinable from files — the parent constructs the task; recorded as a watch item, not a defect);
+the fabrik-review fail-open-TRIPWIRE clause vs Invariant-3 tension (surfaced as tension, adjudicated
+compatible: Invariant 3 governs classification ambiguity, the clause governs a deliberate
+fail-open's row class); the salvage binary/ignored-file edge (best-effort recovery strictly better
+than the prior unconditional destruction).
+
+## Round 4 — fresh full sweep (native Opus, non-author; fragments 21/21 read in full)
+
+Fragment-level contradictions: **0 of 21** (the term-edit class has no further siblings in
+`_fragments/`). Round-3 fixes: 14/20 verified CORRECT with primary-source re-derivation, 3
+INCOMPLETE, 3 class-open — all closed this round. 10 findings, all terminal:
+
+1. **SEEDED_NOT_ENFORCED consumers went stale when the constant grew** (fabrik-review +
+   fabrik-docs-review still filtered/taught `PORTS.md` alone; a project agent following them would
+   `git checkout --` a project's DECISIONS.md — data loss on the very rows close-feedback mandates;
+   verified against 3/3 real project locks) → FIXED: two-name filter + never-revert prose + live-set
+   pointer in both files; `~190` → `~220` (measured 220).
+2. **Governance-surface enumerations: three different counts while the gate enforces SEVEN**
+   (execute-plan said six — my own round-1 fix, stale within the run when round 3 added
+   STRATEGIC_BACKLOG; plan-after-chat taught five ×3; plan-review graded against five) → FIXED ×7
+   sites, each now pointing at `check_plan_tickets.py::GOVERNANCE_FILES` as the live list. Fleet
+   blast-radius of the constant change re-measured by the finder: 0 live plan sets newly red
+   (41 repos scanned; the 5 hits are all archived/exempt).
+3. **deploy-plan.md kept the hardcoded `origin/<branch>` push probe** the same round de-hardcoded in
+   release/review-scoped — the highest-consequence consumer (a fatal-empty read as "pushed" deploys
+   stale code) → FIXED to `@{u}` + fallback prose.
+4. **deploy-verify's new VERDICT rule failed OPEN via the two tokens outside the four-token set**
+   (`discriminator void`, `missing` — zero FAIL + zero NOT-RUN/INCONCLUSIVE still allowed CONFIRMED
+   LIVE on a domain that doesn't resolve) → FIXED: every-verdict-bearing-row-PASS rule + GATUS
+   `missing` = FAIL note.
+5. generate-tests mandated printing an exception the adjacent block discarded → `as _fanout_err`
+   kept + named at the STOP.
+6. doc-converge's INDEX trigger claim dropped "removed" → FIXED.
+7. Salvage diff had no lifecycle (tracked-dir residue reds a later release's clean-tree
+   precondition) → gitignore line + DELETE-on-acceptance clause.
+8. **Secrets carve-out was 8 command-local copies, none at the root** — `subagents-core` (16
+   consumers) itself prescribes the inline mechanism the carve-outs guard → FIXED at the fragment
+   root (fix-directive §2: the class, not the location); locals stay as emphasis.
+9. Release's off-box-unprotected statement conflated no-upstream with no-remote → gated on
+   `git remote` empty.
+10. assemble_commands.py's "29 sources" stale denominator (in the renderer of the surface under
+    review) → de-hardcoded to the live `ls` denominator.
+
+Also from round 4: the DECISIONS.md create-if-missing candidate self-refuted (43/43 repos carry it);
+the enforcement-side GOVERNANCE_FILES growth verified safe at fleet scale by measurement.
+
+## Residual risks (pre-existing, out of this diff's scope)
+
+- `tests/enforcement/test_certification_coverage.py` (3 tests) + `test_plan_lock_release.py` (1)
+  fail at HEAD in files this review never touched (`check_certification_coverage.py` /
+  `check_plan_lock_release.py`, active sibling surface — recent commits f5ffe73d/34d7fab6, plus a
+  parked `sibling-agent-enforcement-refactor` stash). Not introduced here (my changed files' suites:
+  137 + 795-suite minus these 4 green). Routed: named to the sibling mid-flight on that surface
+  rather than fixed under them.
+
+## Round 5 — fresh full sweep (native Opus, non-author)
+
+16 candidates (11 CONFIRMED / 5 PLAUSIBLE), 8 of them defects in round-4's own fixes — all 16
+terminal (15 FIXED, 1 cited):
+
+1. The `_fanout_err` fix was INOPERATIVE — Python implicitly del's the `except … as` target on
+   handler exit (finder proved it live); rebind added.
+2. subagents-core's new carve-out parenthetical asserted a norm as a guarantee ("where secrets must
+   never live") contradicting 3 of its 16 consumers (repo-review hunts leaked secrets IN HEAD) →
+   binds-both-modes wording.
+3. The salvage gitignore landed HUB-ONLY while the command distributes fleet-wide →
+   `gitignore_dest_paths()` now emits the pattern to all ~46 projects.
+4. plan-after-chat's four→seven rewrite left an orphaned "(the fifth shared-append surface)"
+   appositive → deleted; and its `docs/` containment example under-listed the gate's set → all
+   seven via the symbol.
+5. rules-review: unclosed `**` from the round-4 insertion (53/53-file parity scan) → closed.
+6. spec.md:314: missing opening `**` (pre-existing paste defect, only other odd-parity paragraph) →
+   fixed.
+7. deploy-verify: no terminal token for legitimately NOT-OBLIGATED rows (internal services could
+   never reach CONFIRMED LIVE) → `n/a (not obligated)` tokens + exemption.
+8. Test file: nothing exercised `check_file` (the OTHER half of the alignment its docstring
+   claims to pin) → alignment-guard test added; the dead-fallback and decoy tests
+   reworked/deleted; `rows` tuple's unused element dropped (message consumer updated). 138/138.
+9. fabrik-review + docs-review comment residues (a tautological find-replace; a one-file comment
+   above a two-file filter) → both rewritten.
+10. Release no-remote: the mandated PUSH is impossible there and the "empty" precondition
+    unsatisfiable → explicit BLOCKED-unless-waived disposition, local waiver commit, `--no-push`
+    named in step 2 (release_cut hardcodes `origin` and would strand a local tag mid-cut).
+11. assemble_commands `:751` "31 sources" stale count → de-hardcoded.
+12. subagents-core: the NO-POOL waiver's LOCATION (in-cycle commit message / FABRIK_NO_POOL) now
+    stated at the fragment root — a chat-only declaration is invisible to the check.
+13. term-coverage: canonical row shape pinned (counters ADJACENT — QUIET_PASS's 40-char window
+    means a finder manifest wedged between counters silently fails an honest quiet round).
+14. Cited, not counted: catchup's "6 probe classes" literal (verified 6/6 correct today; pattern
+    inconsistency only). MACHINERY observations routed: the `--check` "HAND-EDITED" label asserts
+    a cause the tool cannot know; grounding-research + grounding-rules-cite are dead fragments
+    (0 consumers, 0 renderer refs) → STRATEGIC_BACKLOG row.

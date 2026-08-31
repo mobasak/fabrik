@@ -190,13 +190,13 @@ does.
 
 ```
 DEPLOY-VERIFY: <project> @ <domain> (target_vps: <vps1|vps2|vps3>)
-DNS: PASS | FAIL (siblings resolved, target didn't) | inconclusive (re-probe — siblings also failed) | discriminator void (sibling NXDOMAIN)
-HEALTH/READYZ: PASS | FAIL — <evidence> | NOT-RUN (<cause>)
+DNS: PASS | FAIL (siblings resolved, target didn't) | inconclusive (re-probe — siblings also failed) | discriminator void (sibling NXDOMAIN) | NOT-RUN (<cause>) | n/a (not obligated — no domain set)
+HEALTH/READYZ: PASS | FAIL — <evidence> | INCONCLUSIVE (<why>) | NOT-RUN (<cause>)
 REGISTRARS: <n> obligated, <n> PASS, <n> FAIL, <n> not-project-verifiable (informational), <n> NOT-RUN
-GATUS: PASS | FAIL | missing | NOT-RUN (<cause>)
-LOGS: PASS (clean window) | FAIL — <signature> | NOT-RUN (<cause>)
-SMOKE: <n>/3 rows PASS | NOT-RUN (<cause>)
-VERDICT: DEPLOY CONFIRMED LIVE | DEPLOY VERIFICATION FAILED — <n> FAIL routed below
+GATUS: PASS | FAIL | missing | INCONCLUSIVE (<why>) | NOT-RUN (<cause>) | n/a (not obligated — not public/no domain)
+LOGS: PASS (clean window) | FAIL — <signature> | INCONCLUSIVE (<why>) | NOT-RUN (<cause>)
+SMOKE: <n> PASS / <n> INCONCLUSIVE / <n> FAIL of 3 | NOT-RUN (<cause>)
+VERDICT: DEPLOY CONFIRMED LIVE | DEPLOY VERIFICATION FAILED — <n> FAIL routed below | VERIFICATION INCOMPLETE — <n> non-PASS rows (CONFIRMED LIVE is claimable ONLY when every verdict-bearing row above reads PASS — zero FAIL AND zero NOT-RUN/INCONCLUSIVE/discriminator-void rows; GATUS `missing` = FAIL per Phase 4; informational registrar rows AND `n/a (not obligated)` rows are exempt — a non-public/internal service whose obligated rows all PASS reaches CONFIRMED LIVE. An early stop with nothing failed is INCOMPLETE, never confirmed)
 ROUTES: <one line per FAIL: item — route — what the operator/route must do> | none
 ```
 

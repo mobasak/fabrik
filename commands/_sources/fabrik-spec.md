@@ -201,8 +201,9 @@ Fabrik convention (naming = kebab-case per `CLAUDE.md`; auth = Pattern A; DB hos
 security tradeoff, conflicting requirements, or anything irreversible/destructive. When several real
 questions clear the bar, you may batch them — encourage substantive dialogue, just not trivia one drip at a
 time. A stopped turn asking "what should I name this?" is a defect this bar exists to prevent.
-**Every bar-clearing answer is by construction an operator ruling — mint its `docs/DECISIONS.md` row in
-this authoring session** (classified at mint; the same for a rejected alternative worth not re-proposing):
+**Every bar-clearing answer is by construction an operator ruling — mint its `docs/DECISIONS.md` row
+staged in the same commit as the spec edit the ruling produced (same-change means same COMMIT, not
+same run — the `/fabrik-flows` disambiguation)** (classified at mint; the same for a rejected alternative worth not re-proposing):
 a DRAFT abandoned before CONVERGED must still carry the ruling somewhere greppable — the spec's own prose
 dies with the spec, the ledger row does not (the abandoned-DRAFT class, per `/fabrik-deploy-plan`'s law;
 the /fabrik-spec-review approval mint covers only the approval itself, never these).
@@ -310,7 +311,7 @@ it to a fixed point in THIS turn. Do not just name it — call it.** Phase 5's s
 pass; `/fabrik-spec-review` is the independent adversarial one that re-verifies every cited external fact
 against the live web, audits the fabrik-lib vendor→enhance→build verdict against real modules, iterates to a
 no-op round, and flips `Status: DRAFT → CONVERGED` (same relationship as `/fabrik-plan-after-chat` →
-`/fabrik-plan-review`). **Do NOT end the turn on an unconverged DRAFT** (Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred) — the only reasons to stop before
+`/fabrik-plan-review`). **Do NOT end the turn on an unconverged DRAFT** (**Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred) — the only reasons to stop before
 CONVERGED are an unanswered Phase-2 question or a Phase-1 BLOCKING unknown (an external fact you cannot
 verify live); surface those and stop.
 

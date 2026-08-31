@@ -27,12 +27,15 @@ verdict (step 5). If the project hasn't vendored it yet, vendor first, then impo
 ```python
 try:
     from libs.subagents import fanout, pick_models, set_quality
-except ImportError:  # not vendored here → this command's pool test-authoring is unavailable
-    fanout = pick_models = set_quality = None
+except ImportError as _e:  # not vendored here → this command's pool test-authoring is unavailable
+    _fanout_err = _e  # REBIND — Python implicitly del's the `as` target when the handler exits
+    fanout = pick_models = set_quality = None  # the STOP below must print the REAL cause
 ```
 
-**If `fanout` is `None` after the vendor attempt, STOP with the stated fail-mode** — "vendor
-`libs/subagents` first (the cp above), then re-run" — before step 1 ever calls it: the loop's steps call
+**If `fanout` is `None` after the vendor attempt, STOP with the stated fail-mode** — print the REAL
+`ImportError` first (`_fanout_err` from the guard block) (the likely cause in an already-vendored repo is a missing transitive dependency,
+not an absent vendor), then: "vendor `libs/subagents` (the cp above) AND install
+`libs/subagents/requirements.txt`, then re-run" — before step 1 ever calls it: the loop's steps call
 `fanout(...)` directly, and proceeding un-guarded dies as a bare `TypeError` mid-pipeline instead of a
 diagnosis.
 
@@ -72,7 +75,10 @@ for r in results:                        # the SUGGEST results from step 1 (befo
 ```
 
 ### 3. Commit the code-under-test FIRST (mandatory)
-Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`), so the code the
+Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`) — which is
+also the secrets boundary: a worktree carries only tracked files, so `.env`/key material never reaches a
+pool author UNLESS you inline it into a task text — never do that (the corpus-wide secrets carve-out
+family; a behavior that needs a live credential is authored NATIVE instead). So the code the
 tests target MUST be committed (or fully inlined into the author task). Commit it now if it isn't — **explicit
 pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree** (mid-pipeline is
 exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code.

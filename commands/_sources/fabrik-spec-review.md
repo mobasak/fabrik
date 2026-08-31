@@ -278,7 +278,10 @@ field-freeze / UI / plan work begins. Once the md5-verified no-op round earns `S
     **`/fabrik-plan-after-chat <spec>`**.
 - Only **on the user's explicit approval (a later turn)** does the applicable next command run. **The
   approval is a RECEIVED decision — the approving turn's session mints its `docs/DECISIONS.md` row in
-  that turn's change** (what was approved + the chosen approach, referencing the spec path; this is the
+  that turn's change, and when the approving turn carries no other change THE ROW ITSELF IS THE
+  CHANGE: append it and commit it standalone, immediately — an approval turn that ends row-less
+  mints the project's largest scope decision nowhere, and the spec-fed skip downstream guarantees
+  nobody catches it later** (what was approved + the chosen approach, referencing the spec path; this is the
   mint downstream commands rely on — `/fabrik-plan-after-chat`'s spec-fed skip cites exactly this row).
   If they ask
   for changes instead, **re-open the loop** on their feedback (back to a full grounding pass). Never end at

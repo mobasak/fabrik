@@ -1,19 +1,18 @@
-"""The review grader must accept the exit condition the review CONTRACT states.
+"""The review grader must accept the exit condition the review CONTRACT states — D-048 form.
 
-Found by `/fabrik-review` on this session's own work, and it is the session's own defect reproduced
-one layer out. transdoc filed (2026-08-27) that `/fabrik-user-test` could not terminate: the exit
-demanded `found: 0` counting refuted candidates, while a standing DESIGN-GAP row is re-raised by
-every future finder round for as long as it is true. The fix keyed the exit on `new: 0` in the
-SHARED `term-coverage` fragment — five commands at once.
-
-`check_review_coverage._committed_nonquiet` was left demanding `int(rows[-1]) != 0` on `found:`.
-So the grader rejected the exact state the contract now calls converged: a final row reading
-`found: 3, new: 0` is CONVERGED by the fragment and "a non-quiet exit round" to the gate. Two
-clauses judging one state oppositely — the very defect the fix was for.
+Contract history, both turns load-bearing. 2026-08-27 (transdoc): the exit demanded `found: 0`
+COUNTING re-raises of standing rows, making termination unreachable — the exit was re-keyed on
+`new: 0`, and this file then pinned a `new:`-preferring advisory. 2026-08-31 (D-048): re-raises of
+already-adjudicated standing rows are CITED in their disposition rows, never counted — `found:`
+counts only candidates NEEDING adjudication, so the honest converged round reads `found: 0` again
+and the BLOCKING reader (`check_file`, which grades `founds[-1]` only) is correct. The
+`new:`-preference this file used to assert had become the divergence: the same `found: 3 | new: 0`
+report was refused uncommitted and accepted once committed — `_committed_nonquiet`'s own founding
+enemy. Both readers now grade the same `found:` counter; these tests pin that alignment.
 
 `_ledger_shapes` is deliberately NOT touched: its docstring records three parallel ledger readers
 each hardened separately until the stall breaker named the triple implementation as the foundation
-error. It already returns the raw LINE, so `new:` is read off that without disturbing extraction.
+error.
 """
 
 from __future__ import annotations
@@ -50,11 +49,14 @@ def _repo(tmp: Path, ledger: str) -> Path:
     return tmp
 
 
-def test_a_row_with_new_zero_is_a_valid_exit_even_when_found_is_nonzero(tmp_path):
-    """THE contract's exit: re-raised already-adjudicated candidates keep `found` above 0 forever,
-    and `new: 0` is what says the loop stopped learning."""
+def test_a_nonzero_found_final_fires_even_with_new_zero_matching_the_blocking_reader(tmp_path):
+    """D-048: re-raises are cited, never counted, so a final `found: 3` means three candidates
+    still NEED adjudication — non-quiet to BOTH readers. Under the pre-D-048 `new:`-preference
+    this exact report was refused uncommitted and accepted committed (the divergence)."""
     root = _repo(tmp_path, "| Pass 1 | finders | found: 3 | new: 0 | fixed: 0 |\n")
-    assert crc._committed_nonquiet(root, set()) == []
+    out = crc._committed_nonquiet(root, set())
+    assert out and "non-quiet" in out[0], out
+
 
 
 def test_a_row_with_fresh_candidates_is_still_rejected(tmp_path):
@@ -64,9 +66,9 @@ def test_a_row_with_fresh_candidates_is_still_rejected(tmp_path):
     assert out and "non-quiet" in out[0], out
 
 
-def test_a_row_with_no_new_counter_falls_back_to_found(tmp_path):
-    """Backward compatible: every report written before the contract change carries only `found:`,
-    and those must keep grading exactly as they did — a silent re-grade of history is not a fix."""
+def test_a_row_with_no_new_counter_grades_on_found(tmp_path):
+    """`found:` grading is unconditional post-D-048 (no `new:` fallback exists any more) — legacy
+    reports carrying only `found:`/`fixed:` grade exactly as they always did."""
     root = _repo(tmp_path, "| Pass 1 | finders | found: 2 | fixed: 0 |\n")
     out = crc._committed_nonquiet(root, set())
     assert out and "non-quiet" in out[0], out
@@ -77,12 +79,16 @@ def test_a_legacy_quiet_row_still_passes(tmp_path):
     assert crc._committed_nonquiet(root, set()) == []
 
 
-def test_new_is_token_anchored_so_a_decoy_cannot_forge_the_exit(tmp_path):
-    """Same discipline the `found:`/`fixed:` tokens already carry: a narrative phrase must not be
-    mistaken for the counter. `renewed: 0` is not `new: 0`."""
-    root = _repo(tmp_path, "| Pass 1 | finders | found: 4 | renewed: 0 | fixed: 0 |\n")
-    out = crc._committed_nonquiet(root, set())
-    assert out and "non-quiet" in out[0], "a `renewed:` decoy must not satisfy the exit"
+def test_check_file_blocks_the_same_nonquiet_report_the_advisory_flags(tmp_path):
+    """THE alignment guard: both readers must grade the same counter. A `found: 3 | new: 0` final
+    row is non-quiet to the committed advisory AND to the blocking reader — a future edit that
+    re-diverges either one reds this test."""
+    root = _repo(tmp_path, "| Pass 1 | finders | found: 3 | new: 0 | fixed: 0 |\n")
+    advisory = crc._committed_nonquiet(root, set())
+    assert advisory and "non-quiet" in advisory[0], advisory
+    report = root / "docs" / "development" / "reviews" / "2026-08-27-x-review.md"
+    blocking = crc.check_file(report)
+    assert any("final ledger round raised 3" in e for e in blocking), blocking
 
 
 def test_the_last_row_decides_not_an_earlier_quiet_one(tmp_path):

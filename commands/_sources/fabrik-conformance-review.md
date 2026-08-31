@@ -147,7 +147,10 @@ here is **prove, then hand to the owner** — and an unrouted finding is an unfi
 - **Route each cluster to its owning command** — `/fabrik-execute-plan` for a converged plan never
   run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep
   surfaced · the deploy triad for an operational red · a SUPERSEDED row is a discovered
-  retirement/adoption: it mints its `docs/DECISIONS.md` row in the ledger-commit of THIS run (the
+  retirement/adoption: it mints its `docs/DECISIONS.md` row staged in the commit that lands this run's
+  conformance ledger doc,
+  classified at mint (a discovered retirement is normally a plain row; ONE-WAY — § Binding block —
+  if the successor is already load-bearing) (the
   SAME-change law; the dispatching session appends — never the verifier). A conformance review that ends in a list
   nobody owns has not finished.
 
@@ -161,10 +164,12 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
   downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
   rows that already passed. The **closing round runs non-author verifiers** on the full inventory.
-- **DONE requires all of:** the final round raised **`new: 0`** with every found candidate adjudicated
-  (`new:` counts candidates FIRST raised that round: a round raising 3 FRESH candidates and refuting
-  all 3 is `new: 3` — not quiet; a round merely RE-RAISING already-adjudicated candidates is `new: 0`
-  — quiet, per the corrected exit in the termination contract above); **every Inventory row
+- **DONE requires all of:** the final round is QUIET — **`found: 0 · new: 0 · fixed: 0`** — with every
+  candidate ever raised adjudicated (`found:` counts candidates NEEDING adjudication: a round raising
+  3 FRESH candidates and refuting all 3 is `found: 3 · new: 3` — not quiet; a re-raise of an
+  already-adjudicated candidate is CITED in its disposition row, never counted — D-048. The graders
+  block on a non-zero final `found:` — `check_review_coverage.py` reads that counter, not `new:` —
+  so an exit keyed on `new:` alone stamps a report the gate then refuses); **every Inventory row
   terminal** (no `PENDING`); **every Checklist row adjudicated** `CLEAN` / `FIXED(n)` /
   `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with `found:` / `new:` /
   `fixed:` per round, each row naming the verifiers dispatched for THAT round.

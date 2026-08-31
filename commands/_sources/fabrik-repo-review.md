@@ -49,7 +49,7 @@ reviewers. The mass pool fan-out is the **default worker** for gradeable fan-out
 `62-using-subagents.md` § Dispatch policy; see § Subagents) — **reserve native Claude
 finders for the highest-blast-radius units** (money / auth / data-integrity — the
 authoritative pass). **Secrets carve-out (mirrors `/fabrik-execute-plan` D4): a unit touching
-secret-material paths (`.env`-prefix, `secrets/`, key files) is reviewed NATIVE-ONLY — secret
+secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) is reviewed NATIVE-ONLY — secret
 contents never go to pool APIs** (this command hunts leaked secrets; inlining a unit that
 contains one ships it to a third-party model, and a leaked secret cannot be unleaked). `fanout` **auto-records each worker UNSCORED** and returns
 `(results, results_table)` → **back-fill**
@@ -108,8 +108,10 @@ severity×blast-radius tier is fixed THIS run; the long tail is handed off as a 
 backlog (Phase 4 output), not force-fixed in one exhausting turn. **A CONFIRMED SECURITY
 finding budgeted OUT of this run is a risk-acceptance decision, never silent triage —
 surface it to the operator, and their disposition (defer / waive) mints its
-`docs/DECISIONS.md` row in this run's change** (the same class as `/fabrik-release`'s
-waiver mint; correctness-tier deferrals stay technical triage).
+`docs/DECISIONS.md` row in this run's change, classified at mint — an accepted-and-shipped
+vulnerability is the archetypal ONE-WAY row (grows the § Binding field block; TRIPWIRE and
+CLOSE-OUT especially), a short deferral with a named re-visit is a plain row** (the same class as
+`/fabrik-release`'s waiver mint; correctness-tier deferrals stay technical triage).
 
 ## PHASE 3 — PROVE + FIX
 
@@ -175,7 +177,8 @@ owner run them.
 The coverage ledger; per-unit findings with verdicts; the fixes with their regression
 tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the
 DEFERRED-BACKLOG list — **APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this
-run's change** (append-only: never rewrite or reflow existing rows — the shared-tree rules govern
+run's change** (file absent — 19 of 43 /opt repos lack it, measured 2026-08-31 — → seed it from
+`templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first, then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern
 a file three sessions touch; the Doc Sync Matrix's deferred-work row, operator rule 2026-08-27 —
 a chat-only backlog dies with the session), ready to fold into
 `docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any

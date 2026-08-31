@@ -261,3 +261,20 @@ verifier measured: the "versioning adoption" carve-out the command description c
 sanctioned publish-shaped act") has ZERO hits in `docs/DECISIONS.md` — the standing policy lives only
 in prose; mint its provenance row when the operator confirms. Out of plan-1's File Scope (scripts/).
 Promotion trigger: the first cut that actually mints a row (proves the two-commit shape in anger).
+
+## [infra] No fixture test asserts the corpus's own quoted exit strings parse under the graders (found by the fresh corpus review's native finder, 2026-08-31)
+
+The finding-2 class (a completion sentence naming a ledger shape `check_convergence.py`/
+`check_review_coverage.py` reject) was only findable by hand-running the graders on a constructed
+fixture — prose and grader can drift with zero mechanical signal. Candidate: a ~10-line test that
+extracts the exit-row examples quoted in `commands/_sources`/`_fragments` and asserts they parse
+under `_pass_counters` + QUIET_PASS. Measure-first per the fix directive: one confirmed occurrence
+so far (the `found: 0 · new: 0` two-token QUIET sentence, fixed 2026-08-31); promote if the class
+recurs. Trigger: the next prose-vs-grader mismatch found by any review.
+
+## [infra] Two dead fragments: grounding-research + grounding-rules-cite (0 consumers, 0 renderer refs — found by the fresh corpus review round 5, 2026-08-31)
+
+`grep -l "{{include:<name>}}" commands/_sources/*.md` returns 0 for both, and `assemble_commands.py`
+names neither (unlike `close-feedback`/`agent-feedback`, which are auto-appended). Either dead files
+to delete in a maintenance pass, or a second injection path nobody documented — decide, then either
+delete or document. Pre-existing (not touched by the manifesto-pass diff).

@@ -206,3 +206,4 @@ mutants/
 # two stayed TRACKED from before that fix and churn on every run. Ignored 2026-08-30.
 /duplicate-report.json
 /jscpd-report.json
+/.fabrik/plan-locks/*-salvage-*.diff

@@ -37,9 +37,10 @@ you close** — a bare close would end the CALLER when this command runs nested 
 (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):
 
 ```bash
-# The lock records exactly what was distributed to THIS project. PORTS.md is SEEDED_NOT_ENFORCED
-# (projects may edit it) → it stays a normal reconciliation target.
-python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vx 'PORTS.md'
+# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are
+# SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay
+# normal reconciliation targets.
+python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
 # Covers: AGENTS.md · CLAUDE.md · AGENTS-compact.md · .windsurfrules · .windsurf/rules/**
 #         docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …
 ```
@@ -52,7 +53,9 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
   and cite it, but it stays OUTSIDE Phase 1's claim-ledger denominator: the zero-skipped-lines count covers only
   the docs you are reconciling. (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
 - **A synced doc in the diff is ITSELF the finding:** revert + propose upstream in `/opt/fabrik`.
-- **`PORTS.md` is the exception** (`SEEDED_NOT_ENFORCED`) — projects may edit it → reconcile it normally.
+- **The `SEEDED_NOT_ENFORCED` set is the exception** (live set in `fabrik_synced_manifest.py` — today
+  `PORTS.md` + `docs/DECISIONS.md`) — projects may edit these → reconcile them normally; NEVER revert a
+  project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss).
 - A stale claim in a synced doc → fix it **upstream in `/opt/fabrik`**, so every synced project gets the fix. Never
   patch the local copy.
 
@@ -170,7 +173,9 @@ CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the
 reference, a changelog line is not architecture prose). Delete DEAD claims rather than
 polishing them — and when a DEAD sweep retires a whole documented subsystem or feature
 (not just a stale line), that deletion is a decision-shaped RETIREMENT: its
-`docs/DECISIONS.md` row lands in the SAME change (CLAUDE.md § the decision ledger); a
+`docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is
+normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem)
+(CLAUDE.md § the decision ledger); a
 routine dead-line deletion stays doc hygiene, no row. Bump `Last Updated:` dates where present.
 
 ## Phase 4 — Gate + embedded proof

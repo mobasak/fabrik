@@ -67,7 +67,7 @@ TASK terminator, and the record is what proves the task is actually over.
        as the FIRST commit after the ruling, before any resumed work, so a second crash cannot orphan it
        (CLAUDE.md § the decision ledger; the same law binds every operator ruling this run receives — the
        D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or
-       reverts anything. (The five governance surfaces — CHANGELOG/INDEX/docs README/FEATURES/
+       reverts anything. (The seven governance surfaces — CHANGELOG/INDEX/docs README/FEATURES/DECISIONS/STRATEGIC_BACKLOG/
        LESSONS_LEARNT — are OUTSIDE every plan's lock by grammar; residue there is never resolved by this
        rule alone — see the dispatcher MESSY-resume sweep for the one case where it can be yours.)
    - **Same-plan lock `status:"released"`, or the plan already `EXECUTED`/archived → do NOT re-create the
@@ -466,10 +466,16 @@ its Touches (contract violation → its diff is rejected at acceptance).
 
 ### D3 — Shared governance files: orchestrator-applied Deltas
 
-The five governance surfaces (CHANGELOG.md · INDEX.md · docs/README.md · docs/FEATURES.md ·
-docs/LESSONS_LEARNT.md) are never in Touches (gate-enforced). Every coder report ends with a
+The seven governance surfaces (CHANGELOG.md · INDEX.md · docs/README.md · docs/FEATURES.md ·
+docs/STRATEGIC_BACKLOG.md ·
+docs/LESSONS_LEARNT.md · docs/DECISIONS.md) are never in Touches (gate-enforced — for DECISIONS.md
+the gate is also the pen-holder law: a ticket touching it hands a coder subagent the pen CLAUDE.md
+reserves for the dispatching session; a ticket-born decision reaches the ledger through the
+orchestrator's own mint, per § received rulings). Every coder report ends with a
 **`## Deltas` block** in fixed format: `### CHANGELOG` (entry text verbatim) · `### INDEX` (rows) ·
-`### LESSONS` (entry-or-none) · matching headings for any other fired governance surface. The
+`### LESSONS` (entry-or-none) · matching headings for any other fired governance surface — **except
+`docs/DECISIONS.md`, which has NO Deltas heading**: a ticket-born decision is reported in prose and
+MINTED by the orchestrator (§ received rulings; the pen never rides the Deltas channel). The
 orchestrator applies deltas at merge in Merge-Order order, **dedupes on normalized full entry text —
 same-title-different-body pairs are surfaced to the acceptance review, never silently dropped** — and the
 applied diff is part of the acceptance-review surface, landing in the acceptance commit (where
@@ -521,14 +527,19 @@ crashed pool unit leaves no partial writes; recovery = re-dispatch the unit). **
 (native):** recorded path missing/erroring, or dirty with state ≠ merged → **salvage check first**
 (`git -C <wt> log <base_commit>..HEAD --oneline` non-empty → returned work → rebase → acceptance review;
 fixups → fresh coder per D2); otherwise capture the tree's uncommitted content first —
-`git -C <wt> add -N . && git -C <wt> diff > <scratchpad>/salvage-<ticket>.diff` (`-N` makes untracked
+`git -C <wt> add -N . && git -C <wt> diff > .fabrik/plan-locks/<stem>-salvage-<ticket>.diff`
+(gitignored; DELETE it once the re-dispatched ticket's work is accepted — an orphaned salvage diff
+is untracked residue that reds a later release's clean-tree precondition)
+(durable — a scratchpad is session-private and a resume may be a DIFFERENT session; `-N` makes untracked
 files visible to the diff; cheap, and it converts the force-remove from ONE-WAY destruction into a
 reversible act) — log the dirty file list to spine Evidence, then
 `git worktree remove --force` + re-dispatch fresh — fully autonomous; coder worktrees are disposable,
 never resumed. Orchestrator partial-diff assessment is capped (`git diff --stat` + ≤3 files/500 lines;
 larger → straight to a fresh coder's salvage review — the orchestrator does not read big diffs at its
 tail). **MESSY-resume sweep:** on ANY resume, run this procedure over every 🔵 lock entry BEFORE new
-dispatches, and ALSO probe the five governance surfaces for uncommitted residue — a crashed run's
+dispatches, and ALSO probe the seven governance surfaces (docs/DECISIONS.md included — a ruling row
+written but not yet committed is exactly the crash-orphan the received-ruling clause claims cannot
+happen) for uncommitted residue — a crashed run's
 half-applied Deltas are the ONE case where governance residue can be yours (the lock's `tickets` map
 says which merge was in flight); operator ruling remains only for the orchestrator's OWN tree. **SIZING
 DEFECT signals (orchestrator-logged to spine Evidence):** a re-dispatch, a partial diff vs Touches, a

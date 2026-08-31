@@ -249,6 +249,7 @@ def gitignore_block_text() -> str:
         "# Local state (never committed, never synced)",
         ".fabrik/synced.lock",
         ".claude/settings.local.json",
+        ".fabrik/plan-locks/*-salvage-*.diff",
         "",
     ]
     lines += [_GI_BAR, GITIGNORE_BLOCK_END, _GI_BAR]
@@ -328,7 +329,7 @@ def synced_project_paths(fabrik_root: Path = FABRIK_ROOT) -> list[str]:
 def review_readonly_paths(fabrik_root: Path = FABRIK_ROOT) -> list[str]:
     """The synced set MINUS files a project is *allowed* to modify.
 
-    ``SEEDED_NOT_ENFORCED`` (``PORTS.md``) is distributed once but projects may
+    ``SEEDED_NOT_ENFORCED`` (see the constant above for the live set) is distributed once but projects may
     edit it, so it stays a normal review target. A naive "exclude everything
     synced" list would wrongly skip a file that SHOULD be reviewed — which is
     exactly why this is computed, not hand-written.

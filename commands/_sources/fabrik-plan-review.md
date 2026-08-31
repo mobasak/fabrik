@@ -156,7 +156,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real
   API), every touched `agents-fabrik.md` invariant (`AGENTS.md` is a stub) + `shape.*` flag is listed and grounded.
 - **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing — **except the
-  governance files** CHANGELOG/INDEX/docs README/FEATURES + docs/LESSONS_LEARNT.md, which stay OUT of
+  governance files** (all SEVEN — read `check_plan_tickets.py::GOVERNANCE_FILES`, the live list; a hand-copied enumeration here graded plans against five while the gate enforced seven), which stay OUT of
   File Scope in BOTH plan shapes (monolith and spine+ticket):
   shared-append surfaces outside the plan lock, since locking `CHANGELOG.md` would make any two concurrent
   plans BLOCK on scope overlap; per `/fabrik-plan-after-chat`'s grammar — never re-add them for

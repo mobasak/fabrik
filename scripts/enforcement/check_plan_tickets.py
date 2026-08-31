@@ -277,13 +277,21 @@ def _strip_fences(text: str) -> str:
 # CLAUDE.md's four orchestrator-applied governance files, plus LESSONS_LEARNT —
 # the fifth shared-append surface (Completion Contract §4: every run either
 # appends it or records `none`, so any run MAY append — the same
-# BLOCK-on-overlap collision class as CHANGELOG if a lock owned it).
+# BLOCK-on-overlap collision class as CHANGELOG if a lock owned it) — plus
+# DECISIONS.md, the sixth (close-out decision line: every run either appends a
+# row or states `no decisions this run` — same collision class, and CLAUDE.md
+# § the decision ledger additionally forbids a coder subagent holding the pen:
+# a ticket listing it in Touches hands exactly that pen) — plus STRATEGIC_BACKLOG,
+# the seventh (Doc Sync Matrix: every project's deferred-work append surface; repo-review
+# and upstream mandate per-run appends — same collision class).
 GOVERNANCE_FILES = (
     "CHANGELOG.md",
     "INDEX.md",
     "docs/README.md",
     "docs/FEATURES.md",
     "docs/LESSONS_LEARNT.md",
+    "docs/DECISIONS.md",
+    "docs/STRATEGIC_BACKLOG.md",
 )
 # The legacy-tolerated lowercase alias (CLAUDE.md Doc Sync Matrix) is the same
 # surface — ban/tolerate it identically or the carve-out is bypassable.

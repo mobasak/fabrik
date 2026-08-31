@@ -85,7 +85,7 @@ implementation detail) govern FLOW BODIES only** — the header, R-notes, Contra
 close-out's Downstream impact table are lifecycle metadata whose entire job is naming entities, fields and
 consumer docs, and axis G below REQUIRES exactly that; raising them under F contradicts G in the same pass ·
 **per-flow length asserted against the NUMBERS, not "within targets"** — `/fabrik-flows` sets
-**target ≤30 lines, HARD SPLIT at 50** (`fabrik-flows.md:126`, `:145-146`): a flow over **30** owes a
+**target ≤30 lines, HARD SPLIT at 50** (`fabrik-flows.md` § Phase 5 — the per-flow length target and its `Length discipline:` clause; grep `hard split at 50` — line anchors drift): a flow over **30** owes a
 one-line justification; a flow at or over **50** is a DEFECT — split it. State the count you measured per
 flow. ⚠️ **"within targets" was the whole problem**: it named no number, so a closing round that
 re-derives "lengths OK" is not mechanical — the reviewer picks which reading to check against and can

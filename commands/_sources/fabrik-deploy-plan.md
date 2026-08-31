@@ -49,7 +49,10 @@ embed the fenced outputs in the plan header:
 
 - the service's `python scripts/final_gate.py --check --json` → `"status":"success"` this run;
 - the service's tree clean and pushed (`git -C /opt/<service> status --short` empty,
-  `git -C /opt/<service> log origin/<branch>..HEAD` empty);
+  `git -C /opt/<service> log @{u}..HEAD` empty — upstream-relative, never a hardcoded
+  `origin/<branch>`: the fleet splits across `master`/`main`/fork-convention branches and the
+  hardcoded form exits FATAL with empty stdout, which reads as "nothing unpushed" — the fail-open
+  `/fabrik-release` Phase 0 already kills; no upstream → say so, never guess);
 - the service's `CHANGELOG.md [Unreleased]` (or the cut version) describes what this deploy ships.
 
 OR the operator explicitly waived release readiness THIS turn — record the waiver verbatim in the header.

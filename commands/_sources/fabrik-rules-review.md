@@ -81,10 +81,10 @@ dispatches through `fanout` (it records to the flywheel either way).
 accordingly:** each unit's prompt inlines its pack's text + the Phase-0 ground truth + the
 RELEVANT CODE EXCERPTS you (the orchestrator) select for that pack's subject (grep-driven —
 config files, the entrypoint, the modules the pack governs). **Secrets carve-out (mirrors
-`/fabrik-repo-review`): never inline secret-material content (`.env` values, `secrets/`, key
+`/fabrik-repo-review`): never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key
 files) into a POOL unit's excerpts — a pack whose audit needs those files gets the NATIVE
 finder, and an unavoidable config excerpt is redacted first; secret contents never go to
-pool APIs. The unit then:
+pool APIs.** The unit then:
 
 - Extracts that pack's "Done When" / requirements / Banned Patterns.
 - For EACH requirement, judges it against the inlined excerpts and cites `path:line` from them —
