@@ -121,6 +121,18 @@ class TestAcquireHoldsTheLock:
         assert result["db_index"] == 3  # existing assignment read under the lock
 
 
+    def test_release_serializes_via_the_same_lock(self):
+        # release is the other read-modify-write on the file; unlocked it
+        # races acquire on last-writer-wins (round-2 re-sweep finding).
+        with (
+            patch.object(redis_driver, "file_lock") as fl,
+            patch.object(redis_driver, "ssh", return_value=json.dumps(LIVE_ENVELOPE)),
+            patch.object(redis_driver, "scp_to_vps"),
+        ):
+            redis_driver.release_db_index("authelia")
+        fl.assert_called_once_with("redis-assignments", timeout_seconds=15.0)
+
+
 class TestWriteRegistry:
     def test_writes_envelope_not_flat_map(self):
         """The write must preserve the envelope convention the box uses."""

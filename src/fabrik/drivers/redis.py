@@ -327,22 +327,26 @@ def release_db_index(
         )
         return True
 
-    try:
-        registry = _read_registry()
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Redis registry unreadable, treating release as no-op: %s", e)
-        return False
+    # Same lock as acquire_db_index: release is the other read-modify-write
+    # on this file, and an unlocked release racing an acquire resurrects the
+    # released entry (or drops the acquired one) on last-writer-wins.
+    with file_lock("redis-assignments", timeout_seconds=15.0):
+        try:
+            registry = _read_registry()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Redis registry unreadable, treating release as no-op: %s", e)
+            return False
 
-    if service_name not in registry:
-        logger.info("Redis DB index already absent for %s", service_name)
-        return True
+        if service_name not in registry:
+            logger.info("Redis DB index already absent for %s", service_name)
+            return True
 
-    idx = registry.pop(service_name)
-    try:
-        _write_registry(registry)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Redis registry rewrite failed (non-fatal): %s", e)
-        return False
+        idx = registry.pop(service_name)
+        try:
+            _write_registry(registry)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Redis registry rewrite failed (non-fatal): %s", e)
+            return False
 
     if flushdb:
         try:
