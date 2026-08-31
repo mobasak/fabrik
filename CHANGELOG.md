@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — backrest registrar audit could never report `present` (2026-08-31)
+
+- `audit_backrest` matched a bare spec id while `_provision_backrest` writes `f"{name}-data"` (`infrastructure.py`:773) — the two never agreed, so every `has_persistent_data` service that HAD a backup plan audited as `missing`. A structural false-MISSING on the backup registrar, the worst direction for it to fail. Live proof: zitadel reported "no backrest plan for zitadel" while both `zitadel-data` and `postgres-zitadel` existed; post-fix it reports `backrest plan zitadel-data exists`. The pre-existing test asserted `present` for `id == sid`, a convention the registrar never emits, so it passed against the defect — replaced with the registrar's real id, proven red-on-revert.
+
 ### Changed — manifesto pass T34: the whole-plan integration receipt (2026-08-31)
 
 - The pass is COMPLETE: 32/32 command sources + 21 fragments evaluated against 63b, 33 verifier rounds falsified 33 initial stamps, three ledger rulings minted (D-048/D-050/D-051), the decision-mint law wired end-to-end through the pipeline. The whole-plan cumulative-diff review found the two cross-ticket termination bugs only the aggregate exposes — design-review and execute-plan D7 still counted re-raises — fixed via the D4 sanctioned back-flip in this commit. Receipt: docs/development/reviews/2026-08-31-plan-1-manifesto-command-pass-review.md (Coverage Checklist + Pass Ledger found:0·fixed:0 + gate 54/0 + 6 routed observations); 34 INDEX.md rows added.
