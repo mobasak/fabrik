@@ -37,9 +37,13 @@ strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted 
 
 1. Read `project.yaml::type`. Map: `saas-skeleton | python-api | python-api-gpu | node-api | file-api |
    file-worker | static-site | docusaurus` → **VPS** · `mobile-app` → **MOBILE** ·
-   `chrome-extension` → **EXTENSION** · `desktop-app` → **DESKTOP** · `wordpress` → **out of scope
+   `chrome-extension` | `office-extension` → **EXTENSION** (office add-ins ship a manifest + hosted
+   taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` →
+   **DESKTOP** · `wordpress` → **out of scope
    here**: WordPress is out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy
-   path exists; print that and stop. An argument overrides.
+   path exists; print that and stop. A REGISTERED type this map omits → INFER the surface from its
+   artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps,
+   proven twice). An argument overrides.
 2. Universal preconditions (all surfaces, verify with real commands, not memory):
    - `python scripts/final_gate.py --check --json` → `"status":"success"` **this run** (a stale green is not evidence).
    - Working tree clean for this project's scope; work committed AND pushed (`git status --short`, `git log

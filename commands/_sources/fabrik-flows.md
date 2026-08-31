@@ -45,7 +45,8 @@ author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`
 Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec path. State:
 
 - **Journey kind from `project.yaml::type`** (the live registry is `scaffold.py::SCAFFOLD_TYPES`):
-  - **User journeys** — `saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`, `static-site`:
+  - **User journeys** — `saas-skeleton`, `chrome-extension`, `office-extension`, `mobile-app`,
+    `desktop-app`, `static-site`:
     personas moving through screens and states.
   - **Consumer journeys** — `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the
     CALLER is the persona — onboard/obtain credentials → authenticate → happy path → error path →
@@ -53,7 +54,8 @@ Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec
     certifies against.
   - **Reader journeys** — `docusaurus`: find the answer from the landing page, search, land mid-site from a
     search engine, follow a cross-reference — the denominator `/fabrik-user-test` certifies for doc sites.
-  - **Two-faced types** (`chrome-extension`, `mobile-app`, `desktop-app`) map BOTH the client-side journeys
+  - **Two-faced types** (`chrome-extension`, `office-extension` — hosted taskpane + fleet backend, D-039 —
+    `mobile-app`, `desktop-app`) map BOTH the client-side journeys
     AND any backend-served ones (popup + dashboard; screens + API-driven notifications).
   - `wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence.
 - **Inputs (read them, name them):** the CONVERGED spec (goal, chosen approach, workflow) ·

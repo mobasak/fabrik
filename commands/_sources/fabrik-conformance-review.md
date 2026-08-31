@@ -172,7 +172,8 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   block on a non-zero final `found:` — `check_review_coverage.py` reads that counter, not `new:` —
   so an exit keyed on `new:` alone stamps a report the gate then refuses); **every Inventory row
   terminal** (no `PENDING`); **every Checklist row adjudicated** `CLEAN` / `FIXED(n)` /
-  `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with `found:` / `new:` /
+  `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with a `method:` cell FIRST (the
+  closing round `method: re-derivation` — the gate blocks without it) then `found:` / `new:` /
   `fixed:` per round, each row naming the verifiers dispatched for THAT round.
 - **Every verdict evidence-anchored with FRESH runs.** A green from last week is not evidence —
   re-run it or mark the row PARTIAL and say why.

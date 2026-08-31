@@ -15,7 +15,7 @@ subsystem, dir, or risk-tier); otherwise review the ENTIRE repo.
 {{include:grounding-code}}
 ## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)
 
-Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES`: python-api / python-api-gpu /
+Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES` — the live registry is `scaffold.py::SCAFFOLD_TYPES`, 13 at D-039 incl. `office-extension`: python-api / python-api-gpu /
 saas-skeleton / node-api / file-api / file-worker / wordpress / docusaurus /
 chrome-extension / mobile-app / desktop-app / static-site; the hub and fabrik-lib have NO project.yaml — there, skip this step and detect surfaces directly). Run `python scripts/select_rules.py` (if present) and READ
 every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are

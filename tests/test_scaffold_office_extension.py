@@ -52,3 +52,18 @@ def test_office_manifest_is_wellformed_xml(tmp_path):
     proj.mkdir()
     scaffold._write_office_manifest(proj, "svc", "desc")
     ET.parse(proj / "manifest.xml")  # raises on malformed XML
+
+
+def test_registry_types_appear_in_the_corpus_enumerations():
+    """The registry-drift guard (promoted after office-extension recurred twice in two days):
+    every UI-bearing enumeration site in the command corpus that names scaffold types must
+    include office-extension, and the type must be in the live registry."""
+    from fabrik.scaffold import SCAFFOLD_TYPES
+
+    assert "office-extension" in SCAFFOLD_TYPES
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent / "commands" / "_sources"
+    for f in ("fabrik-spec-review.md", "fabrik-user-test.md", "fabrik-flows.md", "fabrik-release.md"):
+        text = (root / f).read_text(encoding="utf-8")
+        assert "office-extension" in text, f"{f} enumerates scaffold types without office-extension"

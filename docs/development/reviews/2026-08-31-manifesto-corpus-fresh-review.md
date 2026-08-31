@@ -154,20 +154,55 @@ Dispatch mode: pool-default (operator did not renew NO-POOL) — `fanout("review
 
 | class | verdict | evidence |
 |---|---|---|
-| cross-reference integrity (path:line / section / script cites in NEW text resolve) | UNCHECKED | |
-| contradiction / two-sources-of-truth (new text vs same file + sibling commands/fragments) | UNCHECKED | |
-| termination/exit semantics (D-048 family vs the live graders: QUIET_PASS, check_review_coverage) | UNCHECKED | |
-| mint-law consistency (staging claims, pen-holder, classify-at-mint, carve-outs) | UNCHECKED | |
-| fragment blast-radius (each fragment edit correct for ALL its consumers) | UNCHECKED | |
-| secrets/credential carve-out family consistency | UNCHECKED | |
-| fail-open vs fail-closed on every gate/guard (standing) | UNCHECKED | |
-| cost/quota/limit accounting edges (standing) | UNCHECKED | |
-| boundary/sentinel/prefix collisions (standing) | UNCHECKED | |
-| behavior-without-a-test (standing) | UNCHECKED | |
+| cross-reference integrity | FIXED(11) | rounds 1/7/8/10/13: stale line anchors de-anchored across 8 files (symbol/grep anchors); hub-absolute seeds; /opt/wpf holdout; all D-NNN + script refs re-derived live (round-13 finder: 16/17 resolve, last fixed) |
+| contradiction / two-sources-of-truth | FIXED(14) | mint staging normalized, SEEDED_NOT_ENFORCED consumers, governance-count 5/6/7 unified on the symbol, template-vs-mandate (R13 F1), store-surface Termination exception; hunted every round by a dedicated partition |
+| termination/exit semantics | FIXED(9) | QUIET three-counter form corpus-wide; conformance + term-edit D-048 stragglers; cite-not-count STANDING scope; cert co-render grammar; method: re-derivation mandate + canonical row (graders executed on 8+ row shapes across rounds 3-13) |
+| mint-law consistency | FIXED(15) | 7 classify-at-mint clauses; row-is-the-change (fragment root, 32 consumers); approval verify-then-skip; waiver/cut ordering vs release_cut.py's real behavior; pen-holder Deltas exception; HUB-ledger decommission row; swept CLEAN rounds 9-13 |
+| fragment blast-radius | FIXED(6) | term-edit (12 consumers) D-048 + Standing: line + Pass-labelled template; subagents-core root carve-out (binds-both-modes, waiver location); 21/21 fragments read in full round 4; co-render pairs traced |
+| secrets/credential carve-out family | FIXED(7) | fabrik-review + D4 mirror + generate-tests boundary; .env.example exemption uniform (matches _ENV_EXEMPT); root carve-out at subagents-core; swept CLEAN rounds 9-13 |
+| fail-open vs fail-closed (standing) | FIXED(8) | deploy-verify VERDICT (early stop ≠ CONFIRMED LIVE; n/a token; discriminator-void escape); release @{u}/no-remote dispositions; review-scoped scope probe; release unmapped-type fallback |
+| cost/quota/limit accounting (standing) | CLEAN | hunted rounds 1/3/13 (denominator 0 in later blast radii); D-050 no-ceiling recorded not assumed; no unknown≠0 conflation found |
+| boundary/sentinel/prefix collisions (standing) | FIXED(4) | QUIET_PASS 40-char + _REDERIVATION_ROW 160-char windows measured and pinned in the canonical row; PASS2 label law; salvage diff HEAD |
+| behavior-without-a-test (standing) | FIXED(5) | GOVERNANCE_FILES ×2 growth with red→green tests; _committed_nonquiet alignment + check_file alignment-guard; corpus-vs-grader fixture (bidirectional); registry-drift guard replacing the tautology test |
 
 ## Pass Ledger
 
-(pending)
+| Pass | method | found | new | fixed | finders |
+|---|---|---|---|---|---|
+| Pass 1 | method: citation | found: 34 | new: 34 | fixed: 17 | finders: 4 pool (deepseek-v3.2/gemini-3-flash/qwen3-max/deepseek-v4-flash) + 1 native Opus — dispatched: 5, returned: 5 |
+| Pass 2 | method: citation | found: 0 | new: 0 | fixed: 0 | finders: orchestrator scoped re-check of the fix diff (middle pass) |
+| Pass 3 | method: citation | found: 40 | new: 40 | fixed: 23 | finders: 3 pool + 1 native Opus — dispatched: 4, returned: 4 (an earlier same-round pool batch of 3 was killed by a foreground timeout pre-return: dispatched 3, returned 0, re-dispatched) |
+| Pass 4 | method: re-derivation | found: 10 | new: 10 | fixed: 10 | finders: 1 native Opus, 21/21 fragments in full |
+| Pass 5 | method: re-derivation | found: 16 | new: 16 | fixed: 15 | finders: 1 native Opus (1 cited) |
+| Pass 6 | method: re-derivation | found: 10 | new: 10 | fixed: 10 | finders: 1 native Opus |
+| Pass 7 | method: re-derivation | found: 9 | new: 9 | fixed: 9 | finders: 1 native Opus |
+| Pass 8 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 1 native Opus — dispatched: 2, returned: 1 (first died on an API stall, swept nothing, re-dispatched) |
+| Pass 9 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: 1 native Opus |
+| Pass 10 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: 1 native Opus |
+| Pass 11 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: 1 native Opus |
+| Pass 12 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 1 native Opus |
+| Pass 13 | method: re-derivation | found: 5 | new: 5 | fixed: 5 | finders: 1 native Opus |
+
+Every candidate ever raised is terminal (FIXED/REFUTED/cited) in the disposition sections above —
+but the final row is NOT quiet, and the loop is stopped by its own stall circuit-breaker, below.
+
+## BLOCKED: NON-CONVERGENCE — the stall breaker's verdict (rounds 10-13: new: 2, 2, 3, 5)
+
+Four consecutive rounds of non-decreasing, nonzero fresh-candidate counts — the contract's measured
+non-progress condition. The foundation error, named: **the ledger-row grammar is DUAL-SPECIFIED —
+prose termination fragments (term-coverage, term-edit, cert-execution) on one side, regex graders
+(`QUIET_PASS`, `_REDERIVATION_ROW`, `_pass_counters`, `PASS2`) on the other — with no single source
+of truth and no fixture suite proving alignment.** Every prose fix perturbs the pair and mints a
+fresh mismatch one window over; rounds 10-13's findings are ALL of this class (template-vs-mandate,
+regex-window ordering, vacuous guards). The defect lives upstream of the surface: no amount of
+in-corpus prose editing can prove the two sides aligned.
+
+Re-grounding proposal (operator decision — a mechanism change beyond this review's minimal-fix
+mandate): (a) ONE canonical ledger-row template fragment that every consumer renders verbatim and
+the fixture test (now in `tests/enforcement/test_review_exit_contract.py`, bidirectional) asserts
+against every grader; (b) optionally grader-side, parse table CELLS instead of char-window regexes
+so row ordering stops being load-bearing. Until then the canonical row pinned in term-coverage +
+the fixture test hold the line for the shapes the corpus itself ships.
 
 ## Per-finding disposition ledger
 

@@ -352,9 +352,9 @@ a pass that finds nothing must still enumerate that coverage — an empty pass w
 **Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted) AND the numbered Pass Ledger. Chat output is a courtesy copy; the FILE is the review:**
 
 ```
-Pass 1 — finders: <classes covered> | found: 3 | new: 3 | fixed: 3 | → not done (changed code)
-Pass 2 — finders: <classes covered> | found: 2 | new: 1 | fixed: 1 | → not done (changed code)
-Pass 3 — finders: <classes covered> | found: 0 | new: 0 | fixed: 0 | → EXIT (the standing DESIGN-GAP
+Pass 1 — method: citation | found: 3 | new: 3 | fixed: 3 | finders: <classes covered> | → not done (changed code)
+Pass 2 — method: citation | found: 2 | new: 1 | fixed: 1 | finders: <classes covered> | → not done (changed code)
+Pass 3 — method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: <classes covered> | → EXIT (the standing DESIGN-GAP
                                                    re-raise is CITED in its row, not counted)
 ```
 
