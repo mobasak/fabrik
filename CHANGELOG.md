@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T31: /fabrik-upstream (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED. The stale SEEDED_NOT_ENFORCED list (missing `docs/DECISIONS.md`, added the day before) → live-set pointer; a claim landed by RANKED OPTIONS is a hub design call minting in the landing commit (verbatim-diff fixes stay row-less); DEFERRED claims land as append-only `docs/STRATEGIC_BACKLOG.md` rows ("a deferral named only in a mail reply dies with the thread"); the round-trip grammar gains DEFERRED/REFUTED dispositions (accept-or-challenge, never a re-send). Verifier 31-for-31.
+
 ### Changed — manifesto pass T30: /fabrik-ui-design-review (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED. Both T16 mints mirrored onto the twin surface: the in-review re-freeze bump and the BLOCKED path's FROZEN→DRAFT flip each mint their `docs/DECISIONS.md` row same-commit. Verifier 30-for-30 — headline: my own (b) cell had regressed to the exact "versioned supersede" shorthand T16's verifier killed, plus a tally contradicting my own table.

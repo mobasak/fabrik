@@ -77,7 +77,8 @@ happen to have hub access, never the primary test from inside a project.)
 Not on either local list? This command is the wrong tool — just fix it locally per the normal Completion
 Contract.
 
-On the list but in `SEEDED_NOT_ENFORCED` (today: `PORTS.md`)? That carve-out means the file was distributed
+On the list but in `SEEDED_NOT_ENFORCED` (read the live set in `fabrik_synced_manifest.py` — today
+`PORTS.md` + `docs/DECISIONS.md`; a hand-copied list here goes stale, this one did)? That carve-out means the file was distributed
 ONCE at scaffold time and is legitimately project-editable afterward — a defect there is a LOCAL edit, never
 a proposal.
 
@@ -183,6 +184,10 @@ own proposal file (same path pattern, new date, own addressing header) and carri
   a check, editing the synced copy) and why each would have been wrong, so the hub can trust the gate stayed
   honestly red/green rather than being locally silenced (exemplar 3's own `## What I did NOT do` section).
 
+**On a DEFERRED or REFUTED reply the re-verification property has nothing local to re-check — the
+round-trip entry instead records the disposition + your accept/challenge:** accepting cites the hub's
+evidence line; challenging is a NEW proposal with NEW evidence (never a re-send of the refuted one).
+
 The round-trip entry gets its own `INDEX.md` + `docs/README.md` rows per Phase 2, and updates the ORIGINAL
 proposal's `INDEX.md` status marker if the round-trip changes it (e.g. from no marker to `LANDED <sha>`).
 
@@ -230,9 +235,16 @@ canonical list).
 
 Name, per claim, exactly one outcome:
 
-- **Landed** — applied; cite the commit + `path:line` of the fix.
+- **Landed** — applied; cite the commit + `path:line` of the fix. **A claim landed by choosing among
+  RANKED OPTIONS (property 2's design-call branch) is an architecture choice, not a routine fix — mint
+  its `docs/DECISIONS.md` row in the landing commit** (CLAUDE.md § the decision ledger); a verbatim-diff
+  defect fix stays the routine carve-out, no row.
 - **Deferred** — confirmed real but out of scope for this pass (e.g. touches an unrelated concern); name why
-  and where it is now tracked.
+  and where it is now tracked — **the default tracker is an owner-tagged row APPENDED to
+  `docs/STRATEGIC_BACKLOG.md` in this run's change** (append-only: never rewrite or reflow existing
+  rows — the shared-tree rules govern a file three sessions touch; the Doc Sync Matrix's deferred-work
+  row; a deferral named only in a mail reply dies with the thread), unless a live plan/ticket already
+  owns it (then cite that).
 - **Refuted** — did not hold on independent re-verification; name the evidence that refuted it (per Phase 0).
 
 ## Output (always, last thing)
