@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — final_gate vulture: per-repo whitelist for interface-signature false positives (2026-08-31)
+
+The gate ran vulture with no suppression mechanism, so required-but-unused interface parameters
+(Protocol stubs, signature-compat overrides, WeasyPrint callback params) red the gate wherever
+the toolchain is installed — 4/4 false positives measured at web-ecommerce-factory (upstream
+01M1CM6G). Adopted vulture's documented idiom: a repo-root `.vulture-whitelist.py` is scanned
+with `src/` when present; absent the file the argv is byte-identical to before (D-058 — the
+global `--ignore-names` alternative was rejected: it would blind ~46 repos to dead locals named
+`timeout`/`params`). Pinned by `tests/enforcement/test_final_gate_vulture.py`, red-on-revert proven.
+
 ### Added — D-056: FEEDBACK relay — an agent reads the verdicts (2026-08-31)
 
 `feedback_relay.py` rides the daily kaizen cron job and mails every persisted close verdict to

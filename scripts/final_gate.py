@@ -740,6 +740,26 @@ def _skip_note(tool: str) -> str:
     )
 
 
+def _vulture_argv() -> list[str]:
+    """Vulture scan argv. A repo-root `.vulture-whitelist.py` (vulture's documented whitelist
+    idiom) is scanned WITH src/ when present, so required-but-unused interface parameters —
+    Protocol stubs, signature-compat overrides, library callback contracts — are suppressed
+    per-repo and stay auditable in that repo's review, never via a fleet-global ignore-names
+    (which would blind the check to genuinely dead locals named `timeout`/`params` everywhere;
+    upstream 01M1CM6G measured 4/4 false positives of this class in one repo). Absent the file,
+    the argv is unchanged — this cannot turn any current verdict."""
+    argv = [PYTHON, "-m", "vulture", "src/"]
+    if Path(".vulture-whitelist.py").exists():
+        argv.append(".vulture-whitelist.py")
+    argv += [
+        "--min-confidence",
+        "95",
+        "--exclude",
+        "src/fabrik/wordpress/,src/fabrik/drivers/,src/fabrik/provisioner.py",
+    ]
+    return argv
+
+
 def run_static_checks(
     tier: int = 2, changed_files: set[str] | None = None
 ) -> list[tuple[str, bool, str]]:
@@ -1033,18 +1053,7 @@ def run_static_checks(
         results.append(("sqlfluff-lint", True, "(no .sql changes, skipping)"))
 
     # Vulture
-    code, out = run_cmd(
-        [
-            PYTHON,
-            "-m",
-            "vulture",
-            "src/",
-            "--min-confidence",
-            "95",
-            "--exclude",
-            "src/fabrik/wordpress/,src/fabrik/drivers/,src/fabrik/provisioner.py",
-        ]
-    )
+    code, out = run_cmd(_vulture_argv())
     if "No module named vulture" in out:
         results.append(("vulture (NOT INSTALLED — skipped)", True, _skip_note("vulture")))
     else:
