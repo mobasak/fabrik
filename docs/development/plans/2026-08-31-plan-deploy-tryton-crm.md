@@ -9,6 +9,31 @@ since and the repo is now tagged v0.3.0. It is superseded, not deleted — its P
 spec annotations this plan re-verifies.
 
 ## Deploy Ledger
+- ✅ **S0b DONE 2026-08-31T18:22Z (RUN 2) — the tenant TLS resolver is LIVE, and it was release-blocking.**
+  Surfaced by the operator in one line (*"tojlo.com is its address"*), which was correct: I had this
+  filed as "blocks B5 only" and would have shipped a green battery over a login page no tenant could
+  reach. Sequence, each step verified before the next:
+  1. `cf.env` created on vps1 from the token **already on the box** (`/opt/site-provisioner/.env`) —
+     `600`, root-owned, single key `CF_DNS_API_TOKEN`, value length 53, hash-matched to the hub's
+     (`sha256 82961fcf82ce`). **No secret crossed the network or my context.**
+  2. `acme-cloudflare.json` created (`600`).
+  3. Staged pair applied (`traefik.yml` + `compose.yaml`), Traefik recreated.
+  **Regression evidence — baseline vs post-change, the reason this is safe to leave running:**
+  | check | baseline | after |
+  |---|---|---|
+  | routers | 21, all `enabled` | **21, all `enabled`** |
+  | `https://ocoron.com` | 200 | **200** (first probe read 000 — transient, Traefik ~25s into restart; 3 consecutive 200s on re-probe) |
+  | `ocoron-com@docker` (the one multi-homed container) | enabled | **enabled** |
+  ⚠️ The `providers.docker.network: coolify → fabrik` half was a **correction, not a change of behavior**:
+  `coolify` does not exist (only `fabrik`, 28 containers), so Traefik was already falling back per
+  container.
+  ⚠️ **Pre-existing, NOT caused by this** — Traefik logs LE renewal failures for `proxy.`, `captcha.`,
+  `emailgateway.`, `namecheap.` `.vps1.ocoron.com`. All four are **NXDOMAIN** (`dig` → empty): stale
+  `acme.json` entries for decommissioned services (`captcha` is retired). Logged here so a later reader
+  does not attribute them to S0b. Not fixed in this run — out of scope, worth a separate cleanup.
+  **Functional proof of the resolver is deferred to S3b by construction** — a DNS-01 challenge only fires
+  when a router requests `certresolver=cloudflare`, and no `*.tojlo.com` router exists until the stack is
+  up. Traefik parsed the resolver without error; the cert itself is battery item (d).
 - ✅ ROOT CAUSE IDENTIFIED 2026-08-31T15:02:52Z — **it is OUR deployer, and it is fleet-wide.** `deployer_ssh.py::_format_env` quotes any value containing a space, `#`, `'`, `"` or newline: `value = f'"{value}"'` — **wrapping WITHOUT escaping the inner quotes**. A JSON secret contains `"`, so it is wrapped bare and Compose reads the first inner quote as a new variable name. `_parse_env` (same file, just above) STRIPS surrounding quotes on read, so the round-trip is read → strip → re-wrap-unescaped → unparseable. Candidates 1 and 2 both REFUTED by measurement: the hub `/opt/fabrik/.env` holds exactly one `CONSUMER_TOKENS` (a DIFFERENT consumer, `trade-intelligence`) and it is NOT quoted; `os.getenv("CONSUMER_TOKENS")` is unset in the apply process.
   **Blast radius: every deploy whose `.env` carries a value with a quote, space or `#` — i.e. every JSON-valued secret on the fleet, not a tryton quirk.**
   ⚠️ **Correction to this ledger's own prior row:** the S3-attempt-1 entry asserted "_build_env_content emits `f'{key}={value}'` raw, no re-quoting (`:746`) — so a compose-safe value survives the rewrite." **That was WRONG and it caused attempt 2.** `:746` is the LAST line of `_format_env`; the quoting branch sits at `:742-743`, two lines above, and was missed by reading the tail of the function instead of the whole of it. The retry was built on that partial read and failed byte-identically.
