@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T18: /fabrik-plan-after-chat (2026-08-31)
+
+- 63b verdict: 5 CONFORM, 1 FIXED + 1 ROUTED. Chat-born decisions in "What we already agreed" (chosen approach, rejected alternatives, scope rulings, answered batched questions) mint `docs/DECISIONS.md` rows classified at mint, staged WITH the plan file in Phase 5's commit. The spec-fed skip rescoped honestly — the original "spec approval already minted" premise was FALSE (zero mint instructions exist in the spec pipeline today); the approval mint is ROUTED to T28 (/fabrik-spec-review). Verifier 18-for-18: three previously-named defect classes (T07/T06/T09) reproduced inside my own fresh fix, caught in one round.
+
 ### Changed — manifesto pass T17: /fabrik-generate-tests (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 1 FIXED, 1 N/A. Step 3's "commit it now" is now SCOPED (explicit pathspecs + trailers, never `git add -A` — mid-pipeline is when a sibling's WIP gets swept in); the fanout=None path STOPs with a stated fail-mode instead of a bare TypeError. The T13/D6 salvage-before-destroy analogy examined and refuted with recorded reasoning (cents-scale reproducible pool work). Verifier round: first all-clean-anchor artifact (20/20), 2 of 4 PLAUSIBLEs still became source fixes.

@@ -28,6 +28,13 @@ First capture the **source of truth** — do NOT invent scope:
 - Write a bullet list, "**What we already agreed**", extracted from the `/fabrik-spec` doc (if any) + this
   conversation + `$ARGUMENTS`: the goal, the chosen approach, explicitly rejected alternatives, named
   external dependencies, and any constraints/decisions the user stated. Quote the user where a decision is theirs.
+  **Chat-born decisions in that list (an approach chosen, an alternative rejected, a scope ruling) are
+  RECEIVED decisions — mint their `docs/DECISIONS.md` rows, classified at mint (a ONE-WAY decision grows
+  the § Binding field block), and STAGE the rows WITH the plan file in Phase 5's commit — same change means
+  same commit** (CLAUDE.md § the decision ledger). The same law covers a batched REAL question the user
+  answers mid-run (an operator ruling — the trivia the bar auto-decides stays row-less). Spec-fed plans
+  skip only what the spec approval's own row minted (`/fabrik-spec-review` § after-CONVERGED owns that
+  mint) — a decision made HERE always rows HERE.
 - Then branch, and **state which branch you took and why**:
   - **RICH** (the chat/args already pin the goal AND the approach) → skip brainstorming, go to Phase 1.
   - **THIN** (goal or approach is vague/ambiguous/empty) → **spec FIRST** (invoke **`/fabrik-spec`** — the
