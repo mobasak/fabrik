@@ -283,7 +283,9 @@ def _strip_fences(text: str) -> str:
 # § the decision ledger additionally forbids a coder subagent holding the pen:
 # a ticket listing it in Touches hands exactly that pen) — plus STRATEGIC_BACKLOG,
 # the seventh (Doc Sync Matrix: every project's deferred-work append surface; repo-review
-# and upstream mandate per-run appends — same collision class).
+# and upstream mandate per-run appends — same collision class). Retro-impact of the 5->7
+# expansion measured 2026-08-31: 31 plan SETS fleet-wide, 24 archived (exempt via _is_archived
+# — note that skip inflates any naive denominator), 7 LIVE graded: 0 -> 0 governance errors.
 GOVERNANCE_FILES = (
     "CHANGELOG.md",
     "INDEX.md",

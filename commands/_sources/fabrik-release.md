@@ -146,7 +146,9 @@ the repo on GitHub:
    the report. **The cut is decision-shaped — "built X at vY" — mint its `docs/DECISIONS.md` row and
    commit AND push it IMMEDIATELY AFTER the cut, before anything else — `release_cut.py --execute`
    has ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push (it lands
-   after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked)** (classify at
+   after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked; on the
+   waived no-remote path the cut ran `--no-push` and this row likewise COMMITS LOCALLY, no push
+   exists to ride)** (classify at
    mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2's decision, not yours to
    row). Adjacent-commit, not same-commit, is deliberate here: `release_cut.py`'s commit stages ONLY
    `CHANGELOG.md` by hardcoded pathspec — writing the row first would silently strand it.

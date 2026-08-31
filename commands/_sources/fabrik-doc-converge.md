@@ -58,7 +58,9 @@ inspection.
   copy; the Doc Sync Matrix rows bind).
 - **Ripples:** a fix here may obligate a sibling doc (Doc Sync Matrix). A KEYED ripple lands as the
   MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit
-  is not a second convergence, so the one-doc guardrail is untouched. Only a ripple that would itself
+  is not a second convergence, so the one-doc guardrail is untouched (and it is OUTSIDE the
+   convergence counters: `edits:` and the md5 track the ARTIFACT only — a sibling-doc ripple never
+   re-opens the loop). Only a ripple that would itself
   need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the
   staleness stated in the commit body — never silently. (The only doc→doc rule `check_doc_sync` carries is
   added/removed/renamed-file → INDEX.md — an edit-in-place ripple fires nothing, so this law is honour-bound

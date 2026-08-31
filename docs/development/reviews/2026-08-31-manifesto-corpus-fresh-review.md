@@ -373,3 +373,36 @@ terminal (15 FIXED, 1 cited):
     inconsistency only). MACHINERY observations routed: the `--check` "HAND-EDITED" label asserts
     a cause the tool cannot know; grounding-research + grounding-rules-cite are dead fragments
     (0 consumers, 0 renderer refs) → STRATEGIC_BACKLOG row.
+
+## Round 6 — same-ledger re-sweep (native Opus, non-author; committed state 6728574a)
+
+10 findings (5 CONFIRMED / 5 PLAUSIBLE), all terminal — the severest a proven data-loss recipe:
+
+1. Salvage `git diff` missed STAGED work (the gate auto-stages, so staged-not-committed is the
+   most likely dead-coder state; finder proved it on disk) → `git diff HEAD`.
+2. Execute-plan D4 — the mirror every carve-out cites — lacked its own family's `.env.example`
+   exemption (a routine env-var phase went native-only and the flywheel floor would block it) →
+   exemption + reason; generate-tests' "never reaches a pool author" false guarantee → binds-both-modes.
+3. Release cut-row mandated a push the no-remote branch made impossible → commits-locally clause.
+4. Salvage DELETE rationale self-refuting (a gitignored file never reds `git status`) → honest
+   reason (stale-recovery-artifact hazard).
+5. term-coverage's canonical-row mandate collided with cert-execution's final-row grammar in the
+   two gauntlets + my "fails the gate" overstated (a two-counter row is REFUSED; a zero-counter row
+   is INVISIBLE — worse) → scoped to diff-surface reviews + precise grader behavior.
+6. deploy-verify "exactly FOUR tokens" vs its six-token Output block → token-FAMILY mapping
+   (discriminator void = DNS's INCONCLUSIVE, missing = GATUS's FAIL, n/a = spec-voided NOT-RUN) +
+   the n/a evidence exception.
+7. assemble_commands `:713` unresolved path compare (the hazard `:892`'s own comment names) →
+   `.resolve()` both sides.
+8. term-edit's cite-not-count had nowhere to cite (12 consumers) → `Standing:` line, mirroring
+   design-review's remedy.
+9. doc-converge ripple vs `edits: 0`/md5 → counters track the ARTIFACT only, stated.
+10. workflow-review's stale-lock route to 09 scoped (ettw only; mega has no 09; routing ≠
+    convergence, 01R stays the converger).
+
+Cited, not counted: `_MEGA_ROW` can't parse the canonical row (falls through to `_pass_counters`,
+probed — design as recorded); QUIET_PASS-vs-fence tolerance (documented stance);
+fabrik-review's example row order (both parse, cosmetic); rules-review HUB-mode ADR conditional.
+MACHINERY → recorded: `_is_archived` silently inflates any naive retro-impact denominator (31 sets
+scanned, only 7 graded); the GOVERNANCE_FILES 5→7 expansion shipped unmeasured in round 3 — round 6
+measured it (7 live sets, 0→0, retro-safe) and the measurement now lives in the constant's comment.

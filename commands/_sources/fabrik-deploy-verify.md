@@ -24,11 +24,14 @@ violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS pr
 ## ⚠️ Termination contract
 
 You are done when EVERY checklist item below (DNS, health/readiness, registrar obligations, Gatus, logs,
-smoke) is TERMINAL — one of exactly FOUR tokens: **PASS (with evidence: a command's real output, this
+smoke) is TERMINAL — one of the four token FAMILIES (the Output block's row-specific spellings —
+`discriminator void` is DNS's INCONCLUSIVE, `missing` is GATUS's FAIL, `n/a (not obligated)` is the
+spec-voided NOT-RUN): **PASS (with evidence: a command's real output, this
 run) · FAIL (with evidence + a named route) · INCONCLUSIVE (the probe cannot discriminate — the
 re-probe instruction is the route) · NOT-RUN (<the cause> — the early-stop and store-guard branches'
 honest token, never silence)** — and the verdict table has been printed. A checklist item without a
-fresh-this-run command output is not a verdict, it is a guess. You never perform a fix, redeploy, or
+fresh-this-run command output is not a verdict, it is a guess (`n/a (not obligated)` is the one
+exception — it cites the spec flag that voids the obligation instead of a command output). You never perform a fix, redeploy, or
 registrar mutation yourself: a FAIL's route is always one of `/fabrik-review` (a code-side defect), a
 rollback note (name the prior known-good SHA, do not roll back), or a registrar re-apply **ask** to the
 operator (`fabrik apply` reruns registrars; you name that, you never run it) — routes are asks, never

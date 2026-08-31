@@ -713,7 +713,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
         # used to silently overwrite ~/.claude/agents — measured live TWICE by review finders
         # on 2026-08-31 (STRATEGIC_BACKLOG promotion trigger), which is why this derives
         # instead of defaulting.
-        agents_dest = AGENTS if dest == OUT else dest / "_agents"
+        agents_dest = AGENTS if dest.resolve() == OUT.resolve() else dest / "_agents"
     _emit_agents(agents_dest, frags)
     errs = []
     emitted: list[tuple[str, str]] = []

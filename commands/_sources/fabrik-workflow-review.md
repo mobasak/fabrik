@@ -44,7 +44,9 @@ Dedup; for each candidate try to REFUTE from the real source (quote the line/anc
 
 Fix every survivor in the artifact (route the fix to the artifact, not the doer command). **One
 disposition fork the seams class needs stated: when a cross-artifact finding shows the ARTIFACT right
-and the upstream DECISIONS LOCK stale, the fix routes to `09-revise-requirements-fabrik` (the lock's
+and the upstream DECISIONS LOCK stale, the fix routes to `09-revise-requirements-fabrik` for ettw
+types (mega types have no 09 — report-only to the operator; and routing is not convergence: the
+lock's converger remains `01R`) (the lock's
 propagation owner) — this loop never edits the lock, and "fix the artifact into agreeing with a stale
 lock" is the wrong direction.** Re-run the yardstick. Back-fill the flywheel with the folder-derived project label: `set_quality(r.agent_id, 0–5, project="ettw-review"` *(ettw types)* `| "mega-review"` *(mega types)*`, task_type="review", model=r.model)`. Then run the next full pass.
 

@@ -487,7 +487,9 @@ mechanism.
 ("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT
 is the text below, self-contained.) Each returned ticket converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE merge — pool
 breadth (counts per D2) **AND exactly 1 native Opus finder per round, UNCONDITIONAL**. **Secrets
-carve-out:** a diff touching secret-material paths (`.env`-prefix, `secrets/`, key files) is reviewed
+carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the
+Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase goes
+native-only and the flywheel floor blocks it — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
 The orchestrator refutes/merges/adjudicates; fixups route per D2. Each ticket's review is persisted as
 `docs/development/reviews/<plan>-T<id>-review.md` (full ID; **one file per ticket, round sections
@@ -527,9 +529,11 @@ crashed pool unit leaves no partial writes; recovery = re-dispatch the unit). **
 (native):** recorded path missing/erroring, or dirty with state ≠ merged → **salvage check first**
 (`git -C <wt> log <base_commit>..HEAD --oneline` non-empty → returned work → rebase → acceptance review;
 fixups → fresh coder per D2); otherwise capture the tree's uncommitted content first —
-`git -C <wt> add -N . && git -C <wt> diff > .fabrik/plan-locks/<stem>-salvage-<ticket>.diff`
-(gitignored; DELETE it once the re-dispatched ticket's work is accepted — an orphaned salvage diff
-is untracked residue that reds a later release's clean-tree precondition)
+`git -C <wt> add -N . && git -C <wt> diff HEAD > .fabrik/plan-locks/<stem>-salvage-<ticket>.diff`
+(`diff HEAD`, never bare `diff` — the gate AUTO-STAGES fixed files, so a dead coder's most likely
+state is staged-not-committed, which a bare `diff` silently omits)
+(gitignored; DELETE it once the re-dispatched ticket's work is accepted — a stale salvage diff is a
+false recovery artifact a future resume could wrongly re-apply over newer work)
 (durable — a scratchpad is session-private and a resume may be a DIFFERENT session; `-N` makes untracked
 files visible to the diff; cheap, and it converts the force-remove from ONE-WAY destruction into a
 reversible act) — log the dirty file list to spine Evidence, then
