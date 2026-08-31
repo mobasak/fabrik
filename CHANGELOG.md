@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — D-056: FEEDBACK relay — an agent reads the verdicts (2026-08-31)
+
+`feedback_relay.py` rides the daily kaizen cron job and mails every persisted close verdict to
+the fabrik inbox (infra, handle-now). Watermarked at-most-once; proven live (2 relayed, no-op on
+re-run). Completes D-055: recording + agent-reader, operator reads nothing.
+
 ### Fixed — D-055: FEEDBACK verdict text persisted + operator digest (2026-08-31)
 
 The close-out duty was firing (10 of 14 hub closes in 14d carried substantive verdicts) but

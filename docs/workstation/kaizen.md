@@ -284,3 +284,11 @@ Cron (⚠️ operator-installed — agent crontab writes are classifier-blocked 
 Deliberately NOT in v1 (each a measured follow-up): the closes-without-verdict names (log-only
 today, not a series), the outcomes sweep's 0%-coverage pilot, and the lesson-class taxonomy — the
 analysis half. The digest surfaces what exists; those decide what exists next.
+
+## FEEDBACK relay rider (D-056, 2026-08-31)
+
+The daily `kaizen_collect_v2.py` cron job carries a rider: `scripts/sysadmin/feedback_relay.py`
+mails every not-yet-relayed command-close FEEDBACK verdict (D-055 persisted text) to the `fabrik`
+inbox addressed to **infra** — an AGENT is the reader (operator ruling: "i dont read anything,
+you read"), and handle-now applies to the digest like any finding mail. Watermarked
+(`~/.claude/state/feedback-relay.watermark`), at-most-once per verdict, non-fatal to the collector.

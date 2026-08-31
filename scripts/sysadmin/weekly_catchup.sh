@@ -80,6 +80,11 @@ case "$JOB" in
         # into derived facts, series and the kaizen-log row. Replaced the retired
         # weekly kaizen_metrics.py (scripts/sysadmin/archived/, M0 operator ruling).
         cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_collect_v2.py --daily
+        # RIDER (D-055, non-fatal): relay persisted FEEDBACK verdict texts from command
+        # closes to the fabrik inbox (--to-agent infra) so an AGENT reads and handles
+        # them — the operator does not read dashboards. Watermarked inside the relay,
+        # so double-runs are no-ops; a relay failure never unstamps the collector.
+        "$PY" "$ROOT/scripts/sysadmin/feedback_relay.py" || true
         ;;
     kaizen_outcomes.py)
         # The nightly fleet-health sweep (T07 outcome tier): clean HEAD worktrees,
