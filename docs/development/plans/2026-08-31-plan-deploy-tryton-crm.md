@@ -236,7 +236,7 @@ Every step: stable id, exact command, verification, retryability, rollback. Step
 items by design (headings would inflate the citation denominator). Grounding for the sequence:
 `src/fabrik/orchestrator/deployer_ssh.py:649` (env merge) and the registrar order in the Phase-3 preview.
 
-1. **S0 · `OPERATOR-GATE` · verify: in-session · NOT retryable without operator action** — write BOTH
+1. **S0 · ✅ DONE 2026-08-31 (executed this run; kept for the ledger + re-run safety)** — write BOTH
    missing secrets into **`/opt/tryton-crm/.env`** (the hub's own `.env` is NOT read — proven in Phase 2).
    Mint a consumer with `write` scope for the tenant org inside `CONSUMER_TOKENS`
    (`{"crm-bridge": {"token": "<secret>", "orgs": ["<org_id>"], "scopes": ["read","write"]}}` — `orgs`
@@ -248,6 +248,30 @@ items by design (headings would inflate the citation denominator). Grounding for
    *Rollback:* remove the added lines; nothing has deployed yet.
    **This gate is why the plan exists — without it S13.4 fails with a misleading 401, and with
    `CONSUMER_TOKENS` unset EVERY internal call 401s.**
+
+   **✅ EXECUTED AND PROVEN THROUGH THE REAL CODE PATH, not by shape-checking the file.** The org id
+   did not need the pending mail after all — the project documents it in its own
+   `.env.example:24` (`"orgs":["bhd-group"]`), and this IS the BHD stack. Token minted with the
+   project's own prescribed method (`secrets.token_urlsafe(32)`, `.env.example:17`), written to
+   `/opt/tryton-crm/.env` (backed up first to `backups/.env.backup.20260831-064012`, mode 600).
+   Verified by importing tryton-crm's own `internal_auth` with `ENVIRONMENT=production`:
+
+   ```
+   resolve_consumer(BRIDGE_INTERNAL_TOKEN) -> Consumer(name='crm-bridge')
+   authorized orgs                         : ['bhd-group']
+   scopes                                  : ['read', 'write']
+   may_provision (must be False)           : False
+   dev shared-secret fallback enabled?     : False   (prod fail-closed, as designed)
+   a WRONG token is rejected               : True
+   ```
+
+   `may_provision` is deliberately **False**: it is a namespace-level entitlement to create tenants,
+   and nothing in the offer-send path needs it. Consequence to know before first tenant traffic —
+   authorization requires the request's `org_id` to be IN this allowlist, or the tenant to have been
+   `provisioned_by` this same consumer (`api/deps.py:134-139`; `provisioned_by is None` falls back to
+   the allowlist, never to "anyone"). So a tenant whose `org_id` is not `bhd-group` will 403 until it
+   is added here. That is correct isolation, not a defect — but it makes the allowlist a
+   per-tenant-onboarding step, which `docs/reference/tenant-onboarding.md` should carry.
 2. **S0b · `OPERATOR-GATE` · verify: in-session · BLOCKS behavior B5 only** — the tenant wildcard TLS.
    Either (a) add a DNS-01 `cloudflare` certresolver to `/opt/traefik/traefik.yml` on vps1 with a
    Cloudflare API token (operator credential) and restart traefik, or (b) accept launching with the
@@ -519,11 +543,13 @@ be proven. Outcome: 2 residuals PROVEN from code, 1 DISPROVEN and corrected, 1 D
   readiness poll that stays alive and retries (`compose.yaml:332-345`), so an unready DSN is a wait, not
   a crash-loop taking down `up --wait`. S5 keeps the check; the two-pass is a contingency, not an expectation.
 
-**Escalated cross-repo (the one thing the hub cannot decide alone):** mail
-`01M1AXWSG8CWZX4D6WAJFV5E4C` → tryton-crm, `kind: request`, `ack: required`. Asks (a) which way to
-reconcile the `cloudflare` resolver gap — add DNS-01 to vps1's traefik (fleet work, needs a Cloudflare
-API token) vs defer the brand router vs it is not needed at launch; and (b) confirmation of the S0 token
-shape + which `orgs` value the bridge consumer should carry for the BHD tenant.
+**Escalated cross-repo:** mail `01M1AXWSG8CWZX4D6WAJFV5E4C` → tryton-crm, `kind: request`,
+`ack: required`. Half of it is now **self-answered and no longer blocking**: the `orgs` value was
+documented in their own `.env.example:24` (`bhd-group`), and the token shape was proven from
+`internal_auth.py:78-112` — S0 was executed on that basis and verified against their live parser.
+What remains open is only (a): which way to reconcile the `cloudflare` resolver gap — add a DNS-01
+resolver to vps1's traefik (fleet work, needs a Cloudflare API token) vs defer the brand router vs it
+is not needed at launch. **S0b is the only outstanding gate, and it blocks behavior B5 alone.**
 
 **Remaining genuine unknowns, and they are unknowable before the deploy runs — not deferred questions:**
 trytond's first-boot init wall-clock against `FABRIK_BUILD_TIMEOUT=1200`, and whether ACME issues the
