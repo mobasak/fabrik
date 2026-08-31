@@ -30,7 +30,8 @@ Partition the codebase into INDEPENDENT review units (by subsystem/dir so two un
 share files) — **fine-grained: a large repo is DOZENS of units, not a handful.** Size each
 unit to what one reviewer holds in context (a file / package / the changed surface), not
 coarse buckets; more, smaller units = better recall AND more parallelism. Risk-rank by
-blast radius (money / auth / data-integrity / domain-correctness highest). **Emit a COVERAGE LEDGER and PERSIST it to the scratchpad as
+blast radius (money / auth / data-integrity / domain-correctness highest). **Emit a COVERAGE LEDGER into the review artifact the Termination
+contract already mandates (`docs/development/reviews/YYYY-MM-DD-<scope>-review.md`) — that FILE is
 the single source of truth** for all later phases: `unit → files → risk → fabrik-synced?
 → which axes apply → assigned`. If `$ARGUMENTS` scoped the run, restrict the ledger to it
 and say so.
@@ -152,9 +153,9 @@ deferred backlog) and every class the certification's own fixes touched has been
 surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes
 — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination
 contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
-+ each fix's regression test. No mechanical check reads the scratchpad ledger — the run record's round
-entries (`command_run.py round`, Stop-hook-enforced) are the only graded trace of this loop, so record
-every pass there; the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
++ each fix's regression test. `check_review_coverage.py` grades the review artifact, and the run
+record's round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every
+pass in both; the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
 — not just the in-scope tests.
 
 **`found` counts every candidate a unit-reviewer RAISED — including ones you drop as false positives in
