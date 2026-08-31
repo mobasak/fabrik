@@ -161,3 +161,41 @@ def test_d053_window_caps_removed_ordering_no_longer_load_bearing(tmp_path):
         "sit between the two counters here | fixed: 0 |"
     )
     assert ccv.QUIET_PASS.search(wide_quiet_row), "same-line quiet pair must match at any gap"
+
+
+def test_d053_amendment_anchors_on_the_method_cell_not_prose():
+    """Round-14/15 guard: the first uncapped regex matched bare prose and lost the hard block;
+    the amendment anchors on the METHOD CELL. Both directions + twin identity + the two
+    fragments' own example rows (the dual-specification class: a fragment's shipped example
+    must satisfy the grader that its own prose invokes)."""
+    import importlib.util as ilu
+
+    spec2 = ilu.spec_from_file_location(
+        "ccv3", REPO / "scripts" / "enforcement" / "check_convergence.py"
+    )
+    assert spec2 and spec2.loader
+    ccv = ilu.module_from_spec(spec2)
+    spec2.loader.exec_module(ccv)
+
+    for prose in (
+        "| Pass 1 | 1 native verifier: 4 candidates adjudicated + 9 anchors re-derived (all landed) | 3 | 3 | 3 |",
+        "Round 2: 9 anchors re-derived from primary source",
+    ):
+        assert not crc._REDERIVATION_ROW.search(prose), prose
+        assert not ccv._REDERIVATION_ROW.search(prose), prose
+    for good in (
+        "| Pass 2 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: x |",
+        "| Round 3 | **method:** re-derivation | found: 0 | new: 0 | fixed: 0 |",
+        "Pass 3 — method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: y",
+    ):
+        assert crc._REDERIVATION_ROW.search(good), good
+        assert ccv._REDERIVATION_ROW.search(good), good
+    assert crc._REDERIVATION_ROW.pattern == ccv._REDERIVATION_ROW.pattern
+    assert crc._REDERIVATION_ROW.flags == ccv._REDERIVATION_ROW.flags
+    # the two fragments' SHIPPED example rows must satisfy the grader their prose invokes
+    frag = REPO / "commands" / "_fragments"
+    te = (frag / "term-edit.md").read_text(encoding="utf-8")
+    tc = (frag / "term-coverage.md").read_text(encoding="utf-8")
+    te_row = next(ln for ln in te.splitlines() if "re-derivation** |" in ln and ln.startswith("| Pass"))
+    assert crc._REDERIVATION_ROW.search(te_row), te_row
+    assert "method: citation|re-derivation|gate" in tc or "method: re-derivation" in tc

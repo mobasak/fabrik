@@ -512,9 +512,24 @@ never criterion honesty). Fixed by the finder's Option A: the METHOD CELL is the
 tryton-crm-incident contract while keeping D-053's ordering-independence. Re-measured against the
 ORIGINAL cap: 0 newly-pass, 38 legacy prose-matches would newly fail if re-graded (they never are —
 the checker grades CHANGED artifacts only; and they satisfied the old cap by prose accident, which
-is precisely the recall the amendment removes). Regression tests: prose rows must NOT match, three
-method-cell variants must, and the twins are asserted pattern-identical (9/9 green). Also fixed:
+is precisely the recall the amendment removes). CORRECTION (round 15): the sentence previously here claimed regression tests that a failed batch
+never appended (my commit body said the same — a false claim a finder caught by executing the
+suite against the reverted defect: 82/82 stayed green). The guard NOW exists:
+`test_d053_amendment_anchors_on_the_method_cell_not_prose` — prose-negative both twins, three
+method-cell variants, twin pattern+flags identity, and BOTH fragments' shipped example rows
+asserted against the grader (the dual-specification class guard). Also fixed:
 the stale adjacency guarantee in QUIET_PASS's design comment, the stale window comment in the test
 fixture, and this report's premature "appended below" self-description (this section is that
 append). D-053's ledger row stands — its decision (same-line binding, ordering not load-bearing)
 is unchanged; the anchor tightening is the same decision landing correctly, recorded here.
+
+| Pass 15 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 native Opus (non-author) — executed 11 regex variants + red-on-revert in an isolated copy |
+
+Round 15: (1) term-edit's own example rows failed the amended regex (the dual-specification class
+minting again — fixed with method-labelled rows + prose, and the guard now asserts BOTH fragments'
+shipped example rows against the grader); (2) my round-14 commit and this report claimed regression
+tests a failed batch never appended — the false claim corrected above, the real guard landed and
+watched red against the restored defect; (3) a sibling's operator-decision-bar clause (d09e568e)
+collided with § EXIT's mandated branch disposition — carve-out clause added hub+template; (4) the
+same sibling commit minted no ledger row for an operator ruling — D-054 minted post-hoc, attribution
+in the row. Sub-threshold cited: the `\W{0,4}` cross-line tolerance (0 of 2689 files fire).
