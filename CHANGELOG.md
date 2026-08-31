@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T17: /fabrik-generate-tests (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 1 FIXED, 1 N/A. Step 3's "commit it now" is now SCOPED (explicit pathspecs + trailers, never `git add -A` — mid-pipeline is when a sibling's WIP gets swept in); the fanout=None path STOPs with a stated fail-mode instead of a bare TypeError. The T13/D6 salvage-before-destroy analogy examined and refuted with recorded reasoning (cents-scale reproducible pool work). Verifier round: first all-clean-anchor artifact (20/20), 2 of 4 PLAUSIBLEs still became source fixes.
+
 ### Changed — manifesto pass T16: /fabrik-flows-review (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED. The in-review re-freeze (Version bump) and the BLOCKED path's FROZEN→DRAFT flip both mint their `docs/DECISIONS.md` rows same-commit (a Status flip is decision-shaped regardless of cause); the stale cross-file length citation corrected (fabrik-flows.md:126/:145-146); and the freeze law in fabrik-flows.md now names the in-review re-freeze as its sanctioned exception (cross-file class fix, T09 precedent). Attestation-as-ledger-event refuted with recorded reasoning. Verifier 16-for-16 — caught my (b) cell regressing to the exact conflation T15's fix killed, while citing that fix as precedent.

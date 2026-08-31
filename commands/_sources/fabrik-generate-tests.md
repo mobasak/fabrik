@@ -31,6 +31,11 @@ except ImportError:  # not vendored here → this command's pool test-authoring 
     fanout = pick_models = set_quality = None
 ```
 
+**If `fanout` is `None` after the vendor attempt, STOP with the stated fail-mode** — "vendor
+`libs/subagents` first (the cp above), then re-run" — before step 1 ever calls it: the loop's steps call
+`fanout(...)` directly, and proceeding un-guarded dies as a bare `TypeError` mid-pipeline instead of a
+diagnosis.
+
 ## The loop — suggest → curate → author → review → apply
 
 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
@@ -68,8 +73,9 @@ for r in results:                        # the SUGGEST results from step 1 (befo
 
 ### 3. Commit the code-under-test FIRST (mandatory)
 Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`), so the code the
-tests target MUST be committed (or fully inlined into the author task). Commit it now if it isn't — else the
-authors test stale/absent code.
+tests target MUST be committed (or fully inlined into the author task). Commit it now if it isn't — **explicit
+pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree** (mid-pipeline is
+exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code.
 
 ### 4. Author (pool, parallel — one author per curated behavior)
 ```python
