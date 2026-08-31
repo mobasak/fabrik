@@ -334,8 +334,9 @@ items by design (headings would inflate the citation denominator). Grounding for
      contradicted S3a's own "`fabrik apply` in S3 WILL FAIL WITHOUT THIS". A step whose success
      criterion cannot be met is a step that reads as broken when it is behaving exactly as designed.
    - **Without `--keep-on-failure` the failure DELETES the DNS record this step just created.**
-     `deploy()` runs `_provision_dns` (step 3, `orchestrator/__init__.py`:163) which records
-     `add_resource("dns", domain, zone=…)`; `deployer.deploy` (step 4) then raises `DeployError` on the
+     `deploy()` calls `_provision_dns` (step 3, `orchestrator/__init__.py`:163), which records
+     `add_resource("dns", domain, zone=…)` at `:596` (the CALL is at :163, the RECORDING at :596 — a reader
+     following the call site alone finds neither); `deployer.deploy` (step 4) then raises `DeployError` on the
      `--wait` timeout; the handler at `:213-216` sees a NON-empty `created_resources` and rolls back,
      and `_rollback_dns` (`rollback.py`:186) deletes the record — raising `RollbackError` if that
      delete itself fails. `--keep-on-failure` (`cli.py`:420, plumbed to `deploy(keep_on_failure=…)` at
@@ -745,6 +746,9 @@ be proven. Outcome: 2 residuals PROVEN from code, 1 DISPROVEN and corrected, 1 D
 | 2 | S0 token shape unverified (same token in two roles?) | **PROVEN from code — no mail needed for the shape** | `internal_auth.py:78-112` — registry is `{token: Consumer}`; header `X-Internal-Token`; so `BRIDGE_INTERNAL_TOKEN` must equal a consumer's `token`. Confirms `.env.example:182` |
 | 3 | backrest `postgres-tryton` plan inferred from siblings | **PROVEN** | `drivers/backrest.py::register_postgres_plan:342-360` (id `postgres-<db>`, path `/opt/backups/postgres/<db>/`), called at `drivers/postgres.py:377,470` |
 | 4 | wildcard cert / resolver assumed staged | **DISPROVEN — BLOCKER 2, mailed** | live `traefik.yml:22-28` has only `letsencrypt`+httpChallenge; no `cloudflare` resolver; acme store: 46 certs, no `tojlo.com` (only `tojlo.shop`). Wildcard needs DNS-01 |
+| 12 | post-amendment re-converge (Gate-2 voided the flip on TRAILER FORM, not on a finding) — re-verified the S3 rollback chain end-to-end, the window contract against the LIVE autoheal script, and the watchdog sync | 1 | `10934f1e` → `b7adbb77` — citation precision: the dns RECORDING is at `:596`, the call at `:163` |
+| 13 | every amendment claim re-probed fresh | 1 raised → **REFUTED** (my single-line probe of `:213` missed the `if` at `:214`; the plan cites the RANGE `:213-216` and is CORRECT — the probe was wrong, not the plan) | 0 · `b7adbb77` → `b7adbb77` |
+| 14 | all six cited path:line ranges verified (handler · `_rollback_dns` · `cli.py` · infrastructure · backrest paths · `_validate_compose`) | **0** | **0 · `b7adbb77` → `b7adbb77` ✓ TERMINAL** |
 
 **My own DRAFT claims, re-attacked rather than re-asserted:**
 
