@@ -223,3 +223,14 @@ doc entries in the same commit; caught by a review finder, fixed by hand). A cor
 (staged code paths ↔ entry text) is buildable but is a new mechanism — per the rollout law, measure
 the miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't
 build wallpaper. Trigger: the next occurrence of a code change landing entry-less.
+
+## [infra] assemble_commands.render() silently defaults agents_dest to the LIVE ~/.claude/agents (found by a review finder 2026-08-31)
+
+`render(dest)` with `agents_dest=None` resolves to the live installed agents dir
+(assemble_commands.py:31,~706) — only the CLI `--check` path passes a temp dir. A read-only review
+finder doing `import assemble_commands; render(tmpdir)` for inspection silently OVERWROTE the 4 live
+agent files (benign that day — sources unchanged, post-hoc byte-match to a fresh render — but there
+was no pre-call snapshot to prove it). Fix direction: `render()` requires an explicit `agents_dest`,
+or `_emit_agents` refuses/warns when overwriting a file its own `agent_drift` check would call
+HAND-EDITED. Out of plan-1's File Scope (the renderer is not a source/fragment); parked per the
+rollout law — the trigger for promotion is a second live mutation.
