@@ -186,7 +186,16 @@ def run_ai_fixes(tool: str, tool_output: str | None = None) -> tuple[bool, str]:
         return False, str(e)
 
 
-def clip_output(output: str, head: int = 1400, tail: int = 600) -> dict[str, object]:
+# check_name -> the script that produced it, recorded at registration so a TRUNCATED
+# row can name the exact command that prints the FULL finding set. Populated by
+# run_optional_check; read by clip_output. A check registered by another path simply
+# has no entry and the marker degrades to the generic form.
+_CHECK_SCRIPTS: dict[str, str] = {}
+
+
+def clip_output(
+    output: str, head: int = 1400, tail: int = 600, check_name: str | None = None
+) -> dict[str, object]:
     """Head+TAIL clip with a machine-readable marker, for every --json output field.
 
     A bare ``[:500]`` dropped exactly the line every tool puts its totals on
@@ -195,15 +204,35 @@ def clip_output(output: str, head: int = 1400, tail: int = 600) -> dict[str, obj
     and argued for reverting correct fixes (job-agent 01M10DYMRG; same class as a
     4-finding check surfacing 1, transdoc 01M12A2D90). The tail SURVIVES, the omission
     is stated in-band AND as fields, and an untruncated output keeps a stable schema.
+
+    ``rerun`` (2026-08-31): stating THAT output was omitted is not the same as telling
+    the reader how to see it. tryton-crm paid for that distinction on 2026-07-30 — a
+    truncated "Doc Link Integrity" row listed 3 docs, the check's own script listed 7,
+    and scoping the fix to the JSON preview would have left the gate RED
+    (`/opt/tryton-crm/docs/LESSONS_LEARNT.md`:907-927, which wrote the rule "re-run that
+    check's own script directly"). The rule lived only in that project's file, so the
+    same cost recurred hub-side on 2026-08-31. The marker now carries the command, and
+    ``rerun`` is a machine-readable field so a consumer can act on it without parsing prose.
     """
     if len(output) <= head + tail:
-        return {"output": output, "truncated": False, "omitted_lines": 0}
+        return {"output": output, "truncated": False, "omitted_lines": 0, "rerun": None}
     kept_head, kept_tail = output[:head], output[-tail:]
     omitted = output[len(kept_head) : len(output) - len(kept_tail)].count("\n")
+    script = _CHECK_SCRIPTS.get(check_name or "")
+    rerun = f"python {script}" if script else None
+    how = (
+        f" — run `{rerun}` for the FULL set; NEVER scope a fix to this preview"
+        if rerun
+        else " — re-run this check's own script for the FULL set; NEVER scope a fix to this preview"
+    )
     return {
-        "output": f"{kept_head}\n… [truncated: ~{omitted} line(s) omitted — tail follows] …\n{kept_tail}",
+        "output": (
+            f"{kept_head}\n… [truncated: ~{omitted} line(s) omitted — tail follows"
+            f"{how}] …\n{kept_tail}"
+        ),
         "truncated": True,
         "omitted_lines": omitted,
+        "rerun": rerun,
     }
 
 
@@ -282,6 +311,9 @@ def run_optional_check(
     if warn_only:
         WARN_ONLY_CHECKS.add(check_name)
         advisory = True
+    # Record name -> script BEFORE the existence guard: a truncated row must be able to
+    # name its own rerun command regardless of how the run turns out.
+    _CHECK_SCRIPTS[check_name] = script_path
     full_path = PROJECT_ROOT / script_path
     if not full_path.exists():
         # VISIBLE, not silently green (fabrik-lib finding 2026-08-14): a deleted or
@@ -1899,7 +1931,9 @@ def log_gate_issues(results: list[tuple[str, bool, str]], gate_type: str) -> Non
         "timestamp": datetime.now().isoformat(),
         "gate_type": gate_type,
         "project": str(PROJECT_ROOT),
-        "issues": [{"check": name, **clip_output(output)} for name, output in failed],
+        "issues": [
+            {"check": name, **clip_output(output, check_name=name)} for name, output in failed
+        ],
     }
 
     with open(log_file, "a") as f:
@@ -2353,7 +2387,7 @@ def main() -> int:
         # were ever at risk. Registered warn-only rows carry their whole product in stdout,
         # so it ships here too (the `warnings` list below only collects ⚠-prefixed output).
         advisory_rows = [
-            {"check": name, **clip_output(output)}
+            {"check": name, **clip_output(output, check_name=name)}
             for name, ok, output in all_results
             if ok and name in WARN_ONLY_CHECKS
         ]
@@ -2365,7 +2399,10 @@ def main() -> int:
             "advisory": advisory_rows,
             "blocking": passed_count - len(advisory_rows),
             "failures": [
-                {"check": name, **clip_output(output)}  # tail-preserving, marker in-band
+                {
+                    "check": name,
+                    **clip_output(output, check_name=name),
+                }  # tail-preserving, marker in-band
                 for name, _, output in failed
             ],
             # Advisory warnings a check OPTS INTO by prefixing with ⚠ — surfaced in --json (the
@@ -2374,7 +2411,7 @@ def main() -> int:
             # skipping)") out; a check emitting a plain "WARNING:" (e.g. check_reusable_modules)
             # stays human-mode-only by design.
             "warnings": [
-                {"check": name, **clip_output(output)}
+                {"check": name, **clip_output(output, check_name=name)}
                 for name, ok, output in all_results
                 if ok and output and output.lstrip().startswith("⚠")
             ]

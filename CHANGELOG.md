@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a truncated gate row now names the command that prints the FULL set (2026-08-31)
+
+- `clip_output` stated THAT output was omitted but never how to see it, so a reader could scope a fix to the preview and leave the check RED. tryton-crm paid for exactly that on 2026-07-30 — a truncated "Doc Link Integrity" row listed 3 docs while the check's own script listed 7 — and wrote the rule ("re-run that check's own script directly") into `/opt/tryton-crm/docs/LESSONS_LEARNT.md`:907-927, where the hub never saw it; the same cost recurred hub-side 2026-08-31. Truncated rows now carry the exact `python scripts/enforcement/<check>.py` in-band AND as a machine-readable `rerun` field, via a name→script registry recorded at check registration. Unknown checks degrade to the generic instruction rather than silence. Live: the two currently-truncated rows name `check_review_coverage.py` and `check_vendored_drift.py`.
+
 ### Fixed — fresh standalone corpus review: 15 defects in the manifesto-pass diff (2026-08-31)
 
 Operator-ordered full-strength /fabrik-review (pool breadth + native Opus, non-author closing

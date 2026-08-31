@@ -20,7 +20,12 @@ import final_gate as fg  # noqa: E402 — the path insert must precede the impor
 
 def test_short_output_passes_through_with_stable_schema():
     d = fg.clip_output("Found 2 errors in 1 file")
-    assert d == {"output": "Found 2 errors in 1 file", "truncated": False, "omitted_lines": 0}
+    assert d == {
+        "output": "Found 2 errors in 1 file",
+        "truncated": False,
+        "omitted_lines": 0,
+        "rerun": None,
+    }
 
 
 def test_long_output_keeps_the_tail_and_states_the_omission():
@@ -33,3 +38,33 @@ def test_long_output_keeps_the_tail_and_states_the_omission():
     assert totals in out, "the totals line — always LAST — must survive the clip"
     assert "[truncated:" in out, "the omission must be stated in-band, never silent"
     assert out.startswith("file0.py"), "the head survives too"
+
+
+def test_truncated_row_names_the_command_that_prints_the_full_set():
+    """Stating THAT output was omitted is not telling the reader how to see it.
+
+    tryton-crm paid for the distinction on 2026-07-30 (LESSONS_LEARNT:907-927): a
+    truncated row listed 3 docs, the check's own script listed 7, and scoping the fix
+    to the preview would have left the gate RED. The rule lived only in that project's
+    file, so the cost recurred hub-side 2026-08-31.
+    """
+    fg._CHECK_SCRIPTS["Doc Link Integrity"] = "scripts/enforcement/check_doc_links.py"
+    body = "\n".join(f"docs/f{i}.md: broken ref" for i in range(200))
+    d = fg.clip_output(body, check_name="Doc Link Integrity")
+    assert d["truncated"] is True
+    assert d["rerun"] == "python scripts/enforcement/check_doc_links.py"
+    out = str(d["output"])
+    assert "python scripts/enforcement/check_doc_links.py" in out, (
+        "the rerun command must be IN-BAND — a consumer reading only `output` must see it"
+    )
+    assert "NEVER scope a fix to this preview" in out
+
+
+def test_unknown_check_still_tells_you_to_re_run_the_script():
+    """Degrade to the generic instruction rather than silently omitting it."""
+    # must exceed head+tail (1400+600) or clip_output correctly returns untruncated
+    body = "\n".join(f"docs/some/longer/path/file{i}.md: a broken reference" for i in range(200))
+    d = fg.clip_output(body, check_name="a check registered by some other path")
+    assert d["truncated"] is True
+    assert d["rerun"] is None
+    assert "re-run this check's own script" in str(d["output"])
