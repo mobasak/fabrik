@@ -746,27 +746,23 @@ def _format_env(env: dict[str, str]) -> str:
     """Format a dict as .env file content."""
     lines = []
     for key, value in sorted(env.items()):
-        # QUOTE ONLY WHEN THE FILE FORMAT REQUIRES IT, and ESCAPE when we do.
+        # Quote values with spaces or special chars — and ESCAPE when we do.
         #
-        # The old rule quoted on any space/#/quote and wrapped WITHOUT escaping:
+        # The escape is the fix (2026-08-31). The old code wrapped without it:
         # `value = f'"{value}"'`. A JSON secret contains `"`, so it shipped as
         # `K="{"a":"b"}"` and Compose read the first inner quote as a NEW VARIABLE
-        # NAME — `failed to read .env: unexpected character '"' in variable name`.
-        # That broke `docker compose build` for EVERY value carrying a quote, i.e.
-        # every JSON-valued secret on the fleet (measured live 2026-08-31 on
-        # tryton-crm's CONSUMER_TOKENS; two byte-identical apply failures).
+        # NAME — `failed to read .env: unexpected character '"' in variable name` —
+        # breaking `docker compose build` for EVERY value carrying a quote on the
+        # fleet. Measured live on tryton-crm's CONSUMER_TOKENS: two byte-identical
+        # apply failures.
         #
-        # A compose env_file takes the value RAW to end-of-line, so spaces and
-        # quotes need no wrapper at all. Only three things genuinely do: leading or
-        # trailing whitespace (a bare value would be stripped), an embedded newline,
-        # and `#` (some dotenv parsers start an inline comment at ` #`).
-        # ...plus the AMBIGUOUS case: a value whose own content starts AND ends with a
-        # quote (e.g. the JSON string `"foo"`). Emitted bare it is indistinguishable
-        # from a wrapper, and the reader would strip the value's real quotes. Quoting
-        # + escaping makes it self-describing. (Pre-existing round-trip bug, reachable
-        # before this change too; closed here rather than left for the next caller.)
-        _ambiguous = len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"')
-        if value != value.strip() or "\n" in value or "#" in value or _ambiguous:
+        # The QUOTE TRIGGER is deliberately unchanged. Dropping it for spaces (a
+        # compose env_file reads to end-of-line, so `K=a b` parses) broke
+        # `TestFormatEnv::test_quotes_spaces`, which encodes a real contract: the
+        # file must stay safe for a shell `source`, where a bare `K=a b` word-splits.
+        # Verified live that Compose unescapes correctly: `K="{\"a\":\"b\"}"`
+        # resolves to `{"a":"b"}`. `_parse_env` carries the matching unescape.
+        if any(c in value for c in (" ", "#", "'", '"', "\n")):
             value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
         lines.append(f"{key}={value}")
     return "\n".join(lines) + "\n" if lines else ""

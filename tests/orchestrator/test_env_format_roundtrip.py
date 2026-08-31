@@ -53,7 +53,7 @@ def test_round_trip_preserves_every_value():
     assert _parse_env(_format_env(CASES)) == CASES
 
 
-def test_round_trip_is_IDEMPOTENT_no_backslash_growth():
+def test_round_trip_is_idempotent_no_backslash_growth():
     """Asymmetric escape/unescape grows a backslash on every apply.
 
     A single round-trip cannot catch that — the corruption appears on the SECOND
@@ -64,15 +64,22 @@ def test_round_trip_is_IDEMPOTENT_no_backslash_growth():
     assert twice == CASES
 
 
-def test_json_value_is_emitted_UNQUOTED_so_compose_can_read_it():
-    """The specific regression: a compose env_file takes the value raw to EOL."""
+def test_json_value_is_escaped_not_bare_wrapped():
+    """The invariant is that Compose can READ it — not that it is unquoted.
+
+    My first version of this test asserted "emitted unquoted", which is an
+    implementation choice, not the requirement. Bending the fix to satisfy it broke
+    `TestFormatEnv::test_quotes_spaces`, whose contract is real: the file must stay
+    safe for a shell `source`, where a bare `K=a b` word-splits. The fix therefore
+    keeps the quote trigger and fixes only the ESCAPING.
+    """
     line = next(
         line for line in _format_env(CASES).splitlines() if line.startswith("CONSUMER_TOKENS=")
     )
-    assert line == f"CONSUMER_TOKENS={_CONSUMER_TOKENS}"
-    assert not line.startswith('CONSUMER_TOKENS="'), (
-        "a wrapped JSON value is exactly what Compose rejects"
-    )
+    assert line.startswith('CONSUMER_TOKENS="') and line.endswith('"')
+    assert '\\"' in line, "inner quotes MUST be escaped — bare-wrapped is the defect"
+    # and it must survive the round trip back to the exact original JSON
+    assert _parse_env(line)["CONSUMER_TOKENS"] == _CONSUMER_TOKENS
 
 
 def _compose_config(tmp_path: Path, env_body: str) -> subprocess.CompletedProcess:
@@ -94,7 +101,7 @@ def _compose_config(tmp_path: Path, env_body: str) -> subprocess.CompletedProces
     subprocess.run(["which", "docker"], capture_output=True, check=False).returncode != 0,
     reason="docker not available",
 )
-def test_REAL_compose_parses_our_output_and_rejects_the_old_form(tmp_path):
+def test_real_compose_parses_our_output_and_rejects_the_old_form(tmp_path):
     """The executable check, not a proxy for it.
 
     The second half is what makes the first half mean anything: if Compose accepted
