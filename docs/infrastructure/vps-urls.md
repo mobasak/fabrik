@@ -1,6 +1,6 @@
 # VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-08-31 18:57 UTC
+**Last Updated:** 2026-08-31 19:30 UTC
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
