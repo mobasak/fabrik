@@ -92,8 +92,10 @@ Mem:            11Gi       4.1Gi       693Mi       178Mi       7.3Gi       7.5Gi
   containers: 32 running / 32 total
 ```
 
-The stack's declared ceiling is **4 G** — `tryton-crm` 512M + `trytond` 2G + `trytond-worker` 1G +
-`crm-gotenberg` 512M (`compose.yaml:60,118,246,298`) — against 7.5 Gi available. It fits with ~3.5 Gi
+The stack's declared ceiling is **4 G** — `tryton-crm` 512M + `crm-gotenberg` 1G + `trytond` 2G +
+`trytond-worker` 512M (`compose.yaml:60,118,246,298`; the per-service attribution was corrected
+2026-08-31 — the DRAFT had gotenberg and the worker swapped. The 4G SUM was right, which is exactly
+why the re-derivation pass missed it: it re-counted the total and never re-checked the mapping) — against 7.5 Gi available. It fits with ~3.5 Gi
 spare, but it is **over half the remaining headroom on the hub**, which is the single most important
 capacity fact in this plan and the reason Phase 8 watches memory first.
 
@@ -561,6 +563,17 @@ is not needed at launch. **S0b is the only outstanding item — and it is FLEET 
 **Remaining genuine unknowns, and they are unknowable before the deploy runs — not deferred questions:**
 trytond's first-boot init wall-clock against `FABRIK_BUILD_TIMEOUT=1200`, and whether ACME issues the
 primary cert promptly (S13.2 is the gate for exactly that).
+
+**A LIVE DEFECT the deploy would have hit, found by the operator's push to use site-provisioner
+(2026-08-31):** the hub's `SITE_PROVISIONER_API_KEY` did not authenticate. Proven by hash, never by
+value — hub key len 32 / `sha256[0:16]=0a69b0dd…` vs the live container's `API_KEY` len 12 /
+`9b19acfa…`, and a direct call returned `{'error': 'Invalid or missing API key'}` (HTTP 401). Since
+site-provisioner is the DNS control plane that `fabrik apply` uses to create the A record, **the deploy's
+DNS step would have failed**. Repointed the hub key to the container's (`/opt/fabrik/.env` backed up to
+`backups/.env.backup.20260831-065445` first) and re-verified through the real client:
+`cloudflare_health()` → `{'status': 'healthy', 'token_status': 'active'}`, zones visible
+`['ocoron.com', 'ozgurbasak.com', 'tojlo.com']`. This is why S0b is fleet work and why no Cloudflare
+token is handed to anything: **DNS goes through site-provisioner's API, not through raw CF credentials.**
 
 **Author error corrected on the operator's challenge (recorded because the no-op round did NOT catch
 it — that half is the machinery's, and it is filed):** the CONVERGED plan named S0b an `OPERATOR-GATE`
