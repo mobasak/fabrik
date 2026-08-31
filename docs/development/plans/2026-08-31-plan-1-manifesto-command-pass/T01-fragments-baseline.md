@@ -1,7 +1,7 @@
 # T01 — Fragments manifesto baseline (all 21 shared fragments)
 
 ## Scope
-Evaluate ALL 21 shared fragments (`commands/_fragments/*.md`) against checklist item 63b's six manifesto intersections (checkable gates · ledger routing + one-way field block · rigor-scales-with-irreversibility · labeled evidence · captured disorder · most-reversible default) so fragment-level findings are fixed ONCE here and every later command ticket verifies instead of re-fixing. Read docs/reference/operating-manifesto.md IN FULL first. For each fragment: verdict per intersection (CONFORMS at path:line / FIXED at path:line / N/A because X) into the review artifact; apply minimal fixes in place. Then /fabrik-review over the changed fragments to its no-op round; `python commands/assemble_commands.py --check` green; commit explicit paths + trailers; push; render the corpus from THIS master MAIN checkout (`python commands/assemble_commands.py` — merge-time render law). DO-NOT: touch `commands/_sources/` (the per-command tickets own those); do not inject manifesto vocabulary into a fragment where an intersection is genuinely N/A — the verdict is the deliverable, not the edit.
+Evaluate ALL 21 shared fragments (`commands/_fragments/*.md`) against checklist item 63b's six manifesto intersections (checkable gates · ledger routing + one-way field block · rigor-scales-with-irreversibility · labeled evidence · captured disorder · most-reversible default) so fragment-level findings are fixed ONCE here and every later command ticket verifies instead of re-fixing. Read docs/reference/operating-manifesto.md IN FULL first. The fragment read set is ALL 21 files under `commands/_fragments/` (this ticket's Touches dir — enumerate with `ls commands/_fragments/*.md`, expect 21; they are deliberately not repeated in Context Files to avoid double-counting the byte budget). For each fragment: verdict per intersection (CONFORMS at path:line / FIXED at path:line / N/A because X) into the review artifact under a heading titled `## 63b Verdict Table` — NEVER `Coverage Checklist`, which is reserved for the /fabrik-review step's own checklist (check_review_coverage greps that heading for CLEAN/FIXED/REFUTED tokens and would flag CONFORMS/N-A rows); apply minimal fixes in place. Then /fabrik-review over the changed fragments to its no-op round; `python commands/assemble_commands.py --check` green; commit explicit paths + trailers; push; render the corpus from THIS master MAIN checkout (`python commands/assemble_commands.py` — merge-time render law). DO-NOT: touch `commands/_sources/` (the per-command tickets own those); do not inject manifesto vocabulary into a fragment where an intersection is genuinely N/A — the verdict is the deliverable, not the edit.
 
 Depends: —
 Parallel: ⛓️
@@ -18,10 +18,7 @@ Docs: CHANGELOG.md entry via the orchestrator Deltas mechanism (command contract
 - **Given** fragment fixes applied, **When** /fabrik-review runs on the changed fragments and `python commands/assemble_commands.py --check` runs, **Then** the review converges to new: 0 and the check is green — fragment-level manifesto classes are SWEPT so command tickets verify-only (docs/reference/operating-manifesto.md:93)
 
 ## Context Files
+- docs/development/plans/2026-08-31-plan-1-manifesto-command-pass/2026-08-31-plan-1-manifesto-command-pass.md — the spine; its Execution Discipline binds every step
 - docs/reference/operating-manifesto.md
 - docs/reference/command-evaluation-checklist.md
-- commands/_fragments/run-record.md
-- commands/_fragments/term-coverage.md
-- commands/_fragments/term-edit.md
-- commands/_fragments/close-feedback.md
 - .windsurf/rules/core/40-documentation.md
