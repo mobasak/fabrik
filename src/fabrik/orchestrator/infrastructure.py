@@ -90,6 +90,16 @@ from fabrik.orchestrator.context import DeploymentContext
 
 logger = logging.getLogger(__name__)
 
+
+class DsnInjectionError(RuntimeError):
+    """The one FATAL registrar outcome: SENTRY_DSN verifiably absent from the
+    running container after injection. Every other glitchtip failure (missing
+    token/org config, API errors) is non-fatal-but-recorded like the rest of
+    the registrars — a bare ``except RuntimeError: raise`` was rolling back
+    WHOLE deploys over a momentarily unset GLITCHTIP_AUTH_TOKEN (review
+    finding, 01M1CKEK pass 2)."""
+
+
 # --------------------------------------------------------------------------- #
 # Shared-infra host resolution (hub vs. spoke)                                 #
 # --------------------------------------------------------------------------- #
@@ -437,15 +447,17 @@ class InfrastructureProvisioner:
         for line in format_resolved_summary(resolved).splitlines():
             logger.info("%s", line)
 
+        should_run = {k: v[0] for k, v in resolved.items()}
+
         # P1 (watchdog platform): ensure the shared fabrik_analytics DB +
         # cost_ledger table exist BEFORE any per-spec registrar runs.
-        # Unconditional (NOT gated by shape.needs_database) so a worker
+        # Unconditional RUN (NOT gated by shape.needs_database) so a worker
         # spec without its own DB but with the watchdog enabled can still
-        # write to cost_ledger. Idempotent at the DB level — every call
-        # after the first is a no-op.
-        self._provision_shared_analytics(ctx, dry_run)
-
-        should_run = {k: v[0] for k, v in resolved.items()}
+        # write to cost_ledger; idempotent at the DB level. Its FAILURE
+        # records only when the watchdog is applicable — that dependency is
+        # what makes it required; a watchdog-disabled static site must not
+        # exit 2 over a shared-analytics blip (review finding, pass 2).
+        self._provision_shared_analytics(ctx, dry_run, record_failure=should_run["watchdog"])
 
         if should_run["postgres"]:
             self._provision_postgres(
@@ -497,7 +509,9 @@ class InfrastructureProvisioner:
 
     # ── individual registrars ────────────────────────────────────────────── #
 
-    def _provision_shared_analytics(self, ctx: DeploymentContext, dry_run: bool) -> None:
+    def _provision_shared_analytics(
+        self, ctx: DeploymentContext, dry_run: bool, record_failure: bool = True
+    ) -> None:
         """Ensure the shared ``fabrik_analytics`` DB + ``cost_ledger`` exist.
 
         Called unconditionally from :meth:`provision` — does NOT depend on
@@ -528,11 +542,12 @@ class InfrastructureProvisioner:
                 analytics_result.get("schema_applied"),
             )
         except Exception as e:  # noqa: BLE001 — bounded non-fatal
-            # Unconditional platform step, so its failure is applicable by
-            # definition — the watchdog's cost_ledger writes depend on it
-            # (review finding: it was the one swallow the 01M1CKEK rewire
-            # left invisible).
-            self._nonfatal(ctx, "shared-analytics", e)
+            # Records only when the watchdog (the cost_ledger consumer) is
+            # applicable to this spec — see the call site.
+            if record_failure:
+                self._nonfatal(ctx, "shared-analytics", e)
+            else:
+                logger.warning("shared analytics provisioning failed (non-fatal): %s", e)
 
     def _provision_postgres(
         self,
@@ -663,11 +678,10 @@ class InfrastructureProvisioner:
                         status="dry_run" if dry_run else "provisioned",
                     )
                 except Exception as e:  # noqa: BLE001 — bounded non-fatal
-                    logger.warning(
-                        "postgres: watchdog role provisioning failed for %s (non-fatal): %s",
-                        db_name,
-                        e,
-                    )
+                    # The watchdog sidecar boots with no DB creds if this fails
+                    # while _provision_watchdog still reports ok — record it
+                    # (review finding, 01M1CKEK pass 2).
+                    self._nonfatal(ctx, "postgres/watchdog-roles", e)
                     ctx.add_resource("watchdog-db-roles", db_name, status="failed")
 
             # Payments webhook-ingest role (fabrik-lib payments contract): when
@@ -700,9 +714,10 @@ class InfrastructureProvisioner:
                         status="dry_run" if dry_run else "provisioned",
                     )
                 except Exception as e:  # noqa: BLE001 — bounded non-fatal
-                    logger.warning(
+                    self._nonfatal(ctx, "payments-ingest-role", e)
+                    logger.debug(
                         "postgres: payments-ingest role provisioning failed for %s "
-                        "(non-fatal): %s",
+                        "(recorded): %s",
                         db_name,
                         e,
                     )
@@ -764,8 +779,9 @@ class InfrastructureProvisioner:
                     status="dry_run" if dry_run else "provisioned",
                 )
             except Exception as e:  # noqa: BLE001 — bounded non-fatal
-                logger.warning(
-                    "postgres: subagent-ins role provisioning failed for %s (non-fatal): %s",
+                self._nonfatal(ctx, "subagent-ins-role", e)
+                logger.debug(
+                    "postgres: subagent-ins role provisioning failed for %s (recorded): %s",
                     name,
                     e,
                 )
@@ -840,17 +856,19 @@ class InfrastructureProvisioner:
                 return
 
             if not dsn:
-                # create_project already logged the anomaly; treat as
-                # degraded but not fatal — the project exists, just no DSN.
-                logger.warning("glitchtip: %s has no DSN; skipping injection", name)
+                # create_project already logged the anomaly; the project
+                # exists but SENTRY_DSN was never injected — the registrar's
+                # main promise is broken, so it records (review finding).
+                self._nonfatal(ctx, "glitchtip", RuntimeError(f"{name} has no DSN; injection skipped"))
                 return
 
             # Inject DSN into the deployed container via .env + restart,
             # then verify it actually arrived via docker inspect (Lesson 31).
             if not ctx.app_name:
-                logger.warning(
-                    "glitchtip: ctx.app_name unset; "
-                    "cannot inject SENTRY_DSN. Degraded but non-fatal."
+                self._nonfatal(
+                    ctx,
+                    "glitchtip",
+                    RuntimeError("ctx.app_name unset; cannot inject SENTRY_DSN"),
                 )
                 return
 
@@ -861,15 +879,17 @@ class InfrastructureProvisioner:
                 # don't leave an orphan, then raise so the caller can
                 # decide (typically: fail the deploy with full rollback).
                 delete_project(name)
-                raise RuntimeError(
+                raise DsnInjectionError(
                     f"SENTRY_DSN not injected into {name!r} container "
                     f"within 240s after .env injection + restart. Project "
                     f"rolled back."
                 )
 
             logger.info("glitchtip: %s → DSN verified in container", name)
-        except RuntimeError:
-            # DSN verification failures are fatal per the contract above.
+        except DsnInjectionError:
+            # ONLY the verified-absence case is fatal per the contract above;
+            # config/API RuntimeErrors fall through to recording like every
+            # other registrar instead of rolling back the whole deploy.
             raise
         except Exception as e:  # noqa: BLE001
             self._nonfatal(ctx, "glitchtip", e)

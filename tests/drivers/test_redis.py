@@ -139,7 +139,8 @@ class TestWriteRegistry:
         captured = {}
 
         def fake_scp(local, remote):
-            captured["body"] = open(local).read()
+            with open(local) as fh:
+                captured["body"] = fh.read()
 
         with (
             patch.object(redis_driver, "ssh", return_value=""),

@@ -749,7 +749,10 @@ def _vulture_argv() -> list[str]:
     upstream 01M1CM6G measured 4/4 false positives of this class in one repo). Absent the file,
     the argv is unchanged — this cannot turn any current verdict."""
     argv = [PYTHON, "-m", "vulture", "src/"]
-    if Path(".vulture-whitelist.py").exists():
+    # Anchored to PROJECT_ROOT (the module's cwd snapshot, like VENV_PYTHON) so a
+    # future chdir between import and the static tier can't silently diverge the
+    # lookup from the repo the gate is grading.
+    if (PROJECT_ROOT / ".vulture-whitelist.py").exists():
         argv.append(".vulture-whitelist.py")
     argv += [
         "--min-confidence",

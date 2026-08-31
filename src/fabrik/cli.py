@@ -552,9 +552,13 @@ def apply(
             raise SystemExit(0)
         elif ctx.state == DeploymentState.ROLLED_BACK:
             click.echo(f"⚠️  Deployment failed and rolled back: {ctx.error}")
+            for failure in ctx.registrar_failures:
+                click.echo(f"   ✗ also failed earlier (non-fatal): {failure}")
             raise SystemExit(1)
         else:
             click.echo(f"❌ Deployment failed: {ctx.error}")
+            for failure in ctx.registrar_failures:
+                click.echo(f"   ✗ also failed earlier (non-fatal): {failure}")
             raise SystemExit(1)
 
     # Load spec

@@ -224,6 +224,17 @@ doc entries in the same commit; caught by a review finder, fixed by hand). A cor
 the miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't
 build wallpaper. Trigger: the next occurrence of a code change landing entry-less.
 
+## [fleet] .fabrik/state/<id>.json has no durable record of registrar FAILURES (review finding 2026-09-01)
+
+The 01M1CKEK fix makes `fabrik apply`/`redeploy --refresh-infra` exit 2 and print each failed
+registrar — but that truth lives only in the one terminal's stdout+exit code. The persisted
+state file's 8-field G-F3 schema records `registrars_applied` by omission only; `fabrik
+audit-registrars` and the state file both answer "did our last apply finish clean?" with
+silence. Fix direction: a `registrar_failures: [...]` field (schema addition — G-F3 consumers:
+`state.py` docstring names them) written by `_persist_state`. Deliberately NOT folded into the
+01M1CKEK change: a schema change deserves its own consumer sweep. Trigger: the next state-file
+or audit-registrars window.
+
 ## [infra] tests/orchestrator/test_infrastructure.py's dispatch tests SSH to PROD (measured 2026-08-31)
 
 `TestProvisionDispatch` calls `provision()` with only the per-registrar drivers patched —

@@ -16,7 +16,8 @@ live vps1 file. (2) Every applicable registrar's swallowed failure now lands on
 `ctx.registrar_failures`; `fabrik apply` refuses the ✅ banner and exits 2 when the list is
 non-empty (deploy still completes, nothing rolls back, re-run retries the idempotent registrars).
 Pinned by `tests/drivers/test_redis.py` + `tests/orchestrator/test_registrar_failures_not_green.py`,
-red-on-revert proven (9 fail at HEAD).
+red-on-revert proven at commit time (9 of the then-11 tests failed against HEAD; the suite has
+since grown — a re-measurement reverting all four code files fails 19 of 22).
 
 ### Fixed — final_gate vulture: per-repo whitelist for interface-signature false positives (2026-08-31)
 

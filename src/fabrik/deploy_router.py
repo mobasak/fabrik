@@ -133,7 +133,9 @@ def _deploy_generic(project_dir: Path, dry_run: bool) -> int:
     orchestrator = DeploymentOrchestrator()
     ctx = orchestrator.deploy(spec_path, dry_run=dry_run)
 
-    success = ctx.state == DeploymentState.COMPLETE
+    # Registrar failures deny success here exactly as `fabrik apply` refuses
+    # its green banner (01M1CKEK) — this is the alternate entry point.
+    success = ctx.state == DeploymentState.COMPLETE and not ctx.registrar_failures
     spec = ctx.spec or {}
     notify_deploy(
         project=spec.get("name", str(spec_path)),

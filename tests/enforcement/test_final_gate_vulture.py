@@ -51,9 +51,10 @@ def test_whitelist_present_is_scanned_as_a_path_not_an_option_value(tmp_path, mo
 
 
 def test_run_static_checks_uses_the_helper():
-    # The helper is only a fix if the gate calls it: the inline vulture argv it replaced
-    # must not resurface in run_static_checks (the revert shape of this change).
+    # The helper is only a fix if the gate calls it. The old indentation-exact
+    # negative assertion was a brittle guard (any reformat defeats it — review
+    # finding); the positive call-site pin plus the argv tests above are the
+    # semantic proof.
     src = GATE.read_text(encoding="utf-8")
     body = src[src.index("def run_static_checks") :]
-    assert "_vulture_argv()" in body
-    assert '"-m",\n            "vulture"' not in body
+    assert "run_cmd(_vulture_argv())" in body
