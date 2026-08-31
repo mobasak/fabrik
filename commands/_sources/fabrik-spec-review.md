@@ -272,9 +272,10 @@ field-freeze / UI / plan work begins. Once the md5-verified no-op round earns `S
   applicable next so the operator (or the next turn) knows what follows, but do not call it:
   - **Data/field-shaped** (entities / persistence / user-facing fields — `shape.needs_database` or any
     form/DB field) → next is **`/fabrik-data-contract <spec>`**.
-  - **Else GUI** (`project.yaml::type` ∈ {`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`,
-    `static-site`, `docusaurus`}) → next is **`/fabrik-ui-design`**.
-  - **Else** (headless `python-api`/`node-api`/`file-api`/`file-worker`) → next is
+  - **Else GUI** (`project.yaml::type` in CLAUDE.md's UI-bearing set — {`saas-skeleton`,
+    `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, `static-site`,
+    `docusaurus`}) → next is **`/fabrik-ui-design`**.
+  - **Else** (headless `python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`) → next is
     **`/fabrik-plan-after-chat <spec>`**.
 - Only **on the user's explicit approval (a later turn)** does the applicable next command run. **The
   approval is a RECEIVED decision — the approving turn's session mints its `docs/DECISIONS.md` row in

@@ -20,7 +20,7 @@ refute/merge, fix-or-handoff, and convergence. Optimize for COVERAGE first, then
 
 1. **Surface check — EVIDENCE-based, `type` is a hint not the verdict.** `project.yaml::type` records
    which scaffold *generated* the project, not what surfaces it *has today*. **Proceed if ANY hold:**
-   `type` ∈ UI-bearing set ({`saas-skeleton`, `chrome-extension`, `mobile-app`, `desktop-app`,
+   `type` ∈ UI-bearing set ({`saas-skeleton`, `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`,
    `static-site`, `docusaurus`}) · `docs/ui-design.md` exists · the project serves an HTML client
    (a `sao-overlay/`-style overlay, a `static/`/`www/` bundle, a templates dir, a vendored third-party
    client like Tryton `sao`/Grafana/Django-admin). **A headless `type` with GUI evidence → proceed AND

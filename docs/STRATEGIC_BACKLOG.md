@@ -278,3 +278,12 @@ recurs. Trigger: the next prose-vs-grader mismatch found by any review.
 names neither (unlike `close-feedback`/`agent-feedback`, which are auto-appended). Either dead files
 to delete in a maintenance pass, or a second injection path nobody documented — decide, then either
 delete or document. Pre-existing (not touched by the manifesto-pass diff).
+
+## [infra] check_command_corpus.py never grounds scaffold-type enumerations against SCAFFOLD_TYPES (found by the fresh corpus review round 12, 2026-08-31)
+
+`office-extension` (registry since D-039) was absent from all 57 corpus files while the checker
+printed green — it validates chain targets/scripts/trailers but not type enumerations. Measured
+fire rate at promotion time: 7 files enumerated ≥3 registry types with ≥1 omitted (all fixed
+in-round; the checker would have been red on real drift, green after). Fix direction: import
+SCAFFOLD_TYPES, fail when a corpus file enumerates ≥3 registry types yet omits one. Promote on the
+next registry-drift recurrence.

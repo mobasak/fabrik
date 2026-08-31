@@ -13,7 +13,8 @@ decisions-lock. A spec that converged in July and was 60% built is invisible to 
 
 **Methodology origin:** run by hand in trade-intelligence 2026-08-22 over 28 artifacts (commit
 `e3b779cc`, ledger `docs/development/reviews/2026-08-22-spec-plan-conformance-review.md`): 13
-CONFORMS / 9 PARTIAL / 2 NOT-IMPLEMENTED / 1 superseded-in-part / 1 drifted, ~1,050 plan tests
+CONFORMS · 9 PARTIAL · 2 NOT-IMPLEMENTED · 1 drain-list · 1 superseded-in-part · 2 doc-stale-only
+(the ledger's own six-way summary line, verbatim — a re-bucketed restatement here went stale), ~1,050 plan tests
 re-run as evidence. Every discriminator below earned its place by catching something real there.
 
 {{include:run-record}}
@@ -36,7 +37,7 @@ specs" — that is a finding, not an error.
    directory counts as ONE row; its tickets are evidence within that row.
 2. **Pair** spec ↔ plan by explicit reference first (a plan naming its spec, a spec naming its
    plan), then by slug/date proximity. Use `PLANS.md` as an accelerator **when it exists**, never
-   as the mechanism. A plan with no spec gets its OWN row — those were 5 of the 28 in the worked
+   as the mechanism. A plan with no spec gets its OWN row — those were 6 of the 28 in the worked
    example and are not second-class.
 3. **Exclude pre-supersession eras explicitly, naming the successor.** An era excluded silently is
    indistinguishable from one that was missed.
