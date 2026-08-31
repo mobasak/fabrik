@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T24: /fabrik-rivals (2026-08-31)
+
+- 63b verdict: 5 CONFORM + 1 N/A — the pass's first zero-source-fix ticket; the source conforms. The fixes landed elsewhere: D-050 minted (the 2026-08-26 no-ceiling + no-claude-p operator ruling pair had ZERO ledger rows despite verbatim in-code provenance — the T20 unminted-standing-policy class), and the verdict honestly splits mechanical per-round measurement from the self-graded two-dry-rounds count (check_rivals_dossier's own admission). Verifier 24-for-24.
+
 ### Changed — manifesto pass T23: /fabrik-review-scoped (2026-08-31)
 
 - 63b verdict: 5 CONFORM (one honest-split, one N/A-regrounded), plus 2 source fixes. The malformed `origin/..HEAD` scope ref (exit-128 everywhere) → `@{u}..HEAD` with a no-upstream fallback (`--branches --not --remotes`); trailer-indistinguishability between same-role sessions now stated with the scope-down-to-certain default. The (a) verdict honestly splits the Stop-hook floor + feedback-refusal (mechanical) from the self-graded exit prose — the deliberate lightness, with the enforcement candidate cited in the backlog. Verifier 23-for-23: caught my "mechanical" stamp on code-free prose, an invented (b) routing, and a triple tally contradiction.
