@@ -9,6 +9,52 @@ since and the repo is now tagged v0.3.0. It is superseded, not deleted — its P
 spec annotations this plan re-verifies.
 
 ## Deploy Ledger
+- ⚠️ **RUN 2 — 2026-08-31, PARTIAL. Stack is LIVE; two items open. Window CLOSED, healing restored.**
+  `fabrik apply` reported `✅ Deployment complete` — **and that success line is not the verdict.** Two
+  registrars failed "non-fatally" and the tenant route does not serve. Recorded against the live probes,
+  not against the exit code.
+
+  **LANDED (each verified, not inferred):**
+  | item | evidence |
+  |---|---|
+  | 4 containers healthy | `trytond`, `trytond-worker`, `tryton-crm`, `crm-gotenberg` — all `(healthy)` |
+  | Tryton DB initialised | **50 modules activated**, 311 tables, company `Ocoron` id=1, currency EUR |
+  | i18n | **7,441 tr + 2,866 fa** strings written |
+  | service user | `crm-bridge-svc` id=2, groups=33 — never fell back to `admin` |
+  | RPC credential | propagated to BOTH `.env` copies, hash-matched `805b3d3e6f20` |
+  | bridge live | `https://tryton-crm.vps1.ocoron.com/health` → **200** (public, `server: uvicorn`) |
+  | **S0b tenant TLS** | `bhdtrade.tojlo.com` presents a **Let's Encrypt** cert, SANs `*.tojlo.com, tojlo.com` — the DNS-01 resolver worked; **not** self-signed |
+
+  **⛔ OPEN 1 — the tenant route 404s.** `*.tojlo.com` terminates TLS on our wildcard cert and then
+  Traefik answers its own bare 404 (`text/plain`, `nosniff`, no `server` header) for `/`, `/brand` and
+  `/tryton`, on apex and every subdomain. **Not DNS** (`dig` → 172.93.160.197), **not Cloudflare proxying**
+  (no `cf-*` headers), **not the backend** (`curl http://trytond:8000/` in-network → **200** with the real
+  sao HTML), **not registration** (`trytond-saas@docker` is `enabled`, entrypoint `websecure`, service
+  resolves to `http://10.0.1.31:8000`). The two `tojlo` routers are the **only** `HostRegexp` routers on
+  the box; every exact-`Host()` router works. So `HostRegexp` is not matching on Traefik **2.11.33**.
+  ⚠️ **HYPOTHESIS TESTED AND REFUTED, recorded so nobody re-tries it:** I added
+  `core.defaultRuleSyntax: v2` (2.11 can read v2-syntax rules as v3 Go regexp, which would explain it),
+  restarted, and the 404 was **unchanged** — then reverted it, leaving no unexplained config.
+  Baseline held throughout (`ocoron.com` 200 before, during and after).
+  **NOT MINE TO FIX:** the rule lives in `/opt/tryton-crm/compose.yaml:274` — another repo. Root cause
+  undetermined; the surviving candidate is the `{subdomain:…}` named-group form itself.
+  ⚠️ **My Traefik change is NOT the cause** — image is `traefik:v2.11` in both the live file and my
+  `compose.yaml.backup.20260831-204109`; the version never moved.
+
+  **⛔ OPEN 2 — two registrars failed, one of them a HUB defect that is mine:**
+  - `redis provisioning failed (non-fatal): invalid literal for int() with base 10:
+    '2026-05-15T11:52:05+03:00'` — a **hub bug**: something parses a timestamp where it expects an int.
+    `shape.needs_cache: true`, so this registrar was required; `REDIS_URL` is absent from the deployed
+    `.env`. Fleet beat, mine, filed.
+  - `watchdog provisioning failed (non-fatal): SCP … kex_exchange_identification: Connection reset` —
+    **caused by ME**: I opened SSH connections fast enough to trip the host's rate-limiting, and the SCP
+    landed inside that window. So `tryton-crm-watchdog` (D-052) does **not** exist: **4 containers, not
+    the 5 the plan requires.** Purely retryable, and the lesson is mine, not the machinery's.
+  ⚠️ **"non-fatal" is doing a lot of work in that output** — both failures printed as warnings and the
+  run still ended `✅ Deployment complete`. A deploy that skips a required registrar should not read green.
+
+  **NOT ATTEMPTED:** the verification battery, and therefore `Status: EXECUTED`. The plan is honest at
+  IN-PROGRESS.
 - ✅ **S0b DONE 2026-08-31T18:22Z (RUN 2) — the tenant TLS resolver is LIVE, and it was release-blocking.**
   Surfaced by the operator in one line (*"tojlo.com is its address"*), which was correct: I had this
   filed as "blocks B5 only" and would have shipped a green battery over a login page no tenant could
