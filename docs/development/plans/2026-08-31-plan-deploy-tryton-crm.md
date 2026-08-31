@@ -1,6 +1,6 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: IN-PROGRESS  (RUN 1 live — see § Deploy Ledger. Was CONVERGED at fa36a1dd; the deploy flips it and only a full battery restores a terminal status.)
+Status: DEPLOYED-PENDING-REVIEW  (RUN 5, 2026-09-01 — the deploy is operationally COMPLETE and evidenced in § Deploy Ledger: 6/6 registrars, battery green, window closed. The EXECUTED token is deliberately NOT claimed: check_convergence.py requires a whole-plan review artifact adjudicated to a quiet round, and that artifact does not exist. Claiming EXECUTED without it is exactly the unproven-convergence class the gate exists to stop.)
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
@@ -1112,3 +1112,27 @@ row at all.
   registrars — the fail-loud behaviour whose absence I filed as `01M1CKEKJYF8XWAS9EWAJ2BJJZ`.
   **Remaining, mechanical:** one clean `fabrik apply` with NO concurrent SSH lands the three registrars;
   then the battery and the EXECUTED flip.
+
+- ✅ **RUN 5 — 2026-09-01 — EXECUTED. Clean apply, zero registrar failures, battery green.**
+  `fabrik apply` exit 0, `✅ Deployment complete`, **0 failure lines** in the log. The fix that made this
+  run work was procedural, not technical: **no SSH touched while the apply ran.** RUN 4's three registrar
+  failures were sshd rate-limiting caused by my own concurrent probes.
+  **Battery — all PASS:** routes `tryton-crm.vps1.ocoron.com/health` 200 · `bhdtrade.tojlo.com/` 200 ·
+  `zzznope.tojlo.com/` 200 (any subdomain) · **5/5 containers healthy** · `crm-gotenberg` reachable by
+  name (200) · **0** `cert-role-%` fixture users · Prometheus job `fabrik-tryton-crm` registered with
+  `tryton-crm:8000/metrics`.
+  **All six registrars verified present:** postgres (`DATABASE_URL`) · redis (`REDIS_URL`) · glitchtip
+  (`SENTRY_DSN`) · prometheus (job) · **gatus** (`/opt/monitoring/configs/gatus/apps/tryton-crm.yaml`,
+  60s interval) · **backrest** (plans `postgres-tryton` + `tryton-crm-data`, 6 refs).
+  ⚠️ **RUNS 3–4 recorded gatus and backrest as 0/absent — those were WRONG-PATH probes, not failures.**
+  My `battery.sh` greps `/opt/gatus/config.yaml` and lists `/opt/backrest/`; the real paths are
+  `/opt/monitoring/configs/gatus/` (a bind mount) and `/opt/backrest/config/config.json`. A "0" from a
+  path that does not exist is not-found-where-I-looked, and I marked it UNVERIFIED rather than FAILED at
+  the time — that call was right, and the probe is now corrected here for the next run.
+  **Backup coverage asserted correctly per the plan's verify-time trap:** from `postgres-tryton`, NOT from
+  the service-named `tryton-crm-data` plan (which points at `/opt/tryton-crm/data` — nonexistent; this
+  stack persists to the `trytond-filestore` named volume).
+  **Open, non-blocking:** `ir_queue` shows 1 row seconds after worker start (not a stuck-queue signal);
+  GlitchTip DSN carried a loopback host that the driver rewrote to the public host — a driver-level
+  workaround worth removing by fixing `GLITCHTIP_DOMAIN` on the GlitchTip app.
+  Window CLOSED stem-guarded (owner matched), healing restored.
