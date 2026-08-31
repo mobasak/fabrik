@@ -18,14 +18,30 @@ trigger: glob
 
 ## When to enable
 
+**EVERY PROJECT GETS A WATCHDOG** (operator ruling **D-052**, 2026-08-31). There is no shape test and no
+"when to enable" judgment left to make: author no `enabled: false`, and treat an existing one as drift.
+
 | Shape | Default | Override |
 |---|---|---|
-| `python-api`, `node-api` | **on** when `shape.is_admin_dashboard` OR `shape.has_persistent_data` is true | `watchdog: { enabled: false }` in spec |
-| `worker` | **on** | `watchdog: { enabled: false }` |
-| `static-site`, `docusaurus` | **off** | `watchdog: { enabled: true }` if you want diagnosis of build/deploy issues |
-| any | — | `watchdog: { enabled: true, daily_budget_usd: 5.0, auto_tier_b: true }` for full override |
+| any `kind` — `service`, `worker`, `wordpress`, `static` | **on** | tune the caps (`daily_budget_usd`, `daily_invocations_cap`), never the switch |
+| any | — | `watchdog: { daily_budget_usd: 5.0, auto_tier_b: true }` for a fuller posture |
 
-Defaults preserve current behavior — existing specs without a `watchdog:` block inherit the shape-driven default and don't break.
+⚠️ **This table previously claimed a shape-driven default** (`python-api`/`node-api` conditional on
+`is_admin_dashboard` OR `has_persistent_data`; `static-site`/`docusaurus` off). That was **never what the
+resolver did** — `resolve_applicability` is a one-line unconditional `watchdog_cfg.get("enabled", True)`
+with **no `kind` test at all** (`infrastructure.py`:328-329, whose own comment says the matrix here "is
+operator discipline … not encoded here"). So the table described a discipline, not a behavior, and the
+discipline is now superseded. Anything relying on the old rows — including a spec comment justifying an
+opt-out — is stale.
+
+**Disabling is a RULING, not a default.** `infra: { watchdog: false }` and `enabled: false` both still
+work mechanically; using either without a `docs/DECISIONS.md` row is the drift D-052 exists to end. A
+third-party or upstream image is NOT a reason on its own: the sidecar builds from
+`/opt/fabrik-lib/watchdog/watchdog_sidecar` (`drivers/watchdog.py`:125) and needs the project's SOURCE only
+for the code-fix tiers (`propose_fix_prs` / `auto_code_fix`, both default `false`) — ops-only monitoring
+watches the CONTAINER, so it works fine against an image you did not build.
+
+Existing specs without a `watchdog:` block inherit the default and don't break.
 
 **Make it project-specific** — set `watchdog.project_system_prompt_file: docs/WATCHDOG_PROMPT.md` (project-relative Markdown, ≤32 KB). The driver injects its contents as `WATCHDOG_SYSTEM_PROMPT`; the sidecar appends it as a `## This project` section *after* the canonical veteran-sysadmin prompt (rails never replaced). Use it to teach the watchdog THIS app's architecture, failure modes, what "healthy" means, and hands-off zones. **Fail-soft:** a missing / unreadable / oversized / absolute / `..`-escaping path is ignored (logged warning) and the sidecar runs the canonical prompt only — a prompt-file problem never disables the watchdog or blocks the deploy, and a bad path is never read. Commit the prompt file to the repo before `fabrik apply` (the driver reads it hub-side at render).
 

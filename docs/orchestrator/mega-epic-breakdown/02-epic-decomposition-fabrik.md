@@ -251,7 +251,7 @@ Before drafting Infrastructure Decisions, audit the candidate epic set against t
 | 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` (+ vendor the queue / pause-state primitives — resolve the current module from the fabrik-lib index) |
 | 5 | External integrations | Any upstream API use | `core/58-resilience.md` (+ vendor the circuit-breaker and upstream rate-limit/quota primitives — resolve the current modules from the fabrik-lib index) |
 | 6 | Self-healing | `shape.kind ∈ {service, worker}` (`Kind.WORDPRESS` exists in `spec_loader.py` only for the legacy deploy path — never reaches `02` here) | `core/self-healing.md` |
-| 7 | Watchdog wiring | `watchdog.enabled` — **ON by default, opt-OUT**; there is **no** `kind` test in the resolver (`infrastructure.py:314`) | `core/60-watchdog.md` |
+| 7 | Watchdog wiring | `watchdog.enabled` — **ON for every project** (ruling D-052); there is **no** `kind` test in the resolver (`infrastructure.py:328-329` — the old `:314` citation had drifted onto a bare `else:`). An `enabled: false` now needs its own `docs/DECISIONS.md` row | `core/60-watchdog.md` |
 | 8 | Observability | Always | `core/55-observability.md` |
 | 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` (+ vendor the cost-ledger module — resolve from the fabrik-lib index) |
 | 10 | Deployment | Always | `core/30-ops.md` |
@@ -290,7 +290,7 @@ If a heading above is not present in the pack you loaded, the pack has moved: ST
 - If the universal category was COVERED by a different epic OR ABSORBED in Step 3 § X AND the overlay row demands its own epic → **add** the overlay's epic to the candidate set as a new entry; assign `Universal categories: <numbers>`; re-run 2c (dependency analysis) for the new epic before continuing.
 - If the universal category was N/A but the overlay demands the coverage → flip the category to COVERED by the overlay's epic; update the 2h verdict line.
 
-Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching domain pack file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (per the `core/60-watchdog.md` matrix, `watchdog` is N/A for the `static-site` and `docusaurus` **scaffold types**, i.e. `kind: static` — note that is operator discipline, not a resolver rule; see § Watchdog Wiring).
+Loading is best-effort: if a scaffold type identified in the Vision Summary has no matching domain pack file on disk (e.g., `docusaurus`, `static-site`), the read is a no-op — the universal-category check still runs (⚠️ `watchdog` is **NOT** N/A for `static-site`/`docusaurus` — operator ruling **D-052** 2026-08-31, "every project gets a watchdog", retired the old shape-driven matrix in `core/60-watchdog.md`; the resolver never had a `kind` test anyway, so the category is now universal and there is no scaffold type it skips; see § Watchdog Wiring).
 
 ### Step 3: Draft Infrastructure Decisions
 

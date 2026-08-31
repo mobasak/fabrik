@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fresh standalone corpus review: 15 defects in the manifesto-pass diff (2026-08-31)
+
+Operator-ordered full-strength /fabrik-review (pool breadth + native Opus, non-author closing
+sweep, no CLEAN-row inheritance) over the pass's cumulative 36-file diff. 34 candidates → 15 FIXED
+· 18 REFUTED · 1 no-defect. Headliners: the operative QUIET sentence named a two-token ledger shape
+both graders reject (now `found: 0 · new: 0 · fixed: 0` everywhere); conformance-review's DONE
+clause was the third D-048 straggler; /fabrik-review itself lacked the secrets carve-out its five
+siblings got; `docs/DECISIONS.md` joined `check_plan_tickets.py::GOVERNANCE_FILES` (six surfaces —
+pen-holder enforced, regression test red→green); `_committed_nonquiet` re-keyed to `found:` per
+D-048 (measured: 0 reports re-graded); release-cut mint wording made honest against
+`release_cut.py`'s real push/staging order. Report:
+`docs/development/reviews/2026-08-31-manifesto-corpus-fresh-review.md`.
+
+### Added — Deployment Completeness: the classes that must be settled at SPEC time (2026-08-31)
+
+- `core/30-ops.md` gains a section the existing Deployment Checklist could not cover: that checklist verifies **form** (every item is a static file property), never whether the thing works when it comes up or whether the infrastructure it claims is actually attached. Eight classes, each a failure measured on this fleet and each knowable at spec time but discovered at deploy time — a `shape:` flag is a claim about RUNTIME, not a config value. Covers: the watchdog is not optional (D-052); `exposes_metrics` ⇒ the path must actually serve (zitadel's 404 target, DOWN 2.5 days with `ServiceUnhealthy` firing); `has_persistent_data` ⇒ name where data really lives (the paper-backup class); cold-start self-initialisation; credentials generated during init going stale; shared-network name/alias collisions; first-boot DSN ordering; and a step whose failure is the designed path needing `--keep-on-failure`. `core/60-watchdog.md`'s "When to enable" matrix retired — it described a discipline, never the resolver, which has no `kind` test at all.
+
 ### Changed — every project gets a watchdog (operator ruling D-052) (2026-08-31)
 
 - The platform default was already `enabled=true` for `kind ∈ {service, worker, wordpress}`; the defect was that 15 REAL project specs carried an explicit `watchdog: {enabled: false}` override, so the default never applied. All 15 flipped. Scaffolder test fixtures (`test-*`, `guide-proj`, `noguide-proj`, `my-docs-site`, `image-broker`, `evolution-api`) are not projects and stay as-is — `test-guide-disabled` asserts the disabled path by name. Retired `wpf` excluded. Supersedes zitadel's per-spec opt-out comment, which was wrong for the default config: the sidecar builds from `/opt/fabrik-lib/watchdog/watchdog_sidecar` and needs project SOURCE only for the code-fix tiers (both default `false`); ops-only monitoring watches the container. Cost ceiling, stated: `daily_budget_usd: 1.0` × 15 IF all deploy and saturate; only zitadel is deployed today.

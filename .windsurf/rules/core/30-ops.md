@@ -184,6 +184,56 @@ Before running `fabrik apply`:
 
 ---
 
+## Deployment Completeness — settle these at SPEC time, not at deploy time (CRITICAL)
+
+The checklist above verifies **form**: every item is a property of a file you can read without deploying
+anything. None of it asks the question that actually decides a deploy — *will this work when it comes up,
+and is the infrastructure it claims actually attached?* Each class below is a real failure measured on this
+fleet, and each was discovered at DEPLOY time when it was knowable at SPEC time. **A `shape:` flag is a
+claim about RUNTIME, not a config value** — the registrar believes it and wires accordingly.
+
+- [ ] **A watchdog is not optional.** `watchdog.enabled` defaults `true` for every kind and every project
+      gets one (ruling D-052) — see `core/60-watchdog.md`. Do not author a `watchdog: { enabled: false }`
+      opt-out; if a project genuinely cannot host the sidecar, that is a ruling to obtain, not a default
+      to flip.
+- [ ] **`exposes_metrics: true` ⇒ the metrics path actually SERVES.** The prometheus registrar scrapes
+      `monitoring.metrics_path` (default `/metrics`); a wrong or unenabled path produces a job that
+      404s forever while `fabrik apply` reports success — `_provision_prometheus` swallows failures as
+      non-fatal and `add_scrape_target` only means "job appended to file". *Measured: zitadel declared
+      `exposes_metrics: true` with `metrics_path: /debug/metrics`, served neither, and its target sat DOWN
+      with `ServiceUnhealthy` firing for 2.5 days before anyone asked.* Verify the built image serves the
+      path before the flag goes in the spec, and assert target health (`/api/v1/targets` → `up`), never a
+      bare `curl` of a path you assumed.
+- [ ] **`has_persistent_data: true` ⇒ name WHERE the data actually lives.** The backrest registrar
+      hardcodes `paths = [/opt/<name>/data]` regardless of reality, so a service persisting to a NAMED
+      VOLUME gets a plan pointed at a directory that never exists — a paper backup that reads green and
+      archives nothing. *Measured: `/opt/zitadel/data` is absent while the `zitadel-data` plan points at
+      it.* If the data is a volume, say so in the spec comment and rely on the global `docker-volumes`
+      plan; never let a service-named plan be mistaken for the protection.
+- [ ] **Cold start: does the datastore initialise ITSELF?** Read the base image's entrypoint, the compose
+      `command:`, and any baked init script — do not assume. If nothing initialises the schema, a
+      health-enabled service can NEVER pass `up -d --wait` on a fresh database, and the deploy hangs to
+      timeout. *Measured: trytond bakes an init script but sets no `command:`, and its base entrypoint is
+      a bare `exec "$@"`.* An init the deploy cannot perform itself is a runbook step the plan MUST own.
+- [ ] **A credential GENERATED during init goes stale the instant it is generated.** If a bootstrap script
+      mints and prints a password, the value already in `.env` no longer matches — the service authenticates
+      against nothing. Name the propagation step, or make the script consume the existing value.
+- [ ] **Check the shared `fabrik` network for NAME and ALIAS collisions before naming a service.** The net
+      is flat and shared fleet-wide; a name another stack already owns silently resolves to THEIR container.
+      *Measured: a standalone `gotenberg` owns both the name and the alias, so a stack's own renamed
+      `crm-gotenberg` still had to be pointed at explicitly — the code default would have hit the
+      basic-auth'd neighbour and 401'd.*
+- [ ] **First-boot DSN ordering.** The registrar injects `DATABASE_URL` POST-deploy, so a container that
+      needs a real DSN at first boot crashes before it arrives. Either set `deploy.db_before_boot: true`
+      (which pre-provisions via `create_database`, and therefore also registers the per-DB backup plan and
+      the tracked-DBs entry) or document the two-pass explicitly in the runbook.
+- [ ] **A step whose FAILURE is the designed path must say so, and carry `--keep-on-failure`.** Otherwise
+      the rollback deletes resources the next step depends on — a failed `fabrik apply` rolls back the DNS
+      record it just created. A step whose verify criterion cannot be met is a defect in the plan, not in
+      the deploy.
+
+---
+
 ## Redeploying Git-Sourced Apps
 
 `fabrik redeploy <app>` SSHes to the VPS and runs `git pull` + `docker compose up -d --wait` against the **GitHub remote**, NOT the local `/opt/<app>` clone. Skipping `git push` redeploys the previous remote commit — the VPS never sees local changes.
