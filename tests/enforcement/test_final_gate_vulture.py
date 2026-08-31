@@ -10,7 +10,6 @@ one (the fix can never change a repo that lacks the file).
 """
 
 import importlib.util
-import os
 from pathlib import Path
 
 GATE = Path(__file__).resolve().parents[2] / "scripts" / "final_gate.py"
