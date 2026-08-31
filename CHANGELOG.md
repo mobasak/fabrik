@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T21: /fabrik-repo-review (2026-08-31)
+
+- 63b verdict: 3 CONFORM, 3 FIXED. The D4-class secrets carve-out lands (secret-material units reviewed NATIVE-ONLY — the command hunts leaked secrets yet inlined them to pool APIs by default); a CONFIRMED SECURITY finding budgeted out of the run is risk acceptance — operator surfacing + `docs/DECISIONS.md` row (the T20 waiver class); the deferred backlog is APPENDED owner-tagged to `docs/STRATEGIC_BACKLOG.md` (append-only, three-session file); the stale "pre-commit hook" sync claim corrected to post-commit-since-2026-08-29. Verifier 21-for-21.
+
 ### Changed — manifesto pass T20: /fabrik-release (2026-08-31)
 
 - 63b verdict: 5 CONFORM, 1 FIXED. An operator P2/P3 waiver now mints its `docs/DECISIONS.md` row (the accepted risk outlives the chat); the version cut mints "built X at vY" — with the HONEST adjacent-commit recipe, because release_cut.py's commit stages only CHANGELOG.md by hardcoded pathspec (same-COMMIT restoration backlogged); the push precondition is upstream-relative (`@{u}..HEAD`) — the `origin/master` hardcode errors on half the fleet, live-reproduced. Verifier 20-for-20: my fresh mint clause had prescribed a commit the governed script makes impossible.

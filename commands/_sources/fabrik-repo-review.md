@@ -48,7 +48,10 @@ opt-in) and sets `tools_enabled=False`+`allow_ungrounded=True` for the single-sh
 reviewers. The mass pool fan-out is the **default worker** for gradeable fan-out (per
 `62-using-subagents.md` § Dispatch policy; see § Subagents) — **reserve native Claude
 finders for the highest-blast-radius units** (money / auth / data-integrity — the
-authoritative pass). `fanout` **auto-records each worker UNSCORED** and returns
+authoritative pass). **Secrets carve-out (mirrors `/fabrik-execute-plan` D4): a unit touching
+secret-material paths (`.env`-prefix, `secrets/`, key files) is reviewed NATIVE-ONLY — secret
+contents never go to pool APIs** (this command hunts leaked secrets; inlining a unit that
+contains one ships it to a third-party model, and a leaked secret cannot be unleaked). `fanout` **auto-records each worker UNSCORED** and returns
 `(results, results_table)` → **back-fill**
 `set_quality(r.agent_id, <0–5>, project="repo-review", task_type="review", model=r.model)`
 per worker (⚠️ never `record_run` — it silently no-ops). **Batch the fan-out in WAVES by
@@ -102,7 +105,11 @@ Consolidate all units; dedupe cross-unit findings; re-verify each to drop false 
 keep ONLY confirmed correctness/security for fixing (style → a separate list); rank by
 severity × blast radius. Produce the ranked fix list and set a **fix budget**: the top
 severity×blast-radius tier is fixed THIS run; the long tail is handed off as a tracked
-backlog (Phase 4 output), not force-fixed in one exhausting turn.
+backlog (Phase 4 output), not force-fixed in one exhausting turn. **A CONFIRMED SECURITY
+finding budgeted OUT of this run is a risk-acceptance decision, never silent triage —
+surface it to the operator, and their disposition (defer / waive) mints its
+`docs/DECISIONS.md` row in this run's change** (the same class as `/fabrik-release`'s
+waiver mint; correctness-tier deferrals stay technical triage).
 
 ## PHASE 3 — PROVE + FIX
 
@@ -121,7 +128,7 @@ finding instead. Stay in scope.
 
 CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes' files; do
 NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is
-overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the pre-commit hook — gate-enforced) — if a synced file has a real bug,
+overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the POST-commit hook since 2026-08-29 — gate-enforced) — if a synced file has a real bug,
 fix it in `/opt/fabrik/<path>` (if correct for ALL projects) or propose it upstream, and
 note that in findings; never fork it here. Schema changes = a NEW tracked migration
 applied by the project's migration runner (idempotent), never hand-DDL. Commit ONLY by
@@ -167,8 +174,11 @@ owner run them.
 
 The coverage ledger; per-unit findings with verdicts; the fixes with their regression
 tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the
-DEFERRED-BACKLOG list (fixes budgeted out of this run, ready to fold into
-`docs/development/plans/*`); and an explicit RESIDUAL-RISKS list (incl. any
+DEFERRED-BACKLOG list — **APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this
+run's change** (append-only: never rewrite or reflow existing rows — the shared-tree rules govern
+a file three sessions touch; the Doc Sync Matrix's deferred-work row, operator rule 2026-08-27 —
+a chat-only backlog dies with the session), ready to fold into
+`docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any
 Fabrik-synced-file bugs needing an upstream fix, and any deploy blockers). When unsure
 whether something is a bug, surface it. Scale effort to risk — exhaustive on
 money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log
