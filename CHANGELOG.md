@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T22: /fabrik-review + term-coverage fragment (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED — including the plan's seeded grader tension, RULED (D-048): the quiet `found: 0 · fixed: 0` exit is canonical; `found:` counts only candidates NEEDING adjudication — a re-raise of an already-adjudicated standing row is CITED in its row, never counted; `new:` stays the stopped-learning signal. Applied at the fragment root (term-coverage — 5 consumer commands inherit) after the verifier caught my first pass fixing only the command body. A deliberate design-decision review disposition now mints its ledger row. Ledger hygiene: the duplicate D-047 renumbered to D-049 per decisions.py --check (fleet's Gotenberg row — id-only correction, informing fleet here). Verifier 22-for-22.
+
 ### Changed — manifesto pass T21: /fabrik-repo-review (2026-08-31)
 
 - 63b verdict: 3 CONFORM, 3 FIXED. The D4-class secrets carve-out lands (secret-material units reviewed NATIVE-ONLY — the command hunts leaked secrets yet inlined them to pool APIs by default); a CONFIRMED SECURITY finding budgeted out of the run is risk acceptance — operator surfacing + `docs/DECISIONS.md` row (the T20 waiver class); the deferred backlog is APPENDED owner-tagged to `docs/STRATEGIC_BACKLOG.md` (append-only, three-session file); the stale "pre-commit hook" sync claim corrected to post-commit-since-2026-08-29. Verifier 21-for-21.

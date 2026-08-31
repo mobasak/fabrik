@@ -246,7 +246,9 @@ round's `findings`. A `/design-review` (or any round-convention command) can clo
 refusal: the sanctioned `new: 0` exit legitimately closes with `found > 0` standing rows (the exact
 fabrik-review-vs-check_convergence tension T22 of the manifesto pass adjudicates). Design the check
 AFTER T22 settles which exit vocabulary is canonical; promotion trigger = T22's ruling + one measured
-false close.
+false close. **T22 RULED 2026-08-31 (D-048): the quiet `found: 0 · fixed: 0` exit is canonical —
+re-raises of adjudicated standing rows are cited, never counted — so a naive `findings != 0` refusal
+is now designable; remaining trigger = one measured false close.**
 
 ## [infra] release_cut.py stages only CHANGELOG.md — a same-commit DECISIONS.md cut-row is impossible; the versioning-adoption carve-out itself has no ledger row (found by T20's verifier, 2026-08-31)
 
