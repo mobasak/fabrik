@@ -48,7 +48,9 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*
 
 - **Never reconcile/rewrite a synced doc inside a project** — the next sync overwrites it, and editing it is a
-  Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling.
+  Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling — read it
+  and cite it, but it stays OUTSIDE Phase 1's claim-ledger denominator: the zero-skipped-lines count covers only
+  the docs you are reconciling. (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
 - **A synced doc in the diff is ITSELF the finding:** revert + propose upstream in `/opt/fabrik`.
 - **`PORTS.md` is the exception** (`SEEDED_NOT_ENFORCED`) — projects may edit it → reconcile it normally.
 - A stale claim in a synced doc → fix it **upstream in `/opt/fabrik`**, so every synced project gets the fix. Never
@@ -166,7 +168,10 @@ discovery and editing. Route each fact to the document type it belongs to and re
 that type's contract — API reference, architecture, quickstart/README, runbook/ops,
 CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API
 reference, a changelog line is not architecture prose). Delete DEAD claims rather than
-polishing them. Bump `Last Updated:` dates where present.
+polishing them — and when a DEAD sweep retires a whole documented subsystem or feature
+(not just a stale line), that deletion is a decision-shaped RETIREMENT: its
+`docs/DECISIONS.md` row lands in the SAME change (CLAUDE.md § the decision ledger); a
+routine dead-line deletion stays doc hygiene, no row. Bump `Last Updated:` dates where present.
 
 ## Phase 4 — Gate + embedded proof
 

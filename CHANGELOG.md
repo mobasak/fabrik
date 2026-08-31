@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T12: /fabrik-docs-review (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED. A DEAD sweep retiring a whole documented subsystem is now a decision-shaped RETIREMENT minting its `docs/DECISIONS.md` row SAME-change (routine dead-line deletion stays row-less doc hygiene); synced docs read as binding context in a project are now explicitly OUTSIDE Phase 1's claim-ledger denominator (in-denominator on the HUB, where they are reconciled). Verifier round: 12th consecutive falsification of the initial stamps — 3 systematic +3 anchor miscounts + 1 verdict grounded on hub-CLAUDE.md vocabulary absent from the command.
+
 ### Fixed — assemble_commands render() no longer mutates live ~/.claude/agents on inspection renders (2026-08-31)
 
 - `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
