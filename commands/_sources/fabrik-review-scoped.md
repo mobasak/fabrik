@@ -15,7 +15,11 @@ proportionate answer.
 ## Scope, then loop
 
 1. **Scope = this session's own work:** `git diff HEAD` (uncommitted) plus `git log
-   origin/..HEAD --format=%h` filtered to YOUR commits (trailer check — never a sibling's), or
+   @{u}..HEAD --format=%h` (upstream-relative — never a hardcoded `origin/<branch>`; no upstream
+   configured (fresh/no-remote repo) → `git log --branches --not --remotes --format=%h`) filtered
+   to YOUR commits (trailer check — never a sibling's; two same-role sessions are
+   trailer-INDISTINGUISHABLE, so when ownership is ambiguous scope to the uncommitted diff you
+   KNOW is yours and say so), or
    `$ARGUMENTS` when given. List the files; classify: any gate/hook/enforcement path, auth/schema/
    migration/concurrency surface, or >5 files → **STOP and run the full `/fabrik-review` instead**
    (say so — routing up is a success, not a failure).

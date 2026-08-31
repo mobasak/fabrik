@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T23: /fabrik-review-scoped (2026-08-31)
+
+- 63b verdict: 5 CONFORM (one honest-split, one N/A-regrounded), plus 2 source fixes. The malformed `origin/..HEAD` scope ref (exit-128 everywhere) → `@{u}..HEAD` with a no-upstream fallback (`--branches --not --remotes`); trailer-indistinguishability between same-role sessions now stated with the scope-down-to-certain default. The (a) verdict honestly splits the Stop-hook floor + feedback-refusal (mechanical) from the self-graded exit prose — the deliberate lightness, with the enforcement candidate cited in the backlog. Verifier 23-for-23: caught my "mechanical" stamp on code-free prose, an invented (b) routing, and a triple tally contradiction.
+
 ### Changed — manifesto pass T22: /fabrik-review + term-coverage fragment (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED — including the plan's seeded grader tension, RULED (D-048): the quiet `found: 0 · fixed: 0` exit is canonical; `found:` counts only candidates NEEDING adjudication — a re-raise of an already-adjudicated standing row is CITED in its row, never counted; `new:` stays the stopped-learning signal. Applied at the fragment root (term-coverage — 5 consumer commands inherit) after the verifier caught my first pass fixing only the command body. A deliberate design-decision review disposition now mints its ledger row. Ledger hygiene: the duplicate D-047 renumbered to D-049 per decisions.py --check (fleet's Gotenberg row — id-only correction, informing fleet here). Verifier 22-for-22.
