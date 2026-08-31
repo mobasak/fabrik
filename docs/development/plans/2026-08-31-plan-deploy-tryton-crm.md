@@ -1,6 +1,6 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: DRAFT
+Status: CONVERGED
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
@@ -30,7 +30,7 @@ a locally-dirty ignore file cannot reach the target. Release readiness stands.
 
 **What actually deploys — and why it is NOT the v0.3.0 tag.** The spec pins
 `source.branch: mobasak/tryton-crm` (`specs/services/tryton-crm.yaml:32`), so `fabrik apply` deploys the
-**branch tip f4d80a2**, not the tag `v0.3.0` (a4e7c52). Measured this run, that gap is **23 commits and
+**branch tip f4d80a2**, not the tag `v0.3.0` (a4e7c52). Measured this run, that gap is **22 commits and
 ZERO application-code changes**:
 
 ```
@@ -124,13 +124,30 @@ Registrar resolution, embedded verbatim in `## Evidence` — **7 RUN, 3 correctl
 **A5 (`from_env` precedence audit) — ONE BLOCKER FOUND.** The spec declares five (not four)
 `from_env` secrets. Resolution audited by presence, never by value:
 
-| `from_env` secret | project `.env` | hub `.env` | verdict |
+**The resolver, RE-DERIVED from the real code this round** (the first draft inherited this claim from the
+A5 class definition and was wrong about it). Two code paths, identical semantics —
+`src/fabrik/orchestrator/__init__.py::_load_secrets:383-405` and `src/fabrik/cli.py:552-578`:
+
+1. read `/opt/<spec.id>/.env` — the **project's** `.env` (`__init__.py:384-395`);
+2. else `os.getenv(key)` — the hub **PROCESS** env (`__init__.py:401`);
+3. else `logger.warning("Secret %s not found in environment")` and the key is **omitted**. Not a
+   hard fail. **The deploy goes GREEN with the secret absent.**
+
+⚠️ **The hub's `/opt/fabrik/.env` FILE is never consulted by either path.** A value living only there
+does not reach the container. That correction turns one blocker into two:
+
+| `from_env` secret | project `.env` | hub PROCESS env | verdict (executed) |
 |---|---|---|---|
-| `SERVICE_INTERNAL_SECRET_KEY` | present | present | resolves |
-| `TRYTOND_RPC_USER` | present | present | resolves |
-| `TRYTOND_RPC_PASSWORD` | present | present | resolves |
-| `CONSUMER_TOKENS` | **absent** | present | resolves only if the hub source is reachable — **S0 verifies** |
-| `BRIDGE_INTERNAL_TOKEN` | **absent** | **absent** | ⛔ **BLOCKER — see below** |
+| `SERVICE_INTERNAL_SECRET_KEY` | present | no | resolves ✓ |
+| `TRYTOND_RPC_USER` | present | no | resolves ✓ |
+| `TRYTOND_RPC_PASSWORD` | present | no | resolves ✓ |
+| `CONSUMER_TOKENS` | **absent** | **no** | ⛔ **BLOCKER — omitted with a warning** |
+| `BRIDGE_INTERNAL_TOKEN` | **absent** | **no** | ⛔ **BLOCKER — omitted with a warning** |
+
+`CONSUMER_TOKENS` being absent is the more severe of the two: it is the **entire M2M consumer registry**
+(`src/tryton_crm/internal_auth.py:83` — `os.getenv("CONSUMER_TOKENS","")`, empty ⇒ `{}`), so with it
+unset *every* internal call 401s, the wizard's included. Both must be written into
+**`/opt/tryton-crm/.env`** — the only surface step 1 reads.
 
 ⛔ **BRIDGE_INTERNAL_TOKEN is unset on every surface, and production REQUIRES it.** This is the plan's
 single hard pre-flight blocker, and the project's own config surface documents the failure mode
@@ -143,6 +160,15 @@ defeats the wizard's own "not configured" guard, and the operator sees a bare
 (`compose.yaml:143` → `BRIDGE_INTERNAL_TOKEN=${BRIDGE_INTERNAL_TOKEN:-}`).
 **Remedy is S0 — mint a `CONSUMER_TOKENS` consumer with `write` scope for the tenant org and set its
 token as `BRIDGE_INTERNAL_TOKEN`.** Deploying without it ships a CRM whose offer-send is 401 DOA.
+
+**The token shape is PROVEN, not assumed** (`src/tryton_crm/internal_auth.py:78-112`):
+`_parse_consumer_registry()` parses `CONSUMER_TOKENS` as
+`{"<name>": {"token": "<secret>", "orgs": [...], "scopes": [...]}}` and builds a `{token: Consumer}`
+lookup; the bridge authenticates on the `X-Internal-Token` header. The wizard sends
+`BRIDGE_INTERNAL_TOKEN` as that header, so it **must equal the `token` value of a consumer entry** —
+confirming `.env.example:182`. Two S0 correctness constraints the same code imposes: `orgs`/`scopes`
+**must be lists** (a bare string char-splits — the consumer is skipped, `:100-104`), and a duplicate
+token across two consumers is rejected rather than silently overwritten (`:111`). Omitted scopes deny.
 
 **B1 (in-container semantics) / naming collision — LIVE, re-verified this run.** A standalone
 `gotenberg` container is running on vps1 right now and owns both the container name and the `gotenberg`
@@ -161,10 +187,35 @@ code. Routing truth is the compose's Traefik labels.
 
 ## Phase 3 — Infra prerequisites
 
-- **DNS** — `tryton-crm.vps1.ocoron.com` plus the tenant wildcard the compose routes via
-  `HostRegexp(*.tojlo.com)` with `certresolver=cloudflare`. DNS is fleet-automated by site-provisioner
-  (`fabrik apply` auto-creates the A record), so the runbook's DNS step is a `dig` **verification**, never
-  an operator gate.
+- **DNS** — `tryton-crm.vps1.ocoron.com` is fleet-automated by site-provisioner (`fabrik apply` creates
+  the A record), so the runbook's DNS step is a `dig` **verification**, never an operator gate.
+
+⛔ **BLOCKER 2 — the tenant wildcard cannot be issued as the fleet stands. Probed live, not assumed.**
+The compose declares a second router `tryton-crm-brand` requesting
+`tls.certresolver=cloudflare` with `domains[0].main=tojlo.com` / `sans=*.tojlo.com`
+(`/opt/tryton-crm/compose.yaml:86-88`). Live traefik on vps1 (`/opt/traefik/traefik.yml:22-28`) defines
+**exactly one** resolver:
+
+```
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ob@ocoron.com
+      storage: /acme.json
+      httpChallenge:
+        entryPoint: web
+```
+
+Two independent reasons this fails: (1) **there is no `cloudflare` resolver** for the router to use; and
+(2) a **wildcard requires DNS-01** — `httpChallenge` is HTTP-01, which Let's Encrypt will not issue a
+wildcard against, so even renaming the resolver would not work. The acme store holds 46 certificates and
+**no `tojlo.com` among them** — the single `tojlo` substring match is `main=tojlo.shop`, a different
+domain (evidence below). Consequence: the primary router (`tryton-crm.vps1.ocoron.com`,
+`certresolver=letsencrypt`, `compose.yaml:70`) is **fine**; every tenant `<slug>.tojlo.com` would fail
+TLS. Behavior **B5 cannot pass** until a DNS-01 `cloudflare` resolver exists on vps1 — which needs a
+Cloudflare API token, an operator credential. Carried as **S0b**, and mailed to tryton-crm
+(`01M1AXWSG8CWZX4D6WAJFV5E4C` — see Self-audit) because the compose's expectation and the fleet's reality must be
+reconciled by one side or the other.
 - **Network** — external `fabrik` network confirmed present on vps1 this run.
 - **Database** — `postgres-main` carries **no** `tryton` database today (verified: the `pg_database`
   query returned empty). The target is genuinely fresh, which is what makes the probe-user question below
@@ -185,14 +236,27 @@ Every step: stable id, exact command, verification, retryability, rollback. Step
 items by design (headings would inflate the citation denominator). Grounding for the sequence:
 `src/fabrik/orchestrator/deployer_ssh.py:649` (env merge) and the registrar order in the Phase-3 preview.
 
-1. **S0 · `OPERATOR-GATE` · verify: in-session · NOT retryable without operator action** — mint the
-   bridge consumer token. Add a consumer with `write` scope for the tenant org to `CONSUMER_TOKENS`, and
-   set that same token as `BRIDGE_INTERNAL_TOKEN` in `/opt/tryton-crm/.env` on the **hub** (the surface
-   `from_env` reads first). Also confirm `CONSUMER_TOKENS` resolves from the same file.
-   *Verify:* `grep -c '^BRIDGE_INTERNAL_TOKEN=.\+' /opt/tryton-crm/.env` → `1`, and
-   `grep -c '^CONSUMER_TOKENS=.\+' /opt/tryton-crm/.env` → `1`. Values never echoed.
+1. **S0 · `OPERATOR-GATE` · verify: in-session · NOT retryable without operator action** — write BOTH
+   missing secrets into **`/opt/tryton-crm/.env`** (the hub's own `.env` is NOT read — proven in Phase 2).
+   Mint a consumer with `write` scope for the tenant org inside `CONSUMER_TOKENS`
+   (`{"crm-bridge": {"token": "<secret>", "orgs": ["<org_id>"], "scopes": ["read","write"]}}` — `orgs`
+   and `scopes` MUST be JSON lists), then set that consumer's **same token** as `BRIDGE_INTERNAL_TOKEN`.
+   *Verify:* `grep -c '^BRIDGE_INTERNAL_TOKEN=.\+' /opt/tryton-crm/.env` → `1`;
+   `grep -c '^CONSUMER_TOKENS=.\+' /opt/tryton-crm/.env` → `1`; and
+   `python3 -c "import json,os;d=json.load(open('/dev/stdin'));…"` confirming the token appears as a
+   consumer's `token` value. Values never echoed.
    *Rollback:* remove the added lines; nothing has deployed yet.
-   **This gate is why the plan exists — without it S13.4 fails with a misleading 401.**
+   **This gate is why the plan exists — without it S13.4 fails with a misleading 401, and with
+   `CONSUMER_TOKENS` unset EVERY internal call 401s.**
+2. **S0b · `OPERATOR-GATE` · verify: in-session · BLOCKS behavior B5 only** — the tenant wildcard TLS.
+   Either (a) add a DNS-01 `cloudflare` certresolver to `/opt/traefik/traefik.yml` on vps1 with a
+   Cloudflare API token (operator credential) and restart traefik, or (b) accept launching with the
+   tenant `<slug>.tojlo.com` half TLS-less and defer the brand router. **The rest of the runbook does not
+   depend on this** — the primary `tryton-crm.vps1.ocoron.com` router uses `letsencrypt` and is
+   unaffected — so S0b may be deferred without blocking S1–S13, provided B5 is explicitly descoped.
+   *Verify (a):* `sudo grep -A4 cloudflare /opt/traefik/traefik.yml` shows a `dnsChallenge`, then after
+   the first router load `*.tojlo.com` appears in the acme store.
+   *Rollback:* restore the backed-up `traefik.yml` and restart traefik.
 2. **S1 · retryable** — pre-flight re-proof: service gate green, branch pushed, target DB still absent,
    `fabrik` network present.
    *Verify:* the four commands in `## Evidence` reproduce their outputs.
@@ -220,7 +284,11 @@ items by design (headings would inflate the citation denominator). Grounding for
    *Verify:* `ssh vps 'sudo docker exec trytond printenv TRYTOND_DATABASE_URI | sed "s|//[^@]*@|//***@|"'` → a
    `postgresql://***@postgres-main:5432/tryton` shape, **not** `placeholder`.
    *If it shows placeholder:* re-run S3 once (env-sync pass), then re-verify. `_is_placeholder` makes this
-   safe — the injected real value is protected.
+   safe — re-read this round and confirmed to be a **value substring test**,
+   `return "placeholder" in value.lower()` (`deployer_ssh.py:708-717`, used `:649`), so the injected real
+   value is protected. Note the compose already softens this case for the worker: `trytond-worker` runs an
+   inline psycopg readiness poll that **waits rather than crash-looping** on an unready DSN
+   (`compose.yaml:332-345`), so a placeholder DSN on first apply does not take down `up --wait`.
 7. **S6 · retryable** — confirm the injected secrets are non-empty **without printing them**:
    `ssh vps 'sudo docker exec trytond sh -c "test -n \"\$BRIDGE_INTERNAL_TOKEN\" && echo SET || echo EMPTY"'` → `SET`.
    *Rollback:* fix on the hub, re-run S3.
@@ -283,9 +351,13 @@ Read live this run, never asserted:
   `/var/lib/docker/volumes` (cron `0 3 * * *`) → the `trytond-filestore` volume **is** covered;
   `opt-configs` covers `/opt` (cron `0 3 * * *`) → `/opt/tryton-crm` compose + `.env` covered;
   `postgres-dumps` covers `/opt/backups` (cron `0 2 * * *`). Sibling per-DB plans exist
-  (`postgres-my_proj`, `postgres-zitadel`), so the registrar is expected to add `postgres-tryton` —
-  **S13 must confirm it actually appeared**; a per-service plan pointed at an unused directory is a paper
-  backup.
+  (`postgres-my_proj`, `postgres-zitadel`). **PROVEN this round, no longer inferred:**
+  `src/fabrik/drivers/backrest.py::register_postgres_plan:342-360` creates plan id `postgres-<db_name>`
+  at path `/opt/backups/postgres/<db_name>/`, inheriting the `postgres-dumps` schedule + retention, and
+  is idempotent; it is called on a `needs_database` deploy from
+  `src/fabrik/drivers/postgres.py:377` and `:470`. So this deploy will create **`postgres-tryton` at
+  `/opt/backups/postgres/tryton/`**. S13 still confirms the plan produced a real snapshot — a registered
+  plan pointed at a directory `pre-backup.sh` never populated is a paper backup.
 - **RPO/RTO — derived from those cron values, not from memory: RPO is up to 24 hours** (nightly dumps at
   02:00, volumes at 03:00). For a multitenant CRM system-of-record that is the single most important
   number in this section, and it is a deliberate accepted risk at launch, not an oversight. Anything
@@ -366,33 +438,96 @@ The A5 blocker — `BRIDGE_INTERNAL_TOKEN` resolves from nothing:
   BRIDGE_INTERNAL_TOKEN          project.env=0 hub.env=0
 ```
 
+
+## Coverage Checklist (every known failure class, swept)
+
+Rubric invoked on the real changed paths — verbatim head of the generated output:
+
+```
+$ python scripts/review_rubric.py --changed docs/development/plans/2026-08-31-plan-deploy-tryton-crm.md specs/services/tryton-crm.yaml
+# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
+# Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
+
+## FLOOR — always injected, regardless of glob (spec L3)
+
+### core/35-security-auth.md
+- Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
+- ADDITIONAL affordance a project justifies, never the default door.
+```
+
+Derived from the A1/A5/B1/B2/B3/M2/M3 classes in
+`docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md` plus the four standing
+recurrence classes. A class is CLEAN only with executed evidence, never with an opinion.
+
+| Class | What it catches | Swept | Verdict |
+|---|---|---|---|
+| A1 | a placeholder that clobbers an injected real value | `deployer_ssh.py:708-717` read | CLEAN — value substring test; emitted DSN qualifies |
+| A5 | `from_env` precedence / unresolvable secret | resolver re-derived `__init__.py:383-405`, `cli.py:552-578` | **FIXED** — 2 blockers found (`CONSUMER_TOKENS` + `BRIDGE_INTERNAL_TOKEN` resolve from nothing); plan corrected and both carried as gate S0 |
+| B1 | in-container dev-shaped host/port | `crm-gotenberg` rename + explicit `GOTENBERG_URL` | CLEAN — collision live, rename load-bearing, probed at S13.5 |
+| B2 | read-only battery that never proves a write | battery item S13.3 authored | CLEAN — write-path probe mandatory |
+| B3 | healer restarting a mid-migration container | window S2/S4/S8 bracketed + labeled | CLEAN — no in-window step > 90 min |
+| M2 | monitoring that does not actually watch | Gatus + Prometheus target `tryton-crm:8000` | CLEAN — explicit target; cert-expiry condition required |
+| M3 | a paper backup pointed at an unused path | `backrest.py:342-360` + `postgres.py:377,470` read | CLEAN — `postgres-tryton` at `/opt/backups/postgres/tryton/`; S13 confirms a real snapshot |
+| TLS/cert | a router requesting a resolver that does not exist | live `traefik.yml:22-28` + acme store | **FIXED** — no `cloudflare` resolver exists and a wildcard needs DNS-01; carried as gate S0b + mailed to tryton-crm |
+| bounded-search | a negative asserted from a narrow query | tag-delta re-run without the `-- src/` filter; seeder re-grepped with no exclusions | CLEAN — both claims survived on complete enumerations |
+| count-honesty | a stated count never re-counted | closing re-derivation pass below | **FIXED** — the commit count was overstated by one and is corrected to 22 |
+
+## Pass Ledger
+
+| Pass | Method | Findings | Edits | Outcome |
+|---|---|---|---|---|
+| Pass 1 | residual attack + code re-derivation (`from_env`, `_is_placeholder`, backrest, live traefik/acme) | 4 (2 new blockers, 2 residuals proven) | yes | not done — plan corrected |
+| Pass 2 | method: re-derivation — every count/enumeration RE-COUNTED from primary source, not re-cited | **1** (commit count 23→22; the 4G sum re-confirmed after a flawed `G→000M` conversion in my own probe) | 1 correction | md5 stable after |
+| Pass 3 | confirmation sweep across all 10 classes | **0** | **0** | **CONVERGED — no-op, md5 stable** |
+
+Re-derived in pass 2, each re-counted rather than re-read: commits `v0.3.0..HEAD` = **22**
+(`git rev-list --count` — the DRAFT's 23 was a visual miscount of a log listing); files changed = **9**;
+commits since 2026-08-11 = **295**; `from_env` secrets = **5**; registrars RUNS = **7**; acme
+certificates = **46**; compose memory limits = 512+1024+2048+512 = **4096M = 4G**.
+
 ## Self-audit
 
-**Verified live this run:** the 7-registrar resolution; the DATABASE_URL placeholder value and therefore
-the A1 merge-guard behaviour; vps1 headroom and the 4 G stack ceiling; the empty target DB; the live
-`gotenberg` name collision; the `fabrik` network; Backrest's real path lists and cron values; all five
-`from_env` sources by presence; the service gate (53 passed / 0 failed); the tag-vs-branch delta and that
-it touches no `src/`.
+**Convergence round 1 (/fabrik-deploy-plan-review) closed EVERY residual the DRAFT carried — none
+survives as prose.** The operator's mandate this turn was explicit: prove everything, mail what cannot
+be proven. Outcome: 2 residuals PROVEN from code, 1 DISPROVEN and corrected, 1 DISPROVEN and escalated.
 
-**Assumed / not yet provable until the deploy runs:** that the backrest registrar will create a
-`postgres-tryton` plan (inferred from the sibling `postgres-my_proj` / `postgres-zitadel` plans — S13
-must confirm, not assume); that trytond's first-boot init completes inside `FABRIK_BUILD_TIMEOUT=1200`;
-that ACME issues the wildcard promptly.
+| # | Residual (DRAFT) | Outcome | Evidence |
+|---|---|---|---|
+| 1 | `from_env` precedence audited by presence only; resolver not located | **DISPROVEN — plan corrected, a second blocker found** | `orchestrator/__init__.py:383-405` + `cli.py:552-578`: project `.env` → `os.getenv` → warn+omit. The hub `.env` FILE is never read, so `CONSUMER_TOKENS` (hub-only) does NOT reach the container |
+| 2 | S0 token shape unverified (same token in two roles?) | **PROVEN from code — no mail needed for the shape** | `internal_auth.py:78-112` — registry is `{token: Consumer}`; header `X-Internal-Token`; so `BRIDGE_INTERNAL_TOKEN` must equal a consumer's `token`. Confirms `.env.example:182` |
+| 3 | backrest `postgres-tryton` plan inferred from siblings | **PROVEN** | `drivers/backrest.py::register_postgres_plan:342-360` (id `postgres-<db>`, path `/opt/backups/postgres/<db>/`), called at `drivers/postgres.py:377,470` |
+| 4 | wildcard cert / resolver assumed staged | **DISPROVEN — BLOCKER 2, mailed** | live `traefik.yml:22-28` has only `letsencrypt`+httpChallenge; no `cloudflare` resolver; acme store: 46 certs, no `tojlo.com` (only `tojlo.shop`). Wildcard needs DNS-01 |
 
-**Residuals the review must attack:**
-1. **The S0 blocker is the whole ballgame** — is minting a `CONSUMER_TOKENS` consumer and reusing its
-   token as `BRIDGE_INTERNAL_TOKEN` actually the right shape, or should it be a distinct credential?
-   `.env.example:182` says to mint a consumer with `write` scope; I have not verified the bridge accepts
-   the *same* token in both roles.
-2. `CONSUMER_TOKENS` lives only in the hub `.env`. I audited by **presence**, not by tracing the resolver
-   — I could not locate the `from_env` resolution site in `deployer_ssh.py` (grep found only
-   `spec_generator.py` and `validator.py`). The precedence claim in Phase 2 is therefore inherited from
-   the A5 class definition, **not** re-derived this run. The review should read the real resolver and
-   confirm a hub-`.env`-only value actually reaches the container.
-3. RPO of 24 h on a system-of-record — accepted here, but it deserves an explicit operator acknowledgement
-   rather than passing silently in a plan.
-4. Whether the wildcard `*.tojlo.com` cert already exists or will be issued on first router load — Phase 3
-   assumes the resolver is staged; S13.2 is the check.
+**My own DRAFT claims, re-attacked rather than re-asserted:**
+
+- **A1 verdict — HOLDS.** `_is_placeholder` (`deployer_ssh.py:708-717`) is literally
+  `return "placeholder" in value.lower()` — a value substring test, as claimed. The emitted DSN qualifies.
+- **tag ≡ branch — HOLDS, on a complete list this time.** The DRAFT used a `-- src/` filter, which was
+  the same bounded-search error in a new coat. The full `v0.3.0..HEAD` file list is **9 files**:
+  CHANGELOG, INDEX, 4 docs, `docs/reference/roles.md`, `tests/ui/g6-role-certification.spec.ts`, and
+  `scripts/trytond/seed_role_probe_users.py`. No `tryton_modules/`, no compose, no Dockerfile, no deps.
+  The shipped application is identical.
+- **seeded-fixture closure — HOLDS.** Re-grepped with NO exclusions across Makefile/`*.yml`/`*.yaml`/
+  `*.toml`/`Dockerfile*`: zero invocations of the seeder. It cannot run as a deploy side effect.
+- **memory — STRENGTHENED, and the DRAFT's worry was aimed at the wrong service.** The measured OOM risk
+  is the WORKER, not trytond: `compose.yaml:328` records that an unpinned `trytond-worker` defaults to
+  `cpu_count()` processes — 24 idling at 510/512M (99.7%) on a 24-core host *before any task ran*. It is
+  **pinned `-n 2`**, so the risk is closed by construction and does not scale with vps1's core count.
+  trytond's 2G is documented as LibreOffice/report headroom (`docs/DEPLOYMENT.md:23`); first-boot init
+  footprint remains unmeasured — watched in Phase 8, not blocking.
+- **First-apply DSN ordering — softer than the DRAFT implied.** `trytond-worker` runs an inline psycopg
+  readiness poll that stays alive and retries (`compose.yaml:332-345`), so an unready DSN is a wait, not
+  a crash-loop taking down `up --wait`. S5 keeps the check; the two-pass is a contingency, not an expectation.
+
+**Escalated cross-repo (the one thing the hub cannot decide alone):** mail
+`01M1AXWSG8CWZX4D6WAJFV5E4C` → tryton-crm, `kind: request`, `ack: required`. Asks (a) which way to
+reconcile the `cloudflare` resolver gap — add DNS-01 to vps1's traefik (fleet work, needs a Cloudflare
+API token) vs defer the brand router vs it is not needed at launch; and (b) confirmation of the S0 token
+shape + which `orgs` value the bridge consumer should carry for the BHD tenant.
+
+**Remaining genuine unknowns, and they are unknowable before the deploy runs — not deferred questions:**
+trytond's first-boot init wall-clock against `FABRIK_BUILD_TIMEOUT=1200`, and whether ACME issues the
+primary cert promptly (S13.2 is the gate for exactly that).
 
 **Corpus divergence found while authoring (a defect for the operator, per Phase 0's instruction):** the
 command's Phase-0 surface table enumerates **12** scaffold types, but the live registry
