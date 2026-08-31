@@ -108,6 +108,7 @@
 - [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
+- [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md
 - [scripts/declare_subscription.py](../INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
 - [scripts/doc_reconcile.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -137,6 +138,7 @@
 - [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
 - [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
+- [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rule_grounding.py
 - [scripts/enforcement/check_rule_size.py](../INDEX.md) (owner: infra): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
 - [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
 - [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
@@ -169,6 +171,7 @@
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
 - [scripts/refresh_service_inventory.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
 - [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
+- [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
 - [scripts/rivals_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: commands/_sources/fabrik-rivals.md | docs/reference/rivals-command.md | INDEX.md
 - [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
@@ -178,6 +181,7 @@
 - [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
 - [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_claude_broker.py | scripts/sysadmin/quota_governor.py
+- [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py | none
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
 - [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
@@ -186,6 +190,7 @@
 - [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
+- [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mcp_health.py · docs/workstation/mcp-roster.md (§ fix-first) | none
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json | none
 - [scripts/traycer_mirror.py](../INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
