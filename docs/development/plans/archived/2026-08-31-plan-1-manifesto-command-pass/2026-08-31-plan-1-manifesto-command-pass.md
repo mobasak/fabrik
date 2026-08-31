@@ -1,6 +1,6 @@
 # The commands/skills manifesto pass — evaluate + update all 32 commands against the Operating Manifesto
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-08-31 — 34/34 Board rows terminal (33 ticket merges + the T34 receipt f8abdbdf); D7 whole-plan validation closed found: 0 · fixed: 0; gate 54/0 success. Whole-plan review: docs/development/reviews/2026-08-31-plan-1-manifesto-command-pass-review.md
 
 Operator directive (2026-08-31, verbatim): "create a plan which will walk you through all commands/skills,
 and you will evaluate and update each against docs/reference/operating-manifesto.md without stopping. one by

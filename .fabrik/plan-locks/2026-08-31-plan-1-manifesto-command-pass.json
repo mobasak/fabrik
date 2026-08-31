@@ -1,0 +1,19 @@
+{
+  "plan": "docs/development/plans/archived/2026-08-31-plan-1-manifesto-command-pass",
+  "owned_paths": [
+    "commands/_sources/",
+    "commands/_fragments/"
+  ],
+  "branch": "master",
+  "started_at": "2026-08-31T10:30:00+03:00",
+  "status": "released",
+  "baseline_commit": "0ddfbb9688461071124883114d4e5405c37a8a32",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "mode": "dispatcher-solo-native (NO-POOL, spine Execution Discipline)",
+  "tickets": {},
+  "completed_at": "2026-08-31T13:35:00+03:00",
+  "final_commit": "f8abdbdf"
+}
