@@ -9,6 +9,36 @@ since and the repo is now tagged v0.3.0. It is superseded, not deleted — its P
 spec annotations this plan re-verifies.
 
 ## Deploy Ledger
+- ⚠️ **RUN 3 — 2026-08-31T19:30Z. Watchdog LANDED (5/5 containers); battery RUN with per-item verdicts.
+  Window CLOSED. Status stays IN-PROGRESS — one blocker is in another repo.**
+
+  **The watchdog retry worked, and the earlier failure was mine.** RUN 2's registrar died on an SSH
+  connection reset I caused by opening connections too fast; this run I batched every check into a
+  SINGLE `ssh` invocation and it landed. `tryton-crm-watchdog | Up (healthy)`. ⚠️ It still printed
+  `watchdog provisioning failed (non-fatal): TimeoutExpired(… docker inspect … , 10)` — the registrar's
+  **10-second health-inspect timeout fired while the container was starting**, so it reported failure for
+  a container that then came up healthy. A false negative, not a real failure.
+
+  **BATTERY — 8 PASS · 2 FAIL · 1 UNVERIFIED · 2 NOT RUN**
+  | # | item | verdict | evidence |
+  |---|---|---|---|
+  | S13.0 | 5 containers healthy | ✅ | `tryton-crm-watchdog`, `trytond`, `trytond-worker`, `tryton-crm`, `crm-gotenberg` — all `(healthy)`, COUNT=5 |
+  | S13.1 | health with real deps | ✅ | public `https://…/health` → `{"status":"ok"}` |
+  | S13.2 | TLS | ✅ | Let's Encrypt, `notBefore Aug 31 17:28 2026` — freshly issued this run |
+  | S13.5 | companion by NAME | ✅ | `http://crm-gotenberg:3000` → 200 from inside the bridge (not the basic-auth'd standalone) |
+  | S13.6 | no fixture users | ✅ | `cert-role-%` logins = **0** |
+  | S13.7 | worker queue drains | ✅ | `ir_queue WHERE dequeued_at IS NULL` = **0** (was 1, drained) |
+  | S13.8 | Prometheus target | ✅ | job `fabrik-tryton-crm` @ `tryton-crm:8000/metrics` registered |
+  | — | Backrest plan | ✅ | **6** tryton refs in backrest `config.json` |
+  | — | **REDIS_URL injected** | ❌ | **absent** from the deployed `.env` — the redis registrar's `int()` crash. Filed `01M1CKEKJYF8XWAS9EWAJ2BJJZ`. `shape.needs_cache: true`, so this was required |
+  | — | **tenant route** | ❌ | `bhdtrade.tojlo.com` → **404**. Filed `01M1CMGGFR2W1KG1GEAE3SQMC0` — the `HostRegexp` rule is in tryton-crm's compose |
+  | — | Gatus endpoint | ⚠️ UNVERIFIED | 0 `tryton-crm` refs found — **but `/opt/gatus/` holds only `compose.yaml`**, no config file at the path I checked. That is *not found where I looked*, NOT *absent*. Denominator honesty: unverified, not failed |
+  | S13.3/S13.4 | write path · offer-send | ⏭ NOT RUN | both need authenticated API calls; not attempted rather than faked |
+
+  **Why Status is NOT EXECUTED.** The stack is live and the infrastructure is sound, but the address a
+  tenant types returns 404. A truthful EXECUTED cannot be claimed over a product its users cannot reach,
+  and the fix is a compose rule in another repo. Two clean items remain hub-side: the redis registrar
+  (mine, filed) and the Gatus verification.
 - ⚠️ **RUN 2 — 2026-08-31, PARTIAL. Stack is LIVE; two items open. Window CLOSED, healing restored.**
   `fabrik apply` reported `✅ Deployment complete` — **and that success line is not the verdict.** Two
   registrars failed "non-fatally" and the tenant route does not serve. Recorded against the live probes,
