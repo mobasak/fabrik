@@ -18,7 +18,10 @@ feedback line:**
 > `FEEDBACK: <what you filed, to whom> | none — <the surfaces this run exercised>`
 
 **Then pass it: `done --command <name> --evidence "<proof>" --feedback "<that same line>"`. The close
-REFUSES without it** — and a refused close leaves the record `running`, which the Stop hook blocks the
+REFUSES without it** — and the TEXT is persisted and READ: the operator reviews every verdict via
+`python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be
+classified into a token and discarded, which is why five operator asks produced zero visible
+reports; write the verdict as a report to a human, because it now reaches one) — — and a refused close leaves the record `running`, which the Stop hook blocks the
 turn on. ⚠️ **If your repo's `command_run.py` predates `--feedback` it will ERROR on the unknown argument
 instead of refusing** — that is a STALE VENDORED COPY, not an exemption. It happens in **sync-excluded**
 repos (fabrik-lib hit it: `01M14V7KH4`), where the box-wide command corpus you are reading is NEWER than

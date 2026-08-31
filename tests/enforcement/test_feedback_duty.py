@@ -162,3 +162,29 @@ def test_no_module_constant_is_dead():
     src = (REPO / "scripts" / "enforcement" / "check_feedback_duty.py").read_text(encoding="utf-8")
     for name in [n for n in dir(chk) if n.isupper() and not n.startswith("_")]:
         assert src.count(name) > 1, f"{name} is defined and never used"
+
+
+def test_d055_verdict_text_is_persisted_and_digest_prints_it(tmp_path, capsys):
+    """D-055 (operator's 5th ask, 2026-08-31): the close used to classify the FEEDBACK prose into
+    a token and DISCARD the text — five asks produced zero visible reports because nothing stored
+    the substance. The record now carries feedback_text and --digest reads it back."""
+    import json
+
+    rec = {
+        "command": "fabrik-probe",
+        "state": "done",
+        "updated_at": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
+        "updated_ts": __import__("datetime").datetime.now(__import__("datetime").UTC).timestamp(),
+        "feedback": "filed",
+        "feedback_text": "filed: stale anchor in fabrik-review.md:48 to infra; surfaces: review loop",
+    }
+    (tmp_path / "probe.json").write_text(json.dumps(rec), encoding="utf-8")
+    rc = chk.main(["--runs", str(tmp_path), "--digest"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "stale anchor in fabrik-review.md:48" in out, out
+    # a pre-D-055 record (no text) is labelled, never silently blank
+    rec.pop("feedback_text")
+    (tmp_path / "probe.json").write_text(json.dumps(rec), encoding="utf-8")
+    chk.main(["--runs", str(tmp_path), "--digest"])
+    assert "text not persisted" in capsys.readouterr().out

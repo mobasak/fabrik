@@ -97,8 +97,9 @@ def _recent(body: dict, now: dt.datetime) -> bool:
     return (now - when).days <= WINDOW_DAYS
 
 
-def _audit(runs: Path) -> tuple[int, list[tuple[str, str]]]:
-    """Return (closes examined, [(command, record-name)] lacking a verdict)."""
+def _audit(runs: Path) -> tuple[int, list[tuple[str, str]], list[tuple[str, str, str]]]:
+    """Return (closes examined, [(command, record-name)] lacking a verdict,
+    [(date, command, feedback_text)] for the --digest reader — D-055)."""
     try:
         paths = sorted(p for p in runs.glob("*.json") if p.is_file())
     except OSError:
@@ -106,6 +107,7 @@ def _audit(runs: Path) -> tuple[int, list[tuple[str, str]]]:
     now = dt.datetime.now(dt.UTC)
     examined = 0
     unstated: list[tuple[str, str]] = []
+    digest: list[tuple[str, str, str]] = []
     for path in paths:
         try:
             body = json.loads(path.read_text(encoding="utf-8"))
@@ -120,19 +122,30 @@ def _audit(runs: Path) -> tuple[int, list[tuple[str, str]]]:
         # report compliance that never happened.
         if str(body.get("feedback") or "unstated") == "unstated":
             unstated.append((str(body.get("command") or "?"), path.stem[:8]))
-    return examined, unstated
+        digest.append((
+            str(body.get("updated_at") or "")[:10],
+            str(body.get("command") or "?"),
+            str(body.get("feedback_text") or "") or f"<{body.get('feedback', 'unstated')}: text not persisted — pre-D-055 close>",
+        ))
+    return examined, unstated, digest
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Advisory: a command run owes a FEEDBACK verdict.")
     parser.add_argument("--runs", default="", help=f"run-record dir (default: {RUNS_DIR})")
+    parser.add_argument(
+        "--digest",
+        action="store_true",
+        help="print every recent close's FEEDBACK verdict TEXT — the operator-facing report "
+        "(D-055: the substance used to be classified then discarded; now it is stored and readable here)",
+    )
     # parse_KNOWN_args INSIDE the guard: argparse calls `sys.exit(2)` on a bad flag and `SystemExit`
     # derives from BaseException, so `except Exception` would miss it — the hole that made a sibling
     # warn_only check exit 2 earlier today.
     try:
         args, _unknown = parser.parse_known_args(argv)
         runs = Path(args.runs) if args.runs else Path(os.getenv("COMMAND_RUN_DIR", "") or RUNS_DIR)
-        examined, unstated = _audit(runs)
+        examined, unstated, digest = _audit(runs)
     except SystemExit:
         return 0
     except Exception as exc:  # the CLASS, never an enumerated list of types
@@ -142,6 +155,13 @@ def main(argv: list[str] | None = None) -> int:
             pass
         return 0
 
+    if getattr(args, "digest", False):
+        _say(f"FEEDBACK digest — {examined} close(s) in the last {WINDOW_DAYS}d:")
+        for date, cmd, text in sorted(digest):
+            _say(f"  {date} [{cmd}]")
+            for chunk in (text[i : i + 96] for i in range(0, len(text), 96)):
+                _say(f"    {chunk}")
+        return 0
     if examined == 0:
         return 0  # no run closed in the window - say nothing at all
     if not unstated:

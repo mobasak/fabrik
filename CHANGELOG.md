@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-055: FEEDBACK verdict text persisted + operator digest (2026-08-31)
+
+The close-out duty was firing (10 of 14 hub closes in 14d carried substantive verdicts) but
+`command_run.py` classified the prose into a token and discarded the text — the operator's five
+asks produced nothing visible because nothing stored the substance. Now: `feedback_text` on every
+close + `check_feedback_duty.py --digest` as the one-command reading surface; the close-out
+fragment tells agents a human reads the text. Red→green test; pre-fix records honestly labelled.
+
 ### Changed — `NEXT: operator decision` now has a BAR (operator directive) (2026-08-31)
 
 - It was the contract's only UNGUARDED exit: `BLOCKED:` has three named causes and a format, a named command obliges you to RUN it, and `operator decision` had no gate at all — so it became the lowest-friction legal way to end a turn, and the Stop hook accepts the phrase verbatim. Live defect: an agent closed with `NEXT: operator decision — (a) mine the unread session, or (b) deploy`, where (a) was the unfinished half of the task it had just been given; the fork was manufactured to transfer the agent's own uncertainty to the operator. Now legitimate on exactly three grounds (a contractual human gate · an answer that materially changes the work AND cannot be derived · a decision the operator already owns), with the agent naming which — and two shapes explicitly never legitimate: presenting options `(a)/(b)` (a menu, already forbidden) and citing your own reliability/fatigue/context (a `BLOCKED:` if anything). Applied to all three governance copies (hub, `templates/governance/` → ~46 projects, and sync-excluded `fabrik-lib` with the operator's cross-repo approval) and registered as the `operator-decision-bar` universal marker so `check_governance_drift.py` keeps them aligned.

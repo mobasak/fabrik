@@ -1384,11 +1384,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     parent = stack.pop() if stack else None
     _fb_verdict, _fb_beats = _feedback_verdict(getattr(args, "feedback", None))
     # On the RECORD as well as the event: the event stream is box-local telemetry, while the record
-    # is what a per-run check can read. Storing it only on the event left the record unable to
-    # describe its own close, and left the duty ungradeable — which is how a prose obligation stays
-    # prose. The verdict is stored; the PROSE never is (`feedback_hash` on the event covers that).
+    # is what a per-run check can read. The verdict token AND the prose are both stored (D-055,
+    # operator's 5th ask 2026-08-31): the token is for graders; the PROSE is the report the
+    # operator reads — a token-only record was the reason five asks produced zero visible
+    # feedback (the substance was classified, then discarded).
     rec["feedback"] = _fb_verdict
     rec["feedback_to"] = _fb_beats
+    rec["feedback_text"] = (str(getattr(args, "feedback", "") or "").strip())[:2000]
     fields = _queue(
         rec,
         outbox,
