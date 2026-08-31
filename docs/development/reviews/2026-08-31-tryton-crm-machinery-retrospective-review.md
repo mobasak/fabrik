@@ -17,14 +17,14 @@ sources rather than breadth-first across all 41 reviews; the unread set is named
 | `/opt/tryton-crm/AFCL.md` | 187 lines | ✅ **read in full** | — |
 | `/opt/tryton-crm/docs/LESSONS_LEARNT.md` | 1850 lines · **89 headings** | ⚠️ **all 89 headings scanned; 1 entry read in full** (`:907-927`) | 88 entries unread in body. The heading grep matched only 7 on machinery vocabulary — a lesson phrased without those words is invisible to this pass |
 | `/opt/tryton-crm/docs/development/reviews/*.md` | **41** | ⚠️ **41 of 41 grepped** (machinery-vocabulary rank + accusation-shape scan); **1 of 41 read in body** | Body-reading still 1/41. A finding phrased outside the grep's vocabulary remains invisible — R1 was found this way, so others plausibly exist |
-| `/opt/tryton-crm/docs/superpowers/specs/*.md` | 14 | ❌ **0 of 14** | Not started |
+| `/opt/tryton-crm/docs/superpowers/specs/*.md` | 14 | ✅ **14 of 14 grepped** for machinery-accusation shapes | 1 hit, benign (`/fabrik-ui-design does not apply` — correct usage). A genuine ZERO for this source, at grep depth |
 | `/opt/tryton-crm/docs/development/plans/*.md` | 3 | ❌ **0 of 3** | Not started |
-| `/opt/tryton-crm/docs/STRATEGIC_BACKLOG.md` | 909 lines | ❌ unread | Brief ranks this high-yield |
+| `/opt/tryton-crm/docs/STRATEGIC_BACKLOG.md` | 909 lines | ⚠️ **grepped + 1 section read** (`:342-359`) | Yielded M7 — the brief's high-yield ranking was right |
 | `/opt/tryton-crm/CHANGELOG.md` | 6277 lines | ❌ unread | — |
 | `/opt/tryton-crm/docs/*.md` (17 surfaces) | — | ⚠️ 1 (`CLAUDE.md` spec block) | — |
 | Hub artifacts | 2 plans · 2 reviews · spec | ✅ read in the prior session (see § 5) | — |
 | session-recall | — | ⚠️ **6 lexical queries + `recent_chats(n=25)`** | Index is lexical-only and warned stale on every call; **22 of 25** recent tryton-crm sessions are near-identical UI-QA *subagent* runs, so top-N is mostly noise |
-| `git -C /opt/tryton-crm log` | — | ❌ not walked | Brief step: revert/fix commits name their own causes |
+| `git -C /opt/tryton-crm log` | — | ⚠️ **grepped** (revert/hotfix/workaround/gate) | Surfaced a D-019→D-020 revert (a decision re-litigated) — logged, not yet worked |
 | fabrik-mail tryton threads | — | ⚠️ known from this session only | Not swept |
 
 **Therefore every finding below is "found in the sources marked ✅/⚠️", never "all that exist."** The
@@ -101,6 +101,40 @@ exit-5 no-tests-collected — both of which SAY what the green does not cover. T
 member of that family and was simply missing. Now: `skip_advisory()` names the count and why it matters.
 Advisory, never blocking — an environment-gated skip is legitimate; an **unexamined** one is the defect,
 and tryton's was a transient throttle misread as a permanent outage. `0 skipped` never flags.
+
+---
+
+### M7 — a whole test DIRECTORY excluded from every green, by design, unannounced
+**Class:** same family as M6, at directory scale · **Beat:** infra ·
+**Status:** ⚠️ **MOSTLY COVERED by `3dbbccbb`** — residual named below
+
+**KNOWN-WHEN — `/opt/tryton-crm/docs/STRATEGIC_BACKLOG.md`:344-353.** When the suite was finally run
+against the live stack "for the first time in weeks":
+```
+66 failed, 253 passed, 2 errors in 2928.76s (48:48)
+```
+> *"**It runs nowhere.** CI never executes it … so the conftest skips the whole directory by design.
+> `final_gate.py --json` skips it for the identical reason (its docstring says so explicitly, and that is
+> deliberate — the gate must run without sourcing `.env`). So **every green this project has reported —
+> including the 45/0 that gated round 19 — was measured on a suite that silently omits a third of
+> itself.** That is how `attachment.py` reached round 17 with all six of its guards deletable."*
+
+**COST-WHEN:** 66 hidden failures, and a security-relevant file reaching round 17 with six deletable
+guards, because every green was measured on two-thirds of the suite.
+
+**The exclusion is CORRECT; the silence was the defect.** The gate must run without sourcing `.env` —
+that is deliberate and right. What was missing is the gate SAYING that a third of the suite is outside
+its green.
+
+**Coverage after M6 — measured, not assumed:**
+```
+skip_advisory('253 passed, 122 skipped in 48.8s', …) → "⚠ this green SKIPPED 122 test(s) …"
+skip_advisory('253 passed in 48.8s', …)              → unchanged (no advisory)
+```
+A conftest directory-skip lands in pytest's summary, so **M6 now catches this mechanism**. **RESIDUAL,
+stated rather than glossed:** a directory never *collected* (excluded by path/testpaths rather than
+skipped) still reports nothing and stays invisible. The existing `_uninvoked_test_dirs()` guard covers
+part of that case; whether it covers all of it is NOT verified here and is Pass-4 work.
 
 ---
 
@@ -283,7 +317,8 @@ silent about what to run. M1 (`9fc4bd7d`) closes that asymmetry.
 |---:|---|---:|---:|---|
 | 1 | AFCL (full) · LESSONS_LEARNT (89 headings + 1 entry) · CLAUDE.md spec block · live `fabrik` probe · hub cross-checks | **5** | file created | — → `(initial)` |
 | 2 | all 41 reviews ranked + grepped for accusation-shaped statements; 1 read in body; 2 live probes | **1 raised → REFUTED** (R1) + 1 supporting (R2) | §6b added; S1 narrowed; M1 marked fixed | `(initial)` → `(pass2)` |
-| 3 | findings-table extraction across all 41 reviews (machinery rows, CLEAN/N/A/REFUTED filtered out) | **1 raised → M6, CONFIRMED + FIXED** | M6 added; M1/M6 marked fixed | `(pass2)` → `(pass3)` |
+| 3 | findings-table extraction across all 41 reviews · **14 of 14 specs grepped** (1 hit, benign — refuted) · STRATEGIC_BACKLOG · `git log` grep | **2 raised → M6 (FIXED), M7 (mostly covered, residual named)** | M6 + M7 added | `(pass2)` → `(pass3)` |
+| 4 | **OWED** — Pass 3 raised 2, so it cannot be terminal | — | — | — |
 
 **NOT TERMINAL.** The brief's termination contract requires a pass that raises zero findings and makes
 zero edits, with a matching md5 pair. Pass 1 raised 5 and created the file. **Pass 2 is owed** and must
