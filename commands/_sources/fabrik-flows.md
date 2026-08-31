@@ -176,7 +176,8 @@ same run.
 **Present the frozen contract + the flow index to the user** — the freeze stands unless they redirect. **`FROZEN` is not `attested`:** handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next).
 
 **Freeze law (verbatim into the artifact):** *any journey/persona/flow change = bump `Version` +
-re-freeze via `/fabrik-flows` — never edit in place. Downstream consumers
+re-freeze via `/fabrik-flows` (or `/fabrik-flows-review`'s in-review re-freeze, its sanctioned
+exception) — never edit in place. Downstream consumers
 (`/fabrik-data-contract`, `/fabrik-ui-design`, the certification gauntlets) read the frozen version only.*
 
 **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).

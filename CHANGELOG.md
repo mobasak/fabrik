@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — manifesto pass T16: /fabrik-flows-review (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED. The in-review re-freeze (Version bump) and the BLOCKED path's FROZEN→DRAFT flip both mint their `docs/DECISIONS.md` rows same-commit (a Status flip is decision-shaped regardless of cause); the stale cross-file length citation corrected (fabrik-flows.md:126/:145-146); and the freeze law in fabrik-flows.md now names the in-review re-freeze as its sanctioned exception (cross-file class fix, T09 precedent). Attestation-as-ledger-event refuted with recorded reasoning. Verifier 16-for-16 — caught my (b) cell regressing to the exact conflation T15's fix killed, while citing that fix as precedent.
+
 ### Changed — manifesto pass T15: /fabrik-flows (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 1 FIXED, 1 honest-split. The flows FREEZE (a Status flip with zero prior `docs/DECISIONS.md` reference) now mints its row same-change, classified at mint (normally reversible-by-re-freeze, mirroring the data-contract wording), staged WITH the artifact in the same COMMIT. Verifier 15-for-15: headline catch was the T14-established one-way-conflation class reproduced by this very ticket's initial stamp, plus the T03 staging-atomicity class.

@@ -85,7 +85,7 @@ implementation detail) govern FLOW BODIES only** — the header, R-notes, Contra
 close-out's Downstream impact table are lifecycle metadata whose entire job is naming entities, fields and
 consumer docs, and axis G below REQUIRES exactly that; raising them under F contradicts G in the same pass ·
 **per-flow length asserted against the NUMBERS, not "within targets"** — `/fabrik-flows` sets
-**target ≤30 lines, HARD SPLIT at 50** (`fabrik-flows.md:120`, `:139-140`): a flow over **30** owes a
+**target ≤30 lines, HARD SPLIT at 50** (`fabrik-flows.md:126`, `:145-146`): a flow over **30** owes a
 one-line justification; a flow at or over **50** is a DEFECT — split it. State the count you measured per
 flow. ⚠️ **"within targets" was the whole problem**: it named no number, so a closing round that
 re-derives "lengths OK" is not mechanical — the reviewer picks which reading to check against and can
@@ -127,10 +127,13 @@ closing round — identical hashes are the proof). Your say-so does not substitu
 - **Clean no-op:** the FROZEN contract stands. Add the attestation to its header —
   `Independently reviewed: v<N> — /fabrik-flows-review no-op <YYYY-MM-DD>` — and report the Pass Ledger.
 - **You edited the contract:** editing a FROZEN artifact re-opens it — bump `Version`, re-freeze (the
-  edit-free confirming round IS the re-freeze convergence). Only then attest.
+  edit-free confirming round IS the re-freeze convergence). The bump is a Status-flip event: **mint its
+  `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-flows` freeze law;
+  classify at mint — plain row normally). Only then attest.
 - **A BLOCKING gap remains** (a criterion with no resolvable journey; a second actor whose journey cannot
   be designed without a product decision): stop, set `Status: DRAFT`, name the blocker, route to
-  `/fabrik-flows`. Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-flows-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
+  `/fabrik-flows`. The FROZEN→DRAFT flip is a Status flip — **mint its `docs/DECISIONS.md` row in the
+  same commit** (it reverses a readiness claim consumers may have acted on; classify at mint). Do NOT attest. **Close the run record on this path** — `blocked --command fabrik-flows-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping.
 
 ⚠️ **The attestation IS graded — since 2026-08-29, by `check_frozen_chain.py`.** It compares the NEWEST
 `Independently reviewed: v<N>` against the contract's current `Version:` and WARNs when the contract has
