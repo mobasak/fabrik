@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - `agents_dest=None` used to resolve to the LIVE agents dir for ANY dest — two review finders' tmp renders overwrote the installed agent files in one day (both benign, both measured). Now derived: live only when dest is the live commands dir, else `dest/_agents`. Red-first + 2 regression tests.
 
+### Changed — manifesto pass T11: /fabrik-doc-converge (2026-08-31)
+
+- 63b verdict: 4 CONFORM, 2 FIXED. The ripple clause's "same run" branch was structurally impossible (the one-doc guardrail), forcing every Doc-Sync-keyed ripple into deferral against the SAME-change floor — and the gate is provably doc↔doc-blind, so the law was pure prose. Keyed ripples now land as minimal mechanical edits in the run's own commit; the old-claims re-check carries its k/N fraction; "consciously dropped" backlog residuals must cite the drop.
+
 ### Changed — manifesto pass T10: /fabrik-deploy-verify (2026-08-31)
 
 - 63b verdict: 4 CONFORM, 2 FIXED — the binary PASS/FAIL vocabulary made the early-stop, inconclusive-DNS and store-guard endings literally unfillable against the Output block. Now four terminal tokens (PASS/FAIL/INCONCLUSIVE/NOT-RUN with cause), the store hand-back gets its own two-line form, and Phase 6's smoke PASS must quote both the promise and the response fragment (else INCONCLUSIVE).

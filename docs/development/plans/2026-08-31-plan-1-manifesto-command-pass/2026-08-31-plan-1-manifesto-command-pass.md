@@ -87,7 +87,7 @@ Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | T08 | /fabrik-deploy-plan — 63b manifesto conformance + fixes + per-command review | T07 | ⛓️ | ✅ | (this commit) |
 | T09 | /fabrik-deploy-plan-review — 63b manifesto conformance + fixes + per-command review | T08 | ⛓️ | ✅ | (this commit; incl. the sanctioned T07 back-flip fixup) |
 | T10 | /fabrik-deploy-verify — 63b manifesto conformance + fixes + per-command review | T09 | ⛓️ | ✅ | (this commit) |
-| T11 | /fabrik-doc-converge — 63b manifesto conformance + fixes + per-command review | T10 | ⛓️ | ⬜ | |
+| T11 | /fabrik-doc-converge — 63b manifesto conformance + fixes + per-command review | T10 | ⛓️ | ✅ | (this commit) |
 | T12 | /fabrik-docs-review — 63b manifesto conformance + fixes + per-command review | T11 | ⛓️ | ⬜ | |
 | T13 | /fabrik-execute-plan — 63b manifesto conformance + fixes + per-command review | T12 | ⛓️ | ⬜ | |
 | T14 | /fabrik-features — 63b manifesto conformance + fixes + per-command review | T13 | ⛓️ | ⬜ | |

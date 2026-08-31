@@ -37,7 +37,7 @@ project's `project.yaml::type` + spec `shape:` (they decide which sections apply
 | `docs/README.md` | `docs/` dir listing · the doc registry buckets | every doc present is indexed with an honest purpose; no row for an absent doc; subdir list matches what exists |
 | `README.md` | the codebase + FEATURES.md | the 150–300-word identity is true (type, port, stack from real config); every capability claim maps to a FEATURES row; setup points at QUICKSTART, not inlined |
 | `docs/BUSINESS_MODEL.md` | pricing/entitlement code · payment-route config | tiers/prices match the enforcing code; payment routing matches the org's real routes (iyzico/Paddle/RevenueCat — never Stripe); internal-tool block used when nothing is billed |
-| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped |
+| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |
 
 ## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)
 
@@ -56,14 +56,20 @@ inspection.
 - **Shape discipline:** keep the seeding template's structure (it is consumer-contract-hardened);
   respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never
   copy; the Doc Sync Matrix rows bind).
-- **Ripples:** a fix here may obligate a sibling doc (Doc Sync Matrix) — apply the ripple in the
-  same run or state it as a named follow-up, never silently.
+- **Ripples:** a fix here may obligate a sibling doc (Doc Sync Matrix). A KEYED ripple lands as the
+  MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit
+  is not a second convergence, so the one-doc guardrail is untouched. Only a ripple that would itself
+  need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the
+  staleness stated in the commit body — never silently. (No gate fires on doc↔doc pairs —
+  check_doc_sync keys on code files — so this law is honour-bound here; that is why the commit-body
+  statement is mandatory.)
 
 ## Phase 3 — Converge (LOOP to a no-op)
 
 Repeated passes until one demonstrably-thorough pass makes **zero edits** (the Termination
 contract): each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW
-claim plus a sample of old ones, re-checks the contract row's "complete when" clause end to end,
+claim plus a STATED sample of old ones (the pass ledger carries the fraction — re-opened k of N;
+the CLOSING pass re-opens every claim any edit touched, plus the full contract clause), re-checks the contract row's "complete when" clause end to end,
 and bumps `Last Updated:` only at the final flip. List what you re-read each pass.
 
 ## Guardrails — never
