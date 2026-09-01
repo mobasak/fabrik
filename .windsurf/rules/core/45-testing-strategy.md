@@ -125,9 +125,10 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 
 ## Next.js (App Router)
 
-- **Framework**: Playwright only.
-- **Banned**: Jest, Vitest, React Testing Library, Enzyme for UI component tests. These tools cannot natively handle async React Server Components and produce highly coupled tests.
-- Playwright boots the actual Next.js server — Server Components, hydration, and API routes execute as in production.
+- **Async Server Components and full user flows: Playwright ONLY.** Vitest/Jest/RTL cannot render an async RSC — by design, not by gap (no test runner provides the async server render pipeline); the official guidance is E2E for those. Playwright boots the actual Next.js server — Server Components, hydration, and API routes execute as in production.
+- **The narrow unit lane that IS legitimate**: server-action LOGIC as plain functions, zod schemas, utilities, and synchronous/props-only components may use Vitest + RTL where a unit test genuinely pays — the Trophy still biases E2E, and the `await` in a component is the hard line (fetches its own data → Playwright's job). Enzyme stays banned outright.
+- **Never stub a server action from Playwright** — the server is the E2E boundary; stubbing belongs in the unit lane where the action is a plain function.
+- Run Playwright against the PRODUCTION build (`next build && next start`), never the dev server.
 - All locators must be **semantic**: `page.getByRole('button', { name: /submit/i })`. Never use CSS selectors or XPath.
 
 ## React Native (Mobile)
@@ -139,7 +140,7 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 
 ## Chrome Extension (MV3)
 
-- **Framework**: Playwright with `chromium.launchPersistentContext`. Pin `@playwright/test` **≥1.59** (PR #39476 — keeps the same service-worker handle across an MV3 restart; the SW-restart flake fix).
+- **Framework**: Playwright with `chromium.launchPersistentContext`. Use a CURRENT `@playwright/test` — the MV3 service-worker-restart flake was fixed upstream (the runner keeps the same SW handle across a restart); an old pin without that fix reintroduces the flake.
 - **Banned**: Puppeteer standard headless mode (cannot load extensions).
 - Launch Playwright's **bundled Chromium** (`channel: 'chromium'`) — stable Chrome/Edge removed the `--load-extension` / `--disable-extensions-except` side-load flags (Chrome 137/139), so those args only work under bundled Chromium, never installed stable Chrome.
 - Extract the MV3 service worker dynamically from `context.serviceWorkers()` to get the extension ID, then navigate to `chrome-extension://<id>/popup.html` for UI verification.
@@ -180,7 +181,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 | Sync `TestClient` with async FastAPI app | `httpx.AsyncClient` with `ASGITransport` |
 | Bare `pytest` command **in a project with a `pyproject.toml`/`uv.lock`** | `uv run pytest` (a fabrik-lib module ships `requirements.txt` and has neither — `python3 -m pytest` is correct there) |
 | `print()` in test files | `structlog` logger or remove |
-| Jest / Vitest / RTL for Next.js Server Components | Playwright E2E |
+| Jest / Vitest / RTL for ASYNC Server Components or full flows | Playwright E2E (sync/props-only components + server-action logic may unit-test via Vitest where it pays) |
 | Detox for React Native | Maestro YAML |
 | Puppeteer headless for extensions | Playwright `launchPersistentContext` |
 | CSS class / XPath selectors in E2E | Semantic `getByRole` locators |
@@ -218,7 +219,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 - [ ] Tests run via `uv run pytest` — not bare `pytest`.
 - [ ] Multi-tenant projects have tenant isolation tests (query as A, verify B invisible).
 - [ ] Playwright tests use only semantic locators (`getByRole`, `getByLabel`, `getByText`).
-- [ ] No Jest/Vitest/RTL imports in Next.js app directory.
+- [ ] No Vitest/RTL rendering of ASYNC Server Components (unit lane only for sync/props-only components + action logic); no Enzyme anywhere.
 - [ ] No Detox dependency in React Native projects — Maestro flows in `.maestro/`.
 - [ ] Chrome extension tests use `launchPersistentContext` with extension loading flags.
 - [ ] Test data uses factory functions, not static JSON fixtures.

@@ -379,6 +379,30 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: playwright-mv3-sw-fix
+    pack: core/45-testing-strategy.md
+    claim: "The MV3 service-worker-restart flake fix landed in @playwright/test 1.59 (PR #39476); current is 1.62.x, so every fresh install has it — the pack's floor was retired as noise, the claim carries the boundary"
+    kind: version
+    verify: "https://registry.npmjs.org/@playwright/test/latest; https://github.com/microsoft/playwright/pull/39476"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: vitest-rsc-boundary
+    pack: core/45-testing-strategy.md
+    claim: "2026 consensus incl. official Next.js docs: Vitest+RTL is the legitimate unit lane for sync/props-only components + server-action logic; ASYNC Server Components cannot be rendered by any unit runner (by design) — Playwright E2E owns them; the pack's blanket Vitest ban was retired for the async-boundary rule"
+    kind: practice
+    verify: "https://nextjs.org/docs/app/guides/testing/vitest"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: chrome-extension-sideload-flags
+    pack: core/45-testing-strategy.md
+    claim: "Stable Chrome/Edge removed --load-extension/--disable-extensions-except (Chrome 137/139) — extension E2E must use Playwright's bundled Chromium; the pack's channel guidance rests on this"
+    kind: deprecation
+    verify: "search: chrome load-extension flag removed <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"
