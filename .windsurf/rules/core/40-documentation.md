@@ -21,10 +21,16 @@ The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_
 🔴 = the gate **hard-blocks the commit** if it's stale (`check_doc_sync` ERROR-tier).
 
 **Universal (every scaffold type):**
-`AGENTS.md` (scaffold seeds it; keep current on infra/topology change) · `README.md` · `INDEX.md` · `docs/README.md` · `CHANGELOG.md` 🔴 · `AFCL.md` · `docs/QUICKSTART.md` (API/SDK/CLI change) · `docs/CONFIGURATION.md` 🔴 **+ `.env.example`** 🔴 (new env var) · `docs/TROUBLESHOOTING.md` · `docs/FEATURES.md` · `docs/LESSONS_LEARNT.md`
+`AGENTS.md` (scaffold seeds it; keep current on infra/topology change) · `README.md` · `INDEX.md` · `docs/README.md` · `CHANGELOG.md` 🔴 · `AFCL.md` · `docs/QUICKSTART.md` (API/SDK/CLI change) · `docs/CONFIGURATION.md` 🔴 **+ `.env.example`** 🔴 (new env var) · `docs/TROUBLESHOOTING.md` · `docs/FEATURES.md` · `docs/LESSONS_LEARNT.md` · `docs/DECISIONS.md` (the decision ledger — a decision made or received gets its row in the SAME change; rows immutable, supersede-by-new-row)
 
 **Deployed types (`python-api*` / `node-api` / `file-api` / `file-worker` / `saas-skeleton` / `wordpress`):**
 `docs/SERVICES.md` · `docs/OPERATIONS.md` (compose service change) · `docs/RESILIENCE.md` · `docs/DEPLOYMENT.md` · `PORTS.md`
+
+> **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
+> Projects cannot self-deploy — the HUB's deploy agent learns from these two files what and how to
+> deploy and which VPS services to set up (workers, systemd units, cron/Beat jobs, companions).
+> Keep them FULLY current and machine-consumable (concrete service lists, commands, env
+> requirements — not prose about intentions); a stale or vague one silently misdeploys.
 
 **Data (`shape.needs_database`):** `db/schema.sql` 🔴 (migration) · `docs/data-contract.md` (via `/fabrik-data-contract`)
 
@@ -61,12 +67,15 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | Source, config, or Docker file changed | `CHANGELOG.md` entry under `## [Unreleased]`; `INDEX.md` reflects change |
 | New environment variable added | `docs/CONFIGURATION.md` + `.env.example` updated |
 | User-facing feature added | `docs/FEATURES.md` updated |
-| API endpoint added or changed | `docs/QUICKSTART.md` updated; OpenAPI synced; `docs/API_REFERENCE.md` if detailed |
+| API endpoint added or changed | `docs/QUICKSTART.md` updated; OpenAPI synced (the live `/docs` endpoint is the detailed reference) |
 | User-facing copy added | Verbal Identity applied (see `ocoron-design-system.md`) |
 | `compose.yaml` modified | Docker: amd64, no Alpine, HEALTHCHECK, resource limits, `fabrik` network |
-| Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` updated |
+| Compose service added/removed | `docs/SERVICES.md` + `docs/OPERATIONS.md` updated (fleet-AI-consumable per D-065) |
+| Deploy config changed (deployed types) | `docs/DEPLOYMENT.md` updated (fleet-AI-consumable per D-065) |
+| Scheduled job (Beat/cron/systemd timer) added or changed | `docs/RESILIENCE.md` §7 (the canonical jobs/intervals inventory) + reflected in `docs/OPERATIONS.md` |
+| Decision made or received (ruling, approval, retirement/adoption, architecture/scope choice, rejected option) | `docs/DECISIONS.md` row in the SAME change (rows immutable; supersede-by-new-row) |
 | Resilience pattern changed (retry/backoff/circuit-breaker/fallback) | `docs/RESILIENCE.md` updated |
-| Database schema changed | Alembic migration (no raw DDL); `db/schema.sql` reference; `docs/DATABASE_SCHEMA.md` |
+| Database schema changed | Alembic migration (no raw DDL); `db/schema.sql` reference; `docs/data-contract.md` re-frozen (via `/fabrik-data-contract`) |
 | Sensitive file edited | Backup at `<file>.backup.<timestamp>` exists |
 | Logging code added | Pre-scaffolded structured logger; no `print()` / `console.log()`; correlation IDs |
 | Health endpoint modified | Tests real deps: `SELECT 1`, Redis `PING`, API connectivity |
@@ -75,7 +84,7 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | New enforcement script | Registered in `final_gate.py` at correct tier |
 | HAS_USER_GUIDE = true | `docs/user-guide/<feature>.md` exists |
 
-This matrix is the canonical source. `my-workflow/06-ticket-breakdown-command` injects these rows per ticket.
+This matrix is the canonical source. The hub's epic-to-ticket workflow (`/opt/fabrik/docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md`) injects these rows per ticket.
 
 ---
 
@@ -85,7 +94,8 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 
 | Trailer | Values | When |
 |---------|--------|------|
-| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` | every AI commit |
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` = automated dispatcher/cron commits) |
+| `Agent-Name` | `infra` · `fleet` · `intel` | hub sessions with `CLAUDE_AGENT` set (hub-side; most projects omit) |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
 | `Agent-Context` | short description of what the agent did | every AI commit |
@@ -128,7 +138,7 @@ Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + 
 
 **Update when:** Ticket's Lessons Learnt field has a trigger condition and it fires. Common triggers: auth changes, password/secret rotation, deploy/infra workaround, new registrar interaction, external service integration, high-risk area.
 
-**Format:** See `my-workflow/06-ticket-breakdown-command` § Step 8 for the canonical entry structure (Lesson N, Context, Problem, Root Cause, Solution, Integration, Triggered By).
+**Format:** See the hub's `docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md` § Step 8 for the canonical entry structure (Lesson N, Context, Problem, Root Cause, Solution, Integration, Triggered By).
 
 **Enforced:** Gate-checked. Ticket field = `none` OR entry exists. Silence = failure.
 
@@ -168,7 +178,7 @@ Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + 
 
 **Allowed locations:**
 - Root docs: `README.md`, `CHANGELOG.md`, `INDEX.md`, `AGENTS.md`, `CLAUDE.md`, `PORTS.md`
-- Scaffolded doc templates: `docs/CONFIGURATION.md`, `docs/FEATURES.md`, `docs/QUICKSTART.md`, `docs/API_REFERENCE.md`, `docs/DEPLOYMENT.md`, `docs/RESILIENCE.md`, `docs/DATABASE_SCHEMA.md`, `docs/TROUBLESHOOTING.md`, `docs/BUSINESS_MODEL.md`, `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/DOCS_INDEX.md`
+- Scaffolded doc templates: `docs/CONFIGURATION.md`, `docs/FEATURES.md`, `docs/QUICKSTART.md`, `docs/DEPLOYMENT.md`, `docs/OPERATIONS.md`, `docs/SERVICES.md`, `docs/RESILIENCE.md`, `docs/TROUBLESHOOTING.md`, `docs/BUSINESS_MODEL.md`, `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/DECISIONS.md` (retired — do not create: `docs/API_REFERENCE.md`, `docs/DATABASE_SCHEMA.md`, `docs/DOCS_INDEX.md`)
 - Plans: `docs/development/plans/YYYY-MM-DD-*.md`
 - Reference: `docs/reference/**/*.md`
 - Archive: `docs/archive/**/*.md`
