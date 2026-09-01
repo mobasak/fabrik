@@ -79,8 +79,29 @@ completeness is exactly the check-that-cannot-fail this spec warns about.
   is still feature-scale (this one artifact). The **build** was already routed to the epic chain and
   that verdict now holds more strongly, not less — Amendment 1 does not promote this spec, it enlarges
   what the epic must carry.
-- **ROUTED OUT (epic):** the *implementation* — 13 per-type check packs, the hub-side spine, and
-  onboarding 37 repos. Needs a ticket store and dispatched agents → `docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md`.
+- ⚠️ **ROUTING CORRECTED (spec-review pass G1, operator challenge: *"why do you suggest epic route but
+  not /fabrik-plan-after-chat?"*). The DRAFT said epic. That was WRONG.** The criterion is verbatim
+  *"needs a ticket store + dispatched agents"*. The hub-side build is:
+
+  | # | deliverable | size |
+  |---|---|---|
+  | 1 | the new authoring command | 1 file, `commands/_sources/` |
+  | 2 | rewrite `/fabrik-deploy-verify` | 1 file (216 lines today) |
+  | 3 | scaffolder seeding | `src/fabrik/scaffold.py` + template stubs |
+  | 4 | `health-probe` enhancement | **cross-repo** → a fabrik-lib filing, not a ticket I dispatch |
+
+  **~4 files in one repo. No ticket store. No dispatched agents. → `/fabrik-plan-after-chat`.**
+
+  **The error was counting fleet-wide CONSEQUENCES as build work.** The "13 per-type packs" are
+  *sections inside two command files*, not 13 deliverables — I inflated a table into a work breakdown.
+  And "onboarding 37 repos" is **not hub work at all**: cross-repo commits are a HARD STOP, so I cannot
+  dispatch into those repos even in principle. Each project's own agent runs the authoring command in
+  its own repo, triggered by its own next deploy — **self-serve rollout, not a migration I execute.**
+  Once the scaffolder seeds new projects (§ Born compliant), the 37 are the only backlog and it drains
+  by ordinary use.
+
+  **A wide blast radius is not the same as a large build.** This spec changes what 43 repos *do*; it
+  does so by editing four files.
 
 Specifying the checklist before fixing the contract produces a list nobody can implement. That ordering
 is the whole reason this spec exists separately.
@@ -501,6 +522,18 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | — | **operator: *"be 100% sure all factual and validated from our infra first"*** | — | — | — | — |
 | F1 | every infra claim probed against the LIVE fleet | **live infra validation** | 1 | 1 | `c9173ade…` → `235463aa…` |
 | F2 | confirming re-sweep | re-derivation | **0** | **0** | `235463aa…` stable ✓ |
+| — | **operator: *"why do you suggest epic route but not /fabrik-plan-after-chat?"*** | — | — | — | — |
+| G1 | routing verdict re-derived against the literal criterion | criterion-vs-artifact | 1 | 1 | edited |
+| G2 | confirming re-sweep | re-derivation | **0** | **0** | stable ✓ |
+
+**Pass G2 terminal round — `found: 0, fixed: 0`.**
+
+**Defect 15 — the routing verdict was wrong, and it survived six lenses because none of them re-read the
+criterion.** The epic test is *"needs a ticket store + dispatched agents"*; the hub build is ~4 files in
+one repo. I reached "epic" by counting fleet-wide **consequences** as build work — inflating a 13-row
+per-type *table* into 13 deliverables, and treating a 37-repo rollout as a migration I execute when
+cross-repo commits are a HARD STOP that makes it impossible by construction. **Corrected to
+`/fabrik-plan-after-chat`.** A wide blast radius is not a large build.
 
 **Pass F2 terminal round — `found: 0, fixed: 0`.**
 
