@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rules currency pass file 7: core/35-security-auth.md — amputated tail restored + currency fixes (2026-09-01)
+
+The committed pack ended with a literal '…[truncated]' line (commit 6e404160
+wrote back a truncated read): 7 Done When rows + the entire security-critical
+bearer-bypass Spec Contract section restored from the pre-truncation parent,
+citations re-verified live; corpus-wide guard test added (Lesson 147). Currency:
+middleware.ts→proxy.ts (current Next.js silently ignores the old file — nonce/
+redirect logic stops with no error); JWT algorithm pinning mandated; EdDSA/ES256
+replace RS256 as the multi-verifier escape; frame-ancestors joins CSP + header
+set (XFO formally obsolete); Argon2→Argon2id; Factor III example's hub-banned
+localhost fallback replaced with fail-loud os.environ; denylist stated once (the
+lib ships it); passkeys honest-limit line. 6 claims rows.
+
 ### Changed — rules currency pass file 6: core/30-ops.md + the D-064 bookworm→trixie class flip (2026-09-01)
 
 Debian pin flipped fleet-wide (bookworm regular security ended 2026-07-12; one

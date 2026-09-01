@@ -21,7 +21,7 @@ The auth architecture depends on the project's scaffold type and domain module d
 
 ### Pattern A — FastAPI as sole IdP (self-hosted auth) — **DEFAULT**
 
-**The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — Argon2 + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `agents-fabrik.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
+**The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — **Argon2id** (the vendored argon2-cffi defaults meet OWASP minimums; never Argon2i) + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `agents-fabrik.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
 
 - FastAPI owns credential hashing (Argon2), user state, token issuance, and validation.
 - Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
@@ -29,10 +29,15 @@ The auth architecture depends on the project's scaffold type and domain module d
 
 #### Passwordless is the DEFAULT sign-in for every surface (operator ruling, 2026-08-28)
 
-`fastapi-user-auth` ships `passwordless_enabled: bool = True` (`settings.py:38`) and exposes exactly
+`fastapi-user-auth` ships `passwordless_enabled: bool = True` (`fastapi_user_auth/settings.py:38`) and exposes exactly
 two endpoints — `POST /auth/passwordless/request` and `GET|POST /auth/passwordless/verify`. **New
 projects use it as the primary sign-in on every applicable scaffold type**; a password form is an
 ADDITIONAL affordance a project justifies, never the default door.
+
+**Honest limit:** email OTP / magic links are NOT phishing-resistant (a code or link can be captured
+and replayed). Passkeys (WebAuthn — domain-bound, phishing-resistant) are the upgrade path when a
+project's threat model demands that property; the vendored lib does not ship them yet, so such a
+project files the fabrik-lib request FIRST, never hand-rolls WebAuthn.
 
 **Two delivery mechanisms, and the choice is per SURFACE, not per taste:**
 
@@ -58,7 +63,7 @@ service MUST be able to say which:
 
 | Caller | Mechanism | Where it is defined |
 |---|---|---|
-| **A human**, via a SaaS / mobile / extension / desktop client | the app's own **JWT** minted by `fastapi-user-auth` — including by the passwordless endpoints above. The API **validates**, it does not re-authenticate | § Pattern A (Argon2, 15-min access, refresh rotation, `jti` denylist, RLS via `auth.uid()`) |
+| **A human**, via a SaaS / mobile / extension / desktop client | the app's own **JWT** minted by `fastapi-user-auth` — including by the passwordless endpoints above. The API **validates**, it does not re-authenticate | § Pattern A (Argon2id, 15-min access, refresh rotation, `jti` denylist, RLS via `auth.uid()`) |
 | **Another Fabrik service** (Docker-to-Docker on the `fabrik` network) | `X-Internal-Token` + `internal_auth.py`, `hmac.compare_digest`, 403 on reject | § Internal Service Auth (M2M) below — **never** an inline `APIKeyHeader`, never a per-service key name |
 | **Nobody** (genuinely public) | no auth — and it must be a DELIBERATE, listed decision, not an endpoint someone forgot to protect | health/metrics only: `/health`, `/healthz`, `/metrics`, `/api/health` are Authelia-bypassed by design (`core/30-ops.md`) |
 
@@ -113,7 +118,7 @@ Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight
 
 - Issue **short-lived JWT access tokens** (15 minutes) signed with HS256.
 - Issue **long-lived opaque refresh tokens** (7 days) stored in PostgreSQL alongside user and device metadata. Refresh tokens are not JWTs — they are cryptographically random strings.
-- Deleting the refresh token ends the session — no new access tokens issue. The outstanding access token stays valid until its 15-min expiry (HS256 is stateless). For true instant revocation, add a short-TTL token denylist in Redis.
+- Deleting the refresh token ends the session — no new access tokens issue. For instant revocation of the outstanding access token, the vendored lib SHIPS the JWT `jti` denylist (short-TTL, Redis) — wire it, don't rebuild it; it is part of the canonical lifecycle, not an optional bolt-on.
 - The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via Pydantic Settings. Never hardcode it.
 - Use HS256 while the issuer and verifier are the SAME service (Pattern A's shape — sound and simplest). The moment a second party must verify without minting, switch to an asymmetric alg — prefer EdDSA (Ed25519) or ES256 over RSA (smaller keys/signatures, fewer footguns).
 - **Pin the algorithm in the VERIFIER** — pass an explicit allow-list (`algorithms=["HS256"]`), never let the library dispatch on the token header's `alg`. Header-driven dispatch is the classic confusion attack (an RS256 public key replayed as an HS256 HMAC secret); `alg: none` is rejected unconditionally.
@@ -154,9 +159,9 @@ if not session_data:
 ### ❌ Banned
 
 ```python
-# Sticky session - process-specific state
-user_cache[user_id] =  # In-process memory - VIOLATION
-session_store[process_id][user_id] =  # Local disk - VIOLATION
+# Process-specific session state — VIOLATIONS
+user_cache[user_id] = session_obj          # in-process dict: dies with the process, invisible to replicas
+open(f"/tmp/session_{user_id}", "w")       # local disk: same problem, plus survives to confuse the NEXT process
 ```
 
 ## Token Storage by Client
@@ -177,8 +182,8 @@ session_store[process_id][user_id] =  # Local disk - VIOLATION
 
 ## Next.js Defense-in-Depth
 
-- **Never rely solely on `middleware.ts` for access control.** CVE-2025-29927 (the `x-middleware-subrequest` bypass) proved COMPLETE middleware bypass via one crafted header; it is long patched upstream, but the rule outlives the patch — a framework-layer gate is a UX affordance, never the authorization boundary.
-- Use middleware only for UX redirects (e.g. redirect to `/login` if cookie missing).
+- **Never rely solely on the framework's request-shaping layer for access control.** CVE-2025-29927 (the `x-middleware-subrequest` bypass) proved COMPLETE middleware bypass via one crafted header; it is long patched upstream, but the rule outlives the patch — current Next.js even RENAMED the file to say so: `middleware.ts` became **`proxy.ts`**, explicitly repositioned as request-shaping, not a security boundary. ⚠️ **On current majors a leftover `middleware.ts` is SILENTLY IGNORED at build** — nonce injection and redirects stop executing with no error; rename it when upgrading.
+- Use `proxy.ts` (older majors: `middleware.ts`) only for UX redirects (e.g. redirect to `/login` if cookie missing).
 - All Server Actions, Route Handlers, and Server Components that access sensitive data or perform mutations must call a `verifySession()` Data Access Layer utility that cryptographically validates the token with the backend (FastAPI or Supabase JWKS).
 
 ---
@@ -198,7 +203,7 @@ session_store[process_id][user_id] =  # Local disk - VIOLATION
 
 ## Content Security Policy
 
-- Next.js `middleware.ts` must generate a per-request cryptographic nonce (`crypto.randomUUID()`) and build the full directive: `Content-Security-Policy: script-src 'nonce-{n}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`.
+- Next.js `proxy.ts` (older majors: `middleware.ts`) must generate a per-request cryptographic nonce (`crypto.randomUUID()`, base64-encoded) and build the full directive: `Content-Security-Policy: script-src 'nonce-{n}' 'strict-dynamic'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`.
 - A bare nonce without `'strict-dynamic'` and locked-down fallbacks (`object-src 'none'`, `base-uri 'none'`) gives weaker protection than implied — always include the full directive.
 - Only `<script>` tags with the matching `nonce` attribute execute. This forces dynamic SSR for protected routes — an acceptable trade-off for XSS protection.
 
@@ -263,16 +268,21 @@ Note: use internal Docker DNS (`http://<service>:<port>/api/endpoint`) for `fabr
 ### ✅ Correct
 
 ```python
-# Environment variables only - granular and orthogonal
+# Environment variables only - granular and orthogonal.
+# DSNs and secrets get NO fallback — a missing value fails LOUDLY at boot
+# (a localhost default silently points a container at ITSELF, not the shared DB).
 import os
 
-database_url = os.getenv("DATABASE_URL", "postgresql://localhost:5432/default")
-jwt_secret_key = os.getenv("JWT_SECRET_KEY")
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+database_url = os.environ["DATABASE_URL"]     # required — KeyError at boot if absent
+jwt_secret_key = os.environ["JWT_SECRET_KEY"]  # required
+redis_url = os.environ["REDIS_URL"]            # required
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")  # non-secret: default OK
 
 # Never: settings.production.database_url or config.production.yml
-# Never: hardcoded defaults or secrets in source
+# Never: hardcoded defaults or secrets in source; never a localhost fallback
+# In an APPLICATION these reads live inside Pydantic Settings (10-python § Config) —
+# shown raw here only to isolate the 12-factor point; vendored fabrik-lib modules
+# read their own knobs bare by design (25-data-postgres § rubric carve-out).
 ```
 
 ### ❌ Banned
@@ -377,7 +387,7 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 - [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
 - [ ] All Next.js Server Actions and data-fetching Server Components call `verifySession()`.
 - [ ] CORS origins loaded from environment variables — no wildcards with credentials.
-- [ ] CSP nonce injected per-request in Next.js middleware.
+- [ ] CSP nonce injected per-request in Next.js `proxy.ts` (older majors: `middleware.ts` — no leftover `middleware.ts` on current majors, it is silently ignored).
 - [ ] FastAPI responses include HSTS, X-Content-Type-Options, `frame-ancestors` (+ legacy X-Frame-Options) headers.
 - [ ] JWT verifier pins its algorithm allow-list — no header-dispatched `alg`, `none` rejected.
 - [ ] Auth endpoints have rate limiting configured.

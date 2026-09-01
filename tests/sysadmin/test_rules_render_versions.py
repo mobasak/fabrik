@@ -80,9 +80,15 @@ def test_no_pack_carries_truncation_markers():
     # (found 2026-09-01 at file 7 of the rules pass). The marker is unambiguous.
     from pathlib import Path
 
+    roots = [
+        "/opt/fabrik/.windsurf/rules",
+        "/opt/fabrik/commands/_sources",
+        "/opt/fabrik/templates",
+    ]
     offenders = [
         str(p)
-        for p in Path("/opt/fabrik/.windsurf/rules").rglob("*.md")
+        for root in roots
+        for p in Path(root).rglob("*.md")
         if "[truncated]" in p.read_text(encoding="utf-8", errors="replace")
     ]
     assert not offenders, f"truncation markers written back to disk: {offenders}"

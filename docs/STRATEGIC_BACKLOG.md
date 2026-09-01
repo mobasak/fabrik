@@ -177,6 +177,24 @@ during the pass). Scope: core/ then ALL folders, to completion.
   current, machine-consumable (what/how to deploy; which VPS services: workers, systemd, cron).
   Enforcement lands at 40-documentation + 75-workers-jobs + deploy-surface turns: check the
   rules ENFORCE currency + consumability, not merely name the files.
+- **File-7 (35-security-auth) COMPLETE under the full bar (2026-09-01) — the high-risk pack.**
+  HEADLINE: the committed file was AMPUTATED — commit 6e404160 (the 12-factor pass) wrote it back
+  from a truncated read, ending with a literal '…[truncated]' line; 7 Done When rows + the entire
+  security-critical Spec Contract — Auth Registrars section (bearer-bypass warning) were absent
+  from HEAD for weeks and survived that pass's reviews. Restored from 6e404160~1, all citations
+  re-verified live (check_api_bypass verifier.py:465); corpus swept (1 amputation total); guard
+  test added (rules + commands/_sources + templates), Lesson 147. Own legs: JWT alg-pinning rule
+  (allow-list verifier, none rejected); HS256 scoped to issuer==verifier w/ EdDSA/ES256 escape;
+  frame-ancestors added (XFO formally obsolete); CVE-2025-29927 recast (patched; rule outlives).
+  **SECOND OPINION (Fable 5, 25 verdicts, zero FALSE claims, every in-repo cite verified exact):
+  all FIX/ADD accepted — middleware.ts→proxy.ts staleness (current Next.js SILENTLY IGNORES a
+  leftover middleware.ts: nonce/redirects stop, no error — highest blast radius), CSP directive
+  gains frame-ancestors+form-action (was contradicting the pack's own checklist), Factor III ✅
+  example shipped a hub-BANNED localhost silent fallback (now fail-loud os.environ), denylist
+  two-sources-of-truth fixed (lib SHIPS it), Argon2→Argon2id (OWASP; lib defaults exceed minimums),
+  passkeys honest-limit line (OTP not phishing-resistant; fabrik-lib request first), sticky-session
+  ❌ example was invalid Python with mislabeled mechanism (fixed), settings.py path nit.** 6 claims
+  rows. Convergences with my legs: frame-ancestors + RS256→ES256/EdDSA found independently by both.
 - **File-6 (30-ops) COMPLETE under the full bar (2026-09-01) — the class-owner turn.** D-064
   bookworm→trixie EXECUTED (own grounds: debian.org + endoflife + Docker Hub tag probes; the
   opinion independently endorsed with digest-level proof). File-1 deferrals closed: HEALTHCHECK

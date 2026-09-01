@@ -339,6 +339,30 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: nextjs-proxy-rename
+    pack: core/35-security-auth.md
+    claim: "Next.js 16 renamed middleware.ts to proxy.ts (request-shaping, not a security boundary) and SILENTLY IGNORES a leftover middleware.ts at build — nonce/redirect logic stops with no error; the pack's file references track this"
+    kind: deprecation
+    verify: "https://nextjs.org/docs/app/guides/content-security-policy; https://github.com/vercel/next.js/discussions/84842"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: supabase-signing-keys
+    pack: core/35-security-auth.md
+    claim: "Supabase new projects default to asymmetric JWT signing (ES256) since 2025-10; getClaims() verifies locally via JWKS and falls back server-side for legacy HS256; JWKS endpoint EMPTY on HS256 projects (the pack's Pattern-B guidance rests on all three)"
+    kind: version
+    verify: "https://supabase.com/docs/guides/auth/signing-keys"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: argon2id-lib-defaults
+    pack: core/35-security-auth.md
+    claim: "OWASP mandates Argon2id specifically (min m=19MiB/t=2/p=1); the vendored lib's argon2-cffi defaults (Argon2id, 64MiB/t=3/p=4) exceed the minimums — naming 'Argon2id + lib defaults' suffices, no cost table needed in the pack"
+    kind: practice
+    verify: "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html; https://argon2-cffi.readthedocs.io/en/stable/api.html"
+    window_days: 365
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"
