@@ -25,7 +25,7 @@ never triggers the halt protocol):
 
 1. **Deployed** — every runbook step ran with its verification **PASS (fenced output, this run)**, the
    battery (the exit gate) is green, the maintenance window is provably closed, the plan carries the
-   literal `Status: EXECUTED <date>`, archived, **committed and pushed**, and the 6-line FINAL OUTPUT block printed.
+   literal `Status: EXECUTED <date>`, archived, **committed and pushed**, and the 7-line FINAL OUTPUT block printed.
    Store surfaces are "deployed" at their operator publish gate: prepared, verified, handed off, and
    closed out per Phase 4 — ending there IS success.
 2. **Halted** — two flavors, both complete and honest: (a) a RUNBOOK/BATTERY halt (Phases 1-3) ran
@@ -322,7 +322,7 @@ print; proceed to Phase 5 directly.
    provenance trailers) and PUSH** — an uncommitted flip is an unfinished task, and an unpushed one can
    be silently reverted by the next pre-commit stash cycle, losing the record that the deploy ran.
 5. Hand off — `/fabrik-deploy-verify` (VPS: fresh-probe certification of the live service) or the
-   operator's publish act (stores) — and print the 6-line FINAL OUTPUT block per CLAUDE.md:
+   operator's publish act (stores) — and print the 7-line FINAL OUTPUT block per CLAUDE.md:
 
 ```
 GATE: <the battery + the plan's own gate commands run this turn> → success|failure

@@ -777,7 +777,7 @@ def _final_message_text(transcript_path: str) -> str:
     """EVERY text block of the last assistant entry, joined in order.
 
     Distinct from :func:`_final_turn`, which takes only the FIRST text block because
-    the stall guard reasons about one contiguous message tail. A 6-line FINAL OUTPUT
+    the stall guard reasons about one contiguous message tail. A 7-line FINAL OUTPUT
     block routinely spans several blocks in one entry, and reading only the first
     under-counts the terminator contract.
     """
@@ -1025,7 +1025,7 @@ def _kaizen_pass(
     - ``stop_pass`` — this TURN passed. Not `session_end`: the Stop hook fires once per
       turn, so session liveliness is the LAST `stop_pass` timestamp, and a session that
       never produced one is the hole.
-    - ``final_block_emitted`` — the mandated 6-line FINAL OUTPUT block was written.
+    - ``final_block_emitted`` — the mandated 7-line FINAL OUTPUT block was written.
     - ``operator_override`` — an enforcement cause fired and a sanctioned-skip marker
       waved it through (:func:`_detect_stall`'s waiver ledger). The marker ALONE is not
       an override: it is the routine vocabulary of every operator-gated task end.
