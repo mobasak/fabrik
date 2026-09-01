@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 12: core/57-external-data-sourcing.md (2026-09-01)
+
+Brought the external-data-sourcing pack to the D-062 bar. The two findings that change what
+an agent does:
+
+- **Rung 1 told shipped code to use a tool it cannot reach.** "An existing MCP server" was
+  ranked first in a pack whose globs fire on `scrapers/**`, `ingest/**`, `connectors/**`,
+  `webhooks/**` — production paths, where an MCP server does not exist. Split into two
+  explicit lanes (agent-time vs shipped runtime) and pointed the runtime lane at
+  `fabrik-lib/web-tools`, which exists for exactly that.
+- **"Respect the source — robots/ToS" was too weak to plan against.** Rewritten with the
+  bypass line drawn where the live litigation draws it: reading a logged-out public page vs
+  defeating a control, with the tooling layer (CAPTCHA solvers, proxies) as the exposed
+  surface. `captcha-solve` and `proxy-pool` are now marked capabilities-never-defaults in the
+  ladder itself, and ToS is split browsewrap-vs-accepted.
+
+Also corrected against the live box: three MCP servers that exist nowhere (`puppeteer`,
+`github`, `context7`), a `~/.claude.json` pointer that shows a subset since the roster split,
+a `payments` vendor category that has never existed, a missing `unidentified` category, two
+unlisted fabrik-lib modules, a webhook auth posture that would have 302'd providers into an
+Authelia login page, and a catalog one-liner that crashed on the file's `_README` key. Six
+claims registered in `CLAIMS.yaml` with verify hints and windows.
+
 ### Fixed — /fabrik-review of the enforcement fixes: 7 rounds, 34 findings, 5 of them mine-while-fixing (2026-09-01)
 
 A deep review of `d2e0d4f2` that took seven rounds because every round found a real

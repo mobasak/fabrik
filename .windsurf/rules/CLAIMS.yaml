@@ -410,3 +410,51 @@ claims:
     verify: "search: musl mallocng CPython performance <year>"
     window_days: 180
     last_verified: 2026-09-01
+
+  - id: robots-txt-rfc9309-standard
+    pack: core/57-external-data-sourcing.md
+    claim: "robots.txt is a published IETF standard (RFC 9309), not merely a convention; it carries no direct enforcement but non-compliance is used as bad-faith evidence"
+    kind: standard
+    verify: "search: RFC 9309 robots exclusion protocol standard status"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: ai-crawler-ua-directives
+    pack: core/57-external-data-sourcing.md
+    claim: "AI-specific robots.txt user-agent directives (GPTBot, CCBot, Google-Extended, anthropic-ai, PerplexityBot) are the de-facto channel for reserving text-and-data-mining; the named set churns"
+    kind: practice
+    verify: "search: AI crawler user-agent robots.txt directives TDM opt-out <year>"
+    window_days: 90
+    last_verified: 2026-09-01
+
+  - id: scraping-bypass-tooling-liability
+    pack: core/57-external-data-sourcing.md
+    claim: "The live litigation wave reframes scraping from access-authorisation (CFAA, largely settled for logged-out public pages) to anti-circumvention, and targets the TOOLING layer — CAPTCHA solvers, anti-bot bypass, proxy services — as trafficking in circumvention tech. UNSETTLED: no ruling yet. This is why fabrik-lib/captcha-solve and the catalog's proxy/captcha categories are capabilities, not defaults"
+    kind: rationale
+    verify: "search: DMCA 1201 anti-circumvention web scraping captcha solver proxy liability ruling <year> — has any court RULED?"
+    window_days: 90
+    last_verified: 2026-09-01
+
+  - id: browsewrap-vs-clickwrap-scraping
+    pack: core/57-external-data-sourcing.md
+    claim: "ToS shown without affirmative agreement is weak against a logged-out fetcher; clickwrap/account terms bind and make breach an ordinary contract claim — so holding an account changes the answer"
+    kind: practice
+    verify: "search: browsewrap clickwrap enforceability scraping public data <year>"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: eu-tdm-model-training-regime
+    pack: core/57-external-data-sourcing.md
+    claim: "Scraping that feeds MODEL TRAINING is regulated separately and more strictly in the EU (GPAI/TDM copyright-reservation obligations) than the same fetch for internal use. DELIBERATELY DATE-FREE in the pack: sources disagreed on the in-force dates during the 2026-09-01 pass, so the rule states the asymmetry, not a timeline"
+    kind: standard
+    verify: "search: EU AI Act GPAI training data copyright TDM opt-out obligations in force date — reconcile conflicting dates before asserting one"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: mcp-roster-is-split
+    pack: core/57-external-data-sourcing.md
+    claim: "The MCP roster is SPLIT (user-level + per-repo .mcp.json), so ~/.claude.json alone shows a subset; canonical is docs/workstation/mcp-roster.md + the repo .mcp.json, probed by scripts/sysadmin/mcp_health.py"
+    kind: rationale
+    verify: "read: /opt/fabrik/.mcp.json and ~/.claude.json — is the split still in force?"
+    window_days: 180
+    last_verified: 2026-09-01
