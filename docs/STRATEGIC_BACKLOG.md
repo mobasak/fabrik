@@ -105,6 +105,37 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] Review-machinery findings — ROUTED from the 2026-09-01 triage deep review (owner: infra = me)
+
+Raised by author-blind finders during `/fabrik-review` of the LOCAL-vs-ARCHITECTURAL triage. Both are
+OUT of that review's surface (pre-existing, different files) and are recorded here with owner + trigger
+rather than smuggled into a command-corpus commit. Disposition: ROUTED, not deferred-to-nobody.
+
+- **`command_run.py --reason` is unvalidated free text.** `:891` advertises "one of the three sanctioned
+  BLOCKED cases" and `:1435-1438` stores whatever it is given — so an unauthorized fourth cause closes a
+  run record cleanly. This is not theoretical: the escalation bullet deleted in `e82e7a0a` would have
+  done exactly that. The three-case restriction is prose-only at the one moment it could be mechanical.
+  **Trigger to build:** measure first, per FIX-directive verb 5 — count closed `blocked` records and how
+  many cite a non-sanctioned cause (`~/.claude/state/command-runs/`); if >0, add a WARN-tier validator
+  (rollout law: warn before block).
+- **Two disposition vocabularies that no command cross-references.** `check_review_coverage.py:293-304`
+  accepts a `## BLOCKED` section ONLY with 3-attempts evidence, while `:49-50` already carries
+  `ROUTED(n)` for the "adjudicated, not open, not fixed" case — and no command source teaches `ROUTED`.
+  That gap is precisely why my escalation bullet pointed at the path the grader rejects instead of the
+  one it accepts. **Fix shape:** teach `ROUTED(n)` in the review commands' disposition vocabulary, and
+  cross-reference the two in the grader's docstring so the next author cannot repeat the mistake.
+- **`assemble_commands.py:829` mislabels source drift.** It prints `HAND-EDITED (N diff lines)` naming
+  the INSTALLED file when the real cause is an uncommitted edit to the SOURCE — the message points at
+  the wrong file. Same at `:690` (agents) and `:837` (skills). Cost me a re-check this session.
+- **`CLAUDE.md` line-wrapping defeats phrase greps** (a bounded-search negative on that file is
+  unreliable without `tr -d '\n'`) — the denominator-honesty class, hit live by a finder this run.
+- **Corrected framing, fleet-wide:** the command corpus is NOT per-repo synced (`commands/` appears in
+  neither the governance-sync files-filter nor `fabrik_synced_manifest.py`). Its blast radius is
+  BOX-WIDE via `~/.claude/commands/` — one install, every repo on the box. My own commit messages said
+  "ships to ~46 repos"; that is the wrong mechanism, and anyone sizing risk from it mis-models the
+  change. Measured by a finder: 43 git repos under /opt; 223 paths in a project's synced.lock, none
+  under `commands/`.
+
 ## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
 **THE GOAL (D-062, operator verbatim):** always-uptodate · correct · lean · efficient ·
