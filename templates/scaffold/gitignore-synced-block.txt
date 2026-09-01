@@ -16,7 +16,6 @@ opencode.json
 .windsurf/
 
 # Reference docs (synced from fabrik)
-docs/reference/kilo/
 docs/reference/MD/
 docs/reference/long-command-monitoring.md
 docs/reference/technology-stack-decision-guide.md
@@ -27,8 +26,6 @@ PORTS.md
 
 # Synced scripts
 scripts/final_gate.py
-scripts/kilo_code_review.py
-scripts/kilo_docs_enforcer.py
 scripts/docs_updater.py
 scripts/update_agents_toc.py
 scripts/health_checker.py

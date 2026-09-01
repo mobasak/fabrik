@@ -1,6 +1,6 @@
 # SaaS Skeleton - Agent Briefing
 
-> Instructions for AI coding agents (Windsurf Cascade, Kilo CLI, Traycer)
+> Instructions for AI coding agents (Claude Code, Traycer)
 
 ## Build & Test
 
@@ -26,14 +26,17 @@ docker compose up -d
 docker compose logs -f
 ```
 
-## Kilo CLI Quick Reference
+## Review commands
+
+Kilo CLI is RETIRED fleet-wide (LLM access is Claude Max OAuth + OpenRouter only). Use the
+`/fabrik-*` command corpus, which is installed box-wide:
 
 ```bash
-# Read-only analysis
-kilo run "Analyze this Next.js project"
+# Ad-hoc changes made outside a command — light, diff-scoped
+/fabrik-review-scoped
 
-# Development
-kilo run "Add new API endpoint for user profile"
+# Heavy surfaces (new mechanism, gate/hook, auth/schema/migrations, >5 files)
+/fabrik-review
 
 # Planning (Traycer — preferred):
 # Traycer-managed tasks: planning happens in Traycer Phases
@@ -98,8 +101,8 @@ Before writing any code:
 Every change must pass this sequence before commit:
 
 1. **Step 2.5 (Self-Review):** Check for hardcoded secrets, `use client` boundaries, missing env vars
-2. **Step 3 (Kilo Review):** `python3 scripts/kilo_code_review.py staged`
-3. **Step 4 (Documentator):** `python3 scripts/kilo_docs_enforcer.py --auto-generate`
+2. **Step 3 (Code Review):** `/fabrik-review-scoped` (or `/fabrik-review` on a heavy surface)
+3. **Step 4 (Docs):** `/fabrik-docs-review`
 4. **Step 5 (Final Gate):** `python3 scripts/final_gate.py` or `npm run gate`
 
 ### One-Test Rule

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffolded services emit JSON on every stdout line, and the Kilo sweep reaches templates/ (2026-09-01)
+
+- `_logger_py_content()` now bridges the stdlib root logger through structlog's
+  `ProcessorFormatter` and neutralises `uvicorn`/`uvicorn.access`/`gunicorn`. Configuring
+  structlog only ever configured structlog; third-party libraries kept their own handlers, so
+  every scaffolded FastAPI service shipped a MIX of JSON and raw text and Loki could not label
+  the raw half. Proven red-on-revert: the pre-fix generator emits 1 non-JSON line, the fixed
+  generator 0. Guarded by `tests/test_scaffold_logging_bridge.py`.
+- `templates/saas-skeleton/AGENTS.md` no longer prescribes RETIRED Kilo tooling
+  (`kilo run`, `scripts/kilo_code_review.py`, `scripts/kilo_docs_enforcer.py` — none of which
+  exist); it now names `/fabrik-review-scoped` · `/fabrik-review` · `/fabrik-docs-review`. Dead
+  Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
+
+
 ### Changed — rules currency pass file 12: core/57-external-data-sourcing.md (2026-09-01)
 
 Brought the external-data-sourcing pack to the D-062 bar. The two findings that change what
