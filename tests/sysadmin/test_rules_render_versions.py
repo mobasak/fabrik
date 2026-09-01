@@ -38,3 +38,23 @@ def test_live_corpus_file1_round_trips():
     assert len(spans) >= 2  # python_stable + debian_codename
     _, changed, unknown = inject_text(text, versions)
     assert changed == 0 and unknown == []  # HEAD agrees with the source
+
+
+def test_loose_sweep_catches_name_version_prose_not_status_codes():
+    # The docker-tag-only sweep was blind to prose literals — the operator's
+    # re-ask found 4 in an already-passed file. Status codes must never fire.
+    assert _LOOSE.search("use list[str] (Python 3.9+)")
+    assert _LOOSE.search("SQLAlchemy 2.0 requires it")
+    assert _LOOSE.search("Node 24 is the LTS")
+    assert _LOOSE.search("Debian 13 shipped")
+    assert not _LOOSE.search("FastAPI 500 responses")  # status code, not a version
+    assert not _LOOSE.search("returns 404 or 500")
+    assert not _LOOSE.search("Python services: 8000-8099")
+
+
+def test_file1_carries_zero_unmarked_version_literals():
+    # The exemplar's contract under D-062: spans only, no prose literals.
+    from pathlib import Path
+
+    text = Path("/opt/fabrik/.windsurf/rules/core/10-python.md").read_text(encoding="utf-8")
+    assert not _LOOSE.search(_SPAN.sub("", text))

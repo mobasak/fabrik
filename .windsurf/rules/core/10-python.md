@@ -53,7 +53,7 @@ app = FastAPI(title="ServiceName", lifespan=lifespan)
 
 @app.get("/health")
 async def health():
-    # MUST hit the real DB. Bare string raises in SQLAlchemy 2.0 — use text()
+    # MUST hit the real DB. A bare SQL string raises in modern SQLAlchemy — use text()
     async with async_session() as session:
         await session.execute(text("SELECT 1"))
     return {"status": "ok"}
@@ -148,8 +148,8 @@ temp_dir = tempfile.gettempdir()  # /tmp - shared, deleted
 ## Typing Standards
 
 - Use type hints for all function signatures
-- Use `list[str]` not `List[str]` (Python 3.9+)
-- Use `str | None` not `Optional[str]` (Python 3.10+)
+- Use `list[str]` not `List[str]`; use `str | None` not `Optional[str]` — the typing module's
+  capitalized generics and `Optional` are legacy forms on every Python this fleet runs
 - Use Pydantic for request/response models
 
 ---
@@ -270,7 +270,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 | `tempfile.gettempdir()` / `/tmp` | Project-relative `.tmp` (volume-mounted if persistence needed) |
 | `List[str]` / `Optional[str]` | `list[str]` / `str \| None` |
 | `async def` mixed with sync `.query().all()` | SQLAlchemy async: `select()` + `await session.execute()` |
-| Bare-string `.execute("SELECT 1")` | `text("SELECT 1")` (SQLAlchemy 2.0 requires it) |
+| Bare-string `.execute("SELECT 1")` | `text("SELECT 1")` (modern SQLAlchemy requires it) |
 | Sync HTTP/IO in an async route (blocks the event loop) | `httpx.AsyncClient`; `run_in_executor` for unavoidable sync libs |
 | `@app.on_event("startup")` | `lifespan` async context manager |
 | `logging.getLogger(__name__)` / `print()` | `structlog.get_logger()` imported from scaffold `logger.py` |

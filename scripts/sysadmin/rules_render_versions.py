@@ -33,7 +33,17 @@ VERSIONS_FILE = RULES_ROOT / "versions.yaml"
 
 _SPAN = re.compile(r"(<!--v:([a-z0-9_]+)-->)(.*?)(<!--/v-->)", re.S)
 # version-shaped literals that should live in a span, not prose (advisory sweep)
-_LOOSE = re.compile(r"\b(?:python:\d+\.\d+|node:\d+(?!\d)|FROM python:\d|FROM node:\d)")
+_LOOSE = re.compile(
+    r"\b(?:python:\d+\.\d+|node:\d+(?!\d)|FROM python:\d|FROM node:\d"
+    # name-version prose ("Python 3.9+", "SQLAlchemy 2.0") — the shapes the docker-tag
+    # sweep was blind to (operator re-ask 2026-09-01 exposed 4 in the already-passed
+    # file 1; 20 measured corpus-wide). Dotted/plus forms for dotted-version tools;
+    # bare majors only for tools whose versions are dotless — "FastAPI 500" (a status
+    # code) must never fire.
+    r"|(?:Python|SQLAlchemy|FastAPI|TypeScript|pydantic)\s+\d+\.\d+\+?"
+    r"|(?:Node(?:\.js)?|Debian|Postgres(?:QL)?|Redis)\s+\d+(?:\.\d+)?\+?(?![\d-])"
+    r")"
+)
 
 
 def load_versions(path: Path = VERSIONS_FILE) -> dict[str, str]:
