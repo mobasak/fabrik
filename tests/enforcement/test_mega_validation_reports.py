@@ -252,6 +252,23 @@ def test_surface_with_a_trailing_annotation_is_not_absent(repo: Path) -> None:
     assert rc == 0, out
 
 
+def test_surface_hash_in_a_markdown_code_span_is_not_absent(repo: Path) -> None:
+    """Wrong-reason class, FOURTH sighting — the one the bold fix left behind.
+
+    `SURFACE` was made bold-tolerant in an earlier round (`**Surface:** <hash>`), but the hash
+    itself is most naturally written as a markdown CODE SPAN, and `**Surface:** `<md5>`` still
+    read as ABSENT. Measured 2026-09-01: 5 of this repo's 181 review artifacts were misread that
+    way, one of them written the same day by the session that found this. Fixing the location and
+    leaving the class is what let it recur, so the tolerance now lives in one shared constant.
+    """
+    h = _shell_hash(repo)
+    for wrapper in (f"`{h}`", f"'{h}'", f'"{h}"'):
+        body = _report(h).replace(f"Surface: {h}", f"**Surface:** {wrapper}")
+        rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
+        assert rc == 0, f"a {wrapper[0]}-wrapped hash was read as absent: {out}"
+        (repo / "docs/development/reviews/2026-08-19-mega-vision-validation-review.md").unlink()
+
+
 def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
     """The advisory honors its narrowness for the RETRO-GRADE set (Surface presence, round
     minimums, placeholders — the muting mechanism), while STRUCTURAL anti-cheat errors
@@ -308,7 +325,7 @@ def test_non_mega_validation_review_filename_is_not_forced_into_the_mega_grammar
         "# Cross-Artifact Validation — ettw 10\n\nSurface: abc123\n\n"
         "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
         "| fail-open | CLEAN scripts/enforcement/check_review_coverage.py hunted |\n"
-        "Pass 2 (re-derivation) ledger: found: 0, fixed: 0\nreview_rubric.py run recorded\n"
+        "Pass 2 (method: re-derivation) ledger: found: 0, fixed: 0\nreview_rubric.py run recorded\n"
         "boundary cost quota behavior-without-a-test untested behavior\n"
     )
     rc, out = _gate(repo, "2026-08-19-crossartifact-validation-review.md", body)
@@ -390,7 +407,7 @@ def test_prose_pass_lines_beside_a_table_are_refused_in_a_mega_report(repo: Path
     body = _report(h).replace(
         "Rounds:",
         f"Pass 1: found: 9, fixed: 0, hashes {'b' * 32} → {h}\n"
-        f"Pass 2 (re-derivation): found: 0, fixed: 0, hashes {h} → {h}\n\nRounds:",
+        f"Pass 2 (method: re-derivation): found: 0, fixed: 0, hashes {h} → {h}\n\nRounds:",
         1,
     )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
@@ -462,7 +479,7 @@ def test_narrative_counters_in_a_cell_cannot_swap_the_real_values(repo: Path) ->
     (repo / "docs/development/reviews/2026-08-19-ordinary4-review.md").unlink()
 
     false_flag = base.format(
-        row="| Pass 2 | WIDE re-derivation (previously found: 6 stray before triage) found: 0 · fixed: 0 | finder |"
+        row="| Pass 2 | WIDE method: re-derivation (previously found: 6 stray before triage) found: 0 · fixed: 0 | finder |"
     )
     rc, out = _gate(repo, "2026-08-19-ordinary5-review.md", false_flag)
     assert rc == 0, f"a genuinely quiet round was false-flagged: {out}"
@@ -492,7 +509,7 @@ def test_prose_only_ledger_is_not_a_mega_ledger(repo: Path) -> None:
     body = (
         "# Cross-Epic Validation Report\n"
         f"Surface: {h}\n\n"
-        f"Pass 1: found: 7, fixed: 6\nPass 2 (re-derivation): found: 0, fixed: 0\n\n"
+        f"Pass 1: found: 7, fixed: 6\nPass 2 (method: re-derivation): found: 0, fixed: 0\n\n"
         "## Overall: PASS\n"
     )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
@@ -556,7 +573,7 @@ def test_prose_only_mega_refusal_does_not_also_claim_more_than_one_table(repo: P
     h = _shell_hash(repo)
     body = (
         "# Cross-Epic Validation Report\n"
-        f"Surface: {h}\n\nPass 1: found: 7, fixed: 6\nPass 2 (re-derivation): found: 0, fixed: 0\n\n## Overall: PASS\n"
+        f"Surface: {h}\n\nPass 1: found: 7, fixed: 6\nPass 2 (method: re-derivation): found: 0, fixed: 0\n\n## Overall: PASS\n"
     )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1
@@ -1040,7 +1057,7 @@ def test_indented_unchecked_row_cannot_vanish(repo: Path) -> None:
         "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n\n"
         "    | the-actual-risky-finding | UNCHECKED |  |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-vanish-unchecked-review.md", body)
     assert rc == 1, "an indented live UNCHECKED row vanished from the checklist gate"
@@ -1141,7 +1158,7 @@ def test_comment_separated_indented_row_is_still_refused(repo: Path) -> None:
     separated from prose only by a comment line was quoted to one reader and live to the
     other, vanishing a visibly non-quiet ledger line without any refusal."""
     body = _everyday(
-        "Pass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\nRound 3 notes:\n<!-- internal -->\n    Pass 3: found: 5, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-20-comment-indent-review.md", body)
@@ -1233,7 +1250,7 @@ def test_bulleted_pass_row_cannot_vanish(repo: Path) -> None:
     non-quiet final round was invisible to the ledger extractor and the report exited green
     on both the blocking path and the committed advisory."""
     body = _everyday(
-        "Pass 1: found: 5, fixed: 5\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 5, fixed: 5\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\n- Pass 3: found: 7, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-20-bulleted-pass-review.md", body)
@@ -1258,7 +1275,7 @@ def test_numbered_pass_row_cannot_vanish(repo: Path) -> None:
     """Round-67 LOW (coverage for the round-66 `\\d+.` branch, which shipped unexercised):
     a numbered non-quiet final Pass row must be read as the exit round."""
     body = _everyday(
-        "Pass 1: found: 5, fixed: 5\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 5, fixed: 5\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\n3. Pass 3: found: 7, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-20-numbered-pass-review.md", body)
@@ -1299,7 +1316,7 @@ def test_every_commonmark_list_marker_reaches_both_grammars(repo: Path) -> None:
         assert rc == 1, f"marker {mark!r} vanished a HANDOFF row"
         assert "NOT-QUIET" in out, f"marker {mark!r} failed for the wrong reason"
         body = _everyday(
-            "Pass 1: found: 5, fixed: 5\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+            "Pass 1: found: 5, fixed: 5\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
             f"\n{mark} Pass 3: found: 7, fixed: 0\n",
         )
         rc, out = _gate(repo, f"2026-08-20-mark{i}-pass-review.md", body)
@@ -1329,7 +1346,7 @@ def test_wrapped_continuation_prose_ledger_is_one_group(repo: Path) -> None:
     body = _everyday(
         "Pass 1 — found: 3, fixed: 3 (seams partition; the coverage dispatch was re-run\n"
         "inline after a quota kill; all anchors re-verified against the tree)\n"
-        "Pass 2 (re-derivation) — found: 0, fixed: 0. All refs byte-verified; render clean.\n",
+        "Pass 2 (method: re-derivation) — found: 0, fixed: 0. All refs byte-verified; render clean.\n",
     )
     rc, out = _gate(repo, "2026-08-20-wrapped-prose-review.md", body)
     assert rc == 0, f"an honest wrapped-continuation prose ledger was split into groups: {out}"
@@ -1408,7 +1425,7 @@ def test_bulleted_rows_stay_live_despite_the_list_wrap_refusal(repo: Path) -> No
     _LIST_MARK tolerance of rounds 65-70) and `- #123 fixed` prose is not a heading — the
     new refusal must not touch either."""
     body = _everyday(
-        "Pass 1: found: 5, fixed: 5\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 5, fixed: 5\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\nNotes:\n- #123 fixed upstream in the vendor tree.\n",
     )
     rc, out = _gate(repo, "2026-08-20-listwrap-safe-review.md", body)
@@ -1459,7 +1476,7 @@ def test_honest_status_surface_bullets_stay_live(repo: Path) -> None:
     converged report. Refusable only when the residual would have BEEN an anchor unwrapped
     (Status: IN-PROGRESS, or Surface: carrying a ≥12-hex hash)."""
     body = _everyday(
-        "Pass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\n## Notes\n\n- Surface: 3 new endpoints added this round\n"
         "- Status: green across all services\n",
     )
@@ -1476,7 +1493,7 @@ def test_quoted_title_mention_over_a_divider_is_not_a_heading(repo: Path) -> Non
          "- Coverage Checklist row explained further down"]
     ):
         body = _everyday(
-            "Pass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+            "Pass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
             f"\n{mention}\n---\n\nMore notes.\n",
         )
         rc, out = _gate(repo, f"2026-08-20-divider{i}-review.md", body)
@@ -1503,7 +1520,7 @@ def test_dropped_fence_adjacency_does_not_forge_a_setext_heading(repo: Path) -> 
     became artificially adjacent and read as a setext heading, hard-refusing an honest
     converged report. Fences now blank like comments; positions always survive."""
     body = _everyday(
-        "Pass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\nCoverage Checklist\n```\nexample content\n```\n---\n\nMore notes.\n",
     )
     rc, out = _gate(repo, "2026-08-20-fence-adjacency-review.md", body)
@@ -1515,7 +1532,7 @@ def test_dropped_fence_adjacency_does_not_split_a_ledger_run(repo: Path) -> None
     `---` read as a run boundary via stale adjacency, splitting one honest quiet ledger
     into two groups and firing the multi-group refusal."""
     body = _everyday(
-        "Pass 1: found: 3, fixed: 3\n```\nexample\n```\n---\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 3, fixed: 3\n```\nexample\n```\n---\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-20-fence-split-review.md", body)
     assert rc == 0, f"a fence seam split an honest quiet ledger into groups: {out}"
@@ -1534,7 +1551,7 @@ def test_fence_inside_the_checklist_cannot_hide_rows(repo: Path) -> None:
         "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n"
         "```\nexample fenced content that should not matter\n```\n"
         "| another-class | UNCHECKED | pending |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-fence-in-table-review.md", body)
     assert rc == 1, "an UNCHECKED row after an in-table fence went silently uncounted"
@@ -1551,7 +1568,7 @@ def test_comment_inside_the_checklist_cannot_hide_rows(repo: Path) -> None:
         "| fail-open cost boundary untested behavior | CLEAN | scripts/x.py hunted |\n"
         "<!-- reviewer note -->\n"
         "| another-class | UNCHECKED | pending |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-comment-in-table-review.md", body)
     assert rc == 1, "an UNCHECKED row after an in-table comment went silently uncounted"
@@ -1572,7 +1589,7 @@ def test_stray_separator_cannot_erase_the_preceding_row(repo: Path) -> None:
         "| auth-tenant-isolation | UNCHECKED |\n\n"
         "Appendix note explaining the layout below, prose only.\n\n"
         "|---|---|\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-stray-separator-review.md", body)
     assert rc == 1, "a stray separator erased the UNCHECKED row before it"
@@ -1589,7 +1606,7 @@ def test_adjacent_stray_separator_cannot_swallow_a_data_row(repo: Path) -> None:
         "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
         "| auth-tenant-isolation | UNCHECKED |\n|---|\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-adjacent-separator-review.md", body)
     assert rc == 1, "an adjacent stray separator swallowed the UNCHECKED row above it"
@@ -1608,7 +1625,7 @@ def test_headerless_table_with_verdict_grammar_is_a_forgery_residual(repo: Path)
         "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
         "| auth-tenant-isolation UNCHECKED |\n|---|\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-headerless-verdict-review.md", body)
     assert rc == 0, f"the structural header test should skip a renderer-true header: {out}"
@@ -1625,7 +1642,7 @@ def test_vocabulary_naming_header_is_not_data(repo: Path) -> None:
         "| Class | Verdict (CLEAN, FIXED, REFUTED, or still UNCHECKED) | Notes |\n"
         "|---|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted | ok |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-20-vocab-header-review.md", body)
     assert rc == 0, f"a vocabulary-naming header was counted as a data row: {out}"
@@ -1642,7 +1659,7 @@ def test_mismatched_separator_does_not_make_a_header(repo: Path) -> None:
         "## Coverage Checklist\n"
         "| sql-injection-in-query-builder | UNCHECKED still to hunt |\n|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-mismatch-separator-review.md", body)
     assert rc == 1, "a mismatched separator made a paragraph row into a skipped 'header'"
@@ -1659,7 +1676,7 @@ def test_doubled_pipe_typo_cannot_swallow_a_row(repo: Path) -> None:
         "## Coverage Checklist\n"
         "|| sql-injection-in-query-builder | UNCHECKED still to hunt |\n|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-doubled-pipe-review.md", body)
     assert rc == 1, "a doubled-pipe typo swallowed the UNCHECKED row as a phantom header"
@@ -1676,7 +1693,7 @@ def test_escaped_pipe_header_is_still_a_header(repo: Path) -> None:
         "## Coverage Checklist\n"
         "| Class | Verdict (CLEAN\\|FIXED\\|REFUTED) |\n|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-escaped-pipe-review.md", body)
     assert rc == 0, f"an escaped-pipe vocabulary header was counted as a data row: {out}"
@@ -1693,7 +1710,7 @@ def test_invalid_delimiter_row_cannot_make_a_header(repo: Path) -> None:
             "## Coverage Checklist\n"
             f"| sql-injection-hunt | UNCHECKED |\n{sep}\n"
             "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
-            "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+            "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
         )
         rc, out = _gate(repo, f"2026-08-21-invalid-sep{i}-review.md", body)
         assert rc == 1, f"separator {sep!r} swallowed the UNCHECKED row above it"
@@ -1713,7 +1730,7 @@ def test_valid_separator_shapes_are_recognized(repo: Path) -> None:
             "## Coverage Checklist\n"
             f"| Class | Verdict |\n{sep}\n"
             "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
-            "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+            "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
         )
         rc, out = _gate(repo, f"2026-08-21-valid-sep{i}-review.md", body)
         assert rc == 0, f"valid separator {sep!r} was unrecognized and the header failed as data: {out}"
@@ -1731,7 +1748,7 @@ def test_bare_dash_under_a_pipe_row_is_refused_as_ambiguous(repo: Path) -> None:
         "# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)\n\n"
         "## Coverage Checklist\n| Verdict |\n---\n"
         "| CLEAN — fail-open cost boundary untested behavior, scripts/x.py hunted |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-onecol-review.md", body)
     assert rc == 1
@@ -1749,7 +1766,7 @@ def test_section_divider_after_an_orphan_row_is_not_a_separator(repo: Path) -> N
         "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
         "| auth-tenant-isolation UNCHECKED |\n---\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-divider-orphan-review.md", body)
     assert rc == 1, "a section divider converted the orphan UNCHECKED row into a phantom header"
@@ -1768,7 +1785,7 @@ def test_divider_split_checklist_cannot_drop_items(repo: Path) -> None:
         "| UNCHECKED: fail-open sweep pending |\n---\n"
         "| UNCHECKED: cost-quota sweep pending |\n---\n"
         "| CLEAN — boundary/sentinel swept, scripts/x.py hunted |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-divider-chain-review.md", body)
     assert rc == 1, "a divider-split checklist silently dropped its UNCHECKED items"
@@ -1779,7 +1796,7 @@ def test_blank_separated_divider_stays_unambiguous(repo: Path) -> None:
     """Round-105 boundary: a blank-line-separated `---` after a pipe row is an unambiguous
     thematic break — never refused."""
     body = _everyday(
-        "Pass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\n| note: appendix table reference |\n\n---\n\nMore prose.\n",
     )
     rc, out = _gate(repo, "2026-08-21-blank-divider-review.md", body)
@@ -1797,7 +1814,7 @@ def test_established_table_tail_divider_is_unambiguous(repo: Path) -> None:
         "## Coverage Checklist\n| Class | Verdict |\n|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
         "---\n\nMore notes.\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-table-tail-divider-review.md", body)
     assert rc == 0, f"a table-tail divider false-fired the ambiguity refusal: {out}"
@@ -1843,7 +1860,7 @@ def test_unfenced_handoff_mention_in_cert_named_doc_is_the_loud_remedy(repo: Pat
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n\n"
         "Retro of the prior gauntlet; the row we traced was:\n\n"
         "HANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-postmortem-user-test-failures-review.md", body)
     assert rc == 1, "the live gate must give the loud fencing remedy at staging"
@@ -1929,7 +1946,7 @@ def test_half_parsed_counter_row_is_refused_not_vanished(repo: Path) -> None:
     assert rc == 1, "a half-parsed counter row vanished silently with its found: 33"
     assert "not parse" in out
     punctuated = _everyday(
-        "Pass 1: found: 33, fixed: 33\nPass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 1: found: 33, fixed: 33\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-21-halfparsed2-review.md", punctuated)
     # the first fixture is still in the repo, so assert per-file: the punctuated form
@@ -1990,7 +2007,7 @@ def test_blocked_does_not_waive_ledger_legibility(repo: Path) -> None:
     history matters most); only adjudication checks are BLOCKED-gated."""
     body = _everyday(
         "Pass 1 — native review | found: 4C+2P (four critical, two positive) | finder\n"
-        "Pass 2 (re-derivation): found: 0, fixed: 0\n",
+        "Pass 2 (method: re-derivation): found: 0, fixed: 0\n",
         "\n## BLOCKED — the stuck finding\nrepro history: 3 consecutive attempts failed "
         "(same test failing three times); escalated to the operator via Telegram.\n",
     )
@@ -2087,7 +2104,7 @@ def test_list_wrapped_pipe_row_is_refused_not_vanished(repo: Path) -> None:
         "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
         "| fail-open cost boundary untested behavior | CLEAN — scripts/x.py hunted |\n"
         "- | sql-injection-in-search | UNCHECKED |\n\n"
-        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-21-bulleted-pipe-review.md", body)
     assert rc == 1, "a list-wrapped pipe row vanished from every extractor unflagged"
@@ -2145,7 +2162,7 @@ def test_routed_is_an_honest_terminal_verdict(repo: Path) -> None:
         "# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)\n\n"
         "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
         "| fail-open cost boundary untested behavior | ROUTED(2) — handed to /fabrik-review src/x |\n\n"
-        "## Pass Ledger\nPass 1: found: 2, fixed: 0\nPass 2 (re-derivation): found: 0, fixed: 0\n"
+        "## Pass Ledger\nPass 1: found: 2, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
     )
     rc, out = _gate(repo, "2026-08-25-routed-review.md", body)
     assert rc == 0, f"a ROUTED row was treated as unadjudicated: {out}"

@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — enforcement suite back to green: 19 red tests, three unrelated root causes (2026-09-01)
+
+`pytest tests/enforcement/` was 19-red at committed HEAD, filed as
+`01M1EKG4BFS4HCNK516ZQ5HBK3` and unclaimed. Three distinct causes, not one:
+
+- **15 stale fixtures.** `8bb1c1a9` re-anchored `_REDERIVATION_ROW` on the method
+  CELL (the deliberate D-053 anti-forgery direction) and updated one test file,
+  leaving `test_mega_validation_reports.py` feeding the old `Pass 2 (re-derivation)`
+  prose form. Mirror measured before choosing a side: the gate is git-status-scoped
+  and its one history-scanning path checks only the exit round, so the 22 historical
+  artifacts using the old form are inert. Fixtures updated; checker semantics kept.
+- **`office-extension` had no `REGISTRY_BY_TYPE` row.** `10bfa386` adopted the type
+  into `SCAFFOLD_TYPES` without its certification registry — the mirror defect. Row
+  added, grounded in what `_scaffold_office_extension` actually emits (a minimal
+  manifest.xml with Hosts + taskpane, no ribbon ExtensionPoints, plus the reused
+  saas-skeleton route table — both halves are the denominator).
+- **Two tests graded the wrong artifact.** One asserted on a LIVE sibling repo's lock
+  corpus (`/opt/brand-identiy-creator`); when that repo released its plans the corpus
+  went to 0 findings and the assertion failed on a plan name that no longer existed —
+  a red saying nothing about `classify`. Rebuilt hermetically and now asserts BOTH
+  directions (STALE *and* ORPHAN), strictly stronger than the donor version. The other
+  grepped `_sources/` for a clause `619e83d0` had correctly deduplicated into a shared
+  fragment; it now resolves `{{include:}}` and grades the assembled contract.
+
+Also: `test_main_exits_zero_on_a_blocking_mixup` encoded the pre-flip contract and was
+renamed and inverted to `== 1`, matching the deliberate 2026-08-29 registration change
+(`advisory=True`, not `warn_only`) that exists precisely so a mis-headed cert board
+BLOCKS instead of being typography.
+
+### Fixed — two checkers reported "clean" without a denominator (2026-09-01)
+
+Both from web-ecommerce-factory's close-out roll-up, both validated here:
+
+- `check_script_headers.py` printed NOTHING on all three silent outcomes — nothing
+  staged, no scripts staged, all clean — making a pass indistinguishable from a check
+  that never ran. It now states what it inspected. (The reporter's diagnosed trigger was
+  wrong — their scripts were modified-UNSTAGED and the check is staged-scoped by design —
+  but the defect was real.)
+- `check_review_coverage.py`'s Surface matchers were bold-tolerant but not code-span
+  tolerant, so the markdown-natural ``**Surface:** `<md5>` `` read as ABSENT. Same class
+  the file already documents fixing for bold — fixed at the location, not the class, so
+  it recurred. Tolerance now lives in one shared constant every matcher composes.
+
 ### Fixed — /fabrik-review finding-shape triage: escalation path removed after deep review (2026-09-01)
 
 The MECHANICAL vs ARCHITECTURAL axis added in 45acc263 kept its useful half and

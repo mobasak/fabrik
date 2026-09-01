@@ -115,6 +115,14 @@ REGISTRY_BY_TYPE: dict[str, str] = {
     "static-site": "sitemap.xml / the build manifest",
     "docusaurus": "sitemap.xml / the build manifest",
     "chrome-extension": "the MV3 manifest — popup, options, content-script matches, commands",
+    # Dual surface, and BOTH halves are the denominator: the add-in manifest names the Office
+    # hosts + taskpane the add-in is loaded into, but `_scaffold_office_extension` reuses
+    # `_scaffold_saas_skeleton` wholesale (scaffold.py:5812), so the hosted app's routes ship too
+    # and certifying only the manifest would leave every backend route uncovered.
+    "office-extension": (
+        "the add-in manifest.xml — declared Hosts + the taskpane/AppDomain surfaces — "
+        "PLUS the hosted app's live route table (it reuses saas-skeleton)"
+    ),
     "mobile-app": "the navigator route tree",
     "desktop-app": "the window + application-menu registry",
 }

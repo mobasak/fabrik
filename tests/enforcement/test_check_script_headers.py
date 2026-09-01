@@ -74,3 +74,39 @@ def test_a_missing_header_is_still_warned(tmp_path: Path) -> None:
     """The rule the check exists for — untouched by the separator fix."""
     out = _run(_repo(tmp_path, "x = 1\n"), "scripts/thing.py")
     assert "no `# AFTER-EDIT:` header" in out
+
+
+# ── the denominator: a silent pass is indistinguishable from a check that never ran ──────
+
+
+def test_the_clean_path_states_how_many_scripts_it_inspected(tmp_path: Path) -> None:
+    """A "0 findings" verdict must say how many subjects it examined.
+
+    Reported by web-ecommerce-factory (01M1E6S1EAK7DNP74C1K9YHP3Z): running this check bare
+    produced NO output at all, so a genuine pass and a no-op looked identical. Their diagnosis of
+    the trigger was off — their scripts were modified-UNSTAGED and this check is staged-scoped by
+    design — but the defect is real and is the silent-green class: three different outcomes
+    (nothing staged, no scripts staged, everything clean) all printed nothing.
+    """
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nx = 1\n")
+    out = _run(repo, "scripts/thing.py", "docs/coupled.md")
+    assert "WARNING" not in out, f"this fixture is clean by construction, got: {out}"
+    assert "1 staged script(s) inspected" in out, (
+        f"the clean path must state its denominator, got: {out!r}"
+    )
+
+
+def test_nothing_staged_says_so_rather_than_exiting_mute(tmp_path: Path) -> None:
+    """The early-return path — the shape the bare run in the report actually hit."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\nx = 1\n")
+    out = _run(repo)  # stage nothing at all
+    assert "nothing staged" in out, f"an empty index must be explained, not silent: {out!r}"
+    assert "staged-scoped" in out, "it must name WHY it inspected nothing"
+
+
+def test_staged_non_scripts_are_counted_honestly(tmp_path: Path) -> None:
+    """Staging only a doc: the index is non-empty but zero SCRIPTS were inspected — the count
+    must reflect the scripts, not the staged files, or the line would overstate its own sweep."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\nx = 1\n")
+    out = _run(repo, "docs/coupled.md")
+    assert "0 staged script(s) inspected" in out, f"expected an honest zero, got: {out!r}"

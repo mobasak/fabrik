@@ -47,6 +47,11 @@ def _skip(f: str) -> bool:
 def main() -> int:
     staged = _git(["diff", "--cached", "--name-only"])
     if not staged:
+        # Same denominator law as the clean path below — "nothing staged" is a REASON, not a
+        # silent pass. This early return was the shape actually hit by the bare run in
+        # 01M1E6S1EAK7DNP74C1K9YHP3Z (the reporter's scripts were modified-UNSTAGED, and this
+        # check is staged-scoped by design), so it must say so rather than exit mute.
+        print("OK — nothing staged; this check is staged-scoped (0 script(s) inspected).")
         return 0
     staged_set = set(staged)
     scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
@@ -79,6 +84,18 @@ def main() -> int:
 
     for w in warnings:
         print(f"WARNING: {w}")
+    if not warnings:
+        # ⚠️ State the DENOMINATOR on the clean path. Until 2026-09-01 this check printed
+        # NOTHING on every silent outcome — no staged files, no staged scripts, and all-clean
+        # were three different states that looked identical, and identical to the check never
+        # having run (web-ecommerce-factory, 01M1E6S1EAK7DNP74C1K9YHP3Z: "pass and no-op are
+        # indistinguishable"). A "0 findings" verdict that cannot say how many subjects it
+        # examined is indistinguishable from having looked at nothing — the same law the
+        # governance contract applies to agents, applied to the checker itself.
+        # Deliberately NOT prefixed with ⚠: `run_optional_check` surfaces only ⚠-prefixed
+        # stdout into `--json`, so this line informs a direct/bare run without adding a row of
+        # noise to every green gate across the fleet.
+        print(f"OK — {len(scripts)} staged script(s) inspected ({len(staged)} staged file(s)).")
     return 0  # WARN-only — never blocks the gate
 
 

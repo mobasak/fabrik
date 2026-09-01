@@ -620,44 +620,48 @@ def test_foreign_locks_are_counted_but_never_printed_as_lines(tmp_path, capsys, 
 # ── live fleet verification (Phase B step 5) ──────────────────────────────────────────
 
 
-def test_against_a_copy_of_a_real_fleet_corpus(tmp_path):
-    """Read-only, on a COPY: the lock belongs to another repo and is never touched.
+def test_pre_archive_plan_path_resolves_to_stale_not_orphan(tmp_path):
+    """The archive-resolution branch, proved in BOTH directions on a hermetic corpus.
 
     ⚠️ The lock corpus alone is NOT enough. A lock's `plan` field is repo-relative and points at
     the pre-archive path, so under a lock-only tmp_path all four resolution branches miss and the
     check emits ORPHAN LOCK instead of STALE LOCK — whereupon the cheapest escape is to loosen
     `resolve_plan`. The plan tree must be materialised alongside.
+
+    ⚠️ This replaced a copy of a LIVE sibling repo's lock corpus (/opt/brand-identiy-creator).
+    That corpus was another repo's mutable housekeeping, not this repo's contract: when they
+    released and archived their plans the donor stopped emitting ANY finding (measured
+    2026-09-01: 7 locks, 0 findings of any label) and the assertion `any("deep-research" ...)`
+    failed on a name that no longer existed — a red that said nothing about `classify`. A test
+    whose premise another repo can retire is not a regression guard. The shape it was reaching
+    for is structural, so it is built here instead, and asserting the ORPHAN direction too makes
+    it a STRICTLY stronger guard than the donor version, which only ever checked the STALE half.
     """
-    import shutil
+    # The trap: the lock points at the PRE-archive path while the plan lives in archived/.
+    _plan(tmp_path, "2026-07-19-plan-1-deep-research", "Status: EXECUTED 2026-07-20", archived=True)
+    lk = _lock(
+        tmp_path,
+        "2026-07-19-plan-1-deep-research",
+        plan="docs/development/plans/2026-07-19-plan-1-deep-research.md",
+        status="active",
+    )
+    assert "STALE LOCK" in _labels(cplr.classify(tmp_path, lk)), (
+        "a lock naming the pre-archive path must resolve through the archive branch"
+    )
 
-    donor = Path("/opt/brand-identiy-creator")
-    src = donor / ".fabrik" / "plan-locks"
-    if not src.is_dir():  # pragma: no cover - the donor repo is not part of this repo's contract
-        import pytest
-
-        pytest.skip("donor corpus absent")
-
-    shutil.copytree(src, tmp_path / ".fabrik" / "plan-locks")
-    # Materialise only the plan TREE SHAPE the locks point at — names, not contents.
-    for sub in ("", "archived"):
-        d = donor / "docs" / "development" / "plans" / sub
-        if not d.is_dir():
-            continue
-        out = tmp_path / "docs" / "development" / "plans" / sub
-        out.mkdir(parents=True, exist_ok=True)
-        for f in d.iterdir():
-            if f.suffix == ".md":
-                head = "\n".join(f.read_text(encoding="utf-8", errors="replace").splitlines()[:40])
-                (out / f.name).write_text(head, encoding="utf-8")
-            elif f.is_dir():
-                (out / f.name).mkdir(exist_ok=True)
-
-    findings = []
-    for lock in sorted((tmp_path / ".fabrik" / "plan-locks").glob("*.json")):
-        findings.extend(cplr.classify(tmp_path, lock))
-    stale = [f for f in findings if f.label == "STALE LOCK"]
-    assert stale, "the known live instance must be found as STALE LOCK, not ORPHAN"
-    assert any("deep-research" in f.lock for f in stale)
+    # ...and without the plan tree the SAME lock is an ORPHAN — the branch is load-bearing, so a
+    # loosened `resolve_plan` that returned STALE unconditionally would fail here.
+    bare = tmp_path / "bare"
+    (bare / "docs" / "development" / "plans").mkdir(parents=True)
+    lk2 = _lock(
+        bare,
+        "2026-07-19-plan-1-deep-research",
+        plan="docs/development/plans/2026-07-19-plan-1-deep-research.md",
+        status="active",
+    )
+    assert "ORPHAN LOCK" in _labels(cplr.classify(bare, lk2)), (
+        "an unresolvable plan must stay ORPHAN — not be swept into STALE"
+    )
 
 
 # ── regressions from the closing non-author sweeps ────────────────────────────────────

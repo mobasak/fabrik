@@ -271,9 +271,22 @@ def test_main_exits_zero_with_findings(tmp_path):
     assert cc.main(["--project-root", str(tmp_path)]) == 0
 
 
-def test_main_exits_zero_on_a_blocking_mixup(tmp_path):
+def test_main_exits_one_on_a_blocking_mixup(tmp_path):
+    """The ONE finding class that carries its verdict in the exit code — deliberately.
+
+    ⚠️ This asserted `== 0` until 2026-09-01, encoding the pre-flip contract and reding the suite
+    after the flip landed without it. The corpus audit (cmd 14/31, 2026-08-29) changed the
+    registration in `final_gate.py` from `warn_only` to `advisory=True` precisely because
+    "three files said BLOCKING while `return 0` + warn_only made blocking impossible" — the
+    BLOCKING verdict was typography. A cert board wearing `## Ticket Board` gets dispatched to
+    CODING agents by /fabrik-execute-plan's bare-string trigger, so it MUST red the gate.
+
+    The sibling `test_main_exits_zero_with_findings` still holds: ordinary coverage findings stay
+    exit-0 and advisory. Only the mix-up class blocks. Both directions are asserted so a future
+    "make it uniform" edit cannot quietly collapse them into one.
+    """
     _board(tmp_path, ["| MENU-1 | T3 | gui | EXERCISED | x |"], heading="## Ticket Board")
-    assert cc.main(["--project-root", str(tmp_path)]) == 0
+    assert cc.main(["--project-root", str(tmp_path)]) == 1
 
 
 def test_main_exits_zero_on_an_unknown_flag(tmp_path):
@@ -545,12 +558,39 @@ def test_an_unrelated_source_key_is_not_read_as_a_declaration(tmp_path):
     assert "stripe" not in source
 
 
+def _assembled(name: str) -> str:
+    """A command source WITH its `{{include:NAME}}` fragments resolved.
+
+    ⚠️ Reading the bare source is the wrong denominator, and it false-failed here. Commit 619e83d0
+    ("the gauntlet twins shared 65 windows of contract — now they share fragments") deduplicated
+    the shared certification contract into `_fragments/cert-board-contract.md`, which BOTH twins
+    include. The clause was intact in every rendered command the whole time; only this test, which
+    grepped `_sources/` alone, saw it as deleted. Grade the ASSEMBLED contract — the corpus law is
+    "evaluate RENDERED, not source-alone" — but assemble it from the repo rather than reading
+    ~/.claude/commands, so the assertion cannot drift with an unrendered box.
+    """
+    frag_dir = REPO / "commands" / "_fragments"
+    text = (REPO / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+    for _ in range(5):  # fragments may themselves include; bounded to refuse a cycle
+        expanded = re.sub(
+            r"\{\{include:([\w-]+)\}\}",
+            lambda m: (frag_dir / f"{m.group(1)}.md").read_text(encoding="utf-8")
+            if (frag_dir / f"{m.group(1)}.md").is_file()
+            else m.group(0),
+            text,
+        )
+        if expanded == text:
+            return text
+        text = expanded
+    return text
+
+
 def test_the_features_traceability_clause_survived_the_denominator_change(tmp_path):
     """The doc inventory was DEMOTED to a cross-check, and the Phase-C rewrite deleted the one clause
     that gave the cross-check teeth: every FEATURES row maps to the IDs that exercise it, and a
     feature with zero mapped IDs cannot be reported as working. Demoting is not discarding."""
     for name in ("fabrik-user-test", "fabrik-service-test"):
-        src = (REPO / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        src = _assembled(name)
         assert "zero mapped IDs cannot be reported as working" in src, (
             f"{name}: the FEATURES-traceability clause is missing — demoting the doc inventory to a "
             f"cross-check must not delete the rule that makes the cross-check real"

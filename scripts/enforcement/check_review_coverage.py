@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py
 """Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 
 Companion to check_convergence.py for the coverage-adjudicated review commands
@@ -232,6 +233,16 @@ def _checklist_section(text: str) -> str | None:
 # Leading whitespace stays disallowed on purpose: the contract wants this line at column 0, where a
 # cross-run anchor is greppable.
 SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
+
+# ⚠️ ...and the SAME class again, one wrapper over: the bold fix above did not cover a markdown
+# CODE SPAN, so `**Surface:** \`<40-hex>\`` — the most natural way to write a hash in markdown, and
+# the form the contract's own guidance encourages — read as ABSENT to every hash-shaped matcher
+# below. Measured 2026-09-01 on this repo's own corpus: 5 of 181 review artifacts were being
+# misread that way, including one written the same day by the session that then "measured" a 20/181
+# conformance rate and nearly reported it as agent drift. Fixing the location (bold) and leaving the
+# class (any quoting of the hash) is what made this recur; the tolerance now lives in ONE constant
+# that every hash-anchored Surface matcher composes.
+_SURFACE_QUOTE = r"[`'\"]*\s*"
 
 # An honest IN-PROGRESS review. The /fabrik-review methodology requires the report to exist BEFORE
 # pass 1 ("a review that exists only in chat does not exist"), while every other rule here treats a
@@ -543,7 +554,7 @@ _MEGA_HASH_PAIR = re.compile(rf"({_MEGA_HEX})\s*(?:→|->)\s*({_MEGA_HEX})")
 # `## Per-lens tally` table with a quiet row silently became "the final round", masking a
 # non-quiet exit — the LAST-match defect's THIRD appearance in this file, one table over.
 _MEGA_SURFACE = re.compile(
-    rf"^\**Surface:\**\s*({_MEGA_HEX})\b", re.M
+    rf"^\**Surface:\**\s*{_SURFACE_QUOTE}({_MEGA_HEX})\b", re.M
 )  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
@@ -711,7 +722,7 @@ _LIST_WRAP = re.compile(r"^ {0,3}(?:[-*+]|\d+[.)])\s+")
 _WRAPPED_HEADINGISH = re.compile(
     r"#{1,6}(?:\s|$)"
     r"|\**Status:\**\s*IN-PROGRESS\b"
-    r"|\**Surface:\**\s*[0-9a-fA-F]{12,}",
+    rf"|\**Surface:\**\s*{_SURFACE_QUOTE}[0-9a-fA-F]{{12,}}",
     re.I,
 )
 # One container-prefix consumer for the normalization loop (round 79: containers COMPOSE —
