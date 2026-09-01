@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rules currency pass file 10: core/50-code-review.md — two drift-anchor inversions + dead tooling (2026-09-01)
+
+The pack told ~46 repos the OPPOSITE of two universal anchors (agents don't
+commit/push; stop review at 5 iterations) and prescribed two scripts the sync
+actively deletes. Both laws restored, § D replaced with the real review family
+(/fabrik-review-scoped vs /fabrik-review + escalation triggers + rubric arming
++ the Stop-hook record), stale trigger-count removed in favour of the registry
+SSOT. Second pass (Opus 5 — first D-063 quota fallback) swept the fix RESIDUE:
+"full gate at milestone" survived in 3 places against the per-task completion
+gate; a competing GATE:/NEXT: output grammar (PASS/FAIL vs "status":"success");
+"stop and ask" vs the question bar; orphaned Systemic Gate section; dead
+"iteration limits" wording; bare --lean. FIX-DIRECTIVE + 62-using-subagents
+pointers added. Cross-repo finding routed to fabrik-lib (sync-excluded copy).
+
 ### Changed — rules currency pass file 9: core/45-testing-strategy.md to the D-062 bar (2026-09-01)
 
 Vitest/RTL ban narrowed to the async-RSC boundary (matches official Next.js

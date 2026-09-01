@@ -177,6 +177,32 @@ during the pass). Scope: core/ then ALL folders, to completion.
   current, machine-consumable (what/how to deploy; which VPS services: workers, systemd, cron).
   Enforcement lands at 40-documentation + 75-workers-jobs + deploy-surface turns: check the
   rules ENFORCE currency + consumability, not merely name the files.
+- **File-10 (50-code-review) COMPLETE under the full bar (2026-09-01) — the worst-contradiction pack.**
+  Own legs: TWO drift-anchor INVERSIONS shipping to ~46 repos — "the user commits and pushes,
+  coding agents only implement and fix" (vs commit-at-task-end + push-at-task-end, both § UNIVERSAL
+  anchors) and "Max 5 review iterations then STOP" (a fourth halt condition vs converge-to-fixed-
+  point + the three BLOCKED cases); § D prescribed TWO NONEXISTENT scripts (kilo_code_review.py /
+  kilo_docs_enforcer.py — in the sync's RETIRED_CORE_SCRIPTS, i.e. actively deleted from projects:
+  a guaranteed-fail instruction, not merely stale) → replaced with the real /fabrik-review family;
+  stale "one of 14 trigger-based doc updates" (matrix carries 25) → SSOT pointer, no count.
+  **SECOND OPINION ran on OPUS 5 — first exercise of the D-063 quota fallback (Fable 5 limit hit
+  mid-turn).** Its verdict: all four legs CONFIRMED real (and #1 worse than I stated — the sync
+  guarantees the script's absence), and then it caught that FOUR of its top five were MY OWN FIX
+  RESIDUE: I fixed instances and never swept the file for the class (FIX-directive verb 2). All
+  accepted and swept this turn — `:97` Key Reminder contradicted my new `:36` 61 lines apart;
+  "full gate at milestone, not every task" survived in THREE places (header, § C heading, Key
+  Reminders) against the per-task completion-gate law; Output Format shipped a COMPETING
+  GATE:/NEXT: grammar with PASS/FAIL where the gate emits "status": "success"; "stop and ask"
+  against the question bar / operator-decision bar; orphaned Systemic Gate H3 under § D; dead
+  "iteration limits" vocabulary; bare `--lean` in the child-project note. ADDED per its verdicts:
+  FIX-DIRECTIVE + 62-using-subagents pointers. **External-practice research (13 sources) REJECTED
+  a new mechanism** — 2026 consensus keeps a ceiling but as a BUDGET exit with a different report,
+  never as the quality gate; our convergence law + 3-round escalation already matches the shape,
+  and the false-consensus risk it names is already mitigated by "refuted with the disproving line".
+  Rejection recorded per FIX-directive verb 5. CROSS-REPO ROUTED: /opt/fabrik-lib is sync-EXCLUDED
+  and still carries the entire pre-fix pack — mail 01M1ENAVE3MD0KV5HMWC74QEXJ (with the systemic
+  ask: excluded repos need a periodic pack-diff, or their rules contradict the anchors their own
+  drift check enforces).
 - **File-9 (45-testing-strategy) COMPLETE under the full bar (2026-09-01).** Own legs: the pack's
   biggest policy line MOVED with the world — the blanket Vitest/RTL ban for Next.js narrowed to the
   ASYNC-RSC boundary (official Next.js docs now recommend Vitest for the unit lane; async Server

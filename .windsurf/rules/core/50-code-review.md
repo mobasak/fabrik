@@ -5,7 +5,7 @@ description: Code review workflow, quality gate commands, and reusability discip
 <!-- CONSUMER: Coding agents (all) — loaded on-demand for self-review/gate tasks
      GOAL: Quality gate commands (lean/full/systemic), self-review audit, reusability discipline
      TRAYCER USAGE: Not directly injected — agents load this when running gates.
-     AGENT USAGE: Run internal audit + lean gate before reporting completion. Full gate at milestone. -->
+     AGENT USAGE: Lean gate WHILE iterating; the full --json gate is the per-task completion gate. -->
 
 # Code Review
 
@@ -36,7 +36,7 @@ Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no co
 **Tier 1 is for iteration only — never the completion gate**: that is the full `--json` run below.
 Add `--check` for a read-only run (no fixes, no auto-stage).
 
-**Note:** `final_gate.py` runs in the fabrik project context with its own `.venv`. In child projects, use `uv run python scripts/final_gate.py --lean` if the gate script is synced.
+**Note:** `final_gate.py` runs in the fabrik project context with its own `.venv`. In child projects, use `uv run python scripts/final_gate.py --lean --json` if the gate script is synced.
 
 ---
 
@@ -54,9 +54,9 @@ See `40-documentation.md` for the full Documentation Sync Matrix — changelog i
 
 ---
 
-## C) Milestone Gate (Batch Closure Only)
+## C) Completion Gate (EVERY task — and again at batch closure)
 
-When closing a milestone or a batch of related tickets, run the full gate once and fix all findings before handoff:
+The full gate is the **per-task definition of done**, not a milestone ritual: run it before reporting completion, fix to `"status": "success"`, and re-run it in the SAME turn you claim green (a stale pass is not evidence). Run it once more when closing a batch:
 
 ```bash
 python scripts/final_gate.py --json
@@ -82,20 +82,22 @@ converge to a round that raises **zero new** candidates, and are **fix-in-run**:
 or refuted with the disproving line — never filed as someone else's problem. Stage specific files
 by name, never `git add -A`.
 
-### Systemic Gate (Tier 3 — On-Demand Only)
+---
+
+## E) Systemic Gate (Tier 3 — On-Demand Only)
 
 ```bash
 python scripts/final_gate.py --systemic
 ```
 
-Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, env contract. Never part of a normal fix loop.
+Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints, env contract. NARROWER than the completion gate — never a substitute for it, never part of a normal fix loop.
 
 ---
 
 ## Key Reminders
 
-- Internal audit + lean gate is **MANDATORY** before reporting completion.
-- **Changelog is MANDATORY for any code/config/infrastructure change. Full gate runs at milestone/batch closure, not for every task.**
+- Internal audit is **MANDATORY** before reporting completion; the lean gate is the fast loop DURING iteration.
+- **The full `--json` gate is the per-task completion gate** — green on it (this turn, not an earlier run) is the definition of done. **Changelog is MANDATORY for any code/config/infrastructure change.**
 - The coding agent FIXES what the review finds, in the same run. A finding handed onward is not a review.
 - **The agent COMMITS AND PUSHES its own work at task end** — explicit pathspecs + provenance trailers, never `git add -A`. An uncommitted task is an unfinished task; an unpushed one is off-box-unprotected. (Hub + project contracts, § EXIT — Stop-hook-enforced.)
 - **Review iterates to a FIXED POINT, not to a counter** — done is a pass that raises zero new candidates. Only the three sanctioned BLOCKED cases halt early: 3 consecutive same-test failures · missing infra · an unresolvable spec contradiction. Rounds that keep finding mean the surface outgrew the scoped command — escalate to `/fabrik-review`, don't stop.
@@ -105,14 +107,13 @@ Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints
 
 ## Output Format
 
-After each gate, report:
+Mid-run (after an ITERATION gate) report the tier, the changed files, and whether you proceed.
 
-```text
-GATE: <lean|full|systemic> STATUS: PASS / FAIL
-Changed files: <paths>
-Gate output: <result>
-Next: Proceed / STOP
-```
+**At task completion, the report format is the contract's FINAL OUTPUT block, not a local one** —
+`GATE: <command run> → success|failure` (the gate emits `"status": "success"`, never `PASS`) plus
+the `DOCS UPDATED` / `CHANGELOG` / `LESSONS LEARNT` / `DONE` / `NEXT` / `FEEDBACK` lines. See
+`CLAUDE.md` § FINAL OUTPUT — including the bar on `NEXT: operator decision`. Never emit a
+competing `GATE:`/`NEXT:` grammar.
 
 ---
 
@@ -133,7 +134,7 @@ When reviewing a diff, ask: "Could this helper, decorator, or class serve any ot
 
 These constraints prevent "agent drift" and bikeshedding:
 
-- **No Speculation:** If information is missing, state assumptions explicitly or stop and ask. Do not guess.
+- **No Speculation:** If information is missing, state the assumption explicitly and proceed — or, when it genuinely blocks, exhaust the self-service sources (rule packs, `agents-fabrik.md`, `docs/`, `AFCL.md`, codebase grep) and then raise `BLOCKED: <what> — searched: <sources> — missing: <need>`. Never guess; never stall on a question the artifacts already answer.
 - **Behavior Contract Enforcement:** the plan enumerates a test per distinct user-observable behavior / acceptance criterion (Given/When/Then), risk-ordered, skip trivia — not a single test. See `45-testing-strategy.md`.
 - **Real-World Breakage Review:** For IO/FS/Exec changes, define:
   - **Trigger:** What action causes the failure?
@@ -148,6 +149,8 @@ These constraints prevent "agent drift" and bikeshedding:
 
 ## Related Rule Packs
 
+- **`CLAUDE.md` § THE FIX DIRECTIVE** — binding on every fix; its verb 6 IS this pack ("review your own fix and fix what the review finds"), verbs 1-5 are measure → fix-the-class → no-stopgaps → fix+grader → don't overengineer
+- `62-using-subagents.md` — finder dispatch (pool-default vs native-added), the parallelism trap
 - `40-documentation.md` — Documentation Sync Matrix, CHANGELOG, INDEX.md, LESSONS_LEARNT, DECISIONS
 - `45-testing-strategy.md` — Behavior Contract, framework per scaffold, test fixtures
 - `30-ops.md` — Dockerfile + compose checklist (aggregated in the internal audit above)
@@ -161,6 +164,6 @@ These constraints prevent "agent drift" and bikeshedding:
 Coding agents (Claude Code + dispatched subagents) load this pack on demand when a code-review or completion-gate task is in flight. It provides:
 
 1. Quality gate commands organized by tier (lean, full, systemic).
-2. Self-review reminders (output format, iteration limits, fixer responsibility).
+2. Self-review reminders (output format, convergence law, fixer responsibility).
 3. Reusability discipline (cross-project-extractable code review).
 4. Solo-Dev Creed for architectural discipline.
