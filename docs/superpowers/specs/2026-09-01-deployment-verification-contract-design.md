@@ -222,6 +222,35 @@ it was never proven true of *my build*.
     mode already debugged once
 23. i18n/UI truth: translations **rendering**, not merely 8,289 rows existing — that precise defect shipped before
 
+### ⚠️ Honest bias assessment (spec-review pass C1 — operator: *"is your spec only validating tryton-crm?"*)
+
+**Yes, partly — and it is worth stating rather than defending.** The corpus was derived from one live
+deploy (tryton-crm, a DB-backed multi-container service) and it shows:
+
+| layer | generalises cleanly | carries a service/DB assumption |
+|---|---|---|
+| **1 Identity** | SHA · image digest · lockfile — **all 13 types** | *migration head* — DB types only |
+| **2 Completeness** | env keys · declared-inventory diff | route table (HTTP only) · queue drain (worker only) · **row counts / filestore (DB only)** |
+| **3 Infra** | `shape:`-gated throughout — **correct by construction** | — |
+| **4 Behaviour** | deliberate-failure probe · declared-capability exercise | write path · **money path** · external-deps-from-inside-containers (service only) |
+
+So Layers 1 and 3 are genuinely universal; **Layers 2 and 4 are service-shaped**, and the per-type table
+below handles the rest by *exception* (8 delta rows) rather than by construction. For a `static-site`
+that reads *"partial"* without saying which rows — which is the same under-specification this spec
+criticises elsewhere.
+
+**The generalisation that fixes it, and it is one sentence:** every Layer-2/4 row is an instance of
+**"the project's declared inventory, exercised against the deployed artifact"**. The *inventory* differs
+per type — routes and rows for a service, pages and asset hashes for a `static-site`, permissions and
+entry points for a `chrome-extension`, jobs and queue depth for a `file-worker` — but the *rule* does not.
+The per-type packs therefore each declare their own inventory kind; they do not each re-invent a
+checklist. **That is what makes this a contract rather than a Tryton checklist.**
+
+⚠️ **Named risk, not resolved here:** the packs for the four store types and the two static types are
+the LEAST grounded in this spec, because no such deploy was exercised this session. They are the epic's
+highest-uncertainty tickets and should be built against a real deploy of each, not from this document's
+extrapolation.
+
 ### Per-type applicability (all 13 `SCAFFOLD_TYPES` — none omitted, I9)
 
 | type | Layers 1/3 | notable delta |
@@ -407,6 +436,17 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | — | **operator: "state our goal first" — review re-run with GOAL CONFORMANCE as the axis** | — | — | — | — |
 | B1 | every goal clause audited against what the spec delivers | goal-conformance | 2 | 2 | `58f7e9f5…` → `1173ae8c…` |
 | B2 | full confirming re-sweep | re-derivation | **0** | **0** | `1173ae8c…` stable ✓ |
+| C1 | tryton-coverage audit + **type-generality** (operator: *"is your spec only validating tryton-crm?"*) | coverage + bias | 1 | 1 | edited — bias assessment |
+| C2 | confirming re-sweep | re-derivation | **0** | **0** | stable ✓ |
+
+**Pass C2 terminal round — `found: 0, fixed: 0`.**
+
+**Defect 11 — the corpus is service/DB-shaped and did not admit it.** All 12 of tryton-crm's A–H checks
+map (verified individually), but the *layers* were derived from one DB-backed multi-container deploy.
+Layers 1 and 3 generalise; Layers 2 and 4 carry service assumptions that the per-type table papered over
+with the word *"partial"*. Fixed by naming the bias, stating the generalisation that resolves it
+(**declared inventory, exercised against the deployed artifact** — the inventory kind varies by type, the
+rule does not), and flagging the six least-grounded packs as the epic's highest-uncertainty tickets.
 
 **Pass B2 terminal round — `found: 0, fixed: 0`.**
 
