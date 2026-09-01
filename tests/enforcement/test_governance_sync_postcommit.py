@@ -102,6 +102,28 @@ def _hub_clone(tmp_path: Path, changed: list[str]) -> Path:
     repo = tmp_path / "hub"
     repo.mkdir()
     genv = _clean_env()
+    # ⚠️ BELT AND BRACES, and it is not paranoia — it is an incident report. On 2026-09-01 a
+    # red-on-revert experiment ran this suite with the `_clean_env` scrub disabled AND a hostile
+    # `GIT_DIR=/opt/fabrik/.git GIT_WORK_TREE=/opt/fabrik` in order to PROVE the isolation hole was
+    # real. It proved it: `git add -A` + `git commit -qm "t"` below ran against the REAL repo and
+    # committed a sibling session's uncommitted WIP as author `t <t@fabrik.local>` (commit
+    # f7627885). Nothing was lost — everything was committed rather than destroyed — but a peer's
+    # work landed in history under a meaningless author and message, and it was pushed.
+    # The scrub alone is not enough, because the scrub is exactly what an experiment disables.
+    # This guard is independent of it: if git would resolve ANY repo other than the one we just
+    # created under tmp_path, refuse to run rather than mutate it.
+    probe = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--absolute-git-dir"],
+        capture_output=True,
+        text=True,
+        env=genv,
+    )
+    resolved = probe.stdout.strip()
+    if resolved and Path(resolved).resolve() != (repo / ".git").resolve():
+        raise AssertionError(
+            f"REFUSING to run: git resolves to {resolved!r}, not the scratch repo under tmp_path. "
+            f"A GIT_DIR/GIT_WORK_TREE is leaking in and `git add -A` would commit a real repo."
+        )
     subprocess.run(["git", "init", "-q", str(repo)], check=True, env=genv)
     for cfg in (("user.email", "t@fabrik.local"), ("user.name", "t")):
         subprocess.run(["git", "-C", str(repo), "config", *cfg], check=True, env=genv)
