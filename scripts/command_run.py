@@ -405,6 +405,31 @@ def _repo_root() -> str:
         return ""
 
 
+def _mcp_probe_advisory() -> None:
+    """Assigned-vs-live MCP diff printed at every run OPEN (operator directive
+    2026-09-01: "i still dont see agents are checking their assigned mcps" —
+    the ORIENT prose mandated it and nothing ran it; this is the one moment
+    every /fabrik-* run passes through). Advisory by D-033: best-effort, short
+    timeout, silent when the box-local health script is absent (project repos
+    reach it by absolute path; a box without it degrades to nothing)."""
+    probe = Path("/opt/fabrik/scripts/sysadmin/mcp_health.py")
+    if not probe.exists():
+        return
+    try:
+        out = subprocess.run(
+            [sys.executable, str(probe), "--timeout", "6"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.strip()
+        if out:
+            print(out)
+    except Exception:
+        print(
+            "⚠ mcp probe: health script errored/timed out — fix-first per D-033 if MCPs matter to this run"
+        )
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S%z")
 
@@ -721,12 +746,17 @@ def _has_filing_verb(low: str) -> bool:
     inflated the diligence metric with attributions that never happened)."""
     for m in re.finditer(r"\b(filed|sent|routed|mailed|raised|reported)\b", low):
         preceding = low[: m.start()].split()[-3:]
-        if not any(re.fullmatch(r"(not|never|no|nothing|nowhere|\w+n't)", t.strip(".,;:—–-")) for t in preceding):
+        if not any(
+            re.fullmatch(r"(not|never|no|nothing|nowhere|\w+n't)", t.strip(".,;:—–-"))
+            for t in preceding
+        ):
             return True
     return False
 
 
-_VACUOUS_WORDS = frozenset({"nothing", "here", "to", "report", "at", "all", "really", "else", "new", "found"})
+_VACUOUS_WORDS = frozenset(
+    {"nothing", "here", "to", "report", "at", "all", "really", "else", "new", "found"}
+)
 
 
 def _feedback_lacks_substance(text: str) -> bool:
@@ -961,6 +991,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(new)
         fields["persisted"] = save(sid, new)
         print(pinned_line(new))
+        _mcp_probe_advisory()
         return 0
 
     if not rec:

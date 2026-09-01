@@ -125,11 +125,20 @@ def _kaizen(event: str, sid: object, **fields: object) -> None:
         pass
 
 
-#: The mandated 6-line FINAL OUTPUT block, by its line-anchored keys. ALL six must be
+#: The mandated 7-line FINAL OUTPUT block, by its line-anchored keys. ALL seven must be
 #: present: the conversational two-line ``STATE:``/``NEXT:`` footer shares one of them,
 #: and counting that as a task terminator would inflate the completion metric with
-#: every chat turn.
-_FINAL_BLOCK_KEYS = ("GATE:", "DOCS UPDATED:", "CHANGELOG:", "LESSONS LEARNT:", "DONE:", "NEXT:")
+#: every chat turn. ``FEEDBACK:`` joined 2026-09-01 (operator directive — the run-record
+#: close verdict made chat-visible; prose alone produced zero visible reports six times).
+_FINAL_BLOCK_KEYS = (
+    "GATE:",
+    "DOCS UPDATED:",
+    "CHANGELOG:",
+    "LESSONS LEARNT:",
+    "DONE:",
+    "NEXT:",
+    "FEEDBACK:",
+)
 
 
 def _final_block_seen(text: str) -> bool:

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — FINAL OUTPUT block gains an enforced FEEDBACK line; MCP probe at every run open (D-059, 2026-09-01)
+
+Operator directive: the 7th block line `FEEDBACK:` (the close verdict, chat-visible) is now
+REQUIRED by the Stop hook's `_FINAL_BLOCK_KEYS` — missing it blocks the turn, fleet-wide.
+And `command_run.py start` runs `mcp_health.py` (assigned-vs-live diff, advisory, 30s cap,
+silent where the box-local script is absent) — the ORIENT-mandated MCP check now executes at
+the one moment every /fabrik-* run passes through instead of living as prose.
+
 ### Added — decision-ledger duplicate-id gate check, WARN-tier (2026-09-01)
 
 `check_decisions_unique.py` in the synced enforcement set, wired into the gate scoped to

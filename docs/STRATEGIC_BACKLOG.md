@@ -365,7 +365,11 @@ next registry-drift recurrence.
   learning recorded in the check docstring: BOTH-CITED is the common case; first-committed carries
   the tiebreak.
 - **mcp-config-changed hook precision** (01M1BXBRKM): name WHICH servers changed / suppress when
-  the repo-assigned set is unaffected (false-fired on wef3 AND on this session today).
+  the repo-assigned set is unaffected (false-fired on wef3 AND on this session today). ALSO
+  (operator, 2026-09-01: "i restarted all windows why does you and all agents keep saying"): the
+  warning re-fires on EVERY prompt of a resumed conversation — a window restart cannot clear it
+  (resumed conversations keep the old tool universe by design; only a NEW conversation gets the
+  new roster). Add told-once suppression per session, and say "start a NEW chat" not "reload".
 - **tech-stack guide engine-neutral ecommerce row** (01M19G0HM0 + correction 01M19G66X8): replace
   the Vendure default with the choice criterion (copyleft tolerance, payment-provider availability);
   point iyzico-reaching projects at fabrik-lib payments/ first.
