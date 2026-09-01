@@ -85,6 +85,11 @@ case "$JOB" in
         # them — the operator does not read dashboards. Watermarked inside the relay,
         # so double-runs are no-ops; a relay failure never unstamps the collector.
         "$PY" "$ROOT/scripts/sysadmin/feedback_relay.py" || true
+        # RIDER (rules pass 2026-09-01, non-fatal): version-pin tripwire — mails infra
+        # when a rules pack pins a python/node version the world has moved past
+        # (the answer to "what happens in one year"). Watermarked per upstream
+        # release; silent on network blips.
+        "$PY" "$ROOT/scripts/sysadmin/rules_currency_watch.py" || true
         ;;
     kaizen_outcomes.py)
         # The nightly fleet-health sweep (T07 outcome tier): clean HEAD worktrees,

@@ -114,6 +114,10 @@ scaffold half is fleet's).
   10-python now points at 30-ops as the single owner of the variant.
 - Evaluated so far: 10-python (2026-09-01 — 3.13→3.14 current-stable fixed; Alpine rationale
   updated to the PEP-656 reality; distro literal deferred to the class commit).
+- **Tripwire ARMED** (`rules_currency_watch.py`, weekly-cron rider): pinned python/node vs
+  endoflife.date, mails infra per new upstream release (watermarked, silent on blips). First
+  scheduled firing: node 26 LTS on 2026-10-28 (packs pin 24). This is the "what happens in one
+  year" answer — the drift now pages instead of waiting for a re-read.
 
 ## Activation
 
