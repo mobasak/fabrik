@@ -1,7 +1,20 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
-# Lesson 146: "my search didn't find it" is grounds to REGISTER a claim, never to DELETE it — a failed verification is a bounded negative
+# Lesson 147: a truncating READ written BACK is an amputation that reviews don't see — grep for the marker, don't trust the eye
+
+Commit 6e404160 (the 12-factor rules pass) wrote `35-security-auth.md` back from a
+truncated read: the file ended mid-sentence with a literal `…[truncated]` line, deleting 7
+Done When rows and the ENTIRE security-critical "Spec Contract — Auth Registrars" section
+(the bearer-bypass warning). It sat committed for weeks and survived every review of that
+pass — a reviewer scrolling a 377-line file does not notice that line 377 should have been
+line 410. Found only when the rules currency pass read the file END-TO-END at its turn.
+Recovery was trivial (`git show <intro>~1:<file>`), detection is now mechanical
+(`test_no_pack_carries_truncation_markers`). The class: any tool that windows a read
+(`limit`, `head`, context caps) makes the WRITE path dangerous — never write a file back
+from content you did not read to EOF, and after any bulk edit, check the file's tail is a
+plausible ending, not a cliff.
+ "my search didn't find it" is grounds to REGISTER a claim, never to DELETE it — a failed verification is a bounded negative
 
 During the 12-node rules pass I deleted the pack's Mastra `easy-day-js` supply-chain incident as
 "unverified" because my one web search surfaced only other 2026 npm worms. The mandatory second

@@ -315,6 +315,30 @@ claims:
     window_days: 180
     last_verified: 2026-09-01
 
+  - id: jwt-alg-practice
+    pack: core/35-security-auth.md
+    claim: "HS256 with a 256-bit secret remains sound for issuer==verifier (Pattern A); 2026 consensus prefers EdDSA/ES256 over RSA for multi-verifier; algorithm pinning in the verifier (explicit allow-list, never header-dispatched) is the mandatory confusion-attack defense"
+    kind: practice
+    verify: "https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html; search: jwt signing algorithm best practice <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: nextjs-middleware-cve
+    pack: core/35-security-auth.md
+    claim: "CVE-2025-29927 (x-middleware-subrequest header bypass, CVSS 9.1, patched 2025-03 in 12.3.5/13.5.9/14.2.25/15.2.3) is the evidence base for the never-middleware-only rule; the rule outlives the patch"
+    kind: rationale
+    verify: "https://securitylabs.datadoghq.com/articles/nextjs-middleware-auth-bypass/"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: xfo-obsolete
+    pack: core/35-security-auth.md
+    claim: "X-Frame-Options is formally obsolete (MDN, OWASP Clickjacking cheat sheet); CSP frame-ancestors is the modern control and wins when both are present — ship both, frame-ancestors primary"
+    kind: standard
+    verify: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options; https://cheatsheetseries.owasp.org/cheatsheets/Clickjacking_Defense_Cheat_Sheet.html"
+    window_days: 365
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"

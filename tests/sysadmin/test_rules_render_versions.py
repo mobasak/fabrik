@@ -73,6 +73,21 @@ def test_loose_sweep_catches_name_version_prose_not_status_codes():
     assert not _LOOSE.search("see page 16 of the doc")
 
 
+def test_no_pack_carries_truncation_markers():
+    # A session once read a pack through a truncating tool and wrote the output
+    # BACK, amputating 35-security-auth's Done When tail + its security-critical
+    # Spec Contract section — committed, and it survived reviews for weeks
+    # (found 2026-09-01 at file 7 of the rules pass). The marker is unambiguous.
+    from pathlib import Path
+
+    offenders = [
+        str(p)
+        for p in Path("/opt/fabrik/.windsurf/rules").rglob("*.md")
+        if "[truncated]" in p.read_text(encoding="utf-8", errors="replace")
+    ]
+    assert not offenders, f"truncation markers written back to disk: {offenders}"
+
+
 def test_cleaned_packs_carry_zero_unmarked_version_literals():
     # The contract under D-062: spans only, no prose literals, in every pack the
     # rules currency pass has completed.

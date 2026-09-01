@@ -115,7 +115,8 @@ Use ONLY when a project **already runs on Supabase Auth** (a legacy or in-flight
 - Issue **long-lived opaque refresh tokens** (7 days) stored in PostgreSQL alongside user and device metadata. Refresh tokens are not JWTs — they are cryptographically random strings.
 - Deleting the refresh token ends the session — no new access tokens issue. The outstanding access token stays valid until its 15-min expiry (HS256 is stateless). For true instant revocation, add a short-TTL token denylist in Redis.
 - The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via Pydantic Settings. Never hardcode it.
-- Use HS256 unless third-party external services must verify tokens without the signing key (only then consider RS256).
+- Use HS256 while the issuer and verifier are the SAME service (Pattern A's shape — sound and simplest). The moment a second party must verify without minting, switch to an asymmetric alg — prefer EdDSA (Ed25519) or ES256 over RSA (smaller keys/signatures, fewer footguns).
+- **Pin the algorithm in the VERIFIER** — pass an explicit allow-list (`algorithms=["HS256"]`), never let the library dispatch on the token header's `alg`. Header-driven dispatch is the classic confusion attack (an RS256 public key replayed as an HS256 HMAC secret); `alg: none` is rejected unconditionally.
 
 ### Pattern B (Supabase-issued tokens) — legacy / migration-only
 
@@ -176,7 +177,7 @@ session_store[process_id][user_id] =  # Local disk - VIOLATION
 
 ## Next.js Defense-in-Depth
 
-- **Never rely solely on `middleware.ts` for access control.** CVE-2025-29927 allows complete middleware bypass via header manipulation.
+- **Never rely solely on `middleware.ts` for access control.** CVE-2025-29927 (the `x-middleware-subrequest` bypass) proved COMPLETE middleware bypass via one crafted header; it is long patched upstream, but the rule outlives the patch — a framework-layer gate is a UX affordance, never the authorization boundary.
 - Use middleware only for UX redirects (e.g. redirect to `/login` if cookie missing).
 - All Server Actions, Route Handlers, and Server Components that access sensitive data or perform mutations must call a `verifySession()` Data Access Layer utility that cryptographically validates the token with the backend (FastAPI or Supabase JWKS).
 
@@ -209,7 +210,8 @@ Apply via ASGI middleware with **precomputed constants** (no per-request string 
 
 - `Strict-Transport-Security: max-age=31536000; includeSubDomains` — add `preload` **only** if deliberately submitting to the HSTS preload list (all-subdomains-HTTPS-forever, hard to reverse; not a safe blanket default)
 - `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
+- `Content-Security-Policy: frame-ancestors 'none'` — the MODERN clickjacking control (CSP Level 2; browsers ignore XFO when it is present)
+- `X-Frame-Options: DENY` — kept as the legacy fallback only; formally obsoleted by `frame-ancestors`, never ship it ALONE
 - `Referrer-Policy: strict-origin-when-cross-origin`
 
 ---
@@ -373,5 +375,19 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 - [ ] Bearer bypass scoped: `shape.bearer_bypass_prefix` narrows the Authelia bypass to the actually-authenticated API prefix — no unauthenticated `/api/*` route left public by a default `^/api/` bypass.
 - [ ] Web login uses HttpOnly + Secure + SameSite=Lax cookie (Pattern A) or Supabase SSR cookie strategy (Pattern B).
 - [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
-- [ ] All Next.js Server Actions and data-fetching
-…[truncated]
+- [ ] All Next.js Server Actions and data-fetching Server Components call `verifySession()`.
+- [ ] CORS origins loaded from environment variables — no wildcards with credentials.
+- [ ] CSP nonce injected per-request in Next.js middleware.
+- [ ] FastAPI responses include HSTS, X-Content-Type-Options, `frame-ancestors` (+ legacy X-Frame-Options) headers.
+- [ ] JWT verifier pins its algorithm allow-list — no header-dispatched `alg`, `none` rejected.
+- [ ] Auth endpoints have rate limiting configured.
+- [ ] Internal service calls use `X-Internal-Token` header validation.
+- [ ] Transactional email via Resend + `86-email-templates.md` pipeline — no phantom gateway.
+
+---
+
+## Spec Contract — Auth Registrars
+
+Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar adds a per-domain `two_factor` rule on `fabrik apply`. API services with bearer auth: set `shape.has_bearer_api: true` — the registrar inserts an Authelia **bypass** rule *before* the `two_factor` catch-all so machine/bearer callers aren't hit with interactive 2FA. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
+
+> **⚠️ Bearer bypass scope — security-critical.** The bypass defaults to `^/api/`, which makes the **entire** `/api/*` surface public (un-2FA'd). If the application authenticates only a **sub-prefix** (e.g. `/api/v1` carries the bearer/internal-token check) while OTHER `/api/*` routes are unauthenticated (legacy / admin / destructive), you **MUST** narrow the bypass with `shape.bearer_bypass_prefix: "^/api/v1"` — otherwise `fabrik apply` exposes those routes to the public internet. **Bypass ONLY the path the app itself authenticates.** Value must start with `^/`; the verifier (`orchestrator/verifier.check_api_bypass`) probes the configured prefix on deploy. When unsure whether a service has un-auth'd `/api/*` routes, ask the app owner before relying on the `^/api/` default.
