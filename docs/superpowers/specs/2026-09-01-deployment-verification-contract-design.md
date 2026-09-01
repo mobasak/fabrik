@@ -273,6 +273,35 @@ falsifiable:
   `has_search_feature: false` is a false failure. `shape:`-driven, never assumed.
 - **Every percentage carries its denominator.** "18 of 18 Shipped rows exercised" is a claim; "looks
   complete" is not. A zero without a denominator is indistinguishable from having looked nowhere.
+- ⚠️ **DENOMINATOR INTEGRITY — the clause that makes *"100% tested"* mean anything** (spec-review pass
+  D1). The DRAFT made the **numerator** falsifiable (*every declared denominator exercised*) and left the
+  **denominator self-declared** — and the project authors both the checklist and the denominator. A repo
+  could declare 3 checks, pass 3, and report **100%**. That is the operator's bar satisfied on paper and
+  void in fact, and it is the same shape as the empty-database certification this spec exists to prevent.
+
+  **Rule: a denominator is DERIVED wherever derivable, and where it must be declared it is CROSS-CHECKED
+  against a derived proxy.**
+
+  | denominator | derived from (authoritative) | never |
+  |---|---|---|
+  | routes | the router's own introspection | `FEATURES.md` prose |
+  | scheduled jobs | `ir_cron` / the live scheduler | `RESILIENCE.md` |
+  | env keys | `grep os.getenv` over source | `.env.example` alone |
+  | services | compose ∪ registrar-injected sidecars | compose alone |
+  | schema | `alembic heads` | a doc |
+  | **features** | **not derivable — `FEATURES.md` is prose** | — |
+
+  **The features row is the dangerous one, and it gets a cross-check instead of a source:** every derived
+  route must map to a *Shipped* row, and every *Shipped* row to a route. **A route with no feature row, or
+  a feature row with no route, is a FINDING** — which is what makes an under-declared `FEATURES.md`
+  detectable rather than silently shrinking the denominator.
+
+  **And the checklist's own denominator is the corpus:** the authoring command must emit a row for every
+  Layer 1–4 check applicable to the type. A row the project cannot yet assert is
+  `UNVERIFIABLE (<why>)` — **counted and reported in the verdict**, so a shrunk denominator is visible
+  rather than absent. *"18 of 22 exercised, 4 UNVERIFIABLE"* is a true statement; *"100%"* over a
+  self-chosen 3 is not.
+
 - **A check that cannot fail is a defect.** Every check must be **seen red** against a deliberately broken
   state, or it does not count — watched-fail-first applied to verification itself. This is what a
   healthcheck surviving a 22-hour outage teaches.
@@ -438,6 +467,28 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | B2 | full confirming re-sweep | re-derivation | **0** | **0** | `1173ae8c…` stable ✓ |
 | C1 | tryton-coverage audit + **type-generality** (operator: *"is your spec only validating tryton-crm?"*) | coverage + bias | 1 | 1 | edited — bias assessment |
 | C2 | confirming re-sweep | re-derivation | **0** | **0** | stable ✓ |
+| — | **operator re-invoked with THE GOAL as the argument — reviewed against the bar itself** | — | — | — | — |
+| D1 | *"100% tested"* stress-tested for circularity | goal-as-measuring-stick | 1 | 1 | `a7b5307f…` → `b00ff30a…` |
+| D2 | confirming re-sweep | re-derivation | **0** | **0** | `b00ff30a…` stable ✓ |
+
+**Pass D2 terminal round — `found: 0, fixed: 0`.**
+
+**Defect 12 — *"100% tested"* was circular, and it is the operator's actual bar.** The spec made the
+**numerator** falsifiable (*every declared denominator exercised*) while the **denominator stayed
+self-declared** — and the project authors both the checklist and the denominator. A repo could declare 3
+checks, pass 3, and report **100%**: the bar satisfied on paper and void in fact, the same shape as the
+empty-database certification. Fixed with **denominator integrity** — derive every denominator that is
+derivable (routes from the router, jobs from the scheduler, env keys from source, services from
+compose ∪ sidecars, schema from `alembic heads`), and for the one that cannot be derived (**features**,
+because `FEATURES.md` is prose) require a **bidirectional cross-check against derived routes**, so an
+under-declared inventory is a finding rather than a smaller denominator. The checklist's own denominator
+is the corpus, and `UNVERIFIABLE (<why>)` rows are **counted in the verdict** so shrinkage is visible.
+
+**12 defects across 10 passes, all mine.** The pattern is worth stating plainly: passes 1–8 asked *"is
+this internally consistent?"*, B1–B2 asked *"does it serve the goal?"*, C1 asked *"does it generalise?"*,
+and D1 asked *"can the goal's own words be gamed?"* — each new question found something the previous
+lens structurally could not. **Convergence is relative to the question being asked**, which is the
+deepest thing this review taught, and it applies to the verification contract itself.
 
 **Pass C2 terminal round — `found: 0, fixed: 0`.**
 
