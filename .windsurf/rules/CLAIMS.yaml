@@ -86,6 +86,23 @@ claims:
     verify: "https://hub.docker.com/_/python/tags?name=slim"
     window_days: 90
     last_verified: 2026-09-01
+    superseded: 2026-09-01   # flip EXECUTED (D-064) — and the bare-slim clause was over-broad: true for python, FALSE for node (24-slim digest == 24-bookworm-slim, proven 2026-09-01). Successor: debian-pin-trixie
+
+  - id: uv-copy-pinned
+    pack: core/30-ops.md
+    claim: "Astral's documented Docker pattern is COPY --from=ghcr.io/astral-sh/uv:<pin> with an exact version pin (uv_version span, 0.12.8 at write); unpinned pip-install-uv re-resolves a build tool per build"
+    kind: practice
+    verify: "https://docs.astral.sh/uv/guides/integration/docker/; https://pypi.org/pypi/uv/json"
+    window_days: 90
+    last_verified: 2026-09-01
+
+  - id: redis-fleet-major
+    pack: core/30-ops.md
+    claim: "redis-main runs redis:7-alpine (probed live 2026-09-01); redis 7.x active support ended 2025-05, security-only to 2029-12; current major is 8.x — deliberate fleet state, upgrade is a fleet infra decision with a 2029 horizon"
+    kind: version
+    verify: "https://endoflife.date/redis; ssh vps sudo docker inspect redis-main --format '{{.Config.Image}}'"
+    window_days: 180
+    last_verified: 2026-09-01
 
   - id: node-lts-line
     pack: core/12-node.md, core/20-typescript.md

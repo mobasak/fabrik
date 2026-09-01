@@ -170,6 +170,23 @@ during the pass). Scope: core/ then ALL folders, to completion.
   leads, scaffold follows: flip the emission to accept `Idempotency-Key` (keep `X-` as legacy
   fallback) at the next scaffolder window. Note the scaffold example is a POST — still
   key-required under the narrowed POST/non-idempotent-PATCH scope.
+- **File-6 (30-ops) COMPLETE under the full bar (2026-09-01) — the class-owner turn.** D-064
+  bookworm→trixie EXECUTED (own grounds: debian.org + endoflife + Docker Hub tag probes; the
+  opinion independently endorsed with digest-level proof). File-1 deferrals closed: HEALTHCHECK
+  → dep-free /healthz (migration clause for pre-split services; compose-override mirror named);
+  base-image table span-carried. Parity section rewritten to PROBED truth (VPS runs
+  postgres:16-alpine + redis:7-alpine; U+2011 hyphens killed; Alpine ban scoped to images WE
+  build). **SECOND OPINION (Fable 5, 17 verdicts + flip endorsement): 4 FIX + 1 ADD accepted:
+  apt exact-pin example was BROKEN on the pack's own new base (ffmpeg=7:6.1.1-3 absent from
+  trixie — the only Follow-verbatim block that failed verbatim; pins dropped, base-is-the-
+  boundary rule); unpinned pip-install-uv → Astral's COPY --from with span-owned uv_version pin;
+  file-1's debian-slim-variant claims row was over-broad (bare -slim = trixie TRUE for python,
+  FALSE for node, digest-proven) → superseded (3rd supersede of the day); redis-fleet-major
+  horizon row added (7.x security ends 2029-12, current 8.x); builder/runtime same-base ABI
+  sentence added. Its empirical re-proof that deploy.resources.limits works under plain compose
+  v2 (live docker inspect) retired that lore-caveat question.** 30-ops: 10 spans, zero residual.
+  pgvector probed NOT INSTALLED in postgres-main → 25-data corrected + claims row; fleet mail
+  owed (agents-fabrik.md:183 claims it "fully self-hosted" — aspirational-as-fact).
 - **File-5 (25-data-postgres) COMPLETE under the full bar (2026-09-01).** Own legs (brave + exa +
   WebFetch endoflife/SQLAlchemy/pgbouncer.org + live psql probe): stdlib `uuid.uuid7()` (Python
   3.14) replaces the uuid_utils idiom for current-python services; PgBouncer guidance rewritten

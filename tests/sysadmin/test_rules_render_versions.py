@@ -39,7 +39,7 @@ CLEANED_PACKS = {
     "/opt/fabrik/.windsurf/rules/core/15-api-contracts.md": 0,
     "/opt/fabrik/.windsurf/rules/core/20-typescript.md": 4,
     "/opt/fabrik/.windsurf/rules/core/25-data-postgres.md": 2,
-    "/opt/fabrik/.windsurf/rules/core/30-ops.md": 9,
+    "/opt/fabrik/.windsurf/rules/core/30-ops.md": 10,
 }
 
 

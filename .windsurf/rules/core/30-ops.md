@@ -67,8 +67,9 @@ WORKDIR /app
 # NO libpq-dev — that's psycopg2, which 25-data-postgres.md bans.
 RUN apt-get update && apt-get install -y --no-install-recommends gcc \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:<!--v:uv_version-->0.12.8<!--/v--> /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
-RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->
 WORKDIR /app
@@ -91,8 +92,8 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 **Notes:**
-- `uv sync --frozen` uses `uv.lock` — deterministic, no resolution at build time.
-- `.venv` is copied as a whole directory — no fragile `site-packages` path matching.
+- `uv sync --frozen` uses `uv.lock` — deterministic, no resolution at build time. uv itself arrives via the pinned `COPY --from` (Astral's documented pattern) — an unpinned `pip install uv` would re-resolve a build tool every build and break the same determinism the lockfile buys.
+- `.venv` is copied as a whole directory — no fragile `site-packages` path matching. **Both `FROM` lines must stay identical** — the venv is ABI-bound to the base (the shared marker spans keep them locked; keep them locked through hand-edits too).
 - CMD is exec form — SIGTERM reaches uvicorn directly. If you need PORT-env flexibility: `CMD ["sh", "-c", "exec uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]` — the `exec` replaces the shell so SIGTERM is still signal-safe.
 - HEALTHCHECK uses `localhost` correctly here — it runs inside the same container as the app.
 - **No libpq-dev / libpq5** — asyncpg speaks the PG wire protocol directly and ships prebuilt wheels. `libpq` is for psycopg2, which `25-data-postgres.md` bans.
@@ -470,7 +471,7 @@ The VPS Traefik uses these entrypoint names:
 - "A twelve-factor app never relies on implicit existence of system-wide packages"
 - "if the app shells out to a system tool, that tool should be vendored into the app"
 
-**Mandate:** any binary the app shells out to (ffmpeg, yt-dlp, poppler, tesseract…) MUST be `apt-get install`-ed AND version-pinned in the Dockerfile, with a `shutil.which()` startup probe that fails fast. Never assume `curl`/ImageMagick/ffmpeg exist in the image — they don't by default.
+**Mandate:** any binary the app shells out to (ffmpeg, yt-dlp, poppler, tesseract…) MUST be `apt-get install`-ed in the Dockerfile, with a `shutil.which()` startup probe that fails fast. **The pinned base image is the version boundary** — exact `=version` apt pins are banned: they break on every Debian point release as old debs leave the mirrors (the "works then mysteriously breaks" class this section exists to prevent); the codename pin + image digest give the reproducibility. Never assume `curl`/ImageMagick/ffmpeg exist in the image — they don't by default.
 
 **Concrete failure this prevents:** `subprocess.Popen(["ffmpeg", …])` works in WSL (ffmpeg on the dev's PATH) and raises `FileNotFoundError` in the container.
 
@@ -482,12 +483,13 @@ The VPS Traefik uses these entrypoint names:
 
 **✅ Correct:**
 ```dockerfile
-# Install ALL required system tools, version-pinned
+# Install ALL required system tools — unpinned inside the PINNED base
+# (the base codename+digest is the version boundary; exact =version pins rot)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    ffmpeg=7:6.1.1-3 \
-    tesseract-ocr=5.3.3-1 \
-    poppler-utils=23.11.0-1 \
+    ffmpeg \
+    tesseract-ocr \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 ```
 

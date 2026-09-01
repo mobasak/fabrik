@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 6: core/30-ops.md + the D-064 bookworm→trixie class flip (2026-09-01)
+
+Debian pin flipped fleet-wide (bookworm regular security ended 2026-07-12; one
+versions.yaml line + one render — the span machinery's first class flip in
+anger). 30-ops to the bar: base-image table + Dockerfile template span-carried
+(10 spans); HEALTHCHECK targets the dep-free /healthz per the health split;
+parity section rewritten to probed VPS truth (postgres:16-alpine/redis:7-alpine,
+Alpine ban scoped to images we build, U+2011 hyphens killed); apt exact-pin
+example unbroken (pins rotted against trixie — base image is the version
+boundary now); uv arrives via Astral's pinned COPY --from (uv_version span);
+same-base ABI note. Claims: debian-slim-variant superseded (bare -slim ≠ trixie
+for node), uv-copy-pinned + redis-fleet-major + debian-pin-trixie rows. pgvector
+probed NOT installed in postgres-main — 25-data host table corrected.
+
 ### Changed — rules currency pass file 5: core/25-data-postgres.md to the D-062 bar (2026-09-01)
 
 Stdlib `uuid.uuid7()` (Python 3.14) is now the primary-key idiom for current-
