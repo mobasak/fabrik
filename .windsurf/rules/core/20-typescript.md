@@ -4,14 +4,16 @@ globs: ["**/*.ts", "**/*.tsx"]
 description: TypeScript language discipline — strict mode, type safety, module patterns, error handling
 trigger: glob
 ---
-<!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
+<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: TypeScript language discipline — strict mode, type safety, module patterns, logging, Docker
      TRAYCER USAGE: Injects as Context File in tickets touching TypeScript code.
      AGENT USAGE: Follow verbatim when writing TypeScript. Activated by glob on *.ts/*.tsx files. -->
 
 # TypeScript Core Rules
 
-Apply when working on any TypeScript project (Next.js, Node.js, Chrome Extension, Desktop, Mobile, Static Site). Skip for Python-only or infrastructure files. For React/UI-specific guidance, see `60-saas-ui.md`. For API error schemas, see `15-api-contracts.md`.
+Apply when working on any TypeScript project (Next.js, Node.js, Chrome Extension, Desktop, Mobile, Static Site). Skip for Python-only or infrastructure files. For React/UI-specific guidance, see `saas/60-saas-ui.md`. For API error schemas, see `15-api-contracts.md`.
+
+**Compiler currency:** the current `typescript` package ships the native compiler as `tsc` (order-of-magnitude faster builds, same syntax and flags — `tsc --noEmit` works verbatim). Toolchains that need the compiler's programmatic API (typescript-eslint, framework plugins) may pin the previous major until the API port lands.
 
 ---
 
@@ -25,13 +27,15 @@ All TypeScript projects must use strict compiler settings:
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
   }
 }
 ```
 
 Never loosen `strict` mode. If a library lacks types, write a `.d.ts` declaration file rather than using `any`.
+
+`erasableSyntaxOnly` + `verbatimModuleSyntax` are Node's own recommended settings for natively-run TypeScript: they turn `12-node.md` § TypeScript's prose ban (`enum`, `namespace` with runtime code, constructor parameter properties — ALL of them, not just numeric enums) into a compiler error instead of a runtime surprise at `node index.ts`.
 
 ---
 
@@ -90,7 +94,7 @@ For Next.js projects, prefix client-exposed variables with `NEXT_PUBLIC_`. Serve
 ## Module Patterns
 
 - Use ES module syntax (`import`/`export`). CommonJS `require()` is banned in new code.
-- Use path aliases (`@/`) configured in `tsconfig.json` to avoid deep relative imports.
+- Use path aliases (`@/`) configured via `paths` in `tsconfig.json` to avoid deep relative imports — WITHOUT `baseUrl`, which is a hard error in the current TS major (`paths` works standalone with relative mappings).
 - Barrel files (`index.ts`) are permitted for public API boundaries only — not for every directory.
 
 ```typescript
@@ -149,10 +153,10 @@ logger.error({ err, orderId }, 'Payment failed');
 
 ## Running in Production
 
-Node.js / Next.js services run via their respective start commands in the Dockerfile. Base image is always `node:<current-LTS>-bookworm-slim` on `linux/amd64`. Never use Alpine.
+Node.js / Next.js services run via their respective start commands in the Dockerfile. Base image is always the current-LTS `-slim` image on `linux/amd64`. Never use Alpine.
 
 ```dockerfile
-FROM node:24-bookworm-slim
+FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->bookworm<!--/v-->-slim
 # ...
 CMD ["node", "dist/server.js"]
 ```
@@ -160,12 +164,12 @@ CMD ["node", "dist/server.js"]
 For Next.js:
 
 ```dockerfile
-FROM node:24-bookworm-slim
+FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->bookworm<!--/v-->-slim
 # ...
 CMD ["npm", "start"]
 ```
 
-Never ship `ts-node` or `tsx` in the production image. Compile TypeScript at build time, run JavaScript at runtime.
+Never ship `ts-node` or `tsx` in the production image. Compile TypeScript at build time (`esbuild`/`swc`), run JavaScript at runtime. In DEV, `.ts` runs natively via built-in type stripping — ts-node/tsx are obsolete there too; see `12-node.md` § TypeScript.
 
 ---
 
@@ -197,34 +201,35 @@ npm run build         # Production build
 | Scattered raw `process.env.X` access | Zod-validated `src/env.ts` module (parse once at boot) |
 | `as` type assertion to bypass checks | Type guard, `satisfies`, or proper narrowing |
 | Implicit `any` from untyped libraries | `.d.ts` declaration file |
-| Numeric `enum` (implicit values) | `as const` object or string literal union |
+| `enum` (any kind), `namespace` with runtime code, constructor parameter properties | `as const` object or string literal union; plain modules; explicit field assignment — enforced by `erasableSyntaxOnly` (native type stripping refuses ALL of these, per `12-node.md`) |
 | `@ts-ignore` | `@ts-expect-error` with explanation comment |
 | `console.log()` / `console.error()` in production | `pino` logger via `55-observability.md` |
 | `localhost` as default host in env fallbacks | Service name (`postgres-main`, `redis-main`) |
 | `ts-node` / `tsx` in production image | Compile at build, run JS at runtime |
-| Alpine base image | `node:<LTS>-bookworm-slim` |
+| Alpine base image | the current-LTS `-slim` base per § Running in Production |
 
 ---
 
 ## Related Rule Packs
 
 - `10-python.md` — Python sibling (same env/Docker/port philosophy)
+- `12-node.md` — Node runtime co-owner (dev type stripping vs prod compile, erasable-syntax ban)
 - `15-api-contracts.md` — API contract discipline, RFC 9457 error schema, idempotency
 - `30-ops.md` — Dockerfile, compose, Traefik, resource limits, SSH+Compose deploy (`fabrik apply`)
 - `55-observability.md` — pino setup, `/health` + `/metrics`, GlitchTip
-- `60-saas-ui.md` — SaaS frontend patterns (Next.js/React)
+- `saas/60-saas-ui.md` — SaaS frontend patterns (Next.js/React)
 
 ---
 
 ## Done When
 
-- [ ] `tsconfig.json` has `"strict": true` and `"noUncheckedIndexedAccess": true`.
+- [ ] `tsconfig.json` has `"strict": true`, `"noUncheckedIndexedAccess": true`, and `"erasableSyntaxOnly": true` (no `enum`/`namespace`-with-runtime-code/parameter properties).
 - [ ] No `any` annotations — `unknown` + narrowing used where type is uncertain.
 - [ ] All imports use ES module syntax and path aliases.
 - [ ] Domain errors use typed `Error` subclasses, not raw strings or ad-hoc objects.
 - [ ] Environment variables parsed via Zod-validated `src/env.ts` — no scattered `process.env` access.
 - [ ] Logging via `pino` — no `console.log()` in production code paths.
-- [ ] Production Dockerfile uses `node:<LTS>-bookworm-slim`, not Alpine.
+- [ ] Production Dockerfile uses the current-LTS `-slim` base per § Running in Production, not Alpine.
 - [ ] No `ts-node` / `tsx` in production image — TypeScript compiled at build time.
 - [ ] `npm run lint` and `npm run type-check` pass with zero warnings.
 - [ ] Port registered in `PORTS.md` (3000-3099 range).

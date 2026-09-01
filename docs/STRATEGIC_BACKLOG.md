@@ -169,6 +169,26 @@ during the pass). Scope: core/ then ALL folders, to completion.
   leads, scaffold follows: flip the emission to accept `Idempotency-Key` (keep `X-` as legacy
   fallback) at the next scaffolder window. Note the scaffold example is a POST — still
   key-required under the narrowed POST/non-idempotent-PATCH scope.
+- **File-4 (20-typescript) COMPLETE under the full bar (2026-09-01).** Own legs (brave + exa +
+  earlier WebSearch/WebFetch): TypeScript's native-compiler major is GA (ships as `tsc`, API
+  port next minor) — pack got a version-free currency line; zod 4 stable, pack idiom unchanged.
+  **SECOND OPINION (Fable 5): 17 verdicts → 11 KEEP · 4 FIX + 2 ADD, all accepted** with
+  literal-bearing phrasings converted to spans/version-free per D-062: `erasableSyntaxOnly`
+  ADDED to the strict block (turns 12-node's erasable-syntax prose ban into a compiler error —
+  the unwired checkable gate); the numeric-only enum ban was a CROSS-PACK CONFLICT with 12-node
+  (native stripping refuses ALL enums) — banned-table row widened; `forceConsistentCasingInFileNames`
+  DELETED (TS 5.0 default = dead weight); both `FROM node:24-bookworm-slim` literals wrapped in
+  spans (the known debt item — this pack now auto-flips with node_lts on 2026-10-28); `paths`
+  without `baseUrl` (hard error in the current major); dev-side type-stripping cross-ref;
+  12-node added to Related Packs (asymmetric backlink); saas/ prefix on 60-saas-ui (×2).
+  4 claims rows. CLEANED_PACKS += 20-typescript (4 spans).
+- **RETIRED-CONSUMERS class, split disposition (2026-09-01):** mechanical header mentions of
+  Windsurf Cascade / Kilo CLI swept from 10-python, 20-typescript, 50-code-review, 67-file-api,
+  72-desktop (12-node done at its turn). SUBSTANTIVE Kilo-as-gateway content remains in
+  **65-rag-search (gateway tables + a Done When line mandating OpenRouter/Kilo), ai/00-ai-model-selection
+  (peer-gateway policy + dual-route counts), ai/60-code, ocoron-design-system (i18n levels 2-3),
+  saas/60-saas-ui:325** — real guidance contradicting the retirement ruling (LLM access = Claude
+  Max OAuth + OpenRouter only); owned by each pack's own evaluation turn, NOT a sed sweep.
 - **File-3 (15-api-contracts) COMPLETE under the full bar (2026-09-01).** Own legs (multi-engine:
   brave + exa + WebFetch/PyPI + WebSearch): header flip, hey-api pin-exact, oasdiff v1.26
   currency, idemptx existence. **SECOND OPINION (Fable 5): 17 clusters → 12 KEEP · 4 FIX + 1 ADD,

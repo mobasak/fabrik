@@ -37,6 +37,7 @@ CLEANED_PACKS = {
     "/opt/fabrik/.windsurf/rules/core/10-python.md": 2,
     "/opt/fabrik/.windsurf/rules/core/12-node.md": 4,
     "/opt/fabrik/.windsurf/rules/core/15-api-contracts.md": 0,
+    "/opt/fabrik/.windsurf/rules/core/20-typescript.md": 4,
 }
 
 

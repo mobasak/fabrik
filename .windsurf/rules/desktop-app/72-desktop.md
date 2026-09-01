@@ -4,7 +4,7 @@ globs: ["**/electron/**", "**/renderer/**", "**/electron-builder*", "**/forge.co
 description: Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
 trigger: glob
 ---
-<!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
+<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: Electron 30+ desktop application patterns — process isolation, IPC validation, distribution, code signing, auto-update, local storage, OS integrations
      TRAYCER USAGE: Injects as Context File for desktop-app scaffold tickets. Composes with 12-node.md (main process is Node) + 20-typescript.md.
      AGENT USAGE: Follow verbatim. Research basis: docs/reference/research/Electron Desktop App Best Practices.md (cited). -->

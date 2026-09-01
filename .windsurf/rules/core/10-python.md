@@ -4,7 +4,7 @@ globs: ["**/*.py"]
 description: Python/FastAPI patterns, typing, environment handling
 trigger: glob
 ---
-<!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
+<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: Python/FastAPI implementation patterns — typing, config, error handling, async, Docker
      TRAYCER USAGE: Injects as Context File in tickets touching Python code. References specific sections in ticket ACs.
      AGENT USAGE: Follow verbatim when writing Python. Activated by glob on *.py files. -->

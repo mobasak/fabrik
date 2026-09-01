@@ -9,7 +9,7 @@ description: Code review workflow, quality gate commands, and reusability discip
 
 # Code Review
 
-**Scope:** Any coding agent (Claude Code, Cascade, Kilo CLI) running the self-review gate, closing a milestone, or judging code reusability on `/opt/*` projects.
+**Scope:** Any coding agent (Claude Code + dispatched subagents) running the self-review gate, closing a milestone, or judging code reusability on `/opt/*` projects.
 
 ---
 
@@ -167,7 +167,7 @@ These constraints prevent "agent drift" and bikeshedding:
 
 ## Why This File Exists
 
-All three coding agents (Claude Code, Cascade, Kilo CLI) load this pack on demand when a code-review or completion-gate task is in flight. It provides:
+Coding agents (Claude Code + dispatched subagents) load this pack on demand when a code-review or completion-gate task is in flight. It provides:
 
 1. Quality gate commands organized by tier (lean, full, systemic).
 2. Self-review reminders (output format, iteration limits, fixer responsibility).

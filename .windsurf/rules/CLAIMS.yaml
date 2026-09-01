@@ -217,6 +217,38 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: ts-native-compiler-current
+    pack: core/20-typescript.md
+    claim: "The current `typescript` npm major ships the native Go compiler as tsc (GA 2026-07, ~8-12x builds; same syntax, tsc --noEmit verbatim); programmatic API lands next minor — API-dependent toolchains (typescript-eslint, framework plugins) pin the previous major meanwhile"
+    kind: version
+    verify: "https://devblogs.microsoft.com/typescript/; https://www.npmjs.com/package/typescript"
+    window_days: 90
+    last_verified: 2026-09-01
+
+  - id: zod4-stable
+    pack: core/20-typescript.md
+    claim: "zod 4 is the stable root export (4.5 current); z.object().parse(process.env) + z.coerce/default idioms unchanged from the pack's example"
+    kind: version
+    verify: "https://zod.dev/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: erasable-syntax-only-recommended
+    pack: core/20-typescript.md
+    claim: "erasableSyntaxOnly + verbatimModuleSyntax are in Node's officially recommended tsconfig for natively-run TS; native stripping refuses ALL enums/namespaces-with-code/parameter-properties"
+    kind: practice
+    verify: "https://nodejs.org/api/typescript.html"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: baseurl-hard-error
+    pack: core/20-typescript.md
+    claim: "baseUrl is a hard error in the current TS major; paths works standalone with relative mappings"
+    kind: deprecation
+    verify: "https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/"
+    window_days: 365
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"

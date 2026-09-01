@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 4: core/20-typescript.md to the D-062 bar (2026-09-01)
+
+Native-compiler currency line added (version-free); `erasableSyntaxOnly` wired
+into the strict block, closing a cross-pack conflict with 12-node (ALL enums
+refused by native stripping, not just numeric); `forceConsistentCasingInFileNames`
+deleted (TS 5.0 default); both Dockerfile literals wrapped in D-062 spans (this
+pack now auto-flips with node_lts); `paths`-without-`baseUrl`; saas/ prefixes;
+12-node backlink. Retired-consumers class: mechanical header sweep across 5
+packs; substantive Kilo-as-gateway content recorded for the owning packs' turns.
+4 claims rows.
+
 ### Changed — rules currency pass file 3: core/15-api-contracts.md to the D-062 bar (2026-09-01)
 
 Claims-rot pack (zero version literals): idempotency header flipped to the

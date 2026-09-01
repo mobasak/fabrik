@@ -4,7 +4,7 @@ globs: ["**/file-api/**", "**/uploads/**", "**/storage/**", "**/presigned/**", "
 description: File-handling discipline (2026) — S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contracts, busboy + pipeline streams, magic-byte + polyglot validation, blake3 dedup, clamd sidecar, KVKK lifecycle
 trigger: glob
 ---
-<!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
+<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
      GOAL: File-handling patterns for the file-api scaffold + any service that uploads, stores, validates, or deletes user files
      TRAYCER USAGE: Injects as Context File for file-api scaffolds + any ticket touching uploads / storage / presigned URLs / KVKK erasure.
      AGENT USAGE: Follow verbatim. Composes with 12-node.md (Node runtime). Research basis: docs/reference/research/Node API File Storage Rules.md (cited). -->
