@@ -11,7 +11,10 @@ All notable changes to this project will be documented in this file.
   structlog only ever configured structlog; third-party libraries kept their own handlers, so
   every scaffolded FastAPI service shipped a MIX of JSON and raw text and Loki could not label
   the raw half. Proven red-on-revert: the pre-fix generator emits 1 non-JSON line, the fixed
-  generator 0. Guarded by `tests/test_scaffold_logging_bridge.py`.
+  generator 0. **Verified under a REAL uvicorn server**, not a synthetic logger call: all 9 startup +
+  access + shutdown lines are JSON on one stream. Also unified the output stream — structlog's
+  `PrintLoggerFactory` writes stdout while a bare `StreamHandler()` defaults to stderr, which split one
+  service's logs across two Loki `stream` labels. Guarded by `tests/test_scaffold_logging_bridge.py` (6).
 - `templates/saas-skeleton/AGENTS.md` no longer prescribes RETIRED Kilo tooling
   (`kilo run`, `scripts/kilo_code_review.py`, `scripts/kilo_docs_enforcer.py` — none of which
   exist); it now names `/fabrik-review-scoped` · `/fabrik-review` · `/fabrik-docs-review`. Dead

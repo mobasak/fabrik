@@ -66,6 +66,20 @@ def test_remove_processors_meta_is_reachable_on_the_right_object():
     assert "\n            structlog.stdlib.remove_processors_meta" not in EMITTED
 
 
+def test_bridged_records_go_to_stdout_not_stderr():
+    """One process must write one stream, or Loki labels the same service twice.
+
+    Found only by running a REAL uvicorn server and capturing the two streams
+    separately (2026-09-01): structlog's PrintLoggerFactory writes to stdout while a
+    bare `logging.StreamHandler()` defaults to STDERR. Both halves were valid JSON —
+    so every string assertion and the combined-output check passed — while the
+    service was actually splitting its logs across two streams with two different
+    `stream` label values. A test that greps merged output cannot see this.
+    """
+    assert "logging.StreamHandler(sys.stdout)" in EMITTED
+    assert "import sys" in EMITTED, "explicit stdout needs the sys import"
+
+
 def test_redaction_still_applies_to_bridged_records():
     """A bridged uvicorn line must not bypass PII redaction on its way to stdout."""
     # split on the DEF, not the first mention — the call site precedes the body
