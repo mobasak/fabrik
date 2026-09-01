@@ -187,6 +187,30 @@ it was never proven true of *my build*.
     identical to one whose file is there until someone clicks it
 
 ### Layer 3 — Infra utilization (I10; `shape:`-gated) · catches *present-but-inert*
+
+⚠️ **The denominator here is DERIVED from code, not hand-listed** (spec-review pass F1 — the spec was
+violating its own denominator-integrity rule). The authoritative list is
+`src/fabrik/orchestrator/infrastructure.py::_REGISTRAR_ORDER`, read live this run:
+
+`postgres · redis · gatus · backrest · glitchtip · grafana · authelia · meilisearch · prometheus · watchdog`
+
+**All ten verified RUNNING on vps1 this run**, together with `traefik`, `loki` and `cadvisor` (the three
+auto-discovered, non-registrar services). The rows below must be **generated from that list**, not
+maintained by hand — a hand-written Layer 3 goes stale the moment a registrar is added, which is the
+`present-but-inert` failure mode applied to the verifier itself.
+
+⚠️ **`meilisearch` is the proof this was needed:** it is a real registrar (`has_search_feature: true`)
+and appeared in the DRAFT exactly once — as a *counter-example in the verdict algebra* — with **no
+verification row at all**. A hand-listed denominator lost a whole registrar without anything noticing.
+Its check is the one the deploy-verify corpus already prescribes: a query against the service's own
+search route, or a hub-side index-existence check — never a `.env` read, because the driver provisions
+indexes container-side and nothing lands in the app env.
+
+**Paths verified live this run** (not cited from memory): `/opt/monitoring/configs/gatus` ✓ ·
+`/opt/backrest/config/config.json` ✓ · `/opt/monitoring/configs/prometheus/prometheus.yml` ✓ ·
+`/run/fabrik-autoheal` ✓. Two of these were wrong in my own probes earlier today
+(`/opt/gatus/config.yaml`, a bare `/opt/backrest/` listing), which is why they are pinned here.
+
 11. Gatus **green**, not merely registered
 12. Prometheus **actively scraping** (target `up 1`)
 13. GlitchTip receives a **deliberately-emitted** error
@@ -474,6 +498,32 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | — | **operator: *"every new scaffolded projects must have it too"*** | — | — | — | — |
 | E1 | permanence — is the design a migration or a property? | goal-as-measuring-stick | 1 | 1 | `c1a97b32…` → edited |
 | E2 | confirming re-sweep | re-derivation | **0** | **0** | stable ✓ |
+| — | **operator: *"be 100% sure all factual and validated from our infra first"*** | — | — | — | — |
+| F1 | every infra claim probed against the LIVE fleet | **live infra validation** | 1 | 1 | `c9173ade…` → `235463aa…` |
+| F2 | confirming re-sweep | re-derivation | **0** | **0** | `235463aa…` stable ✓ |
+
+**Pass F2 terminal round — `found: 0, fixed: 0`.**
+
+**Defect 14 — Layer 3's denominator was HAND-LISTED, in the document that demands derived denominators.**
+The DRAFT's Layer 3 was 9 ad-hoc rows; the authoritative list is
+`infrastructure.py::_REGISTRAR_ORDER` (10 registrars, read live). The rows happened to cover most of
+them and included `loki`/`cadvisor`, which are **not registrars at all**.
+
+**`meilisearch` is the proof:** a real registrar that appeared exactly once in the whole DRAFT — as a
+*counter-example in the verdict algebra* — with **no verification row**. A hand-listed denominator lost
+an entire registrar and nothing noticed, which is precisely the failure the spec's own denominator-
+integrity rule exists to prevent. The spec was not applying its own rule to itself.
+
+**Everything else validated clean against the live fleet:** all 10 registrar services plus `traefik`,
+`loki`, `cadvisor` **RUNNING on vps1**; all four cited paths **EXIST** — including the two I had
+previously probed at the wrong location (`/opt/gatus/config.yaml`, a bare `/opt/backrest/` listing),
+now pinned to their verified paths so the error cannot recur through this document.
+
+**14 defects across 12 passes.** Six distinct lenses, each finding what the previous could not:
+internal consistency (1–8) → goal conformance (9–10) → type generality (11) → goal-as-measuring-stick
+(12) → permanence (13) → **live infra validation (14)**. The last is the only lens that could have
+caught a hand-listed denominator, because the artifact was internally consistent with itself the whole
+time.
 
 **Pass E2 terminal round — `found: 0, fixed: 0`.**
 
