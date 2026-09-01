@@ -14,3 +14,4 @@ versions:
   node_lts: "24"             # newest cycle whose LTS date has passed — api/nodejs.json
   node_engines_floor: "22"   # scaffold engines.node floor (POLICY, not auto-watched: raise deliberately when the previous LTS EOLs — Apr 2027)
   debian_codename: "bookworm"  # fleet-pinned Debian variant (flip = D-062 pipeline + 30-ops class commit, deliberate)
+  postgres_major: "16"       # postgres-main's actual major (FLEET STATE, not auto-watched; flip = fleet DB upgrade — also rewrite 25-data-postgres § Primary Keys, see claims row pg-fleet-major)

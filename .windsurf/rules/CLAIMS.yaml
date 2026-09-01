@@ -249,6 +249,30 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: stdlib-uuid7
+    pack: core/25-data-postgres.md
+    claim: "uuid.uuid7() is stdlib as of Python 3.14 (RFC 9562; merged 2025-03) and returns plain uuid.UUID — the uuid_utils.compat idiom is legacy-python-only"
+    kind: version
+    verify: "https://docs.python.org/3/library/uuid.html"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: pg-fleet-major
+    pack: core/25-data-postgres.md
+    claim: "postgres-main runs major 16 (agents-fabrik.md:165; EOL 2028-11) — predates native uuidv7() (PG18, 2025-09-25), so app-side generation is the fleet default. TRIPWIRE: when postgres_major flips >=18, rewrite § Primary Keys (DEFAULT uuidv7() becomes the fleet default) — the 'predates it' sentence goes false on flip"
+    kind: version
+    verify: "https://endoflife.date/api/postgresql.json; grep 'PostgreSQL 16' /opt/fabrik/agents-fabrik.md"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: pgbouncer-prepared-statements
+    pack: core/25-data-postgres.md
+    claim: "PgBouncer supports protocol-level named prepared statements in transaction mode via max_prepared_statements (since 1.21, late 2023; default 0/off); client-side the safe fallback is BOTH statement_cache_size=0 (asyncpg) and prepared_statement_cache_size=0 (SQLAlchemy dialect LRU)"
+    kind: practice
+    verify: "https://www.pgbouncer.org/config.html; https://docs.sqlalchemy.org/en/20/dialects/postgresql.html (asyncpg Prepared Statement Cache)"
+    window_days: 180
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"

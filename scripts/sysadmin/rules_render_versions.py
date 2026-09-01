@@ -41,7 +41,12 @@ _LOOSE = re.compile(
     # bare majors only for tools whose versions are dotless — "FastAPI 500" (a status
     # code) must never fire.
     r"|(?:Python|SQLAlchemy|FastAPI|TypeScript|pydantic)\s+\d+\.\d+\+?"
-    r"|(?:Node(?:\.js)?|Debian|Postgres(?:QL)?|Redis)\s+\d+(?:\.\d+)?\+?(?![\d-])"
+    # 'PostgreSQL' spelled correctly (the original 'PostgresQL' alternation never matched
+    # the real capital-S spelling — found at file 5, where 5 literals sailed through),
+    # plus the PG18 / pgvector:pg16 shapes. \bPG\d{2}\b stays 2-digit so ports never fire.
+    r"|(?:Node(?:\.js)?|Debian|Postgre(?:s|SQL)|Redis)\s+\d+(?:\.\d+)?\+?(?![\d-])"
+    r"|\bPG\d{2}\b(?!\d)"
+    r"|pgvector:pg\d+"
     r")"
 )
 

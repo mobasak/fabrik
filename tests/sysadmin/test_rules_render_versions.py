@@ -38,6 +38,7 @@ CLEANED_PACKS = {
     "/opt/fabrik/.windsurf/rules/core/12-node.md": 4,
     "/opt/fabrik/.windsurf/rules/core/15-api-contracts.md": 0,
     "/opt/fabrik/.windsurf/rules/core/20-typescript.md": 4,
+    "/opt/fabrik/.windsurf/rules/core/25-data-postgres.md": 3,
 }
 
 
@@ -62,6 +63,13 @@ def test_loose_sweep_catches_name_version_prose_not_status_codes():
     assert not _LOOSE.search("FastAPI 500 responses")  # status code, not a version
     assert not _LOOSE.search("returns 404 or 500")
     assert not _LOOSE.search("Python services: 8000-8099")
+    # The PostgreSQL blind spot (file 5): the original pattern spelled "PostgresQL",
+    # so real-world "PostgreSQL 16" (capital S) never fired — nor did PG18/pg-tag shapes.
+    assert _LOOSE.search("PostgreSQL 16 lacks native uuidv7()")
+    assert _LOOSE.search("PG18 available since Sep 2025")
+    assert _LOOSE.search("pgvector/pgvector:pg16")
+    assert not _LOOSE.search("connects on 5432")
+    assert not _LOOSE.search("see page 16 of the doc")
 
 
 def test_cleaned_packs_carry_zero_unmarked_version_literals():

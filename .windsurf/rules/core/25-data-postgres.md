@@ -19,7 +19,7 @@ Apply when working on database models, migrations, schema changes, or query logi
 |---|---|---|
 | **Everything** (CRUD, jobs, queues, auth, pgvector, RLS) | **`postgres-main` on VPS** (shared container, SSH+Compose) — **the default** | `postgresql+asyncpg://...@postgres-main:5432/` |
 | Auth / RLS | `postgres-main` + `fabrik-lib/fastapi-user-auth` (Pattern A; owns the `auth` schema natively — see `35-security-auth.md`) | same `postgres-main` DSN |
-| Vector search | `postgres-main` with pgvector (`pgvector/pgvector:pg16`) + `fabrik-lib/rag` | same `postgres-main` DSN |
+| Vector search | `postgres-main` with pgvector (`pgvector/pgvector:pg<!--v:postgres_major-->16<!--/v-->`) + `fabrik-lib/rag` | same `postgres-main` DSN |
 | Legacy Supabase project (not yet migrated) | **Supabase** | Supabase connection string from dashboard |
 
 **Decision:** `postgres-main` for everything — it self-hosts DB, auth (`fastapi-user-auth`), pgvector, and RLS. Supabase is **retired as a default** (see `agents-fabrik.md § Supabase`); use it only for a legacy project that already runs on it, and plan its migration to `postgres-main` + Pattern A.
@@ -30,7 +30,7 @@ Apply when working on database models, migrations, schema changes, or query logi
 
 ### WSL PostgreSQL Configuration
 
-- Native PostgreSQL 16+ runs at `localhost:5432` on WSL (PG18 available since Sep 2025 — adds native `uuidv7()`)
+- Native PostgreSQL runs at `localhost:5432` on WSL — same major as `postgres-main` (currently <!--v:postgres_major-->16<!--/v-->; the § Backing-Service Parity mandate)
 - Each project gets a dedicated development database: `{project_name}_dev`
 - Scaffold auto-creates databases when `--db` flag is used
 - Connection: `postgresql://postgres@localhost:5432/{project_name}_dev`
@@ -143,22 +143,21 @@ else:
 ## Primary Keys
 
 - Use **UUIDv7** for all primary keys. UUIDv4 is banned — its randomness causes B-tree fragmentation, cache thrashing, and excessive WAL generation.
-- PostgreSQL 16 lacks native `uuidv7()`. Generate at the application layer:
+- **Current-python services (the scaffold default): use the STDLIB.** `uuid.uuid7()` is in the standard library as of the fleet's pinned Python — it returns a plain `uuid.UUID`, so the old third-party-type trap does not exist:
 
 ```python
-import uuid
-from uuid_utils.compat import uuid7   # returns stdlib uuid.UUID (v7) — NOT uuid_utils.UUID
+import uuid   # uuid.uuid7 is stdlib on current Python
 from sqlalchemy import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 class User(Base):
     __tablename__ = "users"
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
 ```
 
-> **Critical:** import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID` subclass). **PostgreSQL 18** (released Sep 2025) added native `uuidv7()` — if your instance is PG18+, you can use `DEFAULT uuidv7()` at the schema level instead of app-side generation. On PG16/17, generate app-side as above.
+> **Older pythons only** (services pinned below stdlib-uuid7): import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID`). **DB-side:** newer PostgreSQL majors ship native `uuidv7()` (probe: `SELECT uuidv7()`); prefer `DEFAULT uuidv7()` at schema level where it exists. `postgres-main` currently runs major <!--v:postgres_major-->16<!--/v-->, which predates it — generate app-side on the fleet.
 
 ## Nullability & Constraints
 
@@ -225,14 +224,23 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 ```python
 # Multi-worker / background-service scaling → PgBouncer transaction pooling + NullPool.
-# asyncpg uses NAMED prepared statements that break under transaction pooling
-# ("prepared statement already exists"). You MUST disable statement caching:
+# asyncpg uses NAMED prepared statements, which historically broke under transaction
+# pooling ("prepared statement already exists"). Two-layer fix:
+#  - POOLER side (modern PgBouncer): set max_prepared_statements > 0 — the pooler then
+#    tracks protocol-level prepares per client and re-prepares across backends.
+#  - CLIENT side (REQUIRED when the pooler is older or that setting is off; harmless
+#    belt-and-braces otherwise): disable BOTH caches — asyncpg's own statement cache
+#    AND the SQLAlchemy dialect's prepared-statement LRU. Most guides miss the second
+#    one, which resurfaces the error at a fraction of the old rate.
 from sqlalchemy.pool import NullPool
 
 engine = create_async_engine(
     get_settings().database_url,
     poolclass=NullPool,
-    connect_args={"statement_cache_size": 0},   # required under PgBouncer transaction mode
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    },
 )
 ```
 
@@ -277,8 +285,8 @@ Those are the **user's own on-device data**, not an attached backing service —
 |---------|-------------|
 | SQLite / `:memory:` / `fakeredis` as a **server-side** backing service in dev or test | Real PostgreSQL + real Redis, same major version as prod (§ Backing-Service Parity). *Exempt: `desktop-app` / `mobile-app` client-local stores.* |
 | `deleted_at` / `is_deleted` columns | Hard delete + journal tables via triggers (exception: `tenants` table for multi-tenant offboarding) |
-| `UUIDv4` / `uuid4()` primary keys | `UUIDv7` via `uuid_utils.compat.uuid7` (returns stdlib `uuid.UUID`) |
-| `uuid_utils.uuid7()` directly | `uuid_utils.compat.uuid7` — direct import returns non-stdlib type that asyncpg rejects |
+| `UUIDv4` / `uuid4()` primary keys | `UUIDv7` via stdlib `uuid.uuid7` (older pythons: `uuid_utils.compat.uuid7`) |
+| `uuid_utils.uuid7()` directly (older pythons) | `uuid_utils.compat.uuid7` — direct import returns non-stdlib type that asyncpg rejects |
 | DB sessions in middleware | `Depends(get_db)` scoped to route handler |
 | Raw SQL DDL outside Alembic | `alembic revision --autogenerate` + review |
 | Preemptive indexes on every column | Index FKs + proven slow-query paths only |
@@ -304,7 +312,7 @@ Those are the **user's own on-device data**, not an attached backing service —
 
 - [ ] All schema changes have a reviewed Alembic migration (no raw DDL).
 - [ ] `MetaData` uses the naming convention dict for deterministic constraints.
-- [ ] All primary keys use UUIDv7 via `uuid_utils.compat.uuid7` — no `uuid4()`, no direct `uuid_utils.uuid7()`.
+- [ ] All primary keys use UUIDv7 — stdlib `uuid.uuid7` on current Python (older pythons: `uuid_utils.compat.uuid7`, never direct `uuid_utils.uuid7()`); no `uuid4()`.
 - [ ] All columns are `NOT NULL` unless nullability has explicit business justification.
 - [ ] No `deleted_at` or `is_deleted` columns in any model (exception: `tenants` table for multi-tenant offboarding).
 - [ ] JSONB columns are not used in scalar `WHERE` or `ORDER BY` (GIN containment queries on schema-less data are acceptable).
