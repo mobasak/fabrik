@@ -161,14 +161,21 @@ def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
     """
     if plan_stem in cite_name:
         return True
+    # Fuzzy path preconditions (review round 1): >=2 slug tokens — a one-token
+    # slug ('plan-2-mail' -> {mail}) supersets into unrelated reviews — and BOTH
+    # names dated, else the date guard is a no-op (undated files fall back to
+    # the exact-stem rule above). Known bounded limit, accepted: two plans
+    # sharing a full slug (a superseded twin) both fuzzy-match the newer
+    # review — this gate's ceiling is evidence PRESENCE, never truth (module
+    # docstring); the exact-stem rule keeps date-uniqueness where names allow.
     plan_tokens = _slug_tokens(plan_stem)
-    if not plan_tokens or not plan_tokens <= _slug_tokens(cite_name):
+    if len(plan_tokens) < 2 or not plan_tokens <= _slug_tokens(cite_name):
         return False
     pd = _DATE_PREFIX.match(plan_stem)
     cd = _DATE_PREFIX.match(cite_name)
-    if pd and cd:
-        return cd.group(1) >= pd.group(1)
-    return True
+    if not (pd and cd):
+        return False
+    return cd.group(1) >= pd.group(1)
 # D4 per-ticket review files (<plan>-T##[a-z]?-review.md): cited by spines
 # routinely, but they prove one ticket — never the whole-plan D7 validation.
 # Naming-convention-scoped BY DESIGN (this module's ceiling: evidence presence,

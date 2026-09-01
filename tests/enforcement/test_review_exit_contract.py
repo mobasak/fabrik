@@ -239,3 +239,11 @@ def test_01m1djyh_verify_review_named_by_service_satisfies_the_flip():
     assert not ccv._cite_matches_plan("2026-09-01-mail-fixes-review.md", plan)
     # same-day validation is legitimate (>=, not >)
     assert ccv._cite_matches_plan("2026-08-31-deploy-tryton-crm-review.md", plan)
+    # round-2 tightenings: a one-token slug never fuzzy-matches (supersets into
+    # unrelated reviews), and undated names fall back to exact-stem only (an
+    # undated side made the date guard a no-op).
+    assert not ccv._cite_matches_plan("2026-01-05-mail-fixes-review.md", "2026-01-01-plan-2-mail")
+    # an UNDATED plan stem cannot use the fuzzy path (its date guard would be a
+    # no-op) — only the exact-substring rule remains available to it
+    assert not ccv._cite_matches_plan("2026-01-01-cleanup-phase5-review.md", "phase5-cleanup")
+    assert not ccv._cite_matches_plan("tryton-crm-deploy-review.md", plan)

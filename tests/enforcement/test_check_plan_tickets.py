@@ -2056,3 +2056,35 @@ def test_bc25_a_hand_authored_json_is_still_counted(tmp_path: Path) -> None:
     plan_dir = _build(tmp_path, tickets=_with_touch("config/settings.json"))
     results = cpt.check_plan_dir(plan_dir, context="cli")
     assert any("READ budget" in m for m in _errors(results) + _warns(results))
+
+
+def test_allow_external_admits_a_scratch_copy_and_refuses_without(tmp_path):
+    """01M1DMBS minor: gate-liveness red-on-mutation proofs required mutating the
+    REAL plan file. --allow-external admits a dated scratch dir; without it the
+    containment refusal names the flag; the dated-dir rule binds regardless."""
+    import subprocess
+    import sys as _sys
+    from pathlib import Path as _P
+
+    script = _P(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_plan_tickets.py"
+    d = tmp_path / "2026-09-01-plan-9-scratch"
+    d.mkdir()
+    (d / "2026-09-01-plan-9-scratch.md").write_text("# spine\nStatus: DRAFT\n")
+    refused = subprocess.run(
+        [_sys.executable, str(script), "--plan-dir", str(d)], capture_output=True, text=True
+    )
+    assert refused.returncode == 1 and "--allow-external" in refused.stdout
+    admitted = subprocess.run(
+        [_sys.executable, str(script), "--plan-dir", str(d), "--allow-external"],
+        capture_output=True,
+        text=True,
+    )
+    assert "not under docs/development/plans/" not in admitted.stdout
+    undated = tmp_path / "scratchdir"
+    undated.mkdir()
+    bad = subprocess.run(
+        [_sys.executable, str(script), "--plan-dir", str(undated), "--allow-external"],
+        capture_output=True,
+        text=True,
+    )
+    assert bad.returncode == 1 and "dated plan directory" in bad.stdout

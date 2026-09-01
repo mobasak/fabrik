@@ -417,3 +417,21 @@ def test_docs_only_ticket_still_scores_its_own_axis(tmp_path):
 
     b = measure_ticket(t)
     assert b.score >= 1  # behaviors still count; the ticket is visible
+    assert b.areas == ["<docs-only>"], b.areas  # round-2: it read "<tests-only>"
+
+
+def test_governance_plus_docs_ticket_keeps_the_mix_signal(tmp_path):
+    # Round-2 regression (measured old mix=True -> new False): doc-sync
+    # companions leave AREAS but still count as local work for the
+    # governance-mix signal — a .windsurf edit shipping with doc rewrites is
+    # exactly the blast-radius pairing mix exists to raise.
+    t = tmp_path / "T03-gov.md"
+    t.write_text(
+        "# T03 — gov\n\n## Touches\n- .windsurf/rules/core/99-example.md\n"
+        "- docs/reference/a.md\n- docs/reference/b.md\n\n"
+        "## Behavior Contract\n| GIVEN a | WHEN b | THEN c |\n"
+    )
+    from scripts.enforcement.check_ticket_breadth import measure_ticket
+
+    b = measure_ticket(t)
+    assert b.mix is True

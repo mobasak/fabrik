@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 `check_convergence.py` blocked a legitimate EXECUTED flip when the plan's own validation review
 is named by service+verify-date instead of plan stem (01M1DJYH, live deploy plan) — citation
 matching now accepts slug-token subset + a not-older-than-the-plan date guard (the 3-week-old
-readiness review with identical tokens stays excluded); exact-stem matches unchanged, retro-safe.
+readiness review with identical tokens stays excluded); exact-stem matches unchanged (measured: 249 hub plans 0 verdict flips; a fleet sweep found ONE flip — an archived seo plan the OLD rule wrongly failed, fixed by this change).
 `check_ticket_breadth.py` counted docs/ + Doc-Sync root files as risk areas, producing peel
 advice the Doc Sync Matrix forbids — following it RAISED the flag count 3→4 (01M1DMBS, measured);
 doc-sync companions now get the test-surface treatment (excluded, displayed, never a peel

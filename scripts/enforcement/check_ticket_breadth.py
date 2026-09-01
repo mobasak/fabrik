@@ -358,11 +358,21 @@ def measure_ticket(path: Path) -> Breadth:
             if a not in areas:
                 areas.append(a)
         gov_paths = [p for p in prod if _is_governance(p)]
-        has_code = any(not _is_governance(p) for p in prod)
-        # A test-ONLY ticket still touches something — score it as one area
-        # rather than zero, but never as a multi-area ticket.
+        # Doc-sync companions stay out of AREAS but still count as "local work"
+        # for the governance-mix signal — excluding them dropped mix on a
+        # governance+docs ticket, the exact blast-radius pairing the signal
+        # exists for (review round 1, measured mix=True -> False).
+        has_code = any(
+            not _is_governance(p)
+            for p in touches
+            if not _is_test_path(p)
+        )
+        # A companions-ONLY ticket still touches something — score it as one
+        # area rather than zero, but never as a multi-area ticket; label by
+        # what it actually holds (a docs-only ticket read "<tests-only>",
+        # review round 1).
         if not areas and touches:
-            areas = ["<tests-only>"]
+            areas = ["<docs-only>"] if docsync_areas and not test_areas else ["<tests-only>"]
         return Breadth(
             tid=tid,
             path=path,
