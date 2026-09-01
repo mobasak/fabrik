@@ -30,7 +30,11 @@ proportionate answer.
    behavior-without-a-test) are your hunt list.
 3. **Pass 1 (wide):** read every changed hunk PLUS the enclosing function and its callers. Hunt the
    armed classes. Every finding is FIXED in-run (watched-fail-first where behavior changed) or
-   REFUTED with the disproving line — no third bucket, no "noted".
+   REFUTED with the disproving line — no third bucket, no "noted". **MECHANICAL findings (unambiguous,
+   local) you just fix; an ARCHITECTURAL one — where the correct fix moves a contract, boundary or data
+   model — you still fix, but name the rejected alternatives and mint its `docs/DECISIONS.md` row in the
+   same commit** (a silent pick smuggles an architecture decision in under a bug-fix message). Genuinely
+   irreversible or spec-contradicting ⇒ the sanctioned `BLOCKED:` path, never a quiet "noted".
 4. **Record each pass:** `python3 scripts/command_run.py round --findings <n> --classes-swept <…>
    --classes-new <…>`. **The round ledger IS this command's artifact** — deliberately no review
    file: `check_review_coverage.py` grades the heavy command's reports; this one's proof is the

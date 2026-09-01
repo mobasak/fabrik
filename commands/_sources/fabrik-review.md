@@ -298,9 +298,29 @@ is real but its proposed fix is wrong, implement the correct fix (or, when the c
 right, REFUTE the fix with the reason). **Never apply a fix you can't stand behind just to clear the
 ledger** — no performative "fixed."
 
-Classify each as correctness/security vs. style — correctness/security outranks style — but a style finding
-is still FIXED or REFUTED, never ignored. Re-run the project gate/test suite after EACH fix (fixes regress);
-green is necessary, NOT sufficient — it does not test logic, so never cite it as proof of correctness.
+Classify each on TWO axes. **Severity:** correctness/security vs. style — correctness/security outranks
+style, but a style finding is still FIXED or REFUTED, never ignored. **Shape — MECHANICAL vs
+ARCHITECTURAL**, which decides *how* you fix, **never whether** (both still terminate FIXED or REFUTED;
+this axis opens no third state):
+
+- **MECHANICAL** — the resolution is unambiguous and local: a missing `None`-check, an unbounded read, a
+  wrong constant, a leaked handle, a rename the callers already expect. **Fix it in-run, autonomously.**
+  This is the default and the overwhelming majority; do not manufacture ceremony for it.
+- **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives:
+  it moves a contract, a boundary, a data model, an auth or isolation posture, or it would change what
+  other code is entitled to assume. Still fix it — but **name the alternatives you rejected and mint the
+  `docs/DECISIONS.md` row in the same commit** (classified at mint; a ONE-WAY shape gets the § Binding
+  block). Picking one silently is how a review smuggles in an architecture decision under a bug-fix
+  commit message.
+- **The narrow escalation:** an architectural finding whose fix is genuinely irreversible, contradicts a
+  frozen spec/contract, or needs authority you do not have → that is the sanctioned `BLOCKED:` /
+  contractual-gate path, stated with the alternatives — **not** a quiet "noted", and not a rewrite you
+  perform anyway. ⚠️ This bullet is the one an agent will reach for to avoid work: it requires the fix to
+  be genuinely un-makeable by you, not merely large, unfamiliar, or tedious. "Architectural" is a
+  DESCRIPTION of the fix, never a permit to leave the finding standing.
+
+Re-run the project gate/test suite after EACH fix (fixes regress); green is necessary, NOT sufficient —
+it does not test logic, so never cite it as proof of correctness.
 
 ## Phase 4 — Converge (the loop — you are here after EVERY pass, not once)
 
