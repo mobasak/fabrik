@@ -306,6 +306,27 @@ operations.md and deployment.md"*). This closes a loop rather than adding a chor
   untrue"* (`RESILIENCE.md` still carrying WordPress-cron template residue). A doc regenerated from the
   same derivation that drives the checks cannot carry scaffold residue.
 
+⚠️ **THREE SOURCES, NOT TWO — the goal's own words force this** (spec-review pass B1). The operator's
+bar is *"up and running **as like in the wsl**"*: **DEV is the reference baseline.** The DRAFT collapsed
+the world into CODE+SPEC vs PROD and named dev **nowhere** — so the artifact meant to close the
+dev↔prod gap did not contain the word for one side of it.
+
+| source | authoritative for | never for |
+|---|---|---|
+| **CODE + SPEC** | routes, env keys, job inventory, schema head, `shape:` obligations | product state |
+| **DEV (WSL)** | **the state baseline** — row counts, reference data, translations, filestore contents, i18n completeness | fixture/test debris (see below) |
+| **PROD** | *nothing* — it is the thing under test | anything |
+
+**DEV minus a declared exclusion set** is the operative rule, and D-017 is its worked example:
+*"everything ships EXCEPT sales/activities/invoices history"* — plus the 757 fixture chart-shell
+companies and the cert-role test users, which existed in dev and **must not** ship. A verifier that took
+dev wholesale would have demanded 760 companies in production when the correct answer is 3. So the
+contract asserts **dev, minus the project's declared exclusions** — and the exclusion list is
+project-owned, exactly like the rest of the contract.
+
+This also explains why `battery-expected.txt` worked: its six numbers were **measured in dev**, and the
+cleanup's post-clean battery encoded the exclusions. Both halves were present; the DRAFT only named one.
+
 ⚠️ **HAZARD, and the rule that contains it: derive the docs from the CODE + SPEC, never from PROD.**
 Writing docs from the deployed state launders drift into documentation — *"prod has 0 companies,
 therefore document 0 companies"* would have made my empty-database certification **self-consistent and
@@ -383,6 +404,26 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | — | **AMENDMENT 1 landed (operator ruling) — convergence voided, review re-run** | — | — | — | — |
 | A1 | Amendment ripple hunt across the whole spec | citation + live grep | 3 | 3 | `adefee55…` → `49ca35b2…` |
 | A2 | all claims re-derived from primary source, confirming | **re-derivation** | **0** | **0** | `49ca35b2…` stable ✓ |
+| — | **operator: "state our goal first" — review re-run with GOAL CONFORMANCE as the axis** | — | — | — | — |
+| B1 | every goal clause audited against what the spec delivers | goal-conformance | 2 | 2 | `58f7e9f5…` → `1173ae8c…` |
+| B2 | full confirming re-sweep | re-derivation | **0** | **0** | `1173ae8c…` stable ✓ |
+
+**Pass B2 terminal round — `found: 0, fixed: 0`.**
+
+**What the goal-conformance pass found (2 more — 10 total, all mine):**
+9. ⚠️ **The goal says *"up and running as like in the WSL"* — and the spec named DEV nowhere.** Zero
+   mentions as a source. The hazard rule correctly banned deriving from PROD and, in doing so,
+   accidentally excluded DEV — **the artifact meant to close the dev↔prod gap did not contain the word
+   for one side of it.** Fixed with a three-source model (CODE+SPEC · DEV · PROD) where dev is the state
+   baseline *minus a declared exclusion set*, D-017 being the worked example: dev held 760 companies,
+   production correctly holds 3.
+10. **Goal conformance was never stated as such.** Two clauses land **PARTIAL** — the operator's opening
+    ask (projects owning their own deploys) is genuinely not delivered here. That was true in the
+    intake's fine print and invisible at the level the operator reads.
+
+Defect 9 is the most consequential of all ten: five prior passes over this artifact — including two
+re-derivation passes — never found it, because every one asked *"is the spec internally consistent?"*
+The goal was the only lens that asked *"is the spec **right**?"*
 
 **Pass A2 terminal round — `found: 0, fixed: 0`.**
 
@@ -413,6 +454,27 @@ document for its own central rule: **a self-certifying count is not evidence.**
 
 Defect 4 is the one that justifies the re-derivation method: it survived pass 1 because pass 1 re-*cited*
 my own prose. Only re-running the count against `compose.yaml` and `docker ps` separately exposed it.
+
+## Goal conformance (spec-review pass B1)
+
+The stated goal, and what this spec actually delivers against each clause:
+
+| goal clause (operator's words) | delivered? | where / gap |
+|---|---|---|
+| *"each project be able to deploy their own development"* | **PARTIAL** | verification ownership: yes. **Deploy execution: NO** — deferred (§ Deferred 1). The goal is not fully met by this spec alone and says so rather than implying otherwise |
+| *"you will only manage the infra"* | **PARTIAL** | same boundary — I keep the fleet-health cross-check by design (§ Q4), so "only infra" is approached, not reached |
+| *"cant compare what is developed and what is deployed"* | **YES** | § Layer 2 + the three-source model — the spec's centre |
+| *"validate its implementation fully, complete, up, and running"* | **YES** | § Verdict algebra — three separately-failable verdicts |
+| *"utilize all vps infra … glitchtip, backups, grafana"* | **YES** | § Layer 3, 9 rows, `shape:`-gated |
+| *"up and running as like in the wsl"* | **YES** (after B1) | § three-source model — **dev is the state baseline**, minus declared exclusions. This clause was NOT served before pass B1 |
+| *"a new command … full list of checklist with command"* | **YES** | § Amendment 1 |
+| *"update its operations.md and deployment.md"* | **YES** | § Amendment 1 |
+| *"100% tested after deployment"* | **YES, as defined** | § Verdict algebra — "100%" means every declared denominator exercised, not an unbounded claim |
+
+⚠️ **Two clauses land PARTIAL, and that is stated here rather than buried in an intake disposition.**
+The operator's opening ask — projects owning their own deploys — is genuinely not delivered by this spec;
+it is deferred with a named destination and a reason (shared-fleet writers, one global window lock). A
+spec that let the goal read as fully met would be the same defect class as a deploy that reads green.
 
 ## Deferred (named, not dropped)
 
