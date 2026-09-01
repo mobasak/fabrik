@@ -282,6 +282,22 @@ claims:
     window_days: 180
     last_verified: 2026-09-01
 
+  - id: debian-pin-trixie
+    pack: core/30-ops.md (+ debian_codename span users)
+    claim: "Fleet Debian pin flipped bookworm->trixie 2026-09-01: bookworm regular security ENDED 2026-07-12 (LTS to 2028-06); trixie stable 2025-08-09, full support to 2028-08; python -slim-trixie + node trixie-slim images live on Docker Hub (amd64)"
+    kind: version
+    verify: "https://www.debian.org/releases/trixie/; https://hub.docker.com/_/python/tags?name=slim-trixie"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: pgvector-not-installed
+    pack: core/25-data-postgres.md
+    claim: "postgres-main runs postgres:16-alpine with NO pgvector extension (probe: ssh vps sudo docker exec postgres-main psql -U postgres -tc 'select extname from pg_extension' -> plpgsql only); the pgvector/pgvector image is documented but not deployed — vector-needing projects must request the infra change"
+    kind: rationale
+    verify: "the probe command in the claim, run live"
+    window_days: 180
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"

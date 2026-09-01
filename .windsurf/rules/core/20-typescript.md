@@ -156,7 +156,7 @@ logger.error({ err, orderId }, 'Payment failed');
 Node.js / Next.js services run via their respective start commands in the Dockerfile. Base image is always the current-LTS `-slim` image on `linux/amd64`. Never use Alpine.
 
 ```dockerfile
-FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->bookworm<!--/v-->-slim
+FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim
 # ...
 CMD ["node", "dist/server.js"]
 ```
@@ -164,7 +164,7 @@ CMD ["node", "dist/server.js"]
 For Next.js:
 
 ```dockerfile
-FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->bookworm<!--/v-->-slim
+FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim
 # ...
 CMD ["npm", "start"]
 ```

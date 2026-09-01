@@ -253,7 +253,7 @@ configured in `pyproject.toml`, emitted by the scaffolder.
 Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always `python:<version>-slim-bookworm` on `linux/amd64` (the Debian variant is pinned fleet-wide in `30-ops.md` § Base Images — change it THERE, never per-repo). Never use Alpine — musllinux wheels exist now (PEP 656) but coverage is still partial, source builds are dramatically slower, and musl's allocator/stack defaults degrade CPython; the trade never pays on this fleet.
 
 ```dockerfile
-FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->bookworm<!--/v-->    # machine-injected from .windsurf/rules/versions.yaml (D-062) — never hand-edit the number
+FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->    # machine-injected from .windsurf/rules/versions.yaml (D-062) — never hand-edit the number
 # ...
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```

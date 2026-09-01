@@ -39,7 +39,7 @@ trigger: glob
 ## Runtime + Docker
 
 - **New services target the current Active LTS line** (`node:<!--v:node_lts-->24<!--/v-->`). The previous LTS line is maintenance-only — existing services may ride it to its EOL, new services never target it. `node-api` + `file-api` scaffolds declare the floor `engines.node: ">=<!--v:node_engines_floor-->22<!--/v-->.0.0"`.
-- Base image: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->bookworm<!--/v-->-slim` (services pinned to the previous LTS keep their existing pin until EOL). **Alpine is banned fleet-wide** (musl-libc breaks native C++ bindings unpredictably).
+- Base image: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` (services pinned to the previous LTS keep their existing pin until EOL). **Alpine is banned fleet-wide** (musl-libc breaks native C++ bindings unpredictably).
 - Dockerfile build step: `RUN npm ci --ignore-scripts` (NOT `npm install`).
   - `npm ci`: deterministic from lockfile.
   - `--ignore-scripts`: blocks install-script payloads — the dominant npm supply-chain vector (the Shai-Hulud worm class; the Mastra `easy-day-js` typosquat backdoored 140+ package versions via postinstall in under 90 minutes). npm's current major now blocks dependency install scripts by default; the explicit flag keeps builds safe on every npm version and in CI images that lag.

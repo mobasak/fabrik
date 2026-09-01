@@ -20,7 +20,7 @@ description: Code review workflow, quality gate commands, and reusability discip
 *Perform before reporting completion. Full checklist in the agent's bootstrap file (`CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md`).*
 
 - [ ] **Secrets:** No hardcoded keys or tokens?
-- [ ] **Infrastructure:** `Dockerfile` is `-slim-bookworm`, has `HEALTHCHECK`, no Alpine?
+- [ ] **Infrastructure:** `Dockerfile` uses the pinned Debian `-slim` variant (per `30-ops.md` § Container Base Images), has `HEALTHCHECK`, no Alpine?
 - [ ] **Compose:** `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels with `websecure` entrypoint, `fabrik` network, no `ports:` section?
 - [ ] **Networking:** Port registered in `PORTS.md`? DB host = `postgres-main`, Redis = `redis-main` (not `localhost`)?
 - [ ] **Database:** Changes added to `db/schema.sql`? Alembic migration (no raw DDL)?

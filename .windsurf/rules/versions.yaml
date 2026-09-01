@@ -13,5 +13,5 @@ versions:
   python_stable: "3.14"      # newest stable minor — endoflife.date/api/python.json
   node_lts: "24"             # newest cycle whose LTS date has passed — api/nodejs.json
   node_engines_floor: "22"   # scaffold engines.node floor (POLICY, not auto-watched: raise deliberately when the previous LTS EOLs — Apr 2027)
-  debian_codename: "bookworm"  # fleet-pinned Debian variant (flip = D-062 pipeline + 30-ops class commit, deliberate)
+  debian_codename: "trixie"  # fleet-pinned Debian variant — flipped 2026-09-01 at 30-ops's turn (bookworm regular security ENDED 2026-07-12; trixie stable since 2025-08, full support to 2028-08); next flip = same deliberate class commit
   postgres_major: "16"       # postgres-main's actual major (FLEET STATE, not auto-watched; flip = fleet DB upgrade — also rewrite 25-data-postgres § Primary Keys, see claims row pg-fleet-major)

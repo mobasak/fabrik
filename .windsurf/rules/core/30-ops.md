@@ -24,9 +24,13 @@ trigger: glob
 
 | Use Case | Base Image |
 |----------|------------|
-| Python apps | `python:<current-stable>-slim-bookworm` |
-| Node.js apps | `node:<current-LTS>-bookworm-slim` |
-| General | `debian:bookworm-slim` |
+| Python apps | `python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->` |
+| Node.js apps | `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` |
+| General | `debian:<!--v:debian_codename-->trixie<!--/v-->-slim` |
+
+The literals above are machine-owned (D-062 marker spans; source: `.windsurf/rules/versions.yaml`,
+refreshed weekly). The Debian variant is a DELIBERATE fleet pin — it flips as one class commit when
+the pinned release leaves full security support, never per-pack.
 
 **Why not Alpine:** glibc compatibility, pre-built wheels, consistent behavior across dev/prod.
 
@@ -57,7 +61,7 @@ grep -E '^(DATABASE_URL|REDIS_URL)=' .env | grep localhost
 Multi-stage build with `uv` (mandated package manager). No `requirements.txt`, no raw `pip`.
 
 ```dockerfile
-FROM python:3.13-slim-bookworm AS builder    # track <current-stable>, don't pin stale
+FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v--> AS builder
 WORKDIR /app
 # gcc ONLY if a dependency without a wheel must compile; asyncpg ships wheels.
 # NO libpq-dev — that's psycopg2, which 25-data-postgres.md bans.
@@ -66,7 +70,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc \
 COPY pyproject.toml uv.lock ./
 RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev --no-editable
 
-FROM python:3.13-slim-bookworm
+FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->
 WORKDIR /app
 # curl for HEALTHCHECK only. NO libpq5 (psycopg2).
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
@@ -76,8 +80,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY . .
 
 # Port fixed at build (Traefik routes by label). CMD + HEALTHCHECK use the SAME literal.
+# Target /healthz — the DEP-FREE liveness probe (10-python § health split): a DB blip must
+# degrade /health (readiness), never restart the container. Services scaffolded before the
+# split serve only /health — keep that target until the endpoint exists.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/healthz || exit 1
 
 EXPOSE 8000
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
@@ -106,7 +113,9 @@ services:
       - REDIS_URL=redis://redis-main:6379/${REDIS_DB:-0}
       - SERVICE_INTERNAL_SECRET_KEY=${SERVICE_INTERNAL_SECRET_KEY}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/health"]
+      # Overrides the image HEALTHCHECK — if you declare it, keep target + port
+      # identical to the Dockerfile's (the PORT-mismatch ban covers both pairs).
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -164,9 +173,9 @@ A service often needs a background companion (scheduler, queue worker). Pick the
 
 Before running `fabrik apply`:
 
-- [ ] Dockerfile uses `slim-bookworm` (not Alpine)
-- [ ] HEALTHCHECK instruction present
-- [ ] Health endpoint tests actual dependencies (`SELECT 1`, Redis `PING`, etc.)
+- [ ] Dockerfile uses the pinned Debian `-slim` variant per § Container Base Images (not Alpine)
+- [ ] HEALTHCHECK instruction present, targeting the dep-free `/healthz` (services predating the health split keep `/health` until `/healthz` exists)
+- [ ] Readiness endpoint `/health` tests actual dependencies (`SELECT 1`, Redis `PING`, etc.) — Gatus/Traefik consume it
 - [ ] All env vars documented in `.env.example`
 - [ ] Credentials in project `.env`
 - [ ] Port registered in `PORTS.md`
@@ -305,8 +314,8 @@ Spokes are full deploy targets, not standby boxes — a spoke-targeted service r
 - Mock/stub backends in dev that don't exist in prod
 
 **✅ Correct:**
-- WSL runs PostgreSQL via `docker run postgres:16‑bookworm` (same tag as VPS)
-- WSL runs Redis via `docker run redis:7‑bookworm` (same tag as VPS)
+- WSL runs PostgreSQL + Redis at the SAME MAJOR as the VPS containers — probe the live truth, never copy a tag from a doc: `ssh vps "sudo docker inspect postgres-main redis-main --format '{{.Config.Image}}'"` (2026-09-01: `postgres:16-alpine` · `redis:7-alpine` — upstream official images, outside OUR-image Alpine ban per § Banned Patterns)
+- Parity is about MAJOR VERSION + engine, not the distro layer of an upstream image (native WSL PostgreSQL at the same major satisfies it — see `25-data-postgres.md` § Local Development)
 - Connection strings identical (`postgres-main:5432`, `redis-main:6379`)
 
 ---
@@ -398,7 +407,7 @@ The VPS Traefik uses these entrypoint names:
 
 | Pattern | Use Instead |
 |---------|-------------|
-| Alpine base image | `slim-bookworm` / `bookworm-slim` (glibc, prebuilt wheels) |
+| Alpine base image (OUR app images) | the pinned Debian `-slim` variant per § Container Base Images (glibc, prebuilt wheels). *Scope: images we BUILD; upstream official images (`postgres`, `redis`) ship self-contained and may be Alpine-based* |
 | `libpq-dev` / `libpq5` in Dockerfile | Omit — asyncpg needs no libpq (psycopg2-only; banned per `25-data-postgres.md`) |
 | `ports:` in compose / host-port binding | Traefik routing — only 80/443 bind host |
 | `localhost` in container connection strings | Docker DNS `postgres-main` / `redis-main` on the hub — or vps1's mesh IP `10.99.0.1` on a spoke (registrar-injected; see § Multi-host targeting) |

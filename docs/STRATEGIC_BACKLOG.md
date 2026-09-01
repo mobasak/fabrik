@@ -113,11 +113,12 @@ low-maintenance · free · resilient · traceable · logged · fastest · agile 
 the solve is a machine-updated version source + render-time injection (pipeline proposal owed
 during the pass). Scope: core/ then ALL folders, to completion.
 
-- **Debian-variant literal `bookworm` spans 5 packs** (10-python, 20-typescript, 30-ops [owner of
-  the base-image table], 40-documentation, 50-code-review). Docker's bare `-slim` now defaults to
-  trixie (Debian 13, stable since 2025); the fleet pins bookworm. Flip is ONE mechanical commit at
-  30-ops's evaluation turn — a solo per-pack flip would make packs contradict each other.
-  10-python now points at 30-ops as the single owner of the variant.
+- ✅ **bookworm→trixie FLIPPED (D-064, 2026-09-01, 30-ops's turn).** Grounds: Debian 12 regular
+  security ended 2026-07-12 — the fleet had built on an EOL-full-support layer for 7 weeks; trixie
+  stable since 2025-08, images live. One yaml line + one render because the spans were laid
+  file-by-file (the D-062 machinery's first class-flip in anger). 40-documentation had already
+  dropped its literal; 50-code-review reworded version-free. Scaffold emission now TWO axes stale
+  (bookworm + 3.12) — see the interpreter-gap alignment row.
 - Evaluated so far: 10-python (2026-09-01 — 3.13→3.14 current-stable fixed; Alpine rationale
   updated to the PEP-656 reality; distro literal deferred to the class commit) · 12-node
   (2026-09-01 — full bar; record below).
@@ -184,12 +185,14 @@ during the pass). Scope: core/ then ALL folders, to completion.
   uuid-utils (verified myself), pack now says so; (2) my pgbouncer claims row said 'default 0/off'
   — pgbouncer.org primary says DEFAULT 200 (ON) in current releases → row refuted + superseded
   (second supersede today).** saas/ prefix fixed. 3+1 claims rows, 1 superseded.
-- **Scaffold alignment owed (25-data + file-1 follow-through — the INTERPRETER GAP):** scaffold
-  emits `python:3.12-slim-bookworm` (scaffold.py:4809, ×4 occurrences) while 10-python spans
-  python_stable=3.14 — the rule corpus and the scaffold emit different interpreters TODAY. At the
-  scaffold window: bump the emission to the span value, drop `uuid-utils` from scaffolded
-  requirements (scaffold.py:2042) in favor of stdlib uuid.uuid7, and consider sourcing the
-  Dockerfile pin from versions.yaml so it cannot re-drift.
+- **Scaffold alignment owed (25-data + file-1 follow-through — the INTERPRETER GAP, now TWO axes):**
+  scaffold emits `python:3.12-slim-bookworm` (scaffold.py:4809, ×4) while the corpus spans
+  python_stable=3.14 AND debian_codename=trixie (D-064) — interpreter and distro both drifted. At
+  the scaffold window: bump the emission to the span values, drop `uuid-utils` from scaffolded
+  requirements (scaffold.py:2042) in favor of stdlib uuid.uuid7, emit /healthz alongside /health
+  (the health split), flip the idempotency header emission, and source the Dockerfile pin from
+  versions.yaml so it cannot re-drift. (This row now aggregates ALL scaffold-alignment debt from
+  files 1-6.)
 - **File-4 (20-typescript) COMPLETE under the full bar (2026-09-01).** Own legs (brave + exa +
   earlier WebSearch/WebFetch): TypeScript's native-compiler major is GA (ships as `tsc`, API
   port next minor) — pack got a version-free currency line; zod 4 stable, pack idiom unchanged.
