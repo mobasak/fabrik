@@ -458,3 +458,27 @@ claims:
     verify: "read: /opt/fabrik/.mcp.json and ~/.claude.json — is the split still in force?"
     window_days: 180
     last_verified: 2026-09-01
+
+  - id: jitter-required-multiprocess-retry
+    pack: core/58-resilience.md
+    claim: "tenacity's wait_exponential has NO jitter and its own docstring calls it 'not suitable for resolving contention between multiple processes for a shared resource' — hence wait_random_exponential/wait_exponential_jitter for any worker fleet"
+    kind: practice
+    verify: "read: .venv/lib/**/tenacity/wait.py wait_exponential docstring — is the no-jitter caveat still there? + search: exponential backoff full jitter thundering herd <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: retryable-status-set
+    pack: core/58-resilience.md
+    claim: "The retryable HTTP set is 408/429/5xx; 400/401/403/404/422 are permanent. 429 is the single most common retryable vendor response, and a flat 'never retry 4xx' rule inverts it"
+    kind: practice
+    verify: "search: which HTTP status codes are safe to retry 429 408 <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: retry-after-two-formats
+    pack: core/58-resilience.md
+    claim: "Retry-After has TWO legal formats — delay-seconds and HTTP-date — and both must be parsed; the value is vendor-controlled so it must be CAPPED before it becomes either a sleep or a pause TTL"
+    kind: standard
+    verify: "search: Retry-After header HTTP-date delay-seconds RFC 9110 semantics"
+    window_days: 365
+    last_verified: 2026-09-01

@@ -21,6 +21,26 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Fixed — rules pass file 13: core/58-resilience.md retried the wrong things, un-jittered (2026-09-01)
+
+The resilience pack said "Never retry 4xx" and contained ZERO occurrences of 429, 408,
+`Retry-After` or "jitter" across 438 lines. Three defects, each in all three language sections:
+
+- **429 was unretryable by rule.** A rate-limited vendor's most common response was the one
+  status an agent was told to give up on. Now an explicit `{408, 429, 5xx}` set, with
+  `Retry-After` honoured in both legal formats (delay-seconds and HTTP-date) and CAPPED.
+- **The canonical examples never retried a 5xx or 429 at all.** The Python predicate named only
+  `TimeoutException`/`ConnectError` while the code called `raise_for_status()`; both the Node and
+  the FastAPI-client snippets threw only on `>= 500`, silently returning a 429 as success.
+- **Backoff was un-jittered everywhere** — bare `wait_exponential`, whose own tenacity docstring
+  says it is "not suitable for resolving contention between multiple processes for a shared
+  resource", which is precisely a worker fleet.
+
+Also added: retry-at-ONE-layer (tenacity ×3 inside a job-queue retry ×3 inside a caller's ×3 is 27
+upstream calls before any breaker sees a pattern), the inline-retry-vs-pause boundary with a capped
+pause TTL, and the client-side idempotency rule. The rewritten example was executed against a mock
+transport rather than eyeballed.
+
 ### Added — Capability Profile: the operational envelope every external system owes (2026-09-01)
 
 Operator directive: for an external system we must know its limitations, quota, concurrency,

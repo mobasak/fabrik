@@ -46,11 +46,18 @@ This is the minimum for ANY `httpx`, `fetch`, or SDK call to an external service
 ### Python (httpx — async)
 
 ```python
-import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
-# 1. Configure the client ONCE with timeouts
-from src.config import get_settings
+import httpx
+from tenacity import (
+    RetryCallState, retry, retry_if_exception, stop_after_attempt, wait_random_exponential,
+)
+
+# 1. Configure the client ONCE with timeouts (values from settings — see the knob note below)
+import structlog
+
+logger = structlog.get_logger()
 
 client = httpx.AsyncClient(
     base_url="https://api.example.com",
@@ -59,11 +66,44 @@ client = httpx.AsyncClient(
     # Do NOT send internal tokens to third-party APIs.
 )
 
-# 2. Wrap calls with retry + backoff
+# 2. WHICH failures are retryable. `raise_for_status()` raises HTTPStatusError, so a retry
+#    predicate that only names TimeoutException/ConnectError never retries a 5xx or a 429 —
+#    it silently gives up on exactly the failures backoff exists for.
+# ⚠️ The literals below are illustrative. Per § Banned Patterns, every timeout / attempt count /
+# cap ships as a §7a env knob — read them from settings, do not hardcode them in the call site.
+RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+_FALLBACK = wait_random_exponential(multiplier=1, max=10)  # JITTERED — see the rules below
+_RETRY_AFTER_CAP_S = 60.0
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError)):
+        return True
+    return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in RETRYABLE_STATUS
+
+
+def _wait(state: RetryCallState) -> float:
+    """Honour Retry-After (429/503) in BOTH legal formats, capped; else jittered backoff."""
+    exc = state.outcome.exception() if state.outcome else None
+    if isinstance(exc, httpx.HTTPStatusError):
+        raw = exc.response.headers.get("retry-after")
+        if raw:
+            try:
+                return min(float(raw), _RETRY_AFTER_CAP_S)          # delay-seconds
+            except ValueError:
+                try:                                                 # or an HTTP-date
+                    delay = (parsedate_to_datetime(raw) - datetime.now(timezone.utc)).total_seconds()
+                    return min(max(delay, 0.0), _RETRY_AFTER_CAP_S)
+                except (TypeError, ValueError):
+                    pass                                             # unparseable → fall through
+    return _FALLBACK(state)
+
+
+# 3. Wrap calls with retry + jittered backoff
 @retry(
     stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+    wait=_wait,
+    retry=retry_if_exception(_is_retryable),
     reraise=True,
 )
 async def fetch_data(item_id: str) -> dict:
@@ -71,11 +111,11 @@ async def fetch_data(item_id: str) -> dict:
     resp.raise_for_status()
     return resp.json()
 
-# 3. Graceful fallback at the call site
+# 4. Graceful fallback at the call site
 async def get_item(item_id: str) -> dict | None:
     try:
         return await fetch_data(item_id)
-    except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.ConnectError):
+    except httpx.HTTPError:  # the base class — ReadError/RemoteProtocolError are TransportErrors
         logger.warning("external_service_unavailable", service="example", item_id=item_id)
         return None  # graceful degradation — caller handles missing data
 ```
@@ -83,7 +123,49 @@ async def get_item(item_id: str) -> dict | None:
 **Rules:**
 - **`httpx.AsyncClient`** is the only HTTP client for async FastAPI. Never use `requests` (sync, blocks the event loop).
 - **Timeout is mandatory.** No `httpx.get()` without explicit timeout. The default `httpx.Timeout(5.0)` is often too short for read — set per dependency.
-- **Retry with exponential backoff.** Use `tenacity` (Python) — 3 attempts, 1-10s backoff. Retry transient errors: timeout, connection, and 5xx (502/503/504 are transient gateway errors). Never retry 4xx.
+- **Retry with JITTERED exponential backoff.** Use `tenacity` (Python) — 3 attempts, 1-10s backoff, and
+  **`wait_random_exponential` / `wait_exponential_jitter`, never bare `wait_exponential`**. This is not a
+  style preference: tenacity's own docstring says `wait_exponential`'s intervals "are fixed (i.e. there is
+  no jitter) … *not* suitable for resolving contention between multiple processes for a shared resource".
+  N workers that fail together retry in lockstep and re-hammer the dependency at the moment it is
+  recovering — the thundering herd. Every worker fleet here is exactly that "multiple processes" case.
+- **Which statuses are retryable.** Retry timeouts, connection errors, and 5xx (502/503/504 are transient
+  gateway errors). Do **not** retry 400/401/403/404/422 — a permanent client error retried is just load.
+  ⚠️ **`429` and `408` are the exceptions and they matter most**: `429 Too Many Requests` is the single
+  most common retryable response from a rate-limited vendor, and `408 Request Timeout` is transient by
+  definition. "Never retry 4xx" as a flat rule makes an agent give up on precisely the failure that
+  backoff exists for.
+- **Honour `Retry-After` when the server sends it** (on `429` and `503`). The server knows its own
+  recovery window better than your backoff curve does. ⚠️ It has **two legal formats** — delay-seconds
+  (`Retry-After: 120`) *or* an HTTP-date (`Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`) — so parse both,
+  and **cap** what you honour (a hostile or buggy value of `86400` must not park a worker for a day).
+  Fall back to jittered backoff when the header is absent or unparseable. `tenacity.wait_exception`
+  exposes the response for exactly this.
+- **⚠️ Inline retry vs PAUSE — the two mechanisms this pack owns, and 429 is where they meet.**
+  An inline retry handles a **blip**: one call failed, seconds of backoff, bounded attempts. A pause
+  handles a **condition**: the dependency is refusing work, so *every* job will hit the same wall and
+  retrying inline just multiplies load across the whole queue. The test is not the status code, it is
+  **whether the next job would fail for the same reason**:
+  - a single `429` with a short `Retry-After` (within your inline budget) → honour it inline, done.
+  - repeated `429`s, or a `Retry-After` longer than your inline budget → that is a CONDITION. Stop
+    retrying inline and `set_pause(key, ttl)` for the window (workers — § Pause-Key Conventions), so
+    one worker's discovery spares the whole queue instead of every job learning it separately.
+    ⚠️ **Cap that TTL too** (a §7a knob). The inline cap stops a hostile `Retry-After: 86400` parking
+    ONE worker for a day; feeding the same unvalidated value into a pause key parks the ENTIRE QUEUE
+    for a day. A vendor-supplied number never becomes a TTL unclamped.
+  This is why the classifier already pauses on `402` rather than retrying it: credit exhaustion is a
+  condition, not a blip. Same shape, different trigger.
+- **⚠️ Retry at ONE layer.** Retries compose multiplicatively: tenacity ×3 inside a job, a job-queue
+  retry ×3 around it (`75-workers-jobs`), and your own caller retrying ×3 is up to **27** upstream
+  calls per logical operation — long before any circuit breaker sees a pattern. Pick the layer that
+  owns the retry and make the inner layers fail fast. For worker jobs the queue retry IS the retry:
+  do not also wrap the call in `@retry` inside the job.
+- **⚠️ Retrying a non-idempotent write can double-charge, double-send or double-create.** Before adding a
+  retry to a `POST` (or a non-idempotent `PATCH`), the call needs an `Idempotency-Key` — otherwise a retry
+  after a timeout you never saw the response to is a second real mutation. `PUT`/`DELETE` are idempotent
+  by HTTP semantics and are safe. **`15-api-contracts` owns the SERVING side** (accepting and storing the
+  key); this pack owns the caller's question — *may I retry this at all?* If the answer is "no key, no
+  safety", the correct move is to surface the failure, not to retry blind.
 - **Graceful fallback.** The caller must handle the failure case — return cached data, a default, or a user-facing error message. Never let an external service failure crash your endpoint.
 
 ### The timeout you didn't set (third-party libraries, shared sessions, DNS)
@@ -119,13 +201,26 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries
     try {
       const controller = new AbortController();
       const timeoutId = globalThis.setTimeout(() => controller.abort(), 30_000);
-      const resp = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!resp.ok && resp.status >= 500) throw new Error(`Server error: ${resp.status}`);
+      let resp: Response;
+      try {
+        resp = await fetch(url, { ...options, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);  // finally: a rejected fetch would otherwise leak the abort timer
+      }
+      // Same retryable set as § Python — `>= 500` alone returns a 429 as if it succeeded.
+      if (!resp.ok && (resp.status >= 500 || resp.status === 429 || resp.status === 408)) {
+        const err = new Error(`Retryable HTTP ${resp.status}`);
+        (err as any).retryAfter = resp.headers.get('retry-after');
+        throw err;
+      }
       return resp;
     } catch (err) {
       if (attempt === maxRetries) throw err;
-      await setTimeout(Math.min(1000 * 2 ** attempt, 10_000));
+      // Honour Retry-After (capped), else JITTERED backoff. Un-jittered retries synchronise
+      // across clients and re-hammer the dependency as it recovers — the thundering herd.
+      const hinted = Number((err as any)?.retryAfter);
+      const backoff = Math.min(1000 * 2 ** attempt, 10_000) * (0.5 + Math.random());
+      await setTimeout(Number.isFinite(hinted) ? Math.min(hinted * 1000, 60_000) : backoff);
     }
   }
   throw new Error('Unreachable');
@@ -142,13 +237,20 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
     ...options,
     signal: AbortSignal.timeout(30_000),  // no request hangs forever
   });
-  if (!resp.ok && resp.status >= 500) throw new Error(`Server error: ${resp.status}`);
+  // 429/408 are retryable too — `>= 500` alone silently returns a rate-limit response as if it
+  // succeeded, and the caller's retry never fires.
+  if (!resp.ok && (resp.status >= 500 || resp.status === 429 || resp.status === 408)) {
+    throw new Error(`Retryable HTTP ${resp.status}`);
+  }
   return resp;
 }
 ```
 
 - **Explicit timeout on every client→backend call** (`AbortSignal.timeout`) — the default `fetch` has none.
-- **Wrap backend calls in try/catch** at the service layer. Handle non-2xx responses and network errors gracefully; retry transient failures (timeout, connection, 5xx) with backoff, never 4xx.
+- **Wrap backend calls in try/catch** at the service layer. Handle non-2xx responses and network errors
+  gracefully; retry transient failures (timeout, connection, 5xx, **plus 408/429**) with **jittered**
+  backoff — same status set and same `Retry-After` handling as § Python above, and the same reason: on a
+  client fleet, un-jittered retries synchronise. Never retry 400/401/403/404/422.
 - **Backend outage fallback:** if the FastAPI API is down, the app shows cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
 - **Auth token refresh:** Pattern A issues its own JWTs with atomic refresh-token rotation; the app's auth client owns the refresh flow (per `35-security-auth.md` Pattern A). Do not scatter ad-hoc refresh logic across service calls — centralize it in the auth client.
 
@@ -317,6 +419,7 @@ TRANSIENT_PATTERNS: list[tuple[re.Pattern, str, int]] = [
     (re.compile(r"insufficient.?credit|payment.?required|\b402\b", re.I), "vendor_credit", 1800),
     (re.compile(r"NameResolutionError|getaddrinfo failed",           re.I), "network",       30),
     (re.compile(r"pool.*exhausted|too many connections",             re.I), "pool",          120),
+    (re.compile(r"rate.?limit|too many requests|\b429\b",            re.I), "rate_limit",    300),
     # ... project-specific additions here, NEVER inline elsewhere
 ]
 ```
@@ -381,7 +484,7 @@ out of the protection being claimed. Name the mechanism, not the vendor.
 | `while not <flag>: sleep()` with no ceiling | Bound every conditional wait; then proceed or bail to a transient error |
 | Recording an operational failure (timeout/network/proxy/hard-kill/lock) as a terminal **content** verdict | Default transient/retryable; terminal-content requires positive content evidence (see § Operational failures are transient) |
 | External call site with no row in §2a of RESILIENCE.md | Add the row first, then the call site |
-| `time.sleep(N)` on transient error | Retry with backoff (`tenacity`) or `set_pause(key, ttl)` for workers |
+| `time.sleep(N)` on transient error | Retry with JITTERED backoff (`tenacity.wait_random_exponential`) or `set_pause(key, ttl)` for workers |
 | No fallback on external call failure | Graceful degradation: cached data, default, or clear error state |
 | Global pause for a dep only one job-type uses | `defer_until_*()` on the job row (per-job-type scope) |
 | Permanent flag (`SET` without TTL) on pause keys | `SETEX` / `set(ex=ttl)` — sliding-TTL is the contract |
@@ -400,6 +503,10 @@ out of the protection being claimed. Name the mechanism, not the vendor.
 ## Related Rule Packs
 
 - `10-python.md` — Pydantic Settings for secrets/config, async httpx, error handling
+- `15-api-contracts.md` — the SERVING side of `Idempotency-Key`; this pack owns the caller's
+  question (*may I retry this write at all?*)
+- `57-external-data-sourcing.md` — WHAT to reach for, and the Capability Profile whose "behaviour
+  AT the cap" field tells you whether this dependency's 429 even carries a `Retry-After`
 - `30-ops.md` — HEALTHCHECK `start_period: 20s`, `/health` Authelia bypass
 - `35-security-auth.md` — M2M `X-Internal-Token` (internal calls only — never to third-party APIs)
 - `55-observability.md` — `/health` contract, GlitchTip error capture, structlog
@@ -413,10 +520,21 @@ out of the protection being claimed. Name the mechanism, not the vendor.
 ### All services with external calls
 
 - [ ] Every external call has explicit timeout configured.
-- [ ] Every external call has retry with exponential backoff (transient errors only).
+- [ ] Every external call has retry with **jittered** exponential backoff (transient errors only) —
+      `wait_random_exponential`/`wait_exponential_jitter`, never bare `wait_exponential`.
+- [ ] The retry predicate actually covers the retryable STATUSES (408/429/5xx), not just transport
+      exceptions — a predicate naming only `TimeoutException`/`ConnectError` never retries a 429.
+- [ ] `Retry-After` is honoured on 429/503, parsed in BOTH formats (delay-seconds and HTTP-date),
+      and capped.
+- [ ] No retry wraps a non-idempotent write without an `Idempotency-Key` (serving side: `15-api-contracts`).
 - [ ] Every external call has a graceful fallback (cached data, default, or error state).
 - [ ] Circuit-breaker implemented per external dependency (threshold + recovery from env vars).
 - [ ] `docs/RESILIENCE.md` exists; §2a has a row for every external call site.
+- [ ] Each dependency's card LINKS its Capability Profile (`57-external-data-sourcing` § The
+      Capability Profile) rather than copying its numbers — the profile records the VENDOR's
+      contract (quota, cap behaviour, resume, cost); this pack records YOUR handling of it. The
+      profile's "behaviour AT the cap" field is what tells you whether 429 here arrives with a
+      `Retry-After` at all.
 - [ ] Every timeout, retry count, CB threshold is an env var (§7a tuning knobs).
 
 ### Workers (additionally)
