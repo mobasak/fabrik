@@ -170,6 +170,13 @@ during the pass). Scope: core/ then ALL folders, to completion.
   leads, scaffold follows: flip the emission to accept `Idempotency-Key` (keep `X-` as legacy
   fallback) at the next scaffolder window. Note the scaffold example is a POST — still
   key-required under the narrowed POST/non-idempotent-PATCH scope.
+- **TWO OPERATOR LENSES ADDED TO THE BAR (2026-09-01, post-file-6):** (a) `docs/infrastructure/`
+  fleet docs are mandated grounding for deploy/VPS-surface packs — read AND live-verified (they
+  rot both ways: the inventory had the true redis tag while agents-fabrik:183 had aspirational
+  pgvector); (b) **D-065**: OPERATIONS.md + DEPLOYMENT.md are fleet-AI interfaces — fully
+  current, machine-consumable (what/how to deploy; which VPS services: workers, systemd, cron).
+  Enforcement lands at 40-documentation + 75-workers-jobs + deploy-surface turns: check the
+  rules ENFORCE currency + consumability, not merely name the files.
 - **File-6 (30-ops) COMPLETE under the full bar (2026-09-01) — the class-owner turn.** D-064
   bookworm→trixie EXECUTED (own grounds: debian.org + endoflife + Docker Hub tag probes; the
   opinion independently endorsed with digest-level proof). File-1 deferrals closed: HEALTHCHECK
