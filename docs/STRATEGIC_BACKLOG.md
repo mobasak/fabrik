@@ -177,6 +177,36 @@ during the pass). Scope: core/ then ALL folders, to completion.
   current, machine-consumable (what/how to deploy; which VPS services: workers, systemd, cron).
   Enforcement lands at 40-documentation + 75-workers-jobs + deploy-surface turns: check the
   rules ENFORCE currency + consumability, not merely name the files.
+- **File-11 (55-observability) COMPLETE under the full bar (2026-09-01) — the largest pack (501 lines) and the most FICTION.**
+  Triggered by the operator's live symptom ("agents are not creating a proper logging system"),
+  measured to root cause rather than guessed. **Answer: the machinery works, the SCAFFOLD leaks** —
+  site-provisioner emits textbook structlog JSON *and* raw uvicorn access lines on the same stdout
+  (34.6% of its 24h lines carry no `{`), because scaffold.py:799 uses `PrintLoggerFactory()` which
+  bypasses stdlib entirely and the emitted CMD runs uvicorn with default access logging. Rules side
+  fixed here; scaffold side filed (01M1EP16E2HBFYA2G4XKJV9X1C). **THE FILE-1 CLAIM DISCHARGED:
+  glitchtip-5xx-capture VERIFIED TRUE IN SOURCE** (`_DEFAULT_FAILED_REQUEST_STATUS_CODES =
+  frozenset(range(500,600))`) with three precisions the row had hidden — 5xx ONLY (4xx captured by
+  nothing), duck-typed on `.status_code`, recorded `handled: True`; row rewritten, window 180→365.
+  **SECOND OPINION (Opus 5, 39 verdicts — the deepest of the pass): accepted wholesale.** Its
+  findings, each re-verified by me at the source before acting: the Loki section named THREE LABELS
+  THAT DO NOT EXIST (`service`/`environment`/`level`; the live set is container_name/filename/host/
+  job/service_name/stream — my own probe) so its worked LogQL example returned zero rows; the
+  pipeline diagram described docker.sock auto-discovery when the config uses a filesystem glob;
+  the metrics code block called ACTIVE_JOBS/PROCESSING_COUNT Gauges when they are a **Histogram**
+  and a **Counter** (`.set()` would raise) and taught `Counter("request_count")` when the client
+  auto-appends `_total`; `src/metrics.js` HAS NEVER EXISTED; the matrix claimed `file-worker` serves
+  /health + /metrics when it scaffolds no HTTP server at all (deps: boto3/structlog/supabase/pypdf);
+  TWO of five alert rows describe alerts that exist nowhere in configs/, and "never page on CPU/RAM"
+  is contradicted by five shipped paging rules; and the pack claimed enforcement from
+  `check_health.py`/`check_watchdog.py` — both WARN-only AND documented UNWIRED in final_gate.py.
+  It also corrected MY OWN uvicorn prescription from this same turn (it silenced rather than routed
+  and omitted `log_config=None`, without which uvicorn re-applies its dictConfig over yours) — now
+  a 3-step form. **OTel: measured REJECTION recorded** (logs are the weakest OTel signal; adoption
+  costs a Collector + re-instrumenting 46 projects for tracing nobody needs) with the nuance that
+  the forced Promtail→Alloy migration adopts it at the COLLECTION layer anyway. Fleet findings
+  filed: 01M1EQ3NCA98EF178ZY366V47T (**Promtail EOL 2026-03-02, still running**; node-api template
+  default sets exposes_metrics with no metrics module → permanently broken scrape target).
+  Net +33 lines on a 501-line pack: mostly deletions of fiction plus ~8 corrective sentences.
 - **File-10 (50-code-review) COMPLETE under the full bar (2026-09-01) — the worst-contradiction pack.**
   Own legs: TWO drift-anchor INVERSIONS shipping to ~46 repos — "the user commits and pushes,
   coding agents only implement and fix" (vs commit-at-task-end + push-at-task-end, both § UNIVERSAL

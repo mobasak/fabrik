@@ -17,21 +17,23 @@ Apply when working on logging, health endpoints, metrics, monitoring, alerting, 
 
 ## Per-Scaffold Observability Matrix
 
-Not every scaffold type gets every observability feature. This matrix is the source of truth:
+Not every scaffold type gets every observability feature. **Ground each row against what the scaffolder actually emits** (`scaffold.py::SCAFFOLD_TYPES` is the registry) — a row claiming a capability the type has no machinery for (a worker with no HTTP server cannot serve `/health`) is worse than no row:
 
 | Scaffold | Structured logging | `/health` | `/metrics` | GlitchTip | Crash reporting | Gatus monitor |
 |---|---|---|---|---|---|---|
 | `python-api` | structlog (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
 | `node-api` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
 | `file-api` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
-| `file-worker` | structlog (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
-| `saas-skeleton` | pino (scaffolded) | Yes (scaffolded) | Per ticket | Yes (scaffolded) | Server-side auto | Yes |
+| `file-worker` | structlog (scaffolded) | **No — no HTTP server exists** | **No** | Per ticket | Server-side auto | Via its own liveness signal, not HTTP |
+| `saas-skeleton` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
 | `chrome-extension` | Backend: structlog; Frontend: `chrome.storage.local` buffer | Backend only | Backend only | Backend only | Frontend: Sentry browser SDK | Backend only |
 | `mobile-app` | Backend: structlog; Client: Sentry RN SDK | Backend only | Backend only | Backend only | Client: Sentry React Native SDK | Backend only |
 | `desktop-app` | Backend: structlog; Client: per ticket | Backend only | Backend only | Backend only | Client: Sentry Electron SDK | Backend only |
 | `wordpress` | WP debug log + Cloudflare analytics | Gatus checks site URL | N/A | N/A | N/A | Yes (site URL) |
 | `docusaurus` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
 | `static-site` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
+| `python-api-gpu` | as `python-api` | as `python-api` | as `python-api` | as `python-api` | Server-side auto | Yes |
+| `office-extension` | Backend: structlog; Client: per ticket | Backend only | Backend only | Backend only | Client: per ticket | Backend only |
 
 **Two-faced types** (mobile-app, desktop-app, chrome-extension): the backend lane gets full observability (logging + health + metrics + GlitchTip). The client lane gets crash reporting (Sentry SDK for the platform) **plus product analytics** where the product needs it — for `chrome-extension`, the GA4 Measurement Protocol or PostHog's core/no-external build behind a `chrome.storage` queue + `chrome.alarms` flush (see § Chrome Extension Telemetry). Consent-gated per the product's opt-out state.
 
@@ -42,14 +44,21 @@ Not every scaffold type gets every observability feature. This matrix is the sou
 Understanding the pipeline prevents agents from breaking it:
 
 ```
-App (structlog/pino) → JSON to stdout → Promtail (auto-discovers via docker.sock)
-  → Loki (indexes by service/env/level labels) → Grafana (LogQL queries)
+App (structlog/pino) → JSON to stdout → Docker json-file logs
+  → the log shipper (tails /var/lib/docker/containers/*/*log)
+  → Loki (indexes by the SIX pipeline labels below) → Grafana (LogQL queries)
 ```
 
-- **Apps emit JSON, unbuffered, to stdout — and nothing else.** This is WHY JSON format is mandatory and `print()` is banned — Promtail parses JSON; raw text breaks field extraction. See § Logs (12-Factor Factor XI) for the full ban on logfiles.
-- **Promtail auto-discovers ALL containers.** No per-service config needed. The lifecycle doc confirms: "auto-discovers ALL containers via docker.sock. No labels or config changes needed per service."
-- **Loki indexes by low-cardinality labels only.** High-cardinality labels (request_id, user_id) cause OOM. Keep them in the JSON payload.
-- **Grafana queries via LogQL** with JSON field extraction: `{service="myservice"} | json | level="error"`.
+⚠️ **The shipper is Promtail today and Promtail reached END OF LIFE (2026-03-02)** — no
+updates, no support. Grafana Alloy is the successor (`alloy convert` migrates the config).
+Fleet migration is an infra action, not a per-project one; until it lands, nothing about the
+rules below changes.
+
+- **Apps emit JSON, unbuffered, to stdout — and nothing else.** This is WHY JSON format is mandatory and `print()` is banned — the shipper parses JSON; raw text breaks field extraction. See § Logs (12-Factor Factor XI) for the full ban on logfiles.
+- **The shipper picks up ALL containers by filesystem glob** (`/var/lib/docker/containers/*/*log`), not via docker.sock — no per-service config needed, and a drop rule filters known noise. Debug missing logs at the glob + drop stages, not at a socket.
+- **Loki indexes by low-cardinality labels only.** High-cardinality labels (request_id, user_id) cause OOM. Keep them in the JSON payload — or, when a field must be queryable without becoming a stream, in structured metadata (enabled on this fleet).
+- **The label set is the PIPELINE's, not yours** — live: `container_name`, `filename`, `host`, `job`, `service_name`, `stream`. An app cannot add labels by logging a field; a JSON field is queried with `| json`, never as a label.
+- **Grafana queries via LogQL** with JSON field extraction: `{service_name="myservice"} | json | level="error"` (verify label names against the live set before writing a query — `service`, `environment` and `level` are NOT labels here).
 
 ---
 
@@ -66,7 +75,7 @@ App (structlog/pino) → JSON to stdout → Promtail (auto-discovers via docker.
 ```
 App:       JSON → stdout (unbuffered)   ← app's only job
 Runtime:   Docker captures stdout
-Platform:  Promtail → Loki → Grafana    → routing/retention lives here
+Platform:  shipper → Loki → Grafana      → routing/retention lives here
 ```
 
 **BANNED in app code:**
@@ -84,7 +93,7 @@ Platform:  Promtail → Loki → Grafana    → routing/retention lives here
 - The scaffolded logger (structlog / pino — see § Pre-Scaffolded Logging) writes to stdout. Do not add a second handler, sink, or transport alongside the stdout one.
 - Python: `sys.stdout` is line-buffered for ttys but **block-buffered when piped** — flush after every record (the scaffolded `structlog` config already does this; do not add a `buffering=` or wrapper that batches).
 - Node: `pino` defaults to flush-on-write; do not set `pino.destination()` to a file path, and do not introduce a worker-thread file transport in app code.
-- Container stdout is captured by the Docker daemon and tailed by Promtail — that is the entire delivery path. The app has no business knowing any of that.
+- Container stdout is captured by the Docker daemon and tailed by the log shipper — that is the entire delivery path. The app has no business knowing any of that.
 
 ❌ **BANNED — in-app file logging:**
 
@@ -102,7 +111,7 @@ logger.info("user_login")  # writes to /var/log — app owns routing/rotation
 ```python
 from myapp.logger import get_logger  # scaffolded structlog — see § Pre-Scaffolded Logging
 logger = get_logger(__name__)
-logger.info("user_login", user_id=user.id)  # JSON to stdout; Promtail picks it up
+logger.info("user_login", user_id=user.id)  # JSON to stdout; the shipper picks it up
 ```
 
 Local development may tee stdout to a terminal pane; that is a developer-machine concern, not an app concern, and is not wired in production code paths.
@@ -133,12 +142,21 @@ logger.info("event_name", key="value")
 > line is one Loki cannot label, filter or alert on. Measured live on this fleet (2026-09-01):
 > the scaffolded `site-provisioner` emits textbook structlog JSON *and* raw uvicorn access lines
 > side by side.
-> **Fix it at boot, in the same place you configure structlog** — route the stdlib root logger
-> through structlog's `ProcessorFormatter` so third-party loggers are rendered as JSON too, and
-> silence the duplicate access log (`--no-access-log`, or `logging.getLogger("uvicorn.access").handlers = []`)
-> once your own request middleware logs each request with its correlation ID. **A service is not
-> "properly logging" until EVERY line on its stdout is JSON** — verify by eye:
-> `docker logs <container> --tail 20` must show zero non-JSON lines.
+> **The fix is THREE steps and all three are load-bearing** (the scaffold is being updated to emit
+> them; a service that predates it backfills):
+> 1. **Route, don't just configure** — `structlog.stdlib.LoggerFactory()` + end the chain with
+>    `ProcessorFormatter.wrap_for_formatter`, then one root `StreamHandler` whose formatter is
+>    `ProcessorFormatter(foreign_pre_chain=…, processors=[remove_processors_meta, JSONRenderer()])`.
+>    That is what makes THIRD-PARTY records render as JSON.
+> 2. **`uvicorn`/`uvicorn.error`: clear handlers AND set `propagate = True`** so they reach root.
+>    (`uvicorn.access` is different — it ships `propagate: False`, so clearing its handlers
+>    SILENCES it rather than routing it. Silence is the right choice once your X-Request-ID
+>    middleware logs each request; just know which of the two you are doing.)
+> 3. **Stop uvicorn re-applying its own dictConfig over yours** — `log_config=None` (or a
+>    neutralising `--log-config`); without this the first two steps are undone at startup.
+>
+> **A service is not "properly logging" until EVERY line on its stdout is JSON** — verify by eye:
+> `docker logs <container> --tail 20 | grep -v '^{'` must print nothing.
 
 **Node projects** (`node-api`, `file-api`):
 
@@ -192,11 +210,12 @@ from prometheus_client import Histogram
 PROCESSING_DURATION = Histogram("processing_duration_seconds", "Time to process item", ["item_type"])
 ```
 
-- Name metrics with `snake_case` and a unit suffix (`_seconds`, `_bytes`, `_total`).
+- Name metrics with `snake_case` and a **base-unit** suffix (`_seconds`, `_bytes`); `_total` is the COUNTER suffix and composes with units (`process_cpu_seconds_total`). ⚠️ `prometheus_client` appends `_total` to a Counter itself — declare `Counter("requests", …)`, never `Counter("requests_total", …)`, and never `_count` (an OpenMetrics reserved suffix).
 - Use Counter for monotonic values, Gauge for current state, Histogram for distributions.
 - Keep cardinality bounded — label values must be from a small, known set.
+- **What the scaffold actually emits** (read `{package}/metrics.py` before importing): `REQUEST_COUNT` = Counter `fabrik_requests_total` labelled `["endpoint","status"]` (no `method`), `ERROR_COUNT` + `PROCESSING_COUNT` = Counters, `REQUEST_DURATION` + `ACTIVE_JOBS` = **Histograms** — calling `.set()` on them raises. Import the names; do not assume their types.
 
-**Node projects:** Use `prom-client` with the same naming conventions. The scaffold emits the setup in `src/metrics.js`.
+**Node projects:** no metrics module is scaffolded today — wire the Prometheus client yourself if `shape.exposes_metrics` is set, and do not set that flag until `/metrics` genuinely serves.
 
 ---
 
@@ -225,7 +244,7 @@ content**. If a project wants it structural regardless of PII, the real control 
 **Never port an option name across SDKs by symmetry; check that SDK's own docs.**
 
 **Python's `EventScrubber()` is ON by default regardless of `send_default_pii`**, and its
-`DEFAULT_DENYLIST` (32 entries, live-checked) already scrubs the `Authorization` header plus
+`DEFAULT_DENYLIST` (plus a small `DEFAULT_PII_DENYLIST`) already scrubs the `Authorization` header plus
 `api_key`/`token`/`secret` BY KEY. So the HTTP-header channel is closed out of the box — that is the
 one name-based path that works, precisely because Sentry ships and maintains the list rather than a
 project guessing at it.
@@ -267,7 +286,8 @@ has the old init** — grep your own `glitchtip_init.*` and add them; nothing ba
 - Unhandled exceptions (FastAPI 500s, uncaught Node throws, unhandled promise rejections) → AUTO-CAPTURED. Do nothing extra.
 - DO NOT call `logger.exception()` / `logger.error()` with full tracebacks for unhandled errors — that duplicates the GlitchTip event AND wastes Loki storage. Log a short event name with correlation_id; let GlitchTip carry the stacktrace.
 - Use `sentry_sdk.capture_exception(e)` (Python) or `Sentry.captureException(e)` (Node) ONLY for **caught-then-rethrown** control flow where the exception would otherwise be swallowed (e.g., catch in a worker loop to keep the worker alive, log the event, then continue).
-- DO NOT call `capture_exception` from inside a FastAPI handler that re-raises `HTTPException` — the integration already handles it.
+- DO NOT call `capture_exception` for an `HTTPException` whose status is in `failed_request_status_codes` — the integration already captures it (default: **all 5xx**, matched duck-typed on `.status_code`, recorded as `handled: True` rather than an unhandled crash).
+- ⚠️ **Outside that set nothing captures it.** A deliberate 401/403/429 you WANT audited reaches GlitchTip never — widen `failed_request_status_codes` in the init rather than sprinkling `capture_exception` through handlers.
 
 **Provisioning a project + DSN:**
 
@@ -384,7 +404,7 @@ Every JSON log entry must include these core fields:
 - A `/health` that returns 200 without checking dependencies creates "zombie" containers — Traefik routes traffic to broken services.
 - Docker Compose `HEALTHCHECK` must include `start_period` (15-20s) to allow framework boot and DB migrations before the container is marked unhealthy.
 - `/health` is Authelia-bypassed on all services. The bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file`). Never protect these paths.
-- Enforcement: `scripts/enforcement/check_health.py` verifies that health endpoints contain real dependency checks (regex for `SELECT 1`, `.ping()`, etc.). Superficial health endpoints fail the gate.
+- Enforcement: **none mechanical.** `check_health.py` exists but is WARN-only and deliberately UNWIRED from the gate (its heuristic cannot distinguish a service with no dependencies from one that skips probing them). The real-deps invariant is enforced by REVIEW — do not read a green gate as proof the health endpoint probes anything.
 
 ```yaml
 healthcheck:
@@ -404,8 +424,6 @@ Alert only on **user-facing symptoms** using the RED method (Rate, Errors, Durat
 | Metric | Source | Threshold | Action |
 |--------|--------|-----------|--------|
 | External availability | Gatus | 3 consecutive failures / 60s | Push notification |
-| HTTP 5xx error rate | Grafana Loki (LogQL) | > 5% of requests over 5 min | Push notification |
-| P95 latency | Grafana Loki (LogQL) | > 2.0s sustained over 5 min | Push notification |
 | Registrar drift | Prometheus (`fabrik_audit_drift_total`) | Any drift for > 10 min | Alertmanager → Telegram |
 | CPU / RAM spikes | cAdvisor / node-exporter → Prometheus (Netdata removed 2026-05-30) | N/A — do not page | Dashboard only |
 
@@ -446,10 +464,10 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 | High-cardinality Loki labels (`request_id`, `user_id`, `ip`) | Embed in JSON payload, query via LogQL parsers |
 | Superficial `/health` returning static 200 | Verify DB connection + critical deps before 200 |
 | `HEALTHCHECK` without `start_period` | Add `start_period: 20s` for boot tolerance |
-| Alerting on CPU/RAM spikes | Alert on RED symptoms only (errors, latency) |
+| Adding a NEW cause-based alert without a symptom it explains | Prefer RED symptoms (errors, latency, saturation-of-the-user-visible-thing). The fleet DOES ship resource alerts (container/host CPU, memory, disk) as early-warning — extend those rather than minting per-service CPU rules |
 | Logging PII/secrets then relying on downstream redaction | Redact at application edge before emission |
 | Synchronous `console.log` for heavy objects in Node.js | `pino` with worker thread transport |
-| Custom metrics module from scratch | Extend scaffolded `metrics.py` / `metrics.js` |
+| Custom metrics module from scratch (Python) | Extend the scaffolded `{package}/metrics.py` — read its real types first |
 | Hardcoded GlitchTip DSN in repo | `GLITCHTIP_DSN` env var, injected by registrar |
 | `logging.FileHandler` / `RotatingFileHandler` / `TimedRotatingFileHandler` in app code | Scaffolded `structlog` / `pino` to stdout — see § Logs (12-Factor Factor XI) |
 | Writing logs to `/var/log/**`, a mounted volume, or a `*.log` file in app code | JSON to stdout only — routing/rotation is the execution environment's job |
@@ -469,7 +487,7 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 - [ ] `/metrics` endpoint exposes scaffolded counters + any custom business metrics (when `shape.exposes_metrics: true`).
 - [ ] Docker Compose `HEALTHCHECK` includes `start_period`.
 - [ ] Loki labels limited to low-cardinality values (`service`, `environment`, `level`).
-- [ ] Alert rules target RED symptoms only — no infrastructure cause-based paging.
+- [ ] New alert rules target RED symptoms; resource alerts stay in the shared fleet rule set, not per service.
 - [ ] Gatus configured for external synthetic monitoring of all public endpoints.
 - [ ] GlitchTip DSN provisioned and injected via env var (not hardcoded).
 - [ ] App emits logs to stdout only — no `FileHandler` / `RotatingFileHandler` / `TimedRotatingFileHandler`, no writes to `/var/log/**`, no in-app rotation/retention (see § Logs).
@@ -481,9 +499,24 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 
 - `10-python.md` — scaffolded logger import (`from {package}.logger import get_logger`), error logging discipline
 - `20-typescript.md` — pino logger, `console.log` ban
-- `30-ops.md` — HEALTHCHECK `start_period: 20s`, `/health` Authelia bypass
+- `30-ops.md` — container HEALTHCHECK targets the **dep-free `/healthz`** (liveness); this pack's `/health` is the **readiness** probe Gatus consumes. Two endpoints, two jobs — a service that ships only `/health` fails 30-ops's deploy checklist
 - `58-resilience.md` — `/health` endpoint contract (dep checks, not static 200)
-- `80-mobile.md` — Sentry React Native SDK, crash-free target >= 99.5%
+- `60-watchdog.md` + `core/self-healing.md` — the AI watchdog SIDECAR every project gets (D-052); distinct from the retired per-service bash scripts discussed above
+- `mobile-app/80-mobile.md` — Sentry React Native SDK, crash-free target >= 99.5%
+
+---
+
+## OpenTelemetry — deliberately NOT adopted at the instrumentation layer (measured, 2026-09-01)
+
+Do not propose OTel instrumentation for a fleet service without new evidence. Measured against
+this stack: OTel **logs** remain the weakest-maturity signal in both Python and JS — exactly the
+one Loki already serves well — and adoption would mean a stateful Collector on memory-constrained
+VPSes plus re-instrumenting every project to gain distributed tracing nobody has asked for. The
+logs + metrics + errors triad stays.
+**The nuance that DOES bind:** the Promtail→Alloy migration above is itself OTel-Collector-based,
+so the fleet adopts OTel at the COLLECTION layer by necessity. Collection: yes, forced.
+Instrumentation: deferred until a real cross-service tracing need appears — then re-open this
+with a spec, not from vibes.
 
 ---
 
@@ -492,10 +525,10 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 - Service should expose `/metrics` only when `shape.exposes_metrics: true` (Prometheus registrar will add the scrape target on `fabrik apply`).
 - Service should expose `/health` always (Gatus registrar depends on it when `shape.is_public: true`).
 - GlitchTip DSN comes from `GLITCHTIP_DSN` env var injected by the orchestrator from the GlitchTip registrar — do NOT hardcode the DSN in the repo.
-- Scaffolder does NOT emit Prometheus/Promtail/cAdvisor labels or configs per service — those are handled by the registrar system or by auto-discovery (Promtail, cAdvisor via docker.sock). compose.yaml is the build/deploy contract; observability config is the registrar's domain.
+- Scaffolder does NOT emit Prometheus/Promtail/cAdvisor labels or configs per service — those are handled by the registrar system, or picked up automatically by the log shipper's container glob and cAdvisor. compose.yaml is the build/deploy contract; observability config is the registrar's domain.
 
 ---
 
 ## Legacy Note: Watchdog Scripts
 
-`scripts/enforcement/check_watchdog.py` exists in the systemic gate (Tier 3) and checks for `scripts/watchdog*.sh` in service projects. This check is **legacy** — Gatus + Docker `restart: unless-stopped` + Prometheus alerting provide three independent monitoring/restart layers, making per-service watchdog scripts redundant. New projects should NOT create watchdog scripts. Existing projects that have them can keep them but they are not required for new services.
+`scripts/enforcement/check_watchdog.py` exists but is UNWIRED from the gate (runnable by hand). Its subject — per-service **bash** `watchdog*.sh` scripts — is **legacy** and distinct from the AI watchdog SIDECAR that D-052 gives every project (`60-watchdog.md`, `self-healing.md`). For bash scripts: Gatus + Docker `restart: unless-stopped` + Prometheus alerting provide three independent monitoring/restart layers, making per-service watchdog scripts redundant. New projects should NOT create watchdog scripts. Existing projects that have them can keep them but they are not required for new services.

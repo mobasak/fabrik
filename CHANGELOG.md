@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rules currency pass file 11: core/55-observability.md — fiction removed, the logging symptom root-caused (2026-09-01)
+
+Answers the operator's "agents aren't building proper logging": the scaffold's
+logger.py bypasses stdlib (PrintLoggerFactory), so every FastAPI service ships
+structlog JSON mixed with raw uvicorn access lines. Rules now state the 3-step
+fix and the verify-by-eye bar; scaffold side filed to fleet. Removed/corrected:
+three Loki labels that do not exist (with a LogQL example that returned zero
+rows), docker.sock auto-discovery (it is a filesystem glob), a metrics block
+calling a Histogram and a Counter "Gauges", src/metrics.js (never existed), a
+matrix row giving an HTTP-less worker /health + /metrics, two alert rows with no
+rule behind them, a "never page on CPU/RAM" line contradicted by five shipped
+rules, and enforcement claimed from two checks that are WARN-only and unwired.
+Added: Promtail EOL warning, structured-metadata option, OTel rejection with
+rationale, /health-vs-/healthz split, watchdog-vs-sidecar disambiguation.
+CLAIMS: glitchtip-5xx-capture verified in source and sharpened (5xx only,
+duck-typed, handled:True).
+
 ### Fixed — rules currency pass file 10: core/50-code-review.md — two drift-anchor inversions + dead tooling (2026-09-01)
 
 The pack told ~46 repos the OPPOSITE of two universal anchors (agents don't

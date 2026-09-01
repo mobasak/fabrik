@@ -115,10 +115,10 @@ claims:
 
   - id: glitchtip-5xx-capture
     pack: core/55-observability.md
-    claim: "sentry-sdk auto-captures deliberately raised HTTPException(5xx) (failed_request_status_codes default) — the basis of 10-python's no-logger.exception rule"
+    claim: "VERIFIED IN SOURCE 2026-09-01 (55-observability's turn): sentry-sdk captures deliberately raised HTTPException via failed_request_status_codes, default _DEFAULT_FAILED_REQUEST_STATUS_CODES = frozenset(range(500,600)) — i.e. 5xx ONLY (4xx captured by nothing), matched DUCK-TYPED on .status_code (not HTTPException-typed), recorded as handled: True (not an unhandled crash). Stable since sentry-sdk 2.15; fleet pins >=2.18. Basis of 10-python's no-logger.exception rule."
     kind: rationale
-    verify: "https://docs.sentry.io/platforms/python/integrations/fastapi/ (failed_request_status_codes)"
-    window_days: 180
+    verify: "sentry_sdk/integrations/__init__.py::_DEFAULT_FAILED_REQUEST_STATUS_CODES + starlette.py::patch_exception_middleware; https://docs.sentry.io/platforms/python/integrations/fastapi/"
+    window_days: 365
     last_verified: 2026-09-01
 
   - id: ts-strip-types-stable
