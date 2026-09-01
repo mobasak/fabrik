@@ -477,6 +477,7 @@ def test_many_turns_emit_many_stop_passes(tmp_path: Path) -> None:
 
 # --- final_block_emitted ------------------------------------------------------
 
+# 7 lines since D-059 (FEEDBACK: joined the mandated block; the metric keys on all seven).
 _SIX_LINE_BLOCK = (
     "GATE: python scripts/final_gate.py --json → success\n"
     "DOCS UPDATED: none\n"
@@ -484,6 +485,7 @@ _SIX_LINE_BLOCK = (
     "LESSONS LEARNT: none\n"
     "DONE: shipped the emitter\n"
     "NEXT: none — terminal\n"
+    "FEEDBACK: none — surfaces exercised: the emitter itself\n"
 )
 
 
@@ -505,7 +507,8 @@ def test_final_block_split_across_text_blocks_still_counts(tmp_path: Path) -> No
     tp = _transcript(
         proj,
         text_blocks=["Done.\n\nGATE: … → success\nDOCS UPDATED: none\nCHANGELOG: n/a\n",
-                     "LESSONS LEARNT: none\nDONE: shipped it\nNEXT: none — terminal\n"],
+                     "LESSONS LEARNT: none\nDONE: shipped it\nNEXT: none — terminal\n"
+                     "FEEDBACK: none — surfaces exercised: the splitter\n"],
     )
     _run_stop(proj, tmp_path, "sidsplit", transcript=tp)
     assert len(_of_type(_events(tmp_path, "sidsplit"), "final_block_emitted")) == 1
@@ -696,3 +699,26 @@ def test_one_override_event_carries_every_waived_stall() -> None:
     assert overrides[0].get("stalls") == 2, "every waived stall must be counted"
     assert overrides[0].get("kinds") == ["human-gate", "blocked-escalation"]
     assert overrides[0].get("marker") == "on your approval", "first marker still carried"
+
+
+def test_six_key_block_without_feedback_line_blocks(tmp_path: Path) -> None:
+    # D-059's ACTUAL enforcement (the first landing only fed a metric — review
+    # finding): a task-completing block missing FEEDBACK: blocks via the stall
+    # lane with wording that names the owed line.
+    proj = _project(tmp_path)
+    old_block = (
+        "GATE: python scripts/final_gate.py --json → success\n"
+        "DOCS UPDATED: none\nCHANGELOG: n/a\nLESSONS LEARNT: none\n"
+        "DONE: shipped it\nNEXT: none — terminal\n"
+    )
+    cp = _run_stop(proj, tmp_path, "sidfb", transcript=_transcript(proj, text="Done.\n\n" + old_block))
+    out = json.loads(cp.stdout.strip().splitlines()[-1])
+    assert out.get("decision") == "block"
+    assert "FEEDBACK" in out.get("reason", "")
+
+
+def test_seven_key_block_passes_the_feedback_gate(tmp_path: Path) -> None:
+    proj = _project(tmp_path)
+    cp = _run_stop(proj, tmp_path, "sidfb7", transcript=_transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK))
+    decisions = [json.loads(x) for x in cp.stdout.strip().splitlines() if x.startswith("{")]
+    assert not any("FEEDBACK" in (d.get("reason") or "") for d in decisions)

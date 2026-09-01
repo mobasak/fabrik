@@ -148,7 +148,7 @@ Standalone (non-plan) work → `Agent-Role: primary` + `Agent-Context: <what you
 | raw SQL DDL | Alembic migrations only; `db/schema.sql` reference only |
 | recreate `.venv` / replace existing Docker config | reuse what exists |
 
-## ⚠️ FINAL OUTPUT (last 6 lines)
+## ⚠️ FINAL OUTPUT (last 7 lines)
 ```
 GATE: <command run> → success|failure
 DOCS UPDATED: <files | none>
@@ -156,8 +156,9 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <one line — what this run delivered: commits/artifacts, not intentions>
 NEXT: <named successor — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
+FEEDBACK: <what you filed about the machinery, to whom (mail id / committed path) | none — surfaces exercised>
 ```
-Missing any line = task failure. Re-run gate until `success`, then output 6 lines. `NEXT:` must be runnable without re-derivation; a vague NEXT ("continue") is a missing line; own-session work named in NEXT is dispatched, not narrated.
+Missing any line = task failure (the Stop hook blocks a block missing FEEDBACK: — D-059). Re-run gate until `success`, then output 7 lines. `NEXT:` must be runnable without re-derivation; a vague NEXT ("continue") is a missing line; own-session work named in NEXT is dispatched, not narrated.
 
 **EVERY OTHER response ends with the two-line STATE footer** (operator mandate 2026-08-10 — no
 exempt turns: conversational, clarifying, read-only, mid-plan status all carry it):
@@ -165,7 +166,7 @@ exempt turns: conversational, clarifying, read-only, mid-plan status all carry i
 STATE: <where things stand — stage/board/loop position, one line>
 NEXT: <successor command · operator decision awaited · "awaiting your reply" · none — terminal>
 ```
-It never replaces the 6-line block on a task-completing response; a footer `NEXT:` naming
+It never replaces the 7-line block on a task-completing response; a footer `NEXT:` naming
 undispatched own-session work is the same checkpoint-stall the Stop hook blocks.
 
 ## Spec contract awareness

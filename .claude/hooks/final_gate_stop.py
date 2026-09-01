@@ -937,6 +937,19 @@ def _detect_stall(
         text, tools = turn
         if not text:
             return None
+        # D-059 (SEVENTH cause vocabulary, rides the stall lane so the 3-attempt
+        # warn-through applies unchanged): a task-completing FINAL OUTPUT block
+        # (GATE:+DONE:+NEXT: all present) missing its FEEDBACK: line is an
+        # incomplete terminator. This is the ACTUAL enforcement the D-059 row
+        # promised — _FINAL_BLOCK_KEYS alone only feeds a metric (review finding:
+        # the first landing claimed blocking it never had).
+        if (
+            re.search(r"^\s*GATE:", text, re.M)
+            and re.search(r"^\s*DONE:", text, re.M)
+            and re.search(r"^\s*NEXT:", text, re.M)
+            and not re.search(r"^\s*FEEDBACK:", text, re.M)
+        ):
+            return ("feedback-line", "GATE:/DONE:/NEXT: present, FEEDBACK: absent")
         tail = text[-600:]
         # The BLOCKED escalation exempts GLOBALLY: its header must not be split away
         # from its own detail by the tail cut (review finding). It is held as a flag
@@ -1283,11 +1296,19 @@ def main(argv: list[str]) -> int:
                 return 0
             counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")
             kind, snippet = stall  # type: ignore[misc]
-            what = (
-                f'promises an action ("{snippet}") that was never dispatched'
-                if kind == "promise"
-                else f'asks permission ("{snippet}") that the active plan/review contract already grants'
-            )
+            if kind == "feedback-line":
+                what = (
+                    f"ends with a FINAL OUTPUT block missing its FEEDBACK: line ({snippet}) — "
+                    "append `FEEDBACK: <what you filed about the commands/skills/rules machinery, "
+                    "to whom (mail id / committed path) | none — the machinery surfaces this run "
+                    "exercised>` as the 7th line (D-059)"
+                )
+            else:
+                what = (
+                    f'promises an action ("{snippet}") that was never dispatched'
+                    if kind == "promise"
+                    else f'asks permission ("{snippet}") that the active plan/review contract already grants'
+                )
             reason = (
                 f"STALL DETECTED (attempt {s_att}/{CAP}). Your final message {what}. "
                 "Do the work NOW — dispatch it or run it in this same turn — instead of "

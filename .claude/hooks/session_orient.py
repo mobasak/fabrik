@@ -196,7 +196,7 @@ def _governance_line(cwd: str) -> str:
             " agents' own contract: canonical and yours to edit (a synced-surface commit"
             " distributes fleet-wide; the project-facing template lives at"
             " templates/governance/CLAUDE.md). Obey it fully; every task-completing output owes"
-            " the RULES ACTIVE line and ends with the 6-line FINAL OUTPUT block (incl."
+            " the RULES ACTIVE line and ends with the 7-line FINAL OUTPUT block (incl."
             " DONE:/NEXT:)."
         )
     return (
@@ -204,7 +204,7 @@ def _governance_line(cwd: str) -> str:
         " Fabrik-SYNCED (distributed from the hub's templates/governance/CLAUDE.md) — obey it"
         " fully; NEVER edit the local copy (the next sync overwrites it; changes go upstream via"
         " /fabrik-upstream). Every task-completing output owes the RULES ACTIVE line and ends"
-        " with the 6-line FINAL OUTPUT block (incl. DONE:/NEXT:)."
+        " with the 7-line FINAL OUTPUT block (incl. DONE:/NEXT:)."
     )
 
 

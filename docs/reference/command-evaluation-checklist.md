@@ -29,7 +29,7 @@ include them. Auditing the source alone reported three false findings against `/
 first calibration run. Read the source for AUTHORED content and the rendered file for CONTRACT
 coverage; `assemble_commands.py --check` proves the two are in sync.
 
-Some obligations live in neither: the 6-line FINAL OUTPUT block and the STATE footer are owed by
+Some obligations live in neither: the 7-line FINAL OUTPUT block and the STATE footer are owed by
 **CLAUDE.md globally**, to every response from every command. Only 2 of 31 sources mention them, and
 that is correct — do not raise 29 findings for a contract no command is supposed to restate.
 
@@ -98,7 +98,7 @@ Phase 6 delegates correctly and names its two legitimate early stops.
 17. Does it name the phase count honestly? The fragment's phase count is computed at render time by `_phase_count`; a hand-written count drifts the moment a phase is added.
 18. Does it close its run record **by name** (`done --command <name>`), never by closing "whatever is live"?
 19. Does it state which of the three sanctioned BLOCKED cases may stop it, and forbid stopping for anything else?
-20. Does it avoid CONTRADICTING the global output contract (6-line FINAL OUTPUT on a task-completing run, 2-line STATE footer otherwise)? The obligation is CLAUDE.md-global, not per-command — 2 of 31 sources restate it and that is fine. A finding here means the command tells the agent to end DIFFERENTLY, not that it stayed silent.
+20. Does it avoid CONTRADICTING the global output contract (7-line FINAL OUTPUT on a task-completing run, 2-line STATE footer otherwise)? The obligation is CLAUDE.md-global, not per-command — 2 of 31 sources restate it and that is fine. A finding here means the command tells the agent to end DIFFERENTLY, not that it stayed silent.
 
 ## Fragments & Composition
 

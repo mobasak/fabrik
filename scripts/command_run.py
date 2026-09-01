@@ -412,18 +412,39 @@ def _mcp_probe_advisory() -> None:
     every /fabrik-* run passes through). Advisory by D-033: best-effort, short
     timeout, silent when the box-local health script is absent (project repos
     reach it by absolute path; a box without it degrades to nothing)."""
+    # Test seam (review finding: the first landing made every fleet repo's test
+    # suite spawn LIVE MCP stdio servers and hang): pytest runs, explicit
+    # opt-outs, and any harness that redirects the run-record store (test
+    # suites set COMMAND_RUN_DIR precisely to avoid the real store — and they
+    # exec this script as a subprocess, where PYTEST_CURRENT_TEST never
+    # arrives) never probe.
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("FABRIK_MCP_PROBE") == "0"
+        or os.environ.get("COMMAND_RUN_DIR")
+    ):
+        return
     probe = Path("/opt/fabrik/scripts/sysadmin/mcp_health.py")
     if not probe.exists():
         return
     try:
-        out = subprocess.run(
-            [sys.executable, str(probe), "--timeout", "6"],
+        # --repo pinned via git toplevel, not the inherited cwd (mcp_health's
+        # default "." does no upward walk — a subdir invocation would silently
+        # report "no .mcp.json"; review finding).
+        cp = subprocess.run(
+            [sys.executable, str(probe), "--timeout", "6", "--repo", _repo_root() or "."],
             capture_output=True,
             text=True,
             timeout=30,
-        ).stdout.strip()
+        )
+        out = cp.stdout.strip()
         if out:
             print(out)
+        elif cp.returncode != 0:
+            # A crashed probe must not silently disable the ORIENT-mandated
+            # check (review finding: empty stdout + nonzero rc printed nothing).
+            err = (cp.stderr or "").strip().splitlines()
+            print(f"⚠ mcp probe crashed (rc={cp.returncode}): {err[-1] if err else 'no output'} — fix-first per D-033")
     except Exception:
         print(
             "⚠ mcp probe: health script errored/timed out — fix-first per D-033 if MCPs matter to this run"

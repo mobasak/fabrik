@@ -175,7 +175,7 @@ must share its line with a HARD-STOP class (cross-repo · gate 1/2 ·
 deploy/publish · spend · irreversible · policy · rule-conflict at `path:line`).
 Three blocked attempts warn through, per cause, independent counters.
 
-**Every task-completing response** ends with the 6-line FINAL OUTPUT block —
+**Every task-completing response** ends with the 7-line FINAL OUTPUT block —
 gate freshness, docs, changelog, lessons, plus `DONE:` (what actually landed)
 and `NEXT:` (the successor named precisely: exact command + args, the exact
 operator decision, or `none — terminal`; own-session work named in NEXT is
