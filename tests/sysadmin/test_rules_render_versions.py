@@ -30,21 +30,23 @@ def test_loose_sweep_ignores_marked_spans_flags_unmarked():
 
 
 # Packs already brought to the D-062 bar — every file the pass completes joins this
-# list, and the two tests below then guard it forever (spans agree with the source;
-# zero unmarked literals).
-CLEANED_PACKS = [
-    "/opt/fabrik/.windsurf/rules/core/10-python.md",
-    "/opt/fabrik/.windsurf/rules/core/12-node.md",
-]
+# dict (value = the marker-span count the file is expected to carry; 0 for packs
+# with nothing version-shaped to wrap), and the two tests below guard it forever
+# (spans agree with the source; zero unmarked literals).
+CLEANED_PACKS = {
+    "/opt/fabrik/.windsurf/rules/core/10-python.md": 2,
+    "/opt/fabrik/.windsurf/rules/core/12-node.md": 4,
+    "/opt/fabrik/.windsurf/rules/core/15-api-contracts.md": 0,
+}
 
 
 def test_live_corpus_cleaned_packs_round_trip():
     from pathlib import Path
 
     versions = load_versions()
-    for pack in CLEANED_PACKS:
+    for pack, min_spans in CLEANED_PACKS.items():
         text = Path(pack).read_text(encoding="utf-8")
-        assert len(_SPAN.findall(text)) >= 2, f"{pack}: expected marker spans"
+        assert len(_SPAN.findall(text)) >= min_spans, f"{pack}: expected >= {min_spans} marker spans"
         _, changed, unknown = inject_text(text, versions)
         assert changed == 0 and unknown == [], f"{pack}: HEAD disagrees with versions.yaml"
 

@@ -16,7 +16,7 @@ Apply when working on API routes, endpoints, or client integration. Skip for pur
 ## OpenAPI Contract
 
 - FastAPI path operations + Pydantic models are the sole source of truth for the API schema. Never manually edit `openapi.json`.
-- TypeScript clients (Next.js, React Native, Chrome Extension) must be auto-generated from `openapi.json` via `@hey-api/openapi-ts` or equivalent codegen. Manual typing of API responses in TypeScript is banned.
+- TypeScript clients (Next.js, React Native, Chrome Extension) must be auto-generated from `openapi.json` via `@hey-api/openapi-ts` or equivalent codegen. Manual typing of API responses in TypeScript is banned. Pin the codegen to an EXACT version in `package.json` — upstream is pre-1.0 and publishes breaking minors by its own versioning policy.
 - Run `oasdiff breaking --fail-on ERR` against the main-branch `openapi.json` before merge. Any
   ERR-level breaking change without a version bump is a defect. ⚠️ **This is an obligation on the
   AUTHOR, not a build that fails for you** — `oasdiff` is wired into no CI and no `final_gate` check
@@ -90,7 +90,7 @@ Raw strings, `{"error": "..."}`, or arbitrary dicts as error responses are banne
 
 ## Idempotency
 
-All state-mutating endpoints (POST, PUT, PATCH, DELETE) must accept an `X-Idempotency-Key` header (UUIDv4, client-generated). Backend flow:
+All state-mutating endpoints (POST, PUT, PATCH, DELETE) must accept an `Idempotency-Key` header (UUIDv4, client-generated). The un-prefixed name is the IETF httpapi standards-track header (the `X-` convention has been deprecated for new headers since RFC 6648, and the middleware below handles exactly this name). A service that already shipped `X-Idempotency-Key` keeps accepting it alongside until its next contract revision — never break existing callers for a header rename. Backend flow:
 
 1. Missing key on mutative endpoint → reject with 400.
 2. Key exists + COMPLETED in Redis → return cached response, skip logic.
@@ -171,7 +171,7 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 - [ ] All error responses conform to RFC 9457 schema (type, title, status, detail) with `Content-Type: application/problem+json`.
 - [ ] Pydantic base model uses `alias_generator=to_camel` with `populate_by_name=True`.
 - [ ] No `OFFSET` keyword in any SQLAlchemy query or raw SQL for collection endpoints.
-- [ ] All mutative endpoints accept and enforce `X-Idempotency-Key`.
+- [ ] All mutative endpoints accept and enforce `Idempotency-Key` (plus legacy `X-Idempotency-Key` where already shipped).
 - [ ] All endpoints mounted under `/api/v1/` (or appropriate version prefix).
 - [ ] `openapi.json` generated from code, never manually edited.
 - [ ] TS clients generated from `openapi.json` — no manual API type definitions.

@@ -71,7 +71,7 @@ claims:
     last_verified: 2026-09-01
 
   - id: rfc9457-problem-details
-    pack: core/10-python.md
+    pack: core/10-python.md, core/15-api-contracts.md
     claim: "RFC 9457 ProblemDetails is the current HTTP error-payload standard (obsoletes 7807)"
     kind: standard
     verify: "https://www.rfc-editor.org/rfc/rfc9457"
@@ -173,6 +173,38 @@ claims:
     claim: "Docker's default stop grace period is 10s; the 20s drain backstop works only under the scaffold's stop_grace_period: 45s (scaffold.py emits it)"
     kind: rationale
     verify: "https://docs.docker.com/reference/cli/docker/container/stop/"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: idempotency-key-header-standard
+    pack: core/15-api-contracts.md
+    claim: "Idempotency-Key (un-prefixed) is the IETF httpapi standards-track header name (draft-ietf-httpapi-idempotency-key-header, active at -07); not yet an RFC — re-verify for publication or abandonment"
+    kind: standard
+    verify: "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: hey-api-openapi-ts-current
+    pack: core/15-api-contracts.md
+    claim: "@hey-api/openapi-ts is the current OpenAPI→TS codegen (used by Vercel/PayPal, ~4.5M weekly); still pre-1.0 — 'pin exact version' is upstream's own guidance"
+    kind: practice
+    verify: "https://www.npmjs.com/package/@hey-api/openapi-ts"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: oasdiff-current
+    pack: core/15-api-contracts.md
+    claim: "oasdiff is maintained (v1.26.x, 2026-07) and `oasdiff breaking --fail-on ERR` remains the right invocation; supports OpenAPI 3.0/3.1/3.2"
+    kind: practice
+    verify: "https://github.com/oasdiff/oasdiff/releases"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: idemptx-exists
+    pack: core/15-api-contracts.md
+    claim: "idemptx (PyPI 0.2.2) exists and provides Redis-backed FastAPI idempotency handling the Idempotency-Key header — the pack's example package is real and matches the mandated header"
+    kind: rationale
+    verify: "https://pypi.org/pypi/idemptx/json"
     window_days: 365
     last_verified: 2026-09-01
 

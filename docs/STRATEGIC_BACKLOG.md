@@ -162,6 +162,12 @@ during the pass). Scope: core/ then ALL folders, to completion.
   `stop_grace_period: 45s` (verified); Node scaffolds still declare `engines.node ">=22.0.0"` —
   when the previous LTS EOLs (Apr 2027) raise the floor AND flip `node_engines_floor` in
   versions.yaml in the same change.
+- **Scaffold alignment owed (15-api-contracts):** the pack now mandates the un-prefixed
+  `Idempotency-Key` header (IETF httpapi standards-track; RFC 6648 deprecates `X-`); the
+  scaffold's widget example still reads `X-Idempotency-Key` (`scaffold.py:2990` — its docstring
+  also cites the pack by line number, which shifted). Rule leads, scaffold follows: flip the
+  emission to accept `Idempotency-Key` (keep `X-` as legacy fallback) at the next scaffolder
+  window.
 
 ## Activation
 
