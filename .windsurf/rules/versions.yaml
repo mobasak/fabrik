@@ -1,0 +1,15 @@
+# MACHINE-OWNED version source for the rules corpus (D-062: version literals are
+# banned from pack prose — "if mention a version number in the file, it will
+# become stale"). Packs carry <!--v:key-->literal<!--/v--> marker spans;
+# `scripts/sysadmin/rules_render_versions.py` injects these values into every
+# span; `rules_currency_watch.py` (weekly cron) refreshes this file from
+# endoflife.date and re-injects + commits automatically. Humans edit POLICY in
+# the packs; versions change HERE (or, normally, nowhere — the machinery does).
+#
+# updated: auto-stamped by rules_currency_watch.py on refresh.
+
+updated: 2026-09-01
+versions:
+  python_stable: "3.14"      # newest stable minor — endoflife.date/api/python.json
+  node_lts: "24"             # newest cycle whose LTS date has passed — api/nodejs.json
+  debian_codename: "bookworm"  # fleet-pinned Debian variant (flip = D-062 pipeline + 30-ops class commit, deliberate)

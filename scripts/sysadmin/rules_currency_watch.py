@@ -145,6 +145,11 @@ def main() -> int:
     found = drifts(pinned, live)
     if not found:
         return 0
+    # D-062 CLOSED LOOP: drift no longer pages a human — the machinery updates
+    # the single version source, re-injects every marker span, and commits
+    # (the docs(auto) cron-commit precedent). Mail happens only on FAILURE.
+    if _auto_update(found):
+        return 0
     seen: dict[str, str] = {}
     try:
         seen = json.loads(WATERMARK.read_text())
@@ -179,6 +184,67 @@ def main() -> int:
     WATERMARK.write_text(json.dumps(seen))
     print(f"rules_currency_watch: drift mailed -> fabrik/infra ({', '.join(sorted(fresh))})")
     return 0
+
+
+_VALID_VERSION = re.compile(r"^\d+(\.\d+)?$")
+VERSIONS_FILE = Path("/opt/fabrik/.windsurf/rules/versions.yaml")
+_KEY_FOR = {"python": "python_stable", "node": "node_lts"}
+
+
+def _auto_update(found: dict[str, tuple[str, str]]) -> bool:
+    """Update versions.yaml -> inject spans -> commit+push. True on success.
+
+    Guards: a malformed upstream value never reaches the file; injection runs
+    the renderer's real code path; the commit stages EXPLICIT paths only and
+    carries provenance trailers (shared-tree law binds cron too)."""
+    try:
+        import yaml
+
+        clean = {k: v for k, v in found.items() if _VALID_VERSION.match(v[1])}
+        if not clean:
+            return False
+        data = yaml.safe_load(VERSIONS_FILE.read_text(encoding="utf-8")) or {}
+        versions = data.setdefault("versions", {})
+        for runtime, (_pin, cur) in clean.items():
+            versions[_KEY_FOR[runtime]] = cur
+        data["updated"] = date.today().isoformat()
+        VERSIONS_FILE.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        render = subprocess.run(
+            [sys.executable, "/opt/fabrik/scripts/sysadmin/rules_render_versions.py"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if render.returncode != 0:
+            return False
+        changed = subprocess.run(
+            ["git", "-C", "/opt/fabrik", "status", "--porcelain", "--", ".windsurf/rules"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.strip()
+        if not changed:
+            return True  # source updated to identical values — nothing to commit
+        paths = [line[3:] for line in changed.splitlines()]
+        msg = (
+            "rules(auto): version injection — "
+            + ", ".join(f"{r} {p_}->{c}" for r, (p_, c) in sorted(clean.items()))
+            + " [rules_currency_watch]\n\nAgent-Role: ci-fix\n"
+            "Agent-Context: automated D-062 version-source refresh + marker re-injection\n"
+            "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+        )
+        for cmd in (
+            ["git", "-C", "/opt/fabrik", "add", "--"] + paths,
+            ["git", "-C", "/opt/fabrik", "commit", "-m", msg, "--"] + paths,
+            ["git", "-C", "/opt/fabrik", "push"],
+        ):
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if r.returncode != 0:
+                return False
+        print(f"rules_currency_watch: auto-updated + committed ({', '.join(sorted(clean))})")
+        return True
+    except Exception:
+        return False
 
 
 def _claims_pass() -> int:
