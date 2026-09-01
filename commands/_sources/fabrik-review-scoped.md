@@ -32,12 +32,12 @@ proportionate answer.
    armed classes. Every finding is FIXED in-run (watched-fail-first where behavior changed) or
    REFUTED with the disproving line — no third bucket, no "noted". **LOCAL findings (unambiguous,
    contained) you just fix — the common case; an ARCHITECTURAL one — the correct fix moves a contract,
-   data model or auth/isolation posture ANOTHER module or repo depends on — you still fix, and it owes
-   the `/fabrik-review` § Phase 3 ledger row (classified at mint, ONE row per review, minted by the
-   DISPATCHING session — never a subagent).** Cannot tell which side? Treat it as ARCHITECTURAL.
-   ⚠️ **This adds no exit** — the shape describes the FIX, never a permit to leave a finding standing;
-   an architectural finding is itself a route-up trigger to `/fabrik-review` (step 5), this command's
-   only sanctioned hand-off.
+   boundary, data model or auth/isolation posture ANOTHER module or repo depends on — you still fix,
+   and it owes a ledger row per `/fabrik-review` § Phase 3, which is canonical for that rule** (do not
+   re-derive its terms here). Cannot tell which side? Treat it as ARCHITECTURAL. ⚠️ **This adds no
+   exit and is not a route-up trigger** — the shape describes the FIX, never a permit to leave a
+   finding standing. Routing up happens on the triggers in steps 1 and 5, never because a finding was
+   called architectural.
 4. **Record each pass:** `python3 scripts/command_run.py round --findings <n> --classes-swept <…>
    --classes-new <…>`. **The round ledger IS this command's artifact** — deliberately no review
    file: `check_review_coverage.py` grades the heavy command's reports; this one's proof is the

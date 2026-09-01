@@ -324,6 +324,8 @@ omit it, that is the measured signal for a grader). Recorded rather than left to
 | Pass 2 | method: citation | found: 9 | new: 7 | fixed: 7 | dispatched: 0 new; returned: 2 (B, C — the outstanding partitions from pass 1); 2 re-confirmations cited not counted; 1 finder fix REFUTED by corpus sweep |
 | Pass 3 | method: gate | found: 0 | new: 0 | fixed: 0 | ROUTING round: 2 machinery classes routed to the backlog with owner + trigger; no finder dispatched |
 | Pass 4 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | dispatched: 1 (closing sweep), returned: 0 — DIED at the 600s stream watchdog; partitions re-covered: 1, by the orchestrator via the 5 primary-source checks above (a dead finder sweeps NOTHING — recorded, not counted) |
+| Pass 5 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | dispatched: 1 (re-dispatch of the dead closing sweep), returned: 1 — and it BEAT the orchestrator-covered pass: 3 findings my own 5 checks missed, all in the scoped twin, all from the pass-2 fix |
+| Pass 6 | method: gate | found: 0 | new: 0 | fixed: 0 | orchestrator verification of the pass-5 fixes: render `check OK`, `final_gate --check` success, `check_review_coverage` OK, greps re-run |
 
 
 ### Pass 2 — finders B + C (classes 2,4,7,8,9 and 5,10-13): 9 more candidates
@@ -400,3 +402,33 @@ fail-closed, its pen-holder named, its rows capped, its scope bounded in time, a
 made a recorded artifact instead of an unwitnessed thought. **Three of the defects were introduced by
 my own fixes during this very review** — which is the loop's own thesis (the round that changes text is
 never the last look) demonstrated on itself.
+
+
+### Pass 5 — the re-dispatched closing finder BEAT the orchestrator-covered pass
+
+The finder that died was re-dispatched leaner and returned **after** I had covered its partition
+myself. It found **three defects my five checks missed** — all in the scoped twin, all introduced by
+the pass-2 fix, and the root cause is one thing: **scoped RE-SUMMARISED the canonical Phase 3 rule
+instead of pointing at it.**
+
+1. **CONFIRMED — a de-facto third disposition.** `:35` "you still fix" + `:37` "cannot tell ⇒
+   ARCHITECTURAL" + `:39` "an architectural finding is itself a route-up trigger" meant the *cheapest*
+   disposition for any hard finding was "call it architectural, route up" — and step 1's route-up says
+   *"STOP and run the full `/fabrik-review` instead"*, so the run ends with the finding UNFIXED, three
+   lines after the file says "no third bucket". I introduced that clause one commit earlier while
+   fixing C-F3. **Secondary:** its `(step 5)` pointer was WRONG — step 5's only trigger is "three
+   rounds with new findings"; architecture appears in neither step 1 nor step 5.
+2. **CONFIRMED — divergent trigger.** Scoped had dropped `boundary` from the ARCHITECTURAL definition,
+   so a trust/process-boundary move read LOCAL in scoped and ARCHITECTURAL in the heavy command.
+3. **CONFIRMED — dropped ONE-WAY exception.** Scoped flattened "one row per review **unless a pick is
+   ONE-WAY**", so a ONE-WAY pick would fold into the shared row and never get the § Binding block
+   D-043 requires.
+
+**FIXED(3) at the root:** scoped now *points* at `/fabrik-review` § Phase 3 as canonical ("do not
+re-derive its terms here"), restores `boundary`, and states plainly that the shape **is not a route-up
+trigger** — routing up happens on the step-1/step-5 triggers, never because a finding was called
+architectural. That removes the re-summary that generated all three.
+
+**Method note for the record:** the orchestrator-covered closing pass was HONEST but WEAKER than a
+finder — my check #2 compared the two files at a coarser grain and missed all three. Recorded because
+the next agent facing a dead finder should know that self-covering is a fallback, not an equivalent.
