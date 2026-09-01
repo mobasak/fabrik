@@ -125,6 +125,21 @@ logger.info("event_name", key="value")
 - Middleware: `src/{package}/middleware.py` — X-Request-ID correlation (python-api only)
 - Config: always JSON. No human-readable mode.
 
+> **⚠️ THE SERVER'S OWN LOGGERS ARE NOT YOURS — and they leak plain text by default.**
+> Configuring structlog covers only what YOUR code logs. `uvicorn`, `uvicorn.access`,
+> `uvicorn.error`, `gunicorn` and SQLAlchemy keep their own stdlib handlers and emit
+> unstructured lines like `INFO:     127.0.0.1:54012 - "GET /health HTTP/1.1" 200 OK` into the
+> same stdout — so a service that looks "properly logging" ships a MIX, and every unstructured
+> line is one Loki cannot label, filter or alert on. Measured live on this fleet (2026-09-01):
+> the scaffolded `site-provisioner` emits textbook structlog JSON *and* raw uvicorn access lines
+> side by side.
+> **Fix it at boot, in the same place you configure structlog** — route the stdlib root logger
+> through structlog's `ProcessorFormatter` so third-party loggers are rendered as JSON too, and
+> silence the duplicate access log (`--no-access-log`, or `logging.getLogger("uvicorn.access").handlers = []`)
+> once your own request middleware logs each request with its correlation ID. **A service is not
+> "properly logging" until EVERY line on its stdout is JSON** — verify by eye:
+> `docker logs <container> --tail 20` must show zero non-JSON lines.
+
 **Node projects** (`node-api`, `file-api`):
 
 ```javascript

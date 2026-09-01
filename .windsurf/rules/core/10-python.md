@@ -250,7 +250,7 @@ configured in `pyproject.toml`, emitted by the scaffolder.
 
 ## Running in Production
 
-Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always `python:<version>-slim-bookworm` on `linux/amd64` (the Debian variant is pinned fleet-wide in `30-ops.md` § Base Images — change it THERE, never per-repo). Never use Alpine — musllinux wheels exist now (PEP 656) but coverage is still partial, source builds are dramatically slower, and musl's allocator/stack defaults degrade CPython; the trade never pays on this fleet.
+Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always the pinned Debian `-slim` variant on `linux/amd64` (the variant is pinned fleet-wide in `30-ops.md` § Container Base Images — change it THERE, never per-repo). Never use Alpine — musllinux wheels exist now (PEP 656) but coverage is still partial, source builds are dramatically slower, and musl's allocator/stack defaults degrade CPython; the trade never pays on this fleet.
 
 ```dockerfile
 FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->    # machine-injected from .windsurf/rules/versions.yaml (D-062) — never hand-edit the number
@@ -318,7 +318,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 | `datetime.utcnow()` | `datetime.now(UTC)` — deprecated and naive |
 | Per-request `httpx.AsyncClient()` construction | One shared client in `lifespan`, closed on shutdown |
 | `uvicorn.run()` in production code | `uvicorn` CLI in the Dockerfile |
-| Alpine base image | `python:<version>-slim-bookworm` on `linux/amd64` |
+| Alpine base image | the pinned Debian `-slim` variant on `linux/amd64` (per `30-ops.md`) |
 | Editing `pyproject.toml` / `uv.lock` unprompted | Only when the ticket authorises it |
 
 ---
@@ -343,5 +343,5 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 - [ ] `structlog.get_logger()` from scaffold `logger.py` — no stdlib logging, no `print()`.
 - [ ] `ruff check` (rule-sets incl. `ASYNC`/`B`/`S`), `ruff format`, `mypy` all pass.
 - [ ] No bare `create_task`, no `datetime.utcnow()`, shared `AsyncClient` in `lifespan`.
-- [ ] Production runs via `uvicorn` CLI in Dockerfile (`slim-bookworm`, `linux/amd64`) — no `uvicorn.run()`, no Alpine.
+- [ ] Production runs via `uvicorn` CLI in Dockerfile (pinned Debian `-slim` variant, `linux/amd64`) — no `uvicorn.run()`, no Alpine.
 - [ ] Python service port within 8000-8099; registered in `PORTS.md`.
