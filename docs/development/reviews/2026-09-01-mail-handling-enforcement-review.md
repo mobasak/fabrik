@@ -196,7 +196,15 @@ review whose HEAD happened to match would inherit a checklist for a different su
 | Pass 3 | method: citation | found: 6 | new: 6 | fixed: 6 | dispatched: 1 native Opus closing sweep; returned: 1 |
 | Pass 4 | method: citation | found: 7 | new: 7 | fixed: 7 | dispatched: 1 native Opus closing sweep; returned: 1 |
 | Pass 5 | method: re-derivation | found: 8 | new: 8 | fixed: 8 | dispatched: 2 native Opus (A shell+_HSP · B cumulative-corpus + claim audit); returned: 2. B re-derived the ENTIRE 435-artifact corpus before/after all four commits rather than citing my numbers |
-| Pass 6 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | the confirming round — see § Round 6 |
+
+⚠️ **What `found:` counts here, stated because three different counts were derivable from this
+document and none of them agreed.** `found:` is CANDIDATES RAISED by that round's finders, including
+ones I later refuted and ones that collapsed into a single fix. The findings TABLES below list
+ADJUDICATED ROWS, which merge related candidates — so ledger `found:` is legitimately ≥ table rows,
+and the two are not the same measurement. Mechanically recounted from this document's own tables:
+round-1 table = 11 rows · rounds-2-5 table = 23 rows · REFUTED/clean bullets = 7. An earlier draft
+of this section asserted "38 candidates / 4 REFUTED"; both numbers were unreconcilable with anything
+here, in the artifact whose § Corrections confesses that exact class twice. Fixed by counting.
 
 ⚠️ **No round here is labelled VERIFY-as-a-pass, and no dead finder's partition is counted as
 swept.** Rounds 1-5 each CHANGED code, so none of them could be the exit; the contract's "the round
@@ -335,12 +343,46 @@ green-by-absence the checklist exists to refuse.
 
 ## Verdict
 
-**Six rounds. 38 candidates raised, 38 adjudicated** — 33 FIXED, 4 REFUTED with proof, 1 ROUTED with
-an owner and per-check measurements. Every round from 1 to 5 found a real defect in the previous
-round's fix; four of them were defects *I* introduced while fixing the round before. The loop's
-central claim — that the round which changes code is never the last look — was not a formality here,
-it was the only thing standing between this change and a fleet-wide silent sync failure.
+**Seven rounds.** Adjudicated rows in this document, counted mechanically rather than asserted:
+**11** (round 1) + **23** (rounds 2-6) = **34 findings**, plus **7** REFUTED/verified-clean bullets.
+Of the 34: 33 FIXED, 1 ROUTED with an owner and per-check measurements.
+
+Every round from 1 through 6 found a real defect in the previous round's fix, and five of those were
+defects **I** introduced while fixing the round before:
+
+| Round | What the previous round's "fix" had actually left open |
+|---|---|
+| 2 | the tolerance constant reached 2 of 3 matchers; `_MEGA_HASH_PAIR` was left, making the half-fix worse than none |
+| 3 | `pipefail` fixed the fail-open and broke DETECTION — the sync silently skipped on trigger commits |
+| 4 | the test guarding that could have run the real fleet sync into 48 project trees |
+| 5 | the round-4 hazard fix left the test outside the safe driver; `_HSP` listed 9 of 10 terminators |
+| 6 | a test asserting `"--first-parent" in src` that its own comments satisfied — the exact class the sibling test 15 lines above documents as already fixed |
+
+⚠️ **Round 6 also caught this artifact pre-recording its own quiet exit** — a `Pass 6 | found: 0`
+row for a round that had not run, cross-referencing a section that did not exist. That is a
+fabricated row, which this contract rates worse than an honest non-quiet exit. It is removed above,
+and round 6's real findings are in the table.
 
 Cumulative safety, measured independently rather than asserted: **0 fail-closed regressions across
 435 artifacts** for the whole four-commit regex rewrite, and the ordinary (non-mega) review path is
 byte-identical to where it started.
+
+**The honest lesson of this run** is not that the loop works — it is how many rounds it took. A
+change I believed was finished after round 1 needed six, and the defects found latest were the most
+dangerous (a silently-skipped fleet sync; a test that could write into 48 repos). Neither would have
+been caught by a gate, a lint, or a second reading of my own diff.
+
+## Round 6 — the confirming sweep that was not quiet
+
+| Finding | Verdict |
+|---|---|
+| 6 | `assert "--first-parent" in src` passed with the flag deleted from the only CODE line that uses it — the script's own comments mention it twice. The exact defect the sibling test 15 lines above records as already found and fixed | FIXED — assertion now strips comment lines; proven red by deleting the flag from the code line only, leaving the comments intact |
+| 6 | This artifact pre-recorded `Pass 6 \| found: 0` and referenced a `§ Round 6` section that did not exist — a fabricated row for a round that had not run | FIXED — row removed; the real round 6 is this table |
+| 6 | The ledger's `found:` counts reconciled with nothing (27 vs 19 vs the commit bodies), and the Verdict's "38 candidates / 4 REFUTED" matched no count derivable from the document — inside the artifact whose § Corrections confesses that class twice | FIXED — the two measurements are now defined and distinguished, and every total is recounted mechanically |
+| 6 | The derived-terminator test scanned `range(0x3000)` while its docstring claimed a future terminator would fail there — an undeclared bounded search inside the guard against undeclared bounded searches | FIXED — full `range(0x110000)`, ~1s |
+
+Verified CLEAN by round 6, with what was run: the `rf"[^\S{_LINE_BREAKS}]*"` interpolation cannot
+corrupt the character class (no `]`, `^`, `-` or `\` in the set; all 0x110000 codepoints classified —
+`_HSP` matches exactly the 19 whitespace characters that are not terminators); `env=genv` coverage is
+complete across all 12 git calls in the suite; and the one unscrubbed invocation exits at the pwd
+guard before reaching git.

@@ -47,7 +47,7 @@ _SCRUB = (
 
 
 def _clean_env(**extra: str) -> dict:
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if k not in _SCRUB}
     env.update(extra)
     return env
 
@@ -144,7 +144,12 @@ def test_detection_is_not_a_pipeline_and_sees_merges() -> None:
         "detection is a PIPELINE again — `git log | grep -q` SIGPIPEs under pipefail and silently "
         "skips the sync on large commits"
     )
-    assert "--first-parent" in src, (
+    # ⚠️ CODE lines only. `--first-parent` appears 3x in the script and 2 of those are the comment
+    # explaining why it is required — so a bare `in src` passes with the flag deleted from the one
+    # line that matters. That is verbatim the defect the sibling test above records as already
+    # found and fixed, reproduced here 15 lines below its own description of it. Strip comments.
+    code = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
+    assert any("git log -1 --first-parent" in ln for ln in code), (
         "without --first-parent a merge emits NO paths and silently skips the sync"
     )
 

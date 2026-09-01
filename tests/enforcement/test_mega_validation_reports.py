@@ -330,7 +330,10 @@ def test_the_horizontal_space_class_is_exactly_whitespace_minus_line_breaks(repo
     spec.loader.exec_module(crc)
     h = "a" * 32
 
-    derived = {chr(c) for c in range(0x3000) if len(("a" + chr(c) + "b").splitlines()) > 1}
+    # Full Unicode range, not a bounded scan: the docstring claims a future terminator would fail
+    # HERE, and a 0x3000 bound made that claim false for anything above U+2FFF — an undeclared
+    # bounded search inside the guard against undeclared bounded searches. ~1s to sweep it all.
+    derived = {chr(c) for c in range(0x110000) if len(("a" + chr(c) + "b").splitlines()) > 1}
     assert derived, "could not derive any line terminators — the probe itself is broken"
     assert set(crc._LINE_BREAKS) == derived, (
         f"_LINE_BREAKS drifted from str.splitlines(): missing "
