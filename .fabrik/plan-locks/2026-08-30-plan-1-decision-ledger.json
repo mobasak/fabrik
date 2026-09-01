@@ -1,0 +1,30 @@
+{
+ "plan": "docs/development/plans/2026-08-30-plan-1-decision-ledger.md",
+ "owned_paths": [
+  "scripts/decisions.py",
+  "tests/test_decisions_helper.py",
+  "docs/DECISIONS.md",
+  "scripts/enforcement/_doc_registry.py",
+  "templates/governance/DECISIONS.md",
+  "templates/governance/CLAUDE.md",
+  "templates/scaffold/docs/DECISIONS_TEMPLATE.md",
+  "scripts/fabrik_synced_manifest.py",
+  "scripts/sync_enforcement_to_projects.py",
+  "tests/test_sync_seed_if_missing.py",
+  "CLAUDE.md",
+  "commands/_fragments/chat-intake.md",
+  "commands/_fragments/close-feedback.md",
+  "commands/_sources/fabrik-spec.md",
+  "docs/reference/decision-ledger.md"
+ ],
+ "branch": "master",
+ "started_at": "2026-08-30T17:20:00+03:00",
+ "status": "released",
+ "baseline_commit": "dd6e617237f2eddba70306a71851cb7812c0913c",
+ "baseline_gate": {
+  "status": "success",
+  "reds": []
+ },
+ "completed_at": "2026-08-30",
+ "final_commit": "b321ea39+finish"
+}

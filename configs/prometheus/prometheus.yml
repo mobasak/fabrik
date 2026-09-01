@@ -128,3 +128,17 @@ scrape_configs:
   static_configs:
   - targets:
     - pushgateway:9091
+- job_name: fabrik-zitadel
+  scheme: https
+  metrics_path: /debug/metrics
+  scrape_interval: 30s
+  static_configs:
+  - targets:
+    - auth.ocoron.com:443
+- job_name: fabrik-tryton-crm
+  scheme: http
+  metrics_path: /metrics
+  scrape_interval: 30s
+  static_configs:
+  - targets:
+    - tryton-crm:8000

@@ -36,6 +36,13 @@ from .agent import (
     results_table,
     run_agents,
 )
+from .lanes import (
+    AllLanesExhaustedError,
+    bench_remaining,
+    lane_chain,
+    lane_progress,
+    reset_lane_state,
+)
 from .ledger import audit_unrecorded
 from .mcp_tools import SAFE_RESEARCH_SERVERS
 from .methodology import METHODOLOGY_KINDS, methodology
@@ -110,4 +117,12 @@ __all__ = [
     "known_providers",
     "ProviderConfig",
     "UnknownProviderError",
+    # The free-lane engine. Exported HERE, not just from `lane_chain.__all__` — this is the import
+    # path consumers actually use (`from subagents import lane_chain`), and the rag adapter's
+    # soft-import resolves it exactly this way.
+    "lane_chain",
+    "AllLanesExhaustedError",
+    "bench_remaining",
+    "lane_progress",
+    "reset_lane_state",
 ]

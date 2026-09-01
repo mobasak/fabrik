@@ -110,8 +110,19 @@ def _resolve_client(
     if client is not None:
         return client
     cfg = resolve_provider(provider)
-    api_key = os.getenv(cfg.key_env)
-    if not api_key:
+    # STRIPPED: a whitespace-only key is truthy, so it used to pass the emptiness check below and be
+    # sent as the literal header `Bearer    ` — a guaranteed 401 with no obvious cause. Reachable
+    # from a quoted `.env` value (`KEY="  "`, which `_parse_env_text` preserves) or a shell export.
+    # It matters most for a `key_optional` row: without the strip, a blank KILO_API_KEY DEFEATS the
+    # anonymous path and turns a working free lane into an undiagnosable auth failure.
+    api_key = (os.getenv(cfg.key_env) or "").strip()
+    if not api_key and cfg.key_optional:
+        # An anonymous-capable endpoint (Kilo `:free`): build the client with NO key rather than
+        # raising. `_headers()` then omits Authorization entirely. Note this branch is reached only
+        # when the key is genuinely absent — a configured key falls through and IS used, because
+        # `key_optional` means optional, not ignored.
+        api_key = ""
+    elif not api_key:
         if cfg.key_env == "OPENROUTER_API_KEY":
             # keep the well-known, battle-tested onboarding message for the default path
             raise ConsultError(

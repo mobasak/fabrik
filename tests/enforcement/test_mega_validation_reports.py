@@ -313,6 +313,42 @@ def test_a_surface_hash_may_not_be_borrowed_from_a_later_line(repo: Path) -> Non
     assert crc._MEGA_HASH_PAIR.search(f"{h} ->\n{h}") is None, "the pair must not span lines"
 
 
+def test_the_horizontal_space_class_is_exactly_whitespace_minus_line_breaks(repo: Path) -> None:
+    """RE-DERIVE the terminator set from `str.splitlines()` instead of trusting an enumeration.
+
+    ⚠️ This exists because the hand-written class shipped twice wrong in opposite directions:
+    `[^\\S\\n]` excluded only `\\n` (fail-open: `\\r`, `\\x0c`, `\\u2028` all reached forward),
+    then `[ \\t]` dropped NBSP and friends (fail-closed: a pasted Surface line read as absent),
+    then the "exact" class listed 9 of the 10 terminators and left `\\x85` (NEL) open — an
+    enumeration defect committed inside the fix for an enumeration defect. Deriving the set makes
+    a future Python that adds a terminator fail HERE rather than silently reopen the hole.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("crc_hsp", CHECK)
+    crc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(crc)
+    h = "a" * 32
+
+    derived = {chr(c) for c in range(0x3000) if len(("a" + chr(c) + "b").splitlines()) > 1}
+    assert derived, "could not derive any line terminators — the probe itself is broken"
+    assert set(crc._LINE_BREAKS) == derived, (
+        f"_LINE_BREAKS drifted from str.splitlines(): missing "
+        f"{sorted(hex(ord(c)) for c in derived - set(crc._LINE_BREAKS))}, extra "
+        f"{sorted(hex(ord(c)) for c in set(crc._LINE_BREAKS) - derived)}"
+    )
+    for ch in sorted(derived):
+        assert crc._MEGA_SURFACE.search(f"**Surface:**{ch}{h}") is None, (
+            f"an empty Surface reached forward across {hex(ord(ch))}"
+        )
+    # ...and every horizontal space splitlines() does NOT break on must still be accepted.
+    for ch in (" ", "\t", "\xa0", "\u2003", "\u2009", "\u202f"):
+        assert ch not in derived, f"{hex(ord(ch))} is a terminator; fix the fixture"
+        assert crc._MEGA_SURFACE.search(f"**Surface:**{ch}{h}"), (
+            f"a legitimate horizontal space {hex(ord(ch))} was rejected — wrong-reason class"
+        )
+
+
 def test_hash_decoration_is_tolerated_uniformly_across_both_matchers(repo: Path) -> None:
     """Bold and italic are decorations too — the class is "how markdown dresses a hash", not "backticks".
 

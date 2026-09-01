@@ -979,5 +979,25 @@
     "match": [
       "EXCHANGE_CLIENT"
     ]
+  },
+  "mistral": {
+    "category": "ai-llm",
+    "cost": "freemium",
+    "capability": "API access to Mistral AI's large language models",
+    "url": "https://mistral.ai",
+    "status": "active",
+    "match": [
+      "MISTRAL"
+    ]
+  },
+  "nvidia": {
+    "category": "ai-llm",
+    "cost": "freemium",
+    "capability": "Deploy and query AI models via NVIDIA NIM microservices",
+    "url": "https://build.nvidia.com",
+    "status": "active",
+    "match": [
+      "NVIDIA"
+    ]
   }
 }

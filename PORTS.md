@@ -84,50 +84,50 @@ If you encounter a port conflict:
 
 
 <!-- AUTO-GENERATED:PORTS:START -->
-<!-- Last synced: 2026-08-14 15:28:58 -->
+<!-- Last synced: 2026-09-01 00:58:39 -->
 
 ### Project Port Allocations (from project.yaml)
 
 | Port | Project | Type | Path |
 |------|---------|------|------|
 | 3000 | **test-saas-platform** | saas-skeleton | /opt/test-saas-platform |
-| 3001 | **calendar-orchestration-engine** | node-api | /opt/calendar-orchestration-engine |
+| 3001 | **calendar-orchestration-engine** | saas-skeleton | /opt/calendar-orchestration-engine |
 | 3002 | **test-saas-scaffold** | saas-skeleton | /opt/test-saas-scaffold |
 | 3003 | **transdoc** | saas-skeleton | /opt/transdoc |
-| 3004 | **tojlo-mail** | saas | /opt/tojlo-mail |
+| 3004 | **tojlo-mail** | office-extension | /opt/tojlo-mail |
 | 3005 | **compliance-ops** | saas-skeleton | /opt/compliance-ops |
-| 3006 | **exam-coach** | saas-skeleton | /opt/exam-coach |
+| 3006 | **exam-coach** | mobile-app | /opt/exam-coach |
 | 3007 | **web-ecommerce-factory** | saas-skeleton | /opt/web-ecommerce-factory |
 | 3008 | **ai-model-catalog** | saas-skeleton | /opt/ai-model-catalog |
 | 8000 | **tryton-crm** | saas-skeleton | /opt/tryton-crm |
-| 8001 | **longephedia-vault** | python-api | /opt/longephedia-vault |
+| 8001 | **longephedia-vault** | saas-skeleton | /opt/longephedia-vault |
 | 8002 | **fabrik-claim-validator** | python-api | /opt/fabrik-claim-validator |
 | 8003 | **obsidian-agents** | desktop-app | /opt/obsidian-agents |
-| 8004 | **brand-identiy-creator** | python-api | /opt/brand-identiy-creator |
-| 8005 | **candle** | python-api | /opt/candle |
+| 8004 | **brand-identiy-creator** | saas-skeleton | /opt/brand-identiy-creator |
+| 8005 | **candle** | saas-skeleton | /opt/candle |
 | 8006 | **gmail-account-creator** | file-worker | /opt/gmail-account-creator |
-| 8007 | **whatsapp-agent** | python-api | /opt/whatsapp-agent |
+| 8007 | **whatsapp-agent** | chrome-extension | /opt/whatsapp-agent |
 | 8008 | **supplement-tracker-advisor** | mobile-app | /opt/supplement-tracker-advisor |
 | 8009 | **image-generation** | python-api | /opt/image-generation |
 | 8010 | **iterative_image_editor** | python-api | /opt/iterative_image_editor |
-| 8011 | **job-agent** | python-api | /opt/job-agent |
+| 8011 | **job-agent** | chrome-extension | /opt/job-agent |
 | 8012 | **llm_batch_processor** | python-api | /opt/llm_batch_processor |
-| 8013 | **marketing-argumant-generator** | python-api | /opt/marketing-argumant-generator |
+| 8013 | **marketing-argumant-generator** | saas-skeleton | /opt/marketing-argumant-generator |
 | 8014 | **rnfinal** | mobile-app | /opt/rnfinal |
-| 8015 | **proposal-creator** | python-api | /opt/proposal-creator |
+| 8015 | **proposal-creator** | saas-skeleton | /opt/proposal-creator |
 | 8016 | **seo** | python-api | /opt/seo |
 | 8017 | **session-recall** | python-api | /opt/session-recall |
 | 8018 | **Reference_Creator** | python-api | /opt/Reference_Creator |
 | 8022 | **trade-intelligence** | saas-skeleton | /opt/trade-intelligence |
-| 8023 | **trading-core** | python-api | /opt/trading-core |
+| 8023 | **trading-core** | saas-skeleton | /opt/trading-core |
 | 8025 | **triggered-content-orchestration** | python-api | /opt/triggered-content-orchestration |
 | 8027 | **web-scraper** | python-api | /opt/web-scraper |
-| 8029 | **youtube** | file-worker | /opt/youtube |
-| 8031 | **youtube** | file-worker | /opt/youtube |
+| 8029 | **youtube** | saas-skeleton | /opt/youtube |
+| 8031 | **youtube** | saas-skeleton | /opt/youtube |
 | 8032 | **fabrik-citation-verifier** | python-api | /opt/fabrik-citation-verifier |
 | 8302 | **apidoccreator** | python-api | /opt/apidoccreator |
 | 18013 | **proxy** | python-api | /opt/proxy |
-| 18014 | **site-provisioner** | python-api | /opt/site-provisioner |
+| 18014 | **site-provisioner** | saas-skeleton | /opt/site-provisioner |
 | 18018 | **email-reader** | python-api | /opt/email-reader |
 
 <!-- AUTO-GENERATED:PORTS:END -->

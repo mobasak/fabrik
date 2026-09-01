@@ -39,6 +39,18 @@ DOTENV_KEYS: tuple[str, ...] = (
     "BRAVE_API_KEY",
     "FIRECRAWL_API_KEY",
     "CONTEXT7_API_KEY",
+    # Provider keys named by `providers.py` rows. ⚠️ `NVIDIA_API_KEY` is a PRE-EXISTING gap this
+    # closes, not a new key: the `nvidia` row has shipped since the provider seam landed, but its
+    # key was never in this list — so NVIDIA dispatch only ever worked when the key happened to be
+    # in the real process env, never via the curated `.env` autoload the README tells consumers to
+    # use. `tests/test_lane_providers.py::test_every_registry_key_env_is_autoloaded` asserts the
+    # general form (any row whose `key_env` is missing here) so a future row cannot reintroduce it.
+    "NVIDIA_API_KEY",
+    "MISTRAL_API_KEY",
+    "KILO_API_KEY",
+    "GROQ_API_KEY",
+    "CEREBRAS_API_KEY",
+    "GEMINI_API_KEY",
 )
 
 
@@ -186,6 +198,12 @@ KEY_INFO: dict[str, str] = {
     "BRAVE_API_KEY": "optional — web_tools Brave search (only if you use web_search_brave)",
     "FIRECRAWL_API_KEY": "optional — web_tools Firecrawl (only if you use web_scrape/web_crawl)",
     "CONTEXT7_API_KEY": "optional — web_tools Context7 docs (only if you use docs_lookup)",
+    "NVIDIA_API_KEY": "optional — NVIDIA NIM free lane (provider='nvidia'); dev/eval only per ToS",
+    "MISTRAL_API_KEY": "optional — Mistral free lane (provider='mistral')",
+    "KILO_API_KEY": "optional — Kilo free lane (provider='kilo'); ANONYMOUS without it, `:free` only",
+    "GROQ_API_KEY": "optional — Groq free lane (provider='groq')",
+    "CEREBRAS_API_KEY": "optional — Cerebras free lane (provider='cerebras')",
+    "GEMINI_API_KEY": "optional — Google AI Studio free lane (provider='gemini')",
 }
 
 

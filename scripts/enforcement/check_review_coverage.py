@@ -235,13 +235,18 @@ def _checklist_section(text: str) -> str | None:
 SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
 
 # ⚠️ ...and the SAME class again, one wrapper over: the bold fix above did not cover a markdown
-# CODE SPAN, so `**Surface:** \`<40-hex>\`` — the most natural way to write a hash in markdown, and
-# the form the contract's own guidance encourages — read as ABSENT to every hash-shaped matcher
-# below. Measured 2026-09-01 on this repo's own corpus: 5 of 181 review artifacts were being
-# misread that way, including one written the same day by the session that then "measured" a 20/181
-# conformance rate and nearly reported it as agent drift. Fixing the location (bold) and leaving the
-# class (any quoting of the hash) is what made this recur; the tolerance now lives in ONE constant
-# that every hash-anchored Surface matcher composes.
+# CODE SPAN, so a backticked hash read as ABSENT. Fixing the location (bold) and leaving the class
+# (any quoting of the hash) is what made this recur; the tolerance now lives in ONE constant that
+# every hash-anchored matcher composes.
+# ⚠️ HONEST SCOPE, because the first version of this comment overstated it and its own worked
+# example disproved it. It used `**Surface:** \`<40-hex>\`` as the motivating case — but `_MEGA_HEX`
+# is exactly {32} (a full md5) and `_HEX_END` forbids a 33rd hex char, so a 40-hex sha1 fails here
+# both before AND after the fix. Measured on this repo's corpus 2026-09-01: of 182 review artifacts,
+# 6 carry a quoted Surface hash and ALL SIX are 40-hex sha1s — so the tolerance rescues **0 of 182**
+# via `_MEGA_SURFACE`. What it genuinely repaired is `_WRAPPED_HEADINGISH` (which accepts `{12,}`):
+# +6 lines across 435 artifacts. The fix is still right — a code-spanned md5 in a MEGA report was
+# genuinely unreadable — but it is a latent-correctness fix, not a rescue of live reports, and
+# claiming otherwise is the same overclaim this file keeps paying for.
 # ⚠️ THIRD attempt at this class, and the first two each fixed a LOCATION. Recorded so the fourth
 # does not repeat them:
 #   attempt 1 tolerated bold on the LABEL (`**Surface:**`) but not on the VALUE;
@@ -268,7 +273,13 @@ _MD_DECOR = r"[`'\"*_]*"
 #             and the wrong-reason class this file already records at two other sites.
 # Measured 2026-09-01 across 435 review/epic/certification/plan artifacts: 0 affected either way,
 # so this is the unrealized-but-real direction — fixed at the definition, not at a symptom.
-_HSP = r"[^\S\r\n\v\f\x1c\x1d\x1e\u2028\u2029]*"
+# ⚠️ DERIVED, not hand-typed. The hand-written class shipped with 9 of the 10 terminators and
+# left `\x85` (NEL) open, in a comment that claimed the set was exact — the enumeration defect
+# this repo bans, committed inside the fix for it. `tests/enforcement/test_mega_validation_reports.py`
+# re-derives the set from `str.splitlines()` itself and asserts this class excludes exactly it,
+# so a future Python that adds a terminator fails the test instead of silently reopening the hole.
+_LINE_BREAKS = "\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029"  # == what str.splitlines() splits on
+_HSP = rf"[^\S{_LINE_BREAKS}]*"
 _SURFACE_QUOTE = rf"{_MD_DECOR}{_HSP}"
 # Terminator for a fixed-width hash: "not followed by more hex" says exactly what `\b` was reaching
 # for, and stays correct when the next character is a word-char decoration like `_`.
@@ -279,6 +290,15 @@ _HEX_END = r"(?![0-9a-fA-F])"
 # `md5 -> sha1` — inconsistent about which operand it validates, and fail-open in the accepting
 # direction. Both edges of both operands are guarded now.
 _HEX_START = r"(?<![0-9a-fA-F])"
+# MIRROR, both directions, because the widening was named and the NARROWING was not — and this file
+# gates a blocking check, so fail-closed is the direction that costs an author a red. Measured
+# 0 of 435 artifacts affected, i.e. latent, not realized:
+#   `<sha256> -> <sha256>`  base ACCEPTED (by truncating both operands to their last 32 chars),
+#                           current REFUSES. Defensible — the contract mandates a full md5 pair —
+#                           but it IS a contract change and an author writing sha256 digests now
+#                           reds where they did not.
+#   `**Surface:**\n<hash>`  base ACCEPTED across the newline, current REFUSES. Intended: that was
+#                           the reach-forward. Recorded so the before/after ledger is complete.
 
 # An honest IN-PROGRESS review. The /fabrik-review methodology requires the report to exist BEFORE
 # pass 1 ("a review that exists only in chat does not exist"), while every other rule here treats a

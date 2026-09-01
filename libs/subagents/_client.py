@@ -317,10 +317,13 @@ class OpenRouterClient:
         )
 
     def _headers(self) -> dict[str, str]:
-        h = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
+        # Authorization is emitted ONLY when there is a key. An anonymous provider (a registry row
+        # with `key_optional=True`, e.g. Kilo's `:free` tier) is built with `api_key=""`, and an
+        # unguarded f-string would send the literal header `Bearer ` — which no provider accepts,
+        # so this is strictly safer than the previous unconditional form rather than a new mode.
+        h = {"Content-Type": "application/json"}
+        if self._api_key:
+            h["Authorization"] = f"Bearer {self._api_key}"
         if self._referer:
             h["HTTP-Referer"] = self._referer
         if self._title:

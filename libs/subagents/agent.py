@@ -287,12 +287,54 @@ class FanoutBatch:
         self._state_dir = _state_dir
 
     def __iter__(self) -> Iterator[Any]:
-        """Preserve ``results, table = fanout(...)`` — the whole point of not using a 3-field type."""
+        """Preserve ``results, table = fanout(...)`` — the whole point of not using a 3-field type.
+
+        ⚠️ THIS YIELDS TWO ITEMS: the results LIST and the table STRING — never the results one by
+        one. ``for r in batch:`` therefore binds ``r`` to a list and then to a string, and
+        ``r.text`` is an AttributeError or an empty repr rather than an agent's output. That reads
+        as "the agents returned nothing" instead of "you used the wrong shape", which is how it
+        cost a consuming session three misfires in one day, one of them double-paying a dispatch
+        (web-ecommerce-factory, ``01M1CDZYR4``). **Iterate ``batch.results``, never the batch.**
+        """
         yield self.results
         yield self.table
 
     def __len__(self) -> int:
+        """**2 — the TUPLE arity, not the number of agents.**
+
+        This object stands in for the ``(results, table)`` 2-tuple, so ``len()`` reports 2 however
+        many agents ran. ``f"dispatched {len(batch)} agents"`` therefore logs 2 forever; the count
+        you want is ``len(batch.results)``. Kept at 2 deliberately: it is correct for the tuple
+        identity every fleet consumer unpacks, and changing it would silently alter behaviour in
+        ~46 vendored copies to fix a docstring problem.
+        """
         return 2
+
+    def __getitem__(self, index: object) -> Any:
+        """Refuse indexing with an error that NAMES the fix.
+
+        ``batch[0]`` used to raise a bare ``'FanoutBatch' object is not subscriptable``, which says
+        nothing about what to do instead. The reporter proposed delegating to ``.results`` so that
+        indexing "just works" — **deliberately not done**, and this is the mirror worth stating:
+        ``__iter__`` must keep yielding the 2-tuple (that contract ships to ~46 copies), so a
+        delegating ``__getitem__`` would make ``batch[0]`` the first RESULT while ``list(batch)[0]``
+        stayed the results LIST. Index and iterate would disagree — a fresh silent trap of exactly
+        the class being reported. A loud, teaching refusal costs the caller one edit and can never
+        mislead.
+        """
+        raise TypeError(
+            "FanoutBatch is not indexable — it stands in for the `(results, table)` 2-tuple. "
+            f"Use `batch.results[{index!r}]` for one AgentResult, `batch.results` to iterate, "
+            "or `results, table = fanout(...)` to unpack. (Indexing is refused rather than "
+            "delegated because `__iter__` yields the 2-tuple, so delegating would make indexing "
+            "and iteration disagree.)"
+        )
+        # ⚠️ ONE PROTOCOL SIDE-EFFECT, measured rather than assumed. `__len__` + `__getitem__`
+        # together ARE the old-style sequence protocol, so `reversed(batch)` now reaches this
+        # raise instead of the interpreter's "'FanoutBatch' object is not reversible". Both are
+        # TypeError — a caller catching TypeError is unaffected — and this message is the more
+        # useful of the two. `x in batch` and `list(batch)` are untouched: both prefer `__iter__`,
+        # which still yields the 2-tuple.
 
     def __repr__(self) -> str:
         n = len(self.results)
@@ -1888,11 +1930,15 @@ def fanout(
     if mode == "write" and task_type in _WRITE_STEER_TASK_TYPES:
         # Loud, actionable, NON-blocking (like record_run's footgun warning). Never raises — a genuine
         # exploration review that must read files to discover what's relevant is a valid write-mode use.
-        print(
+        # stderr.write, NOT print(): library code stays print-free so a consuming project's
+        # print-ban gate never trips on a vendored copy — the identical rule `_client._emit`
+        # already follows and states (`_client.py:373-375`). This site missed it, and since the
+        # module ships into ~46 repos that is a gate failure in every one of them, for a warning
+        # that is not even theirs. Same stream, same behaviour, explicit newline.
+        sys.stderr.write(
             f"⚠️  fanout({task_type!r}, mode='write'): review/grounding whose code you can INLINE is "
             "cheaper + can't cap as mode='read_only' (single-shot). write-mode is for EXPLORATION that "
-            "must discover files; if that's you, you're fine — capped runs now return a partial report.",
-            file=sys.stderr,
+            "must discover files; if that's you, you're fine — capped runs now return a partial report.\n"
         )
     # fanout OWNS these AgentSpec fields (mode/task_type/parallel-safety are its job). Reject them
     # in **spec_kwargs UNIFORMLY + up front — Python's own duplicate-kwarg TypeError only fires for
