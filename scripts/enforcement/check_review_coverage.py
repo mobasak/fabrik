@@ -257,12 +257,18 @@ SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
 #   _HSP      — horizontal space ONLY. `\s` matches newline; every use of `\s` in a Surface/hash
 #               matcher is a reach-forward waiting to happen.
 _MD_DECOR = r"[`'\"*_]*"
-# ⚠️ `[ \t]` LITERALLY, not `[^\S\n]`. `[^\S\n]` excludes only `\n`, so it still matched `\r`,
-# `\x0b`, `\x0c`, `\x1c` and `\u2028` — every one of which `str.splitlines()` (used elsewhere in
-# this file) treats as a LINE BREAK. That left two contradictory definitions of "a line" in one
-# module, and the looser one guarded the reach-forward. Measured 2026-09-01: `\r\n` was safe but a
-# bare `\r` or `\x0c` still let an empty `**Surface:**` borrow the next line's hash.
-_HSP = r"[ \t]*"
+# ⚠️ "Horizontal space" here means EXACTLY: whitespace minus the characters `str.splitlines()`
+# treats as line breaks. Both simpler definitions were wrong, in opposite directions:
+#   `[^\S\n]` excluded only `\n`, so `\r`, `\x0b`, `\x0c`, `\x1c` and `\u2028` still let an empty
+#             `**Surface:**` borrow the NEXT line's hash — fail-OPEN, and this file slices text
+#             with splitlines() elsewhere, so it held two contradictory notions of "a line".
+#   `[ \t]`   then dropped NBSP (`\xa0`), EM SPACE and the other Unicode spaces that splitlines()
+#             does NOT break on — so a `Surface:` line pasted from a rendered markdown view or a
+#             browser reported "no Surface line" on a report that plainly has one. Fail-CLOSED,
+#             and the wrong-reason class this file already records at two other sites.
+# Measured 2026-09-01 across 435 review/epic/certification/plan artifacts: 0 affected either way,
+# so this is the unrealized-but-real direction — fixed at the definition, not at a symptom.
+_HSP = r"[^\S\r\n\v\f\x1c\x1d\x1e\u2028\u2029]*"
 _SURFACE_QUOTE = rf"{_MD_DECOR}{_HSP}"
 # Terminator for a fixed-width hash: "not followed by more hex" says exactly what `\b` was reaching
 # for, and stays correct when the next character is a word-char decoration like `_`.

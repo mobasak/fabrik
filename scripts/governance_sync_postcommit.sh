@@ -54,11 +54,32 @@ PY
 # 36 files across the last 400 hub commits) and certain on a bulk rename, an archive move or a
 # scaffold-wide regeneration — i.e. it fails exactly when the blast radius is widest. Capturing
 # first and matching a here-string keeps pipefail AND removes the pipe.
-NAMES="$(git log -1 --format= --name-only)"
+# ⚠️ `--first-parent` is REQUIRED, not decorative. Without it `git log -1 --name-only` on a MERGE
+# commit suppresses the diff entirely and emits NOTHING — so every merge that carried a trigger
+# path silently skipped the sync, while this very comment claimed a "first-parent view" the flag
+# was never there to provide. The old justification ("a merged-in trigger commit was already
+# synced when ITS author committed it") does not cover a merge that RESOLVES A CONFLICT in a
+# trigger file: that blob exists in no parent, was never synced by anyone, and never would be.
+# Probed 2026-09-01 on a scratch repo: plain `--name-only` on a merge -> empty; with
+# `--first-parent` -> the changed paths.
+# ⚠️ And the capture needs its own failure branch. Every other step here fails LOUD (FILTER has
+# one, SYNC has one); an unchecked `NAMES=` would fail SILENT-SKIP on a corrupt index or unborn
+# HEAD — the exact shape this script exists to make impossible.
+NAMES="$(git log -1 --first-parent --format= --name-only)" \
+  || { echo "[governance-sync post-commit] cannot read HEAD's paths — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
 if grep -qE "$FILTER" <<<"$NAMES"; then
   # SYNC_CMD exists so the fail-loud branch below is TESTABLE — a fail-open path that no test can
-  # exercise is how the unreachable `||` shipped in the first place. Defaults to the real sync.
-  ${SYNC_CMD:-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force} 2>&1 | tail -3 \
+  # exercise is how the unreachable `||` shipped in the first place.
+  # ⚠️ It is honoured ONLY under an explicit test sentinel. A bare `${SYNC_CMD:-…}` would let any
+  # exported variable in an operator's shell silently REPLACE the fleet-wide sync on every commit,
+  # from inside a git hook — a much worse footgun than the untestable branch it was added to fix.
+  SYNC="/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force"
+  if [ "${GOVERNANCE_SYNC_TEST:-}" = "1" ] && [ -n "${SYNC_CMD:-}" ]; then
+    SYNC="$SYNC_CMD"
+  fi
+  # Intentionally unquoted: $SYNC is a command line that must word-split.
+  # shellcheck disable=SC2086
+  $SYNC 2>&1 | tail -3 \
     || { echo "[governance-sync post-commit] SYNC FAILED — the commit landed but did NOT distribute; run scripts/sync_enforcement_to_projects.py --force"; exit 1; }
 fi
 exit 0
