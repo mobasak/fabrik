@@ -135,6 +135,40 @@ EXECUTED = re.compile(
     re.I | re.M,
 )
 REVIEW_CITE = re.compile(r"docs/development/reviews/[\w./-]+\.md")
+_DATE_PREFIX = re.compile(r"^(\d{4}-\d{2}-\d{2})-")
+
+
+def _slug_tokens(name: str) -> set[str]:
+    """Discriminating tokens of a plan/review stem: date prefix, ``plan``/
+    ``review``/``verify`` scaffolding words and bare numbers dropped."""
+    stem = _DATE_PREFIX.sub("", Path(name).name.removesuffix(".md"))
+    return {
+        t
+        for t in stem.split("-")
+        if t and not t.isdigit() and t not in {"plan", "review", "verify", "readiness"}
+    }
+
+
+def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
+    """Is this cited review THIS plan's own whole-plan validation?
+
+    Exact stem substring first (the original rule; retro-safe). Else: the
+    plan's slug tokens must all appear in the review's name AND the review's
+    date must not PREDATE the plan's — a review written before the plan
+    existed cannot be its validation (01M1DJYH: a 3-week-old readiness review
+    was indistinguishable from the plan's verify review by name tokens alone).
+    Unparseable dates fall back to token-match-only.
+    """
+    if plan_stem in cite_name:
+        return True
+    plan_tokens = _slug_tokens(plan_stem)
+    if not plan_tokens or not plan_tokens <= _slug_tokens(cite_name):
+        return False
+    pd = _DATE_PREFIX.match(plan_stem)
+    cd = _DATE_PREFIX.match(cite_name)
+    if pd and cd:
+        return cd.group(1) >= pd.group(1)
+    return True
 # D4 per-ticket review files (<plan>-T##[a-z]?-review.md): cited by spines
 # routinely, but they prove one ticket — never the whole-plan D7 validation.
 # Naming-convention-scoped BY DESIGN (this module's ceiling: evidence presence,
@@ -691,11 +725,14 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         # those prove single tickets, never the WHOLE-plan validation (filtered above).
         # ACCIDENTAL SATISFACTION guard: a plan often cites OTHER reviews as evidence
         # (a sibling incident, a prior wave); a quiet round in an UNRELATED review must
-        # not certify THIS plan. The quiet pass counts only from a review whose
-        # filename references this plan's stem — unconditionally (round-2: a single
-        # unrelated citation is the same hole; every archived EXECUTED plan
-        # stem-matches its citation, so this is retro-safe).
-        if plan_stem not in Path(c).name:
+        # not certify THIS plan. The quiet pass counts only from a review that MATCHES
+        # this plan: exact stem substring (the original rule — every archived EXECUTED
+        # plan satisfies it, retro-safe), or — 01M1DJYH, a live deploy plan blocked
+        # because its verify review is named by service+verify-date, not plan stem —
+        # slug-token subset PLUS a not-older-than-the-plan date (a review that predates
+        # the plan cannot be its own validation; that date guard is what keeps a
+        # historical same-service review from accidentally certifying).
+        if not _cite_matches_plan(Path(c).name, plan_stem):
             continue
         rp = root / c
         if not rp.is_file():

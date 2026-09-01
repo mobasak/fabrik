@@ -1595,6 +1595,14 @@ def main() -> int:
     parser.add_argument("--plan-dir", type=Path, default=None)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--allow-external",
+        action="store_true",
+        help="With --plan-dir: skip the docs/development/plans/ containment check so a "
+        "SCRATCH COPY of a plan set can be checked (gate-liveness red-on-mutation proofs "
+        "previously required mutating the real plan file — 01M1DMBS minor). The dated-dir "
+        "naming rule still applies; discovery mode ignores this flag.",
+    )
     args = parser.parse_args()
     root = args.project_root.resolve()
     if args.plan_dir:
@@ -1614,8 +1622,11 @@ def main() -> int:
                 "(YYYY-MM-DD-plan-<slug>/)"
             )
             return 1
-        if not _is_plans_layout(target):
-            print(f"✗ --plan-dir {args.plan_dir} is not under docs/development/plans/")
+        if not args.allow_external and not _is_plans_layout(target):
+            print(
+                f"✗ --plan-dir {args.plan_dir} is not under docs/development/plans/ "
+                "(checking a scratch copy? pass --allow-external)"
+            )
             return 1
         dirs = [target]
         lock_only: set[Path] = set()

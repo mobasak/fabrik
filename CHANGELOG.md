@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two enforcement false-positives: review-citation matching + doc-sync ticket breadth (2026-09-01)
+
+`check_convergence.py` blocked a legitimate EXECUTED flip when the plan's own validation review
+is named by service+verify-date instead of plan stem (01M1DJYH, live deploy plan) — citation
+matching now accepts slug-token subset + a not-older-than-the-plan date guard (the 3-week-old
+readiness review with identical tokens stays excluded); exact-stem matches unchanged, retro-safe.
+`check_ticket_breadth.py` counted docs/ + Doc-Sync root files as risk areas, producing peel
+advice the Doc Sync Matrix forbids — following it RAISED the flag count 3→4 (01M1DMBS, measured);
+doc-sync companions now get the test-surface treatment (excluded, displayed, never a peel
+target). Also: `check_plan_tickets.py --allow-external` admits scratch copies for gate-liveness
+proofs. All three pinned; the overturned docs-is-an-area test pin updated with its rationale.
+
 ### Changed — FINAL OUTPUT block gains an enforced FEEDBACK line; MCP probe at every run open (D-059, 2026-09-01)
 
 Operator directive: the 7th block line `FEEDBACK:` (the close verdict, chat-visible) is now

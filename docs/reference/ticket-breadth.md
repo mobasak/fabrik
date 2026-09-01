@@ -33,7 +33,7 @@ proxies read from the ticket's own declared fields:
 
 | Component | Read from | Why it is a risk class |
 |---|---|---|
-| `areas` | distinct top-level dirs in `## Touches` (`scripts/`, `src/`, `docs/`, `.claude/`…), **excluding test surfaces** | each surface reviews on its own axis |
+| `areas` | distinct top-level dirs in `## Touches` (`scripts/`, `src/`, `.claude/`…), **excluding test surfaces AND doc-sync companions** (`docs/`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `.env.example` — the Matrix mandates they travel with the code that invalidates them; counting them produced peel advice a HARD rule forbids, and following it RAISED the flag count 3→4, measured at wef 01M1DMBS) | each surface reviews on its own axis |
 | `behaviors` | `## Behavior Contract` Given/When/Then bullet count | each is a distinct user-observable behaviour |
 | `mix` | Touches declares **both** ordinary code **and** a governance/fleet-synced surface | a ~46-repo blast radius mixed into local work |
 

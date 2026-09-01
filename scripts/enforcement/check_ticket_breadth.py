@@ -222,6 +222,24 @@ def _list_paths(section_body: str) -> list[str]:
     return out
 
 
+_DOCSYNC_ROOT_FILES = {"CHANGELOG.md", "INDEX.md", "PORTS.md", ".env.example"}
+
+
+def _is_docsync_path(path: str) -> bool:
+    """A companion DOC-SYNC surface — the docs the Doc Sync Matrix REQUIRES to
+    travel in the same change as the code that invalidates them (CLAUDE.md:
+    "any doc a change makes stale ... must be brought current in the SAME
+    change"). Counting them as a risk area produced the remedy "peel docs/
+    into a separate ticket" — advice that contradicts a HARD governance rule,
+    and following it RAISED the flag count 3->4 (01M1DMBS, measured). Same
+    treatment as tests: not an area, never a peel target."""
+    p = path.removeprefix("./")
+    segs = [x for x in p.split("/") if x and x != "."]
+    if segs and segs[0] == "docs":
+        return True
+    return len(segs) == 1 and segs[0] in _DOCSYNC_ROOT_FILES
+
+
 def _is_test_path(path: str) -> bool:
     """A companion TEST surface — excluded from the risk-class count and never a
     split target (see _TEST_DIR_SEGMENTS). Matches a test directory anywhere in
@@ -264,6 +282,7 @@ class Breadth:
     mix: bool = False
     gov_paths: list[str] = field(default_factory=list)
     test_areas: int = 0  # companion test surfaces seen but deliberately NOT counted
+    docsync_areas: int = 0  # Doc-Sync companion surfaces — travel with the code, never counted
     parse_note: str = ""
 
     @property
@@ -277,6 +296,8 @@ class Breadth:
     def components(self) -> str:
         areas = ", ".join(self.areas) if self.areas else "none declared"
         tail = f" [+{self.test_areas} test surface(s), not counted]" if self.test_areas else ""
+        if self.docsync_areas:
+            tail += f" [+{self.docsync_areas} doc-sync surface(s), travel with the code]"
         return (
             f"areas={len(self.areas)} ({areas}){tail} · "
             f"behaviors={self.behaviors} · "
@@ -324,10 +345,13 @@ def measure_ticket(path: Path) -> Breadth:
         text = path.read_text(encoding="utf-8", errors="replace")
         scan = _strip_fences(text)
         touches = _list_paths(_section(scan, "Touches"))
-        # Companion TEST surfaces are excluded from EVERY signal: not an area,
-        # not the "code" half of the governance mix, never a split target.
-        prod = [p for p in touches if not _is_test_path(p)]
+        # Companion TEST and DOC-SYNC surfaces are excluded from EVERY signal:
+        # not an area, not the "code" half of the governance mix, never a split
+        # target (tests ship with the behaviour they prove; doc-sync rows travel
+        # with the code that invalidates them — the Matrix mandates it).
+        prod = [p for p in touches if not _is_test_path(p) and not _is_docsync_path(p)]
         test_areas = len({_area(p) for p in touches if _is_test_path(p)})
+        docsync_areas = len({_area(p) for p in touches if not _is_test_path(p) and _is_docsync_path(p)})
         areas: list[str] = []
         for p in prod:
             a = _area(p)
@@ -347,6 +371,7 @@ def measure_ticket(path: Path) -> Breadth:
             mix=bool(gov_paths) and has_code,
             gov_paths=gov_paths,
             test_areas=test_areas,
+            docsync_areas=docsync_areas,
         )
     except Exception as e:  # noqa: BLE001 — fail SOFT by contract; never red a gate
         return Breadth(tid=tid, path=path, parse_note=f"unparseable ({e!r}) — skipped")

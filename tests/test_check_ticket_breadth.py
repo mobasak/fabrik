@@ -306,9 +306,21 @@ def test_multi_area_hint_keeps_tests_with_their_code(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     b = ctb.measure_ticket(p)
-    assert b.areas == ["src", "docs"], "docs is a real area; tests is not"
-    hint = b.split_hint()
-    assert "peel off docs/" in hint
+    # 01M1DMBS overturned the old "docs is a real area" contract: a QUICKSTART
+    # row travels with the API change that invalidates it (Doc Sync Matrix) —
+    # peeling it was advice a HARD governance rule forbids. Use a second CODE
+    # area to keep exercising the multi-area hint.
+    assert b.areas == ["src"], "docs is a doc-sync companion now; tests never counted"
+    assert b.docsync_areas == 1
+    p2 = d / "T02-multi.md"
+    p2.write_text(
+        "# T02\n\n## Touches\n- src/api/routes.py\n- libs/client/sdk.py\n"
+        "- tests/test_routes.py\n\n## Behavior Contract\n"
+        "- **Given** a route, **When** called, **Then** it answers (src/api/routes.py:1)\n",
+        encoding="utf-8",
+    )
+    hint = ctb.measure_ticket(p2).split_hint()
+    assert "peel off libs/" in hint
     assert "their tests move WITH them" in hint
     assert "peel off tests" not in hint
 
@@ -367,3 +379,41 @@ def test_fenced_example_rows_do_not_count(tmp_path: Path) -> None:
     b = ctb.measure_ticket(p)
     assert b.behaviors == 1, "fenced example rows are quoted content, never behaviours"
     assert not b.flagged
+
+
+def test_01m1dmbs_docsync_companions_never_count_as_areas(tmp_path):
+    """01M1DMBS (wef, measured): counting docs/ + Doc-Sync root files as risk areas
+    produced the remedy 'peel docs/ into a separate ticket' — which CLAUDE.md's Doc
+    Sync Matrix forbids, and following it RAISED the flag count 3->4. Doc-sync
+    companions now get the test-surface treatment: not an area, never a peel target."""
+    t = tmp_path / "T01-widget.md"
+    t.write_text(
+        "# T01 — widget\n\n"
+        "## Touches\n"
+        "- src/widget/core.py\n"
+        "- docs/CONFIGURATION.md\n"
+        "- CHANGELOG.md\n"
+        "- .env.example\n"
+        "- tests/test_widget.py\n\n"
+        "## Behavior Contract\n"
+        "| GIVEN a | WHEN b | THEN c |\n"
+    )
+    from scripts.enforcement.check_ticket_breadth import measure_ticket
+
+    b = measure_ticket(t)
+    assert b.areas == ["src"], b.areas  # docs/, CHANGELOG, .env.example all companions
+    assert b.docsync_areas >= 2
+    assert "travel with the code" in b.components()
+
+
+def test_docs_only_ticket_still_scores_its_own_axis(tmp_path):
+    # A docs-ONLY ticket must not vanish to zero signal — mirror of tests-only.
+    t = tmp_path / "T02-docs.md"
+    t.write_text(
+        "# T02 — docs\n\n## Touches\n- docs/FEATURES.md\n- docs/QUICKSTART.md\n\n"
+        "## Behavior Contract\n| GIVEN a | WHEN b | THEN c |\n"
+    )
+    from scripts.enforcement.check_ticket_breadth import measure_ticket
+
+    b = measure_ticket(t)
+    assert b.score >= 1  # behaviors still count; the ticket is visible

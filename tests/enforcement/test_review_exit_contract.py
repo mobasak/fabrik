@@ -212,3 +212,30 @@ def test_d053_amendment_anchors_on_the_method_cell_not_prose():
     literal = tc_row.replace("citation|re-derivation|gate", "re-derivation")
     assert crc._REDERIVATION_ROW.search(literal), literal
     assert ccv._REDERIVATION_ROW.search(literal), literal
+
+
+def test_01m1djyh_verify_review_named_by_service_satisfies_the_flip():
+    """01M1DJYH: a deploy plan's verify review is named by service+verify-date, not plan
+    stem — the stem-substring discriminator blocked a legitimate EXECUTED flip and the only
+    workarounds were fabricating a round or deleting a true citation. Token-subset + the
+    not-older-than-the-plan date guard admit the plan's own validation while still refusing
+    the 3-week-old readiness review (same tokens, older date) and unrelated reviews."""
+    import importlib.util as ilu
+
+    spec = ilu.spec_from_file_location(
+        "ccv_cite", REPO / "scripts" / "enforcement" / "check_convergence.py"
+    )
+    assert spec and spec.loader
+    ccv = ilu.module_from_spec(spec)
+    spec.loader.exec_module(ccv)
+
+    plan = "2026-08-31-plan-deploy-tryton-crm"
+    # the live pair from the finding, verbatim
+    assert ccv._cite_matches_plan("2026-09-01-tryton-crm-deploy-verify-review.md", plan)
+    assert not ccv._cite_matches_plan("2026-08-10-tryton-crm-deploy-readiness-review.md", plan)
+    # the original rule survives (retro-safety: every archived EXECUTED plan stem-matches)
+    assert ccv._cite_matches_plan(f"{plan}-review.md", plan)
+    # an unrelated quiet review must never certify this plan (accidental-satisfaction guard)
+    assert not ccv._cite_matches_plan("2026-09-01-mail-fixes-review.md", plan)
+    # same-day validation is legitimate (>=, not >)
+    assert ccv._cite_matches_plan("2026-08-31-deploy-tryton-crm-review.md", plan)
