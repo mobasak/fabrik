@@ -1,6 +1,6 @@
 # Deployment Verification Contract — design spec
 
-Status: CONVERGED
+Status: DRAFT (amended 2026-09-01 after operator ruling — re-convergence owed; see § Amendment 1)
 Date: 2026-09-01
 Author: fleet (hub)
 Stage: 1-design · converged by `/fabrik-spec-review` 2026-09-01 · successor: operator approval, then the epic route
@@ -247,6 +247,66 @@ falsifiable:
 
 **Composition, not reinvention:** vendored `health-probe` for dependency probes + a thin parity runner +
 per-type packs.
+
+## Amendment 1 — a NEW authoring command (operator ruling, 2026-09-01)
+
+> *"i think there must be a new command and the developer ai must first create a full list of
+> checklist with command for deployment verify."*
+
+**The DRAFT was wrong, and the error was a conflation.** Approach A rejected "a new command" citing
+*"Extend, don't duplicate"* — but that reasoning applies to the **runner**, and the operator is naming
+the **author**. Those are different commands, and the authoring one has no home:
+
+| concern | today | verdict |
+|---|---|---|
+| RUNNING verification | `/fabrik-deploy-verify` | extend — the DRAFT's Approach B stands |
+| AUTHORING the checklist | `/fabrik-deploy-plan` Phase 6 — **hub-side, per-plan, dies with the plan** | **VACANT project-side → new command** |
+
+Measured: `/fabrik-deploy-plan` mentions `battery` 8 times and Phase 6 is *"Verification battery (the
+deploy's exit gate)"*. But it is authored by the **hub**, which is precisely the party that does not know
+the project — the root cause this whole spec exists to fix — and the artifact is per-deploy, so nothing
+durable accumulates.
+
+The DRAFT's own § Approach C already proved the authoring must be project-side (*"quote a sale → confirm
+DDMMYYYY-seq → render PDF"* is unknowable to a fleet command). It then failed to give that authoring a
+command, leaving "the project writes `verify_prod_parity.py`" as a hand-wave. **The operator's ruling
+closes that gap.**
+
+This matches the corpus pattern rather than breaking it — every other frozen contract has an authoring
+command: `/fabrik-features` (feature inventory), `/fabrik-data-contract` (fields), `/fabrik-flows`
+(journeys). The verification contract had none.
+
+**Shape (to be specced in the amendment pass):** a project-side command that walks the check corpus
+(Layers 1–4 + per-type pack), and for each row emits **the actual runnable command plus its expected
+result** — not prose. Its terminal condition is a checklist where every row is executable, and its
+denominator is the corpus, so a row the project cannot yet assert is recorded `UNVERIFIABLE (<why>)`
+rather than dropped. Output is the durable, versioned artifact `/fabrik-deploy-verify` then consumes.
+
+**It also refreshes `OPERATIONS.md` + `DEPLOYMENT.md`** (operator, same ruling: *"and update its
+operations.md and deployment.md"*). This closes a loop rather than adding a chore:
+
+- **D-065 already requires it** — both docs are ruled machine-consumable fleet-AI interfaces that must
+  stay *"FULLY current"*. Nothing today produces that currency; it is asserted and decays.
+- **The authoring command is the only party positioned to** — it must enumerate every service, job,
+  companion, env key and dependency to build the checklist. That enumeration IS the content those docs
+  owe. Deriving it twice guarantees two descriptions that drift.
+- **It kills I16 at the root** — tryton-crm's *"the doc a verifier would check against is itself partly
+  untrue"* (`RESILIENCE.md` still carrying WordPress-cron template residue). A doc regenerated from the
+  same derivation that drives the checks cannot carry scaffold residue.
+
+⚠️ **HAZARD, and the rule that contains it: derive the docs from the CODE + SPEC, never from PROD.**
+Writing docs from the deployed state launders drift into documentation — *"prod has 0 companies,
+therefore document 0 companies"* would have made my empty-database certification **self-consistent and
+still wrong**. The docs declare what SHOULD be true (from code, compose, `shape:`, the decision ledger);
+the verify run reports what IS. **The gap between them is the product, and a generator that closes that
+gap by editing the declaration has destroyed the only signal.**
+
+**Sequencing consequence:** authoring runs at build/release time, not at deploy time. A project without
+the artifact reaches `UNVERIFIED` (Q2), which is now also the signal to run the authoring command.
+
+⚠️ **Status returned to DRAFT.** This amendment lands after the CONVERGED flip and materially changes the
+architecture (one command → two, plus a new pipeline position). Per the post-flip rule, the convergence
+is void until `/fabrik-spec-review` re-runs over the amended artifact.
 
 ## Approaches
 
