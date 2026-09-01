@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 9: core/45-testing-strategy.md to the D-062 bar (2026-09-01)
+
+Vitest/RTL ban narrowed to the async-RSC boundary (matches official Next.js
+guidance; Trophy bias kept explicit) + production-build and no-action-stubbing
+E2E lines; Playwright floor version-free (claims row holds the 1.59 boundary).
+Second-opinion catches: asyncio_mode="auto" dependency disclosed (strict-mode
+default breaks the fixture example exactly in the fabrik-lib carve-out);
+example DB default un-contradicted vs require_throwaway (testdb→myproject_test);
+ASGITransport-lifespan caveat. Cross-pack class swept: src.main:app matches no
+scaffolded layout — fixed in 45 + 30-ops + 10-python (6 spots, scaffold emits
+src/<package>/main.py). 3 claims rows.
+
 ### Changed — rules currency pass file 8: core/40-documentation.md to the D-062 bar + D-065 enforcement (2026-09-01)
 
 OPERATIONS/DEPLOYMENT declared fleet-AI interfaces where doc law lives (D-065

@@ -177,6 +177,24 @@ during the pass). Scope: core/ then ALL folders, to completion.
   current, machine-consumable (what/how to deploy; which VPS services: workers, systemd, cron).
   Enforcement lands at 40-documentation + 75-workers-jobs + deploy-surface turns: check the
   rules ENFORCE currency + consumability, not merely name the files.
+- **File-9 (45-testing-strategy) COMPLETE under the full bar (2026-09-01).** Own legs: the pack's
+  biggest policy line MOVED with the world — the blanket Vitest/RTL ban for Next.js narrowed to the
+  ASYNC-RSC boundary (official Next.js docs now recommend Vitest for the unit lane; async Server
+  Components remain Playwright-only BY DESIGN) + two consensus E2E-discipline lines (never stub a
+  server action from Playwright; test the production build); @playwright/test >=1.59 floor →
+  version-free wording + claims-row boundary. **SECOND OPINION (Fable 5, 15 verdicts): the two
+  lenses DISAGREED on both my edits and the adjudication is recorded — (a) Playwright floor: their
+  keep-it-load-bearing point (fix only 5 months old, old pins live) is sound, but the version-free
+  wording carries the same protection and D-062 wins on shape; (b) Vitest ban: they'd keep it as
+  Trophy-coherent; I hold the narrowing (a rule contradicting the official docs erodes pack trust;
+  Trophy bias kept explicit). Their FOUR new catches all accepted: the fixture example silently
+  depended on asyncio_mode="auto" (breaks under pytest-asyncio 1.4 strict default — exactly in the
+  no-pyproject fabrik-lib carve-out; disclosure line added); example default `testdb` was REFUSED
+  by the pack's own require_throwaway guard (→ myproject_test); ASGITransport-never-runs-lifespan
+  caveat added (scaffolded apps are lifespan-based); and the CROSS-PACK CLASS: `src.main:app`
+  matches NO scaffolded layout (scaffold emits src/<package>/main.py, scaffold.py:1487/:4834) —
+  swept in the same change across 45 (regen one-liner), 30-ops (CMD ×2), 10-python (×3); the 2
+  residual mentions are deliberate never-do-this references.** 3 claims rows. Zero literals.
 - **File-8 (40-documentation) COMPLETE under the full bar (2026-09-01) — the D-065 owner turn.**
   A registry-derivation pack whose hand-forked enumerations had all drifted from their own SSOTs.
   Own legs: D-065 fleet-AI interface bar landed (deployed-types callout + deploy-config/scheduled-

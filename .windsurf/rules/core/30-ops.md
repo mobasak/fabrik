@@ -88,13 +88,15 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8000/healthz || exit 1
 
 EXPOSE 8000
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "<package>.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# <package> = your package name — the scaffold emits src/<package>/main.py with
+# pythonpath=["src"]; a flat `src.main:app` imports NOTHING on scaffolded projects.
 ```
 
 **Notes:**
 - `uv sync --frozen` uses `uv.lock` — deterministic, no resolution at build time. uv itself arrives via the pinned `COPY --from` (Astral's documented pattern) — an unpinned `pip install uv` would re-resolve a build tool every build and break the same determinism the lockfile buys.
 - `.venv` is copied as a whole directory — no fragile `site-packages` path matching. **Both `FROM` lines must stay identical** — the venv is ABI-bound to the base (the shared marker spans keep them locked; keep them locked through hand-edits too).
-- CMD is exec form — SIGTERM reaches uvicorn directly. If you need PORT-env flexibility: `CMD ["sh", "-c", "exec uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]` — the `exec` replaces the shell so SIGTERM is still signal-safe.
+- CMD is exec form — SIGTERM reaches uvicorn directly. If you need PORT-env flexibility: `CMD ["sh", "-c", "exec uvicorn <package>.main:app --host 0.0.0.0 --port ${PORT:-8000}"]` — the `exec` replaces the shell so SIGTERM is still signal-safe.
 - HEALTHCHECK uses `localhost` correctly here — it runs inside the same container as the app.
 - **No libpq-dev / libpq5** — asyncpg speaks the PG wire protocol directly and ships prebuilt wheels. `libpq` is for psycopg2, which `25-data-postgres.md` bans.
 

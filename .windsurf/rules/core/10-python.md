@@ -38,7 +38,7 @@ its own reviewed commit, never as a side effect of unrelated work.
 
 ### Entry Point
 ```python
-# src/main.py
+# src/<package>/main.py — the scaffold layout (pythonpath=["src"]); never a flat src/main.py
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
@@ -255,7 +255,7 @@ Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()`
 ```dockerfile
 FROM python:<!--v:python_stable-->3.14<!--/v-->-slim-<!--v:debian_codename-->trixie<!--/v-->    # machine-injected from .windsurf/rules/versions.yaml (D-062) — never hand-edit the number
 # ...
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "<package>.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 `uvicorn.run()` is for local development only. Never ship it in production code.
@@ -275,7 +275,7 @@ Python services: **8000-8099**
 if __name__ == "__main__":
     import uvicorn
     PORT = int(os.getenv('PORT', '8000'))
-    uvicorn.run("src.main:app", host="0.0.0.0", port=PORT, reload=True)
+    uvicorn.run("<package>.main:app", host="0.0.0.0", port=PORT, reload=True)
 ```
 
 ---

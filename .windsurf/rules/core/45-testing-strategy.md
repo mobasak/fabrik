@@ -53,6 +53,8 @@ The Behavior Contract goes beyond one-test-per-behavior for these high-risk doma
   (`01M15081Q5`) after it fired on `health-probe/` and `subagents/`, neither of which has a
   `pyproject.toml`. Check for the manifest before applying this mandate.
 - **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL instance.
+- **The async-fixture example below requires `asyncio_mode = "auto"`** (the scaffold emits it in `pyproject.toml`) — pytest-asyncio's DEFAULT is strict mode, where a plain `@pytest.fixture async def` yields an unawaited generator and the suite breaks. A no-pyproject fabrik-lib module (the carve-out above) has no such config: decorate fixtures `@pytest_asyncio.fixture` there.
+- **`ASGITransport` never runs lifespan** — anything the app initializes at startup (scaffolded apps are lifespan-based) silently does not exist in tests; wrap with `asgi-lifespan`'s `LifespanManager` when a test needs startup state.
 - Override `get_db` via `app.dependency_overrides` to inject a test session.
 - Use **transactional rollbacks** for speed and isolation: open a transaction in the fixture, yield the session, rollback on teardown.
 
@@ -63,9 +65,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 # From env — localhost in WSL dev, postgres-main in CI/container. Never hardcoded.
+# The default MUST end in _test — the require_throwaway guard (below) refuses
+# any other suffix before destructive suites run.
 test_engine = create_async_engine(os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres@localhost:5432/testdb"  # WSL dev default
+    "postgresql+asyncpg://postgres@localhost:5432/myproject_test"  # WSL dev default
 ))
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
 
@@ -151,7 +155,7 @@ async def test_tenant_isolation(client_tenant_a: AsyncClient, client_tenant_b: A
 - The TypeScript compiler is the most robust frontend-backend integration test.
 - FastAPI auto-generates `openapi.json` at `/openapi.json`. TS types are auto-generated from it via `@hey-api/openapi-ts` (per `15-api-contracts.md`).
 - If a backend schema change breaks the frontend TS compilation, the contract is violated — caught by static analysis with zero test code.
-- Keep the generated types committed and re-generate on schema changes (`uv run python -c "import json; from src.main import app; print(json.dumps(app.openapi()))" > openapi.json`).
+- Keep the generated types committed and re-generate on schema changes (`uv run python -c "import json; from <package>.main import app; print(json.dumps(app.openapi()))" > openapi.json` — the scaffold emits `src/<package>/main.py`, never a flat `src/main.py`, so `src.main` imports nothing).
 
 ---
 
@@ -202,8 +206,8 @@ Tests run against the **same backing services as production** — real PostgreSQ
 - `15-api-contracts.md` — `@hey-api/openapi-ts` codegen for contract testing
 - `25-data-postgres.md` — canonical session (get_db override target), asyncpg
 - `55-observability.md` — structlog in tests, no `print()`
-- `80-mobile.md` — Maestro E2E setup, `.maestro/` directory
-- `95-multi-tenant-saas.md` — RLS patterns for tenant isolation tests
+- `mobile-app/80-mobile.md` — Maestro E2E setup, `.maestro/` directory
+- `saas/95-multi-tenant-saas.md` — RLS patterns for tenant isolation tests
 
 ---
 
