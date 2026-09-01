@@ -182,6 +182,11 @@ instead.
 Take the first 3 `docs/FEATURES.md` § Core Features rows that carry a non-empty `Endpoint / Module` value
 (the FEATURES template has no journey rows or priority tags — a filled `Endpoint / Module` cell is the
 closest exercisable-row concept it defines, per `templates/scaffold/docs/FEATURES_TEMPLATE.md`:23,28).
+**Resolve the ROUTER PREFIX before probing** — read the app's router registration (FastAPI
+`include_router(prefix=…)`, the mount table, or the framework equivalent) and build each probe URL
+from it: a framework's unregistered-route 404 is byte-identical to an application 404, so a
+prefix-blind probe cannot discriminate "feature broken" from "wrong URL" (fleet verdict 2026-09-01
+— a false cross-repo defect filing was avoided only by reading the code after the probe).
 Exercise each against the LIVE service **only if it is read-only** — a GET, a
 read query, a status check. **Never execute a mutating row against the live service** — if the top 3
 include one, name it, state what it would need (a scoped-safe payload + the operator's explicit go), and
