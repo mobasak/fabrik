@@ -20,7 +20,7 @@ Apply when working on API routes, endpoints, or client integration. Skip for pur
 - Run `oasdiff breaking --fail-on ERR` against the main-branch `openapi.json` before merge. Any
   ERR-level breaking change without a version bump is a defect. ⚠️ **This is an obligation on the
   AUTHOR, not a build that fails for you** — `oasdiff` is wired into no CI and no `final_gate` check
-  anywhere in the fleet (`grep -rn oasdiff scripts/ .github/` → 0 hits, hub and projects alike). It
+  anywhere in the fleet (`grep -rn oasdiff scripts/ .github/` → 0 hits, hub and projects alike; re-verified 2026-09-01). It
   read as a guarantee and functioned as prose: a live run removed two `/api/v1` paths and dropped a
   field from a response model's `required` array — both ERR-level — and nothing challenged it
   (transdoc, 2026-08-28). Run it yourself, or the check does not happen.
@@ -90,18 +90,20 @@ Raw strings, `{"error": "..."}`, or arbitrary dicts as error responses are banne
 
 ## Idempotency
 
-All state-mutating endpoints (POST, PUT, PATCH, DELETE) must accept an `Idempotency-Key` header (UUIDv4, client-generated). The un-prefixed name is the IETF httpapi standards-track header (the `X-` convention has been deprecated for new headers since RFC 6648, and the middleware below handles exactly this name). A service that already shipped `X-Idempotency-Key` keeps accepting it alongside until its next contract revision — never break existing callers for a header rename. Backend flow:
+Non-idempotent mutations — **POST, and PATCH where the patch is not naturally idempotent** — must accept an `Idempotency-Key` header (UUIDv4, client-generated). PUT and DELETE are idempotent by HTTP semantics (RFC 9110) and need no key. The un-prefixed name is the industry-consensus header (Stripe/PayPal practice; the IETF httpapi draft that defined it expired without becoming an RFC — consensus, not mandate — and the `X-` convention has been deprecated since RFC 6648). A service that already shipped `X-Idempotency-Key` keeps accepting it alongside until its next contract revision — never break existing callers for a header rename. Backend flow:
 
-1. Missing key on mutative endpoint → reject with 400.
-2. Key exists + COMPLETED in Redis → return cached response, skip logic.
-3. Key exists + PROCESSING → return 409 Conflict.
-4. Key absent → set PROCESSING in Redis, execute handler, cache response as COMPLETED with 24h TTL.
+1. Missing key on a key-required endpoint → reject with 400.
+2. Key exists in Redis + COMPLETED → return cached response, skip logic.
+3. Key exists in Redis + PROCESSING → return 409 Conflict.
+4. Key not yet in Redis → set PROCESSING, execute handler, cache response as COMPLETED with 24h TTL.
 
-Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
+- **Scope the store key by endpoint + authenticated principal** — a key reused across endpoints or callers must never replay another caller's cached response (the classic DIY-idempotency vulnerability).
+- Keep the idempotency layer out of business logic: one Redis-backed decorator/middleware, vendored (fabrik-lib first) or built once — never inline per-route.
 
 ## Pagination
 
-- **Cursor (keyset) pagination is the only permitted mechanism** for collection endpoints. `OFFSET`/`LIMIT` is banned — it causes O(n) scan-and-discard under PostgreSQL MVCC and data drift under concurrent writes.
+- **Cursor (keyset) pagination is the default, and the only mechanism for public or growing collections.** `OFFSET`/`LIMIT` causes O(n) scan-and-discard under PostgreSQL MVCC and data drift under concurrent writes.
+- **Bounded exception (recorded, mirroring § OpenAPI's exception idiom):** `OFFSET` is permitted for small, bounded internal/admin lists (roughly <10k rows) that genuinely need random page access — state the bound where you use it; the scan cost is negligible there.
 - Cursor queries filter with a **composite row comparison** — the tiebreaker must be in the filter, not just the ordering:
   ```sql
   WHERE (sort_col, id) < (:last_sort_col, :last_id)
@@ -116,7 +118,7 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 - All endpoints must be mounted under an explicit URI version prefix: `/api/v1/...`.
 - Versionless endpoints and header-based or query-param versioning are banned.
 - Never introduce a breaking change to an existing version. If the contract must break, create a new version prefix (`/api/v2/`) and share core logic via the service layer.
-- Deprecated endpoints must emit the `Deprecation` HTTP header and set `deprecated: true` in the OpenAPI spec.
+- Deprecated endpoints must emit the `Deprecation` HTTP header per RFC 9745 — the value is a structured DATE (`Deprecation: @1735689600`), not the pre-RFC boolean `true` — plus `Sunset` (RFC 8594) where retirement is scheduled; and set `deprecated: true` in the OpenAPI spec.
 
 ## API Documentation
 
@@ -144,7 +146,7 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 | Pattern | Use Instead |
 |---------|-------------|
 | Manual `snake_case`→`camelCase` mapping | Pydantic `alias_generator=to_camel` |
-| `OFFSET`/`LIMIT` pagination | Cursor (keyset) pagination |
+| `OFFSET`/`LIMIT` pagination (public/growing collections) | Cursor (keyset) pagination — bounded internal/admin exception recorded in § Pagination |
 | `{"error": "..."}` or raw string errors | RFC 9457 `ProblemDetails` schema with `application/problem+json` |
 | Header-based or query-param versioning | URI path versioning (`/api/v1/`) |
 | `requests` / sync DB in `async def` | See `10-python.md` § Banned Patterns |
@@ -162,7 +164,7 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 - `20-typescript.md` — TypeScript client consuming these APIs
 - `25-data-postgres.md` — database patterns behind the service layer
 - `58-resilience.md` — timeout/retry for external API calls
-- `95-multi-tenant-saas.md` — tenant-scoped API endpoints
+- `saas/95-multi-tenant-saas.md` — tenant-scoped API endpoints
 
 ---
 
@@ -170,8 +172,8 @@ Use Redis-backed middleware (e.g. `idemptx`) to keep business logic clean.
 
 - [ ] All error responses conform to RFC 9457 schema (type, title, status, detail) with `Content-Type: application/problem+json`.
 - [ ] Pydantic base model uses `alias_generator=to_camel` with `populate_by_name=True`.
-- [ ] No `OFFSET` keyword in any SQLAlchemy query or raw SQL for collection endpoints.
-- [ ] All mutative endpoints accept and enforce `Idempotency-Key` (plus legacy `X-Idempotency-Key` where already shipped).
+- [ ] No `OFFSET` in collection endpoints outside the recorded bounded-admin exception.
+- [ ] POST (and non-idempotent PATCH) endpoints enforce `Idempotency-Key` (plus legacy `X-Idempotency-Key` where already shipped), store-keyed by endpoint + principal.
 - [ ] All endpoints mounted under `/api/v1/` (or appropriate version prefix).
 - [ ] `openapi.json` generated from code, never manually edited.
 - [ ] TS clients generated from `openapi.json` — no manual API type definitions.

@@ -183,6 +183,23 @@ claims:
     verify: "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/"
     window_days: 180
     last_verified: 2026-09-01
+    superseded: 2026-09-01   # REFUTED same day: the draft EXPIRED at -07 (IESG state Expired) — caught by the file-3 second opinion's datatracker/history check
+
+  - id: idempotency-key-header-consensus
+    pack: core/15-api-contracts.md
+    claim: "Idempotency-Key (un-prefixed) is the industry-CONSENSUS header name (Stripe/PayPal practice); the IETF httpapi draft defining it EXPIRED at -07 without becoming an RFC — re-verify for revival or publication"
+    kind: standard
+    verify: "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/history/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: rfc9745-deprecation-header
+    pack: core/15-api-contracts.md
+    claim: "Deprecation header is RFC 9745 (2025-03) with a structured DATE value (@unix-timestamp), obsoleting the draft-era boolean form; Sunset is RFC 8594"
+    kind: standard
+    verify: "https://www.rfc-editor.org/info/rfc9745/"
+    window_days: 365
+    last_verified: 2026-09-01
 
   - id: hey-api-openapi-ts-current
     pack: core/15-api-contracts.md
@@ -197,14 +214,6 @@ claims:
     claim: "oasdiff is maintained (v1.26.x, 2026-07) and `oasdiff breaking --fail-on ERR` remains the right invocation; supports OpenAPI 3.0/3.1/3.2"
     kind: practice
     verify: "https://github.com/oasdiff/oasdiff/releases"
-    window_days: 365
-    last_verified: 2026-09-01
-
-  - id: idemptx-exists
-    pack: core/15-api-contracts.md
-    claim: "idemptx (PyPI 0.2.2) exists and provides Redis-backed FastAPI idempotency handling the Idempotency-Key header — the pack's example package is real and matches the mandated header"
-    kind: rationale
-    verify: "https://pypi.org/pypi/idemptx/json"
     window_days: 365
     last_verified: 2026-09-01
 

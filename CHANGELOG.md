@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 3: core/15-api-contracts.md to the D-062 bar (2026-09-01)
+
+Claims-rot pack (zero version literals): idempotency header flipped to the
+consensus `Idempotency-Key` name and scoped to POST/non-idempotent PATCH (PUT/
+DELETE idempotent per RFC 9110); store-key scoping rule added; `idemptx` name
+dropped; Deprecation header re-grounded on RFC 9745 (date-valued) + Sunset;
+OFFSET ban got the bounded-admin recorded exception; hey-api pin-exact clause.
+Second opinion (Fable 5, 17 clusters) refuted my own same-day claims row — the
+IETF idempotency draft is EXPIRED, not standards-track — first real exercise of
+the register's supersede discipline. Register: 5 rows for this pack (4 active +
+1 superseded) plus the rfc9457 row widened.
+
 ### Changed — rules currency pass file 2: core/12-node.md to the D-062 bar (2026-09-01)
 
 Live-research findings fixed: Node 22 mislabeled Active LTS (Maintenance since Oct 2025);

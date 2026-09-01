@@ -163,11 +163,25 @@ during the pass). Scope: core/ then ALL folders, to completion.
   when the previous LTS EOLs (Apr 2027) raise the floor AND flip `node_engines_floor` in
   versions.yaml in the same change.
 - **Scaffold alignment owed (15-api-contracts):** the pack now mandates the un-prefixed
-  `Idempotency-Key` header (IETF httpapi standards-track; RFC 6648 deprecates `X-`); the
-  scaffold's widget example still reads `X-Idempotency-Key` (`scaffold.py:2990` — its docstring
-  also cites the pack by line number, which shifted). Rule leads, scaffold follows: flip the
-  emission to accept `Idempotency-Key` (keep `X-` as legacy fallback) at the next scaffolder
-  window.
+  `Idempotency-Key` header (industry-consensus name — the IETF httpapi draft EXPIRED at -07;
+  RFC 6648 deprecates `X-`); the scaffold's widget example still reads `X-Idempotency-Key`
+  (`scaffold.py:2990` — its docstring also cites the pack by line number, which shifted). Rule
+  leads, scaffold follows: flip the emission to accept `Idempotency-Key` (keep `X-` as legacy
+  fallback) at the next scaffolder window. Note the scaffold example is a POST — still
+  key-required under the narrowed POST/non-idempotent-PATCH scope.
+- **File-3 (15-api-contracts) COMPLETE under the full bar (2026-09-01).** Own legs (multi-engine:
+  brave + exa + WebFetch/PyPI + WebSearch): header flip, hey-api pin-exact, oasdiff v1.26
+  currency, idemptx existence. **SECOND OPINION (Fable 5): 17 clusters → 12 KEEP · 4 FIX + 1 ADD,
+  all accepted**: idempotency scope narrowed to POST/non-idempotent PATCH (PUT/DELETE idempotent
+  per RFC 9110); idemptx name dropped (decorator-not-middleware, semi-stale redis<6 pin,
+  off-culture named dep); OFFSET ban got the bounded-admin recorded exception; Deprecation header
+  re-grounded on RFC 9745 (date-valued) + Sunset RFC 8594; store-key scoping rule ADDED
+  (endpoint+principal); saas/ prefix on the 95-multi-tenant pointer; oasdiff CI-absence grep
+  re-verified 2026-09-01. **One reversal of MY leg: the IETF idempotency draft is EXPIRED, not
+  standards-track — my same-day claims row refuted and superseded (the register's supersede
+  discipline exercised for real).** One defect neither lens caught alone, fixed while editing:
+  flow step 4 said "Key absent" where it meant "key not yet in Redis". Zero literals (0 spans —
+  claims-rot pack, not literal-rot).
 
 ## Activation
 
