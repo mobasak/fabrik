@@ -16,7 +16,12 @@
 # `always_run: true` and THIS script re-implements the filter against HEAD's own paths — reading
 # the regex FROM .pre-commit-config.yaml's governance-sync `files:` key, so the trigger set stays
 # single-sourced where CLAUDE.md § Sync-consciousness says it lives.
-set -u
+# ⚠️ `pipefail` is LOAD-BEARING, not hygiene. The sync below is `python … | tail -3 || { echo
+# "SYNC FAILED"; exit 1; }`, and without pipefail the `||` tests TAIL's status, which is always 0 —
+# so the failure branch was UNREACHABLE and a sync that died on repo 12 of 48 exited 0 with no
+# warning and no re-run command, while CLAUDE.md § Sync-consciousness promises it "prints loudly".
+# Probed 2026-09-01: `set -u; (exit 3) | tail -3 || echo TAKEN` prints nothing, rc=0.
+set -uo pipefail
 
 [ "$(pwd)" = "/opt/fabrik" ] || exit 0  # never from a worktree (the renderer-prune class)
 

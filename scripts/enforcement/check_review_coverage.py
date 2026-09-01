@@ -242,11 +242,26 @@ SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
 # conformance rate and nearly reported it as agent drift. Fixing the location (bold) and leaving the
 # class (any quoting of the hash) is what made this recur; the tolerance now lives in ONE constant
 # that every hash-anchored Surface matcher composes.
-# ⚠️ `[^\S\n]` (horizontal space), never `\s` — `\s` matches NEWLINE, and a trailing `\s*` after the
-# quote run let an EMPTY `**Surface:** ""` anchor on the next hash-shaped LINE in the document, whose
-# value then flowed into the md5-equality comparisons as if it were the declared surface. Measured
-# 2026-09-01: `'**Surface:** ""\n' + <32hex>` matched with the quote run, did not without it.
-_SURFACE_QUOTE = r"[`'\"]*[^\S\n]*"
+# ⚠️ THIRD attempt at this class, and the first two each fixed a LOCATION. Recorded so the fourth
+# does not repeat them:
+#   attempt 1 tolerated bold on the LABEL (`**Surface:**`) but not on the VALUE;
+#   attempt 2 tolerated a code span on the value but not bold/italic, and removed the TRAILING
+#             `\s*` while leaving the LEADING one — so `**Surface:**\n<32hex>` still reached
+#             forward and silently anchored a mega report on an unrelated later line (rc=0 where
+#             the gate should have refused; reproduced end-to-end 2026-09-01).
+# Hence two constants, composed by EVERY hash-anchored matcher in this file:
+#   _MD_DECOR — the markdown decorations a hash actually wears here: code span, quotes, bold,
+#               italic. Underscore is included, which is why the hash terminator below is a
+#               negative lookahead and NOT `\b`: `_` is a word character, so `\b` fails between
+#               `<hex>` and a closing `_`.
+#   _HSP      — horizontal space ONLY. `\s` matches newline; every use of `\s` in a Surface/hash
+#               matcher is a reach-forward waiting to happen.
+_MD_DECOR = r"[`'\"*_]*"
+_HSP = r"[^\S\n]*"
+_SURFACE_QUOTE = rf"{_MD_DECOR}{_HSP}"
+# Terminator for a fixed-width hash: "not followed by more hex" says exactly what `\b` was reaching
+# for, and stays correct when the next character is a word-char decoration like `_`.
+_HEX_END = r"(?![0-9a-fA-F])"
 
 # An honest IN-PROGRESS review. The /fabrik-review methodology requires the report to exist BEFORE
 # pass 1 ("a review that exists only in chat does not exist"), while every other rule here treats a
@@ -563,16 +578,16 @@ _MEGA_HEX = r"[0-9a-fA-F]{32}"  # FULL md5, exactly — the doc mandates all 32;
 # `<h>` -> `<h>` becomes matchable where it was not. Bounded — the matcher was already unanchored
 # and runs on fence-stripped text, so the only added surface is quote characters, and the gap is
 # horizontal-only (`[^\S\n]`) so it still cannot span lines.
-_HASH_GAP = r"[`'\"]*[^\S\n]*"
+_HASH_GAP = rf"{_MD_DECOR}{_HSP}"
 _MEGA_HASH_PAIR = re.compile(
-    rf"({_MEGA_HEX}){_HASH_GAP}(?:→|->)[^\S\n]*{_HASH_GAP}({_MEGA_HEX})"
+    rf"({_MEGA_HEX}){_HEX_END}{_HASH_GAP}(?:→|->){_HSP}{_HASH_GAP}({_MEGA_HEX}){_HEX_END}"
 )
 # A ledger row is a markdown TABLE line carrying both counters — and the ledger is the FIRST
 # contiguous table that contains any such row. v2 matched counter rows ANYWHERE, so a later
 # `## Per-lens tally` table with a quiet row silently became "the final round", masking a
 # non-quiet exit — the LAST-match defect's THIRD appearance in this file, one table over.
 _MEGA_SURFACE = re.compile(
-    rf"^\**Surface:\**\s*{_SURFACE_QUOTE}({_MEGA_HEX})\b", re.M
+    rf"^\**Surface:\**{_HSP}{_SURFACE_QUOTE}({_MEGA_HEX}){_HEX_END}", re.M
 )  # no $: a trailing annotation is not absence (the wrong-reason class, third sighting)
 
 
@@ -740,7 +755,7 @@ _LIST_WRAP = re.compile(r"^ {0,3}(?:[-*+]|\d+[.)])\s+")
 _WRAPPED_HEADINGISH = re.compile(
     r"#{1,6}(?:\s|$)"
     r"|\**Status:\**\s*IN-PROGRESS\b"
-    rf"|\**Surface:\**\s*{_SURFACE_QUOTE}[0-9a-fA-F]{{12,}}",
+    rf"|\**Surface:\**{_HSP}{_SURFACE_QUOTE}[0-9a-fA-F]{{12,}}",
     re.I,
 )
 # One container-prefix consumer for the normalization loop (round 79: containers COMPOSE —

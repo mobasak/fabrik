@@ -290,10 +290,12 @@ def test_code_spanned_hashes_satisfy_both_halves_not_just_the_surface_line(repo:
 
 
 def test_a_surface_hash_may_not_be_borrowed_from_a_later_line(repo: Path) -> None:
-    """`\\s` matches newline; the quote-tolerance must not let an empty Surface reach forward.
+    """The reach-forward CLASS, not one instance of it.
 
-    `**Surface:** ""` followed by a hash-shaped line would otherwise anchor on THAT hash, and the
-    borrowed value flows straight into the md5-equality comparison as if it were declared.
+    ⚠️ This test first pinned only `**Surface:** ""\\n<hash>` — and passed while the actual leak was
+    still open, because the fix had removed the TRAILING `\\s*` and left the LEADING one. The bare
+    `**Surface:**\\n<hash>` form still anchored a mega report on an unrelated later line (rc=0 where
+    the gate must refuse). A docstring claiming a class must assert the class.
     """
     import importlib.util
 
@@ -301,11 +303,35 @@ def test_a_surface_hash_may_not_be_borrowed_from_a_later_line(repo: Path) -> Non
     crc = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(crc)
     h = "a" * 32
-    assert crc._MEGA_SURFACE.search(f'**Surface:** ""\n{h}') is None, (
-        "an empty Surface borrowed the next line's hash"
-    )
-    assert crc._MEGA_SURFACE.search(f"**Surface:** `{h}`") is not None, "same-line still matches"
+    for label, text in [
+        ("bare empty", f"**Surface:**\n{h}"),
+        ("quoted empty", f'**Surface:** ""\n{h}'),
+        ("empty then blank line", f"**Surface:**\n\n{h}"),
+        ("empty then code span", f"**Surface:**\n`{h}`"),
+    ]:
+        assert crc._MEGA_SURFACE.search(text) is None, f"{label}: borrowed a later line's hash"
     assert crc._MEGA_HASH_PAIR.search(f"{h} ->\n{h}") is None, "the pair must not span lines"
+
+
+def test_hash_decoration_is_tolerated_uniformly_across_both_matchers(repo: Path) -> None:
+    """Bold and italic are decorations too — the class is "how markdown dresses a hash", not "backticks".
+
+    Fixing the code-span location and leaving bold reproduced the asymmetric wrong-half failure a
+    third time: `**Surface:** \u0060h\u0060` passed while `| **h** -> **h** |` read as no-pair-present.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("crc_dec", CHECK)
+    crc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(crc)
+    h, g = "a" * 32, "b" * 32
+    for wrap in ("{}", "`{}`", "**{}**", "_{}_", "'{}'"):
+        assert crc._MEGA_SURFACE.search(f"**Surface:** {wrap.format(h)}"), f"Surface: {wrap} missed"
+        assert crc._MEGA_HASH_PAIR.search(
+            f"| 2 | {wrap.format(h)} -> {wrap.format(g)} |"
+        ), f"pair: {wrap} missed"
+    # ...and the fixed width still binds: 33 hex is not a 32-hex hash.
+    assert crc._MEGA_SURFACE.search("Surface: " + "a" * 33) is None, "33 hex matched as 32"
 
 
 def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
