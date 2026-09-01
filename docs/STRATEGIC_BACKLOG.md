@@ -105,6 +105,51 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] warn_only checks that print on a ZERO-finding run — 7 of 18, fleet-wide (2026-09-01, owner: infra = me)
+
+**Measured**, not estimated: 18 of 19 `warn_only=True` registration sites in `scripts/final_gate.py`
+run as scripts (the other 3 `warn_only` hits are runner/printer code). Each was executed bare in a
+CLEAN fleet repo (`/opt/youtube`); **7 print on a zero-finding run**, so every green gate in the 48
+synced repos carries that many content-free rows — in the human listing AND in the `--json`
+`advisory` array, which applies no ⚠ filter (`scripts/final_gate.py`, `advisory_rows` is gated only
+on `WARN_ONLY_CHECKS` membership).
+
+| check | bytes on a clean run | what it prints |
+|---|---:|---|
+| `check_mutation` | 238 | `MUTATION (advisory): skipped in the per-commit gate …` — unconditional; can never carry a finding in gate mode |
+| `check_pack_reachability` | 385 | dumps `reachable:` inventory with zero findings |
+| `check_feedback_duty` | 272 | clean case not exercised (both probe repos had a real finding) — UNPROVEN |
+| `check_plan_lock_release` | 225 | `0 stale | 0 likely-stale | 0 half-applied | …` |
+| `check_spec_convergence` | 105 | `4 CONVERGED spec(s) examined, 0 with findings` |
+| `check_vps_docs` | 90 | `PASS: check_vps_docs — 0 error(s), 0 warning(s)` (tier 3 only) |
+| `check_phase_tests` | 85 | `PHASE-TESTS (advisory): OK — no active plan window …` |
+| `check_rivals_dossier` | 76 | `rivals dossiers: 1 examined, 0 with findings` |
+
+Clean-silent and correct: `check_vendored_drift`, `check_rule_grounding`, `check_trigger_routing`,
+`check_frozen_chain`, `check_decisions_unique`, `check_doc_stubs`, `check_env_example`,
+`check_ticket_breadth` (0 bytes each). `check_retired_terms` prints 6870 bytes of GENUINE warn rows —
+not an offender.
+
+**Why it is here and not fixed:** `22a1a062` gave `check_script_headers` a `--quiet` flag that the
+gate passes, closing exactly ONE instance. Fixing 7 more scripts is outside that diff's surface and
+is its own change. Recording it rather than letting the class die in a session's context.
+
+⚠️ **Attribution corrected** — the finder reported these as "same defect, same author, same commit
+range" as `d2e0d4f2`. They are not: `git log -S` puts the `N examined, 0 with findings` strings at
+`9342ae9f` and `15bcec7a`, and the finder confused `test_plan_lock_release` (which that commit
+touched) with `check_plan_lock_release` (which it did not). Pre-existing, repo-owned.
+
+**Two fix shapes, both viable:** (a) add `--quiet` to each of the 7 scripts and pass it at each
+registration site — explicit, skew-safe, precedented, 7 small diffs; (b) suppress zero-finding stdout
+inside `run_optional_check` — one diff, but it changes a synced contract for every advisory row and
+would need a sentinel convention. ⚠️ Do NOT "just pass `--quiet` to every warn_only check" from the
+runner: scripts using `argparse` would exit 2 on an unknown flag, which `run_optional_check` treats
+as a broken warn_only contract and FAILS the gate.
+
+**Trigger:** the next time a warn_only check is added or edited, or the next gate-noise complaint.
+
+---
+
 ## [infra] Review-machinery findings — ROUTED from the 2026-09-01 triage deep review (owner: infra = me)
 
 Raised by author-blind finders during `/fabrik-review` of the LOCAL-vs-ARCHITECTURAL triage. Both are

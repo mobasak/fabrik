@@ -37,10 +37,28 @@ raise SystemExit(1)
 PY
 )" || { echo "[governance-sync post-commit] cannot read the files: filter from .pre-commit-config.yaml — SYNC NOT RUN; run scripts/sync_enforcement_to_projects.py --force yourself"; exit 1; }
 
+# ⚠️ An EMPTY filter is fail-OPEN, so refuse it explicitly: the heredoc prints `hook.get("files","")`
+# and exits 0, so a governance-sync hook that merely LOST its `files:` key yields FILTER="" — which
+# `grep -qE ""` matches on every line, silently syncing on every commit and defeating the
+# single-sourcing contract this block exists to uphold. The `||` above cannot see it (exit was 0).
+[ -n "$FILTER" ] || { echo "[governance-sync post-commit] the governance-sync files: filter is EMPTY — refusing to treat every commit as a trigger; fix .pre-commit-config.yaml"; exit 1; }
+
 # HEAD's own paths (first-parent view — on this shared box a merged-in trigger commit was already
 # synced when ITS author committed it).
-if git log -1 --format= --name-only | grep -qE "$FILTER"; then
-  /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force 2>&1 | tail -3 \
+#
+# ⚠️ NO PIPELINE HERE, and it must stay that way now that `pipefail` is on. `git log … | grep -qE`
+# is a SIGPIPE trap: `grep -q` exits at the FIRST match and closes the pipe, so git dies with 141,
+# and under pipefail the PIPELINE reports 141 — the `if` goes FALSE and the sync is SKIPPED on
+# exactly the commit that DID touch a trigger path. Measured 2026-09-01 with the real filter:
+# 0/20 nonzero at 500 changed files, 2/20 at 1000, 20/20 at 2000. Latent on ordinary commits (max
+# 36 files across the last 400 hub commits) and certain on a bulk rename, an archive move or a
+# scaffold-wide regeneration — i.e. it fails exactly when the blast radius is widest. Capturing
+# first and matching a here-string keeps pipefail AND removes the pipe.
+NAMES="$(git log -1 --format= --name-only)"
+if grep -qE "$FILTER" <<<"$NAMES"; then
+  # SYNC_CMD exists so the fail-loud branch below is TESTABLE — a fail-open path that no test can
+  # exercise is how the unreachable `||` shipped in the first place. Defaults to the real sync.
+  ${SYNC_CMD:-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force} 2>&1 | tail -3 \
     || { echo "[governance-sync post-commit] SYNC FAILED — the commit landed but did NOT distribute; run scripts/sync_enforcement_to_projects.py --force"; exit 1; }
 fi
 exit 0

@@ -257,11 +257,22 @@ SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
 #   _HSP      — horizontal space ONLY. `\s` matches newline; every use of `\s` in a Surface/hash
 #               matcher is a reach-forward waiting to happen.
 _MD_DECOR = r"[`'\"*_]*"
-_HSP = r"[^\S\n]*"
+# ⚠️ `[ \t]` LITERALLY, not `[^\S\n]`. `[^\S\n]` excludes only `\n`, so it still matched `\r`,
+# `\x0b`, `\x0c`, `\x1c` and `\u2028` — every one of which `str.splitlines()` (used elsewhere in
+# this file) treats as a LINE BREAK. That left two contradictory definitions of "a line" in one
+# module, and the looser one guarded the reach-forward. Measured 2026-09-01: `\r\n` was safe but a
+# bare `\r` or `\x0c` still let an empty `**Surface:**` borrow the next line's hash.
+_HSP = r"[ \t]*"
 _SURFACE_QUOTE = rf"{_MD_DECOR}{_HSP}"
 # Terminator for a fixed-width hash: "not followed by more hex" says exactly what `\b` was reaching
 # for, and stays correct when the next character is a word-char decoration like `_`.
 _HEX_END = r"(?![0-9a-fA-F])"
+# ...and the MIRROR, which the previous round left off. `_HEX_END` is a look-AHEAD, so it guarded
+# only the right edge: a 40-hex sha1 or a 64-hex sha256 on the left of the arrow matched by
+# TRUNCATING to its last 32 characters, and the gate accepted `sha1 -> md5` while rejecting
+# `md5 -> sha1` — inconsistent about which operand it validates, and fail-open in the accepting
+# direction. Both edges of both operands are guarded now.
+_HEX_START = r"(?<![0-9a-fA-F])"
 
 # An honest IN-PROGRESS review. The /fabrik-review methodology requires the report to exist BEFORE
 # pass 1 ("a review that exists only in chat does not exist"), while every other rule here treats a
@@ -580,7 +591,8 @@ _MEGA_HEX = r"[0-9a-fA-F]{32}"  # FULL md5, exactly — the doc mandates all 32;
 # horizontal-only (`[^\S\n]`) so it still cannot span lines.
 _HASH_GAP = rf"{_MD_DECOR}{_HSP}"
 _MEGA_HASH_PAIR = re.compile(
-    rf"({_MEGA_HEX}){_HEX_END}{_HASH_GAP}(?:→|->){_HSP}{_HASH_GAP}({_MEGA_HEX}){_HEX_END}"
+    rf"{_HEX_START}({_MEGA_HEX}){_HEX_END}{_HASH_GAP}(?:→|->){_HSP}{_HASH_GAP}"
+    rf"{_HEX_START}({_MEGA_HEX}){_HEX_END}"
 )
 # A ledger row is a markdown TABLE line carrying both counters — and the ledger is the FIRST
 # contiguous table that contains any such row. v2 matched counter rows ANYWHERE, so a later
