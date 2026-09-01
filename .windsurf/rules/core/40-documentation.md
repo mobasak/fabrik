@@ -3,9 +3,8 @@ activation: glob
 globs: ["**/*.md", "docs/**/*"]
 description: Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
 ---
-<!-- CONSUMER: Coding agents (all) + Traycer (ticket-breakdown Documentation Sync Matrix)
+<!-- CONSUMER: Coding agents (all) + the planning layer (Traycer plans; the hub's epic-to-ticket workflow injects this file's matrix into ticket ACs)
      GOAL: Scaffolded doc templates, Documentation Sync Matrix, changelog, INDEX.md, writing style
-     TRAYCER USAGE: Ticket-breakdown injects doc sync triggers into ticket ACs from this file's matrix.
      AGENT USAGE: Check which doc triggers fire for each code change. Update docs accordingly. -->
 
 # Documentation Rules
@@ -21,7 +20,7 @@ The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_
 🔴 = the gate **hard-blocks the commit** if it's stale (`check_doc_sync` ERROR-tier).
 
 **Universal (every scaffold type):**
-`AGENTS.md` (scaffold seeds it; keep current on infra/topology change) · `README.md` · `INDEX.md` · `docs/README.md` · `CHANGELOG.md` 🔴 · `AFCL.md` · `docs/QUICKSTART.md` (API/SDK/CLI change) · `docs/CONFIGURATION.md` 🔴 **+ `.env.example`** 🔴 (new env var) · `docs/TROUBLESHOOTING.md` · `docs/FEATURES.md` · `docs/LESSONS_LEARNT.md` · `docs/DECISIONS.md` (the decision ledger — a decision made or received gets its row in the SAME change; rows immutable, supersede-by-new-row)
+`AGENTS.md` (scaffold seeds it; keep current on infra/topology change — and note it is now the cross-tool OPEN CONVENTION read by any agent tooling pointed at the repo, so its content bar is agent operating instructions: setup/build/test/conventions, not just a topology snapshot) · `README.md` · `INDEX.md` · `docs/README.md` · `CHANGELOG.md` 🔴 · `AFCL.md` · `docs/QUICKSTART.md` (API/SDK/CLI change) · `docs/CONFIGURATION.md` 🔴 **+ `.env.example`** 🔴 (new env var) · `docs/TROUBLESHOOTING.md` · `docs/FEATURES.md` · `docs/LESSONS_LEARNT.md` · `docs/DECISIONS.md` (the decision ledger — a decision made or received gets its row in the SAME change; rows immutable, supersede-by-new-row) · `docs/flows.md` (journeys — re-frozen via `/fabrik-flows`) · `docs/STRATEGIC_BACKLOG.md` (deferred/parked work — UNIVERSAL, every project, operator rule 2026-08-27)
 
 **Deployed types (`python-api*` / `node-api` / `file-api` / `file-worker` / `saas-skeleton` / `wordpress`):**
 `docs/SERVICES.md` · `docs/OPERATIONS.md` (compose service change) · `docs/RESILIENCE.md` · `docs/DEPLOYMENT.md` · `PORTS.md`
@@ -36,7 +35,7 @@ The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_
 
 **GUI types:** `docs/ui-design.md` · `docs/design-system.md` (via `/fabrik-ui-design`)
 
-**SaaS:** `docs/BUSINESS_MODEL.md` (this project's own monetization) · `docs/STRATEGIC_BACKLOG.md` (parked/postponed work)
+**SaaS:** `docs/BUSINESS_MODEL.md` (this project's own monetization)
 
 **Also coder-owned, not in the doc registry:** `specs/services/<id>.yaml` 🔴 — the **`shape:` contract**; update on any DB/cache/metrics/auth/search change or `fabrik apply` ships a broken deploy · `project.yaml` (type/port; mostly scaffold-set).
 
@@ -75,6 +74,13 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | Scheduled job (Beat/cron/systemd timer) added or changed | `docs/RESILIENCE.md` §7 (the canonical jobs/intervals inventory) + reflected in `docs/OPERATIONS.md` |
 | Decision made or received (ruling, approval, retirement/adoption, architecture/scope choice, rejected option) | `docs/DECISIONS.md` row in the SAME change (rows immutable; supersede-by-new-row) |
 | Resilience pattern changed (retry/backoff/circuit-breaker/fallback) | `docs/RESILIENCE.md` updated |
+| Journey / persona / flow changed | `docs/flows.md` re-frozen (via `/fabrik-flows`) |
+| Screen / flow / UI changed (GUI types) | `docs/ui-design.md` re-frozen (via `/fabrik-ui-design`) |
+| Brand / design-token changed (GUI types) | `docs/design-system.md` re-frozen (via `/fabrik-ui-design`) |
+| DB field / enum / model changed | `docs/data-contract.md` re-frozen (via `/fabrik-data-contract`) |
+| Recurring symptom hit | `docs/TROUBLESHOOTING.md` updated |
+| Doc added/removed in `docs/` | `docs/README.md` (docs index) updated |
+| Work deferred / parked | `docs/STRATEGIC_BACKLOG.md` row |
 | Database schema changed | Alembic migration (no raw DDL); `db/schema.sql` reference; `docs/data-contract.md` re-frozen (via `/fabrik-data-contract`) |
 | Sensitive file edited | Backup at `<file>.backup.<timestamp>` exists |
 | Logging code added | Pre-scaffolded structured logger; no `print()` / `console.log()`; correlation IDs |
@@ -84,7 +90,7 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | New enforcement script | Registered in `final_gate.py` at correct tier |
 | HAS_USER_GUIDE = true | `docs/user-guide/<feature>.md` exists |
 
-This matrix is the canonical source. The hub's epic-to-ticket workflow (`/opt/fabrik/docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md`) injects these rows per ticket.
+The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. The hub's epic-to-ticket workflow (`/opt/fabrik/docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md`) injects these rows per ticket.
 
 ---
 
@@ -111,6 +117,8 @@ Agent-Role: primary
 Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
+
+**Verify after committing:** `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` — empty output means the block did not parse (invisible in `git show`).
 
 Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + `Agent-Phase`/`Agent-Task`/`Merged-From`/`Conflicts-Resolved` — the `/fabrik-execute-plan` skill is the canonical source for that — authored at `commands/_sources/fabrik-execute-plan.md` in the hub and rendered to `~/.claude/commands/fabrik-execute-plan.md` (edit the SOURCE; the rendered copy is regenerated and hand-edits are pruned).
 
@@ -178,11 +186,10 @@ Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + 
 
 **Allowed locations:**
 - Root docs: `README.md`, `CHANGELOG.md`, `INDEX.md`, `AGENTS.md`, `CLAUDE.md`, `PORTS.md`
-- Scaffolded doc templates: `docs/CONFIGURATION.md`, `docs/FEATURES.md`, `docs/QUICKSTART.md`, `docs/DEPLOYMENT.md`, `docs/OPERATIONS.md`, `docs/SERVICES.md`, `docs/RESILIENCE.md`, `docs/TROUBLESHOOTING.md`, `docs/BUSINESS_MODEL.md`, `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/DECISIONS.md` (retired — do not create: `docs/API_REFERENCE.md`, `docs/DATABASE_SCHEMA.md`, `docs/DOCS_INDEX.md`)
-- Plans: `docs/development/plans/YYYY-MM-DD-*.md`
+- Scaffolded doc templates — the registry (`_doc_registry.py::PROJECT_DOCS`) is the SSOT; the applicable set includes: `docs/CONFIGURATION.md`, `docs/FEATURES.md`, `docs/QUICKSTART.md`, `docs/DEPLOYMENT.md`, `docs/OPERATIONS.md`, `docs/SERVICES.md`, `docs/RESILIENCE.md`, `docs/TROUBLESHOOTING.md`, `docs/BUSINESS_MODEL.md`, `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/DECISIONS.md`, `docs/flows.md`, `docs/data-contract.md`, `docs/ui-design.md`, `docs/design-system.md`, `docs/README.md` (retired — do not create: `docs/API_REFERENCE.md`, `docs/DATABASE_SCHEMA.md`, `docs/DOCS_INDEX.md`)
+- Plans: `docs/development/plans/YYYY-MM-DD-*.md` — single file, or a plan-SET directory (`YYYY-MM-DD-plan-<slug>/` spine + `T##-<slug>.md` tickets)
 - Reference: `docs/reference/**/*.md`
 - Archive: `docs/archive/**/*.md`
-- Traycer: `docs/traycer/**/*.md`
 - User guides: `docs/user-guide/**/*.md` (when HAS_USER_GUIDE = true)
 
 **Blocked:** All other new .md files

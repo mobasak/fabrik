@@ -363,6 +363,22 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: agents-md-standard
+    pack: core/40-documentation.md
+    claim: "AGENTS.md is the cross-tool open convention (agents.md, Aug 2025; Linux Foundation Agentic AI Foundation stewardship; 60k+ repos, read by 20-30+ agent tools) — a project's AGENTS.md content bar is agent operating instructions, not just topology"
+    kind: standard
+    verify: "https://agents.md/"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: ai-markdown-rag-rules
+    pack: core/40-documentation.md
+    claim: "Heading-hierarchy chunking with intact fenced blocks remains standard RAG practice; one-H1 codified in llms.txt; the pack's 10 AI-markdown rules stay consensus (2 are house style, honestly framed)"
+    kind: practice
+    verify: "https://llmstxt.org/; search: markdown chunking rag best practice <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
   - id: musl-allocator-perf
     pack: core/10-python.md
     claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 8: core/40-documentation.md to the D-062 bar + D-065 enforcement (2026-09-01)
+
+OPERATIONS/DEPLOYMENT declared fleet-AI interfaces where doc law lives (D-065
+callout + matrix rows); DECISIONS.md + flows.md added (both universal registry
+rows the pack lacked); STRATEGIC_BACKLOG re-bucketed universal; retired-docs
+self-contradiction closed; matrix canonicality corrected (PROJECT_DOCS is SSOT);
+trailers table caught up (ci-fix, Agent-Name, verify line); dead Traycer-era
+paths repointed; docs/traycer allowlist line dropped; plan-SET shape added;
+AGENTS.md open-standard line. Gate-vs-gate fix: VALID_DOCS_SUBDIRS gains
+user-guide (check_structure vs check_user_guide contradiction). 2 claims rows.
+
 ### Fixed — rules currency pass file 7: core/35-security-auth.md — amputated tail restored + currency fixes (2026-09-01)
 
 The committed pack ended with a literal '…[truncated]' line (commit 6e404160

@@ -177,6 +177,26 @@ during the pass). Scope: core/ then ALL folders, to completion.
   current, machine-consumable (what/how to deploy; which VPS services: workers, systemd, cron).
   Enforcement lands at 40-documentation + 75-workers-jobs + deploy-surface turns: check the
   rules ENFORCE currency + consumability, not merely name the files.
+- **File-8 (40-documentation) COMPLETE under the full bar (2026-09-01) — the D-065 owner turn.**
+  A registry-derivation pack whose hand-forked enumerations had all drifted from their own SSOTs.
+  Own legs: D-065 fleet-AI interface bar landed (deployed-types callout + deploy-config/scheduled-
+  jobs matrix rows); DECISIONS.md added everywhere it was absent (universal list + matrix row +
+  allowlist — a fleet-synced doc pack with no decision ledger, post-D-000); retired-docs self-
+  contradiction closed (matrix + allowlist still mandated API_REFERENCE/DATABASE_SCHEMA/DOCS_INDEX
+  that line 41 retires — registry sides with retirement); trailers table caught up (ci-fix,
+  Agent-Name, post-commit verify line); dead my-workflow/06-* citations repointed (§ Step 8
+  verified at :124). **SECOND OPINION (Fable 5, 23 verdicts): accepted — STRATEGIC_BACKLOG
+  mis-bucketed as SaaS (registry :272-281 made it UNIVERSAL, operator rule 2026-08-27);
+  docs/flows.md missing entirely (registry :254-260); matrix canonicality claim false (PROJECT_DOCS
+  is SSOT, table now says it renders it); 7 more project-side matrix rows (flows/ui/design-system/
+  data-contract/troubleshooting/docs-index/backlog); docs/traycer/** allowlist line dropped (gate
+  flags it); plan-SET shape added; AGENTS.md open-standard line (Linux Foundation, 60k+ repos).
+  PUSHED BACK on one: "Traycer machinery is gone" is overbroad — the PATH is dead but Traycer is
+  the operator's live planning tool (open thread this week); citations fixed, Traycer kept.
+  Gate-vs-gate fix in-beat: VALID_DOCS_SUBDIRS lacked user-guide while check_user_guide REQUIRES
+  it — one-line fix in check_structure.py.** 2 claims rows. Zero literals (internal-facts pack).
+  SEPARATE finding filed: 19 enforcement tests RED at committed HEAD (D-053 coverage-gate family,
+  sibling mid-flight surface) — mail 01M1EKG4BFS4HCNK516ZQ5HBK3.
 - **File-7 (35-security-auth) COMPLETE under the full bar (2026-09-01) — the high-risk pack.**
   HEADLINE: the committed file was AMPUTATED — commit 6e404160 (the 12-factor pass) wrote it back
   from a truncated read, ending with a literal '…[truncated]' line; 7 Done When rows + the entire

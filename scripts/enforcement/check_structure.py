@@ -55,6 +55,7 @@ VALID_DOCS_SUBDIRS = {
     "development",
     "archive",
     "superpowers",  # brainstorming/writing-plans skills save specs/ + plans/ here
+    "user-guide",  # check_user_guide REQUIRES docs/user-guide/ when has_user_guide: true — this list flagging it was a gate-vs-gate contradiction (found file 8 of the rules pass)
 }
 
 # Directories that should not contain .md files directly
