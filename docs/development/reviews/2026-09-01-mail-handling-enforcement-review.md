@@ -2,7 +2,7 @@
 
 **Surface:** `d2e0d4f2e1f86b64a37769d4360fafe8e561b7ba` + `git diff HEAD | md5sum` = `aa06ea421006bcf042ba8220e00d0498`
 
-**Status:** IN-PROGRESS
+**Status:** IN-PROGRESS — halted at the stall circuit-breaker, NOT converged. See § BLOCKED at the end.
 
 **Anchor:** DID NOT MATCH. Newest prior artifact is `2026-09-01-review-triage-review.md`, whose
 Surface pair is `45acc263…` + `aa06ea42…`. The rev halves differ (`d2e0d4f2` ≠ `45acc263`) so the
@@ -386,3 +386,80 @@ corrupt the character class (no `]`, `^`, `-` or `\` in the set; all 0x110000 co
 `_HSP` matches exactly the 19 whitespace characters that are not terminators); `env=genv` coverage is
 complete across all 12 git calls in the suite; and the one unscrubbed invocation exits at the pwd
 guard before reaching git.
+
+---
+
+## BLOCKED: NON-CONVERGENCE
+
+**The stall circuit-breaker fired, and it is right.** Per-round `new:` counts:
+`11 · 6 · 6 · 7 · 8 · 4 · 1 · 7`. Rounds 3-5 are non-decreasing and nonzero across three
+consecutive rounds, which is the breaker's exact condition; `command_run.py` also raised its
+oscillation advisory independently ("the loop is RE-SCOPING each round instead of RE-SWEEPING the
+persisted class ledger"). Eight rounds in, round 8 still raised seven findings, two of them
+fail-open on a blocking gate. Continuing to round 9 would be patching, not converging.
+
+### The foundation error, named
+
+**`check_review_coverage.py` has FIVE matchers that each independently decide what "a `Surface:` /
+`Status:` line" is — `SURFACE:235`, `IN_PROGRESS:309`, `_MEGA_SURFACE`, `_MEGA_HASH_PAIR`,
+`_WRAPPED_HEADINGISH` — with no single definition any of them derives from.** Every round of this
+review "fixed the class" by editing the subset it happened to be looking at, and the next round
+found another member:
+
+| round | fixed | left out |
+|---|---|---|
+| 1 | bold tolerance | code spans |
+| 2 | `_MEGA_SURFACE`, `_WRAPPED_HEADINGISH` | `_MEGA_HASH_PAIR` |
+| 3 | the trailing `\s*` | the leading one |
+| 4 | `[ \t]` | NBSP and 9 of 10 line terminators |
+| 5 | the derived terminator set | `\x85` |
+| 8 | `_HSP` on three matchers | `SURFACE`, `IN_PROGRESS` |
+
+That is not six coincidences; it is one structural defect producing a defect per round. The fix is
+not another matcher edit — it is **one grammar**: a single `_declaration(label, value_pattern)`
+constructor that every one of the five composes, so "what counts as a Surface line" cannot be
+answered differently in five places. `_SURFACE_QUOTE` and `_HASH_GAP` being byte-identical values
+under two names is the same defect in miniature.
+
+**Second foundation error, mine rather than the code's:** I repeatedly wrote claims faster than I
+measured them — an invented hook-export mechanism asserted in three files, "800 files scanned"
+matching no corpus, "48 repos" from a one-repo sample, "2 of 3 matchers" that was 3 of 5, "121
+across 40" whose grep was elided. Each was caught by a finder, not by me, and each sat inside a fix
+for a measurement defect.
+
+### What is safe to rely on right now
+
+- All gates green: 836 pass · `final_gate --check --json: success` · ruff clean.
+- **0 fail-closed regressions across 435 artifacts**, measured independently by re-running both the
+  original and current matcher sets over the whole corpus.
+- The fleet-facing defects found in this review ARE fixed and verified on a fleet copy: the gate
+  noise, the SIGPIPE sync skip, the merge blind spot, the unreachable failure branch.
+
+### Open, routed rather than dropped
+
+1. `governance_sync_postcommit.sh` — `grep -qE` folds rc=2 (invalid regex) into "no match" and
+   takes the silent-skip branch; the third shape of a class whose other two shapes are guarded.
+2. The five-matcher grammar unification above.
+3. `tests/conftest.py`'s git scrub has no end-to-end regression test — backlog, with the failed
+   approach recorded so the next attempt does not repeat it.
+4. 7 of 18 `warn_only` checks print on a zero-finding run — backlog, with per-check measurements.
+
+**Status:** the review is HALTED at the breaker, not declared converged. Items 1-4 are the next
+session's brief, and item 2 should be done before any further matcher edit.
+
+
+### ⚠️ Machinery finding surfaced by filing this verdict
+
+`check_review_coverage.py` **cannot represent a NON-CONVERGENCE halt.** Setting
+`Status: BLOCKED` was refused: `_blocked_sections` credits a `## BLOCKED` section only when it
+carries a *3-failed-attempts* phrase, which is the per-FINDING escalation. The stall
+circuit-breaker is a different exit — it is about the LOOP, not a stuck finding, and by
+construction has no "3 attempts". So the only status the grader accepts for an honest
+non-converged halt is `IN-PROGRESS`, which reads as "still working" rather than "halted at the
+breaker, here is the foundation error".
+
+This is the same structural gap that made the finding-shape triage's escalation bullet
+mechanically unreachable (deleted in `e82e7a0a` for exactly this reason, D-066): the grader
+recognises one shape of BLOCKED and the contract defines two. Recorded here rather than worked
+around silently — the § BLOCKED section above is the real verdict; the header status is what the
+grader can parse. Routed with the other open items.
