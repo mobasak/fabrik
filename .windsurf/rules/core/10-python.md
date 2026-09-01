@@ -215,10 +215,10 @@ uv run mypy .                    # Type check
 
 ## Running in Production
 
-Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always `python:<version>-slim-bookworm` on `linux/amd64`. Never use Alpine (musl libc breaks wheels).
+Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always `python:<version>-slim-bookworm` on `linux/amd64` (the Debian variant is pinned fleet-wide in `30-ops.md` § Base Images — change it THERE, never per-repo). Never use Alpine — musllinux wheels exist now (PEP 656) but coverage is still partial, source builds are dramatically slower, and musl's allocator/stack defaults degrade CPython; the trade never pays on this fleet.
 
 ```dockerfile
-FROM python:3.13-slim-bookworm    # track <current-stable>
+FROM python:3.14-slim-bookworm    # track <current-stable> (3.14 as of 2026-09; verify at python.org/downloads)
 # ...
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```

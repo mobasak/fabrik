@@ -105,6 +105,16 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
+
+- **Debian-variant literal `bookworm` spans 5 packs** (10-python, 20-typescript, 30-ops [owner of
+  the base-image table], 40-documentation, 50-code-review). Docker's bare `-slim` now defaults to
+  trixie (Debian 13, stable since 2025); the fleet pins bookworm. Flip is ONE mechanical commit at
+  30-ops's evaluation turn — a solo per-pack flip would make packs contradict each other.
+  10-python now points at 30-ops as the single owner of the variant.
+- Evaluated so far: 10-python (2026-09-01 — 3.13→3.14 current-stable fixed; Alpine rationale
+  updated to the PEP-656 reality; distro literal deferred to the class commit).
+
 ## Activation
 
 Items move to active development when:
