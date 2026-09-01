@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review finding-shape triage: escalation path removed after deep review (2026-09-01)
+
+The MECHANICAL vs ARCHITECTURAL axis added in 45acc263 kept its useful half and
+lost its dangerous one. Deep review (3 non-author Opus finders, 13 classes)
+found the "narrow escalation" bullet was an unauthorized FOURTH BLOCKED case
+that `check_review_coverage.py` cannot even represent — a zero-attempt
+escalation produces a `## BLOCKED` section the grader refuses, leaving an
+honest agent to choose between abandoning it and forging a 3-attempts claim.
+Removed from both commands. Also: the ARCHITECTURAL trigger was over-inclusive
+("changes what a caller can assume" catches most correctness fixes) and is now
+bounded to contracts another module or repo depends on; the DECISIONS-row
+mandate is stated once at its existing root with both entry conditions; the
+shape is now recorded in each disposition row so a downgrade leaves a trace.
+D-066 records the adoption and both rejected alternatives.
+
 ### Fixed — rules currency pass file 11: core/55-observability.md — fiction removed, the logging symptom root-caused (2026-09-01)
 
 Answers the operator's "agents aren't building proper logging": the scaffold's

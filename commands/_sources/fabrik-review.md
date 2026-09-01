@@ -311,18 +311,23 @@ this axis opens no third state):
 - **MECHANICAL** — the resolution is unambiguous and local: a missing `None`-check, an unbounded read, a
   wrong constant, a leaked handle, a rename the callers already expect. **Fix it in-run, autonomously.**
   This is the default and the overwhelming majority; do not manufacture ceremony for it.
-- **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives:
-  it moves a contract, a boundary, a data model, an auth or isolation posture, or it would change what
-  other code is entitled to assume. Still fix it — and **name the alternatives you rejected**; this is
-  the second entry condition of the FIXED bullet's ledger rule above, so mint that ONE row (do not mint
-  a second). Picking one silently is how a review smuggles in an architecture decision under a bug-fix
-  commit message.
-- **The narrow escalation:** an architectural finding whose fix is genuinely irreversible, contradicts a
-  frozen spec/contract, or needs authority you do not have → that is the sanctioned `BLOCKED:` /
-  contractual-gate path, stated with the alternatives — **not** a quiet "noted", and not a rewrite you
-  perform anyway. ⚠️ This bullet is the one an agent will reach for to avoid work: it requires the fix to
-  be genuinely un-makeable by you, not merely large, unfamiliar, or tedious. "Architectural" is a
-  DESCRIPTION of the fix, never a permit to leave the finding standing.
+- **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives,
+  and the choice moves a contract, boundary, data model or auth/isolation posture **that another module
+  or repo depends on**. (A fix whose only contract effect is local to the function you changed stays
+  MECHANICAL and row-less — the same carve-out as :269. "Changes what a caller can assume" describes
+  most correctness fixes; it is NOT the trigger, or every tightened validator would mint a row.) Still
+  fix it — and **name the alternatives you rejected**; this is the second entry condition of the FIXED
+  bullet's ledger rule above, so mint that ONE row (do not mint a second). Picking one silently is how a
+  review smuggles in an architecture decision under a bug-fix commit message.
+
+**This axis adds NO new exit.** ⚠️ It is a description of the FIX, never a permit to leave a finding
+standing, and calling a finding "architectural" changes nothing about whether it terminates. A finding
+that genuinely cannot be fixed in-run uses the paths that already exist and are already graded — the
+three sanctioned BLOCKED cases, or `ROUTED(n)` with a named owner when it belongs to another repo — and
+NOTHING here widens either. **Record the shape in the finding's disposition row** (`FIXED(n) ·
+MECHANICAL` / `FIXED(n) · ARCHITECTURAL → D-NNN`): one token, and it makes the classification an
+artifact a reviewer can check rather than an unwitnessed thought — which is the only thing standing
+between this axis and a silent downgrade to MECHANICAL to dodge the ledger row.
 
 Re-run the project gate/test suite after EACH fix (fixes regress); green is necessary, NOT sufficient —
 it does not test logic, so never cite it as proof of correctness.
