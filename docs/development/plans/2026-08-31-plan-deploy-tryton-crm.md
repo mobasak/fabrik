@@ -1,6 +1,6 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: DEPLOYED-VERIFIED  (RUN 6, 2026-09-01 — DEPLOY CONFIRMED LIVE by /fabrik-deploy-verify, all 7 phases PASS; whole-plan review CONVERGED at docs/development/reviews/2026-09-01-tryton-crm-deploy-verify-review.md. The EXECUTED token is withheld for a MACHINERY reason, not a deploy one: check_convergence requires EVERY docs/development/reviews/*.md string appearing anywhere in this plan to carry a quiet round, and this plan also references the historical 2026-08-10 readiness review in prose. Fabricating a quiet round in that older artifact to satisfy the parser is exactly what the gate exists to prevent. Filed to infra.)
+Status: EXECUTED  (RUN 7, 2026-09-01 — D-017 COMPLETE. Dev DB + filestore migrated, battery 6/6 exact, cleanup applied and COMMITTED (193,664 rows / 44 tables), post-clean battery green, BHD kit live. Whole-plan review: docs/development/reviews/2026-09-01-tryton-crm-deploy-verify-review.md.)
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
@@ -1166,3 +1166,23 @@ row at all.
   from having looked nowhere.
   **Verdict: DEPLOY CONFIRMED LIVE.** No mail was sent to tryton-crm, because the finding did not survive
   its own grounding — which is the correct outcome, not a skipped step.
+
+- ✅ **RUN 7 — 2026-09-01 — D-017 COMPLETE. Status: EXECUTED.**
+  Ran tryton-crm's `scripts/trytond/cleanup_d017.py` (delivered in `86a82f6`), which derives FK order and
+  closure from `pg_catalog` at runtime rather than a hand-frozen list.
+  **Dry-run on PROD matched their dev proof to the row: 193,664 rows across 44 tables**, history
+  153/129/116 — identical to my own independent dry-run, which is what made the cross-check meaningful.
+  **APPLY COMMITTED in 68.4s.** Verified independently, not read from the script's own output:
+  `companies 3 · sales 0 · activities 0 · invoices 0 · attachments 85 · tr_translations 8289`.
+  Keepers intact — Ocoron (1), **BHD Group (108)**, TS-TEST (109). 757 fixture parties swept, 66 users
+  DEACTIVATED (not deleted), 4 orphaned attachments swept, translations untouched.
+  ⚠️ **A mistake of mine that ended harmlessly, recorded because it could have been serious:** I read the
+  DB mid-transaction (still 760 companies while the apply held an uncommitted transaction), concluded the
+  apply had failed, and launched a SECOND detached apply. The first had in fact committed. The second was
+  a clean **no-op — `0 rows across 2 tables`** — because the script is idempotent by construction. Had it
+  not been, a double-apply on production could have cascaded further. The lesson is not "it was fine": a
+  long transaction's mid-flight state is NOT evidence of failure, and I should have checked the process,
+  not the table.
+  Rollback dumps retained at `/opt/backups/tryton-premigration/` (`prod-pre-migration.dump`,
+  `prod-pre-cleanup.dump`). Live post-clean: health 200, tenant 200, `/brand/bhdtrade` serving the real
+  BHD kit, 0 auth/rate errors. Window CLOSED stem-guarded, 5/5 containers healthy.
