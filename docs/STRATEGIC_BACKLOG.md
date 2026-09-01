@@ -337,6 +337,10 @@ next registry-drift recurrence.
 - **final_gate --json honesty cluster** (01M19R99M, 01M1CAE2F4): `degraded:[...]` key for
   NOT-INSTALLED tools; `passed` as a list of check names; a status-level warning when the diff adds
   N test files and the gate ran none; tolerate DECLARED opt-in skips in the skip-advisory.
+- **WATCH: wef arms `.fabrik/run-pytest` when two lanes go green** (01M1CW5P): their intake lane
+  committed to arming the sentinel same-day once the section-registry 29 + content-lane 7 test
+  failures are fixed by their owners. Conditional offer, tracked nowhere until this line — if a
+  future wef status shows both groups green and no sentinel, this is the thread to pull.
 - **Fleet-check design law: import-and-call, never source-grep** (01M1CWKE, wef's glitchtip-PII fix):
   a source grep passes on a commented-out flag, a dead branch, or a shadowed kwarg — their test
   captures the ACTUAL kwargs reaching sentry_sdk.init. Binding on any future fleet-wide config
