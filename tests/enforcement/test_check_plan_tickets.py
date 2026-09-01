@@ -2062,11 +2062,9 @@ def test_allow_external_admits_a_scratch_copy_and_refuses_without(tmp_path):
     """01M1DMBS minor: gate-liveness red-on-mutation proofs required mutating the
     REAL plan file. --allow-external admits a dated scratch dir; without it the
     containment refusal names the flag; the dated-dir rule binds regardless."""
-    import subprocess
     import sys as _sys
-    from pathlib import Path as _P
 
-    script = _P(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_plan_tickets.py"
+    script = Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_plan_tickets.py"
     d = tmp_path / "2026-09-01-plan-9-scratch"
     d.mkdir()
     (d / "2026-09-01-plan-9-scratch.md").write_text("# spine\nStatus: DRAFT\n")
