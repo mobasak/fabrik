@@ -1,6 +1,6 @@
 # Deployment Verification Contract — design spec
 
-Status: DRAFT (amended 2026-09-01 after operator ruling — re-convergence owed; see § Amendment 1)
+Status: CONVERGED (re-converged 2026-09-01 after Amendment 1; passes A1–A2, md5-stable)
 Date: 2026-09-01
 Author: fleet (hub)
 Stage: 1-design · converged by `/fabrik-spec-review` 2026-09-01 · successor: operator approval, then the epic route
@@ -46,9 +46,16 @@ anywhere declared what the deployed system was supposed to contain.
 | I21 | Self-grading risk — the project verifies work it produced | **IN** | § Ownership split — thin hub cross-check retained |
 | I22 | tryton-crm's `RESILIENCE.md` converge pass | **OUT-OF-SCOPE** | Their repo's doc debt, not this contract's. **Destination:** named in their reply thread; belongs to their `/fabrik-doc-converge` |
 | I23 | *"utilize all vps infra … grafana"* — **Grafana had NO row in Layer 3** (spec-review pass 1) | **IN** | § Layer 3 #17 — added; the registrar is fire-and-forget and logged `Grafana annotation failed (non-fatal)` during RUN 4 |
+| I25 | *"i think there must be a new command and the developer ai must first create a full list of checklist with command for deployment verify"* | **IN** | § Amendment 1 — supersedes the DRAFT's Approach-A rejection |
+| I26 | *"and update its operations.md and deployment.md"* | **IN** | § Amendment 1 — the authoring command refreshes both, with the derive-from-code-not-prod hazard rule |
 | I24 | *"all services are up"* — nothing checked that EVERY compose service runs (spec-review pass 1) | **IN** | § Layer 3 #19 — added; tryton-crm is a 5-container stack and a dead companion passes every domain probe |
 
-**Intake: 25 rows — 23 IN, 2 OUT-OF-SCOPE (each with a named destination), 0 ASK.**
+**Intake: 27 rows — 25 IN, 2 OUT-OF-SCOPE (each with a named destination), 0 ASK.**
+
+⚠️ *Third intake correction (spec-review pass 1 on the amendment): the two operator rulings that PRODUCED
+Amendment 1 had no intake rows of their own — the amendment was written into the body while the inventory
+that is supposed to account for every item silently omitted its own cause. Three separate drops now, all
+mine, all in the same table.*
 
 ⚠️ *Corrected in spec-review pass 3: I had written "24 items" by counting the `I<n>` sequence and
 missing `I1b`, a sub-row. A miscounted denominator inside the document that makes denominators its
@@ -66,6 +73,11 @@ completeness is exactly the check-that-cannot-fail this spec warns about.
 - **HERE (feature-scale):** the *contract* — the failure-mode taxonomy, the ownership split, the
   declaration-source rules, the parity-script interface, and the verdict algebra. One artifact, one
   operator-carried plan.
+  ⚠️ **Re-assessed after Amendment 1:** the build grew from *extend one command* to *author a new
+  command + extend another + generate two docs per repo + a new pipeline position*. The **contract**
+  is still feature-scale (this one artifact). The **build** was already routed to the epic chain and
+  that verdict now holds more strongly, not less — Amendment 1 does not promote this spec, it enlarges
+  what the epic must carry.
 - **ROUTED OUT (epic):** the *implementation* — 13 per-type check packs, the hub-side spine, and
   onboarding 37 repos. Needs a ticket store and dispatched agents → `docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md`.
 
@@ -310,9 +322,11 @@ is void until `/fabrik-spec-review` re-runs over the amended artifact.
 
 ## Approaches
 
-**A — New developer-side command.** Rejected: violates *"Extend, don't duplicate"*; leaves
-`/fabrik-deploy-verify` still reaching `CONFIRMED LIVE` on an empty database, so the defect survives beside
-the fix.
+**A — New developer-side command.** ⚠️ **SUPERSEDED BY AMENDMENT 1 — read that first.** As originally
+written this row rejected *any* new command, and it was wrong because it conflated two: rejecting a new
+**runner** is still correct (it would leave `/fabrik-deploy-verify` reaching `CONFIRMED LIVE` on an empty
+database, the defect surviving beside the fix), but a new **author** is required and now specced. Kept
+rather than deleted so the reasoning error stays visible.
 
 **B — Extend `/fabrik-deploy-verify`; project-run; contract-driven.** ✅ **RECOMMENDED.** Reuses the
 existing Phase-6 hook (already a project-artifact-driven phase, merely too weak), keeps one verification
@@ -366,6 +380,23 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | 2 | all cited facts re-derived from primary source, not re-cited | **re-derivation** | 1 | 1 | `34cbe70e…` → edited |
 | 3 | full re-sweep of every axis | re-derivation | 1 | 1 | edited — intake miscount |
 | 4 | full re-sweep, confirming | re-derivation | **0** | **0** | stable ✓ |
+| — | **AMENDMENT 1 landed (operator ruling) — convergence voided, review re-run** | — | — | — | — |
+| A1 | Amendment ripple hunt across the whole spec | citation + live grep | 3 | 3 | `adefee55…` → `49ca35b2…` |
+| A2 | all claims re-derived from primary source, confirming | **re-derivation** | **0** | **0** | `49ca35b2…` stable ✓ |
+
+**Pass A2 terminal round — `found: 0, fixed: 0`.**
+
+**What the amendment review found (3 more, all mine — 8 total across both reviews):**
+6. **Approach A still read "Rejected"** while Amendment 1 supersedes it — a live self-contradiction left
+   in the artifact. Kept and marked SUPERSEDED rather than deleted, so the reasoning error stays visible.
+7. **The two operator rulings that PRODUCED the amendment had no intake rows.** The amendment was written
+   into the body while the inventory meant to account for every item silently omitted its own cause.
+8. **The routing verdict was stale** — it still described "one operator-carried plan" after the build grew
+   to *new command + extend another + generate two docs per repo + a new pipeline position*.
+
+⚠️ **Three intake corrections across three passes** (I23/I24, the 24-vs-25 miscount, now I25/I26). The
+inventory has been wrong every single time it was checked. That is the strongest argument in this
+document for its own central rule: **a self-certifying count is not evidence.**
 
 **Pass 4 terminal round — `found: 0, fixed: 0`.**
 
