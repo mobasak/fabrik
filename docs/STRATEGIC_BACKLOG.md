@@ -107,6 +107,12 @@ scaffold half is fleet's).
 
 ## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
+**THE GOAL (D-062, operator verbatim):** always-uptodate · correct · lean · efficient ·
+low-maintenance · free · resilient · traceable · logged · fastest · agile · best-practice.
+**Standing ruling:** version literals are banned from packs — tripwires are triage (D-061);
+the solve is a machine-updated version source + render-time injection (pipeline proposal owed
+during the pass). Scope: core/ then ALL folders, to completion.
+
 - **Debian-variant literal `bookworm` spans 5 packs** (10-python, 20-typescript, 30-ops [owner of
   the base-image table], 40-documentation, 50-code-review). Docker's bare `-slim` now defaults to
   trixie (Debian 13, stable since 2025); the fleet pins bookworm. Flip is ONE mechanical commit at
