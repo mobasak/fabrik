@@ -47,10 +47,11 @@ anywhere declared what the deployed system was supposed to contain.
 | I22 | tryton-crm's `RESILIENCE.md` converge pass | **OUT-OF-SCOPE** | Their repo's doc debt, not this contract's. **Destination:** named in their reply thread; belongs to their `/fabrik-doc-converge` |
 | I23 | *"utilize all vps infra … grafana"* — **Grafana had NO row in Layer 3** (spec-review pass 1) | **IN** | § Layer 3 #17 — added; the registrar is fire-and-forget and logged `Grafana annotation failed (non-fatal)` during RUN 4 |
 | I25 | *"i think there must be a new command and the developer ai must first create a full list of checklist with command for deployment verify"* | **IN** | § Amendment 1 — supersedes the DRAFT's Approach-A rejection |
+| I27 | *"every new scaffolded projects must have it too"* | **IN** | § Born compliant — `scaffold.py` seeds the artifacts; the epic's prerequisite ticket |
 | I26 | *"and update its operations.md and deployment.md"* | **IN** | § Amendment 1 — the authoring command refreshes both, with the derive-from-code-not-prod hazard rule |
 | I24 | *"all services are up"* — nothing checked that EVERY compose service runs (spec-review pass 1) | **IN** | § Layer 3 #19 — added; tryton-crm is a 5-container stack and a dead companion passes every domain probe |
 
-**Intake: 27 rows — 25 IN, 2 OUT-OF-SCOPE (each with a named destination), 0 ASK.**
+**Intake: 28 rows — 26 IN, 2 OUT-OF-SCOPE (each with a named destination), 0 ASK.**
 
 ⚠️ *Third intake correction (spec-review pass 1 on the amendment): the two operator rulings that PRODUCED
 Amendment 1 had no intake rows of their own — the amendment was written into the body while the inventory
@@ -470,6 +471,20 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | — | **operator re-invoked with THE GOAL as the argument — reviewed against the bar itself** | — | — | — | — |
 | D1 | *"100% tested"* stress-tested for circularity | goal-as-measuring-stick | 1 | 1 | `a7b5307f…` → `b00ff30a…` |
 | D2 | confirming re-sweep | re-derivation | **0** | **0** | `b00ff30a…` stable ✓ |
+| — | **operator: *"every new scaffolded projects must have it too"*** | — | — | — | — |
+| E1 | permanence — is the design a migration or a property? | goal-as-measuring-stick | 1 | 1 | `c1a97b32…` → edited |
+| E2 | confirming re-sweep | re-derivation | **0** | **0** | stable ✓ |
+
+**Pass E2 terminal round — `found: 0, fixed: 0`.**
+
+**Defect 13 — the design was a one-time migration, not a permanent property.** Nothing touched
+`scaffold.py`, so new projects would be born non-compliant and the backlog would refill as fast as it
+drained. Fixed by seeding the artifacts at scaffold time on the exact precedent of
+`docs/data-contract.md` (`scaffold.py:285`), with the stub **exiting non-zero** so an unfilled contract
+fails rather than silently passing — and carrying forward that file's own `docusaurus` leak caveat
+(`:293`), since a parity contract naming internal hosts and row counts must never become a public page.
+The scaffolder ticket becomes an epic **prerequisite**: seed first, then onboard, or the migration races
+new projects forever.
 
 **Pass D2 terminal round — `found: 0, fixed: 0`.**
 
@@ -566,6 +581,36 @@ The stated goal, and what this spec actually delivers against each clause:
 The operator's opening ask — projects owning their own deploys — is genuinely not delivered by this spec;
 it is deferred with a named destination and a reason (shared-fleet writers, one global window lock). A
 spec that let the goal read as fully met would be the same defect class as a deploy that reads green.
+
+## Born compliant — the scaffolder seeds it (operator ruling, spec-review pass E1)
+
+> *"every new scaffolded projects must have it too."*
+
+**The DRAFT specced a one-time migration, not a permanent property.** It handled the 37 spec-less repos
+as onboarding and said nothing about `scaffold.py` — so a project scaffolded tomorrow would be born
+**without** the contract and join the backlog on day one. The backlog would refill as fast as it drained.
+That is a defect in the design's shape, not a missing task.
+
+**The precedent is exact and already in the tree:** `src/fabrik/scaffold.py:285` maps
+`docs/data-contract-template.md` → `docs/data-contract.md`, seeded into every new project as a DRAFT
+stub that `/fabrik-data-contract` later fills. The verification contract follows the identical pattern:
+
+| seeded artifact | filled by | state at scaffold time |
+|---|---|---|
+| `scripts/verify_prod_parity.py` | the new authoring command | executable stub that **exits non-zero** — an unfilled contract must fail, never silently pass |
+| `specs/services/<id>.yaml` | scaffolder, from `project.yaml` + `shape:` | complete — this is why 37 repos lack one and no future repo will |
+| `DEPLOYMENT.md` / `OPERATIONS.md` | the authoring command (D-065) | template with the fleet-AI sections present |
+
+⚠️ **The `docusaurus` leak caveat, inherited from the same precedent** — `scaffold.py:293` records that
+seeding docs into a `docusaurus` project **publishes them**, because it renders the whole `docs/` tree.
+That is the exact class closed earlier this session by adding a content-docs `exclude`. The verification
+artifacts must therefore either seed outside `docs/` (`scripts/` already is) or land in the exclude list.
+**A parity contract naming internal hosts, table names and row counts is precisely what must not become
+a public page.**
+
+**Consequence for the epic:** the scaffolder ticket is a **prerequisite**, not a parallel one. Seed first,
+then onboard the 37 — otherwise the migration races new projects and never converges. It also shrinks the
+onboarding: every repo scaffolded after the seed lands needs no retro-fit.
 
 ## Deferred (named, not dropped)
 
