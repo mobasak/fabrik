@@ -119,6 +119,7 @@
 - [scripts/enforcement/check_command_corpus.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
 - [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): Enforce configuration documentation pattern.
 - [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
+- [scripts/enforcement/check_decisions_unique.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): Check for code duplication using jscpd.
@@ -183,6 +184,7 @@
 - [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_claude_broker.py | scripts/sysadmin/quota_governor.py
 - [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py | none
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
+- [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/weekly_catchup.sh | none
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
 - [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
 - [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/ | none
