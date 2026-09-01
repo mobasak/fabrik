@@ -1,6 +1,42 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 148: a red-on-revert that PROVES a hazard by triggering it IS the hazard — blast-radius the experiment, not just the fix
+
+A review round found that `tests/enforcement/test_governance_sync_postcommit.py::_hub_clone`
+forwarded `GIT_DIR`/`GIT_WORK_TREE` into its `git init` / `git add -A` / `git commit` calls, and
+that this suite runs from inside a git hook, where git EXPORTS exactly those. I added an env scrub,
+then — to prove the hole was real rather than assert it — ran the suite with the scrub **disabled**
+and `GIT_DIR=/opt/fabrik/.git GIT_WORK_TREE=/opt/fabrik`.
+
+It proved it. The `add -A` ran against the REAL repository and produced commit `f7627885`
+(author `t <t@fabrik.local>`, message `t`), sweeping up a **sibling session's uncommitted WIP** —
+`libs/subagents/*` including a new 656-line `lanes.py`, `PORTS.md`, a prometheus config, the kaizen
+logs — and it was pushed. Nothing was destroyed (`add -A` COMMITS rather than deletes; every file is
+present in HEAD and the one deleted plan is recoverable at `f7627885^`), but a peer's in-flight work
+landed in history under a meaningless author and message, and their tree went clean when they
+expected it dirty.
+
+**The rule.** The contract's sanctioned revert form is *copy the file* (`cp f /tmp/f.bak` …
+`git show HEAD:f > f` … restore) precisely because it mutates ONE FILE. My experiment mutated git's
+notion of *which repository it was in* — a categorically wider blast radius, applied to a test that
+runs `add -A`. Before disabling a safety guard to prove it works, ask what the code under it does
+when it fires: if the answer is "writes to a repo", the proof must be run somewhere that is not a
+real repo.
+
+**The structural half, which matters more than the discipline half.** The scrub could never be the
+last line of defence, *because the scrub is exactly what an experiment disables*. `_hub_clone` now
+asks git which repository it would actually resolve (`rev-parse --absolute-git-dir`) and REFUSES to
+run unless that is its own scratch clone under `tmp_path` — independent of the scrub and of the
+environment (`72d51d04`, proven under the exact incident conditions). Any test helper that runs a
+mutating VCS command owes the same identity check.
+
+**And the disposition half.** The commit is pushed and carries another session's work, so every
+remedy is an unreviewed history rewrite on a shared branch affecting a session that is not mine. I
+did not revert, amend or force-push; I verified nothing was lost, filed the full account to the
+shared mailbox with the recovery commands, and handed the disposition to the operator. "I broke it
+so I will quietly fix it" is how one unreviewed history event becomes two.
+
 # Lesson 147: a truncating READ written BACK is an amputation that reviews don't see — grep for the marker, don't trust the eye
 
 Commit 6e404160 (the 12-factor rules pass) wrote `35-security-auth.md` back from a

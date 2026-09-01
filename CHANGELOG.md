@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review of the enforcement fixes: 7 rounds, 34 findings, 5 of them mine-while-fixing (2026-09-01)
+
+A deep review of `d2e0d4f2` that took seven rounds because every round found a real
+defect in the previous round's fix. The two most dangerous were found last: a `pipefail`
+fix that made the fleet governance-sync **silently skip** on trigger commits (SIGPIPE via
+`git log | grep -q`), and a test that could run the real fleet sync into 48 project trees.
+Also closed: `_MEGA_HASH_PAIR` missing the tolerance class (making the half-fix worse than
+none), a hex guard that was lookahead-only, three successive wrong definitions of
+"horizontal space", merges never triggering the sync, and four tests that asserted
+substrings about a script instead of running it. Measured independently: **0 fail-closed
+regressions across 435 artifacts** for the whole regex rewrite. Artifact:
+`docs/development/reviews/2026-09-01-mail-handling-enforcement-review.md`.
+
+⚠️ **Incident during the review** — a red-on-revert experiment that disabled an env scrub
+and pointed the suite at the live tree caused commit `f7627885` to commit a sibling
+session's uncommitted WIP to master. No data lost; disposition handed to the operator;
+root cause closed by a repo-identity guard (`72d51d04`) and recorded as Lesson 148.
+
 ### Fixed — enforcement suite back to green: 19 red tests, three unrelated root causes (2026-09-01)
 
 `pytest tests/enforcement/` was 19-red at committed HEAD, filed as
