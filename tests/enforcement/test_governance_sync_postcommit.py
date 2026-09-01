@@ -257,7 +257,7 @@ def test_a_merge_commit_that_touches_a_trigger_path_still_syncs(tmp_path: Path) 
     """
     repo = _hub_clone(tmp_path, ["README.md"])
     # ⚠️ Every git call below MUST carry the scrubbed env for the same reason `_hub_clone` does:
-    # git EXPORTS GIT_DIR to hooks, this suite runs from inside one, and an inherited GIT_DIR
+    # a leaked GIT_DIR (hand-exported, or set by any wrapper)
     # points these commands at /opt/fabrik instead of the scratch repo. `_clean_env` was added
     # for `_hub_clone` and these seven calls were missed — the hole was still open here.
     genv = _clean_env()

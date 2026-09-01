@@ -232,7 +232,13 @@ def _checklist_section(text: str) -> str | None:
 # right there. A checker that reports the wrong reason costs more than one that reports nothing.
 # Leading whitespace stays disallowed on purpose: the contract wants this line at column 0, where a
 # cross-run anchor is greppable.
-SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
+# ⚠️ `[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]` — the SAME horizontal-space class `_HSP`
+# defines below, inlined because this constant is defined before it. `\s*` here was the FOURTH
+# site of the reach-forward class and the worst one: SURFACE gates ORDINARY (non-mega) reviews at
+# the cross-run-anchor check, so `**Surface:**` with the hash omitted followed by ANY prose line
+# satisfied it — fail-open on a blocking gate, in the matcher whose own rule says "every use of
+# `\s` in a Surface/hash matcher is a reach-forward waiting to happen".
+SURFACE = re.compile(r"^\**Surface:\**[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]*\S+", re.M)
 
 # ⚠️ ...and the SAME class again, one wrapper over: the bold fix above did not cover a markdown
 # CODE SPAN, so a backticked hash read as ABSENT. Fixing the location (bold) and leaving the class
@@ -306,7 +312,12 @@ _HEX_START = r"(?<![0-9a-fA-F])"
 # was being worked around by holding the report uncommitted across passes — which is precisely the
 # state this file cannot see. Declaring the status makes the in-progress case legal and VISIBLE,
 # instead of hidden in someone's working tree.
-IN_PROGRESS = re.compile(r"^\**Status:\**\s*IN-PROGRESS\b", re.M | re.I)
+# Same class, same direction, and this one is the EXEMPTION marker — an in-progress report skips
+# the convergence rules — so a reach-forward here is fail-open too: `**Status:**` followed by a
+# line merely mentioning IN-PROGRESS would exempt a committed non-quiet review.
+IN_PROGRESS = re.compile(
+    r"^\**Status:\**[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]*IN-PROGRESS\b", re.M | re.I
+)
 PASS2 = re.compile(r"\bPass\s*2\b")
 # The proof of a rubric RUN is the script's own generated output header — a prose
 # mention is not an invocation (trade-intelligence 01M17Z7Q: a thrice-converged plan

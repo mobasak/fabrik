@@ -105,6 +105,35 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] The git-isolation scrub has no end-to-end regression test (2026-09-01, owner: infra = me)
+
+`tests/conftest.py`'s `pytest_configure` strips 14 `GIT_*` vars session-wide after incident
+`f7627885` (a red-on-revert experiment's `git add -A` committed a sibling's WIP to master).
+`tests/enforcement/test_git_env_isolation.py` asserts the scrub and the resulting behaviour — but
+**both of its tests are green with the scrub reverted** under normal invocation, because nothing in
+a normal environment sets `GIT_DIR`; they only red when the harness itself is started with it, and
+no gate does that.
+
+**The attempt and why it failed:** spawn a victim repo, run a NESTED pytest with a hostile
+`GIT_DIR`, assert the victim's modified file is still UNSTAGED (` M`, not `M `). It red-failed
+against correct code — the nested test file was written under `tmp_path`, which is outside the
+`tests/` tree, so `tests/conftest.py` never loaded for it. It measured an unprotected process and
+blamed the scrub. Writing the nested file inside `tests/` would work but is a tree mutation this
+suite should not make mid-run.
+
+**Current proof status:** the scrub is verified by a MEASUREMENT recorded in `d36239cc` (decoy repo,
+pytest under a hostile GIT_DIR, victim HEAD and index confirmed unchanged) — not by a regression
+test. So a future edit that deletes the scrub ships green.
+
+**Shape of the fix:** a session-scoped fixture that writes the nested test into a temp dir *inside*
+`tests/` and removes it afterwards, or a `pytest_configure` unit test that asserts the hook is
+registered and pops the right keys from a synthetic environ. The second is weaker but has no tree
+mutation.
+
+**Trigger:** next time anything touches `tests/conftest.py`, or the next git-isolation incident.
+
+---
+
 ## [infra] warn_only checks that print on a ZERO-finding run — 7 of 18, fleet-wide (2026-09-01, owner: infra = me)
 
 **Measured**, not estimated: 18 of 19 `warn_only=True` registration sites in `scripts/final_gate.py`

@@ -30,8 +30,17 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
 # ── git isolation: session-wide, because the class is 121 call sites wide ───────────────
 #
 # ⚠️ INCIDENT-DRIVEN (2026-09-01, commit f7627885). `tests/` helpers build scratch repos with
-# `git init` / `git add -A` / `git commit`. Git EXPORTS `GIT_DIR`/`GIT_WORK_TREE` to hooks, and
-# this suite is run from inside one (pre-commit runs pytest here) — so an inherited `GIT_DIR`
+# `git init` / `git add -A` / `git commit`.
+#
+# ⚠️ MECHANISM, corrected after being asserted wrong. The first version of this
+# comment said "git EXPORTS GIT_DIR/GIT_WORK_TREE to hooks and pre-commit runs pytest here".
+# BOTH halves are false on this box and I only checked after a finder pushed back: git 2.43.0
+# exports NEITHER to hooks (only a relative `GIT_INDEX_FILE=.git/index`, which resolves
+# harmlessly against each subprocess's own cwd), and `grep -c pytest .pre-commit-config.yaml`
+# is 0. The ACTUAL cause of f7627885 was a HAND-EXPORTED GIT_DIR in my own red-on-revert
+# experiment. The guard is still right — any leak, however it arrives, points 124 mutating
+# git calls at a real repo — but inventing a mechanism and presenting it as measurement is
+# the defect this whole review kept finding, committed inside the fix for it — so an inherited `GIT_DIR`
 # silently redirects every one of those calls at the REAL repository. It happened: a red-on-revert
 # experiment that disabled a per-helper env scrub and set
 # `GIT_DIR=/opt/fabrik/.git GIT_WORK_TREE=/opt/fabrik` caused `add -A` to commit a sibling
