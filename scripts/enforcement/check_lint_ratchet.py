@@ -158,12 +158,12 @@ def main() -> int:
 
     current = _ruff_count()
     if current is None:
-        print("WARN: lint-ratchet — ruff unavailable / unparseable; skipped (CI still runs ruff).")
+        print("⚠ lint-ratchet — ruff unavailable / unparseable; skipped (CI still runs ruff).")
         return 0
 
     if _baseline_is_gitignored():
         print(
-            "WARN: lint-ratchet — `.fabrik/lint-baseline.json` is gitignored in this repo, so it cannot "
+            "⚠ lint-ratchet — `.fabrik/lint-baseline.json` is gitignored in this repo, so it cannot "
             "be committed: the ratchet enforces LOCALLY but not in CI (a fresh checkout has no baseline). "
             "Un-ignore it (drop the `.fabrik/` ignore, or `git add -f` won't help while the dir is "
             "excluded) to restore CI-parity."

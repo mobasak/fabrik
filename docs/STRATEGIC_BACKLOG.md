@@ -352,7 +352,7 @@ next registry-drift recurrence.
 - ~~**Synced per-repo DECISIONS duplicate-id gate check**~~ ✅ **LANDED 2026-09-01** (01M1CBJWQS →
   D-057 sequencing → wef repair 5a58c11 + reply 01M1CW4S = the trigger → `check_decisions_unique.py`,
   WARN-tier, keyed on the row ID CELL per wef's repair-experience request, 0/49 fleet ledgers firing
-  at landing). Remaining half deliberately unbuilt: the origin/HEAD stale-max WARN needs a fetch —
+  at landing — verify: `for f in /opt/*/docs/DECISIONS.md; do grep -oE "^\| D-[0-9]+ \|" "$f" | sort | uniq -c | awk '$1>1'; done`). Remaining half deliberately unbuilt: the origin/HEAD stale-max WARN needs a fetch —
   revisit only if collisions recur despite detection + pull-before-mint. wef's generalization
   learning recorded in the check docstring: BOTH-CITED is the common case; first-committed carries
   the tiebreak.

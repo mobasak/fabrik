@@ -356,7 +356,7 @@ def test_phantom_in_scripts_is_warn_not_error(repo: Path) -> None:
 
     rc, out = _run_check(repo)
     assert rc == 0, out
-    assert "WARN" in out
+    assert "⚠" in out  # the gate's warning prefix — bare WARN: is --json-invisible
 
 
 # --- layout applicability: the check must say when it looked at nothing --------------
@@ -410,7 +410,7 @@ def test_not_applicable_does_not_mask_a_real_scripts_warning(repo: Path) -> None
     rc, out = _run_check(repo)
     assert rc == 0, out
     assert "NOT APPLICABLE" in out, out
-    assert "WARN" in out, f"a scripts/ phantom must still surface:\n{out}"
+    assert "⚠" in out, f"a scripts/ phantom must still surface:\n{out}"
 
 
 def test_nested_source_root_is_not_a_phantom(repo: Path, outside: Path) -> None:

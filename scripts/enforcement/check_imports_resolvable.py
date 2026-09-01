@@ -636,7 +636,7 @@ def main() -> int:
         )
     else:
         for w in warnings:
-            print(f"WARN: {w}")
+            print(f"⚠ {w}")
         for e in errors:
             print(f"ERROR: {e}")
         if not errors:

@@ -20,7 +20,10 @@ side keeps the id, the other side renumbers to fresh ids, references fixed in th
 (hub D-057; the wef repair proved BOTH-CITED is common — tiebreak: first-committed keeps).
 
 Exit codes:
-    0 always (advisory) — prints WARN lines when duplicates exist.
+    0 always — a warn_only check by contract (no failing exit path); duplicate lines
+    print with the gate's ⚠ prefix so they reach --json's `warnings` list, and the
+    warn_only registration puts the row in `advisory` (the WARN:-prefix-under-bare-
+    advisory shape is JSON-invisible — review finding on this very commit).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from collections import Counter
 from pathlib import Path
 
 LEDGER = Path("docs/DECISIONS.md")
-_ID_CELL = re.compile(r"^\| (D-\d+) \|")
+_ID_CELL = re.compile(r"^\|\s*\**(D-\d+)\**\s*\|")
 
 
 def find_duplicates(text: str) -> dict[str, int]:
@@ -44,13 +47,13 @@ def main() -> int:
     dups = find_duplicates(LEDGER.read_text(encoding="utf-8"))
     for i, n in sorted(dups.items()):
         print(
-            f"WARN: docs/DECISIONS.md id {i} appears {n}x — rows are addressable by id; "
+            f"⚠ docs/DECISIONS.md id {i} appears {n}x — rows are addressable by id; "
             f"renumber per the D-057 repair discipline (referenced side keeps; references "
             f"fixed in the same commit)"
         )
     if dups:
         print(
-            f"WARN: {len(dups)} duplicate decision id(s) — citations of these ids now "
+            f"⚠ {len(dups)} duplicate decision id(s) — citations of these ids now "
             f"resolve to two rows each"
         )
     return 0

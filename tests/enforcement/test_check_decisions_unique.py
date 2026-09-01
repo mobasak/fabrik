@@ -7,6 +7,8 @@ mentions — repos carry 20+ legitimate prose references to ids, including narra
 about past collisions, and a naive matcher reds on all of them.
 """
 
+from pathlib import Path
+
 from scripts.enforcement.check_decisions_unique import find_duplicates
 
 
@@ -35,3 +37,35 @@ def test_prose_mentions_never_count():
 def test_clean_ledger_is_silent():
     text = "| D-001 | x |\n| D-002 | y |\n"
     assert find_duplicates(text) == {}
+
+
+def test_padded_and_bold_id_cells_still_match():
+    # Nothing enforces the ledger's cell spacing; a table formatter's padding
+    # or a bold id must not become a silent false negative (review finding).
+    text = "|  D-003  | padded |\n| **D-003** | bold |\n"
+    assert find_duplicates(text) == {"D-003": 2}
+
+
+def test_warn_lines_carry_the_gate_prefix(tmp_path, monkeypatch, capsys):
+    # The visibility contract: bare "WARN:" under advisory=True is INVISIBLE in
+    # --json (warnings filters on the ⚠ prefix; advisory_rows on warn_only
+    # registration) — the defect this check itself shipped with for one commit.
+    import scripts.enforcement.check_decisions_unique as mod
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "DECISIONS.md").write_text("| D-001 | a |\n| D-001 | b |\n")
+    monkeypatch.setattr(mod, "LEDGER", tmp_path / "docs" / "DECISIONS.md")
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert out.count("⚠") >= 2
+    assert "WARN:" not in out
+
+
+def test_gate_registers_the_check_warn_only():
+    # warn_only=True is what routes the row into --json's advisory list; a
+    # regression to bare advisory=True silently reopens the invisibility.
+    gate = (Path(__file__).resolve().parents[2] / "scripts" / "final_gate.py").read_text(
+        encoding="utf-8"
+    )
+    block = gate[gate.index("check_decisions_unique.py") :]
+    assert "warn_only=True" in block[:300]

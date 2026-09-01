@@ -1296,7 +1296,7 @@ def run_consistency_checks(
                 run_optional_check(
                     "scripts/enforcement/check_decisions_unique.py",
                     "Decision Ledger (unique ids)",
-                    advisory=True,
+                    warn_only=True,
                 )
             )
         # Subagent flywheel — WARN when a POOL run (run_agents) ran but was never scored+recorded
