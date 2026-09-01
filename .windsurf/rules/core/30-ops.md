@@ -187,6 +187,7 @@ Before running `fabrik apply`:
 - [ ] compose.yaml has Traefik labels with `websecure` entrypoint
 - [ ] No `ports:` section in compose.yaml (Traefik routes all traffic)
 - [ ] Service added to `docs/SERVICES.md`
+- [ ] **`docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are CURRENT and fleet-AI-consumable (D-065)** — the hub's deploy agent learns from THESE FILES what and how to deploy and which VPS services to set up (workers, systemd units, cron/Beat jobs, companions); projects cannot self-deploy, so this is the only channel that knowledge travels. A compose/worker/job change that isn't reflected there ships a silent misdeploy
 - [ ] `.dockerignore` present (excludes `.env`, `.git`, `.venv`, `node_modules`)
 - [ ] Traefik middleware set per service category — admin UI: `authelia-forward@docker,gzip@docker`; API: `gzip@docker`; public: none
 - [ ] Compose env vars set: `SERVICE_INTERNAL_SECRET_KEY`, `DATABASE_URL` (using `postgres-main`), `REDIS_URL` (using `redis-main`)
