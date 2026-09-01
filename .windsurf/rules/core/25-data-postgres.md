@@ -143,7 +143,7 @@ else:
 ## Primary Keys
 
 - Use **UUIDv7** for all primary keys. UUIDv4 is banned — its randomness causes B-tree fragmentation, cache thrashing, and excessive WAL generation.
-- **Current-python services (the scaffold default): use the STDLIB.** `uuid.uuid7()` is in the standard library as of the fleet's pinned Python — it returns a plain `uuid.UUID`, so the old third-party-type trap does not exist:
+- **Services on current Python: use the STDLIB.** `uuid.uuid7()` is in the standard library as of the fleet's pinned Python — it returns a plain `uuid.UUID`, so the old third-party-type trap does not exist:
 
 ```python
 import uuid   # uuid.uuid7 is stdlib on current Python
@@ -157,7 +157,7 @@ class User(Base):
     )
 ```
 
-> **Older pythons only** (services pinned below stdlib-uuid7): import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID`). **DB-side:** newer PostgreSQL majors ship native `uuidv7()` (probe: `SELECT uuidv7()`); prefer `DEFAULT uuidv7()` at schema level where it exists. `postgres-main` currently runs major <!--v:postgres_major-->16<!--/v-->, which predates it — generate app-side on the fleet.
+> **Older pythons only** (services pinned below stdlib-uuid7 — which today includes SCAFFOLDED services: the scaffold still emits an older interpreter and ships `uuid-utils`; alignment tracked in the backlog): import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID`). **DB-side:** newer PostgreSQL majors ship native `uuidv7()` (probe: `SELECT uuidv7()`); prefer `DEFAULT uuidv7()` at schema level where it exists. `postgres-main` currently runs major <!--v:postgres_major-->16<!--/v-->, which predates it — generate app-side on the fleet.
 
 ## Nullability & Constraints
 
@@ -226,12 +226,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 # Multi-worker / background-service scaling → PgBouncer transaction pooling + NullPool.
 # asyncpg uses NAMED prepared statements, which historically broke under transaction
 # pooling ("prepared statement already exists"). Two-layer fix:
-#  - POOLER side (modern PgBouncer): set max_prepared_statements > 0 — the pooler then
-#    tracks protocol-level prepares per client and re-prepares across backends.
-#  - CLIENT side (REQUIRED when the pooler is older or that setting is off; harmless
-#    belt-and-braces otherwise): disable BOTH caches — asyncpg's own statement cache
-#    AND the SQLAlchemy dialect's prepared-statement LRU. Most guides miss the second
-#    one, which resurfaces the error at a fraction of the old rate.
+#  - POOLER side (modern PgBouncer — the PRIMARY rule on a self-hosted fleet):
+#    max_prepared_statements tracks protocol-level prepares per client and re-prepares
+#    across backends; current releases default it ON (200) — verify with SHOW CONFIG.
+#    Not covered: SQL-level PREPARE/EXECUTE; name collisions across app instances
+#    (SQLAlchemy's prepared_statement_name_func exists for that).
+#  - CLIENT side (labeled FALLBACK — required only for poolers WITHOUT prepared-
+#    statement tracking: old PgBouncer, Supavisor, managed poolers): disable BOTH
+#    caches — asyncpg's own statement cache AND the SQLAlchemy dialect's prepared-
+#    statement LRU. Most guides miss the second one, which resurfaces the error
+#    at a fraction of the old rate.
 from sqlalchemy.pool import NullPool
 
 engine = create_async_engine(
@@ -304,7 +308,7 @@ Those are the **user's own on-device data**, not an attached backing service —
 - `15-api-contracts.md` — API layer that calls the service/data layer
 - `45-testing-strategy.md` — real PostgreSQL tests, async fixtures, no DB mocks
 - `75-workers-jobs.md` — PG job queue (`SKIP LOCKED`), adaptive worker pool. **Note:** `75-workers-jobs.md` uses `psycopg2` for the parent process monitoring loops — this is an intentional exception to the asyncpg-only rule; the parent runs infrequent sync queries (every 30-60s) where pool contention is the real concern.
-- `95-multi-tenant-saas.md` — RLS policies, tenant_id columns, tenant-scoped queries
+- `saas/95-multi-tenant-saas.md` — RLS policies, tenant_id columns, tenant-scoped queries
 
 ---
 

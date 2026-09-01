@@ -169,6 +169,27 @@ during the pass). Scope: core/ then ALL folders, to completion.
   leads, scaffold follows: flip the emission to accept `Idempotency-Key` (keep `X-` as legacy
   fallback) at the next scaffolder window. Note the scaffold example is a POST — still
   key-required under the narrowed POST/non-idempotent-PATCH scope.
+- **File-5 (25-data-postgres) COMPLETE under the full bar (2026-09-01).** Own legs (brave + exa +
+  WebFetch endoflife/SQLAlchemy/pgbouncer.org + live psql probe): stdlib `uuid.uuid7()` (Python
+  3.14) replaces the uuid_utils idiom for current-python services; PgBouncer guidance rewritten
+  two-layer; pg16 literals → new `postgres_major` span (fleet state, agents-fabrik.md:165, flip
+  tripwire in claims); PG18-uuidv7 boundary → capability-probe phrasing. **THE SWEEP ITSELF had a
+  blind spot: `_LOOSE` spelled 'PostgresQL' so real 'PostgreSQL 16' never fired, nor PG18/pgvector:pg16
+  shapes — widened red→green; 7 literals surfaced in this pack that the sweep had passed** (16
+  advisory WARNs now corpus-wide — other packs' hits belong to their turns). **SECOND OPINION
+  (Fable 5): 20 verdicts → 15 KEEP · 4 FIX + 1 ADD; convergent with my legs on the two big ones
+  (stdlib uuid7, PgBouncer staleness — it graded the old mandate 'the pack's one materially stale
+  rule', inherited from asyncpg's own unrevised FAQ). Two of its catches corrected MY fresh work:
+  (1) 'the scaffold default' phrasing was FALSE — scaffold.py:4809 still emits python:3.12 +
+  uuid-utils (verified myself), pack now says so; (2) my pgbouncer claims row said 'default 0/off'
+  — pgbouncer.org primary says DEFAULT 200 (ON) in current releases → row refuted + superseded
+  (second supersede today).** saas/ prefix fixed. 3+1 claims rows, 1 superseded.
+- **Scaffold alignment owed (25-data + file-1 follow-through — the INTERPRETER GAP):** scaffold
+  emits `python:3.12-slim-bookworm` (scaffold.py:4809, ×4 occurrences) while 10-python spans
+  python_stable=3.14 — the rule corpus and the scaffold emit different interpreters TODAY. At the
+  scaffold window: bump the emission to the span value, drop `uuid-utils` from scaffolded
+  requirements (scaffold.py:2042) in favor of stdlib uuid.uuid7, and consider sourcing the
+  Dockerfile pin from versions.yaml so it cannot re-drift.
 - **File-4 (20-typescript) COMPLETE under the full bar (2026-09-01).** Own legs (brave + exa +
   earlier WebSearch/WebFetch): TypeScript's native-compiler major is GA (ships as `tsc`, API
   port next minor) — pack got a version-free currency line; zod 4 stable, pack idiom unchanged.

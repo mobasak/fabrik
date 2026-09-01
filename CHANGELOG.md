@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 5: core/25-data-postgres.md to the D-062 bar (2026-09-01)
+
+Stdlib `uuid.uuid7()` (Python 3.14) is now the primary-key idiom for current-
+python services (uuid_utils demoted to older-pythons-only — which still includes
+scaffolded services, said explicitly: scaffold emits 3.12); PgBouncer prepared-
+statement mandate un-staled (max_prepared_statements default-ON in current
+releases is the primary rule; both-caches-zero is the labeled fallback); pg16
+literals wrapped in the new postgres_major span with a flip tripwire. The
+`_LOOSE` sweep itself had a blind spot ('PostgresQL' never matched real
+'PostgreSQL') — widened red→green, 7 passed-over literals surfaced. Second
+opinion refuted my fresh pgbouncer claims row ('default off' → default 200 ON
+per pgbouncer.org) — superseded. Interpreter-gap scaffold alignment recorded.
+
 ### Changed — rules currency pass file 4: core/20-typescript.md to the D-062 bar (2026-09-01)
 
 Native-compiler currency line added (version-free); `erasableSyntaxOnly` wired

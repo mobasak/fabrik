@@ -272,6 +272,15 @@ claims:
     verify: "https://www.pgbouncer.org/config.html; https://docs.sqlalchemy.org/en/20/dialects/postgresql.html (asyncpg Prepared Statement Cache)"
     window_days: 180
     last_verified: 2026-09-01
+    superseded: 2026-09-01   # 'default 0/off' REFUTED same day against pgbouncer.org primary: current releases default 200 (ON) — second-opinion catch
+
+  - id: pgbouncer-prepared-statements-v2
+    pack: core/25-data-postgres.md
+    claim: "PgBouncer tracks protocol-level named prepared statements in transaction+statement pooling via max_prepared_statements, DEFAULT 200 (ON) in current releases (feature since 1.21); SQL-level PREPARE untracked; client-side fallback for non-tracking poolers = statement_cache_size=0 AND prepared_statement_cache_size=0"
+    kind: practice
+    verify: "https://www.pgbouncer.org/config.html; https://docs.sqlalchemy.org/en/20/dialects/postgresql.html (asyncpg Prepared Statement Cache)"
+    window_days: 180
+    last_verified: 2026-09-01
 
   - id: musl-allocator-perf
     pack: core/10-python.md
