@@ -124,6 +124,17 @@ during the pass). Scope: core/ then ALL folders, to completion.
   endoflife.date, mails infra per new upstream release (watermarked, silent on blips). First
   scheduled firing: node 26 LTS on 2026-10-28 (packs pin 24). This is the "what happens in one
   year" answer — the drift now pages instead of waiting for a re-read.
+- **File-1 SECOND OPINION adjudicated** (mandatory subagent bar, backfilled 2026-09-01): 14
+  verdicts → 9 ACCEPTED+applied (fail-open secret exemplar; temp-rule rationale rewritten
+  honest incl. ephemeral/persistent split; global-handler-default + `from exc`; /healthz–/health
+  split defined pack-side; single-process-uvicorn made an explicit rule; async-discipline block
+  [task refs · shared AsyncClient · now(UTC)]; ruff `ASYNC`/`B`/`S` baseline; pinning policy;
+  router-tutorial shrunk + testing section pointed at 45) · 2 REGISTERED as aging claims
+  (glitchtip-5xx-capture → 55's turn; musl-allocator) · 2 CLASS-DEFERRED (30-ops HEALTHCHECK
+  target + the duplicated CMD block — 30-ops's turn) · 1 REFUTED (in-file prose↔table dedup:
+  the banned table is an INDEX of the prose, one truth + one index, not two truths).
+- **Scaffold alignment owed** (rule leads, scaffold follows): emit /healthz in python-api
+  template; emit ruff ASYNC/B/S selection in scaffolded pyproject. Trigger: next scaffolder window.
 - **DEEPENED same day (operator: "very shallow") → CLAIMS REGISTER (D-061):** `.windsurf/rules/
   CLAIMS.yaml` — every external assertion as a dated, verify-hinted row; the watcher mails infra
   when a claim outlives its window; the pass grows the register file-by-file (10-python's 7 claims

@@ -95,3 +95,19 @@ claims:
     verify: "https://endoflife.date/api/nodejs.json"
     window_days: 90
     last_verified: 2026-09-01
+
+  - id: glitchtip-5xx-capture
+    pack: core/55-observability.md
+    claim: "sentry-sdk auto-captures deliberately raised HTTPException(5xx) (failed_request_status_codes default) — the basis of 10-python's no-logger.exception rule"
+    kind: rationale
+    verify: "https://docs.sentry.io/platforms/python/integrations/fastapi/ (failed_request_status_codes)"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: musl-allocator-perf
+    pack: core/10-python.md
+    claim: "musl's allocator/thread-stack defaults still degrade CPython vs glibc (half of the Alpine ban's residual rationale; the reviewer flags it as aging)"
+    kind: rationale
+    verify: "search: musl mallocng CPython performance <year>"
+    window_days: 180
+    last_verified: 2026-09-01
