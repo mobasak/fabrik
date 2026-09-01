@@ -29,10 +29,12 @@ description: Code review workflow, quality gate commands, and reusability discip
 ### Lean Gate (Tier 1)
 
 ```bash
-python scripts/final_gate.py --lean
+python scripts/final_gate.py --lean --json
 ```
 
 Syntax (ruff), json/yaml validation, secrets, env vars, schema sync. Fast, no context poisoning.
+**Tier 1 is for iteration only — never the completion gate**: that is the full `--json` run below.
+Add `--check` for a read-only run (no fixes, no auto-stage).
 
 **Note:** `final_gate.py` runs in the fabrik project context with its own `.venv`. In child projects, use `uv run python scripts/final_gate.py --lean` if the gate script is synced.
 
@@ -48,7 +50,7 @@ you MUST ensure `CHANGELOG.md` has a real entry under `## [Unreleased]`:
 ### Added/Changed/Fixed — <Title> (YYYY-MM-DD)
 ```
 
-See `40-documentation.md` for the full Documentation Sync Matrix — changelog is one of 14 trigger-based doc updates.
+See `40-documentation.md` for the full Documentation Sync Matrix — changelog is one of its trigger-based doc updates (the registry `_doc_registry.py::PROJECT_DOCS` is the SSOT; never carry a copy of the row count).
 
 ---
 
@@ -57,37 +59,28 @@ See `40-documentation.md` for the full Documentation Sync Matrix — changelog i
 When closing a milestone or a batch of related tickets, run the full gate once and fix all findings before handoff:
 
 ```bash
-python scripts/final_gate.py
+python scripts/final_gate.py --json
 ```
 
-Full quality: static analysis (ruff, mypy, bandit, semgrep) + consistency checks (changelog, index, readme, test proposal). Diff-aware — skips checks for unchanged files.
+Full quality: static analysis (ruff, mypy, bandit, semgrep) + consistency checks (changelog, index, readme, test proposal). Diff-aware — skips checks for unchanged files. ⚠️ A tool missing from the interpreter running the gate is **SKIPPED, not passed** — the run says which; read the skip lines before treating green as verified.
 
 ---
 
-## D) Optional Tools (Manual / On-Demand Only)
+## D) The review family — which command, sized to the surface
 
-These tools are available when explicitly requested by the owner or when you judge a manual extra review is warranted.
+The gates above are mechanical. The **review commands** are the adversarial pass, and every
+code-changing chunk of work gets one:
 
-### Kilo Review (Optional)
+- **`/fabrik-review-scoped`** — diff-scoped, minutes. The default for spontaneous / plain-chat
+  changes. (The Stop hook BLOCKS a code-editing session that never opened a review record.)
+- **`/fabrik-review`** — the full command. Escalate to it for: a new mechanism, any
+  gate/hook/enforcement path, auth/schema/migrations/concurrency, >5 files, anything the owner
+  asked for by name, or a scoped review still finding after 3 rounds.
 
-```bash
-git diff --staged --name-only       # Verify staged matches intent
-python scripts/kilo_code_review.py staged --plan "task description" --output json
-```
-
-Use for rare high-risk or cross-cutting changes. Never rely on it as the default completion gate.
-
-**Note:** Stage specific files by name, not `git add -A`. Staging all files risks including unrelated changes, `.env` files, or large binaries.
-
-Fix all findings (BLOCKER, MAJOR, MINOR) yourself — there is no separate FIXER role in any of the three coding agents.
-
-### Documentator (Optional)
-
-```bash
-python scripts/kilo_docs_enforcer.py --auto-generate --verbose
-```
-
-Use for bulk documentation work (CHANGELOG/README/doc refresh), not for every code change.
+Both arm their finders from `scripts/review_rubric.py --changed <paths>` (synced to every project),
+converge to a round that raises **zero new** candidates, and are **fix-in-run**: findings are fixed
+or refuted with the disproving line — never filed as someone else's problem. Stage specific files
+by name, never `git add -A`.
 
 ### Systemic Gate (Tier 3 — On-Demand Only)
 
@@ -103,12 +96,10 @@ Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints
 
 - Internal audit + lean gate is **MANDATORY** before reporting completion.
 - **Changelog is MANDATORY for any code/config/infrastructure change. Full gate runs at milestone/batch closure, not for every task.**
-- The coding agent fixes issues. Kilo review (when invoked) is report-only by default.
-- The user commits and pushes — coding agents only implement and fix; gate auto-stages.
-- Max 5 review iterations before escalating.
+- The coding agent FIXES what the review finds, in the same run. A finding handed onward is not a review.
+- **The agent COMMITS AND PUSHES its own work at task end** — explicit pathspecs + provenance trailers, never `git add -A`. An uncommitted task is an unfinished task; an unpushed one is off-box-unprotected. (Hub + project contracts, § EXIT — Stop-hook-enforced.)
+- **Review iterates to a FIXED POINT, not to a counter** — done is a pass that raises zero new candidates. Only the three sanctioned BLOCKED cases halt early: 3 consecutive same-test failures · missing infra · an unresolvable spec contradiction. Rounds that keep finding mean the surface outgrew the scoped command — escalate to `/fabrik-review`, don't stop.
 - Non-trivial = any of: new file, >50 lines changed, new dependency, DB change, or any code/config/infrastructure/Docker/compose change.
-
-After 5 iterations: STOP, report blockers to user, do not attempt further fixes.
 
 ---
 
@@ -157,7 +148,7 @@ These constraints prevent "agent drift" and bikeshedding:
 
 ## Related Rule Packs
 
-- `40-documentation.md` — Documentation Sync Matrix (14 triggers), CHANGELOG, INDEX.md, LESSONS_LEARNT
+- `40-documentation.md` — Documentation Sync Matrix, CHANGELOG, INDEX.md, LESSONS_LEARNT, DECISIONS
 - `45-testing-strategy.md` — Behavior Contract, framework per scaffold, test fixtures
 - `30-ops.md` — Dockerfile + compose checklist (aggregated in the internal audit above)
 - `25-data-postgres.md` — Alembic migration discipline (no raw DDL)
