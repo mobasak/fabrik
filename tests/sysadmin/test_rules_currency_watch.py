@@ -40,3 +40,29 @@ def test_drift_detection_both_directions():
     assert drifts({"python": "3.14"}, {"python": "3.14", "node": "26"}) == {}
     # a two-digit minor must compare numerically, not lexically
     assert drifts({"python": "3.9"}, {"python": "3.14"}) == {"python": ("3.9", "3.14")}
+
+
+def test_stale_claims_window_and_supersede_semantics():
+    from scripts.sysadmin.rules_currency_watch import stale_claims
+
+    today = date(2027, 3, 1)
+    rows = [
+        {"id": "fresh", "last_verified": "2027-01-01", "window_days": 90},
+        {"id": "stale", "last_verified": "2026-09-01", "window_days": 90},
+        {"id": "superseded", "last_verified": "2026-01-01", "window_days": 90, "superseded": "2026-06-01"},
+        {"id": "broken-row"},  # unparseable = stale by definition, must surface
+        {"id": "default-window", "last_verified": "2026-08-01"},  # 180d default -> stale at 212d
+    ]
+    ids = [c["id"] for c in stale_claims(rows, today)]
+    assert ids == ["stale", "broken-row", "default-window"]
+
+
+def test_register_parses_and_all_claims_fresh_at_seed():
+    # The live register must load, and at seed time nothing is stale — the
+    # first claims mail is owed at the first window expiry, not at landing.
+    from scripts.sysadmin.rules_currency_watch import _load_claims, stale_claims
+
+    claims = _load_claims()
+    assert len(claims) >= 9
+    assert all(c.get("verify") and c.get("pack") for c in claims)
+    assert stale_claims(claims, date(2026, 9, 2)) == []

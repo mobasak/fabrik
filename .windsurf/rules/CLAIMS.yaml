@@ -1,0 +1,97 @@
+# Rules-corpus CLAIMS REGISTER — every external-world assertion the packs rely on,
+# as a dated, re-verifiable row. (Rules pass 2026-09-01: the drift that matters is
+# CLAIMS, not version strings — the Alpine rationale went silently false while its
+# rule stayed right; no regex sees that.)
+#
+# CONTRACT
+# - Grown file-by-file by the rules currency pass: evaluating a pack extracts its
+#   external claims here, dated, with the source that grounded them.
+# - `rules_currency_watch.py --claims` (weekly cron rider) mails infra every claim
+#   whose last_verified is older than its window — the mail carries the verify
+#   hints, so the receiving session re-researches EXACTLY the stale claims and
+#   bumps the dates (or fixes the pack when the world moved).
+# - Version LITERALS (python:X.Y, node:N) are additionally auto-watched against
+#   endoflife.date by the same script — kind: version rows marked `auto: true`
+#   page within a week of an upstream release, not at window expiry.
+# - A claim REFUTED by re-verification = fix the pack in the same change and
+#   supersede the row (new row, old one gets `superseded: <date>`), mirroring the
+#   decision-ledger discipline.
+#
+# window_days guidance: 90 fast-moving (versions, tool landscape) · 180 practices
+# and rationales · 365 stable standards/deprecations.
+
+claims:
+  - id: py-current-stable
+    pack: core/10-python.md
+    claim: "Python current stable is 3.14 (packs pin python:3.14)"
+    kind: version
+    auto: true            # endoflife.date watcher pages on release, not window
+    verify: "https://endoflife.date/api/python.json"
+    window_days: 90
+    last_verified: 2026-09-01
+
+  - id: uv-standard
+    pack: core/10-python.md
+    claim: "uv is the mandated package manager AND the industry-standard choice (1.0 shipped, broad production adoption; pip/poetry relegated)"
+    kind: practice
+    verify: "search: python package manager standard <year>; https://docs.astral.sh/uv/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: fastapi-lifespan
+    pack: core/10-python.md
+    claim: "@app.on_event is deprecated; lifespan context manager is the current FastAPI idiom"
+    kind: deprecation
+    verify: "https://fastapi.tiangolo.com/advanced/events/"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: pydantic-settings-v2
+    pack: core/10-python.md
+    claim: "pydantic-settings BaseSettings + SettingsConfigDict is the current idiom; no pydantic v3 breaking change shipped"
+    kind: version
+    verify: "https://docs.pydantic.dev/latest/concepts/pydantic_settings/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: alpine-rationale
+    pack: core/10-python.md
+    claim: "Alpine ban rationale: musllinux wheels exist (PEP 656) but coverage partial, source builds ~50x slower, musl allocator/stack degrades CPython — the ban still pays"
+    kind: rationale
+    verify: "search: python alpine musllinux wheels coverage <year>; https://pythonspeed.com/articles/alpine-docker-python/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: sqlalchemy2-text
+    pack: core/10-python.md
+    claim: "SQLAlchemy 2.0 requires text() for raw SQL strings in execute()"
+    kind: deprecation
+    verify: "https://docs.sqlalchemy.org/en/20/changelog/migration_20.html"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: rfc9457-problem-details
+    pack: core/10-python.md
+    claim: "RFC 9457 ProblemDetails is the current HTTP error-payload standard (obsoletes 7807)"
+    kind: standard
+    verify: "https://www.rfc-editor.org/rfc/rfc9457"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: debian-slim-variant
+    pack: core/30-ops.md
+    claim: "Fleet pins -slim-bookworm; Docker's bare -slim now defaults to trixie (Debian 13 stable) — flip is a 5-pack class commit owned by 30-ops"
+    kind: version
+    auto: true
+    verify: "https://hub.docker.com/_/python/tags?name=slim"
+    window_days: 90
+    last_verified: 2026-09-01
+
+  - id: node-lts-line
+    pack: core/20-typescript.md
+    claim: "Packs pin node:24 (Active LTS); node 26 becomes LTS 2026-10-28 — the auto-watcher pages then"
+    kind: version
+    auto: true
+    verify: "https://endoflife.date/api/nodejs.json"
+    window_days: 90
+    last_verified: 2026-09-01

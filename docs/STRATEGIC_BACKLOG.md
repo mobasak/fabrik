@@ -118,6 +118,10 @@ scaffold half is fleet's).
   endoflife.date, mails infra per new upstream release (watermarked, silent on blips). First
   scheduled firing: node 26 LTS on 2026-10-28 (packs pin 24). This is the "what happens in one
   year" answer — the drift now pages instead of waiting for a re-read.
+- **DEEPENED same day (operator: "very shallow") → CLAIMS REGISTER (D-061):** `.windsurf/rules/
+  CLAIMS.yaml` — every external assertion as a dated, verify-hinted row; the watcher mails infra
+  when a claim outlives its window; the pass grows the register file-by-file (10-python's 7 claims
+  + 2 class rows seeded). Version regex = layer 1; claim windows = layer 2.
 
 ## Activation
 

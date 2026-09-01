@@ -19,6 +19,16 @@ Watermarked per-version: one mail per NEW upstream release, never a weekly nag
 (a tripwire that cries weekly is wallpaper). Network failure = silent exit 0 —
 the cron log stays clean and next week retries; the gate is never involved
 (offline-fast stays intact).
+
+SECOND LAYER — the CLAIMS REGISTER (operator pushback 2026-09-01: "this very
+shallow solution" — correct: the drift that matters is CLAIMS, not version
+strings; the Alpine rationale went silently false and no regex sees that).
+``.windsurf/rules/CLAIMS.yaml`` holds every external-world assertion the packs
+rely on as a dated row with a verify hint. This watcher mails infra every claim
+whose ``last_verified`` is older than its ``window_days`` — the receiving
+session re-researches exactly the stale claims (the hints say how) and bumps
+the dates, or fixes the pack when the world moved. The register is grown
+file-by-file by the rules currency pass itself.
 """
 
 from __future__ import annotations
@@ -32,6 +42,7 @@ from datetime import date
 from pathlib import Path
 
 RULES_DIR = Path("/opt/fabrik/.windsurf/rules/core")
+CLAIMS_FILE = Path("/opt/fabrik/.windsurf/rules/CLAIMS.yaml")
 WATERMARK = Path.home() / ".claude" / "state" / "rules-currency.watermark"
 MAIL = Path("/opt/fabrik/scripts/mail.py")
 
@@ -92,6 +103,31 @@ def drifts(pinned: dict[str, str], live: dict[str, str]) -> dict[str, tuple[str,
     return out
 
 
+def stale_claims(claims: list[dict], today: date) -> list[dict]:
+    """Rows past their re-verify window. auto rows still expire — the API watch
+    catches releases, the window catches everything the API can't say (a claim
+    can rot with no new upstream version at all)."""
+    out = []
+    for c in claims:
+        if c.get("superseded"):
+            continue
+        try:
+            last = c["last_verified"]
+            last = last if isinstance(last, date) else date.fromisoformat(str(last))
+            if (today - last).days > int(c.get("window_days", 180)):
+                out.append(c)
+        except Exception:
+            out.append(c)  # unparseable row = stale by definition, surface it
+    return out
+
+
+def _load_claims() -> list[dict]:
+    import yaml
+
+    data = yaml.safe_load(CLAIMS_FILE.read_text(encoding="utf-8")) or {}
+    return list(data.get("claims") or [])
+
+
 def _fetch(product: str) -> list[dict]:
     with urllib.request.urlopen(f"https://endoflife.date/api/{product}.json", timeout=15) as r:
         return json.load(r)
@@ -145,5 +181,53 @@ def main() -> int:
     return 0
 
 
+def _claims_pass() -> int:
+    try:
+        rows = stale_claims(_load_claims(), date.today())
+    except Exception:
+        return 0  # missing/corrupt register — the pass that grows it will notice
+    if not rows:
+        return 0
+    seen: dict[str, str] = {}
+    try:
+        seen = json.loads(WATERMARK.read_text())
+    except Exception:
+        pass
+    fresh = [c for c in rows if seen.get(f"claim:{c.get('id')}") != str(c.get("last_verified"))]
+    if not fresh:
+        return 0
+    lines = [
+        "Subject: STALE RULES CLAIMS — external-world assertions past their re-verify window",
+        "",
+        "The claims register (.windsurf/rules/CLAIMS.yaml) holds every external assertion the",
+        "rules packs rely on. These rows are past window_days since last_verified. HANDLE-NOW:",
+        "re-research EXACTLY these claims via their verify hints, bump last_verified when they",
+        "hold, fix the pack + supersede the row when the world moved.",
+        "",
+    ]
+    for c in fresh:
+        lines.append(
+            f"- [{c.get('id')}] {c.get('pack')}: {c.get('claim')}\n"
+            f"  verify: {c.get('verify')} · last_verified: {c.get('last_verified')} "
+            f"(window {c.get('window_days', 180)}d)"
+        )
+    proc = subprocess.run(
+        [sys.executable, str(MAIL), "send", "--to", "fabrik", "--to-agent", "infra", "--kind", "finding"],
+        input="\n".join(lines) + "\n",
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        return 1
+    for c in fresh:
+        seen[f"claim:{c.get('id')}"] = str(c.get("last_verified"))
+    WATERMARK.parent.mkdir(parents=True, exist_ok=True)
+    WATERMARK.write_text(json.dumps(seen))
+    print(f"rules_currency_watch: {len(fresh)} stale claim(s) mailed -> fabrik/infra")
+    return 0
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    rc = main()
+    rc2 = _claims_pass()
+    raise SystemExit(rc or rc2)
