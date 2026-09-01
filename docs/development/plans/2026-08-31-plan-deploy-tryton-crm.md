@@ -1,6 +1,6 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + crm-gotenberg)
 
-Status: DEPLOYED-PENDING-REVIEW  (RUN 5, 2026-09-01 — the deploy is operationally COMPLETE and evidenced in § Deploy Ledger: 6/6 registrars, battery green, window closed. The EXECUTED token is deliberately NOT claimed: check_convergence.py requires a whole-plan review artifact adjudicated to a quiet round, and that artifact does not exist. Claiming EXECUTED without it is exactly the unproven-convergence class the gate exists to stop.)
+Status: DEPLOYED-VERIFIED  (RUN 6, 2026-09-01 — DEPLOY CONFIRMED LIVE by /fabrik-deploy-verify, all 7 phases PASS; whole-plan review CONVERGED at docs/development/reviews/2026-09-01-tryton-crm-deploy-verify-review.md. The EXECUTED token is withheld for a MACHINERY reason, not a deploy one: check_convergence requires EVERY docs/development/reviews/*.md string appearing anywhere in this plan to carry a quiet round, and this plan also references the historical 2026-08-10 readiness review in prose. Fabricating a quiet round in that older artifact to satisfy the parser is exactly what the gate exists to prevent. Filed to infra.)
 Service: tryton-crm · Surface: **vps** · Target: **vps1** · Date: 2026-08-31
 Authored by: /fabrik-deploy-plan · Plan stem: `2026-08-31-plan-deploy-tryton-crm`
 Supersedes: `docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md` (Status: DRAFT, never
