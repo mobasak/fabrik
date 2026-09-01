@@ -88,8 +88,8 @@ claims:
     last_verified: 2026-09-01
 
   - id: node-lts-line
-    pack: core/20-typescript.md
-    claim: "Packs pin node:24 (Active LTS); node 26 becomes LTS 2026-10-28 — the auto-watcher pages then"
+    pack: core/12-node.md, core/20-typescript.md
+    claim: "Packs pin node:24 via the node_lts span (sole Active LTS; 22 is Maintenance, EOL Apr 2027); node 26 becomes LTS 2026-10-28 — the auto-watcher pages then"
     kind: version
     auto: true
     verify: "https://endoflife.date/api/nodejs.json"
@@ -102,6 +102,78 @@ claims:
     kind: rationale
     verify: "https://docs.sentry.io/platforms/python/integrations/fastapi/ (failed_request_status_codes)"
     window_days: 180
+    last_verified: 2026-09-01
+
+  - id: ts-strip-types-stable
+    pack: core/12-node.md
+    claim: "Node type stripping is stable and enabled by default (run .ts directly; ts-node/tsx obsolete for dev; opt-out flag exists)"
+    kind: deprecation
+    verify: "https://nodejs.org/api/typescript.html"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: express5-npm-latest
+    pack: core/12-node.md
+    claim: "Express current major (5.x line) is npm `latest` since 2025; legacy major maintenance-only — bare `npm i express` installs the current major"
+    kind: version
+    verify: "https://www.npmjs.com/package/express"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: fastify-current-major
+    pack: core/12-node.md
+    claim: "Fastify 5.x is the current major (prior major EOL mid-2025); greenfield default stands"
+    kind: version
+    verify: "https://fastify.dev/docs/latest/Reference/LTS/"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: fastify-throughput-4x
+    pack: core/12-node.md
+    claim: "Fastify sustains roughly 4x Express throughput on JSON APIs (order-of-magnitude decision aid, not a benchmark)"
+    kind: rationale
+    verify: "search: fastify express benchmark <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: npm-install-scripts-vector
+    pack: core/12-node.md
+    claim: "Install scripts are the dominant npm supply-chain vector (Shai-Hulud worm class; Mastra easy-day-js typosquat 2026-06: 140+ versions backdoored via postinstall); npm's current major blocks dependency install scripts by default; `npm ci --ignore-scripts` stays explicit"
+    kind: practice
+    verify: "https://github.com/lirantal/npm-security-best-practices; https://www.stepsecurity.io/blog/mastra-npm-packages-compromised-using-easy-day-js"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: node-cve-trio-2026
+    pack: core/12-node.md
+    claim: "CVE-2026-21713 (HMAC non-constant-time compare), CVE-2026-21710 (crafted __proto__ header crash), CVE-2026-21637 (TLS SNI-callback DoS) — all fixed in Node's 2026-03-24 security release; basis of the patch-floor, timingSafeEqual, header-allowlist and TLS-at-Traefik rules"
+    kind: rationale
+    verify: "https://nodejs.org/en/blog/vulnerability/march-2026-security-releases"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: als-contextframe-negligible
+    pack: core/12-node.md
+    claim: "AsyncContextFrame is the default AsyncLocalStorage implementation in current LTS and makes ALS overhead negligible (~2% vs manual passing; large gains vs async_hooks)"
+    kind: rationale
+    verify: "https://blog.platformatic.dev/the-hidden-cost-of-context"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: esm-tsc-default
+    pack: core/12-node.md
+    claim: "Node TSC consensus: ESM is the definitive default; ESM-only package set keeps growing (chalk, execa, …)"
+    kind: practice
+    verify: "search: node esm default cjs <year>"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: docker-stop-grace-default
+    pack: core/12-node.md
+    claim: "Docker's default stop grace period is 10s; the 20s drain backstop works only under the scaffold's stop_grace_period: 45s (scaffold.py emits it)"
+    kind: rationale
+    verify: "https://docs.docker.com/reference/cli/docker/container/stop/"
+    window_days: 365
     last_verified: 2026-09-01
 
   - id: musl-allocator-perf

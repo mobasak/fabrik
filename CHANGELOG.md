@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rules currency pass file 2: core/12-node.md to the D-062 bar (2026-09-01)
+
+Live-research findings fixed: Node 22 mislabeled Active LTS (Maintenance since Oct 2025);
+obsolete `--experimental-strip-types` prescription (type stripping is stable + default);
+"Express 5 post-2026 maybe" (npm `latest` since 2025); CVE trio re-grounded to the 2026-03-24
+advisory. All version literals triaged out (spans: `node_lts`, new `node_engines_floor`,
+`debian_codename`); Fable-5 second opinion (D-063) adjudicated — 9 additional fixes applied
+incl. the restored Mastra `easy-day-js` citation, the `stop_grace_period` grounding, the deleted
+ungrounded `__proto__`-Traefik claim + a patched-runtime floor rule, and the real `stripe`
+package name. 9 new CLAIMS.yaml rows; pinned tests parametrized over CLEANED_PACKS.
+
 ### Fixed — two enforcement false-positives: review-citation matching + doc-sync ticket breadth (2026-09-01)
 
 `check_convergence.py` blocked a legitimate EXECUTED flip when the plan's own validation review

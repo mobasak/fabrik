@@ -1,18 +1,18 @@
 ---
 activation: glob
 globs: ["**/*.js", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/package.json", "**/package-lock.json"]
-description: Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
+description: Node.js production backend patterns (current LTS) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
 trigger: glob
 ---
-<!-- CONSUMER: Coding agents (Claude Code, Windsurf Cascade, Kilo CLI)
-     GOAL: Node.js 22 backend service patterns for Fabrik VPS deployment — framework, runtime, observability, lifecycle, security, supply chain
+<!-- CONSUMER: Coding agents (Claude Code + dispatched subagents)
+     GOAL: Node.js backend service patterns for Fabrik VPS deployment — framework, runtime, observability, lifecycle, security, supply chain
      TRAYCER USAGE: Injects as Context File for tickets on node-api / file-api scaffolds or any .js/.ts backend.
      AGENT USAGE: Follow verbatim. Research basis: docs/reference/research/Node Backend Practices Research 2026.md (cited). -->
 
-# Node.js Backend Rules (2026)
+# Node.js Backend Rules
 
 **Activation:** Glob `**/*.{js,mjs,cjs,ts}`, `**/package.json`, `**/package-lock.json`
-**Purpose:** Node 22+/24 LTS production backend services on Fabrik's shared VPS fleet — framework, runtime, lifecycle, observability, security, supply chain
+**Purpose:** current-LTS Node production backend services on Fabrik's shared VPS fleet — framework, runtime, lifecycle, observability, security, supply chain
 **Scope:** `node-api` + `file-api` scaffolds; any project that adopts Node. Research basis: [`docs/reference/research/Node Backend Practices Research 2026.md`](../../../docs/reference/research/Node%20Backend%20Practices%20Research%202026.md)
 
 ---
@@ -21,28 +21,28 @@ trigger: glob
 
 | Framework | Pick when | Throughput | Schema validation |
 | --- | --- | --- | --- |
-| **Fastify 5** | **Default for greenfield services.** | ~45k req/sec | Built-in JSON Schema (ajv) |
-| **Express 4** | Legacy maintenance / extending existing scaffold | ~10k req/sec | None (manual) |
+| **Fastify** | **Default for greenfield services.** | ~4× Express | Built-in JSON Schema (ajv) |
+| **Express** | Legacy maintenance / extending existing scaffold | baseline | None (manual) |
 | Hono / Elysia | **Banned for Fabrik VPS containers** — optimized for edge runtimes (Vercel/Cloudflare/Bun); thin plugin ecosystem for VPS Node | — | — |
 
-- New services: Fastify 5 — its plugin encapsulation isolates blast radius and the schema-first pattern eliminates a class of validation bugs.
-- Existing Express 4 scaffolds: stay on Express 4. Migration is owner-approved only.
-- Express 5: not yet auto-adoptable; evaluate per project once it stabilises post-2026.
+- New services: Fastify — its plugin encapsulation isolates blast radius and the schema-first pattern eliminates a class of validation bugs.
+- Existing Express scaffolds: stay on the major they run. Migration is owner-approved only.
+- New Express code (extending an existing Express family): target npm `latest` — the current major has been the default install since 2025; the legacy major is maintenance-only. Legacy scaffolds must pin their major explicitly in `package.json` — a bare `npm i express` now installs the current major with its breaking changes.
 
 ## ESM is the default (not CommonJS)
 
-- **Every greenfield package.json must declare `"type": "module"`.** CommonJS breaks tree-shaking, blocks top-level await, and is incompatible with key 2026 packages (e.g., `chalk` v5+, modern ESM-only libraries). Node TSC consensus: ESM is the definitive default.
+- **Every greenfield package.json must declare `"type": "module"`.** CommonJS breaks tree-shaking, blocks top-level await, and is incompatible with the growing set of ESM-only packages (`chalk`, `execa`, …). Node TSC consensus: ESM is the definitive default.
 - Use explicit `.js` extensions on all local imports: `import { util } from './util.js'` (NOT `'./util'`).
 - Never mix `require()` and `import` in the same package — dual-package hazard.
 - Existing CJS projects: stay CJS until a planned migration. Don't half-switch.
 
 ## Runtime + Docker
 
-- **Node 22 LTS minimum; Node 24 LTS preferred for new services.** Both are active LTS (22 → Apr 2027; 24 → Apr 2028). New services should use the current LTS (24); the 22 floor exists so existing services don't have to upgrade. `node-api` + `file-api` scaffolds currently declare `engines.node: ">=22.0.0"`. `30-ops.md` carries the canonical `node:<current-LTS>-bookworm-slim` placeholder; other packs (`20-typescript.md`, `42-docusaurus.md`) use `node:24-bookworm-slim` in Dockerfile examples to reflect current LTS.
-- Base image: `node:24-bookworm-slim` (or `node:22-bookworm-slim` if pinned to 22). **Alpine is banned fleet-wide** (musl-libc breaks native C++ bindings unpredictably).
+- **New services target the current Active LTS line** (`node:<!--v:node_lts-->24<!--/v-->`). The previous LTS line is maintenance-only — existing services may ride it to its EOL, new services never target it. `node-api` + `file-api` scaffolds declare the floor `engines.node: ">=<!--v:node_engines_floor-->22<!--/v-->.0.0"`.
+- Base image: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->bookworm<!--/v-->-slim` (services pinned to the previous LTS keep their existing pin until EOL). **Alpine is banned fleet-wide** (musl-libc breaks native C++ bindings unpredictably).
 - Dockerfile build step: `RUN npm ci --ignore-scripts` (NOT `npm install`).
   - `npm ci`: deterministic from lockfile.
-  - `--ignore-scripts`: blocks malicious `postinstall` payloads. The 2026 Mastra `easy-day-js` typosquat attack backdoored 140+ packages via postinstall — this flag is now non-negotiable.
+  - `--ignore-scripts`: blocks install-script payloads — the dominant npm supply-chain vector (the Shai-Hulud worm class; the Mastra `easy-day-js` typosquat backdoored 140+ package versions via postinstall in under 90 minutes). npm's current major now blocks dependency install scripts by default; the explicit flag keeps builds safe on every npm version and in CI images that lag.
 - If a dep genuinely needs its postinstall, run it explicitly + audited in a separate `RUN npm rebuild <pkg>` step.
 
 ## Configuration
@@ -61,7 +61,7 @@ trigger: glob
 
 ## Observability — pino + AsyncLocalStorage + GlitchTip + Prometheus
 
-### Structured logging (pino v9+)
+### Structured logging (pino)
 
 > **12-Factor XI (Logs), verbatim:** *"each running process writes its event stream, unbuffered, to `stdout`"* — and *"A twelve-factor app never concerns itself with routing or storage of its output stream. It should not attempt to write to or manage logfiles."*
 >
@@ -89,7 +89,7 @@ trigger: glob
 
 ### Correlation IDs via AsyncLocalStorage
 
-- Use Node 22's built-in `AsyncLocalStorage` for ambient correlation context (~7% overhead per Node 24 AsyncContextFrame benchmarks). Banned: prop-drilling child loggers through business code.
+- Use Node's built-in `AsyncLocalStorage` for ambient correlation context — the `AsyncContextFrame` implementation (default in current LTS) makes the overhead negligible. Banned: prop-drilling child loggers through business code.
 
   ```js
   import { AsyncLocalStorage } from 'node:async_hooks';
@@ -148,11 +148,11 @@ app.get('/health', async (req, res) => {
 
 process.on('SIGTERM', async () => {
   isShuttingDown = true;
-  // Hard exit if drain hangs (20s — matches Docker's default stop grace period)
+  // Hard exit if drain hangs (20s — must stay BELOW compose stop_grace_period, see note)
   setTimeout(() => process.exit(1), 20_000).unref();
 
   // 1. Stop accepting new connections + close idle keep-alives
-  if (server.closeIdleConnections) server.closeIdleConnections();   // Node 18+
+  if (server.closeIdleConnections) server.closeIdleConnections();
   // 2. server.close() callback fires once active requests finish
   server.close(async () => {
     // 3. ONLY after HTTP is closed: tear down DB + Redis
@@ -165,12 +165,15 @@ process.on('SIGTERM', async () => {
 ```
 
 - **The /health 503 flip BEFORE drain is non-negotiable.** Traefik must drop the node from rotation before `server.close()` starts refusing connections.
-- `server.closeIdleConnections()` (Node 18+) + `server.closeAllConnections()` (Node 18+) replace the legacy `server.close()` callback that hangs indefinitely on upstream keep-alives.
+- **The 20s backstop only works because scaffold composes set `stop_grace_period: 45s`** — Docker's bare default grace is 10s, under which SIGKILL would win before the backstop fires. Manual composes MUST set `stop_grace_period` longer than the backstop.
+- `server.closeIdleConnections()` + `server.closeAllConnections()` replace the legacy `server.close()`-callback-only drain that hangs indefinitely on upstream keep-alives.
 - Teardown order: HTTP first, then DB/Redis. Reversing this loses in-flight queries.
 
 ## Security
 
-### Helmet 7+
+**Run the current patch release of your LTS line.** The CVEs cited below were fixed in Node security releases — an unpatched runtime, not code style, is the primary exposure. The code rules below additionally remove the same bug classes from our own code.
+
+### Helmet
 
 - Apply globally; for pure JSON APIs (no HTML render path), disable CSP to skip needless processing:
 
@@ -180,18 +183,19 @@ process.on('SIGTERM', async () => {
   ```
 
 - HTML-serving services (admin UIs, error pages): leave CSP enabled, configure `directives:` explicitly.
+- Fastify services use `@fastify/helmet` (same options, plugin-encapsulated).
 
 ### Token comparison
 
-- Auth tokens, HMAC signatures, webhook secrets — **always** `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))`. Never `==` or `===`. (CVE-2026-21713 — equality-comparison timing leak enabling signature forgery.)
+- Auth tokens, HMAC signatures, webhook secrets — **always** `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))`. Never `==` or `===`. (The bug class Node itself shipped as CVE-2026-21713 — HMAC verification through a non-constant-time compare, a timing side channel leaking MAC values; the runtime fix is the patch floor above, this rule keeps the class out of OUR code.)
 
 ### Prototype pollution / CVE-2026-21710
 
-- `req.headersDistinct['__proto__']` crashes Node via prototype pollution. Mitigation lives at the proxy: Traefik strips `__proto__` headers before they reach Node. **Coding agents:** never read raw header maps without explicit allowlist.
+- A crafted `__proto__` header name crashes an unpatched Node via `req.headersDistinct` (CVE-2026-21710 — uncaught TypeError, process-down DoS). Mitigation is the patched-runtime floor above. **Coding agents:** never read raw header maps without an explicit allowlist.
 
 ### TLS termination
 
-- Always terminate TLS at Traefik, never in Node. CVE-2026-21637 (TLS `pskCallback` / `ALPNCallback` DoS) is avoided entirely by Traefik handling SNI.
+- Always terminate TLS at Traefik, never in Node. CVE-2026-21637 (unhandled exception in the TLS SNI-callback path → remote DoS) is avoided entirely by Traefik handling TLS.
 
 ### `helmet` is not enough
 
@@ -222,21 +226,21 @@ For I/O parallelism the event loop is enough. For background jobs see `75-worker
 
 ## TypeScript
 
-- **Local development:** `node --experimental-strip-types index.ts`. Node 22.18+ strips type annotations natively; ts-node and tsx are obsolete for dev.
+- **Local development: run `.ts` files directly — `node index.ts`.** Type stripping is stable and enabled by default in current Node; ts-node and tsx are obsolete for dev (opt-out flag `--no-experimental-strip-types` exists, never use it).
 - **Production Docker build:** `esbuild` or `swc` for transpile (millisecond-fast). `tsc --noEmit` runs in CI for type-checking only — never as a build step.
-- **Banned TS features (incompatible with native strip-types):** `enum`, `namespace`, parameter properties on constructors, JSX without explicit jsx pragma. These require runtime JS generation; native strip-types refuses them.
+- **Banned TS features (incompatible with native type stripping):** `enum`, `namespace`, parameter properties on constructors, JSX without explicit jsx pragma. These require runtime JS generation; erasable-syntax-only stripping refuses them.
 
 ## Testing
 
-- **`vitest`** for all new test suites. ESM-native, ~20x faster feedback than Jest on modern codebases.
-- **`node:test`** (built-in since Node 20) for zero-dependency standalone scripts or health-check probes.
+- **`vitest`** for all new test suites. ESM-native, materially faster feedback than Jest on modern codebases.
+- **`node:test`** (built-in) for zero-dependency standalone scripts or health-check probes.
 - Jest is acceptable only in legacy code paths.
 - Integration tests hit a real Postgres per `45-testing-strategy.md` (mock DB banned).
 
 ## Turkish constraints
 
 - LLM gateway: **OpenRouter only.** Never import vendor SDKs (`openai`, `@anthropic-ai/sdk`) directly. See `core/65-rag-search.md`.
-- Payment processing: **iyzico** for TR domestic SaaS subscriptions; **Paddle Billing v2** (international MoR) for cross-border. PayTR applies only to WooCommerce / physical D2C (see `85-payments-billing.md:16`), not to Node SaaS backends. **Stripe is unavailable to a TR-resident LLC** — never wire `@stripe/stripe-node`. Per-flow detail: `core/85-payments-billing.md`.
+- Payment processing: **iyzico** for TR domestic SaaS subscriptions; **Paddle Billing** (international MoR) for cross-border. PayTR applies only to WooCommerce / physical D2C (see `85-payments-billing.md:16`), not to Node SaaS backends. **Stripe is unavailable to a TR-resident LLC** — never wire the `stripe` npm SDK. Per-flow detail: `core/85-payments-billing.md`.
 
 ## M2M authentication — `X-Internal-Token` (Node implementation)
 
@@ -272,24 +276,24 @@ export function requireInternalToken(req, res, next) {
 
 | Pattern | Use Instead | Reason |
 | --- | --- | --- |
-| `require('mod')` in new code | `import mod from 'mod'` | CommonJS breaks 2026 ESM-only packages (chalk v5+, etc.) |
+| `require('mod')` in new code | `import mod from 'mod'` | CommonJS breaks the ESM-only package set (chalk, execa, …) |
 | `stream.pipe()` | `await pipeline(...)` from `node:stream/promises` | No error propagation, no cleanup on close |
-| `req.headersDistinct['__proto__']` | Traefik filtering + allowlisted header reads | CVE-2026-21710 prototype-pollution crash |
+| `req.headersDistinct['__proto__']` | patched runtime + allowlisted header reads | CVE-2026-21710 crafted-header process crash |
 | `process.exit(1)` on SIGTERM | `server.closeAllConnections()` + DB drain | Drops in-flight requests, corrupts DB state |
-| `ts-node` / `tsx` / `tsc` for build | `node --experimental-strip-types` (dev) / `esbuild`/`swc` (prod) | Modern AST transformers are ms-fast; tsc is type-check only |
+| `ts-node` / `tsx` / `tsc` for build | run `.ts` natively (dev) / `esbuild`/`swc` (prod) | Type stripping is stable + default; tsc is type-check only |
 | `helmet()` default on JSON APIs | `helmet({ contentSecurityPolicy: false })` | CSP overhead for non-HTML responses |
 | `==` / `===` for token / signature comparison | `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))` | Timing-leak CVE-2026-21713 |
 | Passing pino child loggers through call stack | `AsyncLocalStorage` with ambient context | Prop-drilling clutters business logic |
 | Custom TLS / SNI / `pskCallback` in Node | Traefik TLS termination | CVE-2026-21637 callback DoS |
 | `cluster` module | Multiple Docker container replicas behind Traefik | Cluster adds OS-level process count without observable scaling in containers. **This is 12-Factor VIII (Concurrency): scale OUT via the process model, not up** |
 | `pino.destination('*.log')` / `winston.transports.File` / any log file write or rotation | JSON → `stdout` only; Docker → Promtail → Loki routes | 12-Factor XI: the app must never write or manage a logfile |
-| `npm install` in CI/Dockerfile | `npm ci --ignore-scripts` | Non-deterministic + postinstall supply-chain risk (Mastra `easy-day-js` 2026) |
+| `npm install` in CI/Dockerfile | `npm ci --ignore-scripts` | Non-deterministic + install-script supply-chain risk (Shai-Hulud worm class) |
 | `node_modules/` committed | `.gitignored`; `npm ci` rebuilds | Always |
 | `console.log` in production paths | `pino` with structured fields | Breaks Loki query model + wastes GlitchTip |
-| Alpine base image | `node:24-bookworm-slim` (or `node:22` for 22-pinned) | musl-libc compatibility issues with native modules |
+| Alpine base image | the current-LTS `-slim` base per § Runtime + Docker | musl-libc compatibility issues with native modules |
 | Buffered payload > 10 MB in memory | streamed via `pipeline()` | OOM on shared 12 GB VPS |
 | `process.env.X \|\| 'default'` for secrets | Startup throw on missing | Silent prod misconfig |
-| `npm install` of vendor SDK (`@stripe/stripe-node`, `openai`, `@anthropic-ai/sdk`) | OpenRouter for LLM, PayTR/iyzico/Paddle for billing | TR entity rules; gateway abstraction rule |
+| `npm install` of vendor SDK (`stripe`, `openai`, `@anthropic-ai/sdk`) | OpenRouter for LLM, PayTR/iyzico/Paddle for billing | TR entity rules; gateway abstraction rule |
 
 ---
 
@@ -312,7 +316,7 @@ export function requireInternalToken(req, res, next) {
 ## Done When
 
 - [ ] `"type": "module"` in `package.json` (greenfield) OR documented decision to stay CJS.
-- [ ] Node 22+ pinned in `engines.node` (24+ preferred); Dockerfile uses `node:<current-LTS>-bookworm-slim` per `30-ops.md` base-image rule.
+- [ ] `engines.node` floor pinned per the scaffold; Dockerfile uses the current-LTS `-slim` base image per § Runtime + Docker and `30-ops.md`.
 - [ ] `npm ci --ignore-scripts` in Dockerfile + CI (never `npm install`).
 - [ ] `helmet({ contentSecurityPolicy: false })` for JSON-only APIs; explicit CSP for HTML responses.
 - [ ] Required env vars validated at startup; no silent defaults for secrets (composes with `35-security-auth.md` § Secrets).
@@ -327,7 +331,7 @@ export function requireInternalToken(req, res, next) {
 - [ ] M2M `X-Internal-Token` middleware uses `crypto.timingSafeEqual()` with length-check guard (canonical pattern per `35-security-auth.md`).
 - [ ] All token/signature comparisons use `crypto.timingSafeEqual()`.
 - [ ] TLS terminated at Traefik; no `pskCallback` / `ALPNCallback` / `SNICallback` in Node.
-- [ ] TypeScript dev: `node --experimental-strip-types`; no `ts-node`/`tsx` in scripts (overlaps `20-typescript.md` prod-image ban).
+- [ ] TypeScript dev: `.ts` run natively via built-in type stripping; no `ts-node`/`tsx` in scripts (overlaps `20-typescript.md` prod-image ban).
 - [ ] TypeScript prod build: `esbuild`/`swc`; `tsc --noEmit` only in CI.
 - [ ] Tests: `vitest` (or `node:test` for stand-alone scripts); integration tests hit a real Postgres per `45-testing-strategy.md`.
 - [ ] No vendor LLM SDK imports (OpenRouter only per `65-rag-search.md`); no Stripe SDK; iyzico for TR SaaS, Paddle for international (per `85-payments-billing.md`).

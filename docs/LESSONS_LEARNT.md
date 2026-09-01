@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 146: "my search didn't find it" is grounds to REGISTER a claim, never to DELETE it — a failed verification is a bounded negative
+
+During the 12-node rules pass I deleted the pack's Mastra `easy-day-js` supply-chain incident as
+"unverified" because my one web search surfaced only other 2026 npm worms. The mandatory second
+opinion's independent search verified the incident in minutes (StepSecurity + Phoenix Security,
+June 2026, 144 backdoored versions) and my deletion was reversed. The denominator-honesty rule
+covers deletions too: a claim MY search couldn't ground is "not found by one search", not "false" —
+the correct disposition for an ungroundable-but-plausible claim is a CLAIMS.yaml row with a verify
+hint (someone re-searches on window expiry), and outright deletion is reserved for claims a search
+POSITIVELY refutes. Corollary: the second-opinion subagent isn't a rubber stamp — its value peaked
+exactly where it disagreed with the author.
+
 # Lesson 145: a "unit" test that only patches the drivers it asserts on runs everything else FOR REAL — check what provision-style dispatchers call beyond your mocks before running the suite
 
 Running `tests/orchestrator/test_infrastructure.py` locally spawned `ssh vps sudo docker build ...`

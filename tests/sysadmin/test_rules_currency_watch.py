@@ -57,6 +57,30 @@ def test_stale_claims_window_and_supersede_semantics():
     assert ids == ["stale", "broken-row", "default-window"]
 
 
+def test_auto_update_preserves_versions_yaml_comments():
+    # yaml.safe_load->safe_dump round-trips eat every comment — the file's whole
+    # self-documentation (incl. the node_engines_floor POLICY note). The updater
+    # must rewrite values at TEXT level, comments intact.
+    from scripts.sysadmin.rules_currency_watch import _update_versions_text
+
+    text = (
+        "# MACHINE-OWNED header comment\n"
+        "updated: 2026-09-01\n"
+        "versions:\n"
+        '  python_stable: "3.14"      # endoflife.date\n'
+        '  node_lts: "24"             # api/nodejs.json\n'
+        '  node_engines_floor: "22"   # POLICY, not auto-watched\n'
+    )
+    new = _update_versions_text(text, {"node": ("24", "26")}, date(2026, 10, 29))
+    assert '  node_lts: "26"             # api/nodejs.json' in new
+    assert "# MACHINE-OWNED header comment" in new
+    assert "# POLICY, not auto-watched" in new
+    assert 'python_stable: "3.14"' in new  # untouched key keeps value AND comment
+    assert "updated: 2026-10-29" in new
+    # shape drift (key missing) -> None; the caller falls back to the drift mail
+    assert _update_versions_text("versions: {}\n", {"node": ("24", "26")}, date(2026, 10, 29)) is None
+
+
 def test_register_parses_and_all_claims_fresh_at_seed():
     # The live register must load, and at seed time nothing is stale — the
     # first claims mail is owed at the first window expiry, not at landing.

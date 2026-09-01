@@ -29,15 +29,24 @@ def test_loose_sweep_ignores_marked_spans_flags_unmarked():
     assert _LOOSE.search("use node:24 here")
 
 
-def test_live_corpus_file1_round_trips():
+# Packs already brought to the D-062 bar — every file the pass completes joins this
+# list, and the two tests below then guard it forever (spans agree with the source;
+# zero unmarked literals).
+CLEANED_PACKS = [
+    "/opt/fabrik/.windsurf/rules/core/10-python.md",
+    "/opt/fabrik/.windsurf/rules/core/12-node.md",
+]
+
+
+def test_live_corpus_cleaned_packs_round_trip():
     from pathlib import Path
 
     versions = load_versions()
-    text = Path("/opt/fabrik/.windsurf/rules/core/10-python.md").read_text(encoding="utf-8")
-    spans = _SPAN.findall(text)
-    assert len(spans) >= 2  # python_stable + debian_codename
-    _, changed, unknown = inject_text(text, versions)
-    assert changed == 0 and unknown == []  # HEAD agrees with the source
+    for pack in CLEANED_PACKS:
+        text = Path(pack).read_text(encoding="utf-8")
+        assert len(_SPAN.findall(text)) >= 2, f"{pack}: expected marker spans"
+        _, changed, unknown = inject_text(text, versions)
+        assert changed == 0 and unknown == [], f"{pack}: HEAD disagrees with versions.yaml"
 
 
 def test_loose_sweep_catches_name_version_prose_not_status_codes():
@@ -52,9 +61,12 @@ def test_loose_sweep_catches_name_version_prose_not_status_codes():
     assert not _LOOSE.search("Python services: 8000-8099")
 
 
-def test_file1_carries_zero_unmarked_version_literals():
-    # The exemplar's contract under D-062: spans only, no prose literals.
+def test_cleaned_packs_carry_zero_unmarked_version_literals():
+    # The contract under D-062: spans only, no prose literals, in every pack the
+    # rules currency pass has completed.
     from pathlib import Path
 
-    text = Path("/opt/fabrik/.windsurf/rules/core/10-python.md").read_text(encoding="utf-8")
-    assert not _LOOSE.search(_SPAN.sub("", text))
+    for pack in CLEANED_PACKS:
+        text = Path(pack).read_text(encoding="utf-8")
+        hits = [m.group(0) for m in _LOOSE.finditer(_SPAN.sub("", text))]
+        assert not hits, f"{pack}: unmarked version literals: {hits}"

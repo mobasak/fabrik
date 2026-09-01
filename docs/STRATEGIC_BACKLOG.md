@@ -119,7 +119,8 @@ during the pass). Scope: core/ then ALL folders, to completion.
   30-ops's evaluation turn — a solo per-pack flip would make packs contradict each other.
   10-python now points at 30-ops as the single owner of the variant.
 - Evaluated so far: 10-python (2026-09-01 — 3.13→3.14 current-stable fixed; Alpine rationale
-  updated to the PEP-656 reality; distro literal deferred to the class commit).
+  updated to the PEP-656 reality; distro literal deferred to the class commit) · 12-node
+  (2026-09-01 — full bar; record below).
 - **Tripwire ARMED** (`rules_currency_watch.py`, weekly-cron rider): pinned python/node vs
   endoflife.date, mails infra per new upstream release (watermarked, silent on blips). First
   scheduled firing: node 26 LTS on 2026-10-28 (packs pin 24). This is the "what happens in one
@@ -139,6 +140,28 @@ during the pass). Scope: core/ then ALL folders, to completion.
   CLAIMS.yaml` — every external assertion as a dated, verify-hinted row; the watcher mails infra
   when a claim outlives its window; the pass grows the register file-by-file (10-python's 7 claims
   + 2 class rows seeded). Version regex = layer 1; claim windows = layer 2.
+- **File-2 (12-node) COMPLETE under the full bar (2026-09-01).** Own research legs: Node 22 is
+  Maintenance-only (pack said "both active LTS" — false); type stripping stable+default (the
+  `--experimental-strip-types` prescription was a self-contradicting relic); Express current
+  major is npm `latest` since 2025 (pack said "post-2026 maybe"); helmet/pino/vitest headings
+  de-literalized; CVE trio re-grounded to the 2026-03-24 advisory. All 18 `_LOOSE` hits +
+  regex-blind shapes (Fastify 5, Express 4/5, pino v9+, Helmet 7+, chalk v5+, Paddle v2) triaged;
+  spans: `node_lts`, new `node_engines_floor`, `debian_codename`. **SECOND OPINION (Fable 5,
+  author-blind, D-063 dispatch pin): 33 verdicts → 18 KEEP · 14 FIX + 1 ADD adjudicated as: 8
+  already covered by my own pass, 9 newly applied** (Express-major pin warning; Mastra
+  `easy-day-js` RESTORED — it verified the incident my search missed and I had wrongly deleted;
+  ALS ~7%-overhead causality inversion fixed → negligible-under-AsyncContextFrame; 20s-backstop
+  false rationale → scaffold `stop_grace_period: 45s` grounded at scaffold.py:3126; ungrounded
+  "Traefik strips __proto__" safety claim deleted → patched-runtime floor rule ADDED;
+  `@fastify/helmet` clause; CVE-21713 recast as bug-class-not-userland-mitigation; nonexistent
+  `@stripe/stripe-node` → real `stripe` package, both occurrences), **literal-bearing correction
+  shapes REJECTED** (its "helmet 8+"/"pino v10" suggestions re-literalize; staleness findings
+  accepted, shape overruled per D-062 — the subagent is deliberately blind to the ban). 9 new
+  claims rows + node-lts-line widened. Pinned tests now parametrized over CLEANED_PACKS.
+- **Scaffold alignment owed (12-node additions):** compose template already emits
+  `stop_grace_period: 45s` (verified); Node scaffolds still declare `engines.node ">=22.0.0"` —
+  when the previous LTS EOLs (Apr 2027) raise the floor AND flip `node_engines_floor` in
+  versions.yaml in the same change.
 
 ## Activation
 

@@ -12,4 +12,5 @@ updated: 2026-09-01
 versions:
   python_stable: "3.14"      # newest stable minor — endoflife.date/api/python.json
   node_lts: "24"             # newest cycle whose LTS date has passed — api/nodejs.json
+  node_engines_floor: "22"   # scaffold engines.node floor (POLICY, not auto-watched: raise deliberately when the previous LTS EOLs — Apr 2027)
   debian_codename: "bookworm"  # fleet-pinned Debian variant (flip = D-062 pipeline + 30-ops class commit, deliberate)

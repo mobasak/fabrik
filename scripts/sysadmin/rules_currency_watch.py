@@ -191,6 +191,19 @@ VERSIONS_FILE = Path("/opt/fabrik/.windsurf/rules/versions.yaml")
 _KEY_FOR = {"python": "python_stable", "node": "node_lts"}
 
 
+def _update_versions_text(text: str, clean: dict[str, tuple[str, str]], today: date) -> str | None:
+    """Rewrite version values at TEXT level — comments are the file's
+    self-documentation and a yaml load->dump round-trip eats every one of them.
+    None = the file's shape drifted (key missing); the caller then falls back to
+    the human drift mail instead of writing a guessed file."""
+    for runtime, (_pin, cur) in clean.items():
+        pat = re.compile(rf'^(\s*{_KEY_FOR[runtime]}:\s*)"[^"]*"', re.M)
+        if not pat.search(text):
+            return None
+        text = pat.sub(rf'\g<1>"{cur}"', text, count=1)  # cur is _VALID_VERSION-validated — safe as a template
+    return re.sub(r"^updated: .*$", f"updated: {today.isoformat()}", text, count=1, flags=re.M)
+
+
 def _auto_update(found: dict[str, tuple[str, str]]) -> bool:
     """Update versions.yaml -> inject spans -> commit+push. True on success.
 
@@ -203,12 +216,11 @@ def _auto_update(found: dict[str, tuple[str, str]]) -> bool:
         clean = {k: v for k, v in found.items() if _VALID_VERSION.match(v[1])}
         if not clean:
             return False
-        data = yaml.safe_load(VERSIONS_FILE.read_text(encoding="utf-8")) or {}
-        versions = data.setdefault("versions", {})
-        for runtime, (_pin, cur) in clean.items():
-            versions[_KEY_FOR[runtime]] = cur
-        data["updated"] = date.today().isoformat()
-        VERSIONS_FILE.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        new_text = _update_versions_text(VERSIONS_FILE.read_text(encoding="utf-8"), clean, date.today())
+        if new_text is None:
+            return False
+        yaml.safe_load(new_text)  # parse guard before the write
+        VERSIONS_FILE.write_text(new_text, encoding="utf-8")
         render = subprocess.run(
             [sys.executable, "/opt/fabrik/scripts/sysadmin/rules_render_versions.py"],
             capture_output=True,
