@@ -39,7 +39,7 @@ anywhere declared what the deployed system was supposed to contain.
 | I14 | My measurement: `/fabrik-deploy-verify` has **zero** identity checks (`rev-parse` 0, `alembic` 0, `digest` 0) | **IN** | § Layer 1 — the cheapest, most universal missing layer |
 | I15 | tryton-crm's three failure modes: *present-but-inert · different-by-config · reachable-but-wrong* | **IN** | § The three failure modes — adopted as the organising axis, replacing my layer-first framing |
 | I16 | tryton-crm: *"the doc a verifier would check against is itself partly untrue"* (RESILIENCE.md template residue) | **IN** | § Authoritative vs descriptive sources |
-| I17 | My measurement: 37 of 43 repos carry no `specs/services/*.yaml` | **IN** | § Onboarding — blocks Phase 0 for 86% of the fleet |
+| I17 | My measurement: 37 of 43 repos carry no own `specs/services/*.yaml` — ⚠️ **CORRECTED**: the onboarding population is **27**, not 37 | **IN** | § Onboarding — measured 2026-09-01: 43 git repos · 39 with `project.yaml` · **27 with a hub spec (deployable)** · 6 with their own. The store types have no VPS, so a deploy-verification contract is meaningless for them; 37 counted repos that can never need one |
 | I18 | D-065 (today): `OPERATIONS.md` + `DEPLOYMENT.md` are fleet-AI interfaces, machine-consumable | **IN** | § Declaration sources — consume these, do not invent a parallel artifact |
 | I19 | D-017 (tryton-crm): production migrates the dev DB — "empty is expected" was **my** assumption | **IN** | § Declaration sources — the project's decision ledger is a verification input |
 | I20 | tryton-crm: *"a backup plan configured is not a backup taken"* + cert-renewal-survives-restart | **IN** | § Layer 3 — durability armed, two named checks |
@@ -94,7 +94,7 @@ completeness is exactly the check-that-cannot-fail this spec warns about.
 
   **The error was counting fleet-wide CONSEQUENCES as build work.** The "13 per-type packs" are
   *sections inside two command files*, not 13 deliverables — I inflated a table into a work breakdown.
-  And "onboarding 37 repos" is **not hub work at all**: cross-repo commits are a HARD STOP, so I cannot
+  And "onboarding the 27 deployable repos" is **not hub work at all**: cross-repo commits are a HARD STOP, so I cannot
   dispatch into those repos even in principle. Each project's own agent runs the authoring command in
   its own repo, triggered by its own next deploy — **self-serve rollout, not a migration I execute.**
   Once the scaffolder seeds new projects (§ Born compliant), the 37 are the only backlog and it drains
@@ -669,7 +669,7 @@ spec that let the goal read as fully met would be the same defect class as a dep
 
 > *"every new scaffolded projects must have it too."*
 
-**The DRAFT specced a one-time migration, not a permanent property.** It handled the 37 spec-less repos
+**The DRAFT specced a one-time migration, not a permanent property.** It handled the 27 deployable repos
 as onboarding and said nothing about `scaffold.py` — so a project scaffolded tomorrow would be born
 **without** the contract and join the backlog on day one. The backlog would refill as fast as it drained.
 That is a defect in the design's shape, not a missing task.
