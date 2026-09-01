@@ -337,6 +337,10 @@ next registry-drift recurrence.
 - **final_gate --json honesty cluster** (01M19R99M, 01M1CAE2F4): `degraded:[...]` key for
   NOT-INSTALLED tools; `passed` as a list of check names; a status-level warning when the diff adds
   N test files and the gate ran none; tolerate DECLARED opt-in skips in the skip-advisory.
+- **Fleet-check design law: import-and-call, never source-grep** (01M1CWKE, wef's glitchtip-PII fix):
+  a source grep passes on a commented-out flag, a dead branch, or a shadowed kwarg — their test
+  captures the ACTUAL kwargs reaching sentry_sdk.init. Binding on any future fleet-wide config
+  sweep check (PII flags, security kwargs); recorded here so the advice outlives the ack.
 - **Stop-hook resumed-session false positive** (01M19970HP): `final_gate_stop.py:573-580,1228-1229`
   re-fires "UNREVIEWED SPONTANEOUS WORK" after a record closed — scope the authored set to
   uncommitted∩dirty, or let a closed review-family record satisfy has_any_record.
