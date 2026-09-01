@@ -1136,3 +1136,33 @@ row at all.
   GlitchTip DSN carried a loopback host that the driver rewrote to the public host — a driver-level
   workaround worth removing by fixing `GLITCHTIP_DOMAIN` on the GlitchTip app.
   Window CLOSED stem-guarded (owner matched), healing restored.
+
+- ✅ **RUN 6 — 2026-09-01 — `/fabrik-deploy-verify`: DEPLOY CONFIRMED LIVE. And a CORRECTION to my own RUN 5 verdict.**
+  **All rows PASS** with fresh-this-run evidence: DNS (dig+getent `172.93.160.197`, sibling `status.vps1`
+  same run) · `/health` 200 **and dependency-asserting** (`main.py:142-150` runs
+  `asyncio.to_thread(proteus_client.ping)` against trytond — this bridge is deliberately DB-free per
+  Decision F-DB, so trytond IS its real dependency) · `/healthz` 200 static-by-contract · **6/6 registrars**
+  from the remote `.env` (`DATABASE_URL@postgres-main`, `REDIS_URL@redis-main:6379/1` — a proper index, not
+  the shared `db0` the spec flagged as a collision risk, `SENTRY_DSN`+`GLITCHTIP_DSN@errors.vps1`,
+  `WATCHDOG_DB_URL_RO`+`_RW`, watchdog sidecar healthy) · `/metrics` 200 returning real Prometheus text ·
+  Gatus green (`apps_tryton-crm`, status 200, conditionResults present) · logs clean, 0 crash signatures
+  across all 5 containers in a 15m window.
+  ⚠️ **RETRACTION — my RUN 5/verify `SMOKE: GET /activities 404 = FAIL` was WRONG, and I nearly filed it
+  to tryton-crm as a defect.** The route exists (`src/tryton_crm/api/readback.py:88`
+  `@router.get("/activities")`) on `v1_router`, which carries `prefix="/internal/v1"`
+  (`api/__init__.py:26`). I probed the bare `/activities`, got FastAPI's unregistered-route 404, and read
+  it as a dropped route. At the real path all three read-back routes are present and **correctly
+  auth-guarded**: `/internal/v1/{activities,opportunities,sales}` → `401 {"detail":"Missing or invalid
+  token"}`. Nothing was broken.
+  🔧 **CLASS FIX, not an instance fix.** This was the **THIRD wrong-path probe in one session** — gatus
+  (`/opt/gatus/config.yaml` vs the real bind mount `/opt/monitoring/configs/gatus/`), backrest
+  (`/opt/backrest/` listing vs `/opt/backrest/config/config.json`), and this route. Identical signature
+  every time: **a hardcoded path that does not exist yields 0, and 0 gets reported as "absent"**. The
+  battery script now routes every filesystem probe through a `refs()` helper that **asserts the path
+  resolves before counting** and emits a distinct `PATH-NOT-FOUND (searched: …)` token, so a zero can only
+  ever mean "looked, found none". Proven on the live box this run: `gatus: 2 refs` · `backrest: 6 refs` ·
+  `prometheus: 1 refs`, each naming the path it actually searched. This is the `denominator-honesty`
+  marker applied to filesystem probes — a count without a confirmed search space is indistinguishable
+  from having looked nowhere.
+  **Verdict: DEPLOY CONFIRMED LIVE.** No mail was sent to tryton-crm, because the finding did not survive
+  its own grounding — which is the correct outcome, not a skipped step.
