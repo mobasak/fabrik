@@ -212,6 +212,18 @@ rather than smuggled into a command-corpus commit. Disposition: ROUTED, not defe
 
 ## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
+**SEEDED FOR FILE 13 — `core/58-resilience.md` says "Never retry 4xx" and never mentions 429.**
+Measured 2026-09-01: `grep -c 429 .windsurf/rules/core/58-resilience.md` → **0**;
+`grep -ci retry-after` → **0**; the rule at `:86` reads "Retry transient errors: timeout,
+connection, and 5xx … Never retry 4xx." 429 IS a 4xx and is the canonical retryable one — an agent
+following 58 literally will never retry a rate limit, which is backwards, and will ignore
+`Retry-After` because 58 never names it. Surfaced by file 12's new Capability Profile field 2
+("429 + `Retry-After`?"), which an agent can now answer correctly and then be told by 58 not to act
+on. Fix in 58's own turn: carve 429 (and 408) out of the never-retry-4xx rule and require honouring
+`Retry-After` when present.
+
+
+
 **THE GOAL (D-062, operator verbatim):** always-uptodate · correct · lean · efficient ·
 low-maintenance · free · resilient · traceable · logged · fastest · agile · best-practice.
 **Standing ruling:** version literals are banned from packs — tripwires are triage (D-061);

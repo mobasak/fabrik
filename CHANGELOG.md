@@ -18,6 +18,20 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Added — Capability Profile: the operational envelope every external system owes (2026-09-01)
+
+Operator directive: for an external system we must know its limitations, quota, concurrency,
+multi-account/IP posture, parallelism, failure recovery and resume, cost, and usage. Turned into
+a seven-field profile in `core/57-external-data-sourcing.md`, mandatory before code is written and
+recorded in `docs/reference/apis/<vendor>.md`. Two fields carry most of the weight: **resume**
+(a pipeline that cannot resume turns one transient failure into a full re-run and re-bill) and
+**usage observability** (one that cannot read its own consumption can only be surprised by the
+wall). `UNKNOWN — <what you tried>` is permitted but never waives the design decision — the rule
+names the conservative default for each.
+
+Deliberately NOT added to `service_catalog.json`: it is a lean 6-field "does a vendor exist for X"
+index across ~100 rows, and replicating an envelope there would guarantee staleness.
+
 ### Changed — rules currency pass file 12: core/57-external-data-sourcing.md (2026-09-01)
 
 Brought the external-data-sourcing pack to the D-062 bar. The two findings that change what

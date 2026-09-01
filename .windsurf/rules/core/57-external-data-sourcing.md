@@ -76,7 +76,50 @@ or webhook receiver **cannot call one**. So:
 4. **A CLI** last (`gh`, `fabrik`) — ops/scripting, rarely app-data ingestion.
 
 A capability that clears none of these is a genuine new integration — justify it in the
-plan (which mechanism, which vendor, cited limits/pricing) and check the vendor exists.
+plan (which mechanism, which vendor) and check the vendor exists.
+
+---
+
+## The Capability Profile — know the envelope BEFORE you design against it
+
+**Every external system gets a profile before code is written** (where it lives: § Doc Sync).
+Discovering any of these after the fact means rewriting the integration, not tuning it.
+
+Answer all seven. **"Unknown" is a legitimate answer — an unstated one is not**: write
+`UNKNOWN — <what you tried>`, so the next reader can see which numbers are real.
+**An UNKNOWN never waives the design decision — design to the conservative reading**: unknown cap
+behaviour ⇒ assume silent truncation and verify counts yourself; unknown idempotency ⇒ assume
+non-idempotent; unknown resume ⇒ checkpoint on your side.
+
+| # | Field | Why it changes the design |
+|---|---|---|
+| 1 | **Limits & quota** — req/min, req/day, tokens, GB, rows; what resets, and WHEN | decides batch size and schedule |
+| 2 | **Behaviour AT the cap** — 429 + `Retry-After`? hard block? silent truncation? billing overage? | decides whether you back off or must stop; silent truncation is the dangerous one — it looks like success |
+| 3 | **Concurrency & parallelism** — max in-flight, and scoped to WHAT (key / account / IP / endpoint) | decides worker count; a per-IP cap means scaling workers buys nothing |
+| 4 | **Identity posture** — limits per-key, per-account or per-IP? does the ToS permit multiple accounts/orgs — **cite the clause + URL, or UNKNOWN** | decides whether horizontal scale is even available — see the ⚠️ below |
+| 5 | **Failure & resume** — which failures are retryable, is the call IDEMPOTENT, is there a cursor / checkpoint / resumable upload, and what is the smallest unit you can resume FROM | decides whether a long ingest is feasible at all, or must restart from zero |
+| 6 | **Cost model** — per what unit, minimum billing increment, free tier, and what makes it SPIKE | decides whether the design is affordable at real volume, not at test volume |
+| 7 | **Usage observability** — can you read your own consumption/remaining quota programmatically? | decides whether you can shed load BEFORE the wall or only discover it by failing |
+
+⚠️ **Field 4 is where an operational question becomes a legal one.** Asking "are multiple accounts
+permitted, and are limits per-key or per-IP?" is ordinary capacity planning, and the answer is
+sometimes an explicit yes (separate billing orgs, per-project keys). Provisioning extra accounts or
+rotating IPs **in order to evade a cap the vendor set** is the circumvention shape from § Hard
+constraints, and it is an operator decision with the ToS quoted — never an engineering convenience.
+Record what the ToS actually says; do not infer permission from the absence of a block.
+
+**Fields 5 and 7 are the most often skipped and the most expensive to retrofit.** A pipeline that
+cannot resume turns one transient failure into a full re-run and a full re-bill; one that cannot
+read its own usage can only be surprised by the wall. If the vendor exposes neither, say so and
+design for it: checkpoint on YOUR side, meter YOUR own consumption locally.
+
+⚠️ **One subject, one home.** The profile records the VENDOR's contract (measured, dated). YOUR
+handling of it — timeout/retry config, fallback, pause keys — stays in the per-dependency detail
+card in `docs/RESILIENCE.md`; that card LINKS the profile and never copies its numbers.
+
+⚠️ **Not gate-enforced yet, deliberately.** This is a new obligation; per the FIX directive a
+detector ships after its fire rate is measured, not before. The profile's teeth today are the plan
+review and `/fabrik-docs-review`.
 
 ---
 
@@ -121,17 +164,36 @@ plan (which mechanism, which vendor, cited limits/pricing) and check the vendor 
 
 ## Doc Sync
 
-A new external dependency → `docs/reference/apis/EXTERNAL_SYSTEMS.md` (+ the vendor's own
-row) and `.env.example` for its key. A new vendor added to `service_catalog.json` is
-hub-side (planning registry) — propose it, don't fork the catalog in a project.
+A new external dependency owes three things: **its Capability Profile** (§ above — all seven
+fields, `UNKNOWN — <what you tried>` where genuinely unknown), a pointer from wherever the repo
+indexes its integrations, and its key in `.env.example` + `docs/CONFIGURATION.md` (the Doc Sync
+Matrix pairs those two — naming only `.env.example` reds the gate).
+
+⚠️ **Where the profile lives differs between hub and project** — `EXTERNAL_SYSTEMS.md` is a
+hub-only index; do not send a project at it.
+- **Hub:** `docs/reference/apis/<vendor>.md`, plus its row in that dir's `EXTERNAL_SYSTEMS.md`.
+- **Project:** `docs/reference/apis/<vendor>.md` too — **create the directory, it is legal**
+  (`docs/reference/**/*.md` is on the `.md` allowlist, so the structure gate permits it) — and
+  link it from `docs/README.md`, the docs index.
+
+A new vendor added to `service_catalog.json` is hub-side (planning registry) — propose it, don't
+fork the catalog in a project. ⚠️ Keep the catalog LEAN: it is a "does a vendor exist for X"
+index (`category` · `cost` · `capability` · `url` · `status` · `match`), not the envelope. The
+seven profile fields live in the vendor doc, where they can be dated and re-verified — replicating
+them across every catalog row would guarantee they go stale.
+
+**Re-verify the profile when it decides something.** Quotas and pricing move; a profile is a dated
+measurement, not a fact. Re-check before scaling an integration up, before a cost estimate goes
+into a plan, and whenever the vendor 429s in a way the profile does not predict — that last one is
+the profile telling you it is wrong.
 
 **And if the ingester RUNS somewhere, the fleet-AI docs are part of the same change (D-065).**
 Acquisition code is rarely a pure library: it lands as a worker, a Beat/cron job, or a webhook
 receiver, and those are exactly the facts the fleet AI reads to know what to deploy and what to
 schedule. So:
 - a scheduled pull (Beat/cron) → the canonical jobs/intervals inventory in `docs/RESILIENCE.md`
-  (the monitoring-schedule section — cite it by NAME, not by number: the number is not stable
-  across projects, and one sampled repo has no such heading at all)
+  (the monitoring-schedule section — cite it by NAME; the section number is not stable across
+  projects)
 - a new long-running consumer/worker, or anything that changes how the service is deployed →
   `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md`
 - an inbound webhook receiver → it is a served route: `15-api-contracts` applies. **Decide its
