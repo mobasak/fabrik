@@ -1,9 +1,9 @@
 # Deployment Verification Contract — design spec
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-09-01
 Author: fleet (hub)
-Stage: 1-design · successor: `/fabrik-spec-review`
+Stage: 1-design · converged by `/fabrik-spec-review` 2026-09-01 · successor: operator approval, then the epic route
 
 ## The problem, in the operator's words
 
@@ -45,8 +45,19 @@ anywhere declared what the deployed system was supposed to contain.
 | I20 | tryton-crm: *"a backup plan configured is not a backup taken"* + cert-renewal-survives-restart | **IN** | § Layer 3 — durability armed, two named checks |
 | I21 | Self-grading risk — the project verifies work it produced | **IN** | § Ownership split — thin hub cross-check retained |
 | I22 | tryton-crm's `RESILIENCE.md` converge pass | **OUT-OF-SCOPE** | Their repo's doc debt, not this contract's. **Destination:** named in their reply thread; belongs to their `/fabrik-doc-converge` |
+| I23 | *"utilize all vps infra … grafana"* — **Grafana had NO row in Layer 3** (spec-review pass 1) | **IN** | § Layer 3 #17 — added; the registrar is fire-and-forget and logged `Grafana annotation failed (non-fatal)` during RUN 4 |
+| I24 | *"all services are up"* — nothing checked that EVERY compose service runs (spec-review pass 1) | **IN** | § Layer 3 #19 — added; tryton-crm is a 5-container stack and a dead companion passes every domain probe |
 
-**Intake: 22 items — 20 IN, 2 OUT-OF-SCOPE (each with a named destination), 0 ASK.**
+**Intake: 25 rows — 23 IN, 2 OUT-OF-SCOPE (each with a named destination), 0 ASK.**
+
+⚠️ *Corrected in spec-review pass 3: I had written "24 items" by counting the `I<n>` sequence and
+missing `I1b`, a sub-row. A miscounted denominator inside the document that makes denominators its
+central rule — recorded, not silently fixed.*
+
+⚠️ **The DRAFT claimed 22 items with zero silent drops and was wrong on two** — both found by the
+spec-review's own intake re-hunt, both operator words I had read and not carried (`grafana` by name;
+`all services are up`). Recorded rather than quietly corrected: an inventory that self-certifies
+completeness is exactly the check-that-cannot-fail this spec warns about.
 
 ## Routing verdict (BLOCKING gate, stated either way)
 
@@ -170,7 +181,21 @@ it was never proven true of *my build*.
 15. **restore rehearsed at least once**
 16. TLS/cert config **persisted on disk and surviving a restart** — a DNS-01 resolver added at runtime
     renews nothing, and every tenant URL breaks in ~60 days with no warning (I20)
-17. Authelia challenge on admin routes; Loki receiving logs; memory limits declared
+17. **Grafana deploy annotation actually posted** — the registrar treats it as fire-and-forget
+    (`Grafana annotation failed (non-fatal)` was logged verbatim during RUN 4 and the deploy continued).
+    Operator named Grafana explicitly in I10; a non-fatal registrar is exactly the *present-but-inert*
+    class and must be a verdict-bearing row, not a warning
+18. Authelia challenge on admin routes; Loki receiving logs; memory limits declared per service
+19. **EVERY service is running and healthy** (I11 — *"all services are up"*). Not "the app container is
+    up": a dead companion passes every domain-level probe.
+    ⚠️ **The denominator is TWO sources, and using either alone under-counts** — re-derived in
+    spec-review pass 2: tryton-crm's `compose.yaml` declares **4** services (`tryton-crm`,
+    `crm-gotenberg`, `trytond`, `trytond-worker`) while **5** containers run. The fifth,
+    `tryton-crm-watchdog`, is **registrar-injected** (`drivers/watchdog.py`, `container_name =
+    f"{project_id}-watchdog"`) and appears in no compose file. So the denominator is
+    **compose services ∪ registrar-injected sidecars**, derived from the compose *and* the `shape:`
+    flags — and the count is stated. A verifier that reads only the compose would have declared this
+    stack complete with its watchdog dead
 
 ### Layer 4 — Behaviour (per-type) · catches *reachable-but-wrong*
 18. **every *Shipped* `FEATURES.md` row** exercised, count stated — no sampling
@@ -238,15 +263,65 @@ surface, and needs no credential movement — **the artifact travels, not the SS
 DDMMYYYY-seq → render PDF → send email"* is unknowable to a fleet command across 43 repos. The hub cannot
 hold that knowledge; it can only demand, run, and adjudicate the project's own proof.
 
-## Open questions for `/fabrik-spec-review`
+## The four questions — RESOLVED BY DERIVATION (spec-review pass 1)
 
-1. **Contract shape: snapshot vs derived.** `battery-expected.txt` (frozen values, goes stale) vs
-   `cleanup_d017.py` (derives from `pg_catalog` at runtime, never stale, more work per project).
-   *Leaning derived*, because both artefacts that worked today converged on it.
-2. **Rollout for 37 spec-less repos** — does a missing contract **block** the deploy or mark it
-   `unverified`? Blocking is honest and stops 86% of the fleet until each writes one.
-3. Where the contract lives — `docs/deploy-contract.md`, or a script under `scripts/`?
-4. Does the hub cross-check stay mandatory, or become opt-in once a project's contract matures?
+The DRAFT left these open. Handing four forks to the operator is the menuing the question bar forbids —
+*"i dont want to decide that kind of things"*. Each is derived from an existing artifact and cited.
+
+**Q1 · Contract shape → DERIVED, not snapshot.** Both artefacts that actually worked today converged on
+derivation independently: `cleanup_d017.py` reads FK closure from `pg_catalog` at runtime *"so there is no
+hand-frozen list to drift"*, and its dry-run **executes then rolls back**, making counts exact by
+construction rather than by estimate. The snapshot form (`battery-expected.txt`) worked once and was stale
+the moment dev moved — its `parties_108` row already encoded a column name (`company`) that does not exist,
+which errored on first run. **Snapshot values are a cache of a derivation; ship the derivation.** Snapshot
+remains legal as a *degraded* mode for a project that cannot yet derive, and is marked as such in the
+verdict, never silently.
+
+**Q2 · Missing contract → BLOCKS, with a dated grace window.** Derived from the spec's own verdict algebra:
+*"No contract ⇒ cannot reach `CONFIRMED`"* — a warning that lets `CONFIRMED` through reproduces the exact
+defect this spec exists to close (I certified an empty database green). But hard-blocking 37 of 43 repos on
+day one strands 86% of the fleet, which the FIX DIRECTIVE's *"no overengineering — measured, not vibed"*
+weighs against. Resolution: a contract-less deploy reaches **`UNVERIFIED`** — a terminal verdict that is
+**not** `CONFIRMED` and is reported as a deficiency, never as success. `UNVERIFIED` is the honest name for
+what every deploy before today actually was.
+
+**Q3 · Where the contract lives → `scripts/verify_prod_parity.py`, project-owned.** Follows Q1: a derivation
+is executable, so it is a script, not a doc. Precedent is exact — tryton-crm already proposed this path by
+name, and `cleanup_d017.py` sits at `scripts/trytond/`. A doc would re-create the *descriptive-source*
+problem this spec warns about (I16: `RESILIENCE.md` template residue). The **declaration** half stays in
+`DEPLOYMENT.md`/`OPERATIONS.md` per D-065; the **assertion** half is code.
+
+**Q4 · Hub cross-check → STAYS MANDATORY.** Derived from measured evidence, not preference: the property
+that made today's migration trustworthy was **two independent measurements agreeing to the row**
+(193,664 / 44 tables, and history 153/129/116 from two separately-written queries). A project verifying its
+own deploy is self-grading (I21); the cross-check is what converts a self-assessment into corroboration.
+It stays thin — the hub asserts fleet health and identity, the project asserts completeness and behaviour —
+and it is **not** opt-out, because the value is precisely in its independence.
+
+## Pass ledger (`/fabrik-spec-review`)
+
+| Pass | Axes re-checked | Method | Raised | Edits | md5 (start → end) |
+|---:|---|---|---:|---:|---|
+| 1 | intake completeness · measured claims · fabrik-lib verdict · open questions | citation + live grep | 3 | 3 | `42a9eba2…` → `975d9a54…` |
+| 2 | all cited facts re-derived from primary source, not re-cited | **re-derivation** | 1 | 1 | `34cbe70e…` → edited |
+| 3 | full re-sweep of every axis | re-derivation | 1 | 1 | edited — intake miscount |
+| 4 | full re-sweep, confirming | re-derivation | **0** | **0** | stable ✓ |
+
+**Pass 4 terminal round — `found: 0, fixed: 0`.**
+
+**What the review found in my own DRAFT (5 defects, all mine):**
+1. **Grafana absent** from Layer 3 though the operator named it explicitly (I23)
+2. **"all services are up" uncovered** — no per-service check at all (I24)
+3. **The intake self-certified "zero silent drops" and had two** — an inventory that grades itself
+4. **Pass 2, re-derivation:** the service denominator was wrong — I wrote *"the compose service list"*,
+   but compose declares 4 and 5 containers run; `tryton-crm-watchdog` is registrar-injected and in no
+   compose file. A verifier built to the DRAFT would have passed this stack with its watchdog dead.
+
+5. **Pass 3:** the intake summary said *24 items*; there are **25 rows** — `I1b` uncounted. A wrong
+   denominator in the spec whose central rule is that every count carries its denominator.
+
+Defect 4 is the one that justifies the re-derivation method: it survived pass 1 because pass 1 re-*cited*
+my own prose. Only re-running the count against `compose.yaml` and `docker ps` separately exposed it.
 
 ## Deferred (named, not dropped)
 
