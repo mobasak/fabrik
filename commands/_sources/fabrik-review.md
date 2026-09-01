@@ -267,6 +267,11 @@ NOT accept an unfixed CONFIRMED or PLAUSIBLE finding.**
   a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when
   the guard protects shared or production data)** (CLAUDE.md § the
   decision ledger; a mechanical bug-fix stays row-less — the carve-out class).
+  **This is the ONE ledger rule for the whole phase, and it has TWO entry conditions — either fires it:**
+  the FIX is a design choice (this bullet), or the FINDING is ARCHITECTURAL (§ shape, below). They
+  overlap but neither subsumes the other: an architectural finding can have exactly one correct fix
+  (no choice was made, row still owed — the contract moved), and a purely local implementation choice
+  is a design decision that is not architectural (row owed, no contract moved). Mint ONE row either way.
   - **A test that passes because the environment cannot express the failure has proven nothing** —
     "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser
     role for an RLS bug, no concurrency for a race, one tenant for an isolation bug). Reach for the
@@ -308,9 +313,9 @@ this axis opens no third state):
   This is the default and the overwhelming majority; do not manufacture ceremony for it.
 - **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives:
   it moves a contract, a boundary, a data model, an auth or isolation posture, or it would change what
-  other code is entitled to assume. Still fix it — but **name the alternatives you rejected and mint the
-  `docs/DECISIONS.md` row in the same commit** (classified at mint; a ONE-WAY shape gets the § Binding
-  block). Picking one silently is how a review smuggles in an architecture decision under a bug-fix
+  other code is entitled to assume. Still fix it — and **name the alternatives you rejected**; this is
+  the second entry condition of the FIXED bullet's ledger rule above, so mint that ONE row (do not mint
+  a second). Picking one silently is how a review smuggles in an architecture decision under a bug-fix
   commit message.
 - **The narrow escalation:** an architectural finding whose fix is genuinely irreversible, contradicts a
   frozen spec/contract, or needs authority you do not have → that is the sanctioned `BLOCKED:` /
