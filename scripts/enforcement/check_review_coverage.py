@@ -242,7 +242,11 @@ SURFACE = re.compile(r"^\**Surface:\**\s*\S+", re.M)
 # conformance rate and nearly reported it as agent drift. Fixing the location (bold) and leaving the
 # class (any quoting of the hash) is what made this recur; the tolerance now lives in ONE constant
 # that every hash-anchored Surface matcher composes.
-_SURFACE_QUOTE = r"[`'\"]*\s*"
+# ⚠️ `[^\S\n]` (horizontal space), never `\s` — `\s` matches NEWLINE, and a trailing `\s*` after the
+# quote run let an EMPTY `**Surface:** ""` anchor on the next hash-shaped LINE in the document, whose
+# value then flowed into the md5-equality comparisons as if it were the declared surface. Measured
+# 2026-09-01: `'**Surface:** ""\n' + <32hex>` matched with the quote run, did not without it.
+_SURFACE_QUOTE = r"[`'\"]*[^\S\n]*"
 
 # An honest IN-PROGRESS review. The /fabrik-review methodology requires the report to exist BEFORE
 # pass 1 ("a review that exists only in chat does not exist"), while every other rule here treats a
@@ -548,7 +552,21 @@ def _is_mega_report(path: Path, text: str) -> bool:
 
 _MEGA_PLACEHOLDERS = ("[PASS]", "[FAIL]", "[N]", "[M]", "[list]", "[none / list]")
 _MEGA_HEX = r"[0-9a-fA-F]{32}"  # FULL md5, exactly — the doc mandates all 32; 12-char "full-ish" let truncation pass wherever the live recompute is skipped
-_MEGA_HASH_PAIR = re.compile(rf"({_MEGA_HEX})\s*(?:→|->)\s*({_MEGA_HEX})")
+# ⚠️ Quote-tolerant for the SAME reason `_MEGA_SURFACE` is, and it was missed on the first pass —
+# which made the fix WORSE than no fix for one author. A report that code-spans its hashes
+# consistently (`**Surface:** `<h>`` and `| … | `<h>` → `<h>` |`) used to fail BOTH halves, which at
+# least agreed; after the Surface half was made tolerant and this one was not, presence PASSES and
+# the pair FAILS, pointing the operator at the wrong half with "final ledger round carries no full
+# md5(start) → md5(end) pair" when the pair is right there in code spans. Fixing the location and
+# not the class is what this file has now paid for three times (:230, :238, here).
+# MIRROR (named, per the contract): this widens the matcher, so an unfenced prose sentence like
+# `<h>` -> `<h>` becomes matchable where it was not. Bounded — the matcher was already unanchored
+# and runs on fence-stripped text, so the only added surface is quote characters, and the gap is
+# horizontal-only (`[^\S\n]`) so it still cannot span lines.
+_HASH_GAP = r"[`'\"]*[^\S\n]*"
+_MEGA_HASH_PAIR = re.compile(
+    rf"({_MEGA_HEX}){_HASH_GAP}(?:→|->)[^\S\n]*{_HASH_GAP}({_MEGA_HEX})"
+)
 # A ledger row is a markdown TABLE line carrying both counters — and the ledger is the FIRST
 # contiguous table that contains any such row. v2 matched counter rows ANYWHERE, so a later
 # `## Per-lens tally` table with a quiet row silently became "the final round", masking a

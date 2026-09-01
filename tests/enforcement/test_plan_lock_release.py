@@ -617,27 +617,32 @@ def test_foreign_locks_are_counted_but_never_printed_as_lines(tmp_path, capsys, 
     assert "FOREIGN LOCK:" not in out, "…but no per-lock line"
 
 
-# ── live fleet verification (Phase B step 5) ──────────────────────────────────────────
+# ── archive-resolution: both directions, hermetic ─────────────────────────────────────
+#
+# ⚠️ This section REPLACED one headed "live fleet verification (Phase B step 5)", which copied a
+# LIVE sibling repo's lock corpus (/opt/brand-identiy-creator) and asserted on its contents. That
+# corpus was another repo's mutable housekeeping, not this repo's contract: when they released and
+# archived their plans it stopped emitting ANY finding (measured 2026-09-01: 7 locks, 0 findings of
+# any label) and `any("deep-research" ...)` failed on a plan name that no longer existed — a red
+# saying nothing about `classify`. A test whose premise another repo can retire is not a guard.
+#
+# HONEST LEDGER of what the donor covered and these do NOT: `classify()` exception-freedom over a
+# heterogeneous REAL corpus (unknown JSON shapes, unicode status values, bare-stem `plan` fields),
+# a multi-lock root, and real plan-SET directory layouts. That was the unknown-unknowns smoke, and
+# a hand-built fixture structurally cannot replace it. Counterweight: the donor test was
+# `pytest.skip`-guarded on the donor's absence, so none of it was ever GUARANTEED. These two are
+# strictly stronger on the resolution BRANCH and strictly weaker on corpus breadth — not "strictly
+# stronger" full stop, which is what this docstring first claimed.
 
 
-def test_pre_archive_plan_path_resolves_to_stale_not_orphan(tmp_path):
-    """The archive-resolution branch, proved in BOTH directions on a hermetic corpus.
+def test_pre_archive_plan_path_resolves_to_stale(tmp_path):
+    """A lock naming the PRE-archive path must resolve through the archive branch.
 
     ⚠️ The lock corpus alone is NOT enough. A lock's `plan` field is repo-relative and points at
-    the pre-archive path, so under a lock-only tmp_path all four resolution branches miss and the
-    check emits ORPHAN LOCK instead of STALE LOCK — whereupon the cheapest escape is to loosen
+    the pre-archive path, so under a lock-only root all resolution branches miss and the check
+    emits ORPHAN LOCK instead of STALE LOCK — whereupon the cheapest escape is to loosen
     `resolve_plan`. The plan tree must be materialised alongside.
-
-    ⚠️ This replaced a copy of a LIVE sibling repo's lock corpus (/opt/brand-identiy-creator).
-    That corpus was another repo's mutable housekeeping, not this repo's contract: when they
-    released and archived their plans the donor stopped emitting ANY finding (measured
-    2026-09-01: 7 locks, 0 findings of any label) and the assertion `any("deep-research" ...)`
-    failed on a name that no longer existed — a red that said nothing about `classify`. A test
-    whose premise another repo can retire is not a regression guard. The shape it was reaching
-    for is structural, so it is built here instead, and asserting the ORPHAN direction too makes
-    it a STRICTLY stronger guard than the donor version, which only ever checked the STALE half.
     """
-    # The trap: the lock points at the PRE-archive path while the plan lives in archived/.
     _plan(tmp_path, "2026-07-19-plan-1-deep-research", "Status: EXECUTED 2026-07-20", archived=True)
     lk = _lock(
         tmp_path,
@@ -649,17 +654,21 @@ def test_pre_archive_plan_path_resolves_to_stale_not_orphan(tmp_path):
         "a lock naming the pre-archive path must resolve through the archive branch"
     )
 
-    # ...and without the plan tree the SAME lock is an ORPHAN — the branch is load-bearing, so a
-    # loosened `resolve_plan` that returned STALE unconditionally would fail here.
-    bare = tmp_path / "bare"
-    (bare / "docs" / "development" / "plans").mkdir(parents=True)
-    lk2 = _lock(
-        bare,
+
+def test_an_unresolvable_plan_stays_orphan_not_stale(tmp_path):
+    """The mirror — split into its own test so a failure of the STALE half cannot hide it.
+
+    Without the plan tree the same lock is an ORPHAN. The branch is load-bearing, so a loosened
+    `resolve_plan` returning STALE unconditionally reds HERE while the sibling above stays green.
+    """
+    lk = _lock(
+        tmp_path,
         "2026-07-19-plan-1-deep-research",
         plan="docs/development/plans/2026-07-19-plan-1-deep-research.md",
         status="active",
     )
-    assert "ORPHAN LOCK" in _labels(cplr.classify(bare, lk2)), (
+    (tmp_path / "docs" / "development" / "plans").mkdir(parents=True, exist_ok=True)
+    assert "ORPHAN LOCK" in _labels(cplr.classify(tmp_path, lk)), (
         "an unresolvable plan must stay ORPHAN — not be swept into STALE"
     )
 

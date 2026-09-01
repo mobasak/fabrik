@@ -559,30 +559,33 @@ def test_an_unrelated_source_key_is_not_read_as_a_declaration(tmp_path):
 
 
 def _assembled(name: str) -> str:
-    """A command source WITH its `{{include:NAME}}` fragments resolved.
+    """The command as the RENDERER actually assembles it — via the renderer, not a re-implementation.
 
     ⚠️ Reading the bare source is the wrong denominator, and it false-failed here. Commit 619e83d0
     ("the gauntlet twins shared 65 windows of contract — now they share fragments") deduplicated
     the shared certification contract into `_fragments/cert-board-contract.md`, which BOTH twins
     include. The clause was intact in every rendered command the whole time; only this test, which
-    grepped `_sources/` alone, saw it as deleted. Grade the ASSEMBLED contract — the corpus law is
-    "evaluate RENDERED, not source-alone" — but assemble it from the repo rather than reading
-    ~/.claude/commands, so the assertion cannot drift with an unrendered box.
+    grepped `_sources/` alone, saw it as deleted.
+
+    ⚠️ The FIRST fix for that was a hand-rolled `{{include:}}` expander here — which reproduced the
+    very class it was written to close, three ways (measured 2026-09-01): it skipped `PARAMS`
+    substitution so six `{{PARAM}}` placeholders survived; it never appended the `close-feedback`
+    fragment that the renderer adds to EVERY command, so a clause living THERE would read ABSENT
+    and false-RED exactly like the 619e83d0 case one fragment over; and it expanded markers
+    mid-line where the renderer anchors them to a whole line. A test that re-implements the
+    pipeline grades an artifact that never ships. Render into a temp dir instead — the same
+    read-only path `assemble_commands.check()` uses, so it can never touch the installed corpus.
     """
-    frag_dir = REPO / "commands" / "_fragments"
-    text = (REPO / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
-    for _ in range(5):  # fragments may themselves include; bounded to refuse a cycle
-        expanded = re.sub(
-            r"\{\{include:([\w-]+)\}\}",
-            lambda m: (frag_dir / f"{m.group(1)}.md").read_text(encoding="utf-8")
-            if (frag_dir / f"{m.group(1)}.md").is_file()
-            else m.group(0),
-            text,
-        )
-        if expanded == text:
-            return text
-        text = expanded
-    return text
+    import sys as _sys
+    import tempfile as _tempfile
+
+    _sys.path.insert(0, str(REPO / "commands"))
+    import assemble_commands as _ac
+
+    with _tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        _ac.render(tmp, tmp / "_skills", agents_dest=tmp / "_agents")
+        return (tmp / f"{name}.md").read_text(encoding="utf-8")
 
 
 def test_the_features_traceability_clause_survived_the_denominator_change(tmp_path):

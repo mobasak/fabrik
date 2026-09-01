@@ -148,7 +148,13 @@ what makes an in-flight command visible and un-abandonable.
   `scripts/enforcement/`, `templates/governance/`, `.claude/hooks/` + both hook configs, the root
   governance files, `fabrik_synced_manifest.py` / `sync_enforcement_to_projects.py` themselves)
   distributes fleet-wide via the POST-commit governance-sync — the exact trigger set IS the
-  `governance-sync` files-filter in `.pre-commit-config.yaml`; read it, don't recall it. Know the blast
+  `governance-sync` files-filter in `.pre-commit-config.yaml`; read it, don't recall it. ⚠️ **But
+  pre-commit does NOT apply that filter** — the hook is `stages: [post-commit]` + `always_run: true`,
+  and at the post-commit stage pre-commit passes NO file list, so a `files:`-filtered hook would
+  always be "(no files to check) Skipped". `scripts/governance_sync_postcommit.sh` re-implements the
+  filter by reading that same regex back out of the YAML and grepping HEAD's own paths — so the regex
+  IS canonical (single-sourced), but the ENFORCER is the wrapper. Edit the YAML expecting pre-commit
+  to act on it and you get no signal at all. Know the blast
   radius BEFORE staging; a hub-only experiment never goes on a synced path. ⚠️ NOT every manifest-synced
   path is a trigger (RUN_SCRIPTS, `.windsurf/workflows/`, and most — not all — reference docs ride the
   next unrelated sync; the filter itself is the truth) —

@@ -1365,6 +1365,14 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_script_headers.py",
                 "Script Coupling Header",
+                # `--quiet` suppresses the check's clean-path denominator lines. They exist for a
+                # BARE run (01M1E6S1EAK7DNP74C1K9YHP3Z: a pass was indistinguishable from a no-op)
+                # but a warn_only row's stdout ships UNFILTERED into the `advisory` array and into
+                # the human per-check listing, so unconditional output = a content-free row on
+                # every green gate in ~46 repos. Warnings are unaffected — those still print.
+                # Skew-safe both ways: an older checker ignores argv entirely, and a newer checker
+                # under an older gate merely prints.
+                "--quiet",
                 warn_only=True,
             )
         )

@@ -110,3 +110,31 @@ def test_staged_non_scripts_are_counted_honestly(tmp_path: Path) -> None:
     repo = _repo(tmp_path, "# AFTER-EDIT: none\nx = 1\n")
     out = _run(repo, "docs/coupled.md")
     assert "0 staged script(s) inspected" in out, f"expected an honest zero, got: {out!r}"
+
+
+def test_quiet_suppresses_the_denominator_but_never_a_warning(tmp_path: Path) -> None:
+    """`--quiet` is the GATE's flag; warnings must survive it or the check would go silent-green.
+
+    The denominator lines were first shipped unconditionally, which put a content-free row under
+    `[ADVISORY] Script Coupling Header` on every green gate — in human mode AND in `--json`,
+    because this check is registered warn_only=True and the `advisory` array applies no ⚠ filter
+    (only `warnings` does). Confirmed live on the fleet copies before the fix. The flag must
+    suppress ONLY the clean-path chatter.
+    """
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nx = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py", "docs/coupled.md"], check=True)
+    quiet = subprocess.run(
+        [sys.executable, str(CHECK), "--quiet"], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert quiet.returncode == 0
+    assert quiet.stdout.strip() == "", f"--quiet must print nothing on a clean run: {quiet.stdout!r}"
+
+    # ...but a real WARNING still speaks under --quiet.
+    repo2 = _repo(tmp_path / "b", "x = 1\n")  # no AFTER-EDIT header at all
+    subprocess.run(["git", "-C", str(repo2), "add", "scripts/thing.py"], check=True)
+    warned = subprocess.run(
+        [sys.executable, str(CHECK), "--quiet"], cwd=repo2, capture_output=True, text=True, timeout=60
+    )
+    assert "no `# AFTER-EDIT:` header" in warned.stdout, (
+        f"--quiet silenced a real finding — that is silent-green: {warned.stdout!r}"
+    )

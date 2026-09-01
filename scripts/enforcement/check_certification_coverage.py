@@ -101,8 +101,8 @@ DECLARATION_KEY = "certification_registry"
 # Per-scaffold-type DEFAULT when nothing is declared. Adopted from the tryton-crm proposal, which
 # grounded it. An undeclared source falls back here AND the fallback is RECORDED — a
 # declared-and-justified fallback is auditable, an inferred one is not.
-# `wordpress` is absent on purpose: it is a dead legacy string in SCAFFOLD_TYPES (scaffold.py:146,
-# with :5783 raising NotImplementedError) and we ship zero WordPress projects. It is a crash guard,
+# `wordpress` is absent on purpose: it is a dead legacy string in SCAFFOLD_TYPES (scaffold.py:147,
+# with :5970/:5976 raising NotImplementedError) and we ship zero WordPress projects. It is a crash guard,
 # never a product surface — and a sibling check that iterated SCAFFOLD_TYPES and let that
 # NotImplementedError escape reddened ~46 repos.
 REGISTRY_BY_TYPE: dict[str, str] = {
@@ -117,8 +117,9 @@ REGISTRY_BY_TYPE: dict[str, str] = {
     "chrome-extension": "the MV3 manifest — popup, options, content-script matches, commands",
     # Dual surface, and BOTH halves are the denominator: the add-in manifest names the Office
     # hosts + taskpane the add-in is loaded into, but `_scaffold_office_extension` reuses
-    # `_scaffold_saas_skeleton` wholesale (scaffold.py:5812), so the hosted app's routes ship too
-    # and certifying only the manifest would leave every backend route uncovered.
+    # `_scaffold_saas_skeleton` wholesale (scaffold.py:5748 — the call; :5812 is only its
+    # dispatch-table row), so the hosted app's routes ship too and certifying only the manifest
+    # would leave every backend route uncovered.
     "office-extension": (
         "the add-in manifest.xml — declared Hosts + the taskpane/AppDomain surfaces — "
         "PLUS the hosted app's live route table (it reuses saas-skeleton)"

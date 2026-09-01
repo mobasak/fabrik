@@ -45,13 +45,27 @@ def _skip(f: str) -> bool:
 
 
 def main() -> int:
+    # ⚠️ `--quiet` exists ONLY for the gate, and the gate passes it (final_gate.py). Read why
+    # before removing it: the denominator lines below were first shipped unconditionally, and
+    # that put a content-free row in EVERY green gate run across the fleet — in human mode under
+    # the `[ADVISORY] Script Coupling Header` row, AND in `--json`, because this check is
+    # registered `warn_only=True` and the `advisory` array (final_gate.py, built from
+    # WARN_ONLY_CHECKS) applies NO ⚠ filter — only the `warnings` array does. The sibling
+    # advisory rows stay silent when clean; this one must too. The corpus already paid for this
+    # lesson once: tests/enforcement/test_plan_lock_release.py asserts `out == ""` because "a
+    # foreign-only corpus is not worth two lines on every gate run there, forever".
+    # A BARE run (an agent or human invoking this directly) passes no flag and stays informative,
+    # which is the whole point of 01M1E6S1EAK7DNP74C1K9YHP3Z.
+    quiet = "--quiet" in sys.argv[1:]
     staged = _git(["diff", "--cached", "--name-only"])
     if not staged:
-        # Same denominator law as the clean path below — "nothing staged" is a REASON, not a
-        # silent pass. This early return was the shape actually hit by the bare run in
-        # 01M1E6S1EAK7DNP74C1K9YHP3Z (the reporter's scripts were modified-UNSTAGED, and this
-        # check is staged-scoped by design), so it must say so rather than exit mute.
-        print("OK — nothing staged; this check is staged-scoped (0 script(s) inspected).")
+        # "Nothing staged" is a REASON, not a silent pass. This early return is the shape the
+        # bare run in 01M1E6S1EAK7DNP74C1K9YHP3Z actually hit (the reporter's scripts were
+        # modified-UNSTAGED, and this check is staged-scoped by design).
+        if not quiet:
+            # Same "N staged script(s) inspected" wording as the clean path — one phrasing for one
+            # concept, so a reader (and a test) is not matching two substrings for the same fact.
+            print("OK — nothing staged; this check is staged-scoped (0 staged script(s) inspected).")
         return 0
     staged_set = set(staged)
     scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
@@ -84,7 +98,7 @@ def main() -> int:
 
     for w in warnings:
         print(f"WARNING: {w}")
-    if not warnings:
+    if not warnings and not quiet:
         # ⚠️ State the DENOMINATOR on the clean path. Until 2026-09-01 this check printed
         # NOTHING on every silent outcome — no staged files, no staged scripts, and all-clean
         # were three different states that looked identical, and identical to the check never
@@ -92,9 +106,9 @@ def main() -> int:
         # indistinguishable"). A "0 findings" verdict that cannot say how many subjects it
         # examined is indistinguishable from having looked at nothing — the same law the
         # governance contract applies to agents, applied to the checker itself.
-        # Deliberately NOT prefixed with ⚠: `run_optional_check` surfaces only ⚠-prefixed
-        # stdout into `--json`, so this line informs a direct/bare run without adding a row of
-        # noise to every green gate across the fleet.
+        # The `not quiet` guard is what keeps this out of every green fleet gate — see the
+        # note in main()'s head for the mechanism (it is NOT the ⚠ filter, which guards only
+        # the `warnings` array; warn_only stdout ships unfiltered in `advisory`).
         print(f"OK — {len(scripts)} staged script(s) inspected ({len(staged)} staged file(s)).")
     return 0  # WARN-only — never blocks the gate
 
