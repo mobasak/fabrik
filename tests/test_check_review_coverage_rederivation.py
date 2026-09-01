@@ -57,3 +57,23 @@ def test_a_review_with_the_row_passes_that_rule():
     )
     errs = _run(text)
     assert not any("re-deriv" in e for e in errs), errs
+
+
+def test_recurrence_boundary_stays_a_bare_word_match_corpus_measured():
+    """The boundary/sentinel/prefix floor matches a BARE word, deliberately.
+
+    2026-09-01: an author-blind finder proposed anchoring it on the slashed class
+    label to close a theoretical fail-open. A corpus sweep REFUTED the fix — 8 of
+    39 archived reports label the class as "Boundary / incomplete-validation" or
+    "Fail-open/fail-closed + boundary" and would have started failing. This test
+    pins the corpus reality so the "obvious" tightening is not re-applied without
+    re-running that sweep.
+    """
+    from scripts.enforcement.check_review_coverage import RECURRENCE
+
+    pat = RECURRENCE["boundary/sentinel/prefix"]
+    # Real label shapes found in the archive — all MUST keep matching.
+    assert pat.search("| Boundary / incomplete-validation | CLEAN |")
+    assert pat.search("| Fail-open/fail-closed + boundary | FIXED(2) |")
+    assert pat.search("| boundary/sentinel/prefix collisions | CLEAN |")
+    assert pat.search("| sentinel handling | CLEAN |")

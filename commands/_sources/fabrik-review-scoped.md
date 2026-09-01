@@ -30,14 +30,14 @@ proportionate answer.
    behavior-without-a-test) are your hunt list.
 3. **Pass 1 (wide):** read every changed hunk PLUS the enclosing function and its callers. Hunt the
    armed classes. Every finding is FIXED in-run (watched-fail-first where behavior changed) or
-   REFUTED with the disproving line — no third bucket, no "noted". **MECHANICAL findings (unambiguous,
-   local) you just fix; an ARCHITECTURAL one — where the correct fix is a design choice moving a
-   contract, boundary or data model ANOTHER module or repo depends on — you still fix, but name the
-   rejected alternatives and mint its `docs/DECISIONS.md` row in the same commit** (a silent pick
-   smuggles an architecture decision in under a bug-fix message). ⚠️ **This adds no exit** — the shape
-   describes the FIX, never a permit to leave the finding standing; a surface that genuinely outgrew
-   this command escalates to `/fabrik-review` (step 5), which is this command's only sanctioned
-   hand-off.
+   REFUTED with the disproving line — no third bucket, no "noted". **LOCAL findings (unambiguous,
+   contained) you just fix — the common case; an ARCHITECTURAL one — the correct fix moves a contract,
+   data model or auth/isolation posture ANOTHER module or repo depends on — you still fix, and it owes
+   the `/fabrik-review` § Phase 3 ledger row (classified at mint, ONE row per review, minted by the
+   DISPATCHING session — never a subagent).** Cannot tell which side? Treat it as ARCHITECTURAL.
+   ⚠️ **This adds no exit** — the shape describes the FIX, never a permit to leave a finding standing;
+   an architectural finding is itself a route-up trigger to `/fabrik-review` (step 5), this command's
+   only sanctioned hand-off.
 4. **Record each pass:** `python3 scripts/command_run.py round --findings <n> --classes-swept <…>
    --classes-new <…>`. **The round ledger IS this command's artifact** — deliberately no review
    file: `check_review_coverage.py` grades the heavy command's reports; this one's proof is the

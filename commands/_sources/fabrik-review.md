@@ -269,9 +269,11 @@ NOT accept an unfixed CONFIRMED or PLAUSIBLE finding.**
   decision ledger; a mechanical bug-fix stays row-less — the carve-out class).
   **This is the ONE ledger rule for the whole phase, and it has TWO entry conditions — either fires it:**
   the FIX is a design choice (this bullet), or the FINDING is ARCHITECTURAL (§ shape, below). They
-  overlap but neither subsumes the other: an architectural finding can have exactly one correct fix
-  (no choice was made, row still owed — the contract moved), and a purely local implementation choice
-  is a design decision that is not architectural (row owed, no contract moved). Mint ONE row either way.
+  overlap but neither subsumes the other: an architectural fix can have exactly ONE correct form (no
+  alternatives to reject — say so, the row is still owed because the contract moved), and a purely local
+  implementation choice is a design decision that moves no contract (row owed, not architectural). Mint
+  ONE row either way, and **the DISPATCHING SESSION mints it** — a subagent reports the decision in
+  prose and never touches the ledger (the pen-holder law; `/fabrik-execute-plan` D3 gate-enforces it).
   - **A test that passes because the environment cannot express the failure has proven nothing** —
     "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser
     role for an RLS bug, no concurrency for a race, one tenant for an isolation bug). Reach for the
@@ -304,30 +306,39 @@ right, REFUTE the fix with the reason). **Never apply a fix you can't stand behi
 ledger** — no performative "fixed."
 
 Classify each on TWO axes. **Severity:** correctness/security vs. style — correctness/security outranks
-style, but a style finding is still FIXED or REFUTED, never ignored. **Shape — MECHANICAL vs
+style, but a style finding is still FIXED or REFUTED, never ignored. **Shape — LOCAL vs
 ARCHITECTURAL**, which decides *how* you fix, **never whether** (both still terminate FIXED or REFUTED;
 this axis opens no third state):
 
-- **MECHANICAL** — the resolution is unambiguous and local: a missing `None`-check, an unbounded read, a
+- **LOCAL** — the resolution is unambiguous and contained: a missing `None`-check, an unbounded read, a
   wrong constant, a leaked handle, a rename the callers already expect. **Fix it in-run, autonomously.**
-  This is the default and the overwhelming majority; do not manufacture ceremony for it.
+  This is the common case; do not manufacture ceremony for it. (The axis is LOCAL/ARCHITECTURAL, not
+  "mechanical" — that word already means *done by machinery* fleet-wide: "three mechanical obligations",
+  "mechanical gates are green".)
 - **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives,
   and the choice moves a contract, boundary, data model or auth/isolation posture **that another module
-  or repo depends on**. (A fix whose only contract effect is local to the function you changed stays
-  MECHANICAL and row-less — the same carve-out as :269. "Changes what a caller can assume" describes
-  most correctness fixes; it is NOT the trigger, or every tightened validator would mint a row.) Still
-  fix it — and **name the alternatives you rejected**; this is the second entry condition of the FIXED
-  bullet's ledger rule above, so mint that ONE row (do not mint a second). Picking one silently is how a
-  review smuggles in an architecture decision under a bug-fix commit message.
+  or repo depends on**. (A fix whose only contract effect is contained in the function you changed stays
+  LOCAL and row-less — the same carve-out as :269. "Changes what a caller can assume" describes most
+  correctness fixes; it is NOT the trigger, or every tightened validator would mint a row.) Still fix it
+  — and **name the alternatives you rejected, or state that only one form was correct**; this is the
+  second entry condition of the FIXED bullet's ledger rule above, so mint that ONE row (do not mint a
+  second). Picking one silently is how a review smuggles in an architecture decision under a bug-fix
+  commit message. **One row per REVIEW covering its architectural picks** — unless a pick is ONE-WAY,
+  which earns its own row; per-fix rows dilute the ledger that CLAUDE.md makes the first answer to every
+  where-is/did-we-decide question.
+- **When you cannot tell which side a finding sits on, treat it as ARCHITECTURAL and mint the row.**
+  An unnecessary row costs a line; a missing one costs the decision. (The rest of this phase defaults
+  the same way — "PLAUSIBLE is not a licence to skip — it is the opposite".)
 
 **This axis adds NO new exit.** ⚠️ It is a description of the FIX, never a permit to leave a finding
 standing, and calling a finding "architectural" changes nothing about whether it terminates. A finding
 that genuinely cannot be fixed in-run uses the paths that already exist and are already graded — the
 three sanctioned BLOCKED cases, or `ROUTED(n)` with a named owner when it belongs to another repo — and
-NOTHING here widens either. **Record the shape in the finding's disposition row** (`FIXED(n) ·
-MECHANICAL` / `FIXED(n) · ARCHITECTURAL → D-NNN`): one token, and it makes the classification an
-artifact a reviewer can check rather than an unwitnessed thought — which is the only thing standing
-between this axis and a silent downgrade to MECHANICAL to dodge the ledger row.
+NOTHING here widens either. **Record the shape in the finding's disposition row** (`FIXED(n) · LOCAL` /
+`FIXED(n) · ARCHITECTURAL → D-NNN`): one token, and it makes the classification an artifact a reviewer
+can check rather than an unwitnessed thought — the only thing standing between this axis and a silent
+downgrade to dodge the ledger row. **Scope:** the mandate applies to findings adjudicated from this
+invocation onward — already-merged fixes from an earlier phase are not retro-minted.
 
 Re-run the project gate/test suite after EACH fix (fixes regress); green is necessary, NOT sufficient —
 it does not test logic, so never cite it as proof of correctness.

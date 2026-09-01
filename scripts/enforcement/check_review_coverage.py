@@ -53,6 +53,15 @@ BLOCKED_HEAD = re.compile(r"^#{2,4}\s*.*BLOCKED", re.M)
 RECURRENCE = {
     "fail-open/fail-closed": re.compile(r"fail[- ]open", re.I),
     "cost/quota accounting": re.compile(r"\b(cost|quota|limit)\b", re.I),
+    # DELIBERATELY a bare-word match, and it must stay that way — measured 2026-09-01.
+    # An author-blind finder proposed anchoring this on the slashed class label
+    # ("boundary/sentinel") to close a theoretical fail-open where a finding's rationale
+    # ("the fix moves a boundary") could certify a class nobody hunted. A corpus sweep of
+    # the review archive REFUTED the fix: 8 of 39 reports mentioning the class label it
+    # legitimately as "Boundary / incomplete-validation" or "Fail-open/fail-closed +
+    # boundary", and the stricter regex fails all 8. The theoretical exploit also needs a
+    # FINDING row misfiled into the Coverage-Checklist section (this scans `_table_rows`
+    # of that section only) — a different, more visible defect. Bare word stays.
     "boundary/sentinel/prefix": re.compile(r"\b(boundary|sentinel|prefix)\b", re.I),
     "behavior-without-a-test": re.compile(
         r"behavior[- ]without[- ]a[- ]test|untested behavior", re.I
