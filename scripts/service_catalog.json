@@ -39,6 +39,9 @@
     "status": "active",
     "match": [
       "SILICONFLOW"
+    ],
+    "hosts": [
+      "api.siliconflow.com"
     ]
   },
   "modelscope": {
@@ -70,6 +73,11 @@
     "status": "active",
     "match": [
       "BFL"
+    ],
+    "hosts": [
+      "api.bfl.ai",
+      "bfl.ai",
+      "playground.bfl.ai"
     ]
   },
   "fal": {
@@ -81,6 +89,10 @@
     "match": [
       "FAL_KEY",
       "FAL_"
+    ],
+    "hosts": [
+      "fal.run",
+      "queue.fal.run"
     ]
   },
   "replicate": {
@@ -91,6 +103,9 @@
     "status": "active",
     "match": [
       "REPLICATE"
+    ],
+    "hosts": [
+      "replicate.delivery"
     ]
   },
   "recraft": {
@@ -182,6 +197,9 @@
     "status": "active",
     "match": [
       "OPENPAGERANK"
+    ],
+    "hosts": [
+      "openpagerank.com"
     ]
   },
   "bing-webmaster": {
@@ -463,6 +481,9 @@
     "match": [
       "SUPABASE",
       "NEXT_PUBLIC_SUPABASE"
+    ],
+    "hosts": [
+      "your-project.supabase.co"
     ]
   },
   "backrest": {
@@ -759,6 +780,10 @@
     "match": [
       "KILO_API",
       "KILO_"
+    ],
+    "hosts": [
+      "api.kilo.ai",
+      "kilo.ai"
     ]
   },
   "google-cloud": {
@@ -792,6 +817,11 @@
     "status": "active",
     "match": [
       "YOUTUBE_API"
+    ],
+    "hosts": [
+      "img.youtube.com",
+      "www.youtube.com",
+      "youtube.com"
     ]
   },
   "telegram": {
