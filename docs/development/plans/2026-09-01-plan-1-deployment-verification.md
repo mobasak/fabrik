@@ -94,8 +94,21 @@ NEXT map · a dry authoring run against tryton-crm produces a non-empty row set 
 3. Behavior test: scaffold each type in a temp dir; assert the stub exists, exits non-zero, and that a
    `docusaurus` scaffold does **not** publish it.
 
-**Gate:** `final_gate --json` success · `pytest tests/test_scaffold*.py` green · the non-zero-exit and
+**Gate:** `final_gate --json` success · `timeout 900 pytest tests/test_scaffold*.py` green · the non-zero-exit and
 docusaurus-exclusion assertions proven **red-on-revert**.
+
+⚠️ **The 900s budget is MEASURED, not guessed** (2026-09-02, idle box, no concurrent runs):
+`1 failed, 251 passed, 1 deselected in 560.49s (9m20s)`. 900s leaves ~60% headroom.
+Three corrections behind that number, all mine:
+- The suite was called HUNG three times. It never was — `test_scaffold.py` is **65 passed in 274.75s**
+  and every rc=124 came from a timeout set below it, twice compounded by concurrent runs I had launched.
+- `compose_traefik` WAS pathological (200s+ → **46 passed in 54s**) because `_scaffold` re-ran
+  `create_project` (~24s) per parametrized test; fixed by caching per type (`7cca80f9`).
+- The `1 deselected` is the `pnpm install` test, correctly marked `needs_network` (`84cb5dd3`) — the
+  one genuinely network-bound case, and never the blocker I first blamed.
+The lone red (`saas_backend::test_auth_and_headers`) was a **stale test**, not a scaffold defect: it
+asserted Supabase Pattern B after `4a5e9b5b` deliberately flipped the scaffold to Pattern A. Fixed
+against measured emitted output, so this gate can actually reach green.
 
 ## Phase D — convergence
 

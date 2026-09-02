@@ -100,12 +100,22 @@ def test_tenant_middleware(project: Path) -> None:
     assert "403" in tenant  # membership validation (fail-closed header path)
 
 
-# Phase 4 — auth Pattern B + security headers + CORS ------------------------
+# Phase 4 — auth Pattern A + security headers + CORS ------------------------
 @requires_fabrik_env
 def test_auth_and_headers(project: Path) -> None:
+    """Pattern A: the service is its own IdP (vendored fastapi-user-auth).
+
+    ⚠️ This test asserted Pattern B (`PyJWKClient` / `decode_supabase_jwt`, i.e.
+    validating a SUPABASE JWT via JWKS) until 2026-09-02. The scaffold deliberately
+    flipped to Pattern A in `4a5e9b5b` when Supabase was retired as a default
+    backing service — so the TEST was stale against a decision, not the scaffold
+    against the test. It had been the suite's only red, which made a green
+    scaffold gate impossible; assertions below are measured from real emitted output.
+    """
     auth = (_pkg(project) / "auth.py").read_text()
-    assert "PyJWKClient" in auth  # validate Supabase JWT via JWKS, no own tokens
-    assert "decode_supabase_jwt" in auth
+    assert "PyJWKClient" not in auth, "Pattern B (Supabase JWKS) is retired — see 4a5e9b5b"
+    assert "Argon2" in auth  # own-IdP password hashing, OWASP-minimum defaults
+    assert "jti" in auth  # denylist revocation on self-issued tokens
     assert "X-Frame-Options" in auth
     assert "Strict-Transport-Security" in auth
     assert "cors_origins" in auth
