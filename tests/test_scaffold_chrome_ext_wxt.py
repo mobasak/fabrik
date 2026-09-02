@@ -324,6 +324,7 @@ def test_phase_b_seams_doc_emitted(ext: Path) -> None:
     shutil.which("pnpm") is None or shutil.which("node") is None,
     reason="requires the node/pnpm toolchain (the build integration gate)",
 )
+@pytest.mark.needs_network
 def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> None:
     """Behavior Contract (a): a fresh scaffold `pnpm install` + `wxt build` exits 0 and
     the generated manifest carries the declared MV3 permissions. This is the real proof

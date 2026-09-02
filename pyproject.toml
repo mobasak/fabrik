@@ -93,9 +93,10 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "--ignore=tests/test_pipeline_runner.py"
+addopts = "--ignore=tests/test_pipeline_runner.py -m 'not needs_network'"
 markers = [
     "requires_fabrik_env: marks tests requiring /opt/fabrik environment (skipped in CI)",
+    "needs_network: performs a REAL package install or build (pnpm/npm/uv). Excluded from the default run by addopts — measured 2026-09-02: it is what made `pytest tests/test_scaffold*.py` never finish. Run explicitly with `-m needs_network`.",
 ]
 
 [tool.hypothesis]
