@@ -6,17 +6,17 @@ Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shr
 ## ✅ Selected subagents — the gate shortlists (`pick_models` picks from these)
 
 ### Reviewers — 8 selected
-_gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s_
+_gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s · ordered by score5 BANDED to 0.25 (one corpus item), then cost asc — the corpus resolves 1 of 22 items at the frontier, so a finer quality sort is noise_
 | model | grade | score5 | recall | $/1k | $/run | p50 s |
 |---|:-:|--:|--:|--:|--:|--:|
-| `claude-code/haiku` | A | 4.21 | 0.73 | $35.549 | $1.0665 | 16.5 |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | $0.165 | $0.0033 | 1.9 |
-| `claude-code/fable` | A | 4.05 | 0.68 | $448.486 | $13.4546 | 10.3 |
-| `claude-code/opus` | A | 4.05 | 0.68 | $215.978 | $6.4794 | 8.0 |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | $160.349 | $4.8105 | 12.4 |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | $0.226 | $0.0068 | 1.3 |
-| `deepseek/deepseek-v4-flash` | B+ | 3.71 | 0.59 | $0.207 | $0.0062 | 7.9 |
+| `claude-code/haiku` | A | 4.21 | 0.73 | $35.549 | $1.0665 | 16.5 |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | $160.349 | $4.8105 | 12.4 |
+| `claude-code/opus` | A | 4.05 | 0.68 | $215.978 | $6.4794 | 8.0 |
+| `claude-code/fable` | A | 4.05 | 0.68 | $448.486 | $13.4546 | 10.3 |
 | `deepseek/deepseek-v3.2-exp` | B+ | 3.53 | 0.55 | $0.105 | $0.0032 | 2.1 |
+| `deepseek/deepseek-v4-flash` | B+ | 3.71 | 0.59 | $0.207 | $0.0062 | 7.9 |
 
 ### Coders — 6 selected (by tier)
 _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
@@ -65,13 +65,13 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | 2 | `deepseek/deepseek-v4-pro` | 2.87 | 0.76 | $0.0106 | 2.80 | 3 | ✓ | 153 |
 | 3 | `minimax/minimax-m3` | 2.76 | 0.89 | $0.0128 | 2.78 | 2 | ✓ | 125 |
 
-### review (n_total=8966)
+### review (n_total=8990)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.91 | 0.86 | $0.0029 | 2.90 | 2 | ✓ | 688 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.89 | 0.86 | $0.0030 | 2.87 | 2 | ✓ | 696 |
 | 2 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.89 | $0.0040 | 2.99 | 3 | ✓ | 1234 |
-| 3 | `google/gemini-3-flash-preview` | 2.94 | 0.89 | $0.0078 | 2.93 | 3 | ✓ | 1230 |
-| 4 | `qwen/qwen3-max` | 2.91 | 0.92 | $0.0142 | 2.89 | 2 | ✓ | 695 |
+| 3 | `google/gemini-3-flash-preview` | 2.92 | 0.89 | $0.0079 | 2.91 | 3 | ✓ | 1238 |
+| 4 | `qwen/qwen3-max` | 2.88 | 0.92 | $0.0147 | 2.86 | 2 | ✓ | 703 |
 
 ### spec (n_total=6)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |

@@ -77,6 +77,11 @@ SHRINKAGE_K = 10  # ~10 runs of prior weight — flips only when real data is th
 TIER_BASELINE = {1: 1.0, 2: 2.5, 3: 4.0}  # 0-5 scale; T2 baseline = QUALITY_GATE_MIN
 QUALITY_GATE_MIN = 2.5  # drop anything below the T2-tier baseline after shrinkage
 MIN_RUNS_TOP2 = 10  # slots #1-#2 require n≥10; lower-n rows sort below
+# One discriminating corpus item ≈ 0.2 of score5 (1/22 of recall, ×5 through F1); rounded up to 0.25.
+# Reviewer candidates whose score5 falls in the same band are indistinguishable to the instrument and
+# are therefore ordered by COST. Widening this band trades measured quality for measured price —
+# do it only with a corpus that can resolve the difference you are giving up.
+_SCORE5_NOISE_BAND = 0.25
 
 
 def load_task_baselines(db_path: str | Path | None = None) -> dict[tuple[str, str], float]:
@@ -552,9 +557,24 @@ def _review_benchmark_models() -> list[str]:
             c if c is not None else 1e9
         )  # NOT `c or 1e9`: a legit free model (0.0) must sort cheap
 
+    # ⚠️ SCORE5 IS BANDED BEFORE COST IS CONSULTED — the corpus cannot resolve finer than this.
+    # `TASK_SUBAGENT_SELECTION.md` states its own instrument ceiling: of the 22 mutants, 15 are caught
+    # by every strong model and 6 by none, so **exactly ONE item discriminates at the frontier**. One
+    # item is 1/22 of recall, and `score5 = F1(recall, precision) × 5`, so a single item moves score5
+    # by roughly 0.2. Ordering on raw `score5` therefore let a difference SMALLER THAN ONE CORPUS ITEM
+    # outrank a 4.5× cost difference — sorting on noise and paying real money for it.
+    #
+    # Banding at 0.25 (one item, rounded up) makes the comparison honest: models the instrument cannot
+    # tell apart are ordered by COST, and a genuinely larger quality gap still wins because it lands in
+    # a different band. This is the plan's own caveat made mechanical — "the defensible claim is the
+    # cost, not the quality" (plan 2026-09-02-plan-1-flywheel-recording, Phase E).
+    def _band(m: str) -> float:
+        s5 = metrics[m]["score5"] or 0
+        return -((s5 // _SCORE5_NOISE_BAND) * _SCORE5_NOISE_BAND)
+
     return sorted(
         (m for m in metrics if m in elig),
-        key=lambda m: (-(metrics[m]["score5"] or 0), _cost(m), m),
+        key=lambda m: (_band(m), _cost(m), m),
     )
 
 
@@ -1097,11 +1117,20 @@ def _selected_shortlists() -> list[str]:
         rrows = _q(
             "SELECT m.model_id, m.grade, m.score5, m.recall, m.cost_per_1k, m.cost_usd, m.p50_latency_s "
             "FROM model_review_metrics m JOIN (SELECT model_id, MAX(built_at) mb FROM model_review_metrics "
-            "GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb ORDER BY m.score5 DESC"
+            "GROUP BY model_id) t ON m.model_id=t.model_id AND m.built_at=t.mb "
+            # ⚠️ SAME BANDING AS THE ROUTER. This table had its own `ORDER BY m.score5 DESC` while
+            # `_load_review_fallback` (the order `pick_models` actually consumes) bands score5 first
+            # and then sorts by COST — so the doc a human reads ranked models the router did not.
+            # One corpus item ≈ 0.2 of score5 and only ONE item discriminates at the frontier, so a
+            # raw-score5 sort here put a $448/1k model above a $0.165/1k one on a difference the
+            # instrument cannot resolve. Band, then cost. Keep in step with _SCORE5_NOISE_BAND.
+            f"ORDER BY CAST(m.score5 / {_SCORE5_NOISE_BAND} AS INT) DESC, m.cost_per_1k ASC, m.model_id"
         )
         out += [
             f"### Reviewers — {len(rev_set)} selected",
-            "_gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s_",
+            "_gate: precision ≥ 0.99 · $/1k ≤ 0.70 · $/run < 0.007 · score5 ≥ 3.5 · p50 ≤ 10s · "
+            f"ordered by score5 BANDED to {_SCORE5_NOISE_BAND} (one corpus item), then cost asc — the "
+            "corpus resolves 1 of 22 items at the frontier, so a finer quality sort is noise_",
             "| model | grade | score5 | recall | $/1k | $/run | p50 s |",
             "|---|:-:|--:|--:|--:|--:|--:|",
         ]

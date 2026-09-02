@@ -599,6 +599,16 @@ in the plan before editing.
 
 ## Phase E — Reviewer default (ranking gate, hub-local)
 
+**✅ EXECUTED 2026-09-02** — implemented as a NOISE BAND rather than a hand-picked default, which is
+what the instrument actually supports. `_SCORE5_NOISE_BAND = 0.25` (one discriminating corpus item:
+1/22 of recall ≈ 0.2 of score5, rounded up); candidates whose score5 lands in the same band are
+ordered by COST. **A second, unrouted sort was found doing the opposite:** the rendered shortlist
+table carried its own `ORDER BY m.score5 DESC`, so the doc a human reads ranked models the router did
+not. Both now band on the same constant. Measured effect on the live roster — `qwen3-max` ($0.165/1k)
+and `gemini-3-flash` ($0.226) rise to the top, `claude-code/haiku` ($35.549, highest RAW score5 at
+4.21) drops to third, and `deepseek-v3.2-exp` ($0.105, cheapest) leads its band. The cost claim, not
+the quality claim, exactly as this phase specifies.
+
 Shift the default reviewer from `deepseek-v4-pro`/`minimax-m3` (68% of dev-half spend — $17.10 of the top four's $25.26) toward `deepseek-v3.2-exp` (565 runs, 90% ok, avg_q 3.25, **0.39¢/run** vs 1.75¢). Implement in the `rank_task_subagents.py` gate, not by hand-editing the doc.
 
 ⚠️ **Do not over-claim the quality delta.** `TASK_SUBAGENT_SELECTION.md` states its own instrument ceiling: 15 of 22 mutants are caught by every strong model and 6 by none, so **exactly 1 item discriminates at the frontier**. A 0.15 quality gap on that corpus is inside the noise. The defensible claim is the cost, not the quality.
