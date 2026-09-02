@@ -694,6 +694,10 @@
     "status": "active",
     "match": [
       "DOCKER_HUB"
+    ],
+    "hosts": [
+      "auth.docker.io",
+      "registry-1.docker.io"
     ]
   },
   "github": {
@@ -1046,7 +1050,10 @@
     "capability": "Aliyun's large language model and AI service API platform",
     "url": "https://dashscope.aliyun.com",
     "status": "active",
-    "match": []
+    "match": [],
+    "hosts": [
+      "dashscope-intl.aliyuncs.com"
+    ]
   },
   "amazon": {
     "category": "infra-platform",

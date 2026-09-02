@@ -40,6 +40,7 @@ def load() -> list[dict]:
                     "url": r[4] or "",
                     "status": r[5] or "?",
                     "keys": 0,
+                    "unattributed": 0,
                     "projects": set(),
                     "account": "",
                     "credit": "",
@@ -66,6 +67,10 @@ def load() -> list[dict]:
                     continue
                 if kind == "credential":  # a code call-site row proves USE, never a key
                     s["keys"] += 1
+                elif (
+                    kind == "credential-unattributed"
+                ):  # visible on the row, never counted as a key (BM9)
+                    s["unattributed"] += 1
                 s["projects"].update(projects or [])
                 if email and not s["account"]:
                     s["account"] = email
@@ -171,7 +176,7 @@ function render(){
     const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td>'
       +'<td>'+cpill(r.status)+'</td>'+cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')
-      +'<td class="num mono">'+r.keys+'</td>'+cell(r.account,'mono')
+      +'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials that reached this block through a model-merged prefix">'+r.unattributed+' unattributed</span>':'')+'</td>'+cell(r.account,'mono')
       +'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
   }
   tb.innerHTML=out||'<tr><td colspan="10" class="empty" style="padding:24px;text-align:center">No services match.</td></tr>';
@@ -260,7 +265,10 @@ def main(argv: list[str] | None = None) -> int:
     )  # `--help` exits here — it used to WRITE a file named --help
     rows = load()
     tmp = out.with_name(out.name + ".tmp")  # atomic: the mtime is a liveness heartbeat, so a
-    tmp.unlink(missing_ok=True)  # half-written file must never be fresh; no leftover either way
+    try:
+        tmp.unlink(missing_ok=True)  # half-written file must never be fresh; no leftover either way
+    except OSError:  # a DIRECTORY at the tmp name: let the open below say so (C10)
+        pass
     try:
         tmp.write_text(render(rows), encoding="utf-8")
         os.replace(tmp, out)

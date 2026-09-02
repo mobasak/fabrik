@@ -442,7 +442,9 @@ def test_catalog_index_drops_ambiguous_labels_and_keeps_exact_hosts():
         "resend": {"url": "https://resend.com", "match": ["RESEND"]},
     }
     idx = ge.catalog_url_index(catalog)
-    assert "*.github" not in idx and "github.com" not in idx and idx["*.resend"] == "resend"
+    assert (
+        "*.github.com" not in idx and "github.com" not in idx and idx["*.resend.com"] == "resend"
+    )  # wildcards carry the TLD (C5)
     matchers = [("BACKREST", "backrest"), ("GITHUB", "github"), ("RESEND", "resend")]
     assert ge.provider_for_host("api.github.com", catalog, idx, matchers) == "github"
     assert ge.provider_for_host("api.resend.com", catalog, idx, matchers) == "resend"
@@ -1638,7 +1640,7 @@ def test_a_malformed_url_never_kills_classify_or_the_scan(tmp_path, monkeypatch)
     assert cs.main() == 0
     assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["url"] == "?"
     idx = ge.catalog_url_index({"bad": {"url": "http://a]b"}, "ok": {"url": "https://ok.test"}})
-    assert idx == {"ok.test": "ok", "*.ok": "ok"}
+    assert idx == {"ok.test": "ok", "*.ok.test": "ok"}
 
 
 def test_only_the_typed_catalog_error_is_a_one_liner(tmp_path, monkeypatch, capsys):
@@ -1967,3 +1969,85 @@ def test_a_merged_prefix_survives_a_rewrite_of_its_target(tmp_path, monkeypatch)
         and out["tgt"]["category"] == "search"
         and "aaa" not in out
     )
+
+
+def test_wildcard_attribution_keys_on_the_registrable_domain(tmp_path, monkeypatch):
+    """`api.foo.org` is a different organisation from the vendor at `foo.com`: the wildcard is
+    `*.foo.com`, so the `.org` host goes to triage, never to `foo` (C5)."""
+    idx = ge.catalog_url_index({"foo": {"url": "https://foo.com"}})
+    assert idx == {"foo.com": "foo", "*.foo.com": "foo"}
+    cat = {"foo": {"url": "https://foo.com"}}
+    assert ge.provider_for_host("api.foo.com", cat, idx, []) == "foo"
+    assert (
+        ge.provider_for_host("api.foo.org", cat, idx, []) is None
+    )  # the label fallback respects the entry's own domain
+    assert (
+        ge.provider_for_host("api.foo.org", {"foo": {}}, idx, []) == "foo"
+    )  # no url on the entry: the label is the only evidence
+    assert (
+        ge.host_domain("x.foo.co.uk") == "foo.co.uk" and ge.host_domain("api.foo.org") == "foo.org"
+    )
+
+
+def test_a_url_with_a_comma_survives_the_svc_line_and_state_files_are_typed(tmp_path, monkeypatch):
+    """A catalog url may carry a legal `,` (only whitespace breaks the token, C7); a wrong-typed
+    cursor or error count is the default, never a TypeError (C2)."""
+    line = ge.svc_line("acme", {"category": "search", "url": "https://x.test/a,b"}, {"p"})
+    assert rs.SVC_RE.match(line).groupdict()["url"] == "https://x.test/a,b"
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(4)
+    )
+    cat, state = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--max-per-run", "2"], [_Res("not json")] * 4
+    )
+    (state / "c.json").write_text(json.dumps({"after": 123}), encoding="utf-8")
+    (state / "e.json").write_text(json.dumps({"p00": "3", "p01": 1}), encoding="utf-8")
+    assert cs.main() == 0  # neither state file crashes the run
+    assert cs.apply_error_budget({"p00"}, ["p00"], {"p00": "3"})[0] == {"p00": 1}
+
+
+def test_only_with_no_flagged_name_is_a_failure(tmp_path, monkeypatch):
+    """`--only TYPO --apply`: nothing dispatched must be exit 1, never a silent 0 (C6)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    _classify_env(tmp_path, monkeypatch, text, ["--apply", "--only", "typo"], [])
+    assert cs.main() == 1
+
+
+def test_a_catalog_broken_during_the_dispatch_merges_onto_the_probe(tmp_path, monkeypatch, capsys):
+    """The catalog becomes unreadable while the pool runs: the paid batch is merged onto the
+    pre-dispatch probe copy and written, never discarded (BM3)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+    cat.write_text(json.dumps({"bar": {"category": "search", "match": ["BAR"]}}), encoding="utf-8")
+
+    def corrupting_fanout(*a, **k):
+        cat.write_text('{"truncated": ', encoding="utf-8")
+        return [
+            _Res(
+                json.dumps(
+                    {
+                        "name": "foo",
+                        "category": "search",
+                        "cost": "free",
+                        "capability": "x",
+                        "url": "https://foo.test",
+                        "status": "active",
+                    }
+                )
+            )
+        ], ""
+
+    monkeypatch.setattr(cs, "fanout", corrupting_fanout)
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["foo"]["category"] == "search" and out["bar"]["match"] == ["BAR"]
+    assert "merging onto the pre-dispatch copy" in capsys.readouterr().err

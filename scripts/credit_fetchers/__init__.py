@@ -109,12 +109,6 @@ FETCHERS: dict[str, Callable[[str], CreditSnapshot | None]] = {
 }
 
 
-def has_fetcher(provider: str) -> bool:
-    """True when a credit fetcher is registered for `provider` (BH1: the sync warns about an
-    unattributable credential only where a fetch would have happened)."""
-    return provider in FETCHERS
-
-
 def fetch_balance(provider: str, api_key: str) -> CreditSnapshot | None:
     """Fetch the account balance/usage for a provider, or None (no fetcher / fetch failed).
 

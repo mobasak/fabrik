@@ -398,6 +398,16 @@ _CC_SECOND_LEVEL = frozenset({"co", "com", "org", "net", "gov", "edu", "ac", "or
 PLATFORM_SLD = frozenset({"amazonaws", "googleapis", "azure", "windows", "cloudfront"})
 
 
+def host_domain(host: str) -> str:
+    """Registrable DOMAIN of a host (label + public suffix): api.foo.com → foo.com, x.foo.co.uk →
+    foo.co.uk — the wildcard key of the catalog url index, so `api.foo.org` is never credited to
+    the vendor at `foo.com` (C5)."""
+    parts = host.lower().rstrip(".").split(".")
+    if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in _CC_SECOND_LEVEL:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:]) if len(parts) >= 2 else parts[0]
+
+
 def host_sld(host: str) -> str:
     """Registrable label of a host: api.posthog.com → posthog; foo.co.uk → foo."""
     parts = host.lower().rstrip(".").split(".")
@@ -526,7 +536,9 @@ def catalog_url_index(catalog: dict) -> dict[str, str]:
         if not host:
             continue
         hosts.setdefault(host.lower(), set()).add(provider)
-        owners.setdefault(host_sld(host), set()).add(provider)
+        owners.setdefault(host_domain(host), set()).add(
+            provider
+        )  # keyed by registrable DOMAIN, TLD included (C5)
     idx: dict[str, str] = {}
     for host, provs in hosts.items():
         if len(provs) == 1:  # a hostname two entries share (a repo link) names neither
@@ -560,10 +572,16 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         return match_provider(f"{first.upper().replace('-', '_')}_API_KEY", matchers)
     if h in url_index:  # exact hostname
         return url_index[h]
-    if f"*.{sld}" in url_index:  # unambiguous registrable domain
-        return url_index[f"*.{sld}"]
+    dom = host_domain(h)
+    if f"*.{dom}" in url_index:  # unambiguous registrable domain, TLD included (C5)
+        return url_index[f"*.{dom}"]
     if sld in catalog:
-        return sld
+        # the label alone is evidence only when the entry has no url of its own, or its url sits on
+        # the SAME registrable domain — `api.foo.org` is not the vendor at `foo.com` (C5)
+        url = str(catalog[sld].get("url") or "")
+        own = urlsplit(url).hostname if url.startswith("http") else None
+        if not own or host_domain(own) == host_domain(h):
+            return sld
     return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
 
 
@@ -759,7 +777,9 @@ def svc_line(name: str, meta: dict, used_by: set[str]) -> str:
     # consumer regex (registry_sync.SVC_RE) fails to match and the whole service is dropped.
     cat = _svc_token(meta.get("category"))
     cost = _svc_token(meta.get("cost"))
-    url = _svc_token(meta.get("url"))
+    url = (
+        re.sub(r"\s+", "_", str(meta.get("url") or "?").strip()) or "?"
+    )  # a url may carry a legal `,` — only whitespace breaks a token here (C7)
     status = _svc_token(meta.get("status"))
     return (
         f"#svc name={_svc_token(name)} category={cat} cost={cost} "

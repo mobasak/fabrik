@@ -213,6 +213,9 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     # token is restricted to [A-Za-z0-9-], never interpolated raw (AP1)
     assert "String(v).replace(/[^A-Za-z0-9]+/g,'-')" in gd.SCRIPT
     assert "'unknown':v.replace('_','-')" not in gd.SCRIPT
+    assert (
+        "r.unattributed" in gd.SCRIPT
+    )  # an unattributed credential is visible on the row, not merely uncounted (BM9)
     # the href scheme gate's always-on floor (AS5): the node test skips without node, and a skip
     # must not be the only guard on an injection class (AT1)
     assert "const href=u=>/^https?:\\/\\//i.test(String(u||''))?u:null;" in gd.SCRIPT

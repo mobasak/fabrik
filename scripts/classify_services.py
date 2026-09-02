@@ -191,7 +191,9 @@ def apply_error_budget(
     row is returned in `exhausted` (→ tombstoned like an unidentifiable one); a run that does NOT
     error resets its count. Closes the retired orchestrator's seen-set gap: without it a
     permanently-erroring provider was re-billed on every lap forever (review 2026-09-02)."""
-    new = dict(counts)
+    new = {
+        k: v for k, v in counts.items() if isinstance(k, str) and isinstance(v, int)
+    }  # a wrong-typed count is dropped (C2)
     for n in names:
         new[n] = new.get(n, 0) + 1 if n in errored else 0
     keep = set(names) if flagged is None else flagged | set(names)
@@ -300,6 +302,12 @@ def main() -> int:
                 file=sys.stderr,
             )
     if not provs:
+        if args.only:  # every name was a typo or already catalogued: a requested run that did nothing is a failure (C6)
+            print(
+                "--only: none of the named providers is in NEEDS-TRIAGE — nothing dispatched",
+                file=sys.stderr,
+            )
+            return 1
         print("No category=? providers to classify — nothing to do.")
         return 0
     # One classify at a time: the cursor is a read-modify-write, and a manual run racing the
@@ -313,6 +321,10 @@ def main() -> int:
         print("another classify_services run holds the lock — skipping (no double-billing)")
         return 0
     cursor = _read_json(CURSOR_PATH, {}).get("after")
+    if not isinstance(cursor, str):
+        cursor = (
+            None  # a wrong-typed cursor is the default, never a TypeError in bound_flagged (C2)
+        )
     if (
         args.only
     ):  # an operator-named list is already bounded by what was typed — never cap it (AB1)
@@ -330,8 +342,8 @@ def main() -> int:
     # read + parse the catalog BEFORE spending: an unreadable file after the dispatch lost the
     # whole paid batch (the cursor had already moved — BH2)
     try:
-        _catalog_snapshot = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        if not isinstance(_catalog_snapshot, dict):
+        _catalog_probe = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        if not isinstance(_catalog_probe, dict):
             raise ValueError("catalog is not a JSON object")
     except (OSError, ValueError) as exc:
         print(
@@ -394,11 +406,13 @@ def main() -> int:
         if not isinstance(raw_catalog, dict):
             raise ValueError("catalog is not a JSON object")
     except (OSError, ValueError) as exc:
+        # the paid batch is NOT lost: merge onto the pre-dispatch probe (the last good state) and
+        # say so — the cursor has already moved and the money is spent (BM3)
         print(
-            f"ERROR: {CATALOG_PATH} became unreadable during the dispatch ({exc}) — nothing written",
+            f"WARNING: {CATALOG_PATH} became unreadable during the dispatch ({exc}) — merging onto the pre-dispatch copy",
             file=sys.stderr,
         )
-        return 1
+        raw_catalog = _catalog_probe
     # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
     # gather_envs.load_catalog applies; kept aside and written back first (AU9)
     catalog_meta = {k: v for k, v in raw_catalog.items() if k.startswith("_")}

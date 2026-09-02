@@ -691,6 +691,14 @@ def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypat
     assert not rs.owned_by(
         "DEEPL_API_KEY", "deepl", None
     )  # unknown provenance is never ownership (BK1)
+    # a CURATED prefix of ANOTHER provider in this block is not ownership either — a stale block
+    # carrying `DEEPL_API_KEY` under exa must never feed exa's fetcher (BM1)
+    assert not rs.owned_by("DEEPL_API_KEY", "exa", prov)
+    # equal-length prefixes of two providers: the verdict never depends on catalog key order (BM1)
+    for order in ([("XY", "aaa"), ("XY", "zzz")], [("XY", "zzz"), ("XY", "aaa")]):
+        assert (
+            not rs.owned_by("XY_API_KEY", "zzz", (order, {("XY", "aaa")})) or order[0][1] == "zzz"
+        )
 
 
 def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
@@ -719,3 +727,54 @@ def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
     conn.close()
     bad.write_text('{"dee pl": {"category": "x"}}', encoding="utf-8")
     assert rs.catalog_provenance() is None  # an unround-trippable key: unknown, not an abort (BK7)
+
+
+def test_unknown_provenance_is_said_once_and_exits_non_zero(
+    fixture_env, monkeypatch, tmp_path, capsys
+):
+    """A degraded registry must not read LIVE: one summary line names the count and `main`
+    returns 2 so the chain's _step alerts and skips the dashboard (BM2)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
+        '#svc name=deepl category=ai-translate cost=paid capability="test" '
+        "url=https://deepl.com status=active used_by=projA\n"
+        f"DEEPL_API_KEY={SECRET}own\n",
+        encoding="utf-8",
+    )
+    bad = tmp_path / "catalog.json"
+    bad.write_text('{"truncated": ', encoding="utf-8")
+    monkeypatch.setattr(rs.gather_envs, "CATALOG_PATH", bad)
+    monkeypatch.setattr(sys, "argv", ["registry_sync.py"])
+    real = rs.sync_registry
+    monkeypatch.setattr(
+        rs, "sync_registry", lambda **kw: real(prune=False, **kw)
+    )  # the shared test registry must not be pruned
+    assert rs.main() == 2
+    err = capsys.readouterr().err
+    assert "provenance UNKNOWN — 1 credential(s) stored unattributed" in err
+
+
+def test_two_names_one_value_take_the_restrictive_kind_whatever_the_order(fixture_env, monkeypatch):
+    """The same value under an owned name and an unattributed name collapses to ONE row (unique
+    per digest): that row is `credential-unattributed` in both file orders (BM5)."""
+    prov = ([("DEEPL", "deepl"), ("AAA", "deepl")], {("AAA", "deepl")})
+    monkeypatch.setattr(rs, "catalog_provenance", lambda: prov)
+    for first, second in (("AAA_API_KEY", "DEEPL_API_KEY"), ("DEEPL_API_KEY", "AAA_API_KEY")):
+        fixture_env.write_text(
+            "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
+            '#svc name=deepl category=ai-translate cost=paid capability="test" '
+            "url=https://deepl.com status=active used_by=projA\n"
+            f"{first}={SECRET}same\n"
+            f"{second}={SECRET}same\n",
+            encoding="utf-8",
+        )
+        rs.sync_registry(fetch_credits=False, prune=False)
+        conn = rdb.connect()
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT kind FROM api_keys WHERE value_sha256=%s",
+                (hashlib.sha256(f"{SECRET}same".encode()).hexdigest(),),
+            )
+            kinds = [r[0] for r in cur.fetchall()]
+        conn.close()
+        assert kinds == ["credential-unattributed"], (first, kinds)

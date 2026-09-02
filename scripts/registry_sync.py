@@ -132,7 +132,10 @@ def owned_by(
         ),
         None,
     )
-    return win is None or win not in merged
+    # a key is owned only when the prefix that routed it belongs to THIS block's provider and is
+    # curated: a stale block carrying another vendor's key (`DEEPL_API_KEY` under `exa`) is never
+    # that vendor's fetcher input, and equal-length prefixes cannot flip the verdict by JSON order (BM1)
+    return win is None or (win[1] == provider and win not in merged)
 
 
 def credential_rank(key: str, value: str) -> int:
@@ -155,7 +158,7 @@ def credential_rank(key: str, value: str) -> int:
 
 
 def ensure_schema(cur) -> None:
-    """Idempotent forward migration: `api_keys.kind` ('credential' | 'config' | 'code-host') — a code
+    """Idempotent forward migration: `api_keys.kind` ('credential' | 'config' | 'code-host' | 'credential-unattributed') — a code
     call-site row is a public URL's digest, not a secret, and the dashboard must not count it
     as a key (review 2026-09-02, O4). `db/services_registry_schema.sql` carries the column for
     fresh installs; this brings an existing registry level on its next sync."""
@@ -230,11 +233,20 @@ def sync_registry(
     if dsn:
         os.environ["SERVICES_REGISTRY_DSN"] = dsn
     provs = parse(ALL_ENVS)
-    stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0, "pruned": 0, "keys_pruned": 0}
+    stats = {
+        "services": 0,
+        "api_keys": 0,
+        "credit_snapshots": 0,
+        "pruned": 0,
+        "keys_pruned": 0,
+        "unattributed": 0,
+        "provenance_unknown": False,
+    }
     to_fetch: list[tuple[int, str, str]] = []
     prov = (
         catalog_provenance()
     )  # model-merged prefixes never feed a fetcher; unknown = none do (BH1/BK1)
+    stats["provenance_unknown"] = prov is None
     conn = registry_db.connect()
     # Schema first, in its OWN short transaction: an ALTER inside the sync transaction holds an
     # ACCESS EXCLUSIVE lock on api_keys for the whole run (measured: the no-op ADD COLUMN IF NOT
@@ -270,6 +282,7 @@ def sync_registry(
                 first_value = None
                 best_rank = 99
                 digests: list[str] = []
+                kinds_by_digest: dict[str, str] = {}
                 for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
                         continue
@@ -290,6 +303,7 @@ def sync_registry(
                         # dashboard, never a fetcher candidate, and said aloud (a NAME, never a
                         # value) so the misattribution is visible even where no fetcher exists (BH1/BK8)
                         kind = "credential-unattributed"
+                        stats["unattributed"] += 1
                         print(
                             f"WARNING: {meta['name']}: {_key} is not attributable to it (model-merged prefix or unknown provenance) — stored unattributed, no credit fetch",
                             file=sys.stderr,
@@ -299,6 +313,13 @@ def sync_registry(
                         if rank < best_rank:
                             best_rank, first_value = rank, value  # by role (AM1)
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
+                    if (
+                        kind == "credential"
+                        and kinds_by_digest.get(digest) == "credential-unattributed"
+                    ):
+                        kind = "credential-unattributed"  # two names, one value: the RESTRICTIVE kind wins whatever the order (BM5)
+                    if kind == "credential-unattributed":
+                        kinds_by_digest[digest] = kind
                     digests.append(digest)
                     # per-key attribution when present (a multi-key provider's keys differ),
                     # else the provider-wide union from the #svc used_by= field.
@@ -374,6 +395,11 @@ def sync_registry(
                     stats["credit_snapshots"] += 1
         finally:
             conn2.close()
+    if stats["provenance_unknown"]:
+        print(
+            f"WARNING: catalog provenance UNKNOWN — {stats['unattributed']} credential(s) stored unattributed, no credit fetch; the dashboard counts 0 keys until the catalog is readable (BM2)",
+            file=sys.stderr,
+        )
     return stats
 
 
@@ -395,6 +421,8 @@ def main() -> int:
         f"{stats['credit_snapshots']} credit snapshots into the registry "
         f"(pruned {stats['pruned']} services, {stats['keys_pruned']} stale keys)"
     )
+    if stats["provenance_unknown"]:
+        return 2  # a degraded registry must not read LIVE: the chain's _step alerts and skips the dashboard (BM2)
     return 0
 
 
