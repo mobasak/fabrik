@@ -29,7 +29,8 @@
 | 16 | F2 — the latency mechanism, proven at `agent.py:1296` vs `:1397` | **method: re-derivation** | 1 | 1 | 1 | fa81fe → eade41 |
 | 17 | C2 / F5 — does the benchmark harness still exist here? (`git ls-files` → 0) | **method: re-derivation** | 3 | 3 | 3 | eade41 → dabb18 |
 | 18 | all — checklist parse, stale-machinery sweep, every Amendment-2 anchor re-read, status honesty | method: gate + citation | 0 | 0 | **0** | dabb18 → dabb18 ✓ (quiet) |
-| — | ⚠️ **NOT YET CONVERGED.** P18 is quiet, but the AUTHOR-BLIND pass dispatched at the start of Amendment 2 had **not returned** when this ledger row was written. Amendment 1's phases have still never been read by anyone but their author. **Dispatched: 1. Returned: 0.** Per the termination contract an un-returned finder's partition is UNSWEPT — so the `CONVERGED` flip is NOT earned by P18 alone, however quiet it looks. | — | — | — | — | — |
+| — | ⚠️ **P18 was quiet but NOT convergence.** The AUTHOR-BLIND pass had not returned; Amendment 1's phases had been read by nobody but their author. **Dispatched: 1. Returned: 0** at that moment. The flip was correctly withheld. | — | — | — | — | — |
+| 19 | **the author-blind pass RETURNED — 11 defects merged or refuted with evidence. Dispatched: 1. Returned: 1. Partition SWEPT.** | **method: re-derivation** | 11 | 11 | 14 | cfbb5f → ea219e |
 
 **Dispatched vs returned:** 5 pool units dispatched, 5 returned (all scored back to the flywheel:
 qwen3-max 5 · deepseek-v4-flash 4 · deepseek-v3.2-exp 4 · gemini-3-flash 3 · deepseek-v4-flash 1).
@@ -175,18 +176,18 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | 15 | NULL-unsafe predicate | this review | **FIXED** — all 141 stalled rows have `cost_usd IS NULL`, so the literal `cost = 0` matched **zero** rows (D7) |
 | 16 | one call where a loop is required | this review | **FIXED** — `flush_outbox` drains `.flushing` OR live, never both; 4 repos hold both (D3) |
 | 18 | **the DB cannot record WHY a run failed** | Amendment 1 | **FIXED** — F1 adds `failure_reason`; three wrong conclusions in one session each traced to this single missing column |
-| 19 | latency conflated with our own queueing | Amendment 1 | **FIXED** — F2 splits `queue_s`; proven by the same model reading 1051s benchmarked and 61s in production |
-| 20 | cost not normalisable (no token counts) | Amendment 1 | **FIXED** — F3 persists `tokens_in`/`tokens_out`; `$/run` alone confounds model price with task size |
+| 19 | latency conflated with our own queueing | Amendment 1 | **FIXED** — F2 splits `queue_s`, mechanism proven at `agent.py:1296` vs `:1397-1400`. ⚠️ Re-adjudicated after the author-blind pass could not reproduce the 17× table: the number reproduces exactly, the QUERY was missing, and it is now published under F2 |
+| 20 | cost not normalisable (no token counts) | Amendment 1 | **PARTIAL — re-adjudicated** — `tokens_out` has a producer and ships; **`tokens_in` has NONE** (0 hits across 20 files), so the size-normalisation motive is only half-met until a producer is added. Recorded as partial rather than left FIXED on an unwritable column |
 | 21 | runs not known to be comparable | Amendment 1 | **FIXED** — F5 stamps `corpus_id`/`task_ref` |
-| 22 | a uniqueness constraint with an exempt population | Amendment 1 | **FIXED** — F6; dispatch rows cannot duplicate (0 measured) but 120 agent_ids already carry duplicate `scored` rows |
+| 22 | a uniqueness constraint with an exempt population | Amendment 1 | **FIXED (scope reduced)** — F6 is now the dedupe pass ONLY: extending the constraint is contract-breaking in both readings, and the tie-break it also proposed already exists at `rank_task_subagents.py:178-179` with a regression test |
 | 24 | **a plan step citing machinery the repo does not have** | Amendment 2 | **FIXED** — Phase F's migration gate named `db/schema.sql` and "the Alembic head"; this repo has NEITHER. The real contract is a 3-step ordering around `SUBAGENT_RUNS_DDL` with a worked precedent (`session_id`, 2026-08-15) the plan never consulted |
 | 25 | a risk asserted without reading the write path | Amendment 2 | **REFUTED** — the feared duplicate-insert ERROR cannot happen: `_INSERT` ends `ON CONFLICT DO NOTHING`, shipped inert on purpose and active since the index landed. Recorded because the refutation is the useful half |
 | 26 | an upstream ask aimed at this beat, never actioned | Amendment 2 | **FIXED** — `pg_ledger`'s own comment asks "whoever holds the DSN" for a dedupe pass on 995 rows; intel holds it; F6 is now that pass (120 remain, all in the index-exempt `scored` half) |
 | 28 | **a plan step whose tool left the repo** | Amendment 2 | **FIXED** — C2 assumed `microbench_review.py` was local; `git ls-files` → 0, deleted in `73bde59a`, now in `/opt/ai-model-catalog/engine/`. C2 is cross-repo and operator-gated; F5's producer likewise |
 | 29 | a generated doc citing a tool that left | Amendment 2 | **FIXED** — `TASK_SUBAGENT_SELECTION.md:83,:90` still name a bare `microbench_review.py`; routed into Phase E, which already edits the generator |
 | 27 | **an unasserted edit reported as success** | Amendment 2 | **FIXED** — Amendment 1's `Status: DRAFT → CONVERGED` used a bare `str.replace` with no match assertion inside a script that printed "✓ re-CONVERGED" unconditionally. It did not match. The ledger said RE-CONVERGED while the Status said DRAFT, and that contradiction was committed and reported. Every other edit this session used an asserting helper; this one bypassed it |
-| 23 | the only human-supplied metric is half-missing on 91% of volume | Amendment 1 | **FIXED** — Phase H; `review` quality coverage is 51% of 4,337 runs, and a recorded-but-unscored run currently passes the flywheel check silently |
-| 17 | evidence with an unreconciled delta | this review | **FIXED (class), instance SELF-SERVICE** — 50 returned vs 46 landed (D9). The CLASS is closed: A1 now mandates a per-repo `rows_after − rows_before == returned` assertion that fails loudly. The INSTANCE is an execution-time discovery — the executor runs the walker with that assertion live and sees the per-repo breakdown I cannot reconstruct after the fact. It is not a deferred question: the plan states the exact check, so nobody has to stop and ask |
+| 23 | the only human-supplied metric is half-missing on 91% of volume | Amendment 1 | **FIXED (fix relocated)** — the DIAGNOSIS holds (51% of 4,340 runs, query published; a recorded-but-unscored run passes silently). The FIX moved: the checker cannot compute the ratio (no DB access, receipts indistinguishable by shape), so H computes it at the dispatch close and the checker half is scoped OUT |
+| 17 | evidence with an unreconciled delta | this review | **RESOLVED — instance explained, and the proposed fix WITHDRAWN.** The 46-vs-50 gap is four duplicate `agent_id`s absorbed by `ON CONFLICT DO NOTHING`, reproduced on a throwaway DB by the author-blind pass. The equality assertion an earlier draft mandated is false by construction and would have redded the daily refresh every day. Superseded text: **FIXED (class), instance SELF-SERVICE** — 50 returned vs 46 landed (D9). The CLASS is closed: A1 now mandates a per-repo `rows_after − rows_before == returned` assertion that fails loudly. The INSTANCE is an execution-time discovery — the executor runs the walker with that assertion live and sees the per-repo breakdown I cannot reconstruct after the fact. It is not a deferred question: the plan states the exact check, so nobody has to stop and ask |
 
 ## Execution Discipline
 
@@ -598,20 +599,28 @@ $ psql postgresql:///fabrik_analytics -c "SELECT count(*) rows,
 `'' | capped | done | error | out_of_scope | scored`. Three wrong conclusions were drawn from that in
 a single session, each reversed only by leaving the database for the JSONL error text:
 
-| the `status` said | the reason was | what it nearly caused |
-|---|---|---|
-| `error` ×246 | **our own** `max_price` cap | blacklisting three working models |
-| `capped` ×232 | 141 provider stalls + 91 **our own** turn ceilings | a model verdict built on our budget |
-| `latency_s` high | benchmark **concurrency**, not model speed | disabling models that are 17× faster in production |
+| the signal | the reason was | what it nearly caused | population |
+|---|---|---|---|
+| `error` | **our own** `max_price` cap | blacklisting three working models | **246 in the JSONL ledger; the DB holds 332 `error` rows of which 91 are the three cap models.** ⚠️ An earlier draft printed the ledger figure in a table headed by DB statuses — the exact ledger-vs-DB conflation this plan's own C1(b) retired, re-firing inside the amendment (author-blind reviewer D3) |
+| `capped` | 141 provider stalls + **93** our own turn ceilings | a model verdict built on our budget | 234 DB rows (an earlier draft said 232 = 141+91; re-derived it is 141+93) |
+| `latency_s` high | benchmark **concurrency**, not model speed | disabling models 17× faster in production | per-run medians, query published under F2 |
 
 `pg_ledger` already generates the token (`dsn-missing`, `missing-driver-psycopg`, `db-commit-uncertain`,
 … — `pg_ledger.py:889-892`) and the pool already has the provider's error text. Both are discarded at
 the DB boundary. **Add `failure_reason TEXT` and persist the token; keep the free text in the JSONL.**
 
-✅ **The premise is verified, not assumed — the value EXISTS at record time.** `AgentResult` carries
-`error: str | None` (`agent.py:464`), and `record_run(record: dict[str, object], …)`
-(`pg_ledger.py:468-476`) receives the whole ledger record. The reason is present and simply absent from
-`_INSERT`'s column list. This is a column addition, not a new capture problem.
+⚠️ **THE TOKEN LIST CITED ABOVE IS THE WRONG SOURCE** (author-blind reviewer D7, confirmed). Those 13
+tokens are **`flush_outbox` reasons** — they say why a FLUSH failed. A row whose flush failed **is not
+in the table**, and a row that landed had a successful flush and carries no token. They are disjoint
+from this phase's own motivating table (cap rejection, provider stall, turn ceiling), which is about
+**run** failures. Citing them as "the token already exists" was a category error.
+
+✅ **F1 is still feasible, on the CORRECT source.** `AgentResult.error: str | None` (`agent.py:464`) is
+in `_RESULT_FIELDS` (`ledger.py:129`), so it reaches `record_run`'s `record` dict
+(`pg_ledger.py:468-476`). The run-failure text is present at the write point and simply absent from the
+column list. ⚠️ **And the column list must GROW:** adding `failure_reason` to the DDL alone creates a
+column nothing writes — `_INSERT` (`pg_ledger.py:67-84`) and `_COLS` (`:112-129`) must both be
+extended, in the vendored module, with Phase D's 48-copy blast radius. That coupling was missing.
 A ranking that cannot separate "the provider refused" from "we priced it out" is not measuring models.
 
 **Gate:** every non-`done` row written after the change carries a non-NULL `failure_reason`; a query
@@ -622,13 +631,35 @@ partitioning `status='error'` by reason returns the cap rows separately from rea
 `latency_s` currently conflates model time with our own dispatch queueing. Proven by comparing the SAME
 model across populations — sweep days vs production days:
 
+⚠️ **The author-blind reviewer could not reproduce this table and reported it unreproducible across
+eight partition definitions (best effort: 1.46×, not 17×). They were right that it was unpublishable
+and wrong that it was unreproducible — because the plan never printed the query.** Re-run verbatim it
+reproduces exactly; their attempts partitioned by `project` (backfill-vs-rest), this partitions by
+DATE and aggregates per RUN (`agent_id`), not per row. **Publishing the query IS the fix**; the number
+stands. This violated the plan's own Global Constraint that every count names its population.
+
 ```
- model                        | sweep median | production median | ratio
- tencent/hy3                  |        1051s |               61s |  17×
- minimax/minimax-m2.5         |         198s |               30s | 6.6×
- deepseek/deepseek-v3.2-exp   |         205s |               36s | 5.7×
- deepseek/deepseek-v4-pro     |         138s |              166s | 0.8×
+$ psql postgresql:///fabrik_analytics -c "
+WITH r AS (SELECT agent_id, max(model) m, min(ts)::date d, max(latency_s) lat
+           FROM subagent_runs WHERE status='done' GROUP BY agent_id)
+SELECT m AS model,
+  round((percentile_cont(0.5) WITHIN GROUP (ORDER BY lat)
+     FILTER (WHERE d IN ('2026-07-18','2026-09-02')))::numeric,0) sweep_median,
+  round((percentile_cont(0.5) WITHIN GROUP (ORDER BY lat)
+     FILTER (WHERE d NOT IN ('2026-07-18','2026-09-02')))::numeric,0) prod_median
+FROM r GROUP BY m HAVING count(*) FILTER (WHERE d IN ('2026-07-18','2026-09-02'))>=10
+                    AND count(*) FILTER (WHERE d NOT IN ('2026-07-18','2026-09-02'))>=10;"
+
+           model            | sweep_median | prod_median
+ tencent/hy3                |         1051 |          61     17×
+ minimax/minimax-m3         |          510 |         128    4.0×
+ deepseek/deepseek-v3.2-exp |          205 |          36    5.7×
+ minimax/minimax-m2.5       |          198 |          30    6.6×
+ deepseek/deepseek-v4-flash |          185 |          83    2.2×
 ```
+
+⚠️ Note `tencent/hy3` and `tencent/hy3-preview` are DISTINCT models (131 vs 119 rows); the row above is
+`hy3`, while Phase G2's stall table names `hy3-preview`. Do not merge them.
 
 Eight of ten models measured on both are 2–17× "slower" when benchmarked concurrently. **No latency
 conclusion is available today** — which is why the "disable the slow models" question could not be
@@ -654,10 +685,16 @@ unqueued twin within tolerance; the benchmark's own rows carry `queue_s`.
 
 `$/run` mixes model price with task size, so a model handed longer prompts looks dearer than it is.
 
-✅ **Verified available:** the pool already reads the provider's usage block —
-`(result.usage or {}).get("completion_tokens")` at `loop.py:588`. The counts are in hand and thrown
-away at the DB boundary, exactly like the failure reason. Persisting them is a column addition, not a
-new instrumentation task.
+✅ **`tokens_out` is available today:** `AgentResult.out_tokens` (`agent.py:471`), summed from
+`(result.usage or {}).get("completion_tokens")` (`loop.py:585-588`). Persisting it is a column addition.
+
+⚠️ **`tokens_in` HAS NO PRODUCER — this half was wrong** (author-blind reviewer D8, confirmed by
+enumeration): `grep -rn "in_tokens\|tokens_in\|prompt_tokens\|input_tokens" libs/subagents/*.py` →
+**0 hits across all 20 files**. Shipping the column as specified would create one that is NULL forever.
+And input tokens are exactly what normalising `$/run` by *task size* requires, so the stated motivation
+is only half-met by `tokens_out`. **F3 therefore ships `tokens_out` now and treats `tokens_in` as a
+PRODUCER change first** — capture it from the provider usage block alongside `completion_tokens` — or
+drops it and says so. Do not add a column with no writer.
 
 **Gate:** `cost_usd / tokens_out` reproduces the published `$/M-out` for a sampled model within
 rounding.
@@ -693,10 +730,22 @@ release."* The index exists, so new duplicates are silently skipped. Nothing to 
 NOT fix the 995 rows already there; those need a dedupe pass by whoever holds the DSN. This only stops
 the count growing."* Intel holds the DSN. Measured today, the non-scored half is clean (0 duplicates)
 and **120 remain in the exempt `scored` population** — exactly the half the partial index does not
-cover. F6 is that dedupe pass, plus a decision: extend the constraint to scored rows, or make the
-reconciliation's tie-break explicit and tested. ⚠️ Extending it is NOT free — `set_quality` writes a
-second row per run *by design* (`pg_ledger.py:19-21` describes the two-row model), so a naive
-`UNIQUE (agent_id)` would break the documented shape. The tie-break option is the safer default.
+cover. **F6 is that dedupe pass — and BOTH options an earlier draft offered alongside it are dead** (author-blind
+reviewer D5, both confirmed):
+
+- **"Extend the constraint to cover scored rows" is CONTRACT-BREAKING in both readings.** A partitioned
+  `UNIQUE (agent_id) WHERE status='scored'` freezes the FIRST score and makes a re-score vanish through
+  `ON CONFLICT DO NOTHING` — silently inverting the documented latest-wins semantics. An unpartitioned
+  `UNIQUE (agent_id)` rejects every `set_quality` delta outright, killing quality back-fill entirely.
+- **"Make the reconciliation's tie-break explicit and tested" IS ALREADY DONE.** It is
+  `(array_agg(quality_score ORDER BY ts DESC, id DESC) FILTER (WHERE quality_score IS NOT NULL))[1]` at
+  `rank_task_subagents.py:178-179`, whose comment names the incident that forced it (*MAX resurrects
+  human-downgraded verdicts* — two glm-4.5-air agents re-scored 4→1 and 4→2 crossed the gate under
+  MAX), with a regression test `test_organic_query_honors_scored_delta_contract`
+  (`tests/test_canary_grounding_column.py:110`). **The draft proposed work that exists and never
+  checked.**
+
+So F6 reduces to exactly one thing: the dedupe pass on the 120, leaving the latest-wins contract alone.
 
 ### Migration discipline — THE REAL MECHANISM (rewritten; the first version cited machinery that does not exist)
 
@@ -733,7 +782,24 @@ that writes the new column"*):
    nullable, so **none of them goes in that tuple** — the step is a re-read, not an edit.
 2. **`ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS <col> <type>;`** against the live database,
    recorded as a comment beside the DDL exactly as `session_id` was.
-3. **Then** the DDL string (so fresh installs match) and only then the code that writes the column.
+3. **Then** the DDL string (so fresh installs match) and only then the code that writes the column —
+   which means **`_INSERT` (`pg_ledger.py:67-84`) and `_COLS` (`:112-129`) must BOTH grow**, or the
+   column is created and never written. An earlier draft cited `:87-95` for the tolerant-READ rationale
+   and never said the WRITER must change (author-blind reviewer D1).
+
+⚠️ **Canonical is one level deeper than an earlier draft assumed:**
+`/opt/fabrik-lib/subagents/**subagents**/pg_ledger.py`, not `/opt/fabrik-lib/subagents/pg_ledger.py`
+(verified: the shallow path does not exist; the driver's `SUBAGENTS_MODULE_ROOT` at
+`postgres.py:1295` is the package ROOT, used as a `cwd`). **Phase D step 3's byte-identity gate is
+therefore wrong-pathed** — `diff -rq /opt/fabrik-lib/subagents /opt/fabrik/libs/subagents` compares a
+package root against a package and reports spurious differences. Compare the inner directory.
+
+⚠️ **AND `fabrik apply` DOES NOT PROPAGATE THIS TO THE DATABASE THAT MATTERS.**
+`ensure_shared_analytics_db(container=POSTGRES_CONTAINER, …)` (`postgres.py:1358`) applies the DDL
+inside the **postgres-main container** — the remote table this plan measured EMPTY. The **local**
+`fabrik_analytics` that `rank_task_subagents.py` actually reads is reached by neither, so **step 2's
+`ALTER TABLE` must be run by hand against the local DB, and separately against postgres-main.** Two
+targets, one of which no automation touches.
 
 Additive only — no rename, no drop, no type change — because `_REQUIRED_OUTBOX_COLS` is validated
 instead of `_COLS` precisely so **an outbox row written by an OLDER copy still flushes**
@@ -748,14 +814,27 @@ instead of `_COLS` precisely so **an outbox row written by an OLDER copy still f
 `quality_score` is the one field nothing captures automatically — an orchestrator must back-fill it via
 `set_quality` — and coverage is **30% overall**, unevenly:
 
+⚠️ **Also challenged as a mixed population by the author-blind reviewer (they computed 28% by rows,
+31% by a wider agent_id set) — REFUTED, but again only because the query was missing.** Both columns
+come from ONE CTE and the unit is the RUN, not the row: `runs` counts agent_ids that have a real
+dispatch row, `scored` counts how many of those carry any quality verdict. Counting rows instead
+double-counts `set_quality` deltas; widening to all agent_ids admits ids that have only a scored row.
+
 ```
+$ psql postgresql:///fabrik_analytics -c "
+WITH r AS (SELECT agent_id, max(task_type) tt, max(quality_score) q FROM subagent_runs
+           WHERE agent_id IN (SELECT agent_id FROM subagent_runs WHERE status NOT IN ('','scored'))
+           GROUP BY agent_id)
+SELECT tt AS task_type, count(*) runs, count(q) scored, round(100.0*count(q)/count(*),0) pct
+FROM r GROUP BY tt ORDER BY 2 DESC;"
+
  task_type | runs | scored | pct
+ review    | 4340 |   2224 |  51        ← 91% of all volume, half of it unscored
+ research  |  254 |    209 |  82
+ docs      |  163 |    103 |  63
+ code      |   39 |     25 |  64
  plan      |   37 |     36 |  97
  spec      |    9 |      8 |  89
- research  |  254 |    209 |  82
- code      |   39 |     25 |  64
- docs      |  163 |    103 |  63
- review    | 4337 |   2221 |  51        ← 91% of all volume, half of it unscored
 ```
 
 **`review` is the flywheel's dominant task type and half of it teaches the ranking nothing.** The
@@ -774,7 +853,12 @@ number per run, and fail the check" — the check being `check_subagent_flywheel
 - the checker **reconciles the local ledger against receipts and never queries the DB** (`:12`, `:48`;
   its only DB awareness is whether `psycopg` imports and whether a DSN is set, `:308`, `:329`), and
 - **the receipt carries no score** — `write_receipt(agent_id, project, *, receipt_dir, session)`
-  (`ledger.py:218-224`) has no quality field at all.
+  (`ledger.py:218-224`) has no quality field at all, and worse, **`set_quality` writes the SAME receipt
+  shape as `record_agent_run`** (`pg_ledger.py:821` vs `:630`), so a scored receipt and a dispatch
+  receipt are **indistinguishable** (author-blind reviewer D4). The ratio is not merely unavailable —
+  it is underivable from the receipt store as designed.
+- the checker states its own limit in code: *"The enforcement gate CANNOT `SELECT subagent_runs` (the
+  writer role is INSERT-only)"*.
 
 So the verdict is invisible to the surface the draft assigned the job to. **H therefore has two parts:**
 (a) compute and print the ratio at the DISPATCH close, where `set_quality` is called and the score is
@@ -936,13 +1020,21 @@ $ psql postgresql:///fabrik_analytics -tAc "SELECT count(*) FROM subagent_runs"
 9289          # was 9243 before the flush
 ```
 
-⚠️ **That is a 46-row delta against a returned 50, and the gap is UNEXPLAINED** (author-blind reviewer
-D9). `flush_outbox` returns `len(good)` post-commit and appends `partial-N-quarantined` to the sink when
-rows are dropped — the sink was empty, and the hub has no `pg_outbox.quarantine.jsonl` or
-`.corrupt.jsonl`. So four rows are unaccounted for in the very mechanism Phase A is about to run across
-~3,500 rows. **A1 carries a reconciliation step: assert `rows_after − rows_before == returned`, per
-repo, and fail loudly when it does not.** Until that is understood, the walker is not trusted with the
-backlog.
+✅ **RESOLVED — the 46-vs-50 delta is fully explained, and the "reconciliation" an earlier draft
+mandated would have been WRONG** (author-blind reviewer D6, reproduced on a throwaway database). Four
+of the fifty rows were duplicate `agent_id`s absorbed by `ON CONFLICT DO NOTHING` (`pg_ledger.py:84`).
+No rows were lost; nothing is unaccounted for.
+
+**And `flush_outbox`'s return is not what its own comment claims.** It returns `len(good)` — the
+**parse-survivor** count — while the comment at `:1146` asserts *"`return len(good)` reports only what
+LANDED"*. That is false whenever a conflict is absorbed. Therefore:
+
+⚠️ **DO NOT assert `rows_after − rows_before == returned`.** It is false by construction on any batch
+containing an already-present `agent_id`, and across ~3,500 stranded rows — including four repos with
+partially-committed `.flushing` residuals — it would red the daily refresh every single day. The
+earlier draft installed exactly that check. A1 instead reports both numbers and flags only
+`landed > returned` (which really is impossible) or a reason-sink entry; a shortfall is EXPECTED and is
+the dedupe working. The "walker is not trusted with the backlog" gate is **lifted**.
 
 trade-intelligence's configured DSN cannot accept rows (`.env` grounding at `/opt/trade-intelligence/.env`):
 
