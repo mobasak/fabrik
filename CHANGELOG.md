@@ -22,9 +22,38 @@ All notable changes to this project will be documented in this file.
   DROPPED only when both the worktree and HEAD carry a `Last refresh:` date and the worktree's is
   OLDER. Everything else fail-opens (no date, new file, unreadable, git error) so undated pipeline
   outputs are untouched. Exits 0 always, like its sibling `stage_ai_rule_renders.py`.
-- 7 tests against real throwaway git repos (no mocked `git show`). Three mutants killed: never-flag,
-  inverted comparison, and fail-open-removed. Replayed the actual incident against the live repo —
-  the guard drops the 2026-08-19 doc and passes the undated ones.
+- 20 tests against real throwaway git repos (no mocked `git show`), including a bash-driven suite
+  for the shell wiring itself. Replayed the actual incident against the live repo.
+- **`/fabrik-review` (routed up from `-scoped`: this script pushes fleet-wide) found 17 candidates
+  in the first cut of this guard — the fixes below are all from that pass:**
+  - the guard hardcoded `/opt/fabrik` while the script it filters honours `FABRIK_ROOT`, so on any
+    other root it inspected the WRONG repo and fail-opened — **the finder reproduced the original
+    2026-08-29 incident with the guard installed.** The root is now passed explicitly and defaults
+    to `os.getcwd()` (the caller has already `cd`'d).
+  - a DROP printed one stderr line and nothing else: the script then said *"tree already clean"*
+    while the tree was dirty, exited 0, and fired no alert. Drops are now counted and routed to
+    `pipeline_alert.sh` like every other abnormal exit in that file.
+  - `mapfile -t PATHS < <(cmd || fallback)` HIDES the helper's exit code, so a helper exiting 0
+    having dropped everything wiped `PATHS` to zero — the stage loop ran zero times and the
+    `${#STAGED[@]} -ne ${#PATHS[@]}` check compared 0 to 0 and stayed silent. Replaced with a temp
+    file so the real status is visible and partial stdout can never concatenate with the fallback.
+  - coverage was 6 of 12 static paths: the FLEET-SYNCED ai-render packs (`Last content
+    verification:`) and `CODING_SUBAGENT_SELECTION.md` (`**Generated:**`) were unguarded. All three
+    header shapes are now recognised; the remaining undated paths fail open **by design, stated**.
+  - the `\s*$` anchor meant any trailing text silently switched the guard OFF, diverging from
+    `check_daily_refresh_freshness.py:63`; a BOM did the same. Both now parse.
+  - dates were compared as STRINGS, so `2026-13-45` (shape-valid, not a calendar date) sorted above
+    every real date and would have pinned the guard shut forever. Now calendar-validated.
+  - the generator writes `date.today()` (local, +03) while the monitor uses UTC, so ordinary skew
+    could read one day behind and DROP permanently. One day of tolerance added.
+  - one test was mis-wired to the branch it named (proven by mutating each branch separately), and
+    the git-error fail-open had no test at all. Both fixed.
+- Mutation battery on the final tree: never-flag, inverted comparison, no-header fail-open,
+  hardcoded root, calendar validation, and git-error fail-open all **die**. Two survivors are
+  behaviourally EQUIVALENT and recorded as such rather than papered over with a contrived test:
+  the new-file branch (`refresh_date(None)` already fail-opens by the next branch) and passing
+  `GUARD_REPO` from the shell (the script `cd`s to `FABRIK_ROOT`, so `os.getcwd()` already equals it
+  — belt-and-braces against a future caller that does not).
 
 ### Fixed — the flywheel was ranking on a fraction of its own history: 1,092 runs imported (2026-09-02)
 
@@ -122,7 +151,7 @@ All notable changes to this project will be documented in this file.
   blocks (143 blocks + 7 retired rows = 150 systems; 116 fleet-used, counted from the meta lines — the earlier 166/124 were asserted, not derivable) and two prose pipes that
   broke table rows are fixed.
 - Docs: `docs/reference/external-services-registry.md` (new subsystem doc), INDEX, CAPABILITIES; tests:
-  `tests/test_external_services_chain.py` (5), `scripts/tests/test_gather_envs.py` (10 → 27 tests), `scripts/tests/test_registry_sync.py` (+3).
+  `tests/test_external_services_chain.py` (7), `scripts/tests/test_gather_envs.py` (10 → 34 tests), `scripts/tests/test_registry_sync.py` (6 → 10).
 
 ### Changed — Deployment-verification plan CONVERGED by /fabrik-plan-review: 23 findings, all in same-day text (2026-09-02)
 

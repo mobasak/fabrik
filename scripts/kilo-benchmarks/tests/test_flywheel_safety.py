@@ -264,7 +264,7 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # 12 -> 11 at the Phase-D cutover (2026-08-15): D.1 removed the rank_task_subagents `_step`
     # from daily_refresh.sh (the ranker now runs in the ai-model-catalog engine), taking its alert
     # site with it. fabrik's ranker alert survives in wsl_startup_hook.sh, which this count covers.
-    assert len(sites) == 11, (
+    assert len(sites) == 12, (
         f"expected exactly 12 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )

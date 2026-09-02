@@ -119,15 +119,34 @@ while IFS= read -r _ai_render; do
 # the "disqualifies loudly" half of the contract, and a helper crash must be visible too
 done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" || true)
 
-# FRESHNESS GUARD (2026-09-02, intel): the stage list is whatever the WORKTREE holds, which
-# silently REVERTS a generated doc when the copy on disk is older than the committed one.
-# Measured: 2026-08-29 01:27 the ranking aggregation was fixed, 01:56 the doc was regenerated
-# correctly (Last refresh 08-29), and 06:01 THIS auto-commit landed a 08-19 copy with the old
-# inflated counts under a message saying "regenerated" — so pick_models read a ranking from an
-# already-fixed bug for four days. The filter drops ONLY a proven regression (both sides carry a
-# `Last refresh:` date and the worktree's is older) and fail-opens on everything else, so an
-# undated pipeline output is untouched. Warnings go to stderr like the ai-render feeder's.
-mapfile -t PATHS < <(python3 "$SELF_DIR/guard_selection_freshness.py" "${PATHS[@]}" || printf '%s\n' "${PATHS[@]}")
+# ⚠️ NOT `mapfile < <(cmd || fallback)`: process substitution HIDES the helper's exit code, so a
+# helper that exits 0 having dropped everything wipes PATHS to zero — the `||` never fires, the
+# stage loop runs zero times, and the `${#STAGED[@]} -ne ${#PATHS[@]}` check at the bottom compares
+# 0 against 0 and stays silent. That is this file's own "reporting success for a total no-op" class
+# (test_golden_parity.py:1338 is literally named for it), reintroduced by a different route.
+# A temp file gives the REAL exit status and cannot concatenate partial stdout with the fallback.
+_GUARD_OUT="$(mktemp)"
+_GUARD_N=${#PATHS[@]}
+if GUARD_REPO="$FABRIK_ROOT" python3 "$SELF_DIR/guard_selection_freshness.py" "${PATHS[@]}" > "$_GUARD_OUT"; then
+  mapfile -t _GUARD_KEPT < "$_GUARD_OUT"
+  _GUARD_DROPPED=$(( _GUARD_N - ${#_GUARD_KEPT[@]} ))
+  if [ "$_GUARD_DROPPED" -gt 0 ]; then
+    # every other abnormal exit in this file alerts; a silent drop would leave the tree dirty
+    # forever with one stderr line in a log nobody tails — the round-16 class again.
+    echo "[auto-commit] freshness-guard DROPPED ${_GUARD_DROPPED}/${_GUARD_N} stage path(s): the copy on disk is OLDER than the committed one, so staging it would REVERT a newer doc. Those paths stay dirty ON PURPOSE — re-run the generator." >&2
+    # a body is REQUIRED: pipeline_alert.sh defaults it to the literal "(no body)", and this is
+    # the one alert here whose remedy is not obvious. And NO `2>/dev/null` — the only thing it can
+    # hide is bash failing to exec the helper, which is exactly the defect this file's header
+    # records losing once already (closing review 2026-09-02, finding 5).
+    bash "$SELF_DIR/pipeline_alert.sh" \
+      "auto-commit: freshness guard dropped ${_GUARD_DROPPED}/${_GUARD_N} stage path(s)" \
+      "A generated doc on disk is OLDER than the committed copy, so staging it would revert a newer one. The pipeline did not regenerate it this run. Remedy: re-run the owning generator (rank_task_subagents.py for the SELECTION docs), then let the next auto-commit publish it. Dropped paths stay dirty on purpose." || true
+  fi
+  PATHS=("${_GUARD_KEPT[@]}")
+else
+  echo "[auto-commit] freshness-guard FAILED (rc=$?) — keeping the unfiltered stage list (fail-open: publishing beats blocking)" >&2
+fi
+rm -f "$_GUARD_OUT"
 
 # Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
 # empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not
@@ -178,7 +197,12 @@ for _p in "${PATHS[@]}"; do
   fi
 done
 if [ ${#STAGED[@]} -eq 0 ]; then
-  echo "[auto-commit] no pipeline paths matched — nothing to stage (check the stage list)"
+  if [ "${_GUARD_DROPPED:-0}" -gt 0 ]; then
+    # do not blame the stage list for a guard decision — that misattribution is finding 7
+    echo "[auto-commit] nothing to stage — every candidate was DROPPED by the freshness guard (see the DROP lines above); the stage list is fine"
+  else
+    echo "[auto-commit] no pipeline paths matched — nothing to stage (check the stage list)"
+  fi
   exit 0
 fi
 if [ ${#STAGED[@]} -ne ${#PATHS[@]} ]; then
