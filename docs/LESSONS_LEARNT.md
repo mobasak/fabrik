@@ -5962,3 +5962,19 @@ duplicates was the defective copy the author-blind review found. The durable les
 cap", it is **"when a file feels too big, look for what it implements twice before you look for what to
 shorten"** — the cap was only the detector that made me ask. Deduplication is worth doing when nothing
 is forcing it, and prose compression is worth avoiding even when something is.
+
+## `git add -N .` on a shared tree marks EVERY sibling's untracked file intent-to-add (2026-09-02)
+
+**What happened:** to make a range-scoped doc check see a new untracked file, I ran `git add -N .` (intent-to-add). On
+the hub's shared index that touched every untracked file in the tree — siblings' half-written files included — so
+they all showed as `A` in `git status`, and a later `git commit -a` by anyone (forbidden, but the index no longer
+protected against it) would have swept them in. Caught the same run by reading `git status --porcelain` before
+staging; undone with `git reset -q -- <the intent-to-add paths>`.
+
+**Lesson:** on a shared tree, never run an index-mutating command with a `.` or `-A` pathspec, not even the
+"harmless" intent-to-add form — the index is shared state, and `-N .` is `add -A` with a smaller diff. Name the
+one path (`git add -N <file>`), or give the tool the path directly (`check_doc_stubs.py --range`, `docs_updater
+--check` read the tree without the index). Sibling of the `git add -A` HARD STOP; same blast radius, quieter symptom.
+
+**Guard:** `git status --porcelain | grep '^ A'` before every scoped commit — an intent-to-add entry you did not
+make is a sibling's file, and it is reset, never staged.
