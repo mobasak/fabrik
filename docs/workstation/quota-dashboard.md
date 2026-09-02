@@ -51,6 +51,8 @@ design:
 | `Fable 5 weekly remaining` column | Fable-5's separate weekly limit, its own 4th column with the same remaining-framing as Weekly (`N% left` + bar + `used% · resets`). Read from the usage payload's `limits` array — a `weekly_scoped` entry whose `scope.model.display_name == "Fable"` (it has **no** top-level window key, the reason an earlier top-level-only scan missed it, 2026-08-22). An account with no Fable reading yet (idle, access token unrefreshed) shows `no reading` until the tick re-probes it. Undocumented always-0 codename windows (`nimbus_quill`, …) are not surfaced |
 | Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
 
+| `switch →` button | on every row that is NOT the active pointer: one click flips the fleet to that account NOW — the same manual flip as `--switch <slug>` (pause-, dwell- and cap-exempt), confirmed in-page first; every session bound to the pointer (`CLAUDE_CONFIG_DIR` → the `active` symlink, § How a session binds to the pointer in `claude-account-rotation.md`) follows it without a restart. The active row carries no button (nothing to rotate to) |
+
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
 
 ## Endpoints
@@ -60,6 +62,7 @@ Rows sort by weekly headroom, so the fleet's next flip target is the top eligibl
 | `/` | the dashboard (regenerates if the render is older than the floor) |
 | `/quota.json` | the raw `--status --json` payload behind the page |
 | `/health` | `ok` — liveness for the keepalive |
+| `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200) · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
 
 ## Lifecycle
 
@@ -87,12 +90,18 @@ files and exit — useful for a scripted refresh without a browser).
 | `QUOTA_DASH_OUT_DIR` | `~/.claude/quota-dashboard` | render output |
 | `QUOTA_DASH_ROTATE_CLI` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | the CLI it shells |
 | `QUOTA_DASH_PROBE_TIMEOUT_S` | `60` | per-probe subprocess timeout |
+| `QUOTA_DASH_SWITCH_TIMEOUT_S` | `90` | `POST /switch` subprocess timeout (the CLI probes the target before flipping) |
+| `QUOTA_DASH_SOCKET_TIMEOUT_S` | `15` | per-connection socket timeout — a client that under-sends its declared body is dropped, never parked |
 
 ## Boundaries
 
-- **Read-only over rotation.** It shells `--status --json`; it never flips the pointer, never
-  writes `caps.json`, never reads or writes a credential file. Rotation decisions stay in
-  `claude_rotate.py` (see `docs/workstation/claude-account-rotation.md`).
+- **One write path, and it is a relay.** It shells `--status --json` to read, and — only on
+  the operator's click — `--switch <slug>` to flip. It never decides a rotation, never writes
+  `caps.json`, never reads or writes a credential file; the CLI owns every one of those
+  contracts (see `docs/workstation/claude-account-rotation.md`). The tick's own automation is
+  unchanged: it still flips at 95% / the cap, once per 5-minute cron tick — which is why the
+  button exists: a fast burn (94% → 100% inside one tick, seen 2026-09-02) reaches the wall
+  before the tick does, and the operator can see it coming on this board.
 - **Loopback only.** No auth, because nothing off-box can reach it; do not rebind it to
   `0.0.0.0` without putting auth in front.
 - **Stdlib only.** No dependencies to keep current.

@@ -217,7 +217,7 @@ anyway, or a later `--new-dir <slug> <new-email>` will be refused by the stale c
 | Want | Do |
 |---|---|
 | See the board | <http://localhost:5051/> or `--status` |
-| Move the fleet now | `--switch <account>` |
+| Move the fleet now | `--switch <account>`, or the `switch →` button on the board row (same flip, confirmed in-page) |
 | Reserve quota for browser use | edit `caps.json`, no restart needed |
 | Freeze automated flips | `--pause-switch` (`--resume-switch` to release) |
 | A window ignores the pointer | check the occupancy warning; it needs the env — for extension windows, `wsl --shutdown` + reopen |

@@ -78,6 +78,11 @@ def test_a_view_past_the_floor_reprobes(tmp_path, monkeypatch):
 
     qd._fresh_html()
     qd._fresh_html()
+    # The second view kicks off a BACKGROUND regeneration; join it rather than race it (this
+    # assertion failed 2-3 times in 10 before the join, on a code path nobody had changed).
+    worker = qd._LAST_REGEN[0]
+    assert worker is not None, "a stale view must schedule a regeneration"
+    worker.join(timeout=10)
 
     assert len(calls) == 2
 
@@ -219,9 +224,11 @@ def test_a_capped_account_surfaces_the_browser_blind_spot(tmp_path, monkeypatch)
 def test_row_renders_fable_weekly_column(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     acct = {
-        "email": "sarp@ocoron.com", "slugs": ["sarp"], "source": "live",
-        "five_hour": {"utilization": 10.0, "resets_at_epoch": None},   # 90% left
-        "seven_day": {"utilization": 40.0, "resets_at_epoch": None},   # 60% left
+        "email": "sarp@ocoron.com",
+        "slugs": ["sarp"],
+        "source": "live",
+        "five_hour": {"utilization": 10.0, "resets_at_epoch": None},  # 90% left
+        "seven_day": {"utilization": 40.0, "resets_at_epoch": None},  # 60% left
         "model_windows": {"Fable": {"utilization": 76.0, "resets_at_epoch": None}},
     }
     html = qd._row(acct, "sarp")
@@ -232,7 +239,10 @@ def test_row_renders_fable_weekly_column(tmp_path, monkeypatch):
 def test_row_fable_column_says_no_reading_when_absent(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     acct = {
-        "email": "ob@ocoron.com", "slugs": ["ob"], "source": "cache", "age_s": 1000.0,
+        "email": "ob@ocoron.com",
+        "slugs": ["ob"],
+        "source": "cache",
+        "age_s": 1000.0,
         "five_hour": {"utilization": 0.0, "resets_at_epoch": None},
         "seven_day": {"utilization": 1.0, "resets_at_epoch": None},
     }
@@ -244,3 +254,174 @@ def test_header_has_fable_weekly_column(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     html = qd.render({"accounts": [], "active": None}, 0.0)
     assert "Fable 5 weekly remaining" in html
+
+
+# ---------------------------------------------------------------------------------------------
+# Manual switch button (2026-09-02). The board gained ONE write path: POST /switch shells
+# `claude_rotate.py --switch <slug>` — the CLI still owns the credential contract, the
+# dashboard only relays the operator's click. Risk-ordered: a forged cross-origin POST from any
+# page in the operator's browser must be refused; a slug the board does not know must never
+# reach the CLI; a CLI failure must be shown, not swallowed.
+# ---------------------------------------------------------------------------------------------
+
+import threading  # noqa: E402
+import urllib.error  # noqa: E402
+import urllib.request  # noqa: E402
+
+
+def _multi_payload() -> dict:
+    p = _payload()
+    p["accounts"].append(
+        {
+            "email": "sarp@ocoron.com",
+            "slugs": ["sarp"],
+            "five_hour": {"utilization": 10.0, "resets_at_epoch": time.time() + 7200},
+            "seven_day": {"utilization": 20.0, "resets_at_epoch": time.time() + 400000},
+            "source": "live",
+            "age_s": None,
+            "weekly_cap": 90,
+            "cap_walled": False,
+        }
+    )
+    return p
+
+
+def _serve(qd):
+    """A real loopback server on an ephemeral port — the HTTP→subprocess path is exercised
+    for real, not through a hand-built request object."""
+    from http.server import ThreadingHTTPServer
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), qd._Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd, f"http://127.0.0.1:{httpd.server_address[1]}"
+
+
+def _post(url: str, body: bytes, headers: dict | None = None):
+    req = urllib.request.Request(url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    for k, v in (headers or {}).items():
+        req.add_header(k, v)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode()
+        return e.code, (json.loads(raw) if raw.startswith("{") else {"raw": raw})
+
+
+def _switch_env(tmp_path, monkeypatch):
+    """A dashboard whose rotation CLI is a stub that RECORDS its argv (never the real CLI)."""
+    stub = tmp_path / "stub_rotate.py"
+    stub.write_text(
+        "import sys, json, pathlib\n"
+        "pathlib.Path(sys.argv[0] + '.calls').open('a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "if sys.argv[1] == '--status':\n"
+        "    print(json.dumps(json.loads(pathlib.Path(sys.argv[0] + '.payload').read_text())))\n"
+        "    sys.exit(0)\n"
+        "if sys.argv[1] == '--switch':\n"
+        "    if pathlib.Path(sys.argv[0] + '.fail').exists():\n"
+        "        sys.stderr.write('switch failed — active pointer unchanged\\n'); sys.exit(1)\n"
+        "    print('active fleet account -> ' + sys.argv[2]); sys.exit(0)\n"
+        "sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_multi_payload()))
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_ROTATE_CLI=str(stub))
+    qd.generate()  # the board knows its slugs from the last payload
+    return qd, stub
+
+
+def _calls(stub: Path) -> list[list[str]]:
+    p = Path(str(stub) + ".calls")
+    return [json.loads(line) for line in p.read_text().splitlines()] if p.exists() else []
+
+
+def test_switch_without_the_custom_header_is_refused(tmp_path, monkeypatch):
+    """A plain cross-origin POST (any page in the operator's browser can send one to
+    localhost) carries no custom header — the server refuses it and the CLI is never run."""
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        before = len(_calls(stub))
+        status, body = _post(f"{base}/switch", b'{"account": "sarp"}')
+        assert status == 403, body
+        assert not any(c[:1] == ["--switch"] for c in _calls(stub)[before:])
+    finally:
+        httpd.shutdown()
+
+
+def test_switch_rejects_a_slug_the_board_does_not_know(tmp_path, monkeypatch):
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        for bad in (b'{"account": "nope"}', b'{"account": "../x"}', b"{}", b"not json"):
+            status, body = _post(f"{base}/switch", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert not any(c[:1] == ["--switch"] for c in _calls(stub))
+    finally:
+        httpd.shutdown()
+
+
+def test_switch_shells_the_rotation_cli_and_regenerates_the_board(tmp_path, monkeypatch):
+    """The happy path: exactly one `--switch <slug>` call with the slug the operator clicked,
+    then a FRESH render (the reload must show the new pointer, not a floor-cached one)."""
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        before = _calls(stub)
+        status, body = _post(f"{base}/switch", b'{"account": "sarp"}', {qd.SWITCH_HEADER: "1"})
+        assert status == 200 and body["ok"] is True, body
+        assert "active fleet account -> sarp" in body["output"]
+        after = _calls(stub)[len(before) :]
+        assert [c for c in after if c[0] == "--switch"] == [["--switch", "sarp"]]
+        assert ["--status", "--json"] in after  # the regeneration probe ran AFTER the switch
+    finally:
+        httpd.shutdown()
+
+
+def test_switch_cli_failure_is_reported_not_hidden(tmp_path, monkeypatch):
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    Path(str(stub) + ".fail").touch()
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(f"{base}/switch", b'{"account": "sarp"}', {qd.SWITCH_HEADER: "1"})
+        assert status == 502 and body["ok"] is False
+        assert "active pointer unchanged" in body["error"]
+    finally:
+        httpd.shutdown()
+
+
+def test_every_idle_row_has_a_switch_button_and_the_active_row_has_none(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _multi_payload)
+    html = qd.generate()
+    assert 'data-slug="sarp"' in html
+    assert 'data-slug="mob"' not in html  # mob is the active pointer
+
+
+def test_a_short_body_cannot_hold_a_handler_thread_forever(tmp_path, monkeypatch):
+    """A client that promises 100 bytes and sends 10 must be dropped by the socket timeout,
+    not parked on `rfile.read()` until it decides to leave (measured before the fix: the
+    handler thread hung for as long as the client stayed connected)."""
+    import socket
+
+    monkeypatch.setenv("QUOTA_DASH_SOCKET_TIMEOUT_S", "0.5")  # the knob the fix reads at import
+    qd, _stub = _switch_env(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        host, port = httpd.server_address[:2]
+        s = socket.create_connection((host, port), timeout=5)
+        s.sendall(
+            b"POST /switch HTTP/1.1\r\nHost: x\r\nX-Quota-Dash: 1\r\n"
+            b"Content-Type: application/json\r\nContent-Length: 100\r\n\r\n" + b'{"account"'
+        )
+        t0 = time.time()
+        try:
+            data = s.recv(4096)  # either a response or a clean close — never a hang past 5s
+        except TimeoutError:
+            pytest.fail("handler held the connection open past 5s on a short body")
+        assert time.time() - t0 < 4.0
+        assert data == b"" or data.startswith(b"HTTP/1.")
+        s.close()
+    finally:
+        httpd.shutdown()

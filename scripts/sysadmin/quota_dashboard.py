@@ -14,8 +14,15 @@
 #   states the age of its own data — a stale render is visible, never silent.
 #
 # The server is stdlib-only, binds loopback by default, and is kept alive by cron
-# (@reboot + a periodic --ensure). Read-only: it never writes outside its own output dir and
-# never touches credential files (it shells the rotation CLI, which owns that contract).
+# (@reboot + a periodic --ensure). It never writes outside its own output dir and never
+# touches credential files: every rotation fact comes from shelling the rotation CLI, which
+# owns that contract. ONE write path exists (2026-09-02): the per-row "switch" button POSTs
+# /switch, which shells `claude_rotate.py --switch <slug>` — a manual flip through the same
+# code the operator runs by hand. The endpoint refuses a request without the custom
+# SWITCH_HEADER (a forged cross-origin POST from any page in the operator's browser cannot
+# carry one without a CORS preflight this server never answers) and a slug the board's own
+# last payload does not list. The flip is pause-, dwell- and cap-exempt (the CLI's
+# manual=True path) — the operator's deliberate act, never automation.
 """Serve/generate the Claude account-quota dashboard (see module header)."""
 
 from __future__ import annotations
@@ -23,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -41,6 +49,10 @@ PORT = int(os.getenv("QUOTA_DASH_PORT", "5051"))
 MAX_AGE_S = float(os.getenv("QUOTA_DASH_MAX_AGE_S", "240"))
 PROBE_TIMEOUT_S = float(os.getenv("QUOTA_DASH_PROBE_TIMEOUT_S", "60"))
 REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "60"))
+SWITCH_HEADER = "X-Quota-Dash"  # required on POST /switch — a custom header forces a CORS preflight
+SWITCH_TIMEOUT_S = float(os.getenv("QUOTA_DASH_SWITCH_TIMEOUT_S", "90"))
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+_MAX_BODY = 4096
 
 # The quota windows themselves. A cached reading older than its own window describes a window
 # that has fully rolled over — reported as unknown, never as a reassuring percentage.
@@ -188,7 +200,20 @@ def _row(acct: dict, active: str | None) -> str:
         f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S)}"
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S)}"
+        f"{_switch_cell(slug, is_active)}"
         "</tr>"
+    )
+
+
+def _switch_cell(slug: str, is_active: bool) -> str:
+    """The manual-rotation control: a button on every row that is NOT the active pointer.
+    The active row shows nothing clickable — switching to the account you are already on is
+    not a rotation, and a button there would only invite a misclick."""
+    if is_active or not _SLUG_RE.match(slug):
+        return '<td class="act"><span class="muted">active</span></td>'
+    return (
+        f'<td class="act"><button type="button" class="switch" data-slug="{escape(slug)}" '
+        f'title="Make {escape(slug)} the active account for every session">switch →</button></td>'
     )
 
 
@@ -321,6 +346,11 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
    color:var(--sub); margin:0 0 8px; }}
  .warns ul {{ margin:0; padding-left:18px; }} .warns li {{ margin:4px 0; font-size:13.5px; }}
  footer {{ margin-top:16px; color:var(--sub); font-size:12.5px; }}
+ .act {{ width:1%; white-space:nowrap; vertical-align:middle; }}
+ button.switch {{ font:inherit; font-size:13px; font-weight:600; padding:6px 12px; border-radius:8px;
+   border:1px solid var(--accent); color:var(--accent); background:transparent; cursor:pointer; }}
+ button.switch:hover {{ background:color-mix(in srgb, var(--accent) 12%, transparent); }}
+ button.switch[disabled] {{ opacity:.5; cursor:progress; }}
  @media (max-width:720px) {{ .num {{ width:auto; }} th:nth-child(1) {{ width:40%; }} }}
 </style></head><body><div class="wrap">
 <header>
@@ -331,12 +361,15 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 {banner}
 {gov_html}
 <table>
-  <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th><th>Fable 5 weekly remaining</th></tr></thead>
+  <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th><th>Fable 5 weekly remaining</th><th></th></tr></thead>
   <tbody>{rows}</tbody>
 </table>
 {warn_html}
 <footer>Rotation flips the active pointer at 95% on either window, or at an account's
-configured cap. Data regenerates on view, at most once every {int(MAX_AGE_S)}s.</footer>
+configured cap — one tick every 5 minutes, so a fast burn can hit the wall between ticks.
+The <em>switch →</em> button flips it NOW (pause-, dwell- and cap-exempt, like <code>--switch</code>);
+every session bound to the pointer follows it — no restart. Data regenerates on view, at most once every
+{int(MAX_AGE_S)}s.</footer>
 </div><script>
 /* Health-gated auto-refresh (2026-08-18 — replaces meta http-equiv=refresh). The meta tag
    died on the first failed load after a WSL restart: the browser's error page carries no
@@ -353,6 +386,23 @@ configured cap. Data regenerates on view, at most once every {int(MAX_AGE_S)}s.<
         if (conn) {{ conn.textContent = "server unreachable — retrying"; }}
       }});
   }}, {REFRESH_S} * 1000);
+  document.querySelectorAll("button.switch").forEach(function (btn) {{
+    btn.addEventListener("click", function () {{
+      var slug = btn.getAttribute("data-slug");
+      if (!confirm("Switch the active account to " + slug + " now?\n\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
+      btn.disabled = true; btn.textContent = "switching…";
+      fetch("/switch", {{method: "POST", cache: "no-store",
+        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
+        body: JSON.stringify({{account: slug}})}})
+        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
+        .then(function (sj) {{
+          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
+          alert("Switch failed (" + sj[0] + "):\n" + (sj[1].error || sj[1].raw || JSON.stringify(sj[1])));
+          btn.disabled = false; btn.textContent = "switch →";
+        }})
+        .catch(function (e) {{ alert("Switch request failed: " + e); btn.disabled = false; btn.textContent = "switch →"; }});
+    }});
+  }});
 }})();
 </script>
 </body></html>"""
@@ -380,12 +430,15 @@ def generate() -> str:
 
 
 _regen_lock = threading.Lock()
+_LAST_REGEN: list[threading.Thread | None] = [None]  # the most recent background worker, joinable
 
 
-def _regen_async() -> None:
-    """One background regeneration at a time; drop the request if one is already running."""
+def _regen_async() -> threading.Thread | None:
+    """One background regeneration at a time; drop the request if one is already running.
+    Returns the worker thread (None when the request was dropped) so a caller that must
+    observe the regeneration — a test — can ``join`` it instead of racing it."""
     if not _regen_lock.acquire(blocking=False):
-        return
+        return None
 
     def work() -> None:
         try:
@@ -393,7 +446,9 @@ def _regen_async() -> None:
         finally:
             _regen_lock.release()
 
-    threading.Thread(target=work, daemon=True, name="quota-regen").start()
+    t = threading.Thread(target=work, daemon=True, name="quota-regen")
+    t.start()
+    return t
 
 
 def _fresh_html() -> str:
@@ -407,15 +462,95 @@ def _fresh_html() -> str:
         age = time.time() - _HTML.stat().st_mtime
         html = _HTML.read_text(encoding="utf-8")
         if age >= MAX_AGE_S:
-            _regen_async()
+            _LAST_REGEN[0] = _regen_async()
         return html
     except OSError:
         pass
     return generate()
 
 
+def _known_slugs() -> set[str]:
+    """The slugs the board itself last rendered — the ONLY targets the button may name."""
+    try:
+        payload = json.loads(_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    out: set[str] = set()
+    for acct in payload.get("accounts") or []:
+        for slug in acct.get("slugs") or []:
+            if isinstance(slug, str) and _SLUG_RE.match(slug):
+                out.add(slug)
+    return out
+
+
+def switch_account(slug: object) -> tuple[int, dict]:
+    """Relay one manual flip to the rotation CLI. Returns (http_status, json_body).
+
+    400 — not a slug the board knows (nothing reaches the CLI); 502 — the CLI refused or
+    failed (its stderr is the body, never swallowed); 200 — flipped, and the board has been
+    re-rendered synchronously so the reload shows the new pointer, not a floor-cached one.
+    """
+    if not isinstance(slug, str) or not _SLUG_RE.match(slug) or slug not in _known_slugs():
+        return 400, {"ok": False, "error": f"unknown account {slug!r} — not on the board"}
+    try:
+        proc = subprocess.run(  # noqa: S603 — fixed argv, validated slug, no shell
+            [sys.executable, str(ROTATE_CLI), "--switch", slug],
+            capture_output=True,
+            text=True,
+            timeout=SWITCH_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 502, {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:400]}
+    if proc.returncode != 0:
+        err = (proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")[:400]
+        return 502, {"ok": False, "error": err}
+    generate()  # fresh render NOW — bypasses the floor on purpose, one probe per click
+    return 200, {"ok": True, "output": proc.stdout.strip()[:400]}
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "quota-dashboard"
+    # Per-connection socket timeout (stdlib knob): a client that promises N body bytes and sends
+    # fewer would otherwise park this handler's thread on `rfile.read()` for as long as it
+    # stays connected. 15s is generous for a loopback fetch and bounds every read, GET included.
+    timeout = float(os.getenv("QUOTA_DASH_SOCKET_TIMEOUT_S", "15"))
+
+    def _json(self, status: int, body: dict) -> None:
+        raw = json.dumps(body).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
+        path = self.path.split("?", 1)[0]
+        if path != "/switch":
+            self.send_error(404)
+            return
+        if not self.headers.get(SWITCH_HEADER):
+            # No custom header = not our page's fetch(). A cross-origin form/fetch cannot add
+            # one without a preflight, and this server answers no OPTIONS — so this is the
+            # whole CSRF story for a loopback-only board.
+            self._json(403, {"ok": False, "error": f"missing {SWITCH_HEADER} header"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if not 0 <= length <= _MAX_BODY:
+            self._json(400, {"ok": False, "error": "bad Content-Length"})
+            return
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            self._json(400, {"ok": False, "error": "body is not JSON"})
+            return
+        status, out = switch_account(
+            (body or {}).get("account") if isinstance(body, dict) else None
+        )
+        self._json(status, out)
 
     def do_GET(self) -> None:  # noqa: N802 (stdlib interface)
         path = self.path.split("?", 1)[0]
