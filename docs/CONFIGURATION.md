@@ -250,9 +250,15 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
   Kilo slot. The mix-up is easy to make because Kilo's own endpoint is
   `https://api.kilo.ai/api/openrouter/v1/chat/completions` — *openrouter* is in Kilo's URL path,
   since Kilo proxies an OpenRouter-compatible API. `OPENROUTER_API_KEY` itself was never wrong.
-- ⚠️ **Still broken elsewhere:** `/opt/seo/.env` carries the same `sk-or-v1…` value in its
-  `KILO_API_KEY` (and has no `OPENROUTER_API_KEY` at all). Cross-repo writes are a hard stop from
-  here — that repo's owner fixes it, or the operator repoints it to the JWT.
+- **`/opt/seo/.env` carried the same defect and is CORRECTED** (2026-09-02, under an explicit
+  one-turn operator authorisation for cross-repo `.env` writes): its `KILO_API_KEY` held the same
+  `sk-or-v1…` value and probed `401 PAID_MODEL_AUTH_REQUIRED`; repointed to the JWT and re-probed
+  `200`. Backed up to `/opt/fabrik/backups/seo.env.backup.*` first. A format audit of all 27 env
+  files on the box found this as the ONLY real mismatch, and a divergence check now shows every
+  supplier key consistent fleet-wide (one distinct value per key name).
+- ⚠️ **Gemini: several listed model IDs are retired** — `models/gemini-2.5-flash` returns
+  `404 … no longer available to new users` even with a valid key. Use `models/gemini-flash-latest`
+  (verified 200). A 404 here is a model-availability answer, not an auth failure.
 
 ### Groq Cloud — `GROQ_API_KEY` (+ one spare; free tier)
 

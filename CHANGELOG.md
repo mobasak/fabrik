@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fleet-wide .env credential audit: one real defect, corrected cross-repo (2026-09-02)
+
+- Under an explicit one-turn operator authorisation for cross-repo `.env` writes, audited all 27
+  env files on the box against per-provider key-format signatures. **Exactly one real mismatch:**
+  `/opt/seo/.env`'s `KILO_API_KEY` held an `sk-or-v1…` OpenRouter value (the same paste error already
+  fixed in `/opt/fabrik/.env`). Probed `401 PAID_MODEL_AUTH_REQUIRED` before, `200` after; the file
+  was backed up to `/opt/fabrik/backups/seo.env.backup.*` and left at mode 600.
+- A divergence check across the same 27 files now shows **every** supplier key consistent fleet-wide
+  — one distinct value per key name (OPENROUTER ×10, KILO ×4, GROQ ×3, NVIDIA ×4, MISTRAL ×4,
+  GEMINI ×2, EXA ×7, BRAVE ×6, FIRECRAWL ×6, CONTEXT7 ×4, ZAI ×1).
+- Final liveness sweep against each provider's GATED completion endpoint: GROQ 200 · KILO 200 ·
+  GEMINI 200 (`models/gemini-flash-latest`) · OPENROUTER 429 (authenticated, free-tier daily limit)
+  · MISTRAL 402 (authenticated, monthly credit spent) · CEREBRAS absent (row exists, no key).
+- ⚠️ Correction to my own method, recorded because it produced 10 false positives: the first audit
+  regex used `\s*` around the `=`, which matches newlines — so an empty `KEY=` line captured the
+  NEXT line's text and reported it as a misfiled value. Line-bounded `[^\n]*` is the correct form.
+
+### Fixed — The weekly fleet doc-audit cron now indexes its own report; it had gone red for the next agent every Monday (2026-09-02)
+
+- `scripts/fleet_doc_audit.py` wrote a new dated report under `docs/infrastructure/probe-reports/` each
+  week and never touched `INDEX.md`, so `check_doc_index` failed for whoever ran the next unrelated gate.
+  Three earlier reports had been indexed by hand after the fact — a class, not an instance. Measured this
+  run when an unrelated plan commit went red on `fleet-doc-audit-2026-09-02.md`.
+- Fixed at the generator: `ensure_index_row()` inserts ONE row immediately before the `-latest` anchor,
+  idempotent, no-anchor → no write + loud stderr. The cron's self-commit adds `INDEX.md` to its pathspec
+  **only if `INDEX.md` was clean before the run** — a sibling's uncommitted INDEX edits are never swept
+  into a cron commit.
+- Three tests, seen red before the helper existed. `INDEX.md`'s stale "5 tests" row corrected (it was 7;
+  now 10) and the generator's row states the new behaviour.
+
 ### Fixed — all AI-supplier keys centralised in the shared pool config; a broken KILO key found by probing (2026-09-02)
 
 - `~/.config/fabrik/subagents.env` now carries the full supplier set — OPENROUTER · NVIDIA ·
@@ -40,6 +70,13 @@ All notable changes to this project will be documented in this file.
 - The new command is named: **`/fabrik-deploy-checklist`** (Stage 6-release, between `/fabrik-features`
   REFRESH and `/fabrik-release`), with a Phase 5 that runs every contract row against a deliberately broken
   DEV state so each is SEEN RED before `FROZEN`.
+- **Corrected after an EXECUTED check** (the operator's "are you sure?"): a stub of the new source was
+  rendered through the real `assemble_commands.py` + `check_command_corpus.audit()` + `check_trigger_routing`
+  in a scratch copy. Found: the plan wrongly required an `EXTRACT` row (that table is the retired July
+  migration path; `render()` resolves includes from `PARAMS` alone and REFUSES on any of the 16 unresolved
+  tokens), and Phase C's template must land BEFORE Phase B's source (corpus predicate 3) — execution order is
+  now A → C → B → D. Also added: the subsystem reference doc, the § Orient stage-table rows, and the
+  parity-header grader ruling (deferred, stated). The stub renders clean with the plan's PARAMS block.
 - Plan Status → DRAFT; `/fabrik-plan-review` owed. Ledger row `D-077`.
 
 ### Added — Groq free lane reachable from the hub: keys wired + validated (2026-09-02)
