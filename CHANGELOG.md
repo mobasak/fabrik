@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — no rows were ever lost: the ranking "drop" was a fixed double-count, and the auto-commit could rewind the doc (2026-09-02)
+
+- **Diagnosis (the 155→6 `spec` question): NO data loss.** The table holds 9 `spec` rows and has
+  held only 9 — `min(id)=55`, `aged_out=0`, and only `fabrik_analytics` has the table box-wide. The
+  old count was inflated: the ranking's `COUNT(*)` counted the `status='scored'` delta rows
+  `set_quality` writes, so every scored run counted twice. `ec05a490` (2026-08-29) replaced it with
+  `COUNT(*) FILTER (WHERE status <> 'scored')` reconciled per `agent_id`. The "drop" is that bug
+  being corrected. Nothing to recover; the investigation is closed.
+- **But it uncovered a live defect.** `autocommit_pipeline_outputs.sh` stages whatever the WORKTREE
+  holds, so a stale copy silently REVERTS a generated doc. Measured on 2026-08-29: 01:27 the
+  aggregation was fixed → 01:56 the doc regenerated correctly (`Last refresh: 2026-08-29`) → **06:01
+  the auto-commit landed a `2026-08-19` copy carrying the old inflated counts**, under a message
+  reading "regenerated". `pick_models` then read a ranking produced by an already-fixed bug for four
+  days, and the commit message asserted the opposite.
+- New `scripts/kilo-benchmarks/guard_selection_freshness.py` filters the stage list: a path is
+  DROPPED only when both the worktree and HEAD carry a `Last refresh:` date and the worktree's is
+  OLDER. Everything else fail-opens (no date, new file, unreadable, git error) so undated pipeline
+  outputs are untouched. Exits 0 always, like its sibling `stage_ai_rule_renders.py`.
+- 7 tests against real throwaway git repos (no mocked `git show`). Three mutants killed: never-flag,
+  inverted comparison, and fail-open-removed. Replayed the actual incident against the live repo —
+  the guard drops the 2026-08-19 doc and passes the undated ones.
+
 ### Fixed — the flywheel was ranking on a fraction of its own history: 1,092 runs imported (2026-09-02)
 
 - 1,092 pool runs existed in the local ledger but never reached `subagent_runs`, so `pick_models`
@@ -76,11 +98,31 @@ All notable changes to this project will be documented in this file.
   (review finding N1, red→green in `test_registry_sync.py`).
 - **Fleet index:** `docs/reference/apis/EXTERNAL_SYSTEMS.md` +8 blocks for the keyless systems the scan
   proved fleet-used (PostHog, Axiom, Slack, Vercel, Cerebras, LinkedIn scrape target, BLS API, Google APIs —
-  Gmail + OAuth), Amazon SES re-grounded (was 9/12 UNKNOWN), Microsoft 365/Graph re-grounded with the
+  Gmail + OAuth), Amazon SES re-grounded (was 10/12 UNKNOWN), Microsoft 365/Graph re-grounded with the
   Outlook per-mailbox limits and its self-contradicting "grounding impossible" note removed; header
   denominator 158 → 166 systems, 115 → 124 fleet-used; closing re-derivation CLEAN. Ten CLAIMS rows.
+- **Review (`/fabrik-review`, pool + Opus/Sonnet finders — 2026-09-02-external-services-chain-review.md):**
+  the chain became ONE script, `scripts/external_services_chain.sh`, run by BOTH entry points
+  (`daily_refresh.sh` and `wsl_startup_hook.sh` share the daily lock; a step in only one of them
+  never runs on the days the other wins); the dashboard — the liveness heartbeat — is written only
+  when every upstream step succeeded (a half-dead chain now reads DEAD, not LIVE); every step runs
+  under `timeout` and alerts on failure; `gather_envs` re-runs after classify so today's
+  classifications reach the registry today; classify walks the queue from a persisted cursor
+  (a date-keyed offset skipped and double-billed under churn), tombstones a provider after 3
+  consecutive transport-error runs, alerts on newly classified providers, and prompts code-only
+  providers as endpoints, not env vars; `api_keys.kind` ('credential' | 'code-host') so call-site
+  rows never count as keys on the dashboard (idempotent `ensure_schema`); the credit fetcher gets
+  the credential by KEY ROLE; the reference-only host list no longer names vendors
+  (`graph.microsoft.com`, `registry-1.docker.io` were dropped) and doc subdomains are ignored by
+  prefix; the catalog URL index never resolves an ambiguous label or shared hostname by JSON order;
+  a platform service already in the catalog leaves triage; a partial ripgrep run (one unreadable
+  dir) keeps its matches and names the path, a failed one writes nothing; the secrets file is 0600
+  from its first byte; Dockerfiles are scanned, `__tests__`/`__mocks__`/`e2e` are not, `build/`
+  and `cache/` are excluded at the repo root only; fleet-index counts are now DERIVED from the
+  blocks (143 blocks + 7 retired rows = 150 systems; 116 fleet-used, counted from the meta lines — the earlier 166/124 were asserted, not derivable) and two prose pipes that
+  broke table rows are fixed.
 - Docs: `docs/reference/external-services-registry.md` (new subsystem doc), INDEX, CAPABILITIES; tests:
-  `tests/test_external_services_chain.py` (5), `scripts/tests/test_gather_envs.py` (+6).
+  `tests/test_external_services_chain.py` (5), `scripts/tests/test_gather_envs.py` (10 → 27 tests), `scripts/tests/test_registry_sync.py` (+3).
 
 ### Changed — Deployment-verification plan CONVERGED by /fabrik-plan-review: 23 findings, all in same-day text (2026-09-02)
 

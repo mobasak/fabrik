@@ -119,6 +119,16 @@ while IFS= read -r _ai_render; do
 # the "disqualifies loudly" half of the contract, and a helper crash must be visible too
 done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" || true)
 
+# FRESHNESS GUARD (2026-09-02, intel): the stage list is whatever the WORKTREE holds, which
+# silently REVERTS a generated doc when the copy on disk is older than the committed one.
+# Measured: 2026-08-29 01:27 the ranking aggregation was fixed, 01:56 the doc was regenerated
+# correctly (Last refresh 08-29), and 06:01 THIS auto-commit landed a 08-19 copy with the old
+# inflated counts under a message saying "regenerated" — so pick_models read a ranking from an
+# already-fixed bug for four days. The filter drops ONLY a proven regression (both sides carry a
+# `Last refresh:` date and the worktree's is older) and fail-opens on everything else, so an
+# undated pipeline output is untouched. Warnings go to stderr like the ai-render feeder's.
+mapfile -t PATHS < <(python3 "$SELF_DIR/guard_selection_freshness.py" "${PATHS[@]}" || printf '%s\n' "${PATHS[@]}")
+
 # Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
 # empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not
 # exist) made it exit 128 with NOTHING staged — and the guard below then logged "tree already
