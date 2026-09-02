@@ -24,7 +24,12 @@
 | 13 | all — every amendment probe re-run verbatim, phase consistency, status honesty | **method: re-derivation** | **0** | **0** | **0** | 24a667 → 24a667 ✓ (quiet) |
 | — | ⚠️ **The P13 CONVERGED flip SILENTLY FAILED.** A bare `str.replace` with no match assertion, in a script that printed "✓ re-CONVERGED" unconditionally, left `Status: DRAFT` while this ledger said RE-CONVERGED. Committed (`6fc5b2c6`) and reported to the operator as converged. Caught in P14 by reading line 3. **P13's quiet pass stands on its merits; the FLIP did not happen.** | — | — | — | — | — |
 | — | **AMENDMENT 2 opened** — the operator re-invoked `/fabrik-plan-review`, and the re-ask was warranted twice over | — | — | — | — | — |
-| 14 | Amendment 1's migration mechanism, grounded against the repo for the first time | **method: re-derivation** | 6 | 6 | 6 | 24a667 → … |
+| 14 | Amendment 1's migration mechanism, grounded against the repo for the first time | **method: re-derivation** | 6 | 6 | 6 | 24a667 → 80679d |
+| 15 | F1 / F3 premises + Phase H computability, traced through the code | **method: re-derivation** | 3 | 3 | 3 | 80679d → fa81fe |
+| 16 | F2 — the latency mechanism, proven at `agent.py:1296` vs `:1397` | **method: re-derivation** | 1 | 1 | 1 | fa81fe → eade41 |
+| 17 | C2 / F5 — does the benchmark harness still exist here? (`git ls-files` → 0) | **method: re-derivation** | 3 | 3 | 3 | eade41 → dabb18 |
+| 18 | all — checklist parse, stale-machinery sweep, every Amendment-2 anchor re-read, status honesty | method: gate + citation | 0 | 0 | **0** | dabb18 → dabb18 ✓ (quiet) |
+| — | ⚠️ **NOT YET CONVERGED.** P18 is quiet, but the AUTHOR-BLIND pass dispatched at the start of Amendment 2 had **not returned** when this ledger row was written. Amendment 1's phases have still never been read by anyone but their author. **Dispatched: 1. Returned: 0.** Per the termination contract an un-returned finder's partition is UNSWEPT — so the `CONVERGED` flip is NOT earned by P18 alone, however quiet it looks. | — | — | — | — | — |
 
 **Dispatched vs returned:** 5 pool units dispatched, 5 returned (all scored back to the flywheel:
 qwen3-max 5 · deepseek-v4-flash 4 · deepseek-v3.2-exp 4 · gemini-3-flash 3 · deepseek-v4-flash 1).
