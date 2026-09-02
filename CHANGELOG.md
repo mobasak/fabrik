@@ -129,6 +129,13 @@ All notable changes to this project will be documented in this file.
   tokens), and Phase C's template must land BEFORE Phase B's source (corpus predicate 3) — execution order is
   now A → C → B → D. Also added: the subsystem reference doc, the § Orient stage-table rows, and the
   parity-header grader ruling (deferred, stated). The stub renders clean with the plan's PARAMS block.
+- **Proof by construction** (the operator's second "are you sure?"): the plan now carries **Appendix A** —
+  the complete `/fabrik-deploy-checklist` source DRAFT, rendered through the real assembler (387 lines,
+  zero leftover tokens, 8 phases, skill wrapper under the 1024-char limit the first draft broke), audited
+  (only the known predicate-3 ordering hits), trigger-graded clean, 31/31 mechanical checklist items,
+  and dry-run in Mode B from tryton-crm's root. Four body rules exist only because the dry run found
+  them — chief among them: a flat `app.routes` read gives 3 application routes where the started app's
+  `/openapi.json` gives 27.
 - Plan Status → DRAFT; `/fabrik-plan-review` owed. Ledger row `D-077`.
 
 ### Added — Groq free lane reachable from the hub: keys wired + validated (2026-09-02)
