@@ -101,5 +101,49 @@ def test_declare_subscription_persists(monkeypatch):
 def test_fetch_balance_never_raises_on_malformed_field(monkeypatch):
     """Given a present-but-non-numeric field, When fetch_balance runs, Then None (never raises —
     so a bad vendor response can't abort the sync transaction)."""
-    monkeypatch.setattr(cf, "_get_json", lambda url, headers: {"data": {"totalUsageCreditsUsd": "NaN-ish"}})
+    monkeypatch.setattr(
+        cf, "_get_json", lambda url, headers: {"data": {"totalUsageCreditsUsd": "NaN-ish"}}
+    )
     assert cf.fetch_balance("apify", "k") is None
+
+
+def test_a_redirect_never_carries_the_vendor_key_to_another_host():
+    """urllib's default handler re-sends every header — the vendor key included — to whatever
+    host a 3xx names; a usage endpoint never legitimately redirects, so a redirect is a failed
+    fetch and the second host never sees `Authorization` (BB8)."""
+    import http.server
+    import threading
+    import urllib.error
+    import urllib.request
+
+    seen: list[tuple[str, str | None]] = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            seen.append((self.path, self.headers.get("Authorization")))
+            if self.path == "/a":
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/b")
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+        def log_message(self, *a):  # noqa: D102
+            return
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{srv.server_port}/a",
+            headers={"Authorization": "DeepL-Auth-Key SENTINEL-NOT-A-REAL-KEY"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            with cf._OPENER.open(req, timeout=5):
+                pass
+        assert exc.value.code == 302
+    finally:
+        srv.shutdown()
+    assert [p for p, _ in seen] == ["/a"], seen  # /b was never requested

@@ -16,6 +16,18 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A usage endpoint never legitimately redirects; urllib's default handler would re-send the
+    vendor key in `Authorization` to whatever host a 3xx names — a parked domain, an open
+    redirect, a DNS interception — and over plain http (BB8). A redirect is an HTTPError → None."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 TIMEOUT_S = 10
 RETRIES = 2
 
@@ -31,7 +43,7 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
     req = urllib.request.Request(url, headers=headers)  # noqa: S310 (https vendor endpoints only)
     for attempt in range(RETRIES + 1):
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # noqa: S310
+            with _OPENER.open(req, timeout=TIMEOUT_S) as resp:  # noqa: S310 — never follows a redirect (BB8)
                 obj = json.loads(resp.read().decode("utf-8"))
                 return obj if isinstance(obj, dict) else None
         except (urllib.error.URLError, TimeoutError, ValueError, OSError):

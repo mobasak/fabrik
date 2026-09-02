@@ -219,8 +219,9 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     # the shipped escaper's floor: every node grader lifts THIS line, none substitutes its own (AY1)
     esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)
     assert all(
-        tok in esc_line for tok in ("'&':'&amp;'", "'<':'&lt;'", "'>':'&gt;'", "'\"':'&quot;'")
-    ), esc_line
+        tok in esc_line
+        for tok in ("'&':'&amp;'", "'<':'&lt;'", "'>':'&gt;'", "'\"':'&quot;'", "\"'\":'&#39;'")
+    ), esc_line  # `'` too (BB9)
 
 
 def test_cpill_class_token_is_sanitized_when_the_script_runs():
@@ -237,7 +238,9 @@ def test_cpill_class_token_is_sanitized_when_the_script_runs():
     if not node:
         pytest.skip("node not on PATH — only the source-text floor assertion ran")
     esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)  # the SHIPPED escaper (AY1)
-    js = esc_line + m.group(0) + "\nprocess.stdout.write(cpill('x\"><svg/onload=alert(1)>'));"
+    js = (
+        esc_line + "\n" + m.group(0) + "\nprocess.stdout.write(cpill('x\"><svg/onload=alert(1)>'));"
+    )
     out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
     # the WHOLE output must be one span whose class token is [A-Za-z0-9-] and whose text holds
     # no raw angle bracket — a captured-prefix check stopped at the injected quote and passed
@@ -270,6 +273,7 @@ def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
     assert cell, "the provider cell does not render `url` (AY2)"
     js2 = (
         esc_line
+        + "\n"
         + m.group(0)
         + "\nconst r={url:'javascript:alert(1)',provider:'p'};"
         + line.group(0).strip()

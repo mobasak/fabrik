@@ -50,6 +50,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -437,6 +438,11 @@ def project_dirs() -> list[Path]:
     return out
 
 
+class CatalogError(ValueError):
+    """The catalog is readable but a provider entry cannot round-trip (a whitespace key) — the one
+    ValueError `main` reports as a one-liner; any other ValueError is a bug and keeps its traceback (BB6)."""
+
+
 class CodeScanError(RuntimeError):
     """ripgrep could not run — the caller must NOT write a consolidation missing every code host
     (yesterday's complete file beats today's truncated one; a silent drop would feed a ~200-provider
@@ -513,7 +519,10 @@ def catalog_url_index(catalog: dict) -> dict[str, str]:
         ):  # merged hosts (AB3); scalar-safe (AF14)
             hosts.setdefault(str(extra).lower(), set()).add(provider)
         url = str(meta.get("url") or "")
-        host = urlsplit(url).hostname if url.startswith("http") else None
+        try:
+            host = urlsplit(url).hostname if url.startswith("http") else None
+        except ValueError:  # a model-authored url with `]` in the netloc is not a url (BB6)
+            host = None
         if not host:
             continue
         hosts.setdefault(host.lower(), set()).add(provider)
@@ -670,7 +679,7 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     bad_keys = [k for k in catalog if _svc_token(k) != k]
     if bad_keys:  # a hand-edited key with whitespace would round-trip as a DIFFERENT provider (AU7)
-        raise ValueError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
+        raise CatalogError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for prefix in meta.get("match", []):
@@ -957,6 +966,7 @@ def main() -> int:
         return 0
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    sweep_stale_tmp(OUTPUT)  # also on a no-change day (BA2)
     if read_existing_body(OUTPUT).rstrip() == body.rstrip():
         print("no change - already up to date:", OUTPUT)
         return 0
@@ -966,21 +976,38 @@ def main() -> int:
     return 0
 
 
+def sweep_stale_tmp(out: Path) -> int:
+    """Remove a crashed run's leftover tmp beside `out`: any `<out>.tmp*` REGULAR file older than an
+    hour — the legacy shared name included, age-gated like the rest (a pre-AW1 writer still on an
+    old checkout is a live sibling during the transition — BB7), our own pid included (a leftover
+    under a reused pid would otherwise make `O_EXCL` fail — BB2). Runs on EVERY apply, before the
+    no-change short-circuit (BA2). `lstat`, never follow a symlink; a sibling run unlinking the
+    same file first, a directory or a dangling link is a skipped entry, never a traceback (BA1/BB3)."""
+    swept = 0
+    for stale in out.parent.glob(out.name + ".tmp*"):
+        try:
+            st = stale.lstat()
+            if not stat.S_ISREG(st.st_mode) or time.time() - st.st_mtime <= 3600:
+                continue
+            stale.unlink()
+            swept += 1
+        except OSError:  # gone (a sibling swept it) or not ours to touch — skip
+            continue
+    return swept
+
+
 def write_secret_file(out: Path, content: str) -> None:
     """Atomic 0600 write: mode 0600 from the first byte (write-then-chmod leaves a world-readable
     window with every fleet credential on disk), and the tmp never outlives a CATCHABLE failure
-    (AU10) — a SIGKILL (`timeout -k`) cannot be caught, so a per-process leftover is swept by the
-    next run once it is an hour old (AW1/AY6); it is 0600 and gitignored meanwhile."""
+    (AU10) — a SIGKILL (`timeout -k`) cannot be caught, so a per-process leftover is swept by
+    `sweep_stale_tmp` on the next apply — change or no change — once it is an hour old (AW1/AY6/BA2);
+    it is 0600 and gitignored meanwhile."""
     # a PER-PROCESS tmp name: with one shared `.tmp` a manual run racing the cron unlinked the other
     # writer's in-progress file and the first `os.replace` then installed the second writer's
     # PARTIAL file as the secrets file (AW1). `O_EXCL` on a fresh name also refuses a planted
     # symlink. A crashed run's leftover (SIGKILL — the except below covers everything else) is
     # swept only when it is older than an hour, so a live sibling's tmp is never touched.
     tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
-    for stale in out.parent.glob(out.name + ".tmp*"):
-        legacy = stale.name == out.name + ".tmp"  # the pre-AW1 shared name: no writer uses it now
-        if stale != tmp and (legacy or time.time() - stale.stat().st_mtime > 3600):
-            stale.unlink(missing_ok=True)
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

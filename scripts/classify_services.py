@@ -32,6 +32,22 @@ ALL_ENVS = REPO / "secrets" / "all-envs.env"
 CATALOG_PATH = REPO / "scripts" / "service_catalog.json"
 
 
+def _scheme(url: str) -> str:
+    """`urlsplit(...).scheme`, or "" when the value is not a url at all (`http://a]b` raises
+    ValueError — one malformed model answer must not discard the whole paid batch, BB5)."""
+    try:
+        return urlsplit(url).scheme
+    except ValueError:
+        return ""
+
+
+def _host(url: str) -> str | None:
+    try:
+        return urlsplit(url).hostname
+    except ValueError:
+        return None
+
+
 def _enum_category(raw) -> str:
     """The catalog category for a model answer: normalised, and `?` unless it IS an enum value —
     the ONE verdict every consumer (catalog, tombstone, report, flywheel score) reads (AS1/AU1/AU5)."""
@@ -74,10 +90,10 @@ def flagged_providers(path: Path) -> dict[str, dict]:
             provs[cur]["names"].append(key)
             if URL_KEY_RE.search(key):  # a URL identifies the provider — send ONLY scheme://host,
                 val = rest.split("   # ", 1)[0].strip()  # never the path/query (may embed a token)
-                if val.lower().startswith("http"):
-                    parts = urlsplit(val)
-                    if parts.hostname:
-                        provs[cur]["urls"].append(f"{parts.scheme}://{parts.hostname}")
+                if val.lower().startswith("http") and _host(
+                    val
+                ):  # a project's malformed *_URL never kills classify (BB5)
+                    provs[cur]["urls"].append(f"{_scheme(val)}://{_host(val)}")
     return provs
 
 
@@ -381,7 +397,7 @@ def main() -> int:
                 if not isinstance(hosts, list):  # a hand-edited scalar (AF14)
                     hosts = entry["hosts"] = [str(hosts)]
                 for u in provs.get(prov, {}).get("urls", []):
-                    h = urlsplit(u).hostname
+                    h = _host(u)  # BB5
                     if h and h not in hosts:
                         hosts.append(h)
             else:
@@ -394,7 +410,7 @@ def main() -> int:
         root = prov.upper()  # FULL provider name — a compound like `aws_bedrock` must match only
         #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
         url = str(v.get("url", "?"))
-        if urlsplit(url).scheme not in ("http", "https"):
+        if _scheme(url) not in ("http", "https"):
             url = "?"  # a model-authored url reaches the registry and the dashboard's page (AM4)
         # the enum fields are model-authored too and reach the dashboard's class attribute
         # (`cpill`) and the #svc line — anything outside the enum is `?` (AP1/AP2)
@@ -408,7 +424,9 @@ def main() -> int:
             "cost": cost if cost in COSTS else "?",
             "capability": " ".join(str(v.get("capability", "?")).split())[:70],
             "url": url,
-            "status": status if status in STATUSES else "active",
+            "status": status
+            if status in STATUSES
+            else "?",  # an out-of-enum status is UNKNOWN, never "active" (BB4)
             # a provider seen ONLY as a code call site has no env key behind it: a bare-word
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
             "match": [] if code_only_provider(provs.get(prov, {})) else [root],

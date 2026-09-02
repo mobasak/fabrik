@@ -671,6 +671,12 @@ def test_leftover_tmp_from_a_crashed_run_is_recreated_0600(tmp_path, monkeypatch
     leftover = tmp_path / "all-envs.env.tmp"
     leftover.write_text("stale", encoding="utf-8")
     leftover.chmod(0o644)
+    import os
+    import time
+
+    os.utime(
+        leftover, (time.time() - 7200, time.time() - 7200)
+    )  # a crashed run's leftover is HOURS old (BB7)
     monkeypatch.setattr(ge, "OUTPUT", out)
     monkeypatch.setattr(
         ge,
@@ -1227,7 +1233,9 @@ def test_a_model_authored_url_must_be_http_or_https(tmp_path, monkeypatch):
     assert out["url"] == "?"
     # the enum fields are model-authored too: an out-of-enum cost/status/category is `?` /
     # `active`, never an attribute-breaking string for the dashboard's class token (AP1)
-    assert out["cost"] == "?" and out["status"] == "active" and out["category"] == "search"
+    assert (
+        out["cost"] == "?" and out["status"] == "?" and out["category"] == "search"
+    )  # BB4: unknown, not active
 
 
 def test_svc_line_never_emits_a_token_the_consumer_cannot_parse():
@@ -1497,10 +1505,13 @@ def test_secret_file_tmp_is_per_process_and_a_live_siblings_tmp_is_never_touched
     stale = tmp_path / "all-envs.env.tmp.1"
     stale.write_text("old", encoding="utf-8")
     os.utime(stale, (time.time() - 7200, time.time() - 7200))
+    assert (
+        ge.sweep_stale_tmp(out) == 1
+    )  # the crashed run's leftover is swept, the fresh sibling is not
     ge.write_secret_file(out, "SECRET=1\n")
     assert out.read_text(encoding="utf-8") == "SECRET=1\n"
     assert fresh.read_text(encoding="utf-8") == "partial"  # a live sibling's tmp is untouched
-    assert not stale.exists()  # the crashed run's leftover is swept
+    assert not stale.exists()
     assert not (tmp_path / f"all-envs.env.tmp.{os.getpid()}").exists()  # ours was renamed away
 
 
@@ -1519,3 +1530,88 @@ def test_a_bad_catalog_key_is_a_one_line_exit_1_never_a_traceback(tmp_path, monk
     monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
     assert ge.main() == 1
     assert "single tokens" in capsys.readouterr().err and not out.exists()
+
+
+def test_stale_tmp_is_swept_on_a_no_change_day_and_a_sibling_race_is_not_a_traceback(
+    tmp_path, monkeypatch
+):
+    """A SIGKILLed run's hour-old leftover is swept even when today's body is unchanged (BA2), and
+    a sibling unlinking the same leftover between glob and stat is skipped, never raised (BA1)."""
+    import os
+    import time
+
+    out = tmp_path / "all-envs.env"
+    stale = tmp_path / "all-envs.env.tmp.1"
+    stale.write_text("old", encoding="utf-8")
+    os.utime(stale, (time.time() - 7200, time.time() - 7200))
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(ge, "load_catalog", lambda: ({}, []))
+    envs = _envs(tmp_path, {"p": "FOO_API_KEY=abcdefghijklmnop\n"})
+    monkeypatch.setattr(ge, "project_env_files", lambda: envs)
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    assert ge.main() == 0  # first run writes
+    stale.write_text("old", encoding="utf-8")
+    os.utime(stale, (time.time() - 7200, time.time() - 7200))
+    assert ge.main() == 0  # NO-CHANGE run
+    assert not stale.exists()  # swept anyway (BA2)
+    # the race: a sibling unlinks the leftover between glob and stat
+    gone = tmp_path / "all-envs.env.tmp.2"
+    gone.write_text("old", encoding="utf-8")
+    real_lstat = ge.Path.lstat
+
+    def racing_lstat(self, *a, **k):
+        if self.name == "all-envs.env.tmp.2" and os.path.lexists(self):
+            os.unlink(self)  # the sibling got there first
+        return real_lstat(self, *a, **k)
+
+    monkeypatch.setattr(ge.Path, "lstat", racing_lstat)
+    assert ge.sweep_stale_tmp(out) == 0 and not gone.exists()  # skipped, not raised (BA1)
+    monkeypatch.setattr(ge.Path, "lstat", real_lstat)
+    # BB2: a leftover under OUR OWN pid (a reused pid after a reboot) is swept like any other
+    mine = tmp_path / f"all-envs.env.tmp.{os.getpid()}"
+    mine.write_text("old", encoding="utf-8")
+    os.utime(mine, (time.time() - 7200, time.time() - 7200))
+    assert ge.sweep_stale_tmp(out) == 1 and not mine.exists()
+    ge.write_secret_file(out, "SECRET=2\n")  # and O_EXCL does not fail on it
+    # BB3: a dangling symlink and a directory matching the glob are skipped, never raised
+    (tmp_path / "all-envs.env.tmp.9").symlink_to(tmp_path / "nowhere")
+    (tmp_path / "all-envs.env.tmp.dir").mkdir()
+    os.utime(tmp_path / "all-envs.env.tmp.dir", (time.time() - 7200, time.time() - 7200))
+    assert ge.sweep_stale_tmp(out) == 0 and (tmp_path / "all-envs.env.tmp.dir").is_dir()
+    # BB7: a FRESH legacy-named tmp (a pre-AW1 writer on an old checkout) is a live sibling
+    legacy = tmp_path / "all-envs.env.tmp"
+    legacy.write_text("in progress", encoding="utf-8")
+    assert ge.sweep_stale_tmp(out) == 0 and legacy.read_text(encoding="utf-8") == "in progress"
+
+
+def test_a_malformed_url_never_kills_classify_or_the_scan(tmp_path, monkeypatch):
+    """`http://a]b` makes urlsplit raise: a model answer with it is written as `?` and the batch
+    survives (BB5); a project's own malformed `*_URL` does not kill the triage parse (BB5); a
+    catalog entry with it is skipped by the url index, not a traceback (BB6)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+        "FOO_API_URL=http://a]b\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "foo",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "http://a]b",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.flagged_providers(tmp_path / "all-envs.env")["foo"]["urls"] == []
+    assert cs.main() == 0
+    assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["url"] == "?"
+    idx = ge.catalog_url_index({"bad": {"url": "http://a]b"}, "ok": {"url": "https://ok.test"}})
+    assert idx == {"ok.test": "ok", "*.ok": "ok"}
