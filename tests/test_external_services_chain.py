@@ -55,7 +55,7 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     assert (
         'timeout -k 30 "$STEP_TIMEOUT"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
-    assert "137 = SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
+    assert "137 SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
@@ -348,10 +348,25 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     for k in kinds:
         assert f"`{k}`" in doc, k
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
-    assert "2 = registry_sync" in text, "the alert body must decode exit 2 too (BS11)"
-    assert (
-        "1 = for gather_envs: it refused its INPUTS" in text and "for any other step, 1 is" in text
-    ), "exit 1 is every catalog refusal — the page must say so (BX5)"
+    assert "2 the sync could not read the catalog" in text, (
+        "the alert body must decode exit 2 too (BS11)"
+    )
+    body = re.search(
+        r'_alert "external-services chain: step \$label FAILED \(exit \$rc\)" "([^"]*)"', text
+    )
+    assert body, "the step-failure alert not found"
+    body = body.group(1)
+    assert "1 for the two gather steps: inputs refused" in body and "1 elsewhere" in body, body
+    assert "could not be written" in body, body  # exit 1 is complete for the scan (CC5)
+    # Telegram's legacy Markdown fallback rejects an unbalanced `*`/`_`: the body's own text carries
+    # none (the label and the log path are the only variables), and it stays within the alerting
+    # contract's ~500 chars (CC5)
+    fixed = re.sub(r"\$\{?[A-Za-z_]+\}?", "", body)
+    assert "*" not in fixed and "_" not in fixed, fixed
+    assert len(fixed) <= 520, len(fixed)
+    assert "one of four" in doc and "cannot write its output" in doc, (
+        "the doc's two exit-1 sentences (CC5)"
+    )
     for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (

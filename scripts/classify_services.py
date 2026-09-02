@@ -221,9 +221,16 @@ def _curated_tokens(meta: dict) -> set[str]:
 
 
 def tombstone_of(catalog: dict, prov: str) -> bool:
-    """True when the catalog's entry for `prov` is a tombstone (`?`/`unidentified`), never a
-    curated one — the only entry the merge path may remove (CA3)."""
-    return str(catalog.get(prov, {}).get("category") or "?") in ("?", "unidentified")
+    """True when the catalog's entry for `prov` is a tombstone — `unidentified`, or a bare `?`
+    placeholder with no curated routing (`match`/`hosts`/`url`) — never a curated one: the only
+    entry the merge path may remove (CA3/CC4)."""
+    meta = catalog.get(prov) or {}
+    category = str(meta.get("category") or "?")
+    if category == "unidentified":
+        return True
+    return category == "?" and not any(
+        meta.get(k) not in (None, "", "?", []) for k in ("match", "hosts", "url")
+    )
 
 
 def tombstone_entry(prov: str, code_only: bool = False) -> dict:
@@ -445,7 +452,6 @@ def main() -> int:
         {k: v for k, v in raw_catalog.items() if not k.startswith("_") and not isinstance(v, dict)}
     )  # a non-dict value is metadata too (AY8)
     merged_into: dict[str, str] = {}
-    unroutable: set[str] = set()  # identified, but its prefix is curated by another entry (CA5)
     for prov, v in list(identified.items()):
         target = str(v.get("name") or "").strip().lower()
         if target and target != prov and target in catalog:
@@ -486,14 +492,14 @@ def main() -> int:
                 if token in _curated_tokens(entry):
                     pass  # the TARGET routes it already: merged, nothing minted (BW4)
                 elif token in curated_anywhere:
-                    # the token is already routed by an entry that stays: a merged copy adds nothing
-                    # under the target's own `HF_` (BW4) and would TIE with any other holder and fail
-                    # every scan (BX8). NOT a merge: the provider keeps its own identified entry with
-                    # no routing prefix, so it is never re-dispatched (CA5; the skip once consumed it
-                    # silently — no entry, no tombstone, re-billed every lap)
-                    unroutable.add(prov)
-                    print(f"  {prov}: not merged into {target} — its prefix is curated elsewhere")
-                    continue
+                    # another entry routes the token: a merged copy would TIE with it and fail every
+                    # scan (BX8). Merged WITHOUT a prefix (the curator keeps routing the key) and said
+                    # by name. Unreachable from the scan — a key whose token any entry curates is
+                    # routed, never flagged; CA5's own-entry orphan duplicated the target's url and
+                    # de-attributed its host (CC3)
+                    print(
+                        f"  {prov}: merged into {target} without a prefix — {token} is curated elsewhere"
+                    )
                 elif prov.upper() not in match:
                     match.append(prov.upper())
             if prov in catalog and tombstone_of(catalog, prov):
@@ -529,9 +535,7 @@ def main() -> int:
             else "?",  # an out-of-enum status is UNKNOWN, never "active" (BB4)
             # a provider seen ONLY as a code call site has no env key behind it: a bare-word
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
-            "match": []
-            if code_only_provider(provs.get(prov, {})) or prov in unroutable
-            else [root],  # an unroutable token would tie with its curator (CA5)
+            "match": [] if code_only_provider(provs.get(prov, {})) else [root],
         }
         # `identified` is enum-gated above, so entry["category"] is never "?" here (AS1/AU1)
         if (
@@ -544,16 +548,9 @@ def main() -> int:
             ):  # a merged prefix survives a rewrite/re-stub (BK2)
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
-        if prov in catalog and not tombstone_of(catalog, prov):
-            # a CURATED entry reaches here when its block is in triage — its own key is not one of
-            # its `match` tokens and no code host rescues it (16 of 109 entries are one plain new
-            # key away, 3 of them with no host; a `--only <curated>` run CANNOT get here, it is
-            # filtered against triage — BX1's premise was false, CA2): the operator's fields stand
-            # and the model fills only what was unknown
-            entry = {
-                **entry,
-                **{k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])},
-            }
+        # a CURATED name never reaches here: the scan files a key named for a catalogued vendor
+        # under that entry (gather_envs, CC1), so it is never in triage and `--only` refuses it —
+        # the keeps of rounds 22–24 protected an unreachable branch (BX1/CA2, both superseded)
         catalog[prov] = entry
     if (
         args.only
@@ -569,7 +566,10 @@ def main() -> int:
             if args.tombstone_unresolved
             else "eligible for tombstone (--tombstone-unresolved not set)"
         )
-        print(f"error budget exhausted ({ERROR_BUDGET} runs): {verb} {sorted(exhausted)}")
+        print(
+            f"error budget exhausted ({ERROR_BUDGET} runs): {verb} {sorted(exhausted)}"
+            " (an entry the catalog already carries is left as it is)"
+        )
         errored = errored - exhausted
     tombstoned = 0
     tombstoned_names: list[str] = []

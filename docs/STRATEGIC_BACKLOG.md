@@ -914,3 +914,13 @@ Also keep the brief's `rm -f $D/scripts/verify_prod_parity.py`: `git archive` ex
 DANGLING (verified `tar -tv` + `test -L`, pass 13) — a pass-12 finder's claim that it is not extracted
 was wrong and briefly propagated here.
 
+## [infra] `libs/alerting` Telegram fallback sends legacy Markdown without escaping (2026-09-02, owner: infra)
+
+`libs/alerting/telegram.py` sends `*{title}*\n{body}` with `parse_mode: "Markdown"` and its own error map names
+bad Markdown as a 400. An alert whose title or body carries an unbalanced `*` or `_` (a step label such as
+`gather_envs_reconsolidate`, a log path, a glob) is REJECTED on exactly the fallback leg that fires when the
+primary SSH→apprise leg is down — the operator gets nothing. The external-services chain's own body was made
+parity-safe in review pass 25 (CC5), but the label and the log path still carry underscores and every other
+caller is exposed. Fix at the root: escape the four legacy-Markdown metacharacters in `telegram.py` (or drop
+`parse_mode`), with a grader that sends a title containing `a_b*c` through the formatter. Measured 2026-09-02:
+the chain body had 1 `*` and 11 `_` before CC5; the alerting docstring's `body: up to ~500 chars` was exceeded (896).

@@ -932,12 +932,25 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
                 # NAME-based only: the value-entropy path in is_secret() misfires on long
                 # config values (model names, UUIDs, DSNs), pulling config into services.
                 name = derive_provider(key)
+                # a key NAMED for a catalogued vendor (`HUGGINGFACE_API_KEY` → `huggingface`) is that
+                # vendor's — the name is the same evidence a model answer `name: huggingface` would
+                # be — so it files under the entry instead of going to paid triage every lap (17 of
+                # 109 entries curate no prefix for their own key; the classifier never sees a curated
+                # name now, and the keeps that tried to protect it there are gone — CC1)
+                meta = (
+                    dict(catalog[name])
+                    if name in catalog
+                    else {
+                        "category": "?",
+                        "cost": "?",
+                        "capability": "?",
+                        "url": "?",
+                        "status": "?",
+                    }
+                )
                 dedupe = is_secret(key, value) and credential_grade(value)
                 slot = value if dedupe else f"{key}\x00{value}"
-                rec = svc_bucket(
-                    name,
-                    {"category": "?", "cost": "?", "capability": "?", "url": "?", "status": "?"},
-                )[slot]
+                rec = svc_bucket(name, meta)[slot]
                 rec["names"].add(key)
                 rec["projects"].add(project)
             else:

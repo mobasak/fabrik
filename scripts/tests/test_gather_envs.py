@@ -2224,17 +2224,15 @@ def test_a_merged_copy_of_a_curated_token_is_dropped_on_both_sides(tmp_path, mon
     assert "hf" not in out and out["huggingface"].get("merged_match", []) == [], out["huggingface"]
 
 
-def test_a_curated_entry_in_triage_keeps_the_operators_fields_and_fills_the_unknowns(
-    tmp_path, monkeypatch
-):
-    """A CURATED entry whose block is in triage (its key is not one of its `match` tokens, no host
-    rescues it) reaches the identified path on the DAILY argv: the operator's fields stand, the
-    model fills only what was `?`, the routing survives. Pass 23 removed this keep on a false
-    premise — `--only <curated>` cannot dispatch, it is filtered against triage (CA2)."""
+def test_only_on_a_curated_name_is_refused_and_the_scan_never_flags_it(tmp_path, monkeypatch):
+    """A curated entry is never the classifier's: the SCAN files a key named for it under the entry
+    (CC1 — see `test_a_key_named_for_a_catalogued_vendor_files_under_its_entry`), so its block is
+    never in triage and `--only <curated>` is refused before any paid dispatch. Rounds 22–24
+    argued over a keep on this branch; the branch is unreachable."""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
-        '#svc name=kilo category=? cost=? capability="?" url=https://kilo.ai status=? used_by=web\n'
-        "CODE_HOST_URL=https://kilo.ai   # used by: web\n"
+        '#svc name=other category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "OTHER_API_KEY=x\n"
     )
     res = [
         _Res(
@@ -2243,14 +2241,13 @@ def test_a_curated_entry_in_triage_keeps_the_operators_fields_and_fills_the_unkn
                     "name": "kilo",
                     "category": "ai-llm",
                     "cost": "paid",
-                    "capability": "a model's guess",
+                    "capability": "x",
                     "url": "https://kilo.ai",
                     "status": "active",
                 }
             )
         )
     ]
-    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
     curated = {
         "category": "ai-coding",
         "cost": "?",
@@ -2259,22 +2256,7 @@ def test_a_curated_entry_in_triage_keeps_the_operators_fields_and_fills_the_unkn
         "status": "retired",
         "match": ["KILO_"],
     }
-    cat.write_text(json.dumps({"kilo": curated}), encoding="utf-8")
-    assert cs.main() == 0
-    out = json.loads(cat.read_text(encoding="utf-8"))
-    assert out["kilo"]["match"] == ["KILO_"], out["kilo"]  # routing kept
-    assert {k: out["kilo"][k] for k in ("category", "capability", "url", "status")} == {
-        k: curated[k] for k in ("category", "capability", "url", "status")
-    }, out["kilo"]  # the operator's words stand
-    assert out["kilo"]["cost"] == "paid", out["kilo"]  # the unknown was filled by the model
-    # and `--only <curated>` never reaches here at all: it is filtered against triage (CA2)
-    _classify_env(
-        tmp_path,
-        monkeypatch,
-        text.replace("name=kilo", "name=other"),
-        ["--apply", "--only", "kilo"],
-        res,
-    )
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--only", "kilo"], res)
     cat.write_text(json.dumps({"kilo": curated}), encoding="utf-8")
     assert cs.main() == 1 and json.loads(cat.read_text(encoding="utf-8"))["kilo"] == curated
 
@@ -2379,9 +2361,9 @@ def test_a_tombstone_retried_into_another_vendor_leaves_no_tie_behind(tmp_path, 
         out["gemini"]["match"] == ["GEMINI"] and out["google-ai"].get("merged_match", []) == []
     ), out
     assert ge.match_provider("GEMINI_API_KEY", matchers) == "gemini"
-    # 3. a token ANOTHER entry carries — curated OR merged (CA4) — is never minted; the provider is
-    #    not consumed silently either: it gets its own identified entry with no routing prefix, so
-    #    it is never re-dispatched (CA5)
+    # 3. a token ANOTHER entry carries — curated OR merged (CA4) — is never minted: merged without
+    #    a prefix (the curator keeps routing the key), no orphan entry duplicating the target's url
+    #    (CA5's did, and de-attributed the target's host — CC3)
     for holder in ({"match": ["GEMINI_"]}, {"merged_match": ["GEMINI"]}):
         out, matchers = run(
             {
@@ -2389,6 +2371,60 @@ def test_a_tombstone_retried_into_another_vendor_leaves_no_tie_behind(tmp_path, 
                 "vertex": {"category": "ai-llm", "status": "active", "match": ["VERTEX"], **holder},
             }
         )
-        assert out["google-ai"].get("merged_match", []) == [], out
-        assert out["gemini"]["match"] == [] and out["gemini"]["category"] == "ai-llm", out
+        assert out["google-ai"].get("merged_match", []) == [] and "gemini" not in out, out
         assert ge.match_provider("GEMINI_API_KEY", matchers) == "vertex"
+    # 4. a CURATED source whose own token is NOT one of its prefixes: the merge mints the token onto
+    #    the target and the pop guard keeps the operator's entry — 89 of 89 tests stayed green when
+    #    the guard was removed at 32493a98 (CC2)
+    curated = {
+        "category": "captcha",
+        "status": "active",
+        "match": ["GOOGLE_GEMINI"],
+        "url": "https://g.example",
+    }
+    out, matchers = run({"google-ai": google, "gemini": curated})
+    assert out["gemini"]["match"] == ["GOOGLE_GEMINI"] and out["google-ai"]["merged_match"] == [
+        "GEMINI"
+    ], out
+    assert ge.match_provider("GOOGLE_GEMINI_API_KEY", matchers) == "gemini"
+    # 5. a `?` placeholder the operator left with curated routing is not a tombstone (CC4)
+    placeholder = {"category": "?", "match": ["GOOGLE_GEMINI"], "hosts": ["g.example"]}
+    out, _ = run({"google-ai": google, "gemini": placeholder})
+    assert out["gemini"]["match"] == ["GOOGLE_GEMINI"], out
+
+
+def test_a_key_named_for_a_catalogued_vendor_files_under_its_entry(tmp_path, monkeypatch):
+    """`HUGGINGFACE_API_KEY` under an entry `huggingface` that curates only `HF_`: the derived name
+    IS the catalog key, so the scan files the key under the entry — catalogued, never NEEDS-TRIAGE,
+    never a paid dispatch (17 of 109 live entries curate no prefix for their own key; rounds 22–24
+    fought over what the classifier should do with such a block — it never gets one, CC1)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(
+        json.dumps(
+            {
+                "huggingface": {
+                    "category": "ai-llm",
+                    "cost": "freemium",
+                    "capability": "models",
+                    "url": "https://huggingface.co",
+                    "status": "active",
+                    "match": ["HF_"],
+                },
+                "zed": {"category": "unidentified", "status": "unidentified", "match": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    env = tmp_path / "p" / ".env"
+    env.parent.mkdir()
+    env.write_text(
+        "HUGGINGFACE_API_KEY=abc\nZED_API_KEY=def\nNEWVENDOR_API_KEY=ghi\n", encoding="utf-8"
+    )
+    body, stats = ge.consolidate([env])
+    assert (
+        '#svc name=huggingface category=ai-llm cost=freemium capability="models" url=https://huggingface.co status=active'
+        in body
+    ), body
+    assert "#svc name=zed category=unidentified" in body  # a tombstone is adopted too: no re-bill
+    assert "#svc name=newvendor category=?" in body  # an unknown name still goes to triage
