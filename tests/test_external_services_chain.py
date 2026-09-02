@@ -365,26 +365,42 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     assert "*" not in fixed and "_" not in fixed, fixed
     # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
     # step label and the production log path — not on the template with its variables erased (CD5)
-    daily = DAILY.read_text(encoding="utf-8")
-    root = re.search(r'^FABRIK_ROOT="([^"]+)"', daily, re.M)
-    log_path = re.search(r'^LOG_FILE="\$FABRIK_ROOT(/[^"]+)"', daily, re.M)
-    assert root and log_path, "daily_refresh.sh must set FABRIK_ROOT and LOG_FILE under it"
-    for label in (
-        "gather_envs",
-        "classify_services",
-        "gather_envs_reconsolidate",
-        "registry_sync",
-        "gen_dashboard",
-    ):
-        rendered = (
-            body.replace("$label", label)
-            .replace("$rc", "137")
-            .replace("$LOG_FILE", root.group(1) + log_path.group(1))  # BOTH halves read (CE9/CJ5)
-        )
-        assert len(rendered) <= 500, (label, len(rendered))
-    assert "one of four" in doc and "cannot read or write its own output path" in doc, (
-        "the doc's two exit-1 sentences (CC5)"
+    # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM1) ×
+    # every log path either ENTRY POINT can pass in (the hook has its own literal, CM1)
+    log_paths = []
+    for entry in (DAILY, HOOK):
+        text_e = entry.read_text(encoding="utf-8")
+        root = re.search(r'^FABRIK_ROOT="([^"]+)"', text_e, re.M)
+        for tail in re.findall(r'^\s*LOG_FILE="\$FABRIK_ROOT(/[^"]+)"', text_e, re.M):
+            assert root, f"{entry.name} must set FABRIK_ROOT"
+            log_paths.append(root.group(1) + tail)
+    assert log_paths, "no entry point sets LOG_FILE under FABRIK_ROOT"
+    for label in _steps(text):
+        for log_path in log_paths:
+            rendered = (
+                body.replace("$label", label).replace("$rc", "137").replace("$LOG_FILE", log_path)
+            )
+            assert len(rendered) <= 500, (label, log_path, len(rendered))
+    # the doc's exit-1 count is COUNTED against its own clauses, never pinned as a phrase (CJ4 fixed
+    # the instance; a fifth clause under "one of four" passed a substring pin — CM2)
+    sentence = re.search(r"exit 1 — one of (\w+): (.*?); never a degraded", doc, re.S)
+    assert sentence, "the failure-visibility sentence"
+    words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+    depth, clauses, buf = 0, [], ""
+    for ch in sentence.group(2):
+        depth += ch == "("
+        depth -= ch == ")"
+        if ch == "," and depth == 0:
+            clauses.append(buf)
+            buf = ""
+        else:
+            buf += ch
+    clauses.append(buf)
+    assert len([c for c in clauses if c.strip()]) == words[sentence.group(1)], (
+        sentence.group(1),
+        clauses,
     )
+    assert "cannot read or write its own output path" in doc, "the doc's step-1 cell (CC5)"
     for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (

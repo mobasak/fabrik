@@ -601,7 +601,7 @@ def main() -> int:
             if prov in identified or prov in errored or prov in merged_into:
                 continue  # a merged host joined its vendor — never also a stub (AF2)
             _cat = catalog[prov].get("category") if prov in catalog else None
-            if isinstance(_cat, str) and _cat.strip() and _cat != "?":
+            if isinstance(_cat, str) and _cat and _cat != "?":  # == gather_envs.real_category (CM3)
                 # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
                 # non-str category buckets to `?` there, so treating it as real here re-billed it daily
                 continue

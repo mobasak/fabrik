@@ -2619,6 +2619,17 @@ def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_li
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))["acme"]
     assert out["category"] == "unidentified" and out["url"] == placeholder["url"], out
+    for degenerate in ("", None):  # the other non-real shapes the scan buckets to `?` (CM3)
+        cat, _ = _classify_env(
+            tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], bad
+        )
+        cat.write_text(
+            json.dumps({"acme": {**placeholder, "category": degenerate}}), encoding="utf-8"
+        )
+        assert cs.main() == 0
+        assert json.loads(cat.read_text(encoding="utf-8"))["acme"]["category"] == "unidentified", (
+            degenerate
+        )
     good = [
         _Res(
             json.dumps(
@@ -2645,3 +2656,63 @@ def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_li
     cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], good)
     cat.write_text(json.dumps({"acme": {"category": ["ai-llm"]}}), encoding="utf-8")
     assert cs.main() == 0 and "kept the operator's" not in capsys.readouterr().out
+
+
+def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, monkeypatch):
+    """`real_category` is the single predicate behind the bucketing and the `catalogued` stat — a
+    block never counts as catalogued while rendering under NEEDS-TRIAGE (CM3). And the emptied-
+    catalog guard counts the `category` FIELD, never the literal anywhere on the line (CM6)."""
+    for cat, real in (
+        ("ai-llm", True),
+        ("?", False),
+        ("", False),
+        (None, False),
+        (["ai-llm"], False),
+        ("   ", True),
+    ):
+        assert ge.real_category(cat) is real, cat
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps({"listy": {"category": ["ai-llm"], "match": ["LISTY"]}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", catalog)
+    env = tmp_path / "p" / ".env"
+    env.parent.mkdir()
+    env.write_text("LISTY_API_KEY=x\n", encoding="utf-8")
+    body, stats = ge.consolidate([env])
+    assert stats["catalogued"] == 0 and stats["flagged"] == 1 and "NEEDS-TRIAGE" in body
+    out = tmp_path / "all-envs.env"
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    catalog.write_text("{}", encoding="utf-8")
+    out.write_text(
+        "# ═══ ai-llm ═══\n"
+        '#svc name=foo category=ai-llm cost=? capability="category=? in prose" url=? status=? used_by=p\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
+        ge.refuse_emptied_catalog()  # the FIELD is real; the literal in the capability once hid it
+
+
+def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monkeypatch):
+    """A non-UTF-8 path in rg's output raised `UnicodeDecodeError` — a `ValueError`, past every
+    handler — so the chain paged "inputs refused (catalog, ripgrep, env files)" for a traceback
+    that matched none; it is the documented "ripgrep cannot run" cause (CM4). And an OSError from
+    the scan itself is never blamed on the output file: only the emptied-catalog guard's read
+    shares that one line (CM5)."""
+
+    def bad_decode(*a, **k):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr(ge.subprocess, "run", bad_decode)
+    with pytest.raises(ge.CodeScanError):
+        ge.scan_code_hosts([tmp_path])
+    monkeypatch.setattr(
+        ge, "project_dirs", lambda: (_ for _ in ()).throw(PermissionError(13, "denied", "/opt"))
+    )
+    monkeypatch.setattr(ge, "project_env_files", lambda: [tmp_path / "p" / ".env"])
+    monkeypatch.setattr(ge, "OUTPUT", tmp_path / "all-envs.env")
+    monkeypatch.setattr(ge, "CATALOG_PATH", tmp_path / "catalog.json")
+    (tmp_path / "catalog.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py"])
+    with pytest.raises(PermissionError):  # not caught as "cannot read or write <OUTPUT>"
+        ge.main()
