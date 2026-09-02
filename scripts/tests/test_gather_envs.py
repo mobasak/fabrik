@@ -2456,7 +2456,7 @@ def test_a_key_named_for_a_catalogued_vendor_files_under_its_entry(tmp_path, mon
 
 
 def test_a_placeholder_with_routing_keeps_the_operators_fields_when_dispatched(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, capsys
 ):
     """The ONE curated shape the classifier still receives: a `?` placeholder the operator left with
     curated routing routes its own key, so its block is in triage and dispatched — the operator's
@@ -2499,6 +2499,9 @@ def test_a_placeholder_with_routing_keeps_the_operators_fields_when_dispatched(
             k: placeholder[k] for k in ("cost", "capability", "url", "status", "match", "hosts")
         }, (argv, out)
         assert out["category"] == "ai-llm", out  # the unknown was filled
+        assert (
+            "acme: kept the operator's" in capsys.readouterr().out
+        )  # said beside the proposal (CE5/CJ2)
 
 
 def test_a_write_failure_is_one_line_and_the_previous_file_stands(tmp_path, monkeypatch, capsys):
@@ -2553,10 +2556,21 @@ def test_a_write_failure_is_one_line_and_the_previous_file_stands(tmp_path, monk
     assert (
         ge.main() == 0 and "entries adopted by a key named for them: hf" in capsys.readouterr().out
     )
+    # the emptied-catalog guard reads the PREVIOUS file before the write: unreadable, the same one
+    # line — it sat outside the handler (CJ1)
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    monkeypatch.setattr(
+        ge, "read_existing_body", lambda p: (_ for _ in ()).throw(PermissionError(13, "denied"))
+    )
+    assert out.exists() and ge.main() == 1
+    captured = capsys.readouterr()
+    assert (
+        captured.err.startswith("ERROR: cannot read or write") and "Traceback" not in captured.err
+    ), captured.err
 
 
 def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_list_category(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, capsys
 ):
     """The tombstone branch (an enum-rejected answer under `--tombstone-unresolved`) kept only the
     routing fields and erased the operator's cost/capability/url/status — a lost `url` also loses
@@ -2598,6 +2612,13 @@ def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_li
     assert {k: out[k] for k in ("cost", "capability", "url", "status", "match", "hosts")} == {
         k: placeholder[k] for k in ("cost", "capability", "url", "status", "match", "hosts")
     }, out
+    # …and the tombstone branch applies the scan's own predicate: a list category buckets to `?`
+    # there, so an unidentifiable answer must stub it or it is re-billed daily (CJ3)
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], bad)
+    cat.write_text(json.dumps({"acme": {**placeholder, "category": ["ai-llm"]}}), encoding="utf-8")
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))["acme"]
+    assert out["category"] == "unidentified" and out["url"] == placeholder["url"], out
     good = [
         _Res(
             json.dumps(
@@ -2619,3 +2640,8 @@ def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_li
     assert out["category"] == "ai-llm" and out["cost"] == "paid", (
         out
     )  # the verdict is the classifier's, the words the operator's
+    assert "acme: kept the operator's" in capsys.readouterr().out
+    # an entry with NOTHING to keep never claims a keep (CJ2)
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], good)
+    cat.write_text(json.dumps({"acme": {"category": ["ai-llm"]}}), encoding="utf-8")
+    assert cs.main() == 0 and "kept the operator's" not in capsys.readouterr().out

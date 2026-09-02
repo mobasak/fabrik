@@ -564,9 +564,10 @@ def main() -> int:
             kept.pop("category", None)  # the enum verdict is the classifier's — a hand-edited
             # non-str category copied back re-flagged the block every lap, forever (CE3)
             entry = {**entry, **kept}
-            print(
-                f"  {prov}: kept the operator's {', '.join(sorted(kept))}"
-            )  # not the proposal (CE5)
+            if kept:  # never a claim of a keep that did not happen (CJ2)
+                print(
+                    f"  {prov}: kept the operator's {', '.join(sorted(kept))}"
+                )  # not the proposal (CE5)
         catalog[prov] = entry
     if (
         args.only
@@ -599,8 +600,11 @@ def main() -> int:
         for prov in names:
             if prov in identified or prov in errored or prov in merged_into:
                 continue  # a merged host joined its vendor — never also a stub (AF2)
-            if prov in catalog and catalog[prov].get("category") not in (None, "", "?"):
-                continue  # a real entry; a `?` entry is re-stubbed so it leaves triage (pass 5, Z10)
+            _cat = catalog[prov].get("category") if prov in catalog else None
+            if isinstance(_cat, str) and _cat.strip() and _cat != "?":
+                # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
+                # non-str category buckets to `?` there, so treating it as real here re-billed it daily
+                continue
             stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
             if prov in catalog:  # a curated `?` entry keeps its match/hosts when re-stubbed (AC11)
                 for keep in (
