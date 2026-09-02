@@ -2964,8 +2964,10 @@ def _flip_churn_excluded(
 def _pick_flip_target(
     accounts: list[dict], exclude: frozenset[str] | set[str] = frozenset()
 ) -> tuple[str, str] | None:
-    """The flip successor as ``(slug, email)``: the account with the most weekly-then-session
-    HEADROOM (lowest seven_day utilization, ties to lowest five_hour) among accounts whose dirs
+    """The flip successor as ``(slug, email)``: PERISHABLE-FIRST (operator rule 2026-09-02, the
+    same rule :func:`_pick_successor` applies on the reactive path) — the SOONEST weekly reset
+    wins (quota about to refresh is the cheapest to burn), ties to lowest seven_day then lowest
+    five_hour utilization, an unknown reset time sorts last — among accounts whose dirs
     hold LIVE-chained credentials (the F-P1 gate, via ``_account_flip_dir``) — excluding the
     *exclude* emails, walled ones (either window ≥100%), CAP-walled ones (weekly ≥ its
     ``caps.json`` cap — the operator's browser reserve), ones already at/over
@@ -2976,29 +2978,87 @@ def _pick_flip_target(
     exclusions through here. Cached readings count — ``_validated_pick`` live-verifies them
     before a flip. None when nothing qualifies (→ the drain advisory is the only recourse)."""
     threshold = _env_float("ROTATE_THRESHOLD", 95.0)
-    ranked: list[tuple[tuple[float, float], str, str]] = []
+    far = _now() + 365 * 86400  # an unknown reset time is unprovable perishability — sorts last
+    ranked: list[tuple[tuple[float, float, float], str, str]] = []
     for row in accounts:
         if row.get("email") in exclude:
             continue
-        slug = _account_flip_dir(row.get("slugs") or [])
-        if slug is None:
-            continue
-        utils: dict[str, float | None] = {}
-        for key in ("five_hour", "seven_day"):
-            w = row.get(key)
-            u = w.get("utilization") if isinstance(w, dict) else None
-            utils[key] = float(u) if isinstance(u, (int, float)) else None
-        if utils["five_hour"] is None and utils["seven_day"] is None:
-            continue  # no reading — cannot prove headroom
-        if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
-            continue  # walled / cap-walled / already ≥ threshold — never a flip target
+        slug, utils, reason = _flip_candidate_verdict(row, threshold)
+        if reason is not None or slug is None:
+            continue  # the ONE predicate source — the diagnostic line prints the same reason
+        wk = row.get("seven_day")
+        reset = wk.get("resets_at_epoch") if isinstance(wk, dict) else None
+        reset_at = float(reset) if isinstance(reset, (int, float)) else far
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
         session = utils["five_hour"] if utils["five_hour"] is not None else 100.0
-        ranked.append(((weekly, session), slug, str(row.get("email"))))
+        ranked.append(((reset_at, weekly, session), slug, str(row.get("email"))))
     if not ranked:
         return None
     ranked.sort()
     return ranked[0][1], ranked[0][2]
+
+
+def _cache_trust_s() -> float:
+    """How old a cached reading may be and still stand in for a failed live re-verify. Defaults
+    to the tick's own reading-refresh interval (``ROTATE_READING_MAX_AGE_S``) so one knob moves
+    both: a reading the tick would not yet refresh is, by the same rule, still trusted."""
+    return _env_float("ROTATE_CACHE_TRUST_S", _env_float("ROTATE_READING_MAX_AGE_S", 3600.0))
+
+
+def _flip_candidate_verdict(
+    row: dict, threshold: float
+) -> tuple[str | None, dict[str, float | None], str | None]:
+    """The ONE candidate predicate, returning ``(slug, utils, reason)`` — ``reason`` is None
+    when the row is a flip candidate. :func:`_pick_flip_target` DECIDES on it and
+    :func:`_flip_exclusion_reasons` PRINTS it, so the two can never drift (F-C1: two copies of
+    an exclusion predicate drifting apart IS the churn bug). The cached-unverifiable outcome is
+    not a predicate here — it is :func:`_validated_pick`'s live verdict — so the diagnostic
+    names it from the row's ``source``/``age_s`` instead."""
+    slug = _account_flip_dir(row.get("slugs") or [])
+    utils: dict[str, float | None] = {}
+    for key in ("five_hour", "seven_day"):
+        w = row.get(key)
+        u = w.get("utilization") if isinstance(w, dict) else None
+        utils[key] = float(u) if isinstance(u, (int, float)) else None
+    if slug is None:
+        return None, utils, "no live-chained credentialed dir (chain stale or no credentials)"
+    if utils["five_hour"] is None and utils["seven_day"] is None:
+        return slug, utils, "no quota reading"
+    if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
+        wu = utils.get("seven_day")
+        cap = row.get("weekly_cap")
+        if any(u is not None and u >= 100.0 for u in utils.values()):
+            return slug, utils, "walled (a window at 100%)"
+        if cap is not None and wu is not None and wu >= cap:
+            return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
+        return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
+    return slug, utils, None
+
+
+def _flip_exclusion_reasons(
+    accounts: list[dict], exclude: set[str] | frozenset[str], threshold: float
+) -> list[str]:
+    """One ``email: reason`` per sibling the flip leg could NOT pick, from the SAME predicate the
+    picker decides on (:func:`_flip_candidate_verdict`), printed when the pick is None. "NO
+    successor has headroom" with no reason was undiagnosable twice on 2026-09-02."""
+    out: list[str] = []
+    for row in accounts:
+        email = str(row.get("email"))
+        if email in exclude:
+            continue
+        _slug, _utils, reason = _flip_candidate_verdict(row, threshold)
+        if reason is None:
+            if row.get("source") == "cache":
+                age = row.get("age_s")
+                age_s = f"{age / 60:.0f}m" if isinstance(age, (int, float)) else "?"
+                reason = (
+                    f"cached {age_s} ago and the live re-verify failed or the cache is older"
+                    f" than the trust window ({_cache_trust_s() / 60:.0f}m)"
+                )
+            else:
+                reason = "eligible on paper — the flip was withheld elsewhere (see stderr)"
+        out.append(f"{email}: {reason}")
+    return out
 
 
 def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
@@ -3008,7 +3068,9 @@ def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
     return _account_flip_dir([d.name for d in dirs])
 
 
-def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] | None:
+def _validated_pick(
+    accounts: list[dict], exclude: set[str], *, verbose: bool = False
+) -> tuple[str, str] | None:
     """F-P2: :func:`_pick_flip_target`, with cached candidates LIVE-verified before they can
     become the fleet's pointer. A candidate whose reading was live THIS tick is returned as-is;
     one ranked off a CACHED row gets ONE usage probe with its own dir's token — probe failure
@@ -3028,9 +3090,35 @@ def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] 
         tok = _read_access_token(_fleet_root() / slug / ".credentials.json")
         windows = _usage_windows(_oauth_get("usage", tok)) if tok is not None else None
         if windows is None:
-            exclude.add(email)  # cached-and-unverifiable — never the fleet's pointer
+            # F-P2 AMENDED (2026-09-02, measured on the 14:35 tick: "NO successor has headroom"
+            # while can@ sat at 12%/12%): the probe runs with the STANDBY's own access token,
+            # which is expired by construction — only the active chain self-refreshes
+            # (_stale_snapshot_reason says so) — so it 401s for every idle sibling and nothing
+            # cached could ever become the pointer. A reading younger than ROTATE_CACHE_TRUST_S
+            # on a chain that passes the liveness gate is accepted (the refresh token is what
+            # makes the standby usable; the CLI rolls the access token on first use). An OLDER
+            # cache stays excluded — the rosy-cache class F-P2 exists for.
+            age = row.get("age_s")
+            if (
+                isinstance(age, (int, float))
+                and age <= _cache_trust_s()
+                and _chain_stale_reason(_fleet_root() / slug) is None
+            ):
+                if verbose:  # the flip leg only — the advisory leg re-asks and must not repeat
+                    print(
+                        f"tick: {email} cached reading {age / 60:.0f}m old accepted — live probe"
+                        " failed (a standby's access token is expired by design; chain gate passed)"
+                    )
+                return pick
+            exclude.add(email)  # cached-and-unverifiable (or too old) — never the fleet's pointer
             continue
-        live_utils = {k: w["utilization"] for k, w in windows.items()}
+        # ONLY the two quota windows are utilization dicts — `model_windows` (added 2026-08-22)
+        # rides along and crashed a `.items()` comprehension here with KeyError 'utilization'.
+        live_utils = {
+            k: windows[k]["utilization"]
+            for k in ("five_hour", "seven_day")
+            if isinstance(windows.get(k), dict)
+        }
         if _flip_churn_excluded(live_utils, row.get("weekly_cap"), threshold):
             # the rosy cache hid a wall / the cap / a ≥threshold window — the live reading
             # wins, by the SAME predicate the selector applied to the cached one (F-C1)
@@ -3632,7 +3720,10 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
             else:
                 print(f"tick: active {row['email']} chain DEAD — flip to {slug} withheld")
             return
-        print(f"tick: active {row['email']} chain DEAD and NO successor has headroom")
+        print(
+            f"tick: active {row['email']} chain DEAD and NO successor has headroom — "
+            + "; ".join(_flip_exclusion_reasons(accounts, {row["email"]}, threshold))
+        )
         _tick_telegram(
             f"active account {row['email']} OAuth chain is DEAD and no sibling has headroom —"
             " every screen will prompt for login until ONE /login re-pins a chain"
@@ -3669,11 +3760,14 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         if cap_only
         else f"at {hot:.0f}%"
     )
-    pick = _validated_pick(accounts, {row["email"]})
+    pick = _validated_pick(accounts, {row["email"]}, verbose=True)
     if pick is None:
         # Every sibling is walled/cap-walled/unreadable/credential-less: nothing to flip to. The
         # ≥85% advisory loop below is the recourse (Telegram + drain mail), exactly as before.
-        print(f"tick: active {row['email']} {at_desc} but NO successor has headroom")
+        print(
+            f"tick: active {row['email']} {at_desc} but NO successor has headroom — "
+            + "; ".join(_flip_exclusion_reasons(accounts, {row["email"]}, threshold))
+        )
         return
     slug, email = pick
     if _flip_active(slug, at_pct=at_pct):

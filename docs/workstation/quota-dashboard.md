@@ -22,6 +22,10 @@ design:
   when the tab is closed, and refresh-spamming cannot multiply probe volume.
 - The rendered page always states the age of its own data and, per account, whether the
   reading is live or `cached Nh ago` — a stale render is visible, never silent.
+- **A pointer flip beats the floor.** Every view compares the live `active` symlink with the
+  `active` of the last render; when they differ, the page regenerates synchronously ONCE (bounded
+  by the probe timeout) so the very next view shows the new account. Measured 2026-09-02 before
+  this: a `--switch` at 14:36 left the board saying the OLD account for up to floor + reload.
 - A failed probe does **not** blank the page: it renders the last good payload behind a red
   "live probe failed" banner (`quota.json` is the fallback store). Transient network blips are
   first **retried at the HTTP layer** (`_oauth_get`, `OAUTH_GET_ATTEMPTS`/`OAUTH_GET_TIMEOUT_S`
@@ -62,7 +66,7 @@ Rows sort by weekly headroom, so the fleet's next flip target is the top eligibl
 | `/` | the dashboard (regenerates if the render is older than the floor) |
 | `/quota.json` | the raw `--status --json` payload behind the page |
 | `/health` | `ok` — liveness for the keepalive |
-| `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200) · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
+| `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200); every outcome is one line in `~/.claude/quota-dashboard.log` (`POST /switch 'can' -> 200 in 3.2s: …`) — a click that "did not work" now leaves its trace · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
 
 ## Lifecycle
 
@@ -73,8 +77,12 @@ Self-healing, no systemd (WSL has no user bus). Two crontab lines:
 */10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
 
-`--ensure` connects to the port first and returns immediately if something answers, so the
-10-minute line is a no-op while healthy and a restart within 10 minutes of any crash.
+`--ensure` demands a real HTTP `ok` from `/health` (5s, `QUOTA_DASH_ENSURE_TIMEOUT_S`): a healthy
+server makes the 10-minute line a no-op; a dead port respawns; and a WEDGED server — one that
+accepts connections but never answers — is killed (only the PID holding our port, only after the
+probe fails) and respawned. Before 2026-09-02 a connect alone counted as alive, so a wedged server
+stayed wedged for as long as the box was up. Worst-case gap is one cron interval; tighten the
+`*/10` to `*/2` if a two-minute hole matters to you (crontab is the operator's file).
 
 Modes: `--serve` (foreground server) · `--ensure` (start if down) · `--once` (regenerate the
 files and exit — useful for a scripted refresh without a browser).
@@ -92,6 +100,7 @@ files and exit — useful for a scripted refresh without a browser).
 | `QUOTA_DASH_PROBE_TIMEOUT_S` | `60` | per-probe subprocess timeout |
 | `QUOTA_DASH_SWITCH_TIMEOUT_S` | `90` | `POST /switch` subprocess timeout (the CLI probes the target before flipping) |
 | `QUOTA_DASH_SOCKET_TIMEOUT_S` | `15` | per-connection socket timeout — a client that under-sends its declared body is dropped, never parked |
+| `QUOTA_DASH_POINTER` | `~/.claude-fleet/active` | the fleet pointer symlink the board compares against its last render — a flip regenerates the page on the next view, floor or no floor |
 
 ## Boundaries
 

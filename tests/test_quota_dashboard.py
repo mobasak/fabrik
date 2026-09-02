@@ -27,6 +27,9 @@ _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_das
 def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
     """Import a FRESH module instance whose env-derived module constants point at tmp_path."""
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
+    # never the box's REAL pointer: a test render says "mob" while the box may point elsewhere,
+    # and the pointer-moved regeneration would then fire on every view
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     spec = importlib.util.spec_from_file_location(f"qd_{tmp_path.name}", _SRC)
@@ -425,3 +428,101 @@ def test_a_short_body_cannot_hold_a_handler_thread_forever(tmp_path, monkeypatch
         s.close()
     finally:
         httpd.shutdown()
+
+
+def test_a_pointer_change_regenerates_before_the_floor(tmp_path, monkeypatch):
+    """The operator switched accounts and the board kept showing the OLD pointer for up to
+    floor + reload (~5 min) — measured 2026-09-02 after a `--switch`. A pointer that no longer
+    matches the rendered `active` must regenerate on the next view, floor or no floor."""
+    pointer = tmp_path / "active"
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    state = {"active": "mob"}
+    monkeypatch.setattr(qd, "_probe", lambda: {**_payload(), "active": state["active"]})
+    pointer.symlink_to(tmp_path / "mob")
+    assert 'who">mob' in qd.generate()
+    # the pointer moves (a --switch or a tick flip); the render on disk is seconds old
+    pointer.unlink()
+    pointer.symlink_to(tmp_path / "can")
+    state["active"] = "can"
+    assert 'who">can' in qd._fresh_html(), "a moved pointer must not wait for the floor"
+    assert 'who">can' in qd._fresh_html()  # and the second view costs no second probe path
+
+
+def test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view(tmp_path, monkeypatch):
+    """After a flip the board regenerates synchronously ONCE. If that probe FAILS, the fallback
+    payload must carry the live pointer so the next views serve instantly instead of each
+    paying the probe timeout until the probe recovers (review finding on the pointer-moved path)."""
+    pointer = tmp_path / "active"
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", lambda: {**_payload(), "active": "mob"})
+    pointer.symlink_to(tmp_path / "mob")
+    qd.generate()
+    pointer.unlink()
+    pointer.symlink_to(tmp_path / "can")
+    calls: list[int] = []
+
+    def _hang():
+        calls.append(1)
+        raise TimeoutError("probe hung")
+
+    monkeypatch.setattr(qd, "_probe", _hang)
+    qd._fresh_html()  # the one synchronous attempt after the flip — it fails
+    qd._fresh_html()
+    qd._fresh_html()
+    assert len(calls) == 1, f"every view re-ran the failed probe: {len(calls)} probes for 3 views"
+    assert 'who">can' in qd._fresh_html(), (
+        "the pointer is a local fact — shown even when the probe is down"
+    )
+
+
+def test_the_rendered_script_parses(tmp_path, monkeypatch):
+    """The page's ONE <script> carries the auto-reloader AND the switch handlers. A syntax error
+    anywhere in it silently kills both (measured 2026-09-02: a raw newline inside the confirm()
+    string — the board froze on the old account and every button was inert). Parse it."""
+    import re
+    import shutil
+    import subprocess
+
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _multi_payload)
+    html = qd.generate()
+    script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
+    # no JS string literal may span a line: a raw newline inside quotes is the exact defect
+    for line in script.splitlines():
+        assert line.count('"') % 2 == 0, f"unbalanced quotes → a string spans lines: {line[:80]!r}"
+    node = shutil.which("node")
+    if node:
+        js = tmp_path / "page.js"
+        js.write_text(script, encoding="utf-8")
+        r = subprocess.run([node, "--check", str(js)], capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr[:400]
+
+
+def test_ensure_restarts_a_server_that_listens_but_does_not_answer(tmp_path, monkeypatch):
+    """`--ensure` used to connect to the port and call it alive. A wedged server (accepts,
+    never answers) then stayed wedged forever — the operator's "must be up no matter what".
+    ensure() now demands an HTTP `ok` from /health; anything else kills the listener and respawns."""
+    import socket
+    import threading
+
+    qd = _load(tmp_path, monkeypatch)
+    wedged = socket.socket()
+    wedged.bind(("127.0.0.1", 0))
+    wedged.listen(1)
+    port = wedged.getsockname()[1]
+    threading.Thread(target=lambda: wedged.accept(), daemon=True).start()
+    monkeypatch.setattr(qd, "PORT", port)
+    monkeypatch.setenv("QUOTA_DASH_LOG", str(tmp_path / "log"))
+    killed: list[int] = []
+    spawned: list[list[str]] = []
+    monkeypatch.setattr(qd, "_listener_pid", lambda port: 4242)
+    monkeypatch.setattr(qd.os, "kill", lambda pid, sig: killed.append(pid))
+    monkeypatch.setattr(qd.subprocess, "Popen", lambda argv, **kw: spawned.append(argv))
+    monkeypatch.setenv("QUOTA_DASH_ENSURE_TIMEOUT_S", "0.5")
+    assert qd.ensure() == 0
+    # the stub keeps reporting pid 4242 as the holder, so ensure() escalates TERM → KILL
+    assert killed and all(k == 4242 for k in killed), "the listener that never answers is killed"
+    assert spawned and "--serve" in spawned[0], "…and a fresh server spawned"
+    wedged.close()

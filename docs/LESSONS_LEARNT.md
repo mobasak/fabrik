@@ -1,6 +1,34 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 149: a verification that must AUTHENTICATE AS the standby it verifies is dead by construction — and "no successor" without a per-candidate reason hid it twice in one day
+
+The rotation tick's successor picker re-verified every CACHED candidate with a live usage probe
+using **the candidate's own access token**. A standby's access token is expired by construction —
+only the active chain self-refreshes, and the module's own `_stale_snapshot_reason` docstring
+says exactly that — so the probe 401'd for every idle sibling, each was excluded as
+"cached-and-unverifiable", and the tick printed `NO successor has headroom` while `can@` sat at
+12% session / 12% weekly. Flips "worked" only when the successor happened to have been probed
+live that same tick, which is why the failure looked intermittent (two flips succeeded, two
+walls were hit) and why it survived from 2026-08-15 to 2026-09-02.
+
+Two rules, both cheap:
+
+1. **Before a verify step, ask what it authenticates AS.** If the credential it needs belongs to
+   the thing being verified and that thing is idle by definition, the step will fail exactly
+   when it matters. Verify with a credential that is alive by construction, or accept a fresh
+   cached reading behind the liveness gate that actually decides usability (the refresh token).
+2. **A negative verdict names its denominator per candidate.** `NO successor` told the operator
+   nothing and cost two diagnoses; `can@: cached 7m ago and the live re-verify failed` would have
+   cost one grep. The same line was the second-worst offender today: the quota board's switch
+   button logged nothing on any outcome, so "I pressed it and it did not work" had no trace to
+   read. Every action endpoint writes one line per outcome; every refusal says why.
+
+Bonus finding on the same path: when the probe DID succeed the code crashed on the
+`model_windows` entry a sibling feature had added to the same return dict thirteen days earlier
+— a widened return shape is a contract change with a MIRROR (CLAUDE.md § Behavior), and the
+consumer iterating `.items()` was the shape it broke.
+
 # Lesson 148: a red-on-revert that PROVES a hazard by triggering it IS the hazard — blast-radius the experiment, not just the fix
 
 A review round found that `tests/enforcement/test_governance_sync_postcommit.py::_hub_clone`

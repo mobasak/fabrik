@@ -53,9 +53,23 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
 - **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **95**) on
   either the 5-hour or the weekly window. A `caps.json` cap tightens the **weekly** leg only
   (`weekly_thr = min(threshold, cap)`); the 5-hour leg is never cap-gated.
-- **Target:** the most weekly headroom among accounts that are alive, not walled, not
-  cap-walled, and not themselves already ≥ threshold on either window. A candidate ranked off
-  a CACHED reading is live-probed once before it can become the pointer.
+- **Target — PERISHABLE-FIRST (operator rule 2026-09-02):** among accounts that are alive, not
+  walled, not cap-walled, and not themselves already ≥ threshold on either window, the one whose
+  **weekly reset is soonest** wins (quota about to refresh is the cheapest to burn); ties break
+  to lower weekly, then lower session utilization; an unknown reset time sorts last. The same
+  rule the reactive path (`_pick_successor`) always applied; the tick used to rank by headroom
+  instead. The weekly reserves are `caps.json`: `can` 99 · `mob` 99 · `sarp` 90 (10% kept) ·
+  `ob` 80 (20% kept) — at weekly ≥ cap the account flips away whatever its session says. A candidate ranked off
+  a CACHED reading is live-probed once before it can become the pointer — **and when that probe
+  fails, a reading younger than `ROTATE_CACHE_TRUST_S` (default 3600s) on a chain that passes the
+  liveness gate is accepted anyway.** The probe runs with the standby's OWN access token, which is
+  expired by construction for an idle account (only the active chain self-refreshes; the CLI rolls
+  it on first use), so before 2026-09-02 every idle sibling read as "unverifiable" and the tick
+  logged `NO successor has headroom` while `can@` sat at 12%/12% — a flip only ever worked when
+  the successor happened to be live that tick. An OLDER cache still never becomes the pointer.
+- **No successor ⇒ the tick says why, per sibling** (`walled` · `weekly N% ≥ cap` · `a window
+  ≥ threshold` · `no quota reading` · `chain stale or no credentials` · `cached Nm ago and the
+  live re-verify failed…`) — read `~/.claude/rotate-tick.log` before touching anything.
 - **Never a dead chain:** the target's refresh token must pass the liveness gate
   (`_chain_stale_reason`) — a dir whose chain expired can never become the fleet's pointer.
 - **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`), so a noisy boundary

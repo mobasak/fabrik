@@ -596,7 +596,11 @@ def test_t15a_paused_rotation_installs_nothing_and_says_so(tmp_path, monkeypatch
     calls = _rotate_env(tmp_path, monkeypatch, True, "Claude usage limit reached", _calls())
     cr.run_claude(["claude", "-p", "ping"], timeout=5, cwd=str(tmp_path), env={})
     assert calls["installed"] == [], "a paused rotation must install nothing"
-    assert len(calls["runs"]) == 1, "no rotation → no retry"
+    # count CLAUDE invocations only: the advisory `quota_governor.py mark-capped` signal (bff520f0)
+    # is a subprocess too, and fires only where the governor is co-located — the real tree, not a
+    # temp copy — which is why this assertion passed in CI-like copies and failed in the repo
+    claude_runs = [a for a in calls["runs"] if a and a[0] == "claude"]
+    assert len(claude_runs) == 1, "no rotation → no retry"
     assert cr._rotate_active_account() is None, "the choke point itself must refuse"
     captured = capsys.readouterr()
     assert "rotation PAUSED" in captured.err and "switch-paused" in captured.err, captured.err
@@ -610,7 +614,8 @@ def test_t15b_unpaused_rotation_is_unchanged(tmp_path, monkeypatch, capsys):
     calls = _rotate_env(tmp_path, monkeypatch, False, "Claude usage limit reached", _calls())
     cr.run_claude(["claude", "-p", "ping"], timeout=5, cwd=str(tmp_path), env={})
     assert calls["installed"] == ["selector"], "unpaused rotation still installs a standby"
-    assert len(calls["runs"]) == 2, "the rotation retry still runs"
+    claude_runs = [a for a in calls["runs"] if a and a[0] == "claude"]
+    assert len(claude_runs) == 2, "the rotation retry still runs"
     assert "rotation PAUSED" not in capsys.readouterr().err
 
 
@@ -1096,3 +1101,100 @@ def test_keepalive_sweep_pings_only_idle_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
     p, f = cr._keepalive_sweep([root / "stale", root / "fresh"], now, quiet=True)
     assert pinged == ["stale"] and (p, f) == (1, 0)
+
+
+# ── 2026-09-02: the successor picker refused every CACHED standby ─────────────────────────────
+# Measured 14:30 tick: "active mob@ocoron.com at 98% but NO successor has headroom" while can@
+# sat at 12%/12%. Root cause: _validated_pick re-verifies a cached candidate with the
+# candidate's OWN access token — expired by construction for a standby (only the active chain
+# self-refreshes; _stale_snapshot_reason says so) — so the probe 401s and the candidate is
+# excluded as "unverifiable". And when the probe DOES succeed, the comprehension crashed on the
+# `model_windows` entry _usage_windows added on 2026-08-22.
+
+
+def _cached_standby(name, age_s=120.0, session=10.0, weekly=12.0):
+    return {"email": f"{name}@test", "slugs": [name], "source": "cache", "age_s": age_s,
+            "five_hour": {"utilization": session}, "seven_day": {"utilization": weekly},
+            "weekly_cap": None}
+
+
+def _arm_probe(monkeypatch, windows):
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: {"usage": True})
+    monkeypatch.setattr(cr, "_usage_windows", lambda usage: windows)
+    monkeypatch.setattr(cr, "_chain_stale_reason", lambda d: None)
+
+
+def test_validated_pick_survives_model_windows_in_a_live_reprobe(monkeypatch):
+    """A successful live re-probe returns five_hour/seven_day PLUS model_windows; only the two
+    quota windows are utilization dicts. Before the fix: KeyError 'utilization'."""
+    _arm_probe(monkeypatch, {"five_hour": {"utilization": 11.0}, "seven_day": {"utilization": 14.0},
+                             "model_windows": {"Fable": {"utilization": 3.0}}})
+    assert cr._validated_pick([_cached_standby("can")], {"mob@test"}) == ("can", "can@test")
+
+
+def test_validated_pick_accepts_a_fresh_cached_standby_whose_probe_failed(monkeypatch):
+    """The probe fails (expired standby access token → 401 → None). A reading younger than the
+    trust window on a chain that passes the liveness gate is accepted — the standby's refresh
+    token is what makes it usable, and the CLI rolls the access token on first use."""
+    _arm_probe(monkeypatch, None)
+    monkeypatch.setenv("ROTATE_CACHE_TRUST_S", "3600")
+    assert cr._validated_pick([_cached_standby("can", age_s=600.0)], {"mob@test"}) == ("can", "can@test")
+
+
+def test_validated_pick_still_refuses_a_stale_cache_it_cannot_verify(monkeypatch):
+    """F-P2 keeps its teeth: a cache OLDER than the trust window with a failed probe is never
+    the fleet's pointer (the rosy-cache class)."""
+    _arm_probe(monkeypatch, None)
+    monkeypatch.setenv("ROTATE_CACHE_TRUST_S", "3600")
+    assert cr._validated_pick([_cached_standby("can", age_s=7200.0)], {"mob@test"}) is None
+
+
+def test_validated_pick_refuses_a_fresh_cache_on_a_stale_chain(monkeypatch):
+    """Fresh reading, dead chain (expired refresh token) → still excluded; the liveness gate is
+    unconditional."""
+    _arm_probe(monkeypatch, None)
+    monkeypatch.setattr(cr, "_chain_stale_reason", lambda d: "refresh token expired 3h ago")
+    assert cr._validated_pick([_cached_standby("can", age_s=60.0)], {"mob@test"}) is None
+
+
+def test_no_successor_line_names_why_each_candidate_was_excluded(monkeypatch, capsys):
+    """'NO successor has headroom' with no per-candidate reason was undiagnosable twice in one
+    day. The line must say WHY for every sibling."""
+    accounts = [
+        {"email": "mob@test", "slugs": ["mob"], "source": "live",
+         "five_hour": {"utilization": 98.0}, "seven_day": {"utilization": 20.0}, "weekly_cap": None},
+        {"email": "ob@test", "slugs": ["ob"], "source": "live",
+         "five_hour": {"utilization": 99.0}, "seven_day": {"utilization": 20.0}, "weekly_cap": 80},
+        {"email": "sarp@test", "slugs": ["sarp"], "source": "cache", "age_s": 30.0,
+         "five_hour": {"utilization": 100.0}, "seven_day": {"utilization": 20.0}, "weekly_cap": 90},
+        {"email": "can@test", "slugs": ["can"], "source": "cache", "age_s": 9000.0,
+         "five_hour": {"utilization": 12.0}, "seven_day": {"utilization": 12.0}, "weekly_cap": 99},
+    ]
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: True)
+    cr._fleet_flip_leg([], accounts, threshold=95.0)
+    out = capsys.readouterr().out
+    assert "NO successor has headroom" in out
+    for needle in ("ob@test: ", "sarp@test: ", "can@test: "):
+        assert needle in out, out
+    assert "walled" in out and "cached" in out
+
+
+def test_flip_target_is_perishable_first_soonest_weekly_reset_wins(monkeypatch):
+    """Operator rule 2026-09-02: at the session wall, rotate to the sibling whose WEEKLY reset is
+    closest (quota about to refresh is the cheapest to burn) — not the one with the most
+    headroom. Ties break to lower weekly, then lower session utilization."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    soon = {"email": "soon@test", "slugs": ["soon"], "source": "live", "weekly_cap": None,
+            "five_hour": {"utilization": 40.0}, "seven_day": {"utilization": 60.0, "resets_at_epoch": NOW + 3600}}
+    roomy = {"email": "roomy@test", "slugs": ["roomy"], "source": "live", "weekly_cap": None,
+             "five_hour": {"utilization": 5.0}, "seven_day": {"utilization": 5.0, "resets_at_epoch": NOW + 5 * 86400}}
+    assert cr._pick_flip_target([roomy, soon], exclude={"mob@test"}) == ("soon", "soon@test")
+    # a candidate with NO reset time known sorts last (unprovable perishability)
+    unknown = {"email": "unk@test", "slugs": ["unk"], "source": "cache", "age_s": 60.0, "weekly_cap": None,
+               "five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 1.0}}
+    assert cr._pick_flip_target([unknown, roomy], exclude=set()) == ("roomy", "roomy@test")

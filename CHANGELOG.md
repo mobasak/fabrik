@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the rotation tick could never flip to an IDLE account: the successor re-verify authenticated with the standby's own expired token (2026-09-02)
 
-- **Measured:** the 14:30 tick logged `active mob@ocoron.com at 98% but NO successor has headroom`
+- **Measured:** the 14:35 tick logged `active mob@ocoron.com at 98% but NO successor has headroom`
   while `can@` sat at 12% session / 12% weekly, and the operator hit the wall — the second time
   today. `_validated_pick` re-probes a CACHED candidate with the candidate's OWN access token,
   which for a standby is expired by construction (only the active chain self-refreshes —
@@ -30,6 +30,31 @@ All notable changes to this project will be documented in this file.
   governor is co-located — the denominator is now claude invocations.
 - **Docs:** `docs/workstation/claude-account-rotation.md` § Rotation (the amended re-verify rule,
   the new env knob, the reasons line).
+
+### Changed — rotation picks the PERISHABLE-FIRST successor: soonest weekly reset wins (operator rule, 2026-09-02)
+
+- `_pick_flip_target` ranked by most headroom; the operator's rule is the sibling whose weekly
+  reset is closest (the reactive `_pick_successor` already did this). Ties → lower weekly, then
+  lower session; an unknown reset sorts last. Session 95% and the `caps.json` weekly reserves
+  (can 99 · mob 99 · sarp 90 · ob 80) are unchanged and re-confirmed. Test seen red:
+  `test_flip_target_is_perishable_first_soonest_weekly_reset_wins`. The exclusion predicate now has
+  ONE source (`_flip_candidate_verdict`) that both the picker and the reasons line read — F-C1.
+
+### Fixed — the quota board's script did not PARSE: a raw newline in a JS string froze the page and every button (2026-09-02)
+
+- **Measured:** the served page's `<script>` failed `node --check` (`SyntaxError: Invalid or
+  unexpected token` at the confirm() text) — the auto-reloader and the switch handlers live in
+  that one script, so the tab kept the old account and the buttons did nothing. That is what
+  "still shows mob" and "buttons not working" were. It passed a review that READ the JS instead
+  of parsing it.
+- **Fix:** the two JS strings are escaped for the f-string that emits them;
+  `test_the_rendered_script_parses` runs `node --check` over the rendered script (and refuses any
+  string spanning lines when node is absent). `--ensure` now demands an HTTP `ok` from `/health`
+  and kills + respawns a listener that holds the port but never answers
+  (`test_ensure_restarts_a_server_that_listens_but_does_not_answer`). The pointer-flip
+  regeneration is rate-limited to once per probe timeout and the fallback payload carries the
+  live pointer, so a probe hang after a flip costs ONE view the wait, never every view
+  (`test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view`).
 
 ### Fixed — the quota board lagged a pointer flip by up to five minutes, and a switch click left no trace (2026-09-02)
 

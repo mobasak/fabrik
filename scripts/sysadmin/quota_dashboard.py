@@ -61,6 +61,31 @@ _SEVEN_DAY_S = 7 * 86400
 
 _HTML = OUT_DIR / "index.html"
 _JSON = OUT_DIR / "quota.json"
+# The fleet's active-account pointer (a symlink). Read on every view so a flip — by the tick, a
+# --switch, or the button — regenerates the board at once instead of waiting out the floor.
+_POINTER = Path(os.getenv("QUOTA_DASH_POINTER", str(Path.home() / ".claude-fleet" / "active")))
+
+
+def _pointer_slug() -> str | None:
+    try:
+        return os.path.basename(os.readlink(_POINTER)) or None
+    except OSError:
+        return None
+
+
+def _rendered_active() -> str | None:
+    try:
+        val = json.loads(_JSON.read_text(encoding="utf-8")).get("active")
+    except (OSError, ValueError):
+        return None
+    return str(val) if val else None
+
+
+def _pointer_moved() -> bool:
+    """True when the live pointer disagrees with the last rendered payload — a flip happened
+    since the render. Unknown on either side → False (never a probe storm on a missing file)."""
+    live, rendered = _pointer_slug(), _rendered_active()
+    return bool(live and rendered and live != rendered)
 
 
 def _probe() -> dict:
@@ -389,7 +414,7 @@ every session bound to the pointer follows it — no restart. Data regenerates o
   document.querySelectorAll("button.switch").forEach(function (btn) {{
     btn.addEventListener("click", function () {{
       var slug = btn.getAttribute("data-slug");
-      if (!confirm("Switch the active account to " + slug + " now?\n\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
+      if (!confirm("Switch the active account to " + slug + " now?\\n\\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
       btn.disabled = true; btn.textContent = "switching…";
       fetch("/switch", {{method: "POST", cache: "no-store",
         headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
@@ -397,7 +422,7 @@ every session bound to the pointer follows it — no restart. Data regenerates o
         .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
         .then(function (sj) {{
           if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
-          alert("Switch failed (" + sj[0] + "):\n" + (sj[1].error || sj[1].raw || JSON.stringify(sj[1])));
+          alert("Switch failed (" + sj[0] + "):\\n" + (sj[1].error || sj[1].raw || JSON.stringify(sj[1])));
           btn.disabled = false; btn.textContent = "switch →";
         }})
         .catch(function (e) {{ alert("Switch request failed: " + e); btn.disabled = false; btn.textContent = "switch →"; }});
@@ -424,6 +449,16 @@ def generate() -> str:
         except ValueError:
             payload = {}
         sys.stderr.write(f"quota_dashboard: probe failed ({error})\n")
+        # The pointer is a LOCAL fact, not a probe result: carry it into the fallback so a flip
+        # followed by a probe outage renders the right account and `_pointer_moved()` clears —
+        # otherwise every view would re-pay the probe timeout until the probe recovered.
+        live = _pointer_slug()
+        if live:
+            payload = {**payload, "active": live}
+            try:
+                _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+            except OSError:
+                pass
     html = render(payload, time.time(), error)
     _HTML.write_text(html, encoding="utf-8")
     return html
@@ -431,6 +466,7 @@ def generate() -> str:
 
 _regen_lock = threading.Lock()
 _LAST_REGEN: list[threading.Thread | None] = [None]  # the most recent background worker, joinable
+_LAST_SYNC_REGEN: list[float] = [0.0]  # when the pointer-moved path last regenerated synchronously
 
 
 def _regen_async() -> threading.Thread | None:
@@ -461,6 +497,13 @@ def _fresh_html() -> str:
     try:
         age = time.time() - _HTML.stat().st_mtime
         html = _HTML.read_text(encoding="utf-8")
+        if _pointer_moved() and time.time() - _LAST_SYNC_REGEN[0] > PROBE_TIMEOUT_S:
+            # A flip happened since the render (measured 2026-09-02: the board showed the OLD
+            # account for up to floor + reload after a --switch). One synchronous regeneration,
+            # bounded by the probe timeout and never more than once per timeout window — a
+            # hung probe can cost ONE view the wait, never every view.
+            _LAST_SYNC_REGEN[0] = time.time()
+            return generate()
         if age >= MAX_AGE_S:
             _LAST_REGEN[0] = _regen_async()
         return html
@@ -533,6 +576,7 @@ class _Handler(BaseHTTPRequestHandler):
             # No custom header = not our page's fetch(). A cross-origin form/fetch cannot add
             # one without a preflight, and this server answers no OPTIONS — so this is the
             # whole CSRF story for a loopback-only board.
+            sys.stderr.write("quota_dashboard: POST /switch refused — no custom header\n")
             self._json(403, {"ok": False, "error": f"missing {SWITCH_HEADER} header"})
             return
         try:
@@ -547,8 +591,12 @@ class _Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             self._json(400, {"ok": False, "error": "body is not JSON"})
             return
-        status, out = switch_account(
-            (body or {}).get("account") if isinstance(body, dict) else None
+        slug = (body or {}).get("account") if isinstance(body, dict) else None
+        t0 = time.time()
+        status, out = switch_account(slug)
+        sys.stderr.write(
+            f"quota_dashboard: POST /switch {slug!r} -> {status} in {time.time() - t0:.1f}s:"
+            f" {out.get('output') or out.get('error') or ''}\n"
         )
         self._json(status, out)
 
@@ -591,14 +639,68 @@ def serve() -> int:
     return 0
 
 
+def _listener_pid(port: int) -> int | None:
+    """The PID holding *port* on loopback, via `ss -ltnp` (no psutil). None when unknown."""
+    try:
+        out = subprocess.run(  # noqa: S603 — fixed argv
+            ["ss", "-ltnp"], capture_output=True, text=True, timeout=5
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for line in out.splitlines():
+        if f":{port} " in line and "pid=" in line:
+            try:
+                return int(line.split("pid=", 1)[1].split(",", 1)[0])
+            except ValueError:
+                return None
+    return None
+
+
+def _health_ok() -> bool:
+    """One GET /health with a short timeout. A listener that accepts but never answers is NOT up."""
+    import http.client
+
+    try:
+        c = http.client.HTTPConnection(
+            HOST, PORT, timeout=float(os.getenv("QUOTA_DASH_ENSURE_TIMEOUT_S", "5"))
+        )
+        c.request("GET", "/health")
+        r = c.getresponse()
+        return r.status == 200 and r.read(8) == b"ok"
+    except (OSError, http.client.HTTPException):
+        return False
+
+
 def ensure() -> int:
-    """Start the server unless something already answers on the port (cron keepalive)."""
+    """Keep the server up (cron keepalive): a real HTTP `ok` from /health, or kill whatever holds
+    the port and respawn. Connecting to the port used to count as alive — a WEDGED server
+    (accepts, never answers) then stayed wedged for as long as the box was up. Nothing is killed
+    unless it holds our port AND fails the health probe."""
+    import signal
     import socket
 
     with socket.socket() as s:
         s.settimeout(2.0)
-        if s.connect_ex((HOST, PORT)) == 0:
-            return 0  # already up
+        listening = s.connect_ex((HOST, PORT)) == 0
+    if listening:
+        if _health_ok():
+            return 0  # already up and answering
+        pid = _listener_pid(PORT)
+        if pid is not None:
+            sys.stderr.write(
+                f"quota_dashboard: listener pid {pid} holds :{PORT} but /health does not answer — restarting\n"
+            )
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+            time.sleep(1.0)
+            if _listener_pid(PORT) == pid:  # ignored SIGTERM — the port must be free to respawn
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                time.sleep(0.5)
     log = Path(os.getenv("QUOTA_DASH_LOG", str(Path.home() / ".claude" / "quota-dashboard.log")))
     with open(log, "a", encoding="utf-8") as fh:
         subprocess.Popen(  # noqa: S603 — fixed argv, no shell
