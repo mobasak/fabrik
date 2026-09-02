@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Amendment 3: a CONVERGED verdict algebra had a fail-open, found by BUILDING the interface (2026-09-02)
+
+- fabrik-lib prototyped the comparison interface and executed its success criteria: a caller-supplied
+  comparator that **raises** lost the system name to `_probe_label` (`"<lambda>"`) and the run exited
+  **0 with the system declared `critical`** — a passing deployment verification with no comparison
+  having happened. Validated hub-side at `health_probe.py:205-209` and `:423-427`.
+- **The hub's verdict algebra inherited the hole one layer up.** Amendment 2 mapped every
+  `match: None` to *not checked*, so a systematically broken comparator would report `0 of N` and
+  never FAIL. `None` now **splits by row shape**: benign without `expected`/`actual`, and
+  **FAIL CLOSED** with them (attempted, unresolved). Payload is four keys, adding `compare_error`.
+- Exit `2` ratified as **standing** and widened to *disagrees OR unresolved*; fabrik-lib adopted the
+  hub's LIVENESS-WINS precedence verbatim, so `1 → 2 → 0` is settled on both sides.
+- **The parity-contract runner stays hub-side** — answered to fabrik-lib's direct question, with a
+  named revisit trigger (≥2 project types, algebra unchanged).
+- ⚠️ **The H1–H4 convergence stamp was void 40 minutes after it was made**, and the pass ledger records
+  that rather than restarting quietly. Four re-derivation passes caught 12 defects and were
+  *structurally* blind to this one, because it lives in the interaction between three functions and
+  nothing about the prose is false when read. Spec Status → DRAFT; ledger row `D-072`.
+
 ### Removed — The rule-pack auto-load size cap is retired fleet-wide (2026-09-02)
 
 - Operator ruling: *"autoload cap was for windsurf but we have stopped using windsurf."* Windsurf /
@@ -22,6 +41,57 @@ All notable changes to this project will be documented in this file.
   author-blind review caught — but no future pack is asked to shrink for bytes.
 - **Not retired:** the real cost the byte cap only proxied for is overbroad pack globs
   (`**/client*`, `**/health*`, `**/dispatch*` on `58-resilience`), still open in `docs/STRATEGIC_BACKLOG.md`.
+
+### Fixed — mcp_watch staleness clock: process-start truth replaces the last-write race (2026-09-02)
+
+- `.claude/hooks/mcp_watch.py::_session_start` no longer reads `min(st_ctime, st_mtime)` — ctime is
+  inode-change time on Linux and moves on every append, so the staleness verdict was decided by
+  whether the transcript or the roster flushed last: banner on healthy prompts, SILENCE on genuinely
+  stale sessions (wef finding 01M1GE3PWBPKZWETCANJXWGGRC, probe-proven). New clock: the harness
+  process's own start time (`/proc` ancestry walk to the `claude` process — when the tool universe
+  actually loads; a reload truthfully clears the banner), with the transcript-head first `timestamp`
+  as bounded-scan fallback. First-line-ts ALONE was rejected: a resumed conversation keeps its file
+  (live: a 2026-05-13 head on a 2026-09-02 session), which would fire the banner forever (D-070).
+- Staleness banner rewritten per the operator's direction: leads with CHECK YOUR ASSIGNED MCPs +
+  D-033 fix-first (the duty an agent can act on); the window reload demoted to the one diagnosed
+  class that needs it. Extracted pure (`stale_banner`) and pinned by test.
+- Review (`/fabrik-review`, native Opus finder) caught four defects in the fix itself, all fixed
+  in-run: (1) `_first_event_ts`'s `except OSError` did not catch `ValueError`/`TypeError` from a
+  numeric-epoch `timestamp` or a null `transcript_path`, so the exception escaped `_session_start`
+  and aborted `main()` **before the liveness banner** — a new silent path suppressing BOTH banners;
+  (2) `_proc_start_epoch` had no direct test and a `return time.time()` mutant (nothing is ever
+  stale — the exact fleet-wide bug) shipped green; (3) the module docstring still stated the
+  replaced transcript-began contract; (4) the banner asserted "harness started" on fallback paths.
+- Hardening from the same pass: boot epoch from `/proc/stat btime` instead of `time.time() - uptime`
+  (NTP/suspend drift on this Modern-Standby host), `node` accepted as the harness only when its
+  cmdline names claude (an intermediate npx/pm2 node would otherwise suppress real staleness),
+  naive timestamps read as UTC, single `/proc` read (no TOCTOU/pid-reuse), and an undetermined
+  start now OVER-WARNS rather than going silent — and SAYS it was undetermined instead of
+  asserting a comparison it never made.
+- **The closing non-author sweep found the biggest defect of all, and it was not in the clock
+  (D-073): the roster's MTIME was never a valid staleness signal.** `~/.claude-fleet/active/
+  .claude.json` is Claude Code's global *state* file (statsig gates, changelog fetch times, 121
+  project entries) that the harness rewrites every few seconds — measured advancing 3× in one
+  minute — so `mtime > session_start` was unconditionally true and the banner fired on **every
+  prompt in every repo, forever**, printed directly above the liveness banner it discredited. That
+  is the wallpaper mode D-033 exists to prevent; the clock fix alone would have made it
+  deterministic instead of racy. Staleness is now: the repo `.mcp.json` mtime · the account-pointer
+  SYMLINK's lstat (a rotation re-points `active` without touching the file — and lstat on the
+  roster *path* is a measured no-op, since only the final component escapes dereferencing) · a
+  hash of the roster's `mcpServers` slice, baselined per session.
+- Two more from the closing sweep, both defects in the *first* round's fixes: `readline(65536)`
+  truncates **without advancing**, so the next iteration returned the remainder of the same line
+  and the function answered with a *later* line's timestamp (suppression) — a large head line is
+  now parsed whole and yields its own timestamp; and `read_cache` validated only that `report`
+  existed, so a truncated cache from the detached refresh raised out of `main()` and suppressed
+  both banners.
+- `tests/test_mcp_watch.py`: 19 new tests (24 total), including a synthetic-`/proc` ancestor-walk
+  test (a `return None` mutant of the whole walk previously passed the suite) and a TZ-forced
+  naive-timestamp test (the guard only bit by accident of this box being +03). Seven mutants run
+  against the final tree — including `return time.time()` (nothing is ever stale), roster-mtime
+  staleness, and the truncating readline — **all seven now fail the suite**; two of my own tests
+  were found vacuous by that battery and rewritten. Live: wallpaper banner gone, real rotation
+  still reported, exit 0, ~30ms.
 
 ### Fixed — Deployment-verification spec re-converged: 12 defects, 11 of them pre-existing through five CONVERGED stamps (2026-09-02)
 
