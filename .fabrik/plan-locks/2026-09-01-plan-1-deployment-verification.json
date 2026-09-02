@@ -1,0 +1,38 @@
+{
+  "plan": "docs/development/plans/2026-09-01-plan-1-deployment-verification.md",
+  "owned_paths": [
+    "commands/_sources/fabrik-deploy-checklist.md",
+    "commands/_sources/fabrik-deploy-verify.md",
+    "commands/assemble_commands.py",
+    "commands/_sources/fabrik-release.md",
+    "CLAUDE.md",
+    "templates/governance/CLAUDE.md",
+    "templates/scaffold/scripts/verify_prod_parity.py",
+    "src/fabrik/scaffold.py",
+    "templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md",
+    "templates/scaffold/docs/OPERATIONS_TEMPLATE.md",
+    "tests/test_scaffold_deploy_contract.py",
+    "tests/test_check_command_corpus.py",
+    "tests/test_deploy_verify_verdict.py",
+    "docs/reference/deployment-verification.md",
+    "capabilities.json",
+    "docs/CAPABILITIES.md",
+    "libs/health_probe/",
+    "scripts/fabrik_synced_manifest.py"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-02T15:56:18+03:00",
+  "status": "active",
+  "baseline_commit": "553c32ee",
+  "baseline_gate": {
+    "lean": "success",
+    "reds": []
+  },
+  "execution_order": [
+    "C",
+    "A",
+    "B",
+    "D"
+  ],
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261"
+}

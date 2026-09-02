@@ -1,6 +1,6 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: **CONVERGED** (2026-09-02 · `/fabrik-plan-review` R6–R9 after fabrik-lib BUILT AND SHIPPED the comparison axis
+Status: **IN-PROGRESS** (execution started 2026-09-02 by `/fabrik-execute-plan`, order C → A → B → D · was CONVERGED 2026-09-02 · `/fabrik-plan-review` R6–R9 after fabrik-lib BUILT AND SHIPPED the comparison axis
 this plan binds to — `01M1GQR1R3TD9AE68YVSP0DT51`, their `e48ba19c`/`53c098c2`, 75 tests re-run at their HEAD. R9 quiet at
 md5 `96e79a91`: 33 anchors, 19/19 probes, 11/11 digest quotes, zero raised. Sixteen findings across R6–R8, the two that
 mattered: the plan vendored NOTHING while binding to a shipped module (File Scope row 12 + Phase C step 5 now vendor it
@@ -25,7 +25,7 @@ product should contain.
 | 3 | `commands/assemble_commands.py` | **registration, not logic**: `NEXT` entries (`:49`) for the new command + retargets for `fabrik-features`/`fabrik-deploy-verify`; a `PARAMS` block (`:394`) carrying ALL 16 tokens the included fragments declare — **`render()` resolves `{{include:…}}` from `PARAMS` alone and REFUSES the render on any unresolved token (proven by execution, § Evidence); `EXTRACT` (`:331`) is the retired July-migration table (`extract()` globs `~/.claude/commands.bak-20260721-0615`) and is NOT edited** — the runner's `PARAMS` examples (`:556`) gain parity-shaped examples |
 | 4 | `commands/_sources/fabrik-release.md` | one precondition paragraph on the VPS path (`:76-86`): a parity contract that is not `FROZEN` is `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` — the mirror of its existing certification-handoff precondition (`:20-35`) |
 | 5 | `CLAUDE.md:61,333` + `templates/governance/CLAUDE.md:53,339` | the § Orient **stage table** row for `6-release` (`:61` / `:53`) AND the § Pipeline flow line (`:333` / `:339`) name the new command between `/fabrik-features` REFRESH and certification/release (evaluation-checklist items 56–57: both places, both files). ⚠️ **`templates/governance/CLAUDE.md` is FLEET-SYNCED** — the post-commit governance-sync distributes it to ~46 repos |
-| 6 | `templates/scaffold/scripts/verify_prod_parity.py` (**NEW** template) + `src/fabrik/scaffold.py` (`SCRIPT_FILES` + the copy loop at `:1127`) + `templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md` / `OPERATIONS_TEMPLATE.md` (fleet-AI sections, D-065) | born-compliant seeding on the `scaffold.py:285` precedent |
+| 6 | `templates/scaffold/scripts/verify_prod_parity.py` (**NEW** template) + **`scripts/verify_prod_parity.py` (NEW at the hub — a SYMLINK to that template; execution finding, Phase C)** + `src/fabrik/scaffold.py` (`SCRIPT_FILES` + the copy loop at `:1127`) + `templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md` / `OPERATIONS_TEMPLATE.md` (fleet-AI sections, D-065) | born-compliant seeding on the `scaffold.py:285` precedent |
 | 7 | `tests/test_scaffold_deploy_contract.py` | **NEW** — Phase C guards (stub exits non-zero; docusaurus does not publish the doc templates' new sections) |
 | 8 | `tests/test_check_command_corpus.py` (extend) | Phase A/B guards — the rendered commands carry the required sections; ⚠️ the earlier File Scope named `tests/test_command_corpus.py`, **which does not exist** (`ls tests/ \| grep -i corpus` → only `test_check_command_corpus.py`) |
 | 9 | `tests/test_deploy_verify_verdict.py` | **NEW** — Phase A step 7: the EXECUTED verdict-algebra check (four row shapes + DOWN/mismatch co-occurrence), watched-fail-first |
@@ -325,7 +325,32 @@ deriving (a hub-cwd run reported the hub's own FEATURES tables as tryton-crm's, 
 **Evidence owed:** the rendered command's section spine (`grep -nE '^## ' ~/.claude/commands/fabrik-deploy-checklist.md`)
 matching the anatomy table; the tryton-crm dry run's Output block pasted.
 
-## Phase C — scaffolder seeding (born compliant)
+## Phase C — scaffolder seeding (born compliant) — ✅ EXECUTED 2026-09-02
+
+> ⚠️ **Execution finding (Phase C, 2026-09-02) — the ordering premise was inferred, not run.** The plan said
+> corpus predicate 3 "closes when Phase C's template lands". Executed with the template on disk:
+> `check_command_corpus.audit()` over the draft still reported 4 × `scripts/verify_prod_parity.py does not
+> exist` — the `templates/**` fallback applies ONLY to orchestrator docs (`check_command_corpus.py:388-389`,
+> pinned by `test_template_shipped_scripts_resolve`: *"a HUB command referencing a template-only script is a
+> dead hub ref — must stay flagged"*). The established convention is that every scaffold-seeded script also
+> exists hub-rooted (`scripts/runc` is byte-identical to its template; `sync_extensions.sh` has already
+> drifted as a second copy), so Phase C adds **`scripts/verify_prod_parity.py` as a SYMLINK to the template**
+> — one source, hub-rooted existence satisfied, the check unchanged. Re-run: 0 problems about the draft, the
+> live corpus audit 0. The execution order C → A → B → D stands, for this reason rather than the stated one.
+>
+> ⚠️ **Second execution finding (Phase C):** the Tier-2 gate's `check_sync_trigger_coverage` refuses a
+> distributed path that fires no governance-sync — `libs/health_probe/` is in `VENDORED_DIRS` (distributed)
+> but not in the sync filter. `libs/subagents` sits in that check's `DECLARED_NON_TRIGGERS` ("vendored
+> module: projects re-vendor deliberately"); `libs/health_probe` is declared the same way — the plan's own
+> OUT-OF-SCOPE row already says a bump is a routine re-vendor riding the next sync. One line in
+> `scripts/enforcement/check_sync_trigger_coverage.py`, outside File Scope, recorded here and in the CHANGELOG.
+>
+> ⚠️ **Third execution finding (Phase C):** `check_print_ban` (staged production files) flags the vendored
+> module's own CLI `print()`s (8 sites). Its skip list already exempts `scripts/` and tests; `libs/health_probe/`
+> joins it — a vendored CLI's print IS its output, and the file is re-vendored, never edited. One line in
+> `scripts/enforcement/check_print_ban.py`, outside File Scope, recorded here and in the CHANGELOG. Both
+> enforcement edits are the class "a vendored module is exempt from hub-code rules by PATH, the way the
+> other vendored libs already are" — the plan listed the manifest entry and missed the two gates that key on it.
 
 **Steps**
 1. **The stub is a TEMPLATE, copied by the existing script loop** — `templates/scaffold/scripts/verify_prod_parity.py`

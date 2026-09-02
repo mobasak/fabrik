@@ -104,6 +104,22 @@ fabrik redeploy [project-name]
 
 ---
 
+## Fleet-AI interface — what to deploy (D-065; kept current by `/fabrik-deploy-checklist`)
+
+> Machine-consumable by design: the fleet AI reads THIS section to know what to deploy and how. Every
+> cell below is derived from CODE + SPEC + DEV by `/fabrik-deploy-checklist` — never from the deployed
+> state (documenting what prod happens to hold launders drift into documentation). A cell still
+> reading `{PROJECT_NAME}` is an unfilled stub, and `check_doc_stubs` flags it once a deploy-config
+> change ships without it.
+
+| what the fleet AI needs | value |
+|---|---|
+| Deploy unit (image / build context / compose services, incl. registrar-injected sidecars) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Env the hub must supply at `fabrik apply` (names only — never values) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Routing (Traefik host, middleware, Authelia bypass paths) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Readiness / health (endpoint, what it proves, first-deploy init step if any) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Parity contract (`scripts/verify_prod_parity.py` Status · Version — the verify run's obligation gate) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+
 ## Monitoring
 
 | Check | Endpoint | Expected |

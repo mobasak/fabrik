@@ -262,6 +262,20 @@ These are the rules the active account stays within to avoid joining the archive
 
 ---
 
+## 5b. Fleet-AI interface — what runs (D-065; kept current by `/fabrik-deploy-checklist`)
+
+> Machine-consumable by design: the fleet AI reads THIS section to know which VPS services to set up
+> and keep alive — workers, systemd units, cron/Beat jobs, companions. Derived from CODE + SPEC + DEV,
+> never from PROD. A cell still reading `{PROJECT_NAME}` is an unfilled stub.
+
+| what the fleet AI needs | value |
+|---|---|
+| Long-running workers / companions (compose service, what dies if it stops) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Scheduled jobs (scheduler, name, interval, what a missed run costs) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Host-level units (systemd / cron on the VPS, if any) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| State the product must hold after a deploy (reference data, migrations head, filestore) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+| Recovery that needs no human (pause keys, restart tiers, what escalates) | {PROJECT_NAME}: to be filled by /fabrik-deploy-checklist |
+
 ## 6. Bottom line
 
 <!--

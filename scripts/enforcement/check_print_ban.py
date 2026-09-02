@@ -32,6 +32,7 @@ SKIP_PATTERNS = [
     "node_modules/",
     ".venv/",
     "scripts/",
+    "libs/health_probe/",  # vendored fabrik-lib health-probe (D-082): its print() IS its CLI output; re-vendored as shipped, never edited
     "docs/",
     ".claude/hooks/",  # Claude Code hooks inject context via stdout — print() IS their output
 ]

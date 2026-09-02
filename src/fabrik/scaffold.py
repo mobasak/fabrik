@@ -489,6 +489,9 @@ SCRIPT_FILES = [
     "runclean",
     "sync_cascade_backup.sh",
     "sync_extensions.sh",
+    # The deployment-verification CONTRACT stub (spec 2026-09-01 § Born compliant, D-082): a
+    # `Status: DRAFT` script that exits 2 until /fabrik-deploy-checklist authors and freezes it.
+    "verify_prod_parity.py",
 ]
 
 # Master AGENTS.md location
@@ -845,7 +848,7 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"    Loki cannot label, filter or alert on the second one.\n"
         f"\n"
         f"    The bar is per-PROCESS, not per-call-site: every line on stdout must be JSON.\n"
-        f'    Verify: ``docker logs <container> --tail 20 | grep -v \'^{{\'`` returns nothing.\n'
+        f"    Verify: ``docker logs <container> --tail 20 | grep -v '^{{'`` returns nothing.\n"
         f'    """\n'
         f"    formatter = structlog.stdlib.ProcessorFormatter(\n"
         f"        processors=[\n"

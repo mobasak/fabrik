@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
   scaffoldable types): a `Status: DRAFT · Version: v0` contract stub that FAILS CLOSED — exit 2 until
   `/fabrik-deploy-checklist` authors and freezes it — with `--json` / `--self-check` / `--header`, the
   vendored-row helpers (`compare_row` through the real `compare()`, `liveness_row` with none of the
-  comparison keys, `unverifiable`) and one real precondition row (`L0_health_probe_vendored`). A missing
+  comparison keys, `unverifiable`) and one real precondition row (`l0_health_probe_vendored`). A missing
   vendored module is an `UNVERIFIABLE` row, never a traceback.
 - **`libs/health_probe/`** — fabrik-lib `health-probe` vendored AS SHIPPED (`health_probe.py` @ `e48ba19c`,
   `fingerprint.py` @ `f21f2123`, byte-identical below a 3-line `VENDORED-FROM` header that also carries the
@@ -24,6 +24,18 @@ All notable changes to this project will be documented in this file.
 - **Guard:** `tests/test_scaffold_deploy_contract.py` — 31 tests (12-type parametrised stub + vendoring
   checks, byte-identity with the hub copy, hub-vs-fabrik-lib header-only difference, manifest entry,
   fail-closed without the module, wordpress refused, sentinel recognised, docusaurus non-publication).
+- **`scripts/verify_prod_parity.py`** — a hub-rooted SYMLINK to the template. Execution finding: the plan said
+  corpus predicate 3 closes once the template lands; executed, it did not — the `templates/**` fallback is
+  orchestrator-docs-only (`check_command_corpus.py:388`, pinned by a test that a hub command referencing a
+  template-only script stays flagged). Every other scaffold-seeded script also exists hub-rooted (`runc` is
+  byte-identical to its template), so the stub follows the pattern with one source instead of a second copy.
+- **`libs/health_probe` declared a sync NON-trigger** (`check_sync_trigger_coverage.py::DECLARED_NON_TRIGGERS`,
+  the `libs/subagents` precedent): distributed by the manifest, re-vendored deliberately, rides the next
+  sync — the gate otherwise refuses a distributed path that fires no governance-sync.
+- **`libs/health_probe/` exempt from the print ban by path** (`check_print_ban.py::SKIP_PATTERNS`, beside
+  `scripts/`): the vendored CLI's `print()` is its output. With the trigger declaration above, the two
+  gates that key on a distributed path now treat the vendored module the way the other vendored libs are
+  treated — the plan listed the manifest entry and missed both.
 - **Measured, not changed:** `specs/services/<id>.yaml` generation at scaffold time already exists
   (`create_project(generate_spec=True)` for `SPEC_ENABLED_TYPES`) — Phase C step 2's first half was true
   before this phase.

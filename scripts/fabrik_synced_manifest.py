@@ -112,7 +112,12 @@ ENFORCEMENT_DIR = "scripts/enforcement"
 # means a fix in the hub copy propagates fleet-wide on the next sync (no manual re-vendor), and new projects
 # get it via the scaffold (which copies the synced dirs). Hub source: ``/opt/fabrik/libs/subagents`` (kept
 # byte-identical to canonical ``/opt/fabrik-lib/subagents`` by re-vendoring before a sync).
-VENDORED_DIRS = ["libs/subagents"]
+VENDORED_DIRS = [
+    "libs/subagents",
+    # fabrik-lib health-probe, vendored AS SHIPPED (D-082): the comparison-row producer every
+    # project's scripts/verify_prod_parity.py imports lazily. Pinned by the VENDORED-FROM header.
+    "libs/health_probe",
+]
 
 # Agent "definition of done" + prompt-governance hooks → synced to project root
 # verbatim (they are cwd/path-agnostic: the Claude Code hooks resolve their
