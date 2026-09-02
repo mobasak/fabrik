@@ -328,13 +328,20 @@ Every row adjudicated — CLEAN (hunted this run, evidence named) · FIXED(n) (f
 
 ## Per-phase verdicts
 
-| Phase | verdict | evidence |
-|---|---|---|
-| Phase 0 — scope + anchor + rubric + persist | DONE | surface hash recorded; the prior review's range-shaped `Surface:` could not match → wide pass 1; rubric verbatim above; skeleton persisted before pass 1 |
-| Phase 1 — independent finders (in-line, NO-POOL) | DONE | 11 candidates raised across the partitions listed on the Pass 1 row; the decisive finders EXECUTED the documented invocation on a project-shaped layout and inventoried tryton-crm read-only |
-| Phase 2 — verify / refute | DONE | R1–R3 refuted with quoted proof (runner reader `.get()` at `fabrik-deploy-verify.md:247-251`; manifest gitignore composition `:212-214`; the pinned not-obligated test) |
-| Phase 3 — prove & fix | DONE | F1–F8 + P2a fixed; every code fix guarded by a test seen red first (4 in `test_scaffold_deploy_contract.py`, 1 in `test_check_command_corpus.py`); D-089 minted for the architectural pick |
-| Phase 4 — converge | DONE | pass 2 scoped (1 found, fixed), pass 3 full re-derivation QUIET; run record rounds 1–3 with the TERMINAL verdict |
+### Phase 0 — scope + anchor + rubric + persist — DONE
+Surface hash recorded; the prior review's range-shaped `Surface:` could not match → wide pass 1; rubric verbatim above; skeleton persisted before pass 1 (`docs/development/reviews/2026-09-02-deployment-verification-shipped-surface-review.md:1-12`).
+
+### Phase 1 — independent finders (in-line, NO-POOL) — DONE
+11 candidates raised across the partitions on the Pass 1 row; the decisive finders EXECUTED the documented invocation on a project-shaped layout and inventoried tryton-crm read-only (`templates/scaffold/scripts/verify_prod_parity.py:60-75`).
+
+### Phase 2 — verify / refute — DONE
+R1–R3 refuted with quoted proof: the runner reads rows with `.get()` (`commands/_sources/fabrik-deploy-verify.md:247-251`), synced scripts are gitignored (`scripts/fabrik_synced_manifest.py:212-214`), the not-obligated reading is pinned by `tests/test_deploy_verify_verdict.py`.
+
+### Phase 3 — prove & fix — DONE
+F1–F8 + P2a fixed; every code fix guarded by a test seen red first (`tests/test_scaffold_deploy_contract.py` ×4, `tests/test_check_command_corpus.py` ×1); D-089 minted for the architectural pick (`docs/DECISIONS.md`).
+
+### Phase 4 — converge — DONE
+Pass 2 scoped (1 found, fixed), pass 3 full re-derivation QUIET (88/88 tests, corpus audit, render `--check`, two-interpreter probe); run record rounds 1–3 with the TERMINAL verdict.
 
 ## Residual risks
 
