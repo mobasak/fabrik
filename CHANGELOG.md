@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — every scaffold is born deploy-verifiable: the parity-contract stub, the vendored health-probe, the fleet-AI doc sections (Phase C of plan 2026-09-01-plan-1, 2026-09-02)
+
+- **`templates/scaffold/scripts/verify_prod_parity.py`** (seeded via `SCRIPT_FILES` into all 12
+  scaffoldable types): a `Status: DRAFT · Version: v0` contract stub that FAILS CLOSED — exit 2 until
+  `/fabrik-deploy-checklist` authors and freezes it — with `--json` / `--self-check` / `--header`, the
+  vendored-row helpers (`compare_row` through the real `compare()`, `liveness_row` with none of the
+  comparison keys, `unverifiable`) and one real precondition row (`L0_health_probe_vendored`). A missing
+  vendored module is an `UNVERIFIABLE` row, never a traceback.
+- **`libs/health_probe/`** — fabrik-lib `health-probe` vendored AS SHIPPED (`health_probe.py` @ `e48ba19c`,
+  `fingerprint.py` @ `f21f2123`, byte-identical below a 3-line `VENDORED-FROM` header that also carries the
+  file-level lint/format exemption every other vendored lib has via `extend-exclude`), registered in
+  `VENDORED_DIRS` so the scaffolder seeds it and the fleet sync distributes it (gitignored in projects by
+  the synced block). Spec ladder: VENDOR + ENHANCE; D-082.
+- **Fleet-AI interface sections** (D-065) in `DEPLOYMENT_TEMPLATE.md` ("what to deploy") and
+  `OPERATIONS_TEMPLATE.md` ("what runs") with `{PROJECT_NAME}` sentinels — the one token
+  `check_doc_stubs` recognises, so an unfilled section is visible; no host/DSN/count in the templates
+  (docusaurus never receives deployed docs, asserted).
+- **Guard:** `tests/test_scaffold_deploy_contract.py` — 31 tests (12-type parametrised stub + vendoring
+  checks, byte-identity with the hub copy, hub-vs-fabrik-lib header-only difference, manifest entry,
+  fail-closed without the module, wordpress refused, sentinel recognised, docusaurus non-publication).
+- **Measured, not changed:** `specs/services/<id>.yaml` generation at scaffold time already exists
+  (`create_project(generate_spec=True)` for `SPEC_ENABLED_TYPES`) — Phase C step 2's first half was true
+  before this phase.
+
 ### Fixed — `command_run.py done` was vetoed by a SIBLING's uncommitted mid-loop review (2026-09-02)
 
 - **Measured (live, shared tree):** this session's `/fabrik-review` report was CONVERGED and committed
@@ -265,7 +289,7 @@ All notable changes to this project will be documented in this file.
   classifications reach the registry today; classify walks the queue from a persisted cursor
   (a date-keyed offset skipped and double-billed under churn), tombstones a provider after 3
   consecutive transport-error runs, alerts on newly classified providers, and prompts code-only
-  providers as endpoints, not env vars; `api_keys.kind` ('credential' | 'code-host') so call-site
+  providers as endpoints, not env vars; `api_keys.kind` ('credential' | 'config' | 'code-host') so call-site
   rows never count as keys on the dashboard (idempotent `ensure_schema`); the credit fetcher gets
   the credential by KEY ROLE; the reference-only host list no longer names vendors
   (`graph.microsoft.com`, `registry-1.docker.io` were dropped) and doc subdomains are ignored by
@@ -277,7 +301,7 @@ All notable changes to this project will be documented in this file.
   blocks (143 blocks + 7 retired rows = 150 systems; 116 fleet-used, counted from the meta lines — the earlier 166/124 were asserted, not derivable) and two prose pipes that
   broke table rows are fixed.
 - Docs: `docs/reference/external-services-registry.md` (new subsystem doc), INDEX, CAPABILITIES; tests:
-  `tests/test_external_services_chain.py` (7), `scripts/tests/test_gather_envs.py` (10 → 36 tests), `scripts/tests/test_registry_sync.py` (6 → 10).
+  `tests/test_external_services_chain.py` (7), `scripts/tests/test_gather_envs.py` (10 → 44 tests), `scripts/tests/test_registry_sync.py` (6 → 15).
 
 ### Changed — Deployment-verification plan CONVERGED by /fabrik-plan-review: 23 findings, all in same-day text (2026-09-02)
 
