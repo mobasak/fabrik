@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Deployment-verification spec re-converged with the verdict algebra EXECUTED, not re-read (2026-09-02)
+
+- Sixth `/fabrik-spec-review` run (passes J1–J5) after Amendment 3. The closing pass ran a throwaway
+  implementation of § Verdict algebra against the four row shapes plus a critical-DOWN/mismatch
+  co-occurrence: **13/13 hold**, and the retired `None → not checked` rule run beside it **reproduces the
+  fail-open** (all-`None` contract → green, exit 0) — the check can see what five text-only stamps could not.
+- **`match: None` is now ONE rule, read by row shape.** Three consecutive bullets had accumulated three
+  different mappings; a liveness-only row was wrongly bucketed `not obligated` (reserved for `shape:`
+  exemptions) — it is simply not a parity row, per fabrik-lib's own *"benign — ignore"*.
+- **The review introduced two defects into its own ledger and caught both in its closing passes:** pass
+  labels `I1/I2/I3` collided with the intake ids (series renamed `J`, `I` skipped), and a regex reorder
+  spliced a heading into the middle of a sentence. Both are recorded as numbered defects, not hidden.
+- Plan Phase A gains step 7 + File Scope row 6: `tests/test_deploy_verify_verdict.py`, watched-fail-first.
+- Running total re-derived by command: 41 enumerated, 4 refuted, **37 real defects** across six runs.
+  Ledger row `D-075`. Spec Status → CONVERGED; plan stays DRAFT pending `/fabrik-plan-review`.
+
 ### Changed — Rules pass file 12 re-audit: `57-external-data-sourcing` — the Capability Profile grows the vendor-side failure classes a connector must AUTORECOVER from (2026-09-02)
 
 - **Operator directive:** external service connectors must recover from every production failure

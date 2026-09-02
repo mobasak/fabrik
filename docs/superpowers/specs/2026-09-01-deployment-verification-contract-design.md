@@ -1,12 +1,11 @@
 # Deployment Verification Contract — design spec
 
-Status: **DRAFT** — H1–H4 converged Amendment 2 (H4 quiet at md5 `d06d1150`), and **Amendment 3
-(2026-09-02) voided it 40 minutes later**: fabrik-lib BUILT their design, executed its success criteria,
-and found a fail-open that my verdict algebra inherited one layer up. Four text-only passes could not see
-it. Owed: `/fabrik-spec-review` over Amendment 3.
-Date: 2026-09-01 · amended 2026-09-02 (Amendments 1–3)
+Status: **CONVERGED** (2026-09-02 · `/fabrik-spec-review` run 6 over Amendment 3 — passes J1–J5, J5 quiet at
+content md5 `cdb48812`, zero edits, zero candidates, **verdict algebra EXECUTED 13/13 with the retired rule
+reproducing the defect beside it**; 21 passes across six review runs)
+Date: 2026-09-01 · amended 2026-09-02 (Amendments 1–3) · re-converged 2026-09-02
 Author: fleet (hub)
-Stage: 1-design · successor: `/fabrik-spec-review` over Amendment 3, then operator approval
+Stage: 1-design · successor: **operator approval** (the design gate), then `/fabrik-plan-review` on the companion plan
 
 ## The problem, in the operator's words
 
@@ -352,46 +351,46 @@ falsifiable:
 - `CONFIRMED` requires **all three PASS**. Any FAIL ⇒ `VERIFICATION FAILED`.
 - **`not obligated` is a first-class verdict**, distinct from `not checked` — asserting Meilisearch on
   `has_search_feature: false` is a false failure. `shape:`-driven, never assumed.
-- ⚠️ **A parity row's agreement is TRI-STATE, and the third value is NOT a pass** (Amendment 2). A
-  comparison probe returns `match: True | False | None`, where `None` means *"this probe did not compare
-  anything"*. `None` maps to **`not checked`** — never to `not obligated`, and never to agreement. The
-  distinction is load-bearing rather than pedantic: collapsing `None` into `True` is a **false all-clear**,
-  which is precisely the 0-of-760 shape this spec exists to catch, and collapsing it into `False` invents
-  a phantom mismatch that fails a healthy deploy. Consequence for the denominator rule above: a `None` row
-  **counts in the denominator and not in the numerator** — it is an unexercised obligation, so a contract
-  whose rows all return `None` reports `0 of N`, never `N of N`.
-  ⚠️ **`None` and `UNVERIFIABLE` are NOT synonyms, and the spec now has three words for "did not verify"
-  that a builder would otherwise conflate** (spec-review pass H1). They differ by WHEN they are decided,
-  and both land outside the numerator: **`UNVERIFIABLE (<why>)` is an AUTHORING-time declaration** — the
-  project states up front that it cannot yet assert this row, and the why is recorded; **`match: None` is
-  a RUN-time result** — the probe executed and compared nothing. **`not checked` is the verdict-algebra
-  bucket both of them report into**, and it stays distinct from `not obligated`, which is the only one of
-  the four that leaves the denominator. The distinction is operational, not academic: an `UNVERIFIABLE`
-  row is a known debt with an owner, while a `None` row is a probe that silently did nothing — the second
-  is a defect in the contract, the first is an honest gap in it.
-- 🛑 ⚠️ **`match: None` SPLITS BY ROW SHAPE, and one half FAILS CLOSED** (Amendment 3 — fabrik-lib
-  `01M1GEPYN6` / `01M1GGD0G6`, found by BUILDING the design and executing its success criteria after nine
-  text-based review passes were blind to it). The bullet above is **correct for a liveness-only row and
-  WRONG for an attempted comparison**, and the difference is the whole failure:
+- 🛑 **`match` is TRI-STATE, and `None` is READ BY ROW SHAPE — this is the ONE rule** (Amendments 2+3,
+  consolidated in spec-review pass J1 because three consecutive bullets had come to state three different
+  rules for one value, and a builder cannot implement a disagreement). A comparison probe returns
+  `match: True | False | None` on a row that also carries `expected` / `actual` / `compare_error`
+  (four additive keys). The verdict is decided by the row's SHAPE, never by `match` alone:
 
-  | row shape | meaning | verdict |
+  | row shape | meaning | parity verdict |
   |---|---|---|
-  | no `expected`/`actual` keys, `match is None` | *not a comparison probe* — benign | `not obligated` for the parity denominator; the row is an ordinary liveness check |
-  | `expected`/`actual` PRESENT, `match is None` | **a comparison was ATTEMPTED and could not be resolved** (the comparator raised; `compare_error` carries the repr) | **FAIL CLOSED — non-zero exit, and the verdict cannot be `CONFIRMED`.** Never merely `not checked` |
+  | `expected`/`actual` present, `match is True` | compared, agrees | numerator + denominator |
+  | `expected`/`actual` present, `match is False` | compared, **disagrees** | denominator only; **denies `CONFIRMED`**; exit `2` |
+  | `expected`/`actual` present, `match is None` | **ATTEMPTED and UNRESOLVED** — the comparator raised; `compare_error` carries the repr | denominator only; **FAIL CLOSED — denies `CONFIRMED`**; exit `2`. Never merely "not checked" |
+  | no `expected`/`actual` keys, `match is None` | **not a parity row at all** — an ordinary liveness probe (fabrik-lib: *"benign — ignore"*) | **outside the parity denominator entirely**; judged under its own layer's verdict (`UP`, Layer 3). NOT `not obligated` — that word is reserved for a `shape:`-driven exemption of a row that WOULD otherwise be obligated |
 
-  **Why this is not a refinement but a hole being closed:** treated as merely *"not checked"*, a
-  **systematically broken comparator reports `0 of N` and never FAILS** — every parity row silently
-  unresolved, the run honest-looking and green. That is the 0-of-760 shape re-entering **at the verdict
-  layer**, one level above where this spec first caught it, through the very seam we required (projects
-  supply their own comparators, so a raising comparator is the seam's *expected* failure mode, not an edge
-  case). Their prototype exited **0 with the system declared `critical`**, because the raised exception
-  lost the system name to `_probe_label` (`"<lambda>"`) and `r["system"] in critical` can then never match
-  — verified here at `health_probe.py:205-209` and `:423-427`, not taken on report.
-- ⚠️ **Consequence for `UNVERIFIABLE` too, by the same logic:** an `UNVERIFIABLE (<why>)` row is a
-  *declared, owned* gap and stays counted-not-numerated. An **unresolved** comparison is an *undeclared*
-  gap wearing the same clothes. The rule that separates them is the one this spec already states — **"a
-  check that cannot fail is a defect"** — so the only bucket that may absorb an unexplained blank is the
-  one that denies `CONFIRMED`.
+  **Why `True`-for-nothing-compared was the original ask and was wrong** (Amendment 2): a boolean forces a
+  liveness-only probe to lie in one of two directions — `match=True` is a **false all-clear**, the exact
+  0-of-760 shape this spec exists to catch, and `match=False` is a phantom mismatch that fails a healthy
+  deploy. `None` is the honest third value.
+
+  **Why `None → not checked` was the second version and was ALSO wrong** (Amendment 3 — fabrik-lib
+  `01M1GEPYN6` / `01M1GGD0G6`, found by BUILDING the design and executing its success criteria after nine
+  text-based passes were blind to it): treated as merely *"not checked"*, a **systematically broken
+  comparator reports `0 of N` and never FAILS** — every parity row silently unresolved, the run
+  honest-looking and green. That is the 0-of-760 shape re-entering **at the verdict layer**, one level
+  above where this spec first caught it, through the very seam we required (projects supply their own
+  comparators, so a raising comparator is the seam's *expected* failure mode, not an edge case). Their
+  prototype exited **0 with the system declared `critical`**, because the raised exception lost the system
+  name to `_probe_label` (`"<lambda>"`) and `r["system"] in critical` can then never match — verified here
+  at `health_probe.py:205-209` and `:423-427`, not taken on report. **So a contract whose parity rows all
+  return `None` does not "report `0 of N`" — it FAILS.**
+
+- ⚠️ **Three words for "did not verify", now with disjoint meanings** (spec-review passes H1 + J1):
+  **`UNVERIFIABLE (<why>)`** is an AUTHORING-time declaration — the project states up front that it cannot
+  yet assert this row, and the why is recorded; it is counted in the denominator, not the numerator, and
+  is an honest, owned gap. **`not checked`** is the verdict-algebra bucket an `UNVERIFIABLE` row reports
+  into. **An UNRESOLVED comparison is neither** — it is an *undeclared* gap wearing the same clothes, and
+  the rule that separates it is the one this spec already states, **"a check that cannot fail is a
+  defect"**: the only bucket that may absorb an unexplained blank is the one that denies `CONFIRMED`.
+  And **`not obligated`** is the only word of the four that removes a row from the denominator, and only
+  ever by a `shape:` flag.
+
 - **Every percentage carries its denominator.** "18 of 18 Shipped rows exercised" is a claim; "looks
   complete" is not. A zero without a denominator is indistinguishable from having looked nowhere.
 - ⚠️ **DENOMINATOR INTEGRITY — the clause that makes *"100% tested"* mean anything** (spec-review pass
@@ -565,21 +564,18 @@ holds the wrong data"*, which are different incidents with different first moves
 (spec-review pass H1 — the first draft of this amendment raised this gap *to fabrik-lib* and left it
 open in this artifact, which is the defect of asking someone else a question you also have to answer).
 A run can hold a `critical` system DOWN **and** a comparison probe reporting `match is False`.
-**LIVENESS WINS — the runner treats exit `1` as outranking exit `2`, and it does not depend on
-fabrik-lib choosing the same rule:** the runner reads the `--json` payload, which carries every row, so
+**LIVENESS WINS — ranking `1` (critical DOWN) → `2` (disagrees OR unresolved) → `0`, settled on BOTH
+sides:** stated here first (pass H1) and adopted by fabrik-lib verbatim (`270dce64`, recording the same
+three reasons), so neither side guesses and the `2` is deliberately widened to carry Amendment 3's
+attempted-but-unresolved comparison. The runner reads the `--json` payload, which carries every row, so
 the exit code is a triage hint and never the payload. Three reasons, in order: a comparison computed
 against a partly-dead system is untrustworthy input, so *dead* must be read first; no information is
 lost, because both rows are in the JSON; and `1` is the conservative choice for existing callers, whose
 only current non-zero is `1`. **Verdict-algebra consequence: this affects only WHICH incident is
 reported first — never whether the deploy passes.** Both conditions independently deny `CONFIRMED`, so
-precedence can never upgrade a verdict. This is stated here so the runner has a rule to build against
-whichever way fabrik-lib settles theirs; if they publish a conflicting precedence, the runner keeps
-branching on the JSON and the disagreement is cosmetic.
-
-✅ **SETTLED ON BOTH SIDES (Amendment 3).** fabrik-lib **adopted this ranking verbatim** (`270dce64`),
-recording these three reasons as the reasons, and their § Exit codes now reads `1` (critical DOWN) →
-`2` (**disagrees OR unresolved**) → `0`. So the hedge above is discharged: neither side is guessing.
-Note the widened `2` — it now also carries the attempted-but-unresolved comparison of Amendment 3.
+precedence can never upgrade a verdict. *(Pass J1 folded the earlier "whichever way fabrik-lib settles
+theirs" hedge and the later "settled on both sides" paragraph into this one statement — a rule stated
+twice with a conditional in one copy is two rules.)*
 ⚠️ **Worth recording about the METHOD, since it cuts both ways:** twelve of their review passes across
 three runs did not raise this gap, and it surfaced only because an outside consumer had to hard-code an
 assumption to build against. **A question you must answer to proceed is a better detector of a missing
@@ -598,17 +594,20 @@ contract clause than any number of passes over the text by its author.**
 2. **`match` is tri-state, and that is a correction to this spec, not a courtesy.** We asked for a boolean.
    A boolean forces a liveness-only probe to lie in one of two directions, and one of those directions —
    `match=True` for a probe that compared nothing — is a **false all-clear in exactly the 0-of-760 shape
-   this spec was written to catch**. The verdict algebra above now carries the mapping.
+   this spec was written to catch**. The verdict algebra above carried the resulting uniform
+   `None → not checked` mapping until Amendment 3 corrected it — see there.
 
 **What still does NOT block.** They have specced, not built. The binding is to the **interface**, which is
 settled; the hub-side parity runner implements that same `compare()` shape locally until their build lands,
 at which point the swap is a deletion rather than a rewrite. This is strictly better than the old fallback,
 which would have invented a *different* shape and then owed a migration.
 
-⚠️ **Status returned to DRAFT.** This amendment edits § Verdict algebra — a load-bearing section — after the
-CONVERGED flip. The same post-flip rule Amendment 1 applied to itself applies here; the convergence is void
-until `/fabrik-spec-review` re-runs over the amended artifact. Granting myself an exception because this
-amendment is smaller than the last one is the self-grading the rule exists to prevent.
+⚠️ **Status was returned to DRAFT by this amendment — DISCHARGED by passes H1–H4, then re-voided by
+Amendment 3** (see the Pass ledger; the header's Status is the authority, never this line). The rule it
+records: an amendment that edits § Verdict algebra — a load-bearing section — after the CONVERGED flip
+voids the convergence until `/fabrik-spec-review` re-runs. Granting an exception because an amendment is
+small is the self-grading the rule exists to prevent — and H4's stamp being void 40 minutes later is the
+measure of what the rule protects against.
 
 ## Amendment 3 — the interface moved again, and it moved because someone BUILT it (2026-09-02)
 
@@ -758,6 +757,111 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | H3 | closing full fresh read + measured-claim re-derivation | **method: re-derivation** | 1 (new: 1) | 1 | `b668981b…` → edited |
 | H4 | closing full fresh read (H3 edited, so H3 was not the last pass) | **method: re-derivation** | **0 (new: 0)** | **0** | `d06d1150…` → `d06d1150…` ✓ → CONVERGED *(voided 40 min later — see below)* |
 | — | ⚠️ **AMENDMENT 3 — fabrik-lib BUILT the design and its success criteria FAILED; the H4 stamp is void** | — | — | — | — |
+| J1 | Amendment-3 ripple: the three `match:None` bullets · `not obligated` for a liveness row · precedence duplication · stale A2 pointers/status note · plan Phase A | method: citation + live grep + fabrik-lib contract cross-read | 7 (new: 6, 1 refuted) | 10 | `5048f621…` → edited |
+| J2 | every J1 edit + its cross-references re-derived from primary source | **method: re-derivation** | 2 (new: 2) | 2 | `aff5d846…` → edited |
+| J3 | closing full fresh read + **EXECUTED verdict-algebra check** (four row shapes + DOWN/mismatch co-occurrence, watched-fail-first) | **method: re-derivation + execution** | 3 (new: 2, 1 refuted) | 2 | `323a1c78…` → edited |
+| J4 | closing full fresh read + re-derivation + **algebra re-executed** (J3 edited, so J3 was not the last pass) | **method: re-derivation + execution** | 2 (new: 1, 1 refuted) | 1 | `7778dbe7…` → edited |
+| J5 | closing full fresh read + re-derivation + **algebra re-executed** (J4 edited) | **method: re-derivation + execution** | **0 (new: 0)** | **0** | `cdb48812…` → `cdb48812…` ✓ → **CONVERGED** |
+
+**Pass J1 — the Amendment-3 ripple (6 defects, all mine, 1 candidate refuted; **32** real across all reviews — 34 enumerated, 2 refuted).**
+
+28. **Three consecutive bullets stated three different rules for `match: None`.** Amendment 2's bullet
+    said *"`None` maps to `not checked` — never to `not obligated`"*; pass H1's disambiguation said
+    *"`not checked` is the bucket both report into"*; Amendment 3's table said one half is `not obligated`
+    and the other FAILS CLOSED. Each was true when written and each contradicted the next. **A builder
+    reads a disagreement, not a rule.** Consolidated into ONE row-shape table with the two superseded
+    readings kept as the explained history beneath it.
+29. **`not obligated` was the WRONG bucket for a liveness-only row.** This spec defines `not obligated` as
+    a `shape:`-driven exemption of a row that would otherwise be obligated. A liveness probe was never a
+    parity obligation — fabrik-lib's own contract reads *"not a comparison probe — benign — ignore"* (their
+    spec line 349). Mapping it to `not obligated` would have inflated the parity denominator's exemption
+    count with rows that were never in it. Now: **outside the parity denominator entirely**, judged under
+    `UP`.
+30. **The precedence rule was stated twice — once with a conditional hedge, once as "settled on both
+    sides".** A rule with a conditional in one copy is two rules. Merged.
+31. **Amendment 2 item 2 still said *"the verdict algebra above now carries the mapping"*** — pointing a
+    reader at the uniform `None → not checked` mapping Amendment 3 had just retired.
+32. **Amendment 2's *"Status returned to DRAFT"* read as a live claim** — the exact defect 22 fixed for
+    Amendment 1, reproduced one amendment later. Marked as history (discharged by H1–H4, re-voided by A3).
+33. **The plan's Phase A step 5 carried the retired uniform mapping**, and the plan had no executed-check
+    gate for the algebra — the method fabrik-lib's D-026 makes mandatory and that this review's own
+    closing pass now requires. Step 5 rewritten to the row-shape rule; step 7 + File Scope row 6 add
+    `tests/test_deploy_verify_verdict.py` as a watched-fail-first gate; the plan header no longer asserts
+    the spec's status (it says *read the spec's header*, since three flips in a day made every copied
+    status line stale within hours).
+34. **REFUTED, recorded because the axis was named in the dispatch:** *"does the ladder still agree with
+    the runner-scope NO, and does the plan's File Scope describe a matching runner?"* Ladder row 3 reads
+    BUILD (hub-side); § runner-scope reads NO with a revisit trigger; the plan's File Scope lists five hub
+    files and no fabrik-lib runner. All three agree. Clean.
+
+**Pass J2 — re-derivation, 2 new candidates, both COUNTS and both mine.** Every J1 edit re-derived
+clean from the file (one row-shape table; zero contradictory residue — the only surviving matches for
+the retired phrasings are inside the defect narrative that QUOTES them; precedence stated once; plan
+steps `1–7` contiguous, File Scope `6` rows, no retired mapping in the plan). Two things did not survive:
+
+35. **The still-uncommitted ledger row D-072 carried the retired `not obligated` mapping** for a liveness
+    row — written 40 minutes before J1 overturned it. Corrected in place, which is legitimate only
+    because `git show HEAD:docs/DECISIONS.md` proves the row was never committed (asserted by the fixing
+    script, not assumed); a committed row would have needed a superseding row instead.
+36. **My own I1 narrative said "30 total across all reviews".** Re-derived from the ledger's numbered
+    items: `1–10`, `16–34` numbered plus `11–15` in prose = **34 enumerated, 2 refuted (25, 34) = 32
+    real**. I had dropped H2's #26 and H3's #27 — a miscounted running total inside the ledger of the
+    spec whose central rule is denominator integrity, and the fourth such miscount this artifact has
+    produced. The number is now derived by the command above, not remembered.
+
+**Pass J3 — closing pass, executed: 13/13 algebra assertions hold, incl. the RETIRED rule reproducing
+the defect (all-`None` contract → green, exit 0) so the check is proven able to see it. Every count
+re-derived clean** (corpus `1–29`, no duplicates; L1/L2/L3/L4 = `4/6/13/6`; all 10 registrars named;
+`SCAFFOLD_TYPES` 13 via live import, 13/13 in the per-type table; measured-gap terms exact; 216/375
+lines; fabrik-lib's `:205-209`/`:423-427`/`:448`/`:478`/`:481` and their row-shape rows at their spec
+`:349-350` re-read verbatim). **Two candidates raised, both introduced by THIS review; one refuted:**
+
+37. **The pass labels `I1`/`I2`/`I3` COLLIDED with the intake-id namespace `I1`/`I2`/`I3`.** `grep -c '^| I'`
+    returned 31 where the H passes had measured 28, because the three new ledger rows match the intake
+    pattern — an id resolvable only by knowing which table the author meant, which is **defect 16's exact
+    class**, introduced by the review that fixed defect 16. The series is renamed **J** and the letter I is
+    skipped deliberately; the intake keeps its prefix because 28 rows and every cross-reference already
+    use it.
+38. **The J2 narrative block was inserted above item 34**, so the list read `…33, [J2: 35, 36], 34` —
+    a reader met 36 before 34. Reordered.
+39. **REFUTED:** *"fabrik-lib's plan has since gone CONVERGED (`3f5b9782`) — does my spec cite it as
+    DRAFT?"* It does not cite their plan or its status anywhere (grep empty); the binding is to the
+    spec-level interface, which that commit did not touch. Worth recording for a different reason: their
+    plan-review PROTOTYPED an unwritten classifier and found the same fail-open shape a **third** time
+    (`strict=False`, `critical` undeclared, a DOWN row → exit 0). That is not a new defect in this
+    artifact — it is the exact shape Phase A step 6 (`strict=True`, always) exists to make impossible,
+    now reproduced by a third independent build. The rule held; the artifact did not need to change.
+
+**Pass J4 — closing pass, executed again: 13/13 hold, md5 `7778dbe7` stable through the whole battery
+(corpus, layers, registrars, intake 28 by BOTH the whole-file and section counts, `SCAFFOLD_TYPES` 13,
+per-type 13/13, measured-gap exact, 216/375, one row-shape table, precedence once, zero I-label residue,
+fabrik-lib lines re-read). One real defect, mine, plus one refuted:**
+
+40. **Pass J3's reorder script spliced the J2 block INTO THE MIDDLE OF ITEM 34's sentence** — the file
+    read *"…does the plan's File Scope describe a **Pass J2 — re-derivation…"*, with item 34's tail
+    (*"matching runner?" Ladder row 3 reads…Clean."*) orphaned 38 lines later after item 39. Caught only
+    because the closing pass's structural grep listed `**Pass J1` and `**Pass J3` headings and no
+    `**Pass J2` — an absence in a list I had every reason to expect complete. **A fix that edits text by
+    regex owes a read of the result, not of the regex.** Reassembled from the file's own text.
+41. **REFUTED:** a bare `37` surviving the population-count sweep — it is defect id `37.`, not the
+    retired repo count.
+
+**Running total, re-derived at J4 by the command in item 36 (never remembered): 41 enumerated (`1–10`,
+`16–41` numbered, `11–15` prose), 3 refuted (25, 34, 39, 41 → four refuted), so 37 real.** *(Correction
+inside the same sentence, because the first draft of it said "3 refuted" and item 41 is the fourth —
+the count is `41 − 4 = 37`.)*
+
+**Pass J5 terminal round — `found: 0, fixed: 0`, md5 `cdb48812` identical start→end, zero candidates,
+13/13 algebra assertions hold on re-execution.** The whole battery re-derived from the file and the live
+registry: corpus `1–29` no duplicates, `4/6/13/6`, all 10 registrars, intake 28 by two independent counts,
+`SCAFFOLD_TYPES` 13 and 13/13 in the per-type table, measured-gap exact, 216/375, one row-shape table,
+precedence once, zero I-label residue, zero orphaned text, four `**Pass J` headings and five J rows,
+running total `41 − 4 = 37` computed. fabrik-lib's spec unchanged since `270dce64`; `:448`/`:481`
+re-read. **What earns this stamp that the previous five did not: the algebra was EXECUTED, and the
+retired rule was executed beside it and reproduced the defect.** A text-only pass could not have told
+those two apart; this one did. It does not make the spec correct beyond what the check covers — it makes
+the four row shapes and the exit ranking correct, which is exactly the surface Amendment 3 changed.
+
 
 ⚠️ **The H1–H4 convergence certified a defect, and the ledger says so rather than quietly restarting.**
 Forty minutes after H4 stamped CONVERGED, fabrik-lib prototyped their interface and executed its six
@@ -1028,7 +1132,8 @@ converges. It also shrinks the onboarding: every repo scaffolded after the seed 
 ⚠️ **Corrected in spec-review pass H1 — this section still routed to the epic chain, which pass G1 had
 already overturned.** It was the LAST line of the document and carried no correction marker, so a reader
 following the spec's own hand-off ran the route the spec elsewhere rejects. Two things were stale: it
-named `/fabrik-spec-review` as the *next* step (that command has now run five times over this artifact),
+named `/fabrik-spec-review` as the *next* step (that command has run repeatedly over this artifact —
+the Pass ledger is the count),
 and it named *"the epic route for per-type packs"* after G1 measured the build at ~4 files in one repo.
 
 **The actual chain:** this spec → **operator approval** (the design gate `/fabrik-spec-review` stops at)

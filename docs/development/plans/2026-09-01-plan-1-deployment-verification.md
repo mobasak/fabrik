@@ -1,13 +1,14 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: **DRAFT** — the SPEC is now CONVERGED again (passes H1–H4, 2026-09-02), which unblocks this plan;
-but the plan itself took two post-flip edits (Phase A steps 5–6 for the fabrik-lib binding, and the Phase-A
-gate rewrite after spec-review pass H1 measured it as a check that could not fail), so it owes
+Status: **DRAFT** — tracks the spec, which went DRAFT → CONVERGED (H1–H4) → DRAFT (Amendment 3: fabrik-lib
+BUILT the interface and my verdict algebra had inherited a fail-open) → **CONVERGED** (J1–J5, the algebra EXECUTED).
+The plan itself took three post-flip edits (Phase A steps 5–7 for the fabrik-lib binding and the row-shape
+split, and the Phase-A gate rewrite after pass H1 measured it as a check that could not fail), so it owes
 `/fabrik-plan-review` before execution. A plan cannot outrank its spec's status, and it cannot self-grade
 its own amendments either.
 Date: 2026-09-01 · amended 2026-09-02
-Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (**CONVERGED**, H4 quiet at md5 `d06d1150`)
-Scope: **`/opt/fabrik` only** — 5 file groups. Routed feature-scale (spec defect 15: the epic verdict was wrong).
+Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (status per its header — read it, do not trust this line)
+Scope: **`/opt/fabrik` only** — 6 file groups. Routed feature-scale (spec defect 15: the epic verdict was wrong).
 
 ## Why this plan exists
 
@@ -24,6 +25,7 @@ product should contain.
 | 3 | `src/fabrik/scaffold.py` + `templates/scaffold/**` | seeding, on the `:285` precedent |
 | 4 | `tests/test_scaffold_deploy_contract.py` | **NEW** — Phase C guards (stub exits non-zero; docusaurus does not publish it) |
 | 5 | `tests/test_command_corpus.py` (extend) | Phase A/B guards — the rendered commands carry the required sections |
+| 6 | `tests/test_deploy_verify_verdict.py` | **NEW** — Phase A step 7: the EXECUTED verdict-algebra check (four row shapes + DOWN/mismatch co-occurrence), watched-fail-first |
 
 **READ-ONLY inputs, not edited:** `src/fabrik/orchestrator/infrastructure.py` (`_REGISTRAR_ORDER`),
 `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md`.
@@ -65,16 +67,31 @@ absent from the current tree). `--check` is always safe.
    parity contract; `UNVERIFIABLE (<why>)` rows counted in the verdict.
 4. Implement the **verdict algebra**: `UP` / `COMPLETE` / `RUNNING` separately-failable; `CONFIRMED`
    requires all three; **`UNVERIFIED`** when no contract exists; `not obligated` distinct from `not checked`.
-5. ⚠️ **Consume the tri-state `match`** (spec Amendment 2). A parity row's `match: None` means *"did not
-   compare"* → maps to **`not checked`**, counts in the denominator and **never** in the numerator. Reading
-   `None` as agreement is a false all-clear in the exact 0-of-760 shape this plan exists to close.
+5. ⚠️ **Consume `match` BY ROW SHAPE, never by value alone** (spec Amendments 2+3, § Verdict algebra —
+   the one-rule table). Four keys arrive: `expected` / `actual` / `match` / `compare_error`.
+   `expected`+`actual` present with `match is None` = **ATTEMPTED and UNRESOLVED → FAIL CLOSED**
+   (denies `CONFIRMED`, exit `2`) — never "not checked"; a systematically broken comparator otherwise
+   reports `0 of N` and never fails, the 0-of-760 shape one layer up (fabrik-lib proved it by building it).
+   A row with NO `expected`/`actual` is not a parity row: outside the parity denominator, judged under
+   `UP`. `match=True` = numerator; `match=False` = denies `CONFIRMED`, exit `2`. Precedence when a
+   critical DOWN co-occurs with a mismatch: **exit `1` outranks `2`** and never upgrades a verdict.
 6. ⚠️ **Always pass `strict=True`** to the vendored `health-probe` CLI. Proven at `health_probe.py:448`
    (`critical = critical or set()`) with `:478`/`:481`: with `critical` undeclared, every probe can be
    `DOWN` and the CLI still `sys.exit(0)` **while printing `DOWN:`**. A runner that omits `strict=True`
    is silently fail-open on liveness — the fail-open this whole plan is a reaction to.
+7. 🛑 **EXECUTE the verdict algebra before calling it built** (fabrik-lib's D-026 applied here: a design
+   is not verified until it is BUILT and its success criteria are EXECUTED — five text-only CONVERGED
+   stamps on this spec were each wrong, and the last defect lived in the interaction between three
+   functions where no re-read can see it). Ship `tests/test_deploy_verify_verdict.py` feeding the
+   algebra the four row shapes (liveness-only/`None` · `expected`+`actual`+`None` · `+False` · `+True`)
+   plus a critical-DOWN co-occurring with a mismatch, asserting: fail-closed on attempted-unresolved;
+   `CONFIRMED` denied by either condition independently; exit `1` over `2` never upgrading a verdict; a
+   liveness-only row absent from the parity denominator. **Watched-fail-first** — assert each against
+   a deliberately wrong rule before the real one, so the test is seen red.
 
 **Gate:** `python scripts/final_gate.py --json` → success · `python commands/assemble_commands.py --check`
-(temp-dir render, safe) · `grep -c _REGISTRAR_ORDER commands/_sources/fabrik-deploy-verify.md` **≥ 2**
+(temp-dir render, safe) · **`pytest tests/test_deploy_verify_verdict.py` green, with its red-on-revert
+shown** · `grep -c _REGISTRAR_ORDER commands/_sources/fabrik-deploy-verify.md` **≥ 2**
 · `grep -c 'read .*_REGISTRAR_ORDER.* live\|derive .* from .*_REGISTRAR_ORDER' commands/_sources/fabrik-deploy-verify.md` ≥ 1.
 
 ⚠️ **The `≥ 1` this replaces was a CHECK THAT CANNOT FAIL — it already passed before Phase A ran**
