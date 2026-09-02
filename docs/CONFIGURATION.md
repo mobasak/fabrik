@@ -241,9 +241,18 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
 - ⚠️ **`/v1/models` is PUBLIC on OpenRouter, NVIDIA and Kilo** — a 200 there proves nothing about a
   key. Validate against a gated endpoint (`/chat/completions`) with a bogus-key control. This is how
   a broken `KILO_API_KEY` in `/opt/fabrik/.env` (a byte-identical copy of `OPENROUTER_API_KEY`) went
-  unnoticed: it 200s on the public model list and on Kilo's anonymous `:free` models, and only a
-  PAID-model call exposed it as `401 PAID_MODEL_AUTH_REQUIRED`, identical to a bogus key. Corrected
-  2026-09-02 from `/opt/apidoccreator/.env`, the only working Kilo key on the box.
+  unnoticed: it 200s on the public model list and on Kilo's anonymous `:free` models (the row is
+  `key_optional=True`), and only a PAID-model call exposed it as `401 PAID_MODEL_AUTH_REQUIRED`,
+  identical to a bogus key. Corrected 2026-09-02 from `/opt/apidoccreator/.env`.
+  **Cheap discriminator — the two credentials are not even the same shape:** an OpenRouter key is
+  `sk-or-v1…` (73 chars); a Kilo key is a JWT, `eyJhbGci…` (268 chars) whose payload carries
+  `kiloUserId` + `env=production` (this one valid to 2031-04-06). Check the prefix before trusting a
+  Kilo slot. The mix-up is easy to make because Kilo's own endpoint is
+  `https://api.kilo.ai/api/openrouter/v1/chat/completions` — *openrouter* is in Kilo's URL path,
+  since Kilo proxies an OpenRouter-compatible API. `OPENROUTER_API_KEY` itself was never wrong.
+- ⚠️ **Still broken elsewhere:** `/opt/seo/.env` carries the same `sk-or-v1…` value in its
+  `KILO_API_KEY` (and has no `OPENROUTER_API_KEY` at all). Cross-repo writes are a hard stop from
+  here — that repo's owner fixes it, or the operator repoints it to the JWT.
 
 ### Groq Cloud — `GROQ_API_KEY` (+ one spare; free tier)
 
