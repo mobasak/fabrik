@@ -177,6 +177,8 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | 24 | **a plan step citing machinery the repo does not have** | Amendment 2 | **FIXED** — Phase F's migration gate named `db/schema.sql` and "the Alembic head"; this repo has NEITHER. The real contract is a 3-step ordering around `SUBAGENT_RUNS_DDL` with a worked precedent (`session_id`, 2026-08-15) the plan never consulted |
 | 25 | a risk asserted without reading the write path | Amendment 2 | **REFUTED** — the feared duplicate-insert ERROR cannot happen: `_INSERT` ends `ON CONFLICT DO NOTHING`, shipped inert on purpose and active since the index landed. Recorded because the refutation is the useful half |
 | 26 | an upstream ask aimed at this beat, never actioned | Amendment 2 | **FIXED** — `pg_ledger`'s own comment asks "whoever holds the DSN" for a dedupe pass on 995 rows; intel holds it; F6 is now that pass (120 remain, all in the index-exempt `scored` half) |
+| 28 | **a plan step whose tool left the repo** | Amendment 2 | **FIXED** — C2 assumed `microbench_review.py` was local; `git ls-files` → 0, deleted in `73bde59a`, now in `/opt/ai-model-catalog/engine/`. C2 is cross-repo and operator-gated; F5's producer likewise |
+| 29 | a generated doc citing a tool that left | Amendment 2 | **FIXED** — `TASK_SUBAGENT_SELECTION.md:83,:90` still name a bare `microbench_review.py`; routed into Phase E, which already edits the generator |
 | 27 | **an unasserted edit reported as success** | Amendment 2 | **FIXED** — Amendment 1's `Status: DRAFT → CONVERGED` used a bare `str.replace` with no match assertion inside a script that printed "✓ re-CONVERGED" unconditionally. It did not match. The ledger said RE-CONVERGED while the Status said DRAFT, and that contradiction was committed and reported. Every other edit this session used an asserting helper; this one bypassed it |
 | 23 | the only human-supplied metric is half-missing on 91% of volume | Amendment 1 | **FIXED** — Phase H; `review` quality coverage is 51% of 4,337 runs, and a recorded-but-unscored run currently passes the flywheel check silently |
 | 17 | evidence with an unreconciled delta | this review | **FIXED (class), instance SELF-SERVICE** — 50 returned vs 46 landed (D9). The CLASS is closed: A1 now mandates a per-repo `rows_after − rows_before == returned` assertion that fails loudly. The INSTANCE is an execution-time discovery — the executor runs the walker with that assertion live and sees the per-repo breakdown I cannot reconstruct after the fact. It is not a deferred question: the plan states the exact check, so nobody has to stop and ask |
@@ -491,6 +493,25 @@ on the mutant corpus** (zero rows for any of them after 2026-07-18). They are *u
 unmeasured. Re-run them on the existing unchanged 22-mutant corpus, one at a time (the batching-variance
 caveat already documented in `TASK_SUBAGENT_SELECTION.md`).
 
+⚠️ **C2 IS CROSS-REPO AND AN EARLIER DRAFT DID NOT KNOW IT** (Amendment 2). The harness is **not in
+this repo** — `git ls-files | grep -c microbench_review.py` → **0**. It was deleted in `73bde59a`
+(*"feat(kilo)!: Phase E — the catalog engine leaves fabrik (~320 files excised)"*) and now lives at
+**`/opt/ai-model-catalog/engine/microbench_review.py`**. Only a `.mypy_cache` artefact remains here,
+which is what made it look present.
+
+Consequences, none of them optional:
+- **C2 cannot be executed from `/opt/fabrik` alone.** Running the benchmark means working in another
+  repo — a CLAUDE.md HARD STOP without the operator's explicit approval THIS turn. C2 is therefore
+  gated on that approval, or handed to that repo's agent with the three model ids and the one-at-a-time
+  constraint. **It is NOT a step an executor can silently take.**
+- **F5's `corpus_id` producer is over there too** — the stamp has to be emitted by the harness, so F5's
+  benchmark half is that repo's change; the *column* remains ours.
+- ⚠️ **`TASK_SUBAGENT_SELECTION.md` still cites a bare `microbench_review.py` as its source (`:83`) and
+  tells readers to run `microbench_review.py --hard` (`:90`) — with no hint that it left this repo.**
+  That doc is intel's own surface and the stale pointer is a defect on this beat. Fixing it is a
+  one-line change to the generator's header text and belongs in Phase E, which already edits
+  `rank_task_subagents.py`.
+
 **Provider-death handling (`58-resilience.md` § Provider-death resilience — this is an unattended
 loop whose forward progress depends on OpenRouter):** no single point of death — the re-benchmark
 iterates models independently, so one dead provider never stalls the sweep; the last rung is
@@ -581,6 +602,11 @@ a single session, each reversed only by leaving the database for the JSONL error
 `pg_ledger` already generates the token (`dsn-missing`, `missing-driver-psycopg`, `db-commit-uncertain`,
 … — `pg_ledger.py:889-892`) and the pool already has the provider's error text. Both are discarded at
 the DB boundary. **Add `failure_reason TEXT` and persist the token; keep the free text in the JSONL.**
+
+✅ **The premise is verified, not assumed — the value EXISTS at record time.** `AgentResult` carries
+`error: str | None` (`agent.py:464`), and `record_run(record: dict[str, object], …)`
+(`pg_ledger.py:468-476`) receives the whole ledger record. The reason is present and simply absent from
+`_INSERT`'s column list. This is a column addition, not a new capture problem.
 A ranking that cannot separate "the provider refused" from "we priced it out" is not measuring models.
 
 **Gate:** every non-`done` row written after the change carries a non-NULL `failure_reason`; a query
@@ -601,7 +627,20 @@ model across populations — sweep days vs production days:
 
 Eight of ten models measured on both are 2–17× "slower" when benchmarked concurrently. **No latency
 conclusion is available today** — which is why the "disable the slow models" question could not be
-answered from this table. Record wait/queue time separately so `latency_s` means model time.
+answered from this table.
+
+✅ **The MECHANISM is now proven, not just the correlation** (Amendment 2). `latency_s` is measured
+from `t0 = time.monotonic()` at `agent.py:1296` — set immediately after the agent id, *before*
+anything else — while the per-provider sub-cap and the global concurrency semaphore are acquired
+~100 lines later at `:1397` (*"Acquire the per-provider sub-cap FIRST, then the global concurrency
+sem"*). **So `latency_s` is dispatch-to-completion and contains the queue wait by construction.** Under
+`max_concurrency` with 57 models in flight, that wait dominates — which is exactly the 2–17× the data
+showed.
+
+**The fix is therefore precise, and it does NOT change the existing column's meaning** (48 vendored
+copies read it): capture a second timestamp immediately AFTER the acquire, record
+`queue_s = t_acquired − t0` as a NEW nullable column, and leave `latency_s` alone. Consumers that want
+model time subtract; nothing that reads `latency_s` today breaks.
 
 **Gate:** a deliberately queued dispatch records `queue_s > 0` and a `latency_s` matching its
 unqueued twin within tolerance; the benchmark's own rows carry `queue_s`.
@@ -609,8 +648,11 @@ unqueued twin within tolerance; the benchmark's own rows carry `queue_s`.
 ### F3 — `tokens_in` / `tokens_out`
 
 `$/run` mixes model price with task size, so a model handed longer prompts looks dearer than it is.
-The benchmark already computes `$/M-out` from tokens it does not persist. Persist them and cost
-becomes normalisable.
+
+✅ **Verified available:** the pool already reads the provider's usage block —
+`(result.usage or {}).get("completion_tokens")` at `loop.py:588`. The counts are in hand and thrown
+away at the DB boundary, exactly like the failure reason. Persisting them is a column addition, not a
+new instrumentation task.
 
 **Gate:** `cost_usd / tokens_out` reproduces the published `$/M-out` for a sampled model within
 rounding.
@@ -628,6 +670,8 @@ Nothing records WHICH task a run performed, so two runs are never known to be co
 given harder work simply scores worse. The benchmark has a fixed corpus and could stamp it today.
 
 **Gate:** benchmark rows carry the corpus id; a per-corpus quality aggregation is expressible.
+⚠️ The emitting half lives in `/opt/ai-model-catalog/engine/` (see C2) — this plan owns the COLUMN and
+the consumer, not the producer.
 
 ### F6 — the `scored`-row duplication the unique index exempts
 
@@ -711,12 +755,28 @@ instead of `_COLS` precisely so **an outbox row written by an OLDER copy still f
 
 **`review` is the flywheel's dominant task type and half of it teaches the ranking nothing.** The
 enforcement check `check_subagent_flywheel.py` already WARNs on an unrecorded pool run — *"LAYER 2
-(advisory, never blocks): WARN on any pool run never record_agent_run-recorded"* (`:313-314`, and the
-layer is declared at `:12`). **The gap is that a recorded-but-UNSCORED run passes silently**, verified
-by enumeration rather than inferred: grepping that file for `quality_score|set_quality|unscored`
-returns exactly **2** hits (`:393`, `:414`) and BOTH concern the missing-DSN / missing-driver recording
-path — neither asks whether a recorded row carries a verdict. (Those two lines also distinguish
-`dsn-missing` from `missing-driver-psycopg` independently, corroborating Phase A4's correction.) Make the scored-vs-dispatched ratio a reported number
+(advisory, never blocks): WARN on any pool run never record_agent_run-recorded"* (`:313-314`, layer
+declared at `:12`). **The gap is that a recorded-but-UNSCORED run passes silently**, verified by
+enumeration: grepping that file for `quality_score|set_quality|unscored` returns exactly **2** hits
+(`:393`, `:414`), BOTH about the missing-DSN / missing-driver path — neither asks whether a recorded row
+carries a verdict. (Those two also distinguish `dsn-missing` from `missing-driver-psycopg`
+independently, corroborating Phase A4's correction.)
+
+⚠️ **BUT THE RATIO IS NOT COMPUTABLE WHERE AN EARLIER DRAFT PUT IT** (found in Amendment 2 by tracing
+what the checker can actually see). That draft said "make the scored-vs-dispatched ratio a reported
+number per run, and fail the check" — the check being `check_subagent_flywheel.py`. It cannot:
+
+- the checker **reconciles the local ledger against receipts and never queries the DB** (`:12`, `:48`;
+  its only DB awareness is whether `psycopg` imports and whether a DSN is set, `:308`, `:329`), and
+- **the receipt carries no score** — `write_receipt(agent_id, project, *, receipt_dir, session)`
+  (`ledger.py:218-224`) has no quality field at all.
+
+So the verdict is invisible to the surface the draft assigned the job to. **H therefore has two parts:**
+(a) compute and print the ratio at the DISPATCH close, where `set_quality` is called and the score is
+in hand — that is the pool, not the checker; and (b) *if* the checker is to enforce it later, the
+receipt must first carry the score, which is a `ledger.py` change with the same 48-copy blast radius as
+Phase D. **(b) is explicitly OUT of this plan's scope** and is recorded here so it is not rediscovered
+as a surprise. Do (a). Make the scored-vs-dispatched ratio a reported number
 per run, and fail the check when a review fan-out closes with a ratio below a stated floor.
 
 ⚠️ **Measure the fire rate before it blocks** (CLAUDE.md § FIX DIRECTIVE 5 — a detector that fires on
