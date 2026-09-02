@@ -453,6 +453,9 @@ mail names `pg_ledger.py:914` vs `:1058` as the evidence.
 
 ## Phase B — Record the provisioned-but-unread sink (one step; the unknown is closed)
 
+**✅ EXECUTED 2026-09-02** — the deliberate-scope comment is at `rank_task_subagents.py:17-28` and the
+decision row is minted. The registrar defect stays with fleet, unworked-around, as this phase specifies.
+
 B1 is answered above. Remaining work: a `docs/DECISIONS.md` row, plus a comment at
 `rank_task_subagents.py:17` stating that reading local-only is DELIBERATE and why, so the next reader
 does not re-open it as a bug. The registrar-side defect is fleet's and is filed — **do not fix it here.**
@@ -461,6 +464,16 @@ does not re-open it as a bug. The registrar-side defect is fleet's and is filed 
 the DECISIONS row exists and cites the measurement above.
 
 ## Phase C — Correct the poisoned rows, re-measure the priced-out models (hub-local)
+
+**✅ EXECUTED 2026-09-02 (C1, C3) · C2 HANDED TO ITS OWNER.** C1 applied: 90 rows → `status='skipped'`
+via `scripts/kilo-benchmarks/reclassify_cap_rows.py`, dry-run first, the population confirmed as the
+default-cap sweep (all 90 in one project on the sweep day). **The result is the finding, measured:**
+`kimi-k2.5` 6% → **100%** (2 real runs), `glm-5` 20% → **80%** (10 real runs), and `qwen3.7-max` drops
+out entirely — all 30 of its rows were cap rejections, so it has **zero** real runs. Unmeasured, not
+bad. C3 is guarded by a test asserting blank-status rows never move the aggregation. **C2 is the
+plan's declared cross-repo gate** and was dispatched to the owning repo per this plan's own
+instruction — mail `01M1HSQ023WGYM2K64C0X5YYMQ` to `ai-model-catalog`, carrying the three model ids,
+the one-at-a-time constraint and the byte-identical-corpus requirement.
 
 **Not** a status-semantics change fleet-wide — the cause was fixed six weeks ago; what remains is stale data plus three unmeasured models.
 

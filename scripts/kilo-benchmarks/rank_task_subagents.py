@@ -15,6 +15,17 @@ clears the quality bar" mandate at `select.py:5`. To invert, flip the constant.
 
 Data path — hub-side (WSL for now):
   1. Queries `fabrik_analytics.subagent_runs` on local postgres via `sudo -u postgres psql`
+     ⚠️ LOCAL-ONLY IS DELIBERATE — do not "fix" this to also read postgres-main. `fabrik apply`
+     provisions a SECOND `fabrik_analytics.subagent_runs` on postgres-main and injects a per-project
+     writer DSN into every deployed project (`infrastructure.py:734-755`), which looks like a
+     split brain. Measured 2026-09-02: that table is EMPTY — `ssh vps "sudo docker exec postgres-main
+     psql -U postgres -d fabrik_analytics -tAc 'SELECT count(*), count(DISTINCT agent_id), min(ts),
+     max(ts), count(DISTINCT project) FROM subagent_runs'"` → `0|0|||0`. No deployed service has ever
+     written a row, so the LOCAL database is the whole population and a union read would add nothing
+     but a second failure mode. The registrar provisioning a sink with no writer AND no reader is a
+     real defect, but it is FLEET's beat and is filed (`01M1H2XGV09Y78W9TGVG3G92TH`) — not this
+     script's to work around. Re-measure before changing this; if that table ever holds rows, the
+     ranking's input has become incomplete and THAT is the moment to widen it.
      (peer auth on unix socket — TCP requires scram-sha-256 password which we don't
      wire in WSL dev). Rolls up per (task_type, model) over a 90-day window, min 3 runs.
   2. Renders a markdown doc with one `### <task_type>` section per TaskKind. Shape
