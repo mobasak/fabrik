@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `docs/reference/apis/EXTERNAL_SYSTEMS.md` converged into the fleet index: every external system the fleet reaches, how, and its 12-field Capability Profile (2026-09-02)
+
+- **Operator ask:** list every type of external service, check each is named and addressed in
+  EXTERNAL_SYSTEMS.md, and address all "in every aspect — limits, quotas, recovery, retries,
+  failovers, backups". Measured answer before this run: **no on both axes** — of 77 entries, 0 carried
+  retry/recovery/cost and 4 carried failover; **73 fleet-used vendors were absent** (after merging aliases; 79 before); and 30 entries
+  described self-hosted software the fleet never ran (Plex, Jellyfin, qBittorrent, Heimdall, Borg…).
+- **Denominator, stated:** the union of the doc's prior entries ∪ `service_catalog.json` (99) ∪ every
+  vendor-shaped key in 40 `.env.example` files + 72 specs ∪ live `docker ps` on vps1/vps2/vps3 ∪
+  `docs/reference/apis/*.md` → 158 systems, 115 fleet-used. Each fleet-used system now has one
+  block: type · reach path (REST / MCP agent-time / CLI / self-hosted) · which projects use it and under
+  which env keys · the 12-field profile from `57-external-data-sourcing` · its `58-resilience` posture.
+- **Cell tiers are explicit** — a value is grounded only when a native grounder fetched its source
+  today (`_(src: url, date)_`, 487 cells); a pool-swept suggestion is `UNVERIFIED (pool …) — verify: url`
+  (161 cells); everything else is `UNKNOWN — tried: …` (751 cells) — a visible gap, never a silent
+  one. Measured why the pool tier cannot be trusted as fact: 83 of 216 pool-cited URLs were dead, the
+  15-unit sweep cost $0.03, and its own UNKNOWN cells say "no web tools available" — single-shot
+  `read_only` units do not fetch (filed to intel, `01M1GPQXYDBQAWQRP4HXA345P1`).
+- **Self-hosted fleet services** (postgres-main, redis-main, meilisearch, browserless, gotenberg,
+  apprise, authelia, zitadel, glitchtip, the Grafana stack, Backrest) say plainly that limits, cost,
+  credentials and interface changes are OUR configuration — with the host each runs on from `docker ps`.
+- **Retired / decommissioned** kept as one table so nobody re-proposes them (Coolify, Factory, Kilo,
+  Context7; Supabase retiring; Promtail EOL and still running — migration filed).
+- 10 dated CLAIMS rows register the load-bearing vendor limits (Paddle 240/min + 60s lockout, Resend
+  10 rps + Svix retries, Cloudflare 1,200/5 min, R2, B2 API v4 policy, OpenRouter free-tier + 402
+  semantics, RevenueCat v2 per-domain limits, iyzico's unsigned-timestamp webhooks, Telegram
+  `retry_after`, Namecheap 50/700/8,000 + `setHosts` replace-all) with verify hints and windows.
+- INDEX.md row updated to describe the doc as the fleet index. The generator that renders the doc from
+  the measured inputs lives in the session scratchpad and is NOT committed — the doc is the artifact;
+  the next converge re-measures.
+
 ### Added — Groq spares to six, and a concurrent edit caught by hashing (2026-09-02)
 
 - Three operator keys added. Only ONE was genuinely new: hashing every slot showed the second was

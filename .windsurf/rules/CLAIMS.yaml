@@ -613,6 +613,86 @@ claims:
     window_days: 365
     last_verified: 2026-09-02
 
+  - id: paddle-rate-limit-240pm
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Paddle Billing API: 240 req/min per IP (1,000/min for preview endpoints); over the cap → 429 too_many_requests + Retry-After and the IP is locked out 60s; per-subscription immediate-charge caps 20/h and 100/24h; webhooks must be acked 200 within 5s; live webhook retries 60 over 3 days, replay via POST /notifications/{id}/replay (90-day window); API versions are not deprecated today"
+    kind: standard
+    verify: "https://developer.paddle.com/api-reference/about/rate-limiting + /webhooks/respond-to-webhooks + /api-reference/about/versioning"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: resend-rate-limit-10rps
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Resend: 10 req/s per team (raisable); Free = 100 emails/day + 3,000/month with inbound counted; over-quota → 429 daily_quota_exceeded / monthly_quota_exceeded (hard block on Free, $0.90/1k overage on Pro); Idempotency-Key on POST /emails (24h); webhooks are Svix-signed, at-least-once, retried at 5s/5m/30m/2h/5h/10h, unordered"
+    kind: standard
+    verify: "https://resend.com/docs/api-reference/rate-limit + /docs/api-reference/errors + /docs/dashboard/webhooks/introduction"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: cloudflare-api-1200-per-5min
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Cloudflare API: 1,200 requests per 5 minutes per user (all methods) → 429 and a 5-minute block; Ratelimit/Ratelimit-Policy/retry-after headers; DNS records per zone Free 200 (zones created ≥2024-09-01) / Pro+ 3,500; API token 'Roll' is a hard cut, Turnstile secret rotation keeps the old secret 2h; status = Statuspage /api/v2/status.json"
+    kind: standard
+    verify: "https://developers.cloudflare.com/fundamentals/api/reference/limits/ + https://www.cloudflarestatus.com/api/v2/status.json"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: cloudflare-r2-limits
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "R2: REST API 1,200 req/5 min; 1 write/s per object key (429 above); multipart parts 5 MiB–5 GiB up to 10,000, incomplete uploads expire after 7 days; strongly consistent reads/lists; pricing $0.015/GB-mo, Class A $4.50/M, Class B $0.36/M, egress free; usage via GraphQL r2OperationsAdaptiveGroups; event notifications go to Queues, not webhooks"
+    kind: standard
+    verify: "https://developers.cloudflare.com/r2/platform/limits/ + /r2/pricing/ + /r2/reference/consistency/"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: backblaze-b2-api-v4-lifecycle
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Backblaze B2 native API is at /b2api/v4/ and 'does not have any plans to stop supporting old versions' (≥1 year notice promised); 429 is per-account with no published rpm and no Retry-After; auth tokens expire after 24h (expired_auth_token → re-authorize); app keys may carry validDurationSeconds; Class A/B/C calls are free, only Class D (event notifications) is metered after 2,500/day; $6.95/TB-mo, egress free to 3× storage"
+    kind: standard
+    verify: "https://www.backblaze.com/docs/cloud-storage-native-api-versions + /apidocs/introduction-to-the-b2-native-api + /cloud-storage/pricing"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: openrouter-limits-and-credits
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "OpenRouter: free models 20 req/min and 50 req/day (<$10 lifetime credits) or 1,000/day (≥$10); paid models have no published rpm ('capacity governed globally' — extra keys/accounts buy nothing); 429 carries X-RateLimit-* + Retry-After when the provider gave one; 402 when balance ≤0 or key limit exhausted; GET /api/v1/key and /api/v1/credits expose usage; 5.5% ($0.80 min) card fee on credit purchases; status.openrouter.ai is NOT Statuspage-shaped (/api/v2/status.json 404)"
+    kind: standard
+    verify: "https://openrouter.ai/docs/api-reference/limits (WebFetch — exa returns unrendered placeholders) + /docs/api-reference/errors + /docs/faq"
+    window_days: 90
+    last_verified: 2026-09-02
+
+  - id: revenuecat-v2-rate-limits
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "RevenueCat API v2 per-minute limits by domain (Customer 480, Virtual Currencies 480, Project Config 60, Audiences 60, Charts 25); 429 body rate_limit_error + backoff_ms + RevenueCat-Rate-Limit-Current-Usage/-Limit + Retry-After; free to $2,500 MTR then 1% of MTR; webhooks retried 5 times (5/10/20/40/80 min), signature X-RevenueCat-Webhook-Signature t=,v1= HMAC-SHA256 over '<t>.<body>'; status = Statuspage"
+    kind: standard
+    verify: "https://www.revenuecat.com/docs/api-v2 + /docs/integrations/webhooks + https://status.revenuecat.com/api/v2/status.json"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: iyzico-limits-and-webhook-shape
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "iyzico: per-method per-minute caps (initialize payment 50, retrieve 50, HPP 100, refund 50, cancel 50); over the cap → body {status:failure, errorCode:50000 'Request Limit Exceeded'} with NO documented HTTP code or Retry-After; 'majority of services designed non-idempotent' (no Idempotency-Key — reconcile via conversationId/paymentId + /payment/detail); webhooks retried every 15 min, stop after 3 attempts, X-IYZ-SIGNATURE-V3 has NO timestamp (replay window unbounded) and must be enabled by email; no public status page found"
+    kind: standard
+    verify: "https://docs.iyzico.com/en/getting-started/preliminaries/limiters + /en/advanced/webhook + /en/getting-started/preliminaries/idempotency"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: telegram-bot-api-limits
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Telegram Bot API: ≤1 msg/s per chat, ≤20/min per group, ~30/s bulk (Paid Broadcasts up to 1000/s at 0.1 Stars/msg); 429 returns ok:false + parameters.retry_after seconds; webhook max_connections 1–100 (default 40), server-side retries until 2xx then gives up, undelivered updates kept 24h, dedup/order on sequential update_id; bot tokens never expire, /token regenerates with immediate invalidation (single-phase); no official status page"
+    kind: standard
+    verify: "https://core.telegram.org/bots/faq + https://core.telegram.org/bots/api#responseparameters (page too large for WebFetch — curl | grep)"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: namecheap-api-limits-and-sethosts
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Namecheap API: 50 calls/min, 700/hour, 8,000/day per key (official FAQ); production access needs ≥20 domains OR ≥$50 balance OR ≥$50 spent in 2 years; IPv4 whitelist mandatory; single key, 'Reset' invalidates the old key immediately (no overlap); setHosts REPLACES the whole record set — omitted records are deleted; no documented over-limit HTTP code; status.namecheap.com did not resolve on 2026-09-02"
+    kind: standard
+    verify: "https://www.namecheap.com/support/knowledgebase/article.aspx/9739/63/api-faq/ (HEAD → 404, GET blocked for non-browser UAs — open in a browser or via the exa fetcher) + /support/api/methods/domains-dns/set-hosts/"
+    window_days: 180
+    last_verified: 2026-09-02
+
   - id: llm-self-review-agreeableness-bias
     pack: core/50-code-review.md
     claim: "LLM evaluators show agreeableness bias — they confirm correct feedback but fail to reject incorrect feedback, and recall is measurably worse when a model reviews its OWN output than another's. This is the evidence base for author-blind review (D-063) and for maker-checker separation"

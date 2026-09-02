@@ -412,7 +412,7 @@ docs/
 │   │   ├── ai-prompt-templates.md
 │   │   └── markdown-cheatsheet.md
 │   ├── apis
-│   │   ├── EXTERNAL_SYSTEMS.md     # External service dependencies
+│   │   ├── EXTERNAL_SYSTEMS.md     # The fleet index: every external system, its reach path (API/MCP/CLI/self-hosted), users, 12-field Capability Profile + 58 posture
 │   │   ├── glitchtip-api.md
 │   │   ├── modal-api.md
 │   │   ├── openrouter-api.md
