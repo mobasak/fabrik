@@ -33,6 +33,9 @@
 | 19 | **the author-blind pass RETURNED — 11 defects merged or refuted with evidence. Dispatched: 1. Returned: 1. Partition SWEPT.** | **method: re-derivation** | 11 | 11 | 14 | cfbb5f → ea219e |
 | 20 | all — checklist, every merged anchor re-read, both refuted numbers re-run | method: gate + re-derivation | 1 | 1 | 1 | ceb11b → 3f85e6 |
 | 21 | all — checklist, anchors, convergence | **method: re-derivation** | **0** | **0** | **0** | 3f85e6 → 3f85e6 ✓ → **CONVERGED** |
+| — | **EXECUTED 2026-09-02** — all 8 phases shipped (hub `64e7f633`, canonical fabrik-lib `a66c6e29`, both pushed). Status flipped by `/fabrik-execute-plan`. | — | — | — | — | — |
+| 22 | **ARCHIVE review** — `/fabrik-plan-review` re-invoked on an `EXECUTED` plan takes the lifecycle branch (verify-done → archive), not a re-convergence. Re-derived: phase-marker completeness against all 8 phase headings, and every vendored-copy claim counted depth-unbounded rather than by the sync's own glob | **method: re-derivation** | 2 | 2 | 2 | b2ef84 → e33d96 |
+| 23 | **CLOSING pass** — full fresh read. Every anchor and count pass 22 wrote was RE-DERIVED from scratch, not re-cited: `sync_enforcement_to_projects.py:496` · `microbench_coding_direct.py:66` · `check_imports_resolvable.py:529` · `final_gate.py:631` · `pg_ledger.py:62` · `ledger.py:185` · `agent.py:207`, and the vendored walk recounted (63 / −8 archived / −5 worktrees = 50 live, 2 stale, sync glob 48). Contradiction sweep clean; schema probe re-run green (six columns live, 13,053 rows). **Both findings FILED** — infra `01M1J0HNBTQ2XPV5J0AR1ZFFFK`, ai-model-catalog `01M1J0K84DGPBTK68B9VKFWYFN` | **method: re-derivation** | **0** | **0** | **0** | e33d96 → e33d96 ✓ (content; the closing pass's only byte delta is this row — `git diff` touches the Pass Ledger and nothing else) → **ARCHIVED** |
 
 **P20's single candidate:** the `ON CONFLICT DO NOTHING` citation pointed at `pg_ledger.py:84`, a
 comment line; the statement is `:85`. Fixed. A one-line anchor drift is exactly the class this plan
@@ -64,7 +67,7 @@ does not count against the quiet pass.
 ## Global Constraints (every phase inherits these)
 
 - **Shared tree, three sessions.** Explicit pathspecs only (`git commit -- <paths>`), `git diff --cached --numstat` before every commit, `git reset -q HEAD -- <paths>` after. Never `git add -A`, never `--amend`, never touch a sibling's dirty file.
-- **`libs/subagents` is `VENDORED_DIRS`** (`scripts/fabrik_synced_manifest.py:115`) kept byte-identical to canonical `/opt/fabrik-lib/subagents`. **48 vendored copies exist** (`ls -d /opt/*/libs/subagents | wc -l` → 48). Any edit there is a cross-repo change to fabrik-lib FIRST, then a re-vendor, then a sync. Phases D and F carry that cost explicitly; Phases A–C and E deliberately avoid it.
+- **`libs/subagents` is `VENDORED_DIRS`** (`scripts/fabrik_synced_manifest.py:115`) kept byte-identical to canonical `/opt/fabrik-lib/subagents`. **48 vendored copies exist** (`ls -d /opt/*/libs/subagents | wc -l` → 48). ⚠ **CORRECTED 2026-09-03 — that glob is the SYNC'S OWN blind spot, and 48 is not the population.** A depth-unbounded walk (`find /opt -name pg_ledger.py -path '*subagents*'`) returns **63**; net of 8 `/opt/archived/**` repos and 5 stale hub worktrees, **50 live copies exist and 2 are structurally unreachable** — `ai-model-catalog/engine/libs/subagents` and `whatsapp-agent/src/libs/subagents`. `sync_enforcement_to_projects.py:496` writes `project_dir / vendored_rel`, a FIXED path and never a search, so those two received nothing from Phase D/F and will receive nothing from any future vendored change either. Both are live, not dead weight: `microbench_coding_direct.py:66` does `sys.path.insert(0, SCRIPT_DIR)`, so **the C2 harness imports the stale copy — the one that cannot record `failure_reason`, which is the exact column C2 exists to produce**; whatsapp-agent reaches its copy via `check_imports_resolvable.py:529` / `final_gate.py:631`. The sync blind spot is infra's beat and is filed; the C2 consequence is routed to `ai-model-catalog` (cross-repo — routed, not edited). Any edit there is a cross-repo change to fabrik-lib FIRST, then a re-vendor, then a sync. Phases D and F carry that cost explicitly; Phases A–C and E deliberately avoid it.
 - **`pg_ledger` is FAIL-OPEN by contract** — a DB error must never break a run — *"FAIL-OPEN — a Postgres error/outage NEVER breaks a run"*, `pg_ledger.py:15-17` (an earlier draft cited `:19-21`, which is the per-`agent_id` aggregation note). No phase may introduce a raise on the recording path.
 - **`flush_outbox` is AT-LEAST-ONCE by its docstring — but the SCHEMA already half-closes it, and the
   earlier text overstated the risk.** `pg_ledger.py:876-878` says a crash between commit and cleanup can
@@ -942,11 +945,14 @@ before any blocking threshold is set.
 
 ## Phase G — `capped` is two unrelated failures sharing one label (hub-local, blocks any model verdict)
 
-**PARTIALLY EXECUTED 2026-09-02 — G2 done; G1 and G3 reach the cross-repo gate.** G1 (splitting
-`capped` into `stalled`/`turn_exhausted` at record time) is a `libs/subagents` change and ships with
-Phase D by this plan's own instruction. G3 (`max_turns`) is the same surface — the default lives at
-`agent.py:198`, not in the hub. Both need the operator's explicit word for the write to canonical
-`/opt/fabrik-lib/subagents` and the 48-copy re-vendor.
+**✅ EXECUTED 2026-09-02 — all four items closed.** G2 shipped hub-local. G1 and G3 reached the
+cross-repo gate and PASSED it: the operator authorised the write ("yes, edit fabrik-lib/subagents and
+re-vendor"), and both shipped in canonical `a66c6e29` (verified on `origin/main`) — G1 delivered as
+`failure_reason` rather than a widened status Literal (`pg_ledger.py:62`, derived at `ledger.py:185`),
+G3 as the turn-budget measurement recorded at the definition (`agent.py:205-207`; the old `:198`
+anchor moved when the comment landed). G4 is measurement-only and needs no step. ⚠️ The re-vendor
+reached 48 copies — and **48 is not the population**: see the corrected blast radius in § Context
+Ledger.
 
 **Found by the operator's coverage audit, 2026-09-02** — `capped` and `stall` appeared **zero times**
 in this plan's first draft, while 232 capped runs (11% of dev-half spend) sat unexplained. The
