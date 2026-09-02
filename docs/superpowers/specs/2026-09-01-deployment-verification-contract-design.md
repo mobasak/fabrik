@@ -1,9 +1,10 @@
 # Deployment Verification Contract — design spec
 
-Status: CONVERGED (re-converged 2026-09-01 after Amendment 1; passes A1–A2, md5-stable)
-Date: 2026-09-01
+Status: **DRAFT** (was CONVERGED after Amendment 1, passes A1–A2 md5-stable; **Amendment 2 (2026-09-02)
+edits § Verdict algebra post-flip, so the convergence is void** — same rule Amendment 1 applied to itself)
+Date: 2026-09-01 · amended 2026-09-02
 Author: fleet (hub)
-Stage: 1-design · converged by `/fabrik-spec-review` 2026-09-01 · successor: operator approval, then the epic route
+Stage: 1-design · successor: `/fabrik-spec-review` over Amendment 2, then operator approval
 
 ## The problem, in the operator's words
 
@@ -317,6 +318,14 @@ falsifiable:
 - `CONFIRMED` requires **all three PASS**. Any FAIL ⇒ `VERIFICATION FAILED`.
 - **`not obligated` is a first-class verdict**, distinct from `not checked` — asserting Meilisearch on
   `has_search_feature: false` is a false failure. `shape:`-driven, never assumed.
+- ⚠️ **A parity row's agreement is TRI-STATE, and the third value is NOT a pass** (Amendment 2). A
+  comparison probe returns `match: True | False | None`, where `None` means *"this probe did not compare
+  anything"*. `None` maps to **`not checked`** — never to `not obligated`, and never to agreement. The
+  distinction is load-bearing rather than pedantic: collapsing `None` into `True` is a **false all-clear**,
+  which is precisely the 0-of-760 shape this spec exists to catch, and collapsing it into `False` invents
+  a phantom mismatch that fails a healthy deploy. Consequence for the denominator rule above: a `None` row
+  **counts in the denominator and not in the numerator** — it is an unexercised obligation, so a contract
+  whose rows all return `None` reports `0 of N`, never `N of N`.
 - **Every percentage carries its denominator.** "18 of 18 Shipped rows exercised" is a claim; "looks
   complete" is not. A zero without a denominator is indistinguishable from having looked nowhere.
 - ⚠️ **DENOMINATOR INTEGRITY — the clause that makes *"100% tested"* mean anything** (spec-review pass
@@ -363,6 +372,14 @@ falsifiable:
 
 **Composition, not reinvention:** vendored `health-probe` for dependency probes + a thin parity runner +
 per-type packs.
+
+⚠️ **The ENHANCE half is no longer speculative — fabrik-lib accepted and converged it** (Amendment 2).
+Filing `01M1ESR5KJW5Z1EE2YE55MBTE8` → their spec `docs/superpowers/specs/2026-09-02-health-probe-comparison-mode-design.md`,
+Status CONVERGED at 9 passes (`5f5b2e6f`). They also answered the SYSTEMIC question this ladder raised —
+*mode inside `health-probe`, not a new module*, because the capability needs exactly the two things the
+module already owns (the injectable-probe seam and the result shape), so a separate module would duplicate
+both. That verdict retires the "🆕 fabrik-lib candidate" note on the parity-runner row **for its comparison
+half only**: the comparison primitive goes upstream; the per-type packs and the verdict algebra stay hub-side.
 
 ## Amendment 1 — a NEW authoring command (operator ruling, 2026-09-01)
 
@@ -444,6 +461,56 @@ the artifact reaches `UNVERIFIED` (Q2), which is now also the signal to run the 
 ⚠️ **Status returned to DRAFT.** This amendment lands after the CONVERGED flip and materially changes the
 architecture (one command → two, plus a new pipeline position). Per the post-flip rule, the convergence
 is void until `/fabrik-spec-review` re-runs over the amended artifact.
+
+## Amendment 2 — the fabrik-lib interface landed; bind to it (2026-09-02)
+
+The § fabrik-lib ladder verdict was **VENDOR + ENHANCE**, and the plan was written against a *fallback*
+(vendor as-is, implement the diff hub-side) so nothing blocked on a reply. **The reply came, and it is an
+acceptance with a converged interface** — so the fallback is retired as the plan of record.
+
+**The interface (theirs, settled — `2026-09-02-health-probe-comparison-mode-design.md`, CONVERGED 9 passes,
+`5f5b2e6f`):**
+
+```
+compare(name, expected, actual, *, comparator=None) -> dict
+    # the existing {system, status, detail} PLUS expected / actual / match
+    # `status` stays a LIVENESS verdict; agreement lives in `match`
+match: True | False | None                       # tri-state — None = "not compared"
+cli(probes, critical=None, *, mismatch_exit=2, strict=False)
+```
+
+A comparison probe is an **ordinary injectable probe** (`Callable[[], object]`, today's shape), so this
+spec's requirement that projects supply their own comparators is satisfied **by construction** rather than
+by extension — projects know what "same" means for their data; the module never has to.
+
+**Exit-code convention the runner branches on** — `0` pass · `1` a system is DOWN · `2` a system
+DISAGREES. The separation is what lets the runner distinguish *"prod is dead"* from *"prod is alive and
+holds the wrong data"*, which are different incidents with different first moves.
+
+⚠️ **Two things their review proved by EXECUTION that change what this spec must do:**
+
+1. **Our requirement "a non-zero exit on mismatch, matching your CLI's existing critical-down semantics"
+   was unreachable as worded, because those semantics already fail OPEN.** `cli()` does
+   `critical = critical or set()` (`health_probe.py:448`), so with `critical` undeclared the membership
+   test at `:478` can never be true and `sys.exit(1 if critical_down else 0)` at `:481` returns **0 while
+   printing `DOWN:`**. Verified here by reading those exact lines, not taken on report. *Matching* the
+   existing semantics would therefore have inherited the exact fail-open the requirement existed to
+   prevent. **Consequence, binding on Phase A: the runner always passes `strict=True`** — their opt-in
+   flag is load-bearing for the hub, and a runner that omits it is silently fail-open on liveness.
+2. **`match` is tri-state, and that is a correction to this spec, not a courtesy.** We asked for a boolean.
+   A boolean forces a liveness-only probe to lie in one of two directions, and one of those directions —
+   `match=True` for a probe that compared nothing — is a **false all-clear in exactly the 0-of-760 shape
+   this spec was written to catch**. The verdict algebra above now carries the mapping.
+
+**What still does NOT block.** They have specced, not built. The binding is to the **interface**, which is
+settled; the hub-side parity runner implements that same `compare()` shape locally until their build lands,
+at which point the swap is a deletion rather than a rewrite. This is strictly better than the old fallback,
+which would have invented a *different* shape and then owed a migration.
+
+⚠️ **Status returned to DRAFT.** This amendment edits § Verdict algebra — a load-bearing section — after the
+CONVERGED flip. The same post-flip rule Amendment 1 applied to itself applies here; the convergence is void
+until `/fabrik-spec-review` re-runs over the amended artifact. Granting myself an exception because this
+amendment is smaller than the last one is the self-grading the rule exists to prevent.
 
 ## Approaches
 

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Deployment verification binds to fabrik-lib's converged comparison interface; the hub fallback is retired (2026-09-02)
+
+- fabrik-lib ACCEPTED filing `01M1ESR5KJW5Z1EE2YE55MBTE8` and converged a spec (`5f5b2e6f`). The
+  deployment-verification spec + plan now bind to `compare(name, expected, actual, *, comparator=None)`
+  with a **tri-state `match`** and `cli(..., mismatch_exit=2, strict=False)`, instead of the previous
+  fallback (vendor as-is + implement the diff hub-side) which would have invented a second comparison
+  shape and then owed a migration.
+- **Verdict algebra extended:** `match: None` means *"did not compare"* → maps to `not checked`, counts
+  in the denominator, never in the numerator. Reading `None` as agreement is a false all-clear in the
+  exact 0-of-760 shape the spec exists to catch.
+- **The runner always passes `strict=True`.** Their review proved by execution — and it was re-verified
+  here at `health_probe.py:448`/`:478`/`:481` — that with `critical` undeclared the CLI `sys.exit(0)`
+  while printing `DOWN:`. Our original requirement ("match your existing critical-down semantics") was
+  therefore unreachable as worded and is formally withdrawn.
+- Both artifacts returned to **DRAFT**: the amendment edits a load-bearing section after the CONVERGED
+  flip, and the post-flip rule voids the convergence. Ledger row `D-067`.
+
 ### Fixed — Secrets inside log MESSAGES are redacted, not just sensitive kwargs (2026-09-02)
 
 - `_redact_sensitive` matched event-dict KEYS only, so `password=x` was redacted while the same

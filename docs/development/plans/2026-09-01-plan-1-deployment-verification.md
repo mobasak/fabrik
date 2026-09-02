@@ -1,8 +1,10 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: CONVERGED
-Date: 2026-09-01
-Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (CONVERGED, `3a853851`)
+Status: **DRAFT** (was CONVERGED; the 2026-09-02 fabrik-lib binding edits Phase A's verdict algebra and
+retires the fallback, and the spec it builds on returned to DRAFT under its own Amendment 2 — a plan cannot
+outrank its spec's status)
+Date: 2026-09-01 · amended 2026-09-02
+Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (**DRAFT** — Amendment 2)
 Scope: **`/opt/fabrik` only** — 5 file groups. Routed feature-scale (spec defect 15: the epic verdict was wrong).
 
 ## Why this plan exists
@@ -31,8 +33,13 @@ absent from the current tree). `--check` is always safe.
 ## OUT OF SCOPE — named, not silently dropped
 
 - **fabrik-lib `health-probe` enhancement** — filed `01M1ESR5KJW5Z1EE2YE55MBTE8`; **they** spec and
-  implement. This plan builds against the **FALLBACK** (vendor `health-probe` as-is, diff in the parity
-  runner) so **nothing blocks on their reply**. If they land the core change, the runner swaps to it.
+  implement, and **they have: ACCEPTED + CONVERGED** (`5f5b2e6f`, their
+  `docs/superpowers/specs/2026-09-02-health-probe-comparison-mode-design.md`). ⚠️ **The FALLBACK is
+  RETIRED as the plan of record** (spec Amendment 2). This plan now binds to their settled interface —
+  `compare(name, expected, actual, *, comparator=None)`, tri-state `match`, `cli(..., mismatch_exit=2,
+  strict=False)` — and the hub-side runner implements **that same shape** locally until their build lands,
+  so the eventual swap is a deletion, not a rewrite. **Still nothing blocks on their BUILD**: the binding
+  is to an interface, not to an artifact.
 - **Per-project onboarding (27 deployable repos)** — self-serve; each project's own agent runs the new
   command in its own repo. Cross-repo commits are a HARD STOP, so this is not mine to execute.
 
@@ -56,6 +63,13 @@ absent from the current tree). `--check` is always safe.
    parity contract; `UNVERIFIABLE (<why>)` rows counted in the verdict.
 4. Implement the **verdict algebra**: `UP` / `COMPLETE` / `RUNNING` separately-failable; `CONFIRMED`
    requires all three; **`UNVERIFIED`** when no contract exists; `not obligated` distinct from `not checked`.
+5. ⚠️ **Consume the tri-state `match`** (spec Amendment 2). A parity row's `match: None` means *"did not
+   compare"* → maps to **`not checked`**, counts in the denominator and **never** in the numerator. Reading
+   `None` as agreement is a false all-clear in the exact 0-of-760 shape this plan exists to close.
+6. ⚠️ **Always pass `strict=True`** to the vendored `health-probe` CLI. Proven at `health_probe.py:448`
+   (`critical = critical or set()`) with `:478`/`:481`: with `critical` undeclared, every probe can be
+   `DOWN` and the CLI still `sys.exit(0)` **while printing `DOWN:`**. A runner that omits `strict=True`
+   is silently fail-open on liveness — the fail-open this whole plan is a reaction to.
 
 **Gate:** `python scripts/final_gate.py --json` → success · `python commands/assemble_commands.py --check`
 (temp-dir render, safe) · `grep -c _REGISTRAR_ORDER commands/_sources/fabrik-deploy-verify.md` ≥ 1.
@@ -120,8 +134,12 @@ against measured emitted output, so this gate can actually reach green.
 - **Every phase has a runnable gate** — no phase exits on inspection.
 - **The riskiest step is Phase C's docusaurus caveat**: it is the one place this plan can leak internal
   infrastructure detail to a public site, and it is guarded by a test, not a comment.
-- **Nothing here depends on fabrik-lib.** The fallback is the plan of record; their enhancement is an
-  upgrade, not a prerequisite.
+- **This plan binds to a fabrik-lib INTERFACE but depends on no fabrik-lib ARTIFACT** (amended 2026-09-02;
+  the earlier *"nothing here depends on fabrik-lib"* is now too strong to leave standing). Their
+  `compare()` shape, tri-state `match` and exit-code convention are settled and Phase A is written to them;
+  their *build* is not a prerequisite, because the runner implements the same shape locally until it lands.
+  The distinction is the whole point: binding to a settled interface costs nothing and makes the swap a
+  deletion, whereas the old fallback would have invented a second shape and then owed a migration.
 - **Residual risk, named:** the store/static per-type packs are the least-grounded content in the spec
   (no such deploy was exercised). Phase B ships their rows as `UNVERIFIABLE` **by default** rather than
   guessing, so a wrong check never silently passes.
