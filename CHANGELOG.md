@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Deployment-verification plan CONVERGED by /fabrik-plan-review: 23 findings, all in same-day text (2026-09-02)
+
+- Five passes (R1–R5), R5 quiet at md5 `51edd8a4`; the three flip graders run on a temp-flipped copy with
+  the plan as their listed target (`check_convergence` 0, `check_stage_artifacts` 0, `check_rule_grounding`
+  one cited Standing phantom).
+- **Prose had drifted from the embedded source**: Phase B still quoted the 1366-char description the renderer
+  refused, said "via EXTRACT", and derived routes/schema by rules the dry run had overturned — the R1 check
+  was one-directional; R5 checks prose ↔ source both ways (14/14).
+- **Execution order corrected to C → A → B → D**: corpus predicate 3 binds the rewritten runner too, so
+  the seeded template must exist before either gate.
+- Added: § Constraints Digest (8 grader-verified verbatim quotes), § Spec coverage map, § Execution
+  discipline, per-phase Behavior Contracts (12 scaffold params — `wordpress` is refused, not seeded),
+  a READ-only cross-repo preflight, `/fabrik-docs-review` last; governance files removed from File Scope.
+- Filed to infra: `check_rule_grounding._digest_rows` has no header rule and drops quotes beginning with
+  "Rule" (`01M1GSBZ9HYZP18QZSNR09W62G`). Ledger row `D-080`.
+
 ### Added — the PLURAL rotation vars synced to the shared config (2026-09-02)
 
 - `NVIDIA_API_KEYS` (4) and `MISTRAL_API_KEYS` (8) added to `~/.config/fabrik/subagents.env`,
