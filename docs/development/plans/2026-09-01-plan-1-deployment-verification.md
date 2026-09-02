@@ -1,12 +1,12 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: **CONVERGED** (2026-09-02 · `/fabrik-plan-review` passes R1–R5 — R5 quiet at md5 `51edd8a4`, zero edits, zero
-candidates; 23 findings across R1–R4, every one in text the author wrote the same day; the three flip graders run on a
-temp-flipped copy with the plan as their stated target: `check_convergence` 0 · `check_stage_artifacts` 0 ·
-`check_rule_grounding` one cited Standing phantom). Spec CONVERGED (J5) and APPROVED (D-077).
+Status: **DRAFT** (re-opened 2026-09-02 by `/fabrik-plan-review` R6: fabrik-lib BUILT AND SHIPPED the comparison
+axis this plan binds to — `01M1GQR1R3TD9AE68YVSP0DT51`, their `e48ba19c`/`53c098c2`, 75 tests — so every line that
+described their build as pending, and the absence of any vendoring step, is now wrong; the R1–R5 CONVERGED stamp at
+md5 `51edd8a4` (D-080) is VOID for this run and must be re-earned). Spec CONVERGED (J5) and APPROVED (D-077).
 Date: 2026-09-01 · amended 2026-09-02 (fabrik-lib binding · row-shape split · corpus conformance)
 Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (status per its header — read it, do not trust this line)
-Scope: **`/opt/fabrik` only** — 11 file groups, two of them FLEET-SYNCED. Execution order **C → A → B → D** (see Phase B). Routed feature-scale (spec defect 15: the epic verdict was wrong).
+Scope: **`/opt/fabrik` only** — 12 file groups, three of them FLEET-SYNCED. Execution order **C → A → B → D** (see Phase B). Routed feature-scale (spec defect 15: the epic verdict was wrong).
 
 ## Why this plan exists
 
@@ -29,6 +29,7 @@ product should contain.
 | 9 | `tests/test_deploy_verify_verdict.py` | **NEW** — Phase A step 7: the EXECUTED verdict-algebra check (four row shapes + DOWN/mismatch co-occurrence), watched-fail-first |
 | 10 | `docs/reference/deployment-verification.md` (**NEW**) | the contract is a NEW SUBSYSTEM (two commands, a seeded artifact, a verdict algebra) — evaluation-checklist item 64 owes it its OWN reference doc (grep/`ls` first: none exists); describes the CURRENT architecture, links the spec |
 | 11 | `capabilities.json` + `docs/CAPABILITIES.md` | **REGENERATED**, never hand-edited: `scripts/generate_capability_index.py` enumerates `commands/_sources/*.md` (`:461`) so a new command changes both |
+| 12 | `libs/health_probe/` (**NEW** at the hub — `health_probe.py` + `fingerprint.py`, a byte-for-byte copy of `/opt/fabrik-lib/health-probe/` at their `e48ba19c` (module) / `53c098c2` (post-ship review), each file headed `# VENDORED-FROM fabrik-lib health-probe @ <sha>`) + `scripts/fabrik_synced_manifest.py::VENDORED_DIRS` (`:115` — append `"libs/health_probe"`) | **VENDOR AS SHIPPED** (spec ladder: VENDOR + ENHANCE; fabrik-lib's rule: *"Vendor, don't depend"*, README § How to vendor). `VENDORED_DIRS` is what BOTH the scaffolder (`scaffold.py::_fabrik_vendored_dirs`, `:552-562`, copies at `:1168-1173`) and the fleet sync (`fabrik_synced_manifest.py:288-289`) read, so one entry seeds every NEW project and distributes to every EXISTING one — the per-project onboarding row below no longer has to vendor anything by hand. ⚠️ **FLEET-SYNCED**: the manifest is a governance-sync trigger surface and the dir syncs recursively to ~46 repos; the module imports `httpx` at load (`health_probe.py:50`) and probes need `psycopg2-binary`/`redis` (their `requirements.txt`), so the parity stub imports it LAZILY inside the Layer-3/4 rows and never at module top — a static/store project that skips Layers 2–4 never loads it |
 
 **Governance files are deliberately NOT File Scope** — `CHANGELOG.md`, `INDEX.md`, `docs/README.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md` (the live list is `scripts/enforcement/check_plan_tickets.py::GOVERNANCE_FILES`): they are shared-append surfaces every concurrent plan touches, so they are Phase D doc-sync STEPS, never owned paths. **Project-side outputs are not hub scope either:** `scripts/verify_prod_parity.py`, `docs/DEPLOYMENT.md`, `docs/OPERATIONS.md` are what `/fabrik-deploy-checklist` writes IN THE PROJECT THAT RUNS IT — this plan ships the command and the seeded template, never those files.
 
@@ -46,14 +47,17 @@ is always safe.
 
 ## OUT OF SCOPE — named, not silently dropped
 
-- **fabrik-lib `health-probe` enhancement** — filed `01M1ESR5KJW5Z1EE2YE55MBTE8`; **they** spec and
-  implement, and **they have: ACCEPTED + CONVERGED** (`5f5b2e6f`, their
-  `docs/superpowers/specs/2026-09-02-health-probe-comparison-mode-design.md`). ⚠️ **The FALLBACK is
-  RETIRED as the plan of record** (spec Amendment 2). This plan now binds to their settled interface —
-  `compare(name, expected, actual, *, comparator=None)`, tri-state `match`, `cli(..., mismatch_exit=2,
-  strict=False)` — and the hub-side runner implements **that same shape** locally until their build lands,
-  so the eventual swap is a deletion, not a rewrite. **Still nothing blocks on their BUILD**: the binding
-  is to an interface, not to an artifact.
+- **fabrik-lib `health-probe` — the comparison axis is THEIRS, and it has SHIPPED.** Filed
+  `01M1ESR5KJW5Z1EE2YE55MBTE8`; they specced (`5f5b2e6f`), then **BUILT AND SHIPPED** it (`01M1GQR1R3TD9AE68YVSP0DT51`:
+  their `9f1c657a`, `e48ba19c`, `be1026d2`, `b3162f0d`, post-ship review `53c098c2`; D-029; 75 tests green, re-run
+  here 2026-09-02). ⚠️ **The FALLBACK is RETIRED** (spec Amendment 2) **and so is the "implement the shape locally
+  until their build lands" clause** — there is no local shim to write and none to delete later: File Scope row 12
+  VENDORS the shipped module as-is and Phase A consumes it. What stays out of scope is the module's FUTURE: a
+  fabrik-lib bump is re-vendored by replacing `libs/health_probe/` and its `VENDORED-FROM` sha (a routine sync, not
+  this plan). Interface, verified at their HEAD by execution: `compare(name, expected, actual, *, comparator=None)
+  -> dict[str, object]`, tri-state `match` with `compare_error` on a raising comparator, `run_all_checks() ->
+  list[dict[str, object]]`, `cli(..., mismatch_exit=2, strict=False)` with `mismatch_exit` VALIDATED to `2..255`
+  (`health_probe.py:521-544` — `0` reports success, `1` collides with the liveness exit, `≥256` wraps to `0` on POSIX).
 - **Per-project onboarding (27 deployable repos)** — self-serve; each project's own agent runs the new
   command in its own repo. Cross-repo commits are a HARD STOP, so this is not mine to execute.
 
@@ -134,7 +138,13 @@ the `[anywhere]`/`[hub-side]` tags, "routes are asks", and the fixed Output bloc
 4. **Phase 6 becomes `## Phase 6 — Parity (contract-driven, BLOCKING)` `[anywhere]`** — remove the
    "first 3 rows" cap; execute `scripts/verify_prod_parity.py --json` against the LIVE service (read-only
    rows only; a mutating row is named, never run — the existing rule at `:190-193`); consume every
-   row's `{system,status,detail,expected,actual,match,compare_error}`.
+   row's `{system,status,detail,expected,actual,match,compare_error}`. **The rows come from the VENDORED
+   module** (`libs/health_probe/health_probe.py`, File Scope row 12): `run_all_checks() -> list[dict[str, object]]`
+   (their `:492-500` — a type-level widening, runtime unchanged), so every value is `object` to a type-checker:
+   the runner reads the row SHAPE by key presence (`"expected" in row and "actual" in row`), the tri-state as
+   `row.get("match")` split `is True` / `is False` / `is None`, and coerces `str(row["system"])`/`str(row["status"])`
+   before any string comparison. ⚠️ The hub gate's mypy EXCLUDES `templates/`, `scripts/` and `tests/`
+   (`pyproject.toml:83-86`), so no type-checker guards this at the hub — the executed test in step 7 does.
 5. **Implement the verdict algebra** — `UP` (Layers 1+3) / `COMPLETE` (Layer 2 + parity) / `RUNNING` (Layer
    4) separately failable; `CONFIRMED` requires all three; **`UNVERIFIED`** when no FROZEN contract;
    `not obligated` (a `shape:` exemption) distinct from `not checked` (an `UNVERIFIABLE (<why>)` row);
@@ -143,15 +153,23 @@ the `[anywhere]`/`[hub-side]` tags, "routes are asks", and the fixed Output bloc
    checked"; a row with no `expected`/`actual` is not a parity row (outside the parity denominator, judged
    under `UP`); `True` = numerator; `False` = denies `CONFIRMED`, exit 2. **Precedence `1 → 2 → 0`**
    (liveness wins) never upgrades a verdict.
-6. **Always pass `strict=True`** to the vendored `health-probe` CLI. Proven at `health_probe.py:448`
+6. **Always pass `strict=True`** to the vendored `health-probe` CLI (`cli(..., strict=False)` is still their
+   default at `:560-561`). Proven at `health_probe.py:448`
    (`critical = critical or set()`) with `:478`/`:481`: `critical` undeclared ⇒ every probe DOWN still
    `sys.exit(0)` while printing `DOWN:`. A runner that omits it is fail-open on liveness — reproduced by three
-   independent builds (fabrik-lib runs 3, 6 and their plan-review).
+   independent builds (fabrik-lib runs 3, 6 and their plan-review). **`mismatch_exit` stays the default `2`**
+   — their `_validated_mismatch_exit` (`:521-544`) refuses `0`, `1` and `≥256` (executed here: `2`/`255`
+   accepted, `0`/`1`/`256` raise `ValueError`), so the fail-open shapes the spec's Amendment 3 hunted are
+   unreachable through the CLI; the runner never passes anything else.
 7. **EXECUTE the verdict algebra before calling it built** (fabrik-lib's D-026): ship
    `tests/test_deploy_verify_verdict.py` feeding the algebra the four row shapes (liveness-only/`None` ·
    `expected`+`actual`+`None` · `+False` · `+True`) plus a critical-DOWN co-occurring with a mismatch;
    assert fail-closed on attempted-unresolved, `CONFIRMED` denied by either condition independently,
-   exit `1` over `2` never upgrading, a liveness-only row absent from the parity denominator.
+   exit `1` over `2` never upgrading, a liveness-only row absent from the parity denominator. **The parity rows
+   are PRODUCED by the vendored `compare()`, never hand-written** — `compare("companies", 3, 3)`, `compare(…, 3, 0)`
+   and `compare(…, 3, None, comparator=<raises>)` are the three shapes, so the test binds to the SHIPPED row
+   semantics (a raising comparator keeps `system` and sets `compare_error`, `match: None`) and breaks the day
+   a re-vendor changes them. Reference: `verdict_algebra_shipped.py` in § Evidence (8/8 on shipped rows).
    **Watched-fail-first** — run the RETIRED uniform `None → not checked` rule beside the real one and
    assert it produces the false all-clear (the scratch `verdict_algebra_check.py` from spec-review J5 is the
    reference: 13 assertions, retired rule reproduces the defect).
@@ -320,8 +338,23 @@ matching the anatomy table; the tryton-crm dry run's Output block pasted.
    assert the stub exists, is executable, **exits 2**, and its header parses; assert a `docusaurus` scaffold
    does not publish the new doc sections; **red-on-revert** for the exit code and the exclusion.
 
+5. **Vendor `health-probe` AS SHIPPED** (File Scope row 12): `cp /opt/fabrik-lib/health-probe/{health_probe.py,fingerprint.py}
+   libs/health_probe/` (READ from fabrik-lib, WRITE only in this repo), prepend `# VENDORED-FROM fabrik-lib
+   health-probe @ <sha>` to each (`git -C /opt/fabrik-lib log -1 --format=%h -- health-probe/<file>`), append
+   `"libs/health_probe"` to `VENDORED_DIRS` (`fabrik_synced_manifest.py:115`) — the scaffolder copies it at
+   `scaffold.py:1168-1173` and the fleet sync distributes it (`fabrik_synced_manifest.py:288-289`). The stub
+   template imports it **lazily** (`from libs.health_probe.health_probe import compare` inside the row
+   functions), and an `ImportError` there is a row `UNVERIFIABLE (health_probe not vendored — sync pending)`
+   that still exits 2: fail-closed, named, never a crash. Test: the seeded copy is byte-identical to the hub's
+   `libs/health_probe/` and the hub's copy differs from `/opt/fabrik-lib/health-probe/` ONLY by the
+   `VENDORED-FROM` line (drift is then a red test, not a silent fork); red-on-revert by deleting the manifest entry.
+
 **Gate:** `final_gate --json` success · `timeout 900 pytest tests/test_scaffold*.py` green · the exit-code and
-docusaurus-exclusion assertions proven **red-on-revert**.
+docusaurus-exclusion assertions proven **red-on-revert** · the manifest entry asserted where the sync and the
+scaffolder both read it: `python -c "import sys; sys.path.insert(0, 'scripts'); from fabrik_synced_manifest import
+VENDORED_DIRS; assert 'libs/health_probe' in VENDORED_DIRS"` (⚠️ NOT `sync_enforcement_to_projects.py --dry-run`:
+measured 2026-09-02 it prints per-FILE rows for the governance set only — 10,531 lines, none naming
+`libs/subagents`, today's vendored dir — so it cannot witness a vendored-dir entry).
 
 ⚠️ **The 900s budget is MEASURED, not guessed** (2026-09-02, idle box, no concurrent runs):
 `1 failed, 251 passed, 1 deselected in 560.49s (9m20s)`. 900s leaves ~60% headroom.
@@ -357,13 +390,13 @@ touched or made stale (the Doc Sync Matrix is a floor, not a whitelist).
 | Layer 3 derived at RUN time from `_REGISTRAR_ORDER` | Phase A step 3 |
 | Phase 6 blocking + contract-driven parity | Phase A step 4 |
 | Verdict algebra incl. `UNVERIFIED`, `not obligated` vs `not checked`, row-shape `match`, precedence 1→2→0 | Phase A steps 5–7 (executed test) |
-| Amendment 2/3 — bind to `compare()`, four keys, `strict=True` always | Phase A steps 5–6; the draft's Phase 2 row shape |
+| Amendment 2/3 — bind to `compare()`, four keys, `strict=True` always | Phase A steps 4–7 (typing at 4 · algebra at 5 · `strict`/`mismatch_exit` at 6 · rows from the vendored `compare()` at 7); the draft's Phase 2 row shape |
 | Amendment 1 — a NEW project-side authoring command + DEPLOYMENT/OPERATIONS refresh from CODE+SPEC+DEV | Phase B (Appendix A) |
 | Denominator integrity (derived where derivable, cross-checked where declared) | the draft's Phase 1 table + Phase 3 |
 | Three-source model — DEV minus declared exclusions | the draft's Phase 1 state-baseline row + Phase 2 exclusion data |
 | "A check that cannot fail is a defect" | the draft's Phase 5 (SEE EVERY ROW RED) + Phase A's gate rewrite |
 | § Born compliant — scaffolder seeds the artifacts, stub exits non-zero, docusaurus caveat | Phase C |
-| fabrik-lib ladder — VENDOR + ENHANCE `health-probe`; runner stays hub-side (D-072) | Phase A (vendored shape) · OUT OF SCOPE row (their build) |
+| fabrik-lib ladder — VENDOR + ENHANCE `health-probe`; runner stays hub-side (D-072) | Phase C step 5 (VENDORED as SHIPPED, File Scope row 12, synced) · Phase A steps 4–7 (the consumer) · OUT OF SCOPE row (their future bumps) |
 | Per-type packs (13 types; store types provenance-only) | the draft's Phase 0 + Phase 2 `UNVERIFIABLE`-by-default for store/static packs |
 | Deferred: `fabrik apply` moving to projects (I1b); tryton-crm's RESILIENCE converge (I22) | not built — spec § Deferred names both; unchanged here |
 
@@ -394,6 +427,7 @@ touched or made stale (the Doc Sync Matrix is a floor, not a whitelist).
 | a critical DOWN co-occurring with a mismatch exits 1, never upgrades the verdict | `test_precedence_liveness_wins` | assert against a rule that returns 2 |
 | a liveness-only row is outside the parity denominator | `test_liveness_row_not_in_denominator` | count it in and watch `N` grow |
 | no FROZEN contract ⇒ `UNVERIFIED`, never `CONFIRMED` | `test_no_contract_is_unverified` | a DRAFT header passed as FROZEN |
+| the parity rows the algebra is tested on come from the VENDORED `compare()` — a raising comparator yields `match: None` + `compare_error`, keeps `system` | `test_rows_come_from_vendored_compare` | replace the vendored import with a hand-written dict and watch the `compare_error` assertion vanish |
 | the rendered runner carries `## Phase 6 — Parity` and the `UNVERIFIED` vocabulary | `test_deploy_verify_source_carries_parity_phase` | run against HEAD's source (red today) |
 
 **Phase B (`tests/test_check_command_corpus.py` extension)**
@@ -412,6 +446,8 @@ touched or made stale (the Doc Sync Matrix is a floor, not a whitelist).
 | `wordpress` is refused by the scaffolder, not silently seeded | `test_wordpress_is_not_scaffolded` | let the branch fall through on revert |
 | a `docusaurus` scaffold publishes none of the new doc-template sections | `test_docusaurus_does_not_publish_fleet_ai_sections` | remove the exclude on revert |
 | the DEPLOYMENT/OPERATIONS templates carry the fleet-AI sentinel sections | `test_fleet_ai_sections_present` | template without them |
+| a scaffolded project carries `libs/health_probe/` byte-identical to the hub's vendored copy, and the hub's copy differs from fabrik-lib's only by the `VENDORED-FROM` line | `test_health_probe_vendored_and_in_sync` | delete the `VENDORED_DIRS` entry on revert |
+| the stub with `libs/health_probe/` missing exits 2 with a named `UNVERIFIABLE (health_probe not vendored …)` row, never a traceback | `test_stub_without_vendored_module_fails_closed` | let the ImportError propagate on revert |
 
 ## Self-audit
 
@@ -423,10 +459,12 @@ touched or made stale (the Doc Sync Matrix is a floor, not a whitelist).
   table of anchors read this run; `/fabrik-plan-review`'s re-derivation pass re-opens every one of them.
 - **The riskiest step is File Scope row 5** — a synced governance template; wrong for ONE of ~46 projects
   and it ships to all of them. Second riskiest: Phase C's docusaurus caveat, guarded by a test, not a comment.
-- **This plan binds to a fabrik-lib INTERFACE but depends on no fabrik-lib ARTIFACT** — their `compare()`
-  shape, tri-state `match` and exit ranking are settled and Phase A is written to them; their *build* is not
-  a prerequisite, because the runner implements the same shape locally until it lands. Binding to a settled
-  interface costs nothing and makes the swap a deletion; the old fallback would have invented a second shape.
+- **This plan binds to fabrik-lib's SHIPPED module, vendored, not to a shape re-implemented here** — their
+  build landed before execution began (`01M1GQR1R3`, 75 tests re-run at their HEAD), so the earlier "implement
+  the same shape locally until it lands" clause became DEAD scope and was struck in R6, together with the
+  vendoring step it had made unnecessary to write (File Scope row 12, Phase C step 5). The verdict test now
+  consumes rows from the real `compare()`, so a future re-vendor that changes row semantics turns a test red
+  instead of silently re-opening the fail-open Amendment 3 closed.
 - **Two design checks are EXECUTED, not read** — Phase A step 7 (the verdict algebra, watched-fail-first
   against the retired rule) and Phase B's Phase 5 (every contract row seen RED). Five text-only CONVERGED
   stamps on the spec were each wrong; the plan does not repeat the method.
@@ -497,6 +535,48 @@ grade() → (mis-routes=[], correct=92, nowhere=48, broken_promises=[])
 #   finding); no stem is added — skill_router.py's own policy is that a loose pattern is worse than the gap
 ```
 
+**EXECUTED at fabrik-lib HEAD, READ-ONLY (R6, 2026-09-02 — the shipped interface, not its spec):**
+
+```
+$ git -C /opt/fabrik-lib log -1 --format='%h %s' -- health-probe/health_probe.py
+e48ba19c feat(health-probe): Phase B — exit semantics, precedence, and a validated mismatch code
+$ grep -nE "^def compare\(|def run_all_checks|list\[dict\[str, object\]\]|def _validated_mismatch_exit|2 <= code <= 255|mismatch_exit: int = 2|strict: bool = False" /opt/fabrik-lib/health-probe/health_probe.py
+81:def compare(
+492:def run_all_checks(
+494:) -> list[dict[str, object]]:
+500:    results: list[dict[str, object]] = []
+521:def _validated_mismatch_exit(value: object) -> int:
+541:    if not 2 <= code <= 255:
+560:    mismatch_exit: int = 2,
+561:    strict: bool = False,
+$ grep -n "^import httpx" /opt/fabrik-lib/health-probe/health_probe.py
+50:import httpx as httpx  # explicit re-export: lets `h.httpx` be monkeypatched by callers
+$ cd /opt/fabrik-lib && .venv/bin/python -m pytest health-probe -q | tail -1
+75 passed in 8.44s
+$ .venv/bin/python verdict_algebra_shipped.py     # the J5 algebra fed rows from the REAL compare()
+shipped rows: {'system': 'companies', 'status': 'OK', 'match': True} {'match': False} {'match': None, 'compare_error': "RuntimeError('x')"}
+PASS agree -> CONFIRMED/0
+PASS differ -> FAIL/2
+PASS raise -> attempted-unresolved FAILS CLOSED/2
+PASS raise keeps system name
+PASS raise carries compare_error
+PASS liveness row outside parity denominator
+PASS DOWN + differ -> exit 1 outranks 2
+PASS mismatch_exit 2 accepted, 0/1/256 refused
+8/8 assertions on SHIPPED rows
+$ grep -n 'VENDORED_DIRS' scripts/fabrik_synced_manifest.py src/fabrik/scaffold.py | cut -c1-90
+scripts/fabrik_synced_manifest.py:115:VENDORED_DIRS = ["libs/subagents"]
+scripts/fabrik_synced_manifest.py:289:    for rel_dir in [*GOVERNANCE_DIRS, ENFORCEMENT_DIR, *VENDORED_DIRS]:
+src/fabrik/scaffold.py:560:    from fabrik_synced_manifest import VENDORED_DIRS
+$ sed -n 83,86p pyproject.toml
+exclude = [
+    "^scripts/",  # Standalone scripts, not part of package
+    "^tests/",
+    "^templates/",
+$ python scripts/review_rubric.py --changed <File Scope, 19 paths> | grep -c '^### '
+10          # 7 before row 12; the three new MATCHED packs are 55-observability · 58-resilience · self-healing
+```
+
 **What the executed run proves and what it does NOT:** it proves the anatomy + PARAMS + registration
 mechanics of Phase B render and pass the corpus predicates once Phase C's template exists, and that the
 run-record phase count derives correctly from the `## Phase N` headings. It does **not** prove the command's
@@ -510,12 +590,13 @@ become Parity), `:199-216` (Output), `src/fabrik/orchestrator/infrastructure.py:
 Phase B → `commands/_sources/fabrik-data-contract.md:22-54,142-190,206-225` (the authoring anatomy),
 `commands/_fragments/term-edit.md`, `assemble_commands.py:49,331,394`, `commands/_sources/fabrik-release.md:20-35,76-86`,
 `CLAUDE.md:333`, `templates/governance/CLAUDE.md:339`, `scripts/generate_capability_index.py:461`,
-`docs/reference/MD/ai-prompt-templates.md:256-317` · Phase C → `src/fabrik/scaffold.py:285,293,479,1127`,
-`templates/scaffold/docs/data-contract-template.md:1-10` · Phase D → `scripts/enforcement/check_convergence.py`.
+`docs/reference/MD/ai-prompt-templates.md:256-317` · Phase C → `src/fabrik/scaffold.py:285,293,479,552-562,1127,1168-1173`,
+`templates/scaffold/docs/data-contract-template.md:1-10`, `scripts/fabrik_synced_manifest.py:115,288-289`,
+`/opt/fabrik-lib/health-probe/{health_probe.py,fingerprint.py}` (READ) · Phase D → `scripts/enforcement/check_convergence.py`.
 
 ## Coverage Checklist
 
-**Rubric invocation** — `python scripts/review_rubric.py --changed commands/_sources/fabrik-deploy-checklist.md commands/_sources/fabrik-deploy-verify.md commands/assemble_commands.py commands/_sources/fabrik-release.md CLAUDE.md templates/governance/CLAUDE.md templates/scaffold/scripts/verify_prod_parity.py src/fabrik/scaffold.py templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md templates/scaffold/docs/OPERATIONS_TEMPLATE.md tests/test_scaffold_deploy_contract.py tests/test_check_command_corpus.py tests/test_deploy_verify_verdict.py docs/reference/deployment-verification.md capabilities.json docs/CAPABILITIES.md` — the FULL File Scope (plan-review pass 1: the earlier invocation covered 2 of 11 groups and missed three MATCHED packs)
+**Rubric invocation** — `python scripts/review_rubric.py --changed commands/_sources/fabrik-deploy-checklist.md commands/_sources/fabrik-deploy-verify.md commands/assemble_commands.py commands/_sources/fabrik-release.md CLAUDE.md templates/governance/CLAUDE.md templates/scaffold/scripts/verify_prod_parity.py src/fabrik/scaffold.py templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md templates/scaffold/docs/OPERATIONS_TEMPLATE.md tests/test_scaffold_deploy_contract.py tests/test_check_command_corpus.py tests/test_deploy_verify_verdict.py docs/reference/deployment-verification.md capabilities.json docs/CAPABILITIES.md libs/health_probe/health_probe.py libs/health_probe/fingerprint.py scripts/fabrik_synced_manifest.py` — the FULL File Scope (plan-review pass 1: the earlier invocation covered 2 of 11 groups and missed three MATCHED packs)
 
 ```
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
@@ -606,7 +687,7 @@ Phase B → `commands/_sources/fabrik-data-contract.md:22-54,142-190,206-225` (t
 
 ## MATCHED — packs whose globs hit the changed paths
 
-### core/10-python.md  (hit: commands/assemble_commands.py, src/fabrik/scaffold.py, templates/scaffold/scripts/verify_prod_parity.py)
+### core/10-python.md  (hit: commands/assemble_commands.py, libs/health_probe/fingerprint.py, libs/health_probe/health_probe.py)
 **`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
 - Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 - its own reviewed commit, never as a side effect of unrelated work.
@@ -659,7 +740,103 @@ Phase B → `commands/_sources/fabrik-data-contract.md:22-54,142-190,206-225` (t
 | A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
 - [ ] Destructive DB tests call `require_throwaway(TEST_DATABASE_URL)` before connecting — never point them at a dev/shared DB.
 
-# promote-to-check_*: 80 injected mandate(s) look deterministically greppable
+### core/55-observability.md  (hit: libs/health_probe/fingerprint.py, libs/health_probe/health_probe.py)
+- ⚠️ **The shipper is Promtail today and Promtail reached END OF LIFE (2026-03-02)** — no
+- **The label set is the PIPELINE's, not yours** — live: `container_name`, `filename`, `host`, `job`, `service_name`, `stream`. An app cannot add labels by logging a field; a JSON field is queried with `| json`, never as a label.
+- > *"A twelve-factor app never concerns itself with routing or storage of its output stream. It should not attempt to write to or manage logfiles."*
+**Mandate.** The app writes structured events, unbuffered, to `stdout` and **nothing else**. The app MUST NEVER write, rotate, append to, truncate, compress, age out, or otherwise manage a logfile, and MUST NEVER decide where logs are stored, how long they are kept, or how they are routed. Routing, rotation, retention, and storage are exclusively the **execution environment's** concern.
+**BANNED in app code:**
+- The scaffolded logger (structlog / pino — see § Pre-Scaffolded Logging) writes to stdout. Do not add a second handler, sink, or transport alongside the stdout one.
+- ❌ **BANNED — in-app file logging:**
+- > **⚠️ THE SERVER'S OWN LOGGERS ARE NOT YOURS — and they leak plain text by default.**
+**Chrome extension frontend:** Use `chrome.storage.local` buffer pattern per the Chrome Extension Telemetry section below. Do not use pino directly in service workers.
+- Name metrics with `snake_case` and a **base-unit** suffix (`_seconds`, `_bytes`); `_total` is the COUNTER suffix and composes with units (`process_cpu_seconds_total`). ⚠️ `prometheus_client` appends `_total` to a Counter itself — declare `Counter("requests", …)`, never `Counter("requests_total", …)`, and never `_count` (an OpenMetrics reserved suffix).
+- ⚠️ **Know which failure YOUR stack gives you — they are not the same.** Under an OTel SDK, a
+- Every `sentry_sdk.init` / `Sentry.init` in the fleet MUST set both:
+| `max_request_body_size="never"` | **n/a — see below** | the request BODY, attached irrespective of `send_default_pii` (that flag gates COOKIES). Every auth, payments-webhook and token-exchange route is exposed the moment it logs an error while handling its request. **PYTHON ONLY** |
+- ⚠️ **The two SDKs are NOT symmetric, and the Node column originally said otherwise — that was my
+- already closed by `sendDefaultPii: false`, which makes the SDK report body **size only, never
+- `httpIntegration({ maxIncomingRequestBodySize: 'none' })` — note `'none'`, not `'never'`.
+**Never port an option name across SDKs by symmetry; check that SDK's own docs.**
+**Verify on the CAPTURED EVENT, never the init kwarg.** Swap the SDK transport in a test, make a
+- ⚠️ The scaffold emits both flags as of 2026-08-28. **A project scaffolded BEFORE that date still
+- This is intentional: services without DSN configured never pay for SDK runtime cost
+- ⚠️ **Outside that set nothing captures it.** A deliberate 401/403/429 you WANT audited reaches GlitchTip never — widen `failed_request_status_codes` in the init rather than sprinkling `capture_exception` through handlers.
+- For `chrome-extension`: use `@sentry/browser` in the popup/options/side-panel (trusted extension pages). **In content scripts, never call the global `Sentry.init`** — a content script shares the host page's `window`, so global-state integrations hijack host-page errors. Build an isolated `BrowserClient` + `Scope` (drop `GlobalHandlers` / `Breadcrumbs`) and wrap with `makeBrowserOfflineTransport` (IndexedDB buffer/flush). Service workers use the `chrome.storage.local` buffer pattern (see Chrome Extension Telemetry below).
+- **Caught-and-handled** exceptions: log with stack traces via `exc_info=True` in Python (dedicated JSON attribute, never raw multi-line text). **Unhandled** exceptions (FastAPI 500s, uncaught throws): do NOT log tracebacks — GlitchTip auto-captures them. Log a short event name + `correlation_id` only. See § Error Reporting above.
+- In FastAPI: use `contextvars` + ASGI middleware to bind the ID to `structlog` context. Never use `threading.local()` in async code.
+- ⚠️ **Why this fleet stops at a correlation ID, and what to name the field.** Probed 2026-09-01 across
+- datasources (loki, prometheus). ⚠️ Not "no spans at all": Sentry-SDK services already emit
+- So do NOT instrument distributed tracing here: spans with nowhere to go are cost without a consumer,
+- Never rely on downstream log processors (Promtail, Logstash) for redaction — unredacted data may persist in transport buffers.
+- **Never** use high-cardinality values as Loki stream labels. `request_id`, `user_id`, `session_id`, `client_ip` must remain inside the JSON payload only.
+- ⚠️ **The label set is the PIPELINE's — an app cannot create one by logging a field.** See § Loki
+- `/health` is Authelia-bypassed on all services. The bypass is **resource-based, not domain-bound** — `/health`, `/healthz`, `/metrics`, `/api/health` are bypassed on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file`). Never protect these paths.
+- Never use UUID or timestamp-suffixed container names in Gatus configs or inter-service URLs — they drift per redeploy.
+- MV3 service workers are ephemeral (terminated after ~30s idle). Do not hold logs in memory waiting for a batch window.
+- Do not propose OTel instrumentation for a fleet service without new evidence. Measured against
+- GlitchTip DSN comes from `GLITCHTIP_DSN` env var injected by the orchestrator from the GlitchTip registrar — do NOT hardcode the DSN in the repo.
+
+### core/58-resilience.md  (hit: libs/health_probe/fingerprint.py, libs/health_probe/health_probe.py)
+- indexed here, never restated; "can actually suffer" is decided by § Per-Scaffold Applicability above.
+- ⚠️ **Rows 9 and 22 make "autorecovery" honest.** Everything else recovers a *call*; row 9 recovers the
+- **`httpx.AsyncClient`** is the only HTTP client for async FastAPI. Never use `requests` (sync, blocks the event loop).
+**`wait_random_exponential` / `wait_exponential_jitter`, never bare `wait_exponential`**. Not a style
+- 400/401/403/404/422 — a permanent client error retried is just load. ⚠️ **`429` and `408` are the
+- vendor and `408` is transient by definition, so a flat "never retry 4xx" makes an agent give up on
+- curve does. ⚠️ **Two legal formats**: delay-seconds (`120`) *or* an HTTP-date
+- **⚠️ Inline retry vs PAUSE — and `429` is where they meet.** An inline retry handles a **blip**; a
+- discovery spares the whole queue. ⚠️ **Clamp that TTL too** (§7a): the inline cap stops a hostile
+- QUEUE for a day. A vendor number never becomes a TTL unclamped. This is why the classifier pauses on
+- **⚠️ Retry at ONE layer.** Retries compose multiplicatively: tenacity ×3 in a job, a queue retry ×3
+- **⚠️ Retrying a non-idempotent write can double-charge, double-send or double-create.** A `POST` (or
+- a timeout you never saw the response to is a second real mutation. `PUT`/`DELETE` are idempotent by
+- **Graceful fallback** — cached data, a default, or a clear error. Never let an external failure crash
+- your endpoint. ⚠️ That includes the *parse*: a `200` with malformed JSON raises `JSONDecodeError`,
+- Clients call a **self-hosted FastAPI backend** (Pattern A — `fabrik-lib/fastapi-user-auth`), never a database-as-a-service SDK directly. Browser `fetch` / mobile HTTP clients have no built-in timeout or retry — wire them explicitly:
+- **Backend outage fallback:** cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
+- **Auth token refresh:** the app's auth client owns the refresh flow (`35-security-auth.md` Pattern A). Never scatter ad-hoc refresh logic across service calls.
+| **`open` returns the fallback IMMEDIATELY**, never a queued timeout wait | you re-pay the read timeout on every call to a dead dependency |
+- distributed breaker: never back it with Redis to "share" state. ⚠️ Corollary: with N workers, up to
+- **Never auto-run migrations at startup** — a one-shot deploy step (`30-ops` § Release & Admin).
+- ⚠️ **The "fail readiness first, then drain" step in every Kubernetes guide does NOT apply here by
+- **The signal must arrive.** Shell-form `CMD` makes `/bin/sh` PID 1, which never forwards SIGTERM —
+- stampedes the origin — a herd from your own cache, not a retry loop, so jitter and backoff never
+| **Backblaze B2** (S3 API, `boto3`) | 30s connect / 120s read | return an error; never block a request on an upload |
+- B2 uploads go async via the job queue, never inline in a handler. **boto3 is sync** — keep it in the
+- worker or a thread executor, never inside an `async def` route.
+- B2 downloads use server-side presigned URLs (generation is local, no I/O — safe in async). Never
+- ⚠️ **Never point `HEALTHCHECK` at the dependency-checking endpoint** — one `postgres-main` blip would
+- flip every container on the fleet to `unhealthy` at once. A DB blip degrades readiness; it must never
+- Both endpoints are Authelia-bypassed on all services. Never protect them.
+- ⚠️ **Docker does NOT restart an unhealthy container.** `restart: unless-stopped` acts on process
+- never a restart. A process that is **wedged but alive** is recovered by nothing in compose: that is
+- the watchdog's Tier A `restart_container` (`60-watchdog`), and it is why the watchdog exists. Never
+- see pause state without it firing Gatus alerts. ⚠️ That deliberate green is exactly why a long pause
+- 1. **Detection is proactive AND reactive.** Beat tasks poll vendor balance APIs *before* workers fail; error classifiers map exceptions to pause keys on the way through. Never one without the other for a critical dependency.
+- ⚠️ **So a pause carries its FIRST-set time and escalates exactly once past N× its TTL**
+- boot). Sliding TTL: every detection event calls `set_pause(...)` with a fresh TTL — never `setnx`,
+- never permanent. Scope (§2c of the project's RESILIENCE.md):
+- your dependencies, never inline at a call site.
+- The classifier maps transient signals → pause. Its mirror-image rule is just as load-bearing: **an operational failure must never be written as a terminal *content* verdict.** Model the outcome on two axes — **(transport outcome) × (content evidence)** — and record a content terminal (`deleted`, `private`, `unavailable`…) only on **positive content evidence**. Everything else is transient.
+| 1 | **No single point of death** — one model or endpoint dying must not stop the loop | **Declare** the mechanism in §2b. Outage-aware routing is step 1 of OpenRouter's default strategy and a `models` array falls back on **any** error. ⚠️ **The trap: setting `sort` or `order` DISABLES load balancing, and the outage step is *part of* it** — pinning silently opts you out of the protection you think you have (claims row `openrouter-pin-disables-failover`); if you pin, you owe the `models` array explicitly | **Build it**: probe the quality-ordered candidates **once at run start** (never per item) and rebuild the chain from live survivors, best first, so it self-restores on recovery. Base it on `fabrik-lib/health-probe/`; the shared chain-rebuild helper is requested, not shipped, so promotion logic is project-local today. Needs **intra-provider** (2+ models of one provider) AND **cross-provider** diversity |
+| Worker clears `dispatched:<id>` flag when paused | Worker MUST keep the flag on pause-skip (queue bloat) |
+| Backup that has never been restored to staging | Run §10 drill within 30 days or it doesn't exist |
+| A fallback chain whose **bottom rung has never been executed** | Exercise the last resort on a schedule — an untested fallback is a silently-dead one, and the chain is a rung shorter than its author believes |
+- one-shot migration step boot must never do
+- [ ] Retries use **jittered** backoff (`wait_random_exponential`/`wait_exponential_jitter`, never bare
+- naming only `TimeoutException`/`ConnectError` never retries a 429.
+- state — never a blank screen.
+
+### core/self-healing.md  (hit: libs/health_probe/fingerprint.py, libs/health_probe/health_probe.py)
+- AGENT USAGE: Pick the failure class, walk the ladder top-to-bottom, stop at the first step that resolves. Never invent a step. Never skip a step. -->
+- Each row reads left-to-right: **Symptom** (an observable signal) → **First response** (a `58-resilience` primitive) → **Fallback** (another primitive or a `60-watchdog` Tier A action) → **Escalate** (operator-bound). The agent picks the row matching the active failure, walks left-to-right, and **stops at the first step that resolves**. Never skip rightward.
+**⚠️ Row 10 is NOT the deadman timer, and the difference is the whole point.** The Tier-C deadman below
+- deadman never armed because nothing escalated, and a container restart would not have helped a process
+- If a failure class doesn't appear in the table above, the rule is: **add the row to this pack first, then the response logic to the code.** Never silently invent a self-healing response — it'll diverge from the operator's mental model and break the ladder's discipline.
+- 4. **Self-healing without a visible signal.** A pause flag, breaker, or rate-limit reject that doesn't increment a counter and emit a structured log line is invisible — when it misfires, you can't tell. Every ladder step MUST emit a counter AND a `structlog.info()` (or `pino.info()`) row carrying the resource name + reason; without that, the next operator audit has no way to tell the difference between "step fired and recovered" and "step never ran". **Tier-D steps (stabilize / remediate / apply / rollback) are held to the same bar:** each MUST emit a counter + structured log AND write the `incidents` / `approvals` / `deploys` tables — an unaudited or irreversible code-remediation is not self-healing, it's an unreviewed deploy.
+
+# promote-to-check_*: 123 injected mandate(s) look deterministically greppable
 **The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — **Argon2id** (the vendored argon2-cffi defaults meet OWASP minimums; never Argon2i) + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `agents-fabrik.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
 | `chrome-extension` | ✅ **use this** | ⚠️ only via `chrome.identity.launchWebAuthFlow` + the `https://<ext-id>.chromiumapp.org/` redirect the pack already mandates; a bare mailed link lands in a TAB that cannot reach `chrome.storage.session` |
 | `desktop-app` | ✅ **use this** | ⚠️ needs a registered custom protocol handler; the token then goes to `safeStorage` (`desktop-app/72-desktop.md`) |
@@ -701,6 +878,9 @@ The three MATCHED packs the full invocation surfaced are adjudicated in the rows
 | **behavior-without-a-test** (standing) | **FIXED** | Phase C's two assertions require red-on-revert proof; plan-review pass 1 added a Behavior Contract table to Phases A, B and C |
 | core/10-python (MATCHED: `assemble_commands.py`, `scaffold.py`, the template script) | CLEAN | the seeded `verify_prod_parity.py` is a SCRIPT, not a service config surface — bare `os.getenv` is the sanctioned form there (`.windsurf/rules/core/25-data-postgres.md:67-69` carve-out); no new Settings surface is introduced |
 | core/40-documentation (MATCHED: `CLAUDE.md`, `INDEX.md`, the new source) | CLEAN | the one new `.md` is `docs/reference/deployment-verification.md`, inside the DEFAULT-DENY allowlist (`docs/reference/**`); the plan lives at the mandated `docs/development/plans/YYYY-MM-DD-plan-<name>.md` path; INDEX/README are Phase D doc-sync steps |
+| core/55-observability (MATCHED R7: `libs/health_probe/*.py`, the vendored module) | CLEAN | the module writes to `stdout` only (`health_probe.py:605-631` are `print`s; 0 `logging.`/`open(` sites in 647 lines) and probes compose service names, never UUID-suffixed ones — the pack's container-name rule binds Phase B's Layer-3 targets, quoted in the digest |
+| core/58-resilience (MATCHED R7: `libs/health_probe/*.py`) | CLEAN | every probe carries a timeout (`connect_timeout=8` at `:182`/`:226`, `timeout or TIMEOUT` at `:265`) and NO retry loop — a one-shot probe retries at ONE layer, the caller's; the runner never becomes a container `HEALTHCHECK` (digest quote); a defect found in the vendored code is FILED to fabrik-lib, never patched in the copy |
+| core/self-healing (MATCHED R7: `libs/health_probe/*.py`) | REFUTED (not applicable) | the module and the runner take NO self-healing action — a FAIL row ROUTES (`routes are asks, never actions`, Phase A anatomy) and the ladder rule *"add the row to this pack first"* is what forbids the runner from inventing a response; hunted: `health_probe.py` for `restart`/`pause`/`set_pause` → 0 of 647 lines |
 | core/45-testing-strategy (MATCHED: the three test files) | **FIXED** | every phase now carries a Behavior Contract (one test per user-observable behavior, seen red first); Phase A step 7's watched-fail-first runs the RETIRED rule beside the real one |
 | **order-vs-gate** (found pass 1) | **FIXED** | Phase A's runner cites `scripts/verify_prod_parity.py` → corpus predicate 3 binds A as well as B → order C → A → B → D |
 | **governance files in File Scope** (found pass 1) | **FIXED** | `INDEX.md`/`docs/README.md` removed from owned paths per `check_plan_tickets.py::GOVERNANCE_FILES`; project-side outputs labelled as not hub scope |
@@ -717,6 +897,9 @@ The three MATCHED packs the full invocation surfaced are adjudicated in the rows
 | config via env vars only (os.getenv("KEY", "default")); ZERO secrets/constants in code | `.windsurf/rules/core/35-security-auth.md:266` | the parity contract carries NO expected VALUE that is a secret — row expectations are counts, hashes, names, presence; the exclusion list names rulings, never credentials |
 | deploy.resources.limits.memory is mandatory. | `.windsurf/rules/core/30-ops.md:148` | Phase B's services denominator (yaml parse) can and does assert every service declares the limit — a compose row without it is a `match: False`, not a skipped check |
 | Location: docs/development/plans/YYYY-MM-DD-plan-<name>.md | `.windsurf/rules/core/40-documentation.md:157` | this plan's own path; the reference doc it adds sits in `docs/reference/**`, the allowlisted home |
+| Never point HEALTHCHECK at the dependency-checking endpoint | `.windsurf/rules/core/58-resilience.md:469` | the vendored probes back the PARITY runner, run by an agent at verify time — never a compose `HEALTHCHECK`; Phase A step 4's Layer-3/4 rows read the service, they do not define its liveness |
+| Never use UUID or timestamp-suffixed container names in Gatus configs or inter-service URLs — they drift per redeploy. | `.windsurf/rules/core/55-observability.md:468` | the draft's Phase 1 services denominator and Layer-3 targets are compose SERVICE names; a UUID-named target is a row defect, not a probe target |
+| add the row to this pack first, then the response logic to the code. | `.windsurf/rules/core/self-healing.md:64` | the runner never self-heals: a FAIL routes to a command, a mismatch is reported — no response logic is written in this plan, so no ladder row is owed |
 | Edit existing docs instead of creating new ones. | `.windsurf/rules/core/40-documentation.md:185` | the ONE new doc (`docs/reference/deployment-verification.md`) is justified by evaluation-checklist item 64 (a new subsystem owes its own reference doc) and the plan says to `grep`/`ls` first |
 
 ## Pass ledger (`/fabrik-plan-review`)
@@ -735,6 +918,9 @@ The three MATCHED packs the full invocation surfaced are adjudicated in the rows
 | R5 | closing fresh read of the R4 region + BIDIRECTIONAL prose↔source (14/14) + the full battery + flip graders with exit codes and denominator | **method: re-derivation + execution** | **0 (new: 0)** | **0** | `51edd8a4…` → `51edd8a4…` ✓ → **CONVERGED** |
 
 | — | **operator approved the design (D-077) and directed: re-author to the command-corpus conventions — convergence voided, `/fabrik-plan-review` owed** | — | — | — |
+| — | **fabrik-lib SHIPPED the comparison axis (`01M1GQR1R3`, 2026-09-02) after R5 — the operator asked for the mail to be checked and the review re-run; the R5 stamp (D-080) is VOID for this run** | — | — | — |
+| R6 | WIDE fresh read attacking (A) every "their build lands later" clause · (B) `run_all_checks` typing under the hub's mypy scope · (C) `mismatch_exit` 2..255 · (D) the algebra on rows from the REAL `compare()` · (E) the R1–R5 class ledger re-swept (File Scope existence 11/11 · rubric re-run 7/7 packs identical · Evidence probes) | **method: citation + execution** (their suite 75/75, `_validated_mismatch_exit` 0/1/2/255/256, `compare()` three shapes, `verdict_algebra_shipped.py` 8/8) | 6 (new: 6) | 6 | `60f26eb8…` → `7a6cbbd4…` |
+| R7 | SCOPED to the R6 edits + their cross-references: coverage-map step range · Phase C gate re-grounded (the sync dry-run cannot witness a vendored dir — measured) · rubric re-run over the 19-path File Scope → 3 NEW MATCHED packs (55 · 58 · self-healing) adjudicated in the Coverage Checklist and quoted in the Constraints Digest · Evidence block gains the executed R6 probes | **method: execution + citation** | 3 (new: 3) | 3 | `989e7e7a…` → `0e96f806…` |
 
 **Standing:** the `## Constraints Digest` HEADER row reads as one QUOTE-NOT-FOUND in `check_rule_grounding` (advisory) — its `_digest_rows` has no header rule and `PATH_TOKEN_RE = [\w./-]+` matches any word, so every honest header is a phantom; adjudicated in pass R3, filed to infra at this review's close; never counted as a raise.
 
@@ -905,7 +1091,11 @@ beside the exclusion list); `docs/FEATURES.md` → the cross-check inventory; `d
 the fleet-AI sections this run refreshes.
 
 **Starting state + check-before-create:** the scaffolder seeds `scripts/verify_prod_parity.py` as a
-`Status: DRAFT` stub that **exits 2** — an unfilled contract fails closed. **A DRAFT stub is meant to be
+`Status: DRAFT` stub that **exits 2** — an unfilled contract fails closed — and the fleet sync seeds the
+vendored `libs/health_probe/` it imports (VENDORED_DIRS). **If `libs/health_probe/health_probe.py` is absent**
+(a repo the sync has not reached yet): copy it from `/opt/fabrik-lib/health-probe/` into THIS repo's
+`libs/health_probe/` (a read of the sibling repo and a write in your own tree — not a cross-repo edit), say so
+in the report, and carry on; the next sync overwrites it with the identical bytes. **A DRAFT stub is meant to be
 edited through — its existence is NOT a STOP.** Only a `Status: FROZEN` header is a STOP: say so, and on
 the operator's word proceed as a **re-freeze** — bump `Version`, never a silent overwrite.
 
