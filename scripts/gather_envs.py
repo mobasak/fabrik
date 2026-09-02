@@ -873,6 +873,9 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
     `code_dirs` (repos to scan for `https://<host>` call sites) is the second input; None skips
     the scan (the env-key-only behaviour every pre-2026-09-02 test pins)."""
     catalog, matchers = load_catalog()
+    adopted: set[str] = (
+        set()
+    )  # keys filed under a catalogued entry by NAME — said in the summary (CD3)
 
     # provider -> {"meta":..., "values": value -> {"names":set, "projects":set}}
     services: dict[str, dict] = {}
@@ -948,6 +951,8 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
                         "status": "?",
                     }
                 )
+                if name in catalog:
+                    adopted.add(name)
                 dedupe = is_secret(key, value) and credential_grade(value)
                 slot = value if dedupe else f"{key}\x00{value}"
                 rec = svc_bucket(name, meta)[slot]
@@ -1045,6 +1050,7 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
         "internal_lines": len(internal),
         "code_hosts": len(code_hosts),
         "code_only": len(code_only),
+        "adopted": sorted(adopted),
     }
     return "\n".join(lines), stats
 
@@ -1120,6 +1126,7 @@ def main() -> int:
 
     if not args.apply:
         print("[dry-run]", summary)
+        print("filed under catalogued entries by NAME:", ", ".join(stats["adopted"]) or "none")
         print("Re-run with --apply to write", OUTPUT)
         return 0
 
@@ -1131,8 +1138,16 @@ def main() -> int:
         print("no change - already up to date:", OUTPUT)
         return 0
 
-    write_secret_file(OUTPUT, content)
+    try:
+        write_secret_file(OUTPUT, content)
+    except OSError as exc:  # disk full / permissions: one line, never a traceback (CD4)
+        print(
+            f"ERROR: cannot write {OUTPUT}: {exc} — nothing written; the previous consolidation stands",
+            file=sys.stderr,
+        )
+        return 1
     print("wrote", OUTPUT, "|", summary)
+    print("filed under catalogued entries by NAME:", ", ".join(stats["adopted"]) or "none")
     return 0
 
 

@@ -356,14 +356,28 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     )
     assert body, "the step-failure alert not found"
     body = body.group(1)
-    assert "1 for the two gather steps: inputs refused" in body and "1 elsewhere" in body, body
-    assert "could not be written" in body, body  # exit 1 is complete for the scan (CC5)
+    assert "1 gather steps: inputs refused" in body and "1 elsewhere" in body, body
+    assert "output not writable" in body, body  # exit 1 is complete for the scan (CC5)
     # Telegram's legacy Markdown fallback rejects an unbalanced `*`/`_`: the body's own text carries
     # none (the label and the log path are the only variables), and it stays within the alerting
     # contract's ~500 chars (CC5)
     fixed = re.sub(r"\$\{?[A-Za-z_]+\}?", "", body)
     assert "*" not in fixed and "_" not in fixed, fixed
-    assert len(fixed) <= 520, len(fixed)
+    # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
+    # step label and the production log path — not on the template with its variables erased (CD5)
+    for label in (
+        "gather_envs",
+        "classify_services",
+        "gather_envs_reconsolidate",
+        "registry_sync",
+        "gen_dashboard",
+    ):
+        rendered = (
+            body.replace("$label", label)
+            .replace("$rc", "137")
+            .replace("$LOG_FILE", "/opt/fabrik/scripts/kilo-benchmarks/cache/update.log")
+        )
+        assert len(rendered) <= 500, (label, len(rendered))
     assert "one of four" in doc and "cannot write its output" in doc, (
         "the doc's two exit-1 sentences (CC5)"
     )

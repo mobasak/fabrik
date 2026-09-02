@@ -2225,10 +2225,10 @@ def test_a_merged_copy_of_a_curated_token_is_dropped_on_both_sides(tmp_path, mon
 
 
 def test_only_on_a_curated_name_is_refused_and_the_scan_never_flags_it(tmp_path, monkeypatch):
-    """A curated entry is never the classifier's: the SCAN files a key named for it under the entry
-    (CC1 — see `test_a_key_named_for_a_catalogued_vendor_files_under_its_entry`), so its block is
-    never in triage and `--only <curated>` is refused before any paid dispatch. Rounds 22–24
-    argued over a keep on this branch; the branch is unreachable."""
+    """`--only <name>` on a name that is not in NEEDS-TRIAGE is refused before any paid dispatch —
+    a real-category curated entry is never there (the scan files its key under the entry, CC1, graded
+    by `test_a_key_named_for_a_catalogued_vendor_files_under_its_entry`). This grader proves only the
+    refusal (the pre-existing triage filter, C6); the fixture's triage block carries `other`, not `kilo`."""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
         '#svc name=other category=? cost=? capability="?" url=? status=? used_by=web\n'
@@ -2391,6 +2391,19 @@ def test_a_tombstone_retried_into_another_vendor_leaves_no_tie_behind(tmp_path, 
     placeholder = {"category": "?", "match": ["GOOGLE_GEMINI"], "hosts": ["g.example"]}
     out, _ = run({"google-ai": google, "gemini": placeholder})
     assert out["gemini"]["match"] == ["GOOGLE_GEMINI"], out
+    # 6. …and when its curated prefix IS its own name, the merge path must apply the SAME rule: the
+    #    inline test on the old rule minted GEMINI onto the target while the pop left the entry —
+    #    a tie, every later scan dead (CD1)
+    out, matchers = run(
+        {
+            "google-ai": google,
+            "gemini": {"category": "?", "match": ["GEMINI"], "url": "https://g.example"},
+        }
+    )
+    assert (
+        out["gemini"]["match"] == ["GEMINI"] and out["google-ai"].get("merged_match", []) == []
+    ), out
+    assert ge.match_provider("GEMINI_API_KEY", matchers) == "gemini"
 
 
 def test_a_key_named_for_a_catalogued_vendor_files_under_its_entry(tmp_path, monkeypatch):
@@ -2428,3 +2441,85 @@ def test_a_key_named_for_a_catalogued_vendor_files_under_its_entry(tmp_path, mon
     ), body
     assert "#svc name=zed category=unidentified" in body  # a tombstone is adopted too: no re-bill
     assert "#svc name=newvendor category=?" in body  # an unknown name still goes to triage
+
+
+def test_a_placeholder_with_routing_keeps_the_operators_fields_when_dispatched(
+    tmp_path, monkeypatch
+):
+    """The ONE curated shape the classifier still receives: a `?` placeholder the operator left with
+    curated routing routes its own key, so its block is in triage and dispatched — the operator's
+    `cost`/`capability`/`url`/`status` stand, the model fills `category` (and any `?`), `--only` on it
+    behaves the same (CD2; at 993872de the model flipped `retired` to `active` and replaced the url)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=acme category=? cost=free capability="OPERATOR words" url=https://acme.example status=retired used_by=web\n'
+        "ACME_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "acme",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "model answer",
+                    "url": "https://wrong.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    placeholder = {
+        "category": "?",
+        "cost": "free",
+        "capability": "OPERATOR words",
+        "url": "https://acme.example",
+        "status": "retired",
+        "match": ["ACME"],
+        "hosts": ["acme.example"],
+    }
+    for argv in (["--apply"], ["--apply", "--only", "acme"]):
+        cat, _ = _classify_env(tmp_path, monkeypatch, text, argv, res)
+        cat.write_text(json.dumps({"acme": placeholder}), encoding="utf-8")
+        assert cs.main() == 0
+        out = json.loads(cat.read_text(encoding="utf-8"))["acme"]
+        assert {k: out[k] for k in ("cost", "capability", "url", "status", "match", "hosts")} == {
+            k: placeholder[k] for k in ("cost", "capability", "url", "status", "match", "hosts")
+        }, (argv, out)
+        assert out["category"] == "ai-llm", out  # the unknown was filled
+
+
+def test_a_write_failure_is_one_line_and_the_previous_file_stands(tmp_path, monkeypatch, capsys):
+    """Disk full / permission lost on `secrets/`: exit 1 with a one-line ERROR, never a traceback —
+    the alert says the step's stderr names the cause, and a traceback's first line named nothing
+    (CD4). The adoption summary is printed on the success path (CD3)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(
+        json.dumps({"hf": {"category": "ai-llm", "status": "active", "match": ["HFX_"]}}),
+        encoding="utf-8",
+    )
+    out = tmp_path / "all-envs.env"
+    env = tmp_path / "p" / ".env"
+    env.parent.mkdir()
+    env.write_text("HF_API_KEY=x\n", encoding="utf-8")
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(ge, "project_env_files", lambda: [env])
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+
+    def no_space(path, content):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(ge, "write_secret_file", no_space)
+    assert ge.main() == 1 and not out.exists()
+    err = capsys.readouterr().err
+    assert err.startswith("ERROR: cannot write") and "Traceback" not in err, err
+    monkeypatch.undo()
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(ge, "project_env_files", lambda: [env])
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    assert ge.main() == 0
+    assert "filed under catalogued entries by NAME: hf" in capsys.readouterr().out

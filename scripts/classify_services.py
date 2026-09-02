@@ -479,10 +479,7 @@ def main() -> int:
                 ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
                     match = entry["merged_match"] = [] if match is None else [str(match)]
                 token = prov.upper().rstrip("_")
-                tombstone = prov in catalog and str(catalog[prov].get("category") or "?") in (
-                    "?",
-                    "unidentified",
-                )
+                tombstone = prov in catalog and tombstone_of(catalog, prov)  # ONE rule (CD1)
                 curated_anywhere = {
                     t
                     for other, meta in catalog.items()
@@ -548,9 +545,16 @@ def main() -> int:
             ):  # a merged prefix survives a rewrite/re-stub (BK2)
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
-        # a CURATED name never reaches here: the scan files a key named for a catalogued vendor
-        # under that entry (gather_envs, CC1), so it is never in triage and `--only` refuses it —
-        # the keeps of rounds 22–24 protected an unreachable branch (BX1/CA2, both superseded)
+        if prov in catalog and not tombstone_of(catalog, prov):
+            # the ONE reachable curated shape: a `?` placeholder the operator left with curated
+            # routing (`match`/`hosts`/`url`) routes its own key, so its block sits in triage and is
+            # dispatched (the daily path and `--only` alike); a real-category entry never gets here
+            # (the scan files a key named for it under the entry, CC1). The operator's fields stand,
+            # the model fills only what was `?` (CD2 — the class rounds 22–25 argued over, pinned)
+            entry = {
+                **entry,
+                **{k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])},
+            }
         catalog[prov] = entry
     if (
         args.only
