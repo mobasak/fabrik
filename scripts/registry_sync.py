@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql
+# AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql scripts/tests/test_registry_sync.py
 """Load secrets/all-envs.env (the #svc-annotated consolidation) into the local Postgres registry.
 
 Reads each #svc block + its KEY=value lines and upserts `services` + `api_keys`. Stores
@@ -40,8 +40,14 @@ CREDENTIAL_KEY_RE = re.compile(
 # secrets — value entropy alone calls them credentials (AD1: M365_CLIENT_ID, GOOGLE_CLIENT_ID,
 # R2_ACCOUNT_ID …, 26 live pairs). A credential is credential-shaped by NAME, or secret-shaped by
 # value with a name that is not an identifier.
+# The identifier token may carry ONE trailing qualifier (`CLOUDFLARE_ZONE_ID_OCORON`,
+# `N8N_WEBHOOK_CONTENT` — a per-tenant or per-purpose suffix, AJ4); a qualifier that is itself a
+# secret token (`_HOST_AUTH`) never demotes — `is_credential` checks it. Locators (`_FILE`, `_PATH`,
+# `_REPOSITORY`, `_WEBHOOK`, `_PROXY`) and account names (`_USER`) are identifiers too.
 IDENTIFIER_KEY_RE = re.compile(
-    r"(_ID|_IDS|_UUID|_NUMBER|_ARN|_REGION|_ZONE|_HOST|_PORT|_MODEL|_VERSION|_URL|_URLS|_ENDPOINT|_BASE|_DOMAIN)$",
+    r"(_ID|_IDS|_UUID|_NUMBER|_ARN|_REGION|_ZONE|_HOST|_PORT|_MODEL|_VERSION|_URL|_URLS|_ENDPOINT"
+    r"|_BASE|_DOMAIN|_FILE|_PATH|_THUMBPRINT|_REPOSITORY|_REPO|_WEBHOOK|_PROXY|_USER|_USERNAME)"
+    r"(?P<qualifier>_[A-Z0-9]+)?$",
     re.I,
 )
 # a DSN/URL that CARRIES a password (`scheme://user:pw@host`) is a credential whatever its name
@@ -51,15 +57,20 @@ USERINFO_RE = re.compile(r"://[^/@\s]+:[^/@\s]+@")
 def is_credential(key: str, value: str) -> bool:
     """`kind` is decided by the NAME first — the value-entropy branch of `gather_envs.is_secret`
     calls any 24+-char alphanumeric value a secret (API URLs, tenant ids, model names — 48 live
-    vendor rows, AF1). Order: credential-shaped name → yes; URL/identifier-shaped name → no unless
-    the value embeds userinfo; otherwise the value decides."""
-    if CREDENTIAL_KEY_RE.search(key) or gather_envs.SECRET_KEY_RE.search(key):
+    vendor rows, AF1). Order: an ANCHORED credential suffix (`_API_KEY`, `_TOKEN`, `_SECRET`,
+    `_PASSWORD` …) → yes; a value embedding `user:pw@` → yes; URL/identifier-shaped name → no; an
+    UNANCHORED secret token in the name (`_AUTH`, `DSN`, `SIGNING` — `WEBSHARE_IP_AUTH=false`, AH1)
+    counts only when the value looks secret too; otherwise the value decides."""
+    if CREDENTIAL_KEY_RE.search(key):
         return True
     if USERINFO_RE.search(value):
         return True
-    if IDENTIFIER_KEY_RE.search(key):
+    ident = IDENTIFIER_KEY_RE.search(key)
+    if ident and not gather_envs.SECRET_KEY_RE.search(ident.group("qualifier") or ""):
         return False
-    return gather_envs.is_secret(key, value)
+    return gather_envs.is_secret(key, value) and (
+        gather_envs.credential_grade(value) or not gather_envs.SECRET_KEY_RE.search(key)
+    )
 
 
 def ensure_schema(cur) -> None:
@@ -161,7 +172,6 @@ def sync_registry(
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
                 first_value = None
-                fallback_value = None
                 digests: list[str] = []
                 for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
@@ -177,11 +187,10 @@ def sync_registry(
                         kind = "credential"
                     else:
                         kind = "config"  # a URL/host/port/model/ID knob under a vendor prefix — never a key (AC6/AD1)
-                    if kind == "credential":
-                        if CREDENTIAL_KEY_RE.search(_key):
-                            first_value = first_value or value
-                        elif not value.lower().startswith(("http://", "https://")):
-                            fallback_value = fallback_value or value  # e.g. GROQ_API_KEY_2 (G4)
+                    if (
+                        kind == "credential"
+                    ):  # the fetcher gets the first credential ROW, whatever its
+                        first_value = first_value or value  # shape — a userinfo DSN included (AH2)
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
                     digests.append(digest)
                     # per-key attribution when present (a multi-key provider's keys differ),
@@ -207,7 +216,7 @@ def sync_registry(
                         (sid, digests),
                     )
                     stats["keys_pruned"] += cur.rowcount
-                cred = first_value or fallback_value
+                cred = first_value
                 if fetch_credits and cred:
                     to_fetch.append((sid, meta["name"], cred))  # fetch AFTER commit
             # Prune orphans: services no longer in all-envs.env (e.g. a provider recatalogued

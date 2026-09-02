@@ -328,8 +328,8 @@ def test_kind_is_the_synthetic_key_never_a_value_shape(fixture_env, monkeypatch)
         f'#svc name={TEST_PROVIDER} category=proxies cost=paid capability="test" '
         "url=https://x.example status=active used_by=projA\n"
         "CODE_HOST_URL=https://api.x.example   # used by: projA\n"
-        f"{TEST_PROVIDER.upper()}_PROXY_URL=http://user:{SECRET}@45.61.127.38:5977   # used by: projA\n"
-        f"{TEST_PROVIDER.upper()}_API_KEY_2={SECRET}zz\n",
+        f"{TEST_PROVIDER.upper()}_API_KEY_2={SECRET}zz\n"
+        f"{TEST_PROVIDER.upper()}_PROXY_URL=http://user:{SECRET}@45.61.127.38:5977   # used by: projA\n",
         encoding="utf-8",
     )
     got: list[tuple[str, str]] = []
@@ -347,7 +347,9 @@ def test_kind_is_the_synthetic_key_never_a_value_shape(fixture_env, monkeypatch)
     assert kinds == [("code-host", 1), ("credential", 2)], (
         kinds
     )  # a proxy URL with a password IS a credential
-    assert got == [(TEST_PROVIDER, f"{SECRET}zz")], got  # the fallback credential, never the URL
+    assert got == [(TEST_PROVIDER, f"{SECRET}zz")], (
+        got
+    )  # the first credential ROW in the file's (name-sorted) order
 
 
 def test_stale_key_rows_are_pruned_per_service(fixture_env):
@@ -494,3 +496,48 @@ def test_public_identifiers_are_config_not_credentials(fixture_env):
         kinds = cur.fetchall()
     conn.close()
     assert kinds == [("config", 2), ("credential", 1)], kinds
+
+
+def test_unanchored_secret_token_needs_a_secret_shaped_value(fixture_env, monkeypatch):
+    """`X_IP_AUTH=false` carries `_AUTH` in its name but is a boolean knob → config (AH1); a
+    provider whose ONLY credential is a userinfo DSN still feeds the fetcher (AH2)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " proxies " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=proxies cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_IP_AUTH=false   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_PROXY_URL=http://user:{SECRET}@45.61.127.38:5977   # used by: projA\n",
+        encoding="utf-8",
+    )
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    rs.sync_registry(fetch_credits=True, prune=False)
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind, count(*) FROM api_keys k JOIN services s ON s.id=k.service_id "
+            "WHERE s.provider=%s GROUP BY 1 ORDER BY 1",
+            (TEST_PROVIDER,),
+        )
+        kinds = cur.fetchall()
+    conn.close()
+    assert kinds == [("config", 1), ("credential", 1)], kinds
+    assert got == [(TEST_PROVIDER, f"http://user:{SECRET}@45.61.127.38:5977")], got
+
+
+def test_identifier_survives_a_qualifier_and_a_locator_is_never_a_credential():
+    """`CLOUDFLARE_ZONE_ID_OCORON` (identifier + tenant qualifier), `N8N_WEBHOOK_CONTENT` and
+    `RESTIC_REPOSITORY` (locators), `M365_CERT_KEY_FILE=/…/x.pem` (a path) are config — the
+    `_ID$` anchor let a qualifier escape it (AJ4); a qualifier that IS a secret token (`_HOST_AUTH`)
+    never demotes, and `_ID_TOKEN` stays anchored-credential."""
+    assert not rs.is_credential("CLOUDFLARE_ZONE_ID_OCORON", "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
+    assert not rs.is_credential(
+        "N8N_WEBHOOK_CONTENT", "https://n8n.example/webhook/0123456789abcdef0123"
+    )
+    assert not rs.is_credential(
+        "RESTIC_REPOSITORY", "s3:s3.us-west-004.backblazeb2.com/fabrik-restic-2026"
+    )
+    assert not rs.is_credential("M365_CERT_KEY_FILE", "/opt/fabrik/certs/m365-cert-2026.pem")
+    assert not rs.is_credential("DNA_USER", "operator.name.2026.long.account")
+    assert rs.is_credential("GOOGLE_ID_TOKEN", SECRET)
+    assert rs.is_credential("WEBSHARE_HOST_AUTH", SECRET)

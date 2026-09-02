@@ -38,7 +38,7 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
     chain_failed=1
     case "$label" in gather_envs|gather_envs_reconsolidate|registry_sync) core_failed=1 ;; esac
     echo "[external-services-chain] $label failed (exit=$rc) — non-fatal, alerting"
-    _alert "external-services chain: step $label FAILED (exit $rc)" "gather_envs -> classify_services -> gather_envs -> registry_sync -> gen_dashboard lost step $label in today's run (exit $rc; 124 = timeout ${STEP_TIMEOUT}s). A bounded-prune refusal needs REGISTRY_PRUNE_FORCE=1 after a look; an exhausted pool or a dead registry DB needs a hand. The dashboard is NOT rewritten on a failed chain, so liveness will read DEAD until this is fixed. Log: $LOG_FILE" warning
+    _alert "external-services chain: step $label FAILED (exit $rc)" "gather_envs -> classify_services -> gather_envs -> registry_sync -> gen_dashboard lost step $label in today's run (exit $rc; 124 = timeout ${STEP_TIMEOUT}s, 137 = SIGKILL 30 s after an ignored SIGTERM). A bounded-prune refusal needs REGISTRY_PRUNE_FORCE=1 after a look; an exhausted pool or a dead registry DB needs a hand. The dashboard is NOT rewritten on a failed chain, so liveness will read DEAD until this is fixed. Log: $LOG_FILE" warning
   fi
   return $rc
 }

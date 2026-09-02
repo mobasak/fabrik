@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: none
+# AFTER-EDIT: .fabrik/liveness-registry.json docs/reference/external-services-registry.md tests/test_external_services_chain.py
 """Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
 
 Reads services/api_keys/credit_snapshots/subscriptions and emits ONE static HTML file (data

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/service_catalog.json
+# AFTER-EDIT: scripts/service_catalog.json scripts/tests/test_gather_envs.py scripts/registry_sync.py
 """Consolidate all /opt/*/.env files into a single deduped, service-annotated registry.
 
 Gathers every project's .env under /opt/*/ (excluding fabrik's own .env and the output
@@ -569,6 +569,10 @@ def is_secret(key: str, value: str) -> bool:
     )
 
 
+# a POSIX path: ≥2 slash-separated word segments — a base64 secret has `+`/`=`, a token no slashes
+PATH_VALUE_RE = re.compile(r"(~|\.{1,2})?(/[A-Za-z0-9._-]+){2,}/?")
+
+
 def credential_grade(value: str) -> bool:
     """True only for a real, unique credential worth deduping ACROSS different names."""
     v = value.strip()
@@ -577,6 +581,10 @@ def credential_grade(value: str) -> bool:
     if v.lower() in PLACEHOLDERS:
         return False
     if re.fullmatch(r"(.)\1*", v):  # all-same-char, e.g. "xxxxxxxx"
+        return False
+    if PATH_VALUE_RE.fullmatch(
+        v
+    ):  # a file path (M365_CERT_KEY_FILE=/opt/…/cert.pem) is a locator, AJ1
         return False
     return not (v.startswith("<") and v.endswith(">"))  # <your-key> is not a credential
 
@@ -743,13 +751,16 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             provider = match_provider(key, matchers)
             reason = internal_reason(key) if provider else None
             # an explicit declaration wins — except when BOTH the name and the value say credential
-            # (`PROXY_API_KEY=<secret>` under a generic INTERNAL_PREFIX token must not be hidden, AF9)
+            # (`PROXY_API_KEY=<secret>` under a generic INTERNAL_PREFIX token must not be hidden, AF9).
+            # The value half is `credential_grade`, not `is_secret` — the latter is true on the
+            # NAME alone, which made the test one-factor and flipped `M365_CERT_KEY_FILE=/…/x.pem`
+            # (a path under an explicit prefix) into a vendor credential (AJ1/AJ10)
             explicit_wins = reason == "exact" or (
-                reason == "prefix" and not (SECRET_KEY_RE.search(key) and is_secret(key, value))
+                reason == "prefix" and not (SECRET_KEY_RE.search(key) and credential_grade(value))
             )
             if explicit_wins or (reason == "substr" and not is_secret(key, value)):
-                # an EXPLICIT declaration (INTERNAL_EXACT / INTERNAL_PREFIX, e.g. M365_CERT_*) always
-                # wins; a GENERIC token (_DB_PASSWORD, _TIMEOUT) is decided by the value: a
+                # an EXPLICIT declaration (INTERNAL_EXACT / INTERNAL_PREFIX, e.g. M365_CERT_*) wins
+                # unless name AND value both say credential; a GENERIC token (_DB_PASSWORD, _TIMEOUT) is decided by the value: a
                 # vendor-prefixed config knob (ANTHROPIC_READ_TIMEOUT=120) is internal, a vendor
                 # secret carrying the token (SUPABASE_DB_PASSWORD) stays the vendor's (T1/Z1/AC7)
                 provider = None

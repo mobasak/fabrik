@@ -55,6 +55,7 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     assert (
         'timeout -k 30 "$STEP_TIMEOUT"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
+    assert "137 = SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
@@ -67,8 +68,14 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
 def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
     for entry in (DAILY, HOOK):
         text = entry.read_text(encoding="utf-8")
-        assert "scripts/external_services_chain.sh" in text, f"{entry.name} does not run the chain"
-        code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+        # against CODE, not text — a comment naming the script (full-line OR trailing) is not an
+        # invocation (AJ8); `#` inside a quoted string is not a concern in these two scripts
+        code = "\n".join(
+            re.sub(r"\s+#.*$", "", ln)
+            for ln in text.splitlines()
+            if not ln.lstrip().startswith("#")
+        )
+        assert "scripts/external_services_chain.sh" in code, f"{entry.name} does not run the chain"
         for step in (
             "gather_envs.py",
             "classify_services.py",

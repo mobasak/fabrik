@@ -837,9 +837,10 @@ def test_a_catalog_entry_left_at_question_mark_is_restubbed(tmp_path, monkeypatc
     assert json.loads(cat.read_text(encoding="utf-8"))["zzz"]["category"] == "unidentified"
 
 
-def test_only_list_is_never_capped(tmp_path, monkeypatch):
+def test_only_list_is_never_capped(tmp_path, monkeypatch, capsys):
     """`--only` names 15 providers: all 15 are dispatched (an operator-typed list is already
-    bounded) and the shared cursor stays put (AB1)."""
+    bounded) and the shared cursor stays put (AB1); a name that is not flagged is reported with
+    the queue's denominator, never silently dropped (AF12)."""
     text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
         f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
         for i in range(15)
@@ -854,12 +855,13 @@ def test_only_list_is_never_capped(tmp_path, monkeypatch):
         tmp_path,
         monkeypatch,
         text,
-        ["--apply", "--only", ",".join(f"p{i:02d}" for i in range(15))],
+        ["--apply", "--only", ",".join(f"p{i:02d}" for i in range(15)) + ",nope"],
         [],
     )
     monkeypatch.setattr(cs, "fanout", fake_fanout)
     assert cs.main() == 0
     assert seen == [15] and not (state / "c.json").exists()
+    assert "--only: ['nope'] are not in NEEDS-TRIAGE (15 flagged)" in capsys.readouterr().err
 
 
 def test_identified_platform_host_merges_into_the_existing_catalog_entry(tmp_path, monkeypatch):
@@ -884,7 +886,8 @@ def test_identified_platform_host_merges_into_the_existing_catalog_entry(tmp_pat
             )
         )
     ]
-    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    # the DAILY argv: with --tombstone-unresolved a merged host must not ALSO be stubbed (AF2)
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res)
     cat.write_text(
         json.dumps(
             {
@@ -1081,9 +1084,10 @@ def test_identified_curated_entry_keeps_its_match_and_hosts(tmp_path, monkeypatc
 
 
 def test_generic_internal_prefix_never_hides_a_credential_shaped_secret(tmp_path, monkeypatch):
-    """`PROXY_API_KEY=<secret>` under a generic INTERNAL_PREFIX token stays the catalogued vendor's;
-    `M365_CERT_THUMBPRINT` (no secret token in the name) still goes internal (AF9)."""
-    monkeypatch.setattr(ge, "INTERNAL_PREFIX", tuple(ge.INTERNAL_PREFIX) + ("PROXY_",))
+    """`PROXY_API_KEY=<secret>` under the generic INTERNAL_PREFIX `PROXY_` stays the catalogued
+    vendor's (AF9); `M365_CERT_KEY_FILE=/opt/…/cert.pem` under the explicit prefix `M365_CERT`
+    stays internal — the name says KEY but the value is a path, and the test is two-factor (AJ1)."""
+    assert "PROXY_" in ge.INTERNAL_PREFIX and "M365_CERT" in ge.INTERNAL_PREFIX
     monkeypatch.setattr(
         ge,
         "load_catalog",
@@ -1096,15 +1100,80 @@ def test_generic_internal_prefix_never_hides_a_credential_shaped_secret(tmp_path
                     "url": "https://proxyvendor.io",
                     "status": "active",
                     "match": ["PROXY"],
-                }
+                },
+                "microsoft-365": {
+                    "category": "infra",
+                    "cost": "paid",
+                    "capability": "m365",
+                    "url": "https://learn.microsoft.com/graph",
+                    "status": "active",
+                    "match": ["M365"],
+                },
             },
-            [("PROXY", "proxyvendor")],
+            [("PROXY", "proxyvendor"), ("M365", "microsoft-365")],
         ),
     )
     body, _ = ge.consolidate(
-        _envs(tmp_path, {"svc": "PROXY_API_KEY=pk_abcdefghijklmnopqrstuvwxyz0123456789\n"})
+        _envs(
+            tmp_path,
+            {
+                "svc": "PROXY_API_KEY=pk_abcdefghijklmnopqrstuvwxyz0123456789\n"
+                "M365_CERT_KEY_FILE=/opt/fabrik/certs/m365-cert-2026.pem\n"
+            },
+        )
     )
     assert (
         "#svc name=proxyvendor" in body
         and "PROXY_API_KEY=" in body.split("#svc name=proxyvendor", 1)[1].split("# ═", 1)[0]
     )
+    assert "#svc name=microsoft-365" not in body
+    assert "M365_CERT_KEY_FILE=" in body.split("internal-config", 1)[1]
+
+
+def test_a_hand_edited_scalar_hosts_entry_is_tolerated_on_both_paths(tmp_path, monkeypatch):
+    """`"hosts": "api.v.io"` (a scalar, not a list) must index as ONE host — never as one-char
+    keys — and the classify merge must append to it, not crash on `str.append` (AF14)."""
+    idx = ge.catalog_url_index({"v": {"url": "https://v.io", "hosts": "api.v.io"}})
+    assert idx["api.v.io"] == "v" and not [k for k in idx if len(k) == 1]
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=safebrowsing.googleapis category=? cost=? capability="?" url=https://safebrowsing.googleapis.com status=? used_by=site-provisioner\n'
+        "CODE_HOST_URL=https://safebrowsing.googleapis.com   # used by: site-provisioner\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "google-safe-browsing",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://developers.google.com/safe-browsing",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "google-safe-browsing": {
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://developers.google.com/safe-browsing",
+                    "status": "active",
+                    "match": ["GOOGLE_SAFE_BROWSING"],
+                    "hosts": "old.googleapis.com",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["google-safe-browsing"]["hosts"] == [
+        "old.googleapis.com",
+        "safebrowsing.googleapis.com",
+    ]

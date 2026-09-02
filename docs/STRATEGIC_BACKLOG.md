@@ -847,3 +847,18 @@ next registry-drift recurrence.
   Measured once; the fix candidates (key the window on the staged files' oldest mtime, or on the last
   commit AUTHORED by this session) need a fire-rate measurement before shipping (FIX verb 5). Until
   then a later-pass pool dispatch re-satisfies it.
+
+## [infra] fabrik-review finder brief: pin the ledger high-water mark AND finder imports to a sha (found by the external-services review pass 9, 2026-09-02)
+
+The pass-9 Opus finder, briefed on commit `fae20651` with reads pinned to `git show <sha>:<path>`,
+still `sys.path.insert(0, "/opt/fabrik/scripts")`-imported the LIVE modules for its measurement
+scripts — and the live tree carried a sibling's uncommitted `is_credential` edit for ~20 min of the
+run, so three measurements reported on the wrong code (caught by `inspect.getsource()` vs the diff).
+The same brief named the standing-row scope as letters ("P…AF, AG1") while the worktree ledger
+already held AH1/AH2, so a pass was spent re-deriving a fixed row. Two edits to the finder brief in
+`commands/_sources/fabrik-review.md` (+ the finder fragment): (1) "measure by extracting the pinned
+sha to a sandbox and asserting the loaded module's provenance — never import from the live tree on a
+shared master"; (2) "state the ledger's high-water mark as the review file's sha/timestamp at
+dispatch". Not applied mid-run: a corpus edit renders box-wide and needs its own scoped review.
+Related: [[feedback_test_real_invariant_not_proxy]] (this session's own flip-set measurement was
+vacuous for the same reason — a temp-loaded module found no catalog — until the paths were pinned).
