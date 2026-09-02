@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-deploy-checklist` has ONE source (the modes are gone) and the parity contract runs where its rows can reach: rows declare a SITE, the runner runs three legs and merges (2026-09-02)
+
+- **Modes removed** (operator ruling: "when we are ready to deploy we must run this command, that is all"). A
+  project accumulates many specs and plans and none describes the whole deployed product; the code does, so the
+  command derives from what SHIPS, always — specs reach it only through `FEATURES.md`. The header is
+  `Status · Version · Date`; a contract frozen with a trailing `· Mode: B` (tryton-crm v1) keeps parsing.
+- **Multi-site execution model** — found by executing tryton-crm's freshly frozen contract from the hub: 15 of
+  27 rows (every DB row, redis, the filestore, the internal renderer) were permanently UNVERIFIABLE there, so
+  the runner's "run it from the project's checkout" could never reach CONFIRMED; and the vendored comparator is
+  gitignored, so the VPS checkout the image is built from never contains it. Now: `@site("container")` /
+  `@site("host")` / default `hub` on every row; `--site NAME` runs one leg; `--unreachable WHY` emits a leg the
+  runner cannot reach as UNVERIFIABLE (never dropped); `--verdict --rows-from a.json b.json …` merges. The
+  runner's Phase 6 runs the hub leg from the checkout, `docker cp`s the contract + comparator into the running
+  app container for the container leg, runs host rows on the VPS, and merges.
+- **`--self-check` is static** — tryton-crm's first freeze fired 20 HTTPS probes and a failed-login POST at
+  production on every checklist run because the seeded stub executed every row to "check the shape".
+- **`NOT_OBLIGATED` is declared in the stub and wired into `--verdict`** — tryton-crm had to add it by hand.
+- Checklist rules added from the same run: no self-referential row (expected and actual from one source — it
+  cannot be seen red and inflates the numerator), no snapshot fallback (UNVERIFIABLE when a declaration cannot
+  be derived where the row runs), floor comparators for business data that grows after go-live.
+- Tests seen red first: 8 in `tests/test_scaffold_deploy_contract.py` and 1 corpus test. tryton-crm's own
+  defects (self-referential `l1_contract_version`, the `l2_routes` snapshot fallback, exact equality on
+  growable data, rows left at the hub site) are filed to them by mail; D-091 records the model and the
+  rejected alternatives.
+
 ### Added — the flywheel's stranded rows finally reach the database, and the ranking is scheduled at all (2026-09-02)
 
 - **`scripts/kilo-benchmarks/flush_subagent_outboxes.py`** — a fleet-wide outbox walker. `pg_ledger.flush_outbox`

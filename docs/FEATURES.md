@@ -317,7 +317,7 @@ Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via 
 
 - **The contract stub is born with the project** — `templates/scaffold/scripts/verify_prod_parity.py` is
   seeded by `SCRIPT_FILES` (`src/fabrik/scaffold.py:494`) into every scaffoldable type; it carries a
-  machine-readable `# Status: DRAFT | FROZEN · Version · Date · Mode` header and FAILS CLOSED: the contract
+  machine-readable `# Status: DRAFT | FROZEN · Version · Date` header and FAILS CLOSED: the contract
   run (`--json` / `--verdict`) exits 2 until the contract is frozen; `--header` inspects, `--self-check` refuses to
   bless a stub that carries only the precondition row. Project-owned and never synced: a project scaffolded before
   2026-09-02 receives it at its first `/fabrik-deploy-checklist` run (the command copies the template in).
@@ -325,16 +325,17 @@ Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via 
   (`VENDORED_DIRS`, `scripts/fabrik_synced_manifest.py:115`; byte-identical below a 3-line `VENDORED-FROM`
   header) and its `compare()` emits every parity row; the `_COMPARISON_KEYS` disjunction decides what a parity
   row is, so a `match: None` row fails closed instead of reading as "not checked".
-- **`/fabrik-deploy-checklist`** (`commands/_sources/fabrik-deploy-checklist.md`) — Mode A (spec) / B
-  (reverse-generate from an existing project) / C (fresh); derives every denominator (routes from the started
+- **`/fabrik-deploy-checklist`** (`commands/_sources/fabrik-deploy-checklist.md`) — one source, what the
+  project ships (never a spec — specs reach it through `FEATURES.md`); derives every denominator (routes from the started
   app's `/openapi.json`, services from compose ∪ registrar sidecars, env keys from `os.getenv`, jobs from the
   live scheduler), cross-checks `FEATURES.md` both ways, SEES EVERY ROW RED against a broken DEV state, then
   freezes with its `docs/DECISIONS.md` row and refreshes the fleet-AI sections of `DEPLOYMENT.md` and
   `OPERATIONS.md` (`templates/scaffold/docs/{DEPLOYMENT,OPERATIONS}_TEMPLATE.md`).
 - **`/fabrik-deploy-verify`** (`commands/_sources/fabrik-deploy-verify.md`) — an identity layer (deployed SHA
   = tested SHA, migration head, image digest), registrar rows DERIVED from `_REGISTRAR_ORDER` at run time,
-  and **Phase 6 Parity (BLOCKING)**: the project's contract runs from its own checkout and the runner copies
-  its `PARITY:` / `VERDICT:` lines. No `FROZEN` header ⇒ `UNVERIFIED`, terminal — the signal to run
+  and **Phase 6 Parity (BLOCKING)**: one leg per row SITE (`hub` from the project's checkout · `container`
+  via `docker exec` in the running app · `host` on the VPS), an unreachable leg kept in the denominator as
+  UNVERIFIABLE, the legs merged with `--verdict --rows-from`, and the `PARITY:` / `VERDICT:` lines copied verbatim. No `FROZEN` header ⇒ `UNVERIFIED`, terminal — the signal to run
   `/fabrik-deploy-checklist`.
 - **Release precondition** — `/fabrik-release`'s VPS path reads the header and stops with
   `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` (`commands/_sources/fabrik-release.md:78-85`);
@@ -346,8 +347,8 @@ Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via 
 ### How To Use
 
 ```bash
-/fabrik-deploy-checklist                 # in the project: author + FREEZE scripts/verify_prod_parity.py (Mode A/B/C)
-python scripts/verify_prod_parity.py --header    # {"status": "FROZEN", "version": "v1", ...} — the obligation gate
+/fabrik-deploy-checklist                 # in the project: author + FREEZE scripts/verify_prod_parity.py from what ships
+python scripts/verify_prod_parity.py --header    # {"status": "FROZEN", "version": "v1", "date": ...} — the obligation gate
 python scripts/verify_prod_parity.py --verdict   # PARITY: <agree> agree / <disagree> disagree / <unresolved> unresolved · VERDICT: <verdict> — <reasons> (exit 0 confirmed · 2 denied or DRAFT · 1 on a DOWN)
 /fabrik-deploy-verify <service>          # hub-side: identity · DNS · health · derived registrars · Gatus · logs · Phase 6 parity
 ```

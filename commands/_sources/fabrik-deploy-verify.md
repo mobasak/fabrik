@@ -80,7 +80,7 @@ rather than exhausting the checklist against a dead host — every unreached ite
    and the **fleet-AI sections** of `docs/DEPLOYMENT.md` + `docs/OPERATIONS.md` (D-065) as the declaration
    inputs — what the project SAYS it deploys and runs.
 4. **Read the parity contract's header block** — `scripts/verify_prod_parity.py --header` in the project
-   checkout (`Status`, `Version`, `Mode`). **`Status: FROZEN` is the obligation gate**: absent, unparseable
+   checkout (`Status`, `Version`, `Date`; an older header's trailing `Mode:` is tolerated). **`Status: FROZEN` is the obligation gate**: absent, unparseable
    or `DRAFT` ⇒ the run's VERDICT is **`UNVERIFIED — no FROZEN parity contract`** (terminal, never
    `CONFIRMED`) and the Output's `ROUTES` names `/fabrik-deploy-checklist`. Every other phase still runs
    — liveness evidence is still evidence — but Phase 6 reports `NOT-RUN (no FROZEN contract)` and the
@@ -234,12 +234,32 @@ instead.
 **The product's declared contents, checked against the LIVE service — the phase that fails on a missing
 product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
 
-1. Run the contract from the PROJECT's checkout with the PROJECT's interpreter (its row functions import the
-   project's own code and the vendored `libs/health_probe`): `cd /opt/<project> && .venv/bin/python
-   scripts/verify_prod_parity.py --json` — **read-only rows only**: a row the contract marks
-   `UNVERIFIABLE (mutating — …)` is named in the table, never executed. Never run it against a hub cwd (a
-   hub-cwd run once reported the hub's own tables as the project's).
-2. Then `scripts/verify_prod_parity.py --verdict` and **copy its two lines verbatim** into the Output block —
+1. **One leg per SITE, each where it can reach — then ONE merge.** Every row declares its site
+   (`@site("container")` / `@site("host")`; undeclared = `hub`), and the runner executes exactly three legs:
+   - **hub leg** — from the PROJECT's checkout with the PROJECT's interpreter (its rows import the project's
+     own code and the vendored `libs/health_probe`): `cd /opt/<project> && .venv/bin/python
+     scripts/verify_prod_parity.py --json --site hub > <run>/hub.json`. Never against a hub cwd (a hub-cwd run
+     once reported the hub's own tables as the project's).
+   - **container leg** — inside the RUNNING app container on the VPS, where the database, redis and the
+     internal network resolve. The vendored comparator is gitignored in projects, so the VPS checkout the
+     image was built from does NOT contain it: ship both files first, then run:
+     `ssh <vps> "docker cp /opt/<project>/scripts/verify_prod_parity.py <app>:/app/scripts/ 2>/dev/null;
+     true"` (the image already carries the script when the Dockerfile `COPY . .`s the checkout — the copy
+     refreshes it), `scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "docker cp
+     /tmp/health_probe <app>:/app/libs/"`, then `ssh <vps> "docker exec <app> python scripts/verify_prod_parity.py
+     --json --site container" > <run>/container.json`. The container's own env (`DATABASE_URL`, `REDIS_URL`,
+     the compose network) is what makes these rows resolvable — that is why they live there.
+   - **host leg** — on the VPS host for rows that need `docker ps` or a volume path:
+     `scp scripts/verify_prod_parity.py <vps>:/tmp/ && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount>
+     python3 /tmp/verify_prod_parity.py --json --site host" > <run>/host.json` (the host leg needs no
+     comparator for liveness rows; a comparison row there gets the same `docker cp`-free `scp -r libs/health_probe`).
+   A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as
+   UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>"
+   > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg.
+   **Read-only rows only** on every leg: a row the contract marks `UNVERIFIABLE (mutating — …)` is named in
+   the table, never executed.
+2. Merge: `scripts/verify_prod_parity.py --verdict --rows-from <run>/hub.json <run>/container.json
+   <run>/host.json` and **copy its two lines verbatim** into the Output block —
    the verdict algebra is EXECUTED by that script (`verdict()`: rows carrying ANY comparison key are parity
    rows — the vendored `_COMPARISON_KEYS` disjunction; `match True` = numerator; `False` = denies CONFIRMED;
    `None` on a parity row = ATTEMPTED-BUT-UNRESOLVED = fail closed, exit 2; a row with none of the keys is a
@@ -254,7 +274,7 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
    broken — a check that cannot fail is a defect, and one that cannot resolve is worse); an `UNVERIFIABLE
    (<why>)` row → listed with its why, counted in the denominator, never PASS.
 4. **State the denominator with every count**: `<n> agree / <n> disagree / <n> unresolved / <n>
-   UNVERIFIABLE of <N> (contract v<N>, Mode <A|B|C>, <n> not obligated)` — the `PARITY:` line the script
+   UNVERIFIABLE of <N> (contract v<N>, <n> not obligated)` — the `PARITY:` line the script
    prints. `N` is the corpus applicable to the type; a row the project could not assert is visible as
    UNVERIFIABLE, never absent.
 
@@ -272,7 +292,7 @@ HEALTH/READYZ: PASS | FAIL — <evidence> | INCONCLUSIVE (<why>) | NOT-RUN (<cau
 REGISTRARS: <n> obligated, <n> PASS, <n> FAIL, <n> not-project-verifiable (informational), <n> NOT-RUN
 GATUS: PASS | FAIL | missing | INCONCLUSIVE (<why>) | NOT-RUN (<cause>) | n/a (not obligated — not public/no domain)
 LOGS: PASS (clean window) | FAIL — <signature> | INCONCLUSIVE (<why>) | NOT-RUN (<cause>)
-PARITY: <n> agree / <n> disagree / <n> unresolved / <n> UNVERIFIABLE of <N> (contract v<N>, Mode <A|B|C>, <n> not obligated) | NOT-RUN (no FROZEN contract) | NOT-RUN (<cause>)
+PARITY: <n> agree / <n> disagree / <n> unresolved / <n> UNVERIFIABLE of <N> (contract v<N>, <n> not obligated) | NOT-RUN (no FROZEN contract) | NOT-RUN (<cause>)
 VERDICT: DEPLOY CONFIRMED | VERIFICATION FAILED — <n> FAIL routed below | UNVERIFIED — no FROZEN parity contract → /fabrik-deploy-checklist | VERIFICATION INCOMPLETE — <n> non-PASS rows (CONFIRMED is claimable ONLY when every verdict-bearing row above reads PASS — zero FAIL AND zero NOT-RUN/INCONCLUSIVE/discriminator-void rows — AND the contract's own VERDICT line reads CONFIRMED (exit 0); GATUS `missing` = FAIL per Phase 4; informational registrar rows AND `n/a (not obligated)` rows are exempt. An UNVERIFIED contract caps the run at UNVERIFIED whatever the liveness rows say. An early stop with nothing failed is INCOMPLETE, never confirmed)
 ROUTES: <one line per FAIL: item — route — what the operator/route must do> | none
 ```

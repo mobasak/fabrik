@@ -1,6 +1,6 @@
 ---
 description: Author the project's deployment-verification CONTRACT — `scripts/verify_prod_parity.py`: one runnable check + expected result per corpus row, every denominator DERIVED from the system (route table · compose ∪ sidecars · `os.getenv` · scheduler · schema head), features cross-checked, DEV-minus-exclusions baseline, every row SEEN RED before `FROZEN`; refreshes the fleet-AI sections of `DEPLOYMENT.md` + `OPERATIONS.md` from CODE + SPEC + DEV, never PROD. TRIGGER — EN: "author the deploy checklist", "what must prod contain", "freeze the parity contract"; TR: "deploy kontrol listesini yaz", "prod'da ne olmalı". SKIP: running it against the live deploy (→ /fabrik-deploy-verify) · field naming (→ /fabrik-data-contract) · the feature inventory (→ /fabrik-features). Stage: 6-release.
-argument-hint: "[optional: the approved spec path (Mode A) — omit to reverse-generate from the shipped project (Mode B)]"
+argument-hint: "[optional: a subsystem to scope the rows — omit to derive the whole deployed product]"
 ---
 
 Author this project's **deployment-verification contract** — the artifact that lets a deploy be certified
@@ -27,15 +27,15 @@ from the deployed state launders drift into documentation). Nothing here needs f
 
 ## Phase 0 — Establish MODE + scope `[anywhere]`
 
-State the mode and why:
-
-- **Mode A — spec-driven (new work).** A CONVERGED `/fabrik-spec` design is `$ARGUMENTS`; its inventory
-  (routes, jobs, state, external deps) seeds the rows. Phase 1 still reconciles every row against what
-  the code actually registers — the spec is the source of INTENT, the code of FACT.
-- **Mode B — reverse-generate (an existing, shipped project).** No spec; the rows are derived from the
-  code, compose, scheduler and DEV. This is how the deployable repos get a contract — run it in each.
-- **Mode C — fresh (no code worth deriving from yet).** Fill the seeded stub minimally (header + the
-  Layer-1 identity rows, which need only git) so the project has the frozen skeleton to grow into.
+**One source, always: what the project SHIPS.** The rows are derived from the code, the compose file, the
+scheduler, the env set and the DEV state — never from a spec. A project accumulates many specs and plans
+over its life and none of them describes the whole deployed product; the code does. Specs reach this command
+only through `docs/FEATURES.md`, the cross-check inventory Phase 3 walks both ways (a feature a spec promised
+and nothing ships is a finding there). A project with little code yet simply gets few rows — the Layer-1
+identity rows need only git — and the same run, re-run after each build, grows the contract; there is no
+separate "fresh" or "spec" path to choose. Run it when the project is ready to deploy, and again whenever
+compose services, the scheduler, the `os.getenv` set or the schema head change (the release precondition
+warns when the contract's `Version` predates such a change).
 
 Inputs — read them, name them: `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`)
 → the per-type pack of rows; `specs/services/<id>.yaml` `shape:` → the Layer-3 obligations (a flag that is
@@ -86,9 +86,27 @@ native — they read the project's own environment.
 Write `scripts/verify_prod_parity.py` to the seeded template's shape:
 
 - **Header block** (machine-readable, the runner and the release precondition parse it):
-  `# Status: DRAFT | FROZEN · Version: v<N> · Date: YYYY-MM-DD · Mode: A | B | C` and the freeze rule
+  `# Status: DRAFT | FROZEN · Version: v<N> · Date: YYYY-MM-DD` and the freeze rule
   verbatim: *"Frozen — no agent adds, removes or re-derives a row not listed here. Any change = bump Version
   + re-freeze via `/fabrik-deploy-checklist`."*
+- **Every row declares its SITE** — `@site("container")` for rows that need the database, redis or the
+  internal network (they run INSIDE the app container on the VPS), `@site("host")` for `docker ps` / volume
+  rows (the VPS host), nothing for the public surface (`hub`, the default). The runner executes one leg per
+  site and merges; a row placed at a site that cannot reach its target is a row that can never resolve
+  (tryton-crm's first freeze: 15 of 27 rows were DB/host rows left at the hub site — permanently UNVERIFIABLE).
+- **No self-referential row**: a row whose `expected` and `actual` come from the same source (the contract's
+  own header, a constant compared to itself) cannot be seen red and inflates the numerator — the only rows
+  allowed to compare a constant to itself are the `not obligated` markers, and only because `NOT_OBLIGATED`
+  removes them from the denominator.
+- **No snapshot fallback**: when a declaration cannot be derived where the row runs (the local app not
+  importable), the row is `UNVERIFIABLE (<why>)` — never a number remembered from an earlier run, which
+  drifts silently the first time a route is added.
+- **Comparators by what the data does after go-live**: reference data the deploy must carry intact (module
+  set, translations, the migrated filestore) is compared EXACTLY; business data that legitimately grows once
+  users work (companies, attachments, orders) is a **floor** (`comparator=lambda e, a: a >= e`) after the
+  first deploy, or the contract goes red the day the first real record is created and every re-freeze
+  chases production. The first-deploy freeze may be exact everywhere (it certifies the migration); the
+  contract says which rows switch to floors at the next bump.
 - **One function per corpus row**, named by its corpus id (`l1_identity_sha`, `l2_routes`,
   `l2_state_companies`, `l3_postgres`, … — lowercase: the hub's ruff N802 refuses capitalised function names), returning the `health-probe` comparison row shape —
   `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id.
@@ -151,7 +169,8 @@ pass.
 
 - **The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME
   change** (classify at mint; a contract freeze is normally reversible-by-re-freeze).
-- Set the header: `Status: FROZEN · Version: v<N> · Date · Mode`, freeze rule verbatim. **This header write
+- Set the header: `Status: FROZEN · Version: v<N> · Date`, freeze rule verbatim (a header that still carries a
+  trailing `· Mode: …` from an earlier freeze parses, and the re-freeze drops it). **This header write
   is a post-convergence action, exempt from the no-op rule** — measured on the body, not the flip.
 - **Refresh the fleet-AI sections of `docs/DEPLOYMENT.md` and `docs/OPERATIONS.md`** (D-065) — the
   services/jobs/env/dependency inventory Phase 1 derived IS the content those sections owe. Touch ONLY the
@@ -169,9 +188,10 @@ pass.
 
 ## Phase 7 — Hand off `[anywhere]`
 
-- **Mode A / B:** the contract is `FROZEN` → **`/fabrik-release`**, whose VPS-path precondition reads this
+- The contract is `FROZEN` → **`/fabrik-release`**, whose VPS-path precondition reads this
   header and BLOCKS on `DRAFT`. State this and stop.
-- **Mode C:** stop at the filled stub, `Status: DRAFT`, and say which rows await code.
+- A run that could derive only the identity rows (little code yet) still freezes — few rows is a true
+  contract; say which layers await code so the next re-freeze knows where to look.
 - **On a version BUMP:** the Re-freeze close-out below names what the next `/fabrik-deploy-verify` must
   re-run.
 
@@ -197,7 +217,7 @@ pass.
 ## Output (always, last thing)
 
 ```
-DEPLOY-CHECKLIST: <project> · type <scaffold type> · Mode <A|B|C> · contract v<N>
+DEPLOY-CHECKLIST: <project> · type <scaffold type> · contract v<N>
 DENOMINATORS: routes <n> (via <cmd>) · services <n>+<sidecars> · env keys <n> · jobs <n> | UNVERIFIABLE (<why>) · schema <head> | UNVERIFIABLE (<why>)
 ROWS: <N> total — <n> derived / <n> snapshot / <n> UNVERIFIABLE / <n> not obligated
 RED-SEEN: <n> of <N> asserting rows proven able to fail · <n> cannot-be-seen-red (listed)

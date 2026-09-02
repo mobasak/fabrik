@@ -598,3 +598,17 @@ def test_deploy_commands_name_the_pre_existing_project_paths():
     assert "never synced" in checklist  # the design reason, stated where the agent reads it
     assert "sections are absent" in checklist  # Phase 6: ADD the fleet-AI sections on a pre-existing project
     assert "scaffolded before 2026-09-02" in verify  # absent is the NORMAL state, routed not feared
+
+
+def test_deploy_commands_carry_the_multi_site_execution_model():
+    """Review 2026-09-02 (after tryton-crm's first real freeze): executed from the hub, 15 of its 27 rows
+    were unreachable (every DB row, redis, the filestore, the internal renderer), so the runner's
+    'run it from the project's checkout' could never reach CONFIRMED. Rows now declare a SITE and the
+    runner runs one leg per site (hub · host · container), ships the gitignored vendored comparator into
+    the container for its leg, keeps an unreachable leg in the denominator, and merges with --rows-from."""
+    checklist = (REPO / "commands" / "_sources" / "fabrik-deploy-checklist.md").read_text()
+    verify = (REPO / "commands" / "_sources" / "fabrik-deploy-verify.md").read_text()
+    for needle in ('@site("container")', "--rows-from", "--unreachable", "docker cp"):
+        assert needle in verify, needle
+    for needle in ('@site(', "self-referential", "snapshot fallback", "floor"):
+        assert needle in checklist, needle

@@ -76,7 +76,7 @@ strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted 
 ## VPS path (deploy = hub-side `fabrik apply`)
 
 **⚠️ Precondition — the parity contract is FROZEN.** Read `scripts/verify_prod_parity.py --header` (the
-`Status · Version · Mode` block the scaffolder seeds and `/fabrik-deploy-checklist` freezes) — read it, do
+`Status · Version · Date` block the scaffolder seeds and `/fabrik-deploy-checklist` freezes) — read it, do
 not assume it. Absent, unparseable or `DRAFT` ⇒ **`BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist`**
 and stop: a release whose verify run can only reach `UNVERIFIED` is not READY. A `FROZEN` contract whose
 `Version` predates a change to the compose services, the scheduler, the `os.getenv` set or the migration

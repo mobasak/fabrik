@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
-# Status: DRAFT · Version: v0 · Date: — · Mode: —
+# Status: DRAFT · Version: v0 · Date: —
 # Frozen — no agent adds, removes or re-derives a row not listed here. Any change = bump Version
 # + re-freeze via `/fabrik-deploy-checklist`.
 """The deployment-verification CONTRACT for this project — one runnable check + expected result per
@@ -37,7 +37,7 @@ from typing import Any
 
 _HEADER_RE = re.compile(
     r"^# Status:\s*(?P<status>DRAFT|FROZEN)\s*·\s*Version:\s*(?P<version>v\d+)\s*·\s*"
-    r"Date:\s*(?P<date>[^·]+?)\s*·\s*Mode:\s*(?P<mode>.+?)\s*$",
+    r"Date:\s*(?P<date>[^·\n]+?)\s*(?:·\s*Mode:\s*[^\n]*?)?\s*$",  # a trailing `· Mode: …` (pre-2026-09-02 freeze) is tolerated and dropped
     re.M,
 )
 
@@ -47,13 +47,41 @@ EXCLUSIONS: list[dict[str, str]] = [
     # {"item": "sales/activities/invoices history", "ruling": "D-017"},
 ]
 
+#: Rows a `shape:` flag switches OFF (e.g. `is_admin_dashboard: false` → no Authelia row obligated). They
+#: stay VISIBLE as rows and leave the parity denominator — the ONLY thing that removes a row.
+NOT_OBLIGATED: frozenset[str] = frozenset()
+
+#: Where a row can be EXECUTED. `hub` (default): the public surface, reachable from the operator's box.
+#: `host`: the VPS host (docker ps, volume paths). `container`: inside the app container (the database,
+#: redis, the internal network). /fabrik-deploy-verify runs one leg per site where it can reach and merges
+#: the legs with `--verdict --rows-from`; a leg it cannot reach is emitted UNVERIFIABLE via `--unreachable`,
+#: never dropped (tryton-crm's first freeze: 15 of 27 rows were container/host rows and could never resolve
+#: from the hub, so the contract could never be CONFIRMED where the runner ran it).
+SITES = ("hub", "host", "container")
+
+
+def site(name: str) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]]:
+    """Declare the site a row must run at: `@site("container")`. Undeclared rows are `hub` rows."""
+    if name not in SITES:
+        raise ValueError(f"unknown site {name!r} — one of {SITES}")
+
+    def _mark(fn: Callable[[], dict[str, Any]]) -> Callable[[], dict[str, Any]]:
+        fn._parity_site = name  # type: ignore[attr-defined]
+        return fn
+
+    return _mark
+
+
+def row_site(fn: Callable[[], dict[str, Any]]) -> str:
+    return str(getattr(fn, "_parity_site", "hub"))
+
 
 def parse_header(path: Path | None = None) -> dict[str, str]:
     """The machine-readable header block (first lines of THIS file). Missing → DRAFT, fail closed."""
     text = (path or Path(__file__)).read_text(encoding="utf-8", errors="replace")
     m = _HEADER_RE.search(text[:2000])
     if not m:
-        return {"status": "DRAFT", "version": "v0", "date": "—", "mode": "—", "parsed": "false"}
+        return {"status": "DRAFT", "version": "v0", "date": "—", "parsed": "false"}
     return {**m.groupdict(), "parsed": "true"}
 
 
@@ -125,9 +153,21 @@ _PRECONDITION_ROW = (
 )
 
 
-def run_rows() -> list[dict[str, Any]]:
+def run_rows(
+    rows: list[Callable[[], dict[str, Any]]] | None = None,
+    *,
+    site: str | None = None,
+    unreachable: str | None = None,
+) -> list[dict[str, Any]]:
+    """Execute the rows (all, or one site's). `unreachable` emits the selected rows as UNVERIFIABLE
+    WITHOUT running them — the runner's way to keep a leg it could not reach in the denominator."""
     out: list[dict[str, Any]] = []
-    for fn in ROWS:
+    for fn in ROWS if rows is None else rows:
+        if site is not None and row_site(fn) != site:
+            continue
+        if unreachable is not None:
+            out.append(unverifiable(fn.__name__, f"{row_site(fn)} leg not run — {unreachable}"))
+            continue
         try:
             out.append(fn())
         except Exception as exc:  # noqa: BLE001 — a row that raises is UNVERIFIABLE, never a crash
@@ -136,17 +176,25 @@ def run_rows() -> list[dict[str, Any]]:
 
 
 def self_check() -> list[str]:
-    """The FREEZE CHECKLIST — every miss is one line; empty means the contract may be frozen."""
+    """The FREEZE CHECKLIST — every miss is one line; empty means the contract may be frozen.
+
+    STATIC by contract: it never executes a row. The shape of a row is proven by the `--json` runs the
+    see-red phase performs; a checklist that fired every probe (tryton-crm's first freeze: 20 HTTPS
+    requests and a failed-login POST at production per `--self-check`) was the wrong instrument."""
     misses: list[str] = []
     hdr = parse_header()
     if hdr.get("parsed") != "true":
-        misses.append("header does not parse (Status · Version · Date · Mode)")
+        misses.append("header does not parse (Status · Version · Date)")
     for fn in ROWS:
-        row = fn()
-        if not isinstance(row, dict) or "system" not in row or "status" not in row:
-            misses.append(f"{fn.__name__}: not a row (needs at least system + status)")
-        elif re.match(r"^UNVERIFIABLE \(\s*\)$", str(row.get("detail", ""))):
-            misses.append(f"{fn.__name__}: UNVERIFIABLE without a why")
+        if not callable(fn) or not re.match(r"^l\d", fn.__name__):
+            misses.append(
+                f"{getattr(fn, '__name__', fn)!s}: not a corpus row (a callable named l<layer>_…)"
+            )
+        elif row_site(fn) not in SITES:
+            misses.append(f"{fn.__name__}: unknown site {row_site(fn)!r}")
+    for name in NOT_OBLIGATED:
+        if name not in {fn.__name__ for fn in ROWS}:
+            misses.append(f"NOT_OBLIGATED names {name!r}, which is not a row")
     if all(fn.__name__ == _PRECONDITION_ROW for fn in ROWS):
         misses.append(
             "only the precondition row is authored — no corpus row; freezing this certifies nothing"
@@ -230,26 +278,80 @@ def verdict(
 def _exit_code(rows: list[dict[str, Any]], hdr: dict[str, str]) -> int:
     """ONE exit algebra: the default/`--json` run exits exactly as `--verdict` would (`verdict()` is the
     single source — a second hand-written precedence here was the retired-rule class)."""
-    return int(verdict(rows, hdr)["exit"])
+    return int(verdict(rows, hdr, not_obligated=NOT_OBLIGATED)["exit"])
 
 
 _FLAGS = ("--json", "--verdict", "--self-check", "--header", "--help", "-h")
+_VALUE_FLAGS = {
+    "--site": 1,
+    "--unreachable": 1,
+    "--rows-from": -1,
+}  # -1: every following non-flag token
+
+
+def _parse(args: list[str]) -> tuple[list[str], dict[str, Any], list[str]]:
+    """(flags, values, unknown) — hand-rolled on purpose: the stub carries no argparse so a project that
+    strips its dev deps still runs it, and an unknown token must never fall through to a contract run."""
+    flags: list[str] = []
+    values: dict[str, Any] = {}
+    unknown: list[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _FLAGS:
+            flags.append(a)
+        elif a in _VALUE_FLAGS:
+            n = _VALUE_FLAGS[a]
+            vals: list[str] = []
+            j = i + 1
+            while j < len(args) and not args[j].startswith("--") and (n < 0 or len(vals) < n):
+                vals.append(args[j])
+                j += 1
+            if not vals:
+                unknown.append(f"{a} (needs a value)")
+            values[a] = vals if n < 0 else vals[0]
+            i = j
+            continue
+        else:
+            unknown.append(a)
+        i += 1
+    return flags, values, unknown
+
+
+def _rows_for(flags: list[str], values: dict[str, Any]) -> list[dict[str, Any]]:
+    files = values.get("--rows-from")
+    if files:
+        merged: list[dict[str, Any]] = []
+        for f in files:
+            merged.extend(json.loads(Path(f).read_text(encoding="utf-8")))
+        return merged
+    return run_rows(site=values.get("--site"), unreachable=values.get("--unreachable"))
+
+
 _USAGE = (
-    "usage: verify_prod_parity.py [--json | --verdict | --self-check | --header | --help]\n"
+    "usage: verify_prod_parity.py [--json | --verdict | --self-check | --header | --help] [--site NAME] [--unreachable WHY] [--rows-from F…]\n"
     "  (no flag)     run the contract rows, print `STATUS system: detail` per row; exit as --verdict\n"
     "  --json        the row list as JSON (the shape /fabrik-deploy-verify consumes)\n"
     "  --verdict     the verdict algebra EXECUTED: the PARITY:/VERDICT: lines; exit 0 confirmed · 2 denied/DRAFT · 1 on a DOWN\n"
     "  --self-check  the FREEZE CHECKLIST; exit 0 when the contract may be frozen\n"
-    "  --header      the parsed Status/Version/Date/Mode header as JSON\n"
+    "  --header      the parsed Status/Version/Date header as JSON\n"
+    "  --site NAME   run only the rows declared for that site (hub | host | container) — one leg of a multi-site run\n"
+    "  --unreachable WHY   with --site: emit that site's rows as UNVERIFIABLE without running them (the leg could not be reached)\n"
+    "  --rows-from F [F…]  with --verdict/--json: use the row lists in these JSON files (the legs' outputs) instead of running rows\n"
 )
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
+    args, values, unknown = _parse(list(sys.argv[1:] if argv is None else argv))
     if "--help" in args or "-h" in args:
         print(_USAGE, end="")
         return 0
-    unknown = [a for a in args if a not in _FLAGS]
+    if "--site" in values and values["--site"] not in SITES:
+        unknown.append(f"--site {values['--site']!r} (one of {', '.join(SITES)})")
+    if "--unreachable" in values and "--site" not in values:
+        unknown.append(
+            "--unreachable needs --site (it marks ONE leg unverifiable, never the whole contract)"
+        )
     if unknown:
         print(f"unknown flag(s): {' '.join(unknown)}\n{_USAGE}", end="", file=sys.stderr)
         return 64  # EX_USAGE — a typo must never fall through to a contract run
@@ -258,14 +360,14 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(hdr))
         return 0
     if "--verdict" in args:
-        rows = run_rows()
-        v = verdict(rows, hdr)
+        rows = _rows_for(args, values)
+        v = verdict(rows, hdr, not_obligated=NOT_OBLIGATED)
         p = v["parity"]
         if p:
             print(
                 f"PARITY: {p['agree']} agree / {p['disagree']} disagree / {p['unresolved']} unresolved"
                 f" / {p['unverifiable']} UNVERIFIABLE of {p['denominator']} (contract {hdr.get('version')},"
-                f" Mode {hdr.get('mode')}, {p['not_obligated']} not obligated)"
+                f" {p['not_obligated']} not obligated)"
             )
         print(
             f"VERDICT: {v['verdict']}" + (f" — {'; '.join(v['reasons'])}" if v["reasons"] else "")
@@ -277,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"SELF-CHECK MISS: {m}")
         print("self-check: OK" if not misses else f"self-check: {len(misses)} miss(es)")
         return 0 if not misses else 2
-    rows = run_rows()
+    rows = _rows_for(args, values)
     if "--json" in args:
         print(json.dumps(rows, indent=1))
     else:

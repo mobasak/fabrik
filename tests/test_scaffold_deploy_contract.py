@@ -240,3 +240,198 @@ def test_an_unknown_flag_prints_usage_instead_of_silently_running_the_contract(
     assert bad.returncode == 64 and "usage" in bad.stderr.lower(), (bad.returncode, bad.stderr)
     helped = _run_as_documented(stub, "--help", cwd=proj)
     assert helped.returncode == 0 and "--verdict" in helped.stdout, helped.stdout
+
+
+# ── review 2026-09-02 (second pass, after tryton-crm's first real freeze) — seen RED first ─────────
+
+
+def _vp():
+    sys.path.insert(0, str(REPO / "scripts"))
+    import importlib
+
+    import verify_prod_parity as vp  # noqa: PLC0415
+
+    return importlib.reload(vp)
+
+
+def test_header_without_mode_parses_and_an_older_header_with_mode_still_parses(
+    tmp_path: Path,
+) -> None:
+    """The modes are gone: `# Status · Version · Date` is the header. A contract frozen before the
+    change carries a trailing `· Mode: B` — it must keep parsing (tryton-crm v1 is such a file)."""
+    vp = _vp()
+    new = tmp_path / "new.py"
+    new.write_text("#!/usr/bin/env python3\n# Status: FROZEN · Version: v2 · Date: 2026-09-02\n")
+    old = tmp_path / "old.py"
+    old.write_text(
+        "#!/usr/bin/env python3\n# Status: FROZEN · Version: v1 · Date: 2026-09-02 · Mode: B\n"
+    )
+    assert vp.parse_header(new)["parsed"] == "true" and vp.parse_header(new)["status"] == "FROZEN"
+    assert vp.parse_header(old)["parsed"] == "true" and vp.parse_header(old)["version"] == "v1"
+
+
+def test_self_check_never_executes_a_row(tmp_path: Path) -> None:
+    """`--self-check` is the FREEZE CHECKLIST, run repeatedly while authoring: it must be STATIC. tryton-crm's
+    first freeze showed why — its self-check fired 20 HTTPS probes and a failed-login POST at production on
+    every run because the seeded stub executed every row to 'check the shape'."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    shutil.copytree(REPO / "libs" / "health_probe", proj / "libs" / "health_probe")
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    src = TEMPLATE.read_text()
+    sentinel = proj / "row-was-executed"
+    src = src.replace(
+        "ROWS: list[Callable[[], dict[str, Any]]] = [l0_health_probe_vendored]",
+        "def l9_probe():\n"
+        f"    Path({str(sentinel)!r}).write_text('x')\n"
+        "    return liveness_row('l9_probe', True, 'ran')\n\n"
+        "ROWS: list[Callable[[], dict[str, Any]]] = [l0_health_probe_vendored, l9_probe]",
+    )
+    stub.write_text(src)
+    r = _run_as_documented(stub, "--self-check", cwd=proj)
+    assert not sentinel.exists(), "self-check executed a row (it must be static)"
+    assert r.returncode == 0, (r.returncode, r.stdout)
+
+
+def test_rows_declare_a_site_and_site_filters_the_run(tmp_path: Path) -> None:
+    """Every row carries a SITE — hub (public surface), host (the VPS host: docker ps, volumes) or container
+    (inside the app container: the DB, redis, the internal network). `--site X` runs only X's rows, so the
+    runner can execute each leg where it can reach, and merge."""
+    vp = _vp()
+    ran: list[str] = []
+
+    @vp.site("container")
+    def l2_db():
+        ran.append("db")
+        return vp.liveness_row("l2_db", True, "")
+
+    def l4_public():
+        ran.append("public")
+        return vp.liveness_row("l4_public", True, "")
+
+    assert (
+        vp.row_site(l2_db) == "container" and vp.row_site(l4_public) == "hub"
+    )  # hub is the default
+    rows = vp.run_rows([l2_db, l4_public], site="hub")
+    assert ran == ["public"] and [r["system"] for r in rows] == ["l4_public"]
+
+
+def test_a_leg_that_could_not_run_is_emitted_unverifiable_not_dropped(tmp_path: Path) -> None:
+    """`--site container --unreachable "<why>"` emits that site's rows as UNVERIFIABLE (fail closed) so the
+    denominator is never quietly shortened by a leg the runner could not reach."""
+    vp = _vp()
+
+    @vp.site("container")
+    def l2_db():
+        raise AssertionError("must not run")
+
+    rows = vp.run_rows([l2_db], site="container", unreachable="no ssh to vps1")
+    assert rows[0]["system"] == "l2_db" and rows[0]["match"] is None
+    assert "no ssh to vps1" in rows[0]["detail"] and rows[0]["detail"].startswith("UNVERIFIABLE")
+
+
+def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
+    """`--verdict --rows-from a.json b.json` applies the algebra to the UNION of the legs' rows."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    src = TEMPLATE.read_text().replace(
+        "# Status: DRAFT · Version: v0 · Date: —",
+        "# Status: FROZEN · Version: v1 · Date: 2026-09-02",
+    )
+    stub.write_text(src)
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    a.write_text(
+        json.dumps(
+            [
+                {
+                    "system": "x",
+                    "status": "OK",
+                    "detail": "",
+                    "expected": 1,
+                    "actual": 1,
+                    "match": True,
+                }
+            ]
+        )
+    )
+    b.write_text(
+        json.dumps(
+            [
+                {
+                    "system": "y",
+                    "status": "OK",
+                    "detail": "",
+                    "expected": 1,
+                    "actual": 2,
+                    "match": False,
+                }
+            ]
+        )
+    )
+    ok = _run_as_documented(stub, "--verdict", "--rows-from", str(a), cwd=proj)
+    assert ok.returncode == 0 and "VERDICT: CONFIRMED" in ok.stdout, ok.stdout
+    both = _run_as_documented(stub, "--verdict", "--rows-from", str(a), str(b), cwd=proj)
+    assert both.returncode == 2 and "1 disagree" in both.stdout and " of 2 " in both.stdout, (
+        both.stdout
+    )
+
+
+def test_not_obligated_set_is_wired_into_the_cli_verdict(tmp_path: Path) -> None:
+    """The stub declares `NOT_OBLIGATED` and `--verdict` must apply it — tryton-crm had to add the wiring
+    by hand because the seeded `main()` never passed it."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    src = TEMPLATE.read_text().replace(
+        "# Status: DRAFT · Version: v0 · Date: —",
+        "# Status: FROZEN · Version: v1 · Date: 2026-09-02",
+    )
+    src = src.replace(
+        "NOT_OBLIGATED: frozenset[str] = frozenset()",
+        'NOT_OBLIGATED: frozenset[str] = frozenset({"x"})',
+    )
+    assert 'frozenset({"x"})' in src
+    stub.write_text(src)
+    a = tmp_path / "a.json"
+    a.write_text(
+        json.dumps(
+            [
+                {
+                    "system": "x",
+                    "status": "OK",
+                    "detail": "",
+                    "expected": 1,
+                    "actual": 2,
+                    "match": False,
+                },
+                {
+                    "system": "y",
+                    "status": "OK",
+                    "detail": "",
+                    "expected": 1,
+                    "actual": 1,
+                    "match": True,
+                },
+            ]
+        )
+    )
+    r = _run_as_documented(stub, "--verdict", "--rows-from", str(a), cwd=proj)
+    assert r.returncode == 0 and "1 not obligated" in r.stdout and " of 1 " in r.stdout, r.stdout
+
+
+def test_a_misspelt_site_or_a_bare_unreachable_is_a_usage_error(tmp_path: Path) -> None:
+    """`--site contaner` must not silently run zero rows (which would fail closed with a misleading
+    'empty denominator'); `--unreachable` without `--site` would mark EVERY row unverifiable. Both: usage, 64."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    bad_site = _run_as_documented(stub, "--json", "--site", "contaner", cwd=proj)
+    assert bad_site.returncode == 64 and "site" in bad_site.stderr, (
+        bad_site.returncode,
+        bad_site.stderr[:200],
+    )
+    bare = _run_as_documented(stub, "--json", "--unreachable", "no ssh", cwd=proj)
+    assert bare.returncode == 64 and "--site" in bare.stderr, (bare.returncode, bare.stderr[:200])
