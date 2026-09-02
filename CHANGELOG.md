@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Groq free lane reachable from the hub: keys wired + validated (2026-09-02)
+
+- `GROQ_API_KEY` copied into `/opt/fabrik/.env` from `/opt/fabrik-lib/.env`, which held the box's
+  ONLY Groq key (scanned: 79 `.env` files across `/opt/*/` + `$HOME` + the shared pool config
+  `~/.config/fabrik/subagents.env` — one hit). The loader resolves `<repo>/.env` walking up, then
+  the shared file; neither path reaches another repo's `.env`, so `provider="groq"`
+  (`libs/subagents/providers.py:157`) fail-loud'd in every repo except fabrik-lib despite
+  `GROQ_API_KEY` being a curated `DOTENV_KEYS` entry.
+- `GROQ_API_KEY_2` added (operator-supplied spare, separate per-key bucket) following the existing
+  `NVIDIA_API_KEY_N` / `MISTRAL_API_KEY_N` convention. Only the unsuffixed var autoloads.
+- Both keys verified LIVE end-to-end — autoload-on-import populated `GROQ_API_KEY`, then real
+  `/chat/completions` calls through the provider row's own `base_url` returned HTTP 200
+  (`qwen/qwen3.6-27b`). A bogus-key control returned 401, proving the endpoint is gated and the
+  200s mean something.
+- ⚠️ Recorded in `docs/CONFIGURATION.md`: Groq's edge returns **403 to a default
+  `Python-urllib/*` User-Agent** on both `/models` and `/chat/completions` even with a valid key —
+  a client-fingerprint block, not an auth failure. Cost a false "key rejected" reading during this
+  very validation; a bad key returns 401.
+
 ### Fixed — Deployment-verification spec re-converged with the verdict algebra EXECUTED, not re-read (2026-09-02)
 
 - Sixth `/fabrik-spec-review` run (passes J1–J5) after Amendment 3. The closing pass ran a throwaway

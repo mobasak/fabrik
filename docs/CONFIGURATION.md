@@ -223,6 +223,25 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
 
+### Groq Cloud — `GROQ_API_KEY` (+ one spare; free tier)
+
+- `GROQ_API_KEY` — Groq's free tier at `https://api.groq.com/openai/v1` (OpenAI-compatible).
+  $0; ~30 req/min · 1000 req/day **per key** (console → Limits is the live authority).
+  Consumed by the pool's `provider="groq"` row (`libs/subagents/providers.py`); it is the only
+  Groq var in `_dotenv.py`'s `DOTENV_KEYS`, so it is the one that autoloads.
+- `GROQ_API_KEY_2` — spare, separate per-key bucket; select manually
+  (`GROQ_API_KEY=$GROQ_API_KEY_2 <cmd>`), same shape as the NVIDIA/Mistral spares.
+- **Provenance (2026-09-02):** the box's only Groq key lived in `/opt/fabrik-lib/.env`. The
+  loader resolves `<repo>/.env` walking up, then `~/.config/fabrik/subagents.env` — neither path
+  reaches another repo's `.env`, so `provider="groq"` fail-loud'd everywhere except fabrik-lib.
+  Both keys verified live on `/chat/completions` (`qwen/qwen3.6-27b`, HTTP 200) after the copy.
+- ⚠️ **Groq's edge rejects a default `Python-urllib/*` User-Agent with HTTP 403** — on both
+  `/models` and `/chat/completions`, with a valid key. A 403 here is a client-fingerprint block,
+  NOT a bad key (a bad key returns 401, confirmed against a bogus-key control). Send an explicit
+  `User-Agent` on any hand-rolled probe.
+- 14 models visible as of 2026-09-02, 7 chat-capable (the rest are whisper/TTS/guard/embedding).
+  Listing: `curl -H "Authorization: Bearer $GROQ_API_KEY" -A fabrik https://api.groq.com/openai/v1/models`.
+
 ### Z.AI Open Platform — `ZAI_API_KEY` (international Zhipu; free GLM-4.7-Flash)
 
 - `ZAI_API_KEY` — Z.AI Open Platform (z.ai/model-api; keys at z.ai/manage-apikey/apikey-list —
