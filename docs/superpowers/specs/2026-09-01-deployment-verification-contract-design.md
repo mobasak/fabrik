@@ -1,10 +1,12 @@
 # Deployment Verification Contract — design spec
 
-Status: **CONVERGED** (2026-09-02 · `/fabrik-spec-review` RE-RUN over Amendment 2 — passes H1–H4, 16
-passes total across five review runs; H4 quiet at content md5 `d06d1150`, zero edits, zero candidates)
-Date: 2026-09-01 · amended + re-converged 2026-09-02
+Status: **DRAFT** — H1–H4 converged Amendment 2 (H4 quiet at md5 `d06d1150`), and **Amendment 3
+(2026-09-02) voided it 40 minutes later**: fabrik-lib BUILT their design, executed its success criteria,
+and found a fail-open that my verdict algebra inherited one layer up. Four text-only passes could not see
+it. Owed: `/fabrik-spec-review` over Amendment 3.
+Date: 2026-09-01 · amended 2026-09-02 (Amendments 1–3)
 Author: fleet (hub)
-Stage: 1-design · successor: **operator approval** (the design gate), then `/fabrik-plan-after-chat`
+Stage: 1-design · successor: `/fabrik-spec-review` over Amendment 3, then operator approval
 
 ## The problem, in the operator's words
 
@@ -367,6 +369,29 @@ falsifiable:
   the four that leaves the denominator. The distinction is operational, not academic: an `UNVERIFIABLE`
   row is a known debt with an owner, while a `None` row is a probe that silently did nothing — the second
   is a defect in the contract, the first is an honest gap in it.
+- 🛑 ⚠️ **`match: None` SPLITS BY ROW SHAPE, and one half FAILS CLOSED** (Amendment 3 — fabrik-lib
+  `01M1GEPYN6` / `01M1GGD0G6`, found by BUILDING the design and executing its success criteria after nine
+  text-based review passes were blind to it). The bullet above is **correct for a liveness-only row and
+  WRONG for an attempted comparison**, and the difference is the whole failure:
+
+  | row shape | meaning | verdict |
+  |---|---|---|
+  | no `expected`/`actual` keys, `match is None` | *not a comparison probe* — benign | `not obligated` for the parity denominator; the row is an ordinary liveness check |
+  | `expected`/`actual` PRESENT, `match is None` | **a comparison was ATTEMPTED and could not be resolved** (the comparator raised; `compare_error` carries the repr) | **FAIL CLOSED — non-zero exit, and the verdict cannot be `CONFIRMED`.** Never merely `not checked` |
+
+  **Why this is not a refinement but a hole being closed:** treated as merely *"not checked"*, a
+  **systematically broken comparator reports `0 of N` and never FAILS** — every parity row silently
+  unresolved, the run honest-looking and green. That is the 0-of-760 shape re-entering **at the verdict
+  layer**, one level above where this spec first caught it, through the very seam we required (projects
+  supply their own comparators, so a raising comparator is the seam's *expected* failure mode, not an edge
+  case). Their prototype exited **0 with the system declared `critical`**, because the raised exception
+  lost the system name to `_probe_label` (`"<lambda>"`) and `r["system"] in critical` can then never match
+  — verified here at `health_probe.py:205-209` and `:423-427`, not taken on report.
+- ⚠️ **Consequence for `UNVERIFIABLE` too, by the same logic:** an `UNVERIFIABLE (<why>)` row is a
+  *declared, owned* gap and stays counted-not-numerated. An **unresolved** comparison is an *undeclared*
+  gap wearing the same clothes. The rule that separates them is the one this spec already states — **"a
+  check that cannot fail is a defect"** — so the only bucket that may absorb an unexplained blank is the
+  one that denies `CONFIRMED`.
 - **Every percentage carries its denominator.** "18 of 18 Shipped rows exercised" is a claim; "looks
   complete" is not. A zero without a denominator is indistinguishable from having looked nowhere.
 - ⚠️ **DENOMINATOR INTEGRITY — the clause that makes *"100% tested"* mean anything** (spec-review pass
@@ -517,9 +542,14 @@ acceptance with a converged interface** — so the fallback is retired as the pl
 
 ```
 compare(name, expected, actual, *, comparator=None) -> dict
-    # the existing {system, status, detail} PLUS expected / actual / match
+    # the existing {system, status, detail} PLUS expected / actual / match / compare_error
+    #   ⚠️ FOUR additive keys, not three (Amendment 3). compare() OWNS its comparator's
+    #   exceptions: on a raise it returns status=OK (the probe WAS taken), match=None,
+    #   compare_error=<repr>, and the REAL system name — never "<lambda>".
     # `status` stays a LIVENESS verdict; agreement lives in `match`
-match: True | False | None                       # tri-state — None = "not compared"
+match: True | False | None   # tri-state. None means "not compared" ONLY on a row with no
+                             # expected/actual; WITH them it means "attempted, unresolved"
+                             # and FAILS CLOSED (exit 2). See § Verdict algebra.
 cli(probes, critical=None, *, mismatch_exit=2, strict=False)
 ```
 
@@ -546,6 +576,15 @@ precedence can never upgrade a verdict. This is stated here so the runner has a 
 whichever way fabrik-lib settles theirs; if they publish a conflicting precedence, the runner keeps
 branching on the JSON and the disagreement is cosmetic.
 
+✅ **SETTLED ON BOTH SIDES (Amendment 3).** fabrik-lib **adopted this ranking verbatim** (`270dce64`),
+recording these three reasons as the reasons, and their § Exit codes now reads `1` (critical DOWN) →
+`2` (**disagrees OR unresolved**) → `0`. So the hedge above is discharged: neither side is guessing.
+Note the widened `2` — it now also carries the attempted-but-unresolved comparison of Amendment 3.
+⚠️ **Worth recording about the METHOD, since it cuts both ways:** twelve of their review passes across
+three runs did not raise this gap, and it surfaced only because an outside consumer had to hard-code an
+assumption to build against. **A question you must answer to proceed is a better detector of a missing
+contract clause than any number of passes over the text by its author.**
+
 ⚠️ **Two things their review proved by EXECUTION that change what this spec must do:**
 
 1. **Our requirement "a non-zero exit on mismatch, matching your CLI's existing critical-down semantics"
@@ -570,6 +609,65 @@ which would have invented a *different* shape and then owed a migration.
 CONVERGED flip. The same post-flip rule Amendment 1 applied to itself applies here; the convergence is void
 until `/fabrik-spec-review` re-runs over the amended artifact. Granting myself an exception because this
 amendment is smaller than the last one is the self-grading the rule exists to prevent.
+
+## Amendment 3 — the interface moved again, and it moved because someone BUILT it (2026-09-02)
+
+Amendment 2 bound to a CONVERGED interface. Hours later fabrik-lib prototyped their own design, executed
+its six success criteria, and **found a fail-open that reproduced this spec's own motivating failure**
+(`01M1GEPYN6`, spec re-converged at 12 passes `11ebbb2e`). Two changes land here:
+
+1. **The payload is FOUR additive keys** — `expected` / `actual` / `match` / **`compare_error`**. Their
+   earlier "three additive keys are free" mirror analysis now covers a fourth; the strict-schema caveat
+   they raised (free for `.get()` readers and `json.dumps`, **not** free for a consumer pinning
+   `extra="forbid"`, a generated TS type, or a JSON snapshot test) applies to it identically.
+2. **`match: None` splits by row shape and one half FAILS CLOSED** — see § Verdict algebra. This is the
+   substantive correction: **my Amendment-2 algebra had the hole one layer up.**
+
+⚠️ **The uncomfortable part, recorded rather than smoothed over.** Amendment 2's `None → not checked`
+mapping was reviewed by a four-pass `/fabrik-spec-review` (H1–H4) that re-derived every count in this
+document from primary source and stamped it CONVERGED — **and the mapping was wrong the whole time.**
+Every H-pass method was textual: re-derivation, cross-reference resolution, mechanical id and count
+checks. **None of them can see a defect that lives in the INTERACTION between three functions**
+(`compare()`, `run_all_checks`' generic exception handler, and `cli()`'s exit test), because nothing about
+the prose is false when you read it. Their nine passes were blind to it for the same reason mine were.
+**A design spec is not verified until it is BUILT and its success criteria are EXECUTED** — they made
+that a standing rule (their D-026), and it is the correct reading of this fleet's own
+*"EXECUTE the real check"* anchor applied to design artifacts rather than to code.
+
+And the criterion that was supposed to catch it read *"a raising comparator degrades to a result, never
+an exception out of `run_all_checks`"*. **The broken behaviour PASSED it** — it did degrade to a result,
+and that result was a silent green light. *A success criterion the defect satisfies is a sentence, not a
+criterion.* That is the same shape as this hub's own
+`test_redaction_still_applies_to_bridged_records`, which asserted a symbol's presence while its NAME
+claimed a behaviour and stayed green through a live secret leak.
+
+### The runner-scope question, answered — NO, with a named revisit trigger
+
+fabrik-lib asked directly (`01M1GGD0G6`) whether the parity-contract runner's generic half should live
+with them after all, since their operator's brief quotes this spec's ORIGINAL "🆕 fabrik-lib candidate"
+clause, which the ladder has since retired. **The call is mine — it is my spec, my Phase A, my hub-side
+code — and the answer is NO for now.** Two grounds, neither of them "keep it in my lane":
+
+- **The remainder is defined in fabrik-platform vocabulary, not generic vocabulary.** What is left after
+  `compare()` is corpus orchestration over *Layers 1–4 + a per-type pack*, keyed on `_REGISTRAR_ORDER`,
+  `shape:` flags, `SCAFFOLD_TYPES` and `specs/services/*.yaml`. A consumer outside this fleet has no
+  Layer 3 and no registrar list. That fails the *generic* half of their bar, not the reuse half.
+- **The verdict algebra is demonstrably NOT stable, and this amendment is the proof.** It changed
+  materially twice in one day — the tri-state in Amendment 2, the fail-closed split here. Upstreaming an
+  interface that is still moving is how a shared contract becomes a cross-repo round trip per edit; we
+  just spent three days and eight messages settling ONE function signature. Stability is a precondition
+  for upstreaming, not a hoped-for consequence of it.
+
+**REVISIT TRIGGER, so this is a decision and not a refusal:** once the hub build ships and the algebra
+has survived real use across **≥2 project types** without changing shape, the stable core is a genuine
+fabrik-lib candidate — and their own preferred direction then applies, *vendor the hub's comparator
+upward* rather than write a second one. Their ENHANCE unit is unaffected and proceeds; this is the only
+half in question.
+
+⚠️ **Status returned to DRAFT.** This amendment changes § Verdict algebra — the same load-bearing section
+Amendment 2 touched — so the H1–H4 convergence is void by the rule this document has now applied to
+itself three times. **The CONVERGED stamp it voids is 40 minutes old**, which is the honest measure of
+what a text-only review pass can and cannot certify.
 
 ## Approaches
 
@@ -658,7 +756,26 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | H1 | Amendment-2 ripple + corpus numbering + stale counts/vocabulary across the whole spec | method: citation + live grep | 9 (new: 9) | 13 | `ff3a477d…` → edited |
 | H2 | every count, id and cross-reference re-derived from primary source | **method: re-derivation** | 1 (new: 1) | 1 | `110c1b11…` → edited |
 | H3 | closing full fresh read + measured-claim re-derivation | **method: re-derivation** | 1 (new: 1) | 1 | `b668981b…` → edited |
-| H4 | closing full fresh read (H3 edited, so H3 was not the last pass) | **method: re-derivation** | **0 (new: 0)** | **0** | `d06d1150…` → `d06d1150…` ✓ → **CONVERGED** |
+| H4 | closing full fresh read (H3 edited, so H3 was not the last pass) | **method: re-derivation** | **0 (new: 0)** | **0** | `d06d1150…` → `d06d1150…` ✓ → CONVERGED *(voided 40 min later — see below)* |
+| — | ⚠️ **AMENDMENT 3 — fabrik-lib BUILT the design and its success criteria FAILED; the H4 stamp is void** | — | — | — | — |
+
+⚠️ **The H1–H4 convergence certified a defect, and the ledger says so rather than quietly restarting.**
+Forty minutes after H4 stamped CONVERGED, fabrik-lib prototyped their interface and executed its six
+success criteria: a caller-supplied comparator that RAISES produced **exit 0 with the system declared
+`critical`** — a passing deployment verification with no comparison having happened. My Amendment-2
+verdict algebra inherited that hole one layer up, mapping every unresolved comparison to *not checked*,
+so a systematically broken comparator would report `0 of N` and **never fail**.
+
+**Why four re-derivation passes were blind to it, stated precisely because it bounds what this command
+can certify:** H1–H4 re-derived every count, id, enumeration and line anchor in this document from
+primary source, and every one of those checks was **textual**. The defect is in the INTERACTION between
+`compare()`, `run_all_checks`' generic exception handler and `cli()`'s exit test — verified here at
+`health_probe.py:205-209` (`_probe_label` yields `"<lambda>"`, losing the system name) and `:423-427`
+(the handler that marks the row DOWN under that lost name). **Nothing about the prose is false when you
+read it.** Their own nine passes missed it identically, and it fell out in minutes once someone ran it.
+**A design spec is not verified until it is BUILT and its success criteria are EXECUTED** — the
+fleet's *"EXECUTE the real check"* anchor, which we apply to completion claims about code, applies to
+design artifacts too, and this artifact is the proof.
 
 **Pass H4 terminal round — `found: 0, fixed: 0`, md5 identical, zero candidates raised.** Everything
 re-derived from primary source, not re-cited: corpus ids **1–29 contiguous, zero duplicates** with layer
