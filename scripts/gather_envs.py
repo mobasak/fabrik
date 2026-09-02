@@ -506,7 +506,10 @@ def catalog_url_index(catalog: dict) -> dict[str, str]:
     hosts: dict[str, set[str]] = {}
     owners: dict[str, set[str]] = {}
     for provider, meta in catalog.items():
-        for extra in meta.get("hosts", []):  # hosts the classifier merged into this entry (AB3)
+        extras = meta.get("hosts") or []
+        for extra in (
+            extras if isinstance(extras, list) else [extras]
+        ):  # merged hosts (AB3); scalar-safe (AF14)
             hosts.setdefault(str(extra).lower(), set()).add(provider)
         url = str(meta.get("url") or "")
         host = urlsplit(url).hostname if url.startswith("http") else None
@@ -739,7 +742,12 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             # code-host tombstone `allowed` with match ALLOWED swallowed a CORS setting)
             provider = match_provider(key, matchers)
             reason = internal_reason(key) if provider else None
-            if reason in ("exact", "prefix") or (reason == "substr" and not is_secret(key, value)):
+            # an explicit declaration wins — except when BOTH the name and the value say credential
+            # (`PROXY_API_KEY=<secret>` under a generic INTERNAL_PREFIX token must not be hidden, AF9)
+            explicit_wins = reason == "exact" or (
+                reason == "prefix" and not (SECRET_KEY_RE.search(key) and is_secret(key, value))
+            )
+            if explicit_wins or (reason == "substr" and not is_secret(key, value)):
                 # an EXPLICIT declaration (INTERNAL_EXACT / INTERNAL_PREFIX, e.g. M365_CERT_*) always
                 # wins; a GENERIC token (_DB_PASSWORD, _TIMEOUT) is decided by the value: a
                 # vendor-prefixed config knob (ANTHROPIC_READ_TIMEOUT=120) is internal, a vendor

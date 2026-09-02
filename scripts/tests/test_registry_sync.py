@@ -451,6 +451,8 @@ def test_config_knobs_under_a_vendor_are_kind_config_not_credential(fixture_env)
         f'#svc name={TEST_PROVIDER} category=proxies cost=paid capability="test" '
         "url=https://x.example status=active used_by=projA\n"
         f"{TEST_PROVIDER.upper()}_HOST=proxy.example.com   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_API_URL=https://api.example.com/v2/very/long/path   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_DB_URL=postgresql://user:{SECRET}@db.example.com:5432/x   # used by: projA\n"
         f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}\n",
         encoding="utf-8",
     )
@@ -464,4 +466,31 @@ def test_config_knobs_under_a_vendor_are_kind_config_not_credential(fixture_env)
         )
         kinds = cur.fetchall()
     conn.close()
-    assert kinds == [("config", 1), ("credential", 1)], kinds
+    assert kinds == [("config", 2), ("credential", 2)], (
+        kinds
+    )  # URL = config; DSN with a password = credential (AF1)
+
+
+def test_public_identifiers_are_config_not_credentials(fixture_env):
+    """`M365_CLIENT_ID=<uuid>` is a public OAuth identifier: entropy alone must not make it a
+    credential (AD1); the real key still is."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=infra cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_CLIENT_ID=f1d296cb-b397-41d5-85cd-0a52c79bebe9   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_TENANT_ID=6d57bdf0-257f-4317-97d4-5daddff17baf   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_CLIENT_SECRET={SECRET}\n",
+        encoding="utf-8",
+    )
+    rs.sync_registry(fetch_credits=False, prune=False)
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind, count(*) FROM api_keys k JOIN services s ON s.id=k.service_id "
+            "WHERE s.provider=%s GROUP BY 1 ORDER BY 1",
+            (TEST_PROVIDER,),
+        )
+        kinds = cur.fetchall()
+    conn.close()
+    assert kinds == [("config", 2), ("credential", 1)], kinds

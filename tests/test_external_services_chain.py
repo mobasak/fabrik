@@ -52,7 +52,9 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
     assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
-    assert 'timeout "$STEP_TIMEOUT"' in text and "send_alert(" in text
+    assert (
+        'timeout -k 30 "$STEP_TIMEOUT"' in text and "send_alert(" in text
+    )  # SIGKILL after SIGTERM (AF13)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
@@ -140,7 +142,10 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
 
     monkeypatch.setattr(gd.os, "replace", spy)
     assert gd.main([str(out)]) == 0
-    assert replaced == [(str(out.with_name("dash.html.tmp")), str(out))]
+    assert (
+        str(out.with_name("dash.html.tmp")),
+        str(out),
+    ) in replaced  # ours is among the calls (AF11: the spy is process-wide)
     assert out.read_text(encoding="utf-8") == "<p>new</p>"
 
     class _BoomError(Exception): ...
@@ -149,6 +154,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
 
     def failing_write(self, *a, **k):
         if self.name.endswith(".tmp"):
+            orig_write(self, "half", encoding="utf-8")  # the tmp EXISTS when the write dies (AF4)
             raise _BoomError()
         return orig_write(self, *a, **k)
 

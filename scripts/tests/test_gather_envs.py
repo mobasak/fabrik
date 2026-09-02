@@ -735,8 +735,8 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
 
 
 class _Res:
-    def __init__(self, text):
-        self.agent_id, self.model, self.error, self.text = "a", "m", None, text
+    def __init__(self, text, error=None):
+        self.agent_id, self.model, self.error, self.text = "a", "m", error, text
 
 
 def test_identified_code_only_providers_get_no_match_prefix(tmp_path, monkeypatch):
@@ -973,3 +973,138 @@ def test_restub_keeps_a_curated_match_list(tmp_path, monkeypatch):
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))["zzz"]
     assert out["category"] == "unidentified" and out["match"] == ["ZZZ", "ZZZ_LEGACY"]
+
+
+def test_identified_env_keyed_provider_joins_the_existing_vendors_match_list(tmp_path, monkeypatch):
+    """`OPENAI2_API_KEY` (flagged `openai2`) identified as `openai` (catalogued) lends its prefix to
+    openai's `match` list instead of minting a second vendor (AD2)."""
+    text = '# ═ NEEDS-TRIAGE ═\n#svc name=openai2 category=? cost=? capability="?" url=? status=? used_by=web\nOPENAI2_API_KEY=x\n'
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "openai",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "llm",
+                    "url": "https://openai.com",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "openai": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "llm",
+                    "url": "https://openai.com",
+                    "status": "active",
+                    "match": ["OPENAI"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "openai2" not in out and out["openai"]["match"] == ["OPENAI", "OPENAI2"]
+
+
+def test_only_run_with_a_transport_error_records_and_tombstones_nothing(tmp_path, monkeypatch):
+    """`--only p04` whose unit transport-errors: no budget row for p04, no tombstone even after
+    three such runs — a hand-picked run is not a lap (AC10, made discriminating in AF5)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(5)
+    )
+    cat, state = _classify_env(
+        tmp_path,
+        monkeypatch,
+        text,
+        ["--apply", "--tombstone-unresolved", "--only", "p04"],
+        [_Res("", error="timeout")],
+    )
+    (state / "e.json").write_text(json.dumps({"p04": 2}), encoding="utf-8")
+    for _ in range(3):
+        assert cs.main() == 0
+    assert json.loads((state / "e.json").read_text(encoding="utf-8")) == {"p04": 2}
+    assert "p04" not in json.loads(cat.read_text(encoding="utf-8"))
+
+
+def test_dry_run_moves_no_cursor(tmp_path, monkeypatch):
+    """The documented dry run prints proposals and writes NOTHING — including the cursor (AF3)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(12)
+    )
+    cat, state = _classify_env(
+        tmp_path, monkeypatch, text, [], [_Res("not json") for _ in range(10)]
+    )
+    assert cs.main() == 0
+    assert not (state / "c.json").exists() and json.loads(cat.read_text(encoding="utf-8")) == {}
+
+
+def test_identified_curated_entry_keeps_its_match_and_hosts(tmp_path, monkeypatch):
+    text = '# ═ NEEDS-TRIAGE ═\n#svc name=zzz category=? cost=? capability="?" url=? status=? used_by=-\nZZZ_API_KEY=x\n'
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "zzz",
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://zzz.io",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {"zzz": {"category": "?", "match": ["ZZZ", "ZZZ_LEGACY"], "hosts": ["api.zzz.io"]}}
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))["zzz"]
+    assert (
+        out["category"] == "search"
+        and out["match"] == ["ZZZ", "ZZZ_LEGACY"]
+        and out["hosts"] == ["api.zzz.io"]
+    )
+
+
+def test_generic_internal_prefix_never_hides_a_credential_shaped_secret(tmp_path, monkeypatch):
+    """`PROXY_API_KEY=<secret>` under a generic INTERNAL_PREFIX token stays the catalogued vendor's;
+    `M365_CERT_THUMBPRINT` (no secret token in the name) still goes internal (AF9)."""
+    monkeypatch.setattr(ge, "INTERNAL_PREFIX", tuple(ge.INTERNAL_PREFIX) + ("PROXY_",))
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "proxyvendor": {
+                    "category": "proxies",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://proxyvendor.io",
+                    "status": "active",
+                    "match": ["PROXY"],
+                }
+            },
+            [("PROXY", "proxyvendor")],
+        ),
+    )
+    body, _ = ge.consolidate(
+        _envs(tmp_path, {"svc": "PROXY_API_KEY=pk_abcdefghijklmnopqrstuvwxyz0123456789\n"})
+    )
+    assert (
+        "#svc name=proxyvendor" in body
+        and "PROXY_API_KEY=" in body.split("#svc name=proxyvendor", 1)[1].split("# ═", 1)[0]
+    )

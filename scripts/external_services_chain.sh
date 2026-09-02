@@ -31,7 +31,7 @@ _alert() {  # $1 title, $2 body, $3 severity
 _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
   local label="$1"; shift
   local t0=$SECONDS
-  timeout "$STEP_TIMEOUT" "$@"
+  timeout -k 30 "$STEP_TIMEOUT" "$@"  # SIGKILL 30 s after SIGTERM: a hung child never outlives the budget (AF13)
   local rc=$?
   printf '[timing] %s: %ds (exit=%d)\n' "$label" "$((SECONDS - t0))" "$rc"
   if [ "$rc" -ne 0 ]; then

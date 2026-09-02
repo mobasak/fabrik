@@ -88,6 +88,7 @@ _step "flush_subagent_outboxes" "$VENV_PY" "$KB/flush_subagent_outboxes.py" ...
 
 - **43 of 48** repos carrying `libs/subagents` have no `SUBAGENT_RUNS_DSN` (measured: 5 have one — fabrik, fabrik-lib, iterative_image_editor, trade-intelligence, tryton-crm). Add `SUBAGENT_RUNS_DSN=postgresql:///fabrik_analytics` to the dev `.env` of each repo that vendors the module. **Back up first** (`cp .env backups/.env.backup.$(date +%Y%m%d-%H%M%S)`), never touch a `.env` a sibling has open.
 - **Repoint trade-intelligence.** Its DSN targets `localhost:54322/trade_intelligence` (a project-local database, credentials elided); that database has **no `subagent_runs` table** (verified — see Evidence). Its 613 outboxed rows can never land as configured.
+- **Do NOT install psycopg into the 43 project venvs.** It is not needed and it is a deps change requiring authorisation. With the A1 walker in place the projects never talk to Postgres at all: a project with no driver (or no DSN) fail-opens to its local outbox — which is exactly why seo has 551 rows on disk with neither — and the HUB, which has psycopg, flushes them. Adding the driver fleet-wide would buy nothing and widen the change by 43 dependency files.
 - Hub `.env.example:393` already carries the correct value; the **scaffolder** template (`src/fabrik/scaffold.py:1364`) ships it commented and pointed at `postgres-main`, which is right for deployed services and wrong for WSL dev. Add the dev line alongside it, commented with which environment each is for. ⚠️ `scaffold.py` is a synced surface — the edit must be correct for all ~46 projects.
 
 **Gate:** `for d in /opt/*/; do [ -d "$d/libs/subagents" ] && grep -qs '^SUBAGENT_RUNS_DSN' "$d.env" || echo "MISSING $d"; done` → empty; `psql "$(grep ^SUBAGENT_RUNS_DSN /opt/trade-intelligence/.env | cut -d= -f2-)" -tAc "SELECT 1 FROM subagent_runs LIMIT 1"` → no error.
@@ -160,6 +161,73 @@ Shift the default reviewer from `deepseek-v4-pro`/`minimax-m3` (68% of dev-half 
 **Cost, stated:** a migration on the shared table **plus** a read path that tolerates 48 vendored copies at different vintages writing the old shape. Additive column + backfill + tolerant read; no rename, no drop. `pg_ledger.py:87-95` already documents why `_REQUIRED_OUTBOX_COLS` is validated instead of `_COLS` — an outbox row is written by an *older* copy than the one flushing it. That contract binds this phase.
 
 **Gate:** an old-shape row (no new column) still flushes and still aggregates; `SELECT count(DISTINCT project)` returns repo names; `final_gate.py --json` → `"status":"success"`.
+
+---
+
+## Phase G — `capped` is two unrelated failures sharing one label (hub-local, blocks any model verdict)
+
+**Found by the operator's coverage audit, 2026-09-02** — `capped` and `stall` appeared **zero times**
+in this plan's first draft, while 232 capped runs (11% of dev-half spend) sat unexplained. The
+operator's instinct was right: *"capped runs make it hard to conclude."* Measured, it is worse than
+hard — the label is currently unusable as evidence, because it conflates two failures with opposite
+dispositions:
+
+| class | n | cost | avg turns | avg latency | whose fault |
+|---|--:|--:|--:|--:|---|
+| **provider stalled** — accepted, streamed nothing until the wall clock | 141 (61%) | **$0.00** | 0.0 | 799s | the provider |
+| **turn budget exhausted** — ran fine, hit OUR ceiling | 91 (39%) | $3.71 | 14.1 | 146s | our config |
+
+The ceilings actually hit are `max_turns` 8 (25×), 20 (21×), 6 (14×), 24 (8×). A 14-turn average
+against an 8-turn ceiling means we are **paying for truncated work** — a budget-setting defect, not a
+model defect.
+
+### G1 — Split the label at record time
+
+Record a stall as `stalled` and a budget cut-off as `turn_exhausted` instead of both as `capped`.
+Until then no aggregation can tell "the provider died" from "we cut it off", and **no model verdict
+built on capped rate is defensible.** ⚠️ This touches the recording path in `libs/subagents` → the
+48-copy blast radius of Phase D; it ships **with** D, not separately. Historical rows are
+distinguishable without a migration (`turns = 0 AND cost = 0` ⇒ stalled), so the backfill is a view,
+not a rewrite.
+
+**Gate:** a forced stall records `stalled`; a forced turn cut-off records `turn_exhausted`; the
+existing `capped` rows still aggregate correctly under the derived rule.
+
+### G2 — Stall rate as a ranking signal, with a denominator floor
+
+The stall rate is the **one** genuine model-side signal inside `capped` — it is provider
+availability, not our config. But it is confounded for every model measured only in the sweep:
+
+```
+stepfun/step-3.5-flash        33.3%   n=60  over 2 days   ← one bad afternoon is indistinguishable
+xiaomi/mimo-v2.5              26.7%   n=60  over 2 days
+tencent/hy3-preview           25.4%   n=59  over 2 days
+minimax/minimax-m3             7.7%   n=574 over 33 days  ← the only statistically meaningful figure
+```
+
+Add stall rate to the ranking gate **with a minimum-distinct-days floor** (a rate from ≤2 days is
+displayed, never routed on). Without that floor this becomes the `max_price` mistake at a new layer:
+a transient provider outage permanently demoting a working model.
+
+**Gate:** a model with a high stall rate over ≤2 distinct days is displayed with its rate but not
+demoted; one over ≥10 days is demoted. Test both directions.
+
+### G3 — Set the turn budgets deliberately
+
+`max_turns` is currently set per-caller with no stated basis (8, 6, 20, 24 all appear). Derive the
+ceiling from the observed turn distribution of SUCCESSFUL runs per task type and set it once, with
+the number written down. **Do not raise budgets blindly** — that converts a truncation into an
+unbounded spend.
+
+**Gate:** the chosen ceiling per task type is recorded with the percentile of successful runs it
+covers; a run that exceeds it is `turn_exhausted`, visible, and countable.
+
+### G4 — The provider-stall class is the largest genuine failure mode
+
+141 stalls (capped) + 102 stall-classed errors are, together, the biggest non-config failure class in
+the dataset — larger than every transport error combined. It costs $0 but loses the dispatch, and at
+799s average it burns 13 minutes of wall clock each time. Out of scope to *fix* here (it is
+provider-side), in scope to **measure and route around** via G2.
 
 ---
 
@@ -271,4 +339,9 @@ $ psql postgresql:///fabrik_analytics -c "SELECT project, count(*) FROM subagent
 - **A denominator error in my own prior reporting is disclosed** rather than quietly corrected: the `$37.04 / 4,821 runs` figures are the dev-time half and were stated as the whole.
 - **The `max_price` finding reversed on inspection.** The first reading — "246 errors poisoning the rankings, change the status semantics" — was wrong in emphasis: 240 predate a fix already shipped on 2026-07-21. An error *rate* was again nearly used as a disposition; the error *text* and its date settled it. Three models move from "bad" to "unmeasured".
 - **Known weakness:** Phase E's quality claim rests on a corpus whose own documentation says only 1 of 22 items discriminates at the frontier. The plan therefore argues cost, not quality, and says so in the phase.
+- **Two gaps were found by the operator's coverage audit, not by me** (2026-09-02): `capped` and
+  `stall` appeared zero times in the first draft, leaving 232 runs and 11% of spend unaccounted for.
+  Phase G now covers them. The lesson is that this plan's own diagnosis listed capped runs as "a
+  budget-setting problem" and then failed to carry that item into a phase — a finding stated in prose
+  and dropped on the way to the plan is a finding lost.
 - **Not covered:** the task-type skew (review 8,465 of 9,289 rows; code 53, plan 40, spec 9 — the published `spec` ranking is one model on six runs). Real, out of scope here, belongs in `docs/STRATEGIC_BACKLOG.md`.

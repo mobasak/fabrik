@@ -928,7 +928,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 - `scripts/registry_db.py` - Thin sync Postgres connector for the services registry (`SERVICES_REGISTRY_DSN`, peer-auth default)
 - `scripts/registry_sync.py` - Phase B: parse `secrets/all-envs.env` → upsert the local `fabrik_services` registry (stores `value_sha256`, never the raw secret); `--fetch-credits` adds the credit snapshots. Scheduled by `scripts/external_services_chain.sh` since 2026-09-02 (its own cron line was never installed — registry froze 46 days)
 - `scripts/tests/test_registry_sync.py` - Behavior-Contract tests for the registry sync (sha256-not-raw, idempotent)
-- `db/services_registry_schema.sql` - 4-table schema (`services`/`api_keys` incl. `kind` = credential|code-host/`credit_snapshots`/`subscriptions`) for the local services registry
+- `db/services_registry_schema.sql` - 4-table schema (`services`/`api_keys` incl. `kind` = credential|config|code-host/`credit_snapshots`/`subscriptions`) for the local services registry
 - `scripts/credit_fetchers/` - Phase C: per-provider account balance/usage fetchers (apify/deepl live; resilient, timeout+retry, None on failure)
 - `scripts/declare_subscription.py` - Declare renewal/price/account-email for a service → `subscriptions` (manual half of the hybrid registry)
 - `scripts/tests/test_credit_fetchers.py` - Behavior-Contract tests for the fetchers + declare

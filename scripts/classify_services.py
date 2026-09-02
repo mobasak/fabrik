@@ -262,6 +262,12 @@ def main() -> int:
     if args.only:  # the re-bill guard: classify ONLY the named (new) providers, not all flagged
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
         provs = {p: v for p, v in provs.items() if p in wanted}
+        missing = wanted - set(provs)
+        if missing:  # a name that is not flagged is a typo or already catalogued — say so (AF12)
+            print(
+                f"--only: {sorted(missing)} are not in NEEDS-TRIAGE ({len(all_flagged)} flagged)",
+                file=sys.stderr,
+            )
     if not provs:
         print("No category=? providers to classify — nothing to do.")
         return 0
@@ -290,7 +296,7 @@ def main() -> int:
 
     names = list(provs)
     print(f"Classifying {len(names)} uncatalogued providers via the pool: {', '.join(names)}\n")
-    if new_cursor is not None and not args.only:
+    if new_cursor is not None and not args.only and args.apply:  # a dry run moves nothing (AF3)
         # persist the cursor BEFORE the paid dispatch: a `timeout` kill after dispatch would
         # otherwise re-bill the identical slice every day, forever (AC5)
         _write_json(CURSOR_PATH, {"after": new_cursor})
@@ -338,26 +344,30 @@ def main() -> int:
     merged_into: dict[str, str] = {}
     for prov, v in list(identified.items()):
         target = str(v.get("name") or "").strip().lower()
-        if (
-            target
-            and target != prov
-            and target in catalog
-            and code_only_provider(provs.get(prov, {}))
-        ):
-            # the vendor is ALREADY catalogued under another key (safebrowsing.googleapis →
-            # google-safe-browsing): record the host on that entry instead of minting a duplicate
-            # identity that would be re-billed every lap (pass 7, AB3)
-            hosts = catalog[target].setdefault("hosts", [])
-            for u in provs.get(prov, {}).get("urls", []):
-                h = urlsplit(u).hostname
-                if h and h not in hosts:
-                    hosts.append(h)
+        if target and target != prov and target in catalog:
+            # the vendor is ALREADY catalogued under another key: a code-only provider records its
+            # host on that entry (safebrowsing.googleapis → google-safe-browsing, AB3); an env-keyed
+            # one lends its key prefix to that entry's `match` list (AD2) — never a duplicate
+            # identity that the registry and dashboard would show as a second vendor
+            entry = catalog[target]
+            if code_only_provider(provs.get(prov, {})):
+                hosts = entry.setdefault("hosts", [])
+                if not isinstance(hosts, list):  # a hand-edited scalar (AF14)
+                    hosts = entry["hosts"] = [str(hosts)]
+                for u in provs.get(prov, {}).get("urls", []):
+                    h = urlsplit(u).hostname
+                    if h and h not in hosts:
+                        hosts.append(h)
+            else:
+                match = entry.setdefault("match", [])
+                if prov.upper() not in match:
+                    match.append(prov.upper())
             merged_into[prov] = target
             identified.pop(prov)
     for prov, v in identified.items():
         root = prov.upper()  # FULL provider name — a compound like `aws_bedrock` must match only
         #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
-        catalog[prov] = {
+        entry = {
             "category": v.get("category", "?"),
             "cost": v.get("cost", "?"),
             "capability": str(v.get("capability", "?"))[:70],
@@ -367,6 +377,13 @@ def main() -> int:
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
             "match": [] if code_only_provider(provs.get(prov, {})) else [root],
         }
+        if (
+            prov in catalog
+        ):  # a curated entry keeps its match/hosts when identified (AF8, mirror of AC11)
+            for keep in ("match", "hosts"):
+                if keep in catalog[prov]:
+                    entry[keep] = catalog[prov][keep]
+        catalog[prov] = entry
     if (
         args.only
     ):  # a hand-picked run is not a lap: it neither spends nor records the error budget (AC10)
@@ -393,8 +410,8 @@ def main() -> int:
         # stay in triage and defeat the whole point (C2). The full provider name is the
         # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
         for prov in names:
-            if prov in identified or prov in errored:
-                continue
+            if prov in identified or prov in errored or prov in merged_into:
+                continue  # a merged host joined its vendor — never also a stub (AF2)
             if prov in catalog and catalog[prov].get("category") not in (None, "", "?"):
                 continue  # a real entry; a `?` entry is re-stubbed so it leaves triage (pass 5, Z10)
             stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))

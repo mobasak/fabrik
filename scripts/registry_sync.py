@@ -36,8 +36,34 @@ CREDENTIAL_KEY_RE = re.compile(
 )
 
 
+# Public identifiers (OAuth client/tenant/account/project ids) are long, alphanumeric and NOT
+# secrets — value entropy alone calls them credentials (AD1: M365_CLIENT_ID, GOOGLE_CLIENT_ID,
+# R2_ACCOUNT_ID …, 26 live pairs). A credential is credential-shaped by NAME, or secret-shaped by
+# value with a name that is not an identifier.
+IDENTIFIER_KEY_RE = re.compile(
+    r"(_ID|_IDS|_UUID|_NUMBER|_ARN|_REGION|_ZONE|_HOST|_PORT|_MODEL|_VERSION|_URL|_URLS|_ENDPOINT|_BASE|_DOMAIN)$",
+    re.I,
+)
+# a DSN/URL that CARRIES a password (`scheme://user:pw@host`) is a credential whatever its name
+USERINFO_RE = re.compile(r"://[^/@\s]+:[^/@\s]+@")
+
+
+def is_credential(key: str, value: str) -> bool:
+    """`kind` is decided by the NAME first — the value-entropy branch of `gather_envs.is_secret`
+    calls any 24+-char alphanumeric value a secret (API URLs, tenant ids, model names — 48 live
+    vendor rows, AF1). Order: credential-shaped name → yes; URL/identifier-shaped name → no unless
+    the value embeds userinfo; otherwise the value decides."""
+    if CREDENTIAL_KEY_RE.search(key) or gather_envs.SECRET_KEY_RE.search(key):
+        return True
+    if USERINFO_RE.search(value):
+        return True
+    if IDENTIFIER_KEY_RE.search(key):
+        return False
+    return gather_envs.is_secret(key, value)
+
+
 def ensure_schema(cur) -> None:
-    """Idempotent forward migration: `api_keys.kind` ('credential' | 'code-host') — a code
+    """Idempotent forward migration: `api_keys.kind` ('credential' | 'config' | 'code-host') — a code
     call-site row is a public URL's digest, not a secret, and the dashboard must not count it
     as a key (review 2026-09-02, O4). `db/services_registry_schema.sql` carries the column for
     fresh installs; this brings an existing registry level on its next sync."""
@@ -147,10 +173,10 @@ def sync_registry(
                     # userinfo (`NAMECHEAP_PROXY_URL=http://u:pw@…`) is a credential (pass 2, G3)
                     if _key == "CODE_HOST_URL":
                         kind = "code-host"
-                    elif gather_envs.is_secret(_key, value):
+                    elif is_credential(_key, value):
                         kind = "credential"
                     else:
-                        kind = "config"  # a URL/host/port/model knob under a vendor prefix — never a key (AC6)
+                        kind = "config"  # a URL/host/port/model/ID knob under a vendor prefix — never a key (AC6/AD1)
                     if kind == "credential":
                         if CREDENTIAL_KEY_RE.search(_key):
                             first_value = first_value or value
