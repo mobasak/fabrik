@@ -921,6 +921,12 @@ before any blocking threshold is set.
 
 ## Phase G — `capped` is two unrelated failures sharing one label (hub-local, blocks any model verdict)
 
+**PARTIALLY EXECUTED 2026-09-02 — G2 done; G1 and G3 reach the cross-repo gate.** G1 (splitting
+`capped` into `stalled`/`turn_exhausted` at record time) is a `libs/subagents` change and ships with
+Phase D by this plan's own instruction. G3 (`max_turns`) is the same surface — the default lives at
+`agent.py:198`, not in the hub. Both need the operator's explicit word for the write to canonical
+`/opt/fabrik-lib/subagents` and the 48-copy re-vendor.
+
 **Found by the operator's coverage audit, 2026-09-02** — `capped` and `stall` appeared **zero times**
 in this plan's first draft, while 232 capped runs (11% of dev-half spend) sat unexplained. The
 operator's instinct was right: *"capped runs make it hard to conclude."* Measured, it is worse than
@@ -962,6 +968,15 @@ $ psql postgresql:///fabrik_analytics -c "SELECT status, count(*) FROM subagent_
 existing `capped` rows still aggregate correctly under the derived rule.
 
 ### G2 — Stall rate as a ranking signal, with a denominator floor
+
+**✅ EXECUTED 2026-09-02** — `stall_signal()` + `STALL_QUERY` in `rank_task_subagents.py`, floors
+`_STALL_MIN_DAYS = 2` **paired with** `_STALL_MIN_SPAN_DAYS = 7`. The live data confirms the
+inversion was right: `stepfun/step-3.5-flash` 33.3% / 2 days / **46 apart** → routable;
+`xiaomi/mimo-v2.5` 26.7% and `tencent/hy3-preview` 25.4%, same shape → routable;
+`poolside/laguna-m.1` **19.3% on ONE day** → displayed, never routed; `minimax/minimax-m3` 6.4% over
+5 days spanning 56 → routable. A days-only floor of 3 would have suppressed all three reproduced
+signals and admitted nothing better. 7 tests pin the RULE, not the roster; red-on-revert proven by
+removing the span floor.
 
 The stall rate is the **one** genuine model-side signal inside `capped` — it is provider
 availability, not our config. But it is confounded for every model measured only in the sweep:

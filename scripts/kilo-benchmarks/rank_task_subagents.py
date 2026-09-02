@@ -83,6 +83,57 @@ MIN_RUNS_TOP2 = 10  # slots #1-#2 require n≥10; lower-n rows sort below
 # do it only with a corpus that can resolve the difference you are giving up.
 _SCORE5_NOISE_BAND = 0.25
 
+# ── G2: provider-stall rate, gated on INCIDENT independence rather than sampling breadth ──────────
+# `capped` conflates two failures with opposite dispositions: a provider that accepted the request
+# and streamed NOTHING (0 turns, $0 — theirs), and a run that worked and hit OUR max_turns ceiling
+# (ours). Only the first says anything about a model, and it is the one genuine model-side signal
+# inside `capped`.
+#
+# ⚠️ THE FLOOR IS INCIDENTS, NOT DAYS — an earlier design had this exactly backwards. It proposed a
+# "minimum distinct DISPATCH days" floor on the reading that a rate from 2 days could be one bad
+# afternoon. Measured, those two days are **46 days apart** (2026-07-18 and 2026-09-02): a signal
+# REPRODUCED across two independent incidents six weeks apart is STRONGER evidence, not weaker. A
+# days-floor would have suppressed exactly that while admitting a model swept on ten consecutive days
+# of a single outage. Sampling breadth is not incident independence.
+_STALL_MIN_DAYS = 2       # at least two days on which stalls occurred
+_STALL_MIN_SPAN_DAYS = 7  # …separated by at least a week, so one outage cannot qualify alone
+
+
+def stall_signal(stalls: int, total: int, stall_days: int, span_days: int) -> tuple[float, bool]:
+    """(rate, routable). A rate is DISPLAYED always and ROUTED on only when reproduced.
+
+    Live data this separates correctly (as of 2026-09-02):
+      stepfun/step-3.5-flash 33.3% · 2 days · 46 apart -> routable (two incidents)
+      xiaomi/mimo-v2.5       26.7% · 2 days · 46 apart -> routable
+      poolside/laguna-m.1    19.3% · 1 day  ·  0 apart -> DISPLAY ONLY (one incident)
+      minimax/minimax-m3      6.4% · 5 days · 56 apart -> routable
+    """
+    rate = (100.0 * stalls / total) if total else 0.0
+    routable = (
+        stalls > 0
+        and stall_days >= _STALL_MIN_DAYS
+        and span_days >= _STALL_MIN_SPAN_DAYS
+    )
+    return rate, routable
+
+
+# ⚠️ The denominator is stated, not implied: stalls are counted over rows whose status is a real
+# dispatch outcome (`status <> '' AND status <> 'scored'`). 2,727 rows carry a BLANK status and
+# `scored` rows are quality deltas, not runs — including either would silently change every rate.
+STALL_QUERY = """
+WITH s AS (
+  SELECT model, ts::date AS d,
+         count(*) FILTER (WHERE status = 'capped' AND coalesce(turns, 0) = 0) AS stalls,
+         count(*) AS n
+  FROM subagent_runs
+  WHERE status <> '' AND status <> 'scored'
+  GROUP BY 1, 2
+)
+SELECT model, sum(stalls), sum(n), count(*) FILTER (WHERE stalls > 0),
+       coalesce(max(d) FILTER (WHERE stalls > 0) - min(d) FILTER (WHERE stalls > 0), 0)
+FROM s GROUP BY model HAVING sum(stalls) > 0
+"""
+
 
 def load_task_baselines(db_path: str | Path | None = None) -> dict[tuple[str, str], float]:
     """(model_id, task_type) -> benchmark-derived prior, from `model_task_baseline`.
