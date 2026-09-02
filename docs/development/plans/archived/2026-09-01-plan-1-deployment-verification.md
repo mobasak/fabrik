@@ -1,6 +1,6 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: **IN-PROGRESS** (execution started 2026-09-02 by `/fabrik-execute-plan`, order C → A → B → D · was CONVERGED 2026-09-02 · `/fabrik-plan-review` R6–R9 after fabrik-lib BUILT AND SHIPPED the comparison axis
+Status: **EXECUTED 2026-09-02** (`/fabrik-execute-plan`, order C → A → B → D: Phase C `3b13aafa`, Phases A+B `548ef44a` (one commit — predicate 2), Phase D the convergence commit; whole-plan review `docs/development/reviews/2026-09-01-plan-1-deployment-verification-review.md`, coverage-adjudicated; final gate `success`. Was CONVERGED 2026-09-02 · `/fabrik-plan-review` R6–R9 after fabrik-lib BUILT AND SHIPPED the comparison axis
 this plan binds to — `01M1GQR1R3TD9AE68YVSP0DT51`, their `e48ba19c`/`53c098c2`, 75 tests re-run at their HEAD. R9 quiet at
 md5 `96e79a91`: 33 anchors, 19/19 probes, 11/11 digest quotes, zero raised. Sixteen findings across R6–R8, the two that
 mattered: the plan vendored NOTHING while binding to a shipped module (File Scope row 12 + Phase C step 5 now vendor it
@@ -273,7 +273,8 @@ cites them); the order of execution is what changes.
      `alembic heads` without a contract bump is a WARN (the `check_schema_sync.py` shape, extended).
      **Grader ruling (evaluation-checklist items 35–37, stated not implied):** today NO executable check
      grades the parity script's `FROZEN` header — `check_stage_artifacts.py` grades only
-     `data-contract`/`ui-design` FROZEN flips. That is a DELIBERATE deferral, not an oversight: the header
+     the `data-contract`/`ui-design`/`flows` FROZEN flips (`FROZEN_ARTIFACTS`, three entries — corrected by the
+     Phase D `/fabrik-docs-review`; the ruling stands). That is a DELIBERATE deferral, not an oversight: the header
      grammar is settled here, and extending `check_stage_artifacts.py` to it is a `docs/STRATEGIC_BACKLOG.md`
      row minted in Phase D with this plan's commit as its trigger — never silently absent.
    - `## Phase 7 — Hand off`: Mode A/B → `/fabrik-release` (its precondition now reads this header); on a
@@ -403,7 +404,7 @@ The lone red (`saas_backend::test_auth_and_headers`) was a **stale test**, not a
 asserted Supabase Pattern B after `4a5e9b5b` deliberately flipped the scaffold to Pattern A. Fixed
 against measured emitted output, so this gate can actually reach green.
 
-## Phase D — convergence
+## Phase D — convergence — ✅ EXECUTED 2026-09-02
 
 `/fabrik-review` over the full diff to a raised-zero round (heavy surface: a new command + a synced
 governance template + scaffold emission ⇒ the FULL review, pool breadth + native Opus) · `docs_updater.py

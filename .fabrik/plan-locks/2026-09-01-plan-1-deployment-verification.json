@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-01-plan-1-deployment-verification.md",
+  "plan": "docs/development/plans/archived/2026-09-01-plan-1-deployment-verification.md",
   "owned_paths": [
     "commands/_sources/fabrik-deploy-checklist.md",
     "commands/_sources/fabrik-deploy-verify.md",
@@ -22,7 +22,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-02T15:56:18+03:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "553c32ee",
   "baseline_gate": {
     "lean": "success",
@@ -34,5 +34,12 @@
     "B",
     "D"
   ],
-  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261"
+  "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "completed_at": "2026-09-02T16:37:43+03:00",
+  "final_commit": "phase D convergence commit (after 548ef44a); phases: C 3b13aafa \u00b7 A+B 548ef44a",
+  "phase_commits": {
+    "C": "3b13aafa",
+    "A+B": "548ef44a"
+  },
+  "whole_plan_review": "docs/development/reviews/2026-09-01-plan-1-deployment-verification-review.md"
 }

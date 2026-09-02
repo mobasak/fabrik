@@ -1138,7 +1138,7 @@ and it named *"the epic route for per-type packs"* after G1 measured the build a
 
 **The actual chain:** this spec → **operator approval** (the design gate `/fabrik-spec-review` stops at)
 → **`/fabrik-plan-after-chat`** → `/fabrik-plan-review` → `/fabrik-execute-plan`. The companion plan
-`docs/development/plans/2026-09-01-plan-1-deployment-verification.md` already exists and is DRAFT
+`docs/development/plans/archived/2026-09-01-plan-1-deployment-verification.md` already exists and is DRAFT
 pending this convergence, so the plan step is a refresh against the amended spec, not a fresh authoring.
 The per-type packs are **sections inside two command files**, not epic tickets — that conflation was
 defect 15.

@@ -109,8 +109,8 @@ fabrik redeploy [project-name]
 > Machine-consumable by design: the fleet AI reads THIS section to know what to deploy and how. Every
 > cell below is derived from CODE + SPEC + DEV by `/fabrik-deploy-checklist` — never from the deployed
 > state (documenting what prod happens to hold launders drift into documentation). A cell still
-> reading `{PROJECT_NAME}` is an unfilled stub, and `check_doc_stubs` flags it once a deploy-config
-> change ships without it.
+> reading `{PROJECT_NAME}` is an unfilled stub — a token `check_doc_stubs` recognises (that check nudges
+> `docs/OPERATIONS.md` on a compose change; this file's guard is `/fabrik-release`'s header read).
 
 | what the fleet AI needs | value |
 |---|---|

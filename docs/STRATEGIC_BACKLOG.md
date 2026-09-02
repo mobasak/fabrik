@@ -862,3 +862,19 @@ shared master"; (2) "state the ledger's high-water mark as the review file's sha
 dispatch". Not applied mid-run: a corpus edit renders box-wide and needs its own scoped review.
 Related: [[feedback_test_real_invariant_not_proxy]] (this session's own flip-set measurement was
 vacuous for the same reason — a temp-loaded module found no catalog — until the paths were pinned).
+
+---
+
+## [infra] No executable check grades the parity contract's `FROZEN` header (2026-09-02, owner: infra)
+
+Plan `2026-09-01-plan-1-deployment-verification` (D-082) shipped `scripts/verify_prod_parity.py` with a
+machine-readable `# Status: DRAFT | FROZEN · Version · Date · Mode` header. Two commands bind on it:
+`/fabrik-release`'s VPS path BLOCKS on `DRAFT` and `/fabrik-deploy-verify` caps its verdict at `UNVERIFIED`
+without `FROZEN`. **Both bind on honour** — `check_stage_artifacts.py` grades only the data-contract,
+ui-design and flows `FROZEN` flips (three graded artifacts at `check_stage_artifacts.py:319-332`). The header grammar is settled (`parse_header()` in the seeded script is the parser),
+so the extension is mechanical: a `stage_artifacts` row that reads the project's `scripts/verify_prod_parity.py
+--header` and fails a release-shaped change (a `specs/services/*.yaml`, compose or migration edit) whose
+contract is still `DRAFT` or whose `Version` predates the edit. Trigger to build it: the first project that
+freezes a contract (`/fabrik-deploy-checklist` Mode B on tryton-crm is the planned first run). Deliberately
+deferred, not forgotten — recorded in the plan's Phase B step 6 and in `docs/reference/deployment-verification.md`.
+

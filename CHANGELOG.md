@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `docs/reference/deployment-verification.md` + the plan's convergence (Phase D of plan 2026-09-01-plan-1, 2026-09-02)
+
+- The subsystem's own reference doc (evaluation-checklist item 64): the contract, the vendored comparator,
+  the two commands, the executed verdict algebra with its row-shape table, denominator integrity, gate
+  coupling and the one deferred grader. INDEX row. `docs/STRATEGIC_BACKLOG.md` row for the deferred
+  `FROZEN`-header grader (owner infra). D-086 records what was built where and the six execution rulings (minted as D-084, renumbered when a sibling's D-084 landed first).
+- Whole-plan doc receipt over the plan window (`check_doc_sync --range 553c32ee..HEAD`): one WARNING
+  (`docs/QUICKSTART.md` for an "API route" change) — run per file, the content-based detector fires on
+  `src/fabrik/scaffold.py` (this plan's one-line `SCRIPT_FILES` edit; the file embeds route templates) — a
+  false positive, QUICKSTART documents the unchanged CLI (filed to infra); `docs_updater --check`: 115 broken links across 7 pre-existing plans/specs + 1 stale doc, none in a
+  file this plan touched (117 at HEAD before Phase D — the first receipt read a `tail -6` of that output and
+  reported "three"; corrected by the Phase D `/fabrik-docs-review`, which counted the whole output).
+- `/fabrik-docs-review` over the plan's docs (last Phase D step): seven discrepancies fixed in-run — a
+  duplicate `D-084` id (renumbered `D-086`), "exits 2" over-claimed for the inspection flags (`--header`,
+  `--self-check` exit 0 on a DRAFT stub), `check_doc_stubs` nudges `docs/OPERATIONS.md` only (never
+  `DEPLOYMENT.md` — the template said otherwise), the type count in both contracts (13 registered, 12
+  scaffoldable), "synced to every project" said of the hub-only `CLAUDE.md`, `check_stage_artifacts` grading
+  "only" two artifacts (it grades three — `flows.md` too), and the QUICKSTART warning mis-attributed to siblings.
+
 ### Added — `/fabrik-deploy-checklist`: the command that declares what prod must CONTAIN (Phase B of plan 2026-09-01-plan-1, 2026-09-02)
 
 - **Source** `commands/_sources/fabrik-deploy-checklist.md` — Appendix A of the plan verbatim (proven through
@@ -48,8 +67,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added — every scaffold is born deploy-verifiable: the parity-contract stub, the vendored health-probe, the fleet-AI doc sections (Phase C of plan 2026-09-01-plan-1, 2026-09-02)
 
-- **`templates/scaffold/scripts/verify_prod_parity.py`** (seeded via `SCRIPT_FILES` into all 12
-  scaffoldable types): a `Status: DRAFT · Version: v0` contract stub that FAILS CLOSED — exit 2 until
+- **`templates/scaffold/scripts/verify_prod_parity.py`** (seeded via `SCRIPT_FILES` into the 12
+  scaffoldable types — `SCAFFOLD_TYPES` registers 13, `wordpress` is refused): a `Status: DRAFT · Version: v0` contract stub that FAILS CLOSED — exit 2 until
   `/fabrik-deploy-checklist` authors and freezes it — with `--json` / `--self-check` / `--header`, the
   vendored-row helpers (`compare_row` through the real `compare()`, `liveness_row` with none of the
   comparison keys, `unverifiable`) and one real precondition row (`l0_health_probe_vendored`). A missing
