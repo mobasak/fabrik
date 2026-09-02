@@ -14,6 +14,11 @@ All notable changes to this project will be documented in this file.
 - Added three deliberately narrow value-level patterns (URL query credentials, `Bearer`/`Basic`
   headers, vendor-prefixed keys). Each keeps its delimiter so URLs stay readable, and a benign-line
   test bounds over-redaction — a redactor that eats real output gets switched off.
+- **Presigned-URL credentials too** — `X-Amz-Signature` / `X-Amz-Credential` initially leaked because
+  the pattern matched a param named exactly `sig`. Found by exercising the **file-worker** shape
+  (`python worker/main.py`, no uvicorn, boto3 logs presigned S3 URLs) — the python-api proof could not
+  reach it. Param names survive so lines stay diagnosable; benign params (`page`, `limit`, `sort`) are
+  byte-unchanged.
 - **Proven by EXECUTION, not string assertions.** The pre-existing guard asserting `_redact_sensitive`
   appears in the bridge passed throughout the leak: the symbol was present and did not do what the
   test's name claimed.

@@ -133,3 +133,36 @@ def test_redaction_does_not_mangle_benign_lines():
     out = redact(None, "info", dict(benign))
     assert out["event"] == benign["event"]
     assert out["path"] == benign["path"], "pagination params must not be redacted"
+
+
+def test_presigned_url_credentials_are_redacted():
+    """`X-Amz-Signature` must redact — an EQUALITY list of param names missed it.
+
+    Found 2026-09-02 by exercising the file-worker shape, which the python-api proof
+    did not cover. file-worker runs `python worker/main.py` (no uvicorn) and its
+    third-party logger is boto3/botocore, which logs presigned S3 URLs. The first
+    pattern matched a param named exactly `sig`, so `X-Amz-Signature=...` sailed
+    through. The pattern now matches a param whose name CONTAINS a credential word.
+
+    This is why 'the emitted code is byte-identical across shapes' was not sufficient
+    grounds to skip the other shapes: the CODE was identical, the RUNTIME was not, and
+    the runtime is what produces the strings.
+    """
+    redact = _redactor()
+    url = "https://s3/b?X-Amz-Signature=SIGSECRET123456&X-Amz-Credential=CREDSECRET99"
+    out = redact(None, "info", {"event": f"retry {url}"})
+    assert "SIGSECRET123456" not in out["event"]
+    assert "CREDSECRET99" not in out["event"]
+    # the param NAMES survive so the line stays diagnosable
+    assert "X-Amz-Signature=" in out["event"]
+
+
+def test_propagating_library_loggers_are_covered_without_being_named():
+    """botocore/urllib3 install no handlers, so the ROOT handler must catch them.
+
+    The bridge names uvicorn/gunicorn explicitly because those install their OWN
+    handlers. Everything else propagates. This asserts the root handler is configured
+    (not just the named-logger loop), which is what covers the file-worker shape.
+    """
+    assert "root = logging.getLogger()" in EMITTED
+    assert "root.handlers = [handler]" in EMITTED

@@ -769,7 +769,10 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"# output is not mangled. A redactor that eats real text gets turned off.\n"
         f"_SECRET_PATTERNS = [\n"
         f"    # ?api_key=... / &token=... in a URL query string (the uvicorn access-log case)\n"
-        f'    re.compile(r"([?&](?:api_?key|token|password|secret|access_token|refresh_token|sig)=)[^&\\s]+", re.I),\n'
+        f"    # Matches a param whose NAME CONTAINS a credential word, not one that equals it:\n"
+        f"    # `X-Amz-Signature` and `X-Amz-Credential` (presigned S3 URLs, which a boto3 worker\n"
+        f"    # logs routinely) leaked past an equality list -- measured 2026-09-02.\n"
+        f'    re.compile(r"([?&][^=&\\s]*(?:signature|api_?key|token|password|secret|credential|auth)[^=&\\s]*=)[^&\\s]+", re.I),\n'
         f"    # Authorization: Bearer <jwt-or-opaque>\n"
         f'    re.compile(r"((?:Bearer|Basic)\\s+)[A-Za-z0-9._~+/=-]{{8,}}", re.I),\n'
         f"    # vendor-prefixed keys: sk-..., ghp_..., xoxb-...\n"
