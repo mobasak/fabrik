@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the flywheel's stranded rows finally reach the database, and the ranking is scheduled at all (2026-09-02)
+
+- **`scripts/kilo-benchmarks/flush_subagent_outboxes.py`** — a fleet-wide outbox walker. `pg_ledger.flush_outbox`
+  was *designed* to run from the hub and **nothing had ever called it on a schedule** (`crontab -l` and a grep
+  over `scripts/` both returned zero callers), so subagent rows accumulated on disk in every repo that
+  dispatches: **3,578 rows across 10 outbox directories** when this landed, and growing while unflushed.
+- **It loops per directory.** `flush_outbox` drains the crashed-flush `.flushing` residual **or** the live
+  outbox, never both — four real repos hold both, so a one-shot walker would have recovered half and silently
+  left the rest for tomorrow. It also passes `receipt_dir`, without which every flushed repo's receipts would
+  be filed against the hub instead of their owner.
+- **It enumerates what it walked.** The same backlog was counted three times — 1,465 → 3,487 → 3,505 — each a
+  different glob presented as a total. The walker prints the directory list, so the population is never again
+  asserted from a glob someone typed once.
+- **`daily_refresh.sh` now runs `rank_task_subagents` — it never did.** The ranking that drives `pick_models`
+  fleet-wide appeared exactly once in that 493-line script, inside a *comment*; the published
+  `TASK_SUBAGENT_SELECTION.md` was current only because a human had run it by hand. Ordered after the flush so
+  each day's recovered rows are in the table the ranking reads.
+- Docs: `INDEX.md`, `docs/workstation/wsl-startup-inventory.md`; tests: `scripts/kilo-benchmarks/tests/test_flush_subagent_outboxes.py` (11, real Postgres + real files).
+
 ### Fixed — the parity contract was unusable as documented: `libs/` invisible when run as a script, "0 of 0" certified, typos ran the contract (review of the shipped surface, 2026-09-02)
 
 - `/fabrik-review` over the shipped deployment-verification surface before its first real run

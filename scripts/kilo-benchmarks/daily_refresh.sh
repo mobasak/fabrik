@@ -143,6 +143,26 @@ fi
   _step "check_daily_refresh_freshness" "$VENV_PY" "$KB/check_daily_refresh_freshness.py" \
     || echo "[daily_refresh] freshness check errored (non-fatal)"
 
+  # A1 — replay every repo's stranded subagent rows into the flywheel. `pg_ledger.flush_outbox` was
+  # DESIGNED to be run from here ("run from a machine WITH the DSN (the hub, e.g. wired into
+  # daily_refresh.sh next to the ranking regen)", pg_ledger.py:855-858) and nothing ever called it:
+  # `crontab -l` and a grep over scripts/ both returned ZERO callers, so rows piled up on disk in
+  # every repo that dispatches subagents — 3,578 across 10 outbox dirs when this step was written,
+  # and GROWING while unflushed. Fail-open by construction: it exits 0 on every path, so a sink
+  # outage can never red the refresh. It must run BEFORE the ranking regen below, or the ranking
+  # reads a table missing the day's rows.
+  _step "flush_subagent_outboxes" "$VENV_PY" "$KB/flush_subagent_outboxes.py" \
+    || echo "[daily_refresh] outbox flush errored (non-fatal, fail-open by design)"
+
+  # A5 — regenerate the subagent ranking. ⚠️ This step DID NOT EXIST until 2026-09-02, which is a
+  # larger finding than the step: `rank_task_subagents.py` appeared exactly once in this file's 493
+  # lines, inside a COMMENT, so the ranking that drives `pick_models` FLEET-WIDE was regenerated only
+  # when a human ran it by hand. `TASK_SUBAGENT_SELECTION.md` read "Last refresh: <recent>" purely
+  # because someone had. Ordered AFTER the flush so each day's recovered rows are in the table the
+  # ranking reads.
+  _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
+    || echo "[daily_refresh] ranking regen errored (non-fatal — the previous doc stands)"
+
   # The external-services chain (gather_envs → classify → gather_envs → registry_sync →
   # gen_dashboard) lives in ONE script shared with wsl_startup_hook.sh — both entry points race
   # for the daily lock, so a step defined in only one of them silently never runs on the days

@@ -47,31 +47,31 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 ### docs (n_total=160)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `minimax/minimax-m2.5` | 3.51 | 0.64 | $0.0096 | 3.31 | 3 | ✓ | 25 |
-| 2 | `deepseek/deepseek-v4-flash` | 3.06 | 0.55 | $0.0097 | 3.33 | 2 | ✓ | 20 |
-| 3 | `minimax/minimax-m3` | 3.00 | 0.62 | $0.0182 | 3.11 | 2 | ✓ | 48 |
+| 1 | `minimax/minimax-m2.5` | 3.24 | 0.64 | $0.0096 | 2.94 | 3 | ✓ | 25 |
+| 2 | `deepseek/deepseek-v4-flash` | 2.63 | 0.55 | $0.0097 | 2.69 | 2 | ✓ | 20 |
+| 3 | `minimax/minimax-m3` | 2.58 | 0.62 | $0.0182 | 2.59 | 2 | ✓ | 48 |
 | 4 | `deepseek/deepseek-v3.2` | 3.48 | 0.91 | $0.0279 | 3.00 | 3 | ✓ | 11 |
-| 5 | `deepseek/deepseek-v4-pro` | 3.01 | 0.66 | $0.0591 | 2.73 | 3 | ✓ | 35 |
+| 5 | `deepseek/deepseek-v4-pro` | 2.68 | 0.66 | $0.0591 | 2.30 | 3 | ✓ | 35 |
 
 ### plan (n_total=31)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.24 | 0.94 | $0.0173 | 3.11 | 3 | ✓ | 31 |
 
-### research (n_total=234)
+### research (n_total=251)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2` | 3.19 | 0.81 | $0.0031 | 2.80 | 3 | ✓ | 21 |
-| 2 | `deepseek/deepseek-v4-pro` | 3.23 | 0.78 | $0.0095 | 3.15 | 3 | ✓ | 105 |
-| 3 | `minimax/minimax-m3` | 2.85 | 0.89 | $0.0123 | 2.90 | 2 | ✓ | 65 |
+| 1 | `deepseek/deepseek-v3.2` | 3.67 | 0.82 | $0.0036 | 3.57 | 3 | ✓ | 34 |
+| 2 | `deepseek/deepseek-v4-pro` | 3.16 | 0.77 | $0.0095 | 3.08 | 3 | ✓ | 107 |
+| 3 | `minimax/minimax-m3` | 2.92 | 0.88 | $0.0132 | 2.98 | 2 | ✓ | 67 |
 
-### review (n_total=6985)
+### review (n_total=7051)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.71 | 0.77 | $0.0020 | 2.68 | 2 | ✓ | 335 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 3.22 | 0.82 | $0.0034 | 3.22 | 3 | ✓ | 624 |
-| 3 | `google/gemini-3-flash-preview` | 2.89 | 0.81 | $0.0065 | 2.87 | 3 | ✓ | 621 |
-| 4 | `qwen/qwen3-max` | 3.03 | 0.84 | $0.0122 | 2.99 | 2 | ✓ | 315 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.70 | 0.78 | $0.0021 | 2.68 | 2 | ✓ | 357 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 3.22 | 0.82 | $0.0034 | 3.22 | 3 | ✓ | 626 |
+| 3 | `google/gemini-3-flash-preview` | 2.84 | 0.81 | $0.0067 | 2.82 | 3 | ✓ | 642 |
+| 4 | `qwen/qwen3-max` | 3.00 | 0.85 | $0.0125 | 2.97 | 2 | ✓ | 336 |
 
 ### spec (n_total=6)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |

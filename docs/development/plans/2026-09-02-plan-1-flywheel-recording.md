@@ -1,6 +1,6 @@
 # Plan 1 — Repair the subagent flywheel's recording path (2026-09-02)
 
-**Status:** CONVERGED (Amendment 2 — re-converged 2026-09-02 at md5 `3f85e657`, P21 quiet, author-blind pass dispatched 1 / returned 1)
+**Status:** IN-PROGRESS (2026-09-02 — `/fabrik-execute-plan`, operator-scoped to **Phase A only** this run; B–H remain CONVERGED and unstarted)
 **Source of truth:** live measurement of `fabrik_analytics.subagent_runs` + `/opt/fabrik/.tmp/subagents/*.jsonl`, this session. No `/fabrik-spec` doc — the design was settled by measurement, not brainstorming (RICH by the Phase-0 gate: goal and approach are both pinned).
 **Owner beat:** intel (models · benchmarks · flywheel).
 
@@ -232,6 +232,17 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 ---
 
 ## Phase A — Close the stranding class (hub + `.env`; no fleet-synced code)
+
+**✅ EXECUTED 2026-09-02** — A1 (`scripts/kilo-benchmarks/flush_subagent_outboxes.py` + 11 real-DB
+tests), A2 + A5 (both wired into `daily_refresh.sh`, ordered freshness-check → flush → ranking).
+A3's required item (trade-intelligence's DSN repointed) and A4 (the correction mailed to fleet,
+`01M1H45VMAFWM3Z230VKMJMX5J`) were completed before this run; A3's optional 43-repo DSN write stays
+DEFERRED exactly as this plan specifies.
+
+**Measured at execution:** the walker enumerates **10 outbox directories / 3,578 pending rows**, a
+total that agrees exactly with the plan's mandated depth-unbounded `find`. **A5's step did not exist
+before today** — confirmed again at execution time, and wiring it is the larger half of this phase.
+
 
 **Why first:** **3,505 recorded runs** (re-derived 2026-09-02) exist on disk across **8 repos / 14
 files** and cannot reach the DB. Every day this waits, more are written into files nothing reads. It
