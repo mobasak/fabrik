@@ -274,7 +274,7 @@ hub-only index; do not send a project at it.
 
 A new vendor added to `service_catalog.json` is hub-side (planning registry) — propose it, don't
 fork the catalog in a project. The catalog is a "does a vendor exist for X" index (`category` ·
-`cost` · `capability` · `url` · `status` · `match`), never the envelope — the twelve profile
+`cost` · `capability` · `url` · `status` · `match` · `hosts` · `merged_match`), never the envelope — the twelve profile
 fields live in the vendor doc, dated and re-verifiable.
 
 **Re-verify the profile when it decides something.** Quotas and pricing move; a profile is a dated

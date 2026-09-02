@@ -1826,6 +1826,7 @@ def test_a_null_match_merges_as_empty_not_the_word_none(tmp_path, monkeypatch):
                     "status": "active",
                     "match": None,
                     "hosts": None,
+                    "merged_match": None,
                 }
             }
         ),
@@ -1836,3 +1837,133 @@ def test_a_null_match_merges_as_empty_not_the_word_none(tmp_path, monkeypatch):
     assert (
         out["merged_match"] == ["KAGI"] and out["match"] is None
     )  # merged prefixes never touch the curated list (BH1/BH5)
+
+
+def test_the_shipped_merged_prefix_reader_feeds_the_fetcher_gate(tmp_path, monkeypatch):
+    """`registry_sync.merged_prefixes()` reads `merged_match` from the REAL catalog file — the
+    security gate's input, exercised through the shipped reader, not a monkeypatched list (BJ1)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(
+        json.dumps(
+            {
+                "deepl": {
+                    "category": "ai-translate",
+                    "match": ["DEEPL"],
+                    "merged_match": ["AAA", None, ""],
+                },
+                "exa": {"category": "search", "match": ["EXA"], "merged_match": "BBB"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    assert ge.merged_matchers(ge.load_catalog()[0]) == [("AAA", "deepl"), ("BBB", "exa")]
+    prov = rs.catalog_provenance()
+    assert prov is not None and prov[1] == {("AAA", "deepl"), ("BBB", "exa")}
+    merged = prov
+    assert not rs.owned_by("AAA_API_KEY", "deepl", merged) and not rs.owned_by(
+        "BBB_API_KEY", "exa", merged
+    )
+    assert not rs.owned_by(
+        "AAA_API_KEY", "exa", merged
+    )  # claimed by ANY merged prefix → model-attributed (BJ4)
+    assert rs.owned_by("DEEPL_API_KEY", "deepl", merged) and rs.owned_by(
+        "HF_TOKEN", "huggingface", merged
+    )
+
+
+def test_the_cursor_never_moves_when_the_catalog_probe_fails(tmp_path, monkeypatch):
+    """An unreadable catalog aborts BEFORE the cursor write — the slice is not skipped for a lap
+    (BK4)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(12)
+    )
+    cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--max-per-run", "5"], [])
+    cat.write_text('{"truncated": ', encoding="utf-8")
+    monkeypatch.setattr(cs, "fanout", lambda *a, **k: ([], ""))
+    assert cs.main() == 1 and not (state / "c.json").exists()
+
+
+def test_a_hand_edit_during_the_paid_dispatch_survives_the_write(tmp_path, monkeypatch):
+    """The pre-dispatch parse is a probe; the merge re-reads the catalog, so an edit made while
+    the pool ran is never reverted by the write (BK6)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+    cat.write_text(json.dumps({"bar": {"category": "search", "match": ["BAR"]}}), encoding="utf-8")
+
+    def editing_fanout(*a, **k):  # the operator edits the catalog while the pool runs
+        cat.write_text(
+            json.dumps({"bar": {"category": "search", "match": ["BAR"], "note": "edited"}}),
+            encoding="utf-8",
+        )
+        return [
+            _Res(
+                json.dumps(
+                    {
+                        "name": "foo",
+                        "category": "search",
+                        "cost": "free",
+                        "capability": "x",
+                        "url": "https://foo.test",
+                        "status": "active",
+                    }
+                )
+            )
+        ], ""
+
+    monkeypatch.setattr(cs, "fanout", editing_fanout)
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["bar"].get("note") == "edited" and out["foo"]["category"] == "search"
+
+
+def test_a_merged_prefix_survives_a_rewrite_of_its_target(tmp_path, monkeypatch):
+    """The merge target is itself in the batch (a `?` entry): its rewrite keeps `merged_match`,
+    else the merged provider returns to triage and is re-billed forever (BK2)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=aaa category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "AAA_API_KEY=x\n"
+        '#svc name=tgt category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "TGT_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "tgt",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://tgt.test",
+                    "status": "active",
+                }
+            )
+        ),
+        _Res(
+            json.dumps(
+                {
+                    "name": "tgt",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://tgt.test",
+                    "status": "active",
+                }
+            )
+        ),
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res)
+    cat.write_text(json.dumps({"tgt": {"category": "?", "match": ["TGT"]}}), encoding="utf-8")
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert (
+        out["tgt"]["merged_match"] == ["AAA"]
+        and out["tgt"]["category"] == "search"
+        and "aaa" not in out
+    )

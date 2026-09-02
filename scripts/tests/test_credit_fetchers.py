@@ -176,3 +176,5 @@ def test_only_transient_statuses_are_retried_and_retry_after_is_honoured_capped(
         srv.shutdown()
         srv.server_close()
     assert cf._retry_after("99999", 0) == 30.0 and cf._retry_after("garbage", 1) == 2.0
+    assert cf._retry_after("-5", 0) == 0.0  # a negative header would crash time.sleep (BJ3)
+    assert cf._retry_after("nan", 0) == 0.0  # NaN would crash time.sleep too (BK5)

@@ -327,10 +327,6 @@ def main() -> int:
 
     names = list(provs)
     print(f"Classifying {len(names)} uncatalogued providers via the pool: {', '.join(names)}\n")
-    if new_cursor is not None and not args.only and args.apply:  # a dry run moves nothing (AF3)
-        # persist the cursor BEFORE the paid dispatch: a `timeout` kill after dispatch would
-        # otherwise re-bill the identical slice every day, forever (AC5)
-        _write_json(CURSOR_PATH, {"after": new_cursor})
     # read + parse the catalog BEFORE spending: an unreadable file after the dispatch lost the
     # whole paid batch (the cursor had already moved — BH2)
     try:
@@ -339,10 +335,14 @@ def main() -> int:
             raise ValueError("catalog is not a JSON object")
     except (OSError, ValueError) as exc:
         print(
-            f"ERROR: {CATALOG_PATH} unreadable ({exc}) — nothing dispatched, nothing written",
+            f"ERROR: {CATALOG_PATH} unreadable ({exc}) — nothing dispatched, nothing written, cursor unmoved (BK4)",
             file=sys.stderr,
         )
         return 1
+    if new_cursor is not None and not args.only and args.apply:  # a dry run moves nothing (AF3)
+        # persist the cursor BEFORE the paid dispatch: a `timeout` kill after dispatch would
+        # otherwise re-bill the identical slice every day, forever (AC5)
+        _write_json(CURSOR_PATH, {"after": new_cursor})
     results, table = fanout(
         "research",
         units=[unit_prompt(p, provs[p]) for p in names],
@@ -387,7 +387,18 @@ def main() -> int:
         print("\n[dry-run] Re-run with --apply to merge the identified ones into the catalog.")
         return 0
 
-    raw_catalog = _catalog_snapshot  # read and parsed BEFORE the paid dispatch (BH2)
+    # the pre-dispatch parse was a readability PROBE; the merge reads the file FRESH so a hand edit
+    # made during the minutes of the paid dispatch is never reverted by the write below (BK6)
+    try:
+        raw_catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        if not isinstance(raw_catalog, dict):
+            raise ValueError("catalog is not a JSON object")
+    except (OSError, ValueError) as exc:
+        print(
+            f"ERROR: {CATALOG_PATH} became unreadable during the dispatch ({exc}) — nothing written",
+            file=sys.stderr,
+        )
+        return 1
     # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
     # gather_envs.load_catalog applies; kept aside and written back first (AU9)
     catalog_meta = {k: v for k, v in raw_catalog.items() if k.startswith("_")}
@@ -459,7 +470,11 @@ def main() -> int:
         if (
             prov in catalog
         ):  # a curated entry keeps its match/hosts when identified (AF8, mirror of AC11)
-            for keep in ("match", "hosts"):
+            for keep in (
+                "match",
+                "merged_match",
+                "hosts",
+            ):  # a merged prefix survives a rewrite/re-stub (BK2)
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
         catalog[prov] = entry
@@ -495,7 +510,11 @@ def main() -> int:
                 continue  # a real entry; a `?` entry is re-stubbed so it leaves triage (pass 5, Z10)
             stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
             if prov in catalog:  # a curated `?` entry keeps its match/hosts when re-stubbed (AC11)
-                for keep in ("match", "hosts"):
+                for keep in (
+                    "match",
+                    "merged_match",
+                    "hosts",
+                ):  # a merged prefix survives a rewrite/re-stub (BK2)
                     if keep in catalog[prov]:
                         stub[keep] = catalog[prov][keep]
             catalog[prov] = stub

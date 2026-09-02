@@ -24,7 +24,8 @@ def _retry_after(header: str | None, attempt: int) -> float:
     """Seconds to wait before a retry: the vendor's `Retry-After` when it is a small integer,
     else a short backoff — capped so a hostile header cannot stall the daily chain (BH4)."""
     try:
-        return min(float(header), 30.0) if header else min(1.0 * (attempt + 1), 30.0)
+        v = float(header) if header else 1.0 * (attempt + 1)
+        return 0.0 if v != v else max(0.0, min(v, 30.0))  # never negative, never NaN (BJ3/BK5)
     except ValueError:
         return min(1.0 * (attempt + 1), 30.0)
 

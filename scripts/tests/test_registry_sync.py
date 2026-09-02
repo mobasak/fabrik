@@ -661,13 +661,61 @@ def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypat
     )
     got: list[tuple[str, str]] = []
     monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
-    monkeypatch.setattr(
-        rs, "merged_prefixes", lambda: [("AAA", "deepl"), ("BBB", "exa")]
-    )  # what classify wrote
+    prov = (
+        [("DEEPL", "deepl"), ("AAA", "deepl"), ("BBB", "exa"), ("EXA", "exa")],
+        {("AAA", "deepl"), ("BBB", "exa")},
+    )
+    monkeypatch.setattr(rs, "catalog_provenance", lambda: prov)  # what classify wrote
     rs.sync_registry(fetch_credits=True, prune=False)
     assert got == [("deepl", f"{SECRET}own")], (
         got
     )  # exa's only credential is model-merged → no fetch
-    merged = [("AAA", "deepl"), ("BBB", "exa")]
-    assert rs.owned_by("HF_TOKEN", "huggingface", merged)  # a curated alias is ownership
-    assert not rs.owned_by("AAA_API_KEY", "deepl", merged)
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider='exa' AND k.value_sha256=%s",
+            (hashlib.sha256(f"{SECRET}victim2".encode()).hexdigest(),),
+        )
+        kinds = [r[0] for r in cur.fetchall()]
+    conn.close()
+    assert kinds == ["credential-unattributed"], kinds  # stored, visible, never a key (BK8)
+    hf = (
+        [("HF_TOKEN", "huggingface"), ("HUGGINGFACE", "huggingface"), ("HF", "huggingface")],
+        {("HF", "huggingface")},
+    )
+    assert rs.owned_by(
+        "HF_TOKEN", "huggingface", hf
+    )  # the WINNING prefix is curated, the shorter merged one loses (BK3)
+    assert not rs.owned_by("HF_API_KEY", "huggingface", hf)
+    assert not rs.owned_by("AAA_API_KEY", "deepl", prov)
+    assert not rs.owned_by(
+        "DEEPL_API_KEY", "deepl", None
+    )  # unknown provenance is never ownership (BK1)
+
+
+def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
+    fixture_env, monkeypatch, tmp_path
+):
+    """Provenance UNKNOWN at sync time (the catalog file is unreadable): no key is attributable,
+    so no credit fetch happens — but the DB sync itself proceeds (BK1/BK7)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
+        '#svc name=deepl category=ai-translate cost=paid capability="test" '
+        "url=https://deepl.com status=active used_by=projA\n"
+        f"DEEPL_API_KEY={SECRET}own\n",
+        encoding="utf-8",
+    )
+    bad = tmp_path / "catalog.json"
+    bad.write_text('{"truncated": ', encoding="utf-8")
+    monkeypatch.setattr(rs.gather_envs, "CATALOG_PATH", bad)
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    rs.sync_registry(fetch_credits=True, prune=False)
+    assert got == [], got
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM services WHERE provider='deepl'")
+        assert cur.fetchone()[0] == 1  # the sync ran
+    conn.close()
+    bad.write_text('{"dee pl": {"category": "x"}}', encoding="utf-8")
+    assert rs.catalog_provenance() is None  # an unround-trippable key: unknown, not an abort (BK7)
