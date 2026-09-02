@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — all AI-supplier keys centralised in the shared pool config; a broken KILO key found by probing (2026-09-02)
+
+- `~/.config/fabrik/subagents.env` now carries the full supplier set — OPENROUTER · NVIDIA ·
+  MISTRAL · GROQ · GEMINI · KILO · CONTEXT7 (plus the existing EXA/BRAVE/FIRECRAWL + DSN), mode 600.
+  It is the loader's FALLBACK layer (real env → `<repo>/.env` → shared), so a project can still
+  override any key locally. Verified end-to-end from `/opt/trade-intelligence` — a repo holding none
+  of these keys — where all seven now resolve.
+- **`KILO_API_KEY` in `/opt/fabrik/.env` was invalid**: byte-identical to `OPENROUTER_API_KEY`, a
+  paste error. It survived unnoticed because Kilo's `/v1/models` is PUBLIC and its `:free` models are
+  served ANONYMOUSLY (`key_optional=True`) — both return 200 with any string. Only a PAID-model call
+  exposed it: `401 PAID_MODEL_AUTH_REQUIRED`, byte-identical to a bogus key's response, while
+  `/opt/apidoccreator/.env`'s key returned 200. Replaced with the working key.
+- `GROQ_API_KEY_3` added (third operator key). All three Groq keys verified live on
+  `/chat/completions` against a 401 bogus-key control; all three are distinct.
+- Validation method recorded in `docs/CONFIGURATION.md`: `/v1/models` is PUBLIC on OpenRouter,
+  NVIDIA and Kilo, so a 200 there is not evidence a key works. Also noted: MISTRAL authenticates but
+  returns 402 (monthly credit spent), and CEREBRAS has a provider row but no key anywhere on the box.
+
+### Changed — Deployment-verification plan re-authored to the command-corpus conventions, on the design's approval (2026-09-02)
+
+- The operator approved the CONVERGED spec (D-077) and directed the plan to *"use same approach"* as the
+  existing commands. The plan now carries a **Corpus conformance contract** — every convention MEASURED
+  from `commands/_sources/`, `commands/_fragments/`, `assemble_commands.py` and the enforcement checks,
+  each with its `path:line`: frontmatter TRIGGER/SKIP/Stage, `{{include:run-record}}` first, `term-edit`
+  via EXTRACT+PARAMS for the authoring command vs the token-family contract for the runner, the
+  grounding gate, `## Phase N` headings (the run record derives `--phases` from them), `[anywhere]`/
+  `[hub-side]` tags, Mode A/B/C, converge-to-md5-no-op, freeze = Status flip + ledger row same change,
+  question bar, guardrails, re-freeze close-out, a fixed Output block, close-feedback auto-appended.
+- **Registration is part of the deliverable**: `NEXT`/`EXTRACT`/`PARAMS` entries in `assemble_commands.py`,
+  a `/fabrik-release` VPS-path precondition (parity contract `FROZEN`), the § Pipeline line in
+  `CLAUDE.md` **and the fleet-synced `templates/governance/CLAUDE.md`**, regenerated `capabilities.json` +
+  `docs/CAPABILITIES.md`. File Scope grows from 6 to 10 groups; the earlier scope named
+  `tests/test_command_corpus.py`, which does not exist — corrected to `tests/test_check_command_corpus.py`.
+- The new command is named: **`/fabrik-deploy-checklist`** (Stage 6-release, between `/fabrik-features`
+  REFRESH and `/fabrik-release`), with a Phase 5 that runs every contract row against a deliberately broken
+  DEV state so each is SEEN RED before `FROZEN`.
+- Plan Status → DRAFT; `/fabrik-plan-review` owed. Ledger row `D-077`.
+
 ### Added — Groq free lane reachable from the hub: keys wired + validated (2026-09-02)
 
 - `GROQ_API_KEY` copied into `/opt/fabrik/.env` from `/opt/fabrik-lib/.env`, which held the box's

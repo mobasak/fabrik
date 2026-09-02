@@ -223,14 +223,37 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 Unlike the auto-injected vars above, these two are **operator-supplied** in the project `.env` (loaded by the sidecar via `env_file`; the hub does NOT mint them): `WATCHDOG_REDEPLOY_TIMEOUT` (seconds before a redeploy is considered timed-out) and `WATCHDOG_TELEGRAM_OPERATOR_IDS` (comma-separated Telegram chat IDs that gate the fail-closed approval channel). Fail-closed behaviors they drive (fabrik-lib `watchdog/`, commit `1226196`): the sidecar does **not** auto-deploy when the Telegram channel is unreachable, and only PROPOSE-phase incidents auto-apply on timeout. Full behavior in the `WATCHDOG` rule pack.
 
+### Shared fleet config — `~/.config/fabrik/subagents.env` (all AI-supplier keys)
+
+`libs/subagents` resolves a key in this order: **real env → `<repo>/.env` (nearest, walking up) →
+`~/.config/fabrik/subagents.env`**. The shared file is the fallback, so a project can still override
+any key in its own `.env`. Set a supplier key ONCE here and every repo's pool inherits it.
+
+As of 2026-09-02 it carries the full AI-supplier set, each **validated live before it was copied**:
+`OPENROUTER_API_KEY` · `NVIDIA_API_KEY` · `MISTRAL_API_KEY` · `GROQ_API_KEY` · `GEMINI_API_KEY` ·
+`KILO_API_KEY` · `CONTEXT7_API_KEY` · plus the web-tool keys `EXA_API_KEY` / `BRAVE_API_KEY` /
+`FIRECRAWL_API_KEY` and `SUBAGENT_RUNS_DSN`. Mode `600`.
+
+- **`CEREBRAS_API_KEY` is absent** — the provider row exists (D-007) but no key exists anywhere on
+  the box; that lane is unavailable until one is provisioned.
+- ⚠️ **Only the exact names in `_dotenv.py::DOTENV_KEYS` autoload.** A supplier key not on that list
+  (e.g. `ZAI_API_KEY`) is inert in this file no matter where it is set — add the row first.
+- ⚠️ **`/v1/models` is PUBLIC on OpenRouter, NVIDIA and Kilo** — a 200 there proves nothing about a
+  key. Validate against a gated endpoint (`/chat/completions`) with a bogus-key control. This is how
+  a broken `KILO_API_KEY` in `/opt/fabrik/.env` (a byte-identical copy of `OPENROUTER_API_KEY`) went
+  unnoticed: it 200s on the public model list and on Kilo's anonymous `:free` models, and only a
+  PAID-model call exposed it as `401 PAID_MODEL_AUTH_REQUIRED`, identical to a bogus key. Corrected
+  2026-09-02 from `/opt/apidoccreator/.env`, the only working Kilo key on the box.
+
 ### Groq Cloud — `GROQ_API_KEY` (+ one spare; free tier)
 
 - `GROQ_API_KEY` — Groq's free tier at `https://api.groq.com/openai/v1` (OpenAI-compatible).
   $0; ~30 req/min · 1000 req/day **per key** (console → Limits is the live authority).
   Consumed by the pool's `provider="groq"` row (`libs/subagents/providers.py`); it is the only
   Groq var in `_dotenv.py`'s `DOTENV_KEYS`, so it is the one that autoloads.
-- `GROQ_API_KEY_2` — spare, separate per-key bucket; select manually
-  (`GROQ_API_KEY=$GROQ_API_KEY_2 <cmd>`), same shape as the NVIDIA/Mistral spares.
+- `GROQ_API_KEY_2` / `_3` — spares, separate per-key buckets; select manually
+  (`GROQ_API_KEY=$GROQ_API_KEY_2 <cmd>`), same shape as the NVIDIA/Mistral spares. All three
+  verified live on `/chat/completions` 2026-09-02 against a 401 bogus-key control.
 - **Provenance (2026-09-02):** the box's only Groq key lived in `/opt/fabrik-lib/.env`. The
   loader resolves `<repo>/.env` walking up, then `~/.config/fabrik/subagents.env` — neither path
   reaches another repo's `.env`, so `provider="groq"` fail-loud'd everywhere except fabrik-lib.
