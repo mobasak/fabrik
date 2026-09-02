@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `command_run.py done` was vetoed by a SIBLING's uncommitted mid-loop review (2026-09-02)
+
+- **Measured (live, shared tree):** this session's `/fabrik-review` report was CONVERGED and committed
+  inside the run window, yet `done` was refused with a roster naming only a sibling's uncommitted
+  `Status: IN-PROGRESS` review. The working-tree walk set `ok_artifact=True` on the sibling's file and
+  the commit walk ran only `if ok_artifact is False`, so the committed report was never examined —
+  while the refusal text promised "one non-mid-loop artifact suffices".
+- **Fix:** the commit walk also runs when every working-tree candidate is mid-loop; the mid-loop
+  predicate is one module-level helper (`_midloop_report`) both walks read. Guard:
+  `tests/test_command_run.py::test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close`
+  (seen red first); both command_run suites 122/122.
+
 ### Added — fleet-wide GRACEFUL STOP on quota exhaustion: a synced PreToolUse hook on the tick's `fleet-exhausted` stamp (2026-09-02)
 
 - **Why:** the operator saw the "reach a checkpoint" broadcast fire repeatedly today. Measured: all

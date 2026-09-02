@@ -391,6 +391,17 @@ def _phase_review_exists(root: str, phase: int) -> bool:
     return False
 
 
+def _midloop_report(f: Path) -> bool:
+    """A review report that declares itself mid-loop in its header zone (first 10 lines)."""
+    try:
+        head10 = "".join(
+            f.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)[:10]
+        )
+    except OSError:
+        return False
+    return bool(re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, re.M | re.I))
+
+
 def _repo_root() -> str:
     """The toplevel of the repo the invoking shell is in at START time — "" if none."""
     try:
@@ -444,7 +455,9 @@ def _mcp_probe_advisory() -> None:
             # A crashed probe must not silently disable the ORIENT-mandated
             # check (review finding: empty stdout + nonzero rc printed nothing).
             err = (cp.stderr or "").strip().splitlines()
-            print(f"⚠ mcp probe crashed (rc={cp.returncode}): {err[-1] if err else 'no output'} — fix-first per D-033")
+            print(
+                f"⚠ mcp probe crashed (rc={cp.returncode}): {err[-1] if err else 'no output'} — fix-first per D-033"
+            )
     except Exception:
         print(
             "⚠ mcp probe: health script errored/timed out — fix-first per D-033 if MCPs matter to this run"
@@ -1272,7 +1285,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 if f.is_file() and f.stat().st_mtime >= started_epoch - 2:
                     ok_artifact = True
                     candidates.append(f)
-            if ok_artifact is False:
+            if ok_artifact is False or (candidates and all(_midloop_report(f) for f in candidates)):
+                # 2026-09-02 (shared tree, reproduced live): a SIBLING's uncommitted mid-loop
+                # report set ok_artifact=True and this walk never ran, so THIS run's committed
+                # CONVERGED report was never examined and the close was refused on a roster
+                # naming only the sibling's file. The commit walk also runs when every
+                # working-tree candidate is mid-loop — one non-mid-loop artifact from EITHER
+                # walk suffices, as the refusal text already promised.
                 # Round 137 rebuilt this branch from three live-reproduced holes: (a) only
                 # HEAD was inspected, so a report committed mid-run followed by ANY later
                 # unrelated commit (CHANGELOG, lessons-learnt — the Completion Contract's
@@ -1347,20 +1366,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # terminal condition — `done` with ONLY `Status: IN-PROGRESS` artifacts is the
             # round-29 evidence-string hole wearing a file's clothes. Header-zone only
             # (first 10 lines, the template's slot); one non-mid-loop artifact suffices.
-            def _midloop(f: Path) -> bool:
-                try:
-                    head10 = "".join(
-                        f.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)[
-                            :10
-                        ]
-                    )
-                except OSError:
-                    return False
-                import re as _re
-
-                return bool(_re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, _re.M | re.I))
-
-            if all(_midloop(f) for f in candidates):
+            if all(_midloop_report(f) for f in candidates):
                 # Name the candidates (01M19X16Z: an agent burned ~15 min discovering a
                 # SIBLING's uncommitted mid-loop review had poisoned this working-tree walk).
                 roster = ", ".join(str(f) for f in candidates) or "<none>"

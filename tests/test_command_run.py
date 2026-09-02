@@ -2700,3 +2700,37 @@ def test_the_notice_never_refuses(run_dir: Path) -> None:
     for _ in range(6):
         r = _cr(run_dir, "round", "--findings", "1", "--classes-swept", "a", "--classes-new", "b")
         assert r.returncode == 0
+
+
+def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close(tmp_path):
+    """Shared tree, 2026-09-02 (reproduced live): a SIBLING's uncommitted `Status: IN-PROGRESS`
+    review sat in the working tree while THIS run's report was CONVERGED and COMMITTED inside the
+    run window. The working-tree walk set ok_artifact=True on the sibling's file, the commit walk
+    ran only `if ok_artifact is False`, so the committed report was never examined and `done` was
+    refused with a roster naming only the sibling's file. One non-mid-loop artifact from EITHER
+    walk must suffice — the message says so; the control flow did not."""
+    import subprocess
+    import time
+
+    env, repo = _artifact_repo(tmp_path)
+    script = "/opt/fabrik/scripts/command_run.py"
+    subprocess.run(
+        [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
+        cwd=repo, env=env, check=True, timeout=15,
+    )
+    time.sleep(1.1)  # git author time is whole seconds; land the commit strictly after start
+    (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
+    sibling = repo / "docs/development/reviews/2026-09-02-sibling-review.md"
+    sibling.write_text("# s\nStatus: IN-PROGRESS — round 4 running\n")  # uncommitted, not ours
+    mine = repo / "docs/development/reviews/2026-09-02-mine-review.md"
+    mine.write_text("# m\nStatus: CONVERGED\n")
+    subprocess.run(["git", "add", "--", str(mine)], cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "mine", "--", str(mine)],
+        cwd=repo, check=True, timeout=15,
+    )
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "closed", "--feedback", "none — harness setup"],
+        cwd=repo, env=env, capture_output=True, text=True, timeout=15,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
