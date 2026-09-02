@@ -333,7 +333,7 @@ All notable changes to this project will be documented in this file.
   proved fleet-used (PostHog, Axiom, Slack, Vercel, Cerebras, LinkedIn scrape target, BLS API, Google APIs —
   Gmail + OAuth), Amazon SES re-grounded (was 10/12 UNKNOWN), Microsoft 365/Graph re-grounded with the
   Outlook per-mailbox limits and its self-contradicting "grounding impossible" note removed; header
-  denominator derived from the blocks (150 systems / 116 fleet-used); closing re-derivation CLEAN. Ten CLAIMS rows.
+  denominator derived from the blocks (148 systems / 116 fleet-used); closing re-derivation CLEAN. Ten CLAIMS rows.
 - **Review (`/fabrik-review`, pool + Opus/Sonnet finders — 2026-09-02-external-services-chain-review.md):**
   the chain became ONE script, `scripts/external_services_chain.sh`, run by BOTH entry points
   (`daily_refresh.sh` and `wsl_startup_hook.sh` share the daily lock; a step in only one of them
@@ -352,8 +352,8 @@ All notable changes to this project will be documented in this file.
   dir) keeps its matches and names the path, a failed one writes nothing; the secrets file is 0600
   from its first byte; Dockerfiles are scanned, `__tests__`/`__mocks__`/`e2e` are not, `build/`
   and `cache/` are excluded at the repo root only; fleet-index counts are now DERIVED from the
-  blocks (143 blocks + 7 retired rows = 150 systems; 116 fleet-used, counted from the meta lines — the earlier 166/124 were asserted, not derivable) and two prose pipes that
-  broke table rows are fixed.
+  blocks (143 blocks + the 5 Retired rows without a block = 148 systems — Supabase and Promtail carry both, and the first derivation summed the two sets without checking they were disjoint; 116 fleet-used, counted from the meta lines — the earlier 166/124 were asserted, not derivable) and two prose pipes that
+  broke table rows are fixed. Rounds 7–9 (pool wide + non-author Opus/Sonnet on the path-filtered cumulative surface): `api_keys.kind` decided by the key NAME (an anchored credential suffix, a userinfo DSN, then identifier/locator suffixes that survive one tenant qualifier — `CLOUDFLARE_ZONE_ID_OCORON` is config, `WEBSHARE_HOST_AUTH` is not demoted), a file path is never credential-grade (the explicit-prefix tiebreak is genuinely two-factor — `M365_CERT_KEY_FILE` was the one live key it flipped), a merged host is never also stubbed on the daily argv, hand-edited scalar `hosts` tolerated on both paths, the both-entry-points test reads code not comments, and the chain alert decodes exit 137; every fix carries a grader proven red-on-revert.
 - Docs: `docs/reference/external-services-registry.md` (new subsystem doc), INDEX, CAPABILITIES; tests:
   `tests/test_external_services_chain.py` (7), `scripts/tests/test_gather_envs.py` (10 → 50 tests), `scripts/tests/test_registry_sync.py` (6 → 18).
 
