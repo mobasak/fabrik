@@ -372,13 +372,19 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         "registry_sync",
         "gen_dashboard",
     ):
+        log_path = re.search(
+            r'^LOG_FILE="\$FABRIK_ROOT(/[^"]+)"', DAILY.read_text(encoding="utf-8"), re.M
+        )
+        assert log_path, "daily_refresh.sh must set LOG_FILE under FABRIK_ROOT"
         rendered = (
             body.replace("$label", label)
             .replace("$rc", "137")
-            .replace("$LOG_FILE", "/opt/fabrik/scripts/kilo-benchmarks/cache/update.log")
+            .replace(
+                "$LOG_FILE", "/opt/fabrik" + log_path.group(1)
+            )  # the REAL production path, read (CE9)
         )
         assert len(rendered) <= 500, (label, len(rendered))
-    assert "one of four" in doc and "cannot write its output" in doc, (
+    assert "one of five" in doc and "cannot read or write its own output path" in doc, (
         "the doc's two exit-1 sentences (CC5)"
     )
     for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):

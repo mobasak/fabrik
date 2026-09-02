@@ -1124,30 +1124,32 @@ def main() -> int:
         f"{stats['code_hosts']} code hosts ({stats['code_only']} code-only providers)"
     )
 
+    # the scan's one silent routing decision, said on EVERY path — dry-run, no-change and write —
+    # as the ENTRIES a key named for them adopted (names only; CD3/CE6)
+    print("entries adopted by a key named for them:", ", ".join(stats["adopted"]) or "none")
     if not args.apply:
         print("[dry-run]", summary)
-        print("filed under catalogued entries by NAME:", ", ".join(stats["adopted"]) or "none")
         print("Re-run with --apply to write", OUTPUT)
         return 0
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    swept = sweep_stale_tmp(OUTPUT)  # also on a no-change day (BA2)
-    if swept:  # a killed run left the credential set beside the target — say so (BE9)
-        print(f"WARNING: swept {swept} stale secrets tmp file(s) beside {OUTPUT}", file=sys.stderr)
-    if read_existing_body(OUTPUT).rstrip() == body.rstrip():
-        print("no change - already up to date:", OUTPUT)
-        return 0
-
-    try:
+    try:  # every OSError on the output path — mkdir, the previous file, the write — is one line (CD4/CE7)
+        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+        swept = sweep_stale_tmp(OUTPUT)  # also on a no-change day (BA2)
+        if swept:  # a killed run left the credential set beside the target — say so (BE9)
+            print(
+                f"WARNING: swept {swept} stale secrets tmp file(s) beside {OUTPUT}", file=sys.stderr
+            )
+        if read_existing_body(OUTPUT).rstrip() == body.rstrip():
+            print("no change - already up to date:", OUTPUT)
+            return 0
         write_secret_file(OUTPUT, content)
-    except OSError as exc:  # disk full / permissions: one line, never a traceback (CD4)
+    except OSError as exc:
         print(
-            f"ERROR: cannot write {OUTPUT}: {exc} — nothing written; the previous consolidation stands",
+            f"ERROR: cannot read or write {OUTPUT}: {exc} — nothing written; the previous consolidation stands",
             file=sys.stderr,
         )
         return 1
     print("wrote", OUTPUT, "|", summary)
-    print("filed under catalogued entries by NAME:", ", ".join(stats["adopted"]) or "none")
     return 0
 
 

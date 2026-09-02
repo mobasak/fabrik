@@ -454,7 +454,16 @@ def main() -> int:
     merged_into: dict[str, str] = {}
     for prov, v in list(identified.items()):
         target = str(v.get("name") or "").strip().lower()
-        if target and target != prov and target in catalog:
+        if (
+            target
+            and target != prov
+            and target in catalog
+            and not (prov in catalog and not tombstone_of(catalog, prov))
+        ):
+            # a catalogued NON-tombstone source (a `?` placeholder with curated routing — the one
+            # such shape that reaches here) is never folded into another vendor by a model's word:
+            # the identified path keeps the operator's fields and fills its `?`, so it leaves
+            # triage — merged, it stayed `?` and re-billed every lap forever (CE2)
             # the vendor is ALREADY catalogued under another key: a code-only provider records its
             # host on that entry (safebrowsing.googleapis → google-safe-browsing, AB3); an env-keyed
             # one lends its key prefix to that entry's `match` list (AD2) — never a duplicate
@@ -551,10 +560,13 @@ def main() -> int:
             # dispatched (the daily path and `--only` alike); a real-category entry never gets here
             # (the scan files a key named for it under the entry, CC1). The operator's fields stand,
             # the model fills only what was `?` (CD2 — the class rounds 22–25 argued over, pinned)
-            entry = {
-                **entry,
-                **{k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])},
-            }
+            kept = {k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])}
+            kept.pop("category", None)  # the enum verdict is the classifier's — a hand-edited
+            # non-str category copied back re-flagged the block every lap, forever (CE3)
+            entry = {**entry, **kept}
+            print(
+                f"  {prov}: kept the operator's {', '.join(sorted(kept))}"
+            )  # not the proposal (CE5)
         catalog[prov] = entry
     if (
         args.only
@@ -598,6 +610,11 @@ def main() -> int:
                 ):  # a merged prefix survives a rewrite/re-stub (BK2)
                     if keep in catalog[prov]:
                         stub[keep] = catalog[prov][keep]
+                for keep in ("cost", "capability", "url", "status"):
+                    if catalog[prov].get(keep) not in (None, "", "?"):
+                        stub[keep] = catalog[prov][
+                            keep
+                        ]  # an unidentifiable answer never erases the operator's words (CE4)
             catalog[prov] = stub
             tombstoned += 1
             tombstoned_names.append(prov)

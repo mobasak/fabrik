@@ -2383,14 +2383,24 @@ def test_a_tombstone_retried_into_another_vendor_leaves_no_tie_behind(tmp_path, 
         "url": "https://g.example",
     }
     out, matchers = run({"google-ai": google, "gemini": curated})
-    assert out["gemini"]["match"] == ["GOOGLE_GEMINI"] and out["google-ai"]["merged_match"] == [
-        "GEMINI"
-    ], out
+    # …and is never folded into another vendor by a model's word at all: the identified path keeps
+    # the operator's entry (category included), nothing is minted onto the target (CE2)
+    # (the classifier's enum verdict lands on `category` — the operator's other fields stand, CE3;
+    # a real-category entry cannot reach here in production, CC1 adopts it before triage)
+    assert out["gemini"]["match"] == ["GOOGLE_GEMINI"] and out["gemini"]["category"] == "ai-llm", (
+        out
+    )
+    assert out["google-ai"].get("merged_match", []) == [], out
     assert ge.match_provider("GOOGLE_GEMINI_API_KEY", matchers) == "gemini"
     # 5. a `?` placeholder the operator left with curated routing is not a tombstone (CC4)
     placeholder = {"category": "?", "match": ["GOOGLE_GEMINI"], "hosts": ["g.example"]}
     out, _ = run({"google-ai": google, "gemini": placeholder})
     assert out["gemini"]["match"] == ["GOOGLE_GEMINI"], out
+    # …and it LEAVES triage: the model's category lands on the placeholder itself (never merged
+    # away — merged, it stayed `?` and was re-billed every lap, CE2)
+    assert (
+        out["gemini"]["category"] == "ai-llm" and out["google-ai"].get("merged_match", []) == []
+    ), out
     # 6. …and when its curated prefix IS its own name, the merge path must apply the SAME rule: the
     #    inline test on the old rule minted GEMINI onto the target while the pop left the entry —
     #    a tie, every later scan dead (CD1)
@@ -2440,7 +2450,9 @@ def test_a_key_named_for_a_catalogued_vendor_files_under_its_entry(tmp_path, mon
         in body
     ), body
     assert "#svc name=zed category=unidentified" in body  # a tombstone is adopted too: no re-bill
-    assert "#svc name=newvendor category=?" in body  # an unknown name still goes to triage
+    assert (
+        "#svc name=newvendor category=?" in body
+    )  # pre-existing: an unknown name still goes to triage (not CC1's)
 
 
 def test_a_placeholder_with_routing_keeps_the_operators_fields_when_dispatched(
@@ -2513,8 +2525,22 @@ def test_a_write_failure_is_one_line_and_the_previous_file_stands(tmp_path, monk
 
     monkeypatch.setattr(ge, "write_secret_file", no_space)
     assert ge.main() == 1 and not out.exists()
-    err = capsys.readouterr().err
-    assert err.startswith("ERROR: cannot write") and "Traceback" not in err, err
+    captured = capsys.readouterr()
+    assert (
+        captured.err.startswith("ERROR: cannot read or write") and "Traceback" not in captured.err
+    ), captured.err
+    assert (
+        "entries adopted by a key named for them: hf" in captured.out
+    )  # said BEFORE the write (CE6)
+    # the previous file unreadable / the directory unwritable: the same one line (CE7)
+    monkeypatch.setattr(
+        ge, "read_existing_body", lambda p: (_ for _ in ()).throw(PermissionError(13, "denied"))
+    )
+    assert ge.main() == 1
+    captured = capsys.readouterr()
+    assert (
+        captured.err.startswith("ERROR: cannot read or write") and "Traceback" not in captured.err
+    ), captured.err
     monkeypatch.undo()
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
     monkeypatch.setattr(ge, "OUTPUT", out)
@@ -2522,4 +2548,74 @@ def test_a_write_failure_is_one_line_and_the_previous_file_stands(tmp_path, monk
     monkeypatch.setattr(ge, "project_dirs", lambda: [])
     monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
     assert ge.main() == 0
-    assert "filed under catalogued entries by NAME: hf" in capsys.readouterr().out
+    assert "entries adopted by a key named for them: hf" in capsys.readouterr().out
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py"])  # the dry-run says it too (CE6)
+    assert (
+        ge.main() == 0 and "entries adopted by a key named for them: hf" in capsys.readouterr().out
+    )
+
+
+def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_list_category(
+    tmp_path, monkeypatch
+):
+    """The tombstone branch (an enum-rejected answer under `--tombstone-unresolved`) kept only the
+    routing fields and erased the operator's cost/capability/url/status — a lost `url` also loses
+    the C5 wildcard credit (CE4). And the identified keep never copies a hand-edited non-str
+    `category` back over the classifier's verdict — that re-flagged the block every lap (CE3)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=acme category=? cost=paid capability="OPERATOR words" url=https://acme.example status=retired used_by=web\n'
+        "ACME_API_KEY=x\n"
+    )
+    placeholder = {
+        "category": "?",
+        "cost": "paid",
+        "capability": "OPERATOR words",
+        "url": "https://acme.example",
+        "status": "retired",
+        "match": ["ACME"],
+        "hosts": ["cdn.acme.example"],
+    }
+    bad = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "acme",
+                    "category": "nonsense",
+                    "cost": "?",
+                    "capability": "?",
+                    "url": "?",
+                    "status": "?",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], bad)
+    cat.write_text(json.dumps({"acme": placeholder}), encoding="utf-8")
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))["acme"]
+    assert out["category"] == "unidentified", out
+    assert {k: out[k] for k in ("cost", "capability", "url", "status", "match", "hosts")} == {
+        k: placeholder[k] for k in ("cost", "capability", "url", "status", "match", "hosts")
+    }, out
+    good = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "acme",
+                    "category": "ai-llm",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://acme.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], good)
+    cat.write_text(json.dumps({"acme": {**placeholder, "category": ["ai-llm"]}}), encoding="utf-8")
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))["acme"]
+    assert out["category"] == "ai-llm" and out["cost"] == "paid", (
+        out
+    )  # the verdict is the classifier's, the words the operator's
