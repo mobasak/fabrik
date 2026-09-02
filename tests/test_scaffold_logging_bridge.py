@@ -85,3 +85,51 @@ def test_redaction_still_applies_to_bridged_records():
     # split on the DEF, not the first mention — the call site precedes the body
     bridge = EMITTED.split("def _bridge_stdlib_logging")[1]
     assert "_redact_sensitive" in bridge, "third-party records skip redaction"
+
+
+def _redactor():
+    """Exec ONLY the redactor slice — the emitted module imports structlog, which the
+    hub venv does not carry, and the redactor itself does not need it."""
+    start = EMITTED.index("_SECRET_PATTERNS = [")
+    end = EMITTED.index("def _setup_logging")
+    src = "import re\nfrom typing import Any\nfrom collections.abc import MutableMapping\n" + EMITTED[start:end]
+    ns: dict = {}
+    exec(compile(src, "redactor.py", "exec"), ns)  # noqa: S102
+    return ns["_redact_sensitive"]
+
+
+def test_message_level_secrets_are_redacted_by_execution():
+    """A secret INSIDE a message string must not survive — proven by running it.
+
+    THE DEFECT (measured 2026-09-02, found on the operator's fourth "are you sure?"):
+    `_redact_sensitive` matched event-dict KEYS only. uvicorn logs the request line, so
+    `GET /cb?api_key=sk-LIVE-SECRET` arrived as the `event` VALUE and no key matched.
+    Once the stdlib bridge made those lines structured JSON they became Loki-INDEXED —
+    so a key-only redactor shipped *searchable* secrets. Pre-existing on our own path
+    too; the bridge widened the exposure rather than creating it.
+
+    ⚠️ THIS TEST EXECUTES THE REDACTOR. The sibling test asserting `_redact_sensitive`
+    appears in the bridge PASSED throughout the leak — the symbol was present and did
+    not do what the test's name claimed. A string assertion cannot test behaviour.
+    """
+    redact = _redactor()
+
+    leaky = {
+        "event": '127.0.0.1 - "GET /cb?api_key=sk-LIVE-SECRET&token=abc123def456" 200',
+        "h": "Bearer eyJhbGciOiJIUzI1NiJ9.PAYLOAD.SIG",
+        "v": "vendor sk-proj-ABCDEFGHIJKLMNOP inline",
+        "password": "hunter2",
+    }
+    out = redact(None, "info", dict(leaky))
+    blob = repr(out)
+    for secret in ("sk-LIVE-SECRET", "abc123def456", "PAYLOAD.SIG", "sk-proj-ABCDEFGHIJKLMNOP", "hunter2"):
+        assert secret not in blob, f"{secret} survived redaction"
+
+
+def test_redaction_does_not_mangle_benign_lines():
+    """A redactor that eats legitimate output gets switched off — so bound the blast radius."""
+    redact = _redactor()
+    benign = {"event": "GET /health 200 in 12ms", "path": "/api/v1/users?page=2&limit=50"}
+    out = redact(None, "info", dict(benign))
+    assert out["event"] == benign["event"]
+    assert out["path"] == benign["path"], "pagination params must not be redacted"

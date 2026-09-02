@@ -757,11 +757,24 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"\n"
         f"import logging\n"
         f"import os\n"
+        f"import re\n"
         f"import sys\n"
         f"from collections.abc import MutableMapping\n"
         f"from typing import Any\n"
         f"\n"
         f"import structlog\n"
+        f"\n"
+        f"# Value-level patterns. DELIBERATELY NARROW: each keeps its leading delimiter in\n"
+        f"# group 1 and redacts only the credential, so a URL stays readable and legitimate\n"
+        f"# output is not mangled. A redactor that eats real text gets turned off.\n"
+        f"_SECRET_PATTERNS = [\n"
+        f"    # ?api_key=... / &token=... in a URL query string (the uvicorn access-log case)\n"
+        f'    re.compile(r"([?&](?:api_?key|token|password|secret|access_token|refresh_token|sig)=)[^&\\s]+", re.I),\n'
+        f"    # Authorization: Bearer <jwt-or-opaque>\n"
+        f'    re.compile(r"((?:Bearer|Basic)\\s+)[A-Za-z0-9._~+/=-]{{8,}}", re.I),\n'
+        f"    # vendor-prefixed keys: sk-..., ghp_..., xoxb-...\n"
+        f'    re.compile(r"\\b(sk-|ghp_|gho_|xoxb-|xoxp-)[A-Za-z0-9_-]{{12,}}"),\n'
+        f"]\n"
         f"\n"
         f"_SENSITIVE_KEYS = frozenset({{\n"
         f'    "api_key", "password", "token", "authorization", "secret",\n'
@@ -772,10 +785,23 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"def _redact_sensitive(\n"
         f"    _logger: Any, _method_name: str, event_dict: MutableMapping[str, Any],\n"
         f") -> MutableMapping[str, Any]:\n"
-        f'    """Redact PII/secrets from log entries (GDPR/KVKK safe)."""\n'
+        f'    """Redact PII/secrets from log entries (GDPR/KVKK safe).\n'
+        f"\n"
+        f"    TWO passes, because they catch different things:\n"
+        f"      1. KEY-based -- a sensitive kwarg (``password=...``) is replaced wholesale.\n"
+        f"      2. VALUE-based -- a secret embedded INSIDE a message string.\n"
+        f"\n"
+        f"    Pass 2 exists because pass 1 alone leaked, measured 2026-09-02: uvicorn logs the\n"
+        f"    request line, so ``GET /cb?api_key=sk-LIVE-SECRET`` arrived as the ``event`` VALUE\n"
+        f"    and no key matched. Once the stdlib bridge made those lines structured JSON they\n"
+        f"    became Loki-INDEXED, so a key-only redactor shipped searchable secrets.\n"
+        f'    """\n'
         f"    for k in list(event_dict.keys()):\n"
         f"        if k.lower() in _SENSITIVE_KEYS:\n"
         f'            event_dict[k] = "[REDACTED]"\n'
+        f"        elif isinstance(event_dict[k], str):\n"
+        f"            for _pat in _SECRET_PATTERNS:\n"
+        f'                event_dict[k] = _pat.sub(r"\\1[REDACTED]", event_dict[k])\n'
         f"    return event_dict\n"
         f"\n"
         f"\n"

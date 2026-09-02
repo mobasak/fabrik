@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Secrets inside log MESSAGES are redacted, not just sensitive kwargs (2026-09-02)
+
+- `_redact_sensitive` matched event-dict KEYS only, so `password=x` was redacted while the same
+  secret inside a message string was not. uvicorn logs the request line, so
+  `GET /cb?api_key=sk-LIVE-SECRET` arrived as the `event` VALUE and passed through. Pre-existing on
+  both paths — but the new stdlib bridge made those lines structured JSON and therefore
+  **Loki-indexed**, turning an unstructured leak into a searchable one.
+- Added three deliberately narrow value-level patterns (URL query credentials, `Bearer`/`Basic`
+  headers, vendor-prefixed keys). Each keeps its delimiter so URLs stay readable, and a benign-line
+  test bounds over-redaction — a redactor that eats real output gets switched off.
+- **Proven by EXECUTION, not string assertions.** The pre-existing guard asserting `_redact_sensitive`
+  appears in the bridge passed throughout the leak: the symbol was present and did not do what the
+  test's name claimed.
+
+
 ### Fixed — Scaffolded services emit JSON on every stdout line, and the Kilo sweep reaches templates/ (2026-09-01)
 
 - `_logger_py_content()` now bridges the stdlib root logger through structlog's
