@@ -347,6 +347,14 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     assert kinds == {"credential", "config", "code-host", "credential-unattributed"}, kinds
     for k in kinds:
         assert f"`{k}`" in doc, k
+    index_row = next(
+        ln
+        for ln in (REPO / "INDEX.md").read_text(encoding="utf-8").splitlines()
+        if "services_registry_schema.sql" in ln
+    )
+    assert all(k in index_row for k in kinds), (
+        index_row
+    )  # INDEX's schema row names every value (CM7/CP4)
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
     assert "2 the sync could not read the catalog" in text, (
         "the alert body must decode exit 2 too (BS11)"
@@ -365,16 +373,17 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     assert "*" not in fixed and "_" not in fixed, fixed
     # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
     # step label and the production log path — not on the template with its variables erased (CD5)
-    # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM1) ×
-    # every log path either ENTRY POINT can pass in (the hook has its own literal, CM1)
+    # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM2) ×
+    # every log path either ENTRY POINT can pass in (the hook has its own literal, CM2) — and EACH
+    # entry point must contribute one (an entry point that stopped setting it passed silently, CP4)
     log_paths = []
     for entry in (DAILY, HOOK):
         text_e = entry.read_text(encoding="utf-8")
         root = re.search(r'^FABRIK_ROOT="([^"]+)"', text_e, re.M)
-        for tail in re.findall(r'^\s*LOG_FILE="\$FABRIK_ROOT(/[^"]+)"', text_e, re.M):
-            assert root, f"{entry.name} must set FABRIK_ROOT"
-            log_paths.append(root.group(1) + tail)
-    assert log_paths, "no entry point sets LOG_FILE under FABRIK_ROOT"
+        assert root, f"{entry.name} must set FABRIK_ROOT"
+        tails = re.findall(r'^\s*LOG_FILE="\$FABRIK_ROOT(/[^"]+)"', text_e, re.M)
+        assert tails, f"{entry.name} sets no LOG_FILE under FABRIK_ROOT"
+        log_paths += [root.group(1) + tail for tail in tails]
     for label in _steps(text):
         for log_path in log_paths:
             rendered = (
@@ -386,15 +395,25 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     sentence = re.search(r"exit 1 — one of (\w+): (.*?); never a degraded", doc, re.S)
     assert sentence, "the failure-visibility sentence"
     words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+    # boundaries at paren depth 0 only: `,`, `;` and the word `or` — alternatives WITHIN a cause go
+    # in parentheses; a fifth cause joined by a bare `or`/`;` once passed a comma-only split (CP4)
     depth, clauses, buf = 0, [], ""
-    for ch in sentence.group(2):
+    flat = sentence.group(2)
+    i = 0
+    while i < len(flat):
+        ch = flat[i]
         depth += ch == "("
         depth -= ch == ")"
-        if ch == "," and depth == 0:
+        if depth == 0 and ch in ",;":
             clauses.append(buf)
             buf = ""
+        elif depth == 0 and flat[i : i + 4] == " or ":
+            clauses.append(buf)
+            buf = ""
+            i += 3
         else:
             buf += ch
+        i += 1
     clauses.append(buf)
     assert len([c for c in clauses if c.strip()]) == words[sentence.group(1)], (
         sentence.group(1),

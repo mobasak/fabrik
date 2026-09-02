@@ -2458,7 +2458,7 @@ def test_a_key_named_for_a_catalogued_vendor_files_under_its_entry(tmp_path, mon
 def test_a_placeholder_with_routing_keeps_the_operators_fields_when_dispatched(
     tmp_path, monkeypatch, capsys
 ):
-    """The ONE curated shape the classifier still receives: a `?` placeholder the operator left with
+    """The curated shapes the classifier still receives — a `?` placeholder the operator left with
     curated routing routes its own key, so its block is in triage and dispatched — the operator's
     `cost`/`capability`/`url`/`status` stand, the model fills `category` (and any `?`), `--only` on it
     behaves the same (CD2; at 993872de the model flipped `retired` to `active` and replaced the url)."""
@@ -2619,7 +2619,11 @@ def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_li
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))["acme"]
     assert out["category"] == "unidentified" and out["url"] == placeholder["url"], out
-    for degenerate in ("", None):  # the other non-real shapes the scan buckets to `?` (CM3)
+    for degenerate in (
+        "",
+        None,
+        "   ",
+    ):  # the other non-real shapes the scan buckets to `?` (CM3/CP1)
         cat, _ = _classify_env(
             tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], bad
         )
@@ -2668,7 +2672,7 @@ def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, 
         ("", False),
         (None, False),
         (["ai-llm"], False),
-        ("   ", True),
+        ("   ", False),
     ):
         assert ge.real_category(cat) is real, cat
     catalog = tmp_path / "catalog.json"
@@ -2681,19 +2685,22 @@ def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, 
     env.write_text("LISTY_API_KEY=x\n", encoding="utf-8")
     body, stats = ge.consolidate([env])
     assert stats["catalogued"] == 0 and stats["flagged"] == 1 and "NEEDS-TRIAGE" in body
+    assert (
+        "#svc name=listy category=?" in body and "['ai-llm']" not in body
+    )  # the FIELD says `?` too (CP1)
     out = tmp_path / "all-envs.env"
     monkeypatch.setattr(ge, "OUTPUT", out)
     catalog.write_text("{}", encoding="utf-8")
     out.write_text(
         "# ═══ ai-llm ═══\n"
-        '#svc name=foo category=ai-llm cost=? capability="category=? in prose" url=? status=? used_by=p\n',
+        '#svc name=foo category=ai-llm cost=? capability="router when category=? is unknown" url=? status=? used_by=p\n',
         encoding="utf-8",
     )
     with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
         ge.refuse_emptied_catalog()  # the FIELD is real; the literal in the capability once hid it
 
 
-def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monkeypatch):
+def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monkeypatch, capsys):
     """A non-UTF-8 path in rg's output raised `UnicodeDecodeError` — a `ValueError`, past every
     handler — so the chain paged "inputs refused (catalog, ripgrep, env files)" for a traceback
     that matched none; it is the documented "ripgrep cannot run" cause (CM4). And an OSError from
@@ -2714,5 +2721,11 @@ def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monke
     monkeypatch.setattr(ge, "CATALOG_PATH", tmp_path / "catalog.json")
     (tmp_path / "catalog.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(sys, "argv", ["gather_envs.py"])
-    with pytest.raises(PermissionError):  # not caught as "cannot read or write <OUTPUT>"
-        ge.main()
+    assert (
+        ge.main() == 1
+    )  # one line naming the input, never "cannot read or write <OUTPUT>" and never a traceback (CM5/CP2)
+    err = capsys.readouterr().err
+    assert (
+        err.startswith("ERROR: the scan could not read its inputs (/opt)")
+        and "Traceback" not in err
+    ), err

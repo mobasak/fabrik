@@ -555,7 +555,8 @@ def main() -> int:
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
         if prov in catalog and not tombstone_of(catalog, prov):
-            # the ONE reachable curated shape: a `?` placeholder the operator left with curated
+            # the curated shapes that reach here — a `?` placeholder the operator left with curated
+            # routing, or an entry whose category is not a real string (null, a list, empty, blank) —
             # routing (`match`/`hosts`/`url`) routes its own key, so its block sits in triage and is
             # dispatched (the daily path and `--only` alike); a real-category entry never gets here
             # (the scan files a key named for it under the entry, CC1). The operator's fields stand,
@@ -601,7 +602,9 @@ def main() -> int:
             if prov in identified or prov in errored or prov in merged_into:
                 continue  # a merged host joined its vendor — never also a stub (AF2)
             _cat = catalog[prov].get("category") if prov in catalog else None
-            if isinstance(_cat, str) and _cat and _cat != "?":  # == gather_envs.real_category (CM3)
+            if (
+                isinstance(_cat, str) and _cat.strip() and _cat != "?"
+            ):  # == gather_envs.real_category, graded against it (CM3/CP1)
                 # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
                 # non-str category buckets to `?` there, so treating it as real here re-billed it daily
                 continue
