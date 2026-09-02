@@ -349,9 +349,9 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         assert f"`{k}`" in doc, k
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
     assert "2 = registry_sync" in text, "the alert body must decode exit 2 too (BS11)"
-    assert "1 = the scan REFUSED the catalog" in text, (
-        "exit 1 is every catalog refusal — the page must say so (BX5)"
-    )
+    assert (
+        "1 = for gather_envs: it refused its INPUTS" in text and "for any other step, 1 is" in text
+    ), "exit 1 is every catalog refusal — the page must say so (BX5)"
     for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (

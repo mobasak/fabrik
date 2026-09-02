@@ -209,9 +209,21 @@ def code_only_provider(info: dict) -> bool:
 
 
 def _curated_tokens(meta: dict) -> set[str]:
-    """An entry's curated `match` prefixes as tokens (`HF_` → `HF`) — the unit the routers compare."""
-    raw = meta.get("match") or []
-    return {str(x).upper().rstrip("_") for x in (raw if isinstance(raw, list) else [raw]) if str(x)}
+    """An entry's prefixes — curated `match` AND model-merged `merged_match`, because
+    `gather_envs.load_catalog`'s tie claims read both (CA4) — as tokens (`HF_` → `HF`)."""
+    out: set[str] = set()
+    for field in ("match", "merged_match"):
+        raw = meta.get(field) or []
+        out |= {
+            str(x).upper().rstrip("_") for x in (raw if isinstance(raw, list) else [raw]) if str(x)
+        }
+    return out
+
+
+def tombstone_of(catalog: dict, prov: str) -> bool:
+    """True when the catalog's entry for `prov` is a tombstone (`?`/`unidentified`), never a
+    curated one — the only entry the merge path may remove (CA3)."""
+    return str(catalog.get(prov, {}).get("category") or "?") in ("?", "unidentified")
 
 
 def tombstone_entry(prov: str, code_only: bool = False) -> dict:
@@ -433,6 +445,7 @@ def main() -> int:
         {k: v for k, v in raw_catalog.items() if not k.startswith("_") and not isinstance(v, dict)}
     )  # a non-dict value is metadata too (AY8)
     merged_into: dict[str, str] = {}
+    unroutable: set[str] = set()  # identified, but its prefix is curated by another entry (CA5)
     for prov, v in list(identified.items()):
         target = str(v.get("name") or "").strip().lower()
         if target and target != prov and target in catalog:
@@ -460,20 +473,34 @@ def main() -> int:
                 ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
                     match = entry["merged_match"] = [] if match is None else [str(match)]
                 token = prov.upper().rstrip("_")
+                tombstone = prov in catalog and str(catalog[prov].get("category") or "?") in (
+                    "?",
+                    "unidentified",
+                )
                 curated_anywhere = {
                     t
                     for other, meta in catalog.items()
-                    if other != prov
+                    if not (other == prov and tombstone)  # a surviving CURATED source counts (CA3)
                     for t in _curated_tokens(meta)
                 }
-                if prov.upper() not in match and token not in curated_anywhere:
-                    # a merged copy of a CURATED token (`HF` under curated `HF_`) adds no routing and
-                    # would disown the vendor's own keys through registry_sync's merged check (BW4);
-                    # a token ANOTHER provider curates would tie with it and fail every scan (BX8)
+                if token in _curated_tokens(entry):
+                    pass  # the TARGET routes it already: merged, nothing minted (BW4)
+                elif token in curated_anywhere:
+                    # the token is already routed by an entry that stays: a merged copy adds nothing
+                    # under the target's own `HF_` (BW4) and would TIE with any other holder and fail
+                    # every scan (BX8). NOT a merge: the provider keeps its own identified entry with
+                    # no routing prefix, so it is never re-dispatched (CA5; the skip once consumed it
+                    # silently — no entry, no tombstone, re-billed every lap)
+                    unroutable.add(prov)
+                    print(f"  {prov}: not merged into {target} — its prefix is curated elsewhere")
+                    continue
+                elif prov.upper() not in match:
                     match.append(prov.upper())
-            if prov in catalog:
+            if prov in catalog and tombstone_of(catalog, prov):
                 # a TOMBSTONE re-tried into another vendor: its own `match: [PROV]` left behind ties
-                # with the merged copy and fails every scan from tomorrow, permanently (BX8)
+                # with the merged copy and fails every scan from tomorrow, permanently (BX8). A
+                # CURATED entry is never popped — that orphaned every key its `match` routed
+                # (`CAPTCHA_API_KEY` → anticaptcha, executed at dd55ca81; CA3)
                 catalog.pop(prov)
             merged_into[prov] = target
             identified.pop(prov)
@@ -502,7 +529,9 @@ def main() -> int:
             else "?",  # an out-of-enum status is UNKNOWN, never "active" (BB4)
             # a provider seen ONLY as a code call site has no env key behind it: a bare-word
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
-            "match": [] if code_only_provider(provs.get(prov, {})) else [root],
+            "match": []
+            if code_only_provider(provs.get(prov, {})) or prov in unroutable
+            else [root],  # an unroutable token would tie with its curator (CA5)
         }
         # `identified` is enum-gated above, so entry["category"] is never "?" here (AS1/AU1)
         if (
@@ -515,10 +544,16 @@ def main() -> int:
             ):  # a merged prefix survives a rewrite/re-stub (BK2)
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
-        # the model's answer WINS the other fields: on the daily path a curated name never reaches
-        # here (a refused host is filed under its domain, BW1), so the only caller is the operator's
-        # own `--only <vendor>` refresh — a "keep" here made that a paid no-op that reported
-        # `Wrote 1 identified providers` while the catalog stayed byte-identical (BX1)
+        if prov in catalog and not tombstone_of(catalog, prov):
+            # a CURATED entry reaches here when its block is in triage — its own key is not one of
+            # its `match` tokens and no code host rescues it (16 of 109 entries are one plain new
+            # key away, 3 of them with no host; a `--only <curated>` run CANNOT get here, it is
+            # filtered against triage — BX1's premise was false, CA2): the operator's fields stand
+            # and the model fills only what was unknown
+            entry = {
+                **entry,
+                **{k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])},
+            }
         catalog[prov] = entry
     if (
         args.only
