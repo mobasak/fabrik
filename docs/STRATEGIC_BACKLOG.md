@@ -865,6 +865,19 @@ vacuous for the same reason — a temp-loaded module found no catalog — until 
 
 ---
 
+## [infra] Hub `docs/FEATURES.md` documents 9 of the 33 rendered commands as features (2026-09-02, owner: infra)
+
+Measured by the `/fabrik-features` REFRESH after plan 2026-09-01-plan-1: `grep -c "/<command>\b" docs/FEATURES.md`
+over the 33 rendered `~/.claude/commands/*.md` → 7 covered before that run, 9 after it (the new Deployment Verification
+section names `/fabrik-deploy-checklist` and `/fabrik-features`); 24 commands appear in no feature section (the
+`/fabrik-spec → … → /fabrik-service-test` pipeline, `/fabrik-execute-plan`, `/fabrik-rivals`, `/fabrik-docs-review`, …);
+the covered set is the deploy family, `/fabrik-review`, `/fabrik-release`, `/fabrik-upstream` plus those two.
+The file is shaped as narrative feature sections (Status/Audience/Since + Headline + What/How/Technical), not a
+per-command registry, and its "9-Step Workflow" section still describes the retired Traycer-era flow. Deferred, not
+absent: a "Command pipeline" feature section grounded per command (the corpus is infra's beat; `capabilities.json`
+already enumerates the surface — `docs/CAPABILITIES.md` is the machine index, `FEATURES.md` the customer-facing claim).
+Trigger: the next hub `/fabrik-features` REFRESH that is not scoped to a single plan.
+
 ## [infra] No executable check grades the parity contract's `FROZEN` header (2026-09-02, owner: infra)
 
 Plan `2026-09-01-plan-1-deployment-verification` (D-082) shipped `scripts/verify_prod_parity.py` with a

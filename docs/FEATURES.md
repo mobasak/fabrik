@@ -1,6 +1,6 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-08-29
+**Last Updated:** 2026-09-02
 
 ## Grounding-integrity canary — the refuses-ungrounded flywheel axis (2026-08-29)
 
@@ -172,6 +172,7 @@ at the source beats routing at the destination (spec § Rejected alternative E).
 | [fabrik-mail](#fabrik-mail--durable-hubproject-ai-mail-2026-08-11) | ✅ Shipped | Developer | Durable hub↔project AI mail — file mailbox + surfacing hook; addressing ENFORCED at send (2026-08-26) + daily obligation escalation; replaces operator-as-transport |
 | [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
 | [Deploy Command Triad](#deploy-command-triad) | ✅ Shipped | Operator | `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` — plan-governed, evidence-bound deploys wrapping `fabrik apply` |
+| [Deployment Verification](#deployment-verification--the-parity-contract) | ✅ Shipped | Operator | Per-project parity contract (`scripts/verify_prod_parity.py`) — `/fabrik-deploy-checklist` freezes it, `/fabrik-release` blocks on DRAFT, `/fabrik-deploy-verify` EXECUTES it as a blocking phase |
 | [Preplan Handoff](#preplan-handoff) | ✅ Shipped | Developer | Capture intent before scaffold; every agent reads the same intent |
 | [Project Scaffolding](#project-scaffolding) | ✅ Shipped | Developer | 12 scaffold types with `.droid/`, AI guardrails, and spec emission |
 | [Documentation Enforcement](#documentation-enforcement) | ✅ Shipped | Developer | Never ship undocumented code again |
@@ -299,6 +300,67 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 
 Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via the NEXT map in
 `commands/assemble_commands.py` (`/fabrik-release` hands VPS surfaces to `/fabrik-deploy-plan`).
+
+---
+
+## Deployment Verification — the parity contract
+
+**Status:** ✅ Shipped | **Audience:** Operator | **Since:** 2026-09-02
+
+> **Headline:** Every deploy is certified against what the product must CONTAIN, not only against liveness:
+> each scaffolded project carries an executable parity contract (`scripts/verify_prod_parity.py`),
+> `/fabrik-deploy-checklist` authors and FREEZES it from CODE + SPEC + DEV, `/fabrik-release` BLOCKS on a
+> `DRAFT` contract, and `/fabrik-deploy-verify` EXECUTES it as a blocking phase — a service that once passed
+> every check over a production database holding 0 of its 760 companies can no longer be `DEPLOY CONFIRMED`.
+
+### What It Does
+
+- **The contract stub is born with the project** — `templates/scaffold/scripts/verify_prod_parity.py` is
+  seeded by `SCRIPT_FILES` (`src/fabrik/scaffold.py:494`) into every scaffoldable type; it carries a
+  machine-readable `# Status: DRAFT | FROZEN · Version · Date · Mode` header and FAILS CLOSED: the contract
+  run (`--json` / `--verdict`) exits 2 until the contract is frozen; `--header` and `--self-check` inspect.
+- **Rows are produced by the vendored comparator** — fabrik-lib `health-probe` lives at `libs/health_probe/`
+  (`VENDORED_DIRS`, `scripts/fabrik_synced_manifest.py:115`; byte-identical below a 3-line `VENDORED-FROM`
+  header) and its `compare()` emits every parity row; the `_COMPARISON_KEYS` disjunction decides what a parity
+  row is, so a `match: None` row fails closed instead of reading as "not checked".
+- **`/fabrik-deploy-checklist`** (`commands/_sources/fabrik-deploy-checklist.md`) — Mode A (spec) / B
+  (reverse-generate from an existing project) / C (fresh); derives every denominator (routes from the started
+  app's `/openapi.json`, services from compose ∪ registrar sidecars, env keys from `os.getenv`, jobs from the
+  live scheduler), cross-checks `FEATURES.md` both ways, SEES EVERY ROW RED against a broken DEV state, then
+  freezes with its `docs/DECISIONS.md` row and refreshes the fleet-AI sections of `DEPLOYMENT.md` and
+  `OPERATIONS.md` (`templates/scaffold/docs/{DEPLOYMENT,OPERATIONS}_TEMPLATE.md`).
+- **`/fabrik-deploy-verify`** (`commands/_sources/fabrik-deploy-verify.md`) — an identity layer (deployed SHA
+  = tested SHA, migration head, image digest), registrar rows DERIVED from `_REGISTRAR_ORDER` at run time,
+  and **Phase 6 Parity (BLOCKING)**: the project's contract runs from its own checkout and the runner copies
+  its `PARITY:` / `VERDICT:` lines. No `FROZEN` header ⇒ `UNVERIFIED`, terminal — the signal to run
+  `/fabrik-deploy-checklist`.
+- **Release precondition** — `/fabrik-release`'s VPS path reads the header and stops with
+  `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` (`commands/_sources/fabrik-release.md:78-85`);
+  a stale `Version` is a ⚠ WARN in the Gate-2 block.
+- **Pipeline position** — `/fabrik-features` REFRESH → `/fabrik-deploy-checklist` → certification →
+  `/fabrik-release` → the deploy triad → `/fabrik-deploy-verify` (`CLAUDE.md` § Orient `6-release` row + § Pipeline
+  flow, mirrored in the fleet-synced `templates/governance/CLAUDE.md`).
+
+### How To Use
+
+```bash
+/fabrik-deploy-checklist                 # in the project: author + FREEZE scripts/verify_prod_parity.py (Mode A/B/C)
+python scripts/verify_prod_parity.py --header    # {"status": "FROZEN", "version": "v1", ...} — the obligation gate
+python scripts/verify_prod_parity.py --verdict   # PARITY: <agree> agree / <disagree> disagree / <unresolved> unresolved · VERDICT: <verdict> — <reasons> (exit 0 confirmed · 2 denied or DRAFT · 1 on a DOWN)
+/fabrik-deploy-verify <service>          # hub-side: identity · DNS · health · derived registrars · Gatus · logs · Phase 6 parity
+```
+
+### Technical Details
+
+- Exit precedence in the stub: a liveness `DOWN` → 1, any comparison row not `match: True` → 2, a non-`FROZEN`
+  header → 2, else 0 (`templates/scaffold/scripts/verify_prod_parity.py:209-216`); the algebra is EXECUTED by
+  `tests/test_deploy_verify_verdict.py` (9 tests on rows from the real `compare()`, the retired
+  `expected AND actual` rule seen giving the false all-clear beside them).
+- Scaffold contract: `tests/test_scaffold_deploy_contract.py` (31 tests — every type seeds the stub, vendoring
+  byte-identity, the `{PROJECT_NAME}` doc sentinel, `wordpress` refused).
+- Reference: `docs/reference/deployment-verification.md`; design `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md`
+  (D-077); plan `docs/development/plans/archived/2026-09-01-plan-1-deployment-verification.md` (D-082, built as D-086).
+- Deliberately deferred: no executable check grades the `FROZEN` header yet (`docs/STRATEGIC_BACKLOG.md`, owner infra).
 
 ---
 
