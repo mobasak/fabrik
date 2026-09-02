@@ -36,6 +36,24 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Added — rules-pass evidence re-audit across all 13 evaluated files + llms.txt rule (2026-09-01)
+
+Re-audited every evaluated pack with a mechanical test: for each CLAIMS.yaml row, which commit
+introduced OR substantively reworked it, and was that the file's own turn. Result: 11 of 13 clean
+(3-10 own-turn rows each); `40-documentation` thin at 2, researched, and a real gap found.
+
+⚠️ **The audit's first version was wrong about one file and the second opinion caught it.** A
+`git log -S` on the row id is blind to IN-PLACE edits, so a turn that STRENGTHENS an inherited row
+instead of minting a new one scores zero. `55-observability` did exactly that — its own turn rewrote
+the sentry-sdk claim from a doc-level assertion to a source-level one and doubled its window. Its
+score is 1, not 0. The method is now edit-aware and the earlier characterisation is corrected.
+
+New in `40-documentation`: an evidence-based `llms.txt` rule — a clean null for AI-search visibility
+(a ~300k-domain citation study found the variable behaved as noise; a ~137k-domain log study found
+97% of files got zero requests; Google states Search ignores it) and a real yes for documentation
+read by CODING AGENTS, the one measured non-null audience. Plus the two things that decide whether
+it works at all: link it or it is unread, and in THIS repo it is generated, never hand-edited.
+
 ### Fixed — rules-pass BACKFILL: files 10 and 13 were evaluated without the external-research leg (2026-09-01)
 
 An audit of the pass's own evidence (CLAIMS.yaml rows per pack) found two of the thirteen

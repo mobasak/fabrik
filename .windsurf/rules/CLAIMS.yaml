@@ -525,3 +525,19 @@ claims:
       Has a trace backend appeared on ANY host?
     window_days: 90
     last_verified: 2026-09-01
+
+  - id: llms-txt-null-for-visibility
+    pack: core/40-documentation.md
+    claim: "llms.txt has NO measured effect on AI search visibility — a ~300k-domain citation study found removing the variable improved model accuracy (noise, not signal), a ~137k-domain server-log study found 97% of files got zero requests, and Google states Search ignores it. It remains a community convention, not a ratified standard"
+    kind: practice
+    verify: "search: llms.txt adoption evidence server log study AI citation correlation <year> — has any frontier lab or search engine committed to reading it?"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: llms-txt-coding-agents-are-the-audience
+    pack: core/40-documentation.md
+    claim: "The one measured non-null llms.txt audience is CODING AGENTS (Claude Code out-fetched every AI retrieval bot/assistant/training crawler in the 137k-domain log study), and Chrome files its llms.txt audit under 'agentic browsing' next to WebMCP — agent tooling, not SEO. Agents fetch it only when DIRECTED; zero AI-bot requests arrive for files that do not exist, so an unlinked file is unread"
+    kind: practice
+    verify: "search: which bots fetch llms.txt coding agents Claude Code server logs <year> + check Chrome Lighthouse audit category"
+    window_days: 180
+    last_verified: 2026-09-01

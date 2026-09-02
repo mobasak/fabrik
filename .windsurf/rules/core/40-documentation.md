@@ -206,6 +206,32 @@ Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + 
 
 ---
 
+
+---
+
+## `llms.txt` — for AGENTS, never for "AI visibility"
+
+Decide on the reader you actually have:
+
+- **Not for AI search visibility.** Two independent methods return a null: a ~300k-domain citation
+  study found removing the `llms.txt` variable *improved* prediction accuracy (it behaved as noise),
+  and a ~137k-domain server-log study found 97% of published files received zero requests, with AI
+  retrieval bots ~1% of what little arrived. Google states Search ignores it.
+- **Yes for documentation read by CODING AGENTS** — the one measured non-null audience. In that log
+  study the agent category was the largest AI consumer, and Claude Code out-fetched every AI
+  retrieval bot, assistant and training crawler. Chrome files its `llms.txt` audit under *agentic
+  browsing* (experimental) next to WebMCP — agent tooling, not search.
+- **⚠️ Link it or it is decoration.** *Measured:* requests for files that do NOT exist came ~zero
+  from AI bots — agents never go looking. It follows (inference, not measurement) that a file only
+  gets read when something points at it: reference it from the docs index or README.
+- **Keep it an INDEX** — what this is, plus links to the pages that matter; not a dump.
+- ⚠️ **In THIS repo `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`, refreshed
+  daily) — never hand-edit it; change the generator. A project writing one by hand owns it.
+- Status: a community convention, no standards body, no frontier-lab commitment on the record
+  either way. Cheap and reversible — never at the expense of `OPERATIONS.md`/`DEPLOYMENT.md`, which
+  are the load-bearing agent interfaces (D-065).
+
+
 ## AI-Friendly Markdown Rules
 
 Follow these when writing ANY `.md` file — they affect AI parsing quality and RAG retrieval:
