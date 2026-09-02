@@ -3020,15 +3020,45 @@ def _flip_candidate_verdict(
         w = row.get(key)
         u = w.get("utilization") if isinstance(w, dict) else None
         utils[key] = float(u) if isinstance(u, (int, float)) else None
+    # A CACHED standby whose 5h reset time has already passed holds a ROLLED-OVER window: an idle
+    # account cannot burn fleet quota, so that window is empty by construction (the board applies
+    # the same rule). Read it as 0% — the stale 100% is not evidence of anything current.
+    fh = row.get("five_hour")
+    fh_reset = fh.get("resets_at_epoch") if isinstance(fh, dict) else None
+    if (
+        row.get("source") == "cache"
+        and utils["five_hour"] is not None
+        and isinstance(fh_reset, (int, float))
+        and float(fh_reset) <= _now()
+    ):
+        utils["five_hour"] = 0.0
     if slug is None:
         return None, utils, "no live-chained credentialed dir (chain stale or no credentials)"
     if utils["five_hour"] is None and utils["seven_day"] is None:
         return slug, utils, "no quota reading"
+    if any(u is not None and u >= 100.0 for u in utils.values()):
+        return slug, utils, "walled (a window at 100%)"  # the sharpest fact first
+    # OPERATOR RULE (2026-09-02): never rotate to an account that has no 5h session budget. A
+    # weekly reading alone proves nothing about the session window, and a sibling near its own
+    # session wall would be flipped to and flipped away from on the next tick.
+    # Default = the drain threshold: a target at/over it would be advisory-flagged the moment it
+    # became active, so "has 5h budget" and "not yet draining" are ONE line, not two knobs.
+    session_max = _env_float(
+        "ROTATE_TARGET_SESSION_MAX_PCT", _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    )
+    if utils["five_hour"] is None:
+        return slug, utils, "no session reading — 5h budget unproven"
+    if utils["five_hour"] > session_max:
+        return (
+            slug,
+            utils,
+            (
+                f"session {utils['five_hour']:.0f}% used — no 5h budget (target max {session_max:.0f}%)"
+            ),
+        )
     if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
         wu = utils.get("seven_day")
         cap = row.get("weekly_cap")
-        if any(u is not None and u >= 100.0 for u in utils.values()):
-            return slug, utils, "walled (a window at 100%)"
         if cap is not None and wu is not None and wu >= cap:
             return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
         return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
@@ -3114,14 +3144,15 @@ def _validated_pick(
             continue
         # ONLY the two quota windows are utilization dicts — `model_windows` (added 2026-08-22)
         # rides along and crashed a `.items()` comprehension here with KeyError 'utilization'.
-        live_utils = {
-            k: windows[k]["utilization"]
-            for k in ("five_hour", "seven_day")
-            if isinstance(windows.get(k), dict)
-        }
-        if _flip_churn_excluded(live_utils, row.get("weekly_cap"), threshold):
-            # the rosy cache hid a wall / the cap / a ≥threshold window — the live reading
-            # wins, by the SAME predicate the selector applied to the cached one (F-C1)
+        # The live reading REPLACES the cached windows and goes through the SAME candidate verdict
+        # the picker applied to the cache (F-C1 — walled / cap / ≥threshold / the 5h-budget gate):
+        # a rosy cache that probes live at 90% session is not a target, whatever the cache said.
+        live_row = {**row, "source": "live"}
+        for k in ("five_hour", "seven_day"):
+            if isinstance(windows.get(k), dict):
+                live_row[k] = windows[k]
+        _slug2, _utils2, live_reason = _flip_candidate_verdict(live_row, threshold)
+        if live_reason is not None:
             exclude.add(email)
             continue
         return pick

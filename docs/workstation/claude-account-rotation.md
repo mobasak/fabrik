@@ -59,7 +59,12 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
   to lower weekly, then lower session utilization; an unknown reset time sorts last. The same
   rule the reactive path (`_pick_successor`) always applied; the tick used to rank by headroom
   instead. The weekly reserves are `caps.json`: `can` 99 · `mob` 99 · `sarp` 90 (10% kept) ·
-  `ob` 80 (20% kept) — at weekly ≥ cap the account flips away whatever its session says. A candidate ranked off
+  `ob` 80 (20% kept) — at weekly ≥ cap the account flips away whatever its session says.
+  **A target must have 5h budget** (operator rule, same day): its session reading must be KNOWN and
+  ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = `ROTATE_DRAIN_THRESHOLD`, **85** — a target at or over the drain line would be flagged the moment it became active) — a weekly reading alone proves nothing about
+  the session window, and a sibling near its own session wall would be flipped to and away from on
+  the next tick. A cached standby whose 5h reset time has already passed is read as 0% (an idle
+  account cannot burn fleet quota; the window rolled over — the board applies the same rule). A candidate ranked off
   a CACHED reading is live-probed once before it can become the pointer — **and when that probe
   fails, a reading younger than `ROTATE_CACHE_TRUST_S` (default 3600s) on a chain that passes the
   liveness gate is accepted anyway.** The probe runs with the standby's OWN access token, which is

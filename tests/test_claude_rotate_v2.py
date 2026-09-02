@@ -1198,3 +1198,61 @@ def test_flip_target_is_perishable_first_soonest_weekly_reset_wins(monkeypatch):
     unknown = {"email": "unk@test", "slugs": ["unk"], "source": "cache", "age_s": 60.0, "weekly_cap": None,
                "five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 1.0}}
     assert cr._pick_flip_target([unknown, roomy], exclude=set()) == ("roomy", "roomy@test")
+
+
+# ── 2026-09-02 (operator): never rotate to an account that has no 5h session budget ─────────
+
+
+def _cand(name, session, weekly=20.0, reset=NOW + 3600, source="live", **extra):
+    row = {"email": f"{name}@test", "slugs": [name], "source": source, "weekly_cap": None,
+           "five_hour": ({"utilization": session, "resets_at_epoch": NOW + 3600} if session is not None else None),
+           "seven_day": {"utilization": weekly, "resets_at_epoch": reset}}
+    row.update(extra)
+    return row
+
+
+def test_target_needs_session_budget_even_when_its_weekly_reset_is_soonest(monkeypatch):
+    """Perishable-first must not pick a sibling that is about to hit its OWN 5h wall — it would
+    flip there and flip away next tick. Default budget gate: session ≤ the drain threshold (85%) used."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    soon_but_spent = _cand("soon", session=90.0, reset=NOW + 3600)
+    later_but_fresh = _cand("fresh", session=10.0, reset=NOW + 5 * 86400)
+    assert cr._pick_flip_target([soon_but_spent, later_but_fresh], exclude=set()) == ("fresh", "fresh@test")
+    reasons = cr._flip_exclusion_reasons([soon_but_spent], set(), 95.0)
+    assert reasons and "no 5h budget" in reasons[0], reasons
+
+
+def test_target_with_no_session_reading_is_never_picked(monkeypatch):
+    """A weekly reading alone proves nothing about the 5h window — unproven budget is no budget."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    blind = _cand("blind", session=None, reset=NOW + 3600)
+    assert cr._pick_flip_target([blind], exclude=set()) is None
+    assert "no session reading" in cr._flip_exclusion_reasons([blind], set(), 95.0)[0]
+
+
+def test_cached_standby_whose_session_window_rolled_over_counts_as_empty(monkeypatch):
+    """An idle account cannot burn fleet quota; a cached 100% whose 5h reset time has PASSED is
+    a rolled-over window — empty by construction (the same rule the board applies)."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    rolled = _cand("rolled", session=100.0, source="cache", age_s=4 * 3600.0)
+    rolled["five_hour"] = {"utilization": 100.0, "resets_at_epoch": NOW - 600}  # reset already passed
+    still_walled = _cand("walled", session=100.0, source="cache", age_s=600.0)
+    still_walled["five_hour"] = {"utilization": 100.0, "resets_at_epoch": NOW + 3 * 3600}
+    assert cr._pick_flip_target([rolled, still_walled], exclude=set()) == ("rolled", "rolled@test")
+
+
+def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
+    """A cached 10% that probes LIVE at 90% must not become the pointer — the live reading goes
+    through the SAME candidate verdict the picker used on the cache (F-C1), budget gate included."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(cr, "_oauth_get", lambda *a, **k: {"usage": True})
+    monkeypatch.setattr(cr, "_usage_windows", lambda u: {"five_hour": {"utilization": 90.0, "resets_at_epoch": NOW + 3600},
+                                                          "seven_day": {"utilization": 20.0, "resets_at_epoch": NOW + 3600}})
+    monkeypatch.setattr(cr, "_chain_stale_reason", lambda d: None)
+    cached = _cand("c", session=10.0, source="cache", age_s=120.0)
+    assert cr._validated_pick([cached], set()) is None

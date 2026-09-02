@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a rotation target must have 5h session budget (operator rule, 2026-09-02)
+
+- `_flip_candidate_verdict` now refuses a sibling whose session reading is unknown ("no session
+  reading — 5h budget unproven") or above `ROTATE_TARGET_SESSION_MAX_PCT` (default = the drain threshold, 85: "session N%
+  used — no 5h budget"); perishable-first ranking runs only over accounts that pass. A CACHED
+  standby whose 5h reset time has passed reads as 0% — the window rolled over while idle. Three
+  tests seen red (`test_target_needs_session_budget_even_when_its_weekly_reset_is_soonest`,
+  `test_live_reverify_applies_the_same_session_budget_gate` — the live re-verify now runs the SAME
+  verdict, so a cached 10% that probes live at 90% is refused —,
+  `test_target_with_no_session_reading_is_never_picked`,
+  `test_cached_standby_whose_session_window_rolled_over_counts_as_empty`).
+
 ### Fixed — the freshness guard's coverage denominator was counted off the shared worktree, not off HEAD (2026-09-02)
 
 - **Measured:** `guard_selection_freshness.py`'s docstring claimed `**7 of 13 static paths**` and listed
