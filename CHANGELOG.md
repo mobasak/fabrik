@@ -41,6 +41,30 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Added — the rules-pass bar is now a repo artifact + file 15 re-evaluated against it (2026-09-01)
+
+The operator observed the pass was drifting from its own standard. It was: for `60-watchdog.md` I
+had skipped four required bar items — the manifesto lens, live multi-engine web research,
+`docs/infrastructure/` grounding, and the D-065 fleet-AI lens. The standard also lived only in agent
+memory, outside the repo, which is why the drift was invisible.
+
+- **`docs/reference/rules-currency-pass.md` (new)** — the 10-row per-file done bar with its ruling
+  lineage, the three version-literal dispositions, the CLAIMS-based evidence test **and its two known
+  limits**, plus the method rules each defect bought. The pass is now reproducible by someone else.
+- **Re-evaluating file 15 against the full bar found what the shortcuts had missed:**
+  `docs/infrastructure/vps-ai-sysadmin.md` claimed watchdog defaults are computed from `shape.kind`
+  by a `_register_watchdog` dispatcher — **no such function exists** and there is no kind defaulting;
+  the research leg surfaced that our Tier D uses the *minority* "silence = consent" convention where
+  published designs use "silence is denial", now stated with the three module-cited conditions it
+  rests on; and the D-065 lens found `tryton-crm` runs a live sidecar that **neither** its
+  OPERATIONS.md nor DEPLOYMENT.md mentions, so the pack gained a Doc Sync section.
+
+⚠️ **And the correction itself shipped a false attribution, caught by the second opinion:** I wrote
+that `WatchdogConfig.enabled` defaults True, copying an in-code comment instead of reading the class
+(it defaults **False**; the True is the apply path's raw-dict fallback). That divergence — `fabrik
+apply` provisions a sidecar where `fabrik plan` says not-applicable — is filed as a code defect
+(`01M1G851DWCX35T5NSQXADQW0H`).
+
 ### Fixed — rules pass file 15: core/60-watchdog.md ground against the live sidecar (2026-09-01)
 
 Four defects, each verified in `/opt/fabrik-lib/watchdog` source rather than read from prose:

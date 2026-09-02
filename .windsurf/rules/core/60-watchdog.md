@@ -132,6 +132,24 @@ When `apply_code_fix` produces a **green, secret-scanned** diff, the sidecar fir
 - **Approve** → `deploy_adapter.apply(branch)` immediately.
 - **Reject** → discard the branch; fall back to Tier C escalate.
 - **STOP** → kill-switch: disable Tier-D for this project until re-enabled in the spec.
+⚠️ **We chose the MINORITY convention on silence, deliberately — know what it rests on.** The
+prevailing pattern in published autonomous-remediation designs is **"silence is denial"**: an
+approval request that times out resolves to REJECTION, and an unanswered approval never converts
+into consent. Ours is the inverse — `TIMEOUT` routes through the same branch as `APPROVE` and the
+fix deploys. That is defensible here for a specific reason: this fleet is unattended, so
+silence-as-denial would mean a green-tested fix for a live incident simply never lands, and the
+incident continues. But the inversion is only safe while THREE things hold, and all three are load
+bearing — if any is disabled, the window stops being a review gate and becomes a delay:
+1. **the test gate is HARD** — `remediation/fixer.py` runs `test_cmd` in the isolated clone and
+   only a green, secret-clean run yields `FixProposal(ok=True)`; anything else retries rather than
+   proposing,
+2. **health is verified after apply and regressions AUTO-ROLLBACK** — `coordinator.py::_verify`
+   calls the injected `verify_health`, and a False result routes to `_rollback` using
+   `incidents.deploy_ref_before`, and
+3. **the STOP kill-switch works** — `Decision.STOP` rolls back to the prior live ref and escalates.
+An operator turning off (1) or (2) while leaving `auto_code_fix: true` has built an
+unattended-deploy pipeline, not a supervised one. Prefer denial-on-silence wherever a missed window is cheaper than a wrong deploy.
+
 - **No response within `code_fix_window_sec`** (default **1800s / 30 min**) → treated as approval and applied. Since silence auto-applies a tested-green fix, the window is sized for a realistic human review (5 min was too short to reliably `Reject` a wrong-but-passing fix); it IS the operator-bound terminal (see [self-healing](self-healing.md) acceptance checklist), not a fully-autonomous layer.
 
 Every apply/rollback is written to the `deploys` table (and the approval to `approvals`); post-apply health VERIFY failing triggers automatic rollback. Tier-D requires the `auto_code_fix` opt-in **plus** an injected `deploy_adapter` + `test_cmd`; absent any of these, code-class incidents stay Tier C.
@@ -184,6 +202,24 @@ Every apply/rollback is written to the `deploys` table (and the approval to `app
 4. If the same OOM repeats inside the cost window, `check_caps` may flip the project to rule-only mode; the next OOM escalates as Tier C with `(BUDGET-CAP)` — operator sees Telegram alert without an LLM call. Deadman armed; if operator doesn't ack within 300s, `docker restart <main>` fires as bleed-stop and an Apprise re-alert lands.
 
 ---
+
+## Doc Sync — the sidecar is a FLEET-AI-visible service (D-065)
+
+A watchdog sidecar is a real container deployed beside the app, with its own image, mounts, env and
+cost behaviour. `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are how the hub's deploy AI learns what
+runs on the VPS, so a project that enables the watchdog and does not say so in those two files has a
+fleet-AI blind spot — the deploy agent cannot reason about a container it has never been told about.
+
+⚠️ Measured 2026-09-01: `tryton-crm` runs `tryton-crm-watchdog` (up, healthy) and **neither** its
+`OPERATIONS.md` nor its `DEPLOYMENT.md` mentions a watchdog at all. So this is the live default, not
+a hypothetical.
+
+**When `watchdog.enabled` is true, the same change updates:**
+- `docs/DEPLOYMENT.md` — that a sidecar is deployed, its image, and which tiers are enabled
+  (`auto_tier_b` / `propose_fix_prs` / `auto_code_fix` are the operator-visible switches).
+- `docs/OPERATIONS.md` — how to read its state (`state.db`, the `deploys` audit table), where
+  escalations land (Apprise → Telegram), and the STOP kill-switch.
+- `docs/RESILIENCE.md` — the sidecar's own tick cadence belongs in the jobs/intervals inventory.
 
 ## Cross-references
 

@@ -597,3 +597,19 @@ claims:
     verify: "grep -n 'max-budget-usd\\|_OPENROUTER_TIMEOUT\\|per_incident_cap_usd' /opt/fabrik-lib/watchdog/watchdog_sidecar/llm_client.py"
     window_days: 180
     last_verified: 2026-09-01
+
+  - id: autonomous-remediation-silence-semantics
+    pack: core/60-watchdog.md
+    claim: "Published autonomous-remediation designs predominantly use SILENCE = DENIAL (an approval request that times out resolves to rejection and never converts into consent); our Tier D uses the inverse (TIMEOUT routes to APPLY). The inversion is defensible for an unattended fleet but is only safe while the hard test gate, post-apply health verification with auto-rollback, and the STOP kill-switch all hold"
+    kind: practice
+    verify: "search (>=2 engines): autonomous remediation approval timeout semantics silence denial vs consent <year> — has the prevailing convention moved?"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: watchdog-enabled-has-no-kind-defaulting
+    pack: core/60-watchdog.md
+    claim: "VERIFIED 2026-09-01: there is NO shape.kind watchdog defaulting anywhere, and `_register_watchdog` (cited 3x in spec_loader.py :414/:417/:812) DOES NOT EXIST. ⚠️ The enablement DEFAULT DIFFERS BY PATH: WatchdogConfig.enabled defaults FALSE (spec_loader.py:428) but the apply path reads raw YAML and defaults TRUE (infrastructure.py:344), so fabrik apply provisions a sidecar where fabrik plan/audit/destroy (model_dump) see enabled:false. The in-code comment at infrastructure.py:337 claims the class defaults True and is wrong"
+    kind: rationale
+    verify: "READ THE CLASS, not the comment: sed -n 428,430p src/fabrik/spec_loader.py (Field default) AND grep -n 'get(\"enabled\"' src/fabrik/orchestrator/infrastructure.py (raw-dict fallback) — do the two paths still disagree? Plus grep -rn 'def _register_watchdog' src/ (expect nothing)"
+    window_days: 180
+    last_verified: 2026-09-01

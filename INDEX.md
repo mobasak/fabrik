@@ -423,6 +423,7 @@ docs/
 │   ├── convergence-prompts.md
 │   ├── decision-ledger.md          # The decision-ledger operational reference (query/append/seed rules)
 - [operating-manifesto.md](docs/reference/operating-manifesto.md) — the ADOPTED decision manifesto (D-043): 6 phases with checkable gates, 5 invariants (budget, default-action, tripwires, anti-renegotiation, WIP limit), bound to the decision ledger + Gatus/Alertmanager
+- [rules-currency-pass.md](docs/reference/rules-currency-pass.md) — the standard every `.windsurf/rules` pack is evaluated against: the 10-row per-file done bar (manifesto lens · multi-engine live research · docs/infrastructure grounding · author-blind Fable-5 second opinion · class sweep · zero literals · claims registered · D-065 fleet-AI lens), the three version-literal dispositions, and the CLAIMS-based evidence test with its two known limits
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-vultr.md
 │   ├── fixtures
