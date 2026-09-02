@@ -100,14 +100,12 @@ def catalog_provenance() -> tuple[list[tuple[str, str]], set[tuple[str, str]]] |
     """(every matcher longest-first, the MODEL-merged subset) from the catalog, loaded once per
     sync — or None when the catalog cannot be read (unreadable, not an object, an unround-trippable
     key): provenance UNKNOWN, so no key is attributable and no credit fetch happens, while the DB
-    sync itself still runs (fail closed on the fetch only — BK1/BK7)."""
+    sync itself still runs (fail closed on the fetch only — BK1/BK7). An EMPTY catalog is KNOWN,
+    not unknown: nothing curated and nothing model-merged, so every key is its derived block's own
+    — conflating the two made a bootstrap registry exit 2 forever (BR3)."""
     try:
-        catalog, matchers = gather_envs.load_catalog()
+        catalog, matchers = gather_envs.load_catalog(strict=True)
     except gather_envs.CatalogError:
-        return None
-    if (
-        not catalog
-    ):  # fail-soft degraded to {} (unreadable / non-object) — or a genuinely empty catalog
         return None
     return matchers, set(gather_envs.merged_matchers(catalog))
 
@@ -124,18 +122,19 @@ def owned_by(
         return False
     matchers, merged = prov
     up = key.upper()
-    win = next(
-        (
-            (p, pr)
-            for p, pr in matchers
-            if up == p or up.startswith(p if p.endswith("_") else p + "_")
-        ),
-        None,
-    )
-    # a key is owned only when the prefix that routed it belongs to THIS block's provider and is
+    hits = [
+        (p, pr) for p, pr in matchers if up == p or up.startswith(p if p.endswith("_") else p + "_")
+    ]
+    if not hits:
+        return True
+    longest = max(len(p) for p, _ in hits)
+    top = {(p, pr) for p, pr in hits if len(p) == longest}
+    # a key is owned only when the LONGEST prefix that routes it is THIS block's provider's and
     # curated: a stale block carrying another vendor's key (`DEEPL_API_KEY` under `exa`) is never
-    # that vendor's fetcher input, and equal-length prefixes cannot flip the verdict by JSON order (BM1)
-    return win is None or (win[1] == provider and win not in merged)
+    # that vendor's fetcher input (BM1). Equal-length prefixes of TWO providers are a collision the
+    # catalog cannot settle: ambiguous is unowned in every JSON order — taking the first hit of a
+    # stable length-sort gave the key to whichever vendor sorted first (BQ1).
+    return {pr for _, pr in top} == {provider} and not (top & merged)
 
 
 def credential_rank(key: str, value: str) -> int:
@@ -283,6 +282,8 @@ def sync_registry(
                 best_rank = 99
                 digests: list[str] = []
                 kinds_by_digest: dict[str, str] = {}
+                used_by_digest: dict[str, set[str]] = {}
+                aliases_by_digest: dict[str, list[str]] = {}
                 for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
                         continue
@@ -324,13 +325,20 @@ def sync_registry(
                     # per-key attribution when present (a multi-key provider's keys differ),
                     # else the provider-wide union from the #svc used_by= field.
                     key_used = per_key_used or used_by
+                    # two names, one value: the row is ONE per digest, so its attribution is the
+                    # UNION over every name that carries the value — the last name's list alone
+                    # dropped projects (2 live rows, BR6); the last upsert carries the full union
+                    seen_used = used_by_digest.setdefault(digest, set())
+                    seen_used.update(key_used)
+                    seen_alias = aliases_by_digest.setdefault(digest, [])
+                    seen_alias.extend(a for a in aliases if a not in seen_alias)
                     cur.execute(
                         """INSERT INTO api_keys (service_id, value_sha256, aliases, used_by_projects, kind)
                            VALUES (%s,%s,%s,%s,%s)
                            ON CONFLICT (service_id, value_sha256)
                            DO UPDATE SET last_seen=now(), aliases=EXCLUDED.aliases,
                              used_by_projects=EXCLUDED.used_by_projects, kind=EXCLUDED.kind""",
-                        (sid, digest, aliases, key_used, kind),
+                        (sid, digest, seen_alias, sorted(seen_used), kind),
                     )
                     stats["api_keys"] += 1
                 # Keys that LEFT this provider (a code host no longer referenced, a var moved to

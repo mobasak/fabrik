@@ -288,3 +288,55 @@ def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
     assert out2 == '<tr><td class="prov">p</td>' and "<a" not in out2, (
         out2
     )  # the CELL, not the helper (AY2)
+
+
+def test_unattributed_count_renders_on_the_row_when_the_script_runs():
+    """BM9 EXECUTED, not string-matched (BQ3): the keys cell is lifted from the row template and
+    run under node — an unattributed count renders its pill next to the key count, zero renders
+    no pill. The `r.unattributed` source-text assertion stays as the always-on floor."""
+    import shutil
+    import subprocess
+
+    gd = _load_gen_dashboard()
+    m = re.search(
+        r"'<td class=\"num mono\">'\+r\.keys\+\(r\.unattributed\?[^\n]*?'</td>'", gd.SCRIPT
+    )
+    assert m, "keys cell not found in SCRIPT"
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not on PATH — only the source-text floor assertion ran")
+    js = (
+        "const cellFor=r=>" + m.group(0) + ";process.stdout.write(cellFor({keys:2,unattributed:1})"
+        "+'|'+cellFor({keys:2,unattributed:0}));"
+    )
+    with_, without = subprocess.run(
+        [node, "-e", js], capture_output=True, text=True, check=True
+    ).stdout.split("|")
+    assert re.fullmatch(
+        r'<td class="num mono">2 <span class="pill c-unknown"[^>]*>1 unattributed</span></td>',
+        with_,
+    ), with_
+    assert without == '<td class="num mono">2</td>', without
+    # the tooltip names BOTH causes — the unknown-provenance branch sets the kind too, and the
+    # live catalog has 0 merged prefixes, so "model-merged" alone blamed a merge that never happened (BR8)
+    assert "provenance unknown" in with_ and "model-merged" in with_, with_
+
+
+def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
+    """A failed scan skips the sync like it skips classify and the reconsolidate: a stale file
+    re-pages the same cause and, on a catalog error, flips every credential unattributed (BR4).
+    And the operator-facing reference doc names every `kind` the schema carries plus the sync's
+    exit 2 — it named 3 of 4 and 0 of 1 (BR5)."""
+    text = CHAIN.read_text(encoding="utf-8")
+    assert re.search(r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step registry_sync', text), (
+        "registry_sync must be gated on the data steps"
+    )
+    doc = (REPO / "docs" / "reference" / "external-services-registry.md").read_text(
+        encoding="utf-8"
+    )
+    schema = (REPO / "db" / "services_registry_schema.sql").read_text(encoding="utf-8")
+    kinds = set(re.findall(r"'([a-z-]+)'", re.search(r"kind\s+TEXT[^\n]*", schema).group(0)))
+    assert kinds == {"credential", "config", "code-host", "credential-unattributed"}, kinds
+    for k in kinds:
+        assert f"`{k}`" in doc, k
+    assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"

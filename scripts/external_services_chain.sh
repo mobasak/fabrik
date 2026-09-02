@@ -52,7 +52,9 @@ fi
 if [ "$core_failed" -eq 0 ]; then  # a failed scan would fail identically twice — one alert, not two (AC13)
   _step gather_envs_reconsolidate "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply
 fi
-_step registry_sync "$VENV_PY" "$FABRIK_ROOT/scripts/registry_sync.py" --fetch-credits
+if [ "$core_failed" -eq 0 ]; then  # a failed scan leaves a STALE file: syncing it re-pages the same cause and, on a catalog error, flips every credential unattributed (BR4)
+  _step registry_sync "$VENV_PY" "$FABRIK_ROOT/scripts/registry_sync.py" --fetch-credits
+fi
 # The heartbeat depends on the DATA steps. classify is the paid, optional pass: its failure
 # (credits, pool transport) is alerted but must not report a fresh registry as DEAD (pass 2, G9).
 if [ "$core_failed" -eq 0 ]; then

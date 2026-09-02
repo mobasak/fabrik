@@ -579,7 +579,10 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         # the label alone is evidence only when the entry has no url of its own, or its url sits on
         # the SAME registrable domain — `api.foo.org` is not the vendor at `foo.com` (C5)
         url = str(catalog[sld].get("url") or "")
-        own = urlsplit(url).hostname if url.startswith("http") else None
+        try:
+            own = urlsplit(url).hostname if url.startswith("http") else None
+        except ValueError:  # an unparseable catalog url is not evidence, never a crash (BB6/BR1)
+            own = None
         if not own or host_domain(own) == host_domain(h):
             return sld
     return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
@@ -681,7 +684,7 @@ def project_env_files() -> list[Path]:
     return files
 
 
-def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
+def load_catalog(strict: bool = False) -> tuple[dict, list[tuple[str, str]]]:
     """Return (provider -> meta, [(prefix, provider)...] sorted longest-first).
 
     Fail-soft on an UNREADABLE catalog (missing / invalid JSON): degrades to "everything flagged
@@ -696,12 +699,16 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         json.JSONDecodeError,
         UnicodeDecodeError,
     ) as exc:  # undecodable IS unreadable (BH3)
+        if strict:  # a caller that must tell UNKNOWN from EMPTY (registry_sync's provenance, BR3)
+            raise CatalogError(f"catalog unreadable: {exc}") from exc
         print(f"WARNING: {CATALOG_PATH} unreadable ({exc}); all providers flagged", file=sys.stderr)
         raw = {}
     if not isinstance(raw, dict):  # a JSON list/string at the top level is unreadable too (BH6)
         print(
             f"WARNING: {CATALOG_PATH} is not a JSON object; all providers flagged", file=sys.stderr
         )
+        if strict:
+            raise CatalogError("catalog is not a JSON object")
         raw = {}
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     bad_keys = [k for k in catalog if _svc_token(k) != k]
@@ -717,7 +724,9 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
                 if prefix is None or str(prefix) == "":
                     continue  # an empty prefix would match every `_`-prefixed key (BH8)
                 matchers.append((str(prefix).upper(), provider))
-    matchers.sort(key=lambda pm: len(pm[0]), reverse=True)  # longest prefix wins
+    matchers.sort(
+        key=lambda pm: len(pm[0]), reverse=True
+    )  # readable dumps; match_provider/owned_by re-derive the longest from the hit set (BQ1)
     return catalog, matchers
 
 
@@ -735,12 +744,21 @@ def merged_matchers(catalog: dict) -> list[tuple[str, str]]:
 
 
 def match_provider(key: str, matchers: list[tuple[str, str]]) -> str | None:
+    """The provider whose LONGEST prefix routes `key`; None when no prefix matches — or when two
+    providers claim a same-length prefix: routing that tie by list order hands one vendor's key to
+    the other, so it is attributed to neither, in every order (BQ1; registry_sync.owned_by mirrors)."""
     up = key.upper()
-    for prefix, provider in matchers:
-        # token-boundary match: BRAVE matches BRAVE_API_KEY but NOT BRAVERY_API_KEY
-        if up == prefix or up.startswith(prefix if prefix.endswith("_") else prefix + "_"):
-            return provider
-    return None
+    # token-boundary match: BRAVE matches BRAVE_API_KEY but NOT BRAVERY_API_KEY
+    hits = [
+        (prefix, provider)
+        for prefix, provider in matchers
+        if up == prefix or up.startswith(prefix if prefix.endswith("_") else prefix + "_")
+    ]
+    if not hits:
+        return None
+    longest = max(len(p) for p, _ in hits)
+    top = {provider for p, provider in hits if len(p) == longest}
+    return top.pop() if len(top) == 1 else None
 
 
 def derive_provider(key: str) -> str:

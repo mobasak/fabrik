@@ -176,7 +176,7 @@ function render(){
     const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td>'
       +'<td>'+cpill(r.status)+'</td>'+cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')
-      +'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials that reached this block through a model-merged prefix">'+r.unattributed+' unattributed</span>':'')+'</td>'+cell(r.account,'mono')
+      +'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials no catalog prefix attributes to this vendor: a model-merged prefix, or provenance unknown at sync time">'+r.unattributed+' unattributed</span>':'')+'</td>'+cell(r.account,'mono')
       +'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
   }
   tb.innerHTML=out||'<tr><td colspan="10" class="empty" style="padding:24px;text-align:center">No services match.</td></tr>';

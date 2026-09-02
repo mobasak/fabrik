@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -343,6 +344,7 @@ def main() -> int:
     # whole paid batch (the cursor had already moved — BH2)
     try:
         _catalog_probe = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        probe_at = time.strftime("%Y-%m-%d %H:%M:%S")
         if not isinstance(_catalog_probe, dict):
             raise ValueError("catalog is not a JSON object")
     except (OSError, ValueError) as exc:
@@ -409,7 +411,7 @@ def main() -> int:
         # the paid batch is NOT lost: merge onto the pre-dispatch probe (the last good state) and
         # say so — the cursor has already moved and the money is spent (BM3)
         print(
-            f"WARNING: {CATALOG_PATH} became unreadable during the dispatch ({exc}) — merging onto the pre-dispatch copy",
+            f"WARNING: {CATALOG_PATH} became unreadable during the dispatch ({exc}) — merging onto the pre-dispatch copy read at {probe_at}; any catalog edit landed since then is DISCARDED (repair the file, re-apply the edit) (BM3/BR7)",
             file=sys.stderr,
         )
         raw_catalog = _catalog_probe

@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -2050,4 +2051,33 @@ def test_a_catalog_broken_during_the_dispatch_merges_onto_the_probe(tmp_path, mo
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
     assert out["foo"]["category"] == "search" and out["bar"]["match"] == ["BAR"]
-    assert "merging onto the pre-dispatch copy" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "merging onto the pre-dispatch copy" in err
+    # the failure path REVERTS any catalog edit landed since the probe — the warning must say so
+    # and date the copy it merged onto (BR7)
+    assert "DISCARDED" in err and re.search(r"read at \d{4}-\d\d-\d\d \d\d:\d\d:\d\d", err), err
+
+
+def test_a_prefix_two_vendors_claim_routes_to_neither():
+    """Equal-length prefixes of two providers: the key is attributed to NEITHER, in either list
+    order — the first hit of a stable longest-first sort gave it to whichever vendor sorted first,
+    i.e. one vendor's secret filed under the other (BQ1)."""
+    for order in ([("XY", "aaa"), ("XY", "zzz")], [("XY", "zzz"), ("XY", "aaa")]):
+        assert ge.match_provider("XY_API_KEY", order) is None, order
+    assert (
+        ge.match_provider("XY_API_KEY", [("XY", "aaa"), ("XY_API", "zzz")]) == "zzz"
+    )  # longer wins
+    assert (
+        ge.match_provider("XY_API_KEY", [("XY", "aaa"), ("XY", "aaa")]) == "aaa"
+    )  # one vendor twice
+    assert (
+        ge.match_provider("XYZ_API_KEY", [("XY", "aaa"), ("XY", "zzz")]) is None
+    )  # token boundary
+
+
+def test_a_malformed_catalog_url_never_crashes_the_label_fallback():
+    """A hand-edited catalog url `urlsplit` rejects (`https://[foo].com`) is skipped by the url
+    index (BB6) and then reached the label fallback UNGUARDED — a plain ValueError past `main`'s
+    except, the chain DEAD every day until the file was repaired (BR1)."""
+    catalog = {"foo": {"url": "https://[foo].com"}}
+    assert ge.provider_for_host("api.foo.com", catalog, {}, []) == "foo"  # the label still decides

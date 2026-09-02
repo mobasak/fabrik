@@ -17,6 +17,8 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 TEST_PROVIDER = "test_zzz_regsync"
+TEST_PROVIDER2 = "test_zzz_regsync2"  # a second vendor for cross-block cases (BQ2)
+TEST_PREFIX = "test_zzz"  # every provider a test may write starts with this (BQ2 guard)
 SECRET = "sk-super-secret-registry-test-value-1234567890"
 
 
@@ -53,10 +55,51 @@ def fixture_env(tmp_path, monkeypatch):
     try:
         conn = rdb.connect()
         with conn, conn.cursor() as cur:
-            cur.execute("DELETE FROM services WHERE provider=%s", (TEST_PROVIDER,))
+            cur.execute(
+                "DELETE FROM services WHERE provider IN (%s, %s)", (TEST_PROVIDER, TEST_PROVIDER2)
+            )
         conn.close()
     except Exception:  # noqa: BLE001
         pass
+
+
+def _real_rows():
+    """Every NON-test provider's service + key rows, or None when the registry is unreachable."""
+    try:
+        conn = rdb.connect()
+    except Exception:  # noqa: BLE001
+        return None
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT s.provider, s.category, s.cost_tier, s.url, s.status, k.value_sha256, k.kind, "
+            "k.used_by_projects FROM services s LEFT JOIN api_keys k ON k.service_id=s.id "
+            "WHERE s.provider NOT LIKE %s ORDER BY 1, 6",
+            (TEST_PREFIX + "%",),
+        )
+        rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+@pytest.fixture
+def syncs_the_real_registry(request):
+    """Opt-out for the ONE kind of test that syncs the REAL all-envs.env on purpose (the prune
+    guard's proof): the real rows legitimately move with the file; the guard below stands down."""
+    request.node.syncs_the_real_registry = True
+
+
+@pytest.fixture(autouse=True)
+def real_registry_untouched(request):
+    """A test leaves every real provider's rows byte-identical on the SHARED local registry:
+    fixtures that named `deepl`/`exa` overwrote deepl's cost tier (freemium → paid) and left fake
+    `projA` key rows that the dashboard then counted, invisible until a finder looked (BQ2)."""
+    before = _real_rows()
+    yield
+    if before is not None and not getattr(request.node, "syncs_the_real_registry", False):
+        after = _real_rows()
+        assert after == before, (
+            "a test wrote a REAL provider's rows — use TEST_PROVIDER/TEST_PROVIDER2"
+        )
 
 
 def test_value_sha256_never_raw(fixture_env):
@@ -225,7 +268,7 @@ def test_prune_force_rejects_falsy_strings(tmp_path, monkeypatch):
     conn.close()
 
 
-def test_prune_removes_orphans():
+def test_prune_removes_orphans(syncs_the_real_registry):
     """Given an orphan service absent from all-envs.env, When synced with prune=True (the CLI
     default, against the REAL file), Then the orphan is deleted and the real registry survives.
 
@@ -650,11 +693,11 @@ def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypat
     unowned gets no fetch at all (BH1)."""
     fixture_env.write_text(
         "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
-        '#svc name=deepl category=ai-translate cost=paid capability="test" '
+        f'#svc name={TEST_PROVIDER} category=ai-translate cost=paid capability="test" '
         "url=https://deepl.com status=active used_by=projA\n"
         f"AAA_API_KEY={SECRET}victim\n"
-        f"DEEPL_API_KEY={SECRET}own\n"
-        '#svc name=exa category=search cost=paid capability="test" '
+        f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}own\n"
+        f'#svc name={TEST_PROVIDER2} category=search cost=paid capability="test" '
         "url=https://exa.ai status=active used_by=projA\n"
         f"BBB_API_KEY={SECRET}victim2\n",
         encoding="utf-8",
@@ -662,18 +705,23 @@ def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypat
     got: list[tuple[str, str]] = []
     monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
     prov = (
-        [("DEEPL", "deepl"), ("AAA", "deepl"), ("BBB", "exa"), ("EXA", "exa")],
-        {("AAA", "deepl"), ("BBB", "exa")},
+        [
+            (TEST_PROVIDER.upper(), TEST_PROVIDER),
+            ("AAA", TEST_PROVIDER),
+            ("BBB", TEST_PROVIDER2),
+            (TEST_PROVIDER2.upper(), TEST_PROVIDER2),
+        ],
+        {("AAA", TEST_PROVIDER), ("BBB", TEST_PROVIDER2)},
     )
     monkeypatch.setattr(rs, "catalog_provenance", lambda: prov)  # what classify wrote
     rs.sync_registry(fetch_credits=True, prune=False)
-    assert got == [("deepl", f"{SECRET}own")], (
+    assert got == [(TEST_PROVIDER, f"{SECRET}own")], (
         got
     )  # exa's only credential is model-merged → no fetch
     conn = rdb.connect()
     with conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT k.kind FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider='exa' AND k.value_sha256=%s",
+            f"SELECT k.kind FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider='{TEST_PROVIDER2}' AND k.value_sha256=%s",
             (hashlib.sha256(f"{SECRET}victim2".encode()).hexdigest(),),
         )
         kinds = [r[0] for r in cur.fetchall()]
@@ -687,18 +735,26 @@ def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypat
         "HF_TOKEN", "huggingface", hf
     )  # the WINNING prefix is curated, the shorter merged one loses (BK3)
     assert not rs.owned_by("HF_API_KEY", "huggingface", hf)
-    assert not rs.owned_by("AAA_API_KEY", "deepl", prov)
+    assert not rs.owned_by("AAA_API_KEY", TEST_PROVIDER, prov)
     assert not rs.owned_by(
-        "DEEPL_API_KEY", "deepl", None
+        f"{TEST_PROVIDER.upper()}_API_KEY", TEST_PROVIDER, None
     )  # unknown provenance is never ownership (BK1)
     # a CURATED prefix of ANOTHER provider in this block is not ownership either — a stale block
     # carrying `DEEPL_API_KEY` under exa must never feed exa's fetcher (BM1)
-    assert not rs.owned_by("DEEPL_API_KEY", "exa", prov)
-    # equal-length prefixes of two providers: the verdict never depends on catalog key order (BM1)
+    assert not rs.owned_by(f"{TEST_PROVIDER.upper()}_API_KEY", TEST_PROVIDER2, prov)
+    # equal-length prefixes of TWO providers are a collision: owned by NEITHER, in both catalog
+    # orders — the pass-19 grader here was `not X or order[0][1] == "zzz"`, true for the order
+    # that exposed the stable-sort tie (BQ1)
     for order in ([("XY", "aaa"), ("XY", "zzz")], [("XY", "zzz"), ("XY", "aaa")]):
-        assert (
-            not rs.owned_by("XY_API_KEY", "zzz", (order, {("XY", "aaa")})) or order[0][1] == "zzz"
-        )
+        both = (order, {("XY", "aaa")})
+        assert not rs.owned_by("XY_API_KEY", "zzz", both), order
+        assert not rs.owned_by("XY_API_KEY", "aaa", both), order
+    assert not rs.owned_by(
+        "XY_API_KEY", "aaa", ([("XY", "aaa"), ("XY", "zzz")], set())
+    )  # unmerged tie: still nobody's
+    # one vendor twice is no collision; a longer prefix still beats the tie
+    assert rs.owned_by("XY_API_KEY", "aaa", ([("XY", "aaa"), ("XY", "aaa")], set()))
+    assert rs.owned_by("XY_API_KEY", "zzz", ([("XY", "aaa"), ("XY_API", "zzz")], set()))
 
 
 def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
@@ -708,9 +764,9 @@ def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
     so no credit fetch happens — but the DB sync itself proceeds (BK1/BK7)."""
     fixture_env.write_text(
         "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
-        '#svc name=deepl category=ai-translate cost=paid capability="test" '
+        f'#svc name={TEST_PROVIDER} category=ai-translate cost=paid capability="test" '
         "url=https://deepl.com status=active used_by=projA\n"
-        f"DEEPL_API_KEY={SECRET}own\n",
+        f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}own\n",
         encoding="utf-8",
     )
     bad = tmp_path / "catalog.json"
@@ -722,7 +778,7 @@ def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
     assert got == [], got
     conn = rdb.connect()
     with conn, conn.cursor() as cur:
-        cur.execute("SELECT count(*) FROM services WHERE provider='deepl'")
+        cur.execute("SELECT count(*) FROM services WHERE provider=%s", (TEST_PROVIDER,))
         assert cur.fetchone()[0] == 1  # the sync ran
     conn.close()
     bad.write_text('{"dee pl": {"category": "x"}}', encoding="utf-8")
@@ -736,9 +792,9 @@ def test_unknown_provenance_is_said_once_and_exits_non_zero(
     returns 2 so the chain's _step alerts and skips the dashboard (BM2)."""
     fixture_env.write_text(
         "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
-        '#svc name=deepl category=ai-translate cost=paid capability="test" '
+        f'#svc name={TEST_PROVIDER} category=ai-translate cost=paid capability="test" '
         "url=https://deepl.com status=active used_by=projA\n"
-        f"DEEPL_API_KEY={SECRET}own\n",
+        f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}own\n",
         encoding="utf-8",
     )
     bad = tmp_path / "catalog.json"
@@ -757,12 +813,18 @@ def test_unknown_provenance_is_said_once_and_exits_non_zero(
 def test_two_names_one_value_take_the_restrictive_kind_whatever_the_order(fixture_env, monkeypatch):
     """The same value under an owned name and an unattributed name collapses to ONE row (unique
     per digest): that row is `credential-unattributed` in both file orders (BM5)."""
-    prov = ([("DEEPL", "deepl"), ("AAA", "deepl")], {("AAA", "deepl")})
+    prov = (
+        [(TEST_PROVIDER.upper(), TEST_PROVIDER), ("AAA", TEST_PROVIDER)],
+        {("AAA", TEST_PROVIDER)},
+    )
     monkeypatch.setattr(rs, "catalog_provenance", lambda: prov)
-    for first, second in (("AAA_API_KEY", "DEEPL_API_KEY"), ("DEEPL_API_KEY", "AAA_API_KEY")):
+    for first, second in (
+        ("AAA_API_KEY", f"{TEST_PROVIDER.upper()}_API_KEY"),
+        (f"{TEST_PROVIDER.upper()}_API_KEY", "AAA_API_KEY"),
+    ):
         fixture_env.write_text(
             "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
-            '#svc name=deepl category=ai-translate cost=paid capability="test" '
+            f'#svc name={TEST_PROVIDER} category=ai-translate cost=paid capability="test" '
             "url=https://deepl.com status=active used_by=projA\n"
             f"{first}={SECRET}same\n"
             f"{second}={SECRET}same\n",
@@ -778,3 +840,45 @@ def test_two_names_one_value_take_the_restrictive_kind_whatever_the_order(fixtur
             kinds = [r[0] for r in cur.fetchall()]
         conn.close()
         assert kinds == ["credential-unattributed"], (first, kinds)
+
+
+def test_an_empty_catalog_is_known_provenance_not_unknown(tmp_path, monkeypatch):
+    """`{}` is a catalog with nothing curated and nothing merged — every key is its derived block's
+    own and `main` exits 0; only an UNREADABLE catalog is unknown (exit 2). Conflating them made a
+    bootstrap registry page every day forever (BR3)."""
+    empty = tmp_path / "catalog.json"
+    empty.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(rs.gather_envs, "CATALOG_PATH", empty)
+    assert rs.catalog_provenance() == ([], set())
+    assert rs.owned_by("FOO_API_KEY", "foo", rs.catalog_provenance())
+    empty.write_text("[]", encoding="utf-8")
+    assert rs.catalog_provenance() is None  # not an object: unknown (BH6)
+    empty.write_text("{", encoding="utf-8")
+    assert rs.catalog_provenance() is None  # unreadable: unknown (BK1)
+
+
+def test_two_names_one_value_union_their_projects_whatever_the_order(fixture_env, monkeypatch):
+    """Two names carrying one value are ONE row (unique per digest); its `used_by_projects` is the
+    union of both names' attribution in either file order — the last name alone dropped projects
+    on 2 live rows (BR6)."""
+    tp = TEST_PROVIDER.upper()
+    for first, second in ((f"{tp}_HOST", f"{tp}_HOST_ALT"), (f"{tp}_HOST_ALT", f"{tp}_HOST")):
+        fixture_env.write_text(
+            "# " + "═" * 10 + " ai-llm " + "═" * 10 + "\n"
+            f'#svc name={TEST_PROVIDER} category=ai-llm cost=paid capability="test" '
+            "url=https://x.example status=active used_by=projA,projB\n"
+            f"{first}=same.host.example   # used by: projA\n"
+            f"{second}=same.host.example   # used by: projB\n",
+            encoding="utf-8",
+        )
+        rs.sync_registry(fetch_credits=False, prune=False)
+        conn = rdb.connect()
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT k.used_by_projects, k.aliases FROM api_keys k JOIN services s ON s.id=k.service_id "
+                "WHERE s.provider=%s AND k.value_sha256=%s",
+                (TEST_PROVIDER, hashlib.sha256(b"same.host.example").hexdigest()),
+            )
+            rows = cur.fetchall()
+        conn.close()
+        assert [tuple(r[0]) for r in rows] == [("projA", "projB")], (first, rows)
