@@ -184,6 +184,19 @@ render();
 </script>"""
 
 
+def json_for_script(rows: list[dict]) -> str:
+    """JSON that is safe INSIDE an inline `<script>`: `json.dumps` leaves `</script>` intact, and
+    the registry's `provider`/`url` strings are model-authored (`classify_services` writes the pool
+    model's answer to the catalog), so a `</script><script>…` in one of them would run in the
+    operator's browser before the page's own `esc()` ever sees it (AM4). `\u003c` is valid JSON."""
+    return (
+        json.dumps(rows, ensure_ascii=False)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
 def render(rows: list[dict]) -> str:
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     cats = sorted({r["category"] for r in rows})
@@ -224,7 +237,7 @@ def render(rows: list[dict]) -> str:
     <th data-k="projects">Used by</th></tr></thead><tbody id="tb"></tbody></table></div>
   <footer>Read-only view of the fabrik_services registry · no secret values (metadata + key hashes only)</footer>
 </div>"""
-    script = SCRIPT.replace("__DATA__", json.dumps(rows, ensure_ascii=False))
+    script = SCRIPT.replace("__DATA__", json_for_script(rows))
     return (
         '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'

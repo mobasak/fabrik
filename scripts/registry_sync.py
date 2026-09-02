@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql scripts/tests/test_registry_sync.py
+# AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql scripts/tests/test_registry_sync.py scripts/gen_dashboard.py
 """Load secrets/all-envs.env (the #svc-annotated consolidation) into the local Postgres registry.
 
 Reads each #svc block + its KEY=value lines and upserts `services` + `api_keys`. Stores
@@ -32,7 +32,9 @@ SVC_RE = re.compile(
 )
 # A key NAME that carries a credential (the value is a secret): the fetcher's input.
 CREDENTIAL_KEY_RE = re.compile(
-    r"(API_KEY|APIKEY|API_TOKEN|TOKEN|SECRET|PASSWORD|PASS|AUTH_KEY|KEY)S?$", re.I
+    r"(API_KEY|APIKEY|API_TOKEN|TOKEN|SECRET|PASSWORD|PASSPHRASE|PASSWD|PASS|PW|PWD|CREDS"
+    r"|CREDENTIALS|AUTH_KEY|KEY)S?(_\d+)?$",  # a numbered key (GROQ_API_KEY_2) is anchored too (AM1/AM8)
+    re.I,
 )
 
 
@@ -50,8 +52,13 @@ IDENTIFIER_KEY_RE = re.compile(
     r"(?P<qualifier>_[A-Z0-9]+)?$",
     re.I,
 )
-# a DSN/URL that CARRIES a password (`scheme://user:pw@host`) is a credential whatever its name
-USERINFO_RE = re.compile(r"://[^/@\s]+:[^/@\s]+@")
+# a DSN/URL that CARRIES a password (`scheme://user:pw@host`, or the scheme-less proxy form
+# `user:pw@host:port` — AM7) is a credential whatever its name
+USERINFO_RE = re.compile(r"(?:^|://)[^/@\s:]+:[^/@\s]+@")
+# a knob VALUE: a bare word (`false`, `basic`, `on`) or a number — never a secret, whatever the
+# name's unanchored token says (`WEBSHARE_IP_AUTH=false`, AH1); a weak real secret (`1234` under
+# `_PASSPHRASE`) stays a credential because its NAME is anchored (AM6)
+KNOB_VALUE_RE = re.compile(r"[A-Za-z_-]{1,12}|\d+(\.\d+)?")
 
 
 def is_credential(key: str, value: str) -> bool:
@@ -60,7 +67,9 @@ def is_credential(key: str, value: str) -> bool:
     vendor rows, AF1). Order: an ANCHORED credential suffix (`_API_KEY`, `_TOKEN`, `_SECRET`,
     `_PASSWORD` …) → yes; a value embedding `user:pw@` → yes; URL/identifier-shaped name → no; an
     UNANCHORED secret token in the name (`_AUTH`, `DSN`, `SIGNING` — `WEBSHARE_IP_AUTH=false`, AH1)
-    counts only when the value looks secret too; otherwise the value decides."""
+    counts unless the value is knob-shaped (a bare word or a number); otherwise the value decides."""
+    if gather_envs.PATH_VALUE_RE.fullmatch(value):
+        return False  # a path is a LOCATOR whatever the name says (GOOGLE_APPLICATION_CREDENTIALS=/…/sa.json, AM11)
     if CREDENTIAL_KEY_RE.search(key):
         return True
     if USERINFO_RE.search(value):
@@ -68,9 +77,21 @@ def is_credential(key: str, value: str) -> bool:
     ident = IDENTIFIER_KEY_RE.search(key)
     if ident and not gather_envs.SECRET_KEY_RE.search(ident.group("qualifier") or ""):
         return False
-    return gather_envs.is_secret(key, value) and (
-        gather_envs.credential_grade(value) or not gather_envs.SECRET_KEY_RE.search(key)
+    return gather_envs.is_secret(key, value) and not (
+        gather_envs.SECRET_KEY_RE.search(key) and KNOB_VALUE_RE.fullmatch(value)
     )
+
+
+def credential_rank(key: str, value: str) -> int:
+    """The credit fetcher's input, chosen by KEY ROLE, never by line order (N1/O5, restored after
+    AH2 made it positional — AM1): 0 = an anchored credential NAME, 1 = a credential-kind value
+    that is not URL-shaped, 2 = a userinfo DSN (a provider whose ONLY credential is a DSN still
+    feeds the fetcher, AH2)."""
+    if CREDENTIAL_KEY_RE.search(key):
+        return 0
+    if "://" in value or USERINFO_RE.search(value):
+        return 2
+    return 1
 
 
 def ensure_schema(cur) -> None:
@@ -172,6 +193,7 @@ def sync_registry(
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
                 first_value = None
+                best_rank = 99
                 digests: list[str] = []
                 for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
@@ -187,10 +209,11 @@ def sync_registry(
                         kind = "credential"
                     else:
                         kind = "config"  # a URL/host/port/model/ID knob under a vendor prefix — never a key (AC6/AD1)
-                    if (
-                        kind == "credential"
-                    ):  # the fetcher gets the first credential ROW, whatever its
-                        first_value = first_value or value  # shape — a userinfo DSN included (AH2)
+                    if kind == "credential" and credential_rank(_key, value) < best_rank:
+                        best_rank, first_value = (
+                            credential_rank(_key, value),
+                            value,
+                        )  # by role (AM1)
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
                     digests.append(digest)
                     # per-key attribution when present (a multi-key provider's keys differ),

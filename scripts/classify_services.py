@@ -367,11 +367,14 @@ def main() -> int:
     for prov, v in identified.items():
         root = prov.upper()  # FULL provider name — a compound like `aws_bedrock` must match only
         #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
+        url = str(v.get("url", "?"))
+        if urlsplit(url).scheme not in ("http", "https"):
+            url = "?"  # a model-authored url reaches the registry and the dashboard's page (AM4)
         entry = {
             "category": v.get("category", "?"),
             "cost": v.get("cost", "?"),
             "capability": str(v.get("capability", "?"))[:70],
-            "url": v.get("url", "?"),
+            "url": url,
             "status": v.get("status", "active"),
             # a provider seen ONLY as a code call site has no env key behind it: a bare-word
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)

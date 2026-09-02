@@ -1177,3 +1177,42 @@ def test_a_hand_edited_scalar_hosts_entry_is_tolerated_on_both_paths(tmp_path, m
         "old.googleapis.com",
         "safebrowsing.googleapis.com",
     ]
+
+
+def test_path_rule_rejects_paths_but_not_a_slash_bearing_base64_secret():
+    """A file path is never credential-grade; a base64 secret that happens to start with `/` and
+    carry another `/` (no `+`/`=`) still is — its first segment is mixed-case (AL1)."""
+    for path in ("/opt/fabrik/certs/m365-cert-2026.pem", "~/.ssh/id_ed25519", "./data/keys/x.json"):
+        assert not ge.credential_grade(path), path
+    assert ge.credential_grade("/aB3dEf9GhIjK/LmN0pQrStUvWxYz1234567")
+    assert ge.credential_grade(
+        "/zq8/XyWvUtSrQpOnMlKjIhGfEdCbA9876543"
+    )  # one lowercase segment is not a path
+    assert not ge.credential_grade("/a/b")  # too short to be a credential anyway
+
+
+def test_a_model_authored_url_must_be_http_or_https(tmp_path, monkeypatch):
+    """`javascript:…` (or any non-http scheme) from the pool model never reaches the catalog, the
+    registry or the dashboard page — it is written as `?` (AM4)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "foo",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "javascript:alert(1)",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.main() == 0
+    assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["url"] == "?"

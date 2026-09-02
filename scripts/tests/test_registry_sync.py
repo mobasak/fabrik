@@ -280,12 +280,14 @@ def test_credit_fetcher_gets_the_credential_never_a_code_host_url(fixture_env, m
 
 
 def test_credential_chosen_by_key_role_not_line_order(fixture_env, monkeypatch):
-    """AZURE_ACCOUNT_NAME sorts before AZURE_API_KEY and is not a credential (review O5)."""
+    """AZURE_ACCOUNT_NAME sorts before AZURE_API_KEY and is credential-KIND by value entropy (a
+    26-char alnum account name) but not by NAME: the anchored key feeds the fetcher whatever the
+    line order (review O5; AM1 — AH2 had made the choice positional and this fixture vacuous)."""
     fixture_env.write_text(
         "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
         f'#svc name={TEST_PROVIDER} category=infra cost=paid capability="test" '
         "url=https://x.example status=active used_by=projA\n"
-        f"{TEST_PROVIDER.upper()}_ACCOUNT_NAME=storageacct   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_ACCOUNT_NAME=fabrikstorageaccount2026x1   # used by: projA\n"
         f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}\n",
         encoding="utf-8",
     )
@@ -322,14 +324,15 @@ def test_code_host_rows_are_kind_code_host_and_never_counted_as_keys(fixture_env
 
 def test_kind_is_the_synthetic_key_never_a_value_shape(fixture_env, monkeypatch):
     """A proxy URL with userinfo is a CREDENTIAL; only CODE_HOST_URL rows are code-host (G3);
-    a suffixed key name (GROQ_API_KEY_2) still feeds the fetcher as the fallback (G4)."""
+    a numbered key name (GROQ_API_KEY_2) outranks the DSN for the fetcher even when the DSN's
+    line sorts first (G4; the fixture order is the DISCRIMINATING one — AM2)."""
     fixture_env.write_text(
         "# " + "═" * 10 + " proxies " + "═" * 10 + "\n"
         f'#svc name={TEST_PROVIDER} category=proxies cost=paid capability="test" '
         "url=https://x.example status=active used_by=projA\n"
         "CODE_HOST_URL=https://api.x.example   # used by: projA\n"
-        f"{TEST_PROVIDER.upper()}_API_KEY_2={SECRET}zz\n"
-        f"{TEST_PROVIDER.upper()}_PROXY_URL=http://user:{SECRET}@45.61.127.38:5977   # used by: projA\n",
+        f"{TEST_PROVIDER.upper()}_A_PROXY_URL=http://user:{SECRET}@45.61.127.38:5977   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_API_KEY_2={SECRET}zz\n",
         encoding="utf-8",
     )
     got: list[tuple[str, str]] = []
@@ -347,9 +350,7 @@ def test_kind_is_the_synthetic_key_never_a_value_shape(fixture_env, monkeypatch)
     assert kinds == [("code-host", 1), ("credential", 2)], (
         kinds
     )  # a proxy URL with a password IS a credential
-    assert got == [(TEST_PROVIDER, f"{SECRET}zz")], (
-        got
-    )  # the first credential ROW in the file's (name-sorted) order
+    assert got == [(TEST_PROVIDER, f"{SECRET}zz")], got  # the anchored name outranks the DSN
 
 
 def test_stale_key_rows_are_pruned_per_service(fixture_env):
@@ -541,3 +542,27 @@ def test_identifier_survives_a_qualifier_and_a_locator_is_never_a_credential():
     assert not rs.is_credential("DNA_USER", "operator.name.2026.long.account")
     assert rs.is_credential("GOOGLE_ID_TOKEN", SECRET)
     assert rs.is_credential("WEBSHARE_HOST_AUTH", SECRET)
+
+
+def test_kind_by_name_is_decidable_without_a_database():
+    """The pure `is_credential` contract, guarded WITHOUT the local Postgres (17 of 18 tests here
+    skip without it — AM3): an unanchored secret token + a knob value is config (AH1), a weak but
+    real secret under an anchored name stays a credential (AM6), a scheme-less `user:pw@host`
+    proxy is a credential whatever its `_PROXY` name says (AM7), `_PW`/`_CREDS` and numbered keys
+    are anchored (AM8), and the fetcher rank is by role."""
+    assert not rs.is_credential("WEBSHARE_IP_AUTH", "false")
+    assert not rs.is_credential("X_AUTH_MODE", "basic")
+    assert rs.is_credential("SOME_DSN", "postgres-secret-9f8e7d6c5b4a")
+    assert rs.is_credential("DUPLICATI_PASSPHRASE", "1234")
+    assert rs.is_credential("AUTHELIA_SESSION_SECRET", "changeme")
+    assert rs.is_credential("B2_PROXY", "user:PaSsw0rdSecret@45.61.127.38:5977")
+    assert not rs.is_credential("B2_PROXY", "45.61.127.38:5977")
+    assert rs.is_credential("SMTP_HOST_PW", "S3cretPassw0rdLongEnough")
+    assert rs.is_credential("DB_HOST_CREDS", "x")
+    assert rs.is_credential("GROQ_API_KEY_2", "1234")
+    assert not rs.is_credential(
+        "GOOGLE_APPLICATION_CREDENTIALS", "/opt/fabrik/secrets/sa.json"
+    )  # AM11
+    assert rs.credential_rank("GROQ_API_KEY_2", "x") == 0
+    assert rs.credential_rank("AZURE_ACCOUNT_NAME", "fabrikstorageaccount2026x1") == 1
+    assert rs.credential_rank("NAMECHEAP_PROXY_URL", f"http://u:{SECRET}@h:1") == 2

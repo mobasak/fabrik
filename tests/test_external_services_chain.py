@@ -65,16 +65,37 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     )
 
 
+def _shell_code(text: str) -> str:
+    """The script minus its comments — full-line and trailing — with a quote-aware scan, so a
+    `#` inside a quoted string keeps the rest of the line (AJ8/AM9)."""
+    out = []
+    for ln in text.splitlines():
+        if ln.lstrip().startswith("#"):
+            continue
+        quote, kept = None, []
+        for i, ch in enumerate(ln):
+            if quote:
+                if ch == quote:
+                    quote = None
+            elif ch in "'\"":
+                quote = ch
+            elif ch == "#" and (i == 0 or ln[i - 1].isspace()):
+                break
+            kept.append(ch)
+        out.append("".join(kept))
+    return "\n".join(out)
+
+
 def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
+    # the stripper itself, discriminated both ways (a naive `\s+#.*$` strip fails the first)
+    assert "gather_envs.py" in _shell_code('echo "step #1"; python scripts/gather_envs.py')
+    assert "chain.sh" not in _shell_code("true  # scripts/external_services_chain.sh")
+    assert "chain.sh" not in _shell_code("# scripts/external_services_chain.sh\ntrue")
     for entry in (DAILY, HOOK):
         text = entry.read_text(encoding="utf-8")
         # against CODE, not text — a comment naming the script (full-line OR trailing) is not an
-        # invocation (AJ8); `#` inside a quoted string is not a concern in these two scripts
-        code = "\n".join(
-            re.sub(r"\s+#.*$", "", ln)
-            for ln in text.splitlines()
-            if not ln.lstrip().startswith("#")
-        )
+        # invocation (AJ8)
+        code = _shell_code(text)
         assert "scripts/external_services_chain.sh" in code, f"{entry.name} does not run the chain"
         for step in (
             "gather_envs.py",
@@ -170,3 +191,13 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
         gd.main([str(out)])
     assert out.read_text(encoding="utf-8") == "<p>new</p>"  # the old page survived the crash
     assert not out.with_name("dash.html.tmp").exists()  # and no tmp is left behind (AC14)
+
+
+def test_dashboard_data_cannot_break_out_of_its_script_tag():
+    """A registry string carrying `</script>` (provider/url are model-authored upstream) is
+    escaped for the inline script and still round-trips as the same JSON value (AM4)."""
+    gd = _load_gen_dashboard()
+    row = {"provider": "evil</script><script>alert(1)</script>", "url": "https://x/?a=1&b=<2>"}
+    out = gd.json_for_script([row])
+    assert "</script>" not in out and "<" not in out and ">" not in out and "&" not in out
+    assert json.loads(out) == [row]
