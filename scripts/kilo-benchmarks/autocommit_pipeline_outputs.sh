@@ -113,11 +113,25 @@ PATHS=(
 # feeder qualifies a pack ONLY when its ENTIRE diff sits inside the engine's write surface
 # (auto-managed START/END regions + the verification-date line) — a hand-edit anywhere in the file
 # disqualifies it loudly to stderr and it is never bundled. Helper always exits 0.
-while IFS= read -r _ai_render; do
-  PATHS+=("$_ai_render")
-# helper stderr flows to THIS script's stderr (the pipeline log) — the SKIP warnings are
-# the "disqualifies loudly" half of the contract, and a helper crash must be visible too
-done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" || true)
+# ⚠️ TEMP FILE, not `< <(cmd || true)` — the very pattern the comment below BANS, which this
+# feeder still used until review round 2 (2026-09-02). `|| true` swallows the helper's exit code,
+# so an import error or unhandled exception in stage_ai_rule_renders.py looked identical to "no
+# packs qualified": PATHS gained nothing, the stage loop ran, and the fleet-synced ai packs
+# silently stopped being committed. Its own comment says "a helper crash must be visible too" —
+# `|| true` guaranteed it was not. Helper stderr still flows to the pipeline log; now its STATUS
+# does too.
+_AI_OUT="$(mktemp)"
+# same EXIT cleanup as the guard tempfile below — round 2 pass 2 caught this fix REINTRODUCING the
+# leak it had just closed, four lines up. Both temp files are freed on any exit.
+trap 'rm -f "$_AI_OUT" "${_GUARD_OUT:-}"' EXIT
+if python3 "$SELF_DIR/stage_ai_rule_renders.py" > "$_AI_OUT"; then
+  while IFS= read -r _ai_render; do
+    [ -n "$_ai_render" ] && PATHS+=("$_ai_render")
+  done < "$_AI_OUT"
+else
+  echo "[autocommit] ⚠️ stage_ai_rule_renders.py FAILED (exit $?) — no ai packs staged this run" >&2
+fi
+rm -f "$_AI_OUT"
 
 # ⚠️ NOT `mapfile < <(cmd || fallback)`: process substitution HIDES the helper's exit code, so a
 # helper that exits 0 having dropped everything wipes PATHS to zero — the `||` never fires, the
@@ -126,6 +140,8 @@ done < <(python3 "$SELF_DIR/stage_ai_rule_renders.py" || true)
 # (test_golden_parity.py:1338 is literally named for it), reintroduced by a different route.
 # A temp file gives the REAL exit status and cannot concatenate partial stdout with the fallback.
 _GUARD_OUT="$(mktemp)"
+# NOTE: the EXIT trap set above already covers this file (`${_GUARD_OUT:-}`), and a SECOND
+# `trap … EXIT` would REPLACE the first — silently un-cleaning _AI_OUT. One trap, both files.
 _GUARD_N=${#PATHS[@]}
 if GUARD_REPO="$FABRIK_ROOT" python3 "$SELF_DIR/guard_selection_freshness.py" "${PATHS[@]}" > "$_GUARD_OUT"; then
   mapfile -t _GUARD_KEPT < "$_GUARD_OUT"

@@ -153,3 +153,57 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
     assert int(undated.group(1)) == len(paths) - dated, (
         f"docstring claims {undated.group(1)} undated; the stage list has {len(paths) - dated}"
     )
+
+
+def test_a_crashing_ai_render_helper_is_announced_not_silently_empty(tmp_path):
+    """Review round 2, C2: the feeder used `< <(cmd || true)` — the exact pattern the comment four
+    lines below it BANS. A crashing helper looked identical to "no packs qualified": PATHS gained
+    nothing, the stage loop ran, and the FLEET-SYNCED ai packs silently stopped being committed."""
+    wiring = """
+set -u
+PATHS=(existing.md)
+_AI_OUT="$(mktemp)"
+if python3 -c 'import sys; sys.exit(3)' > "$_AI_OUT"; then
+  while IFS= read -r x; do [ -n "$x" ] && PATHS+=("$x"); done < "$_AI_OUT"
+else
+  echo "[autocommit] AI_RENDER_FAILED" >&2
+fi
+rm -f "$_AI_OUT"
+echo "FINAL=${#PATHS[@]}"
+"""
+    p = _run(wiring, tmp_path)
+    assert "AI_RENDER_FAILED" in p.stderr, "a crashing helper must be ANNOUNCED: " + p.stdout + p.stderr
+    assert "FINAL=1" in p.stdout, "the crash must not silently wipe or grow PATHS"
+
+
+def test_the_ai_render_denominator_is_graded_too(tmp_path):
+    """Review round 2, C7: the docstring makes TWO coverage claims in one sentence — `N of M static
+    paths` AND `N of M ai-render packs` — and only the static half was graded. The ungraded half is
+    the one the docstring itself calls "the FLEET-SYNCED half, highest blast radius", so it is the
+    half a silent drift hurts most. Independently raised by a pool finder in the same round."""
+    import re
+    import sys
+
+    sys.path.insert(0, str(SCRIPTS))
+    from guard_selection_freshness import refresh_date  # noqa: PLC0415
+
+    repo = SCRIPTS.parent.parent
+    packs = sorted((repo / ".windsurf/rules/ai").glob("*.md"))
+    assert packs, "precondition: the ai rules packs must exist for this to grade anything"
+    dated = sum(
+        1 for f in packs if refresh_date(f.read_text(encoding="utf-8-sig", errors="ignore"))
+    )
+
+    doc = (SCRIPTS / "guard_selection_freshness.py").read_text(encoding="utf-8")
+    claim = re.search(r"\*\*(\d+) of\s+(\d+) ai-render packs\*\*", doc, re.S)
+    assert claim, "the docstring must state its ai-render coverage as `N of M ai-render packs`"
+    assert (int(claim.group(1)), int(claim.group(2))) == (dated, len(packs)), (
+        f"docstring claims {claim.group(1)} of {claim.group(2)} ai-render packs; "
+        f"the real pack set has {dated} dated of {len(packs)}"
+    )
+
+    undated = re.search(r"the (\d+) undated packs", doc)
+    assert undated, "the docstring must state how many packs fail open"
+    assert int(undated.group(1)) == len(packs) - dated, (
+        f"docstring claims {undated.group(1)} undated packs; the real set has {len(packs) - dated}"
+    )
