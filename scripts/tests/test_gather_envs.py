@@ -2623,6 +2623,7 @@ def test_a_placeholders_operator_words_survive_an_unidentifiable_answer_and_a_li
         "",
         None,
         "   ",
+        " ? ",
     ):  # the other non-real shapes the scan buckets to `?` (CM3/CP1)
         cat, _ = _classify_env(
             tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], bad
@@ -2673,6 +2674,8 @@ def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, 
         (None, False),
         (["ai-llm"], False),
         ("   ", False),
+        (" ? ", False),
+        ("\t?\n", False),
     ):
         assert ge.real_category(cat) is real, cat
     catalog = tmp_path / "catalog.json"
@@ -2729,3 +2732,34 @@ def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monke
         err.startswith("ERROR: the scan could not read its inputs (/opt)")
         and "Traceback" not in err
     ), err
+
+
+def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypatch, capsys):
+    """One project's `.env` losing read permission silently dropped that project's whole service
+    set (exit 0, the secrets file rewritten, its keys then DELETEs against the sync) — the doc
+    promises "never a degraded file": the scan fails closed with one line naming the file; a
+    vanished file (a mid-save race) is still tolerated (CS2)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    p = tmp_path / "p"
+    p.mkdir()
+    env = p / ".env"
+    env.write_text("FOO_API_KEY=x\n", encoding="utf-8")
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    monkeypatch.setattr(ge, "OUTPUT", tmp_path / "all-envs.env")
+    monkeypatch.setattr(ge, "project_env_files", lambda: [env])
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py"])
+    env.chmod(0)
+    try:
+        if os.access(env, os.R_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        assert ge.main() == 1
+        err = capsys.readouterr().err
+        assert err.startswith("ERROR: the scan could not read its inputs (") and str(env) in err, (
+            err
+        )
+    finally:
+        env.chmod(0o600)
+    env.unlink()
+    assert ge.main() == 0  # a vanished file is a mid-save race, tolerated

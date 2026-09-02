@@ -352,7 +352,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         for ln in (REPO / "INDEX.md").read_text(encoding="utf-8").splitlines()
         if "services_registry_schema.sql" in ln
     )
-    assert all(k in index_row for k in kinds), (
+    assert all(re.search(rf"(?<![a-z-]){re.escape(k)}(?![a-z-])", index_row) for k in kinds), (
         index_row
     )  # INDEX's schema row names every value (CM7/CP4)
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
@@ -398,19 +398,21 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # boundaries at paren depth 0 only: `,`, `;` and the word `or` — alternatives WITHIN a cause go
     # in parentheses; a fifth cause joined by a bare `or`/`;` once passed a comma-only split (CP4)
     depth, clauses, buf = 0, [], ""
-    flat = sentence.group(2)
+    flat = re.sub(r"\s+", " ", sentence.group(2))  # a reflow never hides a boundary (CS3)
     i = 0
     while i < len(flat):
         ch = flat[i]
-        depth += ch == "("
-        depth -= ch == ")"
+        depth = max(
+            depth + (ch == "(") - (ch == ")"), 0
+        )  # an unbalanced `)` never kills every later boundary (CS3)
+        joiner = re.match(r" (or|and) ", flat[i:])
         if depth == 0 and ch in ",;":
             clauses.append(buf)
             buf = ""
-        elif depth == 0 and flat[i : i + 4] == " or ":
+        elif depth == 0 and joiner:
             clauses.append(buf)
             buf = ""
-            i += 3
+            i += len(joiner.group(0)) - 1
         else:
             buf += ch
         i += 1

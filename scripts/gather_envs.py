@@ -683,8 +683,12 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except (
+        FileNotFoundError
+    ):  # a mid-save race: the previous consolidation carries the project (torn-file tolerance)
         return out
+    except OSError:  # unreadable (permissions): a silently dropped project fed DELETEs to the sync — the "env files" cause, one line (CS2)
+        raise
     for line in text.splitlines():
         s = line.strip()
         if not s or s.startswith("#"):
@@ -1021,7 +1025,9 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
     by_cat: dict[str, list[str]] = defaultdict(list)
     for name, data in services.items():
         cat = data["meta"].get("category")
-        by_cat[cat if real_category(cat) else "?"].append(name)  # `null`/a list is `?` (BH6)
+        by_cat[cat.strip() if real_category(cat) else "?"].append(
+            name
+        )  # `null`/a list/blank/` ? ` is `?` (BH6/CS1)
 
     ordered = [c for c in CATEGORY_ORDER if c in by_cat]
     ordered += sorted(c for c in by_cat if c not in CATEGORY_ORDER and c != "?")
@@ -1065,7 +1071,7 @@ def real_category(cat) -> bool:
     hand-written variants once disagreed on `null`, a list and blank, so a block could count as
     catalogued while rendering under NEEDS-TRIAGE (CM3)."""
     return (
-        isinstance(cat, str) and bool(cat.strip()) and cat != "?"
+        isinstance(cat, str) and bool(cat.strip()) and cat.strip() != "?"
     )  # blank is `?` everywhere (CP1)
 
 
@@ -1132,7 +1138,7 @@ def main() -> int:
     ) as exc:  # only the TYPED catalog error is a one-liner (AY4/BB6/BD1)
         print(f"ERROR: {exc} — nothing written; the previous consolidation stands", file=sys.stderr)
         return 1
-    except OSError as exc:  # `/opt` unlistable, a project file gone mid-scan: the "env files" cause, one line (CP2)
+    except OSError as exc:  # an unreadable project env file (CS2), or `/opt` losing its listing between the glob and the scan: the "env files" cause, one line (CP2)
         print(
             f"ERROR: the scan could not read its inputs ({getattr(exc, 'filename', None) or exc}) — nothing written; the previous consolidation stands",
             file=sys.stderr,
