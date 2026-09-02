@@ -29,7 +29,10 @@ All notable changes to this project will be documented in this file.
   loop, a view and a switch could race two probes). The weekly leg is decided separately: at the account's
   `caps.json` cap when one exists (can/mob 99 — `min(threshold, cap)` would have tripped them at 98), at the
   threshold otherwise.
-- Tests seen red first: `tests/test_quota_dashboard.py` (+4: own-cadence probe loop, trigger at 98.2 not 90 with
+- **Rows in rotation order** (operator, same day): the active account first, then the standby the tick would
+  pick next, then the one after — any number of accounts — ineligible ones last; rank badges `NEXT` / `#N in
+  line` / `not eligible` (`_display_order`, the read-only mirror of the tick's picker).
+- Tests seen red first: `tests/test_quota_dashboard.py` (+5: own-cadence probe loop, trigger at 98.2 not 90 with
   cooldown, cap-walled trigger, width/refresh; scoped review +3: serialized generate, flock'd async tick, the
   board/CLI default pin) and `tests/test_claude_rotate_v2.py` (+3: default 98 with env override, the fleet flip
   leg holds at 96 and flips at 98.2, the weekly leg trips at the cap not the threshold). Dashboard restarted on the new code; the live page

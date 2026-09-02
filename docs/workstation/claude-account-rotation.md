@@ -50,9 +50,14 @@ survives it.
 
 The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude_rotate.py`):
 
-- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **95**) on
-  either the 5-hour or the weekly window. A `caps.json` cap tightens the **weekly** leg only
-  (`weekly_thr = min(threshold, cap)`); the 5-hour leg is never cap-gated.
+- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** — operator rule
+  2026-09-03, "as soon as session limits hit 98% for the 5h window"; was 95; ONE helper `_rotate_threshold()`
+  feeds every call site) on either the 5-hour or the weekly window. **Latency:** the quota dashboard
+  server probes every 20s and invokes `--tick` the moment the active account crosses the line (or is
+  cap-walled), so a flip lands within ~20s of the crossing; the `*/5` cron tick is the backstop
+  (`docs/workstation/quota-dashboard.md` § the rotation trigger). The **weekly** leg is governed by the account's `caps.json` cap when one exists
+  (the cap IS the operator's weekly rule — a cap of 99 trips at 99, not at the session threshold) and by
+  `ROTATE_THRESHOLD` otherwise; the 5-hour leg is never cap-gated.
 - **Target — PERISHABLE-FIRST (operator rule 2026-09-02):** among accounts that are alive, not
   walled, not cap-walled, and not themselves already ≥ threshold on either window, the one whose
   **weekly reset is soonest** wins (quota about to refresh is the cheapest to burn); ties break

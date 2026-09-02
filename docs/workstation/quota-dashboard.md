@@ -10,11 +10,35 @@ nothing, and never touches a credential file.
 Tool: `scripts/sysadmin/quota_dashboard.py` · Output: `~/.claude/quota-dashboard/`
 (`index.html` + `quota.json`) · Log: `~/.claude/quota-dashboard.log`
 
-## How it stays current — and why there is no regeneration cron
+## How it stays current — the server probes on its own cadence (operator rule 2026-09-03)
 
-The page carries `<meta http-equiv="refresh">` (60s), and the server regenerates the data
-**on view, at most once per `QUOTA_DASH_MAX_AGE_S` (default 240s)**. That bound is the whole
-design:
+**The server probes every `QUOTA_DASH_PROBE_INTERVAL_S` (default 20s) whether or not a page is open**, on a
+thread `serve()` starts (`_start_probe_loop`), and after every probe hands the fresh payload to the
+rotation trigger (below). The page's health-gated reloader re-fetches every `QUOTA_DASH_REFRESH_S`
+(default 20s), so what you see is at most ~20s old. The on-view floor (`QUOTA_DASH_MAX_AGE_S`, now 20s)
+remains only as the fallback for a view that lands before the first loop iteration. This supersedes the
+2026-08-18 "probe only when someone is looking" design: the operator wants the board — and the rotation
+decision it feeds — current at 20s granularity, and four usage probes every 20s is the price.
+
+**The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
+at/over `ROTATE_THRESHOLD` (default **98**, the tick's own default) or the account is cap-walled, the
+server invokes `claude_rotate.py --tick` at once (`_maybe_trigger_rotation`; once per
+`QUOTA_DASH_TRIGGER_COOLDOWN_S`, default 120s) — on its own thread (a slow tick never stalls the probes)
+and under the cron's own lock (`flock -n ~/.claude/state/rotate.lock`, `QUOTA_DASH_ROTATE_LOCK`), so the
+board's tick and a cron tick never decide at once; while a cron tick holds the lock the board's is skipped.
+`generate()` is serialized: the loop, a view and a switch can never run two probes concurrently. The tick keeps every safety it has — dwell, pause,
+successor validation, its own state lock — so this shortens the latency from ≤5 minutes (the `*/5` cron
+tick, which stays as the backstop) to ≤ the probe interval. The invocation and the tick's exit line are
+written to the dashboard log.
+
+**Row order = rotation order (operator rule 2026-09-03).** The active account is the first row; then the
+standby the tick would pick NEXT, then the one after, for any number of accounts (`_display_order`, the
+read-only mirror of the tick's `_pick_flip_target`: eligible = not cap-walled, no window ≥100, a known 5h
+reading ≤ the target budget and below the flip threshold; ranked soonest weekly reset first, then lower
+weekly, then lower session). Ineligible accounts (cap-walled, walled, no reading, no 5h budget) follow by
+the same key. Each row carries its rank badge — `ACTIVE`, `NEXT`, `#3 in line`, … or `not eligible`.
+
+The older design's reasoning, kept for the record:
 
 - `--status --json` makes **live API probes** for fresh-token dirs. A `*/5` regeneration cron
   would probe forever whether or not anyone is looking; a self-refreshing tab would probe on
@@ -108,7 +132,7 @@ files and exit — useful for a scripted refresh without a browser).
   the operator's click — `--switch <slug>` to flip. It never decides a rotation, never writes
   `caps.json`, never reads or writes a credential file; the CLI owns every one of those
   contracts (see `docs/workstation/claude-account-rotation.md`). The tick's own automation is
-  unchanged: it still flips at 95% / the cap, once per 5-minute cron tick — which is why the
+  unchanged: it still flips at 98% / the cap — and since 2026-09-03 the board itself invokes the tick within ~20s of the crossing, which is why the
   button exists: a fast burn (94% → 100% inside one tick, seen 2026-09-02) reaches the wall
   before the tick does, and the operator can see it coming on this board.
 - **Loopback only.** No auth, because nothing off-box can reach it; do not rebind it to

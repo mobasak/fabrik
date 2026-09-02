@@ -321,7 +321,9 @@ def test_t8_account_status_fails_closed_on_partial_usage(monkeypatch):
 def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
     """Closer #4: 'successor exists but cannot install' must NOT shadow the drain — the
     silent burn to 100% is the failure mode the whole feature exists to prevent."""
-    live = _acct("live", session_pct=97.0)
+    # 98.5: above the default flip threshold (98 since 2026-09-03; this fixture sat at 97 while
+    # the default was 95 — the CLASS under test is unchanged, only the line moved)
+    live = _acct("live", session_pct=98.5)
     sib = _acct("sib", weekly_reset=NOW + 86400)
     state = tmp_path / "state"
     state.mkdir()
@@ -1256,3 +1258,72 @@ def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
     monkeypatch.setattr(cr, "_chain_stale_reason", lambda d: None)
     cached = _cand("c", session=10.0, source="cache", age_s=120.0)
     assert cr._validated_pick([cached], set()) is None
+
+
+# ── operator rule 2026-09-03: rotate at 98% on the 5h window (seen RED first) ─────────────────
+
+
+def test_default_flip_threshold_is_98_and_the_env_still_overrides(monkeypatch):
+    """`ROTATE_THRESHOLD` unset → 98 (operator: "trigger rotation as soon as session limits hit
+    98% for the 5h window"); the env override keeps working. ONE helper feeds every call site so
+    the four `_env_float("ROTATE_THRESHOLD", …)` copies cannot drift apart again."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    assert cr._rotate_threshold() == 98.0
+    monkeypatch.setenv("ROTATE_THRESHOLD", "91")
+    assert cr._rotate_threshold() == 91.0
+
+
+def test_fleet_flip_leg_holds_at_96_and_flips_at_98_on_the_session_window(monkeypatch, capsys):
+    """The active account at 96% session with a fresh sibling: NO flip under the new default;
+    at 98.2% it flips. The weekly window is low on both, so only the 5h leg decides."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    flips = []
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("can", "can@ocoron.com"))
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    def rows(session):
+        return [
+            {"email": "mob@ocoron.com", "slugs": ["mob"], "source": "live", "valid": True,
+             "five_hour": {"utilization": session, "resets_at_epoch": NOW + 3600},
+             "seven_day": {"utilization": 40.0, "resets_at_epoch": NOW + 86400}},
+            {"email": "can@ocoron.com", "slugs": ["can"], "source": "live", "valid": True,
+             "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
+             "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600}},
+        ]
+    cr._fleet_flip_leg([], rows(96.0), threshold=cr._rotate_threshold())
+    assert flips == [], capsys.readouterr().out
+    cr._fleet_flip_leg([], rows(98.2), threshold=cr._rotate_threshold())
+    assert flips == ["can"], capsys.readouterr().out
+
+
+def test_weekly_leg_trips_at_the_cap_not_at_the_session_threshold(monkeypatch, capsys):
+    """Operator rule (2026-09-02): can/mob rotate at 99% WEEKLY, sarp 90, ob 80 — the cap IS the
+    weekly rule. `min(threshold, cap)` broke it the moment the session threshold moved to 98:
+    a cap of 99 tripped at 98. When a cap exists the weekly leg trips at the cap and nowhere else;
+    the session threshold governs the 5h window only. No cap → the threshold governs both."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    flips = []
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "can")
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("mob", "mob@ocoron.com"))
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    def rows(weekly, cap):
+        return [
+            {"email": "can@ocoron.com", "slugs": ["can"], "source": "live", "valid": True, "weekly_cap": cap,
+             "five_hour": {"utilization": 50.0, "resets_at_epoch": NOW + 3600},
+             "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 86400}},
+            {"email": "mob@ocoron.com", "slugs": ["mob"], "source": "live", "valid": True,
+             "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
+             "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600}},
+        ]
+    thr = cr._rotate_threshold()
+    cr._fleet_flip_leg([], rows(98.5, 99), threshold=thr)
+    assert flips == [], "weekly 98.5 with cap 99 must NOT flip: " + capsys.readouterr().out
+    cr._fleet_flip_leg([], rows(99.2, 99), threshold=thr)
+    assert flips == ["mob"], capsys.readouterr().out
+    flips.clear()
+    cr._fleet_flip_leg([], rows(98.5, None), threshold=thr)
+    assert flips == ["mob"], "no cap: weekly ≥ threshold flips: " + capsys.readouterr().out

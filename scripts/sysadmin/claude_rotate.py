@@ -2484,8 +2484,17 @@ def _env_float(name: str, default: float) -> float:
     return val
 
 
+def _rotate_threshold() -> float:
+    """The flip-away threshold on either quota window — ONE source for every call site.
+    Default **98** (operator rule 2026-09-03: "trigger rotation as soon as session limits hit
+    98% for the 5h window"; was 95). `ROTATE_THRESHOLD` overrides. The weekly leg is governed by
+    the account's ``caps.json`` cap when one exists (the cap IS the operator's weekly rule) and by
+    this threshold otherwise — see ``_fleet_flip_leg``."""
+    return _env_float("ROTATE_THRESHOLD", 98.0)
+
+
 def _tick_inner() -> int:
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
     if drain_thr > threshold:
         # The warning must never sit ABOVE the action it warns about: between the two there is a
@@ -2977,7 +2986,7 @@ def _pick_flip_target(
     choke point: the tick's flip leg and the pointer-repair fallback both inherit these
     exclusions through here. Cached readings count — ``_validated_pick`` live-verifies them
     before a flip. None when nothing qualifies (→ the drain advisory is the only recourse)."""
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     far = _now() + 365 * 86400  # an unknown reset time is unprovable perishability — sorts last
     ranked: list[tuple[tuple[float, float, float], str, str]] = []
     for row in accounts:
@@ -3107,7 +3116,7 @@ def _validated_pick(
     (dead/unreachable) or a walled live reading excludes it and the next-best is considered.
     Cached-and-unverifiable must never become the fleet's sole pointer. None when nobody
     survives (→ the caller falls through to the no-headroom advisory)."""
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     exclude = set(exclude)
     while True:
         pick = _pick_flip_target(accounts, exclude=exclude)
@@ -3770,17 +3779,22 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
         return
     hot = max(present)
-    # The cap tightens the WEEKLY leg only (session threshold unchanged): the active account's
-    # effective weekly threshold is min(ROTATE_THRESHOLD, its caps.json cap) — at weekly ≥ cap
-    # it flips away even with the session low, reserving the remainder for the operator.
+    # TWO legs, decided separately (scoped review 2026-09-03 — `min(threshold, cap)` tripped a
+    # cap of 99 at 98 the moment the session threshold moved): the SESSION leg trips at
+    # ROTATE_THRESHOLD; the WEEKLY leg trips at the account's caps.json cap when one exists (the
+    # cap IS the operator's weekly rule — can/mob 99, sarp 90, ob 80) and at the threshold otherwise.
     cap = row.get("weekly_cap")
-    weekly_thr = min(threshold, float(cap)) if cap is not None else threshold
-    ordinary_trip = hot >= threshold
-    cap_trip = (
-        cap is not None and utils["seven_day"] is not None and utils["seven_day"] >= weekly_thr
-    )
+    weekly_thr = float(cap) if cap is not None else threshold
+    session_trip = utils["five_hour"] is not None and utils["five_hour"] >= threshold
+    weekly_trip = utils["seven_day"] is not None and utils["seven_day"] >= weekly_thr
+    ordinary_trip = session_trip or (cap is None and weekly_trip)
+    cap_trip = cap is not None and weekly_trip
     if not (ordinary_trip or cap_trip):
-        print(f"tick: active {row['email']} at {hot:.0f}% — below {threshold:.0f}%, no flip")
+        print(
+            f"tick: active {row['email']} at {hot:.0f}% — session below {threshold:.0f}%"
+            + (f", weekly below cap {cap}" if cap is not None else "")
+            + ", no flip"
+        )
         return
     # F-C3: the audit trail records the value that actually TRIPPED — the weekly reading on a
     # cap-only trip; the hottest window when the ordinary threshold fired (legacy shape kept).
@@ -3834,7 +3848,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     """Fire ONE advisory only when the fleet's ACTIVE account is walled with no auto-relief.
 
     Under one-active-pointer-for-all-projects (memory rotation_continuity_over_binding), an
-    individual account crossing 95% is a NON-event — the flip leg above re-points to a sibling
+    individual account crossing the threshold is a NON-event — the flip leg above re-points to a sibling
     with headroom and every agent keeps working. The "reach a checkpoint before the wall"
     advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
     could not relieve it (no successor with headroom, or the operator's pause held the flip).
@@ -3918,9 +3932,9 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     pause holds action, never signal). The advisory is FLEET-WIDE, not per-account: it fires
     ONLY when the post-flip active account is walled with no auto-relief (no successor, or the
     pause held the flip) — see :func:`_fleet_active_wall_advisory`. A single account crossing
-    95% while a sibling has headroom is a non-event (the flip relieved it) and fires nothing.
+    the threshold while a sibling has headroom is a non-event (the flip relieved it) and fires nothing.
     """
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
     now = _now()
     accounts, pending = _fleet_account_rows(dirs, allow_pings=True)
@@ -3942,7 +3956,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         status = "ok" if hot < drain_thr else "at/over drain threshold"
         print(f"tick: {status} — {row['email']} at {hot:.0f}%{stale}")
     # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
-    # every agent is using) is walled with no auto-relief. A single account crossing 95% is a
+    # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
     _fleet_active_wall_advisory(accounts, now, threshold)
     for warn in _fleet_row_warnings(accounts):

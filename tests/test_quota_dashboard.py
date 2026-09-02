@@ -526,3 +526,210 @@ def test_ensure_restarts_a_server_that_listens_but_does_not_answer(tmp_path, mon
     assert killed and all(k == 4242 for k in killed), "the listener that never answers is killed"
     assert spawned and "--serve" in spawned[0], "…and a fresh server spawned"
     wedged.close()
+
+
+# ── operator rules 2026-09-03: probe every 20s without a viewer; trigger the tick at 98% ──────
+
+
+def _tick_env(tmp_path, monkeypatch, session: float = 40.0, **env: str):
+    """A dashboard whose rotation CLI is a stub that also answers `--tick` (records argv)."""
+    stub = tmp_path / "stub_rotate.py"
+    stub.write_text(
+        "import sys, json, pathlib\n"
+        "pathlib.Path(sys.argv[0] + '.calls').open('a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "if sys.argv[1] == '--status':\n"
+        "    print(json.dumps(json.loads(pathlib.Path(sys.argv[0] + '.payload').read_text())))\n"
+        "    sys.exit(0)\n"
+        "if sys.argv[1] == '--tick':\n"
+        "    print('tick: ok'); sys.exit(0)\n"
+        "sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=session)))
+    return _load(tmp_path, monkeypatch, QUOTA_DASH_ROTATE_CLI=str(stub), **env), stub
+
+
+def test_the_server_probes_on_its_own_cadence_without_a_viewer(tmp_path, monkeypatch):
+    """Operator rule: probe every 20 seconds — with NO page open. The probe loop is a server
+    thread (`_start_probe_loop`), so the cadence no longer depends on a viewer's reloads."""
+    qd, stub = _tick_env(tmp_path, monkeypatch, QUOTA_DASH_PROBE_INTERVAL_S="0.15")
+    assert qd.PROBE_INTERVAL_S == 0.15
+    stop = qd._start_probe_loop()
+    time.sleep(0.8)
+    stop.set()
+    probes = [c for c in _calls(stub) if c[:2] == ["--status", "--json"]]
+    assert len(probes) >= 3, probes
+
+
+def test_the_active_account_crossing_the_session_threshold_triggers_the_tick_at_once(
+    tmp_path, monkeypatch
+):
+    """Operator rule: rotate as soon as the 5h window hits 98%. The board, which now probes every
+    20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
+    once per cooldown, never at 90%."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=90.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd.generate()
+    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
+    assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
+    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=98.2)))
+    qd.generate()
+    payload = json.loads(qd._JSON.read_text())
+    t = qd._maybe_trigger_rotation(payload)
+    assert t is not None
+    t.join(10)
+    assert qd._maybe_trigger_rotation(payload) is None  # inside the cooldown
+    assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
+
+
+def test_a_cap_walled_active_account_also_triggers_the_tick(tmp_path, monkeypatch):
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=10.0)
+    payload = _payload(session=10.0)
+    payload["accounts"][0]["cap_walled"] = True
+    t = qd._maybe_trigger_rotation(payload)
+    assert t is not None
+    t.join(10)
+    assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
+
+
+def test_the_page_is_wide_and_refreshes_every_20s(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    html = qd.render(_payload(), time.time())
+    assert qd.REFRESH_S == 20 and "refreshes every 20s" in html
+    assert "max-width:1600px" in html
+
+
+# ── scoped review 2026-09-03 (seen RED first) ─────────────────────────────────────────────────
+
+
+def test_generate_never_runs_two_probes_at_once(tmp_path, monkeypatch):
+    """The loop, a past-the-floor view, a pointer-moved view and a switch all call `generate()`;
+    only `_regen_async` held a lock. Two concurrent probes double the API cost and race the
+    quota.json/index.html writes. `generate()` itself must serialize."""
+    qd = _load(tmp_path, monkeypatch)
+    state = {"running": 0, "max": 0}
+    lock = threading.Lock()
+
+    def slow_probe():
+        with lock:
+            state["running"] += 1
+            state["max"] = max(state["max"], state["running"])
+        time.sleep(0.15)
+        with lock:
+            state["running"] -= 1
+        return _payload()
+
+    monkeypatch.setattr(qd, "_probe", slow_probe)
+    threads = [threading.Thread(target=qd.generate) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert state["max"] == 1, state
+
+
+def test_the_trigger_runs_the_tick_under_the_cron_lock_and_off_the_loop_thread(
+    tmp_path, monkeypatch
+):
+    """The cron runs `flock -n ~/.claude/state/rotate.lock … --tick`; the board's tick must take the
+    SAME lock (two ticks deciding at once is the double-flip race) and must not stall the probe
+    loop for up to TICK_TIMEOUT_S — it runs on its own thread, which the trigger returns."""
+    lockfile = tmp_path / "rotate.lock"
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=98.5, QUOTA_DASH_ROTATE_LOCK=str(lockfile))
+    assert lockfile == qd.ROTATE_LOCK
+    payload = _payload(session=98.5)
+    t = qd._maybe_trigger_rotation(payload)
+    assert t is not None and hasattr(t, "join"), t
+    t.join(10)
+    ticks = [c for c in _calls(stub) if c[:1] == ["--tick"]]
+    assert ticks == [["--tick"]]
+    # while the lock is HELD by someone else (the cron tick), the board's tick is skipped, not queued
+    import fcntl
+
+    with open(lockfile, "a") as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        qd._LAST_TRIGGER[0] = 0.0
+        t2 = qd._maybe_trigger_rotation(payload)
+        assert t2 is not None
+        t2.join(10)
+        fcntl.flock(holder, fcntl.LOCK_UN)
+    assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]  # no second tick ran
+
+
+def test_dashboard_trigger_default_matches_the_tick_default(tmp_path, monkeypatch):
+    """The board's threshold is a literal duplicate of the CLI's default (the cron sets no env, the
+    board reads env at import) — the two must move together, and this test is the pin."""
+    import importlib.util
+
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    qd = _load(tmp_path, monkeypatch)
+    spec = importlib.util.spec_from_file_location("cr_pin", _SRC.parent / "claude_rotate.py")
+    cr = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(cr)
+    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 98.0
+
+
+def test_rows_are_ordered_active_first_then_in_rotation_order(tmp_path, monkeypatch):
+    """Operator rule 2026-09-03: the active account on top, then the account rotation would pick
+    NEXT, then the one after, … — dynamic for any number of accounts. The order mirrors the tick's
+    picker (`_pick_flip_target`): among ELIGIBLE standbys (not walled, not cap-walled, a known 5h
+    reading ≤ the target budget), the SOONEST weekly reset first, ties to lower weekly then lower
+    session; ineligible accounts (cap-walled, walled, no reading) after them, by the same key."""
+    qd = _load(tmp_path, monkeypatch)
+    now = time.time()
+
+    def acct(slug, session, weekly, reset_in, cap_walled=False):
+        return {
+            "email": f"{slug}@ocoron.com",
+            "slugs": [slug],
+            "five_hour": {"utilization": session, "resets_at_epoch": now + 3600},
+            "seven_day": {"utilization": weekly, "resets_at_epoch": now + reset_in},
+            "source": "live",
+            "age_s": None,
+            "weekly_cap": None,
+            "cap_walled": cap_walled,
+        }
+
+    payload = {
+        "active": "sarp",
+        "pause": None,
+        "fleet_warnings": [],
+        "accounts": [
+            acct("ob", 10.0, 30.0, reset_in=5 * 86400, cap_walled=True),  # ineligible → last
+            acct("can", 5.0, 40.0, reset_in=2 * 86400),  # next: soonest reset
+            acct("sarp", 60.0, 70.0, reset_in=1 * 86400),  # active → first
+            acct("mob", 20.0, 10.0, reset_in=4 * 86400),  # then
+            acct("x5", 90.0, 5.0, reset_in=3600),  # no 5h budget → ineligible
+        ],
+    }
+    order = [a["slugs"][0] for a in qd._display_order(payload)]
+    assert order == ["sarp", "can", "mob", "x5", "ob"], order
+    html = qd.render(payload, now)
+    first = html.index("sarp@ocoron.com")
+    assert (
+        first
+        < html.index("can@ocoron.com")
+        < html.index("mob@ocoron.com")
+        < html.index("ob@ocoron.com")
+    )
+    assert "next" in html.lower()  # the rank is labelled, not implied
+
+
+def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, monkeypatch):
+    """A probe of four accounts takes ~20s itself; waiting the full interval AFTER it made the real
+    cadence ~40s (measured live 2026-09-03: 43s between quota.json writes). The interval is the
+    PERIOD: the loop waits interval minus the probe's own duration."""
+    qd, stub = _tick_env(tmp_path, monkeypatch, QUOTA_DASH_PROBE_INTERVAL_S="0.15")
+    real = qd.generate
+
+    def slow_generate():
+        time.sleep(0.1)
+        return real()
+
+    monkeypatch.setattr(qd, "generate", slow_generate)
+    stop = qd._start_probe_loop()
+    time.sleep(0.8)
+    stop.set()
+    probes = [c for c in _calls(stub) if c[:2] == ["--status", "--json"]]
+    assert len(probes) >= 4, probes  # period 0.15 → ~5 in 0.8s; pause-after-probe would give ~3

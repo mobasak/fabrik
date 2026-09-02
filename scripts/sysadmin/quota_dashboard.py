@@ -46,9 +46,23 @@ ROTATE_CLI = Path(
 OUT_DIR = Path(os.getenv("QUOTA_DASH_OUT_DIR", str(Path.home() / ".claude" / "quota-dashboard")))
 HOST = os.getenv("QUOTA_DASH_HOST", "127.0.0.1")
 PORT = int(os.getenv("QUOTA_DASH_PORT", "5051"))
-MAX_AGE_S = float(os.getenv("QUOTA_DASH_MAX_AGE_S", "240"))
+MAX_AGE_S = float(os.getenv("QUOTA_DASH_MAX_AGE_S", "20"))
 PROBE_TIMEOUT_S = float(os.getenv("QUOTA_DASH_PROBE_TIMEOUT_S", "60"))
-REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "60"))
+REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "20"))
+# Operator rules 2026-09-03: the SERVER probes every 20s whether or not a page is open, and
+# invokes the rotation tick the moment the active account crosses the flip threshold on its 5h
+# window (or is cap-walled) — the cron tick (*/5) stays as the backstop; the board is the fast path.
+PROBE_INTERVAL_S = float(os.getenv("QUOTA_DASH_PROBE_INTERVAL_S", "20"))
+TRIGGER_THRESHOLD = float(
+    os.getenv("ROTATE_THRESHOLD", "98")
+)  # the tick's own default (claude_rotate)
+TRIGGER_COOLDOWN_S = float(os.getenv("QUOTA_DASH_TRIGGER_COOLDOWN_S", "120"))
+TICK_TIMEOUT_S = float(os.getenv("QUOTA_DASH_TICK_TIMEOUT_S", "180"))
+# The SAME lock the cron line takes (`flock -n $HOME/.claude/state/rotate.lock … --tick`): two ticks
+# deciding at once is the double-flip race, so the board's tick is skipped while a cron tick holds it.
+ROTATE_LOCK = Path(
+    os.getenv("QUOTA_DASH_ROTATE_LOCK", str(Path.home() / ".claude" / "state" / "rotate.lock"))
+)
 SWITCH_HEADER = "X-Quota-Dash"  # required on POST /switch — a custom header forces a CORS preflight
 SWITCH_TIMEOUT_S = float(os.getenv("QUOTA_DASH_SWITCH_TIMEOUT_S", "90"))
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
@@ -134,7 +148,7 @@ def _tone(remaining: float) -> str:
     return "ok"
 
 
-def _row(acct: dict, active: str | None) -> str:
+def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
     email = str(acct.get("email", "?"))
     slug = (acct.get("slugs") or ["?"])[0]
     is_active = bool(active) and slug == active
@@ -152,6 +166,9 @@ def _row(acct: dict, active: str | None) -> str:
     badges = []
     if is_active:
         badges.append('<span class="badge active">ACTIVE</span>')
+    elif rank:
+        tone = "cap" if rank == "NEXT" else ""
+        badges.append(f'<span class="badge {tone}">{escape(rank)}</span>')
     if cap is not None:
         badges.append(f'<span class="badge cap">cap {int(cap)}%</span>')
     if cap_walled:
@@ -285,12 +302,58 @@ def _governor_panel(payload: dict) -> str:
     )
 
 
-def render(payload: dict, generated_at: float, error: str | None = None) -> str:
-    accounts = sorted(
-        payload.get("accounts") or [],
-        key=lambda a: (100.0 - float((a.get("seven_day") or {}).get("utilization") or 0.0)),
-        reverse=True,
+_TARGET_SESSION_MAX = float(
+    os.getenv("ROTATE_TARGET_SESSION_MAX_PCT", os.getenv("ROTATE_DRAIN_THRESHOLD", "85"))
+)
+
+
+def _display_order(payload: dict) -> list[dict]:
+    """Rows in ROTATION order (operator rule 2026-09-03): the active account first, then the standby
+    the tick would pick NEXT, then the one after — for any number of accounts. Mirrors the tick's
+    `_pick_flip_target`: eligible = not cap-walled, no window ≥100, a KNOWN 5h reading ≤ the target
+    budget (`ROTATE_TARGET_SESSION_MAX_PCT`, default = the drain line) and below the flip threshold;
+    ranked PERISHABLE-FIRST — soonest weekly reset, then lower weekly, then lower session utilization
+    (an unknown reset sorts last). Ineligible accounts follow, by the same key, so the board reads
+    top-to-bottom as the order rotation will actually use."""
+    active = payload.get("active")
+    far = time.time() + 365 * 86400
+
+    def key(a: dict) -> tuple[float, float, float]:
+        reset = (a.get("seven_day") or {}).get("resets_at_epoch")
+        seven, five = _util(a, "seven_day"), _util(a, "five_hour")
+        return (
+            float(reset) if isinstance(reset, (int, float)) else far,
+            seven if seven is not None else 101.0,
+            five if five is not None else 101.0,
+        )
+
+    rows = list(payload.get("accounts") or [])
+    head = [a for a in rows if active in (a.get("slugs") or [])]
+    rest = [a for a in rows if a not in head]
+    return (
+        head
+        + sorted([a for a in rest if _eligible(a)], key=key)
+        + sorted([a for a in rest if not _eligible(a)], key=key)
     )
+
+
+def _util(a: dict, k: str) -> float | None:
+    u = (a.get(k) or {}).get("utilization")
+    return float(u) if isinstance(u, (int, float)) else None
+
+
+def _eligible(a: dict) -> bool:
+    """Would the tick pick this standby? (mirror of `_flip_candidate_verdict`, read-only side)"""
+    five, seven = _util(a, "five_hour"), _util(a, "seven_day")
+    if a.get("cap_walled") is True or five is None or seven is None:
+        return False
+    if five >= 100.0 or seven >= 100.0 or five >= TRIGGER_THRESHOLD or seven >= TRIGGER_THRESHOLD:
+        return False
+    return five <= _TARGET_SESSION_MAX
+
+
+def render(payload: dict, generated_at: float, error: str | None = None) -> str:
+    accounts = _display_order(payload)
     active = payload.get("active")
     warns = payload.get("fleet_warnings") or []
     pause = payload.get("pause")
@@ -316,7 +379,17 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
         items = "".join(f"<li>{escape(str(w))}</li>" for w in warns)
         warn_html = f'<section class="warns"><h2>Warnings</h2><ul>{items}</ul></section>'
 
-    rows = "".join(_row(a, active) for a in accounts)
+    ranks: list[str | None] = []
+    n = 0
+    for a in accounts:
+        if active in (a.get("slugs") or []):
+            ranks.append(None)
+        elif _eligible(a):
+            n += 1
+            ranks.append("NEXT" if n == 1 else f"#{n} in line")
+        else:
+            ranks.append("not eligible")
+    rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
     gov_html = _governor_panel(payload)
     return f"""<!doctype html>
 <html lang="en"><head>
@@ -333,7 +406,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
  * {{ box-sizing:border-box; }}
  body {{ margin:0; padding:24px; background:var(--bg); color:var(--fg);
    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }}
- .wrap {{ max-width:980px; margin:0 auto; }}
+ .wrap {{ max-width:1600px; margin:0 auto; }}
  header {{ display:flex; flex-wrap:wrap; gap:12px; align-items:baseline;
    justify-content:space-between; margin-bottom:18px; }}
  h1 {{ font-size:20px; margin:0; font-weight:650; }}
@@ -390,11 +463,11 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
   <tbody>{rows}</tbody>
 </table>
 {warn_html}
-<footer>Rotation flips the active pointer at 95% on either window, or at an account's
-configured cap — one tick every 5 minutes, so a fast burn can hit the wall between ticks.
+<footer>Rotation flips the active pointer at {TRIGGER_THRESHOLD:.0f}% on the 5h window (or either window, or an account's
+configured weekly cap). This board probes every {int(PROBE_INTERVAL_S)}s on its own and invokes the rotation tick the
+moment the active account crosses that line; the cron tick every 5 minutes is the backstop.
 The <em>switch →</em> button flips it NOW (pause-, dwell- and cap-exempt, like <code>--switch</code>);
-every session bound to the pointer follows it — no restart. Data regenerates on view, at most once every
-{int(MAX_AGE_S)}s.</footer>
+every session bound to the pointer follows it — no restart.</footer>
 </div><script>
 /* Health-gated auto-refresh (2026-08-18 — replaces meta http-equiv=refresh). The meta tag
    died on the first failed load after a WSL restart: the browser's error page carries no
@@ -433,8 +506,19 @@ every session bound to the pointer follows it — no restart. Data regenerates o
 </body></html>"""
 
 
+_gen_lock = threading.Lock()
+
+
 def generate() -> str:
-    """Probe + write index.html/quota.json. Falls back to the last good payload on error."""
+    """Probe + write index.html/quota.json. Falls back to the last good payload on error.
+    SERIALIZED: the probe loop, a past-the-floor view, a pointer-moved view and a switch all land
+    here; without this lock two probes could run at once (double API cost) and race the two file
+    writes (scoped review 2026-09-03). A second caller waits for the running probe, never starts one."""
+    with _gen_lock:
+        return _generate_locked()
+
+
+def _generate_locked() -> str:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     error = None
     try:
@@ -485,6 +569,76 @@ def _regen_async() -> threading.Thread | None:
     t = threading.Thread(target=work, daemon=True, name="quota-regen")
     t.start()
     return t
+
+
+_LAST_TRIGGER: list[float] = [0.0]
+
+
+def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
+    """The fast path to a flip: when the ACTIVE account's 5h window is at/over the flip threshold
+    (or it is cap-walled), run the rotation tick NOW instead of waiting for the */5 cron. The tick
+    keeps every safety it has (dwell, pause, successor validation, flock via its own state lock);
+    this only shortens the latency from ≤5 min to ≤ the probe interval. Once per cooldown."""
+    active = payload.get("active")
+    row = next(
+        (a for a in (payload.get("accounts") or []) if active in (a.get("slugs") or [])), None
+    )
+    if row is None:
+        return None
+    five = (row.get("five_hour") or {}).get("utilization")
+    hot = isinstance(five, (int, float)) and float(five) >= TRIGGER_THRESHOLD
+    if not (hot or row.get("cap_walled") is True):
+        return None
+    now = time.time()
+    if now - _LAST_TRIGGER[0] < TRIGGER_COOLDOWN_S:
+        return None
+    _LAST_TRIGGER[0] = now
+    why = f"session {float(five):.0f}% >= {TRIGGER_THRESHOLD:.0f}%" if hot else "cap-walled"
+    sys.stderr.write(f"quota_dashboard: active {active} {why} — invoking the rotation tick\n")
+
+    def run() -> None:  # off the loop thread: a slow tick must not stall the probes
+        try:
+            ROTATE_LOCK.parent.mkdir(parents=True, exist_ok=True)
+            proc = subprocess.run(  # noqa: S603 — fixed argv, no shell; flock -n = the cron's own lock
+                ["flock", "-n", str(ROTATE_LOCK), sys.executable, str(ROTATE_CLI), "--tick"],
+                capture_output=True,
+                text=True,
+                timeout=TICK_TIMEOUT_S,
+            )
+            if proc.returncode == 1 and not (proc.stdout or proc.stderr).strip():
+                sys.stderr.write(
+                    "quota_dashboard: a rotation tick already holds the lock — skipped\n"
+                )
+                return
+            sys.stderr.write(
+                f"quota_dashboard: tick exit {proc.returncode}: {(proc.stdout or proc.stderr).strip()[:300]}\n"
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            sys.stderr.write(f"quota_dashboard: tick failed to run: {type(exc).__name__}: {exc}\n")
+
+    t = threading.Thread(target=run, daemon=True, name="quota-tick")
+    t.start()
+    return t
+
+
+def _start_probe_loop() -> threading.Event:
+    """The server's own cadence: probe every PROBE_INTERVAL_S regardless of viewers, then hand the
+    fresh payload to the rotation trigger. Returns the stop event (tests; serve() never sets it)."""
+    stop = threading.Event()
+
+    def loop() -> None:
+        while not stop.is_set():
+            started = time.monotonic()
+            try:
+                generate()
+                _maybe_trigger_rotation(json.loads(_JSON.read_text(encoding="utf-8")))
+            except Exception as exc:  # noqa: BLE001 — the loop must outlive any single probe
+                sys.stderr.write(f"quota_dashboard: probe loop: {type(exc).__name__}: {exc}\n")
+            # the interval is a PERIOD: a ~20s probe followed by a 20s pause was a 40s cadence
+            stop.wait(max(0.0, PROBE_INTERVAL_S - (time.monotonic() - started)))
+
+    threading.Thread(target=loop, daemon=True, name="quota-probe-loop").start()
+    return stop
 
 
 def _fresh_html() -> str:
@@ -629,7 +783,10 @@ class _Handler(BaseHTTPRequestHandler):
 
 def serve() -> int:
     httpd = ThreadingHTTPServer((HOST, PORT), _Handler)
-    sys.stderr.write(f"quota_dashboard: serving http://{HOST}:{PORT}/\n")
+    sys.stderr.write(
+        f"quota_dashboard: serving http://{HOST}:{PORT}/ (probing every {PROBE_INTERVAL_S:.0f}s)\n"
+    )
+    _start_probe_loop()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
