@@ -58,13 +58,33 @@ DEPLOYABLE_TYPES_WORKER = ["file-worker"]
 _UNEXPANDED_VAR = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\}")
 
 
+# One scaffold per TYPE for the whole module, not one per test.
+#
+# WHY (measured 2026-09-02): `create_project` costs ~24s for `python-api`, and this
+# file is parametrized across types — so 6 python-api cases alone cost ~145s and the
+# file blew every timeout. It read as a HANG for exactly that reason; it never was
+# one. Individually each test passes in ~24s.
+#
+# Sharing is safe because every test here only READS the scaffold (verified: no
+# write_text/mkdir/unlink/shutil anywhere in this file across all 8 call sites). If a
+# test ever needs to MUTATE a scaffold, it must scaffold its own copy — reusing this
+# cache for a mutating test would leak state between tests in parametrize order.
+_SCAFFOLD_CACHE: dict[str, Path] = {}
+
+
 def _scaffold(tmp_path: Path, project_type: str) -> Path:
-    """Scaffold a project with a deterministic name and return its path.
+    """Return a scaffolded project of ``project_type``, cached per module run.
+
+    ``tmp_path`` is accepted for call-site compatibility but only used the FIRST
+    time a given type is scaffolded; later calls return the cached directory.
 
     ``generate_spec=False`` keeps the test hermetic — without it,
     ``create_project`` writes a spec into ``specs/services/`` of the
     real Fabrik checkout, leaking artifacts on every run.
     """
+    cached = _SCAFFOLD_CACHE.get(project_type)
+    if cached is not None and cached.exists():
+        return cached
     name = f"compose-test-{project_type.replace('_', '-')}"
     create_project(
         name=name,
@@ -73,7 +93,9 @@ def _scaffold(tmp_path: Path, project_type: str) -> Path:
         base=tmp_path,
         generate_spec=False,
     )
-    return tmp_path / name
+    out = tmp_path / name
+    _SCAFFOLD_CACHE[project_type] = out
+    return out
 
 
 def _read_compose(project_dir: Path) -> str:
