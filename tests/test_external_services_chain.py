@@ -53,7 +53,10 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
     assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
     assert 'timeout "$STEP_TIMEOUT"' in text and "send_alert(" in text
-    # the paid classify step is skipped after a failed scan (Z9)
+    # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
+    assert re.search(
+        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
+    )
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step classify_services', text
     )
@@ -153,3 +156,4 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     with pytest.raises(_BoomError):
         gd.main([str(out)])
     assert out.read_text(encoding="utf-8") == "<p>new</p>"  # the old page survived the crash
+    assert not out.with_name("dash.html.tmp").exists()  # and no tmp is left behind (AC14)

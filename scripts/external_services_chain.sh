@@ -49,7 +49,9 @@ if [ "$core_failed" -eq 0 ]; then  # never spend the pool on YESTERDAY's queue a
 else
   echo "[external-services-chain] gather_envs failed — classify skipped (stale queue, paid step)"
 fi
-_step gather_envs_reconsolidate "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply
+if [ "$core_failed" -eq 0 ]; then  # a failed scan would fail identically twice — one alert, not two (AC13)
+  _step gather_envs_reconsolidate "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply
+fi
 _step registry_sync "$VENV_PY" "$FABRIK_ROOT/scripts/registry_sync.py" --fetch-credits
 # The heartbeat depends on the DATA steps. classify is the paid, optional pass: its failure
 # (credits, pool transport) is alerted but must not report a fresh registry as DEAD (pass 2, G9).

@@ -506,6 +506,8 @@ def catalog_url_index(catalog: dict) -> dict[str, str]:
     hosts: dict[str, set[str]] = {}
     owners: dict[str, set[str]] = {}
     for provider, meta in catalog.items():
+        for extra in meta.get("hosts", []):  # hosts the classifier merged into this entry (AB3)
+            hosts.setdefault(str(extra).lower(), set()).add(provider)
         url = str(meta.get("url") or "")
         host = urlsplit(url).hostname if url.startswith("http") else None
         if not host:
@@ -536,6 +538,8 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
     h = host.lower()
     sld = host_sld(h)
     if sld in PLATFORM_SLD:  # never credit a whole cloud to one catalog vendor …
+        if h in url_index:  # … unless an entry claims this exact host (a merged `hosts` entry, AB3)
+            return url_index[h]
         label = host_label(h)
         if label in catalog:  # … but a platform SERVICE the classifier already named/tombstoned
             return label  # keeps its entry, or it is re-billed on every cycle (review 2026-09-02)
@@ -574,13 +578,21 @@ def credential_grade(value: str) -> bool:
     return not (v.startswith("<") and v.endswith(">"))  # <your-key> is not a credential
 
 
-def is_internal_config(key: str) -> bool:
+def internal_reason(key: str) -> str | None:
+    """Why a key is internal config: "exact" / "prefix" (explicit declarations) or "substr"
+    (a generic token such as _DB_PASSWORD that a vendor credential can legitimately carry)."""
     up = key.upper()
     if up in INTERNAL_EXACT:
-        return True
+        return "exact"
     if any(up.startswith(p) for p in INTERNAL_PREFIX):
-        return True
-    return any(tok in up for tok in INTERNAL_SUBSTR)
+        return "prefix"
+    if any(tok in up for tok in INTERNAL_SUBSTR):
+        return "substr"
+    return None
+
+
+def is_internal_config(key: str) -> bool:
+    return internal_reason(key) is not None
 
 
 def normalize_value(raw: str) -> str:
@@ -656,6 +668,9 @@ def match_provider(key: str, matchers: list[tuple[str, str]]) -> str | None:
 
 
 def derive_provider(key: str) -> str:
+    key = re.sub(
+        r"_\d+$", "", key
+    )  # GROQ_API_KEY_2 is groq's second key, not a vendor `groq_api_key_2` (AC1)
     stem = SERVICE_SHAPE_RE.sub("", key)
     stem = re.sub(
         r"_(SECRET_KEY|ACCESS_KEY|SECRET|TOKEN|KEY|URL|PASSWORD|USER|PASS|DSN)S?$",
@@ -723,10 +738,12 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             # when a catalog `match` prefix happens to cover it (review 2026-09-02, pass 2: a
             # code-host tombstone `allowed` with match ALLOWED swallowed a CORS setting)
             provider = match_provider(key, matchers)
-            if provider and is_internal_config(key) and not is_secret(key, value):
-                # a vendor-prefixed CONFIG knob (ANTHROPIC_READ_TIMEOUT=120) is internal; a
-                # vendor-prefixed SECRET that happens to carry a config token (SUPABASE_DB_PASSWORD,
-                # SUPABASE_DB_URL with credentials) stays the vendor's (pass 4/5 mirror finding)
+            reason = internal_reason(key) if provider else None
+            if reason in ("exact", "prefix") or (reason == "substr" and not is_secret(key, value)):
+                # an EXPLICIT declaration (INTERNAL_EXACT / INTERNAL_PREFIX, e.g. M365_CERT_*) always
+                # wins; a GENERIC token (_DB_PASSWORD, _TIMEOUT) is decided by the value: a
+                # vendor-prefixed config knob (ANTHROPIC_READ_TIMEOUT=120) is internal, a vendor
+                # secret carrying the token (SUPABASE_DB_PASSWORD) stays the vendor's (T1/Z1/AC7)
                 provider = None
             if provider:
                 meta = catalog[provider]

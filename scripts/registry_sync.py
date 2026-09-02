@@ -20,6 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import gather_envs  # noqa: E402 - the one classifier of secret vs config, shared with the scan
 import registry_db  # noqa: E402
 from credit_fetchers import fetch_balance  # noqa: E402
 
@@ -144,7 +145,12 @@ def sync_registry(
                     # `AZURE_ACCOUNT_NAME` before `AZURE_API_KEY` (review 2026-09-02, N1 + O5).
                     # `code-host` is the SYNTHETIC key only — never a value shape: a proxy URL with
                     # userinfo (`NAMECHEAP_PROXY_URL=http://u:pw@…`) is a credential (pass 2, G3)
-                    kind = "code-host" if _key == "CODE_HOST_URL" else "credential"
+                    if _key == "CODE_HOST_URL":
+                        kind = "code-host"
+                    elif gather_envs.is_secret(_key, value):
+                        kind = "credential"
+                    else:
+                        kind = "config"  # a URL/host/port/model knob under a vendor prefix — never a key (AC6)
                     if kind == "credential":
                         if CREDENTIAL_KEY_RE.search(_key):
                             first_value = first_value or value

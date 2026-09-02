@@ -276,7 +276,12 @@ def main() -> int:
         print("another classify_services run holds the lock — skipping (no double-billing)")
         return 0
     cursor = _read_json(CURSOR_PATH, {}).get("after")
-    provs, deferred, new_cursor = bound_flagged(provs, args.max_per_run, after=cursor)
+    if (
+        args.only
+    ):  # an operator-named list is already bounded by what was typed — never cap it (AB1)
+        provs, deferred, new_cursor = provs, 0, None
+    else:
+        provs, deferred, new_cursor = bound_flagged(provs, args.max_per_run, after=cursor)
     if deferred:
         print(
             f"bounded run: {len(provs) + deferred} flagged → classifying {len(provs)} now "
@@ -285,6 +290,10 @@ def main() -> int:
 
     names = list(provs)
     print(f"Classifying {len(names)} uncatalogued providers via the pool: {', '.join(names)}\n")
+    if new_cursor is not None and not args.only:
+        # persist the cursor BEFORE the paid dispatch: a `timeout` kill after dispatch would
+        # otherwise re-bill the identical slice every day, forever (AC5)
+        _write_json(CURSOR_PATH, {"after": new_cursor})
     results, table = fanout(
         "research",
         units=[unit_prompt(p, provs[p]) for p in names],
@@ -326,6 +335,25 @@ def main() -> int:
         return 0
 
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    merged_into: dict[str, str] = {}
+    for prov, v in list(identified.items()):
+        target = str(v.get("name") or "").strip().lower()
+        if (
+            target
+            and target != prov
+            and target in catalog
+            and code_only_provider(provs.get(prov, {}))
+        ):
+            # the vendor is ALREADY catalogued under another key (safebrowsing.googleapis →
+            # google-safe-browsing): record the host on that entry instead of minting a duplicate
+            # identity that would be re-billed every lap (pass 7, AB3)
+            hosts = catalog[target].setdefault("hosts", [])
+            for u in provs.get(prov, {}).get("urls", []):
+                h = urlsplit(u).hostname
+                if h and h not in hosts:
+                    hosts.append(h)
+            merged_into[prov] = target
+            identified.pop(prov)
     for prov, v in identified.items():
         root = prov.upper()  # FULL provider name — a compound like `aws_bedrock` must match only
         #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
@@ -339,9 +367,14 @@ def main() -> int:
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
             "match": [] if code_only_provider(provs.get(prov, {})) else [root],
         }
-    err_counts, exhausted = apply_error_budget(
-        errored, names, _read_json(ERRORS_PATH, {}), flagged=all_flagged
-    )
+    if (
+        args.only
+    ):  # a hand-picked run is not a lap: it neither spends nor records the error budget (AC10)
+        err_counts, exhausted = _read_json(ERRORS_PATH, {}), set()
+    else:
+        err_counts, exhausted = apply_error_budget(
+            errored, names, _read_json(ERRORS_PATH, {}), flagged=all_flagged
+        )
     if exhausted:
         verb = (
             "tombstoning"
@@ -364,7 +397,12 @@ def main() -> int:
                 continue
             if prov in catalog and catalog[prov].get("category") not in (None, "", "?"):
                 continue  # a real entry; a `?` entry is re-stubbed so it leaves triage (pass 5, Z10)
-            catalog[prov] = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
+            stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
+            if prov in catalog:  # a curated `?` entry keeps its match/hosts when re-stubbed (AC11)
+                for keep in ("match", "hosts"):
+                    if keep in catalog[prov]:
+                        stub[keep] = catalog[prov][keep]
+            catalog[prov] = stub
             tombstoned += 1
             tombstoned_names.append(prov)
     tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
@@ -372,8 +410,6 @@ def main() -> int:
     os.replace(tmp, CATALOG_PATH)
     if not args.only:  # a hand-picked run is not a lap: it moves neither the budget nor the cursor
         _write_json(ERRORS_PATH, err_counts)
-    if new_cursor is not None and not args.only:  # a hand-picked --only run never moves the queue
-        _write_json(CURSOR_PATH, {"after": new_cursor})
     _write_json(
         LAST_RUN_PATH if not args.only else STATE_DIR / "classify_last_only.json",
         {
@@ -394,6 +430,11 @@ def main() -> int:
             )
         except Exception as exc:  # noqa: BLE001 - alerting is best-effort
             print(f"  (alert skipped: {exc})", file=sys.stderr)
+    if merged_into:
+        print(
+            "merged into existing entries: "
+            + ", ".join(f"{k} → {v}" for k, v in sorted(merged_into.items()))
+        )
     print(
         f"\nWrote {len(identified)} identified"
         + (f" + {tombstoned} unidentified-stub" if tombstoned else "")

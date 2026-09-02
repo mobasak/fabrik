@@ -799,26 +799,30 @@ def test_only_run_never_moves_the_shared_cursor(tmp_path, monkeypatch):
     assert json.loads((state / "c.json").read_text(encoding="utf-8")) == {"after": "zzz"}
 
 
-def test_only_run_leaves_the_error_budget_of_other_providers_alone(tmp_path, monkeypatch):
-    """`--only p04` must not reset p00–p03's consecutive-error counts (pass 5, Z2)."""
+def test_daily_slice_keeps_the_error_budget_of_deferred_providers(tmp_path, monkeypatch):
+    """A daily lap classifies 10 of 15: the counts of the five DEFERRED providers must survive
+    (`all_flagged` is the whole queue, not the slice — Z2, made discriminating in AC2), and a
+    `--only` run records no budget at all (AC10)."""
     text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
         f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
-        for i in range(5)
+        for i in range(15)
     )
     cat, state = _classify_env(
-        tmp_path, monkeypatch, text, ["--apply", "--only", "p04"], [_Res("not json")]
+        tmp_path, monkeypatch, text, ["--apply"], [_Res("not json") for _ in range(10)]
     )
-    (state / "e.json").write_text(
-        json.dumps({"p00": 2, "p01": 2, "p02": 2, "p03": 2}), encoding="utf-8"
-    )
+    (state / "e.json").write_text(json.dumps({"p12": 2, "p13": 2}), encoding="utf-8")
     assert cs.main() == 0
-    assert json.loads((state / "e.json").read_text(encoding="utf-8")) == {
-        "p00": 2,
-        "p01": 2,
-        "p02": 2,
-        "p03": 2,
-    }
-    assert not (state / "l.json").exists()  # a hand-picked run writes its own last-run file
+    counts = json.loads((state / "e.json").read_text(encoding="utf-8"))
+    assert counts["p12"] == 2 and counts["p13"] == 2  # deferred this lap → untouched
+    # --only: neither budget nor cursor, own last-run file
+    (state / "e.json").write_text(json.dumps({"p00": 2, "p01": 2}), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["classify_services.py", "--apply", "--only", "p04"])
+    monkeypatch.setattr(cs, "fanout", lambda *a, **k: ([_Res("not json") for _ in k["units"]], ""))
+    assert cs.main() == 0
+    assert json.loads((state / "e.json").read_text(encoding="utf-8")) == {"p00": 2, "p01": 2}
+    assert (
+        state / "classify_last_only.json"
+    ).exists()  # the daily lap wrote l.json earlier; --only writes its own
 
 
 def test_a_catalog_entry_left_at_question_mark_is_restubbed(tmp_path, monkeypatch):
@@ -831,3 +835,141 @@ def test_a_catalog_entry_left_at_question_mark_is_restubbed(tmp_path, monkeypatc
     cat.write_text(json.dumps({"zzz": {"category": "?", "match": ["ZZZ"]}}), encoding="utf-8")
     assert cs.main() == 0
     assert json.loads(cat.read_text(encoding="utf-8"))["zzz"]["category"] == "unidentified"
+
+
+def test_only_list_is_never_capped(tmp_path, monkeypatch):
+    """`--only` names 15 providers: all 15 are dispatched (an operator-typed list is already
+    bounded) and the shared cursor stays put (AB1)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(15)
+    )
+    seen: list[int] = []
+
+    def fake_fanout(*a, **k):
+        seen.append(len(k["units"]))
+        return [_Res("not json") for _ in k["units"]], ""
+
+    cat, state = _classify_env(
+        tmp_path,
+        monkeypatch,
+        text,
+        ["--apply", "--only", ",".join(f"p{i:02d}" for i in range(15))],
+        [],
+    )
+    monkeypatch.setattr(cs, "fanout", fake_fanout)
+    assert cs.main() == 0
+    assert seen == [15] and not (state / "c.json").exists()
+
+
+def test_identified_platform_host_merges_into_the_existing_catalog_entry(tmp_path, monkeypatch):
+    """`safebrowsing.googleapis` identified as `google-safe-browsing` (already catalogued) becomes
+    a `hosts` entry of that vendor, not a duplicate key re-billed every lap (AB3)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=safebrowsing.googleapis category=? cost=? capability="?" url=https://safebrowsing.googleapis.com status=? used_by=site-provisioner\n'
+        "CODE_HOST_URL=https://safebrowsing.googleapis.com   # used by: site-provisioner\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "google-safe-browsing",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://developers.google.com/safe-browsing",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "google-safe-browsing": {
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://developers.google.com/safe-browsing",
+                    "status": "active",
+                    "match": ["GOOGLE_SAFE_BROWSING"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "safebrowsing.googleapis" not in out
+    assert out["google-safe-browsing"]["hosts"] == ["safebrowsing.googleapis.com"]
+    # and the scan now attributes that host to the entry, so it leaves triage
+    idx = ge.catalog_url_index(out)
+    assert (
+        ge.provider_for_host(
+            "safebrowsing.googleapis.com",
+            out,
+            idx,
+            [("GOOGLE_SAFE_BROWSING", "google-safe-browsing")],
+        )
+        == "google-safe-browsing"
+    )
+
+
+def test_numbered_keys_belong_to_one_provider():
+    """GROQ_API_KEY_2 is groq's second key, not a vendor of its own (AC1)."""
+    assert ge.derive_provider("GROQ_API_KEY_2") == "groq" == ge.derive_provider("GROQ_API_KEY")
+    assert ge.derive_provider("MISTRAL_API_KEYS") == "mistral"
+
+
+def test_explicit_internal_prefix_wins_even_for_a_secret_shaped_value(tmp_path, monkeypatch):
+    """`M365_CERT_THUMBPRINT` (INTERNAL_PREFIX `M365_CERT`, a 40-hex PUBLIC fingerprint) stays
+    internal; the value tiebreak applies only to generic substr tokens (AC7)."""
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "microsoft-365": {
+                    "category": "infra",
+                    "cost": "paid",
+                    "capability": "m365",
+                    "url": "https://learn.microsoft.com/graph",
+                    "status": "active",
+                    "match": ["M365"],
+                }
+            },
+            [("M365", "microsoft-365")],
+        ),
+    )
+    body, _ = ge.consolidate(
+        _envs(tmp_path, {"svc": "M365_CERT_THUMBPRINT=AB12CD34EF56AB12CD34EF56AB12CD34EF56AB12\n"})
+    )
+    assert "M365_CERT_THUMBPRINT=" in body.split("internal-config", 1)[1]
+
+
+def test_cursor_is_persisted_before_the_paid_dispatch(tmp_path, monkeypatch):
+    """A `timeout` kill mid-dispatch must not re-bill the same slice tomorrow (AC5)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(12)
+    )
+    cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+    monkeypatch.setattr(cs, "fanout", lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt()))
+    with pytest.raises(KeyboardInterrupt):
+        cs.main()
+    assert json.loads((state / "c.json").read_text(encoding="utf-8")) == {"after": "p09"}
+
+
+def test_restub_keeps_a_curated_match_list(tmp_path, monkeypatch):
+    text = '# ═ NEEDS-TRIAGE ═\n#svc name=zzz category=? cost=? capability="?" url=? status=? used_by=-\nZZZ_API_KEY=x\n'
+    cat, _ = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], [_Res("not json")]
+    )
+    cat.write_text(
+        json.dumps({"zzz": {"category": "?", "match": ["ZZZ", "ZZZ_LEGACY"]}}), encoding="utf-8"
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))["zzz"]
+    assert out["category"] == "unidentified" and out["match"] == ["ZZZ", "ZZZ_LEGACY"]

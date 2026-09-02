@@ -246,8 +246,12 @@ def main(argv: list[str] | None = None) -> int:
     )  # `--help` exits here — it used to WRITE a file named --help
     rows = load()
     tmp = out.with_name(out.name + ".tmp")  # atomic: the mtime is a liveness heartbeat, so a
-    tmp.write_text(render(rows), encoding="utf-8")  # half-written file must never be fresh
-    os.replace(tmp, out)
+    tmp.unlink(missing_ok=True)  # half-written file must never be fresh; no leftover either way
+    try:
+        tmp.write_text(render(rows), encoding="utf-8")
+        os.replace(tmp, out)
+    finally:
+        tmp.unlink(missing_ok=True)  # a failed write leaves nothing behind (AC14)
     print(f"wrote {out} — {len(rows)} services")
     return 0
 

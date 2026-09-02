@@ -344,7 +344,9 @@ def test_kind_is_the_synthetic_key_never_a_value_shape(fixture_env, monkeypatch)
         )
         kinds = cur.fetchall()
     conn.close()
-    assert kinds == [("code-host", 1), ("credential", 2)], kinds
+    assert kinds == [("code-host", 1), ("credential", 2)], (
+        kinds
+    )  # a proxy URL with a password IS a credential
     assert got == [(TEST_PROVIDER, f"{SECRET}zz")], got  # the fallback credential, never the URL
 
 
@@ -440,3 +442,26 @@ def test_partial_file_sync_keeps_a_providers_other_keys(fixture_env):
         n = cur.fetchone()[0]
     conn.close()
     assert n == 2
+
+
+def test_config_knobs_under_a_vendor_are_kind_config_not_credential(fixture_env):
+    """`IPROYAL_HOST=proxy.iproyal.com` is a config knob: kind='config', never counted as a key (AC6)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " proxies " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=proxies cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_HOST=proxy.example.com   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}\n",
+        encoding="utf-8",
+    )
+    rs.sync_registry(fetch_credits=False, prune=False)
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind, count(*) FROM api_keys k JOIN services s ON s.id=k.service_id "
+            "WHERE s.provider=%s GROUP BY 1 ORDER BY 1",
+            (TEST_PROVIDER,),
+        )
+        kinds = cur.fetchall()
+    conn.close()
+    assert kinds == [("config", 1), ("credential", 1)], kinds
