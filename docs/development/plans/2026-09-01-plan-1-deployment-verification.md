@@ -1,9 +1,11 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: **DRAFT** (re-opened 2026-09-02 by `/fabrik-plan-review` R6: fabrik-lib BUILT AND SHIPPED the comparison
-axis this plan binds to — `01M1GQR1R3TD9AE68YVSP0DT51`, their `e48ba19c`/`53c098c2`, 75 tests — so every line that
-described their build as pending, and the absence of any vendoring step, is now wrong; the R1–R5 CONVERGED stamp at
-md5 `51edd8a4` (D-080) is VOID for this run and must be re-earned). Spec CONVERGED (J5) and APPROVED (D-077).
+Status: **CONVERGED** (2026-09-02 · `/fabrik-plan-review` R6–R9 after fabrik-lib BUILT AND SHIPPED the comparison axis
+this plan binds to — `01M1GQR1R3TD9AE68YVSP0DT51`, their `e48ba19c`/`53c098c2`, 75 tests re-run at their HEAD. R9 quiet at
+md5 `96e79a91`: 33 anchors, 19/19 probes, 11/11 digest quotes, zero raised. Sixteen findings across R6–R8, the two that
+mattered: the plan vendored NOTHING while binding to a shipped module (File Scope row 12 + Phase C step 5 now vendor it
+as shipped, synced), and the runner's parity-row predicate was the exact fail-open their `_COMPARISON_KEYS` disjunction
+closes. Supersedes the R1–R5 stamp (D-080). Spec CONVERGED (J5) and APPROVED (D-077).
 Date: 2026-09-01 · amended 2026-09-02 (fabrik-lib binding · row-shape split · corpus conformance)
 Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (status per its header — read it, do not trust this line)
 Scope: **`/opt/fabrik` only** — 12 file groups, three of them FLEET-SYNCED. Execution order **C → A → B → D** (see Phase B). Routed feature-scale (spec defect 15: the epic verdict was wrong).
@@ -141,7 +143,10 @@ the `[anywhere]`/`[hub-side]` tags, "routes are asks", and the fixed Output bloc
    row's `{system,status,detail,expected,actual,match,compare_error}`. **The rows come from the VENDORED
    module** (`libs/health_probe/health_probe.py`, File Scope row 12): `run_all_checks() -> list[dict[str, object]]`
    (their `:492-500` — a type-level widening, runtime unchanged), so every value is `object` to a type-checker:
-   the runner reads the row SHAPE by key presence (`"expected" in row and "actual" in row`), the tri-state as
+   the runner reads the row SHAPE with the SAME predicate the vendored CLI uses — `any(k in row for k in
+   _COMPARISON_KEYS)`, a DISJUNCTION over `("expected", "actual", "match")` (`health_probe.py:552`, applied at
+   `:639`; their comment: *a hand-built row carrying only `match` was invisible to an `expected AND actual` test
+   and exited 0*) — imported from the vendored module, never re-typed; the tri-state as
    `row.get("match")` split `is True` / `is False` / `is None`, and coerces `str(row["system"])`/`str(row["status"])`
    before any string comparison. ⚠️ The hub gate's mypy EXCLUDES `templates/`, `scripts/` and `tests/`
    (`pyproject.toml:83-86`), so no type-checker guards this at the hub — the executed test in step 7 does.
@@ -150,13 +155,15 @@ the `[anywhere]`/`[hub-side]` tags, "routes are asks", and the fixed Output bloc
    `not obligated` (a `shape:` exemption) distinct from `not checked` (an `UNVERIFIABLE (<why>)` row);
    **`match` read BY ROW SHAPE, never by value** (spec § Verdict algebra, the one-rule table): `expected`+
    `actual`+`None` = attempted-unresolved ⇒ **FAIL CLOSED**, denies `CONFIRMED`, exit 2 — never "not
-   checked"; a row with no `expected`/`actual` is not a parity row (outside the parity denominator, judged
-   under `UP`); `True` = numerator; `False` = denies `CONFIRMED`, exit 2. **Precedence `1 → 2 → 0`**
+   checked"; a row carrying NONE of `expected`/`actual`/`match` is not a parity row (outside the parity
+   denominator, judged under `UP`) — a row with ANY of them is, whatever the others hold; `True` = numerator; `False` = denies `CONFIRMED`, exit 2. **Precedence `1 → 2 → 0`**
    (liveness wins) never upgrades a verdict.
 6. **Always pass `strict=True`** to the vendored `health-probe` CLI (`cli(..., strict=False)` is still their
-   default at `:560-561`). Proven at `health_probe.py:448`
-   (`critical = critical or set()`) with `:478`/`:481`: `critical` undeclared ⇒ every probe DOWN still
-   `sys.exit(0)` while printing `DOWN:`. A runner that omits it is fail-open on liveness — reproduced by three
+   default at `:560-561`). Proven at `health_probe.py:584`
+   (`critical = critical or set()`) with the single exit site `:642` (`sys.exit(1 if liveness_bad else
+   (mismatch_exit if comparison_bad else 0))`, `liveness_bad` = DOWN **and** (`strict` or `system in critical`),
+   `:633-635`): `critical` undeclared and `strict` unset ⇒ every probe DOWN still exits 0 while printing `DOWN:`
+   — their own docstring says so (`:578-582`) and keeps it behind the opt-in on purpose. A runner that omits it is fail-open on liveness — reproduced by three
    independent builds (fabrik-lib runs 3, 6 and their plan-review). **`mismatch_exit` stays the default `2`**
    — their `_validated_mismatch_exit` (`:521-544`) refuses `0`, `1` and `≥256` (executed here: `2`/`255`
    accepted, `0`/`1`/`256` raise `ValueError`), so the fail-open shapes the spec's Amendment 3 hunted are
@@ -169,7 +176,9 @@ the `[anywhere]`/`[hub-side]` tags, "routes are asks", and the fixed Output bloc
    are PRODUCED by the vendored `compare()`, never hand-written** — `compare("companies", 3, 3)`, `compare(…, 3, 0)`
    and `compare(…, 3, None, comparator=<raises>)` are the three shapes, so the test binds to the SHIPPED row
    semantics (a raising comparator keeps `system` and sets `compare_error`, `match: None`) and breaks the day
-   a re-vendor changes them. Reference: `verdict_algebra_shipped.py` in § Evidence (8/8 on shipped rows).
+   a re-vendor changes them; a ninth assertion pins the predicate — a row carrying ONLY `match` is a comparison
+   row (fail-closed), a `{system,status,detail}` row is not. Reference: `verdict_algebra_shipped.py` in
+   § Evidence (9/9 on shipped rows).
    **Watched-fail-first** — run the RETIRED uniform `None → not checked` rule beside the real one and
    assert it produces the false all-clear (the scratch `verdict_algebra_check.py` from spec-review J5 is the
    reference: 13 assertions, retired rule reproduces the defect).
@@ -428,6 +437,7 @@ touched or made stale (the Doc Sync Matrix is a floor, not a whitelist).
 | a liveness-only row is outside the parity denominator | `test_liveness_row_not_in_denominator` | count it in and watch `N` grow |
 | no FROZEN contract ⇒ `UNVERIFIED`, never `CONFIRMED` | `test_no_contract_is_unverified` | a DRAFT header passed as FROZEN |
 | the parity rows the algebra is tested on come from the VENDORED `compare()` — a raising comparator yields `match: None` + `compare_error`, keeps `system` | `test_rows_come_from_vendored_compare` | replace the vendored import with a hand-written dict and watch the `compare_error` assertion vanish |
+| the runner's parity-row predicate is the vendored `_COMPARISON_KEYS` disjunction — a row carrying ONLY `match` is a comparison row and fails closed; a `{system,status,detail}` row is outside the denominator | `test_match_only_row_is_a_comparison_row` | the `expected AND actual` predicate run beside it exits 0 on that row |
 | the rendered runner carries `## Phase 6 — Parity` and the `UNVERIFIED` vocabulary | `test_deploy_verify_source_carries_parity_phase` | run against HEAD's source (red today) |
 
 **Phase B (`tests/test_check_command_corpus.py` extension)**
@@ -551,8 +561,12 @@ $ grep -nE "^def compare\(|def run_all_checks|list\[dict\[str, object\]\]|def _v
 561:    strict: bool = False,
 $ grep -n "^import httpx" /opt/fabrik-lib/health-probe/health_probe.py
 50:import httpx as httpx  # explicit re-export: lets `h.httpx` be monkeypatched by callers
-$ cd /opt/fabrik-lib && .venv/bin/python -m pytest health-probe -q | tail -1
-75 passed in 8.44s
+$ grep -n '^_COMPARISON_KEYS\|critical = critical or set()\|^    sys.exit(1 if liveness_bad' /opt/fabrik-lib/health-probe/health_probe.py
+552:_COMPARISON_KEYS = ("expected", "actual", "match")
+584:    critical = critical or set()
+642:    sys.exit(1 if liveness_bad else (mismatch_exit if comparison_bad else 0))
+$ cd /opt/fabrik-lib && .venv/bin/python -m pytest health-probe -q | tail -1 | cut -d" " -f1,2
+75 passed
 $ .venv/bin/python verdict_algebra_shipped.py     # the J5 algebra fed rows from the REAL compare()
 shipped rows: {'system': 'companies', 'status': 'OK', 'match': True} {'match': False} {'match': None, 'compare_error': "RuntimeError('x')"}
 PASS agree -> CONFIRMED/0
@@ -563,11 +577,16 @@ PASS raise carries compare_error
 PASS liveness row outside parity denominator
 PASS DOWN + differ -> exit 1 outranks 2
 PASS mismatch_exit 2 accepted, 0/1/256 refused
-8/8 assertions on SHIPPED rows
+PASS match-only row IS a comparison row under the CLI predicate (fail-closed)
+9/9 assertions on SHIPPED rows
 $ grep -n 'VENDORED_DIRS' scripts/fabrik_synced_manifest.py src/fabrik/scaffold.py | cut -c1-90
 scripts/fabrik_synced_manifest.py:115:VENDORED_DIRS = ["libs/subagents"]
-scripts/fabrik_synced_manifest.py:289:    for rel_dir in [*GOVERNANCE_DIRS, ENFORCEMENT_DIR, *VENDORED_DIRS]:
+scripts/fabrik_synced_manifest.py:210:        "Vendored fabrik-lib modules (synced fleet-w
+scripts/fabrik_synced_manifest.py:289:    for rel_dir in [*GOVERNANCE_DIRS, ENFORCEMENT_DI
+src/fabrik/scaffold.py:554:    constant the fleet sync uses (``VENDORED_DIRS``), so scaffo
 src/fabrik/scaffold.py:560:    from fabrik_synced_manifest import VENDORED_DIRS
+src/fabrik/scaffold.py:562:    return list(VENDORED_DIRS)
+src/fabrik/scaffold.py:1165:    # Driven by the SAME manifest constant the fleet sync uses
 $ sed -n 83,86p pyproject.toml
 exclude = [
     "^scripts/",  # Standalone scripts, not part of package
@@ -921,6 +940,8 @@ The three MATCHED packs the full invocation surfaced are adjudicated in the rows
 | — | **fabrik-lib SHIPPED the comparison axis (`01M1GQR1R3`, 2026-09-02) after R5 — the operator asked for the mail to be checked and the review re-run; the R5 stamp (D-080) is VOID for this run** | — | — | — |
 | R6 | WIDE fresh read attacking (A) every "their build lands later" clause · (B) `run_all_checks` typing under the hub's mypy scope · (C) `mismatch_exit` 2..255 · (D) the algebra on rows from the REAL `compare()` · (E) the R1–R5 class ledger re-swept (File Scope existence 11/11 · rubric re-run 7/7 packs identical · Evidence probes) | **method: citation + execution** (their suite 75/75, `_validated_mismatch_exit` 0/1/2/255/256, `compare()` three shapes, `verdict_algebra_shipped.py` 8/8) | 6 (new: 6) | 6 | `60f26eb8…` → `7a6cbbd4…` |
 | R7 | SCOPED to the R6 edits + their cross-references: coverage-map step range · Phase C gate re-grounded (the sync dry-run cannot witness a vendored dir — measured) · rubric re-run over the 19-path File Scope → 3 NEW MATCHED packs (55 · 58 · self-healing) adjudicated in the Coverage Checklist and quoted in the Constraints Digest · Evidence block gains the executed R6 probes | **method: execution + citation** | 3 (new: 3) | 3 | `989e7e7a…` → `0e96f806…` |
+| R8 | RE-DERIVATION over the whole plan: 31 explicit anchors resolved by reading the line (11 short-form ones mapped to their files; `health_probe.py:448/:478/:481` had MOVED in the shipped file → `:584`/`:642`) · 19 Evidence probes re-run (2 recorded outputs were hand-typed or timing-bound → replaced with verbatim runs; 4 'drifts' were my comparator stripping trailing comments) · 11/11 digest quotes located under `check_rule_grounding._norm` · **the runner's parity-row predicate (`expected AND actual`) was the exact fail-open fabrik-lib's `_COMPARISON_KEYS` disjunction closes** — aligned in Phase A steps 4–5/7, Appendix A Phase 2, a Behavior Contract row, and a 9th executed assertion | **method: re-derivation + execution** | 4 (new: 4) | 4 | `2d2ebf8f…` → `39b012db…` |
+| R9 | CLOSING full fresh read (1,272 lines in four chunks) + the executed battery on the FINAL text: 33 anchors resolved by reading the line (0 unresolvable) · 19/19 Evidence probes verbatim · 11/11 digest quotes under `_norm` · rubric re-run over the 19-path File Scope = the pasted block, every MATCHED pack in the digest and the checklist · residue sweep 0 (the two remaining phrases quote the retired clause on purpose) | **method: re-derivation + execution** | **0 (new: 0)** | **0** | `96e79a91…` → `96e79a91…` ✓ → **CONVERGED** |
 
 **Standing:** the `## Constraints Digest` HEADER row reads as one QUOTE-NOT-FOUND in `check_rule_grounding` (advisory) — its `_digest_rows` has no header rule and `PATH_TOKEN_RE = [\w./-]+` matches any word, so every honest header is a phantom; adjudicated in pass R3, filed to infra at this review's close; never counted as a raise.
 
@@ -999,7 +1020,7 @@ citations and my citations agreed with me.
 4. Gates verified runnable, not assumed: `assemble_commands.py --check` exists (4 references), 13
    `tests/test_scaffold*.py` files present.
 
-Status at the end of that review: CONVERGED — **now DRAFT again** (header).
+Status at the end of that review: CONVERGED — re-opened by R6 and re-earned at R9 (header).
 
 ## Next
 
@@ -1137,6 +1158,10 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
 - **One function per corpus row**, named by its corpus id (`L1_identity_sha`, `L2_routes`,
   `L2_state_companies`, `L3_postgres`, …), returning the `health-probe` comparison row shape —
   `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id.
+  ⚠️ **A liveness row (Layer 3/4 reachability, no declared value) returns the three-key `{system, status,
+  detail}` shape and NONE of the comparison keys** — the vendored CLI treats a row carrying ANY of
+  `expected`/`actual`/`match` as a comparison row (`_COMPARISON_KEYS`, a disjunction on purpose), so a
+  liveness row emitted with `match: None` would FAIL the contract as attempted-unresolved.
   `expected` is DERIVED at run time where Phase 1 derived it (**snapshot values are a cache of a
   derivation; ship the derivation**); a row that can only snapshot is marked `mode: snapshot` in `detail`
   — the legal *degraded* form, reported as such, never silently.
