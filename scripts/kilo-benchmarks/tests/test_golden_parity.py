@@ -732,11 +732,24 @@ def test_both_entry_points_flush_before_they_rank():
             if name == "daily_refresh.sh"
             else cg.FABRIK_ROOT / "scripts" / name
         )
-        lines = [
-            ln for ln in path.read_text().splitlines() if not ln.lstrip().startswith("#")
+        # Keep TRUE file line numbers: enumerate first, drop comments after. Indexing a
+        # comment-filtered list and reporting those positions as line numbers sends the next
+        # reader to the wrong line — the diagnostic has to survive being believed.
+        code = [
+            (n, ln)
+            for n, ln in enumerate(path.read_text().splitlines(), start=1)
+            if not ln.lstrip().startswith("#")
         ]
-        flush = [i for i, ln in enumerate(lines) if "flush_subagent_outboxes.py" in ln]
-        rank = [i for i, ln in enumerate(lines) if "rank_task_subagents.py" in ln]
+        # Match INVOCATIONS, not mentions. The hook's own alert message names
+        # flush_subagent_outboxes.py in prose, so a bare substring test already matches a
+        # non-invocation line here; a future alert naming the ranker above the flush would
+        # invert the verdict outright. Both entry points invoke via $VENV_PY/$VENV_PYTHON or
+        # the _step helper, and neither appears in message text.
+        def invokes(ln: str, script: str) -> bool:
+            return script in ln and ("$VENV_PY" in ln or "_step " in ln)
+
+        flush = [n for n, ln in code if invokes(ln, "flush_subagent_outboxes.py")]
+        rank = [n for n, ln in code if invokes(ln, "rank_task_subagents.py")]
         assert flush, (
             f"{name} never runs flush_subagent_outboxes.py — on the days this entry point wins "
             "the shared daily lock, stranded runs are never flushed and the ranker reads an "
@@ -744,7 +757,7 @@ def test_both_entry_points_flush_before_they_rank():
         )
         assert rank, f"{name} never runs rank_task_subagents.py"
         assert min(flush) < min(rank), (
-            f"{name} flushes at line {min(flush) + 1} but ranks at {min(rank) + 1} — the ranker "
+            f"{name} flushes at line {min(flush)} but ranks at {min(rank)} — the ranker "
             "would publish a selection doc derived from rows the flush was about to add"
         )
 
