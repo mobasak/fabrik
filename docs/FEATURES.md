@@ -318,7 +318,9 @@ Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via 
 - **The contract stub is born with the project** — `templates/scaffold/scripts/verify_prod_parity.py` is
   seeded by `SCRIPT_FILES` (`src/fabrik/scaffold.py:494`) into every scaffoldable type; it carries a
   machine-readable `# Status: DRAFT | FROZEN · Version · Date · Mode` header and FAILS CLOSED: the contract
-  run (`--json` / `--verdict`) exits 2 until the contract is frozen; `--header` and `--self-check` inspect.
+  run (`--json` / `--verdict`) exits 2 until the contract is frozen; `--header` inspects, `--self-check` refuses to
+  bless a stub that carries only the precondition row. Project-owned and never synced: a project scaffolded before
+  2026-09-02 receives it at its first `/fabrik-deploy-checklist` run (the command copies the template in).
 - **Rows are produced by the vendored comparator** — fabrik-lib `health-probe` lives at `libs/health_probe/`
   (`VENDORED_DIRS`, `scripts/fabrik_synced_manifest.py:115`; byte-identical below a 3-line `VENDORED-FROM`
   header) and its `compare()` emits every parity row; the `_COMPARISON_KEYS` disjunction decides what a parity

@@ -84,7 +84,9 @@ rather than exhausting the checklist against a dead host — every unreached ite
    or `DRAFT` ⇒ the run's VERDICT is **`UNVERIFIED — no FROZEN parity contract`** (terminal, never
    `CONFIRMED`) and the Output's `ROUTES` names `/fabrik-deploy-checklist`. Every other phase still runs
    — liveness evidence is still evidence — but Phase 6 reports `NOT-RUN (no FROZEN contract)` and the
-   verdict cannot climb above `UNVERIFIED`. Read it; never assume it.
+   verdict cannot climb above `UNVERIFIED`. Read it; never assume it. Absent is the NORMAL state of a project
+   scaffolded before 2026-09-02 (the stub is seeded at scaffold time, never synced) — not a defect to hunt, the
+   route to `/fabrik-deploy-checklist` is the whole answer.
 
 ## Phase 1 — DNS: live, not merely cataloged `[anywhere]`
 

@@ -10,7 +10,7 @@ had declared what the product should hold. Spec: `docs/superpowers/specs/2026-09
 
 | piece | where | what |
 |---|---|---|
-| The parity contract | `scripts/verify_prod_parity.py` in every scaffolded project (template: `templates/scaffold/scripts/verify_prod_parity.py`, hub-rooted symlink at `scripts/`) | a `Status: DRAFT \| FROZEN · Version · Date · Mode` header block, one function per corpus row returning the vendored comparison-row shape, `--json` (rows) · `--verdict` (the algebra, executed) · `--self-check` (the FREEZE CHECKLIST) · `--header`. Seeded as `DRAFT`; **the contract run (`--json` / `--verdict`) exits 2 until FROZEN** — `--header` and `--self-check` are inspection flags and exit 0 on a well-formed stub |
+| The parity contract | `scripts/verify_prod_parity.py` in every scaffolded project (template: `templates/scaffold/scripts/verify_prod_parity.py`, hub-rooted symlink at `scripts/`) | a `Status: DRAFT \| FROZEN · Version · Date · Mode` header block, one function per corpus row returning the vendored comparison-row shape, `--json` (rows) · `--verdict` (the algebra, executed) · `--self-check` (the FREEZE CHECKLIST) · `--header`. Seeded as `DRAFT`; **the contract run (`--json` / `--verdict`) exits 2 until FROZEN** — `--header` is an inspection flag (exit 0); `--self-check` exits 2 on the bare stub (only the precondition row is authored — freezing it certifies nothing); an unknown flag prints usage and exits 64. **Project-OWNED and never synced**: a project scaffolded before 2026-09-02 has no stub until its first `/fabrik-deploy-checklist` copies the template in (a synced copy would be gitignored and overwritten) |
 | The vendored comparator | `libs/health_probe/` (hub source; `VENDORED_DIRS` → scaffolded + fleet-synced, gitignored in projects) | fabrik-lib `health-probe` AS SHIPPED (`health_probe.py` @ e48ba19c, `fingerprint.py` @ f21f2123) under a 3-line `VENDORED-FROM` header; `compare(name, expected, actual, *, comparator=None)` produces every parity row |
 | The authoring command | `/fabrik-deploy-checklist` (`commands/_sources/fabrik-deploy-checklist.md`) | Mode A (spec-driven) / B (reverse-generate) / C (fresh); derives every denominator, cross-checks FEATURES.md both ways, SEES EVERY ROW RED, freezes with the DECISIONS row, refreshes the fleet-AI sections of DEPLOYMENT.md + OPERATIONS.md from CODE + SPEC + DEV — never PROD |
 | The runner | `/fabrik-deploy-verify` (`commands/_sources/fabrik-deploy-verify.md`) | hub-side: identity (Phase 1b) · DNS · health · registrars DERIVED from `_REGISTRAR_ORDER` at run time · Gatus · logs · **Phase 6 Parity (BLOCKING)** — runs the contract from the project's checkout and copies its `PARITY:`/`VERDICT:` lines |
@@ -31,11 +31,12 @@ liveness row carries none of the three keys and sits outside the parity denomina
 | parity, `match is True` | numerator + denominator |
 | parity, `match is False` | denominator; denies `CONFIRMED`; exit 2 |
 | parity, `match is None` | **attempted-but-unresolved — fails closed**; denies `CONFIRMED`; exit 2 (a contract whose rows all return `None` FAILS, it does not "report 0 of N") |
+| no comparison row authored at all | **fails closed** — "0 of 0" never certifies (rows that exist but are ALL `not obligated` stay CONFIRMED with `N not obligated` printed: explicit data the reader sees) |
 | liveness (no comparison key) | outside the denominator; a `DOWN` → exit 1 |
 | `not obligated` (a `shape:` flag) | removed from the denominator — the ONLY thing that removes a row |
 | `UNVERIFIABLE (<why>)` | counted in the denominator, never the numerator; fails closed |
 
-Exit precedence `1 → 2 → 0`: liveness wins and never upgrades a verdict. **No `FROZEN` header ⇒
+Exit precedence `1 → 2 → 0`: liveness wins and never upgrades a verdict; ONE algebra — the default/`--json` run exits exactly as `--verdict` (`_exit_code` delegates to `verdict()`). **No `FROZEN` header ⇒
 `UNVERIFIED`** — terminal, not success, and the signal to run `/fabrik-deploy-checklist`. The runner's
 `DEPLOY CONFIRMED` requires every liveness row PASS *and* the contract's own `VERDICT: CONFIRMED` (exit 0).
 Reference implementation and tests: `verify_prod_parity.py::verdict()` · `tests/test_deploy_verify_verdict.py`

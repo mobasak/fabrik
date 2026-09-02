@@ -584,3 +584,17 @@ def test_deploy_checklist_skill_description_within_limit(tmp_path: Path):
     desc = next(line for line in skill.splitlines() if line.startswith("description:"))
     assert len(desc) - len("description: ") <= 1024, len(desc)
     assert "NEXT: /fabrik-release" in desc
+
+
+def test_deploy_commands_name_the_pre_existing_project_paths():
+    """Review 2026-09-02: the stub is seeded at SCAFFOLD time only (SCRIPT_FILES) and deliberately never
+    synced (a synced copy would be gitignored and overwritten — the contract is project-owned), so every
+    project scaffolded before 2026-09-02 has NO `scripts/verify_prod_parity.py` and NO fleet-AI doc
+    sections. Both commands must say what to do about that, or the first real run stalls."""
+    checklist = (REPO / "commands" / "_sources" / "fabrik-deploy-checklist.md").read_text()
+    verify = (REPO / "commands" / "_sources" / "fabrik-deploy-verify.md").read_text()
+    assert "If `scripts/verify_prod_parity.py` is absent" in checklist
+    assert "templates/scaffold/scripts/verify_prod_parity.py" in checklist  # where to copy it from
+    assert "never synced" in checklist  # the design reason, stated where the agent reads it
+    assert "sections are absent" in checklist  # Phase 6: ADD the fleet-AI sections on a pre-existing project
+    assert "scaffolded before 2026-09-02" in verify  # absent is the NORMAL state, routed not feared

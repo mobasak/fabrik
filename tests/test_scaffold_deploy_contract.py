@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ from fabrik.scaffold import SCAFFOLD_TYPES, create_project
 REPO = Path(__file__).resolve().parents[1]
 _HUB_VENDORED = REPO / "libs" / "health_probe"
 _LIB_SRC = Path("/opt/fabrik-lib/health-probe")
+TEMPLATE = REPO / "templates" / "scaffold" / "scripts" / "verify_prod_parity.py"
 SCAFFOLDABLE = sorted(t for t in SCAFFOLD_TYPES if t != "wordpress")
 
 _CACHE: dict[str, Path] = {}
@@ -157,3 +159,84 @@ def test_docusaurus_does_not_publish_fleet_ai_sections(tmp_path_factory):
     assert not (p / "docs" / "DEPLOYMENT.md").exists()
     assert not (p / "docs" / "OPERATIONS.md").exists()
     assert not list(p.rglob("*Fleet-AI interface*"))
+
+
+# ── review 2026-09-02 (shipped-surface review, fit for the first real run) — seen RED first ──────────
+
+
+def _run_as_documented(script: Path, *args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """`python scripts/verify_prod_parity.py …` exactly as the two commands document it — NO
+    PYTHONPATH injection (the `_run` rig above injects the project root, which is precisely what
+    masked the defect: `sys.path[0]` is `scripts/`, so `libs.health_probe` was never importable)."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    return subprocess.run(
+        [sys.executable, str(script), *args],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_the_precondition_row_finds_the_vendored_module_when_run_as_documented(
+    tmp_path: Path,
+) -> None:
+    """A project with `libs/health_probe/` vendored and the stub run the documented way
+    (`python scripts/verify_prod_parity.py --json`, cwd = project root, no PYTHONPATH) must see the
+    module: the l0 row is a real comparison row with `match: True`, not UNVERIFIABLE 'not vendored'."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    shutil.copytree(REPO / "libs" / "health_probe", proj / "libs" / "health_probe")
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    r = _run_as_documented(stub, "--json", cwd=proj)
+    rows = json.loads(r.stdout)
+    l0 = next(x for x in rows if x["system"] == "l0_health_probe_vendored")
+    assert l0["match"] is True, l0
+    assert not str(l0.get("detail", "")).startswith("UNVERIFIABLE"), l0
+
+
+def test_a_frozen_contract_with_no_parity_row_is_never_confirmed() -> None:
+    """A check that cannot fail is a defect: a FROZEN header over an empty parity denominator must
+    fail closed (exit 2), not certify '0 of 0'."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import verify_prod_parity as vp  # noqa: PLC0415
+
+    v = vp.verdict([], {"status": "FROZEN", "version": "v1", "date": "2026-09-02", "mode": "B"})
+    assert v["verdict"] != "CONFIRMED" and v["exit"] == 2, v
+    v2 = vp.verdict(
+        [vp.liveness_row("l1_health", True, "200")],
+        {"status": "FROZEN", "version": "v1", "date": "2026-09-02", "mode": "B"},
+    )
+    assert v2["verdict"] != "CONFIRMED" and v2["exit"] == 2, v2
+
+
+def test_self_check_refuses_a_contract_that_only_carries_the_precondition_row(
+    tmp_path: Path,
+) -> None:
+    """The seeded stub's single row is the module precondition; freezing THAT certifies nothing.
+    `--self-check` must report a miss until at least one corpus row is authored."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    shutil.copytree(REPO / "libs" / "health_probe", proj / "libs" / "health_probe")
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    r = _run_as_documented(stub, "--self-check", cwd=proj)
+    assert r.returncode == 2, (r.returncode, r.stdout)
+    assert "precondition" in r.stdout.lower(), r.stdout
+
+
+def test_an_unknown_flag_prints_usage_instead_of_silently_running_the_contract(
+    tmp_path: Path,
+) -> None:
+    """`--verdcit` (a typo) must not fall through to the default contract run and exit 2 as if it
+    had evaluated something — usage on stderr, exit 64 (EX_USAGE); `--help` is the same text, exit 0."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    bad = _run_as_documented(stub, "--verdcit", cwd=proj)
+    assert bad.returncode == 64 and "usage" in bad.stderr.lower(), (bad.returncode, bad.stderr)
+    helped = _run_as_documented(stub, "--help", cwd=proj)
+    assert helped.returncode == 0 and "--verdict" in helped.stdout, helped.stdout

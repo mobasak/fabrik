@@ -19,7 +19,7 @@ LIVENESS row (reachability, no declared value) carries NONE of the comparison ke
 imported lazily so a project that skips Layers 2–4 never loads it; a missing vendored copy is itself
 reported as an `UNVERIFIABLE` row (exit 2), never a traceback.
 
-Flags: `--json` (print the row list) · `--verdict` (the verdict algebra EXECUTED over the rows: the
+Flags: `--help` (usage) · `--json` (print the row list) · `--verdict` (the verdict algebra EXECUTED over the rows: the
 `PARITY:` and `VERDICT:` lines the runner copies, exit 0/1/2) · `--self-check` (the FREEZE CHECKLIST: header parses, every row
 returns the shape, every UNVERIFIABLE carries a why, the exclusion list names a ruling) · `--header`
 (print the parsed header as JSON). Read-only against the target by contract: a row that would mutate
@@ -58,7 +58,14 @@ def parse_header(path: Path | None = None) -> dict[str, str]:
 
 
 def _health_probe() -> Any | None:
-    """The vendored `libs/health_probe` module, or None when it is not (yet) vendored here."""
+    """The vendored `libs/health_probe` module, or None when it is not (yet) vendored here.
+
+    Run as documented (`python scripts/verify_prod_parity.py …`) `sys.path[0]` is `scripts/`, not the
+    project root, so `libs` is invisible unless the root is put back first (review 2026-09-02: the
+    precondition row read UNVERIFIABLE on every vendored project, masked by a PYTHONPATH-injecting rig)."""
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
     try:
         from libs.health_probe import (
             health_probe,  # noqa: PLC0415 — lazy on purpose (see module doc)
@@ -113,6 +120,9 @@ def l0_health_probe_vendored() -> dict[str, Any]:
 
 
 ROWS: list[Callable[[], dict[str, Any]]] = [l0_health_probe_vendored]
+_PRECONDITION_ROW = (
+    "l0_health_probe_vendored"  # the one row the seeded stub carries; never a contract on its own
+)
 
 
 def run_rows() -> list[dict[str, Any]]:
@@ -135,10 +145,13 @@ def self_check() -> list[str]:
         row = fn()
         if not isinstance(row, dict) or "system" not in row or "status" not in row:
             misses.append(f"{fn.__name__}: not a row (needs at least system + status)")
-        elif (
-            row.get("detail", "").startswith("UNVERIFIABLE") and row["detail"] == "UNVERIFIABLE ()"
-        ):
+        elif re.match(r"^UNVERIFIABLE \(\s*\)$", str(row.get("detail", ""))):
             misses.append(f"{fn.__name__}: UNVERIFIABLE without a why")
+    if all(fn.__name__ == _PRECONDITION_ROW for fn in ROWS):
+        misses.append(
+            "only the precondition row is authored — no corpus row; freezing this certifies nothing"
+            " (run /fabrik-deploy-checklist to derive the rows)"
+        )
     for ex in EXCLUSIONS:
         if not re.match(r"^D-\d{3}$", str(ex.get("ruling", ""))):
             misses.append(f"exclusion {ex.get('item')!r} names no ruling (D-NNN)")
@@ -171,12 +184,16 @@ def verdict(
       CONFIRMED; `None` on a parity row = ATTEMPTED-BUT-UNRESOLVED = fail closed (denies CONFIRMED);
       a row carrying none of the keys is a liveness row, outside the parity denominator;
     - `not obligated` (a `shape:` flag) removes a row from the denominator — the ONLY thing that does;
+    - NO comparison row AUTHORED at all fails closed — "0 of 0" never certifies (a check that cannot
+      fail is a defect; review 2026-09-02). Rows that exist but are ALL `not obligated` keep the prior
+      reading (CONFIRMED with `N not obligated` printed — the exemption is explicit data the reader sees);
     - exit precedence: 1 (a critical DOWN) over 2 (disagrees or unresolved) over 0 — liveness wins,
       and precedence never upgrades a verdict.
     """
     if hdr.get("status") != "FROZEN":
         return {"verdict": "UNVERIFIED", "exit": 2, "reasons": ["no FROZEN contract"], "parity": {}}
-    parity = [r for r in rows if is_parity_row(r) and str(r.get("system")) not in not_obligated]
+    parity_all = [r for r in rows if is_parity_row(r)]
+    parity = [r for r in parity_all if str(r.get("system")) not in not_obligated]
     agree = sum(1 for r in parity if r.get("match") is True)
     disagree = sum(1 for r in parity if r.get("match") is False)
     unresolved = sum(1 for r in parity if r.get("match") is None)
@@ -189,7 +206,11 @@ def verdict(
         reasons.append(f"{disagree} disagree")
     if unresolved:
         reasons.append(f"{unresolved} attempted-unresolved (fail closed)")
-    code = 1 if down else (2 if (disagree or unresolved) else 0)
+    if not parity_all:  # nothing AUTHORED — distinct from "every row exempted by shape:", which stays visible as N not obligated
+        reasons.append(
+            "empty parity denominator — no comparison row (a check that cannot fail is a defect)"
+        )
+    code = 1 if down else (2 if (disagree or unresolved or not parity_all) else 0)
     v = "CONFIRMED" if not reasons else "VERIFICATION FAILED"
     return {
         "verdict": v,
@@ -207,17 +228,31 @@ def verdict(
 
 
 def _exit_code(rows: list[dict[str, Any]], hdr: dict[str, str]) -> int:
-    """LIVENESS WINS, then the comparison verdict, then 0 — and a DRAFT header is never 0."""
-    if any(r.get("status") == "DOWN" for r in rows):
-        return 1
-    keys = ("expected", "actual", "match")
-    if any(any(k in r for k in keys) and r.get("match") is not True for r in rows):
-        return 2
-    return 2 if hdr.get("status") != "FROZEN" else 0
+    """ONE exit algebra: the default/`--json` run exits exactly as `--verdict` would (`verdict()` is the
+    single source — a second hand-written precedence here was the retired-rule class)."""
+    return int(verdict(rows, hdr)["exit"])
+
+
+_FLAGS = ("--json", "--verdict", "--self-check", "--header", "--help", "-h")
+_USAGE = (
+    "usage: verify_prod_parity.py [--json | --verdict | --self-check | --header | --help]\n"
+    "  (no flag)     run the contract rows, print `STATUS system: detail` per row; exit as --verdict\n"
+    "  --json        the row list as JSON (the shape /fabrik-deploy-verify consumes)\n"
+    "  --verdict     the verdict algebra EXECUTED: the PARITY:/VERDICT: lines; exit 0 confirmed · 2 denied/DRAFT · 1 on a DOWN\n"
+    "  --self-check  the FREEZE CHECKLIST; exit 0 when the contract may be frozen\n"
+    "  --header      the parsed Status/Version/Date/Mode header as JSON\n"
+)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    if "--help" in args or "-h" in args:
+        print(_USAGE, end="")
+        return 0
+    unknown = [a for a in args if a not in _FLAGS]
+    if unknown:
+        print(f"unknown flag(s): {' '.join(unknown)}\n{_USAGE}", end="", file=sys.stderr)
+        return 64  # EX_USAGE — a typo must never fall through to a contract run
     hdr = parse_header()
     if "--header" in args:
         print(json.dumps(hdr))

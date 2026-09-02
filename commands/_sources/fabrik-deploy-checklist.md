@@ -50,7 +50,7 @@ the fleet-AI sections this run refreshes.
 vendored `libs/health_probe/` it imports (VENDORED_DIRS). **If `libs/health_probe/health_probe.py` is absent**
 (a repo the sync has not reached yet): copy it from `/opt/fabrik-lib/health-probe/` into THIS repo's
 `libs/health_probe/` (a read of the sibling repo and a write in your own tree — not a cross-repo edit), say so
-in the report, and carry on; the next sync overwrites it with the identical bytes. **A DRAFT stub is meant to be
+in the report, and carry on; the next sync overwrites it with the identical bytes. **If `scripts/verify_prod_parity.py` is absent** (every project scaffolded before 2026-09-02 — the stub is seeded by the scaffolder's `SCRIPT_FILES` at scaffold time and is deliberately **never synced**: the contract is project-OWNED and committed, and a synced copy would be gitignored and overwritten on every sync): copy `/opt/fabrik/templates/scaffold/scripts/verify_prod_parity.py` into THIS repo's `scripts/` (a read of the hub, a write in your own tree), commit it with this run, and carry on — it is the same DRAFT stub the scaffolder would have seeded. **A DRAFT stub is meant to be
 edited through — its existence is NOT a STOP.** Only a `Status: FROZEN` header is a STOP: say so, and on
 the operator's word proceed as a **re-freeze** — bump `Version`, never a silent overwrite.
 
@@ -155,7 +155,10 @@ pass.
   is a post-convergence action, exempt from the no-op rule** — measured on the body, not the flip.
 - **Refresh the fleet-AI sections of `docs/DEPLOYMENT.md` and `docs/OPERATIONS.md`** (D-065) — the
   services/jobs/env/dependency inventory Phase 1 derived IS the content those sections owe. Touch ONLY the
-  sentinel-marked fleet-AI sections the template seeds; the project's own runbook prose is theirs.
+  sentinel-marked fleet-AI sections the template seeds; the project's own runbook prose is theirs. **If the
+  sections are absent** (a project scaffolded before 2026-09-02 — the templates only reach new scaffolds), ADD them
+  first, verbatim from `templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md` § *Fleet-AI interface — what to deploy* and
+  `OPERATIONS_TEMPLATE.md` § *5b. Fleet-AI interface — what runs*, then fill the cells.
   ⚠️ **HAZARD — derive these from CODE + SPEC + DEV, never from PROD.** *"prod has 0 companies, therefore
   document 0 companies"* makes an empty-database certification self-consistent and still wrong. The docs
   declare what SHOULD be true; the verify run reports what IS; the gap between them is the product.

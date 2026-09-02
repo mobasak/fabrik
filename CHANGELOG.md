@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the parity contract was unusable as documented: `libs/` invisible when run as a script, "0 of 0" certified, typos ran the contract (review of the shipped surface, 2026-09-02)
+
+- `/fabrik-review` over the shipped deployment-verification surface before its first real run
+  (`/fabrik-deploy-checklist` Mode B on tryton-crm). Four CONFIRMED defects, each reproduced and fixed with
+  a test seen red first (`tests/test_scaffold_deploy_contract.py`, 4 new tests run the stub exactly as the
+  commands document it — no `PYTHONPATH`, the rig that had masked the first defect):
+  1. `python scripts/verify_prod_parity.py` puts `scripts/` at `sys.path[0]`, so the lazy
+     `from libs.health_probe import health_probe` never resolved on ANY project — every comparison row read
+     `UNVERIFIABLE (health_probe not vendored)` with the module present (probed on a project-shaped scratch
+     layout, tryton-crm's venv and the hub venv). `_health_probe()` now puts the project root back first.
+  2. A `FROZEN` contract with no comparison row authored was `CONFIRMED` (exit 0) — "0 of 0". `verdict()` now
+     fails closed on an empty AUTHORED set (rows that exist but are all `not obligated` keep their reading);
+     `--self-check` reports a miss while only the precondition row exists.
+  3. An unknown flag (`--verdcit`) fell through to the default contract run and exited 2 as if it had
+     evaluated something — now usage on stderr, exit 64; `--help` prints usage.
+  4. Two exit algebras (`_exit_code` beside `verdict()`) — collapsed to one: the default/`--json` run exits as
+     `--verdict` would.
+- Fit-for-use gap, FIXED in the command sources + a corpus test: the stub is seeded at scaffold time only and
+  deliberately never synced (project-owned; a synced copy would be gitignored and overwritten), so every project
+  scaffolded before 2026-09-02 — tryton-crm included — has NO stub and NO fleet-AI doc sections.
+  `/fabrik-deploy-checklist` now says: copy the template in and commit it; ADD the doc sections from the
+  templates before filling them. `/fabrik-deploy-verify` says absent is the normal pre-2026-09-02 state.
+  Ledger: the project-owned/never-synced pick and the rejected `RUN_SCRIPTS` sync are D-089.
+- Review artifact: `docs/development/reviews/2026-09-02-deployment-verification-shipped-surface-review.md`.
+
 ### Added — `docs/reference/deployment-verification.md` + the plan's convergence (Phase D of plan 2026-09-01-plan-1, 2026-09-02)
 
 - The subsystem's own reference doc (evaluation-checklist item 64): the contract, the vendored comparator,
