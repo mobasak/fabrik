@@ -1,6 +1,6 @@
 # Plan 1 — Repair the subagent flywheel's recording path (2026-09-02)
 
-**Status:** CONVERGED
+**Status:** DRAFT — RE-OPENED 2026-09-02 (Amendment 1: the measurement gaps)
 **Source of truth:** live measurement of `fabrik_analytics.subagent_runs` + `/opt/fabrik/.tmp/subagents/*.jsonl`, this session. No `/fabrik-spec` doc — the design was settled by measurement, not brainstorming (RICH by the Phase-0 gate: goal and approach are both pinned).
 **Owner beat:** intel (models · benchmarks · flywheel).
 
@@ -17,10 +17,20 @@
 | 7 | all — full fresh read + every probe re-run | method: gate + re-derivation | 4 | 4 | 4 | 19de6d → 944cad |
 | 8 | all — contradiction sweep + checklist parse | method: gate | 2 | 2 | 2 | 944cad → a43496 |
 | 9 | all — probes, checklist, residuals, pillars, convergence | **method: re-derivation** | **0** | **0** | **0** | a43496 → a43496 ✓ → **CONVERGED** |
+| — | **AMENDMENT 1 opened** (operator: "update the plan to include closing these gaps") — Status re-opened to DRAFT | — | — | — | — | — |
+| 10 | the six measurement gaps + the at-least-once claim vs the real index | method: re-derivation | 8 | 8 | 8 | a43496 → 379aba |
+| 11 | scoped: every claim Amendment 1 introduced, re-derived from the DB and the checker source | **method: re-derivation** | 1 | 1 | 1 | 379aba → 24a667 |
+| 12 | all — checklist parse, stale-scope sweep, phase cross-refs | method: gate | 1 | 0 | 0 | 24a667 → 24a667 (raised 1, REFUTED — not quiet) |
+| 13 | all — every amendment probe re-run verbatim, phase consistency, status honesty | **method: re-derivation** | **0** | **0** | **0** | 24a667 → 24a667 ✓ → **RE-CONVERGED** |
 
 **Dispatched vs returned:** 5 pool units dispatched, 5 returned (all scored back to the flywheel:
 qwen3-max 5 · deepseek-v4-flash 4 · deepseek-v3.2-exp 4 · gemini-3-flash 3 · deepseek-v4-flash 1).
 1 native Opus author-blind pass dispatched, 1 returned. No finder died; no partition went unswept.
+
+**Pass 12's refuted candidate:** the Context Ledger's *"binds Phase F's `subagent_runs` change"* reads
+as singular against a Phase F that is now six columns — refuted, because all six land on that one table
+in one migration, so the sentence is still exactly true. Recorded rather than edited, since churning
+accurate text to match a reviewer's first impression is how a plan loses precision.
 
 **Standing:** the 50-vs-46 flush delta (checklist row 17) — adjudicated FIXED as a class (A1 mandates
 the reconciliation) with the instance SELF-SERVICE at execution. Re-raising it without new evidence
@@ -38,12 +48,16 @@ does not count against the quiet pass.
 - **Shared tree, three sessions.** Explicit pathspecs only (`git commit -- <paths>`), `git diff --cached --numstat` before every commit, `git reset -q HEAD -- <paths>` after. Never `git add -A`, never `--amend`, never touch a sibling's dirty file.
 - **`libs/subagents` is `VENDORED_DIRS`** (`scripts/fabrik_synced_manifest.py:115`) kept byte-identical to canonical `/opt/fabrik-lib/subagents`. **48 vendored copies exist** (`ls -d /opt/*/libs/subagents | wc -l` → 48). Any edit there is a cross-repo change to fabrik-lib FIRST, then a re-vendor, then a sync. Phases D and F carry that cost explicitly; Phases A–C and E deliberately avoid it.
 - **`pg_ledger` is FAIL-OPEN by contract** — a DB error must never break a run — *"FAIL-OPEN — a Postgres error/outage NEVER breaks a run"*, `pg_ledger.py:15-17` (an earlier draft cited `:19-21`, which is the per-`agent_id` aggregation note). No phase may introduce a raise on the recording path.
-- **`flush_outbox` is AT-LEAST-ONCE, by documented design** — "a crash BETWEEN commit and cleanup can
-  re-insert the batch once … exactly-once would need a unique dedup key on the shared schema"
-  (`pg_ledger.py:876-878`). Accepted upstream as minor skew for an aggregate flywheel; A1 makes it
-  DAILY across 8 repos, which raises the exposure. **Phase F is where a dedup key would go if it ever
-  matters** — noted there, not smuggled into A. Until then, aggregation must tolerate a duplicated
-  `agent_id` batch (it already reconciles per `agent_id`, so a duplicate row does not double-count `n`).
+- **`flush_outbox` is AT-LEAST-ONCE by its docstring — but the SCHEMA already half-closes it, and the
+  earlier text overstated the risk.** `pg_ledger.py:876-878` says a crash between commit and cleanup can
+  re-insert a batch and that "exactly-once would need a unique dedup key on the shared schema". **That
+  key EXISTS:** `subagent_runs_dispatch_agent_uidx` — `UNIQUE (agent_id) WHERE status <> 'scored'`. So a
+  duplicate DISPATCH row cannot be inserted at all (measured: **0** agent_ids with >1 non-scored row).
+  The exposure is confined to the population the index EXEMPTS — `scored` rows — where duplication is
+  real and already present: **120 agent_ids carry more than one scored row**. The aggregation reconciles
+  per `agent_id`, so `n` is not double-counted, but a re-inserted batch silently re-weights nothing and
+  a *conflicting* pair of scores is resolved by whichever the reconciliation picks. Phase F extends the
+  index to cover scored rows, or the reconciliation states its tie-break explicitly.
 - **12-Factor XI/XII:** the flush walker logs to stdout (the `_step` wrapper captures it); the Phase-F migration is a one-off process, never run from an import or a startup hook.
 - **No crontab writes.** `daily_refresh.sh` is already scheduled; wiring goes there. A cron line, if ever needed, is handed to the operator (box rule, crontab wipe 2026-08-19).
 - **Denominators stated.** Every count in an artefact this plan produces names its population and its bound.
@@ -109,7 +123,9 @@ EXCLUDED as shared-append surfaces.
 | `src/fabrik/scaffold.py` | A | ⚠️ **synced surface** — correct for all ~46 projects or not at all |
 | `scripts/kilo-benchmarks/rank_task_subagents.py` | B, E, G2 | ⚠️ **serialization point** — three phases touch it |
 | `scripts/kilo-benchmarks/reclassify_cap_rows.py` | C1 | new, one-off |
-| `libs/subagents/pg_ledger.py` · `libs/subagents/agent.py` | D, G1, F | ⚠️ **48 vendored copies** — canonical is `/opt/fabrik-lib/subagents` |
+| `libs/subagents/pg_ledger.py` · `libs/subagents/agent.py` | D, G1, F1–F6 | ⚠️ **48 vendored copies** — canonical is `/opt/fabrik-lib/subagents` |
+| `db/schema.sql` + the Alembic revision | F1–F6 | one additive migration for all six columns, never six |
+| `scripts/enforcement/check_subagent_flywheel.py` | H | advisory first; fire rate measured before any threshold blocks |
 
 ## Constraints Digest
 
@@ -150,6 +166,12 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | 14 | ledger-derived count applied to a DB population | this review | **FIXED** — C1's "240" is a JSONL count; the DB holds 90 and has no error-text column (D6) |
 | 15 | NULL-unsafe predicate | this review | **FIXED** — all 141 stalled rows have `cost_usd IS NULL`, so the literal `cost = 0` matched **zero** rows (D7) |
 | 16 | one call where a loop is required | this review | **FIXED** — `flush_outbox` drains `.flushing` OR live, never both; 4 repos hold both (D3) |
+| 18 | **the DB cannot record WHY a run failed** | Amendment 1 | **FIXED** — F1 adds `failure_reason`; three wrong conclusions in one session each traced to this single missing column |
+| 19 | latency conflated with our own queueing | Amendment 1 | **FIXED** — F2 splits `queue_s`; proven by the same model reading 1051s benchmarked and 61s in production |
+| 20 | cost not normalisable (no token counts) | Amendment 1 | **FIXED** — F3 persists `tokens_in`/`tokens_out`; `$/run` alone confounds model price with task size |
+| 21 | runs not known to be comparable | Amendment 1 | **FIXED** — F5 stamps `corpus_id`/`task_ref` |
+| 22 | a uniqueness constraint with an exempt population | Amendment 1 | **FIXED** — F6; dispatch rows cannot duplicate (0 measured) but 120 agent_ids already carry duplicate `scored` rows |
+| 23 | the only human-supplied metric is half-missing on 91% of volume | Amendment 1 | **FIXED** — Phase H; `review` quality coverage is 51% of 4,337 runs, and a recorded-but-unscored run currently passes the flywheel check silently |
 | 17 | evidence with an unreconciled delta | this review | **FIXED (class), instance SELF-SERVICE** — 50 returned vs 46 landed (D9). The CLASS is closed: A1 now mandates a per-repo `rows_after − rows_before == returned` assertion that fails loudly. The INSTANCE is an execution-time discovery — the executor runs the walker with that assertion live and sees the per-repo breakdown I cannot reconstruct after the fact. It is not a deferred question: the plan states the exact check, so nobody has to stop and ask |
 
 ## Execution Discipline
@@ -165,7 +187,9 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 - **Parallelism:** A1's per-repo verification fans out one unit per repo (8 units, disjoint) and merges
   at the dry-run total. C2 fans out one unit per model (3 units). D's consumer enumeration fans out per
   consumer. Phases A, C and E are independent of each other and may run concurrently; **B, D, F and G1
-  are serialized** — they share `rank_task_subagents.py` or the vendored module.
+  are serialized** — they share `rank_task_subagents.py` or the vendored module. **F1–F6 ship as ONE
+  migration** (six columns, one schema change) and **H is independent of F** — it changes no schema and
+  may run concurrently with any phase.
 - **The final phase runs `/fabrik-docs-review`** over every doc this plan touches.
 
 ## Documentation steps (Doc Sync Matrix triggers this plan fires)
@@ -176,7 +200,8 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | scheduled job added | `docs/RESILIENCE.md` §7 (canonical jobs/intervals inventory) | A |
 | new env var documented | `.env.example` + `docs/CONFIGURATION.md` | A |
 | code changed | `CHANGELOG.md` | every |
-| schema migration | `db/schema.sql` + Alembic | F |
+| schema migration | `db/schema.sql` + Alembic | F1–F6 (one migration) |
+| new subsystem doc | `docs/reference/subagent-flywheel.md` gains a "what we measure and what we cannot" section listing every column and its coverage | F, H |
 | decision made/received | `docs/DECISIONS.md` | B, E, and the CONVERGED flip |
 | end of run | `docs/LESSONS_LEARNT.md` | final |
 
@@ -515,15 +540,139 @@ Shift the default reviewer from `deepseek-v4-pro`/`minimax-m3` (68% of dev-half 
 
 ---
 
-## Phase F — Project attribution (schema; last, largest)
+## Phase F — The measurement schema: one migration, six gaps (last, largest)
 
-4,423 of 9,289 rows say `project='review'` — the column holds run labels, not repos. Make `SUBAGENT_PROJECT` the repo name and move the run label to its own column.
+**Amendment 1 (2026-09-02, operator: "update the plan to include closing these gaps").** Phase F was
+scoped to the `project` column alone. Measuring the flywheel's own coverage showed the schema is
+missing more than attribution, and **every one of these rides the SAME migration** — so the choice is
+one schema change or six.
 
-**Cost, stated:** a migration on the shared table **plus** a read path that tolerates 48 vendored copies at different vintages writing the old shape. Additive column + backfill + tolerant read; no rename, no drop. `pg_ledger.py:87-95` already documents why `_REQUIRED_OUTBOX_COLS` is validated instead of `_COLS` — an outbox row is written by an *older* copy than the one flushing it. That contract binds this phase.
+### The measured coverage that motivates this (as of 2026-09-02, 9,327 rows)
 
-**Gate:** an old-shape row (no new column) still flushes and still aggregates; `SELECT count(DISTINCT project)` returns repo names; `final_gate.py --json` → `"status":"success"`.
+```
+$ psql postgresql:///fabrik_analytics -c "SELECT count(*) rows,
+    round(100.0*count(cost_usd)/count(*),0) cost_pct, round(100.0*count(turns)/count(*),0) turns_pct,
+    round(100.0*count(latency_s)/count(*),0) lat_pct, round(100.0*count(quality_score)/count(*),0) q_pct,
+    round(100.0*count(provider)/count(*),0) prov_pct, round(100.0*count(session_id)/count(*),0) sess_pct,
+    round(100.0*count(NULLIF(tool_calls::text,'{}'))/count(*),0) tools_pct FROM subagent_runs;"
+ rows | cost_pct | turns_pct | lat_pct | q_pct | prov_pct | sess_pct | tools_pct
+ 9327 |       77 |        81 |      81 |    30 |       48 |       31 |         2
+```
 
----
+### F1 — `failure_reason` (the decisive one; do this even if nothing else ships)
+
+**The DB cannot say WHY anything failed.** Its entire failure vocabulary is
+`'' | capped | done | error | out_of_scope | scored`. Three wrong conclusions were drawn from that in
+a single session, each reversed only by leaving the database for the JSONL error text:
+
+| the `status` said | the reason was | what it nearly caused |
+|---|---|---|
+| `error` ×246 | **our own** `max_price` cap | blacklisting three working models |
+| `capped` ×232 | 141 provider stalls + 91 **our own** turn ceilings | a model verdict built on our budget |
+| `latency_s` high | benchmark **concurrency**, not model speed | disabling models that are 17× faster in production |
+
+`pg_ledger` already generates the token (`dsn-missing`, `missing-driver-psycopg`, `db-commit-uncertain`,
+… — `pg_ledger.py:889-892`) and the pool already has the provider's error text. Both are discarded at
+the DB boundary. **Add `failure_reason TEXT` and persist the token; keep the free text in the JSONL.**
+A ranking that cannot separate "the provider refused" from "we priced it out" is not measuring models.
+
+**Gate:** every non-`done` row written after the change carries a non-NULL `failure_reason`; a query
+partitioning `status='error'` by reason returns the cap rows separately from real failures.
+
+### F2 — `queue_s`, separated from `latency_s`
+
+`latency_s` currently conflates model time with our own dispatch queueing. Proven by comparing the SAME
+model across populations — sweep days vs production days:
+
+```
+ model                        | sweep median | production median | ratio
+ tencent/hy3                  |        1051s |               61s |  17×
+ minimax/minimax-m2.5         |         198s |               30s | 6.6×
+ deepseek/deepseek-v3.2-exp   |         205s |               36s | 5.7×
+ deepseek/deepseek-v4-pro     |         138s |              166s | 0.8×
+```
+
+Eight of ten models measured on both are 2–17× "slower" when benchmarked concurrently. **No latency
+conclusion is available today** — which is why the "disable the slow models" question could not be
+answered from this table. Record wait/queue time separately so `latency_s` means model time.
+
+**Gate:** a deliberately queued dispatch records `queue_s > 0` and a `latency_s` matching its
+unqueued twin within tolerance; the benchmark's own rows carry `queue_s`.
+
+### F3 — `tokens_in` / `tokens_out`
+
+`$/run` mixes model price with task size, so a model handed longer prompts looks dearer than it is.
+The benchmark already computes `$/M-out` from tokens it does not persist. Persist them and cost
+becomes normalisable.
+
+**Gate:** `cost_usd / tokens_out` reproduces the published `$/M-out` for a sampled model within
+rounding.
+
+### F4 — `project` = the repo, run label to its own column (the ORIGINAL Phase F scope)
+
+4,435 of 9,327 rows say `project='review'`; the values are run labels (`backfill`, `spec-review`,
+`doc-converge`). Make `SUBAGENT_PROJECT` the repo name and move the label to `run_label`. ⚠️ The A1
+walker is the ONLY place that knows a stranded row's true repo — see Phase A's repo-stamp requirement,
+without which A inflates this backfill by ~75%.
+
+### F5 — `corpus_id` / `task_ref` (comparability)
+
+Nothing records WHICH task a run performed, so two runs are never known to be comparable and a model
+given harder work simply scores worse. The benchmark has a fixed corpus and could stamp it today.
+
+**Gate:** benchmark rows carry the corpus id; a per-corpus quality aggregation is expressible.
+
+### F6 — the `scored`-row duplication the unique index exempts
+
+`subagent_runs_dispatch_agent_uidx` is `UNIQUE (agent_id) WHERE status <> 'scored'`, so dispatch rows
+cannot duplicate (measured: 0) — but **120 agent_ids already carry more than one `scored` row.** Either
+extend the constraint to cover them or make the reconciliation's tie-break explicit and tested. Silence
+here is what makes the at-least-once flush contract hard to reason about.
+
+### Migration discipline (binds all six)
+
+Additive columns only — no rename, no drop, no type change. `pg_ledger.py:87-95` documents why:
+`_REQUIRED_OUTBOX_COLS` is validated instead of `_COLS` precisely because **an outbox row is written by
+an OLDER copy of the module than the one flushing it**, and 48 vendored copies at different vintages
+are live. Every new column is nullable with no default-bearing read path; the tolerant read is the
+gate, not the migration.
+
+**Gate:** an old-shape row (none of the six columns) still flushes, still aggregates, and still ranks;
+`final_gate.py --check --json` → `"status":"success"`; `db/schema.sql` and the Alembic head updated in
+the same change.
+
+## Phase H — Close the quality-coverage hole (no schema change)
+
+`quality_score` is the one field nothing captures automatically — an orchestrator must back-fill it via
+`set_quality` — and coverage is **30% overall**, unevenly:
+
+```
+ task_type | runs | scored | pct
+ plan      |   37 |     36 |  97
+ spec      |    9 |      8 |  89
+ research  |  254 |    209 |  82
+ code      |   39 |     25 |  64
+ docs      |  163 |    103 |  63
+ review    | 4337 |   2221 |  51        ← 91% of all volume, half of it unscored
+```
+
+**`review` is the flywheel's dominant task type and half of it teaches the ranking nothing.** The
+enforcement check `check_subagent_flywheel.py` already WARNs on an unrecorded pool run — *"LAYER 2
+(advisory, never blocks): WARN on any pool run never record_agent_run-recorded"* (`:313-314`, and the
+layer is declared at `:12`). **The gap is that a recorded-but-UNSCORED run passes silently**, verified
+by enumeration rather than inferred: grepping that file for `quality_score|set_quality|unscored`
+returns exactly **2** hits (`:393`, `:414`) and BOTH concern the missing-DSN / missing-driver recording
+path — neither asks whether a recorded row carries a verdict. (Those two lines also distinguish
+`dsn-missing` from `missing-driver-psycopg` independently, corroborating Phase A4's correction.) Make the scored-vs-dispatched ratio a reported number
+per run, and fail the check when a review fan-out closes with a ratio below a stated floor.
+
+⚠️ **Measure the fire rate before it blocks** (CLAUDE.md § FIX DIRECTIVE 5 — a detector that fires on
+legitimate patterns is wallpaper). Ship it advisory, measure for a week, then decide the floor. A
+legitimate unscored run exists — a finder that died mid-dispatch has nothing to score — so the floor is
+over *returned* units, never dispatched ones.
+
+**Gate:** the ratio is printed at every pool dispatch close; a week of measured fire rate is recorded
+before any blocking threshold is set.
 
 ## Phase G — `capped` is two unrelated failures sharing one label (hub-local, blocks any model verdict)
 
