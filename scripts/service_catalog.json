@@ -999,5 +999,85 @@
     "match": [
       "NVIDIA"
     ]
+  },
+  "afternic": {
+    "category": "domains",
+    "cost": "paid",
+    "capability": "Domain name marketplace and brokerage service",
+    "url": "https://www.afternic.com",
+    "status": "active",
+    "match": []
+  },
+  "ajay": {
+    "category": "media-stock",
+    "cost": "free",
+    "capability": "skip sponsor segments in videos",
+    "url": "https://sponsor.ajay.app",
+    "status": "active",
+    "match": []
+  },
+  "aladhan": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "Islamic prayer times, Quran, Hijri calendar API",
+    "url": "https://aladhan.com",
+    "status": "active",
+    "match": []
+  },
+  "algolia": {
+    "category": "search",
+    "cost": "freemium",
+    "capability": "hosted search API for websites and apps",
+    "url": "https://www.algolia.com/",
+    "status": "active",
+    "match": []
+  },
+  "alibabacloud": {
+    "category": "infra-platform",
+    "cost": "paid",
+    "capability": "Cloud computing, big data, and AI services platform",
+    "url": "https://www.alibabacloud.com",
+    "status": "active",
+    "match": []
+  },
+  "aliyuncs": {
+    "category": "ai-llm",
+    "cost": "freemium",
+    "capability": "Aliyun's large language model and AI service API platform",
+    "url": "https://dashscope.aliyun.com",
+    "status": "active",
+    "match": []
+  },
+  "amazon": {
+    "category": "infra-platform",
+    "cost": "paid",
+    "capability": "cloud computing platform offering over 200 services",
+    "url": "https://aws.amazon.com",
+    "status": "active",
+    "match": []
+  },
+  "anthropic": {
+    "category": "ai-llm",
+    "cost": "paid",
+    "capability": "Generative AI and large language model API provider",
+    "url": "https://www.anthropic.com",
+    "status": "active",
+    "match": []
+  },
+  "apple": {
+    "category": "infra-platform",
+    "cost": "free",
+    "capability": "Apple ID authentication and App Store content distribution",
+    "url": "https://appleid.apple.com",
+    "status": "active",
+    "match": []
+  },
+  "allowed": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
   }
 }

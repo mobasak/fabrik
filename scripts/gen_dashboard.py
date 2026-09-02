@@ -13,8 +13,10 @@ Artifact cleanly.
 
 from __future__ import annotations
 
+import argparse
 import html
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,18 +34,38 @@ def load() -> list[dict]:
             cur.execute("SELECT id, provider, category, cost_tier, url, status FROM services")
             svc = {
                 r[0]: {
-                    "provider": r[1], "category": r[2] or "?", "cost": r[3] or "?",
-                    "url": r[4] or "", "status": r[5] or "?", "keys": 0, "projects": set(),
-                    "account": "", "credit": "", "renews": "", "price": "",
+                    "provider": r[1],
+                    "category": r[2] or "?",
+                    "cost": r[3] or "?",
+                    "url": r[4] or "",
+                    "status": r[5] or "?",
+                    "keys": 0,
+                    "projects": set(),
+                    "account": "",
+                    "credit": "",
+                    "renews": "",
+                    "price": "",
                 }
                 for r in cur.fetchall()
             }
-            cur.execute("SELECT service_id, used_by_projects, account_email FROM api_keys")
-            for sid, projects, email in cur.fetchall():
+            cur.execute(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() "
+                "AND table_name='api_keys' AND column_name='kind'"
+            )
+            has_kind = (
+                cur.fetchone() is not None
+            )  # a registry never synced by the new registry_sync
+            cur.execute(
+                "SELECT service_id, used_by_projects, account_email, "
+                + ("kind" if has_kind else "'credential'")
+                + " FROM api_keys"
+            )
+            for sid, projects, email, kind in cur.fetchall():
                 s = svc.get(sid)
                 if not s:
                     continue
-                s["keys"] += 1
+                if kind == "credential":  # a code call-site row proves USE, never a key
+                    s["keys"] += 1
                 s["projects"].update(projects or [])
                 if email and not s["account"]:
                     s["account"] = email
@@ -165,17 +187,24 @@ render();
 def render(rows: list[dict]) -> str:
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     cats = sorted({r["category"] for r in rows})
-    by_cost = {c: sum(1 for r in rows if r["cost"] == c) for c in ("free", "freemium", "paid", "self-host")}
+    by_cost = {
+        c: sum(1 for r in rows if r["cost"] == c) for c in ("free", "freemium", "paid", "self-host")
+    }
     nproj = len({p for r in rows for p in r["projects"]})
     stats = [
-        (len(rows), "services"), (len(cats), "categories"), (nproj, "projects"),
+        (len(rows), "services"),
+        (len(cats), "categories"),
+        (nproj, "projects"),
         (by_cost["paid"] + by_cost["freemium"], "paid / freemium"),
         (by_cost["free"] + by_cost["self-host"], "free / self-host"),
         (sum(1 for r in rows if r["credit"]), "credit tracked"),
         (sum(1 for r in rows if r["renews"]), "renewals set"),
         (sum(1 for r in rows if r["category"] == "?"), "need triage"),
     ]
-    statcards = "".join(f'<div class="stat"><div class="n">{v}</div><div class="l">{html.escape(lbl)}</div></div>' for v, lbl in stats)
+    statcards = "".join(
+        f'<div class="stat"><div class="n">{v}</div><div class="l">{html.escape(lbl)}</div></div>'
+        for v, lbl in stats
+    )
     cat_opts = "".join(f'<option value="{html.escape(c)}">{html.escape(c)}</option>' for c in cats)
     body = f"""<div class="wrap">
   <header><h1>External Services &amp; Credentials</h1>
@@ -204,10 +233,21 @@ def render(rows: list[dict]) -> str:
     )
 
 
-def main() -> int:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("external-services-dashboard.html")
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "out",
+        nargs="?",
+        default="external-services-dashboard.html",
+        help="output path (default: ./external-services-dashboard.html)",
+    )
+    out = Path(
+        ap.parse_args(argv).out
+    )  # `--help` exits here — it used to WRITE a file named --help
     rows = load()
-    out.write_text(render(rows), encoding="utf-8")
+    tmp = out.with_name(out.name + ".tmp")  # atomic: the mtime is a liveness heartbeat, so a
+    tmp.write_text(render(rows), encoding="utf-8")  # half-written file must never be fresh
+    os.replace(tmp, out)
     print(f"wrote {out} — {len(rows)} services")
     return 0
 

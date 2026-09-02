@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     aliases          TEXT[] NOT NULL DEFAULT '{}',
     used_by_projects TEXT[] NOT NULL DEFAULT '{}',
     account_email    TEXT,
+    kind             TEXT NOT NULL DEFAULT 'credential',  -- 'credential' | 'code-host' (a call-site URL, not a secret)
     first_seen       TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen        TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (service_id, value_sha256)

@@ -14,8 +14,9 @@
 #
 # What this file actually does now, in order:
 #   1. check_daily_refresh_freshness.py  — heartbeat: alerts if the previous run is >36h stale
-#   2. gather_envs.py --apply            — consolidate secrets/all-envs.env
-#   3. classify_services.py --apply      — web-ground + catalog any newly-keyed external service
+#   2. scripts/external_services_chain.sh — gather_envs (+ code-host scan) → classify →
+#      gather_envs → registry_sync → gen_dashboard (shared with wsl_startup_hook.sh)
+#      (classify, the paid pool pass, is inside that chain — bounded, cursor-walked)
 #   4. generate_capability_index.py      — regenerate capabilities.json + docs/CAPABILITIES.md
 #   5. generate_kilo_agents.py           — emit the Traycer CLI agent scripts from kilo_agents.db
 #   6. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
@@ -142,17 +143,13 @@ fi
   _step "check_daily_refresh_freshness" "$VENV_PY" "$KB/check_daily_refresh_freshness.py" \
     || echo "[daily_refresh] freshness check errored (non-fatal)"
 
-  # Keep the external-service catalog fresh. gather_envs consolidates every
-  # /opt/*/.env into secrets/all-envs.env and flags any provider whose key
-  # prefix matches no catalog entry as `category=?` (NEEDS-TRIAGE). classify_services
-  # then web-grounds ONLY those unknowns via a cheap pool unit and merges them into
-  # scripts/service_catalog.json. Both are idempotent and NO-OP at zero cost when
-  # nothing new was added (classify prints "nothing to do" and exits 0), so this is
-  # cheap every day and self-updates the catalog the day after a new key appears.
-  _step "gather_envs" "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply \
-    || echo "[daily_refresh] gather_envs failed (non-fatal)"
-  _step "classify_services" "$VENV_PY" "$FABRIK_ROOT/scripts/classify_services.py" --apply --tombstone-unresolved \
-    || echo "[daily_refresh] classify_services failed (non-fatal)"
+  # The external-services chain (gather_envs → classify → gather_envs → registry_sync →
+  # gen_dashboard) lives in ONE script shared with wsl_startup_hook.sh — both entry points race
+  # for the daily lock, so a step defined in only one of them silently never runs on the days
+  # the other wins (the 2026-08-14 back-port lesson). It alerts on its own failures and writes
+  # the dashboard (the liveness heartbeat) only when every DATA step succeeded.
+  _step "external_services_chain" env LOG_FILE="$LOG_FILE" bash "$FABRIK_ROOT/scripts/external_services_chain.sh" \
+    || echo "[daily_refresh] external-services chain reported a failed step (already alerted, non-fatal)"
 
   # Ensure the OR richer-extraction columns (canonical_slug, knowledge_cutoff,
   # cache_read/write_cost_per_m, reasoning_mandatory, reasoning_supported_efforts,

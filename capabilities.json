@@ -1370,7 +1370,7 @@
     {
       "name": "scripts/credit_fetchers/__init__.py",
       "kind": "script",
-      "summary": "AFTER-EDIT: scripts/registry_sync.py scripts/refresh_service_inventory.py",
+      "summary": "AFTER-EDIT: scripts/registry_sync.py scripts/kilo-benchmarks/daily_refresh.sh",
       "invoke": "python scripts/credit_fetchers/__init__.py",
       "status": "manual",
       "owner": "infra",
@@ -2384,6 +2384,17 @@
       "verified_at": "2026-09-01T03:01:27+00:00"
     },
     {
+      "name": "scripts/external_services_chain.sh",
+      "kind": "script",
+      "summary": "The external-services chain, one definition for both entry points",
+      "invoke": "bash scripts/external_services_chain.sh",
+      "status": "manual",
+      "owner": "infra",
+      "defects": [],
+      "doc_link": "INDEX.md",
+      "verified_at": "2026-09-02T00:00:00+00:00"
+    },
+    {
       "name": "scripts/gen_dashboard.py",
       "kind": "script",
       "summary": "AFTER-EDIT: none",
@@ -2815,17 +2826,6 @@
       "summary": "Provision the ``watchdog_ro`` read-only Postgres role (deploy-readiness follow-on).",
       "invoke": "python scripts/provision_watchdog_ro.py",
       "status": "manual",
-      "owner": "infra",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-01T03:01:27+00:00"
-    },
-    {
-      "name": "scripts/refresh_service_inventory.py",
-      "kind": "script",
-      "summary": "AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py",
-      "invoke": "python scripts/refresh_service_inventory.py",
-      "status": "ok",
       "owner": "infra",
       "defects": [],
       "doc_link": "INDEX.md",

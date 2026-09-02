@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the rotation tick could never flip to an IDLE account: the successor re-verify authenticated with the standby's own expired token (2026-09-02)
+
+- **Measured:** the 14:30 tick logged `active mob@ocoron.com at 98% but NO successor has headroom`
+  while `can@` sat at 12% session / 12% weekly, and the operator hit the wall — the second time
+  today. `_validated_pick` re-probes a CACHED candidate with the candidate's OWN access token,
+  which for a standby is expired by construction (only the active chain self-refreshes —
+  `_stale_snapshot_reason` says so in its own words), so the probe 401s and the candidate is thrown
+  out as "unverifiable". A flip only ever worked when the successor happened to be LIVE that tick.
+  Second defect on the same path, reproduced in-process: when the probe DOES succeed, the
+  comprehension crashed with `KeyError: 'utilization'` on the `model_windows` entry
+  `_usage_windows` has returned since 2026-08-22.
+- **Fix (`scripts/sysadmin/claude_rotate.py`):** a cached reading younger than
+  `ROTATE_CACHE_TRUST_S` (default 3600s) on a chain that passes the liveness gate is ACCEPTED when
+  the probe fails (F-P2 amended — the rosy-cache class it guards keeps its teeth: an OLDER cache
+  stays excluded, and a dead refresh token is unconditional); the live re-verify reads only the two
+  quota windows. And a no-successor tick now prints WHY per sibling (`_flip_exclusion_reasons`:
+  walled · weekly ≥ cap · ≥ threshold · no reading · chain stale · cached-unverifiable) — the same
+  line was undiagnosable twice in one day.
+- **Guard:** `tests/test_claude_rotate_v2.py` — five tests (model_windows survives the re-probe ·
+  fresh cache + failed probe accepted · stale cache still refused · fresh cache on a dead chain
+  refused · the reasons line), three seen red first. Also repaired two PRE-EXISTING reds
+  (`test_t15a/b`, failing at HEAD in the real tree since bff520f0): they counted every
+  `subprocess.run`, and the advisory `quota_governor.py mark-capped` signal fires only where the
+  governor is co-located — the denominator is now claude invocations.
+- **Docs:** `docs/workstation/claude-account-rotation.md` § Rotation (the amended re-verify rule,
+  the new env knob, the reasons line).
+
+### Fixed — the quota board lagged a pointer flip by up to five minutes, and a switch click left no trace (2026-09-02)
+
+- **Measured:** after a `--switch` at 14:36 the board kept saying `mob` — the render only
+  regenerates on a view older than the 240s floor, plus the 60s reload. And a button click that
+  "did not work" had no log line: `log_message` is silenced and the endpoint logged nothing.
+- **Fix (`scripts/sysadmin/quota_dashboard.py`):** every view compares the live `active` symlink
+  (`QUOTA_DASH_POINTER`) with the last render's `active`; a mismatch regenerates synchronously once,
+  floor or no floor. `POST /switch` writes one line per outcome to `~/.claude/quota-dashboard.log`.
+- **Guard:** `tests/test_quota_dashboard.py::test_a_pointer_change_regenerates_before_the_floor`
+  (seen red); the loader pins a tmp pointer so no test ever compares against the box's real one.
+
 ### Fixed — no rows were ever lost: the ranking "drop" was a fixed double-count, and the auto-commit could rewind the doc (2026-09-02)
 
 - **Diagnosis (the 155→6 `spec` question): NO data loss.** The table holds 9 `spec` rows and has
@@ -129,7 +167,7 @@ All notable changes to this project will be documented in this file.
   proved fleet-used (PostHog, Axiom, Slack, Vercel, Cerebras, LinkedIn scrape target, BLS API, Google APIs —
   Gmail + OAuth), Amazon SES re-grounded (was 10/12 UNKNOWN), Microsoft 365/Graph re-grounded with the
   Outlook per-mailbox limits and its self-contradicting "grounding impossible" note removed; header
-  denominator 158 → 166 systems, 115 → 124 fleet-used; closing re-derivation CLEAN. Ten CLAIMS rows.
+  denominator derived from the blocks (150 systems / 116 fleet-used); closing re-derivation CLEAN. Ten CLAIMS rows.
 - **Review (`/fabrik-review`, pool + Opus/Sonnet finders — 2026-09-02-external-services-chain-review.md):**
   the chain became ONE script, `scripts/external_services_chain.sh`, run by BOTH entry points
   (`daily_refresh.sh` and `wsl_startup_hook.sh` share the daily lock; a step in only one of them

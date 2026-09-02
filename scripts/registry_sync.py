@@ -10,6 +10,7 @@ internal-config vars are excluded (not services).
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import os
 import re
@@ -28,6 +29,30 @@ SVC_RE = re.compile(
     r'capability="(?P<capability>[^"]*)" url=(?P<url>\S+) status=(?P<status>\S+)'
     r"(?: used_by=(?P<used_by>\S*))?"
 )
+# A key NAME that carries a credential (the value is a secret): the fetcher's input.
+CREDENTIAL_KEY_RE = re.compile(
+    r"(API_KEY|APIKEY|API_TOKEN|TOKEN|SECRET|PASSWORD|PASS|AUTH_KEY|KEY)S?$", re.I
+)
+
+
+def ensure_schema(cur) -> None:
+    """Idempotent forward migration: `api_keys.kind` ('credential' | 'code-host') — a code
+    call-site row is a public URL's digest, not a secret, and the dashboard must not count it
+    as a key (review 2026-09-02, O4). `db/services_registry_schema.sql` carries the column for
+    fresh installs; this brings an existing registry level on its next sync."""
+    # Probe first: even a no-op `ADD COLUMN IF NOT EXISTS` takes ACCESS EXCLUSIVE, which waits
+    # behind ANY open reader transaction (an idle dashboard-server read stalled the daily sync
+    # in review, closing pass — N3). The probe is ACCESS SHARE; the ALTER runs once, ever.
+    cur.execute(
+        "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() "
+        "AND table_name='api_keys' AND column_name='kind'"
+    )
+    if cur.fetchone() is None:
+        cur.execute(
+            "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'credential'"
+        )
+
+
 KV_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 
 
@@ -68,9 +93,14 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
     if dsn:
         os.environ["SERVICES_REGISTRY_DSN"] = dsn
     provs = parse(ALL_ENVS)
-    stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0, "pruned": 0}
+    stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0, "pruned": 0, "keys_pruned": 0}
     to_fetch: list[tuple[int, str, str]] = []
     conn = registry_db.connect()
+    # Schema first, in its OWN short transaction: an ALTER inside the sync transaction holds an
+    # ACCESS EXCLUSIVE lock on api_keys for the whole run (measured: the no-op ADD COLUMN IF NOT
+    # EXISTS still takes it), blocking the live dashboard server's reads (closing review 2026-09-02).
+    with conn, conn.cursor() as cur:
+        ensure_schema(cur)
     try:
         with conn, conn.cursor() as cur:
             # Bounded-prune denominator: the PRE-EXISTING registry size, captured BEFORE the
@@ -94,25 +124,47 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
                 first_value = None
+                fallback_value = None
+                digests: list[str] = []
                 for _key, value, aliases, per_key_used in p["keys"]:
                     if not value:
                         continue
-                    first_value = first_value or value
+                    # The credit fetcher gets the first CREDENTIAL, chosen by the KEY's role, never
+                    # by line order: `CODE_HOST_URL` sorts before `DEEPL_API_KEY` and
+                    # `AZURE_ACCOUNT_NAME` before `AZURE_API_KEY` (review 2026-09-02, N1 + O5).
+                    # `code-host` is the SYNTHETIC key only — never a value shape: a proxy URL with
+                    # userinfo (`NAMECHEAP_PROXY_URL=http://u:pw@…`) is a credential (pass 2, G3)
+                    kind = "code-host" if _key == "CODE_HOST_URL" else "credential"
+                    if kind == "credential":
+                        if CREDENTIAL_KEY_RE.search(_key):
+                            first_value = first_value or value
+                        elif not value.lower().startswith(("http://", "https://")):
+                            fallback_value = fallback_value or value  # e.g. GROQ_API_KEY_2 (G4)
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
+                    digests.append(digest)
                     # per-key attribution when present (a multi-key provider's keys differ),
                     # else the provider-wide union from the #svc used_by= field.
                     key_used = per_key_used or used_by
                     cur.execute(
-                        """INSERT INTO api_keys (service_id, value_sha256, aliases, used_by_projects)
-                           VALUES (%s,%s,%s,%s)
+                        """INSERT INTO api_keys (service_id, value_sha256, aliases, used_by_projects, kind)
+                           VALUES (%s,%s,%s,%s,%s)
                            ON CONFLICT (service_id, value_sha256)
                            DO UPDATE SET last_seen=now(), aliases=EXCLUDED.aliases,
-                             used_by_projects=EXCLUDED.used_by_projects""",
-                        (sid, digest, aliases, key_used),
+                             used_by_projects=EXCLUDED.used_by_projects, kind=EXCLUDED.kind""",
+                        (sid, digest, aliases, key_used, kind),
                     )
                     stats["api_keys"] += 1
-                if fetch_credits and first_value:
-                    to_fetch.append((sid, meta["name"], first_value))  # fetch AFTER commit
+                # Keys that LEFT this provider (a code host no longer referenced, a var moved to
+                # internal-config) are deleted — upsert-only rows lived forever, and the code-host
+                # input makes churn daily (closing review 2026-09-02, N2). Per-service, never global.
+                cur.execute(
+                    "DELETE FROM api_keys WHERE service_id=%s AND value_sha256 <> ALL(%s)",
+                    (sid, digests),
+                )
+                stats["keys_pruned"] += cur.rowcount
+                cred = first_value or fallback_value
+                if fetch_credits and cred:
+                    to_fetch.append((sid, meta["name"], cred))  # fetch AFTER commit
             # Prune orphans: services no longer in all-envs.env (e.g. a provider recatalogued
             # under a new match prefix leaves its old `?` row behind). Children cascade-delete.
             # GUARD 1: never prune when the parse yielded nothing — an empty/corrupt file must not
@@ -165,11 +217,23 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--fetch-credits",
+        action="store_true",
+        help="also call each provider's credit fetcher and store a credit_snapshots row "
+        "(network; the daily path passes it, a quick manual sync omits it)",
+    )
+    args = ap.parse_args()
     if not ALL_ENVS.exists():
         print(f"{ALL_ENVS} missing — run scripts/gather_envs.py --apply first", file=sys.stderr)
         return 1
-    stats = sync_registry()
-    print(f"synced {stats['services']} services, {stats['api_keys']} api_keys into the registry")
+    stats = sync_registry(fetch_credits=args.fetch_credits)
+    print(
+        f"synced {stats['services']} services, {stats['api_keys']} api_keys, "
+        f"{stats['credit_snapshots']} credit snapshots into the registry "
+        f"(pruned {stats['pruned']} services, {stats['keys_pruned']} stale keys)"
+    )
     return 0
 
 

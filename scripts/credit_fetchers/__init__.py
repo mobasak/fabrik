@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/registry_sync.py scripts/refresh_service_inventory.py
+# AFTER-EDIT: scripts/registry_sync.py scripts/kilo-benchmarks/daily_refresh.sh
 """Hybrid credit fetchers — per-provider account balance/usage via each vendor's API.
 
 Resilience (core/58): every HTTP call is timeout + retry wrapped and returns None on ANY

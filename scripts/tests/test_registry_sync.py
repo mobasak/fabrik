@@ -259,3 +259,136 @@ def test_prune_removes_orphans():
         expected = len({p["meta"]["name"] for p in rs.parse(rs.ALL_ENVS)})
         assert cur.fetchone()[0] == expected  # real registry intact — NOT wiped by the global prune
     conn.close()
+
+
+def test_credit_fetcher_gets_the_credential_never_a_code_host_url(fixture_env, monkeypatch):
+    """A code call-site line (`CODE_HOST_URL=https://…`) sorts BEFORE `DEEPL_API_KEY`; the credit
+    fetcher must still receive the credential — a URL as api_key silently loses the daily balance
+    snapshot (found by the 2026-09-02 review, N1)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " translation " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=translation cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"CODE_HOST_URL=https://api-free.deepl.com   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}\n",
+        encoding="utf-8",
+    )
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    rs.sync_registry(fetch_credits=True, prune=False)
+    assert got == [(TEST_PROVIDER, SECRET)], got
+
+
+def test_credential_chosen_by_key_role_not_line_order(fixture_env, monkeypatch):
+    """AZURE_ACCOUNT_NAME sorts before AZURE_API_KEY and is not a credential (review O5)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=infra cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_ACCOUNT_NAME=storageacct   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_API_KEY={SECRET}\n",
+        encoding="utf-8",
+    )
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    rs.sync_registry(fetch_credits=True, prune=False)
+    assert got == [(TEST_PROVIDER, SECRET)], got
+
+
+def test_code_host_rows_are_kind_code_host_and_never_counted_as_keys(fixture_env):
+    """A code-only provider shows 0 keys on the dashboard while its projects still attribute
+    (review O4): the api_keys row exists with kind='code-host'."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " observability " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=observability cost=? capability="?" '
+        "url=https://api.posthog.com status=? used_by=projA\n"
+        "CODE_HOST_URL=https://api.posthog.com   # used by: projA\n",
+        encoding="utf-8",
+    )
+    rs.sync_registry(fetch_credits=False, prune=False)
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider=%s",
+            (TEST_PROVIDER,),
+        )
+        kinds = [row[0] for row in cur.fetchall()]
+    conn.close()
+    assert kinds == ["code-host"]
+    gd = _load("gen_dashboard")
+    row = next(r for r in gd.load() if r["provider"] == TEST_PROVIDER)
+    assert row["keys"] == 0 and "projA" in row["projects"]
+
+
+def test_kind_is_the_synthetic_key_never_a_value_shape(fixture_env, monkeypatch):
+    """A proxy URL with userinfo is a CREDENTIAL; only CODE_HOST_URL rows are code-host (G3);
+    a suffixed key name (GROQ_API_KEY_2) still feeds the fetcher as the fallback (G4)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " proxies " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=proxies cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        "CODE_HOST_URL=https://api.x.example   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_PROXY_URL=http://user:{SECRET}@45.61.127.38:5977   # used by: projA\n"
+        f"{TEST_PROVIDER.upper()}_API_KEY_2={SECRET}zz\n",
+        encoding="utf-8",
+    )
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    rs.sync_registry(fetch_credits=True, prune=False)
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind, count(*) FROM api_keys k JOIN services s ON s.id=k.service_id "
+            "WHERE s.provider=%s GROUP BY 1 ORDER BY 1",
+            (TEST_PROVIDER,),
+        )
+        kinds = cur.fetchall()
+    conn.close()
+    assert kinds == [("code-host", 1), ("credential", 2)], kinds
+    assert got == [(TEST_PROVIDER, f"{SECRET}zz")], got  # the fallback credential, never the URL
+
+
+def test_stale_key_rows_are_pruned_per_service(fixture_env):
+    """A key that leaves a provider (a code host no longer referenced, a var reclassified as
+    internal-config) must not survive as a phantom credential (closing review 2026-09-02, N2)."""
+    rs.sync_registry(fetch_credits=False, prune=False)  # fixture: one key
+    fixture_env.write_text(
+        "# " + "═" * 10 + " ai-llm " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=ai-llm cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"CODE_HOST_URL=https://api.x.example   # used by: projA\n",
+        encoding="utf-8",
+    )
+    stats = rs.sync_registry(fetch_credits=False, prune=False)
+    assert stats["keys_pruned"] == 1
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT k.kind FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider=%s",
+            (TEST_PROVIDER,),
+        )
+        kinds = [row[0] for row in cur.fetchall()]
+    conn.close()
+    assert kinds == ["code-host"], kinds
+
+
+def test_ensure_schema_never_alters_when_the_column_exists():
+    """An unconditional ALTER (even IF NOT EXISTS) takes ACCESS EXCLUSIVE and waits behind any
+    open reader — the daily sync must not lock-fight the dashboard server (N3)."""
+
+    class _Cur:
+        def __init__(self, present: bool):
+            self.present, self.sql = present, []
+
+        def execute(self, q, *a):
+            self.sql.append(q)
+
+        def fetchone(self):
+            return (1,) if self.present else None
+
+    cur = _Cur(present=True)
+    rs.ensure_schema(cur)
+    assert len(cur.sql) == 1 and cur.sql[0].lstrip().upper().startswith("SELECT")
+    cur = _Cur(present=False)
+    rs.ensure_schema(cur)
+    assert len(cur.sql) == 2 and "ALTER TABLE api_keys" in cur.sql[1]

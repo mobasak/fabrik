@@ -1089,6 +1089,14 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## A "documented, operator-installed" cron is an UNINSTALLED cron — declare the heartbeat the day you build the job (2026-09-02)
+
+**What happened:** the external-services registry shipped 2026-07-18 with its sync + dashboard behind a cron line the plan marked "documented, NOT auto-installed — operator adds". Nobody added it. The scan half was later wired into `daily_refresh.sh` and ran every morning, so the system LOOKED alive (fresh `all-envs.env`) while the registry, dashboard and alerting were frozen on build day for 46 days. The liveness audit reported nothing because no surface named them — it cannot miss what it was never told to watch.
+
+**Lesson:** (1) a scheduled job is not built until it is on a schedule that exists — put it inside the one cron that already runs (`daily_refresh.sh`) rather than minting a line for the operator to paste; (2) every new scheduled surface gets its `.fabrik/liveness-registry.json` row in the SAME change, with evidence that only the LAST step of the chain produces (the dashboard file's mtime), so a half-dead chain reads DEAD, not LIVE; (3) a second entry point that duplicates the live path and advertises the uninstalled cron is a two-sources-of-truth defect — retire it, don't document around it. Sibling of Lesson 116 (a documentation fix binds nobody) and of "First unattended run is the proof".
+
+**Also measured:** env keys are a PROXY for vendor usage and the proxy leaked 239 of 495 code-referenced hosts, eight of them real fleet dependencies with no key anywhere — the second input (code call sites) is now part of the scan.
+
 ## The fix for a review finding is the LEAST-reviewed code — re-review it, it often has its own bug (2026-08-29)
 
 Building the SSO-bridge (`libs/product_entitlements_bridge/`), the native-Opus phase review caught a real

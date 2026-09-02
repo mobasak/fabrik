@@ -197,7 +197,7 @@ _OWNER_SCRIPT_PREFIXES = (
     (
         "scripts/credit_fetchers/",
         "infra",
-    ),  # provider-account plumbing — coupled to registry_sync/refresh_service_inventory (both infra)
+    ),  # provider-account plumbing — coupled to registry_sync + the daily_refresh chain (infra)
     ("scripts/vps_", "fleet"),  # deploy-facing exceptions, named per the plan
 )
 

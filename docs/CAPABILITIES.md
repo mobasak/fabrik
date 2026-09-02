@@ -154,6 +154,7 @@
 - [scripts/epic_order.py](../INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
+- [scripts/external_services_chain.sh](../INDEX.md) (owner: infra): The external-services chain, one definition for both entry points
 - [scripts/gather_envs.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
 - [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
@@ -169,7 +170,6 @@
 - [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
-- [scripts/refresh_service_inventory.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/gather_envs.py scripts/classify_services.py scripts/registry_sync.py
 - [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
 - [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
@@ -286,7 +286,7 @@
 - [static-site](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
+- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
 - [ai/10-speech-audio.md](../.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
 - [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
 - [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he

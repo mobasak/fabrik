@@ -832,3 +832,18 @@ next registry-drift recurrence.
 - **I1 watch item** (01M1CCNMGT): auto-mode permission-classifier outages (31× in one project) are
   indistinguishable from agent stalls — harness-level; watch for recurrence post-CLI-updates —
   and it fired AGAIN on this very session while this row was being written.
+- **[infra] fabrik-researcher brief + grounding fragment drift** (2026-09-02, 10 dispatches, 10/10
+  reported it): the agent has NO shell, so a brief that says "run `awk …`" is unexecutable (each agent
+  substituted Grep+Read; the dispatch template should give a Read/Grep recipe); the fragment's claim that
+  non-HTML (JSON) content is unreachable via exa was refuted twice in one day (api.bls.gov and
+  api.cerebras.ai JSON fetched raw); WebFetch does not follow cross-host redirects (api.slack.com →
+  docs.slack.dev, cloud.google.com → docs.cloud.google.com cost a full extra round each) and truncates
+  long pages silently then asserts a NEGATIVE ("no Outlook section") — WebFetch output must be treated as
+  bounded-search evidence, never as a negative. Fix in `commands/_sources/_fragments/` at next touch.
+- **[infra] check_subagent_flywheel: on shared master the cycle boundary is HEAD** (2026-09-02, /fabrik-review):
+  the check counts local-ledger pool rows newer than `merge-base HEAD <ref>`, which on a shared master
+  with no branch is HEAD itself — so a SIBLING's commit at 13:34 made this session's four pool review
+  rows from 13:19 "not this cycle" and the gate BLOCKED a run that had used the pool minutes earlier.
+  Measured once; the fix candidates (key the window on the staged files' oldest mtime, or on the last
+  commit AUTHORED by this session) need a fire-rate measurement before shipping (FIX verb 5). Until
+  then a later-pass pool dispatch re-satisfies it.

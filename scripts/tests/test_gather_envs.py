@@ -10,8 +10,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
+
+import pytest
+
+needs_rg = pytest.mark.skipif(shutil.which("rg") is None, reason="the scan shells out to ripgrep")
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 
@@ -201,3 +207,561 @@ def test_tombstone_entry_is_non_question_category_with_scoped_prefix():
     assert entry["category"] == "unidentified"
     assert entry["match"] == ["AWS_BEDROCK"]  # C5: scoped to the compound name, not ["AWS"]
     assert entry["status"] == "unidentified"
+
+
+# ── the second input: code call sites (2026-09-02) ───────────────────────────────────────────
+
+
+def test_host_sld_and_ignore_rules():
+    """Registrable label + the three ignore classes (own/placeholder/reference-only unless api.)."""
+    assert ge.host_sld("api.posthog.com") == "posthog"
+    assert ge.host_sld("foo.co.uk") == "foo"
+    assert ge.host_sld("posthog.com") == "posthog"
+    assert ge.ignored_host("api.ocoron.com") and ge.ignored_host("ocoron.com")  # own + apex
+    assert not ge.ignored_host("notocoron.com")  # a suffix match must respect the dot (H16)
+    assert ge.ignored_host("evil.example")  # placeholder TLD
+    assert ge.ignored_host("company.com")  # placeholder label
+    assert ge.ignored_host("t.co")  # one-letter label = fixture/shortener
+    assert not ge.ignored_host("qq.com")  # two-letter vendors exist
+    assert ge.ignored_host("github.com")  # reference-only …
+    assert not ge.ignored_host("api.github.com")  # … unless it is the API host
+    # a vendor's own domain is NEVER reference-only; its docs subdomain is ignored by prefix
+    assert not ge.ignored_host("graph.microsoft.com")
+    assert not ge.ignored_host("registry-1.docker.io")
+    assert not ge.ignored_host("sentry.io")
+    assert ge.ignored_host("learn.microsoft.com")
+    assert ge.ignored_host("docs.docker.com")
+    assert not ge.ignored_host("api.posthog.com")
+    assert ge.ignored_host("10.99.0.1")
+
+
+def _repo(tmp_path: Path, name: str, files: dict[str, str]) -> Path:
+    d = tmp_path / name
+    (d / ".git").mkdir(parents=True)
+    for rel, text in files.items():
+        f = d / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8")
+    return d
+
+
+@needs_rg
+def test_code_hosts_attribute_catalog_provider_and_flag_unknown(tmp_path, monkeypatch):
+    """Given a repo with NO .env that calls resend (catalogued, by url domain) and posthog
+    (uncatalogued), When consolidated with code_dirs, Then resend gains the repo in used_by
+    with a CODE_HOST_URL line, and posthog lands in NEEDS-TRIAGE with its url — the same
+    queue the classifier drains. Runs the real ripgrep scan."""
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "resend": {
+                    "category": "email",
+                    "cost": "freemium",
+                    "capability": "email",
+                    "url": "https://resend.com",
+                    "status": "active",
+                    "match": ["RESEND"],
+                }
+            },
+            [("RESEND", "resend")],
+        ),
+    )
+    repo = _repo(
+        tmp_path,
+        "keyless-app",
+        {
+            "app.py": 'r = httpx.post("https://api.resend.com/emails")\nph = "https://us.i.posthog.com/i/v0/e"\n',
+        },
+    )
+    body, stats = ge.consolidate([], code_dirs=[repo])
+    assert "#svc name=resend category=email" in body and "used_by=keyless-app" in body
+    assert "CODE_HOST_URL=https://api.resend.com   # used by: keyless-app" in body
+    triage = body.split("NEEDS-TRIAGE", 1)[1]
+    assert "#svc name=posthog category=?" in triage and "url=https://us.i.posthog.com" in triage
+    assert stats["code_hosts"] == 2 and stats["code_only"] == 2
+
+
+@needs_rg
+def test_scan_skips_tests_docs_placeholders_and_reference_links(tmp_path, monkeypatch):
+    """Fixtures, docs and reference links are NOT external systems — and github.com is a
+    link while api.github.com is a call."""
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    repo = _repo(
+        tmp_path,
+        "app",
+        {
+            "svc.py": 'a = "https://api.github.com/repos"\nb = "https://github.com/org/repo"\n'
+            'c = "https://evil.example/x"\nd = "https://api.stripe.com/v1"\n',
+            "tests/test_x.py": 'u = "https://api.paddle.com/should-not-count"\n',
+            "docs/notes.py": 'u = "https://api.axiom.co/not-a-call-site"\n',
+            "README.md": "https://api.slack.com/md-files-are-not-source\n",
+        },
+    )
+    hosts = ge.scan_code_hosts([repo])
+    assert set(hosts) == {"api.github.com", "api.stripe.com"}
+    assert hosts["api.stripe.com"]["projects"] == {"app"}
+
+
+def test_consolidate_without_code_dirs_never_scans(tmp_path, monkeypatch):
+    """code_dirs=None (every pre-existing caller/test) must not touch ripgrep at all."""
+    monkeypatch.setattr(
+        ge, "scan_code_hosts", lambda dirs: (_ for _ in ()).throw(AssertionError("scanned"))
+    )
+    body, stats = ge.consolidate(
+        _envs(tmp_path, {"p": "RESEND_API_KEY=re_abcdefghijklmnopqrstuvwxyz123456\n"})
+    )
+    assert "CODE_HOST_URL" not in body and stats["code_hosts"] == 0
+
+
+def test_classify_bound_is_sorted_and_zero_means_unlimited():
+    provs = {n: {} for n in ("zeta", "alpha", "mid", "beta")}
+    kept, deferred, cursor = cs.bound_flagged(provs, 2)
+    assert list(kept) == ["alpha", "beta"] and deferred == 2 and cursor == "beta"
+    assert cs.bound_flagged(provs, 0) == (provs, 0, None)
+    assert cs.bound_flagged(provs, 10) == (provs, 0, None)
+
+
+@needs_rg
+def test_platform_domains_are_never_credited_to_one_vendor(tmp_path, monkeypatch):
+    """`*.amazonaws.com` / `*.googleapis.com` name a cloud, not a product: an RDS truststore
+    fetch must not become `aws-ses` usage; the service label is kept for triage instead."""
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "aws-ses": {
+                    "category": "email",
+                    "cost": "paid",
+                    "capability": "email",
+                    "url": "https://aws.amazon.com/ses",
+                    "status": "active",
+                    "match": ["SES", "AWS_SES"],
+                }
+            },
+            [("AWS_SES", "aws-ses"), ("SES", "aws-ses")],
+        ),
+    )
+    repo = _repo(
+        tmp_path,
+        "svc",
+        {
+            "db.py": 'u = "https://truststore.pki.rds.amazonaws.com/x"\ng = "https://gmail.googleapis.com/v1"\n',
+        },
+    )
+    body, _ = ge.consolidate([], code_dirs=[repo])
+    assert "#svc name=aws-ses" not in body
+    triage = body.split("NEEDS-TRIAGE", 1)[1]
+    assert "#svc name=truststore.amazonaws category=?" in triage
+    assert "#svc name=gmail.googleapis category=?" in triage
+
+
+def test_scan_failure_is_fail_closed_nothing_written(tmp_path, monkeypatch):
+    """rg missing/timeout/exit-2 must RAISE, and main() must exit 1 without touching the output —
+    a silently empty scan would drop every code host and hand registry_sync a mass delete."""
+    monkeypatch.setattr(
+        ge.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("rg"))
+    )
+    with pytest.raises(ge.CodeScanError):
+        ge.scan_code_hosts([tmp_path])
+
+    class _CP:
+        returncode = 2
+        stdout = ""
+        stderr = "rg: error"
+
+    monkeypatch.setattr(ge.subprocess, "run", lambda *a, **k: _CP())
+    with pytest.raises(ge.CodeScanError):
+        ge.scan_code_hosts([tmp_path])
+    out = tmp_path / "all-envs.env"
+    out.write_text("# previous\n", encoding="utf-8")
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(ge, "project_env_files", lambda: [tmp_path / "p" / ".env"])
+    monkeypatch.setattr(ge, "project_dirs", lambda: [tmp_path])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    assert ge.main() == 1
+    assert out.read_text(encoding="utf-8") == "# previous\n"
+
+
+def test_classify_bound_walks_the_queue_from_a_cursor_under_churn():
+    """The window resumes AFTER the last processed name and wraps. Property under churn
+    (providers leave and arrive between runs): until the walk wraps, no provider is picked
+    twice, and every provider present at the start that never left is picked before ANY
+    repeat — i.e. one lap covers the queue, however N moves (review S3/O6, tightened G15)."""
+    provs = {f"p{i:02d}": {} for i in range(23)}
+    start_set = set(provs)
+    seen: list[str] = []
+    cursor = None
+    left: set[str] = set()
+    for run in range(4):
+        kept, deferred, cursor = cs.bound_flagged(provs, 10, after=cursor)
+        assert len(kept) == 10 and deferred == len(provs) - 10
+        seen += list(kept)
+        for gone in list(kept)[:2]:  # churn: two classified leave, one new arrives
+            provs.pop(gone)
+            left.add(gone)
+        provs[f"q{run}"] = {}
+    first_repeat = next((i for i, n in enumerate(seen) if n in seen[:i]), len(seen))
+    assert first_repeat >= 20, (
+        f"a provider repeated before the walk wrapped: {seen[: first_repeat + 1]}"
+    )
+    survivors = start_set - left
+    assert survivors <= set(seen[:first_repeat]), (
+        "a start-set survivor was not reached within one lap"
+    )
+    assert cs.bound_flagged(provs, 0) == (provs, 0, None)
+
+
+def test_classify_error_budget_tombstones_after_three_consecutive_errors():
+    counts, exhausted = cs.apply_error_budget({"a", "b"}, ["a", "b", "c"], {"a": 2, "c": 1})
+    assert counts == {"a": 3, "b": 1} and exhausted == {"a"}  # c ran clean → reset
+
+
+def test_unit_prompt_branches_for_code_only_providers():
+    p = cs.unit_prompt(
+        "posthog", {"names": ["CODE_HOST_URL"], "urls": ["https://us.i.posthog.com"]}
+    )
+    assert "call sites" in p and "Env vars" not in p
+    q = cs.unit_prompt("foo", {"names": ["FOO_API_KEY"], "urls": []})
+    assert "Env vars: FOO_API_KEY" in q
+
+
+def test_catalog_index_drops_ambiguous_labels_and_keeps_exact_hosts():
+    """backrest's url is a github.com repo link: `api.github.com` must credit `github`, never the
+    first entry in JSON order; a label owned by one vendor still attributes by domain."""
+    catalog = {
+        "backrest": {"url": "https://github.com/garethgeorge/backrest", "match": ["BACKREST"]},
+        "github": {"url": "https://github.com", "match": ["GITHUB"]},
+        "resend": {"url": "https://resend.com", "match": ["RESEND"]},
+    }
+    idx = ge.catalog_url_index(catalog)
+    assert "*.github" not in idx and "github.com" not in idx and idx["*.resend"] == "resend"
+    matchers = [("BACKREST", "backrest"), ("GITHUB", "github"), ("RESEND", "resend")]
+    assert ge.provider_for_host("api.github.com", catalog, idx, matchers) == "github"
+    assert ge.provider_for_host("api.resend.com", catalog, idx, matchers) == "resend"
+
+
+def test_platform_service_already_in_catalog_leaves_triage():
+    """A classified/tombstoned platform service (`gmail.googleapis`) keeps its catalog entry —
+    otherwise it is re-billed on every lap forever (review O1)."""
+    catalog = {"gmail.googleapis": {"category": "email", "url": "?", "match": ["GMAIL.GOOGLEAPIS"]}}
+    assert ge.provider_for_host("gmail.googleapis.com", catalog, {}, []) == "gmail.googleapis"
+    assert ge.provider_for_host("people.googleapis.com", catalog, {}, []) is None
+
+
+def test_scan_partial_error_keeps_matches_and_names_the_path(tmp_path, monkeypatch):
+    """rg exit 2 WITH matches (one unreadable dir) = partial scan: matches kept, rg's own error
+    text surfaced; exit 2 WITHOUT matches = failure carrying that text (review O3)."""
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    repo = tmp_path / "app"
+    (repo / ".git").mkdir(parents=True)
+
+    class _CP:
+        returncode = 2
+        stdout = "app/x.py:https://api.posthog.com/i\n"
+        stderr = "rg: app/locked: Permission denied (os error 13)"
+
+    monkeypatch.setattr(ge.subprocess, "run", lambda *a, **k: _CP())
+    hosts = ge.scan_code_hosts([repo])
+    assert set(hosts) == {"api.posthog.com"}
+    assert hosts["api.posthog.com"]["projects"] == {"app"}  # relative `<repo>/…` paths (F1)
+
+    class _Empty(_CP):
+        stdout = ""
+
+    monkeypatch.setattr(ge.subprocess, "run", lambda *a, **k: _Empty())
+    with pytest.raises(ge.CodeScanError, match="Permission denied"):
+        ge.scan_code_hosts([repo])
+
+
+def test_output_file_is_0600_from_creation(tmp_path, monkeypatch):
+    """The secrets file is created with mode 0600 (never write-then-chmod, review O13)."""
+    out = tmp_path / "all-envs.env"
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(
+        ge,
+        "project_env_files",
+        lambda: _envs(tmp_path, {"p": "RESEND_API_KEY=re_abcdefghijklmnopqrstuvwxyz123456\n"}),
+    )
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    modes: list[int] = []
+    real_open = os.open
+
+    def spy(path, flags, mode=0o777, *a, **k):
+        modes.append(mode)
+        return real_open(path, flags, mode, *a, **k)
+
+    monkeypatch.setattr(ge.os, "open", spy)
+    assert ge.main() == 0
+    assert modes == [0o600], modes
+    assert oct(out.stat().st_mode & 0o777) == "0o600"
+
+
+@needs_rg
+def test_env_derived_unknown_gains_the_code_host_url(tmp_path, monkeypatch):
+    """POSTHOG_KEY (flagged `?`) + a posthog call site share one bucket: the #svc header must
+    carry the concrete host, not `url=?` (review S4)."""
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    monkeypatch.setattr(ge, "load_catalog", lambda: ({}, []))
+    files = _envs(tmp_path, {"web": "POSTHOG_KEY=phc_abcdefghijklmnopqrstuvwxyz0123456789\n"})
+    repo = _repo(tmp_path, "web2", {"a.py": 'u = "https://us.i.posthog.com/i/v0/e"\n'})
+    body, _ = ge.consolidate(files, code_dirs=[repo])
+    assert '#svc name=posthog category=? cost=? capability="?" url=https://us.i.posthog.com' in body
+
+
+@needs_rg
+def test_jest_dirs_and_dockerfiles(tmp_path, monkeypatch):
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    repo = _repo(
+        tmp_path,
+        "app",
+        {
+            "Dockerfile": "RUN curl -fsSL https://api.vendor-x.com/install.sh | sh\n",
+            "__tests__/helpers.ts": 'const u = "https://graph.microsoft.com/v1.0"\n',
+            "src/build/x.py": 'u = "https://api.axiom.co/v1"\n',
+            "build/out.js": 'const u = "https://api.should-be-excluded.com"\n',
+            "cache/c.py": 'u = "https://api.also-excluded.com"\n',
+        },
+    )
+    hosts = ge.scan_code_hosts([repo])
+    # root build/ + cache/ excluded, src/build kept (rg anchors `/` to the cwd — measured)
+    assert set(hosts) == {"api.vendor-x.com", "api.axiom.co"}
+    assert hosts["api.axiom.co"]["projects"] == {"app"}
+
+
+def test_classify_skips_when_another_run_holds_the_lock(tmp_path, monkeypatch):
+    """A manual run racing the daily one must not process the same slice (review pass 2)."""
+    import fcntl
+
+    monkeypatch.setattr(cs, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(cs, "ALL_ENVS", tmp_path / "all-envs.env")
+    (tmp_path / "all-envs.env").write_text(
+        '# ═ NEEDS-TRIAGE ═\n#svc name=foo category=? cost=? capability="?" url=? status=? used_by=-\nFOO_API_KEY=x\n',
+        encoding="utf-8",
+    )
+    with open(tmp_path / "classify.lock", "w", encoding="utf-8") as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        monkeypatch.setattr(
+            cs,
+            "fanout",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("dispatched despite the lock")),
+        )
+        monkeypatch.setattr(sys, "argv", ["classify_services.py"])
+        assert cs.main() == 0
+
+
+def test_host_re_skips_userinfo():
+    """`https://allowed.com@evil.com` names evil.com — userinfo is never the host (G2)."""
+    assert ge.HOST_RE.search("x https://allowed.com@evil.com/p").group(1) == "evil.com"
+    assert ge.HOST_RE.search("https://user:pw@api.vendor.com/v1").group(1) == "api.vendor.com"
+    assert ge.HOST_RE.search("https://api.vendor.com:8443/v1").group(1) == "api.vendor.com"
+
+
+def test_internal_config_name_beats_a_catalog_match_prefix(tmp_path, monkeypatch):
+    """ALLOWED_ORIGINS is internal config even when a tombstone `allowed` carries match ALLOWED (G1b)."""
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "allowed": {
+                    "category": "unidentified",
+                    "cost": "?",
+                    "capability": "?",
+                    "url": "?",
+                    "status": "unidentified",
+                    "match": ["ALLOWED"],
+                }
+            },
+            [("ALLOWED", "allowed")],
+        ),
+    )
+    body, stats = ge.consolidate(_envs(tmp_path, {"api": "ALLOWED_ORIGINS=*\nallowed_origins=*\n"}))
+    internal = body.split("internal-config", 1)[1]
+    assert "#svc name=allowed" not in body
+    assert "ALLOWED_ORIGINS=*" in internal and "allowed_origins=*" in internal  # lowercase too (H3)
+    # an INTERNAL_SUBSTR name (…_TIMEOUT) under a vendor prefix is config, never a credential (H3)
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "anthropic": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "llm",
+                    "url": "https://www.anthropic.com",
+                    "status": "active",
+                    "match": ["ANTHROPIC"],
+                }
+            },
+            [("ANTHROPIC", "anthropic")],
+        ),
+    )
+    (tmp_path / "b").mkdir()
+    body, _ = ge.consolidate(_envs(tmp_path / "b", {"svc": "ANTHROPIC_READ_TIMEOUT=30\n"}))
+    assert "#svc name=anthropic" not in body
+    assert "ANTHROPIC_READ_TIMEOUT=30" in body.split("internal-config", 1)[1]
+
+
+def test_code_only_entries_carry_no_match_prefix():
+    assert cs.code_only_provider({"names": ["CODE_HOST_URL"], "urls": ["https://x.io"]})
+    assert not cs.code_only_provider({"names": ["CODE_HOST_URL", "X_API_KEY"], "urls": []})
+    assert cs.tombstone_entry("allowed", code_only=True)["match"] == []
+    assert cs.tombstone_entry("foo")["match"] == ["FOO"]
+
+
+def test_error_budget_forgets_providers_that_left_the_queue():
+    counts, exhausted = cs.apply_error_budget(set(), ["b"], {"a": 2, "b": 1}, flagged={"b"})
+    assert counts == {} and exhausted == set()  # a left the queue → its count is gone; b ran clean
+
+
+def test_state_reads_are_typed(tmp_path):
+    f = tmp_path / "cursor.json"
+    f.write_text('"apple"', encoding="utf-8")  # a bare string where a dict is expected
+    assert cs._read_json(f, {}) == {}
+    f.write_text("[1, 2]", encoding="utf-8")
+    assert cs._read_json(f, {}) == {}
+    f.write_text('{"after": "x"}', encoding="utf-8")
+    assert cs._read_json(f, {}) == {"after": "x"}
+
+
+def test_leftover_tmp_from_a_crashed_run_is_recreated_0600(tmp_path, monkeypatch):
+    out = tmp_path / "all-envs.env"
+    leftover = tmp_path / "all-envs.env.tmp"
+    leftover.write_text("stale", encoding="utf-8")
+    leftover.chmod(0o644)
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(
+        ge,
+        "project_env_files",
+        lambda: _envs(tmp_path, {"p": "RESEND_API_KEY=re_abcdefghijklmnopqrstuvwxyz123456\n"}),
+    )
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    assert ge.main() == 0
+    assert oct(out.stat().st_mode & 0o777) == "0o600" and not leftover.exists()
+
+
+@needs_rg
+def test_env_derived_unknown_adopts_the_catalogued_vendor_its_host_names(tmp_path, monkeypatch):
+    """RESEND_TOKEN misses the catalog `match`, but the repo calls api.resend.com: the bucket
+    adopts the catalog meta and leaves NEEDS-TRIAGE instead of being re-billed (G8)."""
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "resend": {
+                    "category": "email",
+                    "cost": "freemium",
+                    "capability": "email",
+                    "url": "https://resend.com",
+                    "status": "active",
+                    "match": ["RESEND_API"],
+                }
+            },
+            [("RESEND_API", "resend")],
+        ),
+    )
+    files = _envs(tmp_path, {"web": "RESEND_TOKEN=re_abcdefghijklmnopqrstuvwxyz123456\n"})
+    repo = _repo(tmp_path, "web2", {"m.py": 'u = "https://api.resend.com/emails"\n'})
+    body, _ = ge.consolidate(files, code_dirs=[repo])
+    assert "#svc name=resend category=email" in body and "NEEDS-TRIAGE" not in body
+
+
+def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], results):
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(envs_text, encoding="utf-8")
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    for name, val in (
+        ("CATALOG_PATH", cat),
+        ("ALL_ENVS", envs),
+        ("STATE_DIR", state),
+        ("CURSOR_PATH", state / "c.json"),
+        ("ERRORS_PATH", state / "e.json"),
+        ("LAST_RUN_PATH", state / "l.json"),
+    ):
+        monkeypatch.setattr(cs, name, val)
+    monkeypatch.setattr(
+        cs,
+        "fanout",
+        lambda *a, **k: ([results[0].__class__(results[0].text) for _ in k["units"]], ""),
+    )
+    monkeypatch.setattr(cs, "set_quality", lambda *a, **k: None)
+    monkeypatch.setattr(sys, "argv", ["classify_services.py", *argv])
+    return cat, state
+
+
+class _Res:
+    def __init__(self, text):
+        self.agent_id, self.model, self.error, self.text = "a", "m", None, text
+
+
+def test_identified_code_only_providers_get_no_match_prefix(tmp_path, monkeypatch):
+    """The IDENTIFIED path (not only the tombstone path) writes `match: []` for a code-only
+    provider — nine such entries were minted with prefixes before the guard (H2/H10)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=algolia category=? cost=? capability="?" url=https://www.algolia.com status=? used_by=web\n'
+        "CODE_HOST_URL=https://www.algolia.com   # used by: web\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "algolia",
+                    "category": "search",
+                    "cost": "freemium",
+                    "capability": "search",
+                    "url": "https://www.algolia.com",
+                    "status": "active",
+                }
+            )
+        ),
+        _Res(
+            json.dumps(
+                {
+                    "name": "foo",
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://foo.io",
+                    "status": "active",
+                }
+            )
+        ),
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["algolia"]["match"] == [] and out["foo"]["match"] == ["FOO"]
+
+
+def test_only_run_never_moves_the_shared_cursor(tmp_path, monkeypatch):
+    """`--only …` is the hand-picked escape hatch: it must not overwrite the daily cursor (H15)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(12)
+    )
+    cat, state = _classify_env(
+        tmp_path,
+        monkeypatch,
+        text,
+        ["--apply", "--only", ",".join(f"p{i:02d}" for i in range(11))],
+        [_Res("not json") for _ in range(11)],
+    )
+    (state / "c.json").write_text('{"after": "zzz"}', encoding="utf-8")
+    assert cs.main() == 0
+    assert json.loads((state / "c.json").read_text(encoding="utf-8")) == {"after": "zzz"}

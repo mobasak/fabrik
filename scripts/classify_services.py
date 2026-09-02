@@ -15,6 +15,7 @@ non-secret URL values — never a secret value leaves the box. Flywheel-recorded
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -100,7 +101,80 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
     return proposals, errored
 
 
-def tombstone_entry(prov: str) -> dict:
+STATE_DIR = REPO / ".tmp" / "external-services"
+CURSOR_PATH = STATE_DIR / "classify_cursor.json"  # {"after": "<last provider classified>"}
+ERRORS_PATH = STATE_DIR / "classify_errors.json"  # {"<provider>": consecutive_error_runs}
+LAST_RUN_PATH = (
+    STATE_DIR / "classify_last.json"
+)  # {"identified": [...], "tombstoned": [...], "errored": [...]}
+ERROR_BUDGET = 3  # consecutive transport-error runs before a provider is tombstoned anyway
+
+
+def bound_flagged(
+    provs: dict[str, dict], max_per_run: int, after: str | None = None
+) -> tuple[dict[str, dict], int, str | None]:
+    """Keep `max_per_run` providers per run; return (kept, deferred_count, new_cursor).
+    0 = unlimited (cursor None).
+
+    The window walks the SORTED queue from the persisted cursor (`after` = the last name
+    processed last run), wrapping at the end. A date-keyed offset was tried first and refuted in
+    review: `(day × k) % N` with N changing daily lands on unrelated positions, so providers were
+    skipped or double-billed. A cursor walks forward regardless of churn — every provider that
+    stays flagged is reached within ceil(N / max_per_run) runs, and a permanently-erroring one is
+    re-tried once per lap, never daily (its lap ends when ERROR_BUDGET tombstones it)."""
+    if not max_per_run or len(provs) <= max_per_run:
+        return provs, 0, None
+    names = sorted(provs)
+    start = 0
+    if after is not None:
+        start = sum(1 for n in names if n <= after) % len(names)
+    keep = (names + names)[start : start + max_per_run]
+    return {p: provs[p] for p in keep}, len(names) - len(keep), keep[-1]
+
+
+def _read_json(path: Path, default):
+    """State files are scratch (.tmp/): a missing, corrupt or wrong-SHAPED file is the default,
+    never a crash that takes the chain down (review 2026-09-02, pass 2)."""
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+    return obj if isinstance(obj, type(default)) else default
+
+
+def _write_json(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(obj, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def apply_error_budget(
+    errored: set[str],
+    names: list[str],
+    counts: dict[str, int],
+    budget: int = ERROR_BUDGET,
+    flagged: set[str] | None = None,
+) -> tuple[dict[str, int], set[str]]:
+    """Consecutive transport-error runs per provider. A provider that errors `budget` runs in a
+    row is returned in `exhausted` (→ tombstoned like an unidentifiable one); a run that does NOT
+    error resets its count. Closes the retired orchestrator's seen-set gap: without it a
+    permanently-erroring provider was re-billed on every lap forever (review 2026-09-02)."""
+    new = dict(counts)
+    for n in names:
+        new[n] = new.get(n, 0) + 1 if n in errored else 0
+    keep = set(names) if flagged is None else flagged | set(names)
+    new = {k: v for k, v in new.items() if v > 0 and k in keep}  # a provider that left resets
+    return new, {n for n in errored if new.get(n, 0) >= budget}
+
+
+def code_only_provider(info: dict) -> bool:
+    """True when the flagged provider's only 'key' is the synthetic CODE_HOST_URL line."""
+    names = [n for n in info.get("names", []) if n != "CODE_HOST_URL"]
+    return not names and bool(info.get("names"))
+
+
+def tombstone_entry(prov: str, code_only: bool = False) -> dict:
     """A catalog stub for a provider the WEB genuinely could not identify.
 
     The `category` is a NON-"?" value ("unidentified") on purpose: gather_envs buckets the
@@ -114,16 +188,23 @@ def tombstone_entry(prov: str) -> dict:
         "capability": "web could not classify; add a real entry or remove the key",
         "url": "?",
         "status": "unidentified",
-        "match": [prov.upper()],
+        "match": [] if code_only else [prov.upper()],
     }
 
 
 def unit_prompt(prov: str, info: dict) -> str:
     hints = ("\nKnown endpoint(s): " + ", ".join(sorted(set(info["urls"])))) if info["urls"] else ""
-    return (
-        "Identify the external SaaS/API service behind these environment variable NAMES "
+    env_names = [n for n in info["names"] if n != "CODE_HOST_URL"]
+    lead = (
+        "Identify the external service reached at these endpoint(s), found as call sites in "
+        "source code (no credential exists for it in the fleet)."
+        if not env_names
+        else "Identify the external SaaS/API service behind these environment variable NAMES "
         "(you are given names + public endpoints only, never secret values).\n"
-        f"Env vars: {', '.join(info['names'])}{hints}\n\n"
+        f"Env vars: {', '.join(env_names)}"
+    )
+    return (
+        f"{lead}{hints}\n\n"
         "Search the web to confirm the vendor, what it does, and its pricing tier. "
         "Return ONLY a single-line JSON object and nothing else:\n"
         f'{{"name":"<lowercase-slug>","category":"<one of: {CATEGORIES}>",'
@@ -162,6 +243,14 @@ def main() -> int:
         "re-classified (re-billed) on every run. For the daily/automated path; a manual run omits "
         "it to retry unknowns. Providers that only ERRORED (transport/no-key) are never tombstoned.",
     )
+    ap.add_argument(
+        "--max-per-run",
+        type=int,
+        default=10,
+        help="classify at most N flagged providers per run (sorted, so the queue drains "
+        "deterministically day by day); 0 = unlimited. Bounds the paid pool spend of the "
+        "daily path — the code-host scan can enqueue hundreds of hosts at once.",
+    )
     args = ap.parse_args()
 
     if not ALL_ENVS.exists():
@@ -175,6 +264,24 @@ def main() -> int:
     if not provs:
         print("No category=? providers to classify — nothing to do.")
         return 0
+    # One classify at a time: the cursor is a read-modify-write, and a manual run racing the
+    # daily one would process the same slice twice (double-billed) and lose one cursor update
+    # (review 2026-09-02, pass 2). Non-blocking — the loser skips cleanly, exit 0.
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_fh = open(STATE_DIR / "classify.lock", "w", encoding="utf-8")  # noqa: SIM115 - held for the run
+    try:
+        fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("another classify_services run holds the lock — skipping (no double-billing)")
+        return 0
+    cursor = _read_json(CURSOR_PATH, {}).get("after")
+    all_flagged = set(provs)
+    provs, deferred, new_cursor = bound_flagged(provs, args.max_per_run, after=cursor)
+    if deferred:
+        print(
+            f"bounded run: {len(provs) + deferred} flagged → classifying {len(provs)} now "
+            f"(after {cursor!r}), {deferred} deferred to the next run"
+        )
 
     names = list(provs)
     print(f"Classifying {len(names)} uncatalogued providers via the pool: {', '.join(names)}\n")
@@ -228,9 +335,23 @@ def main() -> int:
             "capability": str(v.get("capability", "?"))[:70],
             "url": v.get("url", "?"),
             "status": v.get("status", "active"),
-            "match": [root],
+            # a provider seen ONLY as a code call site has no env key behind it: a bare-word
+            # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
+            "match": [] if code_only_provider(provs.get(prov, {})) else [root],
         }
+    err_counts, exhausted = apply_error_budget(
+        errored, names, _read_json(ERRORS_PATH, {}), flagged=all_flagged
+    )
+    if exhausted:
+        verb = (
+            "tombstoning"
+            if args.tombstone_unresolved
+            else "eligible for tombstone (--tombstone-unresolved not set)"
+        )
+        print(f"error budget exhausted ({ERROR_BUDGET} runs): {verb} {sorted(exhausted)}")
+        errored = errored - exhausted
     tombstoned = 0
+    tombstoned_names: list[str] = []
     if args.tombstone_unresolved:
         # Persist a stub for a provider the WEB genuinely could not identify (not one that
         # merely errored — C4) so it drops out of NEEDS-TRIAGE and the daily path stops
@@ -241,11 +362,35 @@ def main() -> int:
         for prov in names:
             if prov in identified or prov in catalog or prov in errored:
                 continue
-            catalog[prov] = tombstone_entry(prov)
+            catalog[prov] = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
             tombstoned += 1
+            tombstoned_names.append(prov)
     tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
     tmp.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, CATALOG_PATH)
+    _write_json(ERRORS_PATH, err_counts)
+    if new_cursor is not None and not args.only:  # a hand-picked --only run never moves the queue
+        _write_json(CURSOR_PATH, {"after": new_cursor})
+    _write_json(
+        LAST_RUN_PATH,
+        {
+            "identified": sorted(identified),
+            "tombstoned": sorted(tombstoned_names),
+            "errored": sorted(errored),
+        },
+    )
+    if identified:  # the retired orchestrator's "new providers" alert, kept (best-effort)
+        try:
+            sys.path.insert(0, str(REPO / "libs"))
+            from alerting import send_alert  # noqa: PLC0415 - optional, box-local
+
+            send_alert(
+                "service-registry: new providers",
+                f"classified {len(identified)}: {', '.join(sorted(identified))}",
+                "info",
+            )
+        except Exception as exc:  # noqa: BLE001 - alerting is best-effort
+            print(f"  (alert skipped: {exc})", file=sys.stderr)
     print(
         f"\nWrote {len(identified)} identified"
         + (f" + {tombstoned} unidentified-stub" if tombstoned else "")

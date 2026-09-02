@@ -24,6 +24,18 @@ the `#svc` lines + key NAMES — never a value — so the inventory it renders h
 Dedup: within a provider, secrets are deduped BY VALUE (same credential under different
 names collapses to one line, aliases noted; distinct values are always kept separate).
 
+SECOND INPUT — code call sites (2026-09-02): env keys are a PROXY for "the fleet uses vendor X",
+and the proxy leaks — a vendor reached with no key (a public API, a scrape target, an SDK whose
+token is named unusually) never appears in any .env. So every git repo under /opt/ is also
+scanned (ripgrep, source files only) for `https://<host>` literals; each host is attributed to
+the catalog provider whose `url` shares its registrable domain (or whose `match` prefix equals
+it), adding the referencing repos to `used_by`; a host that matches no provider lands in the
+same NEEDS-TRIAGE block as an unknown key, as `CODE_HOST_URL=https://<host>`, so the classifier
+grounds it exactly like an unknown key. Own domains, placeholders (example/test/evil), and
+reference-only hosts (docs, package registries, schemas, CDNs — unless `api.`-prefixed) are
+ignored; measured 2026-09-02 before this input: 239 of 495 code-referenced hosts were in neither
+the registry nor the fleet index.
+
 Output: /opt/fabrik/secrets/all-envs.env (chmod 600, gitignored).
 Idempotent: rewrites only when the body changes (volatile header excluded from compare).
 
@@ -38,10 +50,12 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 OPT = Path("/opt")
 OUTPUT = Path("/opt/fabrik/secrets/all-envs.env")
@@ -190,6 +204,352 @@ INTERNAL_PREFIX = (
 SERVICE_SHAPE_RE = re.compile(r"_(API_KEY|API_TOKEN|API_URL|API_BASE|BASE_URL|APIKEY)S?$", re.I)
 
 
+# ── code call-site scan: the second input (hosts reached WITHOUT an env key) ─────────────────
+# optional userinfo (`user:pw@`) is skipped — `https://allowed.com@evil.com` names evil.com, not
+# allowed.com (review 2026-09-02, pass 2: a comment cost a paid classify unit and a bogus tombstone)
+HOST_RE = re.compile(r"https?://(?:[^/\s@]+@)?([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
+CODE_TYPES = (
+    "py",
+    "ts",
+    "js",
+    "sh",
+    "yaml",
+    "docker",
+)  # rg types (ts ⊃ tsx, js ⊃ mjs/cjs, docker = Dockerfile*)
+CODE_EXCLUDE_GLOBS = (
+    "!node_modules",
+    "!.venv",
+    "!venv",
+    "!.git",
+    "!dist",
+    "!.next",
+    "!__pycache__",
+    "!.mypy_cache",
+    "!.ruff_cache",
+    "!htmlcov",
+    "!coverage",
+    "!.tmp",
+    "!secrets",
+    "!backups",
+    "!archived",
+    "!docs",
+    "!tests",
+    "!test",
+    "!__tests__",
+    "!__mocks__",
+    "!mocks",
+    "!fixtures",
+    "!e2e",
+    "!cypress",
+    "!test_*",
+    "!*_test.*",
+    "!*.test.*",
+    "!*.spec.*",
+    "!*.min.*",
+    "!*.lock",
+    "!*.d.ts",
+    # a repo's OWN `build/` or `cache/` SOURCE dir must survive — these two are root-only.
+    # rg anchors a leading `/` to the CWD, not to each search root (measured 2026-09-02: from
+    # /opt/fabrik with roots /opt/<repo>, `!/build` excluded nothing) — so the scan runs with
+    # cwd=/opt and RELATIVE repo names, and `/*/build` means `<repo>/build` exactly.
+    "!/*/build",
+    "!/*/cache",
+)
+# Hosts that are never an external SYSTEM: the fleet's own domains + local/test TLDs.
+OWN_HOST_SUFFIXES = (
+    ".ocoron.com",
+    ".ozgurbasak.com",
+    "localhost",
+    ".local",
+    ".localhost",
+    ".test",
+    ".example",
+    ".invalid",
+    ".internal",
+    ".lan",
+    ".home.arpa",
+)
+# Registrable-domain labels that are placeholders in code/fixtures, not vendors.
+PLACEHOLDER_SLD = frozenset(
+    {
+        "example",
+        "a",
+        "b",
+        "c",
+        "x",
+        "company",
+        "yourdomain",
+        "your-domain",
+        "yourcompany",
+        "testsite",
+        "mysite",
+        "myapp",
+        "yourapp",
+        "acme",
+        "foo",
+        "bar",
+        "baz",
+        "test",
+        "placeholder",
+        "domain",
+        "site",
+        "evil",
+        "attacker",
+        "malicious",
+        "changeme",
+        "todo",
+    }
+)
+# Reference-only domains: cited in comments/links, never CALLED — package registries, schema
+# hosts, standards bodies, CDNs, Q&A sites, front-end libraries. NEVER a vendor's own domain:
+# `graph.microsoft.com` and `registry-1.docker.io` are call sites (review 2026-09-02 — `microsoft`,
+# `docker`, `sentry`, `grafana` sat here and silently dropped real fleet dependencies). A vendor's
+# DOCUMENTATION subdomain is ignored by prefix instead (DOC_HOST_PREFIXES); `api.*` always survives.
+REFERENCE_ONLY_SLD = frozenset(
+    {
+        "w3",
+        "schema",
+        "json-schema",
+        "schemastore",
+        "iana",
+        "ietf",
+        "rfc-editor",
+        "python",
+        "nodejs",
+        "npmjs",
+        "pypi",
+        "readthedocs",
+        "mozilla",
+        "stackoverflow",
+        "wikipedia",
+        "wikimedia",
+        "github",
+        "githubusercontent",
+        "gitlab",
+        "jsdelivr",
+        "unpkg",
+        "cdnjs",
+        "gstatic",
+        "apache",
+        "gnu",
+        "opensource",
+        "creativecommons",
+        "xmlsoap",
+        "purl",
+        "ogp",
+        "shields",
+        "badgen",
+        "openapis",
+        "swagger",
+        "sitemaps",
+        "unicode",
+        "whatwg",
+        "oasis-open",
+        "typescriptlang",
+        "reactjs",
+        "nextjs",
+        "vitejs",
+        "tailwindcss",
+        "fontawesome",
+        "googlefonts",
+        "react",
+        "prisma",
+        "eslint",
+        "pytorch",
+        "lucide",
+        "radix-ui",
+        "remixicon",
+        "phosphoricons",
+        "openfontlicense",
+        "openxmlformats",
+        "designtokens",
+        "nodesource",
+        "httpstatuses",
+        "ycombinator",
+        "mankier",
+        "labnol",
+        "kubernetes",
+        "postgresql",
+        "nginx",
+        "sqlite",
+    }
+)
+DOC_HOST_PREFIXES = (
+    "docs.",
+    "doc.",
+    "learn.",
+    "developer.",
+    "developers.",
+    "help.",
+    "support.",
+    "blog.",
+    "wiki.",
+    "community.",
+    "forum.",
+    "changelog.",
+)
+_CC_SECOND_LEVEL = frozenset({"co", "com", "org", "net", "gov", "edu", "ac", "or", "ne", "go"})
+# Multi-service platform domains: the registrable label names a CLOUD, not a vendor product —
+# `email.us-east-1.amazonaws.com` is SES, `truststore.pki.rds.amazonaws.com` is RDS; `gmail.
+# googleapis.com` is Gmail, `generativelanguage.googleapis.com` is Gemini. Attributing them
+# by registrable label mis-credited an RDS truststore fetch to `aws-ses` (measured 2026-09-02).
+PLATFORM_SLD = frozenset({"amazonaws", "googleapis", "azure", "windows", "cloudfront"})
+
+
+def host_sld(host: str) -> str:
+    """Registrable label of a host: api.posthog.com → posthog; foo.co.uk → foo."""
+    parts = host.lower().rstrip(".").split(".")
+    if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in _CC_SECOND_LEVEL:
+        return parts[-3]
+    return parts[-2] if len(parts) >= 2 else parts[0]
+
+
+def ignored_host(host: str) -> bool:
+    h = host.lower().rstrip(".")
+    tld = h.rsplit(".", 1)[-1]
+    if not tld.isalpha() or len(tld) < 2:  # IPs, ports-in-host, junk
+        return True
+    if any(h == suf.lstrip(".") or h.endswith(suf) for suf in OWN_HOST_SUFFIXES):
+        return True
+    sld = host_sld(h)
+    if (
+        len(sld) < 2 or len(sld) > 40
+    ):  # one-letter labels are fixtures; `qq.com`/`hp.com` are vendors
+        return True
+    if sld in PLACEHOLDER_SLD:
+        return True
+    if h.startswith("api."):
+        return False
+    if h.startswith(DOC_HOST_PREFIXES):
+        return True
+    return sld in REFERENCE_ONLY_SLD
+
+
+def project_dirs() -> list[Path]:
+    """Every git repo under /opt (not only the ones with a .env — keyless repos are the point)."""
+    out = []
+    for d in sorted(OPT.iterdir()):
+        if not d.is_dir() or d.name.startswith("_") or d.name == "archived":
+            continue
+        if (d / ".git").exists():
+            out.append(d)
+    return out
+
+
+class CodeScanError(RuntimeError):
+    """ripgrep could not run — the caller must NOT write a consolidation missing every code host
+    (yesterday's complete file beats today's truncated one; a silent drop would feed a ~200-provider
+    delete into registry_sync's prune guard and only THEN surface, as a refusal)."""
+
+
+def scan_code_hosts(dirs: list[Path]) -> dict[str, dict[str, set[str]]]:
+    """host -> {"projects": {repo names}, "files": {paths}} for every external host literal in
+    source under `dirs`. One ripgrep over all repos. Raises CodeScanError when rg cannot run
+    (missing binary, timeout, exit 2) — fail-CLOSED, never a silent empty result."""
+    if not dirs:
+        return {}
+    cmd = [
+        "rg",
+        "-oNH",
+        "--no-heading",
+        "--color",
+        "never",
+        "--max-filesize",
+        "1M",
+    ]
+    for t in CODE_TYPES:
+        cmd += ["-t", t]
+    for g in CODE_EXCLUDE_GLOBS:
+        cmd += ["-g", g]
+    cmd += [HOST_RE.pattern, *[d.name for d in dirs]]  # relative to OPT — see the glob note above
+    try:
+        cp = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=600, check=False, cwd=str(OPT)
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CodeScanError(f"code-host scan could not run: {exc}") from exc
+    if cp.returncode not in (0, 1):  # rg: 0 = matches, 1 = no matches, 2 = an error occurred
+        err = cp.stderr.strip()[:600]
+        if not cp.stdout.strip():
+            raise CodeScanError(f"ripgrep exited {cp.returncode} with no matches: {err}")
+        # Matches came back alongside an error (one unreadable dir): a PARTIAL scan beats
+        # aborting all 45 repos — say so, loudly, with rg's own text naming the path.
+        print(f"WARNING: code-host scan partial (rg exit {cp.returncode}): {err}", file=sys.stderr)
+    hosts: dict[str, dict[str, set[str]]] = {}
+    for line in cp.stdout.splitlines():
+        cut = line.find(":http")
+        if cut < 0:
+            continue
+        path, match = line[:cut], line[cut + 1 :]
+        m = HOST_RE.search(match)
+        if not m:
+            continue
+        host = m.group(1).lower().rstrip(".")
+        if ignored_host(host):
+            continue
+        parts = Path(path).parts  # `<repo>/…` because rg ran with cwd=OPT and relative roots
+        if not parts:
+            continue
+        project = parts[0]
+        rec = hosts.setdefault(host, {"projects": set(), "files": set()})
+        rec["projects"].add(project)
+        rec["files"].add(str(OPT / path))
+    return hosts
+
+
+def catalog_url_index(catalog: dict) -> dict[str, str]:
+    """Two-level index from each catalog entry's url: exact hostname -> provider, plus
+    `*.<registrable-domain>` -> provider ONLY where exactly one vendor owns that domain. A label
+    shared by several entries (`backrest`'s url is a github.com repo link; safe-browsing, youtube
+    and gemini all sit under google.com) is AMBIGUOUS and is dropped rather than resolved by
+    JSON key order (review 2026-09-02)."""
+    hosts: dict[str, set[str]] = {}
+    owners: dict[str, set[str]] = {}
+    for provider, meta in catalog.items():
+        url = str(meta.get("url") or "")
+        host = urlsplit(url).hostname if url.startswith("http") else None
+        if not host:
+            continue
+        hosts.setdefault(host.lower(), set()).add(provider)
+        owners.setdefault(host_sld(host), set()).add(provider)
+    idx: dict[str, str] = {}
+    for host, provs in hosts.items():
+        if len(provs) == 1:  # a hostname two entries share (a repo link) names neither
+            idx[host] = next(iter(provs))
+    for sld, provs in owners.items():
+        if len(provs) == 1:
+            idx.setdefault(f"*.{sld}", next(iter(provs)))
+    return idx
+
+
+def host_label(host: str) -> str:
+    """The name a host contributes to the triage queue: its registrable label, or for a
+    multi-service platform domain the SERVICE label too (`gmail.googleapis`, `email.amazonaws`)."""
+    sld = host_sld(host)
+    if sld in PLATFORM_SLD:
+        first = host.lower().split(".")[0]
+        return f"{first}.{sld}" if first != sld else sld
+    return sld
+
+
+def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], matchers) -> str | None:
+    h = host.lower()
+    sld = host_sld(h)
+    if sld in PLATFORM_SLD:  # never credit a whole cloud to one catalog vendor …
+        label = host_label(h)
+        if label in catalog:  # … but a platform SERVICE the classifier already named/tombstoned
+            return label  # keeps its entry, or it is re-billed on every cycle (review 2026-09-02)
+        first = h.split(".")[0]
+        return match_provider(f"{first.upper().replace('-', '_')}_API_KEY", matchers)
+    if h in url_index:  # exact hostname
+        return url_index[h]
+    if f"*.{sld}" in url_index:  # unambiguous registrable domain
+        return url_index[f"*.{sld}"]
+    if sld in catalog:
+        return sld
+    return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
+
+
 def is_secret(key: str, value: str) -> bool:
     """Secret-like if the NAME looks like a credential or the VALUE is long+high-entropy."""
     if SECRET_KEY_RE.search(key):
@@ -326,8 +686,11 @@ def cat_header(label: str) -> str:
     return f"# {pad} {label} {pad}"
 
 
-def consolidate(files: list[Path]) -> tuple[str, dict]:
-    """Build the category-grouped, #svc-annotated body + summary stats."""
+def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple[str, dict]:
+    """Build the category-grouped, #svc-annotated body + summary stats.
+
+    `code_dirs` (repos to scan for `https://<host>` call sites) is the second input; None skips
+    the scan (the env-key-only behaviour every pre-2026-09-02 test pins)."""
     catalog, matchers = load_catalog()
 
     # provider -> {"meta":..., "values": value -> {"names":set, "projects":set}}
@@ -356,7 +719,10 @@ def consolidate(files: list[Path]) -> tuple[str, dict]:
             if value == "":
                 skipped_empty += 1
                 continue
-            provider = match_provider(key, matchers)
+            # an explicit internal-config name (ALLOWED_ORIGINS, PORT, …) is never a service, even
+            # when a catalog `match` prefix happens to cover it (review 2026-09-02, pass 2: a
+            # code-host tombstone `allowed` with match ALLOWED swallowed a CORS setting)
+            provider = None if is_internal_config(key) else match_provider(key, matchers)
             if provider:
                 meta = catalog[provider]
                 dedupe = is_secret(key, value) and credential_grade(value)
@@ -380,6 +746,34 @@ def consolidate(files: list[Path]) -> tuple[str, dict]:
                 rec["projects"].add(project)
             else:
                 internal[(key, value)].add(project)
+
+    # ---- second input: code call sites → attribute to a provider, or flag for triage ----
+    code_hosts = scan_code_hosts(code_dirs) if code_dirs else {}
+    url_index = catalog_url_index(catalog)
+    code_only: set[str] = set()
+    for host in sorted(code_hosts):
+        provider = provider_for_host(host, catalog, url_index, matchers)
+        if provider:
+            name, meta = provider, catalog[provider]
+        else:
+            name = host_label(host)
+            meta = {
+                "category": "?",
+                "cost": "?",
+                "capability": "?",
+                "url": f"https://{host}",
+                "status": "?",
+            }
+        if name not in services:
+            code_only.add(name)
+        elif services[name]["meta"].get("category", "?") == "?":
+            if provider:  # an env-derived `?` bucket whose host names a CATALOGUED vendor adopts it
+                services[name]["meta"] = dict(meta)  # … and leaves NEEDS-TRIAGE (pass 2, G8)
+            elif services[name]["meta"].get("url", "?") == "?":
+                services[name]["meta"]["url"] = f"https://{host}"  # `?` header gains the host
+        rec = svc_bucket(name, meta)[f"CODE_HOST_URL\x00https://{host}"]
+        rec["names"].add("CODE_HOST_URL")
+        rec["projects"] |= code_hosts[host]["projects"]
 
     # ---- render ----
     lines: list[str] = []
@@ -434,6 +828,8 @@ def consolidate(files: list[Path]) -> tuple[str, dict]:
         "catalogued": catalogued,
         "flagged": len(services) - catalogued,
         "internal_lines": len(internal),
+        "code_hosts": len(code_hosts),
+        "code_only": len(code_only),
     }
     return "\n".join(lines), stats
 
@@ -461,14 +857,19 @@ def main() -> int:
         print("No project .env files found under /opt/*/.env", file=sys.stderr)
         return 1
 
-    body, stats = consolidate(files)
+    try:
+        body, stats = consolidate(files, code_dirs=project_dirs())
+    except CodeScanError as exc:
+        print(f"ERROR: {exc} — nothing written; the previous consolidation stands", file=sys.stderr)
+        return 1
     header = (
         "# AUTO-GENERATED by scripts/gather_envs.py - DO NOT EDIT BY HAND\n"
         "# Service metadata is sourced from scripts/service_catalog.json (edit THERE).\n"
         f"# Generated: {datetime.now(UTC).isoformat(timespec='seconds')}\n"
         f"# {stats['projects']} projects | {stats['services']} services "
         f"({stats['catalogued']} catalogued, {stats['flagged']} need triage) | "
-        f"{stats['internal_lines']} internal-config vars\n#\n"
+        f"{stats['internal_lines']} internal-config vars | "
+        f"{stats['code_hosts']} code-referenced hosts ({stats['code_only']} providers seen ONLY in code)\n#\n"
     )
     content = header + body + "\n"
 
@@ -476,7 +877,8 @@ def main() -> int:
         f"{stats['projects']} projects | {stats['total_lines']} env lines "
         f"({stats['skipped_empty']} empty skipped) -> {stats['services']} services "
         f"({stats['catalogued']} catalogued, {stats['flagged']} NEED TRIAGE), "
-        f"{stats['internal_lines']} internal-config"
+        f"{stats['internal_lines']} internal-config, "
+        f"{stats['code_hosts']} code hosts ({stats['code_only']} code-only providers)"
     )
 
     if not args.apply:
@@ -490,7 +892,12 @@ def main() -> int:
         return 0
 
     tmp = OUTPUT.with_name(OUTPUT.name + ".tmp")
-    tmp.write_text(content, encoding="utf-8")
+    # mode 0600 from the first byte — write-then-chmod leaves a world-readable window with every
+    # fleet credential on disk (review 2026-09-02)
+    tmp.unlink(missing_ok=True)  # O_CREAT keeps an EXISTING file's mode — a crashed run's leftover
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(content)
     os.chmod(tmp, 0o600)
     os.replace(tmp, OUTPUT)
     print("wrote", OUTPUT, "|", summary)

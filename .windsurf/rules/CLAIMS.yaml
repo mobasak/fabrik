@@ -21,6 +21,8 @@
 # and rationales · 365 stable standards/deprecations.
 
 claims:
+# pack: may name a reference DOC (docs/reference/apis/EXTERNAL_SYSTEMS.md) when the claim lives in the
+# fleet index rather than a rule pack — the watcher keys on last_verified/window_days only (2026-09-02).
   - id: py-current-stable
     pack: core/10-python.md
     claim: "Python current stable is 3.14 (packs pin python:3.14)"
@@ -875,7 +877,7 @@ claims:
   - id: linkedin-scrape-tos-prohibited-999
     pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
     claim: "LinkedIn: robots.txt header prohibits automated access without express permission; User Agreement §8.2 bans scraping/bots; hiQ v. LinkedIn ended 2022-12-08 in a consent judgment + permanent injunction against hiQ (contract claim won, not CFAA) — scraping is ToS-enforced; bot detection answers HTTP 999 / authwall with no Retry-After; official API = daily app+member quotas, 60-day access tokens, Linkedin-Version YYYYMM header with ≥1-year support"
-    kind: legal
+    kind: standard
     verify: "https://www.linkedin.com/robots.txt + https://www.linkedin.com/legal/user-agreement + https://learn.microsoft.com/en-us/linkedin/shared/api-guide/concepts/rate-limits + /linkedin/marketing/versioning"
     window_days: 180
     last_verified: 2026-09-02
