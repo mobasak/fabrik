@@ -75,6 +75,15 @@ strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted 
 
 ## VPS path (deploy = hub-side `fabrik apply`)
 
+**⚠️ Precondition — the parity contract is FROZEN.** Read `scripts/verify_prod_parity.py --header` (the
+`Status · Version · Mode` block the scaffolder seeds and `/fabrik-deploy-checklist` freezes) — read it, do
+not assume it. Absent, unparseable or `DRAFT` ⇒ **`BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist`**
+and stop: a release whose verify run can only reach `UNVERIFIED` is not READY. A `FROZEN` contract whose
+`Version` predates a change to the compose services, the scheduler, the `os.getenv` set or the migration
+head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps
+it). Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding — no
+executable check grades this header today (a deliberate, recorded deferral in `docs/STRATEGIC_BACKLOG.md`).
+
 1. Spec/shape honest: read `specs/services/<id>.yaml` `shape:` and verify each flag against the code (DB call ⇒
    `needs_database`, `/metrics` ⇒ `exposes_metrics`, …) — a lying shape is a silently broken deploy.
 2. Compose sane (if the project carries one): every service has `deploy.resources.limits.memory`; no host

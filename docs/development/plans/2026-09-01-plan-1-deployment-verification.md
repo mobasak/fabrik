@@ -111,7 +111,7 @@ anti-cheat is measured on the artifact; downstream consumers pin the Version and
 stale pin. The parity contract is a **script**, per spec Q3 — so the header lives in a machine-readable
 comment block the runner parses, and the FREEZE CHECKLIST is the script's own `--self-check` mode.
 
-## Phase A — `/fabrik-deploy-verify` rewrite (the runner)
+## Phase A — `/fabrik-deploy-verify` rewrite (the runner) — ✅ EXECUTED 2026-09-02
 
 **Keep the verify-command anatomy intact** — the rewrite ADDS layers, it does not re-shape the command:
 "Where this runs" (`:13-19`), the run record + grounding include (`:21-22`), the token-family termination
@@ -209,7 +209,7 @@ fail is a defect."*
 **Evidence owed:** the 10 registrar names re-derived from `infrastructure.py` in-run; a `--check` render
 showing no pruning; the verdict test's red run pasted.
 
-## Phase B — `/fabrik-deploy-checklist`, the new authoring command (built to the anatomy)
+## Phase B — `/fabrik-deploy-checklist`, the new authoring command (built to the anatomy) — ✅ EXECUTED 2026-09-02 (landed with Phase A in one commit — predicate 2)
 
 ⚠️ **EXECUTION ORDER IS C → A → B → D, and B's registration lands in ONE commit** — proven by running
 `check_command_corpus.audit()` over a scratch copy carrying the new source: it returned exactly four

@@ -19,7 +19,8 @@ LIVENESS row (reachability, no declared value) carries NONE of the comparison ke
 imported lazily so a project that skips Layers 2–4 never loads it; a missing vendored copy is itself
 reported as an `UNVERIFIABLE` row (exit 2), never a traceback.
 
-Flags: `--json` (print the row list) · `--self-check` (the FREEZE CHECKLIST: header parses, every row
+Flags: `--json` (print the row list) · `--verdict` (the verdict algebra EXECUTED over the rows: the
+`PARITY:` and `VERDICT:` lines the runner copies, exit 0/1/2) · `--self-check` (the FREEZE CHECKLIST: header parses, every row
 returns the shape, every UNVERIFIABLE carries a why, the exclusion list names a ruling) · `--header`
 (print the parsed header as JSON). Read-only against the target by contract: a row that would mutate
 the deployed service is written `UNVERIFIABLE (mutating — needs a scoped payload + the operator's go)`.
@@ -144,6 +145,67 @@ def self_check() -> list[str]:
     return misses
 
 
+_COMPARISON_KEYS = (
+    "expected",
+    "actual",
+    "match",
+)  # the vendored CLI's own disjunction (health_probe.py:552)
+
+
+def is_parity_row(row: dict[str, Any]) -> bool:
+    """A row carrying ANY comparison key is a comparison row — a disjunction on purpose: a hand-built
+    row carrying only `match` was invisible to an `expected AND actual` test and exited 0 (fabrik-lib)."""
+    return any(k in row for k in _COMPARISON_KEYS)
+
+
+def verdict(
+    rows: list[dict[str, Any]],
+    hdr: dict[str, str],
+    *,
+    not_obligated: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
+    """The verdict algebra (spec § Verdict algebra, Amendments 2+3), EXECUTED:
+
+    - no FROZEN contract ⇒ `UNVERIFIED` (terminal, never CONFIRMED);
+    - a parity row is any row carrying a comparison key; `match is True` = numerator; `False` = denies
+      CONFIRMED; `None` on a parity row = ATTEMPTED-BUT-UNRESOLVED = fail closed (denies CONFIRMED);
+      a row carrying none of the keys is a liveness row, outside the parity denominator;
+    - `not obligated` (a `shape:` flag) removes a row from the denominator — the ONLY thing that does;
+    - exit precedence: 1 (a critical DOWN) over 2 (disagrees or unresolved) over 0 — liveness wins,
+      and precedence never upgrades a verdict.
+    """
+    if hdr.get("status") != "FROZEN":
+        return {"verdict": "UNVERIFIED", "exit": 2, "reasons": ["no FROZEN contract"], "parity": {}}
+    parity = [r for r in rows if is_parity_row(r) and str(r.get("system")) not in not_obligated]
+    agree = sum(1 for r in parity if r.get("match") is True)
+    disagree = sum(1 for r in parity if r.get("match") is False)
+    unresolved = sum(1 for r in parity if r.get("match") is None)
+    unverifiable = sum(1 for r in parity if str(r.get("detail", "")).startswith("UNVERIFIABLE"))
+    down = [str(r.get("system")) for r in rows if r.get("status") == "DOWN"]
+    reasons: list[str] = []
+    if down:
+        reasons.append(f"DOWN: {', '.join(down)}")
+    if disagree:
+        reasons.append(f"{disagree} disagree")
+    if unresolved:
+        reasons.append(f"{unresolved} attempted-unresolved (fail closed)")
+    code = 1 if down else (2 if (disagree or unresolved) else 0)
+    v = "CONFIRMED" if not reasons else "VERIFICATION FAILED"
+    return {
+        "verdict": v,
+        "exit": code,
+        "reasons": reasons,
+        "parity": {
+            "agree": agree,
+            "disagree": disagree,
+            "unresolved": unresolved,
+            "unverifiable": unverifiable,
+            "denominator": len(parity),
+            "not_obligated": len(not_obligated),
+        },
+    }
+
+
 def _exit_code(rows: list[dict[str, Any]], hdr: dict[str, str]) -> int:
     """LIVENESS WINS, then the comparison verdict, then 0 — and a DRAFT header is never 0."""
     if any(r.get("status") == "DOWN" for r in rows):
@@ -160,6 +222,20 @@ def main(argv: list[str] | None = None) -> int:
     if "--header" in args:
         print(json.dumps(hdr))
         return 0
+    if "--verdict" in args:
+        rows = run_rows()
+        v = verdict(rows, hdr)
+        p = v["parity"]
+        if p:
+            print(
+                f"PARITY: {p['agree']} agree / {p['disagree']} disagree / {p['unresolved']} unresolved"
+                f" / {p['unverifiable']} UNVERIFIABLE of {p['denominator']} (contract {hdr.get('version')},"
+                f" Mode {hdr.get('mode')}, {p['not_obligated']} not obligated)"
+            )
+        print(
+            f"VERDICT: {v['verdict']}" + (f" — {'; '.join(v['reasons'])}" if v["reasons"] else "")
+        )
+        return int(v["exit"])
     if "--self-check" in args:
         misses = self_check()
         for m in misses:

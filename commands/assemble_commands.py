@@ -58,7 +58,7 @@ NEXT = {
     "fabrik-plan-after-chat": "/fabrik-plan-review (auto-invoked) — converge the plan to a fixed point, then /fabrik-execute-plan.",
     "fabrik-plan-review": "/fabrik-execute-plan — build it, phase by phase.",
     "fabrik-execute-plan": "/fabrik-features REFRESH (flip Planned→Shipped, complete the cross-check) → end-to-end certification: /fabrik-user-test (UI-bearing types) · /fabrik-service-test (headless types).",
-    "fabrik-features": "EARLY run: /fabrik-flows — walk the journeys that serve the planned features. REFRESH run: /fabrik-user-test (UI-bearing) · /fabrik-service-test (headless) — certify against the live registry.",
+    "fabrik-features": "EARLY run: /fabrik-flows — walk the journeys that serve the planned features. REFRESH run: /fabrik-deploy-checklist (freeze the parity contract) → /fabrik-user-test (UI-bearing) · /fabrik-service-test (headless).",
     "fabrik-doc-converge": "the workflow that called it, or /fabrik-docs-review for the whole-tree sweep (this was the single-doc deep converge).",
     "fabrik-catchup": "the routed converge command(s) for each queued item (/fabrik-doc-converge · /fabrik-features · /fabrik-data-contract · /fabrik-ui-design), then resume whatever pipeline stage the project was actually in.",
     "fabrik-user-test": "/fabrik-release once green — but hand off any backend/logic defects to the owning /fabrik-review or plan first.",
@@ -77,7 +77,8 @@ NEXT = {
     "design-review": "back to the building phase's Build-Verification Loop until the screen renders clean.",
     "fabrik-workflow-review": "the workflow artifact is converged — return to the ettw/mega step that produced it.",
     "fabrik-decommission": "none — a standalone hub-side runbook; operator runs `fabrik destroy` themselves when ready.",
-    "fabrik-deploy-verify": "none — terminal; a FAIL's named route is the next action, never auto-chained.",
+    "fabrik-deploy-checklist": "/fabrik-release — its VPS precondition reads the FROZEN header; on a version BUMP, /fabrik-deploy-verify re-run.",
+    "fabrik-deploy-verify": "none — terminal; a FAIL's route is the next action, never auto-chained; an UNVERIFIED verdict routes to /fabrik-deploy-checklist (author + freeze the parity contract).",
     "fabrik-upstream": "PROJECT mode: send the proposal to the hub (`--to fabrik --to-agent infra`); HUB mode: reply the disposition.",
 }
 
@@ -554,7 +555,19 @@ PARAMS = {
         "grounding-artifact": {"SUBJECT": "decommission finding", "EXAMPLES": "a service declared dead (or live) from a catalog/PORTS/env row alone instead of a fresh DNS probe against resolving sibling domains, an uncommitted-file count read from memory instead of a `git status`/`find` diff taken before AND after the move, a consumer marked migrated without opening its `.env`/import site, a runtime-teardown step executed inline instead of named as the operator's own separately-gated action"},
     },
     "fabrik-deploy-verify": {
-        "grounding-artifact": {"SUBJECT": "deploy-verify finding", "EXAMPLES": "a DNS PASS claimed from the spec's `domain:` field or a `PORTS.md` row instead of a fresh `dig`/`getent hosts` run against two resolving sibling domains, a registrar 'exists' claim read from the `shape:` flag alone instead of the target VPS's actually-injected remote `.env` value or a live probe response, a `/health` 200 treated as proof without confirming the route asserts a real dependency, a Gatus 'green' assumed from a prior run instead of a fresh poll, a FEATURES.md row marked smoked without an actual request executed this run"},
+        "grounding-artifact": {"SUBJECT": "deploy-verify finding", "EXAMPLES": "a DNS PASS claimed from the spec's `domain:` field or a `PORTS.md` row instead of a fresh `dig`/`getent hosts` run against two resolving sibling domains, a registrar 'exists' claim read from the `shape:` flag alone instead of the target VPS's actually-injected remote `.env` value or a live probe response, a `/health` 200 treated as proof without confirming the route asserts a real dependency, a Gatus 'green' assumed from a prior run instead of a fresh poll, a FEATURES.md row marked smoked without an actual request executed this run, a parity PASS read off a `match: None` row, a registrar row copied from the command instead of `_REGISTRAR_ORDER`, a deployed SHA taken from the deploy log instead of `git rev-parse HEAD` on the target"},
+    },
+    "fabrik-deploy-checklist": {
+        "term-edit": {"ARTIFACT": "parity contract", "DONE_ACT": "flip `Status: DRAFT → FROZEN`", "DONE_WORD": "FROZEN",
+                      "AXES": "corpus coverage · derived denominators · features cross-check · executability · exclusions · red-seen · docs",
+                      "EXEMPT_NOTE": " (The Phase-6 `Status: DRAFT → FROZEN` header flip is a post-convergence write, exempt from this rule — measured on the body, not the flip.)"},
+        "grounding-artifact": {"SUBJECT": "contract row", "EXAMPLES": "a route \"verified\" the router never registers, a job count read from RESILIENCE.md, a row count taken from PROD, a `None` match read as agreement"},
+        "questionbar": {"CHANGES_WHAT": "the contract (what prod must contain, or which dev state is excluded)",
+                        "RESOLVE_FROM": "the spec, `shape:`, the router, the scheduler, DEV, the project's decision ledger",
+                        "NEVER_FOR": "a row's wording, its ordering, or an obvious expected value — derive it",
+                        "DO_RAISE": "an exclusion the ledger does not settle (fixture vs real data), or a row that cannot be seen red"},
+        "subagents-core": {"HEADLINE": "pool-default per denominator surface", "TASK_TYPE": '"docs"', "PROJECT": "deploy-checklist", "FLOOR": "",
+                           "EXTRA": " One pool grounder per surface (routes · jobs · env · services · schema) in `mode=\"read_only\"` with the surface's code inlined; the exclusion-set judgement and the red-seen runs stay native — they read the project's own environment."},
     },
     "fabrik-upstream": {
         "grounding-artifact": {"SUBJECT": "proposal claim", "EXAMPLES": "a computed number (a ratio, a count, a diff line) accepted from the proposal's own assertion instead of recomputed independently, a cited `path:line` read from the proposal's snapshot instead of the file's CURRENT state, a 'why filed not fixed' reason taken at face value instead of checked against the project's own `.fabrik/synced.lock`, a diff applied without re-confirming the target file hasn't drifted since the proposal was written"},

@@ -536,3 +536,51 @@ def test_a_scriptless_close_with_feedback_is_silent(corpus):
         '`done --command fabrik-probe --evidence "<proof>" --feedback "<line>"` at the verdict\n'
     )
     assert not any("--feedback" in p for p in problems), problems
+
+
+# ── plan 2026-09-01-plan-1-deployment-verification, Phase A: the rewritten runner's anatomy ──────
+
+
+def test_deploy_verify_source_carries_parity_phase():
+    """The runner's contract-driven parity phase, the UNVERIFIED vocabulary and the run-time-derived
+    registrar table must be in the LIVE source — grep'd, not assumed (Phase A gate lines)."""
+    src = (REPO / "commands" / "_sources" / "fabrik-deploy-verify.md").read_text(encoding="utf-8")
+    assert src.count("## Phase 6 — Parity") == 1
+    assert src.count("UNVERIFIED") >= 2, "Phase 0 rule + Output vocabulary"
+    assert src.count("_REGISTRAR_ORDER") >= 2, "Layer 3 derived at RUN time from the live registry"
+    assert "## Phase 1b — Identity" in src
+    assert "verify_prod_parity.py --verdict" in src, "the verdict algebra is EXECUTED, never applied in prose"
+
+
+def _render_corpus(tmp_path: Path):
+    """Render the LIVE corpus into a temp dir through the real assembler (never the installed dir)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("asm_for_test", REPO / "commands" / "assemble_commands.py")
+    asm = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(asm)
+    out = tmp_path / "render"
+    asm.render(out, out / "_skills")
+    return out
+
+
+def test_deploy_checklist_renders_to_the_anatomy(tmp_path: Path):
+    """Phase B (plan 2026-09-01-plan-1): the rendered authoring command carries the see-every-row-red phase,
+    the header rule and the fixed Output block — the anatomy § Corpus conformance 1 prescribes."""
+    out = _render_corpus(tmp_path)
+    cmd = (out / "fabrik-deploy-checklist.md").read_text(encoding="utf-8")
+    assert "## Phase 5 — SEE EVERY ROW RED" in cmd
+    assert "Status: DRAFT | FROZEN" in cmd and "Frozen — no agent adds, removes or re-derives a row" in cmd
+    assert "## Output (always, last thing)" in cmd and "DEPLOY-CHECKLIST:" in cmd and "RED-SEEN:" in cmd
+    assert "command_run.py start --command fabrik-deploy-checklist --phases 8" in cmd, "8 phases derived from the headings"
+    assert "{{" not in cmd, "an unresolved include/PARAMS token shipped"
+
+
+def test_deploy_checklist_skill_description_within_limit(tmp_path: Path):
+    """`_emit_skill` refuses a composed description over 1024 chars — the first draft composed to 1366."""
+    out = _render_corpus(tmp_path)
+    skill = (out / "_skills" / "fabrik-deploy-checklist" / "SKILL.md").read_text(encoding="utf-8")
+    desc = next(line for line in skill.splitlines() if line.startswith("description:"))
+    assert len(desc) - len("description: ") <= 1024, len(desc)
+    assert "NEXT: /fabrik-release" in desc

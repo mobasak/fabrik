@@ -287,7 +287,7 @@
 - [static-site](workflows/FABRIK_SCAFFOLD_WORKFLOW.md) (owner: fleet): project scaffold
 
 ## rules-pack
-- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and
+- [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selection INDEX — match the task to one of 16 categories, prefer specialized vendors over general LLMs, pick the cheapest gateway (Kilo CLI and 
 - [ai/10-speech-audio.md](../.windsurf/rules/ai/10-speech-audio.md) (owner: infra): Speech & Audio AI (category 1) — transcription (Soniox/Whisper), TTS (Soniox default for multilingual/faithful, ElevenLabs for expressive), voice cloning, audio
 - [ai/20-vision.md](../.windsurf/rules/ai/20-vision.md) (owner: infra): Vision AI (category 2) — image gen (Recraft v4.1 for branded/recurring-style/vector, FLUX-schnell for bulk illustration, FLUX/BFL for photoreal, Replicate as ho
 - [ai/25-3d-generation.md](../.windsurf/rules/ai/25-3d-generation.md) (owner: infra): 3D asset generation — automated zero-edit mesh/asset pipeline (GLB/FBX/OBJ/STL/USDZ). Provider routing by asset type (Meshy/Tripo/Rodin/TRELLIS 2), mandatory he
@@ -354,9 +354,10 @@
 - [fabrik-data-contract](../CLAUDE.md) (owner: infra): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall
 - [fabrik-decommission](../CLAUDE.md) (owner: infra): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evid
 - [fabrik-deploy](../CLAUDE.md) (owner: infra): Execute a CONVERGED deployment plan — stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn —
+- [fabrik-deploy-checklist](../CLAUDE.md) (owner: infra): Author the project's deployment-verification CONTRACT — `scripts/verify_prod_parity.py`: one runnable check + expected result per corpus row, every denominator 
 - [fabrik-deploy-plan](../CLAUDE.md) (owner: infra): Author a per-service DEPLOYMENT PLAN — stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unk
 - [fabrik-deploy-plan-review](../CLAUDE.md) (owner: infra): Adversarially converge a DRAFT deployment plan to a fixed point — stage 2 of the deploy triad, the trust gate before any deploy. Grounds every claim against the
-- [fabrik-deploy-verify](../CLAUDE.md) (owner: infra): Post-`fabrik apply` certification, run hub-side from `/opt/fabrik` — DNS resolves (vs two sibling domains), the spec's health endpoint asserts real deps (`/heal
+- [fabrik-deploy-verify](../CLAUDE.md) (owner: infra): Post-`fabrik apply` certification, hub-side — identity (deployed SHA = tested SHA, migration head, image digest), DNS vs two siblings, the health endpoint asser
 - [fabrik-doc-converge](../CLAUDE.md) (owner: infra): Converge ONE project doc to the verifiable truth of the codebase — the /fabrik-features loop generalized to every agent-filled scaffold doc (SERVICES, RESILIENC
 - [fabrik-docs-review](../CLAUDE.md) (owner: infra): Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconciler
 - [fabrik-execute-plan](../CLAUDE.md) (owner: infra): Execute a pre-approved implementation plan autonomously — phase-sequenced with code reviews between phases; a dated plan-SET directory (spine + T## tickets) ins

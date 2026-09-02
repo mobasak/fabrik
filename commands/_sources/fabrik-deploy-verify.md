@@ -1,5 +1,5 @@
 ---
-description: Post-`fabrik apply` certification, run hub-side from `/opt/fabrik` — DNS resolves (vs two sibling domains), the spec's health endpoint asserts real deps (`/healthz` liveness kept separate), the spec's `shape:` registrars landed (remote `.env` + probes over the fleet SSH path), Gatus green, logs clean of crash/restart signatures, top-3 FEATURES.md Core Features rows smoke read-only against the LIVE service. Verify-only — never deploys or mutates a registrar; every FAIL routes to a named next step, an ask not an action. Not `/fabrik-release` (pre-deploy readiness) or `/fabrik-service-test` (full gauntlet). Stage: 6-release. TRIGGER — EN: "verify the deploy", "did fabrik apply work", "check the live service"; TR: "deploy'u doğrula", "apply çalıştı mı" — fires bare-prose, no slash command needed.
+description: Post-`fabrik apply` certification, hub-side — identity (deployed SHA = tested SHA, migration head, image digest), DNS vs two siblings, the health endpoint asserting real deps, every `shape:` registrar derived live from `_REGISTRAR_ORDER`, Gatus green, logs clean, then the project's FROZEN parity contract (`scripts/verify_prod_parity.py`) executed against the LIVE service — no contract = UNVERIFIED, never CONFIRMED. Verify-only; every FAIL routes to an ask. Not `/fabrik-release` (readiness) or `/fabrik-service-test` (gauntlet). Stage: 6-release. TRIGGER — EN: "verify the deploy", "did fabrik apply work", "check the live service"; TR: "deploy'u doğrula", "apply çalıştı mı".
 argument-hint: "[optional: spec path or service id to verify — omit to read specs/services/<id>.yaml for this project]"
 ---
 
@@ -9,6 +9,15 @@ executor) or a direct operator `fabrik apply` (the manual path) — is actually 
 the same evidence discipline (a fresh probe this run, never a catalog/registry/env row read as proof).
 This command **verifies only**: no `fabrik apply`, no `fabrik destroy`, no registrar re-run, no file
 mutation at all — the verdict table is PRINTED (no report file; the run record is the durable trace).
+**It certifies against what was BUILT, not against liveness alone**: a service once passed every check
+here while production held 0 of its 760 companies, because nothing declared what the product should
+contain. That declaration is the project's **parity contract** — `scripts/verify_prod_parity.py`, authored
+and FROZEN by `/fabrik-deploy-checklist` — and Phase 6 EXECUTES it. Without a FROZEN contract the run's
+verdict is `UNVERIFIED`: terminal, not success, and the signal to run the authoring command.
+
+```
+/fabrik-features REFRESH → /fabrik-deploy-checklist (FREEZE) → /fabrik-release (precondition: FROZEN) → deploy triad → /fabrik-deploy-verify (consumes)
+```
 
 **Where this runs:** hub-side, from `/opt/fabrik` — the hub carries fleet SSH creds (deploy is
 trigger-not-execute; `agents-fabrik-core.md` § Deploy). A project itself cannot reach its own deployed VPS
@@ -23,8 +32,8 @@ violation of it. Each phase below is labeled `[anywhere]` (a public DNS/HTTPS pr
 
 ## ⚠️ Termination contract
 
-You are done when EVERY checklist item below (DNS, health/readiness, registrar obligations, Gatus, logs,
-smoke) is TERMINAL — one of the four token FAMILIES (the Output block's row-specific spellings —
+You are done when EVERY checklist item below (identity, DNS, health/readiness, registrar obligations, Gatus,
+logs, parity) is TERMINAL — one of the four token FAMILIES (the Output block's row-specific spellings —
 `discriminator void` is DNS's INCONCLUSIVE, `missing` is GATUS's FAIL, `n/a (not obligated)` is the
 spec-voided NOT-RUN): **PASS (with evidence: a command's real output, this
 run) · FAIL (with evidence + a named route) · INCONCLUSIVE (the probe cannot discriminate — the
@@ -67,8 +76,15 @@ rather than exhausting the checklist against a dead host — every unreached ite
    (spoke) → the app reaches hub-shared infra at the registrar-injected mesh IP `10.99.0.1:<port>`
    (WireGuard carries packets, not DNS) — a spoke's `.env` correctly shows `10.99.0.1`, not
    `postgres-main`; that is not a defect, per `templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md`.
-3. Read `docs/FEATURES.md` for Phase 6's row set and `docs/RESILIENCE.md` §2 for the dependency
-   inventory the spec's health endpoint should assert.
+3. Read `docs/RESILIENCE.md` §2 for the dependency inventory the spec's health endpoint should assert,
+   and the **fleet-AI sections** of `docs/DEPLOYMENT.md` + `docs/OPERATIONS.md` (D-065) as the declaration
+   inputs — what the project SAYS it deploys and runs.
+4. **Read the parity contract's header block** — `scripts/verify_prod_parity.py --header` in the project
+   checkout (`Status`, `Version`, `Mode`). **`Status: FROZEN` is the obligation gate**: absent, unparseable
+   or `DRAFT` ⇒ the run's VERDICT is **`UNVERIFIED — no FROZEN parity contract`** (terminal, never
+   `CONFIRMED`) and the Output's `ROUTES` names `/fabrik-deploy-checklist`. Every other phase still runs
+   — liveness evidence is still evidence — but Phase 6 reports `NOT-RUN (no FROZEN contract)` and the
+   verdict cannot climb above `UNVERIFIED`. Read it; never assume it.
 
 ## Phase 1 — DNS: live, not merely cataloged `[anywhere]`
 
@@ -105,6 +121,30 @@ layer`, and let Phase 2's HTTPS result — not Phase 1's DNS result — carry th
 `vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates
 on its own at the DNS layer.
 
+## Phase 1b — Identity: the deployed build IS the tested build `[hub-side]`
+
+Layer 1 of the contract corpus — **nothing below it means anything if it fails**: everything verified
+later is true of *something*; only this phase proves it is true of *this build*. Over the fleet SSH path
+against the target VPS's checkout (`/opt/<app>` — the same path `deployer_ssh.py:331` reads its rollback
+point from):
+
+1. **Deployed SHA == tested SHA** — `ssh <target_vps> "cd /opt/<app> && git rev-parse HEAD"` vs the SHA the
+   release's green CI / `/fabrik-release` READY verdict names (the local `git rev-parse <tag-or-branch>` of
+   what was pushed). Never the deploy log's echo — a silently-failed `git pull` leaves the old SHA in place.
+2. **Migration head == repo head** (DB types) — `alembic current` inside the app container vs `alembic heads`
+   in the checkout (trytond: `ir_module` state vs the shipped module list; no migration tool ⇒
+   `n/a (not obligated)` with the type named).
+3. **Image digest == the built digest** — `docker inspect --format '{{.Image}}' <container>` vs the image
+   the build produced (`docker images --digests` on the target); a silently-failed rebuild runs old code
+   under a new commit.
+4. **Lockfile hash == the tested dependency set** — the checkout's lockfile hash vs the one inside the
+   running container (`sha256sum` both sides).
+
+**Early-stop:** an identity FAIL is a shared root cause — every later row carries `NOT-RUN (identity)`,
+the verdict is `VERIFICATION FAILED`, and the route is a rollback note naming the prior known-good SHA
+(never a rollback performed). PASS requires all four; a row that cannot be probed from the hub is
+`INCONCLUSIVE (<why>)`, never PASS.
+
 ## Phase 2 — Health + readiness (real dependency assertions, liveness kept separate) `[anywhere]`
 
 Two distinct checks — never conflate them. Per `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`:307,
@@ -133,9 +173,19 @@ file — find them live with `grep -n inject_env src/fabrik/orchestrator/infrast
 `:588` postgres / `:621` watchdog as of 2026-08-29) — never the local project dev `.env` (registrars never touch that file; reading
 it produces a false PASS or FAIL either way). Where a probe endpoint can prove the same fact (a `/metrics`
 body, an admin-route auth challenge, a health body naming its dependencies), **prefer the probe** and use
-the remote `.env` read as corroboration, not the sole source. Registrar obligation table per
-`templates/scaffold/docs/RESILIENCE_TEMPLATE.md` §11 and, for `watchdog`, `_REGISTRAR_ORDER` in
-`infrastructure.py`:136-147:
+the remote `.env` read as corroboration, not the sole source.
+
+**⚠️ The registrar denominator is DERIVED at RUN time, never copied from this file.** Read
+`src/fabrik/orchestrator/infrastructure.py::_REGISTRAR_ORDER` live (`grep -n '_REGISTRAR_ORDER' -A12`) and
+emit ONE row per registrar it names, in its order, keyed by name — the rule text below is looked up BY
+NAME. A registrar the registry names that has no rule text here is **`FAIL (unmapped registrar →
+/fabrik-review)`**, never a silent skip: that is the *present-but-inert* failure mode applied to the
+verifier itself (a hand-listed table lost `meilisearch` once). State the count: `REGISTRARS: <n> named by
+_REGISTRAR_ORDER`. The three auto-discovered services (`traefik`, `promtail/loki`, `cadvisor`) are not
+registrars and stay informational rows.
+
+Rule text per registrar name (`templates/scaffold/docs/RESILIENCE_TEMPLATE.md` §11 is the project-side
+mirror):
 
 | Flag | Registrar | Verify via |
 |---|---|---|
@@ -177,40 +227,56 @@ documents for project-side probes. Grep the window for crash/restart signatures:
 infra-side (OOM against too-low `deploy.resources.limits.memory`), in which case name that as the fix
 instead.
 
-## Phase 6 — Smoke: top 3 `FEATURES.md` rows (read-only only) `[anywhere]`
+## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`
 
-Take the first 3 `docs/FEATURES.md` § Core Features rows that carry a non-empty `Endpoint / Module` value
-(the FEATURES template has no journey rows or priority tags — a filled `Endpoint / Module` cell is the
-closest exercisable-row concept it defines, per `templates/scaffold/docs/FEATURES_TEMPLATE.md`:23,28).
-**Resolve the ROUTER PREFIX before probing** — read the app's router registration (FastAPI
-`include_router(prefix=…)`, the mount table, or the framework equivalent) and build each probe URL
-from it: a framework's unregistered-route 404 is byte-identical to an application 404, so a
-prefix-blind probe cannot discriminate "feature broken" from "wrong URL" (fleet verdict 2026-09-01
-— a false cross-repo defect filing was avoided only by reading the code after the probe).
-Exercise each against the LIVE service **only if it is read-only** — a GET, a
-read query, a status check. **Never execute a mutating row against the live service** — if the top 3
-include one, name it, state what it would need (a scoped-safe payload + the operator's explicit go), and
-substitute the next read-only row instead. Each exercised row is **PASS** (the response CONTAINS the row's promised observable — quote BOTH the
-promise and the matching response fragment in the verdict; a match with nothing quotable is
-INCONCLUSIVE, never PASS) or **FAIL** (with the exact request/response), routed to `/fabrik-review` for a
-response-truth defect or to `/fabrik-features` if the row itself is stale against what the service now
-does.
+**The product's declared contents, checked against the LIVE service — the phase that fails on a missing
+product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
+
+1. Run the contract from the PROJECT's checkout with the PROJECT's interpreter (its row functions import the
+   project's own code and the vendored `libs/health_probe`): `cd /opt/<project> && .venv/bin/python
+   scripts/verify_prod_parity.py --json` — **read-only rows only**: a row the contract marks
+   `UNVERIFIABLE (mutating — …)` is named in the table, never executed. Never run it against a hub cwd (a
+   hub-cwd run once reported the hub's own tables as the project's).
+2. Then `scripts/verify_prod_parity.py --verdict` and **copy its two lines verbatim** into the Output block —
+   the verdict algebra is EXECUTED by that script (`verdict()`: rows carrying ANY comparison key are parity
+   rows — the vendored `_COMPARISON_KEYS` disjunction; `match True` = numerator; `False` = denies CONFIRMED;
+   `None` on a parity row = ATTEMPTED-BUT-UNRESOLVED = fail closed, exit 2; a row with none of the keys is a
+   liveness row outside the denominator; `not obligated` — a `shape:` flag — is the only thing that removes a
+   row; exit 1 (a DOWN) outranks 2 outranks 0 and never upgrades a verdict). **Never re-derive the verdict in
+   prose from the row list**; a verdict you computed by reading is the retired rule wearing a table.
+3. Read every row's `{system, status, detail, expected, actual, match, compare_error}` with `.get()`
+   (`compare_error` is present only when the comparator raised). Per row: `match True` → PASS (quote
+   expected/actual); `False` → FAIL, route `/fabrik-review` (a code- or data-side defect — the deployed
+   product differs from what was built) or a rollback note; `None` on a parity row → FAIL
+   `attempted-unresolved (<compare_error>)`, route `/fabrik-deploy-checklist` (the row's comparator is
+   broken — a check that cannot fail is a defect, and one that cannot resolve is worse); an `UNVERIFIABLE
+   (<why>)` row → listed with its why, counted in the denominator, never PASS.
+4. **State the denominator with every count**: `<n> agree / <n> disagree / <n> unresolved / <n>
+   UNVERIFIABLE of <N> (contract v<N>, Mode <A|B|C>, <n> not obligated)` — the `PARITY:` line the script
+   prints. `N` is the corpus applicable to the type; a row the project could not assert is visible as
+   UNVERIFIABLE, never absent.
+
+(The former top-3 `FEATURES.md` smoke is subsumed: the contract's Layer-4 rows exercise EVERY shipped
+feature row with the count stated, per spec corpus #24 — a sample of three was the shape that certified an
+empty database.)
 
 ## Output (always, last thing)
 
 ```
 DEPLOY-VERIFY: <project> @ <domain> (target_vps: <vps1|vps2|vps3>)
+IDENTITY: PASS (sha <7> = tested · migrations at head · digest match · lockfile match) | FAIL — <which> | INCONCLUSIVE (<why>) | NOT-RUN (<cause>)
 DNS: PASS | FAIL (siblings resolved, target didn't) | inconclusive (re-probe — siblings also failed) | discriminator void (sibling NXDOMAIN) | NOT-RUN (<cause>) | n/a (not obligated — no domain set)
 HEALTH/READYZ: PASS | FAIL — <evidence> | INCONCLUSIVE (<why>) | NOT-RUN (<cause>)
 REGISTRARS: <n> obligated, <n> PASS, <n> FAIL, <n> not-project-verifiable (informational), <n> NOT-RUN
 GATUS: PASS | FAIL | missing | INCONCLUSIVE (<why>) | NOT-RUN (<cause>) | n/a (not obligated — not public/no domain)
 LOGS: PASS (clean window) | FAIL — <signature> | INCONCLUSIVE (<why>) | NOT-RUN (<cause>)
-SMOKE: <n> PASS / <n> INCONCLUSIVE / <n> FAIL of 3 | NOT-RUN (<cause>)
-VERDICT: DEPLOY CONFIRMED LIVE | DEPLOY VERIFICATION FAILED — <n> FAIL routed below | VERIFICATION INCOMPLETE — <n> non-PASS rows (CONFIRMED LIVE is claimable ONLY when every verdict-bearing row above reads PASS — zero FAIL AND zero NOT-RUN/INCONCLUSIVE/discriminator-void rows; GATUS `missing` = FAIL per Phase 4; informational registrar rows AND `n/a (not obligated)` rows are exempt — a non-public/internal service whose obligated rows all PASS reaches CONFIRMED LIVE. An early stop with nothing failed is INCOMPLETE, never confirmed)
+PARITY: <n> agree / <n> disagree / <n> unresolved / <n> UNVERIFIABLE of <N> (contract v<N>, Mode <A|B|C>, <n> not obligated) | NOT-RUN (no FROZEN contract) | NOT-RUN (<cause>)
+VERDICT: DEPLOY CONFIRMED | VERIFICATION FAILED — <n> FAIL routed below | UNVERIFIED — no FROZEN parity contract → /fabrik-deploy-checklist | VERIFICATION INCOMPLETE — <n> non-PASS rows (CONFIRMED is claimable ONLY when every verdict-bearing row above reads PASS — zero FAIL AND zero NOT-RUN/INCONCLUSIVE/discriminator-void rows — AND the contract's own VERDICT line reads CONFIRMED (exit 0); GATUS `missing` = FAIL per Phase 4; informational registrar rows AND `n/a (not obligated)` rows are exempt. An UNVERIFIED contract caps the run at UNVERIFIED whatever the liveness rows say. An early stop with nothing failed is INCOMPLETE, never confirmed)
 ROUTES: <one line per FAIL: item — route — what the operator/route must do> | none
 ```
 
 Next command: none — terminal. This closes the trigger→verify loop this plan set opened: the operator's
 `fabrik apply` triggered the deploy, this command is its own verification; a FAIL's named routes
 (`/fabrik-review`, a registrar re-apply ask, or a rollback note) are the next actions, never auto-chained
-from here.
+from here. An `UNVERIFIED` verdict routes to `/fabrik-deploy-checklist` — author and freeze the parity
+contract, then re-run this command.

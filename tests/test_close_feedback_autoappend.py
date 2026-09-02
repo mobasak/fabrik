@@ -65,7 +65,14 @@ def test_none_must_be_stated_rather_than_left_silent():
     of them is information. The fragment must demand the explicit verdict."""
     body = (REPO / "commands" / "_fragments" / "close-feedback.md").read_text(encoding="utf-8")
     assert "FEEDBACK:" in body, "no stated verdict line"
-    assert "never left as silence" in body or "must be STATED" in body
+    # the fragment's wording of the same demand has moved twice (87c09d16 rewrote it 2026-09-01 and this
+    # anchor went red at every baseline since); any of its three phrasings satisfies the intent
+    flat = " ".join(body.split())  # the fragment wraps at ~100 cols; match the sentence, not the line
+    assert (
+        "never left as silence" in flat
+        or "must be STATED" in flat
+        or "it is a claim, and you are signing it" in flat
+    )
 
 
 def test_it_is_appended_once_not_duplicated():

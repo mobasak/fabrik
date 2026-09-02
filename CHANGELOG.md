@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-deploy-checklist`: the command that declares what prod must CONTAIN (Phase B of plan 2026-09-01-plan-1, 2026-09-02)
+
+- **Source** `commands/_sources/fabrik-deploy-checklist.md` — Appendix A of the plan verbatim (proven through
+  the real pipeline before it was committed), row names lowercased per the Phase C ruff finding. Modes A/B/C;
+  Phase 1 derives every denominator (routes from the STARTED app's `/openapi.json` minus framework paths,
+  services from a YAML parse of compose ∪ registrar-injected sidecars, env keys from `os.getenv`, jobs from
+  the live scheduler, schema head by the type's own mechanism); Phase 3 cross-checks FEATURES.md both ways
+  walking EVERY table; Phase 5 SEES EVERY ROW RED; Phase 6 freezes with the DECISIONS row and refreshes the
+  fleet-AI doc sections from CODE + SPEC + DEV, never PROD.
+- **Registration** (`assemble_commands.py`, registration only): `NEXT` for the new command (trimmed to keep
+  the composed skill description under 1024 — it composed to 1052 first), `NEXT["fabrik-features"]` REFRESH
+  now routes through it before certification, a `PARAMS` block for its four fragments.
+- **Pipeline position** — `CLAUDE.md` + `templates/governance/CLAUDE.md` (FLEET-SYNCED): the `6-release` stage
+  row and the flow line name it between `/fabrik-features` REFRESH and certification; `fabrik-release.md`'s
+  VPS path gains the precondition `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` (stale
+  Version = ⚠ WARN in the Gate-2 block), same grammar as its certification-handoff precondition.
+- **Guard:** `tests/test_check_command_corpus.py` — the rendered command carries the see-red phase, the
+  header rule, the Output block and an 8-phase run record; the composed skill description is within limit.
+  Landed in ONE commit with Phase A: corpus predicate 2 forbids a reference to a command that does not exist.
+- `capabilities.json` + `docs/CAPABILITIES.md` regenerated (deterministic on a second run).
+
+### Changed — `/fabrik-deploy-verify` certifies against what was BUILT: identity layer, run-time-derived registrars, and the parity contract EXECUTED (Phase A of plan 2026-09-01-plan-1, 2026-09-02)
+
+- **Why:** a service passed every check here while production held 0 of its 760 companies — nothing
+  declared what the product should contain. The rewrite keeps the verify-command anatomy (termination
+  contract, `[anywhere]`/`[hub-side]` phases, routes-are-asks, fixed Output block) and ADDS layers.
+- **Phase 0 step 4 — the obligation gate:** `scripts/verify_prod_parity.py --header`; absent/`DRAFT` ⇒
+  the verdict is `UNVERIFIED — no FROZEN parity contract → /fabrik-deploy-checklist`, terminal, never
+  CONFIRMED. **Phase 1b — Identity** (deployed SHA = tested SHA, migration head, image digest, lockfile;
+  early-stop). **Phase 3** now DERIVES its registrar rows from `infrastructure.py::_REGISTRAR_ORDER` at run
+  time, rule text keyed by name, an unmapped registrar a FAIL. **Phase 6 — Parity (BLOCKING)** replaces the
+  top-3 smoke: the project's contract runs `--json` from its own checkout and `--verdict` prints the
+  `PARITY:`/`VERDICT:` lines the runner copies — the algebra is EXECUTED by code (`verdict()` in the seeded
+  script: the vendored `_COMPARISON_KEYS` disjunction decides what a parity row is; `None` on one fails
+  closed; a DOWN outranks a mismatch; `not obligated` is the only thing that shrinks the denominator).
+- **Registration:** `NEXT["fabrik-deploy-verify"]` routes UNVERIFIED to `/fabrik-deploy-checklist`; the
+  grounding examples gain three parity-shaped ones.
+- **Guard:** `tests/test_deploy_verify_verdict.py` (9 tests on rows from the REAL `compare()`; the RETIRED
+  `None → not checked` / `expected AND actual` rule runs beside them and is seen giving the false
+  all-clear; fail-closed proven red-on-revert) and `test_deploy_verify_source_carries_parity_phase` (seen
+  red before the rewrite).
+
 ### Added — every scaffold is born deploy-verifiable: the parity-contract stub, the vendored health-probe, the fleet-AI doc sections (Phase C of plan 2026-09-01-plan-1, 2026-09-02)
 
 - **`templates/scaffold/scripts/verify_prod_parity.py`** (seeded via `SCRIPT_FILES` into all 12
