@@ -33,9 +33,10 @@ SVC_RE = re.compile(
 # A key NAME that carries a credential (the value is a secret): the fetcher's input.
 CREDENTIAL_KEY_RE = re.compile(
     r"(API_KEY|APIKEY|API_TOKEN|ACCESS_TOKEN|TOKEN|SECRET|PASSWORD|PASSPHRASE|PASSWD|AUTH_KEY"
-    r"|CREDENTIALS|(?:^|_)(?:KEY|PASS|PW|PWD|CREDS))S?(_\d+)?$",  # numbered keys anchored (AM1/AM8);
-    re.I,  # the SHORT tokens need a left boundary — `_BYPASS`, `_MONKEY` are not credentials (AP8)
-)
+    r"|CREDENTIALS|(?<!MON)(?<!TUR)(?<!HOC)(?<!JOC)(?<!DON)KEY|(?<!BY)(?<!COM)(?<!SUR)(?<!TRES)PASS"
+    r"|(?:^|_)(?:PW|PWD|CREDS))S?(_\d+)?$",  # numbered keys anchored (AM1/AM8)
+    re.I,  # `KEY`/`PASS` stay glued-anchored (SEDO_SIGNKEY, MASTERKEY, DBPASS — AS2) minus the
+)  # measured English noise (MONKEY, TURKEY, HOCKEY, JOCKEY, DONKEY, BYPASS, COMPASS, SURPASS, TRESPASS — AP8)
 # The fetcher-grade subset of the anchored names: a key/token outranks a password, and a name
 # marked PUBLIC/ANON/PUBLISHABLE is the last resort (`NEXT_PUBLIC_SUPABASE_ANON_KEY` must never
 # beat `SUPABASE_SECRET_KEY` — AP3)
@@ -43,7 +44,9 @@ FETCHER_KEY_RE = re.compile(
     r"(API_KEY|APIKEY|API_TOKEN|ACCESS_TOKEN|SECRET_KEY|SERVICE_ROLE_KEY|APPLICATION_KEY|TOKEN)S?(_\d+)?$",
     re.I,
 )
-PUBLIC_NAME_RE = re.compile(r"(PUBLIC|ANON|PUBLISHABLE)", re.I)
+PUBLIC_NAME_RE = re.compile(
+    r"(?:^|_)(PUBLIC|ANON|PUBLISHABLE)(?:_|$)", re.I
+)  # bounded: CANONICAL is not ANON (AS8)
 
 
 # Public identifiers (OAuth client/tenant/account/project ids) are long, alphanumeric and NOT
@@ -97,18 +100,19 @@ def credential_rank(key: str, value: str) -> int:
     """The credit fetcher's input, chosen by KEY ROLE (N1/O5, restored after AH2 made it positional
     — AM1; tiers split after AP3 found 21 of 24 multi-credential providers still tied at rank 0):
     0 = a fetcher-grade anchored NAME (`_API_KEY`, `_TOKEN`, `_SECRET_KEY`, numbered too),
-    1 = another anchored name (`_PASSWORD`, `_ACCESS_KEY`), 2 = an anchored name marked
-    PUBLIC/ANON/PUBLISHABLE, 3 = a credential-kind value that is not URL-shaped, 4 = a userinfo
-    DSN (a provider whose ONLY credential is a DSN still feeds the fetcher, AH2). Equal ranks —
-    including two values under the SAME name — break by the file's name-sorted order; that is a
-    stated, deterministic rule, not "never by line order"."""
+    1 = another anchored name (`_PASSWORD`, `_ACCESS_KEY`), 2 = a credential-kind value that is
+    not URL-shaped (`X_SIGNATURE=<secret>`), 3 = a userinfo DSN (a provider whose ONLY credential
+    is a DSN still feeds the fetcher, AH2), 4 = an anchored name marked PUBLIC/ANON/PUBLISHABLE —
+    the LAST resort, below every real secret (AS9). Equal ranks break by the file's order, which
+    `gather_envs` writes name-sorted and, for two values under ONE name, value-sorted — a stated,
+    deterministic rule (rotating a key can therefore change which value the fetcher reports, AS7)."""
     if CREDENTIAL_KEY_RE.search(key):
         if PUBLIC_NAME_RE.search(key):
-            return 2
+            return 4
         return 0 if FETCHER_KEY_RE.search(key) else 1
     if "://" in value or USERINFO_RE.search(value):
-        return 4
-    return 3
+        return 3
+    return 2
 
 
 def ensure_schema(cur) -> None:

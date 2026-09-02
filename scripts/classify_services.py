@@ -334,6 +334,7 @@ def main() -> int:
         )
 
     identified = {p: v for p, v in proposals.items() if v.get("category") not in (None, "?")}
+    unresolved_by_enum: set[str] = set()  # identified by the model, flattened by the enum (AS1)
     print(
         f"\n{len(identified)}/{len(names)} identified; {len(names) - len(identified)} still need a human."
     )
@@ -374,9 +375,10 @@ def main() -> int:
             url = "?"  # a model-authored url reaches the registry and the dashboard's page (AM4)
         # the enum fields are model-authored too and reach the dashboard's class attribute
         # (`cpill`) and the #svc line — anything outside the enum is `?` (AP1/AP2)
-        category = v.get("category", "?")
-        cost = v.get("cost", "?")
-        status = v.get("status", "active")
+        # normalised first: a model's `AI-LLM` / `Freemium` / `ai-llm ` IS the enum value (AS1)
+        category = str(v.get("category", "?")).strip().lower()
+        cost = str(v.get("cost", "?")).strip().lower()
+        status = str(v.get("status", "active")).strip().lower()
         entry = {
             "category": category
             if category in CATEGORIES.split() or category == "?"
@@ -389,6 +391,12 @@ def main() -> int:
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
             "match": [] if code_only_provider(provs.get(prov, {})) else [root],
         }
+        if entry["category"] == "?":
+            # a category the enum flattened is NOT an identification: leave the provider to the
+            # tombstone path, else it stays in triage and is re-billed every day — the C2 loop
+            # the enum guard had silently re-opened (AS1)
+            unresolved_by_enum.add(prov)
+            continue
         if (
             prov in catalog
         ):  # a curated entry keeps its match/hosts when identified (AF8, mirror of AC11)
@@ -422,7 +430,11 @@ def main() -> int:
         # stay in triage and defeat the whole point (C2). The full provider name is the
         # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
         for prov in names:
-            if prov in identified or prov in errored or prov in merged_into:
+            if (
+                (prov in identified and prov not in unresolved_by_enum)
+                or prov in errored
+                or prov in merged_into
+            ):
                 continue  # a merged host joined its vendor — never also a stub (AF2)
             if prov in catalog and catalog[prov].get("category") not in (None, "", "?"):
                 continue  # a real entry; a `?` entry is re-stubbed so it leaves triage (pass 5, Z10)

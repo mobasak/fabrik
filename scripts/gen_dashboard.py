@@ -156,6 +156,7 @@ const tb=document.getElementById('tb'),q=document.getElementById('q'),
   fcat=document.getElementById('fcat'),fcost=document.getElementById('fcost');
 let sortK='category',sortAsc=true;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const href=u=>/^https?:\/\//i.test(String(u||''))?u:null;  // render-time scheme gate: a hand-edited or pre-guard `javascript:` url is never a live link (AS5)
 const cpill=v=>{const k=v==='?'?'unknown':String(v).replace(/[^A-Za-z0-9]+/g,'-');return '<span class="pill c-'+k+'">'+esc(v)+'</span>';};  // class token restricted: cost/status are model-authored (AP1)
 const cell=(v,cls)=>v?'<td class="'+(cls||'')+'">'+esc(v)+'</td>':'<td class="empty">—</td>';
 function render(){
@@ -167,7 +168,7 @@ function render(){
   let out='',cat=null;
   for(const r of rows){
     if(sortK==='category'&&r.category!==cat){cat=r.category;out+='<tr class="catrow"><td colspan="10">'+esc(cat)+'</td></tr>';}
-    const url=r.url&&r.url!=='?'?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
+    const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td>'
       +'<td>'+cpill(r.status)+'</td>'+cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')
       +'<td class="num mono">'+r.keys+'</td>'+cell(r.account,'mono')

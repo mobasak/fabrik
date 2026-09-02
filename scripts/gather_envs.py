@@ -704,7 +704,7 @@ def _svc_token(v) -> str:
 def svc_line(name: str, meta: dict, used_by: set[str]) -> str:
     # one line, no quotes: keep the #svc line parseable by registry_sync.SVC_RE (AP2)
     cap = " ".join(str(meta.get("capability") or "?").split()).replace('"', "'") or "?"
-    ub = ",".join(sorted(used_by)) if used_by else "-"
+    ub = ",".join(_svc_token(p) for p in sorted(used_by)) if used_by else "-"  # AS4
     # `or "?"` (not .get default) so an EMPTY catalog field still emits a \S+ token — else the
     # consumer regex (registry_sync.SVC_RE) fails to match and the whole service is dropped.
     cat = _svc_token(meta.get("category"))
@@ -712,7 +712,7 @@ def svc_line(name: str, meta: dict, used_by: set[str]) -> str:
     url = _svc_token(meta.get("url"))
     status = _svc_token(meta.get("status"))
     return (
-        f"#svc name={name} category={cat} cost={cost} "
+        f"#svc name={_svc_token(name)} category={cat} cost={cost} "
         f'capability="{cap}" url={url} status={status} used_by={ub}'
     )
 

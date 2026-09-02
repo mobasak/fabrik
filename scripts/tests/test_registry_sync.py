@@ -570,8 +570,8 @@ def test_kind_by_name_is_decidable_without_a_database():
         "UPLOAD_DIR", "/uploads2026-long-dir-name-x1"
     )  # mirror: a one-segment DIR is config by NAME
     assert rs.credential_rank("GROQ_API_KEY_2", "x") == 0
-    assert rs.credential_rank("AZURE_ACCOUNT_NAME", "fabrikstorageaccount2026x1") == 3
-    assert rs.credential_rank("NAMECHEAP_PROXY_URL", f"http://u:{SECRET}@h:1") == 4
+    assert rs.credential_rank("AZURE_ACCOUNT_NAME", "fabrikstorageaccount2026x1") == 2
+    assert rs.credential_rank("NAMECHEAP_PROXY_URL", f"http://u:{SECRET}@h:1") == 3
 
 
 def test_parse_fails_closed_on_an_unreadable_svc_line(tmp_path):
@@ -614,3 +614,30 @@ def test_fetcher_rank_prefers_a_key_over_a_password_and_demotes_public_names():
     assert not rs.is_credential("TRAEFIK_BYPASS", "true")
     assert not rs.is_credential("SURVEY_MONKEY", "true")
     assert rs.is_credential("SMTP_HOST_PW", "S3cretPassw0rdLongEnough")
+    # glued tokens stay anchored, the measured noise words do not (AS2/AP8); PUBLIC is bounded (AS8)
+    assert rs.is_credential("SEDO_SIGNKEY", "1234")
+    assert rs.is_credential("X_MASTERKEY", "1234") and rs.is_credential("X_DBPASS", "1234")
+    assert not rs.is_credential("SURVEY_MONKEY", "true") and not rs.is_credential(
+        "TRAEFIK_BYPASS", "true"
+    )
+    assert r("CANONICAL_API_KEY", "v") == 0 and r("NEXT_PUBLIC_X_API_KEY", "v") == 4
+    # a public anon key is the LAST resort — below a real non-anchored secret and a DSN (AS9)
+    assert r("X_SIGNATURE", "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5") < r("NEXT_PUBLIC_X_API_KEY", "v")
+    assert r("X_PROXY_URL", "http://u:p@h:1") < r("NEXT_PUBLIC_X_API_KEY", "v")
+
+
+def test_equal_fetcher_ranks_break_by_file_order(fixture_env, monkeypatch):
+    """Two rank-0 keys: the FIRST in file order feeds the fetcher — and the file is gather_envs'
+    name-sorted output, so the rule is deterministic (AQ2: the docstring's tie clause, asserted)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=infra cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_API_TOKEN={SECRET}first\n"
+        f"{TEST_PROVIDER.upper()}_API_TOKEN_2={SECRET}second\n",
+        encoding="utf-8",
+    )
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    rs.sync_registry(fetch_credits=True, prune=False)
+    assert got == [(TEST_PROVIDER, f"{SECRET}first")], got

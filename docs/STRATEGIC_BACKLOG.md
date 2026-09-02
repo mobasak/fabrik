@@ -891,3 +891,25 @@ contract is still `DRAFT` or whose `Version` predates the edit. Trigger to build
 freezes a contract (`/fabrik-deploy-checklist` Mode B on tryton-crm is the planned first run). Deliberately
 deferred, not forgotten — recorded in the plan's Phase B step 6 and in `docs/reference/deployment-verification.md`.
 
+## [infra] fabrik-mail relay has no liveness guarantee and no sender-visible failure signal (peer report from the seo session, 2026-09-02)
+
+Reported session-to-session on purpose (a mailed finding would join the queue): the shared hub
+`fabrik` inbox stood at 81 unread (oldest 2026-09-01 00:40) and grew 73→81 in an hour while three hub
+sessions ran long reviews; an ack-required finding (`01M1GZ3MFPEXZCJE4BYRQMBJ35`, web-ecommerce-factory
+→ seo via the hub) was dropped in BOTH directions for ~6 h and the seo side only learned its own mail
+was unread by stat-ing the hub's inbox directory. Two halves: (1) drain — the handle-now duty applies,
+and the review-bound sessions did not claim the box for a day; (2) design — a sender cannot tell
+"queued" from "dropped": the relay needs a liveness surface (inbox age/depth in `liveness_audit.py`)
+and a sender-visible signal (an `unread-for` line on `mail.py list`, or an auto-nack after N hours on
+`ack: required`). Beat: infra (fabrik-mail).
+
+## [infra] fabrik-review finder brief: helpers go in the finder's OWN sandbox dir, never the shared scratchpad root (2026-09-02)
+
+The pass-11 Opus finder wrote a measurement helper named `h11.py` into this session's scratchpad
+root; the pool helper lives there too, so its own directory — first on `sys.path` — shadowed the real
+`h11` and two full pool dispatches errored in every unit (`module 'h11' has no attribute 'Request'`)
+and recorded nothing. Add to the finder fragment: "write every helper under your sandbox extract
+directory; never the dispatcher's scratchpad root; never a name that collides with a package".
+Also correct the brief: `git archive` does not extract `scripts/verify_prod_parity.py` (a symlink)
+at all — the `rm -f` line is a no-op.
+

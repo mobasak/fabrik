@@ -72,17 +72,17 @@ def _shell_code(text: str) -> str:
     for ln in text.splitlines():
         if ln.lstrip().startswith("#"):
             continue
-        quote, escaped, kept = None, False, []
+        quote, escaped, dollar, kept = None, False, False, []
         for i, ch in enumerate(ln):
             if escaped:  # `\"` inside a double-quoted string does not close it (AP4)
                 escaped = False
-            elif quote == '"' and ch == "\\":
-                escaped = True
+            elif (quote == '"' or (quote == "'" and dollar)) and ch == "\\":
+                escaped = True  # ANSI-C `$'…\'…'` honours backslashes too (AS6)
             elif quote:
                 if ch == quote:
                     quote = None
             elif ch in "'\"":
-                quote = ch
+                quote, dollar = ch, i > 0 and ln[i - 1] == "$"
             elif ch == "#" and (i == 0 or ln[i - 1].isspace()):
                 break
             kept.append(ch)
@@ -96,6 +96,9 @@ def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
     assert "chain.sh" not in _shell_code("true  # scripts/external_services_chain.sh")
     assert "chain.sh" not in _shell_code("# scripts/external_services_chain.sh\ntrue")
     assert "gather_envs.py" in _shell_code(r'echo "a \" # b"; python scripts/gather_envs.py')  # AP4
+    assert "gather_envs.py" in _shell_code(
+        r"echo $'don\'t # care'; python scripts/gather_envs.py"
+    )  # AS6
     for entry in (DAILY, HOOK):
         text = entry.read_text(encoding="utf-8")
         # against CODE, not text — a comment naming the script (full-line OR trailing) is not an
@@ -210,3 +213,47 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     # token is restricted to [A-Za-z0-9-], never interpolated raw (AP1)
     assert "String(v).replace(/[^A-Za-z0-9]+/g,'-')" in gd.SCRIPT
     assert "'unknown':v.replace('_','-')" not in gd.SCRIPT
+
+
+def test_cpill_class_token_is_sanitized_when_the_script_runs():
+    """The AP1 guard EXECUTED, not string-matched (AQ1): the `cpill` one-liner is lifted from the
+    page script and run under node with a hostile cost — the class token it builds is
+    `[A-Za-z0-9-]` only. The source-text assertion in the script-tag test stays as the floor."""
+    import shutil
+    import subprocess
+
+    gd = _load_gen_dashboard()
+    m = re.search(r"const cpill=[^\n]*", gd.SCRIPT)
+    assert m, "cpill one-liner not found in SCRIPT"
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not on PATH — only the source-text floor assertion ran")
+    js = (
+        "const esc=s=>String(s).replace(/[&<>\"']/g,c=>'&#'+c.charCodeAt(0)+';');"
+        + m.group(0)
+        + "\nprocess.stdout.write(cpill('x\"><svg/onload=alert(1)>'));"
+    )
+    out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
+    # the WHOLE output must be one span whose class token is [A-Za-z0-9-] and whose text holds
+    # no raw angle bracket — a captured-prefix check stopped at the injected quote and passed
+    assert re.fullmatch(r'<span class="pill c-[A-Za-z0-9-]+">[^<>]*</span>', out), out
+
+
+def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
+    """The render-time scheme gate for the provider link, EXECUTED under node (AS5): a
+    `javascript:` or `data:` url from a hand-edited catalog never becomes a live link."""
+    import shutil
+    import subprocess
+
+    gd = _load_gen_dashboard()
+    m = re.search(r"const href=[^\n]*", gd.SCRIPT)
+    assert m, "href gate not found in SCRIPT"
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not on PATH")
+    js = (
+        m.group(0)
+        + "\nprocess.stdout.write(JSON.stringify([href('javascript:alert(1)'),href('data:text/html,x'),href('https://ok.test/a'),href('?'),href(null)]));"
+    )
+    out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
+    assert json.loads(out) == [None, None, "https://ok.test/a", None, None], out

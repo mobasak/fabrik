@@ -1210,7 +1210,7 @@ def test_a_model_authored_url_must_be_http_or_https(tmp_path, monkeypatch):
             json.dumps(
                 {
                     "name": "foo",
-                    "category": "ai llm",
+                    "category": "search",
                     "cost": 'x"><svg/onload=alert(1)>',
                     "capability": "x",
                     "url": "javascript:alert(1)",
@@ -1225,7 +1225,7 @@ def test_a_model_authored_url_must_be_http_or_https(tmp_path, monkeypatch):
     assert out["url"] == "?"
     # the enum fields are model-authored too: an out-of-enum cost/status/category is `?` /
     # `active`, never an attribute-breaking string for the dashboard's class token (AP1)
-    assert out["cost"] == "?" and out["status"] == "active" and out["category"] == "?"
+    assert out["cost"] == "?" and out["status"] == "active" and out["category"] == "search"
 
 
 def test_svc_line_never_emits_a_token_the_consumer_cannot_parse():
@@ -1245,3 +1245,59 @@ def test_svc_line_never_emits_a_token_the_consumer_cannot_parse():
     assert "\n" not in line and rs.SVC_RE.match(line), line
     m = rs.SVC_RE.match(line).groupdict()
     assert m["cost"] == "free_tier" and m["category"] == "ai_llm" and m["used_by"] == "p"
+    # the two fields _svc_token did not cover: the provider NAME (a bad one would fail the sync
+    # closed every day, AS3) and each used_by member (a bad one silently mis-attributed, AS4)
+    line = ge.svc_line("pro v", {"category": "search"}, {"pro j", "b"})
+    m = rs.SVC_RE.match(line).groupdict()
+    assert m["name"] == "pro_v" and m["used_by"] == "b,pro_j"
+
+
+def test_a_model_answer_the_enum_flattens_is_not_identified(tmp_path, monkeypatch):
+    """`AI-LLM` / `Freemium` are the enum values (normalised); `ai llm` is not, and a provider the
+    enum flattens to `?` must NOT count as identified — it would stay in NEEDS-TRIAGE and be
+    re-billed every day (the C2 loop, re-opened by the enum guard — AS1): on the daily argv it is
+    tombstoned instead."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+        '#svc name=bar category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BAR_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "foo",
+                    "category": "AI-LLM",
+                    "cost": "Freemium ",
+                    "capability": "x",
+                    "url": "https://foo.test",
+                    "status": "Active",
+                }
+            )
+        ),
+        _Res(
+            json.dumps(
+                {
+                    "name": "bar",
+                    "category": "ai llm",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://bar.test",
+                    "status": "active",
+                }
+            )
+        ),
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res)
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert (
+        out["foo"]["category"] == "ai-llm"
+        and out["foo"]["cost"] == "freemium"
+        and out["foo"]["status"] == "active"
+    )
+    assert out["bar"]["category"] not in ("?", "ai llm"), out[
+        "bar"
+    ]  # tombstoned, so it leaves triage
