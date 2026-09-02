@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Rules pass file 13: `58-resilience` now covers EVERY production failure class, each with a no-human recovery (2026-09-02)
+
+- **Operator directive:** resilience must address all types of production error, and "everything must
+  autorecover themselves." The pack answered only the outbound-call slice — it was silent on the
+  process lifecycle, on overload, and on its own Redis substrate.
+- **New § coverage map** — 22 production failure classes × bounding primitive × **autorecovery trigger**
+  × owning pack. A design leaving a row blank for a class it can suffer is now a gradeable DEFECT.
+  Classes owned elsewhere are indexed, never restated.
+- **New primitives for classes absent from all 56 rule files** (measured): boot dependency readiness
+  (`depends_on` is start order, not readiness), SIGTERM drain for services inside `stop_grace_period`,
+  deadline propagation, population retry budgets, load shedding, cache-stampede coalescing, monotonic
+  clocks, and **fail-open vs fail-closed when Redis itself is down** — the pack's own control plane.
+- **Six defects fixed, five empirically verified** (author-blind second opinion, D-063): the TS retry
+  helper waited **0 ms** on any retryable response lacking a `Retry-After` (`Number(null) === 0`), so
+  header-less 5xx became an un-jittered hot loop; `Retry-After: -1`/`nan` raised `ValueError` out of
+  tenacity and past the graceful fallback; the circuit-breaker's half-open admitted unlimited callers
+  and a stale success could close an open breaker; `HEALTHCHECK` was pointed at `/health` against
+  `30-ops`'s `/healthz`; **"Docker restarts unhealthy containers" was false** — it promised an
+  autorecovery that does not exist (restart policies act on process EXIT; the watchdog does this).
+- **The sliding-TTL pause was contradicting itself**: "no permanent stuck state, worst case 30 minutes"
+  while every detection event re-stamps the flag — so a persisting condition pauses **indefinitely** at
+  `/health` 200 and Gatus-green. Pauses now carry a first-set timestamp and escalate once past N× TTL.
+- **Vendor-first restored**: the hand-rolled breaker is replaced by the invariants to check
+  `fabrik-lib/async-http-client`'s `CircuitBreakerRegistry` against; the classifier table points at the
+  `pause_state.py` the scaffold already emits.
+- `self-healing.md` corrected where it **misquoted this pack** — it prescribed the banned bare
+  `wait_exponential` citing 58 as authority, and fed an unclamped vendor `Retry-After` into a
+  queue-wide TTL that 58 explicitly bans.
+- 8 new `CLAIMS.yaml` rows with verify hints; pack re-trimmed from 61 KB back under the 50 KB
+  auto-load cap by removing duplicated implementations rather than rules.
+
 ### Changed — Deployment verification binds to fabrik-lib's converged comparison interface; the hub fallback is retired (2026-09-02)
 
 - fabrik-lib ACCEPTED filing `01M1ESR5KJW5Z1EE2YE55MBTE8` and converged a spec (`5f5b2e6f`). The

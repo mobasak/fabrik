@@ -5887,3 +5887,30 @@ and it is the only one that broke.
 **Why it matters beyond tidiness.** The substituted commands *ran against the repo*. A message quoting
 `\`rm -rf …\`` from a finding would have executed it. Treat a commit message as untrusted shell input,
 because with `-m` and double quotes, that is exactly what it is.
+
+## A rule pack that ADDS a mandate must pay for it in bytes — and the payment is duplication, not rules (2026-09-02)
+
+**What happened.** The operator widened `58-resilience`'s mandate to "all types of production error,
+everything autorecovers". The pack entered at 38,689 bytes — already **76%** of the 50 KB auto-load
+cap — and the new coverage map plus the boot/shutdown, overload and Redis-substrate sections put it at
+**61,215**, breaching a blocking gate check by 10 KB. Shaving prose recovered ~3 KB and stalled; the
+cap only cleared once the search changed from "what wording can I tighten" to **"what does this file
+implement twice?"** — a hand-rolled `CircuitBreaker` that fabrik-lib already ships as
+`CircuitBreakerRegistry`, a `TRANSIENT_PATTERNS` table the scaffold already emits into every project,
+and a second TypeScript client re-implementing the retry helper printed 40 lines above it. Deleting
+those three recovered ~7 KB **and fixed a defect** — the duplicate client was the one the author-blind
+review found retry-less.
+
+**The lesson.** When an auto-loaded pack hits its context budget, prose compression is the wrong
+instrument: it costs the rationale that makes agents comply and yields a few hundred bytes a pass.
+Duplication is the right instrument, and a size cap is a good detector for it — every copy-paste block
+that restates a vendored module or a scaffolded file is both bytes and a second source of truth that
+will drift. **Measure per-section bytes before editing** (`awk` over `^## ` boundaries); the fattest
+section is usually the one carrying an implementation that lives somewhere else.
+
+**What I nearly did instead, and why it was wrong.** Adding the pack to `check_rule_size.py`'s
+`SIZE_EXEMPT`, or raising the 50 KB cap. Both defeat the guard rather than satisfy it — and the
+exemption list is explicitly for packs that are NOT broadly glob-activated, which this one is. Changing
+a fleet-wide threshold so your own commit passes is the wallpaper move the FIX directive's verb 5
+exists to stop. The honest residue is a backlog entry: the pack now sits 200 bytes under the cap, so
+the next editor must split the worker-only half rather than shave again.

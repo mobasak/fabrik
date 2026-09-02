@@ -483,6 +483,70 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: openrouter-pin-disables-failover
+    pack: core/58-resilience.md
+    claim: "On OpenRouter, setting `sort` or `order` DISABLES load balancing — and outage-aware routing is part of load balancing — so pinning a provider silently opts the caller out of automatic failover; a `models` request-body array falls back on any error including downtime"
+    kind: standard
+    verify: "https://openrouter.ai/docs/features/provider-routing — do sort/order still disable load balancing, and does the models array still fall back on any error?"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: stop-grace-period-default
+    pack: core/58-resilience.md
+    claim: "Docker Compose stop_signal defaults to SIGTERM and stop_grace_period defaults to 10 SECONDS, after which the daemon sends SIGKILL — so an app whose own shutdown timeout is >= the grace period is SIGKILLed mid-drain. Clean SIGTERM exit is code 143; 137 is SIGKILL (blown grace period, or OOM)"
+    kind: standard
+    verify: "https://docs.docker.com/reference/compose-file/services/ — is the default still 10s? + search: docker exit code 143 vs 137 SIGTERM SIGKILL"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: depends-on-is-not-readiness
+    pack: core/58-resilience.md
+    claim: "Compose depends_on is START ORDER, not readiness; condition: service_healthy gates only the FIRST start and guarantees nothing about a dependency that restarts later — so every process still needs its own bounded, jittered boot retry with a startup deadline"
+    kind: standard
+    verify: "https://docs.docker.com/reference/compose-file/services/ — read depends_on + condition semantics"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: population-retry-budget
+    pack: core/58-resilience.md
+    claim: "A per-request attempt cap does NOT bound fleet retry traffic — 3 attempts still triples load when every request fails at once. The standard control is a POPULATION budget (token bucket or a ratio ceiling, ~10% of recent traffic), as implemented by gRPC retry throttling and the AWS SDK retry quota, and recommended by Google SRE's overload chapter"
+    kind: practice
+    verify: "search: retry budget token bucket gRPC retry throttling AWS SDK retry quota <year>; https://sre.google/sre-book/addressing-cascading-failures/"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: deadline-propagation-over-per-hop-timeouts
+    pack: core/58-resilience.md
+    claim: "Per-hop timeouts compose into work that outlives the caller ('ghost work'); the control is ONE absolute deadline propagated down the chain, each hop deriving its timeout from what remains and short-circuiting when too little is left. gRPC implements this natively via deadlines/grpc-timeout"
+    kind: practice
+    verify: "https://sre.google/sre-book/addressing-cascading-failures/ § Deadline propagation; + search: deadline propagation absolute deadline microservices <year>"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: guard-fail-open-default
+    pack: core/58-resilience.md
+    claim: "For a Redis-backed guard that OPTIMISES (rate limit, pause flag, dedup) the practiced default when Redis is unreachable is FAIL-OPEN — often with a degraded local bound — because failing closed turns a cache blip into a full outage and, if Redis died of load, removes the only thing still serving. FAIL-CLOSED is for guards protecting something a breach does not recover from (contractual vendor limits, spend caps)"
+    kind: practice
+    verify: "search: rate limiter fail open vs fail closed redis down best practice <year> — is fail-open still the practiced default for optimising guards?"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: cache-stampede-coalescing
+    pack: core/58-resilience.md
+    claim: "A hot key's expiry makes every concurrent request miss at the same instant and stampede the origin; the two practiced fixes are request coalescing (single-flight) and probabilistic early expiration/refresh-ahead — this herd arrives from your own cache, not from a retry loop, so jitter and backoff do not touch it"
+    kind: practice
+    verify: "search: cache stampede thundering herd singleflight probabilistic early expiration <year>"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: circuit-breaker-half-open-probe-cap
+    pack: core/58-resilience.md
+    claim: "A circuit breaker's half-open state must admit a LIMITED number of trial calls (a configurable halfOpenMaxRequests / permittedNumberOfCallsInHalfOpenState); a half-open that admits every caller dumps full traffic onto a dependency that has not recovered, re-killing it on a recovery_timeout cycle"
+    kind: standard
+    verify: "https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker — does Half-Open still specify a limited number of trial requests?"
+    window_days: 365
+    last_verified: 2026-09-02
+
   - id: llm-self-review-agreeableness-bias
     pack: core/50-code-review.md
     claim: "LLM evaluators show agreeableness bias — they confirm correct feedback but fail to reject incorrect feedback, and recall is measurably worse when a model reviews its OWN output than another's. This is the evidence base for author-blind review (D-063) and for maker-checker separation"

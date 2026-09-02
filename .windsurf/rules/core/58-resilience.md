@@ -5,25 +5,29 @@ description: Resilience contract — timeout/retry/circuit-breaker for all servi
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (tech-plan step)
-     GOAL: Timeout/retry/circuit-breaker for all services + advanced pause-state pipeline for workers
+     GOAL: Every production failure class bounded by a primitive AND recovered without a human — timeout/retry/circuit-breaker
+           for all services, boot+shutdown edges, overload control, and the advanced pause-state pipeline for workers
      TRAYCER USAGE: Injects resilience requirements per external dependency into ticket ACs. References docs/RESILIENCE.md §2a.
-     AGENT USAGE: Wrap every external call with timeout+retry. Workers: wire pause-state pipeline. -->
+     AGENT USAGE: Walk § The coverage map for the classes this service can suffer; wrap every external call with
+                  timeout+retry; handle SIGTERM and boot dependency waits. Workers: wire pause-state pipeline. -->
 
 # Resilience & Autonomy Rules
 
-**Activation:** Glob — resilience-related files (RESILIENCE.md, health endpoints, HTTP clients, pause state, error classifier, dispatchers, beat tasks).
-**Purpose:** Every external call has timeout + retry + circuit-breaker + graceful fallback. Workers additionally get the autonomous pause-state pipeline.
+**Activation:** Glob — resilience files (RESILIENCE.md, health endpoints, HTTP clients, pause state, error classifier, dispatchers, beat tasks).
+**Purpose:** Every production failure class has a bounding primitive AND a recovery that needs no human
+(§ The coverage map): external calls get timeout + retry + circuit-breaker + fallback, every process
+handles its own boot and shutdown edges, workers add the autonomous pause-state pipeline.
 
 ---
 
 ## Per-Scaffold Applicability
 
-Not every scaffold needs the full autonomous pipeline. This matrix defines what applies:
+Not every scaffold needs the full autonomous pipeline:
 
 | Scaffold | Basic resilience (timeout/retry/CB) | `/health` with dep checks | `docs/RESILIENCE.md` | Pause-state pipeline | Queue-bloat prevention |
 |---|---|---|---|---|---|
 | `python-api` | Yes — every external call | Yes (scaffolded) | Yes | Only if async jobs exist | Only if async jobs exist |
-| `python-api-gpu` | Yes — **and provider-death handling is mandatory** (§ Provider-death resilience; `76-gpu-workers.md` § Provider Failover) | Yes (scaffolded) + report per-provider status | Yes | Only if async/batch inference jobs queue (real-time streaming bypasses it — `76-gpu-workers.md`) | Same condition |
+| `python-api-gpu` | Yes — **plus mandatory provider-death handling** (`76-gpu-workers` § Provider Failover) | Yes + per-provider status | Yes | Only if async/batch inference queues (streaming bypasses it) | Same condition |
 | `node-api` | Yes — every external call | Yes (scaffolded) | Yes | Only if async jobs exist | Only if async jobs exist |
 | `file-api` | Yes — every external call | Yes (scaffolded) | Yes | Yes (processes files) | Yes |
 | `file-worker` | Yes — every external call | Yes (scaffolded) | Yes | Yes (core pattern) | Yes (all 5 mechanisms) |
@@ -37,6 +41,46 @@ Not every scaffold needs the full autonomous pipeline. This matrix defines what 
 
 ---
 
+## The coverage map — every production failure class, and what recovers it WITHOUT a human
+
+**The bar: a service, worker or connector handles every failure class production can throw at it and
+returns to service BY ITSELF.** A mechanism that detects a fault and then waits for a person is not
+resilience, it is monitoring. **A design that leaves a row blank for a class it can actually suffer is
+a DEFECT** — what `/fabrik-spec-review` and `/fabrik-plan-review` grade. Rows owned elsewhere are
+indexed here, never restated; "can actually suffer" is decided by § Per-Scaffold Applicability above.
+An N/A with a reason is a complete answer, a silent gap is not.
+
+| # | Failure class | Bounded by | Autorecovers when… | Owner |
+|---|---|---|---|---|
+| 1 | Dependency **slow or hung** | connect/read/write/pool timeouts | the call gives up; the next is unaffected | here |
+| 2 | Dependency **transient error** | bounded jittered retry, inside the deadline | an attempt succeeds | here |
+| 3 | Dependency **failing repeatedly** | circuit-breaker + graceful fallback | a half-open probe succeeds | here |
+| 4 | Dependency **refuses work** (429/402/quota) | `Retry-After` inline, else a pause key | detection stops and the sliding TTL lapses — a pause outliving N× TTL escalates once | here + `75-workers-jobs` |
+| 5 | Dependency **permanently dead** | chain rebuilt from live survivors + zero-progress alarm | the next run-start probe promotes a survivor | here (§ Provider-death) |
+| 6 | **DNS** stalls | hardened resolver / resolver deadline | the resolver recovers; timeouts bound the damage | here |
+| 7 | **Boot**: dependency not ready | bounded startup retry + startup deadline | it accepts — or the process exits non-zero and restarts | here (§ The lifecycle edges) |
+| 8 | **Shutdown**: SIGTERM mid-work | drain inside `stop_grace_period`; workers requeue | the next start resumes cleanly | here + `75-workers-jobs` |
+| 9 | **Process death** (crash, OOM, segfault) | memory limit + `restart:` policy + supervised child | Docker restarts the container | `30-ops`, `75`; ladder row 1 |
+| 10 | **Overload** — arrivals exceed capacity | bounded queue + concurrency cap + shedding | shedding lets the backlog drain | here (§ Overload) |
+| 11 | **Retry amplification** across layers | retry at ONE layer + population retry budget | the budget refills as successes return | here |
+| 12 | **Ghost work** outliving its caller | one absolute deadline; expired work dropped on dequeue | the queue self-purges doomed work | here (§ Overload) |
+| 13 | **Cache stampede** on expiry | single-flight + early refresh | one rebuild serves every waiter | here (§ Overload) |
+| 14 | **The substrate itself is down** (Redis) | a DECLARED fail-open/closed posture per key | Redis returns; the posture holds the line meanwhile | here (§ When the resilience substrate itself fails) |
+| 15 | **DB pool exhausted / stale conns** | bounded pool + `pool_pre_ping` | pre-ping discards the dead connection | `25-data-postgres`; ladder row 6 |
+| 16 | **Job stranded** (worker died holding it) | visibility timeout + orphan sweep | the sweep requeues it | `75-workers-jobs` |
+| 17 | **Poison job** | attempt cap → dead-letter | the queue stops re-running it and drains | `75-workers-jobs` |
+| 18 | **Duplicate side-effect** from a retry | `Idempotency-Key` on non-idempotent calls | the retry collapses onto the first result | here + `15-api-contracts` |
+| 19 | **Disk fills** | retention + disk-space Beat task | old data is reaped before the volume fills | `RESILIENCE.md` §6e |
+| 20 | **Clock moves** (NTP step, suspend) | `monotonic()` elapsed; absolute epoch deadlines | nothing to recover — jumps stop corrupting timers | here |
+| 21 | **Operational failure → content verdict** | classifier defaults transient; terminal needs evidence | the item stays retryable, so a later run fixes it | here |
+| 22 | **Nothing fails, nothing progresses** | monotonic progress counter + zero-progress alarm | the alarm fires once; recovery clears it | here (§ Provider-death) |
+
+⚠️ **Rows 9 and 22 make "autorecovery" honest.** Everything else recovers a *call*; row 9 recovers the
+*process*, and row 22 catches the case where every mechanism above works correctly and the system is
+still dead. Retry, backoff and breakers cannot see an ABSENCE of events.
+
+---
+
 ## Basic Resilience (ALL services with external calls)
 
 The lifecycle doc mandates: **"every external call has timeout + retry with backoff. Circuit-breaker for repeated failures. Graceful fallback when dependencies are down."**
@@ -46,6 +90,7 @@ This is the minimum for ANY `httpx`, `fetch`, or SDK call to an external service
 ### Python (httpx — async)
 
 ```python
+import math
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -54,7 +99,7 @@ from tenacity import (
     RetryCallState, retry, retry_if_exception, stop_after_attempt, wait_random_exponential,
 )
 
-# 1. Configure the client ONCE with timeouts (values from settings — see the knob note below)
+# 1. Configure the client ONCE with timeouts.
 import structlog
 
 logger = structlog.get_logger()
@@ -62,15 +107,13 @@ logger = structlog.get_logger()
 client = httpx.AsyncClient(
     base_url="https://api.example.com",
     timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0),
-    # For internal M2M calls, add X-Internal-Token header per 35-security-auth.md.
-    # Do NOT send internal tokens to third-party APIs.
+    # Internal M2M calls add X-Internal-Token (35-security-auth); never to third parties.
 )
 
-# 2. WHICH failures are retryable. `raise_for_status()` raises HTTPStatusError, so a retry
-#    predicate that only names TimeoutException/ConnectError never retries a 5xx or a 429 —
-#    it silently gives up on exactly the failures backoff exists for.
-# ⚠️ The literals below are illustrative. Per § Banned Patterns, every timeout / attempt count /
-# cap ships as a §7a env knob — read them from settings, do not hardcode them in the call site.
+# 2. WHICH failures are retryable. `raise_for_status()` raises HTTPStatusError, so a predicate
+#    naming only TimeoutException/ConnectError never retries a 5xx or a 429 — it gives up on
+#    exactly the failures backoff exists for.
+# ⚠️ Every literal below is illustrative: each ships as a §7a env knob, read from settings.
 RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
 _FALLBACK = wait_random_exponential(multiplier=1, max=10)  # JITTERED — see the rules below
 _RETRY_AFTER_CAP_S = 60.0
@@ -83,19 +126,25 @@ def _is_retryable(exc: BaseException) -> bool:
 
 
 def _wait(state: RetryCallState) -> float:
-    """Honour Retry-After (429/503) in BOTH legal formats, capped; else jittered backoff."""
+    """Honour Retry-After (429/503) in BOTH legal formats, clamped; else jittered backoff."""
     exc = state.outcome.exception() if state.outcome else None
     if isinstance(exc, httpx.HTTPStatusError):
         raw = exc.response.headers.get("retry-after")
         if raw:
+            delay: float | None
             try:
-                return min(float(raw), _RETRY_AFTER_CAP_S)          # delay-seconds
+                delay = float(raw)                                   # delay-seconds
             except ValueError:
                 try:                                                 # or an HTTP-date
                     delay = (parsedate_to_datetime(raw) - datetime.now(timezone.utc)).total_seconds()
-                    return min(max(delay, 0.0), _RETRY_AFTER_CAP_S)
                 except (TypeError, ValueError):
-                    pass                                             # unparseable → fall through
+                    delay = None                                     # unparseable → fall through
+            # ⚠️ CLAMP BOTH BRANCHES, not just the top. `Retry-After: -1` or `nan` reaches
+            # tenacity as a sleep length and raises ValueError("sleep length must be
+            # non-negative") — which is NOT an httpx.HTTPError, so it sails past the
+            # graceful fallback below and crashes the caller on one hostile header byte.
+            if delay is not None and math.isfinite(delay):
+                return min(max(delay, 0.0), _RETRY_AFTER_CAP_S)
     return _FALLBACK(state)
 
 
@@ -123,56 +172,49 @@ async def get_item(item_id: str) -> dict | None:
 **Rules:**
 - **`httpx.AsyncClient`** is the only HTTP client for async FastAPI. Never use `requests` (sync, blocks the event loop).
 - **Timeout is mandatory.** No `httpx.get()` without explicit timeout. The default `httpx.Timeout(5.0)` is often too short for read — set per dependency.
-- **Retry with JITTERED exponential backoff.** Use `tenacity` (Python) — 3 attempts, 1-10s backoff, and
-  **`wait_random_exponential` / `wait_exponential_jitter`, never bare `wait_exponential`**. This is not a
-  style preference: tenacity's own docstring says `wait_exponential`'s intervals "are fixed (i.e. there is
-  no jitter) … *not* suitable for resolving contention between multiple processes for a shared resource".
-  N workers that fail together retry in lockstep and re-hammer the dependency at the moment it is
-  recovering — the thundering herd. Every worker fleet here is exactly that "multiple processes" case.
-- **Which statuses are retryable.** Retry timeouts, connection errors, and 5xx (502/503/504 are transient
-  gateway errors). Do **not** retry 400/401/403/404/422 — a permanent client error retried is just load.
-  ⚠️ **`429` and `408` are the exceptions and they matter most**: `429 Too Many Requests` is the single
-  most common retryable response from a rate-limited vendor, and `408 Request Timeout` is transient by
-  definition. "Never retry 4xx" as a flat rule makes an agent give up on precisely the failure that
-  backoff exists for.
-- **Honour `Retry-After` when the server sends it** (on `429` and `503`). The server knows its own
-  recovery window better than your backoff curve does. ⚠️ It has **two legal formats** — delay-seconds
-  (`Retry-After: 120`) *or* an HTTP-date (`Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`) — so parse both,
-  and **cap** what you honour (a hostile or buggy value of `86400` must not park a worker for a day).
-  Fall back to jittered backoff when the header is absent or unparseable. `tenacity.wait_exception`
-  exposes the response for exactly this.
-- **⚠️ Inline retry vs PAUSE — the two mechanisms this pack owns, and 429 is where they meet.**
-  An inline retry handles a **blip**: one call failed, seconds of backoff, bounded attempts. A pause
-  handles a **condition**: the dependency is refusing work, so *every* job will hit the same wall and
-  retrying inline just multiplies load across the whole queue. The test is not the status code, it is
-  **whether the next job would fail for the same reason**:
-  - a single `429` with a short `Retry-After` (within your inline budget) → honour it inline, done.
-  - repeated `429`s, or a `Retry-After` longer than your inline budget → that is a CONDITION. Stop
-    retrying inline and `set_pause(key, ttl)` for the window (workers — § Pause-Key Conventions), so
-    one worker's discovery spares the whole queue instead of every job learning it separately.
-    ⚠️ **Cap that TTL too** (a §7a knob). The inline cap stops a hostile `Retry-After: 86400` parking
-    ONE worker for a day; feeding the same unvalidated value into a pause key parks the ENTIRE QUEUE
-    for a day. A vendor-supplied number never becomes a TTL unclamped.
-  This is why the classifier already pauses on `402` rather than retrying it: credit exhaustion is a
-  condition, not a blip. Same shape, different trigger.
-- **⚠️ Retry at ONE layer.** Retries compose multiplicatively: tenacity ×3 inside a job, a job-queue
-  retry ×3 around it (`75-workers-jobs`), and your own caller retrying ×3 is up to **27** upstream
-  calls per logical operation — long before any circuit breaker sees a pattern. Pick the layer that
-  owns the retry and make the inner layers fail fast. For worker jobs the queue retry IS the retry:
-  do not also wrap the call in `@retry` inside the job.
-- **⚠️ Retrying a non-idempotent write can double-charge, double-send or double-create.** Before adding a
-  retry to a `POST` (or a non-idempotent `PATCH`), the call needs an `Idempotency-Key` — otherwise a retry
-  after a timeout you never saw the response to is a second real mutation. `PUT`/`DELETE` are idempotent
-  by HTTP semantics and are safe. **`15-api-contracts` owns the SERVING side** (accepting and storing the
-  key); this pack owns the caller's question — *may I retry this at all?* If the answer is "no key, no
-  safety", the correct move is to surface the failure, not to retry blind.
-- **Graceful fallback.** The caller must handle the failure case — return cached data, a default, or a user-facing error message. Never let an external service failure crash your endpoint.
+- **Retry with JITTERED exponential backoff.** `tenacity` (Python) — 3 attempts, 1-10s, and
+  **`wait_random_exponential` / `wait_exponential_jitter`, never bare `wait_exponential`**. Not a style
+  preference: tenacity's own docstring says `wait_exponential`'s intervals "are fixed (i.e. there is no
+  jitter) … *not* suitable for resolving contention between multiple processes for a shared resource".
+  N workers that fail together retry in lockstep and re-hammer the dependency exactly as it recovers —
+  the thundering herd. Every worker fleet here is that "multiple processes" case.
+- **Which statuses are retryable.** Timeouts, connection errors and 5xx. Do **not** retry
+  400/401/403/404/422 — a permanent client error retried is just load. ⚠️ **`429` and `408` are the
+  exceptions and they matter most**: `429` is the commonest retryable response from a rate-limited
+  vendor and `408` is transient by definition, so a flat "never retry 4xx" makes an agent give up on
+  precisely the failure backoff exists for.
+- **Honour `Retry-After`** (on `429`/`503`) — the server knows its recovery window better than your
+  curve does. ⚠️ **Two legal formats**: delay-seconds (`120`) *or* an HTTP-date
+  (`Wed, 21 Oct 2026 07:28:00 GMT`). Parse both, **clamp both ends** (a hostile `86400` must not park a
+  worker for a day; a hostile `-1` must not raise out of your retry machinery), and fall back to
+  jittered backoff when absent or unparseable. `tenacity.wait_exception` exposes the response for this.
+- **⚠️ Inline retry vs PAUSE — and `429` is where they meet.** An inline retry handles a **blip**; a
+  pause handles a **condition**, where every job will hit the same wall and retrying inline just
+  multiplies load across the queue. The test is not the status code but **whether the next job would
+  fail for the same reason**: a single `429` with a short `Retry-After` → honour it inline; repeated
+  `429`s, or a `Retry-After` beyond your inline budget → `set_pause(key, ttl)` so one worker's
+  discovery spares the whole queue. ⚠️ **Clamp that TTL too** (§7a): the inline cap stops a hostile
+  `86400` parking ONE worker for a day; the same unvalidated value in a pause key parks the ENTIRE
+  QUEUE for a day. A vendor number never becomes a TTL unclamped. This is why the classifier pauses on
+  `402` — credit exhaustion is a condition, not a blip.
+- **⚠️ Retry at ONE layer.** Retries compose multiplicatively: tenacity ×3 in a job, a queue retry ×3
+  around it, your caller ×3 = up to **27** upstream calls per logical operation, long before a breaker
+  sees a pattern. Pick the owning layer; make the inner ones fail fast. For worker jobs the queue retry
+  IS the retry — do not also wrap the call in `@retry`.
+- **⚠️ Retrying a non-idempotent write can double-charge, double-send or double-create.** A `POST` (or
+  non-idempotent `PATCH`) needs an `Idempotency-Key` before it gets a retry — otherwise retrying after
+  a timeout you never saw the response to is a second real mutation. `PUT`/`DELETE` are idempotent by
+  HTTP semantics. `15-api-contracts` owns the SERVING side; this pack owns the caller's question —
+  *may I retry this at all?* No key, no safety: surface the failure instead of retrying blind.
+- **Graceful fallback** — cached data, a default, or a clear error. Never let an external failure crash
+  your endpoint. ⚠️ That includes the *parse*: a `200` with malformed JSON raises `JSONDecodeError`,
+  which is not an `httpx.HTTPError` and will sail straight past the `except` above.
 
 ### The timeout you didn't set (third-party libraries, shared sessions, DNS)
 
-"Every external call has a timeout" is necessary but NOT sufficient. Three gaps bite repeatedly (YouTube pipeline, 2026-05-31 — `docs/LESSONS_LEARNT.md` Lessons 72 & 74):
+"Every external call has a timeout" is necessary but NOT sufficient. Three gaps bite repeatedly (`docs/LESSONS_LEARNT.md` Lessons 72 & 74):
 
-1. **A library you call may make an un-timeout'd request through *your* session.** You set a proxy on a shared `requests.Session`/client and hand it to a third-party library; the library's internal `session.get(url)` sets no timeout → a stalled proxy (connection accepted, no bytes) blocks the socket read **forever**, hanging the whole worker until something external kills it. The fix is to put a **default timeout on the session itself**, so every request the library makes inherits it:
+1. **A library you call may make an un-timeout'd request through *your* session.** Hand a shared `requests.Session`/client to a third-party library and its internal `session.get(url)` sets no timeout → a stalled proxy (connection accepted, no bytes) blocks the socket read **forever**, hanging the worker. Put a **default timeout on the session itself** so every request inherits it:
 
    ```python
    # Force a default (connect, read) timeout on EVERY request a handed-off
@@ -187,14 +229,26 @@ async def get_item(item_id: str) -> dict | None:
 
    **Verify in the library source** that every request path is timeout-bounded — "the library has timeouts" is not the same as "every call has one" (the offending lib timed out its AJAX calls but not its initial page fetch).
 
-2. **A request `timeout=` does NOT bound DNS resolution.** `requests`/`httpx`/`urllib3` timeouts cover connect + read, not `getaddrinfo` — a stalled resolver hangs *through* the timeout. On WSL/containers/flaky-resolver hosts, harden the resolver (static public DNS, made immutable) — don't rely on `timeout=`. Diagnose with `getent ahostsv4 <host>` (hangs) vs `getent ahostsv6` / `nslookup -type=A <host> 1.1.1.1` (instant). For long-lived clients, give them a resolver with its own deadline rather than the system stub.
+2. **A request `timeout=` does NOT bound DNS resolution.** `requests`/`httpx`/`urllib3` timeouts cover connect + read, not `getaddrinfo` — a stalled resolver hangs *through* the timeout. Harden the resolver (static, immutable DNS) rather than trusting `timeout=`; diagnose with `getent ahostsv4 <host>` (hangs) vs `nslookup -type=A <host> 1.1.1.1` (instant). Long-lived clients get a resolver with its own deadline.
 
-3. **A `while not <flag>: sleep()` wait is an unbounded hang in disguise.** Any "wait for condition" loop (network-up flag, lock acquired, dependency ready) MUST have a ceiling, then proceed/bail to a transient error. An unbounded conditional wait burns the job's whole hard-timeout budget exactly like a missing socket timeout.
+3. **A `while not <flag>: sleep()` wait is an unbounded hang in disguise.** Every "wait for condition" loop (network-up, lock acquired, dependency ready) needs a ceiling, then proceeds or bails to a transient error — otherwise it burns the job's whole hard-timeout budget exactly like a missing socket timeout.
 
 ### Node.js / TypeScript
 
 ```typescript
 import { setTimeout } from 'timers/promises';
+
+// Retry-After in BOTH legal formats → ms, or NaN when absent/unparseable.
+// ⚠️ `Number(null)` is 0 and `Number('')` is 0 — so an ABSENT header must never reach
+// Number() directly: it yields a 0 ms wait, i.e. an un-jittered hot loop against exactly
+// the dependency you are trying to spare. Header-less 5xx is the COMMON case.
+function retryAfterMs(raw: string | null): number {
+  if (raw == null || raw.trim() === '') return NaN;
+  const secs = Number(raw);
+  if (Number.isFinite(secs)) return Math.max(secs, 0) * 1000;   // delay-seconds
+  const at = Date.parse(raw);                                    // or an HTTP-date
+  return Number.isFinite(at) ? Math.max(at - Date.now(), 0) : NaN;
+}
 
 async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries = 3): Promise<Response> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -218,9 +272,9 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries
       if (attempt === maxRetries) throw err;
       // Honour Retry-After (capped), else JITTERED backoff. Un-jittered retries synchronise
       // across clients and re-hammer the dependency as it recovers — the thundering herd.
-      const hinted = Number((err as any)?.retryAfter);
+      const hinted = retryAfterMs((err as any)?.retryAfter ?? null);
       const backoff = Math.min(1000 * 2 ** attempt, 10_000) * (0.5 + Math.random());
-      await setTimeout(Number.isFinite(hinted) ? Math.min(hinted * 1000, 60_000) : backoff);
+      await setTimeout(Number.isFinite(hinted) ? Math.min(hinted, 60_000) : backoff);
     }
   }
   throw new Error('Unreachable');
@@ -229,174 +283,243 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries
 
 ### FastAPI Client Resilience (SaaS / Mobile)
 
-Clients call a **self-hosted FastAPI backend** (Pattern A — `fabrik-lib/fastapi-user-auth`, per `agents-fabrik.md § Supabase`), never a database-as-a-service SDK directly. Browser `fetch` / mobile HTTP clients have no built-in timeout or retry for these calls — wire them explicitly:
+Clients call a **self-hosted FastAPI backend** (Pattern A — `fabrik-lib/fastapi-user-auth`), never a database-as-a-service SDK directly. Browser `fetch` / mobile HTTP clients have no built-in timeout or retry — wire them explicitly:
 
 ```typescript
-async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const resp = await fetch(`${API_BASE_URL}${path}`, {
+// ONE client helper — reuse fetchWithRetry above; do not hand-roll a second retry loop.
+const apiFetch = (path: string, options: RequestInit = {}) =>
+  fetchWithRetry(`${API_BASE_URL}${path}`, {
     ...options,
-    signal: AbortSignal.timeout(30_000),  // no request hangs forever
+    signal: options.signal ?? AbortSignal.timeout(30_000),  // never clobber a caller's signal
   });
-  // 429/408 are retryable too — `>= 500` alone silently returns a rate-limit response as if it
-  // succeeded, and the caller's retry never fires.
-  if (!resp.ok && (resp.status >= 500 || resp.status === 429 || resp.status === 408)) {
-    throw new Error(`Retryable HTTP ${resp.status}`);
-  }
-  return resp;
-}
 ```
 
-- **Explicit timeout on every client→backend call** (`AbortSignal.timeout`) — the default `fetch` has none.
-- **Wrap backend calls in try/catch** at the service layer. Handle non-2xx responses and network errors
-  gracefully; retry transient failures (timeout, connection, 5xx, **plus 408/429**) with **jittered**
-  backoff — same status set and same `Retry-After` handling as § Python above, and the same reason: on a
-  client fleet, un-jittered retries synchronise. Never retry 400/401/403/404/422.
-- **Backend outage fallback:** if the FastAPI API is down, the app shows cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
-- **Auth token refresh:** Pattern A issues its own JWTs with atomic refresh-token rotation; the app's auth client owns the refresh flow (per `35-security-auth.md` Pattern A). Do not scatter ad-hoc refresh logic across service calls — centralize it in the auth client.
-
-> **Legacy note.** A project still on Supabase Auth (Pattern B) wraps `supabase-js` REST calls (`from('table').select()`) in the same try/catch + cached-data-fallback discipline, and lets the SDK own token refresh. Pattern B is legacy — migrate to self-hosted Pattern A (`agents-fabrik.md § Supabase`).
+- **Explicit timeout on every client→backend call** (`AbortSignal.timeout`) — the default `fetch` has
+  none — and the retry, jitter, status set and `Retry-After` parsing all come from `fetchWithRetry`.
+  A second, simpler client-side loop is how the 408/429 cases and the HTTP-date format get dropped.
+- **Backend outage fallback:** cached data (MMKV on mobile, localStorage on web) or a clear error state — never a blank screen or crash.
+- **Auth token refresh:** the app's auth client owns the refresh flow (`35-security-auth.md` Pattern A). Never scatter ad-hoc refresh logic across service calls.
 
 ### Circuit-Breaker Pattern
 
-For dependencies that fail repeatedly, implement a circuit-breaker to stop hammering a dead service:
+For dependencies that fail repeatedly, a circuit-breaker stops you hammering a dead service.
+**Vendor it, don't hand-roll it** — `fabrik-lib/async-http-client/circuit_breaker.py` ships
+`CircuitBreakerRegistry` (the module `self-healing` row 3 already names). The invariants below are the
+CONTRACT to check any implementation against, not a spec to retype:
 
-```python
-import time
-from dataclasses import dataclass, field
+**The invariants any breaker must satisfy** — check the vendored module against these; a hand-rolled
+dataclass gets them wrong by default, and each is a live production failure:
 
-@dataclass
-class CircuitBreaker:
-    failure_threshold: int = 5
-    recovery_timeout: float = 60.0
-    _failures: int = field(default=0, init=False)
-    _last_failure: float = field(default=0.0, init=False)
-    _state: str = field(default="closed", init=False)
+| Invariant | The bug when it's missing |
+|---|---|
+| **`closed → open`** at `failure_threshold` consecutive failures | — |
+| **`open` returns the fallback IMMEDIATELY**, never a queued timeout wait | you re-pay the read timeout on every call to a dead dependency |
+| **`open → half-open` after `recovery_timeout`, admitting a COUNTED few** (`half_open_max_calls`, default 1) | a half-open admitting every caller dumps full traffic onto a dependency that is halfway up, re-kills it, and repeats every `recovery_timeout` — the overload it opened to prevent, on a schedule |
+| **A failed probe re-opens at once; only a probe success closes** | with no explicit `half-open → open` edge you rely on stale counters — and a `record_success()` that closes from ANY state lets a call *issued before the breaker opened* close it seconds later, erasing the recovery window |
 
-    def can_execute(self) -> bool:
-        if self._state == "open":
-            if time.monotonic() - self._last_failure > self.recovery_timeout:
-                self._state = "half-open"
-                return True
-            return False
-        return True
+- One breaker per dependency (not per endpoint); thresholds and `half_open_max_calls` are §7a knobs.
+- **Per-PROCESS by design** — each replica learns independently, none can trip the fleet. Not a
+  distributed breaker: never back it with Redis to "share" state. ⚠️ Corollary: with N workers, up to
+  `N × failure_threshold` calls hit a dead dependency first. When that matters the fleet-wide stop is a
+  **pause key**, not a breaker.
+- **Record failures per logical operation, not per retry attempt** — a threshold of 5 around a ×3
+  tenacity retry is 15 upstream calls, not 5.
 
-    def record_success(self) -> None:
-        self._failures = 0
-        self._state = "closed"
+---
 
-    def record_failure(self) -> None:
-        self._failures += 1
-        self._last_failure = time.monotonic()
-        if self._failures >= self.failure_threshold:
-            self._state = "open"
-```
+## The lifecycle edges — boot and shutdown (rows 7–8)
 
-- One circuit-breaker per external dependency (not per endpoint).
-- `failure_threshold` and `recovery_timeout` as env vars (tuning knobs per §7a of RESILIENCE.md).
-- When circuit is open, return the graceful fallback immediately — don't queue up timeout waits.
+Everything above bounds a call in a *running* process. The edges are where whole deploys are lost.
+
+### Boot — a dependency that is not ready yet is not an error
+
+**`depends_on` is start ORDER, not readiness**; `condition: service_healthy` gates only the *first*
+start and says nothing about a dependency that restarts later. Postgres may be replaying WAL, Redis
+loading its RDB, while the container already reads "up".
+
+- **Retry your dependencies at boot: bounded, jittered, with a startup DEADLINE** (a §7a knob), then
+  exit **non-zero** — the unbounded-conditional-wait ban applied to boot. An entrypoint that waits
+  forever is worse than one that dies: Docker reports *Up* while it serves nothing.
+- **Distinguish fatal from transient first** — a wrong password or missing env var will not fix itself:
+  one high-signal line, then exit. Retrying a deterministic failure is a crash loop against the very
+  dependency it waits for.
+- **Never auto-run migrations at startup** — a one-shot deploy step (`30-ops` § Release & Admin).
+- **A crash loop must be VISIBLE** — alert on container restart count (`55-observability`); restarting
+  forever with nobody watching is a silent outage, not healing.
+
+### Shutdown — SIGTERM is a normal event, not a failure
+
+Every deploy and OOM-restart sends it. `stop_signal` defaults to `SIGTERM` and **`stop_grace_period`
+defaults to 10 seconds**, after which Docker sends SIGKILL and in-flight work dies. The sequence:
+**stop accepting new work → finish what is in flight → close pools and clients → exit.** Refusing
+instantly is not a drain; closing pools first severs your own handlers. The app's shutdown timeout
+must be **strictly less than `stop_grace_period`** or the grace period is decorative.
+
+⚠️ **The "fail readiness first, then drain" step in every Kubernetes guide does NOT apply here by
+default** — it lets a load balancer deregister one replica while its siblings serve, and this stack
+does not set `deploy.replicas` on app services (`30-ops`). Add it only with real multi-replica
+Traefik routing; unconditionally it buys a longer outage per deploy, not a shorter one.
+
+- **Set `stop_grace_period` deliberately.** 10s suits a stateless API; a worker needs `>=` its longest
+  task (`75-workers-jobs` sets 45s and owns the worker path, incl. the **SIGTERM requeue fast path**).
+- **The signal must arrive.** Shell-form `CMD` makes `/bin/sh` PID 1, which never forwards SIGTERM —
+  exec-form, or `sh -c "exec ..."` (`30-ops`).
+- **Exit 143 is a clean SIGTERM exit; 137 is SIGKILL** (grace blown, or OOM) — 137 on stop events is a
+  broken drain whatever the code looks like. **Prove it** with a real `docker kill --signal=SIGTERM`.
+
+---
+
+## Overload is a failure class (rows 10–13)
+
+Retry, backoff and breakers assume the *dependency* is the problem. When **you** are the bottleneck they
+make it worse. None of these primitives is a retry.
+
+- **One absolute DEADLINE per logical operation, propagated — not a timeout per hop.** Per-hop timeouts
+  compose into work outliving its caller: A gives up at 2s while B, C and D burn capacity on a result
+  nobody will read. Pass an absolute deadline (epoch), derive each outbound timeout from
+  `remaining - reserve`, and **short-circuit rather than start an attempt that cannot finish** in it.
+  A retry scheduled past the deadline is pure amplification.
+- **A per-request attempt cap does NOT cap fleet retry traffic** — 3 attempts still triples load when
+  every request fails at once, exactly when the dependency is struggling. Add a **population retry
+  budget** (token bucket, or a ~10% ratio ceiling) and fail fast when spent. Twin of § "Retry at ONE
+  layer": that caps retry DEPTH, this its WIDTH.
+- **Bound the queue, cap concurrency, then SHED.** Unbounded in-memory queueing turns overload into an
+  OOM-kill (row 9) that loses everything buffered. Cap in-flight work with a semaphore; return
+  **`503` + `Retry-After`** at the bound. A queued request past its deadline is dropped **on dequeue**.
+- **Serve a hot key's rebuild ONCE.** On expiry every concurrent request misses at the same instant and
+  stampedes the origin — a herd from your own cache, not a retry loop, so jitter and backoff never
+  touch it. Coalesce behind a single-flight lock, or refresh before expiry.
+- **Elapsed time is `time.monotonic()`; deadlines are absolute epoch.** An NTP step or a suspended
+  container makes a wall-clock duration negative or enormous — an instant TTL, or a permanent one.
+
+---
+
+## When the resilience substrate itself fails (row 14)
+
+Pause state, rate limits and dedup flags are all **Redis-backed** — so "what happens when Redis is
+down" is a question about your resilience, not your cache. There is no safe default, and an undeclared
+answer is whatever `except` clause someone wrote first. **Every Redis-gated decision DECLARES its
+posture in §2b; the two are not interchangeable:**
+
+| Posture | When Redis is unreachable | Use when |
+|---|---|---|
+| **fail-OPEN** | the guard is skipped, work proceeds | the guard OPTIMISES (rate limits, pause flags, dedup). A blip must not 503 the API — and if Redis died *of load*, failing closed removes the only thing still serving |
+| **fail-CLOSED** | the guarded work is refused | the guard PROTECTS something a breach does not recover from — a contractual vendor limit, a paid-per-call dep, a spend cap |
+
+- **Say it out loud, and COUNT it.** An `except RedisError:` returning `False` from `is_paused()` IS a
+  fail-open decision — undeclared and invisible. Name the posture at the call site and emit a counter +
+  log line when it fires, or the guard silently disables itself with no signal that it did.
+- **Degrade, don't just open** — hold an approximate local bound (`global_limit / replicas`) instead.
+- **Queue-bloat prevention is fail-open by construction** — a lost `dispatched:<id>` flag costs a
+  re-dispatch, not data, since the DB is the source of truth (Property 4). **Pause keys are the
+  dangerous ones**: losing them un-pauses a paused dependency, so the next detection event must re-set
+  the flag — which is why detection is *both* proactive and reactive (Property 1).
 
 ---
 
 ## VPS Service Client Patterns
 
-The VPS runs several services your code may call. Each is an external dependency — apply basic resilience (timeout + retry + fallback) per the patterns above. Quick reference:
+Each is an external dependency — timeout + retry + fallback per the patterns above. Starting timeouts
+(tune per §7a; all on the `fabrik` network, via `httpx.AsyncClient` unless noted):
 
-| Service | Address | Client | Timeout | Fallback |
-|---|---|---|---|---|
-| **Backblaze B2** | S3-compatible API | `boto3` with `endpoint_url` from env | 30s connect, 120s read (large files) | Return error; never block request on upload failure |
-| **Gotenberg** (PDF) | `http://gotenberg:3000` on `fabrik` network | `httpx.AsyncClient` POST multipart | 60s (PDF generation is slow) | Return "PDF unavailable, retry later" |
-| **Browserless** | `http://browserless:3000` on `fabrik` network | `httpx.AsyncClient` or Playwright connect | 30s | Return cached/fallback content |
-| **Apprise** (notifications) | `http://apprise:8000` on `fabrik` network | `httpx.AsyncClient` POST | 10s | Log warning, don't block — notifications are fire-and-forget |
-| **MeiliSearch** | `http://meilisearch:7700` on `fabrik` network | `meilisearch` Python SDK or `httpx` | 5s search, 30s indexing | Search: return empty results. Indexing: retry via job queue |
+| Service | Timeout | Fallback |
+|---|---|---|
+| **Backblaze B2** (S3 API, `boto3`) | 30s connect / 120s read | return an error; never block a request on an upload |
+| **Gotenberg** (PDF, `:3000`) | 60s — generation is slow | "PDF unavailable, retry later" |
+| **Browserless** (`:3000`, or Playwright connect) | 30s | cached / fallback content |
+| **Apprise** (notify, `:8000`) | 10s | log a warning, don't block — notifications are fire-and-forget |
+| **MeiliSearch** (`:7700`, SDK or httpx) | 5s search / 30s indexing | search → empty results; indexing → retry via the job queue |
 
 **Rules:**
-- All credentials via env vars (`B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, etc.).
-- Every service above must have a row in `docs/RESILIENCE.md` §2a if your project calls it.
-- B2 file uploads: async via job queue (per `75-workers-jobs.md`), never inline in API handlers. **boto3 is sync** — keep its network calls in the worker/sync context or a thread executor (`run_in_executor`), never inline in an `async def` route.
-- Presigned URLs for B2 downloads: generate server-side (presigned URL generation is local — no network I/O, safe in async), return URL to client. Never proxy file bytes through FastAPI.
+- Credentials via env vars; every service you call needs its `docs/RESILIENCE.md` §2a row.
+- B2 uploads go async via the job queue, never inline in a handler. **boto3 is sync** — keep it in the
+  worker or a thread executor, never inside an `async def` route.
+- B2 downloads use server-side presigned URLs (generation is local, no I/O — safe in async). Never
+  proxy file bytes through FastAPI.
 
 ---
 
 ## The Per-Project Contract (`docs/RESILIENCE.md`)
 
-Every project scaffolded by Fabrik gets `docs/RESILIENCE.md` from `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`. Its 14 sections are the contract. The non-negotiable ones:
+Every scaffolded project gets `docs/RESILIENCE.md` from
+`templates/scaffold/docs/RESILIENCE_TEMPLATE.md` — the source of truth for the full section list. The
+non-negotiable ones:
 
-| § | Title | Why it's enforceable |
-|---|---|---|
-| 2a | Dependency Inventory — summary | If an `httpx.get()` / `fetch()` call site has no row here, the PR is rejected. |
-| 2b | Detail card per dependency | Failure signature, detection mechanism, timeout/retry config, fallback, scope. Workers additionally: pause key, TTL+env, resume trigger, jobs affected, bloat note. |
-| 3a | Queue Bloat Prevention | Required if `kind: worker` or any async job processing. |
-| 6 | Concrete Primitives | Basic: timeout/retry/CB. Workers additionally: pause state + classifier + /health checks + beat tasks. |
-| 7 | Proactive Monitoring Schedule | Every billable external API MUST have a `<api>_balance_check` Beat row. |
-| 7a | Tuning Knobs | Every timeout, retry count, CB threshold, TTL, floor = a single env var. |
-| 9 | Accepted Gaps | A gap without a `Review by` date is a bug, not a gap. |
-| 10 | Recovery Drills | A recovery procedure you haven't run is a guess. Quarterly. |
-
-Reference: `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` (the source of truth for the contract structure).
+| § | Why it's enforceable |
+|---|---|
+| **2a** Dependency inventory | an `httpx.get()`/`fetch()` call site with no row here → the PR is rejected |
+| **2b** Detail card per dependency | failure signature, detection, timeout/retry, fallback, scope, **fail-open/closed posture**. Workers add: pause key, TTL+env, resume trigger, jobs affected, bloat note |
+| **3a** Queue bloat prevention | required for `kind: worker` or any async job processing |
+| **6** Concrete primitives | timeout/retry/CB; workers add pause state + classifier + `/health` checks + beat tasks |
+| **7** Proactive monitoring | every billable external API needs a `<api>_balance_check` Beat row |
+| **7a** Tuning knobs | every timeout, retry count, CB threshold, TTL and floor is one env var |
+| **9** Accepted gaps | a gap without a `Review by` date is a bug, not a gap |
+| **10** Recovery drills | a recovery procedure you have not run is a guess. Quarterly |
 
 ---
 
 ## Health Endpoint Contract
 
-Every service exposes `/health` that actively verifies critical dependencies before returning 200. This is the single health endpoint — consistent across all rule packs, Gatus, the compose `HEALTHCHECK`, and the scaffold.
+**There are TWO endpoints and they have different jobs** (`30-ops`, `55-observability`):
+`/healthz` is the **dep-free LIVENESS** probe the compose `HEALTHCHECK` targets — it answers "is this
+process alive", nothing more. `/health` is the **READINESS** probe Gatus consumes, and it actively
+verifies critical dependencies before returning 200.
 
-| Check | What to verify |
-|---|---|
-| Database | `await session.execute(text("SELECT 1"))` |
-| Redis | `await redis.ping()` |
-| Consumed internal APIs | `httpx.get(f"{service_url}/health", timeout=5)` |
-| File storage (B2) | Check bucket accessibility (if critical path) |
+⚠️ **Never point `HEALTHCHECK` at the dependency-checking endpoint** — one `postgres-main` blip would
+flip every container on the fleet to `unhealthy` at once. A DB blip degrades readiness; it must never
+mark the container unhealthy.
 
-- `/health` is Authelia-bypassed on all services (global rule). Never protect it.
-- `HEALTHCHECK` in compose.yaml points to `/health`. See `30-ops.md` for the template.
-- Enforcement: `scripts/enforcement/check_health.py` verifies real dependency checks exist (not static 200).
-- Gatus probes `/health` externally for uptime SLO.
-- The Docker daemon uses the compose HEALTHCHECK for container restart decisions (`restart: unless-stopped`).
+`/health` verifies what the request path actually needs: DB (`SELECT 1`), Redis (`ping()`), consumed
+internal APIs (`GET /health`, 5s), and object storage if it is on the critical path.
 
-**Advanced (workers only):** If the project uses the pause-state pipeline, add a readiness dimension — `/health` returns 200 but includes a `paused` field in the JSON body listing any active pause keys. This lets operators see pause state without it triggering Gatus alerts.
+- Both endpoints are Authelia-bypassed on all services. Never protect them.
+- Enforcement: `check_health.py` verifies real dependency checks exist (not a static 200).
+- ⚠️ **Docker does NOT restart an unhealthy container.** `restart: unless-stopped` acts on process
+  EXIT only; health status feeds `up --wait`, `depends_on: service_healthy` and Traefik routing —
+  never a restart. A process that is **wedged but alive** is recovered by nothing in compose: that is
+  the watchdog's Tier A `restart_container` (`60-watchdog`), and it is why the watchdog exists. Never
+  design as if the daemon will do it.
 
-```python
-@app.get("/health")
-async def health():
-    from sqlalchemy import text
-    async with async_session() as session:
-        await session.execute(text("SELECT 1"))
-    paused = get_active_pauses()  # list of active pause keys, empty if none
-    return {"status": "ok", "paused": paused}
-```
+**Workers:** `/health` returns 200 but carries a `paused` field listing active pause keys — operators
+see pause state without it firing Gatus alerts. ⚠️ That deliberate green is exactly why a long pause
+must escalate on its own (§ The Four Properties, property 2).
 
 ---
 
 ## Advanced: Autonomous Pause-State Pipeline (workers only)
 
-The following sections apply ONLY to `file-worker`, `file-api`, and any service with async job processing. This is the production-proven pattern from the YouTube pipeline.
+Applies ONLY to `file-worker`, `file-api`, and any service with async job processing. `fabrik scaffold`
+emits the canonical `pause_state.py` into every `python-api` and `file-worker` project — customise it
+there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md`.
 
 ### The Four Properties
 
-A SaaS-grade autonomous system is defined by FOUR properties:
-
-1. **Detection is proactive AND reactive.** Beat tasks poll vendor balance APIs *before* workers fail. Error classifiers map exceptions to pause keys on the way through. Never one without the other for any critical dependency.
-2. **Pause flags are sliding-TTL.** Set/refreshed by every check, auto-clear when checks stop firing. No human page. No permanent stuck state. Worst case: a 30-minute TTL.
+1. **Detection is proactive AND reactive.** Beat tasks poll vendor balance APIs *before* workers fail; error classifiers map exceptions to pause keys on the way through. Never one without the other for a critical dependency.
+2. **Pause flags are sliding-TTL — which auto-clears a BLIP, not a CONDITION.** Every detection event
+   refreshes the TTL, so the worst case is *one TTL after the cause stops* and **unbounded while it
+   persists**. That is correct, and it is a trap: the queue is stopped while `/health` deliberately
+   still returns 200 and Gatus stays green, so a fleet can sit paused for days with nothing paging.
+   ⚠️ **So a pause carries its FIRST-set time and escalates exactly once past N× its TTL**
+   (`self-healing` row 4; `fabrik-lib/alerting/`'s title dedup gives the exactly-one property). A
+   sliding `SETEX` keeps no first-set timestamp — store it beside the flag, or that escalation is
+   unimplementable. Detection with no terminus is not autorecovery.
 3. **Queue depth = job count, exactly.** Dispatch-dedup + worker-keeps-flag-on-pause + sweeper-headroom together prevent the pause-then-re-queue-then-re-pause queue-explosion failure mode.
 4. **The database is the source of truth.** Queues lose state on restart; orphan sweeps reconcile from the DB.
 
-Canonical implementation: `fabrik scaffold` emits `pause_state.py` (from `templates/scaffold/python/pause_state.py`) into every `python-api` and `file-worker` project. Customize the `TRANSIENT_PATTERNS` list for your project's dependencies. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md` + `/opt/youtube/pause_state.py`.
-
 ### Pause-Key Conventions
 
-- Namespace: `<service_name>:pause:<resource>` (Redis key).
-- Service name is `SERVICE_NAME` env var, required at boot.
-- Sliding TTL: every detection event calls `set_pause(...)` with a fresh TTL — never `setnx`, never permanent.
-- Scope (see §2c of the project's RESILIENCE.md):
+Redis key `<service_name>:pause:<resource>`, where the name is the `SERVICE_NAME` env var (required at
+boot). Sliding TTL: every detection event calls `set_pause(...)` with a fresh TTL — never `setnx`,
+never permanent. Scope (§2c of the project's RESILIENCE.md):
 
-| Scope | Use when | Example |
-|---|---|---|
-| **global** | >=50% of work hits this dep, or partial work is worthless | Postgres down, Redis maxmem |
-| **per-job-type** | Dep affects only one job class — pausing everything is wasteful | YouTube Data API quota per job |
-| **per-token / per-key** | Multi-tenant — one abusive tenant must not stop others | API token rate limit |
-| **per-region / rotation** | Dep has multiple instances; rotate instead of stop | Multi-key API quota rotation |
+| Scope | Use when |
+|---|---|
+| **global** | ≥50% of work hits this dep, or partial work is worthless (Postgres down, Redis maxmem) |
+| **per-job-type** | the dep affects one job class — pausing everything is wasteful (a per-job API quota) |
+| **per-token / per-key** | multi-tenant: one abusive tenant must not stop the others |
+| **per-region / rotation** | the dep has multiple instances — rotate instead of stopping |
 
-**Anti-pattern:** defaulting to global pause for a dependency only 5% of jobs need. That halts 95% of healthy work.
+**Anti-pattern:** a global pause for a dependency only 5% of jobs need. It halts 95% of healthy work.
 
 ### Queue Bloat Prevention — The Five Mechanisms
 
@@ -404,29 +527,23 @@ All five must be present together. Any one missing → queues balloon under load
 
 | Mechanism | Implementation |
 |---|---|
-| **Dispatch dedup flag** | `<svc>:dispatched:<job_id>` (TTL 30 min) set on `dispatch_job()`, checked by all sweepers via `_filter_recently_dispatched()` (Redis `MGET`, O(1)). |
-| **Worker keeps flag on pause-skip** | If `is_paused(...)`, worker returns WITHOUT clearing flag → sweepers see "already queued" → no re-push. |
-| **Worker clears flag on success** | After pause check passes, `clear_dispatched_flag(job_id)` runs → sweepers may re-dispatch on future retry. |
-| **Sweeper headroom** | Sweepers pull **4x their limit**, post-filter against dedup flags, trim to limit. Handles top-N all in-flight. |
-| **`create_job` auto-dispatches** | Every `create_job(...)` call bundles `dispatch_job(...)`. No caller path can create orphans. |
+| **Dispatch dedup flag** | `<svc>:dispatched:<job_id>` (TTL 30 min) set on `dispatch_job()`, checked by every sweeper via `_filter_recently_dispatched()` (Redis `MGET`, O(1)) |
+| **Worker keeps flag on pause-skip** | if `is_paused(...)`, return WITHOUT clearing → sweepers see "already queued", no re-push |
+| **Worker clears flag on success** | `clear_dispatched_flag(job_id)` after the pause check passes → future retries may re-dispatch |
+| **Sweeper headroom** | pull **4× the limit**, post-filter against dedup flags, trim — handles top-N all in-flight |
+| **`create_job` auto-dispatches** | every `create_job(...)` bundles `dispatch_job(...)`; no caller path can create orphans |
 
 ### Error Classifier — One Source of Truth
 
-There is ONE file (`src/error_classifier.py` or equivalent) that maps exception/log-pattern to (pause_key, ttl). All worker error handlers and HTTP middleware call this single classifier. Adding a new transient pattern means editing ONE place.
-
-```python
-TRANSIENT_PATTERNS: list[tuple[re.Pattern, str, int]] = [
-    (re.compile(r"insufficient.?credit|payment.?required|\b402\b", re.I), "vendor_credit", 1800),
-    (re.compile(r"NameResolutionError|getaddrinfo failed",           re.I), "network",       30),
-    (re.compile(r"pool.*exhausted|too many connections",             re.I), "pool",          120),
-    (re.compile(r"rate.?limit|too many requests|\b429\b",            re.I), "rate_limit",    300),
-    # ... project-specific additions here, NEVER inline elsewhere
-]
-```
+There is ONE file (`src/error_classifier.py` or equivalent) mapping exception/log-pattern →
+`(pause_key, ttl)`. Every worker error handler and HTTP middleware calls it; a new transient pattern is
+edited in ONE place. The scaffold emits the starting table (`templates/scaffold/python/pause_state.py`,
+`TRANSIENT_PATTERNS` — credit/`402`, DNS, pool-exhaustion, rate-limit/`429`); customise it there for
+your dependencies, never inline at a call site.
 
 ### Operational failures are transient — never a terminal *content* verdict
 
-The classifier maps transient signals → pause. Its mirror-image rule is just as load-bearing: **an operational failure must never be written as a terminal *content* verdict.** Model the outcome on two axes — **(transport outcome) × (content evidence)** — and only ever record a content terminal (`deleted`, `private`, `unavailable`, `no_captions`, etc.) when there is **positive content evidence** for it. Everything else is transient/retryable.
+The classifier maps transient signals → pause. Its mirror-image rule is just as load-bearing: **an operational failure must never be written as a terminal *content* verdict.** Model the outcome on two axes — **(transport outcome) × (content evidence)** — and record a content terminal (`deleted`, `private`, `unavailable`…) only on **positive content evidence**. Everything else is transient.
 
 | Outcome | Classify as | NOT as |
 |---|---|---|
@@ -436,37 +553,31 @@ The classifier maps transient signals → pause. Its mirror-image rule is just a
 | Empty API response *after* a timeout | inconclusive → re-verify | `deleted` (an empty body is not proof of removal) |
 | API confirms removal / metadata says private / transcript genuinely empty after fallback | **terminal content verdict** (evidence exists) | — |
 
-Why it matters: a terminal mislabeled as transient just costs a retry; a **transient mislabeled as terminal is silent, unrecoverable data loss** — the user is told "unavailable" for content that's actually fine. Make the classifier's **default transient**, and require explicit evidence to escalate to a content terminal. (YouTube pipeline 2026-05-31: poison/`retry_exhausted`, API-verify→`deleted`, restart retry-burn, and a comments lock-collision→`captions_unavailable` were all this bug — `docs/LESSONS_LEARNT.md` Lesson 73.)
+Why it matters: a terminal mislabeled transient costs a retry; a **transient mislabeled terminal is silent, unrecoverable data loss** — the user is told "unavailable" for content that is fine. Default transient; require evidence to escalate (`docs/LESSONS_LEARNT.md` Lesson 73).
 
 ---
 
 ## Provider-death resilience — unattended external-dependency loops (PLANNING-PHASE requirement)
 
-**Applies to any unattended loop over a paid/free external dependency** — an LLM provider chain, a paid
-API a backfill hammers, any long-running job whose forward progress depends on a third party you do not
-control. Operator directive 2026-08-28: a de-facto standard for every service, not a suggestion. If the
-project has no such loop, this section does not apply.
+**Applies to any unattended loop over an external dependency** — an LLM provider chain, an API a
+backfill hammers, any long-running job whose forward progress depends on a third party you do not
+control. A standard for every such service, not a suggestion; no such loop, no obligation.
 
-**Why the rest of this pack is not enough.** Timeout, retry, backoff, circuit-breaker and resumable
-checkpointing all heal a **transient** fault — a quota window resets, a blip passes. None of them heals a
-**permanent provider death**: a model or endpoint that is down for this whole run needs a **SWAP**, a
-decision no retry loop is empowered to make. Live incident (youtube RAG backfill, 2026-08-28): stalled
-**8h at zero progress** while every mechanism in this pack ran correctly. The primary free model went
-ReadTimeout-down *while other free models of the same provider stayed up*; both paid fallback tiers were
-billing-gated (`http_402`); the capped last resort was silently dead; and **nothing alarmed**, because
-zero progress is not an error.
+**Why the rest of this pack is not enough.** Timeout, retry, backoff, breakers and checkpointing all
+heal a **transient** fault. None heals a **permanent provider death**: an endpoint down for the whole
+run needs a **SWAP**, a decision no retry loop is empowered to make. `self-healing` row 10 carries the
+motivating incident — a backfill stalled 8h at zero progress while every mechanism here ran correctly,
+and nothing alarmed, because zero progress is not an error.
 
-**A plan or spec that introduces such a loop must state how it satisfies all THREE outcomes. A design
-carrying retry/backoff but no provider-death handling and no zero-progress alarm is a DEFECT** — that is
-what `/fabrik-spec-review` §E and `/fabrik-plan-review` grade. **These are OUTCOMES, and the mechanism
-depends on your ROUTE** — measured 2026-08-28 across 43 repos: 26 carry such a loop, and **19 of those 26
-route only through OpenRouter**, where hand-rolling a probe re-implements the gateway.
+**A plan or spec introducing such a loop states how it satisfies all THREE outcomes; retry/backoff with
+no provider-death handling and no zero-progress alarm is a DEFECT** — what `/fabrik-spec-review` §E and
+`/fabrik-plan-review` grade. **These are OUTCOMES; the mechanism depends on your ROUTE.**
 
 | # | Required outcome | Routed through OpenRouter (the sanctioned gateway) | Calling a provider endpoint DIRECTLY |
 |---|---|---|---|
-| 1 | **No single point of death in the chain** — one model or endpoint dying must not stop the loop | **Declare** which mechanism you rely on in §2b. Outage-aware routing is step 1 of OpenRouter's DEFAULT strategy, and a `models` request-body array falls back on **any** error (incl. rate-limiting and downtime). ⚠️ **The trap: setting `sort` or `order` DISABLES load balancing — and the outage step is *part of* load balancing.** Pinning a provider silently opts you OUT of the protection you believe you have; if you pin, you owe the `models` array explicitly | **Build it**: probe the quality-ordered candidate list **once at run start** (never per item), rebuild the chain from live survivors, best candidate first so it self-restores on recovery. Build it on `fabrik-lib/health-probe/` (Active — pluggable probing, feeds `alerting/`); the shared chain-rebuild helper on top is REQUESTED, not yet shipped (fabrik-lib `01M14E3MWN`), so today the promotion logic is project-local. Needs **intra-provider** diversity (2+ models of one provider) AND **cross-provider** diversity |
-| 2 | **The last rung is actually exercised** | No gateway provides this. Exercise it on a schedule | Same |
-| 3 | **Absence of progress is alarmed** — N minutes of zero forward progress fires ONE operator alert, cleared on recovery | No gateway provides this. Export a monotonically-increasing **progress** counter (rows done, items classified) and alert on it — not on error codes. Threshold ≥ 2 full runs of your loop, as a §7a knob. Deliver via `fabrik-lib/alerting/`, whose title-based dedup IS the "exactly one alert" property | Same |
+| 1 | **No single point of death** — one model or endpoint dying must not stop the loop | **Declare** the mechanism in §2b. Outage-aware routing is step 1 of OpenRouter's default strategy and a `models` array falls back on **any** error. ⚠️ **The trap: setting `sort` or `order` DISABLES load balancing, and the outage step is *part of* it** — pinning silently opts you out of the protection you think you have (claims row `openrouter-pin-disables-failover`); if you pin, you owe the `models` array explicitly | **Build it**: probe the quality-ordered candidates **once at run start** (never per item) and rebuild the chain from live survivors, best first, so it self-restores on recovery. Base it on `fabrik-lib/health-probe/`; the shared chain-rebuild helper is requested, not shipped, so promotion logic is project-local today. Needs **intra-provider** (2+ models of one provider) AND **cross-provider** diversity |
+| 2 | **The last rung is actually exercised** | No gateway provides this — exercise it on a schedule | Same |
+| 3 | **Absence of progress is alarmed** — N minutes of zero progress fires ONE alert, cleared on recovery | No gateway provides this. Export a monotonically-increasing **progress** counter (rows done, items classified) and alert on *it*, not on error codes. Threshold ≥ 2 full loop runs, a §7a knob. `fabrik-lib/alerting/`'s title dedup IS the exactly-one property | Same |
 
 **"We use OpenRouter" is not a resilience design** — it is the name of a gateway that can be configured
 out of the protection being claimed. Name the mechanism, not the vendor.
@@ -479,38 +590,68 @@ out of the protection being claimed. Name the mechanism, not the vendor.
 |---|---|
 | `requests.get()` (sync, blocks event loop) | `httpx.AsyncClient` with explicit timeout |
 | `httpx.get()` without explicit timeout | `httpx.Timeout(connect=5, read=30, write=10, pool=5)` |
-| Handing a `requests.Session`/client to a 3rd-party library without a **default timeout on the session** | Wrap `session.request` with `kwargs.setdefault('timeout', (c, r))` — the library's internal calls may set none |
-| Trusting a request `timeout=` to bound DNS | It doesn't cover `getaddrinfo`. Harden the resolver (static/immutable DNS) or give the client its own resolver deadline |
-| `while not <flag>: sleep()` with no ceiling | Bound every conditional wait; then proceed or bail to a transient error |
-| Recording an operational failure (timeout/network/proxy/hard-kill/lock) as a terminal **content** verdict | Default transient/retryable; terminal-content requires positive content evidence (see § Operational failures are transient) |
+| Handing a `requests.Session` to a 3rd-party library without a **default timeout on the session** | Wrap `session.request` with `kwargs.setdefault('timeout', (c, r))` — its internal calls may set none |
+| Trusting a request `timeout=` to bound DNS | It doesn't cover `getaddrinfo` — harden the resolver, or give the client its own resolver deadline |
+| `while not <flag>: sleep()` with no ceiling | Bound every conditional wait, then proceed or bail to a transient error |
+| Recording an operational failure (timeout/network/proxy/hard-kill/lock) as a terminal **content** verdict | Default transient; a terminal content verdict requires positive evidence |
 | External call site with no row in §2a of RESILIENCE.md | Add the row first, then the call site |
+| Exiting on the FIRST failed dependency connection at boot — or waiting for it forever | Bounded jittered retry + startup deadline, then exit non-zero. An endless wait reports *Up* while serving nothing |
+| App shutdown timeout `>=` `stop_grace_period`, or closing pools before in-flight work finishes | Drain, then close, then exit — app timeout strictly INSIDE the grace period |
+| Unbounded in-memory queue or uncapped concurrency | Bound it, cap in-flight work, shed `503` + `Retry-After` — unbounded buffering turns overload into an OOM-kill that loses the buffer |
+| A timeout per hop instead of one propagated deadline | One absolute deadline per operation; each hop derives its timeout from what remains |
+| A per-request attempt cap as the ONLY retry limit | Add a population retry budget — a per-request cap does not bound FLEET retry traffic |
+| Rebuilding an expired hot cache key without coalescing | Single-flight lock or early refresh — one rebuild serves every waiter |
+| A Redis-gated guard with no DECLARED fail-open/fail-closed posture | Declare it in §2b and count when it fires — `except RedisError: return False` is an undeclared fail-open |
+| Circuit-breaker whose half-open state admits unlimited callers | Cap concurrent probes; a failed probe re-opens immediately |
+| Wall-clock (`datetime.now()`) for elapsed-time or TTL arithmetic | `monotonic()` for elapsed, absolute epoch for deadlines — an NTP step must not expire or freeze a timer |
 | `time.sleep(N)` on transient error | Retry with JITTERED backoff (`tenacity.wait_random_exponential`) or `set_pause(key, ttl)` for workers |
 | No fallback on external call failure | Graceful degradation: cached data, default, or clear error state |
 | Global pause for a dep only one job-type uses | `defer_until_*()` on the job row (per-job-type scope) |
 | Permanent flag (`SET` without TTL) on pause keys | `SETEX` / `set(ex=ttl)` — sliding-TTL is the contract |
+| A pause key with no first-set timestamp — nothing can tell a 5-minute pause from a 5-day one | Store the first-set time beside the flag, escalate once past N× TTL — a silently-permanent pause is a stopped queue at Gatus-green |
 | `try: ... except: pass` on upstream calls | Classifier → pause → re-raise. Silent swallow is data loss. |
 | New TTL/timeout literal in code (e.g. `ttl=1800`) | Read from `os.environ["PAUSE_TTL_<RESOURCE>"]` — knob in §7a |
 | Worker clears `dispatched:<id>` flag when paused | Worker MUST keep the flag on pause-skip (queue bloat) |
 | Two error classifiers in different files | One file. Always. |
 | Adding a billable vendor without a balance check Beat task | Proactive check is mandatory for any dep with a balance |
 | Backup that has never been restored to staging | Run §10 drill within 30 days or it doesn't exist |
-| A fallback chain whose **bottom rung has never been executed** | Exercise the last resort on a schedule. An untested fallback is a silently-dead fallback — youtube's last-resort had an expired credential nobody had run in weeks, so the chain was one rung shorter than its author believed |
-| An unattended external-dependency loop with **no zero-progress alarm** | Export a monotonically-increasing progress counter + alert on it (§ Provider-death resilience). Retry/backoff cannot detect an *absence* of events |
-| Scattered ad-hoc token refresh across service calls | Centralize refresh in the Pattern A auth client (legacy Pattern B: SDK handles it) — per `35-security-auth.md` |
+| A fallback chain whose **bottom rung has never been executed** | Exercise the last resort on a schedule — an untested fallback is a silently-dead one, and the chain is a rung shorter than its author believes |
+| An unattended external-dependency loop with **no zero-progress alarm** | A monotonic progress counter + an alert on it. Retry/backoff cannot detect an *absence* of events |
+| Scattered ad-hoc token refresh across service calls | Centralize it in the auth client (`35-security-auth.md`) |
+
+---
+
+## Doc Sync — the lifecycle edges are DEPLOY-TIME facts (D-065)
+
+`docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are how the hub's deploy AI learns what runs on the VPS and
+how it behaves. Most of this pack is internal to a process and belongs in `docs/RESILIENCE.md` — but
+four things are visible to whoever deploys, and **a change to any of them updates OPERATIONS.md (and
+DEPLOYMENT.md where it is a deploy step) in the SAME change:**
+
+- **`stop_grace_period`** — a redeploy stopping a worker mid-task loses it when this is wrong, and the
+  deploy AI cannot infer "needs 5 minutes to drain" from the code.
+- **Boot dependency order + the startup deadline** — what must be healthy first, and how long it waits.
+- **The restart policy, and what a restart LOOP means here** — including which alert fires.
+- **The §7a knobs that change behaviour under load** (concurrency cap, shed threshold, pause TTLs) — an
+  operator tuning a live incident reads OPERATIONS.md, not the source.
+
+Everything else stays in `docs/RESILIENCE.md`; mirroring it creates two copies that drift.
 
 ---
 
 ## Related Rule Packs
 
-- `10-python.md` — Pydantic Settings for secrets/config, async httpx, error handling
-- `15-api-contracts.md` — the SERVING side of `Idempotency-Key`; this pack owns the caller's
-  question (*may I retry this write at all?*)
-- `57-external-data-sourcing.md` — WHAT to reach for, and the Capability Profile whose "behaviour
-  AT the cap" field tells you whether this dependency's 429 even carries a `Retry-After`
-- `30-ops.md` — HEALTHCHECK `start_period: 20s`, `/health` Authelia bypass
-- `35-security-auth.md` — M2M `X-Internal-Token` (internal calls only — never to third-party APIs)
-- `55-observability.md` — `/health` contract, GlitchTip error capture, structlog
-- `75-workers-jobs.md` — adaptive worker pool, orphan sweep, beat scheduler (consumer of pause-state)
+- `10-python.md` — Pydantic Settings, async httpx, error handling
+- `15-api-contracts.md` — the SERVING side of `Idempotency-Key`; this pack owns the caller's question
+- `57-external-data-sourcing.md` — WHAT to reach for + the Capability Profile whose "behaviour AT the
+  cap" field says whether a dependency's 429 even carries a `Retry-After`
+- `25-data-postgres.md` — engine/pool config (`pool_pre_ping`) — coverage-map row 15
+- `30-ops.md` — HEALTHCHECK → `/healthz`, exec-form CMD (so SIGTERM arrives), restart policy, and the
+  one-shot migration step boot must never do
+- `self-healing.md` — the ORDER these primitives run in per failure class
+- `35-security-auth.md` — M2M `X-Internal-Token` (internal calls only)
+- `55-observability.md` — the `/healthz` vs `/health` split, GlitchTip capture, structlog
+- `75-workers-jobs.md` — worker pool, orphan sweep, beat scheduler, DLQ, SIGTERM requeue
 - `76-gpu-workers.md` — provider failover chain, orchestrator resilience
 
 ---
@@ -519,38 +660,46 @@ out of the protection being claimed. Name the mechanism, not the vendor.
 
 ### All services with external calls
 
-- [ ] Every external call has explicit timeout configured.
-- [ ] Every external call has retry with **jittered** exponential backoff (transient errors only) —
-      `wait_random_exponential`/`wait_exponential_jitter`, never bare `wait_exponential`.
-- [ ] The retry predicate actually covers the retryable STATUSES (408/429/5xx), not just transport
-      exceptions — a predicate naming only `TimeoutException`/`ConnectError` never retries a 429.
-- [ ] `Retry-After` is honoured on 429/503, parsed in BOTH formats (delay-seconds and HTTP-date),
-      and capped.
-- [ ] No retry wraps a non-idempotent write without an `Idempotency-Key` (serving side: `15-api-contracts`).
-- [ ] Every external call has a graceful fallback (cached data, default, or error state).
-- [ ] Circuit-breaker implemented per external dependency (threshold + recovery from env vars).
+- [ ] Every external call has an explicit timeout and a graceful fallback (cached data, default, or
+      error state) — including on a malformed `200`.
+- [ ] Retries use **jittered** backoff (`wait_random_exponential`/`wait_exponential_jitter`, never bare
+      `wait_exponential`) on transient errors only.
+- [ ] The retry predicate covers retryable STATUSES (408/429/5xx), not just transport exceptions — one
+      naming only `TimeoutException`/`ConnectError` never retries a 429.
+- [ ] `Retry-After` is honoured on 429/503, parsed in BOTH formats, and clamped at both ends.
+- [ ] No retry wraps a non-idempotent write without an `Idempotency-Key` (`15-api-contracts` serves it).
+- [ ] Circuit-breaker per external dependency (threshold + recovery from env vars).
 - [ ] `docs/RESILIENCE.md` exists; §2a has a row for every external call site.
-- [ ] Each dependency's card LINKS its Capability Profile (`57-external-data-sourcing` § The
-      Capability Profile) rather than copying its numbers — the profile records the VENDOR's
-      contract (quota, cap behaviour, resume, cost); this pack records YOUR handling of it. The
-      profile's "behaviour AT the cap" field is what tells you whether 429 here arrives with a
-      `Retry-After` at all.
+- [ ] Each dependency's card LINKS its Capability Profile (`57-external-data-sourcing`) rather than
+      copying its numbers — the profile records the VENDOR's contract, this pack records YOUR handling
+      of it, and its "behaviour AT the cap" field says whether 429 even carries a `Retry-After` here.
 - [ ] Every timeout, retry count, CB threshold is an env var (§7a tuning knobs).
+- [ ] **Every § coverage-map row this service can actually suffer has a mechanism AND a named
+      autorecovery trigger.** A row whose recovery is "an operator notices" is not done.
+- [ ] Boot: dependencies retry with bounded jittered backoff + a startup deadline; a fatal config
+      error exits once with one high-signal line instead of crash-looping.
+- [ ] Shutdown: in-flight work finishes, pools close, process exits — app timeout strictly inside a
+      `stop_grace_period` set for the longest unit of work. **Proven with a real SIGTERM (exit 143).**
+- [ ] One absolute deadline per logical operation, with every retry fitting inside it.
+- [ ] Retry traffic is bounded at FLEET level (population budget), not only per request.
+- [ ] In-flight work is capped; overload sheds `503` + `Retry-After`; nothing buffers unbounded.
+- [ ] Every Redis-gated guard declares fail-open or fail-closed in §2b and counts when it fires.
+- [ ] Circuit-breaker caps concurrent half-open probes; a failed probe re-opens it.
+- [ ] Container restart count is alerted — an unwatched crash loop is a silent outage, not healing.
 
 ### Workers (additionally)
 
-- [ ] §1 (Shape Card) filled; `Last drill` has a date within the last 90 days.
-- [ ] Every billable external API has both: a §2b detail card AND a row in §7 (Proactive Monitoring Schedule).
-- [ ] Single error-classifier file exists; every `except` block calls it.
-- [ ] All pause-key namespaces use `$SERVICE_NAME` env var.
-- [ ] No literal TTL constants in code — all read from env vars listed in §7a.
+- [ ] §1 Shape Card filled; `Last drill` dated within 90 days.
+- [ ] Every billable external API has a §2b detail card AND a §7 monitoring row.
+- [ ] One error-classifier file; every `except` block calls it.
+- [ ] Pause-key namespaces use `$SERVICE_NAME`; no literal TTLs in code (§7a env vars).
+- [ ] Pause keys carry a first-set timestamp, and a pause outliving N× its TTL escalates exactly once.
 - [ ] All five queue-bloat-prevention mechanisms are wired (§3a).
-- [ ] For services with `has_persistent_data: true`: disk-space Beat task running (§6e).
-- [ ] §9 Accepted Gaps each have a `Review by` date.
-- [ ] §10 Recovery Drills have at least one row with a real `Last run` date.
+- [ ] `has_persistent_data: true` → disk-space Beat task running (§6e).
+- [ ] §9 Accepted Gaps each carry a `Review by` date; §10 has a real `Last run`.
 
 ### SaaS / Mobile (additionally)
 
-- [ ] Client→FastAPI-backend calls configured with explicit timeout (`AbortSignal.timeout`).
-- [ ] Backend call errors handled with try/catch at the service layer.
-- [ ] Backend outage fallback shows cached data or clear error state — never blank screen.
+- [ ] Client→backend calls carry an explicit timeout and go through the ONE retry helper.
+- [ ] Backend errors handled at the service layer; outage falls back to cached data or a clear error
+      state — never a blank screen.
