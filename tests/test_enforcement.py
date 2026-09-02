@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 
 class TestCheckEnvVars:
     """Tests for check_env_vars.py."""
@@ -186,25 +184,6 @@ class TestCheckDocker:
         # Should have no Alpine or healthcheck warnings
         assert not any("alpine" in r.message.lower() for r in results)
         assert not any("missing healthcheck" in r.message.lower() for r in results)
-
-
-class TestCheckRuleSize:
-    """Tests for check_rule_size.py."""
-
-    def test_passes_small_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Should pass when all rule files are under 12KB."""
-        import scripts.enforcement.check_rule_size as module
-
-        rules_dir = tmp_path / ".windsurf" / "rules"
-        rules_dir.mkdir(parents=True)
-        (rules_dir / "10-python.md").write_text("# Small file\n")
-
-        monkeypatch.setattr(
-            module, "__file__", str(tmp_path / "scripts" / "enforcement" / "check_rule_size.py")
-        )
-
-        # Can't easily test due to path resolution, but structure is correct
-        assert True
 
 
 class TestValidateConventions:

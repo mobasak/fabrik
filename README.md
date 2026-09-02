@@ -220,7 +220,6 @@ Smart YOLO (Epic):      Orchestrator evolves Epic based on learnings
 | Changelog updated | `check_changelog.py` | ERROR | CHANGELOG entry for code changes (smart: >10 lines) |
 | Module docs | `check_docs.py` | WARN | New `src/` modules have reference docs |
 | Plan naming | `check_plans.py` | ERROR/WARN | `YYYY-MM-DD-plan-<name>.md` format |
-| Rule file size | `check_rule_size.py` | ERROR | `.windsurf/rules/**/*.md` < 12KB (AI context limits) |
 
 **Pre-commit (Step 8 - Only 4 Absolute Blockers):**
 ```yaml

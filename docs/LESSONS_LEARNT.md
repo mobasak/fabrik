@@ -5908,9 +5908,15 @@ that restates a vendored module or a scaffolded file is both bytes and a second 
 will drift. **Measure per-section bytes before editing** (`awk` over `^## ` boundaries); the fattest
 section is usually the one carrying an implementation that lives somewhere else.
 
-**What I nearly did instead, and why it was wrong.** Adding the pack to `check_rule_size.py`'s
-`SIZE_EXEMPT`, or raising the 50 KB cap. Both defeat the guard rather than satisfy it — and the
-exemption list is explicitly for packs that are NOT broadly glob-activated, which this one is. Changing
-a fleet-wide threshold so your own commit passes is the wallpaper move the FIX directive's verb 5
-exists to stop. The honest residue is a backlog entry: the pack now sits 200 bytes under the cap, so
-the next editor must split the worker-only half rather than shave again.
+**What I nearly did instead, and why it was wrong.** Exempting the pack from the cap, or raising the
+cap. Both defeat a guard rather than satisfy it, and changing a fleet-wide threshold so your own commit
+passes is the wallpaper move the FIX directive's verb 5 exists to stop.
+
+**Coda, same day — the cap was RETIRED by operator ruling (D-071), and the lesson survives it.** The
+50 KB guard existed for a Windsurf-era context budget; Windsurf is retired and a 51 KB pack is ~1.3% of
+a 1M-token window, so the constraint that forced this work no longer exists. That does not make the
+work wrong: **every byte I cut was a duplicated implementation, not a rule** — and one of those
+duplicates was the defective copy the author-blind review found. The durable lesson is not "respect the
+cap", it is **"when a file feels too big, look for what it implements twice before you look for what to
+shorten"** — the cap was only the detector that made me ask. Deduplication is worth doing when nothing
+is forcing it, and prose compression is worth avoiding even when something is.

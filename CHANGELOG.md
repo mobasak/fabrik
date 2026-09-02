@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — The rule-pack auto-load size cap is retired fleet-wide (2026-09-02)
+
+- Operator ruling: *"autoload cap was for windsurf but we have stopped using windsurf."* Windsurf /
+  Cascade is retired, so the 50 KB ceiling on `.windsurf/rules/**/*.md` guarded nothing a live consumer
+  imposes — and a 51 KB pack is ~1.3% of a 1M-token window, loaded only on glob match.
+- **Deleted** `scripts/enforcement/check_rule_size.py` and every reference to it: the `final_gate.py`
+  registration (it was a BLOCKING check), the `liveness_audit.py` canary fixture, the
+  `test_gate_check_canaries.py` neuter entry, the `TestCheckRuleSize` unit test, the README gate row
+  (which still advertised the long-superseded 12 KB value), three `FINAL_GATE_WORKFLOW.md` sections and
+  the `FABRIK_SCAFFOLD_WORKFLOW.md` tree line. `capabilities.json` + `docs/CAPABILITIES.md` regenerated.
+- Blast radius: `scripts/enforcement/` syncs recursively, so the post-commit governance-sync removes the
+  check from all ~46 projects — no project gate enforces a pack byte ceiling any more.
+- **What the cap was costing:** it had just forced `58-resilience` (D-068) to shed content while being
+  widened to the operator's comprehensive-coverage directive. The dedup that trimming produced is kept
+  on its own merits — it removed duplicated implementations, one of which was the defective copy the
+  author-blind review caught — but no future pack is asked to shrink for bytes.
+- **Not retired:** the real cost the byte cap only proxied for is overbroad pack globs
+  (`**/client*`, `**/health*`, `**/dispatch*` on `58-resilience`), still open in `docs/STRATEGIC_BACKLOG.md`.
+
 ### Fixed — Deployment-verification spec re-converged: 12 defects, 11 of them pre-existing through five CONVERGED stamps (2026-09-02)
 
 - `/fabrik-spec-review` re-run over Amendment 2 (passes H1–H4, H4 quiet at md5 `d06d1150`). Only one

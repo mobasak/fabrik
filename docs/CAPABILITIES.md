@@ -140,7 +140,6 @@
 - [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
 - [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
 - [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rule_grounding.py
-- [scripts/enforcement/check_rule_size.py](../INDEX.md) (owner: infra): Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.
 - [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
 - [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
 - [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.

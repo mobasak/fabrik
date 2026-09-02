@@ -1075,12 +1075,6 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {"NOTES.md": "# a root .md that is not allowlisted\n"},
         "expect": "a root-level .md outside ALLOWED_ROOT_MD",
     },
-    "check_rule_size": {
-        "form": "cwd",
-        "base": {".windsurf/rules/core/ok.md": "small\n"},
-        "files": {".windsurf/rules/core/huge.md": "x" * 51_300},
-        "expect": "a rules pack over the 50KB auto-load context budget",
-    },
     "check_opencode_json": {
         "form": "cwd",
         "base": {"opencode.json": '{"instructions": ["AGENTS-compact.md"]}\n'},

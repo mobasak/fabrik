@@ -181,7 +181,6 @@ def test_unreachable_entries_name_a_real_check_and_carry_a_reason() -> None:
 # RULE. If a canary survives this, it was keying on something incidental (a crash, an
 # unrelated finding) and its green was worthless.
 NEUTERS: dict[str, tuple[str, str]] = {
-    "check_rule_size": ("if size > MAX_SIZE_BYTES:", "if size > MAX_SIZE_BYTES * 1000:"),
     "check_print_ban": ("    if all_violations:", "    if False:"),
     "check_no_host_ports": ("    if all_violations:", "    if False:"),
     "check_user_guide": (

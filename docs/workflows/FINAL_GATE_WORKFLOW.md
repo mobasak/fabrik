@@ -221,8 +221,6 @@ no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (
     sync hook cannot fire from (a worktree)
 - **Project Structure** - `check_structure.py`
   - Validates directory layout matches Fabrik conventions
-- **Rule File Size** - `check_rule_size.py`
-  - Ensures `.windsurf/rules/` files are < 50KB each
 - **opencode.json (Kilo-Safe Rules)** - `check_opencode_json.py`
   - Validates Kilo-safe rules configuration
 - **Behavior Contract Proposal** - `check_test_proposal.py`
@@ -413,7 +411,6 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 **Gate-wired (invoked by `final_gate.py`):**
 - `check_convergence.py` — Convergence-evidence gate for changed plans/reviews (every tier)
 - `check_structure.py` — Validates required directories exist
-- `check_rule_size.py` — Ensures rule files < 50KB
 - `check_opencode_json.py` — Validates Kilo-safe instruction list
 - `check_test_proposal.py` — Enforces Behavior Contract / One-Test Rule documentation
 - `check_plan_tickets.py` — Spine↔ticket plan-set contract (see Tier-2 list)
@@ -477,19 +474,6 @@ Do not delete these 5 files yourself — they are dead but undecided (kept for r
 **Why this matters:**
 - Consistent structure across projects
 - Enables automation and tooling
-
-#### check_rule_size.py
-
-**Purpose:** Ensures rule files are under 50KB each.
-
-**Validates:**
-- `.windsurf/rules/**/*.md` files < 50KB
-- Rules are concise and focused
-- No unnecessary verbosity
-
-**Why this matters:**
-- Keeps rules manageable
-- Prevents AI context overflow
 
 #### check_opencode_json.py
 

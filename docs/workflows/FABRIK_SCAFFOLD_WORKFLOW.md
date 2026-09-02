@@ -331,7 +331,6 @@ When you run `fabrik scaffold my-project -d "My description"`, the following str
 │   │   ├── check_plans.py
 │   │   ├── check_ports.py
 │   │   ├── check_readme_md.py
-│   │   ├── check_rule_size.py
 │   │   ├── check_schema_sync.py
 │   │   ├── check_secrets.py
 │   │   ├── check_structure.py

@@ -246,21 +246,21 @@ it touches a fleet-synced detector and belongs in one measured change, not mid-p
 
 ## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
-**SIZE-CAP PRESSURE — `58-resilience` now sits 200 bytes under the 50 KB auto-load cap (2026-09-02).**
-File 13 landed **~200 bytes under the 51,200-byte cap**. It entered the turn at 38,689 (76%) and the operator's
-comprehensive-coverage directive added ~16 KB; it was cut back under the cap by deleting DUPLICATED
-IMPLEMENTATIONS, not rules — the hand-rolled `CircuitBreaker` body (fabrik-lib ships
-`CircuitBreakerRegistry`), the `TRANSIENT_PATTERNS` table (the scaffold emits `pause_state.py`), and a
-second TypeScript client that re-implemented `fetchWithRetry`. **The next substantive edit breaches the
-cap.** Two structural options, neither taken mid-pass: (a) **split the worker-only § Autonomous
-Pause-State Pipeline into its own pack** (~6 KB; the section already declares "applies ONLY to
-`file-worker`/`file-api`", the globs separate cleanly, and today every `python-api` / `saas-skeleton` /
-`mobile-app` project auto-loads worker rules it can never use); (b) narrow the pack's globs —
-`**/client*`, `**/health*`, `**/dispatch*` activate it on nearly any service touch (a `clients/` dir, a
-Redux `dispatcher.ts`), which is the real context cost the byte cap only proxies for. Both are
-fleet-wide corpus changes and belong in one deliberate commit. **Rejected: `SIZE_EXEMPT` for this pack**
-— the exemption list is for packs that are NOT broadly auto-loaded, and raising the cap to fit an edit
-is changing the guard to pass the test (D-068).
+**PACK-SIZE PRESSURE — RESOLVED by retiring the cap (D-071, 2026-09-02); one sub-item survives it.**
+File 13 was trimmed from 61 KB back under the then-blocking 50 KB auto-load cap. **That cap has since
+been removed** — it was a Windsurf-era context budget and Windsurf is retired — so byte pressure is no
+longer a reason to shed rule content anywhere in the corpus. The trimming itself stands: every byte cut
+was a duplicated implementation (a hand-rolled `CircuitBreaker` that fabrik-lib ships as
+`CircuitBreakerRegistry`, a `TRANSIENT_PATTERNS` table the scaffold emits, a second TS client
+re-implementing `fetchWithRetry` — the defective one).
+
+**Still open, and NOT about bytes:** `58-resilience`'s globs are overbroad — `**/client*`,
+`**/health*`, `**/dispatch*` activate it on nearly any service touch (a `clients/` dir, a Redux
+`dispatcher.ts`). That is real context cost the byte cap only ever proxied for, and it is unaffected by
+the cap's removal. Related option, now optional rather than forced: splitting the worker-only
+§ Autonomous Pause-State Pipeline into its own pack (the section already declares "applies ONLY to
+`file-worker`/`file-api`", and every `python-api`/`saas-skeleton`/`mobile-app` project currently loads
+worker rules it can never use).
 
 **SEEDED FOR FILE 13 — `core/58-resilience.md` says "Never retry 4xx" and never mentions 429.**
 Measured 2026-09-01: `grep -c 429 .windsurf/rules/core/58-resilience.md` → **0**;

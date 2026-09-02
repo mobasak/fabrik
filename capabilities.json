@@ -2052,17 +2052,6 @@
       "verified_at": "2026-09-01T03:01:27+00:00"
     },
     {
-      "name": "scripts/enforcement/check_rule_size.py",
-      "kind": "script",
-      "summary": "Check that .windsurf/rules/**/*.md files stay under the auto-load size limit.",
-      "invoke": "python scripts/enforcement/check_rule_size.py",
-      "status": "ok",
-      "owner": "infra",
-      "defects": [],
-      "doc_link": "INDEX.md",
-      "verified_at": "2026-09-01T03:01:27+00:00"
-    },
-    {
       "name": "scripts/enforcement/check_schema_sync.py",
       "kind": "script",
       "summary": "AFTER-EDIT: none",
