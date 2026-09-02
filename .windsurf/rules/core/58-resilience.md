@@ -33,6 +33,7 @@ Not every scaffold needs the full autonomous pipeline:
 | `file-worker` | Yes — every external call | Yes (scaffolded) | Yes | Yes (core pattern) | Yes (all 5 mechanisms) |
 | `saas-skeleton` | Yes — API routes + server actions | Yes (scaffolded) | Yes | Only if background jobs | Only if background jobs |
 | `chrome-extension` | Backend: yes; Frontend: retry + offline UX | Backend only | Backend only | No | No |
+| `office-extension` | Backend: yes; Add-in: retry + offline UX | Backend only | Backend only | No | No |
 | `mobile-app` | Backend: yes; Client: retry + offline fallback | Backend only | Backend only | No | No |
 | `desktop-app` | Backend: yes; Client: retry + offline fallback | Backend only | Backend only | No | No |
 | `wordpress` | N/A — plugins handle resilience | Gatus checks site URL | No | No | No |
@@ -643,8 +644,8 @@ Everything else stays in `docs/RESILIENCE.md`; mirroring it creates two copies t
 
 - `10-python.md` — Pydantic Settings, async httpx, error handling
 - `15-api-contracts.md` — the SERVING side of `Idempotency-Key`; this pack owns the caller's question
-- `57-external-data-sourcing.md` — WHAT to reach for + the Capability Profile whose "behaviour AT the
-  cap" field says whether a dependency's 429 even carries a `Retry-After`
+- `57-external-data-sourcing.md` — WHAT to reach for, and the vendor's Capability Profile (the
+  input this pack's coverage map consumes — see Done When)
 - `25-data-postgres.md` — engine/pool config (`pool_pre_ping`) — coverage-map row 15
 - `30-ops.md` — HEALTHCHECK → `/healthz`, exec-form CMD (so SIGTERM arrives), restart policy, and the
   one-shot migration step boot must never do

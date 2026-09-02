@@ -66,6 +66,8 @@ For each row in §2a, fill one card. §2a is the index; this is the operational 
 
 ```
 ─── <dependency name> ──────────────────────────────────────
+Profile            : docs/reference/apis/<vendor>.md  (the 12-field Capability Profile —
+                     57-external-data-sourcing; LINK it, never copy its numbers here)
 Failure signature  : <literal exception types / log substrings to grep>
                      e.g. "Pool exhausted", "402 payment required",
                      "NameResolutionError", "bot_check"

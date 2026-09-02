@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Rules pass file 12 re-audit: `57-external-data-sourcing` — the Capability Profile grows the vendor-side failure classes a connector must AUTORECOVER from (2026-09-02)
+
+- **Operator directive:** external service connectors must recover from every production failure
+  without a human. The profile asked seven questions about a vendor's *first call* and none about
+  its *lifetime*. Measured against all 56 rule files: the consumer side of vendor deprecation /
+  sunset, credential expiry, vendor health signals and inbound data drift appeared in **zero** packs.
+- **Profile 7 → 12 fields**, each tied to the `58-resilience` coverage-map row it makes detectable:
+  8 health signal (Statuspage-convention status API; pre-pause for announced maintenance) ·
+  9 credential lifecycle (expiry, dual-key vs single-phase rotation, what an expired key looks like) ·
+  10 interface lifecycle (`Deprecation` RFC 9745 / `Sunset` RFC 8594 watch — the one failure retry
+  cannot fix) · 11 data contract (strict boundary validation, invalid-record RATE as the metric) ·
+  12 push delivery semantics (event id, replay window, list endpoint — and the **reconciliation poll**
+  without which a missed webhook is unrecoverable by construction). Scraper classes named: markup
+  drift ⇒ extraction-yield progress counter; bot-block ⇒ pause, never retry, never bypass.
+  Human-gated classes (credit exhaustion) stay allowed — paused, escalated once, declared in §2b.
+- **Two CLAIMS rows REFUTED and superseded** (D-061 discipline): `anthropic-ai` is a retired token —
+  Anthropic runs `ClaudeBot` / `Claude-User` / `Claude-SearchBot`, and OpenAI/Perplexity document
+  their user-initiated fetchers as not robots-governed; and "no ruling yet" on tooling-layer
+  circumvention is stale — *Google v. SerpApi* (dismissed with leave to amend, 2026-07) held
+  CAPTCHA-solving / IP rotation / fingerprint spoofing ARE §1201 circumvention. 7 new rows added
+  (RFC 9745/8594, Statuspage v2, dual-key rotation, schema drift, IETF AIPREF draft, EU AI Act
+  Art. 53(1)(c) + Hamburg OLG 2025-12-10, the SerpApi ruling).
+- **Author-blind second opinion (Fable 5) ran BEFORE the commit** per the bar and found what I
+  missed: the profile had **no consumer anywhere** — 0 of 6 hub vendor docs carry one, 0 of 32
+  command sources mention it, and the `RESILIENCE.md` §2b card the packs say "LINKS the profile" had
+  no slot for it. Root fix: a `Profile:` line in the scaffold's §2b card template. Also fixed from
+  the opinion: a 57↔58 contradiction (57 told every call to wrap in retry; 58 bans stacking a retry
+  on a module or queue that already retries — `web-scrape` does); an activation gap (`connectors/`,
+  `ingest/`, `webhooks/`, `scrapers/` load 57 but never 58 — 57 now says read 58 explicitly); a
+  12-Factor misattribution; the TDM rule made decidable (fetch = your token's robots group; train =
+  reserved if ANY channel says so); `api-quota` and `webhooks` (outgoing only) added to rung 2;
+  "its own explicit public route" now names the real mechanism (`shape.bearer_bypass_prefix`).
+- Measured and recorded in the pack: the profile obligation is live with **0 of 6** instances.
+
 ### Fixed — Amendment 3: a CONVERGED verdict algebra had a fail-open, found by BUILDING the interface (2026-09-02)
 
 - fabrik-lib prototyped the comparison interface and executed its success criteria: a caller-supplied

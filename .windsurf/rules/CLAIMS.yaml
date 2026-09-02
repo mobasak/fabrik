@@ -426,6 +426,7 @@ claims:
     verify: "search: AI crawler user-agent robots.txt directives TDM opt-out <year>"
     window_days: 90
     last_verified: 2026-09-01
+    superseded: 2026-09-02
 
   - id: scraping-bypass-tooling-liability
     pack: core/57-external-data-sourcing.md
@@ -434,6 +435,7 @@ claims:
     verify: "search: DMCA 1201 anti-circumvention web scraping captcha solver proxy liability ruling <year> — has any court RULED?"
     window_days: 90
     last_verified: 2026-09-01
+    superseded: 2026-09-02
 
   - id: browsewrap-vs-clickwrap-scraping
     pack: core/57-external-data-sourcing.md
@@ -544,6 +546,70 @@ claims:
     claim: "A circuit breaker's half-open state must admit a LIMITED number of trial calls (a configurable halfOpenMaxRequests / permittedNumberOfCallsInHalfOpenState); a half-open that admits every caller dumps full traffic onto a dependency that has not recovered, re-killing it on a recovery_timeout cycle"
     kind: standard
     verify: "https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker — does Half-Open still specify a limited number of trial requests?"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: ai-crawler-ua-directives-v2
+    pack: core/57-external-data-sourcing.md
+    claim: "supersedes ai-crawler-ua-directives: the AI robots.txt token set churns and vendors run SEVERAL bots each. Anthropic's live tokens are ClaudeBot (training) / Claude-User (user fetch) / Claude-SearchBot (indexing); anthropic-ai and Claude-Web are RETIRED. OpenAI and Perplexity document their user-initiated fetchers (ChatGPT-User, Perplexity-User) as not governed by robots.txt; Anthropic says all three of its bots honour it. Tokens still current: GPTBot, CCBot, Google-Extended, PerplexityBot"
+    kind: practice
+    verify: "https://support.claude.com/en/articles/8896518 — token list unchanged? + search: AI crawler user-agent tokens robots.txt <year>"
+    window_days: 90
+    last_verified: 2026-09-02
+
+  - id: aipref-content-usage-draft
+    pack: core/57-external-data-sourcing.md
+    claim: "The IETF AIPREF working group's draft-ietf-aipref-attach defines a machine-readable Content-Usage rule for robots.txt AND an HTTP Content-Usage header (e.g. train-ai=n), and UPDATES RFC 9309 if approved — Standards Track, still an Internet-Draft (rev -05 published 2026-08-19, expires 2027-02-20). Honour it where present; do not cite it as a standard yet"
+    kind: standard
+    verify: "https://datatracker.ietf.org/doc/draft-ietf-aipref-attach/ — still a draft, or published as an RFC? (then reword the pack: 'draft' → the RFC number)"
+    window_days: 90
+    last_verified: 2026-09-02
+
+  - id: scraping-bypass-tooling-liability-v2
+    pack: core/57-external-data-sourcing.md
+    claim: "supersedes scraping-bypass-tooling-liability: the anti-circumvention (DMCA §1201) theory against scraping TOOLING now has a first ruling — Google v. SerpApi was dismissed with leave to amend (N.D. Cal., July 2026): the court accepted that browser-fingerprint spoofing, IP rotation and CAPTCHA-solving to defeat SearchGuard ARE 'circumvention', and dismissed only because a §1201 barrier must guard works the copyright holder authorised it to guard. 20+ §1201 scraping suits were on file by 2026-05 (Reddit v. Perplexity + data-scraping firms, 2025-10-22, among them). UNSETTLED in the defendants' favour on the narrow point, settled AGAINST them on what counts as circumvention"
+    kind: rationale
+    verify: "search: Google v SerpApi amended complaint DMCA 1201 ruling <year>; Reddit v Perplexity ruling — any appellate or final decision on tooling-layer liability?"
+    window_days: 90
+    last_verified: 2026-09-02
+
+  - id: eu-ai-act-art53-tdm-reservation
+    pack: core/57-external-data-sourcing.md
+    claim: "EU AI Act Art. 53(1)(c) obliges providers of general-purpose AI models to identify and comply with Art. 4(3) DSM-Directive rights reservations 'including through state-of-the-art technologies' — applicable from 2025-08-02 (models released earlier: until 2027-08-02). The GPAI Code of Practice (Copyright chapter, Measure 1.3) commits signatories to robots.txt (RFC 9309) PLUS 'other appropriate machine-readable protocols' — the EC/EUIPO process to publish an agreed list (TDMRep, ai.txt, HTTP headers, C2PA asset-level are the candidates) is running, list reviewed at least every two years. Hamburg OLG (2025-12-10): a natural-language opt-out in terms of use is insufficient — reservations must be machine-readable. Whether robots.txt ALONE is a valid Art. 4(3) reservation is still contested"
+    kind: standard
+    verify: "https://digital-strategy.ec.europa.eu/en/faqs/stakeholder-consultation-ai-and-copyright-compliance — has the agreed opt-out protocol list been published? + search: Hamburg OLG TDM opt-out machine-readable ruling"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: http-deprecation-sunset-headers
+    pack: core/57-external-data-sourcing.md
+    claim: "Two standards let a CONSUMER detect an API's retirement at runtime: RFC 9745 (Deprecation response header, Standards Track, published 2025-03; an Item Structured Field whose value MUST be a Date, e.g. `Deprecation: @1688169599`, plus a `deprecation` link relation) and RFC 8594 (Sunset header, the date the resource becomes unresponsive; `sunset` link relation). The Sunset timestamp MUST NOT be earlier than the Deprecation one. Both are hints, not guarantees — a client must still work without them"
+    kind: standard
+    verify: "https://www.rfc-editor.org/rfc/rfc9745.html + https://www.rfc-editor.org/rfc/rfc8594.html — still current, not obsoleted?"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: statuspage-v2-status-api
+    pack: core/57-external-data-sourcing.md
+    claim: "The Statuspage convention exposes a public read-only status API at <page>/api/v2/ — status.json (indicator none/minor/major/critical), summary.json, components.json, incidents/unresolved.json, scheduled-maintenances/{upcoming,active}.json — widely copied by vendors' own status pages, which makes 'poll the vendor's status API before deciding a 5xx burst is yours' implementable for most SaaS dependencies. Private pages need an API key header"
+    kind: practice
+    verify: "https://support.atlassian.com/statuspage/docs/what-are-the-different-apis-under-statuspage/ — endpoints unchanged?"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: credential-rotation-dual-key
+    pack: core/57-external-data-sourcing.md
+    claim: "Zero-downtime credential rotation is the dual-key OVERLAP pattern — new key issued, both valid for a grace window sized to the slowest consumer, old key revoked only after telemetry shows migration — backed by a vault, on a schedule shorter than expiry. Some vendors support only SINGLE-PHASE rotation (one active credential; the old one dies the instant the new one is issued), which forces a brief outage or a maintenance window — the profile must say which the vendor is"
+    kind: practice
+    verify: "search: API key rotation dual key overlap zero downtime <year>; is single-phase-only still a common vendor limitation?"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: vendor-schema-drift-boundary-validation
+    pack: core/57-external-data-sourcing.md
+    claim: "A third-party API's response shape changes WITHOUT a version bump or notice (nullable flips, type changes, renamed/removed fields, restructured nesting) and the response still returns 200 with valid JSON — outages page you, drift corrupts silently. The practiced defence is strict validation at the integration boundary (pydantic strict=True / zod .strict(), unknown keys rejected deliberately), never silently dropping invalid records, and exporting the invalid-record RATE as a metric — a spike is the upstream change; a 'missing' cluster on one field names it"
+    kind: practice
+    verify: "search: third-party API schema drift detection boundary validation <year>"
     window_days: 365
     last_verified: 2026-09-02
 

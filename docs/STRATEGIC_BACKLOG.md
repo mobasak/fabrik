@@ -262,6 +262,24 @@ the cap's removal. Related option, now optional rather than forced: splitting th
 `file-worker`/`file-api`", and every `python-api`/`saas-skeleton`/`mobile-app` project currently loads
 worker rules it can never use).
 
+**FILE 12 RE-AUDIT (2026-09-02) — three classes deferred to their OWNING surfaces (bar row 9), all
+found by the author-blind opinion and verified:**
+- **`15-api-contracts` has ZERO webhook text** (`grep -in "webhook|hmac|compare_digest"` → 0 hits)
+  while 57 says an inbound receiver "is a served route: `15-api-contracts` applies". 57 now carries
+  the receiver's auth posture + delivery semantics itself; at 15's turn decide whether the inbound
+  receiver contract (signature, timestamp tolerance, event-id dedup, ack-fast) is 15's to own or 57's
+  to keep — one home, then a pointer from the other.
+- **The command corpus never asks for the profile** — 0 of 32 `commands/_sources/*.md` mention
+  "Capability Profile" or `57-external`. The pack's "teeth at plan time" is currently 57 alone. A
+  single bullet in `/fabrik-plan-review`'s checklist ("every external dependency in the plan has a
+  profile, or an `UNKNOWN — <tried>` per field") is the measured first step — command corpus,
+  merge-time render only.
+- **fabrik-lib `async-http-client` surfaces neither `Deprecation`/`Sunset` headers nor a
+  distinct expired-credential outcome** (`grep -in "sunset|deprecat|401|expir"` over the module → only
+  the breaker's own "OPEN + expired"). Profile fields 9/10 are therefore project-local to implement
+  today. A one-hook request to fabrik-lib (log-once + counter on first `Deprecation` seen; a typed
+  `CredentialRejected` outcome) is the lean fix — cross-repo, so filed by mail, not edited from here.
+
 **SEEDED FOR FILE 13 — `core/58-resilience.md` says "Never retry 4xx" and never mentions 429.**
 Measured 2026-09-01: `grep -c 429 .windsurf/rules/core/58-resilience.md` → **0**;
 `grep -ci retry-after` → **0**; the rule at `:86` reads "Retry transient errors: timeout,
