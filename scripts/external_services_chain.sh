@@ -44,7 +44,11 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
 }
 
 _step gather_envs "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply
-_step classify_services "$VENV_PY" "$FABRIK_ROOT/scripts/classify_services.py" --apply --tombstone-unresolved --max-per-run 10
+if [ "$core_failed" -eq 0 ]; then  # never spend the pool on YESTERDAY's queue after a failed scan (Z9)
+  _step classify_services "$VENV_PY" "$FABRIK_ROOT/scripts/classify_services.py" --apply --tombstone-unresolved --max-per-run 10
+else
+  echo "[external-services-chain] gather_envs failed — classify skipped (stale queue, paid step)"
+fi
 _step gather_envs_reconsolidate "$VENV_PY" "$FABRIK_ROOT/scripts/gather_envs.py" --apply
 _step registry_sync "$VENV_PY" "$FABRIK_ROOT/scripts/registry_sync.py" --fetch-credits
 # The heartbeat depends on the DATA steps. classify is the paid, optional pass: its failure

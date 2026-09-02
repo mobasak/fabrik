@@ -240,7 +240,7 @@ All notable changes to this project will be documented in this file.
   blocks (143 blocks + 7 retired rows = 150 systems; 116 fleet-used, counted from the meta lines — the earlier 166/124 were asserted, not derivable) and two prose pipes that
   broke table rows are fixed.
 - Docs: `docs/reference/external-services-registry.md` (new subsystem doc), INDEX, CAPABILITIES; tests:
-  `tests/test_external_services_chain.py` (7), `scripts/tests/test_gather_envs.py` (10 → 34 tests), `scripts/tests/test_registry_sync.py` (6 → 10).
+  `tests/test_external_services_chain.py` (7), `scripts/tests/test_gather_envs.py` (10 → 36 tests), `scripts/tests/test_registry_sync.py` (6 → 10).
 
 ### Changed — Deployment-verification plan CONVERGED by /fabrik-plan-review: 23 findings, all in same-day text (2026-09-02)
 

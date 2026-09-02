@@ -359,7 +359,7 @@ def test_stale_key_rows_are_pruned_per_service(fixture_env):
         f"CODE_HOST_URL=https://api.x.example   # used by: projA\n",
         encoding="utf-8",
     )
-    stats = rs.sync_registry(fetch_credits=False, prune=False)
+    stats = rs.sync_registry(fetch_credits=False, prune=False, prune_keys=True)
     assert stats["keys_pruned"] == 1
     conn = rdb.connect()
     with conn, conn.cursor() as cur:
@@ -392,3 +392,51 @@ def test_ensure_schema_never_alters_when_the_column_exists():
     cur = _Cur(present=False)
     rs.ensure_schema(cur)
     assert len(cur.sql) == 2 and "ALTER TABLE api_keys" in cur.sql[1]
+
+
+def test_key_prune_skips_a_provider_with_no_values(fixture_env):
+    """`value_sha256 <> ALL('{}')` is TRUE for every row: a block whose values are all empty must
+    not wipe the provider's existing keys (pass 5, orchestrator)."""
+    rs.sync_registry(fetch_credits=False, prune=False)  # fixture: one real key
+    fixture_env.write_text(
+        "# " + "═" * 10 + " ai-llm " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=ai-llm cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_API_KEY=\n",
+        encoding="utf-8",
+    )
+    stats = rs.sync_registry(fetch_credits=False, prune=False, prune_keys=True)
+    assert stats["keys_pruned"] == 0
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT count(*) FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider=%s",
+            (TEST_PROVIDER,),
+        )
+        n = cur.fetchone()[0]
+    conn.close()
+    assert n == 1
+
+
+def test_partial_file_sync_keeps_a_providers_other_keys(fixture_env):
+    """`prune=False` is the partial-file contract: a subset of a provider's keys must not delete
+    the rest (pass 5, Z7)."""
+    rs.sync_registry(fetch_credits=False, prune=False)  # one key
+    fixture_env.write_text(
+        "# " + "═" * 10 + " ai-llm " + "═" * 10 + "\n"
+        f'#svc name={TEST_PROVIDER} category=ai-llm cost=paid capability="test" '
+        "url=https://x.example status=active used_by=projA\n"
+        f"{TEST_PROVIDER.upper()}_OTHER_TOKEN={SECRET}other\n",
+        encoding="utf-8",
+    )
+    stats = rs.sync_registry(fetch_credits=False, prune=False)  # partial: keys untouched
+    assert stats["keys_pruned"] == 0
+    conn = rdb.connect()
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT count(*) FROM api_keys k JOIN services s ON s.id=k.service_id WHERE s.provider=%s",
+            (TEST_PROVIDER,),
+        )
+        n = cur.fetchone()[0]
+    conn.close()
+    assert n == 2

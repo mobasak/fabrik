@@ -1117,6 +1117,12 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## Staging a whole shared doc commits the SIBLING's entry too — stage shared docs surgically (2026-09-02)
+
+**What happened:** commit `c2b1ad2f` was staged with `git add -- CHANGELOG.md` while a sibling session's uncommitted rotation/quota entries sat at the top of `[Unreleased]`. The commit carried ~38 lines of their rationale under an `Agent-Context` that names only external-services work; their next commit had to patch a line inside the entry mine had frozen. The same session had ALSO been on the receiving end an hour earlier (a sibling's bare `git commit` swept my staged CHANGELOG blob into their subject). Per-file discipline (explicit pathspecs, no `-a`) passed both times — the collision is INSIDE a shared file.
+
+**Lesson:** for CHANGELOG.md, INDEX.md, docs/DECISIONS.md, CLAIMS.yaml and every other file more than one session appends to in a day, stage HUNKS, not files: build the index copy as HEAD + your own hunks (`git diff HEAD -- <file>` → keep only your hunks → `git apply --cached`), then prove it with `git diff --cached -- <file>` showing zero foreign lines before the commit. "No removed sibling lines" is not the test — ADDED sibling lines ride along just as silently. And commit per converged pass, not at the end: a 30-file unstaged set held for hours reds every sibling's diff-scoped gate and invites exactly this bundling in both directions.
+
 ## A "documented, operator-installed" cron is an UNINSTALLED cron — declare the heartbeat the day you build the job (2026-09-02)
 
 **What happened:** the external-services registry shipped 2026-07-18 with its sync + dashboard behind a cron line the plan marked "documented, NOT auto-installed — operator adds". Nobody added it. The scan half was later wired into `daily_refresh.sh` and ran every morning, so the system LOOKED alive (fresh `all-envs.env`) while the registry, dashboard and alerting were frozen on build day for 46 days. The liveness audit reported nothing because no surface named them — it cannot miss what it was never told to watch.

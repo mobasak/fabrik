@@ -722,7 +722,12 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             # an explicit internal-config name (ALLOWED_ORIGINS, PORT, …) is never a service, even
             # when a catalog `match` prefix happens to cover it (review 2026-09-02, pass 2: a
             # code-host tombstone `allowed` with match ALLOWED swallowed a CORS setting)
-            provider = None if is_internal_config(key) else match_provider(key, matchers)
+            provider = match_provider(key, matchers)
+            if provider and is_internal_config(key) and not is_secret(key, value):
+                # a vendor-prefixed CONFIG knob (ANTHROPIC_READ_TIMEOUT=120) is internal; a
+                # vendor-prefixed SECRET that happens to carry a config token (SUPABASE_DB_PASSWORD,
+                # SUPABASE_DB_URL with credentials) stays the vendor's (pass 4/5 mirror finding)
+                provider = None
             if provider:
                 meta = catalog[provider]
                 dedupe = is_secret(key, value) and credential_grade(value)
@@ -770,7 +775,8 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             if provider:  # an env-derived `?` bucket whose host names a CATALOGUED vendor adopts it
                 services[name]["meta"] = dict(meta)  # … and leaves NEEDS-TRIAGE (pass 2, G8)
             elif services[name]["meta"].get("url", "?") == "?":
-                services[name]["meta"]["url"] = f"https://{host}"  # `?` header gains the host
+                # copy, never mutate: the bucket may reference a catalog entry by identity (Z15)
+                services[name]["meta"] = dict(services[name]["meta"], url=f"https://{host}")
         rec = svc_bucket(name, meta)[f"CODE_HOST_URL\x00https://{host}"]
         rec["names"].add("CODE_HOST_URL")
         rec["projects"] |= code_hosts[host]["projects"]

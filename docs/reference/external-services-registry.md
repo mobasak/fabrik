@@ -22,7 +22,7 @@ Four idempotent scripts run in order once a day by `scripts/external_services_ch
 
 The **code call-site scan** (`gather_envs.scan_code_hosts`) closes that class:
 
-- source files only (`py ts js sh yaml`; `node_modules`, `.venv`, `dist`, `docs/`, `tests/`, fixtures, `*.md`, `*.lock` excluded);
+- source files only (`py ts js sh yaml` + Dockerfiles; `node_modules`, `.venv`, `dist`, `docs/`, `tests/`, fixtures, `*.md`, `*.lock` excluded);
 - a host is attributed to the catalog provider whose `url` has the same HOSTNAME, else the one that ALONE owns its registrable domain (`api.resend.com` → `resend`); a label or hostname shared by several entries (`backrest`'s url is a github.com repo link; safe-browsing/youtube/gemini under google.com) is ambiguous and never resolved by JSON order — it falls through to the catalog key or the `match` prefix; the referencing repos join that provider's `used_by`;
 - **multi-service platform domains** (`amazonaws`, `googleapis`, `azure`, `windows`, `cloudfront`) are never credited to one vendor — the service label is kept (`gmail.googleapis`, `truststore.amazonaws`) and goes to triage (an RDS truststore fetch was mis-credited to `aws-ses` before this rule); once the classifier names or tombstones that label it keeps its catalog entry and leaves triage;
 - ignored: the fleet's own domains, local/test TLDs, placeholder labels (`example`, `evil`, `company`…), reference-only hosts (package registries, schema/standards hosts, CDNs, Q&A sites, front-end libraries — never a vendor's own domain), documentation subdomains by prefix (`docs.`, `learn.`, `developer.`, `help.`…), one-letter or over-long labels; `api.*` always survives;

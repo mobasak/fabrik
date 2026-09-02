@@ -493,7 +493,8 @@ def test_output_file_is_0600_from_creation(tmp_path, monkeypatch):
     real_open = os.open
 
     def spy(path, flags, mode=0o777, *a, **k):
-        modes.append(mode)
+        if str(path).endswith(".tmp"):  # only OUR file — the spy is process-wide (Z11)
+            modes.append(mode)
         return real_open(path, flags, mode, *a, **k)
 
     monkeypatch.setattr(ge.os, "open", spy)
@@ -607,6 +608,35 @@ def test_internal_config_name_beats_a_catalog_match_prefix(tmp_path, monkeypatch
     body, _ = ge.consolidate(_envs(tmp_path / "b", {"svc": "ANTHROPIC_READ_TIMEOUT=30\n"}))
     assert "#svc name=anthropic" not in body
     assert "ANTHROPIC_READ_TIMEOUT=30" in body.split("internal-config", 1)[1]
+    # … but a vendor-prefixed SECRET that carries a config token stays the vendor's (the mirror)
+    monkeypatch.setattr(
+        ge,
+        "load_catalog",
+        lambda: (
+            {
+                "supabase": {
+                    "category": "data",
+                    "cost": "freemium",
+                    "capability": "db",
+                    "url": "https://supabase.com",
+                    "status": "retiring",
+                    "match": ["SUPABASE"],
+                }
+            },
+            [("SUPABASE", "supabase")],
+        ),
+    )
+    (tmp_path / "c").mkdir()
+    body, _ = ge.consolidate(
+        _envs(
+            tmp_path / "c",
+            {
+                "svc": "SUPABASE_DB_PASSWORD=JIbqttnjVAj45oK5abcdef\nSUPABASE_DB_URL=postgresql://postgres:JIbqttnjVAj45oK5@db.x.supabase.co:5432/postgres\n"
+            },
+        )
+    )
+    svc_block = body.split("#svc name=supabase", 1)[1].split("# ═", 1)[0]
+    assert "SUPABASE_DB_PASSWORD=" in svc_block and "SUPABASE_DB_URL=" in svc_block
 
 
 def test_code_only_entries_carry_no_match_prefix():
@@ -692,11 +722,13 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
         ("LAST_RUN_PATH", state / "l.json"),
     ):
         monkeypatch.setattr(cs, name, val)
-    monkeypatch.setattr(
-        cs,
-        "fanout",
-        lambda *a, **k: ([results[0].__class__(results[0].text) for _ in k["units"]], ""),
-    )
+
+    def fake_fanout(*a, **k):
+        units = k["units"]
+        assert len(results) >= len(units), "fixture: one result per dispatched unit"
+        return [results[i] for i in range(len(units))], ""  # by POSITION — never broadcast [0]
+
+    monkeypatch.setattr(cs, "fanout", fake_fanout)
     monkeypatch.setattr(cs, "set_quality", lambda *a, **k: None)
     monkeypatch.setattr(sys, "argv", ["classify_services.py", *argv])
     return cat, state
@@ -765,3 +797,37 @@ def test_only_run_never_moves_the_shared_cursor(tmp_path, monkeypatch):
     (state / "c.json").write_text('{"after": "zzz"}', encoding="utf-8")
     assert cs.main() == 0
     assert json.loads((state / "c.json").read_text(encoding="utf-8")) == {"after": "zzz"}
+
+
+def test_only_run_leaves_the_error_budget_of_other_providers_alone(tmp_path, monkeypatch):
+    """`--only p04` must not reset p00–p03's consecutive-error counts (pass 5, Z2)."""
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=-\nP{i:02d}_API_KEY=x\n'
+        for i in range(5)
+    )
+    cat, state = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--only", "p04"], [_Res("not json")]
+    )
+    (state / "e.json").write_text(
+        json.dumps({"p00": 2, "p01": 2, "p02": 2, "p03": 2}), encoding="utf-8"
+    )
+    assert cs.main() == 0
+    assert json.loads((state / "e.json").read_text(encoding="utf-8")) == {
+        "p00": 2,
+        "p01": 2,
+        "p02": 2,
+        "p03": 2,
+    }
+    assert not (state / "l.json").exists()  # a hand-picked run writes its own last-run file
+
+
+def test_a_catalog_entry_left_at_question_mark_is_restubbed(tmp_path, monkeypatch):
+    """A catalog entry whose category is `?` sits in NEEDS-TRIAGE forever and was skipped by the
+    tombstone loop → re-billed every lap (pass 5, Z10)."""
+    text = '# ═ NEEDS-TRIAGE ═\n#svc name=zzz category=? cost=? capability="?" url=? status=? used_by=-\nZZZ_API_KEY=x\n'
+    cat, _ = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], [_Res("not json")]
+    )
+    cat.write_text(json.dumps({"zzz": {"category": "?", "match": ["ZZZ"]}}), encoding="utf-8")
+    assert cs.main() == 0
+    assert json.loads(cat.read_text(encoding="utf-8"))["zzz"]["category"] == "unidentified"

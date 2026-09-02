@@ -140,7 +140,6 @@
 - [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
 - [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
 - [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rule_grounding.py
-- [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
 - [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
 - [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
 - [scripts/enforcement/check_synced_unmodified.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -154,8 +153,8 @@
 - [scripts/epic_order.py](../INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
-- [scripts/external_services_chain.sh](../INDEX.md) (owner: infra): The external-services chain, one definition for both entry points
 - [scripts/gather_envs.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
+- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 - [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
@@ -170,6 +169,7 @@
 - [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
+- [scripts/registry_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql
 - [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
 - [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
@@ -193,6 +193,7 @@
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mcp_health.py · docs/workstation/mcp-roster.md (§ fix-first) | none
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
+- [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
 - [scripts/thread_anchor.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_thread_anchor.py, docs/reference/thread-anchors.md, .claude/hooks/final_gate_stop.py, .claude/settings.json | none
 - [scripts/traycer_mirror.py](../INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): Traycer Report Writer
@@ -301,7 +302,7 @@
 - [chrome-ext/70-chrome-ext.md](../.windsurf/rules/chrome-ext/70-chrome-ext.md) (owner: infra): Chrome extension discipline — MV3, two-faced architecture, surfaces, distribution, auth, observability, design system
 - [chrome-ext/89-extension-launch-checklist.md](../.windsurf/rules/chrome-ext/89-extension-launch-checklist.md) (owner: infra): Chrome extension launch checklist — Web Store account, listing assets, privacy practices tab, review-trap avoidance, staged rollout, post-launch
 - [core/10-python.md](../.windsurf/rules/core/10-python.md) (owner: infra): Python/FastAPI patterns, typing, environment handling
-- [core/12-node.md](../.windsurf/rules/core/12-node.md) (owner: infra): Node.js 22 production backend patterns (2026-current) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
+- [core/12-node.md](../.windsurf/rules/core/12-node.md) (owner: infra): Node.js production backend patterns (current LTS) — Fastify/Express, ESM, pino + ALS, graceful drain, npm hygiene, helmet, CVE-aware
 - [core/15-api-contracts.md](../.windsurf/rules/core/15-api-contracts.md) (owner: infra): API contract discipline — OpenAPI-first, error schema, pagination, idempotency, versioning
 - [core/20-typescript.md](../.windsurf/rules/core/20-typescript.md) (owner: infra): TypeScript language discipline — strict mode, type safety, module patterns, error handling
 - [core/25-data-postgres.md](../.windsurf/rules/core/25-data-postgres.md) (owner: infra): PostgreSQL discipline — migrations, transactions, indexing, nullability, schema evolution
@@ -312,7 +313,7 @@
 - [core/45-testing-strategy.md](../.windsurf/rules/core/45-testing-strategy.md) (owner: infra): Testing strategy — what to test per ticket type, smoke vs integration, regression rules
 - [core/50-code-review.md](../.windsurf/rules/core/50-code-review.md) (owner: infra): Code review workflow, quality gate commands, and reusability discipline. Apply when running a self-review/gate, closing a milestone, deciding what tests to writ
 - [core/55-observability.md](../.windsurf/rules/core/55-observability.md) (owner: infra): Observability discipline — structured logs (stdout only, no logfiles), correlation IDs, health/readiness, metrics, alert thresholds, crash reporting
-- [core/57-external-data-sourcing.md](../.windsurf/rules/core/57-external-data-sourcing.md) (owner: infra): External data sourcing — which mechanism (API/scrape/webhook/file/stream/MCP) and which vendor to reach for BEFORE writing an integration; pairs with 58-resilie
+- [core/57-external-data-sourcing.md](../.windsurf/rules/core/57-external-data-sourcing.md) (owner: infra): External data sourcing — which mechanism (API/webhook/stream/file/DB/scrape) and which vendor or fabrik-lib module to reach for BEFORE writing an integration, a
 - [core/58-resilience.md](../.windsurf/rules/core/58-resilience.md) (owner: infra): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 - [core/60-watchdog.md](../.windsurf/rules/core/60-watchdog.md) (owner: infra): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
 - [core/62-using-subagents.md](../.windsurf/rules/core/62-using-subagents.md) (owner: infra): How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp

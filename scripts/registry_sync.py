@@ -89,7 +89,13 @@ def parse(path: Path) -> list[dict]:
     return provs
 
 
-def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bool = True) -> dict:
+def sync_registry(
+    dsn: str | None = None,
+    fetch_credits: bool = False,
+    prune: bool = True,
+    prune_keys: bool
+    | None = None,  # default = prune; a PARTIAL file must not delete a provider's other keys (Z7)
+) -> dict:
     if dsn:
         os.environ["SERVICES_REGISTRY_DSN"] = dsn
     provs = parse(ALL_ENVS)
@@ -99,8 +105,12 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
     # Schema first, in its OWN short transaction: an ALTER inside the sync transaction holds an
     # ACCESS EXCLUSIVE lock on api_keys for the whole run (measured: the no-op ADD COLUMN IF NOT
     # EXISTS still takes it), blocking the live dashboard server's reads (closing review 2026-09-02).
-    with conn, conn.cursor() as cur:
-        ensure_schema(cur)
+    try:
+        with conn, conn.cursor() as cur:
+            ensure_schema(cur)
+    except Exception:
+        conn.close()
+        raise
     try:
         with conn, conn.cursor() as cur:
             # Bounded-prune denominator: the PRE-EXISTING registry size, captured BEFORE the
@@ -157,11 +167,14 @@ def sync_registry(dsn: str | None = None, fetch_credits: bool = False, prune: bo
                 # Keys that LEFT this provider (a code host no longer referenced, a var moved to
                 # internal-config) are deleted — upsert-only rows lived forever, and the code-host
                 # input makes churn daily (closing review 2026-09-02, N2). Per-service, never global.
-                cur.execute(
-                    "DELETE FROM api_keys WHERE service_id=%s AND value_sha256 <> ALL(%s)",
-                    (sid, digests),
-                )
-                stats["keys_pruned"] += cur.rowcount
+                if digests and (
+                    prune if prune_keys is None else prune_keys
+                ):  # `<> ALL('{}')` is TRUE for every row
+                    cur.execute(
+                        "DELETE FROM api_keys WHERE service_id=%s AND value_sha256 <> ALL(%s)",
+                        (sid, digests),
+                    )
+                    stats["keys_pruned"] += cur.rowcount
                 cred = first_value or fallback_value
                 if fetch_credits and cred:
                     to_fetch.append((sid, meta["name"], cred))  # fetch AFTER commit

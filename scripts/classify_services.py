@@ -258,6 +258,7 @@ def main() -> int:
         return 1
 
     provs = flagged_providers(ALL_ENVS)
+    all_flagged = set(provs)  # the WHOLE queue, before any --only narrowing (pass 5, Z2)
     if args.only:  # the re-bill guard: classify ONLY the named (new) providers, not all flagged
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
         provs = {p: v for p, v in provs.items() if p in wanted}
@@ -275,7 +276,6 @@ def main() -> int:
         print("another classify_services run holds the lock — skipping (no double-billing)")
         return 0
     cursor = _read_json(CURSOR_PATH, {}).get("after")
-    all_flagged = set(provs)
     provs, deferred, new_cursor = bound_flagged(provs, args.max_per_run, after=cursor)
     if deferred:
         print(
@@ -360,19 +360,22 @@ def main() -> int:
         # stay in triage and defeat the whole point (C2). The full provider name is the
         # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
         for prov in names:
-            if prov in identified or prov in catalog or prov in errored:
+            if prov in identified or prov in errored:
                 continue
+            if prov in catalog and catalog[prov].get("category") not in (None, "", "?"):
+                continue  # a real entry; a `?` entry is re-stubbed so it leaves triage (pass 5, Z10)
             catalog[prov] = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
             tombstoned += 1
             tombstoned_names.append(prov)
     tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
     tmp.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(tmp, CATALOG_PATH)
-    _write_json(ERRORS_PATH, err_counts)
+    if not args.only:  # a hand-picked run is not a lap: it moves neither the budget nor the cursor
+        _write_json(ERRORS_PATH, err_counts)
     if new_cursor is not None and not args.only:  # a hand-picked --only run never moves the queue
         _write_json(CURSOR_PATH, {"after": new_cursor})
     _write_json(
-        LAST_RUN_PATH,
+        LAST_RUN_PATH if not args.only else STATE_DIR / "classify_last_only.json",
         {
             "identified": sorted(identified),
             "tombstoned": sorted(tombstoned_names),

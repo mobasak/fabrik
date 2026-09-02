@@ -17,9 +17,9 @@
 #   2. scripts/external_services_chain.sh — gather_envs (+ code-host scan) → classify →
 #      gather_envs → registry_sync → gen_dashboard (shared with wsl_startup_hook.sh)
 #      (classify, the paid pool pass, is inside that chain — bounded, cursor-walked)
-#   4. generate_capability_index.py      — regenerate capabilities.json + docs/CAPABILITIES.md
-#   5. generate_kilo_agents.py           — emit the Traycer CLI agent scripts from kilo_agents.db
-#   6. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
+#   3. generate_capability_index.py      — regenerate capabilities.json + docs/CAPABILITIES.md
+#   4. generate_kilo_agents.py           — emit the Traycer CLI agent scripts from kilo_agents.db
+#   5. sync_enforcement_to_projects.py   — distribute governance + the delivered docs to ~46 repos
 #
 # ⚠️ The heartbeat measures whether THIS script reached its end. It does NOT measure catalog
 # freshness — post-relocation those are different questions, and a green heartbeat here says nothing
