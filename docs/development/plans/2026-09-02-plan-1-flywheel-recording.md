@@ -1,6 +1,6 @@
 # Plan 1 — Repair the subagent flywheel's recording path (2026-09-02)
 
-**Status:** DRAFT — RE-OPENED 2026-09-02 (Amendment 1: the measurement gaps)
+**Status:** DRAFT — Amendment 2 in progress (the Amendment-1 migration mechanism did not exist; and Amendment 1's CONVERGED flip silently failed to apply — see § Pass Ledger)
 **Source of truth:** live measurement of `fabrik_analytics.subagent_runs` + `/opt/fabrik/.tmp/subagents/*.jsonl`, this session. No `/fabrik-spec` doc — the design was settled by measurement, not brainstorming (RICH by the Phase-0 gate: goal and approach are both pinned).
 **Owner beat:** intel (models · benchmarks · flywheel).
 
@@ -21,7 +21,10 @@
 | 10 | the six measurement gaps + the at-least-once claim vs the real index | method: re-derivation | 8 | 8 | 8 | a43496 → 379aba |
 | 11 | scoped: every claim Amendment 1 introduced, re-derived from the DB and the checker source | **method: re-derivation** | 1 | 1 | 1 | 379aba → 24a667 |
 | 12 | all — checklist parse, stale-scope sweep, phase cross-refs | method: gate | 1 | 0 | 0 | 24a667 → 24a667 (raised 1, REFUTED — not quiet) |
-| 13 | all — every amendment probe re-run verbatim, phase consistency, status honesty | **method: re-derivation** | **0** | **0** | **0** | 24a667 → 24a667 ✓ → **RE-CONVERGED** |
+| 13 | all — every amendment probe re-run verbatim, phase consistency, status honesty | **method: re-derivation** | **0** | **0** | **0** | 24a667 → 24a667 ✓ (quiet) |
+| — | ⚠️ **The P13 CONVERGED flip SILENTLY FAILED.** A bare `str.replace` with no match assertion, in a script that printed "✓ re-CONVERGED" unconditionally, left `Status: DRAFT` while this ledger said RE-CONVERGED. Committed (`6fc5b2c6`) and reported to the operator as converged. Caught in P14 by reading line 3. **P13's quiet pass stands on its merits; the FLIP did not happen.** | — | — | — | — | — |
+| — | **AMENDMENT 2 opened** — the operator re-invoked `/fabrik-plan-review`, and the re-ask was warranted twice over | — | — | — | — | — |
+| 14 | Amendment 1's migration mechanism, grounded against the repo for the first time | **method: re-derivation** | 6 | 6 | 6 | 24a667 → … |
 
 **Dispatched vs returned:** 5 pool units dispatched, 5 returned (all scored back to the flywheel:
 qwen3-max 5 · deepseek-v4-flash 4 · deepseek-v3.2-exp 4 · gemini-3-flash 3 · deepseek-v4-flash 1).
@@ -124,7 +127,7 @@ EXCLUDED as shared-append surfaces.
 | `scripts/kilo-benchmarks/rank_task_subagents.py` | B, E, G2 | ⚠️ **serialization point** — three phases touch it |
 | `scripts/kilo-benchmarks/reclassify_cap_rows.py` | C1 | new, one-off |
 | `libs/subagents/pg_ledger.py` · `libs/subagents/agent.py` | D, G1, F1–F6 | ⚠️ **48 vendored copies** — canonical is `/opt/fabrik-lib/subagents` |
-| `db/schema.sql` + the Alembic revision | F1–F6 | one additive migration for all six columns, never six |
+| `libs/subagents/pg_ledger.py` (`SUBAGENT_RUNS_DDL` + the ALTER comment block) | F1–F6 | ⚠️ **48 vendored copies**; there is NO Alembic and NO `db/schema.sql` in this repo — see § Migration discipline |
 | `scripts/enforcement/check_subagent_flywheel.py` | H | advisory first; fire rate measured before any threshold blocks |
 
 ## Constraints Digest
@@ -171,6 +174,10 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | 20 | cost not normalisable (no token counts) | Amendment 1 | **FIXED** — F3 persists `tokens_in`/`tokens_out`; `$/run` alone confounds model price with task size |
 | 21 | runs not known to be comparable | Amendment 1 | **FIXED** — F5 stamps `corpus_id`/`task_ref` |
 | 22 | a uniqueness constraint with an exempt population | Amendment 1 | **FIXED** — F6; dispatch rows cannot duplicate (0 measured) but 120 agent_ids already carry duplicate `scored` rows |
+| 24 | **a plan step citing machinery the repo does not have** | Amendment 2 | **FIXED** — Phase F's migration gate named `db/schema.sql` and "the Alembic head"; this repo has NEITHER. The real contract is a 3-step ordering around `SUBAGENT_RUNS_DDL` with a worked precedent (`session_id`, 2026-08-15) the plan never consulted |
+| 25 | a risk asserted without reading the write path | Amendment 2 | **REFUTED** — the feared duplicate-insert ERROR cannot happen: `_INSERT` ends `ON CONFLICT DO NOTHING`, shipped inert on purpose and active since the index landed. Recorded because the refutation is the useful half |
+| 26 | an upstream ask aimed at this beat, never actioned | Amendment 2 | **FIXED** — `pg_ledger`'s own comment asks "whoever holds the DSN" for a dedupe pass on 995 rows; intel holds it; F6 is now that pass (120 remain, all in the index-exempt `scored` half) |
+| 27 | **an unasserted edit reported as success** | Amendment 2 | **FIXED** — Amendment 1's `Status: DRAFT → CONVERGED` used a bare `str.replace` with no match assertion inside a script that printed "✓ re-CONVERGED" unconditionally. It did not match. The ledger said RE-CONVERGED while the Status said DRAFT, and that contradiction was committed and reported. Every other edit this session used an asserting helper; this one bypassed it |
 | 23 | the only human-supplied metric is half-missing on 91% of volume | Amendment 1 | **FIXED** — Phase H; `review` quality coverage is 51% of 4,337 runs, and a recorded-but-unscored run currently passes the flywheel check silently |
 | 17 | evidence with an unreconciled delta | this review | **FIXED (class), instance SELF-SERVICE** — 50 returned vs 46 landed (D9). The CLASS is closed: A1 now mandates a per-repo `rows_after − rows_before == returned` assertion that fails loudly. The INSTANCE is an execution-time discovery — the executor runs the walker with that assertion live and sees the per-repo breakdown I cannot reconstruct after the fact. It is not a deferred question: the plan states the exact check, so nobody has to stop and ask |
 
@@ -200,7 +207,7 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | scheduled job added | `docs/RESILIENCE.md` §7 (canonical jobs/intervals inventory) | A |
 | new env var documented | `.env.example` + `docs/CONFIGURATION.md` | A |
 | code changed | `CHANGELOG.md` | every |
-| schema migration | `db/schema.sql` + Alembic | F1–F6 (one migration) |
+| schema migration | ⚠️ **not applicable as written** — the Doc Sync Matrix row assumes a scaffolded project; `/opt/fabrik` has neither Alembic nor `db/schema.sql`. The equivalent here is `SUBAGENT_RUNS_DDL` + its `ALTER TABLE` comment block in `libs/subagents/pg_ledger.py` | F1–F6 |
 | new subsystem doc | `docs/reference/subagent-flywheel.md` gains a "what we measure and what we cannot" section listing every column and its coverage | F, H |
 | decision made/received | `docs/DECISIONS.md` | B, E, and the CONVERGED flip |
 | end of run | `docs/LESSONS_LEARNT.md` | final |
@@ -625,21 +632,67 @@ given harder work simply scores worse. The benchmark has a fixed corpus and coul
 ### F6 — the `scored`-row duplication the unique index exempts
 
 `subagent_runs_dispatch_agent_uidx` is `UNIQUE (agent_id) WHERE status <> 'scored'`, so dispatch rows
-cannot duplicate (measured: 0) — but **120 agent_ids already carry more than one `scored` row.** Either
-extend the constraint to cover them or make the reconciliation's tie-break explicit and tested. Silence
-here is what makes the at-least-once flush contract hard to reason about.
+cannot duplicate (measured: 0) — but **120 agent_ids already carry more than one `scored` row.**
 
-### Migration discipline (binds all six)
+⚠️ **A worry raised against this was REFUTED by reading the insert path, and the refutation matters.**
+The concern was that a duplicate flush would now ERROR the whole batch against the new index. It does
+not: `_INSERT` ends `ON CONFLICT DO NOTHING`, shipped deliberately **inert** — *"it ships now, inert,
+and starts working by itself the moment the table's owner adds the constraint. No flag day, no lockstep
+release."* The index exists, so new duplicates are silently skipped. Nothing to fix on the write path.
 
-Additive columns only — no rename, no drop, no type change. `pg_ledger.py:87-95` documents why:
-`_REQUIRED_OUTBOX_COLS` is validated instead of `_COLS` precisely because **an outbox row is written by
-an OLDER copy of the module than the one flushing it**, and 48 vendored copies at different vintages
-are live. Every new column is nullable with no default-bearing read path; the tolerant read is the
-gate, not the migration.
+**What DOES remain is an explicit upstream ask pointed at this beat.** The same comment: *"⚠️ It does
+NOT fix the 995 rows already there; those need a dedupe pass by whoever holds the DSN. This only stops
+the count growing."* Intel holds the DSN. Measured today, the non-scored half is clean (0 duplicates)
+and **120 remain in the exempt `scored` population** — exactly the half the partial index does not
+cover. F6 is that dedupe pass, plus a decision: extend the constraint to scored rows, or make the
+reconciliation's tie-break explicit and tested. ⚠️ Extending it is NOT free — `set_quality` writes a
+second row per run *by design* (`pg_ledger.py:19-21` describes the two-row model), so a naive
+`UNIQUE (agent_id)` would break the documented shape. The tie-break option is the safer default.
 
-**Gate:** an old-shape row (none of the six columns) still flushes, still aggregates, and still ranks;
-`final_gate.py --check --json` → `"status":"success"`; `db/schema.sql` and the Alembic head updated in
-the same change.
+### Migration discipline — THE REAL MECHANISM (rewritten; the first version cited machinery that does not exist)
+
+⚠️ **There is no Alembic and no `db/schema.sql` in this repo.** An earlier draft's gate named both:
+
+```
+$ ls db/schema.sql; ls -d alembic alembic.ini migrations
+ls: cannot access 'db/schema.sql': No such file or directory
+  NO alembic/ NO migrations/ in /opt/fabrik
+```
+
+`/opt/fabrik` is the platform repo, not a service — the Doc Sync Matrix row for "Schema migration"
+assumes a scaffolded project and does not apply here. **The table's DDL is a Python string**,
+`SUBAGENT_RUNS_DDL` in `libs/subagents/pg_ledger.py`, applied by `ensure_shared_analytics_db()`
+(`src/fabrik/drivers/postgres.py:934` states the dependency explicitly). Because it is
+`CREATE TABLE IF NOT EXISTS`, **editing the DDL string does NOTHING to an existing table.**
+
+**The module documents its own contract, and there is a worked precedent — `session_id`, 2026-08-15
+(`pg_ledger.py:60-64`):**
+
+```
+-- Added 2026-08-15 with the session_id column. A table created from an OLDER copy of
+-- this DDL needs the column added before this module can write to it at all:
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS session_id TEXT;
+```
+
+**So the ordering is three steps and it is NOT negotiable** (`pg_ledger.py:96-104`: *"Ordering
+condition from the table's owner (intel), and the reason this lands BEFORE any ALTER TABLE or any code
+that writes the new column"*):
+
+1. **Gate first** — land any `_REQUIRED_OUTBOX_COLS` change before anything else, so an outbox row
+   written by an older vendored copy is still accepted. ⚠️ *"Add a name here ONLY for a column that is
+   NOT NULL with no default … A new NULLABLE column must never be added."* All six of ours are
+   nullable, so **none of them goes in that tuple** — the step is a re-read, not an edit.
+2. **`ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS <col> <type>;`** against the live database,
+   recorded as a comment beside the DDL exactly as `session_id` was.
+3. **Then** the DDL string (so fresh installs match) and only then the code that writes the column.
+
+Additive only — no rename, no drop, no type change — because `_REQUIRED_OUTBOX_COLS` is validated
+instead of `_COLS` precisely so **an outbox row written by an OLDER copy still flushes**
+(`pg_ledger.py:87-95`), and 48 vendored copies at different vintages are live.
+
+**Gate:** an old-shape row (none of the six columns) still flushes, aggregates and ranks; the six
+`ALTER TABLE … IF NOT EXISTS` statements are idempotent (run twice, second is a no-op);
+`\d subagent_runs` shows the columns; `final_gate.py --check --json` → `"status":"success"`.
 
 ## Phase H — Close the quality-coverage hole (no schema change)
 
