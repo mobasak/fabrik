@@ -28,18 +28,18 @@ Do not use Docusaurus when:
 
 Deploy via `fabrik apply` using a **two-stage Dockerfile**:
 
-1. **Build stage**: `node:24-bookworm-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
-2. **Serve stage**: `nginx:mainline-bookworm` — copy `build/` to `/usr/share/nginx/html`.
+1. **Build stage**: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
+2. **Serve stage**: `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — copy `build/` to `/usr/share/nginx/html`.
 
 ```dockerfile
-FROM node:24-bookworm-slim AS builder
+FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build && npx -y pagefind --site build
 
-FROM nginx:mainline-bookworm
+FROM nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/build /usr/share/nginx/html
@@ -88,8 +88,25 @@ networks:
 
 ## Search
 
-- Use **Pagefind** (`@getcanary/docusaurus-theme-search-pagefind`) exclusively. Pagefind generates compressed WASM index chunks post-build — zero bundle bloat, zero SaaS dependency, sub-millisecond client-side search.
-- **Banned**: Algolia DocSearch (external SaaS dependency, requires public site), `@easyops-cn/docusaurus-search-local` (bundles entire index into JS payload, degrades TTI at scale).
+- Use **Pagefind**: it generates compressed WASM index chunks post-build — zero bundle bloat, zero SaaS
+  dependency, no server, and it is the right shape for a docs site at our scale — Pagefind's own
+  stated envelope is "tens of thousands of pages", with a ~300kB total network payload on a
+  10,000-page site. (Past that the index fetch is what tells; a hosted engine becomes the better
+  tool long before any of our sites get there.)
+  ⚠️ **Pagefind is the mandate; a specific PLUGIN is not.** `@getcanary/docusaurus-theme-search-pagefind`
+  is the long-standing integration (and is in production use), but check it before adopting: at last
+  look its newest release was well over a year old and its peer range declares `@docusaurus/core ^2||^3`
+  and React `^17||^18` — i.e. it does not declare support for anything newer. If it does not resolve
+  against the site's Docusaurus/React majors, switch integration rather than abandoning Pagefind —
+  `docusaurus-plugin-pagefind` is currently maintained and declares `@docusaurus/core >=3` /
+  `react >=18`. The floor fallback always works: run the `pagefind` CLI at build (the Dockerfile
+  already does) and swizzle `SearchBar` — **the one sanctioned swizzle**, notwithstanding
+  § Styling & Swizzling's keep-it-minimal rule.
+- **Banned here**: Algolia DocSearch and `@easyops-cn/docusaurus-search-local`. ⚠️ Not because they are
+  bad — Algolia is Docusaurus's own first-class option and is the better tool at large scale or when
+  search is a product feature. They are banned by OUR constraints: Algolia is an external SaaS whose
+  free DocSearch tier requires a public site (both disqualifying for private/self-hosted docs), and the
+  easyops local plugin ships the whole index in the JS payload, which degrades TTI as the corpus grows.
 
 ## API Reference (Docusaurus sites only)
 
@@ -101,7 +118,7 @@ networks:
 
 ## Versioning
 
-- Docusaurus native versioning (`versioned_docs/`, `npm run docusaurus docs:version`) is **banned**. It duplicates all content, creates exponential build times, and bloats Git history.
+- Docusaurus native versioning (`versioned_docs/`, `npm run docusaurus docs:version`) is **banned**. It duplicates all content, creates build times that multiply per retained version, and bloats Git history.
 - Archive legacy versions by cutting a Git branch (`release/v1.x`) and deploying it via `fabrik apply` as an immutable static snapshot to a subpath (e.g., `/v1/`). Link from the main site's version dropdown via absolute URLs.
 
 ## Internationalization
@@ -175,7 +192,7 @@ networks:
 
 ## Done When
 
-- [ ] Dockerfile uses two-stage build: `node:24-bookworm-slim` → `nginx:mainline-bookworm`.
+- [ ] Dockerfile uses two-stage build: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` → `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — a STATIC serve stage, never a Node runtime.
 - [ ] Nginx serve stage has `curl` installed (stock image doesn't include it — HEALTHCHECK fails without it).
 - [ ] Dockerfile has HEALTHCHECK instruction.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.

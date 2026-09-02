@@ -541,3 +541,27 @@ claims:
     verify: "search: which bots fetch llms.txt coding agents Claude Code server logs <year> + check Chrome Lighthouse audit category"
     window_days: 180
     last_verified: 2026-09-01
+
+  - id: docusaurus-serve-not-for-production
+    pack: core/42-docusaurus.md
+    claim: "Docusaurus's own deployment docs state `docusaurus serve` is not the best option compared to a static host/CDN, and that Docusaurus's only responsibility is to emit static files in build/ — this is the upstream basis for the pack's ban on a Node runtime in a production container"
+    kind: practice
+    verify: "read https://docusaurus.io/docs/deployment — does it still steer away from `docusaurus serve` for production?"
+    window_days: 365
+    last_verified: 2026-09-01
+
+  - id: pagefind-plugin-maintenance-risk
+    pack: core/42-docusaurus.md
+    claim: "⚠️ RE-VERIFY MUST REWRITE THIS TEXT, not just bump the date — the age below decays. `@getcanary/docusaurus-theme-search-pagefind` is functional and in production use (e.g. Redux Toolkit) but as of 2026-09-01 its newest release was ~23 months old (19 versions, last Oct 2024) and its peer range declares @docusaurus/core ^2||^3 and react ^17||^18 — so Pagefind is the mandate and this plugin is not; verify resolution before adopting"
+    kind: version
+    verify: "check npm registry for @getcanary/docusaurus-theme-search-pagefind — any newer release? does its peer range cover the site's Docusaurus/React majors? if not, name a maintained Pagefind integration"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: pagefind-scale-ceiling
+    pack: core/42-docusaurus.md
+    claim: "Pagefind's OWN stated envelope is 'tens of thousands of pages', with a ~300kB total network payload on a 10,000-page site; past that the index fetch cost is what tells and a hosted engine becomes the better tool. (An earlier draft of this row cited ~25k pages as Pagefind's figure — that number is third-party, not the vendor's.) Algolia is Docusaurus's own first-class option — our ban is a constraint (external SaaS; free DocSearch requires a public site), not a quality judgement"
+    kind: rationale
+    verify: "search: Pagefind index size scaling limit pages vs hosted search <year> + check Docusaurus docs/search for its recommended options"
+    window_days: 365
+    last_verified: 2026-09-01

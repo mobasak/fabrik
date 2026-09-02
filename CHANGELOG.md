@@ -41,6 +41,22 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Fixed — rules pass file 14: core/42-docusaurus.md — the SCAFFOLD emits what this pack bans (2026-09-01)
+
+Pack side, to the D-062/D-064 bar: 4 unmarked `node:24` literals and the deferred `bookworm` class
+wrapped in marker spans (both resulting tags verified live on Docker Hub — `nginx:mainline-trixie`
+and `node:24-trixie-slim` resolve). Pagefind stays the mandate but is no longer tied "exclusively"
+to `@getcanary/docusaurus-theme-search-pagefind`, whose newest release is ~23 months old and whose
+peer range declares `@docusaurus/core ^2||^3` / `react ^17||^18`; a maintained alternative is named.
+The Algolia ban is reframed as OUR constraint (external SaaS; free DocSearch requires a public site)
+rather than a quality judgement — it is Docusaurus's own first-class option.
+
+⚠️ **Filed to fleet, not fixed here** (`01M1G4PYGTQQGMXKK91VDKZGQJ`): `templates/docusaurus/Dockerfile.j2`
+runs `CMD ["npm","run","serve"]` — a Node runtime serving static files, which is the exact shape this
+pack's first Docker rule bans, and which Docusaurus's own docs steer away from. The template also
+ships no nginx stage and **no Pagefind step at all**, so every scaffolded docs site starts with no
+search index and the pack's § Search is unreachable. Scaffolding is the fleet beat.
+
 ### Added — rules-pass evidence re-audit across all 13 evaluated files + llms.txt rule (2026-09-01)
 
 Re-audited every evaluated pack with a mechanical test: for each CLAIMS.yaml row, which commit
