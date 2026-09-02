@@ -7,7 +7,7 @@ the command-corpus conventions measured in § Corpus conformance contract, and i
 before execution: a plan cannot self-grade a rewrite of its own phases.
 Date: 2026-09-01 · amended 2026-09-02 (fabrik-lib binding · row-shape split · corpus conformance)
 Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (status per its header — read it, do not trust this line)
-Scope: **`/opt/fabrik` only** — 10 file groups, two of them FLEET-SYNCED. Routed feature-scale (spec defect 15: the epic verdict was wrong).
+Scope: **`/opt/fabrik` only** — 11 file groups, two of them FLEET-SYNCED. Execution order A → C → B → D (see Phase B). Routed feature-scale (spec defect 15: the epic verdict was wrong).
 
 ## Why this plan exists
 
@@ -21,14 +21,15 @@ product should contain.
 |---|---|---|
 | 1 | `commands/_sources/fabrik-deploy-checklist.md` | **NEW** — the project-side authoring command, built to the anatomy in § Corpus conformance |
 | 2 | `commands/_sources/fabrik-deploy-verify.md` | rewrite (216 lines today) — keeps its verify-command anatomy, gains Layer 1 + derived Layer 3 + blocking contract-driven parity |
-| 3 | `commands/assemble_commands.py` | **registration, not logic**: `NEXT` entries (`:49`) for the new command + retargets for `fabrik-features`/`fabrik-deploy-verify`; an `EXTRACT` row (`:331`) and a `PARAMS` block (`:394`) for the new command; the runner's `PARAMS` examples (`:556`) gain parity-shaped examples |
+| 3 | `commands/assemble_commands.py` | **registration, not logic**: `NEXT` entries (`:49`) for the new command + retargets for `fabrik-features`/`fabrik-deploy-verify`; a `PARAMS` block (`:394`) carrying ALL 16 tokens the included fragments declare — **`render()` resolves `{{include:…}}` from `PARAMS` alone and REFUSES the render on any unresolved token (proven by execution, § Evidence); `EXTRACT` (`:331`) is the retired July-migration table (`extract()` globs `~/.claude/commands.bak-20260721-0615`) and is NOT edited** — the runner's `PARAMS` examples (`:556`) gain parity-shaped examples |
 | 4 | `commands/_sources/fabrik-release.md` | one precondition paragraph on the VPS path (`:76-86`): a parity contract that is not `FROZEN` is `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` — the mirror of its existing certification-handoff precondition (`:20-35`) |
-| 5 | `CLAUDE.md:333` + `templates/governance/CLAUDE.md:339` | the § Pipeline flow line names the new command between `/fabrik-features` REFRESH and certification/release. ⚠️ **`templates/governance/CLAUDE.md` is FLEET-SYNCED** — the post-commit governance-sync distributes it to ~46 repos |
+| 5 | `CLAUDE.md:61,333` + `templates/governance/CLAUDE.md:53,339` | the § Orient **stage table** row for `6-release` (`:61` / `:53`) AND the § Pipeline flow line (`:333` / `:339`) name the new command between `/fabrik-features` REFRESH and certification/release (evaluation-checklist items 56–57: both places, both files). ⚠️ **`templates/governance/CLAUDE.md` is FLEET-SYNCED** — the post-commit governance-sync distributes it to ~46 repos |
 | 6 | `templates/scaffold/scripts/verify_prod_parity.py` (**NEW** template) + `src/fabrik/scaffold.py` (`SCRIPT_FILES` + the copy loop at `:1127`) + `templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md` / `OPERATIONS_TEMPLATE.md` (fleet-AI sections, D-065) | born-compliant seeding on the `scaffold.py:285` precedent |
 | 7 | `tests/test_scaffold_deploy_contract.py` | **NEW** — Phase C guards (stub exits non-zero; docusaurus does not publish the doc templates' new sections) |
 | 8 | `tests/test_check_command_corpus.py` (extend) | Phase A/B guards — the rendered commands carry the required sections; ⚠️ the earlier File Scope named `tests/test_command_corpus.py`, **which does not exist** (`ls tests/ \| grep -i corpus` → only `test_check_command_corpus.py`) |
 | 9 | `tests/test_deploy_verify_verdict.py` | **NEW** — Phase A step 7: the EXECUTED verdict-algebra check (four row shapes + DOWN/mismatch co-occurrence), watched-fail-first |
-| 10 | `capabilities.json` + `docs/CAPABILITIES.md` + `INDEX.md` | **REGENERATED / doc-sync**, never hand-edited: `scripts/generate_capability_index.py` enumerates `commands/_sources/*.md` (`:461`) so a new command changes both; `INDEX.md` rows for every new file (Doc Sync Matrix) |
+| 10 | `docs/reference/deployment-verification.md` (**NEW**) + `docs/README.md` | the contract is a NEW SUBSYSTEM (two commands, a seeded artifact, a verdict algebra) — evaluation-checklist item 64 owes it its OWN reference doc (grep/`ls` first: none exists); describes the CURRENT architecture, links the spec |
+| 11 | `capabilities.json` + `docs/CAPABILITIES.md` + `INDEX.md` | **REGENERATED / doc-sync**, never hand-edited: `scripts/generate_capability_index.py` enumerates `commands/_sources/*.md` (`:461`) so a new command changes both; `INDEX.md` rows for every new file (Doc Sync Matrix) |
 
 **READ-ONLY inputs, not edited:** `src/fabrik/orchestrator/infrastructure.py` (`_REGISTRAR_ORDER`),
 `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md`, `commands/_fragments/*.md`
@@ -69,7 +70,7 @@ this run, not recalled; the anchors are what `/fabrik-plan-review` re-derives.
 | frontmatter | `description:` carries **TRIGGER — EN / TR phrases, SKIP (→ the sibling that owns the near-miss), Stage**; `argument-hint:` | `fabrik-features.md:1-3`, `fabrik-deploy-verify.md:1-3` |
 | intro | what it produces, the seam it sits in as a fenced pipeline line, and the **HARD GATE** ("no plan builds against a `DRAFT` contract") | `fabrik-data-contract.md:7-19` |
 | run record | `{{include:run-record}}` FIRST; `--phases` is DERIVED from `## Phase N —` headings (`_phase_count`, falls back to section count, never 0) | `assemble_commands.py::_phase_count`, `_fragments/run-record.md` tokens `COMMAND`/`PHASES` |
-| termination — authoring | `{{include:term-edit}}` via an `EXTRACT` row + `PARAMS` tokens `ARTIFACT · DONE_ACT · DONE_WORD · AXES · EXEMPT_NOTE`: pass shape 1-wide + k-scoped + 1-wide, `method:` column, ≥1 `method: re-derivation` row, md5 anti-cheat, `new:` counts, stall breaker, probe duty (`$ ` fences) | `_fragments/term-edit.md`, `assemble_commands.py:331-345` (EXTRACT), `:394-` (PARAMS) |
+| termination — authoring | `{{include:term-edit}}` + `PARAMS` tokens `ARTIFACT · DONE_ACT · DONE_WORD · AXES · EXEMPT_NOTE` (render-time; no EXTRACT row — that table is the retired migration path): pass shape 1-wide + k-scoped + 1-wide, `method:` column, ≥1 `method: re-derivation` row, md5 anti-cheat, `new:` counts, stall breaker, probe duty (`$ ` fences) | `_fragments/term-edit.md`, `assemble_commands.py:394-` (PARAMS), `:734` (lookup), `:748` (the leftover-token refusal) |
 | termination — verify | hand-written **token families** `PASS · FAIL (+route) · INCONCLUSIVE · NOT-RUN (<cause>)`, "routes are asks, never actions", early-stop on a shared root cause with `NOT-RUN` rows | `fabrik-deploy-verify.md:24-43` |
 | grounding gate | `{{include:grounding-artifact}}` with `PARAMS` `SUBJECT`/`EXAMPLES` — every claim at a freshly-read `path:line`; universal/negative claims need the enumerating command | `_fragments/grounding-artifact.md`, `assemble_commands.py:556` |
 | phases | `## Phase N — <title>` headings; each phase tagged **`[anywhere]`** or **`[hub-side]`** (where it may run) | `fabrik-deploy-verify.md:73,108,126,160,168,180` |
@@ -86,9 +87,7 @@ this run, not recalled; the anchors are what `/fabrik-plan-review` re-derives.
 | prompt authoring | Parts A–C of `docs/reference/MD/ai-prompt-templates.md` bind: B.2 termination, B.3 evidence-before-assertion, B.4 `path:line`, B.5 question bar, B.9 honest reporting, B.11 untrusted input | `ai-prompt-templates.md:256-317` |
 
 **2. Registration** — a new command is not "a file in `_sources/`": it is (a) the source, (b) a `NEXT`
-entry (`assemble_commands.py:49`, the successor line the wrapper prints), (c) an `EXTRACT` row naming which
-fragment replaces which section (`:331`), (d) a `PARAMS` block with every token the included fragments
-carry (a token left unfilled **ships literally** — `:248` guards the wrappers, `:748` guards bodies),
+entry (`assemble_commands.py:49`, the successor line the wrapper prints), (c) a `PARAMS` block with every token the included fragments carry — **a token left unfilled does not ship literally, it REFUSES the whole render** (`:748` collects `unresolved […]` into `errs`; `:248` is the same guard for orchestrator wrappers), which is what makes a missing block loud rather than a silent defect; `EXTRACT` (`:331`) is NOT part of registration,
 (e) the auto-emitted `SKILL.md` wrapper, (f) the auto-enrolled router entry, (g) regenerated
 `capabilities.json` + `docs/CAPABILITIES.md`.
 
@@ -184,6 +183,15 @@ showing no pruning; the verdict test's red run pasted.
 
 ## Phase B — `/fabrik-deploy-checklist`, the new authoring command (built to the anatomy)
 
+⚠️ **EXECUTION ORDER IS A → C → B → D, and B's registration lands in ONE commit** — proven by running
+`check_command_corpus.audit()` over a scratch copy carrying the new source: it returned exactly two
+problems, both *"`scripts/verify_prod_parity.py` does not exist"* (predicate 3 resolves every
+`scripts/*.py` a source names against the repo and `templates/**`). So Phase C's template must exist before
+this phase's gate runs. And predicate 2 (every `/fabrik-x` a source names must resolve to a real source)
+means the `NEXT` retargets, the `/fabrik-release` precondition and the pipeline line may only be committed
+TOGETHER WITH or AFTER the new source — never before. Phases keep their letters (the ledger cites them);
+the order of execution is what changes.
+
 **Steps**
 1. **Author `commands/_sources/fabrik-deploy-checklist.md`** with every element of § Corpus conformance 1,
    in this order:
@@ -230,6 +238,11 @@ showing no pruning; the verdict test's red run pasted.
      change**, refresh `DEPLOYMENT.md` + `OPERATIONS.md` **from CODE + SPEC + DEV, never from PROD** (the
      hazard rule), and name the gate coupling: a change to compose / the scheduler / `os.getenv` set /
      `alembic heads` without a contract bump is a WARN (the `check_schema_sync.py` shape, extended).
+     **Grader ruling (evaluation-checklist items 35–37, stated not implied):** today NO executable check
+     grades the parity script's `FROZEN` header — `check_stage_artifacts.py` grades only
+     `data-contract`/`ui-design` FROZEN flips. That is a DELIBERATE deferral, not an oversight: the header
+     grammar is settled here, and extending `check_stage_artifacts.py` to it is a `docs/STRATEGIC_BACKLOG.md`
+     row minted in Phase D with this plan's commit as its trigger — never silently absent.
    - `## Phase 7 — Hand off`: Mode A/B → `/fabrik-release` (its precondition now reads this header); on a
      BUMP → the Downstream-impact table (which verify rows changed) and NEXT names the re-verify.
    - `{{include:questionbar}}` · `## Guardrails — never` (derive from PROD · drop a row · freeze on an
@@ -242,9 +255,8 @@ showing no pruning; the verdict test's red run pasted.
 2. **Register it** (`commands/assemble_commands.py`, registration only): `NEXT["fabrik-deploy-checklist"] =
    "/fabrik-release — its VPS-path precondition reads the FROZEN header. On a version BUMP with downstream
    impact: /fabrik-deploy-verify re-run against the bumped contract."`; retarget `NEXT["fabrik-features"]`'s
-   REFRESH branch to name `/fabrik-deploy-checklist` before certification; an `EXTRACT` row
-   `[("termination","term-edit",None),("grounding","grounding-artifact",None),("questionbar","questionbar",None),("subagents","subagents-core",None)]`;
-   a `PARAMS` block — `term-edit`: `ARTIFACT` "parity contract", `DONE_ACT` "flip `Status: DRAFT → FROZEN`",
+   REFRESH branch to name `/fabrik-deploy-checklist` before certification;
+   a `PARAMS` block (no `EXTRACT` row — see § Corpus conformance 2) — `term-edit`: `ARTIFACT` "parity contract", `DONE_ACT` "flip `Status: DRAFT → FROZEN`",
    `DONE_WORD` "FROZEN", `AXES` "corpus coverage · derived denominators · features cross-check ·
    executability · exclusions · red-seen · docs", `EXEMPT_NOTE` (the Phase-6 flip is exempt);
    `grounding-artifact`: `SUBJECT` "contract row", `EXAMPLES` *a route "verified" the router never registers,
@@ -376,6 +388,43 @@ $ grep -c 'include:run-record' commands/_sources/*.md | awk -F: '{s+=$2} END{pri
 $ ls tests/test_scaffold*.py | wc -l
 13
 ```
+
+**EXECUTED, not read — a stub of the new source rendered through the real pipeline in a scratch copy
+of `_sources/` (2026-09-02, the operator's "are you sure?"):**
+
+```
+# EXP1 — the stub with its includes but NO PARAMS entry
+RENDER ERRORS:
+ - fabrik-deploy-checklist: unresolved ['{{ARTIFACT}}', '{{AXES}}', '{{CHANGES_WHAT}}', '{{DONE_ACT}}',
+   '{{DONE_WORD}}', '{{DO_RAISE}}', '{{EXAMPLES}}', '{{EXEMPT_NOTE}}', '{{EXTRA}}', '{{FLOOR}}',
+   '{{HEADLINE}}', '{{NEVER_FOR}}', '{{PROJECT}}', '{{RESOLVE_FROM}}', '{{SUBJECT}}', '{{TASK_TYPE}}']
+# → the render REFUSES (fail-closed); these 16 are exactly the tokens Phase B step 2's PARAMS block fills
+
+# EXP2 — the same stub WITH the PARAMS block Phase B step 2 specifies
+rendered 33 commands … + 33 skills … + 4 agents
+EXP2 (with PARAMS) → rendered 240 lines; leftover tokens: []
+   phases derived: 8 | run-record start line: python3 scripts/command_run.py start --command fabrik-deploy-checklist --phases 8 \
+   SKILL wrapper emitted: True | Next line present: True
+   close-feedback auto-appended: True
+
+# EXP3 — scripts/enforcement/check_command_corpus.audit() over the scratch sources
+EXP3 corpus audit → total problems: 2 | about the stub: 2
+   - …/_sources/fabrik-deploy-checklist.md:2: scripts/verify_prod_parity.py does not exist
+   - …/_sources/fabrik-deploy-checklist.md:29: scripts/verify_prod_parity.py does not exist
+# → predicate 3; the ONLY defect, and it is an ORDERING defect: Phase C's template must land before Phase B
+
+# EXP4 — scripts/enforcement/check_trigger_routing.grade() over the same scratch sources
+grade() → (mis-routes=[], correct=92, nowhere=48, broken_promises=[])
+# → the stub's 5 advertised phrases route NOWHERE (the check's contract: safe, a denominator, never a
+#   finding); no stem is added — skill_router.py's own policy is that a loose pattern is worse than the gap
+```
+
+**What the executed run proves and what it does NOT:** it proves the anatomy + PARAMS + registration
+mechanics of Phase B render and pass the corpus predicates once Phase C's template exists, and that the
+run-record phase count derives correctly from the `## Phase N` headings. It does **not** prove the command's
+BODY (the phase prose is a stub), the runner rewrite (Phase A is not exercised by this experiment), or the
+pipeline-line edit on the synced template (only `/fabrik-execute-plan`'s gate can). Those are exactly the
+surfaces `/fabrik-plan-review` and then execution must ground.
 
 **Per-phase anchors:** Phase A → `commands/_sources/fabrik-deploy-verify.md:24-43` (the token-family
 termination contract the rewrite must keep), `:126-158` (Phase 3, to be derived), `:180-197` (Phase 6, to

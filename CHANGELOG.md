@@ -32,7 +32,12 @@ All notable changes to this project will be documented in this file.
   **only if `INDEX.md` was clean before the run** — a sibling's uncommitted INDEX edits are never swept
   into a cron commit.
 - Three tests, seen red before the helper existed. `INDEX.md`'s stale "5 tests" row corrected (it was 7;
-  now 10) and the generator's row states the new behaviour.
+  now 12) and the generator's row states the new behaviour.
+- **Scoped review found two more in the fix itself, both proven by execution:** the fail-safe compared the
+  worktree to the *index* (`git diff --quiet -- INDEX.md`), so a sibling's STAGED edit read as clean and
+  would have been swept — now `index_is_clean()` compares against `HEAD`, with a git-fixture test; and the
+  anchor matched the full `| [text](path) |` prefix, so any hand edit to that row's text would have failed
+  silently into a cron log — now matched by link TARGET. 12 tests total.
 
 ### Fixed — all AI-supplier keys centralised in the shared pool config; a broken KILO key found by probing (2026-09-02)
 

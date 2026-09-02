@@ -178,6 +178,59 @@ def audit_project(project: Path) -> Row | None:
     return row
 
 
+INDEX_PATH = FABRIK_ROOT / "INDEX.md"
+# The anchor is matched by its LINK TARGET, never by link text or description — those are free to be
+# edited by hand, and a prefix match on them fails into a cron log nobody reads (scoped review F2).
+_LATEST_ANCHOR_RE = re.compile(
+    r"^\|\s*\[[^\]]*\]\((?:\./)?docs/infrastructure/probe-reports/fleet-doc-audit-latest\.md\)"
+)
+
+
+def index_is_clean(root: Path) -> bool:
+    """True iff INDEX.md matches HEAD — worktree AND index. `git diff --quiet -- INDEX.md` alone
+    compares the worktree to the INDEX, so a sibling's STAGED-but-uncommitted edit read as clean
+    and would have been swept into the cron's self-commit (scoped review F1, reproduced live)."""
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "diff", "--quiet", "HEAD", "--", "INDEX.md"],
+            check=False,
+            timeout=30,
+        ).returncode
+        == 0
+    )
+
+
+def ensure_index_row(index_path: Path, dated_name: str, today: str) -> bool:
+    """Index the dated report in INDEX.md — the generator owns its own INDEX row.
+
+    THE CLASS THIS CLOSES (2026-09-02): every weekly run wrote a new dated report and
+    never touched INDEX.md, so `check_doc_index` went red for whoever ran the next
+    unrelated gate; three earlier reports had been indexed by hand after the fact.
+    Inserts ONE row immediately before the `-latest` anchor row (the dated rows sit
+    above it, as the hand-written ones already did). Idempotent: an existing row for
+    `dated_name` → False, no write. No anchor → False, no write, loud stderr — never a
+    silent partial edit of a shared file.
+    """
+    text = index_path.read_text(encoding="utf-8", errors="replace")
+    if f"[{dated_name}](" in text:
+        return False
+    lines = text.splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        if _LATEST_ANCHOR_RE.match(ln):
+            row = (
+                f"| [{dated_name}](docs/infrastructure/probe-reports/{dated_name}) | "
+                f"Dated fleet doc-freshness report ({today} cron run) |\n"
+            )
+            lines.insert(i, row)
+            index_path.write_text("".join(lines), encoding="utf-8")
+            return True
+    print(
+        f"WARN: INDEX.md has no fleet-doc-audit-latest anchor row — {dated_name} NOT indexed",
+        file=sys.stderr,
+    )
+    return False
+
+
 def run(write_report: bool = True, commit: bool = False) -> int:
     rows: list[Row] = []
     for p in sorted(OPT.iterdir()):
@@ -218,12 +271,25 @@ def run(write_report: bool = True, commit: bool = False) -> int:
         dated.write_text(report, encoding="utf-8")
         latest.write_text(report, encoding="utf-8")
         print(f"report: docs/infrastructure/probe-reports/fleet-doc-audit-{today}.md")
+        # INDEX.md is a SHARED file: only self-commit it if it was clean before we touched it —
+        # otherwise a sibling's uncommitted INDEX edits would be swept into a cron commit.
+        index_was_clean = index_is_clean(FABRIK_ROOT)
+        indexed = ensure_index_row(INDEX_PATH, dated.name, today)
+        commit_paths = [str(dated), str(latest)]
+        if indexed and index_was_clean:
+            commit_paths.append(str(INDEX_PATH))
+        elif indexed:
+            print(
+                "WARN: INDEX.md row written but NOT self-committed — INDEX.md carried uncommitted "
+                "changes before this run (a sibling's WIP); commit the row yourself",
+                file=sys.stderr,
+            )
         if commit:
             # Self-commit the report (daily_refresh precedent): a cron artifact
             # left untracked pollutes the shared tree for every next agent.
             # Pathspec-only — never touches anything else in the index.
             subprocess.run(
-                ["git", "-C", str(FABRIK_ROOT), "add", "--", str(dated), str(latest)],
+                ["git", "-C", str(FABRIK_ROOT), "add", "--", *commit_paths],
                 check=False,
                 timeout=30,
             )
@@ -238,8 +304,7 @@ def run(write_report: bool = True, commit: bool = False) -> int:
                     "Agent-Role: primary\n"
                     "Agent-Context: fleet_doc_audit.py cron self-commit (mechanical report only)",
                     "--",
-                    str(dated),
-                    str(latest),
+                    *commit_paths,
                 ],
                 check=False,
                 timeout=30,
