@@ -266,9 +266,13 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
   $0; ~30 req/min · 1000 req/day **per key** (console → Limits is the live authority).
   Consumed by the pool's `provider="groq"` row (`libs/subagents/providers.py`); it is the only
   Groq var in `_dotenv.py`'s `DOTENV_KEYS`, so it is the one that autoloads.
-- `GROQ_API_KEY_2` / `_3` — spares, separate per-key buckets; select manually
-  (`GROQ_API_KEY=$GROQ_API_KEY_2 <cmd>`), same shape as the NVIDIA/Mistral spares. All three
-  verified live on `/chat/completions` 2026-09-02 against a 401 bogus-key control.
+- `GROQ_API_KEY_2` … `_6` — spares, each its own ~30 RPM / 1000 RPD bucket; select manually
+  (`GROQ_API_KEY=$GROQ_API_KEY_2 <cmd>`), same shape as the NVIDIA/Mistral spares. All six verified
+  live on `/chat/completions` 2026-09-02 against a 401 bogus-key control, and all six are DISTINCT
+  — checked by hash, because two slots holding one key silently halve the budget a rotation harness
+  thinks it has. ⚠️ `GROQ_API_KEY` in this file, in `/opt/fabrik-lib/.env` and in the shared pool
+  config are currently THREE DIFFERENT keys (concurrent edits on 2026-09-02); that is legal — the
+  project `.env` wins for its own repo — but it means "the Groq key" is not one value box-wide.
 - **Provenance (2026-09-02):** the box's only Groq key lived in `/opt/fabrik-lib/.env`. The
   loader resolves `<repo>/.env` walking up, then `~/.config/fabrik/subagents.env` — neither path
   reaches another repo's `.env`, so `provider="groq"` fail-loud'd everywhere except fabrik-lib.

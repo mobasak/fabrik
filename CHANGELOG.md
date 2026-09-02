@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Groq spares to six, and a concurrent edit caught by hashing (2026-09-02)
+
+- Three operator keys added. Only ONE was genuinely new: hashing every slot showed the second was
+  already installed as `GROQ_API_KEY` in `/opt/fabrik-lib/.env` + the shared pool config, and the
+  third was already `GROQ_API_KEY` in `/opt/fabrik/.env` — changed there by a concurrent actor in a
+  45-second window just before this turn (proven by diffing my own timestamped `backups/`).
+- That left `GROQ_API_KEY_6` an exact duplicate of `GROQ_API_KEY` in the same file. Duplicated spare
+  slots are not harmless: each spare is a separate rate bucket, so two slots holding one key halve
+  the budget a rotation harness believes it has. `_6` now holds the key the concurrent edit
+  DISPLACED (still live, 200) rather than a copy — the value was otherwise absent from every file
+  on the box and would have been lost.
+- Six slots, six distinct keys, all six verified live against a 401 bogus-key control.
+- ⚠️ `GROQ_API_KEY` now differs between `/opt/fabrik/.env`, `/opt/fabrik-lib/.env` and the shared
+  pool config. Legal (a project `.env` overrides the shared fallback) but recorded in
+  `docs/CONFIGURATION.md`, because "the Groq key" is no longer one value box-wide.
+
 ### Fixed — fleet-wide .env credential audit: one real defect, corrected cross-repo (2026-09-02)
 
 - Under an explicit one-turn operator authorisation for cross-repo `.env` writes, audited all 27
