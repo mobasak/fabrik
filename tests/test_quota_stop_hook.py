@@ -1,0 +1,201 @@
+"""The fleet-wide graceful stop (.claude/hooks/quota_stop.py) — PreToolUse on the tick's
+fleet-exhausted stamp. Risk-ordered: it must NEVER freeze the fleet on its own defect (no stamp,
+unreadable state, a stale flag from a dead cron → allow), and while the stamp stands it must hold
+work tools and let a session checkpoint (git, command_run.py, reads) and end."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+_HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "quota_stop.py"
+_spec = importlib.util.spec_from_file_location("quota_stop", _HOOK)
+hook = importlib.util.module_from_spec(_spec)
+assert _spec.loader is not None
+_spec.loader.exec_module(hook)
+
+
+def test_no_stamp_allows_everything():
+    for tool, cmd in (("Edit", None), ("Write", None), ("Bash", "rm -rf build")):
+        assert hook.decide(tool, cmd, stamp_exists=False, tick_age_s=10.0)[0] == "allow"
+
+
+def test_stamp_holds_work_tools_with_the_checkpoint_instruction():
+    action, reason = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0)
+    assert action == "deny"
+    assert "commit" in reason and "push" in reason and "command_run.py" in reason
+
+
+def test_stamp_lets_a_session_checkpoint_and_close():
+    for cmd in (
+        "git add -- a.py",
+        "git commit -q -F msg -- a.py",
+        "git push",
+        "git status -sb",
+        "python3 scripts/command_run.py done --command x --evidence e --feedback f",
+        "python scripts/mail.py ack 01X",
+        "head -3 CHANGELOG.md",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0)[0] == "allow", cmd
+
+
+def test_stamp_holds_working_bash():
+    for cmd in ("python3 scripts/foo.py", "pytest tests/", "npm install", "sed -i 's/a/b/' f.py"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0)[0] == "deny", cmd
+
+
+def test_a_stale_stamp_from_a_dead_tick_never_freezes_the_fleet(monkeypatch):
+    monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", "900")
+    assert hook.decide("Edit", None, stamp_exists=True, tick_age_s=3600.0)[0] == "allow_warn"
+    assert hook.decide("Edit", None, stamp_exists=True, tick_age_s=None)[0] == "allow_warn"
+
+
+def _run(
+    tmp_path: Path, payload: object, stamp: bool, tick_fresh: bool
+) -> subprocess.CompletedProcess:
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    if stamp:
+        (state / "fleet-exhausted").write_text("1")
+    log = tmp_path / "rotate-tick.log"
+    log.write_text("tick: ok\n")
+    if not tick_fresh:
+        old = time.time() - 4000
+        os.utime(log, (old, old))
+    env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    data = payload if isinstance(payload, str) else json.dumps(payload)
+    return subprocess.run(
+        [sys.executable, str(_HOOK)],
+        input=data,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=20,
+    )
+
+
+def test_end_to_end_deny_json_shape(tmp_path):
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=True,
+        tick_fresh=True,
+    )
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "commit" in out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_end_to_end_allow_is_silent(tmp_path):
+    r = _run(tmp_path, {"tool_name": "Edit", "tool_input": {}}, stamp=False, tick_fresh=True)
+    assert r.returncode == 0 and r.stdout.strip() == ""
+    r = _run(
+        tmp_path,
+        {"tool_name": "Bash", "tool_input": {"command": "git push"}},
+        stamp=True,
+        tick_fresh=True,
+    )
+    assert r.returncode == 0 and r.stdout.strip() == ""
+
+
+def test_end_to_end_stale_tick_warns_and_allows(tmp_path):
+    r = _run(tmp_path, {"tool_name": "Edit", "tool_input": {}}, stamp=True, tick_fresh=False)
+    assert r.returncode == 0 and r.stdout.strip() == "" and "stale flag" in r.stderr
+
+
+def test_garbage_stdin_exits_zero(tmp_path):
+    r = _run(tmp_path, "garbage {{{", stamp=True, tick_fresh=True)
+    assert r.returncode == 0 and r.stdout.strip() == ""
+
+
+# ── review findings (2026-09-02 /fabrik-review pass 1) ───────────────────────────────────────
+
+
+def test_chained_or_redirected_bash_is_held_whole():
+    """The allow-list matched the FIRST segment only: `git push && python3 evil.py` passed. While the
+    stamp stands only a SINGLE simple command is allowed — no control operators, no substitution, no
+    file redirection (stderr-to-null/stdout excepted)."""
+    for cmd in (
+        "git commit -q -F m -- a.py && python3 scripts/foo.py",
+        "cat x; rm -rf y",
+        "echo hi | tee f",
+        "git push || python3 evil.py",
+        "git status $(rm -rf x)",
+        "git log > notes.txt",
+        "cat a >> b",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in ("git push 2>&1", "git status 2>/dev/null", "git diff --stat HEAD -- a.py"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
+def test_destructive_git_and_in_place_sed_are_held():
+    for cmd in (
+        "git reset --hard HEAD~1",
+        "git reset --merge",
+        "sed -n -i 's/a/b/' f",
+        "sed -i 's/a/b/' f",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in ("git reset -q HEAD -- a.py", "git reset HEAD -- a.py", "sed -n '1,3p' f"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
+def test_mcp_edit_tools_are_held_and_mcp_reads_pass():
+    """The matcher is `.*`: an edit through serena is an edit. Reads stay open."""
+    for tool in (
+        "mcp__serena__replace_content",
+        "mcp__serena__insert_after_symbol",
+        "mcp__serena__write_memory",
+        "Agent",
+        "Workflow",
+        "NotebookEdit",
+        "mcp__playwright__browser_click",
+    ):
+        assert hook.decide(tool, None, stamp_exists=True, tick_age_s=1.0)[0] == "deny", tool
+    for tool in (
+        "Read",
+        "Grep",
+        "Glob",
+        "LS",
+        "ToolSearch",
+        "AskUserQuestion",
+        "mcp__serena__find_symbol",
+        "mcp__serena__get_symbols_overview",
+        "mcp__session-recall__search_chats",
+        "TaskOutput",
+    ):
+        assert hook.decide(tool, None, stamp_exists=True, tick_age_s=1.0)[0] == "allow", tool
+
+
+def test_deny_output_uses_only_the_current_pretooluse_contract(tmp_path):
+    """The installed CLI deprecates the legacy `decision` key for PreToolUse ("use
+    hookSpecificOutput.permissionDecision instead") — emit only the current form."""
+    r = _run(tmp_path, {"tool_name": "Edit", "tool_input": {}}, stamp=True, tick_fresh=True)
+    out = json.loads(r.stdout)
+    assert "decision" not in out and out["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_non_object_payload_never_blocks(tmp_path):
+    """Pass-2 probe: a JSON payload that is not an object raised AttributeError → exit 1 (a
+    non-blocking hook error, but a traceback in the operator's face). Fail open, silently."""
+    r = _run(tmp_path, '"just a string"', stamp=True, tick_fresh=True)
+    assert r.returncode == 0 and r.stdout.strip() == "" and "Traceback" not in r.stderr
+
+
+def test_malformed_tool_input_is_held_while_the_stamp_stands(tmp_path):
+    """A Bash call whose command cannot be read is held (the stamp is the exceptional state; a
+    command we cannot inspect is not a checkpoint we can trust) — never a crash."""
+    r = _run(
+        tmp_path, {"tool_name": "Bash", "tool_input": ["git", "push"]}, stamp=True, tick_fresh=True
+    )
+    assert (
+        r.returncode == 0
+        and json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    )

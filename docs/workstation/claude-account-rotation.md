@@ -79,8 +79,16 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
   (`_chain_stale_reason`) — a dir whose chain expired can never become the fleet's pointer.
 - **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`), so a noisy boundary
   cannot thrash. A missing/dangling pointer is repaired immediately, dwell-exempt.
-- **No headroom anywhere:** nothing flips; one advisory per account per 24h goes to Telegram
-  AND broadcasts to every project mailbox ("reach a commit-and-push checkpoint"). Work resumes
+- **No headroom anywhere:** nothing flips; ONE advisory per wall episode goes to Telegram AND
+  broadcasts to every project mailbox ("reach a commit-and-push checkpoint") — it fires ONLY when
+  the ACTIVE account is walled and this tick found no successor (`_fleet_active_wall_advisory`;
+  a walled active with a headroom sibling merely held by the dwell is silent). The same tick
+  writes the `fleet-exhausted` stamp, and the synced PreToolUse hook `quota_stop.py` turns it
+  into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
+  instruction (commit + push, close the run record, end the turn); reads, git and the record
+  tools stay open; the hold lifts the moment the tick clears the stamp; a session that ended is
+  restarted by the operator or the resume mesh. Before 2026-09-02 the four broadcasts of the day
+  were the picker bug (§ Target) talking, not real exhaustion. Work resumes
   as windows reset.
 - **Manual:** `--switch <account>` flips now — pause- and dwell-exempt, the deliberate
   override. It warns if the target carries a cap.

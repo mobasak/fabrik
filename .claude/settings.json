@@ -84,7 +84,7 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\"",
             "timeout": 120,
-            "statusMessage": "Definition of done \u2014 verifying final_gate..."
+            "statusMessage": "Definition of done — verifying final_gate..."
           }
         ]
       }
@@ -116,6 +116,19 @@
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mcp_watch.py\"",
             "timeout": 5,
             "statusMessage": "MCP assigned-vs-live watch..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/quota_stop.py\"",
+            "timeout": 5,
+            "statusMessage": "Quota stop check (fleet-exhausted stamp)..."
           }
         ]
       }

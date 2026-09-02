@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fleet-wide GRACEFUL STOP on quota exhaustion: a synced PreToolUse hook on the tick's `fleet-exhausted` stamp (2026-09-02)
+
+- **Why:** the operator saw the "reach a checkpoint" broadcast fire repeatedly today. Measured: all
+  four were `fleet-active-wall` events produced by the picker bug (no successor found while can@
+  sat at 12%); the advisory itself already fires ONLY when the active account is walled with no
+  successor. What was missing is the second half of the rule: agents must then stop gracefully
+  without losing work — and mail reaches a session only at its next prompt, never mid-turn.
+- **What:** `.claude/hooks/quota_stop.py` (PreToolUse, matcher `.*`, synced fleet-wide via
+  `settings.json` + `AGENT_HOOK_FILES` in the manifest) DEFAULT-DENIES every world-changing tool —
+  editors, MCP editors, Agent/Workflow, and any Bash that is not one simple checkpoint or read
+  command (no chains, substitutions or file redirection; `git reset` only as `HEAD --`; no `sed -i`) — while
+  `~/.claude/state/fleet-exhausted` stands — written and cleared by the rotation tick — with one
+  instruction: commit + push with explicit pathspecs, close the run record, end the turn. Reads,
+  git, `command_run.py`, `mail.py`, `thread_anchor.py` stay allowed. Fail-open on no stamp, on an
+  unreadable state dir, and on a tick log older than `QUOTA_STOP_TICK_STALE_S` (900s) — a dead
+  cron warns once and never freezes the fleet.
+- **Guard:** `tests/test_quota_stop_hook.py` — 15 tests (pure decisions + subprocess end-to-end with
+  a tmp state dir), the deny branch proven red-on-revert; the review's four findings (chained-command
+  bypass, `git reset --hard`/`sed -i`, MCP editors outside the matcher, the CLI-deprecated legacy
+  `decision` key) each seen red first, plus the pass-2 probe (a non-object JSON payload raised instead of
+  failing open). Hooks load at session start — a running session gets the hook
+  on its next start; the stamp can outlive relief by one tick (≤5 min).
+- **Docs:** `docs/workstation/hooks-index.md` (the authority row), `claude-account-rotation.md`
+  § Rotation (what the advisory means and what agents do).
+
 ### Changed — a rotation target must have 5h session budget (operator rule, 2026-09-02)
 
 - `_flip_candidate_verdict` now refuses a sibling whose session reading is unknown ("no session
