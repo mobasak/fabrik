@@ -34,44 +34,44 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | `openai/gpt-5.6-luna` | A+ | 0.980 | $2.620 | $0.1310 | 3.8 |
 | `writer/palmyra-x5` | A+ | 0.940 | $3.300 | $0.1650 | 7.6 |
 
-### code (n_total=21)
+### code (n_total=93)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `qwen/qwen3-coder-next` | 3.50 | 0.09 | $0.0540 | 2.60 | 1 | — | 11 |
-| 2 | `google/gemini-3-flash-preview` | 4.43 | 0.00 | $0.0961 | 3.00 | 3 | ✓ | 4 |
-| 3 | `openai/gpt-5.6-luna` | [benchmark] | — | — | — | 2 | — | 0 |
+| 1 | `openai/gpt-5.6-luna` | 3.90 | 0.77 | $0.0139 | 3.12 | 2 | — | 13 |
+| 2 | `google/gemini-3-flash-preview` | 2.64 | 0.15 | $0.1005 | 1.73 | 3 | ✓ | 26 |
+| 3 | `deepseek/deepseek-v3.2-exp` | 3.67 | 0.00 | $0.0946 | 1.33 | 3 | ✓ | 4 |
 | 4 | `writer/palmyra-x5` | [benchmark] | — | — | — | 2 | — | 0 |
-| 5 | `deepseek/deepseek-v3.2-exp` | [benchmark] | — | — | — | 3 | ✓ | 0 |
+| 5 | `qwen/qwen3-coder-next` | [benchmark] | — | — | — | 1 | — | 0 |
 | 6 | `openai/gpt-5.4-mini` | [benchmark] | — | — | — | 2 | — | 0 |
 
-### docs (n_total=160)
+### docs (n_total=275)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `minimax/minimax-m2.5` | 3.24 | 0.64 | $0.0096 | 2.94 | 3 | ✓ | 25 |
-| 2 | `deepseek/deepseek-v4-flash` | 2.63 | 0.55 | $0.0097 | 2.69 | 2 | ✓ | 20 |
-| 3 | `minimax/minimax-m3` | 2.58 | 0.62 | $0.0182 | 2.59 | 2 | ✓ | 48 |
-| 4 | `deepseek/deepseek-v3.2` | 3.48 | 0.91 | $0.0279 | 3.00 | 3 | ✓ | 11 |
-| 5 | `deepseek/deepseek-v4-pro` | 2.68 | 0.66 | $0.0591 | 2.30 | 3 | ✓ | 35 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.80 | 0.73 | $0.0065 | 2.89 | 2 | ✓ | 33 |
+| 2 | `minimax/minimax-m2.5` | 3.26 | 0.80 | $0.0077 | 3.10 | 3 | ✓ | 46 |
+| 3 | `minimax/minimax-m3` | 2.98 | 0.71 | $0.0161 | 3.03 | 2 | ✓ | 93 |
+| 4 | `deepseek/deepseek-v3.2` | 3.32 | 0.94 | $0.0188 | 2.92 | 3 | ✓ | 17 |
+| 5 | `deepseek/deepseek-v4-pro` | 2.99 | 0.78 | $0.0404 | 2.80 | 3 | ✓ | 55 |
 
 ### plan (n_total=31)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-pro` | 3.24 | 0.94 | $0.0173 | 3.11 | 3 | ✓ | 31 |
 
-### research (n_total=251)
+### research (n_total=432)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2` | 3.67 | 0.82 | $0.0036 | 3.57 | 3 | ✓ | 34 |
-| 2 | `deepseek/deepseek-v4-pro` | 3.16 | 0.77 | $0.0095 | 3.08 | 3 | ✓ | 107 |
-| 3 | `minimax/minimax-m3` | 2.92 | 0.88 | $0.0132 | 2.98 | 2 | ✓ | 67 |
+| 1 | `deepseek/deepseek-v3.2` | 3.24 | 0.84 | $0.0068 | 3.11 | 3 | ✓ | 57 |
+| 2 | `deepseek/deepseek-v4-pro` | 2.87 | 0.76 | $0.0106 | 2.80 | 3 | ✓ | 153 |
+| 3 | `minimax/minimax-m3` | 2.76 | 0.89 | $0.0128 | 2.78 | 2 | ✓ | 125 |
 
-### review (n_total=7051)
+### review (n_total=8966)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.70 | 0.78 | $0.0021 | 2.68 | 2 | ✓ | 357 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 3.22 | 0.82 | $0.0034 | 3.22 | 3 | ✓ | 626 |
-| 3 | `google/gemini-3-flash-preview` | 2.84 | 0.81 | $0.0067 | 2.82 | 3 | ✓ | 642 |
-| 4 | `qwen/qwen3-max` | 3.00 | 0.85 | $0.0125 | 2.97 | 2 | ✓ | 336 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.91 | 0.86 | $0.0029 | 2.90 | 2 | ✓ | 688 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.99 | 0.89 | $0.0040 | 2.99 | 3 | ✓ | 1234 |
+| 3 | `google/gemini-3-flash-preview` | 2.94 | 0.89 | $0.0078 | 2.93 | 3 | ✓ | 1230 |
+| 4 | `qwen/qwen3-max` | 2.91 | 0.92 | $0.0142 | 2.89 | 2 | ✓ | 695 |
 
 ### spec (n_total=6)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
