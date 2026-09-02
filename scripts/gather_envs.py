@@ -64,7 +64,6 @@ REPO = (
     Path(__file__).resolve().parent.parent
 )  # a sandboxed copy must never write the REAL secrets file (BS17)
 OUTPUT = REPO / "secrets" / "all-envs.env"
-FABRIK_ENV = REPO / ".env"
 CATALOG_PATH = Path(__file__).with_name("service_catalog.json")
 BODY_MARK = "═══"  # first body line; everything before it is the volatile header
 
@@ -589,10 +588,28 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         if not own or host_domain(own) == host_domain(h):
             return sld
         # the entry's url sits on ANOTHER registrable domain: not this vendor — and never re-credited
-        # by falling through to its own `<SLD>_API_KEY` prefix (75 of 109 live vendors would have
-        # been; the C5 grader passed `matchers=[]`, the one shape production never has — BS3)
+        # by falling through to its own `<SLD>_API_KEY` prefix (most vendors curate it: 82 of 109;
+        # the C5 grader passed `matchers=[]`, the one shape production never has — BS3). Said
+        # aloud: 14 live hosts of 8 vendors sit on a sibling domain (`fal.run`, `replicate.delivery`)
+        # and belong in the entry's `hosts` — silent None triaged them as their own blocks (BW1)
+        print(
+            f"WARNING: host {h} carries catalogued label {sld} but {sld}'s url is on {host_domain(own)} — add it to {sld}'s `hosts` or it is triaged as its own block",
+            file=sys.stderr,
+        )
         return None
     return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
+
+
+def code_only_block_name(host: str, catalog: dict) -> str:
+    """The block a NON-attributed code host is filed under: its label — unless the label IS a
+    catalogued vendor the domain check just refused, where the vendor's own name would send the
+    block to paid triage and let the classifier's answer OVERWRITE the curated entry; then the
+    registrable domain (`fal.run` → `fal-run`), which the classifier's merge path folds into the
+    vendor's `hosts` (BW1)."""
+    label = host_label(host)
+    if label in catalog:
+        return _svc_token(host_domain(host.lower()).replace(".", "-"))
+    return label
 
 
 def is_secret(key: str, value: str) -> bool:
@@ -682,8 +699,11 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
 
 def project_env_files() -> list[Path]:
     files = []
+    hub_env = (
+        OPT / "fabrik" / ".env"
+    )  # the hub's own env is never a project's — wherever THIS copy lives (BW3)
     for env in sorted(OPT.glob("*/.env")):
-        if env in (FABRIK_ENV, OUTPUT):
+        if env in (hub_env, OUTPUT, REPO / ".env"):
             continue
         if env.parent.name.startswith("_"):
             continue
@@ -713,7 +733,9 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     bad_keys = [k for k in catalog if _svc_token(k) != k]
     if bad_keys:  # a hand-edited key with whitespace would round-trip as a DIFFERENT provider (AU7)
-        raise CatalogError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
+        raise CatalogError(
+            f"{CATALOG_PATH}: catalog keys must be single tokens (no whitespace): {bad_keys[:5]}"
+        )
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)
@@ -729,15 +751,21 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     )  # readable dumps; match_provider/owned_by re-derive the longest from the hit set (BQ1)
     claims: dict[str, set[str]] = {}
     for prefix, provider in matchers:
-        claims.setdefault(prefix.rstrip("_"), set()).add(provider)
-    for token, owners in sorted(claims.items()):
-        if len(owners) > 1:  # a tie routes its keys to NEITHER vendor (BQ1) — and re-flags the
-            # derived block for PAID triage every run, with tombstone and merge both inert: an
-            # ambiguity that costs money daily is never silent (BS5)
-            print(
-                f"WARNING: catalog prefix {token} is claimed by {', '.join(sorted(owners))} — keys under it are attributed to neither and re-flagged every run until one entry drops it",
-                file=sys.stderr,
-            )
+        token = prefix.rstrip("_")
+        if (
+            token
+        ):  # an all-`_` prefix routes nothing (prefix_hits skips it) and claims nothing (BW6)
+            claims.setdefault(token, set()).add(provider)
+    ties = {t: o for t, o in claims.items() if len(o) > 1}
+    if ties:
+        # a tie routes its keys to NEITHER vendor (BQ1) and re-flags the derived block for PAID
+        # triage every run with tombstone and merge both inert (BS5): a catalog defect that costs
+        # money daily FAILS the scan like a whitespace key does — the chain alerts, the previous
+        # consolidation stands; a stderr warning in a cron log nobody tails was no channel (BW5)
+        raise CatalogError(
+            f"{CATALOG_PATH}: prefix claimed by two providers — keys under it route to neither: "
+            + "; ".join(f"{t} ({', '.join(sorted(o))})" for t, o in sorted(ties.items()))
+        )
     return catalog, matchers
 
 
@@ -746,10 +774,19 @@ def merged_matchers(catalog: dict) -> list[tuple[str, str]]:
     ones a credit fetcher must never trust (BH1)."""
     out: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
+        raw_c = meta.get("match") or []
+        curated = {
+            str(p).upper().rstrip("_") for p in (raw_c if isinstance(raw_c, list) else [raw_c])
+        }
         raw = meta.get("merged_match") or []
         for prefix in raw if isinstance(raw, list) else [raw]:
-            if prefix is not None and str(prefix) != "":
-                out.append((str(prefix).upper(), provider))
+            if prefix is None or str(prefix) == "":
+                continue
+            if str(prefix).upper().rstrip("_") in curated:
+                # the same token the operator curated (`HF_` vs a merged `HF`): the model's copy adds
+                # nothing but would disown the vendor's own keys through `top & merged` (BW4)
+                continue
+            out.append((str(prefix).upper(), provider))
     out.sort(key=lambda pm: len(pm[0]), reverse=True)
     return out
 
@@ -915,7 +952,7 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
         if provider:
             name, meta = provider, catalog[provider]
         else:
-            name = host_label(host)
+            name = code_only_block_name(host, catalog)
             meta = {
                 "category": "?",
                 "cost": "?",
@@ -999,6 +1036,24 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
     return "\n".join(lines), stats
 
 
+def refuse_emptied_catalog() -> None:
+    """`{}` is a legitimate BOOTSTRAP (BR3) — not a catalog that just lost its vendors: when the
+    previous consolidation carries catalogued `#svc` lines and the catalog now has no providers,
+    the scan fails closed and the previous file stands (an emptied catalog would blank every vendor
+    to `?` and hand the whole file to paid triage — BW11)."""
+    if not OUTPUT.exists():
+        return
+    known = sum(
+        1
+        for ln in read_existing_body(OUTPUT).splitlines()
+        if ln.startswith("#svc ") and "category=?" not in ln
+    )
+    if known and not load_catalog()[0]:
+        raise CatalogError(
+            f"{CATALOG_PATH} has no providers but the last consolidation knew {known} catalogued vendor(s) — an emptied catalog would blank them all; restore it"
+        )
+
+
 def read_existing_body(path: Path) -> str:
     """Return the stored body (from the first category-header LINE onward), stripping the
     volatile header. Splits on the line boundary - NOT mid-line at the first `═`, which
@@ -1023,6 +1078,7 @@ def main() -> int:
         return 1
 
     try:
+        refuse_emptied_catalog()
         body, stats = consolidate(files, code_dirs=project_dirs())
     except (
         CodeScanError,

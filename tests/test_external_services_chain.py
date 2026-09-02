@@ -219,9 +219,9 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     assert (
         "provenance unknown at sync time" in gd.SCRIPT and "model-merged" in gd.SCRIPT
     )  # BR8's floor: the node grader below skips without node, and a skip is never the only guard (AT1/BS6)
-    assert '<div class="l">unattributed</div>' in gd.render(
-        []
-    )  # the degraded case in ONE number (BS16)
+    assert (
+        '<div class="l">unattributed keys</div>' in gd.render([])
+    )  # the degraded case in ONE number — a KEY count, labelled as one beside provider counts (BS16/BW9)
     # the href scheme gate's always-on floor (AS5): the node test skips without node, and a skip
     # must not be the only guard on an injection class (AT1)
     assert "const href=u=>/^https?:\\/\\//i.test(String(u||''))?u:null;" in gd.SCRIPT
@@ -354,3 +354,67 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         assert "skipped after a failed scan" in row, (
             row
         )  # the table says it, not only the prose (BS15)
+
+
+def test_the_chain_script_executes_its_gating(tmp_path):
+    """The chain EXECUTED under bash with a fake interpreter (every sibling test regex-matches the
+    script; a bash syntax error or a gate that only LOOKS right passed them all — BU1): a failed
+    scan skips classify, the reconsolidate, the sync and the dashboard, alerts once, exits 1; a
+    clean run writes the dashboard and exits 0."""
+    import os
+    import subprocess
+
+    root = tmp_path / "root"
+    (root / "scripts").mkdir(parents=True)
+    (root / "libs").mkdir()
+    (root / ".env").write_text("", encoding="utf-8")
+    log = tmp_path / "calls.log"
+    fake = tmp_path / "fake-python"
+    fake.write_text(
+        "#!/bin/bash\n"
+        f'echo "$*" >> "{log}"\n'
+        'case "$*" in\n'
+        '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
+        '  *gen_dashboard.py*) echo ok > "${@: -1}" ;;\n'
+        "esac\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    env = {
+        **os.environ,
+        "FABRIK_ROOT": str(root),
+        "VENV_PY": str(fake),
+        "STEP_TIMEOUT": "30",
+        "LOG_FILE": str(tmp_path / "chain.log"),
+    }
+    dash = root / "external-services-dashboard.html"
+    # 1. a failed scan
+    r = subprocess.run(
+        ["bash", str(CHAIN)], env={**env, "FAIL_GATHER": "1"}, capture_output=True, text=True
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
+    assert not dash.exists(), "a failed scan must not write the heartbeat"
+    for skipped in ("classify_services.py", "registry_sync.py", "gen_dashboard.py"):
+        assert skipped not in calls, (skipped, calls)
+    assert calls.count("send_alert(") == 1, calls  # one cause, one alert (AC13/BR4)
+    assert "step gather_envs FAILED (exit 1)" in calls
+    # 2. a clean run
+    log.write_text("", encoding="utf-8")
+    r = subprocess.run(["bash", str(CHAIN)], env=env, capture_output=True, text=True)
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
+    assert dash.read_text(encoding="utf-8").strip() == "ok"
+    assert (
+        calls.count("gather_envs.py") == 2
+        and "registry_sync.py" in calls
+        and "send_alert(" not in calls
+    )
+    assert [re.search(r"scripts/(\S+\.py)", ln).group(1) for ln in calls.splitlines()] == [
+        "gather_envs.py",
+        "classify_services.py",
+        "gather_envs.py",
+        "registry_sync.py",
+        "gen_dashboard.py",
+    ]

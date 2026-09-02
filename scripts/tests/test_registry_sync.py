@@ -85,6 +85,15 @@ def _real_rows():
         conn.close()
 
 
+def _row_diff(after, before) -> set:
+    """Symmetric difference of two row lists whose array columns are LISTS (unhashable) (BW2)."""
+
+    def hashable(rows):
+        return {tuple(tuple(c) if isinstance(c, list) else c for c in r) for r in rows}
+
+    return hashable(after) ^ hashable(before)
+
+
 @pytest.fixture
 def syncs_the_real_registry(request):
     """Opt-out for the ONE kind of test that syncs the REAL all-envs.env on purpose (the prune
@@ -104,10 +113,11 @@ def real_registry_untouched(request):
     after = _real_rows()
     if after is None:
         return  # unreachable at teardown is not "a test wrote a real row" (BS14)
-    if after != before:
-        changed = sorted(set(after) ^ set(before), key=str)[:5]
+    diff = _row_diff(after, before)
+    if diff:
+        changed = sorted(diff, key=str)[:5]
         raise AssertionError(
-            f"a test wrote a REAL provider's rows — use TEST_PROVIDER/TEST_PROVIDER2 (first {len(changed)} of {len(set(after) ^ set(before))}: "
+            f"a test wrote a REAL provider's rows — use TEST_PROVIDER/TEST_PROVIDER2 (first {len(changed)} of {len(diff)}: "
             + "; ".join(f"{r[0]} {r[5][:8] if r[5] else '-'} {r[6]}" for r in changed)
             + ")"
         )
@@ -884,6 +894,10 @@ def test_an_empty_catalog_is_known_provenance_not_unknown(tmp_path, monkeypatch,
     assert "provenance UNKNOWN" in err and "unreadable" in err and str(empty) in err, (
         err
     )  # the REASON is said, or the exit-2 page names nothing (BS8)
+    empty.write_text('{"dee pl": {"category": "x"}}', encoding="utf-8")
+    assert rs.catalog_provenance() is None
+    err = capsys.readouterr().err
+    assert str(empty) in err and "whitespace" in err, err  # the 4th cause names the file too (BW7)
 
 
 def test_two_names_one_value_union_their_projects_whatever_the_order(fixture_env, monkeypatch):
@@ -919,11 +933,33 @@ def test_every_fixture_provider_is_a_test_name():
     as a phantom vendor the teardown never deletes — three fixtures used `alpha`/`bravo`/`charlie`
     (parse-only today, one edit from a sync) (BS13)."""
     src = Path(__file__).read_text(encoding="utf-8")
-    names = re.findall(r"#svc name=([A-Za-z_{][^\s'\"]*)", src)  # fixture literals, not this regex
+    names = [
+        m.group(1)
+        for ln in src.splitlines()
+        if "re.finditer" not in ln
+        and not ln.lstrip().startswith("#")  # not this line, not a comment
+        for m in re.finditer(r"#svc name=(\S*)", ln)
+    ]
     assert len(names) >= 20, len(names)
+    # a name built by concatenation (`"#svc name=" + x`) captures `"` — flagged, never skipped (BV2)
     bad = [n for n in names if not (n.startswith(TEST_PREFIX) or n.startswith("{TEST_PROVIDER"))]
     assert bad == [], bad
+
+
+def test_the_guard_snapshots_every_column_a_sync_writes():
+    """BS14's shape grader on its own, so a DB-free run reports the source-text grader above as
+    PASSED rather than hiding it behind this skip (BW8)."""
     rows = _real_rows()
     if rows is None:
         pytest.skip("local fabrik_services PG not reachable")
     assert all(len(r) == 10 for r in rows), "the guard snapshots every column a sync writes (BS14)"
+
+
+def test_the_guard_diff_survives_array_columns():
+    """`used_by_projects`/`aliases` come back as LISTS — a set of raw rows raised TypeError instead
+    of naming the changed rows, so the guard's diagnostic never existed (BW2)."""
+    a = ("p", "c", "paid", "u", "active", "d" * 64, "credential", ["projA"], ["A"], None)
+    b = ("p", "c", "paid", "u", "active", "d" * 64, "credential", ["projA", "projB"], ["A"], None)
+    assert _row_diff([a], [a]) == set()
+    diff = _row_diff([a], [b])
+    assert len(diff) == 2 and all(isinstance(r[7], tuple) for r in diff)

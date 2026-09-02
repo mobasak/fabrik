@@ -221,7 +221,7 @@ def render(rows: list[dict]) -> str:
         (sum(1 for r in rows if r["category"] == "?"), "need triage"),
         (
             sum(r["unattributed"] for r in rows),
-            "unattributed",
+            "unattributed keys",  # a KEY count beside provider counts — say so (BW9)
         ),  # the degraded case in one number, not 439 per-row pills (BS16)
     ]
     statcards = "".join(

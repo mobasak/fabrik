@@ -453,7 +453,14 @@ def main() -> int:
                     match, list
                 ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
                     match = entry["merged_match"] = [] if match is None else [str(match)]
-                if prov.upper() not in match:
+                raw_c = entry.get("match") or []
+                curated = {
+                    str(x).upper().rstrip("_")
+                    for x in (raw_c if isinstance(raw_c, list) else [raw_c])
+                }
+                if prov.upper() not in match and prov.upper().rstrip("_") not in curated:
+                    # a merged copy of a CURATED token (`HF` under curated `HF_`) adds no routing and
+                    # would disown the vendor's own keys through registry_sync's merged check (BW4)
                     match.append(prov.upper())
             merged_into[prov] = target
             identified.pop(prov)
@@ -495,6 +502,13 @@ def main() -> int:
             ):  # a merged prefix survives a rewrite/re-stub (BK2)
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
+            if catalog[prov].get("category", "?") not in ("?", "unidentified"):
+                # a CURATED entry re-classified (a block that carried the vendor's name, BW1): the
+                # operator's fields stand, the model fills only what was unknown
+                entry = {
+                    **entry,
+                    **{k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])},
+                }
         catalog[prov] = entry
     if (
         args.only

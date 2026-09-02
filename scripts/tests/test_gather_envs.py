@@ -1979,7 +1979,7 @@ def test_a_merged_prefix_survives_a_rewrite_of_its_target(tmp_path, monkeypatch)
     )
 
 
-def test_wildcard_attribution_keys_on_the_registrable_domain(tmp_path, monkeypatch):
+def test_wildcard_attribution_keys_on_the_registrable_domain(tmp_path, monkeypatch, capsys):
     """`api.foo.org` is a different organisation from the vendor at `foo.com`: the wildcard is
     `*.foo.com`, so the `.org` host goes to triage, never to `foo` (C5)."""
     idx = ge.catalog_url_index({"foo": {"url": "https://foo.com"}})
@@ -1990,6 +1990,12 @@ def test_wildcard_attribution_keys_on_the_registrable_domain(tmp_path, monkeypat
         ge.provider_for_host("api.foo.org", cat, idx, [("FOO", "foo")]) is None
     )  # the label fallback respects the entry's own domain — with the vendor's OWN prefix in the
     # matchers, the production shape: falling through to `FOO_API_KEY` re-credited it (BS3)
+    err = capsys.readouterr().err  # … and says so, naming the fix (BW1)
+    assert "WARNING: host api.foo.org carries catalogued label foo" in err and "`hosts`" in err, err
+    # the refused host is never filed under the vendor's own name (the classifier would overwrite
+    # the curated entry with its answer) — its block is the registrable domain (BW1)
+    assert ge.code_only_block_name("api.foo.org", cat) == "foo-org"
+    assert ge.code_only_block_name("api.bar.org", cat) == "bar"
     assert (
         ge.provider_for_host("api.foo.org", {"foo": {}}, idx, []) == "foo"
     )  # no url on the entry: the label is the only evidence
@@ -2090,20 +2096,27 @@ def test_a_prefix_two_vendors_claim_routes_to_neither():
     assert ge.match_provider("EXA_API_KEY", [("EXA_", "exa"), ("EXA", "exa")]) == "exa"
 
 
-def test_a_prefix_two_vendors_claim_is_said_aloud_at_load(tmp_path, monkeypatch, capsys):
+def test_a_prefix_two_vendors_claim_fails_the_scan(tmp_path, monkeypatch):
     """A tie costs money daily (the derived block is re-flagged for paid triage every run, and
-    tombstone/merge are both inert for it) — load_catalog names the prefix and BOTH claimants once,
-    at load (BS5)."""
+    tombstone/merge are both inert for it) — load_catalog REFUSES the catalog, naming the prefix and
+    both claimants (BS5/BW5)."""
     cat = tmp_path / "catalog.json"
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
     cat.write_text(
         json.dumps({"aaa": {"match": ["XY"]}, "zzz": {"match": ["XY_"]}, "ok": {"match": ["OK"]}}),
         encoding="utf-8",
     )
-    ge.load_catalog()
-    err = capsys.readouterr().err
-    assert "WARNING: catalog prefix XY is claimed by aaa, zzz" in err, err
-    assert "OK" not in err.replace("XY", "")  # an unshared prefix is never named
+    with pytest.raises(ge.CatalogError, match=r"XY \(aaa, zzz\)") as info:
+        ge.load_catalog()  # FAILS the scan — the chain alerts; a stderr line was no channel (BW5)
+    assert "OK" not in str(info.value).replace("XY", "")  # an unshared prefix is never named
+    cat.write_text(
+        json.dumps({"aaa": {"match": ["_", "AAA"]}, "zzz": {"match": ["__"]}}), encoding="utf-8"
+    )
+    _, matchers = ge.load_catalog()  # an all-`_` prefix claims nothing and routes nothing (BW6)
+    assert (
+        ge.prefix_hits("_FOO_KEY", matchers) == []
+        and ge.match_provider("_FOO_KEY", matchers) is None
+    )
 
 
 def test_a_malformed_catalog_url_never_crashes_the_label_fallback():
@@ -2114,11 +2127,170 @@ def test_a_malformed_catalog_url_never_crashes_the_label_fallback():
     assert ge.provider_for_host("api.foo.com", catalog, {}, []) == "foo"  # the label still decides
 
 
-def test_only_the_fleet_root_is_an_absolute_path():
-    """`OUTPUT`/`FABRIK_ENV` derive from the file like `CATALOG_PATH` does: a sandboxed copy of
-    this module read the sandbox catalog and would have written the REAL fleet secrets file on
-    `--apply` — every review finder runs from exactly such a copy (BS17). `OPT` is the fleet root."""
-    src = Path(ge.__file__).read_text(encoding="utf-8")
-    assert re.findall(r'Path\("/opt/fabrik', src) == [], "hub paths must derive from __file__"
-    assert ge.OUTPUT == ge.REPO / "secrets" / "all-envs.env" and ge.FABRIK_ENV == ge.REPO / ".env"
-    assert Path(ge.__file__).resolve().parent.parent == ge.REPO
+def test_a_relocated_copy_writes_under_itself_and_still_skips_the_hub_env(tmp_path):
+    """The invariant EXECUTED on a relocated copy (in the real checkout `REPO/…` and the old
+    hardcode are the same Path, so equality proved nothing — BV3): a copy of this module under
+    another root derives its write target from ITS file, and still excludes the FLEET hub's env —
+    `/opt/fabrik/.env` is never a project's, wherever the copy lives (BS17/BW3)."""
+    import importlib.util
+
+    root = tmp_path / "elsewhere"
+    (root / "scripts").mkdir(parents=True)
+    copy = root / "scripts" / "gather_envs.py"
+    copy.write_text(Path(ge.__file__).read_text(encoding="utf-8"), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("gather_envs_relocated", copy)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert root / "secrets" / "all-envs.env" == mod.OUTPUT and root == mod.REPO
+    opt = tmp_path / "opt"
+    for name in ("fabrik", "proj", "_parked"):
+        (opt / name).mkdir(parents=True)
+        (opt / name / ".env").write_text("A=1\n", encoding="utf-8")
+    mod.OPT = opt
+    assert mod.project_env_files() == [opt / "proj" / ".env"]
+
+
+def test_the_live_catalog_claims_every_sibling_domain_host():
+    """The 14 live hosts of 8 vendors whose url sits on another registrable domain
+    (`fal.run` for fal.ai, `replicate.delivery`, `youtube.com`, `supabase.co`, `siliconflow.com`,
+    `bfl.ai`, `kilo.ai`, `openpagerank.com`) are claimed through the entry's `hosts` — the label
+    guard (BS3) refuses them by design, so the catalog must name them (BW1)."""
+    catalog, matchers = ge.load_catalog()
+    idx = ge.catalog_url_index(catalog)
+    expected = {
+        "api.bfl.ai": "bfl",
+        "bfl.ai": "bfl",
+        "playground.bfl.ai": "bfl",
+        "api.kilo.ai": "kilo",
+        "kilo.ai": "kilo",
+        "api.siliconflow.com": "siliconflow",
+        "fal.run": "fal",
+        "queue.fal.run": "fal",
+        "img.youtube.com": "youtube",
+        "www.youtube.com": "youtube",
+        "youtube.com": "youtube",
+        "openpagerank.com": "openpagerank",
+        "replicate.delivery": "replicate",
+        "your-project.supabase.co": "supabase",
+    }
+    got = {h: ge.provider_for_host(h, catalog, idx, matchers) for h in expected}
+    assert got == expected, {h: (got[h], v) for h, v in expected.items() if got[h] != v}
+
+
+def test_a_merged_copy_of_a_curated_token_is_dropped_on_both_sides(tmp_path, monkeypatch):
+    """`HF_` curated and `HF` merged are ONE token: the merged copy adds no routing and would
+    disown the vendor's own keys through registry_sync's merged check — `merged_matchers` drops it
+    at read time, and the classifier's merge path never mints it (BW4)."""
+    assert ge.merged_matchers({"hf": {"match": ["HF_"], "merged_match": ["HF", "HFX"]}}) == [
+        ("HFX", "hf")
+    ]
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=hf category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "HF_TOKEN=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "huggingface",
+                    "category": "ai-llm",
+                    "cost": "freemium",
+                    "capability": "models",
+                    "url": "https://huggingface.co",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "huggingface": {
+                    "category": "ai-llm",
+                    "cost": "freemium",
+                    "capability": "models",
+                    "url": "https://huggingface.co",
+                    "status": "active",
+                    "match": ["HF_", "HUGGINGFACE"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "hf" not in out and out["huggingface"].get("merged_match", []) == [], out["huggingface"]
+
+
+def test_a_curated_entry_reclassified_keeps_the_operators_fields(tmp_path, monkeypatch):
+    """A block that carries a CURATED vendor's name reaches the classifier (a `--only` run, or the
+    pre-BW1 label collision): the model's answer fills only what was unknown — `status=retired`,
+    the capability and the url stand (BW1)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=kilo category=? cost=? capability="?" url=https://kilo.ai status=? used_by=web\n'
+        "CODE_HOST_URL=https://kilo.ai   # used by: web\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "kilo",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "a model's guess",
+                    "url": "https://kilo.ai",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--only", "kilo"], res)
+    curated = {
+        "category": "ai-coding",
+        "cost": "paid",
+        "capability": "the operator's words",
+        "url": "https://kilocode.ai",
+        "status": "retired",
+        "match": ["KILO_"],
+    }
+    cat.write_text(json.dumps({"kilo": curated}), encoding="utf-8")
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert {k: out["kilo"][k] for k in curated} == curated, out["kilo"]
+
+
+def test_an_emptied_catalog_is_refused_when_the_last_consolidation_knew_vendors(
+    tmp_path, monkeypatch
+):
+    """`{}` is a legitimate bootstrap (BR3) — but a catalog that just lost its vendors would blank
+    every one of them to `?`: when the previous consolidation carries catalogued `#svc` lines the
+    scan fails closed and the previous file stands (BW11)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    out = tmp_path / "all-envs.env"
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    out.write_text(
+        "# header\n# ═══ ai-llm ═══\n"
+        '#svc name=deepl category=ai-translate cost=freemium capability="x" url=https://deepl.com status=active used_by=p\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
+        ge.refuse_emptied_catalog()
+    kept = out.read_text(encoding="utf-8")
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / ".env").write_text("FOO_API_KEY=x\n", encoding="utf-8")
+    monkeypatch.setattr(ge, "project_env_files", lambda: [tmp_path / "p" / ".env"])
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    assert ge.main() == 1 and out.read_text(encoding="utf-8") == kept  # nothing written
+    out.write_text(
+        "# header\n# ═══ NEEDS-TRIAGE ═══\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=p\n',
+        encoding="utf-8",
+    )
+    ge.refuse_emptied_catalog()  # nothing catalogued before: a bootstrap, not a loss
+    assert ge.main() == 0
