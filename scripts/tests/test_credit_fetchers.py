@@ -144,3 +144,35 @@ def test_a_redirect_never_carries_the_vendor_key_to_another_host():
         srv.shutdown()
         srv.server_close()  # release the listening socket too (BE7)
     assert {p for p, _ in seen} == {"/a"}, seen  # /b was never requested (the helper retries /a)
+
+
+def test_only_transient_statuses_are_retried_and_retry_after_is_honoured_capped():
+    """A 401 (revoked key) is final on the first answer; a 503 is retried; a hostile
+    `Retry-After` is capped (BH4)."""
+    import http.server
+    import threading
+
+    seen: dict[str, int] = {}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            seen[self.path] = seen.get(self.path, 0) + 1
+            code = int(self.path.strip("/"))
+            self.send_response(code)
+            if code == 503:
+                self.send_header("Retry-After", "0")
+            self.end_headers()
+
+        def log_message(self, *a):  # noqa: D102
+            return
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{srv.server_port}"
+        assert cf._get_json(f"{base}/401", {}) is None and seen["/401"] == 1
+        assert cf._get_json(f"{base}/503", {}) is None and seen["/503"] == cf.RETRIES + 1
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    assert cf._retry_after("99999", 0) == 30.0 and cf._retry_after("garbage", 1) == 2.0

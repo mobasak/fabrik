@@ -331,6 +331,18 @@ def main() -> int:
         # persist the cursor BEFORE the paid dispatch: a `timeout` kill after dispatch would
         # otherwise re-bill the identical slice every day, forever (AC5)
         _write_json(CURSOR_PATH, {"after": new_cursor})
+    # read + parse the catalog BEFORE spending: an unreadable file after the dispatch lost the
+    # whole paid batch (the cursor had already moved — BH2)
+    try:
+        _catalog_snapshot = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        if not isinstance(_catalog_snapshot, dict):
+            raise ValueError("catalog is not a JSON object")
+    except (OSError, ValueError) as exc:
+        print(
+            f"ERROR: {CATALOG_PATH} unreadable ({exc}) — nothing dispatched, nothing written",
+            file=sys.stderr,
+        )
+        return 1
     results, table = fanout(
         "research",
         units=[unit_prompt(p, provs[p]) for p in names],
@@ -375,7 +387,7 @@ def main() -> int:
         print("\n[dry-run] Re-run with --apply to merge the identified ones into the catalog.")
         return 0
 
-    raw_catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    raw_catalog = _catalog_snapshot  # read and parsed BEFORE the paid dispatch (BH2)
     # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
     # gather_envs.load_catalog applies; kept aside and written back first (AU9)
     catalog_meta = {k: v for k, v in raw_catalog.items() if k.startswith("_")}
@@ -396,16 +408,22 @@ def main() -> int:
             entry = catalog[target]
             if code_only_provider(provs.get(prov, {})):
                 hosts = entry.setdefault("hosts", [])
-                if not isinstance(hosts, list):  # a hand-edited scalar (AF14)
-                    hosts = entry["hosts"] = [str(hosts)]
+                if not isinstance(
+                    hosts, list
+                ):  # a hand-edited scalar (AF14); `null` is empty, not "None" (BH5)
+                    hosts = entry["hosts"] = [] if hosts is None else [str(hosts)]
                 for u in provs.get(prov, {}).get("urls", []):
                     h = _host(u)  # BB5
                     if h and h not in hosts:
                         hosts.append(h)
             else:
-                match = entry.setdefault("match", [])
-                if not isinstance(match, list):  # a hand-edited scalar (AF14's sibling, BE3)
-                    match = entry["match"] = [str(match)]
+                # a MODEL-merged prefix lives in `merged_match`, never in the curated `match`:
+                # gather_envs matches on both, registry_sync never feeds a fetcher from one (BH1)
+                match = entry.setdefault("merged_match", [])
+                if not isinstance(
+                    match, list
+                ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
+                    match = entry["merged_match"] = [] if match is None else [str(match)]
                 if prov.upper() not in match:
                     match.append(prov.upper())
             merged_into[prov] = target

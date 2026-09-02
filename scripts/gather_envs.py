@@ -673,8 +673,17 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     under a provider key is metadata, ignored (AY8)."""
     try:
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (
+        OSError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ) as exc:  # undecodable IS unreadable (BH3)
         print(f"WARNING: {CATALOG_PATH} unreadable ({exc}); all providers flagged", file=sys.stderr)
+        raw = {}
+    if not isinstance(raw, dict):  # a JSON list/string at the top level is unreadable too (BH6)
+        print(
+            f"WARNING: {CATALOG_PATH} is not a JSON object; all providers flagged", file=sys.stderr
+        )
         raw = {}
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     bad_keys = [k for k in catalog if _svc_token(k) != k]
@@ -682,13 +691,29 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         raise CatalogError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
-        raw_match = meta.get("match") or []
-        for prefix in (
-            raw_match if isinstance(raw_match, list) else [raw_match]
-        ):  # a scalar `match` is ONE prefix, never its letters (BE4)
-            matchers.append((str(prefix).upper(), provider))
+        for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)
+            raw_match = meta.get(field) or []
+            for prefix in (
+                raw_match if isinstance(raw_match, list) else [raw_match]
+            ):  # a scalar is ONE prefix (BE4)
+                if prefix is None or str(prefix) == "":
+                    continue  # an empty prefix would match every `_`-prefixed key (BH8)
+                matchers.append((str(prefix).upper(), provider))
     matchers.sort(key=lambda pm: len(pm[0]), reverse=True)  # longest prefix wins
     return catalog, matchers
+
+
+def merged_matchers(catalog: dict) -> list[tuple[str, str]]:
+    """Only the MODEL-merged prefixes (`merged_match`, written by classify's merge path) — the
+    ones a credit fetcher must never trust (BH1)."""
+    out: list[tuple[str, str]] = []
+    for provider, meta in catalog.items():
+        raw = meta.get("merged_match") or []
+        for prefix in raw if isinstance(raw, list) else [raw]:
+            if prefix is not None and str(prefix) != "":
+                out.append((str(prefix).upper(), provider))
+    out.sort(key=lambda pm: len(pm[0]), reverse=True)
+    return out
 
 
 def match_provider(key: str, matchers: list[tuple[str, str]]) -> str | None:
@@ -876,7 +901,10 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
 
     by_cat: dict[str, list[str]] = defaultdict(list)
     for name, data in services.items():
-        by_cat[data["meta"].get("category", "?")].append(name)
+        cat = data["meta"].get("category")
+        by_cat[cat if isinstance(cat, str) and cat else "?"].append(
+            name
+        )  # `null`/a list is `?` (BH6)
 
     ordered = [c for c in CATEGORY_ORDER if c in by_cat]
     ordered += sorted(c for c in by_cat if c not in CATEGORY_ORDER and c != "?")
@@ -1016,7 +1044,10 @@ def write_secret_file(out: Path, content: str) -> None:
     # a leftover under OUR pid younger than the sweep's hour (a crash and a pid reuse within it)
     # cannot belong to a live process — no other live process has our pid — so it is ours to
     # remove before `O_EXCL` (BD4)
-    tmp.unlink(missing_ok=True)
+    try:
+        tmp.unlink(missing_ok=True)
+    except OSError:  # a DIRECTORY at our own tmp name: let O_EXCL below say so (BH7)
+        pass
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

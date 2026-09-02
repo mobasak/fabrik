@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gather_envs  # noqa: E402 - the one classifier of secret vs config, shared with the scan
 import registry_db  # noqa: E402
-from credit_fetchers import fetch_balance  # noqa: E402
+from credit_fetchers import fetch_balance, has_fetcher  # noqa: E402
 
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
 SVC_RE = re.compile(
@@ -94,6 +94,21 @@ def is_credential(key: str, value: str) -> bool:
     return gather_envs.is_secret(key, value) and not (
         gather_envs.SECRET_KEY_RE.search(key) and KNOB_VALUE_RE.fullmatch(value)
     )
+
+
+def merged_prefixes() -> list[tuple[str, str]]:
+    """The catalog's model-merged prefixes, loaded once per sync (BH1)."""
+    catalog, _ = gather_envs.load_catalog()
+    return gather_envs.merged_matchers(catalog)
+
+
+def owned_by(key: str, provider: str, merged: list[tuple[str, str]] | None = None) -> bool:
+    """False when the key reached this provider's block through a MODEL-merged prefix
+    (`merged_match`, classify's AD2 merge of a flagged provider into an existing vendor) — the one
+    route by which a wrong model `name` can put another provider's secret in this block. A curated
+    `match` alias (`HF_TOKEN` → huggingface, `B2_` → backblaze-b2) is ownership (BH1)."""
+    merged = merged_prefixes() if merged is None else merged
+    return gather_envs.match_provider(key, merged) != provider
 
 
 def credential_rank(key: str, value: str) -> int:
@@ -193,6 +208,7 @@ def sync_registry(
     provs = parse(ALL_ENVS)
     stats = {"services": 0, "api_keys": 0, "credit_snapshots": 0, "pruned": 0, "keys_pruned": 0}
     to_fetch: list[tuple[int, str, str]] = []
+    merged = merged_prefixes()  # model-merged prefixes never feed a fetcher (BH1)
     conn = registry_db.connect()
     # Schema first, in its OWN short transaction: an ALTER inside the sync transaction holds an
     # ACCESS EXCLUSIVE lock on api_keys for the whole run (measured: the no-op ADD COLUMN IF NOT
@@ -226,6 +242,7 @@ def sync_registry(
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
                 first_value = None
+                first_key = None
                 best_rank = 99
                 digests: list[str] = []
                 for _key, value, aliases, per_key_used in p["keys"]:
@@ -242,11 +259,13 @@ def sync_registry(
                         kind = "credential"
                     else:
                         kind = "config"  # a URL/host/port/model/ID knob under a vendor prefix — never a key (AC6/AD1)
-                    if kind == "credential" and credential_rank(_key, value) < best_rank:
-                        best_rank, first_value = (
-                            credential_rank(_key, value),
-                            value,
-                        )  # by role (AM1)
+                    if kind == "credential":
+                        # an UNOWNED key (merged prefix) never outranks the vendor's own (BH1)
+                        rank = credential_rank(_key, value) + (
+                            0 if owned_by(_key, meta["name"], merged) else 10
+                        )
+                        if rank < best_rank:
+                            best_rank, first_value, first_key = rank, value, _key  # by role (AM1)
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
                     digests.append(digest)
                     # per-key attribution when present (a multi-key provider's keys differ),
@@ -273,6 +292,17 @@ def sync_registry(
                     )
                     stats["keys_pruned"] += cur.rowcount
                 cred = first_value
+                if cred and first_key and not owned_by(first_key, meta["name"], merged):
+                    # the best credential reached this block through a merged prefix — one wrong
+                    # model `name` must never route another provider's secret to this vendor (BH1);
+                    # said aloud only where a fetcher exists — ten live blocks are merged-only
+                    # and have none (BH1 measurement)
+                    if fetch_credits and has_fetcher(meta["name"]):
+                        print(
+                            f"WARNING: {meta['name']}: best credential {first_key} is not attributable to it — no credit fetch",
+                            file=sys.stderr,
+                        )
+                    cred = None
                 if fetch_credits and cred:
                     to_fetch.append((sid, meta["name"], cred))  # fetch AFTER commit
             # Prune orphans: services no longer in all-envs.env (e.g. a provider recatalogued

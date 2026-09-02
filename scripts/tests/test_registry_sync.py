@@ -642,3 +642,32 @@ def test_equal_fetcher_ranks_break_by_file_order(fixture_env, monkeypatch):
     monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
     rs.sync_registry(fetch_credits=True, prune=False)
     assert got == [(TEST_PROVIDER, f"{SECRET}first")], got
+
+
+def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypatch):
+    """One wrong model `name` merges `AAA_API_KEY` into deepl's block; it sorts first and ties at
+    rank 0 — the fetcher must still get DEEPL's own key, and a block whose BEST credential is
+    unowned gets no fetch at all (BH1)."""
+    fixture_env.write_text(
+        "# " + "═" * 10 + " ai-translate " + "═" * 10 + "\n"
+        '#svc name=deepl category=ai-translate cost=paid capability="test" '
+        "url=https://deepl.com status=active used_by=projA\n"
+        f"AAA_API_KEY={SECRET}victim\n"
+        f"DEEPL_API_KEY={SECRET}own\n"
+        '#svc name=exa category=search cost=paid capability="test" '
+        "url=https://exa.ai status=active used_by=projA\n"
+        f"BBB_API_KEY={SECRET}victim2\n",
+        encoding="utf-8",
+    )
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
+    monkeypatch.setattr(
+        rs, "merged_prefixes", lambda: [("AAA", "deepl"), ("BBB", "exa")]
+    )  # what classify wrote
+    rs.sync_registry(fetch_credits=True, prune=False)
+    assert got == [("deepl", f"{SECRET}own")], (
+        got
+    )  # exa's only credential is model-merged → no fetch
+    merged = [("AAA", "deepl"), ("BBB", "exa")]
+    assert rs.owned_by("HF_TOKEN", "huggingface", merged)  # a curated alias is ownership
+    assert not rs.owned_by("AAA_API_KEY", "deepl", merged)

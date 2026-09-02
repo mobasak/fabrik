@@ -11,10 +11,22 @@ from all-envs.env by the caller; it is never sent anywhere but the vendor's own 
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+
+RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})  # core/58-resilience
+
+
+def _retry_after(header: str | None, attempt: int) -> float:
+    """Seconds to wait before a retry: the vendor's `Retry-After` when it is a small integer,
+    else a short backoff — capped so a hostile header cannot stall the daily chain (BH4)."""
+    try:
+        return min(float(header), 30.0) if header else min(1.0 * (attempt + 1), 30.0)
+    except ValueError:
+        return min(1.0 * (attempt + 1), 30.0)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -46,6 +58,12 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
             with _OPENER.open(req, timeout=TIMEOUT_S) as resp:  # noqa: S310 — never follows a redirect (BB8)
                 obj = json.loads(resp.read().decode("utf-8"))
                 return obj if isinstance(obj, dict) else None
+        except urllib.error.HTTPError as exc:
+            # only a transient status is retried (core/58 RETRYABLE_STATUS); a 3xx (BB8), 401/403/404
+            # is final on the first answer — a revoked key is not hammered three times (BH4)
+            if exc.code not in RETRYABLE_STATUS or attempt == RETRIES:
+                return None
+            time.sleep(_retry_after(exc.headers.get("Retry-After"), attempt))
         except (urllib.error.URLError, TimeoutError, ValueError, OSError):
             if attempt == RETRIES:
                 return None
@@ -88,6 +106,12 @@ FETCHERS: dict[str, Callable[[str], CreditSnapshot | None]] = {
     "exa": fetch_exa,
     "replicate": fetch_replicate,
 }
+
+
+def has_fetcher(provider: str) -> bool:
+    """True when a credit fetcher is registered for `provider` (BH1: the sync warns about an
+    unattributable credential only where a fetch would have happened)."""
+    return provider in FETCHERS
 
 
 def fetch_balance(provider: str, api_key: str) -> CreditSnapshot | None:

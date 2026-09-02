@@ -1025,7 +1025,15 @@ def test_identified_env_keyed_provider_joins_the_existing_vendors_match_list(tmp
     )
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
-    assert "openai2" not in out and out["openai"]["match"] == ["OPENAI", "OPENAI2"]
+    assert (
+        "openai2" not in out
+        and out["openai"]["match"] == ["OPENAI"]
+        and out["openai"]["merged_match"] == ["OPENAI2"]
+    )
+    # and the scan MATCHES on the merged prefix — the whole point of the merge (AD2/BH1)
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    _, matchers = ge.load_catalog()
+    assert ge.match_provider("OPENAI2_API_KEY", matchers) == "openai"
 
 
 def test_only_run_with_a_transport_error_records_and_tombstones_nothing(tmp_path, monkeypatch):
@@ -1360,7 +1368,9 @@ def test_an_enum_rejected_answer_never_merges_reports_or_scores_as_identified(
     monkeypatch.setattr(cs, "set_quality", lambda agent_id, score, **kw: scores.append(score))
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
-    assert out["openai"]["match"] == ["OPENAI"], out["openai"]  # never merged (AU1)
+    assert out["openai"]["match"] == ["OPENAI"] and "merged_match" not in out["openai"], out[
+        "openai"
+    ]  # never merged (AU1)
     assert out["gamma"]["category"] == "unidentified"  # tombstoned, leaves triage
     last = json.loads((state / "l.json").read_text(encoding="utf-8"))
     assert last["identified"] == [] and last["tombstoned"] == ["gamma"], last  # AU2
@@ -1715,7 +1725,10 @@ def test_a_scalar_match_is_one_prefix_on_both_sides(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     assert cs.main() == 0
-    assert json.loads(cat2.read_text(encoding="utf-8"))["brave"]["match"] == ["BRAVE", "KAGI"]
+    out2 = json.loads(cat2.read_text(encoding="utf-8"))["brave"]
+    assert out2["match"] == "BRAVE" and out2["merged_match"] == [
+        "KAGI"
+    ]  # merged prefixes are segregated (BH1)
 
 
 def test_an_omitted_status_is_unknown_and_ipv6_hosts_keep_their_brackets(tmp_path, monkeypatch):
@@ -1745,3 +1758,81 @@ def test_an_omitted_status_is_unknown_and_ipv6_hosts_keep_their_brackets(tmp_pat
     assert urls == ["https://[::1]"] and cs._host(urls[0]) == "::1"
     assert cs.main() == 0
     assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["status"] == "?"
+
+
+def test_an_unreadable_catalog_is_refused_before_the_paid_dispatch(tmp_path, monkeypatch):
+    """A catalog the classifier cannot read must fail BEFORE fanout — after it, the cursor has
+    moved and the whole paid slice is lost for a lap (BH2)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+    cat.write_text('{"truncated": ', encoding="utf-8")
+    calls: list[int] = []
+    monkeypatch.setattr(cs, "fanout", lambda *a, **k: calls.append(1) or ([], ""))
+    assert cs.main() == 1 and calls == []
+
+
+def test_hostile_catalog_shapes_are_fail_soft_not_tracebacks(tmp_path, monkeypatch, capsys):
+    """An undecodable file (BH3), a top-level list (BH6) degrade to "everything flagged"; a
+    `null`/list category is `?` (BH6); an empty match prefix is skipped (BH8)."""
+    cat = tmp_path / "catalog.json"
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    cat.write_bytes(b'{"a": "\xe9"}')
+    assert ge.load_catalog() == ({}, []) and "unreadable" in capsys.readouterr().err
+    cat.write_text("[1, 2]", encoding="utf-8")
+    assert ge.load_catalog() == ({}, []) and "not a JSON object" in capsys.readouterr().err
+    cat.write_text(json.dumps({"v": {"category": None, "match": ["", "V"]}}), encoding="utf-8")
+    catalog, matchers = ge.load_catalog()
+    assert matchers == [("V", "v")]
+    monkeypatch.setattr(ge, "load_catalog", lambda: (catalog, matchers))
+    body, _ = ge.consolidate(_envs(tmp_path, {"p": "V_API_KEY=abcdefghijklmnop\n"}))
+    assert "#svc name=v category=?" in body and "None" not in body
+
+
+def test_a_null_match_merges_as_empty_not_the_word_none(tmp_path, monkeypatch):
+    """`"match": null` on a curated entry becomes `[]` + the merged prefix, never `["None", …]`
+    (BH5)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=kagi category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "KAGI_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "brave",
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://brave.com",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "brave": {
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://brave.com",
+                    "status": "active",
+                    "match": None,
+                    "hosts": None,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))["brave"]
+    assert (
+        out["merged_match"] == ["KAGI"] and out["match"] is None
+    )  # merged prefixes never touch the curated list (BH1/BH5)
