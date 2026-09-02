@@ -21,7 +21,7 @@ A file is not done until every row is satisfied or explicitly N/A with a stated 
 | 1 | Evaluated against `docs/reference/operating-manifesto.md` | D-043 |
 | 2 | **Live web research — never model memory.** The FULL arsenal, not one engine: exa · firecrawl · brave-search · WebSearch · WebFetch. **≥2 DIFFERENT tools on any contested or currency-critical claim** | D-062 |
 | 3 | **In-repo grounding**, including `docs/infrastructure/` whenever the pack touches a deploy/VPS surface — and its load-bearing rows VERIFIED against the live fleet, because docs rot both ways | operator 2026-09-01 |
-| 4 | **Author-blind SUBAGENT second opinion on the pack's rules**, verdicts adjudicated and recorded — never silently absorbed. Runs on **Fable 5**; fall back to **Opus 5** only on quota | D-063 |
+| 4 | **Author-blind SUBAGENT second opinion on the pack's rules**, verdicts adjudicated and recorded — never silently absorbed. Runs on **Fable 5**; fall back to **Opus 5** only on quota. ⚠️ **It GATES the commit — it does not trail it.** Measured over this pass: 5 of 6 opinions returned before their commit and their findings landed in it; the one dispatched-then-committed-past refuted TWO things already pushed, so the fix needed a second commit and the wrong text existed on master in between. If the opinion is still running, the file is not done — wait. | D-063 |
 | 5 | **After ANY multi-point fix: grep the file's own vocabulary and sweep the CLASS, not the instances** | FIX-directive verb 2 |
 | 6 | Zero unmarked version literals under the widened `_LOOSE` sweep | D-062 |
 | 7 | A pinned test where warranted | D-062 |
