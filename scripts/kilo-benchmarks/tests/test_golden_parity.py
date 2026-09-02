@@ -715,6 +715,40 @@ def test_the_oracle_runs_before_the_fleet_sync():
     )
 
 
+def test_both_entry_points_flush_before_they_rank():
+    """A step wired into only ONE entry point is a step that usually does not run.
+
+    `daily_refresh.sh` (06:00 cron) and `wsl_startup_hook.sh` (boot) both take
+    /tmp/.fabrik_daily_<UTC>, so whichever wins the day, the other SKIPS ENTIRELY — the hook's
+    own comment measured it at 7 boot-wins to 0. `flush_subagent_outboxes.py` was wired into
+    daily_refresh alone on 2026-09-02, so on every boot-wins day the ranker published a
+    selection doc derived from a ledger whose stranded rows had never been flushed. Both
+    scripts must flush, and both must flush BEFORE they rank — flushing after ranking is the
+    same defect with a tidier log.
+    """
+    for name in ("daily_refresh.sh", "wsl_startup_hook.sh"):
+        path = (
+            cg.SCRIPT_DIR / name
+            if name == "daily_refresh.sh"
+            else cg.FABRIK_ROOT / "scripts" / name
+        )
+        lines = [
+            ln for ln in path.read_text().splitlines() if not ln.lstrip().startswith("#")
+        ]
+        flush = [i for i, ln in enumerate(lines) if "flush_subagent_outboxes.py" in ln]
+        rank = [i for i, ln in enumerate(lines) if "rank_task_subagents.py" in ln]
+        assert flush, (
+            f"{name} never runs flush_subagent_outboxes.py — on the days this entry point wins "
+            "the shared daily lock, stranded runs are never flushed and the ranker reads an "
+            "incomplete ledger"
+        )
+        assert rank, f"{name} never runs rank_task_subagents.py"
+        assert min(flush) < min(rank), (
+            f"{name} flushes at line {min(flush) + 1} but ranks at {min(rank) + 1} — the ranker "
+            "would publish a selection doc derived from rows the flush was about to add"
+        )
+
+
 def test_a_loose_separator_does_not_swallow_the_next_table():
     """Round 5 tightened the table-boundary separator to `-{3,}` and shipped no test for it.
 

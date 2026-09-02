@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the boot entry point never flushed the subagent outboxes, so the ranker usually ranked a stale ledger (2026-09-03)
+
+- `flush_subagent_outboxes.py` was wired into `daily_refresh.sh` alone (2026-09-02). But `daily_refresh.sh`
+  (06:00 cron) and `wsl_startup_hook.sh` (boot) share `/tmp/.fabrik_daily_<UTC>`, so whichever wins the day the
+  other **skips entirely** — and the hook's own comment measures it at 7 boot-wins to 0. The hook already ran
+  `rank_task_subagents.py`, so on every boot-wins day the fleet's selection doc was derived from a ledger whose
+  stranded runs had never been flushed. The hook now flushes **above** the ranker, matching `daily_refresh`'s
+  order; flushing after ranking would publish a doc derived from rows the flush was about to add.
+- Third instance of this asymmetry class — the 2026-08-14 "steps this hook was missing" block and the
+  2026-09-02 external-services-chain line are the first two, both recorded in the hook itself.
+- Guarded by `test_both_entry_points_flush_before_they_rank`, which asserts BOTH entry points flush and that
+  each flushes before it ranks (proven red against the pre-fix hook).
+
+### Changed — quota dashboard: wider page, probes every 20s on its own, and triggers the rotation tick at 98% session (2026-09-03)
+
+- Operator rules, all three: (1) `.wrap` max-width 980 → 1600px so the rows fit; (2) the SERVER probes every
+  `QUOTA_DASH_PROBE_INTERVAL_S` (20s) on a thread `serve()` starts — no viewer needed — and the page reloads every
+  20s (was 60/240s on view); (3) rotation triggers as soon as the active account's 5h window hits 98%: the
+  rotation default `ROTATE_THRESHOLD` is 98 (was 95) through one helper `_rotate_threshold()` feeding all four
+  call sites, and the dashboard invokes `claude_rotate.py --tick` the moment the active account crosses it (or is
+  cap-walled), once per 120s cooldown, on its own thread and under the cron's `flock` lock (`~/.claude/state/rotate.lock`)
+  — latency ≤ 20s instead of ≤ 5 min; the `*/5` cron stays as the backstop. `generate()` is serialized (the
+  loop, a view and a switch could race two probes). The weekly leg is decided separately: at the account's
+  `caps.json` cap when one exists (can/mob 99 — `min(threshold, cap)` would have tripped them at 98), at the
+  threshold otherwise.
+- Tests seen red first: `tests/test_quota_dashboard.py` (+4: own-cadence probe loop, trigger at 98.2 not 90 with
+  cooldown, cap-walled trigger, width/refresh; scoped review +3: serialized generate, flock'd async tick, the
+  board/CLI default pin) and `tests/test_claude_rotate_v2.py` (+3: default 98 with env override, the fleet flip
+  leg holds at 96 and flips at 98.2, the weekly leg trips at the cap not the threshold). Dashboard restarted on the new code; the live page
+  reports the 20s cadence and the 98% footer.
+
 ### Changed — `/fabrik-deploy-checklist` has ONE source (the modes are gone) and the parity contract runs where its rows can reach: rows declare a SITE, the runner runs three legs and merges (2026-09-02)
 
 - **Modes removed** (operator ruling: "when we are ready to deploy we must run this command, that is all"). A

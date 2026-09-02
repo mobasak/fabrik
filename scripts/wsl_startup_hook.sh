@@ -184,6 +184,17 @@ if [ ! -f "$LOCK_FILE" ]; then
         # governance-sync pre-commit filter (^\.windsurf/rules/), so it fans out to ~46 repos.
         # Committing a husk before verifying it is the exact ordering
         # test_the_oracle_runs_before_the_fleet_sync exists to prevent.
+        # The outbox flush — the SAME step daily_refresh.sh runs (added 2026-09-03). It was wired
+        # into daily_refresh ONLY on 2026-09-02, and since both entry points share the daily lock
+        # above, whichever wins makes the other skip ENTIRELY — so on every boot-wins day (measured
+        # 7 to 0 in the block comment above) the ranker below read a ledger whose stranded rows had
+        # never been flushed. Third instance of this asymmetry class, after the 2026-08-14 block and
+        # the external-services chain below. MUST stay above the ranker: flushing after ranking
+        # publishes a selection doc derived from the rows the flush was about to add.
+        # flush_subagent_outboxes.py exits 0 even with nothing to flush, so a non-zero here is a
+        # real fault (unreachable DSN, broken driver), never an empty outbox.
+        $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/flush_subagent_outboxes.py >> $LOG_FILE 2>&1 \
+            || echo '[wsl_startup_hook] flush_subagent_outboxes exited non-zero — stranded runs are unflushed and the ranker below is reading an incomplete ledger' >> $LOG_FILE
         $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/rank_task_subagents.py >> $LOG_FILE 2>&1 \
             || { echo '[wsl_startup_hook] rank_task_subagents FAILED — previous selection doc KEPT, not overwritten' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: rank_task_subagents exited non-zero' 'The flywheel read is likely BROKEN (state=error). The previous TASK_SUBAGENT_SELECTION.md was deliberately KEPT rather than overwritten with the failure stub, so the fleet is on yesterday-good, not poisoned. Check the postgres/sudo path on this host.'; }
         ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/tests/capture_golden.py --verify >> $LOG_FILE 2>&1 \
