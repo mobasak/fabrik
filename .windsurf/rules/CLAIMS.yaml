@@ -565,3 +565,35 @@ claims:
     verify: "search: Pagefind index size scaling limit pages vs hosted search <year> + check Docusaurus docs/search for its recommended options"
     window_days: 365
     last_verified: 2026-09-01
+
+  - id: watchdog-tier-d-window-is-1800-fleet-wide
+    pack: core/60-watchdog.md
+    claim: "The Tier-D approval window IS plumbed end-to-end: spec_loader.py WatchdogConfig.code_fix_window_sec (default 1800, ge=60 le=3600) -> drivers/watchdog.py exports WATCHDOG_APPROVAL_WINDOW_SEC -> the module's control_plane/approval.py reads it. Commit 2c5b56e1 raised the fleet default 300->1800 deliberately. The bare 300 in coordinator.py is an unreachable fallback for STANDALONE/vendored use only"
+    kind: rationale
+    verify: "trace the whole chain, not one repo: grep code_fix_window_sec in /opt/fabrik/src/fabrik/spec_loader.py AND drivers/watchdog.py, then grep WATCHDOG_APPROVAL_WINDOW_SEC in /opt/fabrik-lib/watchdog. ⚠️ The module never spells the SPEC field name — searching fabrik-lib for `code_fix_window_sec` alone returns zero and falsely reads as 'not implemented'"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: watchdog-guard-bounds-verified
+    pack: core/60-watchdog.md
+    claim: "VERIFIED IN SOURCE 2026-09-01: the pack's numeric guards match watchdog_sidecar/actions.py — _FORBIDDEN_TARGETS is exactly 14 entries (postgres-main…site-provisioner), pause TTL bounds [5,3600], drop_queue_items row cap 1..10000, rotate_locks age [30,86400], and the 100_000-key wipe cap"
+    kind: rationale
+    verify: "re-read /opt/fabrik-lib/watchdog/watchdog_sidecar/actions.py — do the bounds and the forbidden-target count still match the pack's table?"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: watchdog-db-writes-are-tier-c-gated
+    pack: core/60-watchdog.md
+    claim: "VERIFIED IN SOURCE 2026-09-01: drop_queue_items and rotate_locks are NOT Tier A — actions.py::TIER_C_WRITE_HANDLERS routes them through the approved-write lane, fail-closed behind WATCHDOG_ALLOW_DB_WRITES (default OFF) and a provisioned WATCHDOG_DB_URL_RW; absent either the handler returns 'skipped'"
+    kind: rationale
+    verify: "grep -n TIER_C_WRITE_HANDLERS -A6 /opt/fabrik-lib/watchdog/watchdog_sidecar/actions.py — are both still in the Tier-C lane and still double-gated?"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: watchdog-cost-cap-not-flag-enforced
+    pack: core/60-watchdog.md
+    claim: "per_incident_budget_usd is NOT enforced by a --max-budget-usd flag: llm_client.py explicitly bans that flag per the operator directive that per-call $ caps break the diagnose loop, and per_incident_cap_usd is accepted for API compatibility without call-site enforcement. Spend is observed via total_cost_usd and bounded by DAILY caps. OpenRouter fallback timeout is 60s (the pack previously said 45s)"
+    kind: rationale
+    verify: "grep -n 'max-budget-usd\\|_OPENROUTER_TIMEOUT\\|per_incident_cap_usd' /opt/fabrik-lib/watchdog/watchdog_sidecar/llm_client.py"
+    window_days: 180
+    last_verified: 2026-09-01

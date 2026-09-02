@@ -41,6 +41,31 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Fixed — rules pass file 15: core/60-watchdog.md ground against the live sidecar (2026-09-01)
+
+Four defects, each verified in `/opt/fabrik-lib/watchdog` source rather than read from prose:
+
+- **`drop_queue_items` and `rotate_locks` were listed as automatic Tier A.** They are not — the
+  module routes both through `TIER_C_WRITE_HANDLERS`, fail-closed behind `WATCHDOG_ALLOW_DB_WRITES`
+  (default OFF) and a provisioned `WATCHDOG_DB_URL_RW`. The pack's own § Architecture already said
+  so; the action table had not caught up, so it promised two DB-mutating actions that are impossible
+  by default.
+- **The Tier D guard column claimed "no main/master, no force-push"** — true of the LLM's bash
+  (hook + settings deny-list), false of the deploy adapter, which is what that row describes: the
+  adapter merges into `deploy_branch` (default `main`) and force-with-leases on rollback.
+- **Cost enforcement named a banned mechanism.** `--max-budget-usd` is explicitly forbidden in
+  `llm_client.py` per the operator directive that per-call caps break the diagnose loop;
+  `per_incident_cap_usd` is accepted but not enforced at the call site. Spend is observed and bounded
+  by DAILY caps. The OpenRouter fallback timeout is 60s, not the 45s claimed.
+- Stale `path:line` and a "not yet shipped" clause about a driver now running two live sidecars.
+
+⚠️ **A fifth "finding" of mine was FALSE and was caught before commit.** I reported that the Tier-D
+approval window is unimplemented (300s hardcoded vs the specified 1800s) — from grepping the module
+for the SPEC field name, which it never spells because it reads the exported env var. The chain is
+fully built (`spec_loader.py` → driver → `WATCHDOG_APPROVAL_WINDOW_SEC` → `control_plane/approval.py`)
+and commit `2c5b56e1` set 1800 fleet-wide. The pack edit was reverted before it synced; the two mails
+already sent to fabrik-lib were retracted with the mechanism explained.
+
 ### Fixed — rules pass file 14: core/42-docusaurus.md — the SCAFFOLD emits what this pack bans (2026-09-01)
 
 Pack side, to the D-062/D-064 bar: 4 unmarked `node:24` literals and the deferred `bookworm` class

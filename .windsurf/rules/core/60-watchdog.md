@@ -29,7 +29,7 @@ trigger: glob
 ⚠️ **This table previously claimed a shape-driven default** (`python-api`/`node-api` conditional on
 `is_admin_dashboard` OR `has_persistent_data`; `static-site`/`docusaurus` off). That was **never what the
 resolver did** — `resolve_applicability` is a one-line unconditional `watchdog_cfg.get("enabled", True)`
-with **no `kind` test at all** (`infrastructure.py`:328-329, whose own comment says the matrix here "is
+with **no `kind` test at all** (`orchestrator/infrastructure.py`:337-345, whose own comment says the matrix here "is
 operator discipline … not encoded here"). So the table described a discipline, not a behavior, and the
 discipline is now superseded. Anything relying on the old rows — including a spec comment justifying an
 opt-out — is stale.
@@ -49,7 +49,7 @@ Existing specs without a `watchdog:` block inherit the default and don't break.
 
 ## Architecture summary
 
-- **One sidecar per spec.** Image: `fabrik/watchdog:<project_id>`. Built by the watchdog driver (`src/fabrik/drivers/watchdog.py` — T-P2 artifact 13, not yet shipped at the time of this pack) at `fabrik apply` time with placeholders rendered.
+- **One sidecar per spec.** Image: `fabrik/watchdog:<project_id>`. Built by the watchdog driver (`src/fabrik/drivers/watchdog.py`) at `fabrik apply` time with placeholders rendered.
 - **Mounts (all per-project, set by driver):**
   - `~/.claude/` (RO from host) → `/home/watchdog/.claude/` — Claude Code OAuth credentials. Sidecar does NOT carry an API key.
   - `/var/lib/watchdog/` (RW, named volume) — `state.db` + `cost_wal.db` + `proposed/<project_id>/` PR workspace + `keys/git-deploy.key` (RO, 600).
@@ -78,8 +78,18 @@ Existing specs without a `watchdog:` block inherit the default and don't break.
 | `clear_file_cache` | `rm -rf /project/<subpath>/*` | Path-escape rejected; scoped under `/project/` |
 | `scale_concurrency` | env edit + `compose up -d <main>` | CONST_CASE env-key validation |
 | `pause_worker` | Redis SETEX `<project_prefix>:pause:<resource>` | Matches `pause-state` vendor read contract; TTL ∈ [5, 3600]s |
-| `drop_queue_items` | `DELETE … ORDER BY <age_col> LIMIT N` | Identifier validation; row cap 10000 |
-| `rotate_locks` | `UPDATE … SET locked_at = NULL WHERE locked_at < now() − interval` | Identifier validation; age ∈ [30, 86400]s |
+
+⚠️ **`drop_queue_items` and `rotate_locks` are NO LONGER Tier A** — the module moved them to the
+Tier-C **approved-write lane** (`actions.py::TIER_C_WRITE_HANDLERS`), fail-closed behind TWO gates:
+`WATCHDOG_ALLOW_DB_WRITES` (default OFF) and a provisioned `WATCHDOG_DB_URL_RW`. Absent either, the
+handler returns `skipped`, not a mutation. § Architecture already said this ("Consumed only by the
+Tier-C approved-write lane"); this table had not caught up, so the pack promised two automatic
+DB-mutating actions that are impossible by default.
+
+| Approved-write (Tier C lane) | What | Guards |
+|---|---|---|
+| `drop_queue_items` | `DELETE … ORDER BY <age_col> LIMIT N` | Both gates above; identifier validation; row cap 1..10000 |
+| `rotate_locks` | `UPDATE … SET locked_at = NULL WHERE locked_at < now() − interval` | Both gates above; identifier validation; age ∈ [30, 86400]s |
 
 **Tier B** — opt-in per spec via `watchdog.auto_tier_b: true`. Without opt-in, Tier B diagnosis escalates as Tier C.
 
@@ -102,7 +112,7 @@ Existing specs without a `watchdog:` block inherit the default and don't break.
 
 | Action | What | Guards |
 |---|---|---|
-| `apply_code_fix` | generate a fix on `watchdog/<incident_id>` → tests pass (**HARD gate**) → secret-scan the diff → Telegram the diff with **Approve / Reject / STOP** → on approval **OR** silence past `code_fix_window_sec` → `deploy_adapter.apply(branch)` → VERIFY health → **auto-rollback on regression** | Isolated clone only (never the RO `/project` mount); deploy mechanism **injected** (no in-place src edit); every apply/rollback written to the `deploys` audit table; same forbidden push targets as `create_fix_pr` (no main/master, no force-push) |
+| `apply_code_fix` | generate a fix on `watchdog/<incident_id>` → tests pass (**HARD gate**) → secret-scan the diff → Telegram the diff with **Approve / Reject / STOP** → on approval **OR** silence past `code_fix_window_sec` → `deploy_adapter.apply(branch)` → VERIFY health → **auto-rollback on regression** | Isolated clone only (never the RO `/project` mount); deploy mechanism **injected** (no in-place src edit); every apply/rollback written to the `deploys` audit table; push restrictions apply to the **LLM's own bash** (hook + settings deny-list: no main/master, no force-push, no `git config`/`rebase`/`reset --hard`/`tag`); the **deploy adapter is the sole sanctioned main-push path** — it merges the fix branch into `deploy_branch` (default `main`) and uses `--force-with-lease` ONLY on rollback |
 
 ---
 
@@ -141,7 +151,7 @@ Every apply/rollback is written to the `deploys` table (and the approval to `app
 
 - **Claude Code returns `total_cost_usd` directly** in its `--output-format json` envelope; the sidecar records that value. Subscription-mode burn shows up as `cost_usd=0.0` but token counts still flow into `daily_invocations_cap`.
 - **OpenRouter** carries real per-token dollar cost; recorded verbatim via `usage.include=true` in the response envelope.
-- **`per_incident_budget_usd`** ceiling enforced by Claude Code's `--max-budget-usd` flag (primary path) and by the OpenRouter fallback timing out at `_OPENROUTER_TIMEOUT` (45s).
+- **Per-incident cost.** ⚠️ NOT enforced by a `--max-budget-usd` flag — that is explicitly banned (`llm_client.py`: *"no $ caps on sysadmin"*, per the operator directive that per-call caps break the diagnose loop), and `per_incident_cap_usd` is accepted for API compatibility but not enforced at the call site. Spend is OBSERVED (`total_cost_usd` from the Claude envelope) and bounded by the daily caps, not clipped mid-incident. OpenRouter fallback timeout is 60s.
 - **`daily_budget_usd`** + **`daily_invocations_cap`** enforced by `cost_budget.check_caps`; over-cap routes the incident to rule-only escalation (no LLM call) and tags the Apprise alert with `(BUDGET-CAP)`.
 
 ---
