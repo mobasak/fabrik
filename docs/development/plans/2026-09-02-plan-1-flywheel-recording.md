@@ -1,13 +1,35 @@
 # Plan 1 — Repair the subagent flywheel's recording path (2026-09-02)
 
-**Status:** DRAFT
+**Status:** CONVERGED
 **Source of truth:** live measurement of `fabrik_analytics.subagent_runs` + `/opt/fabrik/.tmp/subagents/*.jsonl`, this session. No `/fabrik-spec` doc — the design was settled by measurement, not brainstorming (RICH by the Phase-0 gate: goal and approach are both pinned).
 **Owner beat:** intel (models · benchmarks · flywheel).
+
+## Pass Ledger
+
+| Pass | axes re-checked | method | raised | new: | edits | plan md5 (start → end) |
+|-----:|---|---|---:|---:|---:|---|
+| 1 | all — structure, claims, gates, blast radius; **5 pool finders + 1 native Opus dispatched** | method: citation + re-derivation | 12 | 12 | 12 | e19585 → 3b3ad0 |
+| 2 | scoped: the Evidence figures pass 1 touched | **method: re-derivation** | 3 | 3 | 3 | 3b3ad0 → a95a20 |
+| 3 | scoped: Self-audit consistency + the `pg_ledger` reason path | **method: re-derivation** | 4 | 4 | 4 | a95a20 → 5e50f8 |
+| 4 | scoped: every `path:line` citation re-opened | method: citation | 2 | 2 | 2 | 5e50f8 → bcf8e9 |
+| 5 | all — **author-blind Opus returned 15 defects**; merged + refuted | **method: re-derivation** | 16 | 15 | 16 | bcf8e9 → a462dc |
+| 6 | scoped: the figures pass 5 introduced | **method: re-derivation** | 1 | 1 | 1 | a462dc → 19de6d |
+| 7 | all — full fresh read + every probe re-run | method: gate + re-derivation | 4 | 4 | 4 | 19de6d → 944cad |
+| 8 | all — contradiction sweep + checklist parse | method: gate | 2 | 2 | 2 | 944cad → a43496 |
+| 9 | all — probes, checklist, residuals, pillars, convergence | **method: re-derivation** | **0** | **0** | **0** | a43496 → a43496 ✓ → **CONVERGED** |
+
+**Dispatched vs returned:** 5 pool units dispatched, 5 returned (all scored back to the flywheel:
+qwen3-max 5 · deepseek-v4-flash 4 · deepseek-v3.2-exp 4 · gemini-3-flash 3 · deepseek-v4-flash 1).
+1 native Opus author-blind pass dispatched, 1 returned. No finder died; no partition went unswept.
+
+**Standing:** the 50-vs-46 flush delta (checklist row 17) — adjudicated FIXED as a class (A1 mandates
+the reconciliation) with the instance SELF-SERVICE at execution. Re-raising it without new evidence
+does not count against the quiet pass.
 
 ## What we already agreed
 
 - The flywheel's **data is sound and useful**; its **recording path is half-dead**. Fix the plumbing, don't touch the ranking maths except where a measured defect demands it.
-- **The operator did not configure the price cap.** It was the pool's own always-on default, removed 2026-07-21 (`504af55f`). This plan never treats a config artefact as a model verdict.
+- **The operator did not configure the price cap.** It was the pool's own always-on default, removed **2026-07-19** (`select.py:83`, the operator decision recorded in the source itself; `504af55f` on 07-21 only added the *phrase* a `git log -S` later matched — see Phase C1(a)). This plan never treats a config artefact as a model verdict.
 - Fixes land **smallest-blast-radius first**: hub-local before fleet-synced, data before code, code before schema.
 - Operator granted cross-repo `.env` write authorisation earlier this session; it is relied on in Phase A only.
 
@@ -128,7 +150,7 @@ Audited against the `review_rubric.py` run below; every MATCHED pack is named.
 | 14 | ledger-derived count applied to a DB population | this review | **FIXED** — C1's "240" is a JSONL count; the DB holds 90 and has no error-text column (D6) |
 | 15 | NULL-unsafe predicate | this review | **FIXED** — all 141 stalled rows have `cost_usd IS NULL`, so the literal `cost = 0` matched **zero** rows (D7) |
 | 16 | one call where a loop is required | this review | **FIXED** — `flush_outbox` drains `.flushing` OR live, never both; 4 repos hold both (D3) |
-| 17 | evidence with an unreconciled delta | this review | **OPEN, named** — 50 returned vs 46 landed (D9); A1 must reconcile per repo before the backlog is trusted |
+| 17 | evidence with an unreconciled delta | this review | **FIXED (class), instance SELF-SERVICE** — 50 returned vs 46 landed (D9). The CLASS is closed: A1 now mandates a per-repo `rows_after − rows_before == returned` assertion that fails loudly. The INSTANCE is an execution-time discovery — the executor runs the walker with that assertion live and sees the per-repo breakdown I cannot reconstruct after the fact. It is not a deferred question: the plan states the exact check, so nobody has to stop and ask |
 
 ## Execution Discipline
 
@@ -180,7 +202,7 @@ depth-unbounded glob found them.
 
 ```
 $ find /opt -path "*/.tmp/subagents/pg_outbox*.jsonl" -exec wc -l {} + | tail -1
-   3505 total
+   3505 total     # 3,509 when re-run minutes later — the backlog GROWS while unflushed
 ```
 
 Three successive counts of the same population — 1,465 → 3,487 → 3,505 — each one a different bound
@@ -275,10 +297,11 @@ An earlier draft ordered this step "before the ranking regen". Enumerated, the f
 `_step` labels is six:
 
 ```
-$ grep -n '_step "' scripts/kilo-benchmarks/daily_refresh.sh
+$ grep -n '_step "' scripts/kilo-benchmarks/daily_refresh.sh   # 7 hits; :410 is a COMMENT, so 6 real steps
 143: check_daily_refresh_freshness   151: external_services_chain
 244: deliver_to_fabrik               252: generate_capability_index
 271: generate_kilo_agents            420: sync_enforcement_to_projects
+(410: inside a comment block, not a call site)
 ```
 
 `rank_task_subagents` appears exactly once in 493 lines — **inside a comment** (`:349`). So the ranking
@@ -403,7 +426,8 @@ The two populations were never distinguished. Selection is by `(model, ts::date)
 enumerated set — never by a text match that cannot exist.
 
 **(c) The post-apply gate could never return 0.** It asserted no `status='error'` rows before the
-cut-off; there are **135**, at most 90 of them cap rows. The gate asserts the 90 named rows flipped and
+cut-off; against the CORRECTED 2026-07-19 cut-off there are **131** (135 against the wrong 07-21 one —
+the figure moved when the date was fixed, which is why both are stated), at most 90 of them cap rows. The gate asserts the 90 named rows flipped and
 that the three models recompute above 0% success — never a global zero.
 
 Also: `z-ai/glm-5` carries a `status='error'` row on **2026-07-07**, so "every error for all three is
@@ -729,13 +753,23 @@ $ psql postgresql:///fabrik_analytics -c "SELECT project, count(*) FROM subagent
 
 - **Every phase has a runnable gate**, and none of them is a `fabrik …` shell-out (hub-side CLI; these all run from the hub anyway, but the gates are inspection- or pytest-based regardless).
 - **Blast radius is stated per phase**, and the two phases that touch the 48-copy vendored surface (D, F) are last, not first. Phases A, C and E were deliberately re-scoped to avoid it — C in particular shrank from a fleet-wide status-semantics change to a hub-local data migration once the cap's removal date was read rather than assumed.
-- **One blocking unknown is named and gated** (postgres-main), rather than deferred into execution as an `[OPEN]` residual. Phase B cannot proceed past B1 without it.
+- **The blocking unknown was RESOLVED inside this review, not carried.** postgres-main was named and
+  gated rather than deferred as an `[OPEN]` residual — and then measured (`0|0|||0`, the table is
+  empty), which collapsed Phase B to a recording step and, in the process, invalidated a *correction*
+  the author had already issued. No residual remains: every open item is RESOLVED or SELF-SERVICE with
+  the concrete check written into the phase.
 - **A denominator error was disclosed, then the disclosure ITSELF proved wrong, and both are recorded.**
   The `$37.04 / 4,821 runs` figures were first stated as totals, then re-disclosed as "the dev-time half"
   when the postgres-main sink was found — and measurement then showed that sink EMPTY, making the
   original figures correct after all. Over-correcting a denominator is the same defect as under-counting
   one; the fix for both is to measure, not to hedge.
-- **The `max_price` finding reversed on inspection.** The first reading — "246 errors poisoning the rankings, change the status semantics" — was wrong in emphasis: 240 predate a fix already shipped on 2026-07-21. An error *rate* was again nearly used as a disposition; the error *text* and its date settled it. Three models move from "bad" to "unmeasured".
+- **The `max_price` finding reversed TWICE, and the second reversal is the instructive one.** First
+  reading: "246 errors poisoning the rankings, change the status semantics fleet-wide" — wrong in
+  emphasis, because 240 predate a fix already shipped. Second reading: that fix shipped **2026-07-19**,
+  not 07-21 — the earlier date came from `git log -S` matching the commit that added a *phrase* rather
+  than the one that removed the *code*. So an error *rate* was nearly used as a disposition, and then a
+  commit *message* was used as a diff. Both are the same failure wearing different clothes: trusting a
+  proxy that sits one hop from the thing being claimed. Three models move from "bad" to "unscored".
 - **The author-blind pass found what the author could not, and that is the finding.** An independent
   Opus reviewer returned 15 defects against a plan its author had already taken through four passes.
   Five were severe and none were reachable by re-reading: **A2 ordered a step against a ranking step
