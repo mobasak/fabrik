@@ -40,7 +40,7 @@ CLEANED_PACKS = {
     "/opt/fabrik/.windsurf/rules/core/20-typescript.md": 4,
     "/opt/fabrik/.windsurf/rules/core/25-data-postgres.md": 2,
     "/opt/fabrik/.windsurf/rules/core/30-ops.md": 10,
-    "/opt/fabrik/.windsurf/rules/core/42-docusaurus.md": 4,
+    "/opt/fabrik/.windsurf/rules/core/42-docusaurus.md": 9,
 }
 
 

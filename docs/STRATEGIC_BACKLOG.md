@@ -212,35 +212,39 @@ rather than smuggled into a command-corpus commit. Disposition: ROUTED, not defe
 
 ## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
-**DETECTOR GAP — `_LOOSE` is blind to semver-RANGE literals (measured 2026-09-01, file-14 re-audit).**
-`rules_render_versions.py::_LOOSE` catches `Node 24` / `Debian 13` but NOT `>=3`, `^2||^3`, `~1.2`,
-or `v3`. So every "zero unmarked literals" verdict in this pass is **detector-bounded**, not a proof
-the file is literal-free. Measured across the 56-file corpus:
+**DETECTOR GAP — `_LOOSE` misses several literal shapes (re-measured 2026-09-02; the first version
+of this entry was WRONG and is corrected below).**
 
-| shape | hits | judgement |
-|---|---:|---|
-| `>=N` | 22 | high signal — dependency ranges in prose, will rot |
-| `^N` | 2 | high signal |
-| `~N.N` | 1 | high signal |
-| `vN` | 59 | **MIXED** — real (`Recraft v4.1`, `XTTS-v2`, `@sentry/browser (v10.65.0)`) vs legitimate (`v1 = one workflow`, API `/v1/` paths) |
-| bare semver `x.y.z` | 10 | high signal — e.g. `55-observability.md:280` carries `2.18.0` |
-| wildcard `NN.x` | 2 | high signal |
+`rules_render_versions.py::_LOOSE` catches `Node 24` / `Debian 13` but not everything. Denominator:
+**56 rule files** (`find .windsurf/rules -name '*.md' | wc -l`). Spanned lines excluded.
 
-⚠️ **This table was itself incomplete on first writing** — a gap analysis with a gap is the same
-defect one level up. The first version listed only the range shapes; probing a wider set found
-`_LOOSE` ALSO misses bare semver (`1.2.3`, the commonest shape of all), no-space name-versions
-(`Python3.12`, `node20`), `NN.x` wildcards and reversed `LTS NN`. Correctly NOT flagged, and worth
-recording so a future widening does not break them: standard identifiers — `TLS 1.3`, `ES2022`,
-`HTTP/2`, `RFC 9309` — which are names, not versions.
+| shape | hits | pattern (the instrument) | verdict |
+|---|---:|---|---|
+| tool-name outside the alternation | 6 | `\b(React\|Electron\|Vite\|Next\.js\|…)\s+\d+\b` | **REAL** — `Electron 30`×4, `Next.js 14`, `React 19`. The exact class `_LOOSE` was built for; only the name list is short |
+| bare package pin `x.y.z` | 10 | `(?<![\w.:/-])\d+\.\d+\.\d+(?![\w.])` | **MOSTLY REAL** — `sentry-sdk[fastapi]>=2.18.0`, `1.4.11`; 2 are dates (`23.05.2026`) |
+| bare Debian **codename** | 7 | `\b(trixie\|bookworm\|bullseye)\b` | **REAL, and the worst** — see below |
+| `>=N` | 20 | `>=\s?\d+` | **NOISE** — `CHECK (balance >= 0)`, `>= 99.5%` crash-free, `>= 500` status codes. ~1 of 20 is a version |
+| `^N` / `~N` | 0 / 1 | `\^\d+` / `~\d+\.\d+` | **EMPTY** post-fix; the one `~1.05x` is a throughput ratio |
+| `vN` | see note | `\bv\d` → 111 occurrences / 25 files | **MIXED** — `Recraft v4.1` real; `v1 = one workflow`, `/v1/` paths not |
 
-25 of 56 files affected. **Deliberately NOT widened in this turn** — doing so reds 25 packs at once,
-which is exactly the "solo flip that sets packs against each other" the pass bar forbids; and a
-blanket `vN` rule would be wallpaper per FIX-directive verb 5. Shape of the fix when taken
-deliberately: widen for `>=N`/`^N`/`~N` only, land the 25 fixes as their owning packs come up, and
-leave `vN` to human judgement. File 14's own four instances (all introduced by me this session) were
-fixed at the source — the exact ranges now live in `CLAIMS.yaml` where they are dated and re-verified.
+⚠️ **The first version of this entry claimed `>=N`/`^N`/`~N` were "high signal — dependency ranges"
+and proposed widening for them. That is backwards**: after file 14's fix the corpus holds ~zero true
+positives in those shapes, and widening would red ~10 packs entirely on thresholds and ratios — the
+wallpaper FIX-directive verb 5 forbids. It also quoted a `vN` count of 59 with no pattern recorded;
+`\bv\d` yields 111. A count without its instrument, in the ledger whose governance anchor is
+denominator honesty.
 
+⚠️ **The codename shape is the one with NO detector at all, and it silently defeats the span test.**
+`nginx:mainline-trixie` contains no digit, so `_LOOSE` cannot see it: unwrap a `debian_codename`
+span and nothing fires. That is why the pinned span COUNT matters (file 14 was pinned at 4 against 9
+actual — five spans removable with zero signal until corrected). The 7 live hits are `bookworm` in
+`75-workers-jobs` (×3) and `76-gpu-workers` — the D-064 debt already deferred to those packs' turns.
 
+**Deliberate fix, when taken:** extend the name alternation (cheap, high signal), add a codename
+watch keyed off `versions.yaml::debian_codename`, and leave `>=`/`^`/`~`/`vN` alone. Not done here:
+it touches a fleet-synced detector and belongs in one measured change, not mid-pass.
+
+## [infra] Rules currency pass (operator-dispatched 2026-09-01, file-by-file) — cross-pack class findings
 
 **SEEDED FOR FILE 13 — `core/58-resilience.md` says "Never retry 4xx" and never mentions 429.**
 Measured 2026-09-01: `grep -c 429 .windsurf/rules/core/58-resilience.md` → **0**;

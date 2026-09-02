@@ -177,11 +177,6 @@ to forget precisely because it feels like "just docs".
 - Any scheduled content job (link-check, rebuild-on-source-change) belongs in the jobs/intervals
   inventory in `docs/RESILIENCE.md`, not only in CI config.
 
-**Spoke deploys are fine** — verified 2026-09-01 that `vps2`/`vps3` Traefik both publish the
-`gzip@docker` middleware the orchestrator emits on every service, and `bootstrap-vps.sh` installs it
-for future spokes. (An earlier fleet-inventory row described a spoke 404 from a missing carrier as
-open; that remediation shipped.)
-
 ## Banned Patterns
 
 | Pattern | Use Instead |
@@ -213,6 +208,8 @@ open; that remediation shipped.)
 - [ ] Dockerfile uses two-stage build: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` → `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — a STATIC serve stage, never a Node runtime.
 - [ ] Nginx serve stage has `curl` installed (stock image doesn't include it — HEALTHCHECK fails without it).
 - [ ] Dockerfile has HEALTHCHECK instruction.
+- [ ] `docs/DEPLOYMENT.md` + `docs/OPERATIONS.md` name this site as a deployed service (D-065) — the
+      hub's deploy AI reads them to learn what runs on the VPS.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
 - [ ] Nginx config includes `try_files $uri $uri/ /index.html;` for SPA routing.
 - [ ] compose.yaml has `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels, `fabrik` network, no `ports:`.

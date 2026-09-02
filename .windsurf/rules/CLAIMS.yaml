@@ -613,3 +613,11 @@ claims:
     verify: "READ THE CLASS, not the comment: sed -n 428,430p src/fabrik/spec_loader.py (Field default) AND grep -n 'get(\"enabled\"' src/fabrik/orchestrator/infrastructure.py (raw-dict fallback) — do the two paths still disagree? Plus grep -rn 'def _register_watchdog' src/ (expect nothing)"
     window_days: 180
     last_verified: 2026-09-01
+
+  - id: scalar-docusaurus-client-side-render
+    pack: core/42-docusaurus.md
+    claim: "@scalar/docusaurus renders an OpenAPI spec client-side at runtime (no build-time .mdx generation), which is why the pack prefers it over docusaurus-plugin-openapi-docs / Redocusaurus — those materialise many physical .mdx files at build, inflating commits and build duration"
+    kind: practice
+    verify: "check npm @scalar/docusaurus is alive + its docs: does it still render dynamically rather than generating files? And do the banned plugins still generate per-endpoint .mdx?"
+    window_days: 180
+    last_verified: 2026-09-02
