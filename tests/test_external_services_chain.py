@@ -349,6 +349,9 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         assert f"`{k}`" in doc, k
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
     assert "2 = registry_sync" in text, "the alert body must decode exit 2 too (BS11)"
+    assert "1 = the scan REFUSED the catalog" in text, (
+        "exit 1 is every catalog refusal — the page must say so (BX5)"
+    )
     for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (
@@ -375,6 +378,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         f'echo "$*" >> "{log}"\n'
         'case "$*" in\n'
         '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
+        '  *classify_services.py*) [ "${FAIL_CLASSIFY:-0}" = 1 ] && exit 1 ;;\n'
         '  *gen_dashboard.py*) echo ok > "${@: -1}" ;;\n'
         "esac\n"
         "exit 0\n",
@@ -418,3 +422,14 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "registry_sync.py",
         "gen_dashboard.py",
     ]
+    # 3. the PAID step fails: alerted, exit 1 — but the data steps run and the heartbeat is
+    # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
+    log.write_text("", encoding="utf-8")
+    dash.unlink()
+    r = subprocess.run(
+        ["bash", str(CHAIN)], env={**env, "FAIL_CLASSIFY": "1"}, capture_output=True, text=True
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
+    assert dash.exists() and "registry_sync.py" in calls and calls.count("gather_envs.py") == 2
+    assert calls.count("send_alert(") == 1 and "step classify_services FAILED (exit 1)" in calls

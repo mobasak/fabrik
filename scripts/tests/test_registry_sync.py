@@ -937,11 +937,11 @@ def test_every_fixture_provider_is_a_test_name():
         m.group(1)
         for ln in src.splitlines()
         if "re.finditer" not in ln
-        and not ln.lstrip().startswith("#")  # not this line, not a comment
         for m in re.finditer(r"#svc name=(\S*)", ln)
     ]
     assert len(names) >= 20, len(names)
-    # a name built by concatenation (`"#svc name=" + x`) captures `"` — flagged, never skipped (BV2)
+    # a fixture built by concatenation (a quoted literal ending right after the field name, then
+    # `+ vendor`) captures the closing quote — flagged, never skipped (BV2)
     bad = [n for n in names if not (n.startswith(TEST_PREFIX) or n.startswith("{TEST_PROVIDER"))]
     assert bad == [], bad
 

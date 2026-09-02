@@ -208,6 +208,12 @@ def code_only_provider(info: dict) -> bool:
     return not names and bool(info.get("names"))
 
 
+def _curated_tokens(meta: dict) -> set[str]:
+    """An entry's curated `match` prefixes as tokens (`HF_` → `HF`) — the unit the routers compare."""
+    raw = meta.get("match") or []
+    return {str(x).upper().rstrip("_") for x in (raw if isinstance(raw, list) else [raw]) if str(x)}
+
+
 def tombstone_entry(prov: str, code_only: bool = False) -> dict:
     """A catalog stub for a provider the WEB genuinely could not identify.
 
@@ -453,15 +459,22 @@ def main() -> int:
                     match, list
                 ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
                     match = entry["merged_match"] = [] if match is None else [str(match)]
-                raw_c = entry.get("match") or []
-                curated = {
-                    str(x).upper().rstrip("_")
-                    for x in (raw_c if isinstance(raw_c, list) else [raw_c])
+                token = prov.upper().rstrip("_")
+                curated_anywhere = {
+                    t
+                    for other, meta in catalog.items()
+                    if other != prov
+                    for t in _curated_tokens(meta)
                 }
-                if prov.upper() not in match and prov.upper().rstrip("_") not in curated:
+                if prov.upper() not in match and token not in curated_anywhere:
                     # a merged copy of a CURATED token (`HF` under curated `HF_`) adds no routing and
-                    # would disown the vendor's own keys through registry_sync's merged check (BW4)
+                    # would disown the vendor's own keys through registry_sync's merged check (BW4);
+                    # a token ANOTHER provider curates would tie with it and fail every scan (BX8)
                     match.append(prov.upper())
+            if prov in catalog:
+                # a TOMBSTONE re-tried into another vendor: its own `match: [PROV]` left behind ties
+                # with the merged copy and fails every scan from tomorrow, permanently (BX8)
+                catalog.pop(prov)
             merged_into[prov] = target
             identified.pop(prov)
     for prov, v in identified.items():
@@ -502,13 +515,10 @@ def main() -> int:
             ):  # a merged prefix survives a rewrite/re-stub (BK2)
                 if keep in catalog[prov]:
                     entry[keep] = catalog[prov][keep]
-            if catalog[prov].get("category", "?") not in ("?", "unidentified"):
-                # a CURATED entry re-classified (a block that carried the vendor's name, BW1): the
-                # operator's fields stand, the model fills only what was unknown
-                entry = {
-                    **entry,
-                    **{k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])},
-                }
+        # the model's answer WINS the other fields: on the daily path a curated name never reaches
+        # here (a refused host is filed under its domain, BW1), so the only caller is the operator's
+        # own `--only <vendor>` refresh — a "keep" here made that a paid no-op that reported
+        # `Wrote 1 identified providers` while the catalog stayed byte-identical (BX1)
         catalog[prov] = entry
     if (
         args.only

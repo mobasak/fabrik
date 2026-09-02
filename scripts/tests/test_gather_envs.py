@@ -2224,10 +2224,13 @@ def test_a_merged_copy_of_a_curated_token_is_dropped_on_both_sides(tmp_path, mon
     assert "hf" not in out and out["huggingface"].get("merged_match", []) == [], out["huggingface"]
 
 
-def test_a_curated_entry_reclassified_keeps_the_operators_fields(tmp_path, monkeypatch):
-    """A block that carries a CURATED vendor's name reaches the classifier (a `--only` run, or the
-    pre-BW1 label collision): the model's answer fills only what was unknown — `status=retired`,
-    the capability and the url stand (BW1)."""
+def test_an_operators_only_run_refreshes_a_curated_entry_and_keeps_its_routing(
+    tmp_path, monkeypatch
+):
+    """`--only <curated vendor>` is the operator's deliberate refresh: the model's answer WINS the
+    metadata (a "keep" made it a paid no-op that reported success, BX1) while `match`/`hosts`
+    (the routing) survive as before (AF8). The daily path never sends a curated name here — a
+    refused host is filed under its domain (BW1)."""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
         '#svc name=kilo category=? cost=? capability="?" url=https://kilo.ai status=? used_by=web\n'
@@ -2259,7 +2262,12 @@ def test_a_curated_entry_reclassified_keeps_the_operators_fields(tmp_path, monke
     cat.write_text(json.dumps({"kilo": curated}), encoding="utf-8")
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
-    assert {k: out["kilo"][k] for k in curated} == curated, out["kilo"]
+    assert out["kilo"]["match"] == ["KILO_"], out["kilo"]  # routing kept
+    assert (out["kilo"]["status"], out["kilo"]["capability"], out["kilo"]["category"]) == (
+        "active",
+        "a model's guess",
+        "ai-llm",
+    ), out["kilo"]  # the refresh landed
 
 
 def test_an_emptied_catalog_is_refused_when_the_last_consolidation_knew_vendors(
@@ -2294,3 +2302,70 @@ def test_an_emptied_catalog_is_refused_when_the_last_consolidation_knew_vendors(
     )
     ge.refuse_emptied_catalog()  # nothing catalogued before: a bootstrap, not a loss
     assert ge.main() == 0
+
+
+def test_a_tombstone_retried_into_another_vendor_leaves_no_tie_behind(tmp_path, monkeypatch):
+    """A tombstoned `gemini` (its own `match: ["GEMINI"]`) re-tried and answered `name: google-ai`:
+    the merge writes `GEMINI` into google-ai's `merged_match` — leaving the tombstone behind made a
+    cross-provider tie that fails EVERY later scan, permanently (BX8, the cascade BW5's fail-closed
+    posture created). The source entry is removed; the catalog loads clean."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=gemini category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "GEMINI_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "google-ai",
+                    "category": "ai-llm",
+                    "cost": "freemium",
+                    "capability": "gemini models",
+                    "url": "https://ai.google.dev",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply", "--only", "gemini"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "google-ai": {
+                    "category": "ai-llm",
+                    "cost": "freemium",
+                    "capability": "gemini models",
+                    "url": "https://ai.google.dev",
+                    "status": "active",
+                    "match": ["GOOGLE_AI"],
+                },
+                "gemini": {
+                    "category": "unidentified",
+                    "status": "unidentified",
+                    "match": ["GEMINI"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "gemini" not in out and out["google-ai"]["merged_match"] == ["GEMINI"], out
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    _, matchers = ge.load_catalog()  # no tie → no CatalogError
+    assert ge.match_provider("GEMINI_API_KEY", matchers) == "google-ai"
+    # and a token ANOTHER provider curates is never minted as a merged copy (it would tie)
+    cat.write_text(
+        json.dumps(
+            {
+                "google-ai": {"category": "ai-llm", "status": "active", "match": ["GOOGLE_AI"]},
+                "vertex": {"category": "ai-llm", "status": "active", "match": ["GEMINI_"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["google-ai"].get("merged_match", []) == [] and out["vertex"]["match"] == ["GEMINI_"]
+    ge.load_catalog()
