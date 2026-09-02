@@ -5868,3 +5868,22 @@ row designed with a silent/no-op success path (for incremental rollout, backward
 compat, etc.) must report its examined-count/denominator alongside the verdict, or the
 silence design and the "reports green when it can't ask" defect become the same bug from
 the outside.
+
+## Backticks in a `git commit -m "…"` are COMMAND SUBSTITUTION (2026-09-02)
+
+**What happened.** A commit message written as `git commit -m "…CMD is \`uvicorn {pkg}.main:app\`…"`
+had every backticked span **executed by bash** and replaced with its (empty) output. `uvicorn` and
+`python worker/main.py` genuinely ran; the pushed message reads *"its server CMD is  — byte-identical"*.
+Commit `205c2707`. The code was correct and the CHANGELOG entry survived intact **because it was written
+through Python rather than the shell**.
+
+**Why it is not recoverable in place.** `--amend` is a HARD STOP on this shared tree and the commit was
+already pushed. A mangled message is corrected by a FOLLOW-UP commit, never by rewriting history.
+
+**The rule.** Any commit message containing backticks, `$`, or `!` goes through a **file** —
+`git commit -F <file>` — never `-m "…"`. Most of this session's commits already did; this one did not,
+and it is the only one that broke.
+
+**Why it matters beyond tidiness.** The substituted commands *ran against the repo*. A message quoting
+`\`rm -rf …\`` from a finding would have executed it. Treat a commit message as untrusted shell input,
+because with `-m` and double quotes, that is exactly what it is.
