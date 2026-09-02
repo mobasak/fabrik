@@ -831,3 +831,83 @@ claims:
     verify: "check npm @scalar/docusaurus is alive + its docs: does it still render dynamically rather than generating files? And do the banned plugins still generate per-endpoint .mdx?"
     window_days: 180
     last_verified: 2026-09-02
+
+  - id: posthog-ingest-never-429s-drops-over-quota
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "PostHog: public ingest has no request rate limit and never 429s — over a billing limit it returns 200 with quota_limited[] and DROPS the data; private endpoints 240/min + 1,200/h per team (shared bucket across personal keys) with 429 + Retry-After; dedup is eventual on event uuid"
+    kind: standard
+    verify: "https://posthog.com/docs/api + /docs/billing/limits-alerts + /docs/data/events"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: axiom-three-limit-headers
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Axiom: every response carries X-RateLimit-*, X-QueryLimit-* (GB·ms) and X-IngestLimit-* (bytes/month); 429 {message: rate limit exceeded}; ingest is per-batch partial-accept (inspect `failed`, not the status); Personal plan 500 GB/mo hard max, 30-day retention"
+    kind: standard
+    verify: "https://axiom.co/docs/restapi/api-limits + /docs/reference/limits + /docs/restapi/endpoints/ingestToDataset"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: slack-1rps-and-events-retry-3x
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Slack: posting (chat.postMessage / incoming webhook) is 1 per second per channel with short bursts; 429 + Retry-After on every HTTP API incl. webhooks; Events API must be 2xx-acked within 3 s, retried 3x (immediate / 1 min / 5 min) with x-slack-retry-num, >95% failures in 60 min disables the subscription; signature v0=HMAC-SHA256 over v0:ts:body with a 5-minute skew window"
+    kind: standard
+    verify: "https://docs.slack.dev/apis/web-api/rate-limits + /apis/events-api + /authentication/verifying-requests-from-slack"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: vercel-per-endpoint-429-with-limit-block
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Vercel: rate limits are per endpoint; 429 body error.code=rate_limited with limit{remaining,reset,resetMs,total}; Hobby 100 deployments/day, deploy hooks 60/h per project, no overage on Hobby (feature pauses up to 30 days); webhooks x-vercel-signature = HMAC-SHA1 of raw body, retried with backoff up to 24 h, 2XX within 30 s"
+    kind: standard
+    verify: "https://vercel.com/docs/rest-api/errors + /docs/limits + /docs/webhooks"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: cerebras-prepaid-hard-stop-and-versioned-header
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Cerebras: prepaid credits with a hard STOP at zero (no overage); org-level dual token buckets (uncached TPM + total TPM), 429 names the exhausted bucket; keys do not expire; breaking API changes ship as versions selected by X-Cerebras-Version-Patch with ≥6 months notice; per-model pricing/limits/deprecated readable unauthenticated at GET https://api.cerebras.ai/public/v1/models (docs page and endpoint DISAGREED on gemma-4-31b pricing 2026-09-02 — read the endpoint)"
+    kind: standard
+    verify: "https://inference-docs.cerebras.ai/support/rate-limits + /api-reference/versions + https://api.cerebras.ai/public/v1/models"
+    window_days: 120
+    last_verified: 2026-09-02
+
+  - id: linkedin-scrape-tos-prohibited-999
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "LinkedIn: robots.txt header prohibits automated access without express permission; User Agreement §8.2 bans scraping/bots; hiQ v. LinkedIn ended 2022-12-08 in a consent judgment + permanent injunction against hiQ (contract claim won, not CFAA) — scraping is ToS-enforced; bot detection answers HTTP 999 / authwall with no Retry-After; official API = daily app+member quotas, 60-day access tokens, Linkedin-Version YYYYMM header with ≥1-year support"
+    kind: legal
+    verify: "https://www.linkedin.com/robots.txt + https://www.linkedin.com/legal/user-agreement + https://learn.microsoft.com/en-us/linkedin/shared/api-guide/concepts/rate-limits + /linkedin/marketing/versioning"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: bls-api-v2-500-per-day-200-on-exhaustion
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "BLS Public Data API: v2 (registered) 500 queries/day, 50 series and 20 years per query; v1 25/day, 25 series, 10 years; 50 requests/10 s rate cap → 429; daily exhaustion is a HTTP 200 with status REQUEST_NOT_PROCESSED (enforce the budget client-side); registration keys must be renewed at least yearly; one-day lag between publication and API availability"
+    kind: standard
+    verify: "https://www.bls.gov/developers/api_faqs.htm + /developers/api_signature_v2.htm + /bls/api_features.htm (WebFetch is 403'd by the federal WAF — use exa or curl)"
+    window_days: 365
+    last_verified: 2026-09-02
+
+  - id: gmail-api-quota-units-and-refresh-token-death
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Gmail API: 1,200,000 quota units/min per project, 6,000/min per user, messages.send = 100 units; 80M units/day billing threshold from 2026 (overage to be charged, ≥90 days notice); a per-user CONCURRENT request cap exists but is unpublished; 429 'User-rate limit exceeded (Mail sending)' can lag minutes and a 200 does not prove delivery; refresh tokens die on 6-month idle, password change with Gmail scopes, >100 tokens per client, or 7 days for Testing-status apps; watch() expires ≤7 days (renew daily), Pub/Sub is at-least-once unordered"
+    kind: standard
+    verify: "https://developers.google.com/workspace/gmail/api/reference/quota + /guides/handle-errors + /guides/push + https://developers.google.com/identity/protocols/oauth2"
+    window_days: 120
+    last_verified: 2026-09-02
+
+  - id: ses-throttle-drops-and-sns-at-least-once
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Amazon SES: sandbox 200 recipients/24 h + 1/s per Region; over quota SES DROPS the message (ThrottlingException / SMTP 454, retry after up to 10 min); no idempotency key on SendEmail; feedback via SNS is at-least-once and unordered (dedup on feedbackId), HTTP retries default 3 @ 20 s within a 3,600 s cap; SMTP password is derived from the IAM secret so rotating the IAM key rotates SMTP"
+    kind: standard
+    verify: "https://docs.aws.amazon.com/ses/latest/dg/quotas.html + /dg/manage-sending-quotas-errors.html + /dg/smtp-credentials.html + https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html"
+    window_days: 180
+    last_verified: 2026-09-02
+
+  - id: msgraph-outlook-per-mailbox-limits-and-webhook-lifecycle
+    pack: docs/reference/apis/EXTERNAL_SYSTEMS.md
+    claim: "Microsoft Graph (Outlook): 10,000 requests per 10 min and 4 concurrent per app+mailbox, 150 MB upload per 5 min; global 130,000 req/10 s per app; 429 + Retry-After (batched sub-requests 429 individually, SDKs do not auto-retry them); client secrets ≤24 months (certs recommended), app-only flow returns no refresh token; GA APIs get ≥24 months deprecation notice; change-notification subscriptions on mail expire <7 days (rich: 1,440 min), 2xx within 3 s, retried up to 4 h, `missed`/`subscriptionRemoved` lifecycle events → delta resync"
+    kind: standard
+    verify: "https://learn.microsoft.com/en-us/graph/throttling-limits + /graph/throttling + /graph/change-notifications-delivery-webhooks + /entra/identity-platform/how-to-add-credentials"
+    window_days: 180
+    last_verified: 2026-09-02
