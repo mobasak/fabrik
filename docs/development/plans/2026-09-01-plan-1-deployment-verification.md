@@ -1,10 +1,12 @@
 # Plan 1 — Deployment Verification Contract (hub build)
 
-Status: **DRAFT** (was CONVERGED; the 2026-09-02 fabrik-lib binding edits Phase A's verdict algebra and
-retires the fallback, and the spec it builds on returned to DRAFT under its own Amendment 2 — a plan cannot
-outrank its spec's status)
+Status: **DRAFT** — the SPEC is now CONVERGED again (passes H1–H4, 2026-09-02), which unblocks this plan;
+but the plan itself took two post-flip edits (Phase A steps 5–6 for the fabrik-lib binding, and the Phase-A
+gate rewrite after spec-review pass H1 measured it as a check that could not fail), so it owes
+`/fabrik-plan-review` before execution. A plan cannot outrank its spec's status, and it cannot self-grade
+its own amendments either.
 Date: 2026-09-01 · amended 2026-09-02
-Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (**DRAFT** — Amendment 2)
+Spec: `docs/superpowers/specs/2026-09-01-deployment-verification-contract-design.md` (**CONVERGED**, H4 quiet at md5 `d06d1150`)
 Scope: **`/opt/fabrik` only** — 5 file groups. Routed feature-scale (spec defect 15: the epic verdict was wrong).
 
 ## Why this plan exists
@@ -72,7 +74,17 @@ absent from the current tree). `--check` is always safe.
    is silently fail-open on liveness — the fail-open this whole plan is a reaction to.
 
 **Gate:** `python scripts/final_gate.py --json` → success · `python commands/assemble_commands.py --check`
-(temp-dir render, safe) · `grep -c _REGISTRAR_ORDER commands/_sources/fabrik-deploy-verify.md` ≥ 1.
+(temp-dir render, safe) · `grep -c _REGISTRAR_ORDER commands/_sources/fabrik-deploy-verify.md` **≥ 2**
+· `grep -c 'read .*_REGISTRAR_ORDER.* live\|derive .* from .*_REGISTRAR_ORDER' commands/_sources/fabrik-deploy-verify.md` ≥ 1.
+
+⚠️ **The `≥ 1` this replaces was a CHECK THAT CANNOT FAIL — it already passed before Phase A ran**
+(spec-review pass H1). Measured today: `grep -c _REGISTRAR_ORDER commands/_sources/fabrik-deploy-verify.md`
+returns **1**, an incidental mention at `commands/_sources/fabrik-deploy-verify.md:137` about
+`RESILIENCE_TEMPLATE.md` §11 and the watchdog — nothing to do with deriving Layer 3. A gate satisfied by
+the pre-existing state proves the work was done when it was not, which is precisely the *present-but-inert*
+failure mode this plan exists to catch, applied to the plan's own gate. The spec's own rule is explicit:
+**"A check that cannot fail is a defect."** The replacement asserts both a count increase and the presence
+of the run-time-derivation instruction that is the actual deliverable.
 
 **Evidence owed:** the 10 registrar names re-derived from `infrastructure.py` in-run; a `--check` render
 showing no pruning.

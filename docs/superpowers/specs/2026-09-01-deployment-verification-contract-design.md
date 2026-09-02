@@ -1,10 +1,10 @@
 # Deployment Verification Contract — design spec
 
-Status: **DRAFT** (was CONVERGED after Amendment 1, passes A1–A2 md5-stable; **Amendment 2 (2026-09-02)
-edits § Verdict algebra post-flip, so the convergence is void** — same rule Amendment 1 applied to itself)
-Date: 2026-09-01 · amended 2026-09-02
+Status: **CONVERGED** (2026-09-02 · `/fabrik-spec-review` RE-RUN over Amendment 2 — passes H1–H4, 16
+passes total across five review runs; H4 quiet at content md5 `d06d1150`, zero edits, zero candidates)
+Date: 2026-09-01 · amended + re-converged 2026-09-02
 Author: fleet (hub)
-Stage: 1-design · successor: `/fabrik-spec-review` over Amendment 2, then operator approval
+Stage: 1-design · successor: **operator approval** (the design gate), then `/fabrik-plan-after-chat`
 
 ## The problem, in the operator's words
 
@@ -35,7 +35,7 @@ anywhere declared what the deployed system was supposed to contain.
 | I9 | *"for every type of project take your findings, take tryton findings DO NOT SKIP A SINGLE thing"* | **IN** | § Per-type packs — all 13 `SCAFFOLD_TYPES` enumerated, none omitted |
 | I10 | *"utilize all vps infra where applicable (glitchtip, backups, grafana, etc all)"* | **IN** | § Layer 3 Infra utilization — every `shape:` registrar proven *working*, not merely present |
 | I11 | *"up and running as like in the wsl, all services are up, db current, external services there"* | **IN** | § Layer 1 Identity (db current) · § Layer 4 Behaviour (external services) |
-| I12 | *"must follow same structure as like /fabrik-plan-after-chat"* | **IN** | § Build route — spec → review → epic, phased with gates |
+| I12 | *"must follow same structure as like /fabrik-plan-after-chat"* | **IN** | § Next — spec → spec-review → plan → plan-review → execute, phased with gates (the *structure* the operator named; the epic chain was overturned by G1) |
 | I13 | *"i want my projects 100% tested after deployment"* | **IN** | § Verdict algebra — "100%" made falsifiable via declared denominators |
 | I14 | My measurement: `/fabrik-deploy-verify` has **zero** identity checks (`rev-parse` 0, `alembic` 0, `digest` 0) | **IN** | § Layer 1 — the cheapest, most universal missing layer |
 | I15 | tryton-crm's three failure modes: *present-but-inert · different-by-config · reachable-but-wrong* | **IN** | § The three failure modes — adopted as the organising axis, replacing my layer-first framing |
@@ -48,7 +48,7 @@ anywhere declared what the deployed system was supposed to contain.
 | I22 | tryton-crm's `RESILIENCE.md` converge pass | **OUT-OF-SCOPE** | Their repo's doc debt, not this contract's. **Destination:** named in their reply thread; belongs to their `/fabrik-doc-converge` |
 | I23 | *"utilize all vps infra … grafana"* — **Grafana had NO row in Layer 3** (spec-review pass 1) | **IN** | § Layer 3 #17 — added; the registrar is fire-and-forget and logged `Grafana annotation failed (non-fatal)` during RUN 4 |
 | I25 | *"i think there must be a new command and the developer ai must first create a full list of checklist with command for deployment verify"* | **IN** | § Amendment 1 — supersedes the DRAFT's Approach-A rejection |
-| I27 | *"every new scaffolded projects must have it too"* | **IN** | § Born compliant — `scaffold.py` seeds the artifacts; the epic's prerequisite ticket |
+| I27 | *"every new scaffolded projects must have it too"* | **IN** | § Born compliant — `scaffold.py` seeds the artifacts; the plan's prerequisite PHASE (was "the epic's prerequisite ticket" — stale after G1) |
 | I26 | *"and update its operations.md and deployment.md"* | **IN** | § Amendment 1 — the authoring command refreshes both, with the derive-from-code-not-prod hazard rule |
 | I24 | *"all services are up"* — nothing checked that EVERY compose service runs (spec-review pass 1) | **IN** | § Layer 3 #19 — added; tryton-crm is a 5-container stack and a dead companion passes every domain probe |
 
@@ -70,7 +70,11 @@ completeness is exactly the check-that-cannot-fail this spec warns about.
 
 ## Routing verdict (BLOCKING gate, stated either way)
 
-**This spec is feature-scale; the BUILD it implies is epic-scale.** Decomposed deliberately:
+**This spec is feature-scale, and so is the build.** ⚠️ **The next two bullets are the SUPERSEDED
+reasoning, kept visible; the verdict is the third bullet (G1).** They assert an epic-scale build, which
+G1 overturned — read them as the error, not the answer (spec-review pass H1 marked them: they had sat
+two lines above their own refutation, each stating the opposite of the other with nothing telling a
+reader which was current).
 
 - **HERE (feature-scale):** the *contract* — the failure-mode taxonomy, the ownership split, the
   declaration-source rules, the parity-script interface, and the verdict algebra. One artifact, one
@@ -98,8 +102,8 @@ completeness is exactly the check-that-cannot-fail this spec warns about.
   And "onboarding the 27 deployable repos" is **not hub work at all**: cross-repo commits are a HARD STOP, so I cannot
   dispatch into those repos even in principle. Each project's own agent runs the authoring command in
   its own repo, triggered by its own next deploy — **self-serve rollout, not a migration I execute.**
-  Once the scaffolder seeds new projects (§ Born compliant), the 37 are the only backlog and it drains
-  by ordinary use.
+  Once the scaffolder seeds new projects (§ Born compliant), **the 27 deployable repos** are the only
+  backlog and it drains by ordinary use.
 
   **A wide blast radius is not the same as a large build.** This spec changes what 43 repos *do*; it
   does so by editing four files.
@@ -236,8 +240,8 @@ indexes container-side and nothing lands in the app env.
 11. Gatus **green**, not merely registered
 12. Prometheus **actively scraping** (target `up 1`)
 13. GlitchTip receives a **deliberately-emitted** error
-14. **a backup TAKEN with a timestamp** — a plan configured is not a snapshot taken (I20)
-15. **restore rehearsed at least once**
+14. **`backrest` — a backup TAKEN with a timestamp** — a plan configured is not a snapshot taken (I20)
+15. **`backrest` — restore rehearsed at least once**
 16. TLS/cert config **persisted on disk and surviving a restart** — a DNS-01 resolver added at runtime
     renews nothing, and every tenant URL breaks in ~60 days with no warning (I20)
 17. **Grafana deploy annotation actually posted** — the registrar treats it as fire-and-forget
@@ -255,19 +259,47 @@ indexes container-side and nothing lands in the app env.
     **compose services ∪ registrar-injected sidecars**, derived from the compose *and* the `shape:`
     flags — and the count is stated. A verifier that reads only the compose would have declared this
     stack complete with its watchdog dead
+20. **`postgres` — the database the registrar provisioned is the one the app is connected to**, and it
+    holds the expected schema head. A DSN pointing at a *different* healthy database passes every
+    liveness probe ever written
+21. **`redis` — the assigned index is the one in use.** The registrar assigns an index precisely because
+    a shared `db0` is a key-collision risk; verifying "Redis is up" proves nothing about which index the
+    app writes to
+22. **`meilisearch` — the declared indexes exist and a query returns.** Never a `.env` read: the driver
+    provisions indexes container-side and nothing lands in the app env
+23. **`watchdog` — the sidecar container is running AND its DB URLs are injected** (`needs_database`
+    injects `WATCHDOG_DB_URL_RO` + `_RW`). Registrar-injected, so it appears in no compose file — the
+    exact shape row 19's denominator note describes
+
+⚠️ **Rows 20–23 close a gap this section had while claiming to have closed it** (spec-review pass H1).
+§ Layer 3 declares its denominator to be `_REGISTRAR_ORDER` — **ten** registrars — and then enumerated
+rows covering **six** (gatus · prometheus · glitchtip · backrest ×2 · grafana · authelia). `postgres`,
+`redis`, `meilisearch` and `watchdog` had no row. **`meilisearch` is the same registrar the ⚠️ note above
+names as the proof that hand-listing loses registrars** — the note diagnosed the defect and the rows were
+never added, so the omission it warns about was still live in the section warning about it. The rule
+("generate the rows from the list") remains the mechanism; these four exist so the *worked example*
+matches its own stated denominator, since a reader implements what is written, not what is intended.
 
 ### Layer 4 — Behaviour (per-type) · catches *reachable-but-wrong*
-18. **every *Shipped* `FEATURES.md` row** exercised, count stated — no sampling
-19. **one real write path**, created and read back, then removed
-20. **one deliberate failure** — bad token → 401, missing record → 404. The `/brand` 200-with-null-body
+24. **every *Shipped* `FEATURES.md` row** exercised, count stated — no sampling
+25. **one real write path**, created and read back, then removed
+26. **one deliberate failure** — bad token → 401, missing record → 404. The `/brand` 200-with-null-body
     class is invisible to positive tests only
-21. **the money path end-to-end** where one exists (quote → sequence format → PDF → email → delete the
+27. **the money path end-to-end** where one exists (quote → sequence format → PDF → email → delete the
     probe record) — one scratch record, deliberately **not** the full gauntlet, which would recreate the
     test debris we spent a day removing
-22. external dependencies probed **from inside the containers** with real calls, not port checks —
+28. external dependencies probed **from inside the containers** with real calls, not port checks —
     TLS-authenticated SMTP that accepts the connection and rejects the sender identity is a live failure
     mode already debugged once
-23. i18n/UI truth: translations **rendering**, not merely 8,289 rows existing — that precise defect shipped before
+29. i18n/UI truth: translations **rendering**, not merely 8,289 rows existing — that precise defect shipped before
+
+⚠️ **Layer 4 was numbered 18–23 and COLLIDED with Layer 3's 18–19** (spec-review pass H1) — `#18` named
+both *"Authelia challenge on admin routes"* and *"every Shipped FEATURES.md row"*, `#19` named both
+*"EVERY service is running"* and *"one real write path"*. So a cross-reference like *"Layer 4 #22"* was
+resolvable only by knowing which layer the author meant, and **the corpus held 25 checks while its highest
+number read 23** — a miscounted denominator inside the document whose central rule is denominator
+integrity, and the third such miscount this artifact has produced. The corpus is now **29 checks numbered
+1–29 with no reuse**: Layer 1 `1–4` · Layer 2 `5–10` · Layer 3 `11–23` · Layer 4 `24–29`.
 
 ### ⚠️ Honest bias assessment (spec-review pass C1 — operator: *"is your spec only validating tryton-crm?"*)
 
@@ -294,9 +326,9 @@ The per-type packs therefore each declare their own inventory kind; they do not 
 checklist. **That is what makes this a contract rather than a Tryton checklist.**
 
 ⚠️ **Named risk, not resolved here:** the packs for the four store types and the two static types are
-the LEAST grounded in this spec, because no such deploy was exercised this session. They are the epic's
-highest-uncertainty tickets and should be built against a real deploy of each, not from this document's
-extrapolation.
+the LEAST grounded in this spec, because no such deploy was exercised this session. They are the plan's
+highest-uncertainty PHASES and should be built against a real deploy of each, not from this document's
+extrapolation. *(Said "the epic's tickets" until spec-review pass H1 — stale vocabulary after G1.)*
 
 ### Per-type applicability (all 13 `SCAFFOLD_TYPES` — none omitted, I9)
 
@@ -326,6 +358,15 @@ falsifiable:
   a phantom mismatch that fails a healthy deploy. Consequence for the denominator rule above: a `None` row
   **counts in the denominator and not in the numerator** — it is an unexercised obligation, so a contract
   whose rows all return `None` reports `0 of N`, never `N of N`.
+  ⚠️ **`None` and `UNVERIFIABLE` are NOT synonyms, and the spec now has three words for "did not verify"
+  that a builder would otherwise conflate** (spec-review pass H1). They differ by WHEN they are decided,
+  and both land outside the numerator: **`UNVERIFIABLE (<why>)` is an AUTHORING-time declaration** — the
+  project states up front that it cannot yet assert this row, and the why is recorded; **`match: None` is
+  a RUN-time result** — the probe executed and compared nothing. **`not checked` is the verdict-algebra
+  bucket both of them report into**, and it stays distinct from `not obligated`, which is the only one of
+  the four that leaves the denominator. The distinction is operational, not academic: an `UNVERIFIABLE`
+  row is a known debt with an owner, while a `None` row is a probe that silently did nothing — the second
+  is a defect in the contract, the first is an honest gap in it.
 - **Every percentage carries its denominator.** "18 of 18 Shipped rows exercised" is a claim; "looks
   complete" is not. A zero without a denominator is indistinguishable from having looked nowhere.
 - ⚠️ **DENOMINATOR INTEGRITY — the clause that makes *"100% tested"* mean anything** (spec-review pass
@@ -366,9 +407,9 @@ falsifiable:
 
 | capability | verdict | basis |
 |---|---|---|
-| external-dependency probing (Layer 4 #22) | **VENDOR + ENHANCE** | `health-probe/` — *"generic Postgres/Redis/HTTP-auth probes + **injectable project probes**; uniform `{system,status,detail}`"*, already backing a CLI with exit-code semantics. The injectable-probe seam **is** the project-supplied extension point this design needs; enhancements (dev↔prod diff mode) go back upstream per the ladder |
+| external-dependency probing (Layer 4 #28) | **VENDOR + ENHANCE** | `health-probe/` — *"generic Postgres/Redis/HTTP-auth probes + **injectable project probes**; uniform `{system,status,detail}`"*, already backing a CLI with exit-code semantics. The injectable-probe seam **is** the project-supplied extension point this design needs; enhancements (dev↔prod diff mode) go back upstream per the ladder |
 | identity checks (Layer 1) | **BUILD** — project-local | trivial git/alembic/digest reads; fails the ≥2-type generic bar |
-| the parity contract runner | **BUILD** → **🆕 fabrik-lib candidate** | generic (no business logic) · used by ≥2 types · small interface (`expected` vs `actual` → diff) · nothing covers it · would have saved this project a day |
+| the parity contract runner | **BUILD** (hub-side) — ⚠️ its **comparison half is no longer a new-module candidate** | generic (no business logic) · used by ≥2 types · would have saved this project a day. ⚠️ **The original basis clause *"small interface (`expected` vs `actual` → diff) · nothing covers it"* is now FALSE and is corrected rather than deleted:** `health-probe.compare()` covers exactly that interface (Amendment 2). What remains BUILD is the part `compare()` does not do — orchestrating the corpus, applying the verdict algebra, and rendering the report |
 
 **Composition, not reinvention:** vendored `health-probe` for dependency probes + a thin parity runner +
 per-type packs.
@@ -458,9 +499,12 @@ gap by editing the declaration has destroyed the only signal.**
 **Sequencing consequence:** authoring runs at build/release time, not at deploy time. A project without
 the artifact reaches `UNVERIFIED` (Q2), which is now also the signal to run the authoring command.
 
-⚠️ **Status returned to DRAFT.** This amendment lands after the CONVERGED flip and materially changes the
-architecture (one command → two, plus a new pipeline position). Per the post-flip rule, the convergence
-is void until `/fabrik-spec-review` re-runs over the amended artifact.
+⚠️ **Status was returned to DRAFT by this amendment — and that has since been DISCHARGED** (passes A1–A2,
+md5-stable; see the Pass ledger). Left in place because the reasoning is the precedent Amendment 2 invokes
+for itself, but it is **history, not a live claim**: the header's Status is the authority, never this line.
+The rule it records: an amendment landing after a CONVERGED flip that materially changes the architecture
+(here, one command → two plus a new pipeline position) voids the convergence until `/fabrik-spec-review`
+re-runs over the amended artifact.
 
 ## Amendment 2 — the fabrik-lib interface landed; bind to it (2026-09-02)
 
@@ -486,6 +530,21 @@ by extension — projects know what "same" means for their data; the module neve
 **Exit-code convention the runner branches on** — `0` pass · `1` a system is DOWN · `2` a system
 DISAGREES. The separation is what lets the runner distinguish *"prod is dead"* from *"prod is alive and
 holds the wrong data"*, which are different incidents with different first moves.
+
+⚠️ **PRECEDENCE, because both conditions can be true in one run and there is only one exit code**
+(spec-review pass H1 — the first draft of this amendment raised this gap *to fabrik-lib* and left it
+open in this artifact, which is the defect of asking someone else a question you also have to answer).
+A run can hold a `critical` system DOWN **and** a comparison probe reporting `match is False`.
+**LIVENESS WINS — the runner treats exit `1` as outranking exit `2`, and it does not depend on
+fabrik-lib choosing the same rule:** the runner reads the `--json` payload, which carries every row, so
+the exit code is a triage hint and never the payload. Three reasons, in order: a comparison computed
+against a partly-dead system is untrustworthy input, so *dead* must be read first; no information is
+lost, because both rows are in the JSON; and `1` is the conservative choice for existing callers, whose
+only current non-zero is `1`. **Verdict-algebra consequence: this affects only WHICH incident is
+reported first — never whether the deploy passes.** Both conditions independently deny `CONFIRMED`, so
+precedence can never upgrade a verdict. This is stated here so the runner has a rule to build against
+whichever way fabrik-lib settles theirs; if they publish a conflicting precedence, the runner keeps
+branching on the JSON and the disagreement is cosmetic.
 
 ⚠️ **Two things their review proved by EXECUTION that change what this spec must do:**
 
@@ -545,9 +604,12 @@ verdict, never silently.
 
 **Q2 · Missing contract → BLOCKS, with a dated grace window.** Derived from the spec's own verdict algebra:
 *"No contract ⇒ cannot reach `CONFIRMED`"* — a warning that lets `CONFIRMED` through reproduces the exact
-defect this spec exists to close (I certified an empty database green). But hard-blocking 37 of 43 repos on
-day one strands 86% of the fleet, which the FIX DIRECTIVE's *"no overengineering — measured, not vibed"*
-weighs against. Resolution: a contract-less deploy reaches **`UNVERIFIED`** — a terminal verdict that is
+defect this spec exists to close (I certified an empty database green). But hard-blocking **27 of 43
+repos** on day one strands **63%** of the fleet, which the FIX DIRECTIVE's *"no overengineering —
+measured, not vibed"* weighs against. *(Corrected in spec-review pass H1: this read "37 of 43 … 86%",
+the population I17 had already ruled wrong — 37 counts repos with no spec **of their own**, which
+includes store types that can never need a deploy contract. The argument survives the correction, which
+is why it is corrected rather than rewritten.)* Resolution: a contract-less deploy reaches **`UNVERIFIED`** — a terminal verdict that is
 **not** `CONFIRMED` and is reported as a deficiency, never as success. `UNVERIFIED` is the honest name for
 what every deploy before today actually was.
 
@@ -592,6 +654,82 @@ and it is **not** opt-out, because the value is precisely in its independence.
 | — | **operator: *"why do you suggest epic route but not /fabrik-plan-after-chat?"*** | — | — | — | — |
 | G1 | routing verdict re-derived against the literal criterion | criterion-vs-artifact | 1 | 1 | edited |
 | G2 | confirming re-sweep | re-derivation | **0** | **0** | stable ✓ |
+| — | **AMENDMENT 2 landed (fabrik-lib's interface) — convergence voided, review re-run** | — | — | — | — |
+| H1 | Amendment-2 ripple + corpus numbering + stale counts/vocabulary across the whole spec | method: citation + live grep | 9 (new: 9) | 13 | `ff3a477d…` → edited |
+| H2 | every count, id and cross-reference re-derived from primary source | **method: re-derivation** | 1 (new: 1) | 1 | `110c1b11…` → edited |
+| H3 | closing full fresh read + measured-claim re-derivation | **method: re-derivation** | 1 (new: 1) | 1 | `b668981b…` → edited |
+| H4 | closing full fresh read (H3 edited, so H3 was not the last pass) | **method: re-derivation** | **0 (new: 0)** | **0** | `d06d1150…` → `d06d1150…` ✓ → **CONVERGED** |
+
+**Pass H4 terminal round — `found: 0, fixed: 0`, md5 identical, zero candidates raised.** Everything
+re-derived from primary source, not re-cited: corpus ids **1–29 contiguous, zero duplicates** with layer
+boundaries `1–4 / 5–10 / 11–23 / 24–29`; **`SCAFFOLD_TYPES` = 13** imported from the live registry
+(`from fabrik.scaffold import SCAFFOLD_TYPES` → `len` 13) and **all 13 present exactly once** in the
+per-type table; all **10** `_REGISTRAR_ORDER` registrars named in Layer 3; the § measured-gap block
+re-grepped term-by-term against the rendered command and matching exactly; `216` confirmed as the
+**source** file against `375` rendered; intake **28**; `27/43 = 63%` checked arithmetically.
+
+⚠️ **One methodology note, because it nearly cost the pass.** The `Read` tool returned a **stale view** of
+this file mid-H4 — showing rows 14/15 without the `backrest` prefix at line 239 while `grep` showed the
+applied edit at line 243. Every H4 verification was therefore re-run through the shell. Had I converged on
+the cached view I would have "found" and re-fixed an edit that was already in place, or worse, concluded a
+landed edit had failed. **The tool that reads the file and the tool that searches it disagreed about the
+same file in the same turn; the shell is the primary source.**
+
+**Pass H3 — 1 new candidate, and it was MINE from this run.** Re-derived clean: all **10** registrars now
+named in Layer 3 (`for r in postgres redis … watchdog; do grep -ic` → every count ≥ 1, was 6 of 10); the
+§ measured gap block re-derived **term by term** against the rendered command and matched exactly
+(`rev-parse 0 · alembic 0 · image digest 0 · openapi 0 · getenv 0 · cron 0 · write path 0 · write-path 0 ·
+read back 0 · digest 1`, 375 rendered lines); the `216 lines` claim confirmed as the **source** file
+(`wc -l < commands/_sources/fabrik-deploy-verify.md` → 216, vs 375 rendered — the spec cites each
+correctly and says which). No `$ `-prefixed probes exist in this spec, so probe duty is vacuous here.
+
+27. **§ Goal conformance still read *"§ Layer 3, 9 rows"*** — stale from the moment pass H1 added rows
+    20–23, which took Layer 3 to **13**. A count I invalidated with my own fix and did not re-check: the
+    same class as defect 18 (a correction that does not propagate), committed *while writing the finding
+    about it*. This is exactly why the pass that edits is never the last pass.
+
+**Pass H2 — re-derivation, 1 new candidate.** All nine H1 claims re-derived clean from primary source:
+corpus ids `1–29` contiguous with **zero duplicates** (`grep -oE '^[0-9]+\.' | sort -n | uniq -d` → empty,
+scoped to the corpus section — the whole-file run returns false duplicates from the ledger's own numbered
+lists, a bounded-search trap caught in-pass); layer boundaries exactly `1–4 / 5–10 / 11–23 / 24–29`;
+`#28` confirmed as external-dependency probing, so the ladder cross-reference resolves; the plan's gate
+re-measured at **1** today, so the cannot-fail finding holds; intake **28** rows confirmed.
+
+26. **`backrest` was the only registrar not NAMED in its own rows.** Rows 14/15 describe its function
+    ("a backup TAKEN", "restore rehearsed") without the registrar key, while the four rows H1 added name
+    theirs in backticks. Rows generated FROM `_REGISTRAR_ORDER` key on the registrar name, so a row that
+    never states it cannot be matched back to the denominator it is supposed to satisfy. Fixed.
+
+**Pass H1 — what the Amendment-2 review found (9 defects, all mine; 24 total across all reviews).**
+The Amendment-2 edits themselves survived scrutiny; **eight of the nine were pre-existing defects that
+five prior converged passes had stamped**, which is the finding worth carrying upstream:
+
+16. **The check corpus double-assigned two ids.** Layer 3 ran `11–19` and Layer 4 restarted at `18`, so
+    `#18` and `#19` each named two different checks and the ladder's *"Layer 4 #22"* was ambiguous. The
+    corpus held **25 checks with a highest number of 23**. In the document whose central rule is
+    denominator integrity, and the **third** miscounted denominator it has produced.
+17. **Layer 3 covered 6 of the 10 registrars it declares as its denominator** — `postgres`, `redis`,
+    `meilisearch`, `watchdog` had no row. **`meilisearch` is the registrar the section's own ⚠️ note
+    names as the proof that hand-listing loses registrars.** Defect 14 diagnosed the class, wrote the
+    rule, and never added the rows — so the omission survived *inside the warning about it*.
+18. **The corrected onboarding population did not propagate.** I17 rules it **27**; `37` still drove
+    three live claims, including *"the 37 are the only backlog"* **three lines below** *"onboarding the
+    27 deployable repos"*. The dependent statistic *"strands 86% of the fleet"* was wrong with it (63%).
+19. **§ Next still routed to the epic chain** that pass G1 overturned — as the document's LAST line, with
+    no correction marker, so a reader following the spec's own hand-off runs the route it rejects.
+20. **The routing section asserted epic-scale two lines above its own refutation**, with nothing marking
+    which was current.
+21. **Stale `epic`-ticket vocabulary** in four live (non-historical) claims after G1 re-routed the build.
+22. **Amendment 1's *"Status returned to DRAFT"* read as a live claim** though passes A1–A2 discharged it —
+    two amendments both announcing a void convergence, neither saying which was current.
+23. **The fabrik-lib ladder's basis clause *"nothing covers it"* became FALSE** when `compare()` landed;
+    Amendment 2 amended the prose and left the table's own justification contradicting it.
+24. **The companion plan's Phase-A gate ALREADY PASSED before Phase A ran** — `grep -c _REGISTRAR_ORDER … ≥ 1`
+    returns 1 today from an incidental mention at `:137`. **A check that cannot fail**, which is the
+    spec's own named defect class applied to its plan's gate.
+25. ⚠️ **REFUTED, recorded because the method matters:** I raised *"the intake claims 28 rows but
+    `grep -c '^| I'` returns 29"*. The 29th is the table HEADER. My own grep was the miscounted
+    denominator — the exact trap this spec is about, hit while auditing it. **The claim of 28 is correct.**
 
 **Pass G2 terminal round — `found: 0, fixed: 0`.**
 
@@ -721,7 +859,7 @@ The stated goal, and what this spec actually delivers against each clause:
 | *"you will only manage the infra"* | **PARTIAL** | same boundary — I keep the fleet-health cross-check by design (§ Q4), so "only infra" is approached, not reached |
 | *"cant compare what is developed and what is deployed"* | **YES** | § Layer 2 + the three-source model — the spec's centre |
 | *"validate its implementation fully, complete, up, and running"* | **YES** | § Verdict algebra — three separately-failable verdicts |
-| *"utilize all vps infra … glitchtip, backups, grafana"* | **YES** | § Layer 3, 9 rows, `shape:`-gated |
+| *"utilize all vps infra … glitchtip, backups, grafana"* | **YES** | § Layer 3, **13 rows covering all 10 `_REGISTRAR_ORDER` registrars**, `shape:`-gated (read "9 rows" until spec-review pass H3 — stale the moment H1 added rows 20–23) |
 | *"up and running as like in the wsl"* | **YES** (after B1) | § three-source model — **dev is the state baseline**, minus declared exclusions. This clause was NOT served before pass B1 |
 | *"a new command … full list of checklist with command"* | **YES** | § Amendment 1 |
 | *"update its operations.md and deployment.md"* | **YES** | § Amendment 1 |
@@ -748,7 +886,7 @@ stub that `/fabrik-data-contract` later fills. The verification contract follows
 | seeded artifact | filled by | state at scaffold time |
 |---|---|---|
 | `scripts/verify_prod_parity.py` | the new authoring command | executable stub that **exits non-zero** — an unfilled contract must fail, never silently pass |
-| `specs/services/<id>.yaml` | scaffolder, from `project.yaml` + `shape:` | complete — this is why 37 repos lack one and no future repo will |
+| `specs/services/<id>.yaml` | scaffolder, from `project.yaml` + `shape:` | complete — this is why **37 repos carry no spec of their own** (of which the 27 deployable are the ones that need one) and no future repo will |
 | `DEPLOYMENT.md` / `OPERATIONS.md` | the authoring command (D-065) | template with the fleet-AI sections present |
 
 ⚠️ **The `docusaurus` leak caveat, inherited from the same precedent** — `scaffold.py:293` records that
@@ -758,9 +896,9 @@ artifacts must therefore either seed outside `docs/` (`scripts/` already is) or 
 **A parity contract naming internal hosts, table names and row counts is precisely what must not become
 a public page.**
 
-**Consequence for the epic:** the scaffolder ticket is a **prerequisite**, not a parallel one. Seed first,
-then onboard the 37 — otherwise the migration races new projects and never converges. It also shrinks the
-onboarding: every repo scaffolded after the seed lands needs no retro-fit.
+**Consequence for the plan:** the scaffolder phase is a **prerequisite**, not a parallel one. Seed first,
+then onboard **the 27 deployable repos** — otherwise the migration races new projects and never
+converges. It also shrinks the onboarding: every repo scaffolded after the seed lands needs no retro-fit.
 
 ## Deferred (named, not dropped)
 
@@ -770,5 +908,15 @@ onboarding: every repo scaffolded after the seed lands needs no retro-fit.
 
 ## Next
 
-`/fabrik-spec-review` — this is fleet-synced to 43 repos and earns an adversarial pass. Then the epic route
-for per-type packs.
+⚠️ **Corrected in spec-review pass H1 — this section still routed to the epic chain, which pass G1 had
+already overturned.** It was the LAST line of the document and carried no correction marker, so a reader
+following the spec's own hand-off ran the route the spec elsewhere rejects. Two things were stale: it
+named `/fabrik-spec-review` as the *next* step (that command has now run five times over this artifact),
+and it named *"the epic route for per-type packs"* after G1 measured the build at ~4 files in one repo.
+
+**The actual chain:** this spec → **operator approval** (the design gate `/fabrik-spec-review` stops at)
+→ **`/fabrik-plan-after-chat`** → `/fabrik-plan-review` → `/fabrik-execute-plan`. The companion plan
+`docs/development/plans/2026-09-01-plan-1-deployment-verification.md` already exists and is DRAFT
+pending this convergence, so the plan step is a refresh against the amended spec, not a fresh authoring.
+The per-type packs are **sections inside two command files**, not epic tickets — that conflation was
+defect 15.

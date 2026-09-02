@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Deployment-verification spec re-converged: 12 defects, 11 of them pre-existing through five CONVERGED stamps (2026-09-02)
+
+- `/fabrik-spec-review` re-run over Amendment 2 (passes H1–H4, H4 quiet at md5 `d06d1150`). Only one
+  finding was in the amendment; the other eleven had survived every prior pass because each was
+  internally consistent, and none had been re-derived from primary source.
+- **The check corpus double-assigned ids** — Layer 3 ran 11–19 and Layer 4 restarted at 18, so `#18`
+  and `#19` each named two different checks and the corpus held 25 checks with a highest number of 23.
+  Renumbered to **29 checks, 1–29, no reuse** (L1 1–4 · L2 5–10 · L3 11–23 · L4 24–29).
+- **Layer 3 covered 6 of the 10 registrars it declares as its own denominator.** `postgres`, `redis`,
+  `meilisearch` and `watchdog` had no row — and `meilisearch` is the registrar the section's own note
+  names as the proof that hand-listing loses registrars. Rows 20–23 added.
+- **The corrected onboarding population (27) never propagated** — `37` still drove three live claims,
+  one of them three lines below the corrected figure, plus the dependent "strands 86%" (now 63%).
+- **§ Next still routed to the epic chain** that pass G1 overturned, as the document's last line.
+- **The companion plan's Phase-A gate already passed before Phase A ran** (`grep -c _REGISTRAR_ORDER
+  … ≥ 1` returns 1 from an incidental mention) — a check that cannot fail, which is the spec's own
+  named defect class appearing in its own plan's gate. Rewritten to assert the actual deliverable.
+- **Exit-code precedence settled hub-side** rather than deferred to fabrik-lib: liveness wins (exit 1
+  outranks 2), independent of their choice, because the runner branches on the `--json` payload.
+- Ledger row `D-069`. Spec Status → CONVERGED; the plan stays DRAFT pending `/fabrik-plan-review`.
+
 ### Changed — Rules pass file 13: `58-resilience` now covers EVERY production failure class, each with a no-human recovery (2026-09-02)
 
 - **Operator directive:** resilience must address all types of production error, and "everything must
