@@ -90,10 +90,12 @@ def flagged_providers(path: Path) -> dict[str, dict]:
             provs[cur]["names"].append(key)
             if URL_KEY_RE.search(key):  # a URL identifies the provider — send ONLY scheme://host,
                 val = rest.split("   # ", 1)[0].strip()  # never the path/query (may embed a token)
-                if val.lower().startswith("http") and _host(
-                    val
-                ):  # a project's malformed *_URL never kills classify (BB5)
-                    provs[cur]["urls"].append(f"{_scheme(val)}://{_host(val)}")
+                h = (
+                    _host(val) if val.lower().startswith("http") else None
+                )  # a malformed *_URL never kills classify (BB5)
+                if h:
+                    host = f"[{h}]" if ":" in h else h  # IPv6 keeps its brackets (BE8)
+                    provs[cur]["urls"].append(f"{_scheme(val)}://{host}")
     return provs
 
 
@@ -402,6 +404,8 @@ def main() -> int:
                         hosts.append(h)
             else:
                 match = entry.setdefault("match", [])
+                if not isinstance(match, list):  # a hand-edited scalar (AF14's sibling, BE3)
+                    match = entry["match"] = [str(match)]
                 if prov.upper() not in match:
                     match.append(prov.upper())
             merged_into[prov] = target
@@ -416,7 +420,9 @@ def main() -> int:
         # (`cpill`) and the #svc line — anything outside the enum is `?` (AP1/AP2)
         # normalised first: a model's `AI-LLM` / `Freemium` / `ai-llm ` IS the enum value (AS1)
         cost = str(v.get("cost", "?")).strip().lower()
-        status = str(v.get("status", "active")).strip().lower()
+        status = (
+            str(v.get("status", "?")).strip().lower()
+        )  # an OMITTED status is unknown too (BB4/BE5)
         entry = {
             "category": _enum_category(
                 v.get("category")

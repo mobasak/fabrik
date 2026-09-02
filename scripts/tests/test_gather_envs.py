@@ -1574,11 +1574,25 @@ def test_stale_tmp_is_swept_on_a_no_change_day_and_a_sibling_race_is_not_a_trace
     os.utime(mine, (time.time() - 7200, time.time() - 7200))
     assert ge.sweep_stale_tmp(out) == 1 and not mine.exists()
     ge.write_secret_file(out, "SECRET=2\n")  # and O_EXCL does not fail on it
-    # BB3: a dangling symlink and a directory matching the glob are skipped, never raised
-    (tmp_path / "all-envs.env.tmp.9").symlink_to(tmp_path / "nowhere")
+    # BB3: a symlink is judged by ITS OWN age (lstat, never followed) and is never unlinked even
+    # when old — the dashed-off `all-envs.env.tmp.9` links to an hours-old real file, then is aged
+    # itself; a directory matching the glob is skipped, never raised
+    old_target = tmp_path / "some-old-file"
+    old_target.write_text("x", encoding="utf-8")
+    os.utime(old_target, (time.time() - 7200, time.time() - 7200))
+    link = tmp_path / "all-envs.env.tmp.9"
+    link.symlink_to(old_target)
+    assert (
+        ge.sweep_stale_tmp(out) == 0 and link.is_symlink()
+    )  # fresh link, old target: lstat keeps it (BD2)
+    os.utime(link, (time.time() - 7200, time.time() - 7200), follow_symlinks=False)
+    assert (
+        ge.sweep_stale_tmp(out) == 0 and link.is_symlink()
+    )  # old link: not a regular file, kept (BD2)
     (tmp_path / "all-envs.env.tmp.dir").mkdir()
     os.utime(tmp_path / "all-envs.env.tmp.dir", (time.time() - 7200, time.time() - 7200))
     assert ge.sweep_stale_tmp(out) == 0 and (tmp_path / "all-envs.env.tmp.dir").is_dir()
+    link.unlink()
     # BB7: a FRESH legacy-named tmp (a pre-AW1 writer on an old checkout) is a live sibling
     legacy = tmp_path / "all-envs.env.tmp"
     legacy.write_text("in progress", encoding="utf-8")
@@ -1615,3 +1629,119 @@ def test_a_malformed_url_never_kills_classify_or_the_scan(tmp_path, monkeypatch)
     assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["url"] == "?"
     idx = ge.catalog_url_index({"bad": {"url": "http://a]b"}, "ok": {"url": "https://ok.test"}})
     assert idx == {"ok.test": "ok", "*.ok": "ok"}
+
+
+def test_only_the_typed_catalog_error_is_a_one_liner(tmp_path, monkeypatch, capsys):
+    """An unrelated ValueError inside the scan is a BUG and keeps its traceback — main's one-line
+    exit is reserved for CatalogError (BB6/BD1)."""
+    monkeypatch.setattr(ge, "OUTPUT", tmp_path / "all-envs.env")
+    monkeypatch.setattr(
+        ge, "consolidate", lambda *a, **k: (_ for _ in ()).throw(ValueError("boom"))
+    )
+    monkeypatch.setattr(
+        ge, "project_env_files", lambda: _envs(tmp_path, {"p": "X_API_KEY=abcdefghijklmnop\n"})
+    )
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    with pytest.raises(ValueError, match="boom"):
+        ge.main()
+
+
+def test_a_fresh_leftover_under_our_own_pid_never_blocks_the_write(tmp_path):
+    """A crash followed by a pid reuse within the sweep's hour: the leftover carries OUR pid and
+    no other live process can — it is removed before O_EXCL instead of failing the run (BD4)."""
+    import os
+
+    out = tmp_path / "all-envs.env"
+    mine = tmp_path / f"all-envs.env.tmp.{os.getpid()}"
+    mine.write_text("partial", encoding="utf-8")
+    ge.write_secret_file(out, "SECRET=1\n")
+    assert out.read_text(encoding="utf-8") == "SECRET=1\n" and not mine.exists()
+
+
+def test_a_scalar_match_is_one_prefix_on_both_sides(tmp_path, monkeypatch):
+    """`"match": "OPENAI"` (a hand-edited scalar): load_catalog reads ONE prefix, never six letters
+    that hijack `N_KEY` and un-match the vendor's own keys (BE4); the classify merge path appends
+    to it instead of crashing on `str.append` after the paid batch is spent (BE3)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(
+        json.dumps(
+            {"openai": {"category": "ai-llm", "match": "OPENAI", "url": "https://openai.com"}}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    catalog, matchers = ge.load_catalog()
+    assert matchers == [("OPENAI", "openai")]
+    assert (
+        ge.match_provider("OPENAI_API_KEY", matchers) == "openai"
+        and ge.match_provider("N_KEY", matchers) is None
+    )
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=kagi category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "KAGI_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "brave",
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://brave.com",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    sub = tmp_path / "c"
+    sub.mkdir()
+    cat2, _ = _classify_env(sub, monkeypatch, text, ["--apply"], res)
+    cat2.write_text(
+        json.dumps(
+            {
+                "brave": {
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://brave.com",
+                    "status": "active",
+                    "match": "BRAVE",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    assert json.loads(cat2.read_text(encoding="utf-8"))["brave"]["match"] == ["BRAVE", "KAGI"]
+
+
+def test_an_omitted_status_is_unknown_and_ipv6_hosts_keep_their_brackets(tmp_path, monkeypatch):
+    """A model answer WITHOUT `status` is `?`, never `active` (BE5); a project's IPv6 `*_URL`
+    reaches the pool prompt as `https://[::1]`, a value `_host` can read back (BE8)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+        "FOO_API_URL=https://[::1]:8443/x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "foo",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://foo.test",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    urls = cs.flagged_providers(tmp_path / "all-envs.env")["foo"]["urls"]
+    assert urls == ["https://[::1]"] and cs._host(urls[0]) == "::1"
+    assert cs.main() == 0
+    assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["status"] == "?"

@@ -682,8 +682,11 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         raise CatalogError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
-        for prefix in meta.get("match", []):
-            matchers.append((prefix.upper(), provider))
+        raw_match = meta.get("match") or []
+        for prefix in (
+            raw_match if isinstance(raw_match, list) else [raw_match]
+        ):  # a scalar `match` is ONE prefix, never its letters (BE4)
+            matchers.append((str(prefix).upper(), provider))
     matchers.sort(key=lambda pm: len(pm[0]), reverse=True)  # longest prefix wins
     return catalog, matchers
 
@@ -937,8 +940,8 @@ def main() -> int:
         body, stats = consolidate(files, code_dirs=project_dirs())
     except (
         CodeScanError,
-        ValueError,
-    ) as exc:  # a bad catalog key is the same one-line, exit-1 shape (AY4)
+        CatalogError,
+    ) as exc:  # only the TYPED catalog error is a one-liner (AY4/BB6/BD1)
         print(f"ERROR: {exc} — nothing written; the previous consolidation stands", file=sys.stderr)
         return 1
     header = (
@@ -966,7 +969,9 @@ def main() -> int:
         return 0
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    sweep_stale_tmp(OUTPUT)  # also on a no-change day (BA2)
+    swept = sweep_stale_tmp(OUTPUT)  # also on a no-change day (BA2)
+    if swept:  # a killed run left the credential set beside the target — say so (BE9)
+        print(f"WARNING: swept {swept} stale secrets tmp file(s) beside {OUTPUT}", file=sys.stderr)
     if read_existing_body(OUTPUT).rstrip() == body.rstrip():
         print("no change - already up to date:", OUTPUT)
         return 0
@@ -1008,6 +1013,10 @@ def write_secret_file(out: Path, content: str) -> None:
     # symlink. A crashed run's leftover (SIGKILL — the except below covers everything else) is
     # swept only when it is older than an hour, so a live sibling's tmp is never touched.
     tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
+    # a leftover under OUR pid younger than the sweep's hour (a crash and a pid reuse within it)
+    # cannot belong to a live process — no other live process has our pid — so it is ours to
+    # remove before `O_EXCL` (BD4)
+    tmp.unlink(missing_ok=True)
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

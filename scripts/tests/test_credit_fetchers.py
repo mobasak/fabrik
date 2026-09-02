@@ -113,8 +113,6 @@ def test_a_redirect_never_carries_the_vendor_key_to_another_host():
     fetch and the second host never sees `Authorization` (BB8)."""
     import http.server
     import threading
-    import urllib.error
-    import urllib.request
 
     seen: list[tuple[str, str | None]] = []
 
@@ -136,14 +134,13 @@ def test_a_redirect_never_carries_the_vendor_key_to_another_host():
     srv = http.server.HTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        req = urllib.request.Request(
+        # through the SHIPPED call site, not the opener directly — reverting the fix must go red (BE2)
+        got = cf._get_json(
             f"http://127.0.0.1:{srv.server_port}/a",
-            headers={"Authorization": "DeepL-Auth-Key SENTINEL-NOT-A-REAL-KEY"},
+            {"Authorization": "DeepL-Auth-Key SENTINEL-NOT-A-REAL-KEY"},
         )
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            with cf._OPENER.open(req, timeout=5):
-                pass
-        assert exc.value.code == 302
+        assert got is None, got  # a redirect is a failed fetch, never a followed one
     finally:
         srv.shutdown()
-    assert [p for p, _ in seen] == ["/a"], seen  # /b was never requested
+        srv.server_close()  # release the listening socket too (BE7)
+    assert {p for p, _ in seen} == {"/a"}, seen  # /b was never requested (the helper retries /a)
