@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the PLURAL rotation vars synced to the shared config (2026-09-02)
+
+- `NVIDIA_API_KEYS` (4) and `MISTRAL_API_KEYS` (8) added to `~/.config/fabrik/subagents.env`,
+  byte-identical to `/opt/youtube/.env` and `/opt/fabrik-lib/.env`. These are the form that actually
+  rotates: `youtube/rag/llm_client.py:274` splits the comma-list and rotates per call, and
+  `fabrik-lib/rag/_dotenv.py:62,64` autoloads them. Without them a rag consumer falls back to the
+  single key and silently loses 4× (NVIDIA) / 8× (Mistral) of its rate budget.
+- **Correction to the earlier audit in this same release:** it matched `NVIDIA_API_KEY(?:_\d+)?`,
+  which does not match the PLURAL `NVIDIA_API_KEYS`, so the box's real rotation convention was
+  invisible to it. Re-scanned for every `*_KEYS` form; 17 exist (SONIOX, YOUTUBE ×10, EMAILGATEWAY,
+  APINAME_RECOVERY ×10 …). The NVIDIA count is unchanged and re-confirmed by a third method: **4**,
+  identical in youtube, fabrik-lib and fabrik.
+- No `GROQ_API_KEYS` was created: rag's key list supports the comma form for NVIDIA and Mistral
+  only, so a Groq plural var would have no reader.
+
 ### Changed — spare keys synced fleet-wide: GROQ ×6, NVIDIA ×4, MISTRAL ×8 (2026-09-02)
 
 - `~/.config/fabrik/subagents.env` now carries the full numbered spare sets, slot-aligned to

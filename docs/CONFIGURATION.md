@@ -225,6 +225,21 @@ Unlike the auto-injected vars above, these two are **operator-supplied** in the 
 
 ### Shared fleet config — `~/.config/fabrik/subagents.env` (all AI-supplier keys)
 
+**Two key conventions coexist on this box — know which one your consumer reads.**
+
+| Form | Example | Read by | Rotation |
+|---|---|---|---|
+| **Plural comma-list** | `NVIDIA_API_KEYS=k1,k2,k3,k4` | the **rag** module (`fabrik-lib/rag/_dotenv.py:62,64`) and `youtube/rag/llm_client.py:274` | **automatic, per call** |
+| **Numbered suffix** | `NVIDIA_API_KEY_2` … | nothing — manual selection only | none |
+
+`subagents` reads only the UNSUFFIXED singular (`DOTENV_KEYS`), so neither multi-key form gives the
+pool rotation. `rag` supports the comma-list for **NVIDIA and Mistral only** — there is no
+`GROQ_API_KEYS` reader, so a Groq plural var would be inert and is deliberately not set.
+
+The shared config now carries `NVIDIA_API_KEYS` (4) and `MISTRAL_API_KEYS` (8), byte-identical to
+`/opt/youtube/.env` and `/opt/fabrik-lib/.env`, so any repo running rag inherits the full rotation
+instead of falling back to the single key.
+
 **Spare-key sync (2026-09-02).** The shared file now carries the FULL numbered set, slot-aligned to
 `/opt/fabrik/.env` so no value occupies two different slot names box-wide: **GROQ ×6 · NVIDIA ×4 ·
 MISTRAL ×8**, plus the single-key suppliers. Verified live per key against each provider's gated
