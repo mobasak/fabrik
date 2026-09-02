@@ -398,7 +398,7 @@
     "path": "/opt/fabrik/external-services-dashboard.html"
    },
    "max_age_hours": 30,
-   "why": "the external-services chain (scripts/external_services_chain.sh: gather_envs \u2192 classify \u2192 gather_envs \u2192 registry_sync \u2192 gen_dashboard), run by daily_refresh.sh and wsl_startup_hook.sh; the dashboard is written LAST and ONLY when every DATA step (gather_envs, reconsolidate, registry_sync) succeeded \u2014 a failed classify alerts but never ages it, so its mtime is the whole chain's heartbeat \u2014 a half-dead chain ages past 30 h and reads DEAD. Undeclared, the chain sat half-dead for 46 days (registry + dashboard frozen on build day 2026-07-18) with no finding \u2014 the audit could not miss what it was never told to look for."
+   "why": "the external-services chain (scripts/external_services_chain.sh: gather_envs \u2192 classify \u2192 gather_envs \u2192 registry_sync \u2192 gen_dashboard), run by daily_refresh.sh and wsl_startup_hook.sh; the dashboard is written LAST and ONLY when every DATA step (gather_envs, the second gather_envs \u2014 step label gather_envs_reconsolidate \u2014 and registry_sync) succeeded, so its mtime is the DATA chain's heartbeat: a data step that fails ages it past 30 h and reads DEAD; the paid classify step is deliberately NOT part of the heartbeat \u2014 its failure alerts (Telegram) but never ages the dashboard, so a dead classifier is a page, not a DEAD row (G9). Undeclared, the chain sat half-dead for 46 days (registry + dashboard frozen on build day 2026-07-18) with no finding \u2014 the audit could not miss what it was never told to look for."
   }
  ],
  "version": 1

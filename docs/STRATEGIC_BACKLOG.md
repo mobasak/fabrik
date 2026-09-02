@@ -910,6 +910,7 @@ root; the pool helper lives there too, so its own directory — first on `sys.pa
 `h11` and two full pool dispatches errored in every unit (`module 'h11' has no attribute 'Request'`)
 and recorded nothing. Add to the finder fragment: "write every helper under your sandbox extract
 directory; never the dispatcher's scratchpad root; never a name that collides with a package".
-Also correct the brief: `git archive` does not extract `scripts/verify_prod_parity.py` (a symlink)
-at all — the `rm -f` line is a no-op.
+Also keep the brief's `rm -f $D/scripts/verify_prod_parity.py`: `git archive` extracts the symlink
+DANGLING (verified `tar -tv` + `test -L`, pass 13) — a pass-12 finder's claim that it is not extracted
+was wrong and briefly propagated here.
 

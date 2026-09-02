@@ -621,6 +621,7 @@ def test_fetcher_rank_prefers_a_key_over_a_password_and_demotes_public_names():
         "TRAEFIK_BYPASS", "true"
     )
     assert r("CANONICAL_API_KEY", "v") == 0 and r("NEXT_PUBLIC_X_API_KEY", "v") == 4
+    assert r("SSH_PUBKEY", "v") == 4  # a glued public key is public too (AU8)
     # a public anon key is the LAST resort — below a real non-anchored secret and a DSN (AS9)
     assert r("X_SIGNATURE", "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5") < r("NEXT_PUBLIC_X_API_KEY", "v")
     assert r("X_PROXY_URL", "http://u:p@h:1") < r("NEXT_PUBLIC_X_API_KEY", "v")

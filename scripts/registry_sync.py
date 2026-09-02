@@ -45,7 +45,7 @@ FETCHER_KEY_RE = re.compile(
     re.I,
 )
 PUBLIC_NAME_RE = re.compile(
-    r"(?:^|_)(PUBLIC|ANON|PUBLISHABLE)(?:_|$)", re.I
+    r"(?:^|_)(PUBLIC|ANON|PUBLISHABLE|PUBKEY|PUB)(?:_|$)", re.I
 )  # bounded: CANONICAL is not ANON (AS8)
 
 

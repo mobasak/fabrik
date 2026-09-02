@@ -1301,3 +1301,159 @@ def test_a_model_answer_the_enum_flattens_is_not_identified(tmp_path, monkeypatc
     assert out["bar"]["category"] not in ("?", "ai llm"), out[
         "bar"
     ]  # tombstoned, so it leaves triage
+
+
+def test_an_enum_rejected_answer_never_merges_reports_or_scores_as_identified(
+    tmp_path, monkeypatch
+):
+    """A model answer the enum rejects must not: merge into a CURATED entry via `name` (AU1),
+    appear in classify_last.json / the alert as classified (AU2), or score 5 in the flywheel
+    (AU5). It is tombstoned on the daily argv."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=gamma category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "GAMMA_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "openai",
+                    "category": "totally-not-an-enum",
+                    "cost": "???",
+                    "capability": "x",
+                    "url": "https://x.test",
+                    "status": "nope",
+                }
+            )
+        )
+    ]
+    cat, state = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res
+    )
+    cat.write_text(
+        json.dumps(
+            {
+                "openai": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://openai.com",
+                    "status": "active",
+                    "match": ["OPENAI"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    scores: list[int] = []
+    monkeypatch.setattr(cs, "set_quality", lambda agent_id, score, **kw: scores.append(score))
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["openai"]["match"] == ["OPENAI"], out["openai"]  # never merged (AU1)
+    assert out["gamma"]["category"] == "unidentified"  # tombstoned, leaves triage
+    last = json.loads((state / "l.json").read_text(encoding="utf-8"))
+    assert last["identified"] == [] and last["tombstoned"] == ["gamma"], last  # AU2
+    assert scores == [2], scores  # AU5
+
+
+def test_metadata_keys_survive_classify_and_never_crash_it(tmp_path, monkeypatch):
+    """`_README` (a string, not an entry) is kept aside and written back first; a model naming
+    `_readme` cannot make classify call `.setdefault` on a string (AU9)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "_readme",
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://foo.test",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "_readme": "metadata text",
+                "bar": {
+                    "category": "search",
+                    "cost": "free",
+                    "capability": "x",
+                    "url": "https://bar.test",
+                    "status": "active",
+                    "match": ["BAR"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert (
+        list(out)[0] == "_readme"
+        and out["_readme"] == "metadata text"
+        and out["foo"]["category"] == "search"
+    )
+
+
+def test_triage_starts_at_the_header_never_at_a_value(tmp_path):
+    """A VALUE containing `NEEDS-TRIAGE` before the header must not open the triage block — a
+    curated vendor would be dispatched to the paid pool and overwritten (AU11)."""
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# ═ ai-llm ═\n"
+        '#svc name=openai category=ai-llm cost=paid capability="x" url=https://openai.com status=active used_by=web\n'
+        "OPENAI_NOTE=see NEEDS-TRIAGE below\n"
+        '#svc name=anthropic category=ai-llm cost=paid capability="x" url=https://anthropic.com status=active used_by=web\n'
+        "ANTHROPIC_API_KEY=x\n"
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n",
+        encoding="utf-8",
+    )
+    assert list(cs.flagged_providers(f)) == ["foo"]
+
+
+def test_underscore_prefixed_key_never_mints_an_invisible_provider():
+    """`_MYVENDOR_API_KEY` → `myvendor`: a `_`-prefixed provider would be dropped by load_catalog
+    (metadata convention) and re-billed forever once tombstoned (AU4)."""
+    assert ge.derive_provider("_MYVENDOR_API_KEY") == "myvendor"
+
+
+def test_catalog_keys_with_whitespace_fail_closed(tmp_path, monkeypatch):
+    """A hand-edited key `pro v` would be emitted as `pro_v` and read back as a DIFFERENT provider
+    (re-billed daily, upserted under a new name): load_catalog refuses it loudly (AU7)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(
+        json.dumps({"pro v": {"category": "search", "match": ["PRO"]}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    with pytest.raises(ValueError, match="single tokens"):
+        ge.load_catalog()
+
+
+def test_per_key_used_by_note_is_tokenised_like_the_svc_line(tmp_path, monkeypatch):
+    """The per-key `used by:` note (registry_sync prefers it over the #svc used_by) carries the
+    same tokens — a project dir with whitespace attributes identically on both paths (AU6)."""
+    monkeypatch.setattr(ge, "load_catalog", lambda: ({}, []))
+    body, _ = ge.consolidate(_envs(tmp_path, {"pro j": "FOO_API_KEY=abcdefghijklmnop\n"}))
+    assert "used by: pro_j" in body and "used_by=pro_j" in body and "pro j" not in body
+
+
+def test_secret_file_tmp_never_outlives_a_failed_write(tmp_path, monkeypatch):
+    """A failure between open and replace unlinks the 0600 tmp — the full credential set never
+    sits beside the target after a crash (AU10)."""
+    out = tmp_path / "all-envs.env"
+    monkeypatch.setattr(ge.os, "replace", lambda a, b: (_ for _ in ()).throw(OSError("disk full")))
+    with pytest.raises(OSError):
+        ge.write_secret_file(out, "SECRET=1\n")
+    assert not out.with_name("all-envs.env.tmp").exists() and not out.exists()

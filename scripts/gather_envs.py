@@ -664,6 +664,9 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         print(f"WARNING: {CATALOG_PATH} unreadable ({exc}); all providers flagged", file=sys.stderr)
         raw = {}
     catalog = {k: v for k, v in raw.items() if not k.startswith("_")}
+    bad_keys = [k for k in catalog if _svc_token(k) != k]
+    if bad_keys:  # a hand-edited key with whitespace would round-trip as a DIFFERENT provider (AU7)
+        raise ValueError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for prefix in meta.get("match", []):
@@ -692,7 +695,9 @@ def derive_provider(key: str) -> str:
         stem,
         flags=re.I,
     )
-    return (stem or key).lower()
+    # a `_`-prefixed name would be invisible to load_catalog (metadata convention) and re-billed
+    # forever once tombstoned (AU4)
+    return ((stem or key).lstrip("_") or key).lower()
 
 
 def _svc_token(v) -> str:
@@ -844,7 +849,9 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             note = []
             if aliases:
                 note.append("aliases: " + ", ".join(aliases))
-            note.append("used by: " + ", ".join(sorted(rec["projects"])))
+            note.append(
+                "used by: " + ", ".join(_svc_token(p) for p in sorted(rec["projects"]))
+            )  # AU6
             lines.append(f"{primary}={value}   # " + " · ".join(note))
 
     by_cat: dict[str, list[str]] = defaultdict(list)
@@ -943,17 +950,26 @@ def main() -> int:
         print("no change - already up to date:", OUTPUT)
         return 0
 
-    tmp = OUTPUT.with_name(OUTPUT.name + ".tmp")
-    # mode 0600 from the first byte — write-then-chmod leaves a world-readable window with every
-    # fleet credential on disk (review 2026-09-02)
-    tmp.unlink(missing_ok=True)  # O_CREAT keeps an EXISTING file's mode — a crashed run's leftover
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(content)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, OUTPUT)
+    write_secret_file(OUTPUT, content)
     print("wrote", OUTPUT, "|", summary)
     return 0
+
+
+def write_secret_file(out: Path, content: str) -> None:
+    """Atomic 0600 write: mode 0600 from the first byte (write-then-chmod leaves a world-readable
+    window with every fleet credential on disk), and the tmp never outlives a failure — a crashed
+    run must not leave the full credential set beside the target (AU10)."""
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.unlink(missing_ok=True)  # O_CREAT keeps an EXISTING file's mode — a crashed run's leftover
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, out)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 if __name__ == "__main__":

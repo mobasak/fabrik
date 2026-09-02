@@ -213,6 +213,9 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     # token is restricted to [A-Za-z0-9-], never interpolated raw (AP1)
     assert "String(v).replace(/[^A-Za-z0-9]+/g,'-')" in gd.SCRIPT
     assert "'unknown':v.replace('_','-')" not in gd.SCRIPT
+    # the href scheme gate's always-on floor (AS5): the node test skips without node, and a skip
+    # must not be the only guard on an injection class (AT1)
+    assert "const href=u=>/^https?:\\/\\//i.test(String(u||''))?u:null;" in gd.SCRIPT
 
 
 def test_cpill_class_token_is_sanitized_when_the_script_runs():
@@ -257,3 +260,15 @@ def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
     )
     out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
     assert json.loads(out) == [None, None, "https://ok.test/a", None, None], out
+    # the CALL SITE, executed: the provider cell for a hostile url is plain text, never a link (AU3)
+    line = re.search(r"    const url=href\(r\.url\)\?[^\n]*", gd.SCRIPT)
+    assert line, "render() does not route the provider link through href()"
+    js2 = (
+        "const esc=s=>String(s).replace(/[&<>\"']/g,c=>'&#'+c.charCodeAt(0)+';');"
+        + m.group(0)
+        + "\nconst r={url:'javascript:alert(1)',provider:'p'};"
+        + line.group(0).strip()
+        + "\nprocess.stdout.write(url);"
+    )
+    out2 = subprocess.run([node, "-e", js2], capture_output=True, text=True, check=True).stdout
+    assert out2 == "p" and "<a" not in out2, out2
