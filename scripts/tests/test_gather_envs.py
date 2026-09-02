@@ -32,6 +32,9 @@ def _load(name: str):
 
 ge = _load("gather_envs")
 cs = _load("classify_services")
+rs = _load(
+    "registry_sync"
+)  # the #svc consumer — its SVC_RE must read every line svc_line emits (AP2)
 
 
 def _envs(tmp_path: Path, projects: dict[str, str]) -> list[Path]:
@@ -1189,6 +1192,9 @@ def test_path_rule_rejects_paths_but_not_a_slash_bearing_base64_secret():
         "/zq8/XyWvUtSrQpOnMlKjIhGfEdCbA9876543"
     )  # one lowercase segment is not a path
     assert not ge.credential_grade("/a/b")  # too short to be a credential anyway
+    assert ge.credential_grade(
+        "/xk9m2p7q4z8w1n5aa"
+    )  # ONE segment is not a path — the rule is ≥2 (AO1)
 
 
 def test_a_model_authored_url_must_be_http_or_https(tmp_path, monkeypatch):
@@ -1204,15 +1210,38 @@ def test_a_model_authored_url_must_be_http_or_https(tmp_path, monkeypatch):
             json.dumps(
                 {
                     "name": "foo",
-                    "category": "search",
-                    "cost": "free",
+                    "category": "ai llm",
+                    "cost": 'x"><svg/onload=alert(1)>',
                     "capability": "x",
                     "url": "javascript:alert(1)",
-                    "status": "active",
+                    "status": "active (beta)",
                 }
             )
         )
     ]
     cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
     assert cs.main() == 0
-    assert json.loads(cat.read_text(encoding="utf-8"))["foo"]["url"] == "?"
+    out = json.loads(cat.read_text(encoding="utf-8"))["foo"]
+    assert out["url"] == "?"
+    # the enum fields are model-authored too: an out-of-enum cost/status/category is `?` /
+    # `active`, never an attribute-breaking string for the dashboard's class token (AP1)
+    assert out["cost"] == "?" and out["status"] == "active" and out["category"] == "?"
+
+
+def test_svc_line_never_emits_a_token_the_consumer_cannot_parse():
+    """`cost="free tier"`, a newline in `capability`: the #svc line stays one `\\S+`-token line that
+    registry_sync.SVC_RE reads — an unreadable line now fails the sync closed (AP2)."""
+    line = ge.svc_line(
+        "acme",
+        {
+            "category": "ai llm",
+            "cost": "free tier",
+            "capability": "l1\nl2",
+            "url": "https://x.test /docs",
+            "status": "active (beta)",
+        },
+        {"p"},
+    )
+    assert "\n" not in line and rs.SVC_RE.match(line), line
+    m = rs.SVC_RE.match(line).groupdict()
+    assert m["cost"] == "free_tier" and m["category"] == "ai_llm" and m["used_by"] == "p"

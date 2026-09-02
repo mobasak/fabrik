@@ -156,7 +156,7 @@ const tb=document.getElementById('tb'),q=document.getElementById('q'),
   fcat=document.getElementById('fcat'),fcost=document.getElementById('fcost');
 let sortK='category',sortAsc=true;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const cpill=v=>{const k=v==='?'?'unknown':v.replace('_','-');return '<span class="pill c-'+k+'">'+esc(v)+'</span>';};
+const cpill=v=>{const k=v==='?'?'unknown':String(v).replace(/[^A-Za-z0-9]+/g,'-');return '<span class="pill c-'+k+'">'+esc(v)+'</span>';};  // class token restricted: cost/status are model-authored (AP1)
 const cell=(v,cls)=>v?'<td class="'+(cls||'')+'">'+esc(v)+'</td>':'<td class="empty">—</td>';
 function render(){
   const term=q.value.toLowerCase(),fc=fcat.value,fk=fcost.value;

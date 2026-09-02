@@ -32,10 +32,18 @@ SVC_RE = re.compile(
 )
 # A key NAME that carries a credential (the value is a secret): the fetcher's input.
 CREDENTIAL_KEY_RE = re.compile(
-    r"(API_KEY|APIKEY|API_TOKEN|TOKEN|SECRET|PASSWORD|PASSPHRASE|PASSWD|PASS|PW|PWD|CREDS"
-    r"|CREDENTIALS|AUTH_KEY|KEY)S?(_\d+)?$",  # a numbered key (GROQ_API_KEY_2) is anchored too (AM1/AM8)
+    r"(API_KEY|APIKEY|API_TOKEN|ACCESS_TOKEN|TOKEN|SECRET|PASSWORD|PASSPHRASE|PASSWD|AUTH_KEY"
+    r"|CREDENTIALS|(?:^|_)(?:KEY|PASS|PW|PWD|CREDS))S?(_\d+)?$",  # numbered keys anchored (AM1/AM8);
+    re.I,  # the SHORT tokens need a left boundary — `_BYPASS`, `_MONKEY` are not credentials (AP8)
+)
+# The fetcher-grade subset of the anchored names: a key/token outranks a password, and a name
+# marked PUBLIC/ANON/PUBLISHABLE is the last resort (`NEXT_PUBLIC_SUPABASE_ANON_KEY` must never
+# beat `SUPABASE_SECRET_KEY` — AP3)
+FETCHER_KEY_RE = re.compile(
+    r"(API_KEY|APIKEY|API_TOKEN|ACCESS_TOKEN|SECRET_KEY|SERVICE_ROLE_KEY|APPLICATION_KEY|TOKEN)S?(_\d+)?$",
     re.I,
 )
+PUBLIC_NAME_RE = re.compile(r"(PUBLIC|ANON|PUBLISHABLE)", re.I)
 
 
 # Public identifiers (OAuth client/tenant/account/project ids) are long, alphanumeric and NOT
@@ -48,13 +56,16 @@ CREDENTIAL_KEY_RE = re.compile(
 # `_REPOSITORY`, `_WEBHOOK`, `_PROXY`) and account names (`_USER`) are identifiers too.
 IDENTIFIER_KEY_RE = re.compile(
     r"(_ID|_IDS|_UUID|_NUMBER|_ARN|_REGION|_ZONE|_HOST|_PORT|_MODEL|_VERSION|_URL|_URLS|_ENDPOINT"
-    r"|_BASE|_DOMAIN|_FILE|_PATH|_THUMBPRINT|_REPOSITORY|_REPO|_WEBHOOK|_PROXY|_USER|_USERNAME)"
+    r"|_BASE|_DOMAIN|_FILE|_PATH|_DIR|_DIRS|_FOLDER|_THUMBPRINT|_REPOSITORY|_REPO|_WEBHOOK|_PROXY|_USER|_USERNAME)"
     r"(?P<qualifier>_[A-Z0-9]+)?$",
     re.I,
 )
 # a DSN/URL that CARRIES a password (`scheme://user:pw@host`, or the scheme-less proxy form
 # `user:pw@host:port` — AM7) is a credential whatever its name
-USERINFO_RE = re.compile(r"(?:^|://)[^/@\s:]+:[^/@\s]+@")
+# scheme form: the username may be EMPTY (`redis://:pw@host`, the canonical Redis/AMQP shape —
+# AP5); scheme-less form: only the proxy shape `user:pw@host:port` (AM7), never any `x:y@…`
+# (`sip:alice@example.com` is not a credential — AP6)
+USERINFO_RE = re.compile(r"(?:^[^/@\s:]*:[^/@\s:]+@[^/@\s:]+:\d+$|://[^/@\s:]*:[^/@\s]+@)")
 # a knob VALUE: a bare word (`false`, `basic`, `on`) or a number — never a secret, whatever the
 # name's unanchored token says (`WEBSHARE_IP_AUTH=false`, AH1); a weak real secret (`1234` under
 # `_PASSPHRASE`) stays a credential because its NAME is anchored (AM6)
@@ -83,15 +94,21 @@ def is_credential(key: str, value: str) -> bool:
 
 
 def credential_rank(key: str, value: str) -> int:
-    """The credit fetcher's input, chosen by KEY ROLE, never by line order (N1/O5, restored after
-    AH2 made it positional — AM1): 0 = an anchored credential NAME, 1 = a credential-kind value
-    that is not URL-shaped, 2 = a userinfo DSN (a provider whose ONLY credential is a DSN still
-    feeds the fetcher, AH2)."""
+    """The credit fetcher's input, chosen by KEY ROLE (N1/O5, restored after AH2 made it positional
+    — AM1; tiers split after AP3 found 21 of 24 multi-credential providers still tied at rank 0):
+    0 = a fetcher-grade anchored NAME (`_API_KEY`, `_TOKEN`, `_SECRET_KEY`, numbered too),
+    1 = another anchored name (`_PASSWORD`, `_ACCESS_KEY`), 2 = an anchored name marked
+    PUBLIC/ANON/PUBLISHABLE, 3 = a credential-kind value that is not URL-shaped, 4 = a userinfo
+    DSN (a provider whose ONLY credential is a DSN still feeds the fetcher, AH2). Equal ranks —
+    including two values under the SAME name — break by the file's name-sorted order; that is a
+    stated, deterministic rule, not "never by line order"."""
     if CREDENTIAL_KEY_RE.search(key):
-        return 0
+        if PUBLIC_NAME_RE.search(key):
+            return 2
+        return 0 if FETCHER_KEY_RE.search(key) else 1
     if "://" in value or USERINFO_RE.search(value):
-        return 2
-    return 1
+        return 4
+    return 3
 
 
 def ensure_schema(cur) -> None:
@@ -119,6 +136,7 @@ def parse(path: Path) -> list[dict]:
     """Return [{meta:{name,category,...,used_by}, keys:[(key, value, aliases)]}] per provider."""
     provs: list[dict] = []
     cur: dict | None = None
+    bad: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("# ═"):  # section header
             cur = None  # a header ends the current provider block (incl. internal-config)
@@ -127,6 +145,13 @@ def parse(path: Path) -> list[dict]:
         if m:
             cur = {"meta": m.groupdict(), "keys": []}
             provs.append(cur)
+            continue
+        if line.startswith("#svc "):
+            # a #svc line SVC_RE cannot read ENDS the block and FAILS the sync: absorbing the next
+            # provider's keys under the previous one would prune the provider, misattribute its
+            # keys and hand its secret to another vendor's credit fetcher (AP2)
+            cur = None
+            bad.append(line[:120])
             continue
         kv = KV_RE.match(line)
         if cur is not None and kv:
@@ -145,6 +170,10 @@ def parse(path: Path) -> list[dict]:
                     seg = note.split("used by:", 1)[1]
                     per_key_used = [p.strip() for p in seg.split(",") if p.strip()]
             cur["keys"].append((key, value, aliases, per_key_used))
+    if bad:
+        raise ValueError(
+            f"{len(bad)} unparseable #svc line(s) in {path} — fail closed (AP2): {bad[:5]}"
+        )
     return provs
 
 

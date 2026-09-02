@@ -72,9 +72,13 @@ def _shell_code(text: str) -> str:
     for ln in text.splitlines():
         if ln.lstrip().startswith("#"):
             continue
-        quote, kept = None, []
+        quote, escaped, kept = None, False, []
         for i, ch in enumerate(ln):
-            if quote:
+            if escaped:  # `\"` inside a double-quoted string does not close it (AP4)
+                escaped = False
+            elif quote == '"' and ch == "\\":
+                escaped = True
+            elif quote:
                 if ch == quote:
                     quote = None
             elif ch in "'\"":
@@ -91,6 +95,7 @@ def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
     assert "gather_envs.py" in _shell_code('echo "step #1"; python scripts/gather_envs.py')
     assert "chain.sh" not in _shell_code("true  # scripts/external_services_chain.sh")
     assert "chain.sh" not in _shell_code("# scripts/external_services_chain.sh\ntrue")
+    assert "gather_envs.py" in _shell_code(r'echo "a \" # b"; python scripts/gather_envs.py')  # AP4
     for entry in (DAILY, HOOK):
         text = entry.read_text(encoding="utf-8")
         # against CODE, not text — a comment naming the script (full-line OR trailing) is not an
@@ -201,3 +206,7 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     out = gd.json_for_script([row])
     assert "</script>" not in out and "<" not in out and ">" not in out and "&" not in out
     assert json.loads(out) == [row]
+    # the runtime side: `cpill` builds a class attribute from model-authored cost/status — the
+    # token is restricted to [A-Za-z0-9-], never interpolated raw (AP1)
+    assert "String(v).replace(/[^A-Za-z0-9]+/g,'-')" in gd.SCRIPT
+    assert "'unknown':v.replace('_','-')" not in gd.SCRIPT

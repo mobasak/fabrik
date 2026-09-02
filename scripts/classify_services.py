@@ -30,6 +30,8 @@ from libs.subagents import fanout, methodology, set_quality  # noqa: E402
 
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
 CATALOG_PATH = REPO / "scripts" / "service_catalog.json"
+COSTS = ("free", "freemium", "paid", "self-host", "?")  # the catalog's live value set (AP1)
+STATUSES = ("active", "retired", "retiring", "unidentified", "?")
 CATEGORIES = (
     "ai-llm ai-image ai-audio ai-translate search scrape captcha proxy domains email "
     "storage backup research-data media-stock infra-platform dev-tools comms payments"
@@ -370,12 +372,19 @@ def main() -> int:
         url = str(v.get("url", "?"))
         if urlsplit(url).scheme not in ("http", "https"):
             url = "?"  # a model-authored url reaches the registry and the dashboard's page (AM4)
+        # the enum fields are model-authored too and reach the dashboard's class attribute
+        # (`cpill`) and the #svc line — anything outside the enum is `?` (AP1/AP2)
+        category = v.get("category", "?")
+        cost = v.get("cost", "?")
+        status = v.get("status", "active")
         entry = {
-            "category": v.get("category", "?"),
-            "cost": v.get("cost", "?"),
-            "capability": str(v.get("capability", "?"))[:70],
+            "category": category
+            if category in CATEGORIES.split() or category == "?"
+            else "?",  # a STRING, not a tuple — never a substring test
+            "cost": cost if cost in COSTS else "?",
+            "capability": " ".join(str(v.get("capability", "?")).split())[:70],
             "url": url,
-            "status": v.get("status", "active"),
+            "status": status if status in STATUSES else "active",
             # a provider seen ONLY as a code call site has no env key behind it: a bare-word
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
             "match": [] if code_only_provider(provs.get(prov, {})) else [root],

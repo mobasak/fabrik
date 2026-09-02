@@ -563,6 +563,54 @@ def test_kind_by_name_is_decidable_without_a_database():
     assert not rs.is_credential(
         "GOOGLE_APPLICATION_CREDENTIALS", "/opt/fabrik/secrets/sa.json"
     )  # AM11
+    assert rs.is_credential(
+        "SOME_API_TOKEN", "/xk9m2p7q4z8w1n5aa"
+    )  # one segment is not a path (AO1)
+    assert not rs.is_credential(
+        "UPLOAD_DIR", "/uploads2026-long-dir-name-x1"
+    )  # mirror: a one-segment DIR is config by NAME
     assert rs.credential_rank("GROQ_API_KEY_2", "x") == 0
-    assert rs.credential_rank("AZURE_ACCOUNT_NAME", "fabrikstorageaccount2026x1") == 1
-    assert rs.credential_rank("NAMECHEAP_PROXY_URL", f"http://u:{SECRET}@h:1") == 2
+    assert rs.credential_rank("AZURE_ACCOUNT_NAME", "fabrikstorageaccount2026x1") == 3
+    assert rs.credential_rank("NAMECHEAP_PROXY_URL", f"http://u:{SECRET}@h:1") == 4
+
+
+def test_parse_fails_closed_on_an_unreadable_svc_line(tmp_path):
+    """A `#svc` line SVC_RE cannot read (a model's `cost=free tier`) must never let the next
+    provider's keys fall under the PREVIOUS provider — that pruned the provider, misattributed
+    its keys and handed its secret to another vendor's credit fetcher (AP2). The sync raises."""
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        '#svc name=alpha category=infra cost=paid capability="a" url=https://a.example status=active used_by=p\n'
+        "ALPHA_API_KEY=aaaa\n"
+        '#svc name=bravo category=infra cost=free tier capability="b" url=https://b.example status=active used_by=p\n'
+        "BRAVO_API_KEY=bbbb\n"
+        '#svc name=charlie category=infra cost=paid capability="c" url=https://c.example status=active used_by=p\n'
+        "CHARLIE_API_KEY=cccc\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="unparseable #svc"):
+        rs.parse(f)
+
+
+def test_fetcher_rank_prefers_a_key_over_a_password_and_demotes_public_names():
+    """21 of 24 live multi-credential providers tied at the old rank 0 and line order decided
+    (AP3): a token/key outranks a password, a PUBLIC/ANON name is the last anchored resort, a
+    non-URL value and a DSN follow; equal ranks break by the file's name-sorted order (stated)."""
+    r = rs.credential_rank
+    assert r("X_API_TOKEN", "v") < r("X_ADMIN_PASSWORD", "v")
+    assert r("SUPABASE_SECRET_KEY", "v") < r("NEXT_PUBLIC_SUPABASE_ANON_KEY", "v")
+    assert r("B2_APPLICATION_KEY", "v") < r("B2_ACCESS_KEY", "v")
+    assert r("X_ADMIN_PASSWORD", "v") < r(
+        "NEXT_PUBLIC_X_API_KEY", "v"
+    )  # PUBLIC demotes a fetcher-grade name
+    assert r("GRAFANA_SERVICE_ACCOUNT_TOKEN", "v") < r("GRAFANA_ADMIN_PASSWORD", "v")
+    assert r("X_ADMIN_PASSWORD", "v") < r("X_ACCOUNT_NAME", "fabrikstorageaccount2026x1")
+    assert r("X_ACCOUNT_NAME", "fabrikstorageaccount2026x1") < r("X_PROXY_URL", "http://u:p@h:1")
+    # the regex boundaries (AP5/AP6/AP8)
+    assert rs.is_credential("REDIS_URL", "redis://:Sup3rSecretPw@redis-main:6379")
+    assert not rs.is_credential("X_NOTE", "sip:alice@example.com")
+    assert not rs.is_credential("X_NOTE", "team:oncall@company.com")
+    assert not rs.is_credential("TRAEFIK_BYPASS", "true")
+    assert not rs.is_credential("SURVEY_MONKEY", "true")
+    assert rs.is_credential("SMTP_HOST_PW", "S3cretPassw0rdLongEnough")

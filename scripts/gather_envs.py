@@ -573,7 +573,7 @@ def is_secret(key: str, value: str) -> bool:
 # character (`/opt/fabrik/certs/m365-cert-2026.pem`, `~/.ssh/id_ed25519`, `/Users/x`). A base64
 # secret can start with `/` and carry a second `/` (≈0.4 % of 40-char values), but its segments are
 # mixed-case throughout; measured 2026-09-02: 34 of 34 live path values fit, 0 secrets do (AL1)
-PATH_VALUE_RE = re.compile(r"(~|\.{1,2})?(/[A-Za-z.][a-z0-9._-]*)+/?")
+PATH_VALUE_RE = re.compile(r"(~|\.{1,2})?(/[A-Za-z.][a-z0-9._-]*){2,}/?")  # ≥2 segments (AO1)
 
 
 def credential_grade(value: str) -> bool:
@@ -695,15 +695,22 @@ def derive_provider(key: str) -> str:
     return (stem or key).lower()
 
 
+def _svc_token(v) -> str:
+    """One whitespace-free token for the #svc line: whitespace (a model's `free tier`) becomes `_` — an
+    unreadable line makes the consumer fail CLOSED (registry_sync AP2), so never emit one."""
+    return re.sub(r"\s+", "_", str(v or "?").strip()) or "?"
+
+
 def svc_line(name: str, meta: dict, used_by: set[str]) -> str:
-    cap = str(meta.get("capability") or "?").replace('"', "'")  # keep the #svc line parseable
+    # one line, no quotes: keep the #svc line parseable by registry_sync.SVC_RE (AP2)
+    cap = " ".join(str(meta.get("capability") or "?").split()).replace('"', "'") or "?"
     ub = ",".join(sorted(used_by)) if used_by else "-"
     # `or "?"` (not .get default) so an EMPTY catalog field still emits a \S+ token — else the
     # consumer regex (registry_sync.SVC_RE) fails to match and the whole service is dropped.
-    cat = meta.get("category") or "?"
-    cost = meta.get("cost") or "?"
-    url = meta.get("url") or "?"
-    status = meta.get("status") or "?"
+    cat = _svc_token(meta.get("category"))
+    cost = _svc_token(meta.get("cost"))
+    url = _svc_token(meta.get("url"))
+    status = _svc_token(meta.get("status"))
     return (
         f"#svc name={name} category={cat} cost={cost} "
         f'capability="{cap}" url={url} status={status} used_by={ub}'
