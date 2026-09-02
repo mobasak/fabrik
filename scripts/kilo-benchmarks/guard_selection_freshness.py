@@ -59,8 +59,11 @@ REPO = Path(os.environ.get("GUARD_REPO") or os.getcwd())
 # CODING_SUBAGENT_SELECTION.md, the incident doc's direct sibling. NOT anchored with `\s*$`: the
 # sibling checker (check_daily_refresh_freshness.py:63) does not anchor either, and demanding a
 # bare line meant any trailing text silently switched the guard OFF with no signal (finding 6).
+# ⚠️ `[ \t]*`, NOT `\s*`: `\s` matches newlines, so `"Last refresh:\n\n2020-01-01"` bound a bare
+# label line to whatever dated line followed it — a template placeholder or a truncated write would
+# have been read as a real header (found 2026-09-02, round 2 late finder).
 _HEADERS = re.compile(
-    r"^(?:Last refresh:|Last content verification:|\*\*Generated:\*\*)\s*(\d{4}-\d{2}-\d{2})",
+    r"^(?:Last refresh:|Last content verification:|\*\*Generated:\*\*)[ \t]*(\d{4}-\d{2}-\d{2})",
     re.M,
 )
 # ⚠️ NO SKEW TOLERANCE — a 1-day allowance was added and then WITHDRAWN (review 2026-09-02,
@@ -84,20 +87,33 @@ def refresh_date(text: str) -> date | None:
     above every real 2026 date and would have pinned the guard permanently closed against every
     later regeneration (finding 12). Calendar-validating turns that into a fail-open instead.
     """
-    # ⚠️ HEAD-BOUNDED. Relaxing the `\s*$` anchor widened what can match, and an unbounded
-    # `search` takes the FIRST hit anywhere — so a doc that QUOTES the header (a code fence, a
-    # changelog line, a section documenting the format) before its real one yields the wrong,
-    # older date and the guard DROPS a perfectly fresh doc. That is the dangerous direction for a
-    # publisher. Measured header positions across the real generators: line 1 (TASK_SUBAGENT,
+    # ⚠️ HEAD-BOUNDED **AND AMBIGUITY-CHECKED**. The bound alone was never sufficient: it excludes a
+    # quoted header BELOW line 25, and does nothing about one ABOVE the real header inside the window.
+    # An earlier version of this comment claimed "bounding the scan is what stops a quoted header
+    # being read as the real one" — that was FALSE for the in-bound case, which is the reachable one.
+    # The bound plus the distinct-date check below is what actually closes it. Measured header positions across the real generators: line 1 (TASK_SUBAGENT,
     # TTS/STT/TRANSLATION/IMAGE_GEN), line 3 (CODING_SUBAGENT `**Generated:**`), lines 14-16 (the
     # ai-render packs' `Last content verification:`). 25 lines clears all of them with room and
     # still excludes any prose body. (Review 2026-09-02, findings 13 + own probe.)
     head = "\n".join((text or "").lstrip("﻿").splitlines()[:_HEAD_LINES])
-    m = _HEADERS.search(head)
-    if not m:
+    # ⚠️ AMBIGUITY FAILS OPEN. `search` took the FIRST hit, so a fenced format example ABOVE the real
+    # header won and the guard DROPPED a fresh doc — the dangerous direction, since a wrong DROP
+    # silently stops a doc reaching ~46 repos AND the alert tells the operator to "re-run the
+    # generator", which cannot help. The head bound never prevented this: it only excludes examples
+    # BELOW line 25. Reproduced 2026-09-02 (round 2 late finder): HEAD 2026-09-01, worktree carrying a
+    # quoted `Last refresh: 2020-01-01` at line 4 and its real `2026-09-02` at line 6 → DROP.
+    dates = {m.group(1) for m in _HEADERS.finditer(head)}
+    if len(dates) > 1:
+        print(
+            f"[freshness-guard] ambiguous header block ({sorted(dates)}) — treating as undated "
+            "and KEEPING the path; the guard cannot tell the real header from a quoted example",
+            file=sys.stderr,
+        )
+        return None
+    if not dates:
         return None
     try:
-        return datetime.strptime(m.group(1), "%Y-%m-%d").date()
+        return datetime.strptime(next(iter(dates)), "%Y-%m-%d").date()
     except ValueError:
         return None  # shape-valid but not a calendar date → treat as undated, fail open
 
@@ -108,9 +124,18 @@ def head_text(rel: str, repo: Path | None = None) -> str | None:
     try:
         p = subprocess.run(
             ["git", "-C", str(repo), "show", f"HEAD:{rel}"],
-            capture_output=True, text=True, timeout=30,
+            # ⚠️ encoding + errors are LOAD-BEARING, not tidiness. `text=True` alone decodes with the
+            # locale codec and RAISES UnicodeDecodeError on one stray byte; the except below then
+            # returned None, which is indistinguishable from "new file" → fail-open KEEP with ZERO
+            # output. Reproduced 2026-09-02: a single 0xA0 in the COMMITTED copy let a stale doc
+            # through — the 2026-08-29 incident reproducing with the fix installed. The worktree side
+            # (`is_regression`) already used utf-8-sig/ignore; this side was asymmetric.
+            capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=30,
         )
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 — fail-open is the contract; SILENCE was the defect
+        # A publisher that fails open INVISIBLY is how the incident lasted four days. Keep the
+        # fail-open, lose the silence.
+        print(f"[freshness-guard] {rel}: HEAD lookup failed ({exc!r}) — keeping it", file=sys.stderr)
         return None
     return p.stdout if p.returncode == 0 else None
 

@@ -38,27 +38,53 @@ def _repo(tmp_path: Path, committed_date: str, worktree_date: str) -> tuple[Path
     return r, rel
 
 
-# the exact wiring from autocommit_pipeline_outputs.sh, with the alert stubbed
-WIRING = f"""
-set -u
-FABRIK_ROOT="$PWD"
-SELF_DIR="{SCRIPTS}"
-PATHS=(%s)
-_GUARD_OUT="$(mktemp)"
-_GUARD_N=${{#PATHS[@]}}
-if GUARD_REPO="$FABRIK_ROOT" python3 "$SELF_DIR/guard_selection_freshness.py" "${{PATHS[@]}}" > "$_GUARD_OUT"; then
-  mapfile -t _GUARD_KEPT < "$_GUARD_OUT"
-  _GUARD_DROPPED=$(( _GUARD_N - ${{#_GUARD_KEPT[@]}} ))
-  if [ "$_GUARD_DROPPED" -gt 0 ]; then
-    echo "DROPPED=${{_GUARD_DROPPED}}/${{_GUARD_N}}"
-  fi
-  PATHS=("${{_GUARD_KEPT[@]}}")
-else
-  echo "GUARD_FAILED_KEEPING_ALL"
-fi
-rm -f "$_GUARD_OUT"
-echo "FINAL_COUNT=${{#PATHS[@]}}"
-"""
+# ⚠️ SLICED FROM THE SHIPPED FILE, never transcribed. The previous version was an f-string copy of
+# the block, and it graded NOTHING: deleting the entire guard block from
+# autocommit_pipeline_outputs.sh left all six of these tests GREEN (proven 2026-09-02, round 2 late
+# finder). A test that drives a copy tests the copy. `test_golden_parity.py::_hook_inner_block`
+# already solved this for the other block; this is the same fix.
+SH = SCRIPTS / "autocommit_pipeline_outputs.sh"
+_SENTINEL_OPEN = "# >>> FRESHNESS-GUARD-BLOCK"
+_SENTINEL_CLOSE = "# <<< FRESHNESS-GUARD-BLOCK"
+
+
+def _shipped_guard_block() -> str:
+    """The REAL guard block, cut from the shipped script between its sentinels."""
+    text = SH.read_text(encoding="utf-8")
+    assert _SENTINEL_OPEN in text and _SENTINEL_CLOSE in text, (
+        "the sentinels around the guard block are gone from autocommit_pipeline_outputs.sh — "
+        "these tests can no longer drive the shipped code, which is the failure they exist to stop"
+    )
+    # ⚠️ split on LINES, not on the substring: the sentinel line carries a trailing parenthetical,
+    # and splitting mid-line left `(sentinels are LOAD-BEARING…` as bare bash — an unclosed paren.
+    lines = text.splitlines()
+    i = next(n for n, ln in enumerate(lines) if ln.startswith(_SENTINEL_OPEN))
+    j = next(n for n, ln in enumerate(lines) if ln.startswith(_SENTINEL_CLOSE))
+    # skip the opening sentinel's own comment lines; keep everything executable up to the close
+    block = "\n".join(
+        ln for ln in lines[i + 1 : j] if not (ln.startswith("#") and "sentinel" in ln.lower())
+    )
+    assert "guard_selection_freshness.py" in block, (
+        "the sliced block no longer invokes the guard — the wiring under test has been removed"
+    )
+    return block
+
+
+def _wiring(paths_literal: str, guard_cmd: str | None = None) -> str:
+    """Harness preamble + the SHIPPED block + a reporting tail."""
+    block = _shipped_guard_block()
+    if guard_cmd is not None:  # only for the crash-path test, which must break the helper on purpose
+        block = block.replace(
+            'python3 "$SELF_DIR/guard_selection_freshness.py"', guard_cmd
+        )
+    return (
+        "set -u\n"
+        'FABRIK_ROOT="$PWD"\n'
+        f'SELF_DIR="{SCRIPTS}"\n'
+        f"PATHS=({paths_literal})\n"
+        + block
+        + '\necho "FINAL_COUNT=${#PATHS[@]}"\n'
+    )
 
 
 def test_a_dropped_path_is_reported_not_silent(tmp_path):
@@ -66,8 +92,8 @@ def test_a_dropped_path_is_reported_not_silent(tmp_path):
     r, rel = _repo(tmp_path, committed_date="2026-08-29", worktree_date="2026-08-19")
     other = "docs/reference/kilo/OTHER.md"
     (r / other).write_text("no date\n", encoding="utf-8")
-    p = _run(WIRING % f'"{rel}" "{other}"', r)
-    assert "DROPPED=1/2" in p.stdout, p.stdout + p.stderr
+    p = _run(_wiring(f'"{rel}" "{other}"'), r)
+    assert "DROPPED 1/2" in p.stderr, p.stdout + p.stderr
     assert "FINAL_COUNT=1" in p.stdout, "the undated path must still be staged"
 
 
@@ -75,20 +101,17 @@ def test_all_dropped_does_not_masquerade_as_an_empty_stage_list(tmp_path):
     """THE bug: helper exits 0 having dropped everything. The old `||` fallback never fired and
     PATHS silently became empty, so the script blamed the stage list for a guard decision."""
     r, rel = _repo(tmp_path, committed_date="2026-08-29", worktree_date="2026-08-19")
-    p = _run(WIRING % f'"{rel}"', r)
-    assert "DROPPED=1/1" in p.stdout, "an all-dropped run must SAY the guard dropped them"
+    p = _run(_wiring(f'"{rel}"'), r)
+    assert "DROPPED 1/1" in p.stderr, "an all-dropped run must SAY the guard dropped them"
     assert "FINAL_COUNT=0" in p.stdout
-    assert "GUARD_FAILED_KEEPING_ALL" not in p.stdout, "exit 0 is not a helper failure"
+    assert "freshness-guard FAILED" not in p.stderr, "exit 0 is not a helper failure"
 
 
 def test_a_helper_crash_keeps_the_unfiltered_list(tmp_path):
     """Fail-open: a broken guard must never stop the pipeline publishing."""
     r, rel = _repo(tmp_path, committed_date="2026-08-29", worktree_date="2026-08-19")
-    broken = WIRING.replace(
-        'python3 "$SELF_DIR/guard_selection_freshness.py"', "python3 -c 'import sys;sys.exit(3)'"
-    )
-    p = _run(broken % f'"{rel}"', r)
-    assert "GUARD_FAILED_KEEPING_ALL" in p.stdout
+    p = _run(_wiring(f'"{rel}"', guard_cmd="python3 -c 'import sys;sys.exit(3)'"), r)
+    assert "freshness-guard FAILED" in p.stderr, p.stdout + p.stderr
     assert "FINAL_COUNT=1" in p.stdout, "the crash path must KEEP every candidate"
 
 
@@ -96,7 +119,7 @@ def test_paths_with_spaces_survive_the_round_trip(tmp_path):
     r, rel = _repo(tmp_path, committed_date="2026-08-29", worktree_date="2026-09-02")
     spaced = "docs/reference/kilo/has space.md"
     (r / spaced).write_text("no date\n", encoding="utf-8")
-    p = _run(WIRING % f'"{rel}" "{spaced}"', r)
+    p = _run(_wiring(f'"{rel}" "{spaced}"'), r)
     assert "FINAL_COUNT=2" in p.stdout, p.stdout + p.stderr
 
 
@@ -124,7 +147,7 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
     import sys
 
     sys.path.insert(0, str(SCRIPTS))
-    from guard_selection_freshness import refresh_date  # noqa: PLC0415
+    from guard_selection_freshness import head_text, refresh_date  # noqa: PLC0415
 
     repo = SCRIPTS.parent.parent
     sh = (SCRIPTS / "autocommit_pipeline_outputs.sh").read_text(encoding="utf-8")
@@ -134,10 +157,28 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
         ln.strip() for ln in block.group(1).splitlines()
         if ln.strip() and not ln.strip().startswith("#")
     ]
+
+    # F4 — a GLOB or a VARIABLE in PATHS bypasses the guard entirely: the guard gets the literal
+    # element, cannot stat it, fails OPEN, and `git add -- "$_p"` then expands it with git's own
+    # wildmatch and stages every match unguarded. Proven end-to-end 2026-09-02. The denominator
+    # counted such an entry as "undated", so the totals still matched and this test blessed it.
+    for rel in paths:
+        assert not (set("*?[]$\"'") & set(rel)), (
+            f"stage path {rel!r} is not a literal — a glob or variable here bypasses the freshness "
+            "guard completely and git expands it at `git add` time, staging unguarded files"
+        )
+        assert (repo / rel).is_file(), (
+            f"stage path {rel!r} does not exist — a typo'd path contributes 0 to the dated count "
+            "and would silently rebalance this denominator instead of failing"
+        )
+
+    # F8a — "guarded" needs a date on BOTH sides: `is_regression` compares worktree against HEAD, so
+    # a doc dated only in the worktree can never trigger the guard yet was counted as covered. That
+    # is the worktree-vs-HEAD error this very test was written to fix, one level up.
     dated = sum(
         1 for rel in paths
-        if (repo / rel).is_file()
-        and refresh_date((repo / rel).read_text(encoding="utf-8-sig", errors="ignore"))
+        if refresh_date((repo / rel).read_text(encoding="utf-8-sig", errors="ignore"))
+        and refresh_date(head_text(rel, repo) or "")
     )
 
     doc = (SCRIPTS / "guard_selection_freshness.py").read_text(encoding="utf-8")
@@ -152,6 +193,22 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
     assert undated, "the docstring must state how many static paths fail open"
     assert int(undated.group(1)) == len(paths) - dated, (
         f"docstring claims {undated.group(1)} undated; the stage list has {len(paths) - dated}"
+    )
+
+    # F5 — the docstring NAMES the undated files; grading only the number let a mutant swap in two
+    # guarded files and three non-existent ones and still pass. The identity claim is the point of
+    # the paragraph, so grade the identity.
+    named = set(re.findall(r"`([^`]+)`", doc[undated.start() : undated.start() + 400]))
+    derived = {
+        rel for rel in paths
+        if not (
+            refresh_date((repo / rel).read_text(encoding="utf-8-sig", errors="ignore"))
+            and refresh_date(head_text(rel, repo) or "")
+        )
+    }
+    # the docstring may name a file by basename; compare on basenames to stay readable
+    assert {Path(n).name for n in named} >= {Path(d).name for d in derived}, (
+        f"docstring names {sorted(named)} as the undated set; derived is {sorted(derived)}"
     )
 
 

@@ -40,22 +40,6 @@ MATCHED/FLOOR sections: core/35-security-auth.md, core/25-data-postgres.md, core
 | 11 | the docstring denominator vs the live stage list | scope-specific (`cfa906bc`) | **CLEAN** — `7 of 12 static paths` / `5 undated` re-derived from the live `PATHS=( … )` array and the graded test passes |
 | 12 | grader test actually grades — red-on-revert, not vacuous | scope-specific (`cfa906bc`) | **FIXED(1)** — vacuity probed (a missed PATHS regex ASSERTS rather than passing; zero-path and reworded-docstring cases fail loudly). The real gap was COVERAGE: it graded only the static half of a two-claim sentence, leaving the fleet-synced ai-render half asserted. Now graded |
 
-## Disposition ledger
-
-| # | candidate | source | disposition |
-|--:|---|---|---|
-| C1 | `mktemp` with no EXIT trap → leak on abnormal exit | pool u2 (HIGH) + my own hunt | **FIXED** — one trap, both files; verified cleaned on normal AND early (`exit 7`) exit |
-| C2 | ai-render feeder uses `< <(cmd \|\| true)`, hiding the helper's exit code | pool u2 (HIGH) | **FIXED** — the file's own comment at `:136` bans this pattern (re-derived in the closing pass — my own fix shifted it from `:132`); the block four lines above used it. A crash now prints and the status is observable. Test added |
-| C3 | filename containing a newline corrupts `PATHS` | pool u1 (HIGH) | **REFUTED** — unreachable on this surface: the feeder emits `.windsurf/rules/ai/*.md` pack paths and the static list is literal. No path on the stage list can contain a newline; adding `-d ''` plumbing for an unreachable input is speculative hardening |
-| C4 | `git show HEAD:<rel>` mis-parses a path with a colon or leading dash | pool u1 (HIGH) | **REFUTED** — same reachability argument, and the failure direction is safe: any git error returns None → KEEP → fail-open. The guard cannot mis-DROP through this path |
-| C5 | BOM/CRLF handling fragile; `"\n".join` distorts the head | pool u1 (HIGH) | **REFUTED by execution** — CRLF, BOM+CRLF and ISO-with-time all parse to the correct date (run above) |
-| C6 | header at exactly the 25-line bound may be cut off | pool u3 | **REFUTED by execution** — line 25 parses, line 26 returns None; that is the documented bound, and `test_the_head_bound_still_reaches_the_ai_pack_position` guards the ai-pack position at 14-16 |
-| C7 | the coverage docstring's ai-render half is ungraded | pool u3 + my own hunt (independent) | **FIXED** — `test_the_ai_render_denominator_is_graded_too`, red-on-revert proven |
-| C8 | no test for `GUARD_REPO` unset (CWD fallback) | pool u3 | **REFUTED** — covered by `test_guard_reads_the_repo_it_is_told_to_not_a_hardcoded_root`, which runs with `env={"PATH": …}` (no `GUARD_REPO`) and `cwd=r` |
-| C9 | `head_text`'s `p.returncode != 0` branch is dead code | pool u0 | **REFUTED** — the unit refuted itself mid-answer: `subprocess.run` defaults to `check=False`, so a non-zero rc returns normally and the branch is the live path for an untracked file. `test_fail_open_when_git_itself_fails` exercises it |
-| C10 | **my own fix reintroduced the leak it closed** — `_AI_OUT` had a linear `rm` only, and a second `trap … EXIT` would have REPLACED the first | pass 2, self | **FIXED** — proven: `trap "echo FIRST" EXIT; trap "echo SECOND" EXIT` prints only SECOND |
-| C11 | `N802` — uppercase in a new test name | pass 2, `ruff` | **FIXED** — renamed; `ruff check scripts/kilo-benchmarks/` clean |
-
 ## Pass Ledger
 
 | Pass | method | found | new | fixed | finders |
@@ -64,7 +48,20 @@ MATCHED/FLOOR sections: core/35-security-auth.md, core/25-data-postgres.md, core
 | Pass 2 | method: gate | found: 2 | new: 2 | fixed: 5 | orchestrator, scoped to the fix diff + its callers; `ruff` + `pytest` as gates. Caught C10 (the fix reintroducing its own leak; a 2nd `trap … EXIT` REPLACES the 1st) and C11 (`N802`) |
 | Pass 3 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | pool dispatched 3 / returned 2 at write time (gemini-3-flash · qwen3-max); orchestrator re-derived EVERY count and anchor from primary source — static 12/dated 7, ai packs 11/dated 7/undated 4, 25 tests, the ban-comment anchor (found `:136`, report said `:132`), and the scope line count (860 post-fix, 790 at pass 1) |
 | Pass 4 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | orchestrator — full fresh sweep over the post-fix surface, every checklist row re-read against the code and every probe re-run. Raised ONE: the secrets grep returned 1 hit where row 9 asserted 0 (`:266`, the hook name `forbid-secrets` in a comment). Refuted, and the row's EVIDENCE corrected |
-| Pass 5 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | orchestrator — confirming sweep after pass 4's evidence correction; all 12 rows re-verified, every probe re-run verbatim, zero candidates raised |
+| Pass 5 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | orchestrator — confirming sweep. ⚠️ **STAMPED CONVERGED, AND SHOULD NOT HAVE BEEN — see the note below** |
+| Pass 6 | method: re-derivation | found: 8 | new: 8 | fixed: 8 | **the pass-1 native Opus finder RETURNED after the loop had closed** — dispatched 1 / returned 1 (809s). Every finding reproduced by the orchestrator before acting |
+| Pass 7 | method: gate | found: 2 | new: 2 | fixed: 2 | orchestrator, scoped to the pass-6 fix diff: the sentinel slicer cut mid-line leaving `(sentinels are…` as bare bash (the tests themselves went red), and `I001` import ordering |
+| Pass 8 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | orchestrator — full fresh sweep + mutation battery. Raised one: **this report had THREE `## Disposition ledger` headings and TWO `## Pass Ledger`s**, my own section splices colliding. Rebuilt to one of each |
+| Pass 9 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | orchestrator — confirming sweep after the rebuild; 4 previously-surviving mutants now kill tests, 25 pass, ruff clean |
+
+⚠️ **The Pass-5 no-op was PREMATURE, and this ledger records that rather than being rewritten.**
+Pass 1 dispatched 5 finders; 4 returned. I re-covered the missing partition myself, said so honestly,
+and closed on a quiet round. The native Opus finder then returned **eight** defects — four HIGH, each
+with a working reproduction — inside the partition I had declared covered. **Re-covering a dead
+finder's partition is a FALLBACK, not an equivalent, and this run measures the gap:** my own sweep of
+those classes produced 3 candidates; the independent finder produced 8, including the two worst (F1
+silently disabling the guard on one stray byte, F2 the tests grading a transcription). The correction
+is not "wait longer" — it is that a self-covered partition must count as UNSWEPT in the exit criteria.
 
 **Finder accounting:** pass 1 dispatched 5 (4 pool + 1 native Opus), 4 returned. The native Opus
 finder had not returned when the loop closed; **its partition was re-covered by the orchestrator** —
@@ -87,12 +84,15 @@ than counted as swept-by-proxy.
 | C9 | `head_text`'s `p.returncode != 0` branch is dead code | pool u0 | **REFUTED** — the unit refuted itself mid-answer: `subprocess.run` defaults to `check=False`, so a non-zero rc returns normally and the branch is the live path for an untracked file. `test_fail_open_when_git_itself_fails` exercises it |
 | C10 | **my own fix reintroduced the leak it closed** — `_AI_OUT` had a linear `rm` only, and a second `trap … EXIT` would have REPLACED the first | pass 2, self | **FIXED** — proven: `trap "echo FIRST" EXIT; trap "echo SECOND" EXIT` prints only SECOND |
 | C11 | `N802` — uppercase in a new test name | pass 2, `ruff` | **FIXED** — renamed; `ruff check scripts/kilo-benchmarks/` clean |
-
-## Pass Ledger
-
-| Pass | method | found | new | fixed | finders |
-|---|---|---|---|---|---|
-
-## Disposition ledger
-
-(one row per candidate raised)
+| F1 | **one non-UTF-8 byte in the COMMITTED copy silently disabled the guard** — `head_text` used `text=True` with no `encoding=`, so a strict locale decode raised, the bare `except` returned None, and None is indistinguishable from "new file" → fail-open KEEP with ZERO output. The worktree side already used `utf-8-sig`/`ignore` | late Opus finder (HIGH) | **FIXED** — reproduced (one `0xA0` let a stale doc through; the valid-UTF-8 control DROPped, proving it load-bearing), then `encoding="utf-8", errors="ignore"` + the swallow prints. Re-run against the original reproduction: DROP. **This was the 2026-08-29 incident reproducing WITH the fix installed** |
+| F2 | **the wiring tests drove a hand-transcribed COPY, not the shipped file** | late Opus finder (HIGH) | **FIXED** — proven worthless first: deleting the whole guard block from the real `.sh` left all 6 wiring tests GREEN. Now sliced from the shipped file between sentinels. Mutation-proven: neuter the guard → 4 fail; silence the drop report → 2 fail; restored → 8 pass |
+| F3 | **a quoted header INSIDE the head bound makes the guard DROP a fresh doc**; the file's comment claimed the bound prevented this, but it only excludes examples BELOW it | late Opus finder (HIGH) | **FIXED** — reproduced, then `finditer` + a distinct-date check: ambiguity fails OPEN, loudly. The false comment corrected in place |
+| F4 | **a glob or variable in `PATHS` bypasses the guard entirely** — fail-open KEEP, then `git add` expands it and stages every match unguarded; the denominator test blessed it | late Opus finder (HIGH) | **FIXED** — the test asserts every entry is a literal that exists. Mutant previously passed, now fails |
+| F5 | the docstring NAMES five undated files; only the number was graded | late Opus finder (MED) | **FIXED** — named set compared to derived set; mutant previously passed, now fails |
+| F6 | `\s*` matches newlines, so a bare label line binds to whatever dated line follows | late Opus finder (MED) | **FIXED** — `[ \t]*`; label-on-own-line now returns None, normal headers unchanged |
+| F7 | `stage_ai_rule_renders.py` hardcodes `/opt/fabrik` — **the exact defect the guard's own comment records as its "finding 1"** | late Opus finder (MED) | **FIXED** — honours `FABRIK_ROOT`, caller passes it as it already passed `GUARD_REPO`; verified `FABRIK_ROOT=/tmp` → `REPO = /tmp` |
+| F8a | the denominator counted "guarded" from the WORKTREE alone; `is_regression` needs both sides dated | late Opus finder (LOW) | **FIXED** — both sides now required. Latent over-count only: both derivations agree today (7/12, 7/11) |
+| F8b | a valid FUTURE date in HEAD pins the guard shut for that doc | late Opus finder (LOW) | **REFUTED, accepted as designed** — it alerts every run, so noisy not silent; a "> today" case would add a clock-trust assumption the guard avoids |
+| F8c | `A && B \|\| C` at `:261` could file a false "commit failed" alert if `echo` fails after a successful commit | late Opus finder (LOW) | **REFUTED on reachability** — stdout is a log file in every scheduled path; the finder concurred |
+| F9 | a newline in a staged path makes `_GUARD_DROPPED` negative and the drop silent | late Opus finder | **REFUTED** — the finder itself dropped it as UNVALIDATED; F4's literal-path assertion now blocks the only entry route anyway |
+| R1 | **this report carried THREE `## Disposition ledger` headings and TWO `## Pass Ledger`s** | pass 8, self | **FIXED** — my own section splices collided; rebuilt to one of each, richest content preserved |

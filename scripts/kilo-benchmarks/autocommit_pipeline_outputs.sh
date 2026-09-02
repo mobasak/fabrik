@@ -124,7 +124,7 @@ _AI_OUT="$(mktemp)"
 # same EXIT cleanup as the guard tempfile below — round 2 pass 2 caught this fix REINTRODUCING the
 # leak it had just closed, four lines up. Both temp files are freed on any exit.
 trap 'rm -f "$_AI_OUT" "${_GUARD_OUT:-}"' EXIT
-if python3 "$SELF_DIR/stage_ai_rule_renders.py" > "$_AI_OUT"; then
+if FABRIK_ROOT="$FABRIK_ROOT" python3 "$SELF_DIR/stage_ai_rule_renders.py" > "$_AI_OUT"; then
   while IFS= read -r _ai_render; do
     [ -n "$_ai_render" ] && PATHS+=("$_ai_render")
   done < "$_AI_OUT"
@@ -139,6 +139,10 @@ rm -f "$_AI_OUT"
 # 0 against 0 and stays silent. That is this file's own "reporting success for a total no-op" class
 # (test_golden_parity.py:1338 is literally named for it), reintroduced by a different route.
 # A temp file gives the REAL exit status and cannot concatenate partial stdout with the fallback.
+# >>> FRESHNESS-GUARD-BLOCK (sentinels are LOAD-BEARING: tests/test_autocommit_freshness_wiring.py
+# slices between them and EXECUTES this exact text. Before 2026-09-02 the test drove a
+# hand-transcribed COPY — proven worthless by deleting this whole block and watching all 6
+# wiring tests still pass. Do not rename or remove the sentinels.)
 _GUARD_OUT="$(mktemp)"
 # NOTE: the EXIT trap set above already covers this file (`${_GUARD_OUT:-}`), and a SECOND
 # `trap … EXIT` would REPLACE the first — silently un-cleaning _AI_OUT. One trap, both files.
@@ -163,6 +167,7 @@ else
   echo "[auto-commit] freshness-guard FAILED (rc=$?) — keeping the unfiltered stage list (fail-open: publishing beats blocking)" >&2
 fi
 rm -f "$_GUARD_OUT"
+# <<< FRESHNESS-GUARD-BLOCK
 
 # Add PER PATH, not in one call: `git add` is all-or-nothing, so ONE renamed/retired path (or an
 # empty rules/ai glob, or running inside the Phase-B engine repo where most of these do not

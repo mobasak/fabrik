@@ -24,12 +24,20 @@ paths (one per line) for the autocommit script to append to its stage array. Alw
 from __future__ import annotations
 
 import difflib
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path("/opt/fabrik")
+# ⚠️ NEVER hardcode the root — this is the SAME defect the freshness guard records as its own
+# "finding 1" (guard_selection_freshness.py:50-53: a hardcoded root "made the guard inspect the
+# WRONG repo, fail open, and let the exact 2026-08-29 incident reproduce with the fix
+# installed"). The caller honours FABRIK_ROOT (autocommit_pipeline_outputs.sh:29) and passes
+# GUARD_REPO to the guard; this feeder was never given the same treatment, so with FABRIK_ROOT
+# pointing at another checkout it qualified packs against /opt/fabrik's diff and emitted paths
+# that were then staged and PUSHED in the other repo — on the fleet-synced surface.
+REPO = Path(os.environ.get("FABRIK_ROOT") or "/opt/fabrik")
 GLOB = ".windsurf/rules/ai/*.md"
 # START qualifies ONLY with the engine's own self-description — every live engine marker
 # carries "(auto-managed by <script>)" on its START line; a human's START-shaped comment
