@@ -4,6 +4,84 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the flywheel was ranking on a fraction of its own history: 1,092 runs imported (2026-09-02)
+
+- 1,092 pool runs existed in the local ledger but never reached `subagent_runs`, so `pick_models`
+  had been ranking while ignoring them. Imported UNSCORED via `record_run(project="backfill")` —
+  quality is an adjudication judgement made with the findings in hand, and inventing scores now
+  would poison the exact signal being repaired. The objective columns (status/cost/latency) are
+  real and are what the ranking gains.
+- **Verified the premise first, because the sibling follow-up died on exactly that:** of the 1,111
+  rows `audit_unrecorded` reports, only 1,092 were genuinely absent from the DB — 19 were already
+  recorded (the helper compares RECEIPT files, not the database).
+- ⚠️ **A NULL `project` would have made the import invisible.** The ranking's WHERE clause is
+  `project <> 'canary-grounding'`, and in SQL `NULL <> 'x'` is NULL, not TRUE — so untagged rows are
+  silently excluded. Tagged `backfill`; confirmed 1,092/1,092 visible to the ranking's own query.
+- Effect on `TASK_SUBAGENT_SELECTION.md`: success rates corrected upward across every task type
+  (docs `minimax-m2.5` 0.42→0.64, research `deepseek-v3.2` 0.62→0.81, plan `v4-pro` 0.85→0.94) and
+  `research` re-ordered. The previously-recorded subset was biased toward failures.
+- **NOT fixed, and withdrawn:** the four "100%-error models". Reading the error TEXT (not the rate)
+  showed 240 of 260 failures were our own `provider.max_price` ceiling rejecting every endpoint —
+  a bug `loop.py::_apply_max_price` documents as FIXED on 2026-07-19, the day after those failures —
+  and the other 20 were an invalid model ID. All single-day, all historical. Excluding them would
+  have removed healthy capacity; `z-ai/glm-5` was the top-ranked `spec` model.
+- **Open, unexplained, NOT caused by this import** (an import only adds rows): `spec` n_total fell
+  155→6 and `research` 321→234 versus the 2026-08-19 refresh, with `aged_out=0` for both — so it is
+  not the 90-day window sliding. Rows that backed the previous refresh are no longer in the table.
+
+### Added — a `switch →` button on the quota board, so the operator can rotate accounts by hand (2026-09-02)
+
+- **Why:** the `*/5` rotation tick flips at 95%, but a fast burn crosses the wall between ticks —
+  2026-09-02 13:20 the tick read sarp at 94% ("below 95%, no flip"), the active session hit the
+  rate limit inside the next five minutes, and the 13:25 tick flipped at 100%. The operator can
+  see that coming on the board; now they can act on it there.
+- **What:** `scripts/sysadmin/quota_dashboard.py` gains `POST /switch` (`{"account": "<slug>"}`
+  + the `X-Quota-Dash` header) → shells `claude_rotate.py --switch <slug>` (the same manual flip,
+  pause- and cap-exempt), re-renders synchronously and returns `{ok, output}`; every row that is
+  not the active pointer carries a confirmed-in-page `switch →` button. Refused: a request without
+  the custom header (403 — the CSRF story for a loopback board: no cross-origin page can add one
+  without a preflight this server never answers), a slug the board's last payload does not list
+  (400 — nothing reaches the CLI), a CLI failure (502, its stderr shown). Env:
+  `QUOTA_DASH_SWITCH_TIMEOUT_S` (90).
+- **Guard:** `tests/test_quota_dashboard.py` — five behaviours over a REAL loopback server with a
+  stub CLI that records argv (header refusal · unknown/garbage slug · argv + post-switch re-render ·
+  CLI failure surfaced · button on idle rows only), all seen red first.
+- **Docs:** `docs/workstation/quota-dashboard.md` (reading table, endpoints, config, boundaries —
+  the board is no longer "read-only over rotation": one relay write path, the CLI still decides
+  nothing less), `docs/workstation/claude-account-rotation.md` § Everyday operation.
+
+### Fixed — the external-services auto-scan was half-dead for 46 days; now one schedule, one heartbeat, two inputs (2026-09-02)
+
+- **Found:** `gather_envs.py` ran every morning inside `daily_refresh.sh`, but `registry_sync.py` +
+  `gen_dashboard.py` sat behind a documented cron line for `refresh_service_inventory.py` that was
+  "operator-installed" and never was — the Postgres registry (`api_keys.last_seen` max 2026-07-18) and
+  `external-services-dashboard.html` (generated 2026-07-18) froze on build day; `logs/refresh-services.log`
+  never existed; `.fabrik/liveness-registry.json` declared none of it (0 of 32 surfaces).
+- **Wired:** `registry_sync --fetch-credits` and `gen_dashboard <tracked path>` are now `_step`s in
+  `daily_refresh.sh` right after `classify_services` (which is now bounded, `--max-per-run 10`).
+  `refresh_service_inventory.py` + `scripts/tests/test_refresh.py` retired (its seen-set design was
+  already superseded by `--tombstone-unresolved`; a second entry point advertising an uninstalled cron
+  is a two-sources-of-truth defect). Liveness surface `external-services-chain` declared (dashboard
+  mtime ≤30 h).
+- **Second input:** `gather_envs.scan_code_hosts` — every git repo under `/opt`, source files only, every
+  `https://<host>` literal, attributed to a catalog provider by registrable domain or flagged into the
+  same NEEDS-TRIAGE queue (`CODE_HOST_URL=…`). Measured before: 239 of 495 code-referenced hosts were in
+  neither the registry nor the fleet index. Platform domains (`amazonaws`, `googleapis`, …) keep their
+  service label and are never credited to one vendor. `classify_services.bound_flagged` caps the paid run with a day-rotating window (a fixed sorted head
+  would be pinned by providers that only ever transport-error — pool finder, this review).
+- **`gen_dashboard.py`:** argparse — `--help` used to WRITE a 30 KB file named `--help` into the repo root.
+- **`registry_sync.py`:** `--fetch-credits` flag (the orchestrator's `fetch_credits=True` path, now reachable
+  from the CLI); the credit fetcher now gets the first CREDENTIAL, never a URL-shaped value — a
+  `CODE_HOST_URL` line sorts before `DEEPL_API_KEY` and would have fed DeepL's fetcher a URL daily
+  (review finding N1, red→green in `test_registry_sync.py`).
+- **Fleet index:** `docs/reference/apis/EXTERNAL_SYSTEMS.md` +8 blocks for the keyless systems the scan
+  proved fleet-used (PostHog, Axiom, Slack, Vercel, Cerebras, LinkedIn scrape target, BLS API, Google APIs —
+  Gmail + OAuth), Amazon SES re-grounded (was 9/12 UNKNOWN), Microsoft 365/Graph re-grounded with the
+  Outlook per-mailbox limits and its self-contradicting "grounding impossible" note removed; header
+  denominator 158 → 166 systems, 115 → 124 fleet-used; closing re-derivation CLEAN. Ten CLAIMS rows.
+- Docs: `docs/reference/external-services-registry.md` (new subsystem doc), INDEX, CAPABILITIES; tests:
+  `tests/test_external_services_chain.py` (5), `scripts/tests/test_gather_envs.py` (+6).
+
 ### Changed — Deployment-verification plan CONVERGED by /fabrik-plan-review: 23 findings, all in same-day text (2026-09-02)
 
 - Five passes (R1–R5), R5 quiet at md5 `51edd8a4`; the three flip graders run on a temp-flipped copy with
