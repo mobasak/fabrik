@@ -496,7 +496,9 @@ def test_output_file_is_0600_from_creation(tmp_path, monkeypatch):
     real_open = os.open
 
     def spy(path, flags, mode=0o777, *a, **k):
-        if str(path).endswith(".tmp"):  # only OUR file — the spy is process-wide (Z11)
+        if ".tmp" in str(
+            path
+        ):  # only OUR file (per-process name, AW1) — the spy is process-wide (Z11)
             modes.append(mode)
         return real_open(path, flags, mode, *a, **k)
 
@@ -1358,8 +1360,8 @@ def test_an_enum_rejected_answer_never_merges_reports_or_scores_as_identified(
 
 
 def test_metadata_keys_survive_classify_and_never_crash_it(tmp_path, monkeypatch):
-    """`_README` (a string, not an entry) is kept aside and written back first; a model naming
-    `_readme` cannot make classify call `.setdefault` on a string (AU9)."""
+    """`_README` (a string, not an entry) is kept aside and written back first; a model naming a
+    string-valued key (`note`, AY8 — or `_readme`) cannot make classify call `.setdefault` on a string (AU9)."""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
         '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
@@ -1369,7 +1371,7 @@ def test_metadata_keys_survive_classify_and_never_crash_it(tmp_path, monkeypatch
         _Res(
             json.dumps(
                 {
-                    "name": "_readme",
+                    "name": "note",
                     "category": "search",
                     "cost": "free",
                     "capability": "x",
@@ -1384,6 +1386,7 @@ def test_metadata_keys_survive_classify_and_never_crash_it(tmp_path, monkeypatch
         json.dumps(
             {
                 "_readme": "metadata text",
+                "note": "a string under a non-underscore key (AY8)",
                 "bar": {
                     "category": "search",
                     "cost": "free",
@@ -1403,6 +1406,9 @@ def test_metadata_keys_survive_classify_and_never_crash_it(tmp_path, monkeypatch
         and out["_readme"] == "metadata text"
         and out["foo"]["category"] == "search"
     )
+    assert (
+        out["note"] == "a string under a non-underscore key (AY8)"
+    )  # kept as metadata, never a provider
 
 
 def test_triage_starts_at_the_header_never_at_a_value(tmp_path):
@@ -1427,6 +1433,11 @@ def test_underscore_prefixed_key_never_mints_an_invisible_provider():
     """`_MYVENDOR_API_KEY` → `myvendor`: a `_`-prefixed provider would be dropped by load_catalog
     (metadata convention) and re-billed forever once tombstoned (AU4)."""
     assert ge.derive_provider("_MYVENDOR_API_KEY") == "myvendor"
+    assert (
+        ge.derive_provider("__API_KEY") == "api_key"
+    )  # the fallback must not restore the prefix (AY3)
+    for k in ("_", "__", "___TOKEN", "__API_KEY"):
+        assert ge.derive_provider(k) and not ge.derive_provider(k).startswith("_"), k
 
 
 def test_catalog_keys_with_whitespace_fail_closed(tmp_path, monkeypatch):
@@ -1439,14 +1450,27 @@ def test_catalog_keys_with_whitespace_fail_closed(tmp_path, monkeypatch):
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
     with pytest.raises(ValueError, match="single tokens"):
         ge.load_catalog()
+    # a non-dict value under a provider key is metadata, not a provider (AY8)
+    cat.write_text(
+        json.dumps({"note": "text", "ok": {"category": "search", "match": ["OK"]}}),
+        encoding="utf-8",
+    )
+    catalog, matchers = ge.load_catalog()
+    assert list(catalog) == ["ok"] and matchers == [("OK", "ok")]
 
 
 def test_per_key_used_by_note_is_tokenised_like_the_svc_line(tmp_path, monkeypatch):
     """The per-key `used by:` note (registry_sync prefers it over the #svc used_by) carries the
     same tokens — a project dir with whitespace attributes identically on both paths (AU6)."""
     monkeypatch.setattr(ge, "load_catalog", lambda: ({}, []))
-    body, _ = ge.consolidate(_envs(tmp_path, {"pro j": "FOO_API_KEY=abcdefghijklmnop\n"}))
+    body, _ = ge.consolidate(
+        _envs(
+            tmp_path,
+            {"pro j": "FOO_API_KEY=abcdefghijklmnop\n", "a,b": "BAR_API_KEY=abcdefghijklmnop\n"},
+        )
+    )
     assert "used by: pro_j" in body and "used_by=pro_j" in body and "pro j" not in body
+    assert "used by: a_b" in body and "a,b" not in body  # `,` is the consumer's delimiter (AY7)
 
 
 def test_secret_file_tmp_never_outlives_a_failed_write(tmp_path, monkeypatch):
@@ -1456,4 +1480,42 @@ def test_secret_file_tmp_never_outlives_a_failed_write(tmp_path, monkeypatch):
     monkeypatch.setattr(ge.os, "replace", lambda a, b: (_ for _ in ()).throw(OSError("disk full")))
     with pytest.raises(OSError):
         ge.write_secret_file(out, "SECRET=1\n")
-    assert not out.with_name("all-envs.env.tmp").exists() and not out.exists()
+    assert not list(tmp_path.glob("all-envs.env.tmp*")) and not out.exists()
+
+
+def test_secret_file_tmp_is_per_process_and_a_live_siblings_tmp_is_never_touched(tmp_path):
+    """Two writers (a manual run racing the cron) must never share a tmp name — with one shared
+    `.tmp` the second unlinked the first's in-progress file and the first's rename installed the
+    second's PARTIAL file as the secrets file (AW1). A fresh sibling tmp survives; a stale one
+    (a SIGKILLed run, > 1 h) is swept."""
+    import os
+    import time
+
+    out = tmp_path / "all-envs.env"
+    fresh = tmp_path / "all-envs.env.tmp.424242"
+    fresh.write_text("partial", encoding="utf-8")
+    stale = tmp_path / "all-envs.env.tmp.1"
+    stale.write_text("old", encoding="utf-8")
+    os.utime(stale, (time.time() - 7200, time.time() - 7200))
+    ge.write_secret_file(out, "SECRET=1\n")
+    assert out.read_text(encoding="utf-8") == "SECRET=1\n"
+    assert fresh.read_text(encoding="utf-8") == "partial"  # a live sibling's tmp is untouched
+    assert not stale.exists()  # the crashed run's leftover is swept
+    assert not (tmp_path / f"all-envs.env.tmp.{os.getpid()}").exists()  # ours was renamed away
+
+
+def test_a_bad_catalog_key_is_a_one_line_exit_1_never_a_traceback(tmp_path, monkeypatch, capsys):
+    """`load_catalog`'s ValueError (AU7) reaches the chain as the same shape as a scan failure:
+    one line on stderr, exit 1, nothing written (AY4)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(json.dumps({"pro v": {"category": "search"}}), encoding="utf-8")
+    out = tmp_path / "all-envs.env"
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    monkeypatch.setattr(ge, "OUTPUT", out)
+    monkeypatch.setattr(
+        ge, "project_env_files", lambda: _envs(tmp_path, {"p": "X_API_KEY=abcdefghijklmnop\n"})
+    )
+    monkeypatch.setattr(ge, "project_dirs", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gather_envs.py", "--apply"])
+    assert ge.main() == 1
+    assert "single tokens" in capsys.readouterr().err and not out.exists()

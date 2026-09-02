@@ -52,6 +52,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -656,14 +657,17 @@ def project_env_files() -> list[Path]:
 def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     """Return (provider -> meta, [(prefix, provider)...] sorted longest-first).
 
-    Fail-soft: a malformed hand-edited catalog degrades to "everything flagged
-    category=?" (still visible) rather than crashing the cron and freezing the file."""
+    Fail-soft on an UNREADABLE catalog (missing / invalid JSON): degrades to "everything flagged
+    category=?" (still visible) rather than crashing the cron. Fail-CLOSED on a readable catalog
+    with a key that cannot round-trip (whitespace — AU7): `ValueError`, which `main` reports as
+    a one-line error and exit 1, so the chain alerts and nothing is written; a non-dict value
+    under a provider key is metadata, ignored (AY8)."""
     try:
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"WARNING: {CATALOG_PATH} unreadable ({exc}); all providers flagged", file=sys.stderr)
         raw = {}
-    catalog = {k: v for k, v in raw.items() if not k.startswith("_")}
+    catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     bad_keys = [k for k in catalog if _svc_token(k) != k]
     if bad_keys:  # a hand-edited key with whitespace would round-trip as a DIFFERENT provider (AU7)
         raise ValueError(f"catalog keys must be single tokens (no whitespace): {bad_keys[:5]}")
@@ -697,13 +701,17 @@ def derive_provider(key: str) -> str:
     )
     # a `_`-prefixed name would be invisible to load_catalog (metadata convention) and re-billed
     # forever once tombstoned (AU4)
-    return ((stem or key).lstrip("_") or key).lower()
+    return (
+        (stem or key).lstrip("_") or key.lstrip("_") or "unnamed"
+    ).lower()  # never `_`-prefixed or empty (AU4/AY3)
 
 
 def _svc_token(v) -> str:
     """One whitespace-free token for the #svc line: whitespace (a model's `free tier`) becomes `_` — an
     unreadable line makes the consumer fail CLOSED (registry_sync AP2), so never emit one."""
-    return re.sub(r"\s+", "_", str(v or "?").strip()) or "?"
+    return (
+        re.sub(r"[\s,]+", "_", str(v or "?").strip()) or "?"
+    )  # `,` is the consumer's list delimiter (AY7)
 
 
 def svc_line(name: str, meta: dict, used_by: set[str]) -> str:
@@ -918,7 +926,10 @@ def main() -> int:
 
     try:
         body, stats = consolidate(files, code_dirs=project_dirs())
-    except CodeScanError as exc:
+    except (
+        CodeScanError,
+        ValueError,
+    ) as exc:  # a bad catalog key is the same one-line, exit-1 shape (AY4)
         print(f"ERROR: {exc} — nothing written; the previous consolidation stands", file=sys.stderr)
         return 1
     header = (
@@ -957,10 +968,19 @@ def main() -> int:
 
 def write_secret_file(out: Path, content: str) -> None:
     """Atomic 0600 write: mode 0600 from the first byte (write-then-chmod leaves a world-readable
-    window with every fleet credential on disk), and the tmp never outlives a failure — a crashed
-    run must not leave the full credential set beside the target (AU10)."""
-    tmp = out.with_name(out.name + ".tmp")
-    tmp.unlink(missing_ok=True)  # O_CREAT keeps an EXISTING file's mode — a crashed run's leftover
+    window with every fleet credential on disk), and the tmp never outlives a CATCHABLE failure
+    (AU10) — a SIGKILL (`timeout -k`) cannot be caught, so a per-process leftover is swept by the
+    next run once it is an hour old (AW1/AY6); it is 0600 and gitignored meanwhile."""
+    # a PER-PROCESS tmp name: with one shared `.tmp` a manual run racing the cron unlinked the other
+    # writer's in-progress file and the first `os.replace` then installed the second writer's
+    # PARTIAL file as the secrets file (AW1). `O_EXCL` on a fresh name also refuses a planted
+    # symlink. A crashed run's leftover (SIGKILL — the except below covers everything else) is
+    # swept only when it is older than an hour, so a live sibling's tmp is never touched.
+    tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
+    for stale in out.parent.glob(out.name + ".tmp*"):
+        legacy = stale.name == out.name + ".tmp"  # the pre-AW1 shared name: no writer uses it now
+        if stale != tmp and (legacy or time.time() - stale.stat().st_mtime > 3600):
+            stale.unlink(missing_ok=True)
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

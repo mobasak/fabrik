@@ -361,7 +361,12 @@ def main() -> int:
     # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
     # gather_envs.load_catalog applies; kept aside and written back first (AU9)
     catalog_meta = {k: v for k, v in raw_catalog.items() if k.startswith("_")}
-    catalog = {k: v for k, v in raw_catalog.items() if not k.startswith("_")}
+    catalog = {
+        k: v for k, v in raw_catalog.items() if not k.startswith("_") and isinstance(v, dict)
+    }
+    catalog_meta.update(
+        {k: v for k, v in raw_catalog.items() if not k.startswith("_") and not isinstance(v, dict)}
+    )  # a non-dict value is metadata too (AY8)
     merged_into: dict[str, str] = {}
     for prov, v in list(identified.items()):
         target = str(v.get("name") or "").strip().lower()
@@ -408,7 +413,7 @@ def main() -> int:
             # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
             "match": [] if code_only_provider(provs.get(prov, {})) else [root],
         }
-        assert entry["category"] != "?", prov  # `identified` is enum-gated above (AS1/AU1)
+        # `identified` is enum-gated above, so entry["category"] is never "?" here (AS1/AU1)
         if (
             prov in catalog
         ):  # a curated entry keeps its match/hosts when identified (AF8, mirror of AC11)

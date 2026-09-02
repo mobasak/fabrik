@@ -216,6 +216,11 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     # the href scheme gate's always-on floor (AS5): the node test skips without node, and a skip
     # must not be the only guard on an injection class (AT1)
     assert "const href=u=>/^https?:\\/\\//i.test(String(u||''))?u:null;" in gd.SCRIPT
+    # the shipped escaper's floor: every node grader lifts THIS line, none substitutes its own (AY1)
+    esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)
+    assert all(
+        tok in esc_line for tok in ("'&':'&amp;'", "'<':'&lt;'", "'>':'&gt;'", "'\"':'&quot;'")
+    ), esc_line
 
 
 def test_cpill_class_token_is_sanitized_when_the_script_runs():
@@ -231,11 +236,8 @@ def test_cpill_class_token_is_sanitized_when_the_script_runs():
     node = shutil.which("node")
     if not node:
         pytest.skip("node not on PATH — only the source-text floor assertion ran")
-    js = (
-        "const esc=s=>String(s).replace(/[&<>\"']/g,c=>'&#'+c.charCodeAt(0)+';');"
-        + m.group(0)
-        + "\nprocess.stdout.write(cpill('x\"><svg/onload=alert(1)>'));"
-    )
+    esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)  # the SHIPPED escaper (AY1)
+    js = esc_line + m.group(0) + "\nprocess.stdout.write(cpill('x\"><svg/onload=alert(1)>'));"
     out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
     # the WHOLE output must be one span whose class token is [A-Za-z0-9-] and whose text holds
     # no raw angle bracket — a captured-prefix check stopped at the injected quote and passed
@@ -263,12 +265,19 @@ def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
     # the CALL SITE, executed: the provider cell for a hostile url is plain text, never a link (AU3)
     line = re.search(r"    const url=href\(r\.url\)\?[^\n]*", gd.SCRIPT)
     assert line, "render() does not route the provider link through href()"
+    esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)  # the SHIPPED escaper (AY1)
+    cell = re.search(r"out\+='<tr><td class=\"prov\">'\+url\+'</td>'", gd.SCRIPT)
+    assert cell, "the provider cell does not render `url` (AY2)"
     js2 = (
-        "const esc=s=>String(s).replace(/[&<>\"']/g,c=>'&#'+c.charCodeAt(0)+';');"
+        esc_line
         + m.group(0)
         + "\nconst r={url:'javascript:alert(1)',provider:'p'};"
         + line.group(0).strip()
-        + "\nprocess.stdout.write(url);"
+        + "\nlet out='';"
+        + cell.group(0)
+        + ";process.stdout.write(out);"
     )
     out2 = subprocess.run([node, "-e", js2], capture_output=True, text=True, check=True).stdout
-    assert out2 == "p" and "<a" not in out2, out2
+    assert out2 == '<tr><td class="prov">p</td>' and "<a" not in out2, (
+        out2
+    )  # the CELL, not the helper (AY2)
