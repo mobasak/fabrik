@@ -55,21 +55,59 @@ CREATE TABLE IF NOT EXISTS subagent_runs (
     latency_s     DOUBLE PRECISION,
     quality_score REAL,
     tool_calls    JSONB,
-    session_id    TEXT
+    session_id    TEXT,
+    -- Added 2026-09-02 (plan 2026-09-02-plan-1-flywheel-recording, Phase F). ALL NULLABLE, so none
+    -- of them belongs in _REQUIRED_OUTBOX_COLS — an outbox row written by an OLDER vendored copy
+    -- lacks every one of these keys and must still flush.
+    failure_reason TEXT,        -- F1: WHY a run failed. The table previously had NO error column at
+                                -- all, so `error` could not be told from OUR price cap, and a
+                                -- provider stall could not be told from OUR turn ceiling. Three
+                                -- wrong model verdicts in one day came from that single gap.
+    queue_s        DOUBLE PRECISION,  -- F2: latency_s is measured from dispatch, and the provider
+                                -- sub-cap + global semaphore are acquired ~100 lines later, so the
+                                -- queue wait sits INSIDE latency_s by construction (the same model
+                                -- read 1051s benchmarked and 61s in production). Recorded
+                                -- separately; latency_s keeps its meaning for the 48 copies.
+    tokens_out     INTEGER,     -- F3: $/run alone confounds model price with task size.
+    tokens_in      INTEGER,     -- F3: ⚠️ NO PRODUCER YET — see AgentResult. Ships nullable so the
+                                -- column exists when a producer lands; never written today.
+    run_label      TEXT,        -- F4: `project` is meant to be the REPO. It holds run labels today
+                                -- (4,435 of 9,327 rows said 'review'), so the label moves here and
+                                -- `project` becomes what its name claims.
+    corpus_id      TEXT         -- F5: nothing recorded WHICH task a run performed, so two runs were
+                                -- never known to be comparable.
 );
 CREATE INDEX IF NOT EXISTS subagent_runs_task_model_idx ON subagent_runs (task_type, model);
 CREATE INDEX IF NOT EXISTS subagent_runs_ts_idx ON subagent_runs (ts);
 -- Added 2026-08-15 with the session_id column. A table created from an OLDER copy of
 -- this DDL needs the column added before this module can write to it at all:
 --     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS session_id TEXT;
+-- Added 2026-09-02 (Phase F). ⚠️ `CREATE TABLE IF NOT EXISTS` does NOTHING to an existing table, so
+-- editing the DDL above is not a migration — these must be run by hand against EVERY live database.
+-- There are TWO: the hub's local `fabrik_analytics` (what the ranking reads) and postgres-main (what
+-- `fabrik apply` provisions). `ensure_shared_analytics_db()` reaches only the second.
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS queue_s DOUBLE PRECISION;
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS tokens_out INTEGER;
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS tokens_in INTEGER;
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS run_label TEXT;
+--     ALTER TABLE subagent_runs ADD COLUMN IF NOT EXISTS corpus_id TEXT;
 """.strip()
 
 _INSERT = (
     "INSERT INTO subagent_runs "
     "(project, agent_id, task_type, model, provider, status, cost_usd, turns, "
-    "latency_s, quality_score, tool_calls, session_id) "
-    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s) "
-    # UNTARGETED on purpose. `subagent_runs` has no unique index on agent_id today, and the hub
+    "latency_s, quality_score, tool_calls, session_id, "
+    # Added 2026-09-02 (Phase F) — in the SAME order as _COLS, which is what builds the value tuple.
+    "failure_reason, queue_s, tokens_out, tokens_in, run_label, corpus_id) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s) "
+    # UNTARGETED on purpose. ⚠️ UPDATE 2026-09-02: the index the rest of this comment says does not
+    # exist NOW DOES — `subagent_runs_dispatch_agent_uidx`, `UNIQUE (agent_id) WHERE status <>
+    # 'scored'` — so this clause is no longer inert: it actively dedupes dispatch rows (measured: 0
+    # duplicate non-scored agent_ids). `scored` rows stay EXEMPT by design, because set_quality
+    # writes a second row per run on purpose, and 120 agent_ids currently carry more than one.
+    # The historical note below is kept because it explains WHY the bare form was chosen.
+    # `subagent_runs` had no unique index on agent_id at the time, and the hub
     # reported 995 duplicate agent_ids table-wide (review 205, deploy-triad-gateA 93, …) — any
     # repeated write of one agent_id duplicated, because nothing rejected it. `ON CONFLICT
     # (agent_id) DO NOTHING` would be a syntax error against the table as it stands, which is
@@ -126,6 +164,15 @@ _COLS = (
     # flush. That ordering was the precondition the table's owner made explicit; adding it here
     # first would have quarantined every pending SCORED row as poison.
     "session_id",
+    # Added 2026-09-02 (Phase F), same rule: nullable, absent from _REQUIRED_OUTBOX_COLS, so an
+    # older copy's rows keep flushing. ⚠️ Growing _COLS is NOT optional — adding the DB columns
+    # alone would create six columns that nothing ever writes.
+    "failure_reason",
+    "queue_s",
+    "tokens_out",
+    "tokens_in",
+    "run_label",
+    "corpus_id",
 )
 
 
@@ -525,6 +572,20 @@ def record_run(
             # a pid/ppid-based identity changes between an agent's own commands, which is how a
             # repo lock here became unreleasable by its own author.
             record.get("session_id") or _session_id(),
+            # Added 2026-09-02 (Phase F). ⚠️ THIS TUPLE IS HAND-BUILT AND IS *NOT* DRIVEN BY _COLS —
+            # _COLS drives the OUTBOX path only. Growing _INSERT without growing this tuple makes
+            # every direct insert raise, and the fail-open below swallows it into the outbox, so the
+            # DB silently stops receiving rows while everything still "works". That is exactly what
+            # happened while writing this change, and only executing an insert revealed it: the
+            # placeholder count matched _COLS perfectly and told us nothing.
+            record.get("failure_reason"),
+            record.get("queue_s"),
+            record.get("tokens_out"),
+            record.get("tokens_in"),
+            # F4: `project` is the REPO; the run label moves to its own column. Falls back to the
+            # legacy `project` value so an older caller's label is not lost on the way through.
+            record.get("run_label") or record.get("project"),
+            record.get("corpus_id"),
         )
     except Exception:  # noqa: BLE001 — fail-open: a malformed record never raises
         return False
@@ -762,6 +823,21 @@ def set_quality(
             # delta carries its own session — the one that did the JUDGING, which is the useful
             # attribution here (the dispatch row already records the session that ran it).
             _session_id(),
+            # Added 2026-09-02 (Phase F). ⚠️ SECOND hand-built tuple that must track _COLS — and the
+            # one that was missed. `_append_outbox` does `zip(_COLS, row, strict=True)`, so a short
+            # tuple raises ValueError, the bare `except` swallows it, and set_quality silently stops
+            # outboxing verdicts: no error, no reason, just a quality signal that never arrives.
+            # Caught only by running fabrik-lib's own suite after the re-vendor.
+            #
+            # All NULL by nature: a scored delta is a judgment of an ALREADY-RECORDED run. It has no
+            # failure (it is not a run), no queue wait, no tokens of its own, and no corpus — those
+            # belong to the dispatch row this delta is reconciled against per `agent_id`.
+            None,  # failure_reason
+            None,  # queue_s
+            None,  # tokens_out
+            None,  # tokens_in
+            project,  # run_label — same fallback as record_run, so the label is not lost
+            None,  # corpus_id
         )
     except Exception:  # noqa: BLE001 — fail-open: never raises
         return _sq_no("row-build-failed")

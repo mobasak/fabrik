@@ -128,6 +128,11 @@ _RESULT_FIELDS = (
     "diff",
     "error",
     "tool_calls",  # name→count map (provenance) — no secret
+    # Added 2026-09-02 (Phase F). Both already existed on AgentResult and were discarded at the DB
+    # boundary — the flywheel could not normalise cost by task size, and `latency_s` silently
+    # contained our own queue wait.
+    "out_tokens",  # F3 — completion tokens, summed per run
+    "queue_s",     # F2 — seconds spent waiting on the provider sub-cap + global semaphore
 )
 
 # The diff is model-controlled and can be multi-MB; cap what goes into the log so
@@ -154,6 +159,50 @@ def agent_record(spec: object, result: object) -> dict[str, object]:
         record[field] = getattr(spec, field, None)
     for field in _RESULT_FIELDS:
         record[field] = getattr(result, field, None)
+    # ── F1/F3: derive the columns the flywheel needs from what the result already carries ────────
+    # F3 — the DB column is `tokens_out`; the AgentResult attribute is `out_tokens`. Map, don't
+    # rename the attribute: 48 vendored copies read it.
+    record["tokens_out"] = record.get("out_tokens")
+
+    # F1 — WHY the run failed, as a short machine-readable token. The DB had NO error column at all,
+    # so `status='error'` could not be told from OUR price cap and a provider stall could not be told
+    # from OUR turn ceiling. Three model verdicts were nearly drawn from that gap in a single day.
+    #
+    # ⚠️ This is ALSO how G1 is delivered. G1 asked for `capped` to split into `stalled` /
+    # `turn_exhausted`. Doing that literally would widen the public `AgentStatus` Literal that all 48
+    # vendored copies narrow on — a far larger contract change than the distinction is worth, and one
+    # that breaks every consumer type-checking against the old set. The DISTINCTION is what G1 needs,
+    # and it lives here losslessly: `capped` + `reason='provider-stalled'` vs `capped` +
+    # `reason='turn-budget-exhausted'`. Historical rows stay derivable (`status='capped' AND
+    # turns=0`), so nothing already recorded is stranded.
+    _status = str(record.get("status") or "")
+    _turns = record.get("turns")
+    _err = str(record.get("error") or "")
+    if _status == "capped":
+        # The module already draws this line for the human-readable message (`_cap_message`):
+        # 0 turns means the provider accepted and streamed nothing; >=1 means it worked and ran out.
+        record["failure_reason"] = (
+            "provider-stalled" if not _turns else "turn-budget-exhausted"
+        )
+    elif _status == "error" and _err:
+        # Keep the FULL text in the JSONL; the column carries a short, groupable token so the
+        # ranking can partition failures without a LIKE over free text.
+        low = _err.lower()
+        if "max price" in low:
+            record["failure_reason"] = "priced-out"        # OURS, not the model's
+        elif "not a valid model id" in low:
+            record["failure_reason"] = "invalid-model-id"  # OURS
+        elif "429" in low:
+            record["failure_reason"] = "rate-limited"
+        elif "403" in low or "auth" in low:
+            record["failure_reason"] = "auth-failed"
+        elif "connection" in low or "disconnect" in low or "stalled" in low:
+            record["failure_reason"] = "transport"
+        else:
+            record["failure_reason"] = "provider-error"
+    else:
+        record["failure_reason"] = None
+
     # normalize owned_paths to a plain list (it may be a tuple/other iterable)
     owned = record.get("owned_paths")
     record["owned_paths"] = list(cast("Iterable[Any]", owned)) if owned else []

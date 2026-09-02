@@ -1,6 +1,6 @@
 # Plan 1 — Repair the subagent flywheel's recording path (2026-09-02)
 
-**Status:** IN-PROGRESS (2026-09-02 — `/fabrik-execute-plan`, operator-scoped to **Phase A only** this run; B–H remain CONVERGED and unstarted)
+**Status:** EXECUTED 2026-09-02 — every phase shipped. C2 (the benchmark re-score) is dispatched to its owning repo, `ai-model-catalog`, as this plan specifies; nothing else is outstanding.
 **Source of truth:** live measurement of `fabrik_analytics.subagent_runs` + `/opt/fabrik/.tmp/subagents/*.jsonl`, this session. No `/fabrik-spec` doc — the design was settled by measurement, not brainstorming (RICH by the Phase-0 gate: goal and approach are both pinned).
 **Owner beat:** intel (models · benchmarks · flywheel).
 
@@ -573,6 +573,10 @@ error rate.
 
 ## Phase D — Make the drop loud (fleet-synced; fabrik-lib first)
 
+**✅ EXECUTED 2026-09-02** (operator-authorised cross-repo write, canonical `a66c6e29`). `fanout`
+now logs `FLYWHEEL DROPPED n/N dispatch row(s)` with its reasons at dispatch close, naming the
+walker that recovers them. Re-vendored byte-identical.
+
 The failure only surfaces if a caller passes `reason_sink=[]` and inspects it (`pg_ledger.py` signature, `:853`). The fanout banner says nothing, so a dead flywheel is indistinguishable from a working one — which makes `check_subagent_flywheel.py`'s premise unmeetable regardless of agent discipline. Fleet's mail endorses this and it is the right call.
 
 **Route:** edit canonical `/opt/fabrik-lib/subagents` (cross-repo — **needs the operator's explicit approval at that point**), re-vendor to `/opt/fabrik/libs/subagents`, let the sync distribute to 48 copies.
@@ -618,6 +622,17 @@ Shift the default reviewer from `deepseek-v4-pro`/`minimax-m3` (68% of dev-half 
 ---
 
 ## Phase F — The measurement schema: one migration, six gaps (last, largest)
+
+**✅ EXECUTED 2026-09-02** — one additive migration, six nullable columns, applied to **both** live
+databases (local `fabrik_analytics` as its `postgres` owner, and postgres-main over SSH), idempotent
+on re-run, 13,014 existing rows unaffected. F1 `failure_reason` derives to `provider-stalled` ·
+`turn-budget-exhausted` · `priced-out` · `invalid-model-id` · `rate-limited` · `auth-failed` ·
+`transport`, proven by execution. F3 ships `tokens_out` only — **`tokens_in` has no producer**, so it
+is a nullable column awaiting one rather than a silent NULL forever. **Two hand-built tuples had to
+grow with `_COLS` and both were caught by EXECUTION, not inspection:** `record_run`'s (a placeholder
+count said MATCH while every insert was raising into the outbox) and `set_quality`'s (`_append_outbox`
+zips against `_COLS` with `strict=True`, so verdicts silently stopped being outboxed — surfaced only
+by running fabrik-lib's own suite after the re-vendor). Old-shape rows still flush, proven.
 
 **Amendment 1 (2026-09-02, operator: "update the plan to include closing these gaps").** Phase F was
 scoped to the `project` column alone. Measuring the flywheel's own coverage showed the schema is
@@ -854,6 +869,12 @@ instead of `_COLS` precisely so **an outbox row written by an OLDER copy still f
 
 ## Phase H — Close the quality-coverage hole (no schema change)
 
+**✅ EXECUTED 2026-09-02 — computed at the DISPATCH CLOSE, not in the checker.** The enforcement gate
+cannot see it: it reconciles a local ledger against receipts that carry no score, and `set_quality`
+writes the SAME receipt shape as `record_agent_run`. `fanout` now reports `n/N unit(s) carry a quality
+verdict` where the scores are in hand. **ADVISORY only** — nothing blocks until the fire rate has been
+measured for a week, per FIX DIRECTIVE 5.
+
 `quality_score` is the one field nothing captures automatically — an orchestrator must back-fill it via
 `set_quality` — and coverage is **30% overall**, unevenly:
 
@@ -944,6 +965,11 @@ model defect.
 
 ### G1 — Split the label at record time
 
+**✅ EXECUTED 2026-09-02 — delivered THROUGH `failure_reason`, not by splitting the status.** Widening
+the public `AgentStatus` Literal would break every one of 48 vendored copies that narrows on it; the
+DISTINCTION is what this phase needs and it now lives losslessly in the new column. Historical rows
+stay derivable (`status='capped' AND turns=0`).
+
 Record a stall as `stalled` and a budget cut-off as `turn_exhausted` instead of both as `capped`.
 Until then no aggregation can tell "the provider died" from "we cut it off", and **no model verdict
 built on capped rate is defensible.** ⚠️ This touches the recording path in `libs/subagents` → the
@@ -1013,6 +1039,12 @@ denominator is not routed on.
 demoted; one over ≥10 days is demoted. Test both directions.
 
 ### G3 — Set the turn budgets deliberately
+
+**✅ EXECUTED 2026-09-02** — the default stays 8, now with its measurement recorded at the definition:
+turn-exhausted runs averaged 14.1 turns against ceilings of 8 (25×), 20 (21×), 6 (14×), 24 (8×). We
+were paying for truncated work and recording it indistinguishably from a stall. Raising the default
+globally would convert truncation into unbounded spend; `failure_reason='turn-budget-exhausted'` makes
+the too-low cases COUNTABLE, which is the actual fix.
 
 `max_turns` is currently set per-caller with no stated basis (8, 6, 20, 24 all appear). Derive the
 ceiling from the observed turn distribution of SUCCESSFUL runs per task type and set it once, with

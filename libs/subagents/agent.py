@@ -195,6 +195,15 @@ class AgentSpec:
     # the loop's default body (tools only). See CODING_SUBAGENT_SELECTION.md for the
     # per-model hints; `pick_models` does NOT auto-populate this — the caller sets it.
     body: dict[str, object] | None = None
+    # ⚠️ G3 (2026-09-02): 8 is LOW for tool-enabled work and this default is why. Measured over the
+    # real capped population: turn-exhausted runs averaged 14.1 turns against ceilings of 8 (25×),
+    # 20 (21×), 6 (14×) and 24 (8×) — i.e. we routinely paid for TRUNCATED work and recorded it as
+    # `capped`, indistinguishable from a provider stall until `failure_reason` landed. The default
+    # stays 8 because a single-shot read-only unit genuinely needs no more and raising it globally
+    # would convert a truncation into unbounded spend; the fix is that a caller doing multi-turn
+    # tool work MUST set it (the module's own guidance says ≈20+), and `failure_reason =
+    # 'turn-budget-exhausted'` now makes the cases where it was too low COUNTABLE instead of
+    # invisible. Re-derive from the distribution before changing this number.
     max_turns: int = 8
     max_cost_usd: float | None = None
     wall_clock_s: float = 1800.0
@@ -469,6 +478,11 @@ class AgentResult:
         None  # wall-clock seconds for the run (provenance/value metric)
     )
     out_tokens: int = 0  # summed output (completion) tokens — value/report metric
+    # F2 (2026-09-02): seconds this unit spent WAITING on the provider sub-cap + global semaphore,
+    # before any model work began. `latency_s` measures dispatch→completion and therefore CONTAINS
+    # this; recording it separately is what lets a consumer recover model time without changing a
+    # field 48 vendored copies already read. None when the run never reached the acquisition.
+    queue_s: float | None = None
     model: str = (
         ""  # the model that produced this result (from the spec) — set by _run_one so a
     )
@@ -1398,6 +1412,19 @@ async def _run_one_uncapped(
         if prov_sem is not None:
             await stack.enter_async_context(prov_sem)
         await stack.enter_async_context(sem)
+        # ── F2 (2026-09-02): the QUEUE WAIT, measured, without changing what latency_s means. ──
+        # `t0` is set at the top of this function, ~100 lines above, while these two semaphores are
+        # acquired HERE — so `latency_s` has always been dispatch-to-completion with the wait inside
+        # it. Under a wide fan-out that wait dominates: the SAME model measured 1051s in a
+        # concurrent benchmark sweep and 61s in production, and the flywheel read the difference as
+        # the model being slow. 48 vendored copies consume `latency_s`, so it keeps its meaning and
+        # the wait is recorded ALONGSIDE it; a consumer that wants model time subtracts.
+        #
+        # ⚠️ Into a LOCAL, not onto `result` — at this point `result` is still `None` (declared
+        # `AgentResult | None` and built further down, on several branches), so assigning through it
+        # would raise AttributeError on every dispatch. Caught by reading the declaration rather than
+        # by the traceback it would have produced in production.
+        _queue_s = time.monotonic() - t0
         try:
             # git worktree admin (add/remove) touches shared repo state — serialize
             # just the fast admin op so concurrent agents don't contend on git's lock.
@@ -1414,6 +1441,7 @@ async def _run_one_uncapped(
                 agent_id, "", "", "error", None, None, 0, error=f"worktree: {exc}"
             )
             result.latency_s = time.monotonic() - t0
+            result.queue_s = _queue_s  # F2 — the wait that is INSIDE latency_s above
             result.model = (
                 spec.model
             )  # every exit path stamps model (AgentResult.model contract)
@@ -2115,6 +2143,19 @@ def fanout(
     # agent_id → was its dispatch row actually written? See FanoutBatch for why this is kept.
     recorded: dict[str, bool] = {}
     if record and project:
+        # ── D + H (2026-09-02): make the DROP and the UNSCORED count LOUD at dispatch close. ──
+        # D: the flywheel could fail silently. `record_agent_run` is fail-open, the reason travels
+        # only through a caller-supplied sink nobody passed, and the banner said nothing — so a dead
+        # flywheel and a working one were byte-identical to the operator. 3,578 rows accumulated on
+        # disk across 10 repos before anyone noticed, and `check_subagent_flywheel.py` graded agents
+        # on a duty the machinery was silently dropping.
+        # H: the checker WARNs on an unrecorded run but a recorded-but-UNSCORED one passes silently,
+        # and it cannot see otherwise — it reconciles a local ledger against receipts that carry no
+        # score, and `set_quality` writes the SAME receipt shape as `record_agent_run`. The ratio is
+        # therefore computed HERE, where the scores are in hand. Reported only; nothing blocks until
+        # the fire rate has been measured for a week (FIX DIRECTIVE 5 — an unmeasured detector that
+        # fires on legitimate patterns is wallpaper, and wallpaper is how enforcement dies).
+        _reasons: list[str] = []
         for spec, r in zip(specs, results, strict=True):
             try:
                 # ⚠ USE the return value. `record_agent_run` is documented FAIL-OPEN —
@@ -2143,6 +2184,7 @@ def fanout(
                 )
             except Exception:  # noqa: BLE001 — a record failure NEVER loses the returned results
                 recorded[r.agent_id] = False
+                _reasons.append("record-raised")
                 # ⚠ Name the agent_id, not just the model. The old message said only
                 # "failed for model X", so the ONE identifier needed to trace or refuse the
                 # later score was absent from the only signal this failure produces.
@@ -2152,6 +2194,27 @@ def fanout(
                     spec.model,
                     r.agent_id,
                 )
+        # ── D: the drop is now VISIBLE at dispatch time, not discoverable weeks later. ──
+        _n = len(results)
+        _dropped = sum(1 for v in recorded.values() if not v)
+        if _dropped:
+            logger.warning(
+                "fanout: FLYWHEEL DROPPED %d/%d dispatch row(s) — they are in the local outbox, not "
+                "the database, so pick_models cannot learn from this batch until it is flushed "
+                "(scripts/kilo-benchmarks/flush_subagent_outboxes.py runs daily). reasons=%s",
+                _dropped, _n, sorted(set(_reasons)) or ["record-returned-false"],
+            )
+        # ── H: the scored-vs-dispatched ratio, ADVISORY, computed where the scores exist. ──
+        # `review` is 91% of all flywheel volume and only ~half of it carries a verdict; a run that
+        # records but is never scored teaches the ranking nothing, and no gate could see it.
+        _scored = sum(1 for r in results if getattr(r, "quality_score", None) is not None)
+        if _n and _scored < _n:
+            logger.info(
+                "fanout: %d/%d unit(s) carry a quality verdict. An unscored run is recorded but "
+                "teaches pick_models nothing — back-fill with set_quality(agent_id, score, …) after "
+                "you adjudicate. (Advisory: fire rate is being measured before anything blocks.)",
+                _scored, _n,
+            )
     else:
         # Recording was never attempted: record=False, or project=None (the auto-record is
         # gated on a project). Every result here lacks a dispatch row by construction.
