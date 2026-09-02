@@ -1,6 +1,6 @@
 # Plan 1 — Repair the subagent flywheel's recording path (2026-09-02)
 
-**Status:** DRAFT — Amendment 2 in progress (the Amendment-1 migration mechanism did not exist; and Amendment 1's CONVERGED flip silently failed to apply — see § Pass Ledger)
+**Status:** CONVERGED (Amendment 2 — re-converged 2026-09-02 at md5 `3f85e657`, P21 quiet, author-blind pass dispatched 1 / returned 1)
 **Source of truth:** live measurement of `fabrik_analytics.subagent_runs` + `/opt/fabrik/.tmp/subagents/*.jsonl`, this session. No `/fabrik-spec` doc — the design was settled by measurement, not brainstorming (RICH by the Phase-0 gate: goal and approach are both pinned).
 **Owner beat:** intel (models · benchmarks · flywheel).
 
@@ -31,6 +31,15 @@
 | 18 | all — checklist parse, stale-machinery sweep, every Amendment-2 anchor re-read, status honesty | method: gate + citation | 0 | 0 | **0** | dabb18 → dabb18 ✓ (quiet) |
 | — | ⚠️ **P18 was quiet but NOT convergence.** The AUTHOR-BLIND pass had not returned; Amendment 1's phases had been read by nobody but their author. **Dispatched: 1. Returned: 0** at that moment. The flip was correctly withheld. | — | — | — | — | — |
 | 19 | **the author-blind pass RETURNED — 11 defects merged or refuted with evidence. Dispatched: 1. Returned: 1. Partition SWEPT.** | **method: re-derivation** | 11 | 11 | 14 | cfbb5f → ea219e |
+| 20 | all — checklist, every merged anchor re-read, both refuted numbers re-run | method: gate + re-derivation | 1 | 1 | 1 | ceb11b → 3f85e6 |
+| 21 | all — checklist, anchors, convergence | **method: re-derivation** | **0** | **0** | **0** | 3f85e6 → 3f85e6 ✓ → **CONVERGED** |
+
+**P20's single candidate:** the `ON CONFLICT DO NOTHING` citation pointed at `pg_ledger.py:84`, a
+comment line; the statement is `:85`. Fixed. A one-line anchor drift is exactly the class this plan
+spent five passes correcting elsewhere, so it was not waved through as trivial.
+
+**⚠️ THE STATUS FLIP IS NOW ASSERTED.** Amendment 1's flip used a bare `str.replace` and failed
+silently (checklist row 27). This one raises on a non-unique match before writing.
 
 **Dispatched vs returned:** 5 pool units dispatched, 5 returned (all scored back to the flywheel:
 qwen3-max 5 · deepseek-v4-flash 4 · deepseek-v3.2-exp 4 · gemini-3-flash 3 · deepseek-v4-flash 1).
@@ -1022,7 +1031,7 @@ $ psql postgresql:///fabrik_analytics -tAc "SELECT count(*) FROM subagent_runs"
 
 ✅ **RESOLVED — the 46-vs-50 delta is fully explained, and the "reconciliation" an earlier draft
 mandated would have been WRONG** (author-blind reviewer D6, reproduced on a throwaway database). Four
-of the fifty rows were duplicate `agent_id`s absorbed by `ON CONFLICT DO NOTHING` (`pg_ledger.py:84`).
+of the fifty rows were duplicate `agent_id`s absorbed by `ON CONFLICT DO NOTHING` (`pg_ledger.py:85`).
 No rows were lost; nothing is unaccounted for.
 
 **And `flush_outbox`'s return is not what its own comment claims.** It returns `len(good)` — the
