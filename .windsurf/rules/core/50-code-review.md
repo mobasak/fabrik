@@ -84,6 +84,48 @@ by name, never `git add -A`.
 
 ---
 
+## D2) WHY the review family is shaped this way — the properties that make it work
+
+D) says which command; this says which properties must survive when someone "simplifies" it.
+
+- **The maker never certifies its own work.** LLM evaluators show a measured *agreeableness bias* —
+  they confirm correct feedback and fail to reject incorrect feedback — and recall drops hardest
+  when a model reviews its OWN output, because a model that missed its own bug has no signal to look
+  again. Hence: review runs in a SEPARATE session with no authoring context, and D-063 pins the
+  second-opinion model. § A's self-review is the floor, not the review.
+- **Finders over-generate; refutation is a separate ACT with a hard bar.** Finders get narrow briefs
+  and no obligation to be balanced. Every candidate is then attacked — REFUTED only when provably
+  impossible, factually wrong, or already guarded, each with the line quoted.
+  ⚠️ **In our machinery the refuter is the ORCHESTRATOR, not a blinded verifier** (`/fabrik-review`
+  Phase 2): it refutes from the code while holding the finder's output. That is a real bar but NOT
+  the incentive separation the published finder/verifier pattern describes — so the discipline has
+  to come from the bar, not the architecture. When a finding is high-stakes, buy the independence
+  back by dispatching a fresh author-blind agent for that finding alone.
+- **Rank by whether it changes what someone does.** Runtime errors, security, data loss first;
+  architecture and measured performance second; style opinions and micro-optimisations are a
+  linter's job, not a review comment. Noise is not harmless — once a reviewer is ignored, its
+  correct findings are ignored too.
+
+**Loop shape — we converge where the common pattern escalates.** The published review-then-implement
+loop caps automated fixing at ONE pass and hands to a human instead of iterating; that is right when
+a human reviews every merge. Ours converges to a quiet round because the work is unattended and
+there is no human at the merge point — the loop IS the oversight. Two obligations come with it:
+1. **Dedup against everything ever SEEN, not against what was CONFIRMED.** A refuted finding never
+   enters the confirmed set, so the next round rediscovers it, refutes it again, and the counter
+   never reaches zero — the loop runs forever looking busy. ⚠️ One deliberate carve-out: a re-raise
+   carrying evidence the refutation does not cover NEEDS adjudication and COUNTS. An independent
+   finder rediscovering a weakly-refuted bug must never be silenced by the citation rule
+   (`/fabrik-review` is canonical for the exact wording).
+2. **A quiet round is evidence only if the search was diverse.** Zero findings because the code is
+   clean and zero because every pass looked the same way are indistinguishable from inside the loop.
+
+**Cross-REPO findings are logged, not converged on** — recorded with an owner and excluded from the
+convergence check, or the loop oscillates: fixer applies a local workaround, next reviewer flags the
+workaround, forever. That is what `ROUTED` is for. ⚠️ It is scoped to ANOTHER REPO only —
+cross-service findings inside this repo are fix-or-refute, never routed away.
+
+---
+
 ## E) Systemic Gate (Tier 3 — On-Demand Only)
 
 ```bash

@@ -212,7 +212,17 @@ PROCESSING_DURATION = Histogram("processing_duration_seconds", "Time to process 
 
 - Name metrics with `snake_case` and a **base-unit** suffix (`_seconds`, `_bytes`); `_total` is the COUNTER suffix and composes with units (`process_cpu_seconds_total`). ⚠️ `prometheus_client` appends `_total` to a Counter itself — declare `Counter("requests", …)`, never `Counter("requests_total", …)`, and never `_count` (an OpenMetrics reserved suffix).
 - Use Counter for monotonic values, Gauge for current state, Histogram for distributions.
-- Keep cardinality bounded — label values must be from a small, known set.
+- Keep cardinality bounded — label values must be from a small, known set. The test: **if a label
+  value can differ per request, it is not a metric label** (`user_id`, `request_id`, `order_id`,
+  raw URLs, raw error messages). Route templates, status codes, methods and bounded error
+  categories are safe. Put the unbounded ones in LOGS, where high cardinality is fine.
+- ⚠️ **Know which failure YOUR stack gives you — they are not the same.** Under an OTel SDK, a
+  metric that overflows its cardinality limit fails SILENTLY: totals stay correct while queries
+  that *filter or group by* an attribute UNDERCOUNT, so dashboards and SLOs keep rendering numbers
+  that are quietly too low. **Our scaffolded stack is `prometheus_client`, which has no such
+  limit** — here a blowup is memory/TSDB growth, and Prometheus's own `sample_limit` fails the
+  whole scrape LOUDLY (`up=0`) rather than skewing a breakdown. Loud is survivable; the reason to
+  care about both is that a service moving to OTel inherits the silent one.
 - **What the scaffold actually emits** (read `{package}/metrics.py` before importing): `REQUEST_COUNT` = Counter `fabrik_requests_total` labelled `["endpoint","status"]` (no `method`), `ERROR_COUNT` + `PROCESSING_COUNT` = Counters, `REQUEST_DURATION` + `ACTIVE_JOBS` = **Histograms** — calling `.set()` on them raises. Import the names; do not assume their types.
 
 **Node projects:** no metrics module is scaffolded today — wire the Prometheus client yourself if `shape.exposes_metrics` is set, and do not set that flag until `/metrics` genuinely serves.
@@ -383,6 +393,23 @@ Every JSON log entry must include these core fields:
 - In Next.js: extract in `middleware.ts`, propagate via `AsyncLocalStorage` or explicit child logger passing.
 - Return the `X-Request-ID` in the response headers so clients can reference it in bug reports.
 
+⚠️ **Why this fleet stops at a correlation ID, and what to name the field.** Probed 2026-09-01 across
+ALL THREE fleet hosts (vps1/vps2/vps3): Loki + Prometheus + Grafana only — **no DEDICATED trace
+backend (Tempo/Jaeger) and no OTel collector on any of them**, and Grafana carries exactly two
+datasources (loki, prometheus). ⚠️ Not "no spans at all": Sentry-SDK services already emit
+performance transactions to GlitchTip at `GLITCHTIP_TRACES_SAMPLE_RATE` (§ config above) — that is
+the only span-shaped signal here, and it is not a queryable trace store.
+So do NOT instrument distributed tracing here: spans with nowhere to go are cost without a consumer,
+and "add OpenTelemetry" is over-engineering until a backend exists. A request-scoped correlation ID
+is the correct ceiling for our topology.
+**But name the field as though the backend will arrive**, because renaming later means touching
+every service: when a span context IS available, log `trace_id` and `span_id` (the OTel semantic
+convention names) rather than inventing a bespoke key — an OTel-integrated logger injects them for
+free. Costs nothing today; saves a fleet-wide migration. The upgrade path, if a trace backend is
+ever adopted, is metric → trace → log: the alert points at a metric, the metric's exemplar points at
+a trace, the trace's `trace_id` points at the log lines. Until then, the correlation ID carries the
+last link alone.
+
 ## PII & Secret Redaction
 
 - PII (emails, SSNs, credit card numbers), auth tokens, passwords, and API keys must be redacted **at the application edge** before log emission.
@@ -393,7 +420,9 @@ Every JSON log entry must include these core fields:
 ## Loki Label Discipline
 
 - **Never** use high-cardinality values as Loki stream labels. `request_id`, `user_id`, `session_id`, `client_ip` must remain inside the JSON payload only.
-- Valid labels: `service`, `environment`, `level`. These have bounded cardinality.
+- ⚠️ **The label set is the PIPELINE's — an app cannot create one by logging a field.** See § Loki
+  above for the LIVE set; `service`, `environment` and `level` are *not* labels on this fleet, they
+  are JSON fields queried with `| json`.
 - High-cardinality labels cause index bloat and OOM crashes on constrained VPS.
 
 ---
@@ -486,7 +515,7 @@ Install procedure + currently-registered alias pairs (`browserless`, `gotenberg`
 - [ ] `/health` endpoint verifies actual dependencies (DB, Redis, consumed APIs) before returning 200.
 - [ ] `/metrics` endpoint exposes scaffolded counters + any custom business metrics (when `shape.exposes_metrics: true`).
 - [ ] Docker Compose `HEALTHCHECK` includes `start_period`.
-- [ ] Loki labels limited to low-cardinality values (`service`, `environment`, `level`).
+- [ ] No app-invented Loki labels — the label set is the pipeline's; verify against the LIVE set in § Loki (high-cardinality values stay in the JSON payload).
 - [ ] New alert rules target RED symptoms; resource alerts stay in the shared fleet rule set, not per service.
 - [ ] Gatus configured for external synthetic monitoring of all public endpoints.
 - [ ] GlitchTip DSN provisioned and injected via env var (not hardcoded).

@@ -482,3 +482,46 @@ claims:
     verify: "search: Retry-After header HTTP-date delay-seconds RFC 9110 semantics"
     window_days: 365
     last_verified: 2026-09-01
+
+  - id: llm-self-review-agreeableness-bias
+    pack: core/50-code-review.md
+    claim: "LLM evaluators show agreeableness bias — they confirm correct feedback but fail to reject incorrect feedback, and recall is measurably worse when a model reviews its OWN output than another's. This is the evidence base for author-blind review (D-063) and for maker-checker separation"
+    kind: rationale
+    verify: "search: LLM self-review agreeableness bias recall maker-checker adversarial code review <year>"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: finder-verifier-false-positive-control
+    pack: core/50-code-review.md
+    claim: "Finder/verifier separation (finders over-generate; independent refute-by-default verifiers kill a large share) is the architectural false-positive control; published single-pass AI review precision is reported as low enough that verifiers refute a large share of finder output (figures vary by tool and are not pinned here). Signal ratio erosion silences correct findings too"
+    kind: practice
+    verify: "search: AI code review false positive rate signal ratio finder verifier separation <year>"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: review-loop-shape-alternatives
+    pack: core/50-code-review.md
+    claim: "The published review-then-implement pattern caps automated fixing at ONE pass and escalates to a human instead of looping, explicitly offering no convergence guarantee. (Our converge-to-quiet choice and its dedup/lens obligations are an internal design decision, not part of this external claim.)"
+    kind: rationale
+    verify: "read: https://agentpatterns.ai/code-review/review-then-implement-loop/ — has the one-pass cap changed? + search: actor-critic review convergence rounds <year>"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: metric-cardinality-silent-undercount
+    pack: core/55-observability.md
+    claim: "Metric cardinality overflow is SILENT and corrupts answers: totals stay correct while filter/group-by queries undercount, so dashboards, SLOs and alerts keep rendering wrong numbers. A per-request-varying label value is never a metric label"
+    kind: practice
+    verify: "search: OpenTelemetry metric cardinality limit overflow undercount otel.metric.overflow <year>"
+    window_days: 180
+    last_verified: 2026-09-01
+
+  - id: fleet-has-no-trace-backend
+    pack: core/55-observability.md
+    claim: "PROBED 2026-09-01 across ALL THREE fleet hosts (vps1/vps2/vps3, 0 matches each): Loki + Prometheus + Grafana (+ the EOL Promtail) and NO trace backend / OTel collector anywhere — so distributed tracing is over-engineering here; a request correlation ID is the correct ceiling. Field naming should still follow OTel convention (trace_id/span_id) to avoid a later fleet-wide rename"
+    kind: rationale
+    verify: >-
+      probe ALL THREE hosts (vps, vps2, vps3) with `sudo docker ps` and grep -icE
+      'tempo|jaeger|otel|collector'; also check Grafana datasources for a trace store.
+      Has a trace backend appeared on ANY host?
+    window_days: 90
+    last_verified: 2026-09-01

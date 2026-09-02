@@ -21,6 +21,28 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Fixed — rules-pass BACKFILL: files 10 and 13 were evaluated without the external-research leg (2026-09-01)
+
+An audit of the pass's own evidence (CLAIMS.yaml rows per pack) found two of the thirteen
+evaluated packs had no external research registered: `50-code-review.md` (0 rows) and
+`55-observability.md` (1 row, and it was registered during file 1's turn, not its own).
+Both had had their independent second opinion; only the research leg was skipped. Backfilled
+under the full bar — multi-engine research, 6 claims registered, author-blind second opinion.
+
+What it found, none of which the internal-only pass could have:
+- **`55` contradicted itself in THREE places** on the Loki label set — one line carried the
+  live-verified set, two others still asserted `service`/`environment`/`level` as "the valid
+  labels", including the pre-deploy checklist. Re-verified against the live label set.
+- **`55` had no account of which cardinality failure our stack actually produces** — the silent
+  undercount is an OTel-SDK behaviour; `prometheus_client` fails loudly instead. It now names both
+  and says which is ours.
+- **`50` had no account of WHY the review family is shaped as it is** — no maker-checker rationale,
+  no agreeableness-bias evidence, nothing on false-positive control, in the pack about code review.
+- **And writing that section surfaced a real machinery gap**: our `/fabrik-review` Phase 2 has the
+  ORCHESTRATOR refute while holding the finder's output — a hard bar, but not the blinded
+  finder/verifier separation the published pattern describes. The pack now says so rather than
+  claiming an architecture we do not have.
+
 ### Fixed — rules pass file 13: core/58-resilience.md retried the wrong things, un-jittered (2026-09-01)
 
 The resilience pack said "Never retry 4xx" and contained ZERO occurrences of 429, 408,
