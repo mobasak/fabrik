@@ -94,12 +94,13 @@ networks:
   10,000-page site. (Past that the index fetch is what tells; a hosted engine becomes the better
   tool long before any of our sites get there.)
   ⚠️ **Pagefind is the mandate; a specific PLUGIN is not.** `@getcanary/docusaurus-theme-search-pagefind`
-  is the long-standing integration (and is in production use), but check it before adopting: at last
-  look its newest release was well over a year old and its peer range declares `@docusaurus/core ^2||^3`
-  and React `^17||^18` — i.e. it does not declare support for anything newer. If it does not resolve
-  against the site's Docusaurus/React majors, switch integration rather than abandoning Pagefind —
-  `docusaurus-plugin-pagefind` is currently maintained and declares `@docusaurus/core >=3` /
-  `react >=18`. The floor fallback always works: run the `pagefind` CLI at build (the Dockerfile
+  is the long-standing integration (and is in production use), but CHECK IT BEFORE ADOPTING: at last
+  look it had gone well over a year without a release, and its peer range does not declare the
+  current Docusaurus/React majors (exact ranges + dates: `CLAIMS.yaml::pagefind-plugin-maintenance-risk`
+  — kept there so they are dated and re-verified rather than rotting in prose). If it does not resolve
+  against the site's majors, switch integration rather than abandoning Pagefind —
+  `docusaurus-plugin-pagefind` is maintained and declares current majors. The floor fallback always
+  works: run the `pagefind` CLI at build (the Dockerfile
   already does) and swizzle `SearchBar` — **the one sanctioned swizzle**, notwithstanding
   § Styling & Swizzling's keep-it-minimal rule.
 - **Banned here**: Algolia DocSearch and `@easyops-cn/docusaurus-search-local`. ⚠️ Not because they are
@@ -163,6 +164,23 @@ networks:
 - Separate Fabrik products with distinct audiences must use **separate Docusaurus instances** within a monorepo workspace (Turborepo / npm workspaces). Do not use the multi-instance docs plugin within a single site — it couples unrelated build lifecycles.
 
 ---
+
+## Doc Sync — a docs site is still a deployed service (D-065)
+
+A Docusaurus site ships as a container behind Traefik via `fabrik apply`, so the hub's deploy AI
+needs it in the two files it reads to learn what runs on the VPS. A static site is the easiest one
+to forget precisely because it feels like "just docs".
+
+- `docs/DEPLOYMENT.md` — the two-stage build, the serve image, the domain, and `target_vps` if it
+  is not the hub.
+- `docs/OPERATIONS.md` — how the site is rebuilt/redeployed and where its build breaks surface.
+- Any scheduled content job (link-check, rebuild-on-source-change) belongs in the jobs/intervals
+  inventory in `docs/RESILIENCE.md`, not only in CI config.
+
+**Spoke deploys are fine** — verified 2026-09-01 that `vps2`/`vps3` Traefik both publish the
+`gzip@docker` middleware the orchestrator emits on every service, and `bootstrap-vps.sh` installs it
+for future spokes. (An earlier fleet-inventory row described a spoke 404 from a missing carrier as
+open; that remediation shipped.)
 
 ## Banned Patterns
 

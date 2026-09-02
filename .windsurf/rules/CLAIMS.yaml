@@ -554,7 +554,7 @@ claims:
     pack: core/42-docusaurus.md
     claim: "⚠️ RE-VERIFY MUST REWRITE THIS TEXT, not just bump the date — the age below decays. `@getcanary/docusaurus-theme-search-pagefind` is functional and in production use (e.g. Redux Toolkit) but as of 2026-09-01 its newest release was ~23 months old (19 versions, last Oct 2024) and its peer range declares @docusaurus/core ^2||^3 and react ^17||^18 — so Pagefind is the mandate and this plugin is not; verify resolution before adopting"
     kind: version
-    verify: "check npm registry for @getcanary/docusaurus-theme-search-pagefind — any newer release? does its peer range cover the site's Docusaurus/React majors? if not, name a maintained Pagefind integration"
+    verify: "check npm for BOTH: @getcanary/docusaurus-theme-search-pagefind (any newer release? does its peer range cover the site's majors?) AND the alternative docusaurus-plugin-pagefind (still maintained? peers still current?). As of 2026-09-01: getcanary 1.0.2 (19 versions, last 2024-10-12, peers @docusaurus/core ^2||^3 + react ^17||^18); docusaurus-plugin-pagefind 0.2.2 (2026-07-24, peers @docusaurus/core >=3 + react >=18). The pack deliberately carries NO numbers — they live here."
     window_days: 180
     last_verified: 2026-09-01
 

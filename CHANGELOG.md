@@ -41,6 +41,27 @@ All notable changes to this project will be documented in this file.
   Kilo lines dropped from `templates/scaffold/gitignore-synced-block.txt`.
 
 
+### Fixed — file 14 re-audited against the written bar: 4 skipped rows + a detector gap (2026-09-02)
+
+Re-ran `core/42-docusaurus.md` against every row of `docs/reference/rules-currency-pass.md` after
+the operator flagged that the pass was running from memory. Four rows had been skipped on the first
+pass (manifesto lens · `docs/infrastructure/` grounding · D-065 fleet-AI lens · the pinned test),
+and running them found:
+
+- **`_LOOSE` cannot see semver-range literals.** It catches `Node 24` but not `>=3`, `^2||^3`,
+  `~1.2`, `v3`, bare `1.2.3`, `Python3.12` or `24.x` — so every "zero unmarked literals" verdict in
+  this pass is **detector-bounded, not a proof**. Measured across 56 rule files: 25 affected. NOT
+  widened here (it would red 25 packs at once, which the bar forbids as a solo flip); recorded in the
+  backlog with the fire-rate table and the shape of the deliberate fix. File 14's own four instances
+  — all introduced by me last session — were fixed at source.
+- **`vps-complete-inventory.md` carried a shipped remediation as an open item** (spoke deploys 404ing
+  on a missing `gzip@docker` carrier). Verified live: both spokes publish it and `bootstrap-vps.sh`
+  installs it. Docs rot both ways, which is exactly why the bar mandates verifying them.
+- The pack had **zero** mention of `OPERATIONS.md`/`DEPLOYMENT.md` despite deploying a container
+  behind Traefik — D-065 Doc Sync section added.
+- `42-docusaurus` pinned in `CLEANED_PACKS` (4 spans), and the Pagefind prose de-versioned with both
+  packages' exact ranges moved into `CLAIMS.yaml`, where they are dated and re-verified.
+
 ### Added — the rules-pass bar is now a repo artifact + file 15 re-evaluated against it (2026-09-01)
 
 The operator observed the pass was drifting from its own standard. It was: for `60-watchdog.md` I
