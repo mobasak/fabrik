@@ -219,6 +219,10 @@ def render(rows: list[dict]) -> str:
         (sum(1 for r in rows if r["credit"]), "credit tracked"),
         (sum(1 for r in rows if r["renews"]), "renewals set"),
         (sum(1 for r in rows if r["category"] == "?"), "need triage"),
+        (
+            sum(r["unattributed"] for r in rows),
+            "unattributed",
+        ),  # the degraded case in one number, not 439 per-row pills (BS16)
     ]
     statcards = "".join(
         f'<div class="stat"><div class="n">{v}</div><div class="l">{html.escape(lbl)}</div></div>'

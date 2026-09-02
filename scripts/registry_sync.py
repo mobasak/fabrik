@@ -99,13 +99,17 @@ def is_credential(key: str, value: str) -> bool:
 def catalog_provenance() -> tuple[list[tuple[str, str]], set[tuple[str, str]]] | None:
     """(every matcher longest-first, the MODEL-merged subset) from the catalog, loaded once per
     sync — or None when the catalog cannot be read (unreadable, not an object, an unround-trippable
-    key): provenance UNKNOWN, so no key is attributable and no credit fetch happens, while the DB
-    sync itself still runs (fail closed on the fetch only — BK1/BK7). An EMPTY catalog is KNOWN,
-    not unknown: nothing curated and nothing model-merged, so every key is its derived block's own
-    — conflating the two made a bootstrap registry exit 2 forever (BR3)."""
+    key — `load_catalog` fails closed on all of them, BS2): provenance UNKNOWN, so no key is
+    attributable and no credit fetch happens, while the DB sync itself still runs (fail closed on
+    the fetch only — BK1/BK7). An EMPTY catalog is KNOWN, not unknown: nothing curated and nothing
+    model-merged, so every key is its derived block's own — conflating the two made a bootstrap
+    registry exit 2 forever (BR3)."""
     try:
-        catalog, matchers = gather_envs.load_catalog(strict=True)
-    except gather_envs.CatalogError:
+        catalog, matchers = gather_envs.load_catalog()
+    except gather_envs.CatalogError as exc:
+        print(
+            f"WARNING: catalog provenance UNKNOWN — {exc}", file=sys.stderr
+        )  # the REASON, or the exit-2 page names nothing (BS8)
         return None
     return matchers, set(gather_envs.merged_matchers(catalog))
 
@@ -121,20 +125,18 @@ def owned_by(
     if prov is None:
         return False
     matchers, merged = prov
-    up = key.upper()
-    hits = [
-        (p, pr) for p, pr in matchers if up == p or up.startswith(p if p.endswith("_") else p + "_")
-    ]
+    hits = gather_envs.prefix_hits(key, matchers)  # one token per prefix, `EXA_` == `EXA` (BS4)
     if not hits:
         return True
-    longest = max(len(p) for p, _ in hits)
-    top = {(p, pr) for p, pr in hits if len(p) == longest}
-    # a key is owned only when the LONGEST prefix that routes it is THIS block's provider's and
+    longest = max(len(t) for t, _ in hits)
+    top = {(t, pr) for t, pr in hits if len(t) == longest}
+    merged_tokens = {(str(p).upper().rstrip("_"), pr) for p, pr in merged}
+    # a key is owned only when the LONGEST token that routes it is THIS block's provider's and
     # curated: a stale block carrying another vendor's key (`DEEPL_API_KEY` under `exa`) is never
-    # that vendor's fetcher input (BM1). Equal-length prefixes of TWO providers are a collision the
+    # that vendor's fetcher input (BM1). Equal-length tokens of TWO providers are a collision the
     # catalog cannot settle: ambiguous is unowned in every JSON order — taking the first hit of a
     # stable length-sort gave the key to whichever vendor sorted first (BQ1).
-    return {pr for _, pr in top} == {provider} and not (top & merged)
+    return {pr for _, pr in top} == {provider} and not (top & merged_tokens)
 
 
 def credential_rank(key: str, value: str) -> int:
@@ -278,8 +280,7 @@ def sync_registry(
                 )
                 sid = cur.fetchone()[0]
                 stats["services"] += 1
-                first_value = None
-                best_rank = 99
+                fetch_candidates: list[tuple[int, str, str]] = []  # (rank, value, digest)
                 digests: list[str] = []
                 kinds_by_digest: dict[str, str] = {}
                 used_by_digest: dict[str, set[str]] = {}
@@ -309,10 +310,6 @@ def sync_registry(
                             f"WARNING: {meta['name']}: {_key} is not attributable to it (model-merged prefix or unknown provenance) — stored unattributed, no credit fetch",
                             file=sys.stderr,
                         )
-                    if kind == "credential":
-                        rank = credential_rank(_key, value)
-                        if rank < best_rank:
-                            best_rank, first_value = rank, value  # by role (AM1)
                     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
                     if (
                         kind == "credential"
@@ -321,6 +318,15 @@ def sync_registry(
                         kind = "credential-unattributed"  # two names, one value: the RESTRICTIVE kind wins whatever the order (BM5)
                     if kind == "credential-unattributed":
                         kinds_by_digest[digest] = kind
+                    if kind == "credential":
+                        # a fetch CANDIDATE only, chosen after the loop once every name carrying
+                        # this value is seen: chosen here, a value later stored unattributed under
+                        # its other name had already been sent to the vendor (BS12)
+                        fetch_candidates.append((credential_rank(_key, value), value, digest))
+                    if (
+                        digest not in digests
+                    ):  # one ROW per digest — the counter said 808 for 802 rows (BS7)
+                        stats["api_keys"] += 1
                     digests.append(digest)
                     # per-key attribution when present (a multi-key provider's keys differ),
                     # else the provider-wide union from the #svc used_by= field.
@@ -340,7 +346,6 @@ def sync_registry(
                              used_by_projects=EXCLUDED.used_by_projects, kind=EXCLUDED.kind""",
                         (sid, digest, seen_alias, sorted(seen_used), kind),
                     )
-                    stats["api_keys"] += 1
                 # Keys that LEFT this provider (a code host no longer referenced, a var moved to
                 # internal-config) are deleted — upsert-only rows lived forever, and the code-host
                 # input makes churn daily (closing review 2026-09-02, N2). Per-service, never global.
@@ -352,7 +357,14 @@ def sync_registry(
                         (sid, digests),
                     )
                     stats["keys_pruned"] += cur.rowcount
-                cred = first_value  # only OWNED credentials ever reach here (BH1/BK8)
+                cred = next(
+                    (
+                        v
+                        for _rank, v, d in sorted(fetch_candidates, key=lambda c: c[0])
+                        if kinds_by_digest.get(d) != "credential-unattributed"
+                    ),
+                    None,
+                )  # by role then file order (AM1/AH2); only OWNED credentials, never a value stored unattributed under another name (BH1/BK8/BS12)
                 if fetch_credits and cred:
                     to_fetch.append((sid, meta["name"], cred))  # fetch AFTER commit
             # Prune orphans: services no longer in all-envs.env (e.g. a provider recatalogued

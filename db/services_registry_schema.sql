@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     aliases          TEXT[] NOT NULL DEFAULT '{}',
     used_by_projects TEXT[] NOT NULL DEFAULT '{}',
     account_email    TEXT,
-    kind             TEXT NOT NULL DEFAULT 'credential',  -- 'credential' | 'config' (a vendor-prefixed knob: URL/host/port/model/id) | 'code-host' (a call-site URL) | 'credential-unattributed' (reached the block through a model-merged prefix — never a fetcher input, never counted as a key)
+    kind             TEXT NOT NULL DEFAULT 'credential',  -- 'credential' | 'config' (a vendor-prefixed knob: URL/host/port/model/id) | 'code-host' (a call-site URL) | 'credential-unattributed' (no catalog prefix attributes it to this vendor: a model-merged prefix, or provenance unknown at sync time — never a fetcher input, never counted as a key)
     first_seen       TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen        TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (service_id, value_sha256)

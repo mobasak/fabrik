@@ -216,6 +216,12 @@ def test_dashboard_data_cannot_break_out_of_its_script_tag():
     assert (
         "r.unattributed" in gd.SCRIPT
     )  # an unattributed credential is visible on the row, not merely uncounted (BM9)
+    assert (
+        "provenance unknown at sync time" in gd.SCRIPT and "model-merged" in gd.SCRIPT
+    )  # BR8's floor: the node grader below skips without node, and a skip is never the only guard (AT1/BS6)
+    assert '<div class="l">unattributed</div>' in gd.render(
+        []
+    )  # the degraded case in ONE number (BS16)
     # the href scheme gate's always-on floor (AS5): the node test skips without node, and a skip
     # must not be the only guard on an injection class (AT1)
     assert "const href=u=>/^https?:\\/\\//i.test(String(u||''))?u:null;" in gd.SCRIPT
@@ -335,8 +341,16 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         encoding="utf-8"
     )
     schema = (REPO / "db" / "services_registry_schema.sql").read_text(encoding="utf-8")
-    kinds = set(re.findall(r"'([a-z-]+)'", re.search(r"kind\s+TEXT[^\n]*", schema).group(0)))
+    kind_line = re.search(r"kind\s+TEXT[^\n]*", schema).group(0)
+    kinds = set(re.findall(r"'([a-z-]+)'", kind_line))
+    assert "provenance unknown" in kind_line, kind_line  # the schema names both causes too (BS9)
     assert kinds == {"credential", "config", "code-host", "credential-unattributed"}, kinds
     for k in kinds:
         assert f"`{k}`" in doc, k
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
+    assert "2 = registry_sync" in text, "the alert body must decode exit 2 too (BS11)"
+    for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
+        row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
+        assert "skipped after a failed scan" in row, (
+            row
+        )  # the table says it, not only the prose (BS15)

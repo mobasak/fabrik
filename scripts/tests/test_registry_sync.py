@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -64,21 +65,24 @@ def fixture_env(tmp_path, monkeypatch):
 
 
 def _real_rows():
-    """Every NON-test provider's service + key rows, or None when the registry is unreachable."""
+    """Every NON-test provider's service + key row (every column a sync writes), or None when the
+    registry is unreachable."""
     try:
         conn = rdb.connect()
     except Exception:  # noqa: BLE001
         return None
-    with conn, conn.cursor() as cur:
-        cur.execute(
-            "SELECT s.provider, s.category, s.cost_tier, s.url, s.status, k.value_sha256, k.kind, "
-            "k.used_by_projects FROM services s LEFT JOIN api_keys k ON k.service_id=s.id "
-            "WHERE s.provider NOT LIKE %s ORDER BY 1, 6",
-            (TEST_PREFIX + "%",),
-        )
-        rows = cur.fetchall()
-    conn.close()
-    return rows
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT s.provider, s.category, s.cost_tier, s.url, s.status, k.value_sha256, k.kind, "
+                "k.used_by_projects, k.aliases, k.account_email FROM services s "
+                "LEFT JOIN api_keys k ON k.service_id=s.id "
+                "WHERE s.provider NOT LIKE %s ESCAPE '\\' ORDER BY 1, 6",
+                (TEST_PREFIX.replace("_", "\\_") + "%",),  # `_` is a LIKE wildcard (BS13)
+            )
+            return cur.fetchall()
+    finally:
+        conn.close()
 
 
 @pytest.fixture
@@ -95,10 +99,17 @@ def real_registry_untouched(request):
     `projA` key rows that the dashboard then counted, invisible until a finder looked (BQ2)."""
     before = _real_rows()
     yield
-    if before is not None and not getattr(request.node, "syncs_the_real_registry", False):
-        after = _real_rows()
-        assert after == before, (
-            "a test wrote a REAL provider's rows — use TEST_PROVIDER/TEST_PROVIDER2"
+    if before is None or getattr(request.node, "syncs_the_real_registry", False):
+        return
+    after = _real_rows()
+    if after is None:
+        return  # unreachable at teardown is not "a test wrote a real row" (BS14)
+    if after != before:
+        changed = sorted(set(after) ^ set(before), key=str)[:5]
+        raise AssertionError(
+            f"a test wrote a REAL provider's rows — use TEST_PROVIDER/TEST_PROVIDER2 (first {len(changed)} of {len(set(after) ^ set(before))}: "
+            + "; ".join(f"{r[0]} {r[5][:8] if r[5] else '-'} {r[6]}" for r in changed)
+            + ")"
         )
 
 
@@ -166,7 +177,7 @@ def test_empty_parse_never_prunes(tmp_path, monkeypatch):
     conn.close()
 
 
-def test_bounded_prune_refuses_mass_delete(tmp_path, monkeypatch):
+def test_bounded_prune_refuses_mass_delete(tmp_path, monkeypatch, syncs_the_real_registry):
     """Given a truncated file that would prune >20% of the registry (a corrupted gather, NOT a
     real recatalog), When synced with prune=True, Then the sync RAISES and NOTHING is deleted —
     silent mass cascade-deletion of credit history is the failure this bound exists to stop."""
@@ -624,11 +635,11 @@ def test_parse_fails_closed_on_an_unreadable_svc_line(tmp_path):
     f = tmp_path / "all-envs.env"
     f.write_text(
         "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
-        '#svc name=alpha category=infra cost=paid capability="a" url=https://a.example status=active used_by=p\n'
+        '#svc name=test_zzz_alpha category=infra cost=paid capability="a" url=https://a.example status=active used_by=p\n'
         "ALPHA_API_KEY=aaaa\n"
-        '#svc name=bravo category=infra cost=free tier capability="b" url=https://b.example status=active used_by=p\n'
+        '#svc name=test_zzz_bravo category=infra cost=free tier capability="b" url=https://b.example status=active used_by=p\n'
         "BRAVO_API_KEY=bbbb\n"
-        '#svc name=charlie category=infra cost=paid capability="c" url=https://c.example status=active used_by=p\n'
+        '#svc name=test_zzz_charlie category=infra cost=paid capability="c" url=https://c.example status=active used_by=p\n'
         "CHARLIE_API_KEY=cccc\n",
         encoding="utf-8",
     )
@@ -755,6 +766,14 @@ def test_a_merged_key_never_feeds_another_vendors_fetcher(fixture_env, monkeypat
     # one vendor twice is no collision; a longer prefix still beats the tie
     assert rs.owned_by("XY_API_KEY", "aaa", ([("XY", "aaa"), ("XY", "aaa")], set()))
     assert rs.owned_by("XY_API_KEY", "zzz", ([("XY", "aaa"), ("XY_API", "zzz")], set()))
+    # `EXA_` is the SAME token as `EXA` — a one-character catalog edit claimed another vendor's
+    # keys in every order and, merged, took the real vendor's own key away (BS4)
+    for order in ([("EXA", "exa"), ("EXA_", "evil")], [("EXA_", "evil"), ("EXA", "exa")]):
+        assert not rs.owned_by("EXA_API_KEY", "evil", (order, set())), order
+        assert not rs.owned_by("EXA_API_KEY", "exa", (order, set())), order
+    assert not rs.owned_by(
+        "HF_TOKEN", "huggingface", ([("HF_TOKEN_", "huggingface")], {("HF_TOKEN", "huggingface")})
+    )  # the merged set is token-normalised too
 
 
 def test_an_unreadable_catalog_refuses_every_fetch_but_still_syncs(
@@ -818,6 +837,8 @@ def test_two_names_one_value_take_the_restrictive_kind_whatever_the_order(fixtur
         {("AAA", TEST_PROVIDER)},
     )
     monkeypatch.setattr(rs, "catalog_provenance", lambda: prov)
+    got: list[tuple[str, str]] = []
+    monkeypatch.setattr(rs, "fetch_balance", lambda name, value: got.append((name, value)) or None)
     for first, second in (
         ("AAA_API_KEY", f"{TEST_PROVIDER.upper()}_API_KEY"),
         (f"{TEST_PROVIDER.upper()}_API_KEY", "AAA_API_KEY"),
@@ -830,7 +851,11 @@ def test_two_names_one_value_take_the_restrictive_kind_whatever_the_order(fixtur
             f"{second}={SECRET}same\n",
             encoding="utf-8",
         )
-        rs.sync_registry(fetch_credits=False, prune=False)
+        rs.sync_registry(fetch_credits=True, prune=False)
+        assert got == [], (
+            first,
+            got,
+        )  # a value stored unattributed is NEVER the fetch input, whichever name came first (BS12)
         conn = rdb.connect()
         with conn, conn.cursor() as cur:
             cur.execute(
@@ -842,7 +867,7 @@ def test_two_names_one_value_take_the_restrictive_kind_whatever_the_order(fixtur
         assert kinds == ["credential-unattributed"], (first, kinds)
 
 
-def test_an_empty_catalog_is_known_provenance_not_unknown(tmp_path, monkeypatch):
+def test_an_empty_catalog_is_known_provenance_not_unknown(tmp_path, monkeypatch, capsys):
     """`{}` is a catalog with nothing curated and nothing merged — every key is its derived block's
     own and `main` exits 0; only an UNREADABLE catalog is unknown (exit 2). Conflating them made a
     bootstrap registry page every day forever (BR3)."""
@@ -855,6 +880,10 @@ def test_an_empty_catalog_is_known_provenance_not_unknown(tmp_path, monkeypatch)
     assert rs.catalog_provenance() is None  # not an object: unknown (BH6)
     empty.write_text("{", encoding="utf-8")
     assert rs.catalog_provenance() is None  # unreadable: unknown (BK1)
+    err = capsys.readouterr().err
+    assert "provenance UNKNOWN" in err and "unreadable" in err and str(empty) in err, (
+        err
+    )  # the REASON is said, or the exit-2 page names nothing (BS8)
 
 
 def test_two_names_one_value_union_their_projects_whatever_the_order(fixture_env, monkeypatch):
@@ -871,7 +900,8 @@ def test_two_names_one_value_union_their_projects_whatever_the_order(fixture_env
             f"{second}=same.host.example   # used by: projB\n",
             encoding="utf-8",
         )
-        rs.sync_registry(fetch_credits=False, prune=False)
+        stats = rs.sync_registry(fetch_credits=False, prune=False)
+        assert stats["api_keys"] == 1, stats  # one ROW, not two inserts (BS7)
         conn = rdb.connect()
         with conn, conn.cursor() as cur:
             cur.execute(
@@ -882,3 +912,18 @@ def test_two_names_one_value_union_their_projects_whatever_the_order(fixture_env
             rows = cur.fetchall()
         conn.close()
         assert [tuple(r[0]) for r in rows] == [("projA", "projB")], (first, rows)
+
+
+def test_every_fixture_provider_is_a_test_name():
+    """The guard excludes `test_zzz*`; any other name a fixture syncs lands on the shared registry
+    as a phantom vendor the teardown never deletes — three fixtures used `alpha`/`bravo`/`charlie`
+    (parse-only today, one edit from a sync) (BS13)."""
+    src = Path(__file__).read_text(encoding="utf-8")
+    names = re.findall(r"#svc name=([A-Za-z_{][^\s'\"]*)", src)  # fixture literals, not this regex
+    assert len(names) >= 20, len(names)
+    bad = [n for n in names if not (n.startswith(TEST_PREFIX) or n.startswith("{TEST_PROVIDER"))]
+    assert bad == [], bad
+    rows = _real_rows()
+    if rows is None:
+        pytest.skip("local fabrik_services PG not reachable")
+    assert all(len(r) == 10 for r in rows), "the guard snapshots every column a sync writes (BS14)"

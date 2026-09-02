@@ -20,7 +20,7 @@ import json
 import os
 import re
 import sys
-import time
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -344,7 +344,9 @@ def main() -> int:
     # whole paid batch (the cursor had already moved — BH2)
     try:
         _catalog_probe = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        probe_at = time.strftime("%Y-%m-%d %H:%M:%S")
+        probe_at = datetime.now(UTC).strftime(
+            "%Y-%m-%d %H:%M:%S UTC"
+        )  # every chain stamp is UTC (O6/BS10)
         if not isinstance(_catalog_probe, dict):
             raise ValueError("catalog is not a JSON object")
     except (OSError, ValueError) as exc:

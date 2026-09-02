@@ -60,8 +60,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 OPT = Path("/opt")
-OUTPUT = Path("/opt/fabrik/secrets/all-envs.env")
-FABRIK_ENV = Path("/opt/fabrik/.env")
+REPO = (
+    Path(__file__).resolve().parent.parent
+)  # a sandboxed copy must never write the REAL secrets file (BS17)
+OUTPUT = REPO / "secrets" / "all-envs.env"
+FABRIK_ENV = REPO / ".env"
 CATALOG_PATH = Path(__file__).with_name("service_catalog.json")
 BODY_MARK = "═══"  # first body line; everything before it is the volatile header
 
@@ -585,6 +588,10 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
             own = None
         if not own or host_domain(own) == host_domain(h):
             return sld
+        # the entry's url sits on ANOTHER registrable domain: not this vendor — and never re-credited
+        # by falling through to its own `<SLD>_API_KEY` prefix (75 of 109 live vendors would have
+        # been; the C5 grader passed `matchers=[]`, the one shape production never has — BS3)
+        return None
     return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
 
 
@@ -684,14 +691,15 @@ def project_env_files() -> list[Path]:
     return files
 
 
-def load_catalog(strict: bool = False) -> tuple[dict, list[tuple[str, str]]]:
-    """Return (provider -> meta, [(prefix, provider)...] sorted longest-first).
-
-    Fail-soft on an UNREADABLE catalog (missing / invalid JSON): degrades to "everything flagged
-    category=?" (still visible) rather than crashing the cron. Fail-CLOSED on a readable catalog
-    with a key that cannot round-trip (whitespace — AU7): `ValueError`, which `main` reports as
-    a one-line error and exit 1, so the chain alerts and nothing is written; a non-dict value
-    under a provider key is metadata, ignored (AY8)."""
+def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
+    """Catalog + matchers `[(PREFIX, provider)]` — curated `match` and model-merged `merged_match`.
+    Fail-CLOSED on every catalog the chain cannot trust: unreadable, undecodable, not a JSON
+    object (BS2) or a key that cannot round-trip (whitespace — AU7) is `CatalogError`, which
+    `main` reports as a one-line error and exit 1, so the chain alerts and NOTHING is written —
+    the previous consolidation stands. (BH3/BH6 once degraded these to "every provider flagged";
+    synced into the registry that blanked every vendor's metadata, stored every credential
+    unattributed and pruned under the bound.) A non-dict value under a provider key is metadata,
+    ignored (AY8)."""
     try:
         raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     except (
@@ -699,17 +707,9 @@ def load_catalog(strict: bool = False) -> tuple[dict, list[tuple[str, str]]]:
         json.JSONDecodeError,
         UnicodeDecodeError,
     ) as exc:  # undecodable IS unreadable (BH3)
-        if strict:  # a caller that must tell UNKNOWN from EMPTY (registry_sync's provenance, BR3)
-            raise CatalogError(f"catalog unreadable: {exc}") from exc
-        print(f"WARNING: {CATALOG_PATH} unreadable ({exc}); all providers flagged", file=sys.stderr)
-        raw = {}
+        raise CatalogError(f"{CATALOG_PATH} unreadable: {exc}") from exc  # fail closed (BS2)
     if not isinstance(raw, dict):  # a JSON list/string at the top level is unreadable too (BH6)
-        print(
-            f"WARNING: {CATALOG_PATH} is not a JSON object; all providers flagged", file=sys.stderr
-        )
-        if strict:
-            raise CatalogError("catalog is not a JSON object")
-        raw = {}
+        raise CatalogError(f"{CATALOG_PATH} is not a JSON object")
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     bad_keys = [k for k in catalog if _svc_token(k) != k]
     if bad_keys:  # a hand-edited key with whitespace would round-trip as a DIFFERENT provider (AU7)
@@ -727,6 +727,17 @@ def load_catalog(strict: bool = False) -> tuple[dict, list[tuple[str, str]]]:
     matchers.sort(
         key=lambda pm: len(pm[0]), reverse=True
     )  # readable dumps; match_provider/owned_by re-derive the longest from the hit set (BQ1)
+    claims: dict[str, set[str]] = {}
+    for prefix, provider in matchers:
+        claims.setdefault(prefix.rstrip("_"), set()).add(provider)
+    for token, owners in sorted(claims.items()):
+        if len(owners) > 1:  # a tie routes its keys to NEITHER vendor (BQ1) — and re-flags the
+            # derived block for PAID triage every run, with tombstone and merge both inert: an
+            # ambiguity that costs money daily is never silent (BS5)
+            print(
+                f"WARNING: catalog prefix {token} is claimed by {', '.join(sorted(owners))} — keys under it are attributed to neither and re-flagged every run until one entry drops it",
+                file=sys.stderr,
+            )
     return catalog, matchers
 
 
@@ -743,21 +754,30 @@ def merged_matchers(catalog: dict) -> list[tuple[str, str]]:
     return out
 
 
-def match_provider(key: str, matchers: list[tuple[str, str]]) -> str | None:
-    """The provider whose LONGEST prefix routes `key`; None when no prefix matches — or when two
-    providers claim a same-length prefix: routing that tie by list order hands one vendor's key to
-    the other, so it is attributed to neither, in every order (BQ1; registry_sync.owned_by mirrors)."""
+def prefix_hits(key: str, matchers: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Every `(TOKEN, provider)` whose prefix routes `key` — token-boundary (BRAVE matches
+    BRAVE_API_KEY but NOT BRAVERY_API_KEY), and `EXA_` is the SAME token as `EXA`: a trailing `_`
+    made two lengths of one token, so a one-character catalog edit beat the tie check and claimed
+    another vendor's keys in every order (BS4). Shared by match_provider and registry_sync.owned_by."""
     up = key.upper()
-    # token-boundary match: BRAVE matches BRAVE_API_KEY but NOT BRAVERY_API_KEY
-    hits = [
-        (prefix, provider)
-        for prefix, provider in matchers
-        if up == prefix or up.startswith(prefix if prefix.endswith("_") else prefix + "_")
-    ]
+    out: list[tuple[str, str]] = []
+    for prefix, provider in matchers:
+        token = str(prefix).upper().rstrip("_")
+        if token and (up == token or up.startswith(token + "_")):
+            out.append((token, provider))
+    return out
+
+
+def match_provider(key: str, matchers: list[tuple[str, str]]) -> str | None:
+    """The provider whose LONGEST token routes `key`; None when nothing matches — or when two
+    providers claim the same longest token: routing that tie by list order hands one vendor's key
+    to the other, so it is attributed to neither, in every order (BQ1; registry_sync.owned_by
+    mirrors)."""
+    hits = prefix_hits(key, matchers)
     if not hits:
         return None
-    longest = max(len(p) for p, _ in hits)
-    top = {provider for p, provider in hits if len(p) == longest}
+    longest = max(len(t) for t, _ in hits)
+    top = {provider for t, provider in hits if len(t) == longest}
     return top.pop() if len(top) == 1 else None
 
 

@@ -114,14 +114,14 @@ def test_distinct_values_kept_separate(tmp_path):
     assert "zzzz9999yyyy8888xxxx" in body
 
 
-def test_catalog_fail_soft(tmp_path, monkeypatch):
-    """Given a malformed service_catalog.json, When loaded, Then it degrades to empty, no crash."""
+def test_catalog_fails_closed_on_malformed_json(tmp_path, monkeypatch):
+    """Given a malformed service_catalog.json, When loaded, Then it is `CatalogError` — never a
+    silently empty catalog that the sync would treat as "every vendor unknown" (BS2)."""
     bad = tmp_path / "bad.json"
     bad.write_text("{ not valid json", encoding="utf-8")
     monkeypatch.setattr(ge, "CATALOG_PATH", bad)
-    catalog, matchers = ge.load_catalog()
-    assert catalog == {}
-    assert matchers == []
+    with pytest.raises(ge.CatalogError, match="unreadable"):
+        ge.load_catalog()
 
 
 def test_classify_input_has_no_secret_values(tmp_path):
@@ -1778,15 +1778,22 @@ def test_an_unreadable_catalog_is_refused_before_the_paid_dispatch(tmp_path, mon
     assert cs.main() == 1 and calls == []
 
 
-def test_hostile_catalog_shapes_are_fail_soft_not_tracebacks(tmp_path, monkeypatch, capsys):
-    """An undecodable file (BH3), a top-level list (BH6) degrade to "everything flagged"; a
-    `null`/list category is `?` (BH6); an empty match prefix is skipped (BH8)."""
+def test_hostile_catalog_shapes_fail_closed_never_tracebacks(tmp_path, monkeypatch):
+    """An undecodable file (BH3) and a top-level list (BH6) are `CatalogError` — the scan fails
+    CLOSED and `main` exits 1 (BS2): degraded to "everything flagged" they exited 0 past the chain
+    gate, and the sync blanked every vendor, stored every credential unattributed and pruned 22
+    providers under the bound. A `null`/list category is `?`; an empty match prefix is skipped (BH8)."""
     cat = tmp_path / "catalog.json"
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
     cat.write_bytes(b'{"a": "\xe9"}')
-    assert ge.load_catalog() == ({}, []) and "unreadable" in capsys.readouterr().err
+    with pytest.raises(ge.CatalogError, match="unreadable"):
+        ge.load_catalog()
     cat.write_text("[1, 2]", encoding="utf-8")
-    assert ge.load_catalog() == ({}, []) and "not a JSON object" in capsys.readouterr().err
+    with pytest.raises(ge.CatalogError, match="not a JSON object"):
+        ge.load_catalog()
+    cat.unlink()
+    with pytest.raises(ge.CatalogError, match="unreadable"):
+        ge.load_catalog()  # a missing catalog is not an empty one
     cat.write_text(json.dumps({"v": {"category": None, "match": ["", "V"]}}), encoding="utf-8")
     catalog, matchers = ge.load_catalog()
     assert matchers == [("V", "v")]
@@ -1980,8 +1987,9 @@ def test_wildcard_attribution_keys_on_the_registrable_domain(tmp_path, monkeypat
     cat = {"foo": {"url": "https://foo.com"}}
     assert ge.provider_for_host("api.foo.com", cat, idx, []) == "foo"
     assert (
-        ge.provider_for_host("api.foo.org", cat, idx, []) is None
-    )  # the label fallback respects the entry's own domain
+        ge.provider_for_host("api.foo.org", cat, idx, [("FOO", "foo")]) is None
+    )  # the label fallback respects the entry's own domain — with the vendor's OWN prefix in the
+    # matchers, the production shape: falling through to `FOO_API_KEY` re-credited it (BS3)
     assert (
         ge.provider_for_host("api.foo.org", {"foo": {}}, idx, []) == "foo"
     )  # no url on the entry: the label is the only evidence
@@ -2055,7 +2063,9 @@ def test_a_catalog_broken_during_the_dispatch_merges_onto_the_probe(tmp_path, mo
     assert "merging onto the pre-dispatch copy" in err
     # the failure path REVERTS any catalog edit landed since the probe — the warning must say so
     # and date the copy it merged onto (BR7)
-    assert "DISCARDED" in err and re.search(r"read at \d{4}-\d\d-\d\d \d\d:\d\d:\d\d", err), err
+    assert "DISCARDED" in err and re.search(r"read at \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC", err), (
+        err
+    )  # labelled UTC like every other chain stamp — a bare local time mis-sized the window by 3 h (BS10)
 
 
 def test_a_prefix_two_vendors_claim_routes_to_neither():
@@ -2073,6 +2083,27 @@ def test_a_prefix_two_vendors_claim_routes_to_neither():
     assert (
         ge.match_provider("XYZ_API_KEY", [("XY", "aaa"), ("XY", "zzz")]) is None
     )  # token boundary
+    # `EXA_` is the SAME token as `EXA`: a trailing `_` is not a longer prefix (BS4)
+    for order in ([("EXA", "exa"), ("EXA_", "evil")], [("EXA_", "evil"), ("EXA", "exa")]):
+        assert ge.match_provider("EXA_API_KEY", order) is None, order
+    assert ge.prefix_hits("EXA_API_KEY", [("EXA_", "exa")]) == [("EXA", "exa")]
+    assert ge.match_provider("EXA_API_KEY", [("EXA_", "exa"), ("EXA", "exa")]) == "exa"
+
+
+def test_a_prefix_two_vendors_claim_is_said_aloud_at_load(tmp_path, monkeypatch, capsys):
+    """A tie costs money daily (the derived block is re-flagged for paid triage every run, and
+    tombstone/merge are both inert for it) — load_catalog names the prefix and BOTH claimants once,
+    at load (BS5)."""
+    cat = tmp_path / "catalog.json"
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    cat.write_text(
+        json.dumps({"aaa": {"match": ["XY"]}, "zzz": {"match": ["XY_"]}, "ok": {"match": ["OK"]}}),
+        encoding="utf-8",
+    )
+    ge.load_catalog()
+    err = capsys.readouterr().err
+    assert "WARNING: catalog prefix XY is claimed by aaa, zzz" in err, err
+    assert "OK" not in err.replace("XY", "")  # an unshared prefix is never named
 
 
 def test_a_malformed_catalog_url_never_crashes_the_label_fallback():
@@ -2081,3 +2112,13 @@ def test_a_malformed_catalog_url_never_crashes_the_label_fallback():
     except, the chain DEAD every day until the file was repaired (BR1)."""
     catalog = {"foo": {"url": "https://[foo].com"}}
     assert ge.provider_for_host("api.foo.com", catalog, {}, []) == "foo"  # the label still decides
+
+
+def test_only_the_fleet_root_is_an_absolute_path():
+    """`OUTPUT`/`FABRIK_ENV` derive from the file like `CATALOG_PATH` does: a sandboxed copy of
+    this module read the sandbox catalog and would have written the REAL fleet secrets file on
+    `--apply` — every review finder runs from exactly such a copy (BS17). `OPT` is the fleet root."""
+    src = Path(ge.__file__).read_text(encoding="utf-8")
+    assert re.findall(r'Path\("/opt/fabrik', src) == [], "hub paths must derive from __file__"
+    assert ge.OUTPUT == ge.REPO / "secrets" / "all-envs.env" and ge.FABRIK_ENV == ge.REPO / ".env"
+    assert Path(ge.__file__).resolve().parent.parent == ge.REPO
