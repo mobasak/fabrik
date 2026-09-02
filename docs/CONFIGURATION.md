@@ -225,6 +225,27 @@ Unlike the auto-injected vars above, these two are **operator-supplied** in the 
 
 ### Shared fleet config — `~/.config/fabrik/subagents.env` (all AI-supplier keys)
 
+**Spare-key sync (2026-09-02).** The shared file now carries the FULL numbered set, slot-aligned to
+`/opt/fabrik/.env` so no value occupies two different slot names box-wide: **GROQ ×6 · NVIDIA ×4 ·
+MISTRAL ×8**, plus the single-key suppliers. Verified live per key against each provider's gated
+completion endpoint with a bogus-key control.
+
+- ⚠️ **Only the UNSUFFIXED names autoload** (`_dotenv.py::DOTENV_KEYS`). `GROQ_API_KEY_2` and the
+  rest are a central STORE for manual selection (`GROQ_API_KEY=$GROQ_API_KEY_4 <cmd>`) — putting
+  them here does not give the pool automatic rotation. Multi-key rotation-on-429 is still an open
+  item filed to fabrik-lib.
+- ⚠️ **Duplicate slots are a real defect, not clutter:** each spare exists to be its own rate
+  bucket, so one key in two slots halves the budget a rotation harness believes it has. The sync
+  refuses to run if any two slots hold the same value.
+- **NVIDIA counts 4, not 8** — a bounded search of every `.env` under `/opt` and `~/.config` found
+  exactly four distinct `nvapi-` values. MISTRAL is a full 8. If more NVIDIA keys exist they are not
+  in any env file on this box.
+- ⚠️ **NVIDIA's `/v1/models` is the PUBLIC catalog (82 entries) and most of it 404s** with a valid
+  key — `Function '<id>' not found` means the NIM is not provisioned, NOT an auth failure (a bad key
+  gets 403). Validate against a model this box actually uses, e.g. `meta/muse-glimmer-30b`.
+- **All 8 MISTRAL keys authenticate and all 8 return 402** — the monthly credit is spent across the
+  account, so more keys do not buy more Mistral capacity until the reset.
+
 `libs/subagents` resolves a key in this order: **real env → `<repo>/.env` (nearest, walking up) →
 `~/.config/fabrik/subagents.env`**. The shared file is the fallback, so a project can still override
 any key in its own `.env`. Set a supplier key ONCE here and every repo's pool inherits it.

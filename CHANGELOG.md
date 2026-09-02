@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — spare keys synced fleet-wide: GROQ ×6, NVIDIA ×4, MISTRAL ×8 (2026-09-02)
+
+- `~/.config/fabrik/subagents.env` now carries the full numbered spare sets, slot-aligned to
+  `/opt/fabrik/.env` so no value sits under two different slot names box-wide (the sync aborts if
+  any two slots share a value — duplicate spares halve a rotation harness's real budget).
+- All 18 verified live per key against each provider's gated completion endpoint with a bogus
+  control: GROQ 6/6 200 · NVIDIA 4/4 200 · MISTRAL 8/8 402 (authenticated, monthly credit spent).
+- **NVIDIA is 4 distinct keys, not 8** — bounded search of every `.env` under `/opt` and
+  `~/.config`. MISTRAL is a full 8. Reported rather than silently under-delivered.
+- ⚠️ NVIDIA's `/v1/models` is a PUBLIC 82-entry catalog and most of it 404s (`Function not found`)
+  with a valid key — that is an un-provisioned NIM, not an auth failure (a bad key gets 403).
+  `meta/muse-glimmer-30b` is a model this box actually serves; used as the validation target.
+- ⚠️ Numbered spares do NOT autoload — only unsuffixed names are in `DOTENV_KEYS`. The shared file
+  is a central store for manual selection; automatic rotation-on-429 remains unbuilt.
+
 ### Changed — `docs/reference/apis/EXTERNAL_SYSTEMS.md` converged into the fleet index: every external system the fleet reaches, how, and its 12-field Capability Profile (2026-09-02)
 
 - **Operator ask:** list every type of external service, check each is named and addressed in
