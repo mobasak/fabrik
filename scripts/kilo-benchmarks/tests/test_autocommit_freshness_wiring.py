@@ -110,3 +110,46 @@ def test_guard_reads_the_repo_it_is_told_to_not_a_hardcoded_root(tmp_path):
     )
     assert rel not in p.stdout.split(), "with CWD as the root the regression must be caught"
     assert "DROP" in p.stderr
+
+
+def test_the_docstring_denominator_matches_the_real_stage_list():
+    """The guard's coverage claim is DERIVED here, never trusted as written.
+
+    It first read "7 of 13 static paths" because the count was taken off the shared WORKTREE,
+    where a sibling held an uncommitted `scripts/service_catalog.json` line that never landed.
+    A denominator asserted in prose is a denominator that drifts the moment the stage list moves —
+    so re-derive both halves from the script itself and fail loudly on any divergence.
+    """
+    import re
+    import sys
+
+    sys.path.insert(0, str(SCRIPTS))
+    from guard_selection_freshness import refresh_date  # noqa: PLC0415
+
+    repo = SCRIPTS.parent.parent
+    sh = (SCRIPTS / "autocommit_pipeline_outputs.sh").read_text(encoding="utf-8")
+    block = re.search(r"^PATHS=\(\n(.*?)^\)$", sh, re.S | re.M)
+    assert block, "the static PATHS=( … ) array must be findable — the derivation depends on it"
+    paths = [
+        ln.strip() for ln in block.group(1).splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    dated = sum(
+        1 for rel in paths
+        if (repo / rel).is_file()
+        and refresh_date((repo / rel).read_text(encoding="utf-8-sig", errors="ignore"))
+    )
+
+    doc = (SCRIPTS / "guard_selection_freshness.py").read_text(encoding="utf-8")
+    claim = re.search(r"\*\*(\d+) of (\d+) static paths\*\*", doc)
+    assert claim, "the docstring must state its static-path coverage as `N of M static paths`"
+    assert (int(claim.group(1)), int(claim.group(2))) == (dated, len(paths)), (
+        f"docstring claims {claim.group(1)} of {claim.group(2)} static paths; "
+        f"the real stage list has {dated} dated of {len(paths)}"
+    )
+
+    undated = re.search(r"The (\d+) undated static paths", doc)
+    assert undated, "the docstring must state how many static paths fail open"
+    assert int(undated.group(1)) == len(paths) - dated, (
+        f"docstring claims {undated.group(1)} undated; the stage list has {len(paths) - dated}"
+    )

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the freshness guard's coverage denominator was counted off the shared worktree, not off HEAD (2026-09-02)
+
+- **Measured:** `guard_selection_freshness.py`'s docstring claimed `**7 of 13 static paths**` and listed
+  `scripts/service_catalog.json` among the undated six. That path was never in HEAD and appears nowhere in
+  the file's history (`git log -S'service_catalog.json' -- scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh`
+  → empty): it was a sibling's uncommitted worktree line at the moment the review counted. The real stage
+  list is **7 dated of 12**, with 5 failing open.
+- **Root cause (the class, not the line):** on a three-session shared tree, a denominator read off the
+  worktree measures a state no other reader will ever see. Counted-not-estimated is only half the rule —
+  the count has to be taken off a committed surface.
+- **Guard:** `test_the_docstring_denominator_matches_the_real_stage_list` re-derives both halves from
+  `autocommit_pipeline_outputs.sh`'s own `PATHS=( … )` array and the guard's own `refresh_date`, and fails
+  when the stage list moves. Proven red-on-revert (restore `7 of 13` → the test fails on the exact numbers).
+
 ### Fixed — the rotation tick could never flip to an IDLE account: the successor re-verify authenticated with the standby's own expired token (2026-09-02)
 
 - **Measured:** the 14:35 tick logged `active mob@ocoron.com at 98% but NO successor has headroom`
