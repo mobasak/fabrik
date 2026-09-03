@@ -64,6 +64,7 @@ import argparse
 import re
 import sys
 import traceback
+from collections.abc import Collection
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -133,15 +134,24 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     Takes ``repo`` as a parameter (same rule as everything else here: the module constant
     poisons any caller that isn't the default one). Returns ``None`` when the module is
     absent, and the caller SKIPS predicate 1 — never an empty set, which would invert the
-    check and flag every name as invalid (an empty constant is recorded in ``_IMPORT_FAILURE``
-    and returns ``None`` too, DY1); and never an import crash, which took a BLOCKING gate down
-    with a ModuleNotFoundError in any repo that never vendored the pool. ⚠ The caller decides
-    what ``None`` means: in a project the module is absent BY DESIGN (an advisory); in the hub
-    a module that is present but unusable is a DEFECT and must red the gate (DY1). Known:
-    the ``libs.subagents`` package import is cached in ``sys.modules``, so a second repo in the
+    check and flag every name as invalid; and never an import crash, which took a BLOCKING
+    gate down with a ModuleNotFoundError in any repo that never vendored the pool. ⚠ The
+    caller decides what ``None`` means: in a project the module is absent BY DESIGN (an
+    advisory); in the hub a module that is present but unusable is a DEFECT and must red the
+    gate (DY1). The target's OWN health is asked of the file — read + compile — BEFORE the
+    import (EG1): a traceback cannot be trusted to name it (a NUL-corrupted file raises a
+    SyntaxError with no filename, an unreadable one a PermissionError inside the import
+    machinery, a directory a ModuleNotFoundError in the importer). Known: the
+    ``libs.subagents`` package import is cached in ``sys.modules``, so a second repo in the
     same process reuses the first's names — one repo per process (0 of 48 callers; DU4).
     """
-    if not (repo / "libs" / "subagents" / "web_tools.py").exists():
+    target = repo / "libs" / "subagents" / "web_tools.py"
+    if not target.exists():
+        return None
+    broken = _target_is_broken(target)
+    if broken:
+        _IMPORT_FAILURE.append(broken)
+        _IMPORT_BLAME.append(str(target))
         return None
     if str(repo) not in sys.path:  # once — every audit() call inserted another copy (DS1)
         sys.path.insert(0, str(repo))
@@ -157,33 +167,52 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         shape
     ):  # a stub, a bare str, None, non-str members — each inverts or takes down the gate (DY1/EE1)
         _IMPORT_FAILURE.append(shape)
-        _IMPORT_BLAME.append(str(repo / "libs" / "subagents" / "web_tools.py"))
+        _IMPORT_BLAME.append(str(target))
         return None
     return frozenset(WEB_TOOL_NAMES)
 
 
+def _target_is_broken(target: Path) -> str | None:
+    """Ask the module FILE whether it can be read and compiled — one read of one file, and
+    every shape a traceback misattributes is settled with certainty: a directory at the path,
+    an unreadable file, NUL bytes, a compile-time SyntaxError (EG1). A file that compiles can
+    still fail at import (a raise, a renamed constant, a broken sibling) — that is
+    `_blame_for`'s job."""
+    if not target.is_file():
+        return "libs/subagents/web_tools.py is not a regular file"
+    try:
+        compile(target.read_bytes(), str(target), "exec")
+    except (OSError, ValueError, SyntaxError) as exc:
+        return f"{exc.__class__.__name__}: {exc}"
+    return None
+
+
 def _blame_for(exc: BaseException) -> str:
-    """The FILE an import failure was raised in. `exc.path` — an ImportError at the import site
-    (a renamed constant); a SyntaxError's `filename` when it names a REAL file (a compile-time
-    error: CPython strips the import-machinery frames, so the last frame would be the importer);
-    otherwise the last traceback frame — a RUNTIME SyntaxError from `compile()`/`eval()` says
-    `<string>` and keeps its frames, so the frame is the truth there (EC1/EE1)."""
+    """The FILE an import failure was raised in, for a failure the target itself did not
+    cause: `exc.path` — an ImportError at the import site (a renamed constant names the
+    target; a broken sibling's import names the sibling); an exception's `filename` when it
+    names a REAL file (a compile-time SyntaxError in a sibling: CPython strips the
+    import-machinery frames, so the last frame would be the importer; a PermissionError
+    carries the file it could not open); otherwise the last traceback frame — a RUNTIME
+    SyntaxError from `compile()`/`eval()` says `<string>` and keeps its frames (EC1/EE1/EG1)."""
     path = getattr(exc, "path", None)
     if path:
         return str(path)
-    if isinstance(exc, SyntaxError) and exc.filename and not exc.filename.startswith("<"):
-        if Path(exc.filename).is_file():
-            return exc.filename
+    fn = getattr(exc, "filename", None)
+    if isinstance(fn, str) and fn and not fn.startswith("<") and Path(fn).is_file():
+        return fn
     tb = traceback.extract_tb(exc.__traceback__)
     return tb[-1].filename if tb else ""
 
 
 def _shape_problem(value: object) -> str | None:
-    """`WEB_TOOL_NAMES` must be a non-empty collection of non-empty str. A bare str is a set of
-    CHARACTERS (`valid: _, a, b, …` — every real name flagged, fleet-wide); None or an int crash
-    the `frozenset`; a non-str member crashes the remediation join. `libs/` is excluded from
-    ruff and mypy, so this check is the constant's only reader (EE1)."""
-    if isinstance(value, str) or not isinstance(value, (set, frozenset, list, tuple)):
+    """`WEB_TOOL_NAMES` must be a non-empty collection of non-empty str — any real collection
+    (a set, a tuple, a list, `dict` keys — what the consumer's `name in WEB_TOOL_NAMES` and
+    this check's `frozenset()` both accept), never a str or bytes (a set of CHARACTERS —
+    `valid: _, a, b, …`, every real name flagged, fleet-wide), None or an int (the `frozenset`
+    crashes), a generator (one-shot), or a non-str member (the remediation join crashes).
+    `libs/` is excluded from ruff and mypy, so this check is the constant's only reader (EE1/EG1)."""
+    if isinstance(value, (str, bytes)) or not isinstance(value, Collection):
         return f"WEB_TOOL_NAMES is not a collection of str ({type(value).__name__})"
     if not value:
         return "WEB_TOOL_NAMES is empty"
@@ -194,24 +223,38 @@ def _shape_problem(value: object) -> str | None:
 
 def _same_file(blame: str, target: Path) -> bool:
     """Identity, never a suffix: `libs/web_tools.py` (a real standalone module in this tree) and
-    a `deep_web_tools.py` both end with the name (EE1)."""
+    a `deep_web_tools.py` both end with the name (EE1). A blame that cannot be resolved (a
+    symlink loop — pathlib re-raises ELOOP as RuntimeError; an embedded NUL — ValueError) is
+    not the target (EG1)."""
     try:
         return Path(blame).resolve() == target.resolve()
-    except OSError:
+    except (OSError, RuntimeError, ValueError):
         return False
 
 
 def _display_path(blame: str, repo: Path) -> str:
     """Repo-relative when the file is inside the repo — the LITERAL path first (a symlinked
     `libs/` resolves outside the tree and must still read `libs/subagents/…`), then the resolved
-    one; otherwise the name, with its package for an `__init__.py`, never an absolute path under
-    the operator's home in a synced check's stdout (EC1/EE1)."""
+    one for an ABSOLUTE path only (a relative or pseudo path — `<frozen importlib._bootstrap>`,
+    `<string>` — would otherwise resolve against the cwd and read as a repo file); otherwise the
+    name, with its package for an `__init__.py`, never an absolute path under the operator's
+    home in a synced check's stdout (EC1/EE1/EG1)."""
+    if not blame:
+        return "an unknown file"
     p = Path(blame)
-    for a, b in ((p, repo), (p.resolve(), repo.resolve())):
+    candidates: list[tuple[Path, Path]] = [(p, repo)]
+    if p.is_absolute():
+        try:
+            candidates.append((p.resolve(), repo.resolve()))
+        except (OSError, RuntimeError, ValueError):
+            pass
+    for a, b in candidates:
         try:
             return str(a.relative_to(b))
         except ValueError:
             continue
+    if blame.startswith("<"):
+        return f"{blame} (not a file)"
     shown = f"{p.parent.name}/{p.name}" if p.name.startswith("__init__") else p.name
     return f"{shown} (outside the repo)"
 
@@ -439,8 +482,9 @@ def audit(
         # on import, a renamed or empty constant after a vendor sync) is a hub DEFECT: the
         # round-46 guard turned that from a blocking red into a green with an advisory the
         # `--json` mode never showed — it is a problem, never a skip (DY1)
-        if _IMPORT_FAILURE and _same_file(
-            _IMPORT_BLAME[-1], repo / "libs" / "subagents" / "web_tools.py"
+        target = repo / "libs" / "subagents" / "web_tools.py"
+        if _IMPORT_FAILURE and (
+            _IMPORT_BLAME[-1] == str(target) or _same_file(_IMPORT_BLAME[-1], target)
         ):
             problems.append(
                 f"libs/subagents/web_tools.py is present but unusable ({_IMPORT_FAILURE[-1]}) — "

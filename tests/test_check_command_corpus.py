@@ -9,6 +9,7 @@ wolf gets ignored — which is how a real break then ships.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -911,6 +912,31 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         'from .deep_web_tools import X\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
         extra={"libs/subagents/deep_web_tools.py": "raise RuntimeError('deep WIP')\n"},
     )
+    # the SAME basename, a different file: `libs/web_tools.py` is a real standalone module in
+    # this tree — a failure there must be an advisory naming it, never a block under
+    # `libs/subagents/web_tools.py`'s name (identity, not basename — pass 51)
+    _fake_hub(
+        tmp_path / "parentwt",
+        'from ..web_tools import X\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/web_tools.py": "raise RuntimeError('standalone WIP')\n"},
+    )
+    # the target's OWN health is asked of the FILE, not inferred from a traceback (EG1): NUL
+    # bytes (a SyntaxError with NO filename — the importer would have been blamed), an
+    # unreadable file (a PermissionError raised inside the import machinery), a directory at
+    # the module path (a ModuleNotFoundError in the importer)
+    _fake_hub(tmp_path / "nulbytes", "WEB_TOOL_NAMES = frozenset()\n")
+    (tmp_path / "nulbytes" / "libs" / "subagents" / "web_tools.py").write_bytes(
+        b"WEB_TOOL_NAMES = frozenset()\n\x00\x00"
+    )
+    _fake_hub(tmp_path / "noperm", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    (tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py").chmod(0)
+    _fake_hub(tmp_path / "dirmod", None)
+    (tmp_path / "dirmod" / "libs" / "subagents" / "web_tools.py").mkdir(parents=True)
+    (tmp_path / "dirmod" / "libs" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "dirmod" / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+    # a real collection that is not a set literal — dict keys — is ACCEPTED: predicate 1 runs
+    # and flags the bait (EG1; the consumer's `name in WEB_TOOL_NAMES` accepts it too)
+    _fake_hub(tmp_path / "dictkeys", '_REG = {"web_search": 1}\nWEB_TOOL_NAMES = _REG.keys()\n')
     # a SYMLINKED libs/ (the vendored tree lives elsewhere): an in-repo file must still read
     # repo-relative, never "(outside the repo)" (EE1)
     vend = tmp_path / "vendored"
@@ -931,7 +957,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1044,6 +1070,42 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         in out["symlibs"]["skipped"][0]
     ), out["symlibs"]
     assert "outside" not in out["symlibs"]["skipped"][0], out["symlibs"]
+    # the same basename elsewhere: an advisory naming libs/web_tools.py, never a block
+    assert not any("is present but unusable" in p for p in out["parentwt"]["problems"]), out[
+        "parentwt"
+    ]
+    assert (
+        len(out["parentwt"]["skipped"]) == 1
+        and "libs/web_tools.py failed to import (RuntimeError: standalone WIP)"
+        in out["parentwt"]["skipped"][0]
+    ), out["parentwt"]
+    # the file's own health — each a BLOCK naming the cause, no traceback, no misattribution
+    assert any(
+        "web_tools.py is present but unusable (SyntaxError: source code string cannot contain null bytes"
+        in p
+        for p in out["nulbytes"]["problems"]
+    ), out["nulbytes"]
+    assert out["nulbytes"]["skipped"] == [], out["nulbytes"]
+    if not os.access(
+        tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py", os.R_OK
+    ):  # root reads anything — the shape is unreachable there
+        assert any(
+            "web_tools.py is present but unusable (PermissionError" in p
+            for p in out["noperm"]["problems"]
+        ), out["noperm"]
+        assert out["noperm"]["skipped"] == [], out["noperm"]
+    assert any(
+        "web_tools.py is present but unusable (libs/subagents/web_tools.py is not a regular file)"
+        in p
+        for p in out["dirmod"]["problems"]
+    ), out["dirmod"]
+    # dict keys ACCEPTED: the predicate ran and flagged the bait
+    assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
+        "dictkeys"
+    ]
+    assert any("'exa' is not a real tool" in p for p in out["dictkeys"]["problems"]), out[
+        "dictkeys"
+    ]
 
 
 def test_quiet_drops_the_clean_denominator_line_and_keeps_every_warning(monkeypatch, capsys):
@@ -1130,3 +1192,111 @@ def test_every_deploy_chain_command_carries_the_shared_order_and_repo_block():
         text = (src / name).read_text()
         assert "{{include:deploy-chain}}" in text, name
         assert f"You are at step {step} of the chain" in text, name
+
+
+@pytest.mark.parametrize(
+    ("value", "expect"),
+    [
+        (frozenset({"web_search"}), None),
+        (("web_search", "web_search"), None),
+        ({"web_search": 1}.keys(), None),
+        ({"web_search": 1}, None),
+        ("web_search", "not a collection of str (str)"),
+        (b"web_search", "not a collection of str (bytes)"),
+        (None, "not a collection of str (NoneType)"),
+        (7, "not a collection of str (int)"),
+        ((n for n in ["web_search"]), "not a collection of str (generator)"),
+        (frozenset(), "is empty"),
+        (frozenset({"web_search", ""}), "member that is not a non-empty str"),
+        ([1, 2], "member that is not a non-empty str"),
+    ],
+)
+def test_shape_problem_names_every_bad_shape_and_accepts_every_real_collection(value, expect):
+    """Direct unit grading of the shape rule — the driver grades it only through one 20-hub
+    assertion chain (pass 51)."""
+    import check_command_corpus as ccc
+
+    got = ccc._shape_problem(value)
+    assert (got is None) if expect is None else (got and expect in got), (value, got)
+
+
+def test_display_path_is_cwd_independent_and_never_absolute(tmp_path, monkeypatch):
+    """A pseudo path (`<frozen importlib._bootstrap>`, `<string>`) or a relative one must not
+    resolve against the cwd and read as a repo file; an out-of-repo package keeps its package;
+    an empty blame is named as unknown (EG1)."""
+    import check_command_corpus as ccc
+
+    repo = tmp_path / "repo"
+    (repo / "libs").mkdir(parents=True)
+    inside = repo / "libs" / "x.py"
+    inside.write_text("", encoding="utf-8")
+    for cwd in (repo, tmp_path):
+        monkeypatch.chdir(cwd)
+        assert ccc._display_path(str(inside), repo) == "libs/x.py"
+        assert (
+            ccc._display_path("<frozen importlib._bootstrap>", repo)
+            == "<frozen importlib._bootstrap> (not a file)"
+        )
+        assert ccc._display_path("<string>", repo) == "<string> (not a file)"
+        assert ccc._display_path("", repo) == "an unknown file"
+        assert (
+            ccc._display_path(str(tmp_path / "site" / "pkg" / "__init__.py"), repo)
+            == "pkg/__init__.py (outside the repo)"
+        )
+        assert (
+            ccc._display_path(str(tmp_path / "site" / "dep.py"), repo)
+            == "dep.py (outside the repo)"
+        )
+
+
+def test_same_file_is_identity_and_survives_an_unresolvable_blame(tmp_path):
+    """`libs/web_tools.py` and `libs/subagents/web_tools.py` share a basename and are different
+    files; a symlink loop (pathlib raises RuntimeError, not OSError) or an embedded NUL is never
+    the target (EG1)."""
+    import check_command_corpus as ccc
+
+    (tmp_path / "libs" / "subagents").mkdir(parents=True)
+    target = tmp_path / "libs" / "subagents" / "web_tools.py"
+    target.write_text("", encoding="utf-8")
+    other = tmp_path / "libs" / "web_tools.py"
+    other.write_text("", encoding="utf-8")
+    assert ccc._same_file(str(target), target)
+    assert not ccc._same_file(str(other), target)
+    loop = tmp_path / "loop"
+    loop.symlink_to(loop)
+    assert not ccc._same_file(str(loop / "web_tools.py"), target)
+    assert not ccc._same_file("bad\0name", target)
+
+
+def test_blame_for_uses_any_exception_filename_that_names_a_real_file(tmp_path):
+    """A PermissionError carries the file it could not open; only a SyntaxError's filename was
+    consulted before (EG1). A `<string>` filename falls through to the frame."""
+    import check_command_corpus as ccc
+
+    real = tmp_path / "sib.py"
+    real.write_text("", encoding="utf-8")
+    try:
+        raise PermissionError(13, "Permission denied", str(real))
+    except PermissionError as exc:
+        assert ccc._blame_for(exc) == str(real)
+    try:
+        compile("def (:", "<string>", "exec")
+    except SyntaxError as exc:
+        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
+
+
+def test_target_is_broken_asks_the_file(tmp_path):
+    """NUL bytes, a directory, an unreadable file and a syntax error are settled by reading and
+    compiling the target — never by a traceback (EG1); a file that compiles is not broken."""
+    import check_command_corpus as ccc
+
+    t = tmp_path / "web_tools.py"
+    t.write_text("WEB_TOOL_NAMES = frozenset()\n", encoding="utf-8")
+    assert ccc._target_is_broken(t) is None
+    t.write_bytes(b"x = 1\n\x00")
+    assert "null bytes" in (ccc._target_is_broken(t) or "")
+    t.write_text("def broken(:\n", encoding="utf-8")
+    assert (ccc._target_is_broken(t) or "").startswith("SyntaxError")
+    d = tmp_path / "dir.py"
+    d.mkdir()
+    assert ccc._target_is_broken(d) == "libs/subagents/web_tools.py is not a regular file"

@@ -97,14 +97,21 @@ name. Flags: `--quiet` suppresses only the clean-path ✓ denominator line (the 
 as it does for the sibling Script Coupling Header row, so a green row never carries a
 content-free line fleet-wide); the ⚠ lines always print on both exits — first on the passing exit
 (the `--json` `warnings` array admits only ⚠-first output), after the `✗` block on the failing one.
-A SyntaxError is attributed by `exc.filename` when it names a real file (a compile-time error strips
-the import frames, so the last frame would name the importer); a runtime one (`compile()` of a
-string says `<string>` and keeps its frames) and every other exception are attributed by the last
-frame. The hub decision compares file IDENTITY with `libs/subagents/web_tools.py` — never a name
+The target's OWN health is asked of the file before the import — one read and one `compile()` —
+so a NUL-corrupted, unreadable, directory-shaped or syntactically broken `web_tools.py` is a hub
+problem with certainty, never a verdict inferred from a traceback. A failure the file did not cause
+is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
+renamed constant names the target; a broken sibling's import names the sibling); any exception
+whose `filename` names a real file by that (a compile-time SyntaxError in a sibling strips the
+import frames; a PermissionError carries the file it could not open); everything else by the last
+traceback frame (a runtime SyntaxError from `compile()` of a string says `<string>` and keeps its
+frames). The hub decision compares file IDENTITY with `libs/subagents/web_tools.py` — never a name
 suffix (`libs/web_tools.py` is a separate module). The constant must be a non-empty collection of
-non-empty `str`: a bare str, `None` or a non-str member is the same hub problem, named by shape. A
-failure raised outside the repo is named by file (with its package for an `__init__.py`), never by
-absolute path; an in-repo file behind a symlinked `libs/` still reads repo-relative.
+non-empty `str` — any real collection, `dict` keys included; a bare str or bytes, `None`, a
+generator or a non-str member is the same hub problem, named by shape. A failure raised outside
+the repo is named by file (with its package for an `__init__.py`), never by absolute path; an
+in-repo file behind a symlinked `libs/` still reads repo-relative; a pseudo path (`<frozen …>`)
+is never rendered as a repo file, whatever the cwd.
 
 **The important negative:** path-shaped look-alikes are *not* chain references.
 `/opt/fabrik-lib`, `/run/fabrik-autoheal/pause` and `docs/reference/fabrik-mail.md` all
