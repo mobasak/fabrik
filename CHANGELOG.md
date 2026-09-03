@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — infra's mailbox, second pass (operator: "recheck the 58 — handle what needs no spec/plan"): 24 findings closed at root, 3 pre-existing reds cleared, one new advisory check (2026-09-03)
+### Fixed — infra's mailbox, second pass (operator: "recheck the 58 — handle what needs no spec/plan"): 40 mail ids addressed in the map below (counted from the ids the entry names), 2 pre-existing reds cleared (the office-extension rivals mapping; the kaizen addressed-send test earlier today) and 1 left standing (`test_desktop_active_on_electron_dir_not_generic_main`, red at HEAD before this change), one new advisory check (2026-09-03)
 
 - Re-read all 58 remaining `@infra` mails against their cited `path:line`. What needed no spec or plan, and no
   edit in a sibling's in-flight surface (`libs/subagents`, the corpus gate, external-services — untouched), is

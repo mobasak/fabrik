@@ -192,7 +192,15 @@ def _link_bases(text: str) -> list[str]:
     `sites/<ref>/` inheritance table, pinned to the tuple's spelling by a test) cannot be written
     repo-relative and could never pass this check (01M1G8CR, 2026-09-02). Purely additive: a doc
     without the marker resolves exactly as before."""
-    return [b.rstrip("/") for b in _LINK_BASE_RE.findall(text)]
+    bases = []
+    for b in _LINK_BASE_RE.findall(text):
+        b = b.rstrip("/")
+        # A base is a sub-root INSIDE the repo — never a parent hop or an absolute path, which
+        # would let a doc declare `/etc` or `../../opt` as a place its refs "resolve".
+        if b.startswith("/") or b == ".." or b.startswith("../") or "/../" in b:
+            continue
+        bases.append(b)
+    return bases
 
 
 def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> bool:

@@ -1118,3 +1118,6 @@ def test_greenfield_match_section_says_the_us_column_was_not_evaluated():
     md = rr.render_dossier_md(d)
     assert "NOT EVALUATED" in md and "--us-feature" in md
     assert md.index("NOT EVALUATED") < md.index("SSO")
+    # a real `us` run carries the name the driver writes into the dossier — no caveat (review of
+    # 66aa32a5: the dossier never had a "us" key, so the first version fired on EVERY run)
+    assert "NOT EVALUATED" not in rr.render_dossier_md({**d, "us_name": "Fabrik"})

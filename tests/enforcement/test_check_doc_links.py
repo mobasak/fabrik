@@ -114,3 +114,10 @@ def test_link_base_marker_adds_a_resolution_root(tmp_path, monkeypatch):
     assert not cdl._resolves(
         "scripts/check.py", src
     )  # without the marker it still does not resolve
+
+
+def test_link_base_marker_never_escapes_the_repo():
+    """Review of 66aa32a5: a marker naming a parent hop or an absolute path is ignored, not honoured."""
+    assert cdl._link_bases(
+        "<!-- link-base: ../../etc -->\n<!-- link-base: /opt/x -->\n<!-- link-base: a/../b -->\n<!-- link-base: sites/a/ -->"
+    ) == ["sites/a"]

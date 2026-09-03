@@ -68,6 +68,12 @@ def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
     cache: dict[str, list[str] | None] = {}
     for m in CITE_RE.finditer(_strip_fences(text)):
         path, a, b = m.group(1), int(m.group(2)), m.group(3)
+        if "/" not in path:
+            # A BARE filename (`compose.yaml:60`, `AGENTS.md:73`) is ambiguous: a deploy plan cites the
+            # SERVICE repo's compose, which happens to share a name with the hub's 32-line one
+            # (review of 66aa32a5: 11 of 30 hits were this shape). Only a slashed path is a claim
+            # about THIS tree.
+            continue
         target = repo / path
         if path not in cache:
             try:
@@ -88,7 +94,9 @@ def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
                 f"BEYOND-EOF {path}:{a}{'-' + b if b else ''} (file has {len(lines)} lines)"
             )
             continue
-        if BLANKISH.match(lines[a - 1]):
+        if a > 1 and BLANKISH.match(
+            lines[a - 1]
+        ):  # line 1 = a frontmatter `---` is a legitimate target
             findings.append(f"BLANK-TARGET {path}:{a} → {lines[a - 1].strip()[:40]!r}")
     return seen, findings
 

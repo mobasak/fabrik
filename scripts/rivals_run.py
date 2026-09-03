@@ -699,7 +699,7 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     match = _as_dicts(d.get("match_list"))
     out.append("## MATCH — what rivals have that we lack")
     out.append("")
-    if not d.get("us"):
+    if not d.get("us_name"):
         # Greenfield: MATCH is populated from RIVALS' features, so it is non-empty whenever they
         # have any — the `us` column then reads ❌ everywhere while nothing was evaluated. A
         # downstream spec read that as a determination (youtube 01M1J16A, 4 claims refuted).
@@ -1040,6 +1040,9 @@ async def _run(args: argparse.Namespace) -> int:
     # that arrived as a bare string destroyed BOTH artifacts and left the operator a traceback for
     # a scan they had already paid for. The renderer is now defensive too, but the ordering is the
     # guarantee: a rendering bug can cost you the pretty view, never the data.
+    # The dossier records whether an `us` side existed — the renderer keys its NOT-EVALUATED caveat on
+    # it, and the JSON artifact must carry it too (set BEFORE the paid artifact is written).
+    data["us_name"] = us.name if us is not None else None
     out = Path(args.out) if args.out else None
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)

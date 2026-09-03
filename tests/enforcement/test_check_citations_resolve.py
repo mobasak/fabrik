@@ -33,6 +33,7 @@ def test_the_three_classes_are_named_and_a_good_citation_is_silent(tmp_path):
         "beyond: scripts/x.py:9 · range-beyond: scripts/x.py:4-9\n"
         "missing (not graded — another repo's file): scripts/nope.py:3\n"
         "not a citation: https://host:8000/x and 12:30 and `--limit 5:2`\n"
+        "bare filename (ambiguous — another repo's compose shares the name): x.py:9 compose.yaml:60\n"
         "```\nscripts/x.py:999  # inside a fence — not a claim\n```\n"
     )
     seen, findings = chk.check_text(text, repo)
@@ -98,3 +99,13 @@ def test_changed_mode_grades_only_the_docs_git_reports_as_changed(tmp_path, monk
     monkeypatch.setattr(chk, "_changed_docs", lambda r: {a})
     ndocs, _, findings = chk.check_repo(repo, only=chk._changed_docs(repo))
     assert (ndocs, len(findings)) == (1, 1) and "a.md" in findings[0]
+
+
+def test_line_one_frontmatter_is_a_legitimate_target(tmp_path):
+    repo = tmp_path
+    (repo / "docs").mkdir()
+    (repo / "docs" / "f.md").write_text("---\ntitle: x\n---\nbody\n", encoding="utf-8")
+    seen, findings = chk.check_text("see docs/f.md:1 and docs/f.md:3", repo)
+    assert seen == 2 and [f.split()[0] for f in findings] == [
+        "BLANK-TARGET"
+    ]  # :3 is the closing rule, :1 is the head

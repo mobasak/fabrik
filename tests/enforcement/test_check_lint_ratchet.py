@@ -171,3 +171,34 @@ def test_a_linter_version_change_reseeds_loudly_instead_of_redding_forever(
     }
     monkeypatch.setattr(lr, "_ruff_count", lambda: 391)  # same version, more errors → a regression
     assert lr.main() != 0
+
+
+def test_a_baseline_without_a_version_is_a_plain_ratchet_and_check_mode_never_writes(
+    tmp_path, monkeypatch, capsys
+):
+    """Every existing repo's baseline predates the version field: no re-seed, the ordinary ratchet
+    applies; and `--check` must never rewrite the baseline even on a version change."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("lint_ratchet_mod2", CHECK)
+    lr = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(lr)
+    monkeypatch.setattr(lr, "ROOT", tmp_path)
+    monkeypatch.setattr(lr, "BASELINE", tmp_path / ".fabrik" / "lint-baseline.json")
+    monkeypatch.setattr(lr, "_baseline_is_gitignored", lambda: False)
+    monkeypatch.setattr(lr, "_ruff_version", lambda: "0.15.12")
+    monkeypatch.setattr(lr, "_ruff_count", lambda: 390)
+    (tmp_path / ".fabrik").mkdir()
+    (tmp_path / ".fabrik" / "lint-baseline.json").write_text('{"ruff_errors": 388}\n')
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py"])
+    assert lr.main() != 0  # 390 > 388 under an unversioned baseline is a regression, not a re-seed
+    (tmp_path / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 388, "ruff_version": "0.14.0"}\n'
+    )
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py", "--check"])
+    assert lr.main() == 0
+    assert json.loads((tmp_path / ".fabrik" / "lint-baseline.json").read_text()) == {
+        "ruff_errors": 388,
+        "ruff_version": "0.14.0",
+    }
