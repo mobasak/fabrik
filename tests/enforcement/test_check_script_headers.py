@@ -102,6 +102,9 @@ def test_nothing_staged_says_so_rather_than_exiting_mute(tmp_path: Path) -> None
     out = _run(repo)  # stage nothing at all
     assert "nothing staged" in out, f"an empty index must be explained, not silent: {out!r}"
     assert "staged-scoped" in out, "it must name WHY it inspected nothing"
+    assert "0 of 0 staged script(s) inspected" in out, (
+        out
+    )  # the same `N of M` shape as the clean line (pass 49)
 
 
 def test_staged_non_scripts_are_counted_honestly(tmp_path: Path) -> None:
@@ -310,5 +313,13 @@ def test_a_prose_word_naming_a_directory_is_not_a_coupled_file(tmp_path: Path) -
     """`docs` exists as a DIRECTORY in every repo; a prose token equal to it must not be promoted
     to a phantom coupled file by the exists() rule (EA2 — files only)."""
     repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md (and docs of the callers)\nprint('x')\n")
+    out = _run(repo, "scripts/thing.py", "docs/coupled.md")
+    assert "WARNING" not in out, out
+
+
+def test_a_question_mark_glob_is_a_glob(tmp_path: Path) -> None:
+    """`?` and `[` are glob characters too; only `*` was recognised, so `docs/coupled.m?` was a
+    literal that nothing could satisfy (pass 49)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.m?\nprint('x')\n")
     out = _run(repo, "scripts/thing.py", "docs/coupled.md")
     assert "WARNING" not in out, out

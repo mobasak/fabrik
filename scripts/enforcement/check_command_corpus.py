@@ -149,7 +149,14 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
     except Exception as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1)
         tb = traceback.extract_tb(exc.__traceback__)
-        blame = getattr(exc, "path", None) or (tb[-1].filename if tb else "")
+        # a SyntaxError (the half-saved-file shape) carries no `path` and CPython strips the
+        # import-machinery frames, so the last frame is the IMPORTER — `exc.filename` is the
+        # broken file (EC1); `exc.path` covers a renamed constant (ImportError at the import site)
+        blame = (
+            getattr(exc, "path", None)
+            or (exc.filename if isinstance(exc, SyntaxError) else None)
+            or (tb[-1].filename if tb else "")
+        )
         _IMPORT_FAILURE.append(f"{exc.__class__.__name__}: {exc}")
         _IMPORT_BLAME.append(str(blame))
         return None
@@ -380,8 +387,8 @@ def audit(
     valid_tools = _live_web_tool_names(repo)
     if valid_tools is None and assembler.exists():
         # the HUB without its vendored pool module: predicate 1 — the founding one — would run
-        # zero times and the success line would still name it; a project never vendors the
-        # module and skips by design (DU1). A module that is PRESENT but unusable here (a raise
+        # zero times and the success line would still name it; a project never reaches this
+        # branch at all — no corpus, no assembler — so the skip advisory is a HUB verdict (DU1/EC1). A module that is PRESENT but unusable here (a raise
         # on import, a renamed or empty constant after a vendor sync) is a hub DEFECT: the
         # round-46 guard turned that from a blocking red into a green with an advisory the
         # `--json` mode never showed — it is a problem, never a skip (DY1)
@@ -398,8 +405,8 @@ def audit(
             blame = _IMPORT_BLAME[-1]
             try:
                 blame = str(Path(blame).resolve().relative_to(repo.resolve()))
-            except ValueError:
-                pass
+            except ValueError:  # outside the repo (a site-packages dependency): its name, never an absolute path under the operator's home in a synced check's stdout (EC1)
+                blame = f"{Path(blame).name} (outside the repo)"
             SKIPPED_PREDICATES.append(
                 f"web-tool names: {blame} failed to import ({_IMPORT_FAILURE[-1]}) while loading "
                 "libs/subagents/web_tools.py — predicate 1 did not run; not this check's surface"

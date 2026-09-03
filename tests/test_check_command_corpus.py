@@ -97,6 +97,8 @@ def test_empty_corpus_is_reported_not_silently_green(tmp_path: Path):
 def test_live_corpus_is_clean():
     """The shipped corpus itself must satisfy the check."""
     assert audit() == []
+    ccc_mod = sys.modules[audit.__module__]
+    ccc_mod.AUDITED.clear()  # the real audit fills the module global; reversed collection order leaked it (pass 49)
 
 
 def test_command_without_a_run_record_is_caught(corpus):
@@ -815,7 +817,9 @@ def test_a_failing_run_still_prints_its_coverage_warnings(monkeypatch, capsys):
     ccc.SKIPPED_PREDICATES.clear()
 
 
-def _fake_hub(root: Path, web_tools_body: str | None, init_body: str = "") -> Path:
+def _fake_hub(
+    root: Path, web_tools_body: str | None, init_body: str = "", tools_body: str | None = None
+) -> Path:
     """A hub-shaped tree: the assembler (so predicate 1's hub branch runs), one source carrying
     the bait `["exa"]`, and a `libs/subagents/web_tools.py` whose body the test chooses — or no
     module at all when `web_tools_body` is None."""
@@ -830,6 +834,8 @@ def _fake_hub(root: Path, web_tools_body: str | None, init_body: str = "") -> Pa
         (root / "libs" / "__init__.py").write_text("", encoding="utf-8")
         (root / "libs" / "subagents" / "__init__.py").write_text(init_body, encoding="utf-8")
         (root / "libs" / "subagents" / "web_tools.py").write_text(web_tools_body, encoding="utf-8")
+        if tools_body is not None:
+            (root / "libs" / "subagents" / "tools.py").write_text(tools_body, encoding="utf-8")
     return root
 
 
@@ -856,6 +862,24 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
         init_body="raise RuntimeError('sibling WIP')\n",
     )
+    # the half-saved-file shape ITSELF: a SyntaxError in web_tools.py carries no `path` and the
+    # import frames are stripped, so the last frame is the importer — it must still BLOCK (EC1)
+    _fake_hub(tmp_path / "syntax", "def broken(:\n")
+    # a renamed constant: the ImportError's `path` is web_tools.py — BLOCK (the exc.path preference)
+    _fake_hub(tmp_path / "renamed", 'WEB_TOOL_NAMES_V2 = frozenset({"web_search"})\n')
+    # a SyntaxError in the sibling web_tools imports DIRECTLY: blamed on tools.py, an advisory
+    _fake_hub(
+        tmp_path / "sibtools",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="def x(:\n",
+    )
+    # a dependency OUTSIDE the repo raising on import: an advisory naming the file, never an
+    # absolute path (EC1)
+    _fake_hub(tmp_path / "extdep", "import broken_dep_xyz\nWEB_TOOL_NAMES = frozenset()\n")
+    (tmp_path / "site").mkdir()
+    (tmp_path / "site" / "broken_dep_xyz.py").write_text(
+        "raise ImportError('broken wheel')\n", encoding="utf-8"
+    )
     driver = tmp_path / "driver.py"
     driver.write_text(
         "import json, sys\n"
@@ -863,7 +887,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -872,7 +896,12 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "print(json.dumps(out))\n",
         encoding="utf-8",
     )
-    r = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=120)
+    import os
+
+    env = {**os.environ, "PYTHONPATH": str(tmp_path / "site")}
+    r = subprocess.run(
+        [sys.executable, str(driver)], capture_output=True, text=True, timeout=120, env=env
+    )
     assert r.returncode == 0, r.stdout + r.stderr
     out = json.loads(r.stdout.strip().splitlines()[-1])
     # the hub with a raising module: a BLOCKING problem naming the exception, no skip, and the
@@ -906,6 +935,37 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "__init__.py failed to import (RuntimeError: sibling WIP)" in out["sibling"]["skipped"][0]
     ), out["sibling"]
     assert "predicate 1 did not run" in out["sibling"]["skipped"][0]
+    # the half-saved web_tools.py itself: BLOCK, blamed on web_tools.py (EC1)
+    assert any(
+        "web_tools.py is present but unusable (SyntaxError" in p for p in out["syntax"]["problems"]
+    ), out["syntax"]
+    assert out["syntax"]["skipped"] == [], out["syntax"]
+    # a renamed constant: BLOCK via `exc.path`
+    assert any(
+        "present but unusable (ImportError: cannot import name 'WEB_TOOL_NAMES'" in p
+        for p in out["renamed"]["problems"]
+    ), out["renamed"]
+    # a half-saved SIBLING that web_tools imports directly: an advisory naming tools.py, no block
+    assert not any(
+        "web_tools.py is present but unusable" in p for p in out["sibtools"]["problems"]
+    ), out["sibtools"]
+    assert (
+        len(out["sibtools"]["skipped"]) == 1
+        and "tools.py failed to import (SyntaxError" in out["sibtools"]["skipped"][0]
+    ), out["sibtools"]
+    assert "__init__" not in out["sibtools"]["skipped"][0]
+    # a dependency outside the repo: an advisory naming the file, never an absolute path
+    assert (
+        len(out["extdep"]["skipped"]) == 1
+        and "broken_dep_xyz.py (outside the repo) failed to import (ImportError: broken wheel)"
+        in out["extdep"]["skipped"][0]
+    ), out["extdep"]
+    assert (
+        "/"
+        not in out["extdep"]["skipped"][0]
+        .split(" failed to import")[0]
+        .split("web-tool names: ")[1]
+    ), out["extdep"]
 
 
 def test_quiet_drops_the_clean_denominator_line_and_keeps_every_warning(monkeypatch, capsys):
