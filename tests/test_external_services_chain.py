@@ -796,8 +796,8 @@ def test_every_web_tools_literal_names_real_tools_not_providers():
             continue
         try:
             found = _web_tools_literals(path.read_text(encoding="utf-8", errors="replace"))
-        except SyntaxError:
-            continue
+        except (SyntaxError, OSError):
+            continue  # a sibling's mid-`git mv` leaves a tracked path with no file (shared tree, FC8)
         for names in found:
             if names is None:
                 continue
@@ -1046,6 +1046,15 @@ def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(mon
     assert gd.credit_cell(12.5, "usd", fresh, now) == "12.5 usd"
     assert gd.credit_cell(12.5, "usd", old, now) == "⚠ 12.5 usd (5d old)"
     assert gd.credit_cell(3, None, None, now) == "3"
+    assert (
+        gd.credit_cell(None, "usd", old, now) == ""
+    )  # a nullable column: a NULL balance was a TypeError that took the whole step down (FC4)
+    assert (
+        gd.credit_cell(1, "usd", now - dt.timedelta(hours=48), now) == "1 usd"
+    )  # the boundary, both sides (B-C12)
+    assert gd.credit_cell(1, "usd", now - dt.timedelta(hours=48, seconds=1), now).startswith(
+        "⚠ 1 usd"
+    )
 
     answers = {
         "FROM services": [("apify", "Apify", "scraping", "paid", "https://apify.com", "active")],
@@ -1066,6 +1075,10 @@ def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(mon
             return False
 
         def execute(self, sql, *a):
+            if "credit_snapshots" in sql:
+                assert "fetched_at DESC, id DESC" in sql, (
+                    sql
+                )  # the latest row wins, ties broken (E2-C8/FC4)
             self.rows = next(v for k, v in answers.items() if k in sql)
 
         def fetchall(self):
@@ -1095,16 +1108,17 @@ def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
     root = tmp_path / "root"
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
     (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
-    shutil.copytree(
-        REPO / "scripts" / "kilo-benchmarks" / "alerting",
-        root / "scripts" / "kilo-benchmarks" / "alerting",
-    )
+    shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")  # the ONE package (FC6)
+    # a MINIMAL environment, never a filtered copy of the test process's: an earlier suite imports
+    # `libs.subagents`, whose package autoload puts the hub's whole `.env` into `os.environ`, and a
+    # name-list filter is one key short of a real delivery (FC6)
     env = {
-        k: v
-        for k, v in os.environ.items()
-        if k not in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "ALERT_VPS_HOST", "ALERT_ENABLED")
+        k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
     }
     env["FABRIK_ROOT"] = str(root)
+    env["FABRIK_NO_AUTOLOAD"] = (
+        "1"  # belt and braces: the helper opts out itself; a test must NEVER reach the hub's real .env and deliver (FC6)
+    )
     proc = subprocess.run(
         [
             "bash",
@@ -1113,11 +1127,222 @@ def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
             "body",
         ],
         env=env,
+        cwd=root,
         capture_output=True,
         text=True,
         timeout=60,
     )
-    assert proc.returncode == 0 and "NOT delivered" in proc.stdout + proc.stderr, (
+    assert "NOT delivered (alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST" in proc.stdout, (
         proc.stdout,
         proc.stderr,
+    )  # the cause is NAMED, on the stream the heredoc merges (FC6); `returncode == 0` is a hardcoded exit and proves nothing
+    # a MISSING interpreter is the other silent non-delivery: the heredoc never ran (H-F3/FC6)
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    proc = subprocess.run(
+        [
+            "bash",
+            str(REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"),
+            "CRITICAL: probe",
+            "body",
+        ],
+        env={**env, "FABRIK_ROOT": str(bare)},
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
+    assert "NOT delivered (no interpreter at" in proc.stderr, (proc.stdout, proc.stderr)
+
+
+def test_the_live_twin_renders_through_the_dashboards_own_helpers():
+    """`dashboard_server.py` carried a pre-repair copy of the escaper (no `'`), an unsanitised
+    pill class and no scheme gate — a live `<img onerror>` on :8770 (K 1–3/FC4). One source:
+    the page is assembled from gen_dashboard.HELPERS."""
+    import importlib.util
+
+    gd = _load_gen_dashboard()
+    spec = importlib.util.spec_from_file_location(
+        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
+    )
+    ds = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ds)
+    assert "__HELPERS__" in ds.PAGE and "const esc=" not in ds.PAGE and "href(r.url)" in ds.PAGE
+    page = ds.PAGE.replace("__HELPERS__", gd.HELPERS).replace("__STALE_H__", str(gd.STALE_AFTER_H))
+    assert gd.HELPERS in page and "'&#39;'" in gd.HELPERS and "/^https?:" in gd.HELPERS
+    assert "credit stale" in page and f"older than {gd.STALE_AFTER_H} h" in page
+    assert "Localhost-only" not in (REPO / "scripts" / "dashboard_server.py").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_stale_credit_never_counts_as_tracked_and_the_page_explains_the_flag(monkeypatch):
+    """The headline `credit tracked` counted a `⚠` cell; nothing on the page said what `⚠` means (FC4)."""
+    gd = _load_gen_dashboard()
+    rows = [
+        {
+            "provider": "a",
+            "category": "c",
+            "cost": "paid",
+            "url": "",
+            "status": "active",
+            "keys": 1,
+            "unattributed": 0,
+            "projects": [],
+            "account": "",
+            "credit": "⚠ 1 usd (5d old)",
+            "renews": "",
+            "price": "",
+        },
+        {
+            "provider": "b",
+            "category": "c",
+            "cost": "paid",
+            "url": "",
+            "status": "active",
+            "keys": 1,
+            "unattributed": 0,
+            "projects": [],
+            "account": "",
+            "credit": "2 usd",
+            "renews": "",
+            "price": "",
+        },
+    ]
+    html = gd.render(rows)
+    assert "credit stale" in html and f"older than {gd.STALE_AFTER_H} h" in html
+    i = html.index("credit tracked")
+    assert html[i - 80 : i].count(">1<") == 1, html[i - 120 : i]
+
+
+def test_the_chains_own_alert_says_why_it_was_not_delivered_and_survives_a_bad_env(tmp_path):
+    """The chain's `_alert` had no grader (B-C8): run the real function with a throwaway root
+    carrying the one alerting package and no delivery vars — the cause is named; an unreadable
+    `.env` is said instead of a traceback that swallowed the alert (M-C2/FC6); the root travels
+    as argv, so a `'` in it is not a SyntaxError (M-C13)."""
+    import shutil
+
+    root = tmp_path / "ro'ot"
+    (root / "libs").mkdir(parents=True)
+    shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
+    (root / ".env").write_text("", encoding="utf-8")
+    (root / ".env").chmod(
+        0
+    )  # unreadable: dotenv raises PermissionError (a missing path returns False)
+    if os.access(root / ".env", os.R_OK):
+        pytest.skip("running as root — permissions are not enforced")
+    text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
+    fn = text[text.index("_alert() {") : text.index("_step() {")]
+    harness = tmp_path / "h.sh"
+    harness.write_text(
+        f'FABRIK_ROOT="{root}"\nVENV_PY="{sys.executable}"\n' + fn + '\n_alert "t1" "b" warning\n',
+        encoding="utf-8",
+    )
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k
+        not in (
+            "TELEGRAM_BOT_TOKEN",
+            "TELEGRAM_FULL_BOT_TOKEN",
+            "TELEGRAM_CHAT_ID",
+            "ALERT_VPS_HOST",
+            "ALERT_ENABLED",
+        )
+    }
+    env["FABRIK_NO_AUTOLOAD"] = "1"
+    proc = subprocess.run(
+        ["bash", str(harness)], env=env, capture_output=True, text=True, timeout=60, cwd=root
+    )
+    assert (
+        "[chain] .env not loaded:" in proc.stdout
+        and "[chain] alert NOT delivered (alerting disabled): t1" in proc.stdout
+    ), (proc.stdout, proc.stderr)
+
+
+def test_a_killed_chain_is_alerted_by_both_callers(tmp_path):
+    """124/137 — the chain PROCESS killed by timeout or OOM — was logged and never alerted: its own
+    step alert cannot run, and the callers special-cased 126/127 only (D6/FC6)."""
+    root = tmp_path / "root"
+    (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
+    stub = root / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
+    stub.write_text(
+        '#!/usr/bin/env bash\nprintf \'%s|%s\\n\' "$1" "$2" >> "$ALERTS"\n', encoding="utf-8"
+    )
+    chain = root / "scripts" / "external_services_chain.sh"
+    chain.write_text("#!/usr/bin/env bash\nexit 137\n", encoding="utf-8")
+    alerts, log = tmp_path / "alerts.txt", tmp_path / "log.txt"
+    daily_block = _caller_block(
+        DAILY.read_text(encoding="utf-8"), '  _rc=0\n  _step "external_services_chain"', "\n\n"
+    )
+    hook_block = (
+        _caller_block(
+            HOOK.read_text(encoding="utf-8"),
+            '        _rc=0; env LOG_FILE=\\"$LOG_FILE\\"',
+            "        # Auto-commit",
+        )
+        .replace("\\$", "$")
+        .replace('\\"', '"')
+    )
+    for name, block in (("daily_refresh", daily_block), ("wsl_startup_hook", hook_block)):
+        alerts.write_text("", encoding="utf-8")
+        log.write_text("", encoding="utf-8")
+        harness = tmp_path / f"{name}.sh"
+        harness.write_text(
+            'set -u\n_step() { local label="$1"; shift; "$@"; }\n'
+            + f'FABRIK_ROOT="{root}"\nKB="{root}/scripts/kilo-benchmarks"\nLOG_FILE="{log}"\nexport ALERTS="{alerts}"\n'
+            + block
+            + "\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=60)
+        assert "was KILLED" in alerts.read_text(encoding="utf-8"), (
+            name,
+            alerts.read_text(encoding="utf-8"),
+        )
+
+
+def test_a_zero_step_budget_never_disables_the_timeout():
+    """`STEP_TIMEOUT=0` passed every guard and turned timeout(1) off — the only hang protection (D10/FC6)."""
+    text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
+    head = text[: text.index("LOG_FILE=")]
+    proc = subprocess.run(
+        ["bash", "-c", head + '\necho "$STEP_TIMEOUT $CLASSIFY_TIMEOUT"'],
+        env={**os.environ, "STEP_TIMEOUT": "0", "CLASSIFY_TIMEOUT": "abc"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.stdout.strip() == "900 2100", (proc.stdout, proc.stderr)
+
+
+def test_the_vendored_alerting_package_is_a_shim_over_libs():
+    """`scripts/kilo-benchmarks/alerting` was the PRE-REPAIR copy (the split-token 404, a
+    title-only dedup, no TELEGRAM_FULL_BOT_TOKEN) and `pipeline_alert.sh` resolved to it (M-C1/FC6)."""
+    import importlib.util
+
+    shim = REPO / "scripts" / "kilo-benchmarks" / "alerting"
+    assert sorted(p.name for p in shim.iterdir() if p.suffix == ".py") == ["__init__.py"]
+    spec = importlib.util.spec_from_file_location("kb_alerting_shim", shim / "__init__.py")
+    mod = importlib.util.module_from_spec(spec)
+    os.environ.setdefault("FABRIK_NO_AUTOLOAD", "1")
+    spec.loader.exec_module(mod)
+    assert mod.send_alert.__module__ == "alerting"
+    assert (
+        Path(sys.modules["alerting"].__file__).resolve()
+        == (REPO / "libs" / "alerting" / "__init__.py").resolve()
+    )
+    text = (REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh").read_text(encoding="utf-8")
+    assert 'sys.path.insert(0, str(root / "libs"))' in text and "FABRIK_NO_AUTOLOAD" in text
+
+
+def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
+    """Three sibling `pipeline_alert.sh` calls inside the boot hook's `nohup bash -c "…"` string
+    had no redirect: their `NOT delivered` diagnostics landed in a stray `nohup.out` in whatever
+    directory the login shell sat in (D5/FC6)."""
+    text = HOOK.read_text(encoding="utf-8")
+    start = text.index('nohup bash -c "')
+    outer = text[start : text.index('\n    " &', start)]
+    calls = [ln for ln in outer.splitlines() if "pipeline_alert.sh" in ln]
+    assert len(calls) >= 4, calls
+    for ln in calls:
+        assert '>> \\"$LOG_FILE\\" 2>&1' in ln, ln

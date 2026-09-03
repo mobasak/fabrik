@@ -30,7 +30,15 @@ CHECK = REPO_ROOT / "scripts" / "enforcement" / "check_script_headers.py"
 
 def _repo(tmp_path: Path, script_body: str) -> Path:
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    for cfg in (("user.email", "t@fabrik.local"), ("user.name", "t")):
+    for cfg in (
+        ("user.email", "t@fabrik.local"),
+        ("user.name", "t"),
+        (
+            "commit.gpgsign",
+            "false",
+        ),  # the operator's ~/.gitconfig is not scrubbed by conftest (L-C5)
+        ("core.hooksPath", str(tmp_path / "no-hooks")),
+    ):
         subprocess.run(["git", "-C", str(tmp_path), "config", *cfg], check=True)
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "thing.py").write_text(script_body, encoding="utf-8")
@@ -707,3 +715,40 @@ def test_trailing_prose_and_a_period_after_a_real_path_never_mint_phantom_files(
     assert "WARNING" not in _run(repo2, "scripts/thing.py", "docs/coupled.md")
     repo3 = _repo(tmp_path / "three", "# AFTER-EDIT: ... none\nx = 1\n")
     assert "WARNING" not in _run(repo3, "scripts/thing.py")
+
+
+def test_a_stat_error_on_a_coupled_token_is_a_warning_never_a_traceback(tmp_path):
+    """pathlib swallows ENOENT/ENOTDIR/EBADF/ELOOP only: a >255-byte token (ENAMETOOLONG) or a
+    token under a mode-000 directory (EACCES) was a traceback out of a WARN-only check — a red
+    gate for a header typo, in ~46 repos (C-1/FC7)."""
+    import os
+
+    long = "a" * 300
+    repo = _repo(tmp_path, f"# AFTER-EDIT: docs/{long}.md, {long}, locked/x.md\n")
+    locked = repo / "locked"
+    locked.mkdir()
+    locked.chmod(0)
+    try:
+        if os.access(locked / "x.md", os.R_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        out = _run(repo, "scripts/thing.py")
+    finally:
+        locked.chmod(0o755)
+    assert "not updated" in out and "Traceback" not in out, out
+
+
+def test_an_empty_declaration_is_said_in_both_spellings(tmp_path):
+    """`# AFTER-EDIT: ` (trailing space) passed as `none`; `# AFTER-EDIT:` read as "no header" —
+    the same forgotten list, two different wrong answers (C-2/FC7)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: \n")
+    (repo / "scripts" / "b.py").write_text("# AFTER-EDIT:\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py", "scripts/b.py")
+    assert out.count("empty `# AFTER-EDIT:`") == 2 and "no `# AFTER-EDIT:` header" not in out, out
+
+
+def test_a_form_feed_in_a_docstring_never_shrinks_the_scan_window(tmp_path):
+    """`str.splitlines` breaks on \\x0c/\\u2028 where the tokenizer does not: a form feed on
+    line 1 pushed a line-25 header out of the window (C-3/FC7)."""
+    repo = _repo(tmp_path, '"""doc\x0c string"""\n' + "# filler\n" * 22 + "# AFTER-EDIT: none\n")
+    out = _run(repo, "scripts/thing.py")
+    assert "no `# AFTER-EDIT:` header" not in out, out

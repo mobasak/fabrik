@@ -53,6 +53,7 @@ for logfile in "$LOG_FILE" "$ENV_WATCHER_LOG"; do
     # Rotation is best-effort housekeeping: if the log is not writable the daily block's probe
     # will detect and alert on it properly, so stay silent here rather than shout in a terminal.
     if [ -f "$logfile" ] && [ "$(stat -c%s "$logfile" 2>/dev/null || echo 0)" -gt "$MAX_LOG_SIZE" ]; then
+        [ -f "${logfile}.1" ] && mv "${logfile}.1" "${logfile}.2" 2>/dev/null  # a second generation: `.1` was overwritten on every rotation, so one login shell could erase a boot-time NOT-delivered line (FC6)
         if mv "$logfile" "${logfile}.1" 2>/dev/null; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log rotated" > "$logfile" 2>/dev/null || true
         fi
@@ -135,9 +136,9 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Runs in ~50ms, $0 cost, byte-identical re-runs
         # Re-enabled 2026-05-13 after switching from LLM to deterministic algorithm
         # D.1: the kilo/embedding workflow if/else was REMOVED here. Its else-branch body was the
-        # engine pipeline, now in ai-model-catalog; the step removal emptied it and left `else` -> `fi`
+        # engine pipeline, now in ai-model-catalog; the step removal emptied it and left else -> fi
         # with no body, which bash rejects. Caught by the RETAINED test_golden_parity oracle, which
-        # parses the hook's extracted CHILD block — `bash -n` on the whole file passed.
+        # parses the hook's extracted CHILD block — bash -n on the whole file passed.
         # === OPENROUTER CATEGORY ROUTING ===
         # Reads agents + agent_categories, writes openrouter:{category} pins
         # to agent_roles, then injects OPENROUTER_ROUTES markers into the 7
@@ -168,7 +169,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         $VENV_PYTHON $AI_PACK_FRESHNESS_SCRIPT >> $LOG_FILE 2>&1
         cd $FABRIK_ROOT && bash $EXTENSIONS_SCRIPT >> $LOG_FILE 2>&1
         # Postgres MCP tunnel: local 15432 -> hub postgres-main (mesh-bound 10.99.0.1:5432); idempotent
-        pgrep -f "15432:10.99.0.1:5432" >/dev/null || nohup ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 15432:10.99.0.1:5432 vps >> $LOG_FILE 2>&1 &
+        pgrep -f \"15432:10.99.0.1:5432\" >/dev/null || nohup ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 15432:10.99.0.1:5432 vps >> $LOG_FILE 2>&1 &
         # Command-corpus drift check: installed ~/.claude/commands vs rendered _sources/_fragments (WARN-only in the daily log)
         python3 $FABRIK_ROOT/commands/assemble_commands.py --check >> $LOG_FILE 2>&1 || echo 'WARN: ~/.claude/commands drifted from /opt/fabrik/commands sources — re-render or reconcile' >> $LOG_FILE
         # session-recall incremental index (fail-quiet; initial heavy ingest already done 2026-07-26)
@@ -194,11 +195,11 @@ if [ ! -f "$LOCK_FILE" ]; then
         # flush_subagent_outboxes.py exits 0 even with nothing to flush, so a non-zero here is a
         # real fault (unreachable DSN, broken driver), never an empty outbox.
         $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/flush_subagent_outboxes.py >> $LOG_FILE 2>&1 \
-            || { echo '[wsl_startup_hook] flush_subagent_outboxes FAILED — stranded runs are unflushed and the ranker below is reading an incomplete ledger' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: flush_subagent_outboxes exited non-zero' 'The flywheel WRITE path is broken on this host. flush_subagent_outboxes.py returns 0 on every internal path including an empty outbox, so a non-zero exit is the interpreter or an import failing, never nothing-to-flush. The ranker runs immediately after and will publish TASK_SUBAGENT_SELECTION.md from a ledger missing every stranded run. Check the venv and the SUBAGENT_RUNS_DSN reachability.'; }
+            || { echo '[wsl_startup_hook] flush_subagent_outboxes FAILED — stranded runs are unflushed and the ranker below is reading an incomplete ledger' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: flush_subagent_outboxes exited non-zero' 'The flywheel WRITE path is broken on this host. flush_subagent_outboxes.py returns 0 on every internal path including an empty outbox, so a non-zero exit is the interpreter or an import failing, never nothing-to-flush. The ranker runs immediately after and will publish TASK_SUBAGENT_SELECTION.md from a ledger missing every stranded run. Check the venv and the SUBAGENT_RUNS_DSN reachability.' >> \"$LOG_FILE\" 2>&1; }
         $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/rank_task_subagents.py >> $LOG_FILE 2>&1 \
-            || { echo '[wsl_startup_hook] rank_task_subagents FAILED — previous selection doc KEPT, not overwritten' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: rank_task_subagents exited non-zero' 'The flywheel read is likely BROKEN (state=error). The previous TASK_SUBAGENT_SELECTION.md was deliberately KEPT rather than overwritten with the failure stub, so the fleet is on yesterday-good, not poisoned. Check the postgres/sudo path on this host.'; }
+            || { echo '[wsl_startup_hook] rank_task_subagents FAILED — previous selection doc KEPT, not overwritten' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: rank_task_subagents exited non-zero' 'The flywheel read is likely BROKEN (state=error). The previous TASK_SUBAGENT_SELECTION.md was deliberately KEPT rather than overwritten with the failure stub, so the fleet is on yesterday-good, not poisoned. Check the postgres/sudo path on this host.' >> \"$LOG_FILE\" 2>&1; }
         ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/tests/capture_golden.py --verify >> $LOG_FILE 2>&1 \
-            || { echo '[wsl_startup_hook] contract oracle reported DRIFT or a stale golden — see above' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: contract oracle reported drift' 'capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the observer (exit 2 -> re-run --snapshot). The auto-commit below fleet-syncs .windsurf/rules/**, so treat this as blocking.'; }
+            || { echo '[wsl_startup_hook] contract oracle reported DRIFT or a stale golden — see above' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: contract oracle reported drift' 'capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the observer (exit 2 -> re-run --snapshot). The auto-commit below fleet-syncs .windsurf/rules/**, so treat this as blocking.' >> \"$LOG_FILE\" 2>&1; }
         $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/check_daily_refresh_freshness.py >> $LOG_FILE 2>&1 \
             || echo '[wsl_startup_hook] freshness check errored (non-fatal)' >> $LOG_FILE
         # The external-services chain — the SAME script daily_refresh.sh runs (added 2026-09-02:
@@ -206,7 +207,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # \" — the values are expanded by THIS shell into the inner script's text, so they are quoted for the INNER shell (FB10)
         _rc=0; env LOG_FILE=\"$LOG_FILE\" FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/external_services_chain.sh\" >> \"$LOG_FILE\" 2>&1 || _rc=\$?
         if [ \$_rc -ne 0 ]; then
-            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
+            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; 124|137) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - timeout or OOM took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
             echo '[wsl_startup_hook] external-services chain failed (exit '\$_rc'; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)' >> \"$LOG_FILE\"
         fi
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
@@ -219,7 +220,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Heartbeat: record that THIS pipeline completed. Without it the freshness check
         # above reads a stamp only daily_refresh.sh ever writes — and daily_refresh.sh loses
         # the lockfile race and never runs — so a perfectly healthy boot fired a CRITICAL
-        # "the refresh pipeline is hanging" alert every single time, poisoning the same
+        # the-refresh-pipeline-is-hanging alert every single time, poisoning the same
         # Telegram channel the oracle/ranker alerts depend on. Written AFTER the work, so the
         # check above still reads the previous run's value.
         mkdir -p $FABRIK_ROOT/scripts/kilo-benchmarks/cache 2>/dev/null || true

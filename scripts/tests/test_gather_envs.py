@@ -3401,13 +3401,20 @@ def test_a_line_dotenv_itself_rejects_is_said_with_the_file_path(tmp_path, capsy
     f.write_text('GOOD=v\nREAL_API_KEY="unterminated\nAFTER=z\n', encoding="utf-8")
     keys = dict(ge.parse_env(f))
     err = capsys.readouterr().err
-    assert "GOOD" in keys and f"WARNING: {f}:" in err and "could not parse" in err, (keys, err)
+    assert "GOOD" in keys and f"WARNING: {f}:2:" in err and "not a KEY=value" in err, (
+        keys,
+        err,
+    )  # the file AND the real line (FC5)
 
 
-def test_the_classifier_never_writes_a_catalog_the_next_gather_refuses(tmp_path, monkeypatch):
+def test_the_classifier_never_writes_a_catalog_the_next_gather_refuses(
+    tmp_path, monkeypatch, capsys
+):
     """A hand-edit with a mixed-case key landing DURING the dispatch window passed the start-of-lap
     check and was serialised back raw by the merge-write — the next gather fail-closed on the
-    whole catalog (FB5). The write validates the merged catalog and refuses with one line."""
+    whole catalog (FB5). The merge is validated with EVERY rule the next gather applies and, when
+    the fresh read fails it, re-merged onto the pre-dispatch probe: the paid batch lands, the
+    hand-edit is discarded and SAID, the state files are still written (G-C1/FC5)."""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
         '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
@@ -3427,8 +3434,7 @@ def test_the_classifier_never_writes_a_catalog_the_next_gather_refuses(tmp_path,
             )
         )
     ]
-    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
-    before = cat.read_text(encoding="utf-8")
+    cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
 
     def fanout_that_hand_edits(*a, **k):
         data = json.loads(cat.read_text(encoding="utf-8"))
@@ -3442,12 +3448,18 @@ def test_the_classifier_never_writes_a_catalog_the_next_gather_refuses(tmp_path,
         return list(res), ""
 
     monkeypatch.setattr(cs, "fanout", fanout_that_hand_edits)
-    assert cs.main() == 1
+    assert cs.main() == 0
     after = json.loads(cat.read_text(encoding="utf-8"))
-    assert "widget" not in after and "OpenAI-Legacy" in after, (
+    assert "widget" in after and "OpenAI-Legacy" not in after, (
         after
-    )  # the classifier wrote NOTHING; the hand-edit alone stands
-    assert before != cat.read_text(encoding="utf-8")
+    )  # the paid identification landed; the hand-edit was discarded
+    assert "DISCARDED" in capsys.readouterr().err
+    assert (
+        state / "l.json"
+    ).exists()  # the lap's state files were written — the first refusal returned before them
+    # the written catalog is one the next gather accepts:
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    ge.load_catalog()
 
 
 def test_a_pool_that_answers_more_than_dispatched_refuses_the_lap(tmp_path, monkeypatch, capsys):
@@ -3484,3 +3496,111 @@ def test_a_pool_that_answers_more_than_dispatched_refuses_the_lap(tmp_path, monk
     assert cat.read_text(encoding="utf-8") == before
     assert "mapping is unknowable" in capsys.readouterr().err
     assert len(cs.pad_results(["a", "b", "c"], [1])) == 3  # the SHORT direction still pads
+
+
+def test_interpolation_follows_dotenvs_own_grammar_in_stream_order(tmp_path, monkeypatch):
+    """The home-grown resolver diverged from python-dotenv in five cells: a forward reference
+    resolved, a duplicate key took the last value, `${B}x` self-reference ballooned ten deep,
+    the name class was narrower, nested defaults leaked (E1-1/H-F5/FC5). The reference is
+    `dotenv_values(interpolate=True)` in an environ WITHOUT the names."""
+    from dotenv import dotenv_values
+
+    monkeypatch.delenv("LATER", raising=False)
+    monkeypatch.delenv("NOPE", raising=False)
+    f = tmp_path / ".env"
+    f.write_text(
+        "A=${LATER}\nLATER=late\nB=one\nC=${B}\nB=two\nD=${D}x\nE=${NOPE-d}\nF=${X:-}\nG=${A:-${B}}\nH\nI=${H}z\n",
+        encoding="utf-8",
+    )
+    ours = dict(ge.parse_env(f))
+    ref = {k: v for k, v in dotenv_values(f, interpolate=True).items() if v is not None}
+    assert ours == ref, (ours, ref)
+    assert ours["A"] == "" and ours["C"] == "one" and ours["D"] == "x" and ours["I"] == "z"
+
+
+def test_a_lone_cr_inside_a_quoted_value_and_a_skipped_line_keep_the_apps_view(tmp_path, capsys):
+    """A lone `\\r` inside a quoted multi-line value is a line ending to the app's text-mode
+    open(); and a skipped non-UTF-8 line shifted every later line number dotenv reported — a
+    good statement between the dropped line and the bad one shows the shift (FC5)."""
+    f = tmp_path / ".env"
+    f.write_bytes(b'K="q\rr"\n\xff\xfe\nGOOD=1\nBAD="unterminated\nZ=1\n')
+    keys = dict(ge.parse_env(f))
+    assert keys["K"] == "q\nr" and keys["GOOD"] == "1" and keys["Z"] == "1"
+    err = capsys.readouterr().err
+    # K spans file lines 1–2 (the CR is a line ending), the bad byte is line 3, GOOD is 4, BAD is 5
+    assert f"WARNING: {f}:3: not UTF-8" in err and f"WARNING: {f}:5: not a KEY=value" in err, err
+
+
+def test_the_classifier_never_writes_a_prefix_tie_the_next_gather_refuses(
+    tmp_path, monkeypatch, capsys
+):
+    """The pre-write check covered the key rules only; a hand-edit that claimed another vendor's
+    prefix mid-dispatch was written back and refused by the next gather (E1-2/FC5)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+
+    def fanout_that_claims_the_prefix(*a, **k):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        data["other"] = {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://o.example",
+            "match": ["WIDGET_"],
+        }
+        cat.write_text(json.dumps(data), encoding="utf-8")
+        return list(res), ""
+
+    monkeypatch.setattr(cs, "fanout", fanout_that_claims_the_prefix)
+    assert cs.main() == 0
+    after = json.loads(cat.read_text(encoding="utf-8"))
+    assert "widget" in after and "other" not in after, after
+    assert "DISCARDED" in capsys.readouterr().err
+    ge.load_catalog()  # the written catalog passes every rule
+
+
+def test_metadata_keys_survive_the_apply_path(tmp_path, monkeypatch):
+    """A `_README` entry is metadata: the pre-write validation must never refuse it as a
+    non-lowercase provider key (E1-6/FC5)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(json.dumps({"_README": "Curated. Keys are lowercase tokens."}), encoding="utf-8")
+    assert cs.main() == 0
+    after = json.loads(cat.read_text(encoding="utf-8"))
+    assert "_README" in after and "widget" in after

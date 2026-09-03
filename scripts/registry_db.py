@@ -24,7 +24,10 @@ def dsn() -> str:
     # profile) handed psycopg2 an empty conninfo, which libpq resolves from PGHOST/PGDATABASE/…
     # — a silent connection to whatever database the ambient environment names, then upserts and
     # `ALTER TABLE` into it (FB9)
-    return os.getenv("SERVICES_REGISTRY_DSN") or DEFAULT_DSN
+    value = (
+        os.getenv("SERVICES_REGISTRY_DSN") or ""
+    ).strip()  # `"   "` is truthy and parses to {} — the same libpq-defaults hole FB9 closed (FC3)
+    return value or DEFAULT_DSN
 
 
 def connect():

@@ -24,7 +24,9 @@ set -u
 FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
 VENV_PY="${VENV_PY:-$FABRIK_ROOT/.venv/bin/python}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
-CLASSIFY_TIMEOUT="${CLASSIFY_TIMEOUT:-2100}"  # the paid step: 10 units × up to 7 model calls + web searches, ALL in parallel (the pool caps concurrency at the unit count); one unit's wall clock is 1800 s + 30 s grace, so the budget must exceed 1830 — the generic 900 s was shorter than one unit (DM1/DO1)
+[ "$STEP_TIMEOUT" -gt 0 ] 2>/dev/null || STEP_TIMEOUT=900  # `0` DISABLES timeout(1): a numeric override passed every guard and switched the only hang protection off (FC6)
+CLASSIFY_TIMEOUT="${CLASSIFY_TIMEOUT:-2100}"
+[ "$CLASSIFY_TIMEOUT" -gt 0 ] 2>/dev/null || CLASSIFY_TIMEOUT=2100  # same guard (FC6)  # the paid step: 10 units × up to 7 model calls + web searches, ALL in parallel (the pool caps concurrency at the unit count); one unit's wall clock is 1800 s + 30 s grace, so the budget must exceed 1830 — the generic 900 s was shorter than one unit (DM1/DO1)
 LOG_FILE="${LOG_FILE:-/dev/stderr}"
 DASHBOARD="$FABRIK_ROOT/external-services-dashboard.html"
 HEARTBEAT="$FABRIK_ROOT/.tmp/external-services/chain-heartbeat"  # the liveness evidence path (mirrored in .fabrik/liveness-registry.json)
@@ -32,8 +34,25 @@ chain_failed=0   # any step failed (exit code of this script)
 core_failed=0    # a step the dashboard DEPENDS on failed (gather_envs / reconsolidate / registry_sync)
 
 _alert() {  # $1 title, $2 body, $3 severity
-  # a False return (alerting disabled, deduplicated) is SAID in the log — it was a silent no-op (FB10)
-  "$VENV_PY" -c "import sys; sys.path.insert(0, '$FABRIK_ROOT/libs'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; sent = send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3]); print('[chain] alert NOT delivered (alerting disabled or deduplicated): ' + sys.argv[1]) if not sent else None" "$1" "$2" "$3" 2>&1 || true
+  # a False return is SAID in the log with its cause (disabled vs every method failed — dedup
+  # cannot fire across processes); the root is argv, never source text (a `'` in FABRIK_ROOT was
+  # a swallowed SyntaxError); an unreadable .env is said, not a traceback; bounded at 60 s (FB10/FC6)
+  timeout -k 5 60 "$VENV_PY" -c '
+import os, sys
+os.environ.setdefault("FABRIK_NO_AUTOLOAD", "1")
+root = sys.argv[4]
+sys.path.insert(0, root + "/libs")
+try:
+    from dotenv import load_dotenv
+    load_dotenv(root + "/.env", override=False)
+except Exception as exc:
+    print("[chain] .env not loaded: " + type(exc).__name__ + ": " + str(exc))
+import alerting
+sent = alerting.send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3])
+if not sent:
+    why = "alerting disabled" if not alerting._is_enabled() else "every delivery method failed"
+    print("[chain] alert NOT delivered (" + why + "): " + sys.argv[1])
+' "$1" "$2" "$3" "$FABRIK_ROOT" 2>&1 || true
 }
 _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
   local label="$1"; shift

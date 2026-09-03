@@ -27,7 +27,9 @@ import tokenize
 from fnmatch import fnmatch
 from pathlib import Path
 
-HEADER_RE = re.compile(r"#\s*AFTER-EDIT:\s*(.+)", re.IGNORECASE)
+HEADER_RE = re.compile(
+    r"#\s*AFTER-EDIT:[ \t]*(.*)$", re.IGNORECASE
+)  # an EMPTY declaration matches too: `# AFTER-EDIT:` with trailing whitespace read as `none`, without it as "no header" (FC7)
 
 
 def _header_of(head: str) -> str | None:
@@ -88,7 +90,9 @@ def _staged_head(path: str) -> str | None:
     if len(parts) != 3 or parts[1] != b"blob":
         raise GitUnavailableError(f"git cat-file :{path}: unexpected answer {header[:80]!r}")
     body = rest[: int(parts[2])].decode("utf-8", "replace")
-    return "\n".join(body.splitlines()[:HEADER_SCAN_LINES])
+    return "\n".join(
+        re.split(r"\r\n|\r|\n", body)[:HEADER_SCAN_LINES]
+    )  # universal newlines ONLY — `str.splitlines` also breaks on \x0c/\u2028, which the tokenizer does not, so a form feed in a docstring shrank the window (FC7)
 
 
 # Both separators the corpus actually uses: `a.py, b.md` AND `a.py | b.md`. The pipe form is the
@@ -97,7 +101,17 @@ def _staged_head(path: str) -> str | None:
 # until 2026-08-16, because the check was registered without `advisory`/`warn_only` and
 # `run_optional_check` discarded its stdout on exit 0.
 SEPARATORS = re.compile(r"[,|\s]+")
-NONE_VALUES = {"none", "n/a", "na", "-", ""}
+NONE_VALUES = {"none", "n/a", "na", "-"}
+
+
+def _stat(p: Path, kind: str) -> bool:
+    """`is_file`/`is_dir`/`exists` that never raise: pathlib swallows ENOENT/ENOTDIR/EBADF/ELOOP only,
+    so a >255-byte token (ENAMETOOLONG) or a token under a mode-000 directory (EACCES) was a traceback
+    out of a WARN-only check — a red gate for a header typo, fleet-wide (FC7)."""
+    try:
+        return bool(getattr(p, kind)())
+    except (OSError, ValueError):
+        return False
 
 
 def _coupled_tokens(listed: str, script: Path) -> list[str]:
@@ -114,7 +128,7 @@ def _coupled_tokens(listed: str, script: Path) -> list[str]:
         if not c or c.lower() in NONE_VALUES:
             continue
         if (
-            "/" in c or "." in c or Path(c).is_file() or (script.parent / c).is_file()
+            "/" in c or "." in c or _stat(Path(c), "is_file") or _stat(script.parent / c, "is_file")
         ):  # a FILE: a prose word that happens to name a directory (`docs`, `src`) is not promoted (EA2)
             out.append(c)
     return out
@@ -128,10 +142,10 @@ def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
     # repo-rooted FIRST; the script-relative reading only when the repo-rooted path does not
     # exist on disk — a same-named file inside the script's directory (`scripts/README.md`) must
     # never close a coupling declared on the root one (EA2); a directory token keeps its `/`
-    if not token.endswith("/") and Path(token).is_dir():
+    if not token.endswith("/") and _stat(Path(token), "is_dir"):
         token += "/"  # a directory named without its slash could never be satisfied (EZ6)
     cands = [token]
-    if not Path(token).exists():
+    if not _stat(Path(token), "exists"):
         cands.append((script.parent / token).as_posix() + ("/" if token.endswith("/") else ""))
     others = staged_set - {
         script.as_posix()
@@ -313,6 +327,11 @@ def _main(quiet: bool) -> int:
             )
             continue
         listed = listed_header
+        if not listed.strip():
+            warnings.append(
+                f"{f}: empty `# AFTER-EDIT:` — name the coupled files, or `none`."
+            )  # FC7
+            continue
         if listed.lower() in NONE_VALUES:
             continue
         coupled = _coupled_tokens(listed, p)

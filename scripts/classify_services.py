@@ -551,207 +551,228 @@ def main() -> int:
             file=sys.stderr,
         )
         raw_catalog = _catalog_probe
-    # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
-    # gather_envs.load_catalog applies; kept aside and written back first (AU9)
-    catalog_meta = {k: v for k, v in raw_catalog.items() if k.startswith("_")}
-    catalog = {
-        k: v for k, v in raw_catalog.items() if not k.startswith("_") and isinstance(v, dict)
-    }
-    catalog_meta.update(
-        {k: v for k, v in raw_catalog.items() if not k.startswith("_") and not isinstance(v, dict)}
-    )  # a non-dict value is metadata too (AY8)
-    merged_into: dict[str, str] = {}
-    by_lower = {
-        k.lower(): k for k in catalog
-    }  # a hand-curated `OpenAI` key is legal; the lowered answer must still find it (EW5)
-    for prov, v in list(identified.items()):
-        target = str(v.get("name") or "").strip().lower()
-        target = by_lower.get(target, target)
-        if (
-            target
-            and target != prov
-            and target in catalog
-            and not (prov in catalog and not tombstone_of(catalog, prov))
-            and not tombstone_of(
-                catalog, target
-            )  # never fold a PAID identification into a stale tombstone — the answer would be discarded and the block leaves triage for good (EQ4)
-        ):
-            # a catalogued NON-tombstone source (the curated shapes that reach here — a `?`
-            # placeholder with curated routing, or an entry whose category is not a real category string
-            # but that carries routing) is never folded into another vendor by a model's word:
-            # the identified path keeps the operator's fields and fills its `?`, so it leaves
-            # triage — merged, it stayed `?` and re-billed every lap forever (CE2)
-            # the vendor is ALREADY catalogued under another key: a code-only provider records its
-            # host on that entry (safebrowsing.googleapis → google-safe-browsing, AB3); an env-keyed
-            # one lends its key prefix to that entry's `match` list (AD2) — never a duplicate
-            # identity that the registry and dashboard would show as a second vendor
-            entry = catalog[target]
-            if code_only_provider(provs.get(prov, {})):
-                hosts = entry.setdefault("hosts", [])
-                if not isinstance(
-                    hosts, list
-                ):  # a hand-edited scalar (AF14); `null` is empty, not "None" (BH5)
-                    hosts = entry["hosts"] = [] if hosts is None else [str(hosts)]
-                for u in provs.get(prov, {}).get("urls", []):
-                    h = _host(u)  # BB5
-                    if h and h not in hosts:
-                        hosts.append(h)
-            else:
-                # a MODEL-merged prefix lives in `merged_match`, never in the curated `match`:
-                # gather_envs matches on both, registry_sync never feeds a fetcher from one (BH1)
-                match = entry.setdefault("merged_match", [])
-                if not isinstance(
-                    match, list
-                ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
-                    match = entry["merged_match"] = [] if match is None else [str(match)]
-                token = prov.upper().rstrip("_")
-                tombstone = prov in catalog and tombstone_of(catalog, prov)  # ONE rule (CD1)
-                curated_anywhere = {
-                    t
-                    for other, meta in catalog.items()
-                    if not (other == prov and tombstone)  # a surviving CURATED source counts (CA3)
-                    for t in _curated_tokens(meta)
-                }
-                if token in _curated_tokens(entry):
-                    pass  # the TARGET routes it already: merged, nothing minted (BW4)
-                elif token in curated_anywhere:
-                    # another entry routes the token: a merged copy would TIE with it and fail every
-                    # scan (BX8). Merged WITHOUT a prefix (the curator keeps routing the key) and said
-                    # by name. Unreachable from the scan — a key whose token any entry curates is
-                    # routed, never flagged; CA5's own-entry orphan duplicated the target's url and
-                    # de-attributed its host (CC3)
-                    print(
-                        f"  {prov}: merged into {target} without a prefix — {token} is curated elsewhere"
-                    )
-                elif prov.upper() not in match:
-                    match.append(prov.upper())
-            if prov in catalog and tombstone_of(catalog, prov):
-                # a TOMBSTONE re-tried into another vendor: its own `match: [PROV]` left behind ties
-                # with the merged copy and fails every scan from tomorrow, permanently (BX8). A
-                # CURATED entry is never popped — that orphaned every key its `match` routed
-                # (`CAPTCHA_API_KEY` → anticaptcha, executed at dd55ca81; CA3)
-                catalog.pop(prov)
-            merged_into[prov] = target
-            identified.pop(prov)
-    for prov, v in identified.items():
-        root = prov.upper()  # FULL provider name — a compound like `aws_bedrock` must match only
-        #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
-        url = str(v.get("url", "?"))
-        if _scheme(url) not in ("http", "https"):
-            url = "?"  # a model-authored url reaches the registry and the dashboard's page (AM4)
-        # the enum fields are model-authored too and reach the dashboard's class attribute
-        # (`cpill`) and the #svc line — anything outside the enum is `?` (AP1/AP2)
-        # normalised first: a model's `AI-LLM` / `Freemium` / `ai-llm ` IS the enum value (AS1)
-        cost = str(v.get("cost", "?")).strip().lower()
-        status = (
-            str(v.get("status", "?")).strip().lower()
-        )  # an OMITTED status is unknown too (BB4/BE5)
-        entry = {
-            "category": _enum_category(
-                v.get("category")
-            ),  # CATEGORIES is a STRING — split, never substring
-            "cost": cost if cost in COSTS else "?",
-            "capability": " ".join(str(v.get("capability", "?")).split())[:70],
-            "url": url,
-            "status": status
-            if status in STATUSES
-            else "?",  # an out-of-enum status is UNKNOWN, never "active" (BB4)
-            # a provider seen ONLY as a code call site has no env key behind it: a bare-word
-            # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
-            "match": [] if code_only_provider(provs.get(prov, {})) else [root],
+    # the merge runs on the FRESH read first; a merged catalog the next gather would refuse (a
+    # hand-edit landing mid-dispatch that breaks a key rule or claims another vendor's prefix)
+    # is re-merged onto the pre-dispatch probe — the last validated state — so the paid batch
+    # is never thrown away and the state files below are still written (FB5/G-C1/FC5)
+    for source in (raw_catalog, _catalog_probe):
+        raw_catalog = source
+        # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
+        # gather_envs.load_catalog applies; kept aside and written back first (AU9)
+        catalog_meta = {k: v for k, v in raw_catalog.items() if k.startswith("_")}
+        catalog = {
+            k: v for k, v in raw_catalog.items() if not k.startswith("_") and isinstance(v, dict)
         }
-        # `identified` is enum-gated above, so entry["category"] is never "?" here (AS1/AU1)
-        if (
-            prov in catalog
-        ):  # a curated entry keeps its match/hosts when identified (AF8, mirror of AC11)
-            for keep in (
-                "match",
-                "merged_match",
-                "hosts",
-            ):  # a merged prefix survives a rewrite/re-stub (BK2)
-                if keep in catalog[prov]:
-                    entry[keep] = catalog[prov][keep]
-        if prov in catalog and not tombstone_of(catalog, prov):
-            # the curated shapes that reach here — a `?` placeholder the operator left with curated
-            # routing, or an entry whose category is not a real string (null, a list, empty, blank) —
-            # routing (`match`/`hosts`/`url`) routes its own key, so its block sits in triage and is
-            # dispatched (the daily path and `--only` alike); a real-category entry never gets here
-            # (the scan files a key named for it under the entry, CC1). The operator's fields stand,
-            # the model fills only what was `?` (CD2 — the class rounds 22–25 argued over, pinned)
-            kept = {k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])}
-            kept.pop("category", None)  # the enum verdict is the classifier's — a hand-edited
-            # non-str category copied back re-flagged the block every lap, forever (CE3)
-            entry = {**entry, **kept}
-            if kept:  # never a claim of a keep that did not happen (CJ2)
-                print(
-                    f"  {prov}: kept the operator's {', '.join(sorted(kept))}"
-                )  # not the proposal (CE5)
-        catalog[prov] = entry
-    if (
-        args.only
-    ):  # a hand-picked run is not a lap: it neither spends nor records the error budget (AC10)
-        err_counts, exhausted = _read_json(ERRORS_PATH, {}), set()
-    else:
-        err_counts, exhausted = apply_error_budget(
-            errored, names, _read_json(ERRORS_PATH, {}), flagged=all_flagged
-        )
-    if exhausted:
-        verb = (
-            "tombstoning"
-            if args.tombstone_unresolved
-            else "eligible for tombstone (--tombstone-unresolved not set)"
-        )
-        print(
-            f"error budget exhausted ({ERROR_BUDGET} runs): {verb} {sorted(exhausted)}"
-            " (an entry the catalog already carries is left as it is)"
-        )
-        errored = errored - exhausted
-    tombstoned = 0
-    tombstoned_names: list[str] = []
-    if args.tombstone_unresolved:
-        # Persist a stub for a provider the WEB genuinely could not identify (not one that
-        # merely errored — C4) so it drops out of NEEDS-TRIAGE and the daily path stops
-        # re-dispatching a paid pool call for it forever. The category MUST be non-"?" —
-        # gather_envs buckets NEEDS-TRIAGE purely on category=="?", so a "?" stub would
-        # stay in triage and defeat the whole point (C2). The full provider name is the
-        # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
-        for prov in names:
-            if prov in identified or prov in errored or prov in merged_into:
-                continue  # a merged host joined its vendor — never also a stub (AF2)
-            if prov in catalog and gather_envs.real_category(catalog[prov].get("category")):
-                # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
-                # non-str category buckets to `?` there, so treating it as real here re-billed it daily
-                continue
-            stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
-            if prov in catalog:  # a curated `?` entry keeps its match/hosts when re-stubbed (AC11)
+        catalog_meta.update(
+            {
+                k: v
+                for k, v in raw_catalog.items()
+                if not k.startswith("_") and not isinstance(v, dict)
+            }
+        )  # a non-dict value is metadata too (AY8)
+        merged_into: dict[str, str] = {}
+        by_lower = {
+            k.lower(): k for k in catalog
+        }  # a hand-curated `OpenAI` key is legal; the lowered answer must still find it (EW5)
+        for prov, v in list(identified.items()):
+            target = str(v.get("name") or "").strip().lower()
+            target = by_lower.get(target, target)
+            if (
+                target
+                and target != prov
+                and target in catalog
+                and not (prov in catalog and not tombstone_of(catalog, prov))
+                and not tombstone_of(
+                    catalog, target
+                )  # never fold a PAID identification into a stale tombstone — the answer would be discarded and the block leaves triage for good (EQ4)
+            ):
+                # a catalogued NON-tombstone source (the curated shapes that reach here — a `?`
+                # placeholder with curated routing, or an entry whose category is not a real category string
+                # but that carries routing) is never folded into another vendor by a model's word:
+                # the identified path keeps the operator's fields and fills its `?`, so it leaves
+                # triage — merged, it stayed `?` and re-billed every lap forever (CE2)
+                # the vendor is ALREADY catalogued under another key: a code-only provider records its
+                # host on that entry (safebrowsing.googleapis → google-safe-browsing, AB3); an env-keyed
+                # one lends its key prefix to that entry's `match` list (AD2) — never a duplicate
+                # identity that the registry and dashboard would show as a second vendor
+                entry = catalog[target]
+                if code_only_provider(provs.get(prov, {})):
+                    hosts = entry.setdefault("hosts", [])
+                    if not isinstance(
+                        hosts, list
+                    ):  # a hand-edited scalar (AF14); `null` is empty, not "None" (BH5)
+                        hosts = entry["hosts"] = [] if hosts is None else [str(hosts)]
+                    for u in provs.get(prov, {}).get("urls", []):
+                        h = _host(u)  # BB5
+                        if h and h not in hosts:
+                            hosts.append(h)
+                else:
+                    # a MODEL-merged prefix lives in `merged_match`, never in the curated `match`:
+                    # gather_envs matches on both, registry_sync never feeds a fetcher from one (BH1)
+                    match = entry.setdefault("merged_match", [])
+                    if not isinstance(
+                        match, list
+                    ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
+                        match = entry["merged_match"] = [] if match is None else [str(match)]
+                    token = prov.upper().rstrip("_")
+                    tombstone = prov in catalog and tombstone_of(catalog, prov)  # ONE rule (CD1)
+                    curated_anywhere = {
+                        t
+                        for other, meta in catalog.items()
+                        if not (
+                            other == prov and tombstone
+                        )  # a surviving CURATED source counts (CA3)
+                        for t in _curated_tokens(meta)
+                    }
+                    if token in _curated_tokens(entry):
+                        pass  # the TARGET routes it already: merged, nothing minted (BW4)
+                    elif token in curated_anywhere:
+                        # another entry routes the token: a merged copy would TIE with it and fail every
+                        # scan (BX8). Merged WITHOUT a prefix (the curator keeps routing the key) and said
+                        # by name. Unreachable from the scan — a key whose token any entry curates is
+                        # routed, never flagged; CA5's own-entry orphan duplicated the target's url and
+                        # de-attributed its host (CC3)
+                        print(
+                            f"  {prov}: merged into {target} without a prefix — {token} is curated elsewhere"
+                        )
+                    elif prov.upper() not in match:
+                        match.append(prov.upper())
+                if prov in catalog and tombstone_of(catalog, prov):
+                    # a TOMBSTONE re-tried into another vendor: its own `match: [PROV]` left behind ties
+                    # with the merged copy and fails every scan from tomorrow, permanently (BX8). A
+                    # CURATED entry is never popped — that orphaned every key its `match` routed
+                    # (`CAPTCHA_API_KEY` → anticaptcha, executed at dd55ca81; CA3)
+                    catalog.pop(prov)
+                merged_into[prov] = target
+                identified.pop(prov)
+        for prov, v in identified.items():
+            root = (
+                prov.upper()
+            )  # FULL provider name — a compound like `aws_bedrock` must match only
+            #                      AWS_BEDROCK_* keys, never every AWS_* key (same scoping as C5)
+            url = str(v.get("url", "?"))
+            if _scheme(url) not in ("http", "https"):
+                url = (
+                    "?"  # a model-authored url reaches the registry and the dashboard's page (AM4)
+                )
+            # the enum fields are model-authored too and reach the dashboard's class attribute
+            # (`cpill`) and the #svc line — anything outside the enum is `?` (AP1/AP2)
+            # normalised first: a model's `AI-LLM` / `Freemium` / `ai-llm ` IS the enum value (AS1)
+            cost = str(v.get("cost", "?")).strip().lower()
+            status = (
+                str(v.get("status", "?")).strip().lower()
+            )  # an OMITTED status is unknown too (BB4/BE5)
+            entry = {
+                "category": _enum_category(
+                    v.get("category")
+                ),  # CATEGORIES is a STRING — split, never substring
+                "cost": cost if cost in COSTS else "?",
+                "capability": " ".join(str(v.get("capability", "?")).split())[:70],
+                "url": url,
+                "status": status
+                if status in STATUSES
+                else "?",  # an out-of-enum status is UNKNOWN, never "active" (BB4)
+                # a provider seen ONLY as a code call site has no env key behind it: a bare-word
+                # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
+                "match": [] if code_only_provider(provs.get(prov, {})) else [root],
+            }
+            # `identified` is enum-gated above, so entry["category"] is never "?" here (AS1/AU1)
+            if (
+                prov in catalog
+            ):  # a curated entry keeps its match/hosts when identified (AF8, mirror of AC11)
                 for keep in (
                     "match",
                     "merged_match",
                     "hosts",
                 ):  # a merged prefix survives a rewrite/re-stub (BK2)
                     if keep in catalog[prov]:
-                        stub[keep] = catalog[prov][keep]
-                for keep in ("cost", "capability", "url", "status"):
-                    if catalog[prov].get(keep) not in (None, "", "?"):
-                        stub[keep] = catalog[prov][
-                            keep
-                        ]  # an unidentifiable answer never erases the operator's words (CE4)
-            catalog[prov] = stub
-            tombstoned += 1
-            tombstoned_names.append(prov)
-    try:
-        # the merged catalog must pass the same rule the next gather applies — a hand-edit landing
-        # mid-dispatch (a multi-minute window) was written back raw and left the chain fail-closed (FB5)
-        gather_envs.validate_catalog_keys(
-            {k: v for k, v in catalog.items() if not k.startswith("_") and isinstance(v, dict)},
-            str(CATALOG_PATH),
-        )
-    except gather_envs.CatalogError as exc:
-        print(
-            f"ERROR: {exc} — the merged catalog is NOT written; the previous one stands",
-            file=sys.stderr,
-        )
-        return 1
+                        entry[keep] = catalog[prov][keep]
+            if prov in catalog and not tombstone_of(catalog, prov):
+                # the curated shapes that reach here — a `?` placeholder the operator left with curated
+                # routing, or an entry whose category is not a real string (null, a list, empty, blank) —
+                # routing (`match`/`hosts`/`url`) routes its own key, so its block sits in triage and is
+                # dispatched (the daily path and `--only` alike); a real-category entry never gets here
+                # (the scan files a key named for it under the entry, CC1). The operator's fields stand,
+                # the model fills only what was `?` (CD2 — the class rounds 22–25 argued over, pinned)
+                kept = {k: v for k, v in catalog[prov].items() if v not in ("?", None, "", [])}
+                kept.pop("category", None)  # the enum verdict is the classifier's — a hand-edited
+                # non-str category copied back re-flagged the block every lap, forever (CE3)
+                entry = {**entry, **kept}
+                if kept:  # never a claim of a keep that did not happen (CJ2)
+                    print(
+                        f"  {prov}: kept the operator's {', '.join(sorted(kept))}"
+                    )  # not the proposal (CE5)
+            catalog[prov] = entry
+        if (
+            args.only
+        ):  # a hand-picked run is not a lap: it neither spends nor records the error budget (AC10)
+            err_counts, exhausted = _read_json(ERRORS_PATH, {}), set()
+        else:
+            err_counts, exhausted = apply_error_budget(
+                errored, names, _read_json(ERRORS_PATH, {}), flagged=all_flagged
+            )
+        if exhausted:
+            verb = (
+                "tombstoning"
+                if args.tombstone_unresolved
+                else "eligible for tombstone (--tombstone-unresolved not set)"
+            )
+            print(
+                f"error budget exhausted ({ERROR_BUDGET} runs): {verb} {sorted(exhausted)}"
+                " (an entry the catalog already carries is left as it is)"
+            )
+            errored = errored - exhausted
+        tombstoned = 0
+        tombstoned_names: list[str] = []
+        if args.tombstone_unresolved:
+            # Persist a stub for a provider the WEB genuinely could not identify (not one that
+            # merely errored — C4) so it drops out of NEEDS-TRIAGE and the daily path stops
+            # re-dispatching a paid pool call for it forever. The category MUST be non-"?" —
+            # gather_envs buckets NEEDS-TRIAGE purely on category=="?", so a "?" stub would
+            # stay in triage and defeat the whole point (C2). The full provider name is the
+            # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
+            for prov in names:
+                if prov in identified or prov in errored or prov in merged_into:
+                    continue  # a merged host joined its vendor — never also a stub (AF2)
+                if prov in catalog and gather_envs.real_category(catalog[prov].get("category")):
+                    # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
+                    # non-str category buckets to `?` there, so treating it as real here re-billed it daily
+                    continue
+                stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
+                if (
+                    prov in catalog
+                ):  # a curated `?` entry keeps its match/hosts when re-stubbed (AC11)
+                    for keep in (
+                        "match",
+                        "merged_match",
+                        "hosts",
+                    ):  # a merged prefix survives a rewrite/re-stub (BK2)
+                        if keep in catalog[prov]:
+                            stub[keep] = catalog[prov][keep]
+                    for keep in ("cost", "capability", "url", "status"):
+                        if catalog[prov].get(keep) not in (None, "", "?"):
+                            stub[keep] = catalog[prov][
+                                keep
+                            ]  # an unidentifiable answer never erases the operator's words (CE4)
+                catalog[prov] = stub
+                tombstoned += 1
+                tombstoned_names.append(prov)
+        try:
+            gather_envs.parse_catalog({**catalog_meta, **catalog}, str(CATALOG_PATH))
+            break
+        except gather_envs.CatalogError as exc:
+            if source is _catalog_probe:
+                # the classifier's OWN merge onto a validated catalog is what the next gather
+                # refuses: nothing written, the previous catalog stands
+                print(
+                    f"ERROR: {exc} — the merged catalog is NOT written; the previous one stands",
+                    file=sys.stderr,
+                )
+                return 1
+            print(
+                f"WARNING: {exc} — the catalog edit landed during the dispatch is DISCARDED; merging onto the pre-dispatch copy read at {probe_at} (repair the edit, re-apply it) (FC5)",
+                file=sys.stderr,
+            )
     tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
     tmp.write_text(
         json.dumps({**catalog_meta, **catalog}, indent=2, ensure_ascii=False) + "\n",
@@ -776,11 +797,15 @@ def main() -> int:
             sys.path.insert(0, str(REPO / "libs"))
             from alerting import send_alert  # noqa: PLC0415 - optional, box-local
 
-            send_alert(
+            if not send_alert(
                 "service-registry: new providers",
                 f"classified {len(identified)}: {', '.join(sorted(identified))}",
                 "info",
-            )
+            ):
+                print(
+                    "  (alert NOT delivered: alerting disabled or every delivery method failed)",
+                    file=sys.stderr,
+                )  # the boolean was discarded (FC6)
         except Exception as exc:  # noqa: BLE001 - alerting is best-effort
             print(f"  (alert skipped: {exc})", file=sys.stderr)
     if merged_into:

@@ -113,9 +113,11 @@ handler swallows, a sourceless package, a `__getattr__` package); the recorder m
 moot by construction. It records `create_module` as well as `exec_module` — an extension
 module's init function runs in the former, and a mis-built `.so` had blamed its importer. The
 target itself raising ⇒ a block; a sibling raising ⇒ an advisory naming the sibling; an
-exception that leaves the import STATEMENT after every module loaded and nothing went missing
-(a PEP 562 module-level `__getattr__` raising anything but `AttributeError`, a package that
-swapped `sys.meta_path` under the recorder) is the target's own — a blank blame there was a
+exception that leaves the import STATEMENT after the target FINISHED executing — it is in
+`sys.modules`; CPython drops a module whose exec raised — is the target's own (a PEP 562
+module-level `__getattr__` raising anything but `AttributeError`; the first guard asked whether
+nothing anywhere had failed or gone missing, which the live closure's swallowed optional imports
+made permanently false) — a blank blame there was a
 fail-open advisory with predicate 1 silently not run; a torn or non-code bytecode cache is named
 with its remedy (delete that module's `__pycache__`; a sourceless `.pyc` is the artifact to
 replace) when CPython's own validators say it would have LOADED that cache — a healthy sourceless
@@ -129,9 +131,12 @@ target's. CPython stops at the first broken module, so exactly one is named; fix
 the next — the recorder never guesses beyond what ran. A runtime `OSError` (a data file the
 module opens) is the module's own. A `sys.exit()` at import is the module's failure, never this
 process's exit code; `KeyboardInterrupt` propagates. The import runs inside the gate's process:
-both its streams are captured at the file-descriptor level as well as the Python level (an
-`os.write(1, …)` or a stderr banner had led the gate row — a `print` alone is what
-`redirect_stdout` sees) and any bytes written are reported as a `⚠ advisory —` line, distinct
+both its streams are captured at the file-descriptor level ONLY (an `os.write(1, …)` or a
+stderr banner had led the gate row; a Python-level StringIO layer made a module's legitimate
+`sys.stderr.buffer` / `.fileno()` raise inside the module), every resource is acquired inside the
+`try` and released in order, the recorder's loader wrappers are unwound after the probe (they had
+stayed on every loaded module's `__spec__.loader` for the life of the process), its stack is per
+thread, and any bytes written are reported as a `⚠ advisory —` line, distinct
 from a skipped predicate (the audit ran; a chatty module is not incomplete coverage), and the
 package's `.env` autoload is switched off so the gate never loads the CWD's secrets. Every failure text is bounded (500 chars), safe when
 `str(exc)` itself raises, and scrubbed of the repo prefix and of the operator's home (`~/…`)
@@ -181,9 +186,13 @@ orchestrator wrappers GENERATED from it, and the Stop hook's own remedy. The han
 them; only a mechanical sweep found the rest, which is precisely why this is a predicate and not a
 review note.
 
-The window is the close's OWN continuation: an inline-code span left open on the close line runs
-to the line that closes it (cut at that backtick), a `\` continuation runs while lines end in
-`\`, at most three lines, and it stops at the next close command. The first version used a flat
+The window is the close's OWN text: it starts at the close command and is cut at the span's
+closing backtick on the same line (prose or a neighbouring table cell after it never counts); an
+inline-code span left open on the close line runs to the line that closes it (cut there), a `\`
+continuation runs while lines end in `\` (up to twelve lines), and it stops at the next close
+command. Predicate 7 audits the 17 generated orchestrator wrappers too — they carry 34 of the
+corpus's 47 close sites and were read into the coverage denominator but audited by no predicate
+until pass 63. The first version used a flat
 4-line window, which admitted the PROSE that documents the flag ("`--feedback` is REQUIRED")
 and a neighbouring close's flag — 21 of 47 live close sites, the run-record fragment first,
 passed with their own flag deleted (pass 62). A single-line window would flag every
@@ -191,9 +200,13 @@ correctly-fixed site, since the real fragment wraps the flag onto a continuation
 
 Predicate 5 (the run record) matches `command_run.py` … `start` across whitespace and a `\`
 line continuation — a wrapped start opens a record too, and the bare substring test had red it.
-Chain references admit digits (`/fabrik-oauth2-setup`); a caller claim inside a fenced block is
-an example, like a fenced `#` in the call-sites form; the trailer key is read case-insensitively,
-as git reads it.
+Chain references admit digits anywhere after the prefix (`/fabrik-oauth2-setup`, `/fabrik-2fa`);
+a caller claim inside a fenced block is an example, like a fenced `#` in the call-sites form —
+fences are real CommonMark fences (`~~~` too, closed only by a same-char run at least as long) and a
+heading may carry up to three leading spaces; a claim is honoured by a TOKEN in the caller's
+source, never a substring (`/fabrik-review-scoped` contains `/fabrik-review`); the trailer key is
+read case-insensitively, as git reads it; an agent's `name:` may be quoted or followed by a comment,
+and a BOM is not "no frontmatter"; a `web_tools` literal checked only to its 2 000-char bound says so.
 
 ## Predicate 8 — a CLAIMED caller must actually CALL (added 2026-08-29)
 
@@ -242,7 +255,7 @@ fire, then a known-good one and requires silence:
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: 13 canaries over 8 of the eight predicates fire on bad input and stay silent on good input
+✓ selftest: 17 canaries over 8 of the eight predicates (17 of 18 problem emitters in this file) fire on bad input and stay silent on good input
 ```
 
 In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
@@ -257,7 +270,7 @@ skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
 ```
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
 N/A: 6 web-tool canaries skipped — no vendored libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub
-✓ selftest: 7 canaries over 7 of the eight predicates fire on bad input and stay silent on good input (N/A: web-tool names)
+✓ selftest: 11 canaries over 7 of the eight predicates (11 of 18 problem emitters in this file) fire on bad input and stay silent on good input (N/A: web-tool names)
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

@@ -10,6 +10,7 @@ wolf gets ignored — which is how a real break then ships.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -23,8 +24,13 @@ from check_command_corpus import audit  # noqa: E402
 
 
 @pytest.fixture
-def corpus(tmp_path: Path):
+def corpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """A minimal two-command corpus; the callable writes the file under test."""
+    import check_command_corpus as _ccc  # noqa: PLC0415
+
+    # `repo` stays the REAL hub (predicates 2/6 resolve script paths against it), so predicate 4
+    # would read the live, sibling-mutable CLAUDE.md — the class `_CLAUDE_MD` closed elsewhere (FC1)
+    monkeypatch.setattr(_ccc, "_canonical_trailer_model", lambda *a, **k: "Claude Fable 5.1")
     src, frag = tmp_path / "_sources", tmp_path / "_fragments"
     src.mkdir()
     frag.mkdir()
@@ -48,9 +54,27 @@ def test_a_digit_bearing_command_name_is_a_chain_reference(corpus, tmp_path):
     `.md` filename is still a file, never a chain reference."""
     problems = corpus("run /fabrik-oauth2-setup, then read /fabrik-real.md and /fabrik-nope.md\n")
     assert any("/fabrik-oauth2-setup does not exist" in p for p in problems), problems
+    problems = corpus(
+        "run /fabrik-2fa\n"
+    )  # a digit-FIRST segment was still invisible after FB7 (FC1)
+    assert any("/fabrik-2fa does not exist" in p for p in problems), problems
+    problems = corpus(
+        "run /fabrik-2fa\n"
+    )  # a digit-FIRST segment was still invisible after FB7 (FC1)
+    assert any("/fabrik-2fa does not exist" in p for p in problems), problems
     assert not any("fabrik-nope" in p for p in problems), problems
     (tmp_path / "_sources" / "fabrik-oauth2-setup.md").write_text("{{include:run-record}}\n")
     assert not corpus("run /fabrik-oauth2-setup\n")
+
+
+def test_a_bare_line_break_between_the_script_and_start_is_not_a_run_record(corpus):
+    """`\\s*` spanned newlines without a backslash: prose naming `command_run.py` at a line's end
+    followed by a sentence starting with `start` opened a run record (FC1)."""
+    problems = corpus(
+        "Records live in scripts/command_run.py\nstart every phase by reading the ledger\n",
+        with_record=False,
+    )
+    assert any("opens no run record" in p for p in problems), problems
 
 
 def test_a_wrapped_or_respaced_run_record_start_opens_a_run_record(corpus):
@@ -76,6 +100,150 @@ def test_a_fenced_caller_claim_is_an_example_and_a_claim_ends_at_the_sentence(co
     assert not any("claims caller" in p for p in problems), problems
     problems = corpus("it is invoked by /fabrik-real; see also the successor\n")
     assert any("claims caller /fabrik-real" in p for p in problems), problems
+
+
+def test_a_prefix_sibling_never_honours_a_caller_claim(corpus, tmp_path):
+    """`/fabrik-review-scoped` CONTAINS `/fabrik-review`: the substring back-reference honoured a
+    false claim through a prefix sibling — 9 such pairs live (FC1)."""
+    (tmp_path / "_sources" / "fabrik-real-scoped.md").write_text("{{include:run-record}}\n")
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\nsee /fabrik-real-scoped\n"
+    )  # names only the SIBLING, never /fabrik-probe
+    problems = corpus("description: auto-called by /fabrik-real reactively.\n")
+    assert any("claims caller /fabrik-real" in p for p in problems), problems
+
+
+def test_real_fences_and_indented_headings_in_caller_claims(corpus):
+    """`~~~` and a 4-backtick fence holding a 3-backtick one fabricated claims under a bare ```
+    toggle; a fenced bullet under a call-sites heading was harvested before the fence guard; a
+    heading may carry up to three leading spaces (FC1)."""
+    assert not corpus("~~~\ndescription: auto-called by /fabrik-real reactively\n~~~\n")
+    assert not corpus("````\n```\ndescription: auto-called by /fabrik-real reactively\n```\n````\n")
+    assert not corpus(
+        "## Where this auto-fires (0 call sites)\n```\n# example: /fabrik-real\n```\n"
+    )
+    problems = corpus(
+        "   ## Where this auto-fires (1 call site)\n- **`/fabrik-real` (reactive):** x\n"
+    )
+    assert any("claims caller /fabrik-real" in p for p in problems), problems
+
+
+def test_a_quoted_or_annotated_agent_name_and_a_bom_are_valid_definitions(tmp_path):
+    """`name: "good"` and `name: good  # note` are valid YAML that resolves to `good`; a BOM
+    is not "no frontmatter" — each was a BLOCKING false positive on a fleet-synced check (FC1)."""
+    src, frag = tmp_path / "_sources", tmp_path / "_fragments"
+    src.mkdir()
+    frag.mkdir()
+    (src / "fabrik-real.md").write_text("{{include:run-record}}\n")
+    agents = tmp_path / "_agents"
+    agents.mkdir()
+    (agents / "quoted.md").write_text('---\nname: "quoted"\ndescription: d\n---\n')
+    (agents / "noted.md").write_text("---\nname: noted  # the reviewer\ndescription: d\n---\n")
+    (agents / "bom.md").write_text("\ufeff---\nname: bom\ndescription: d\n---\n")
+    problems = audit(
+        src,
+        frag,
+        tmp_path / "no-assembler.py",
+        tmp_path,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )
+    assert not problems, problems
+
+
+def test_a_truncated_web_tools_literal_is_said(corpus):
+    """The 2 000-char perf bound silently stopped checking names beyond it — a bad name past
+    the bound was invisible (FC1)."""
+    import check_command_corpus as ccc
+
+    body = 'fanout("r", web_tools=[' + '"web_search",' * 180 + '"exa"])\n'
+    corpus(body)
+    assert any("literal was checked to 2 000 chars" in a for a in ccc.ADVISORIES), ccc.ADVISORIES
+    ccc.ADVISORIES.clear()
+
+
+def test_the_orchestrator_wrappers_are_audited_by_every_predicate(tmp_path):
+    """34 of predicate 7's 47 close sites lived in the 17 generated wrappers, counted in the
+    coverage denominator and audited by no predicate: a dead chain reference and a feedback-less
+    close in a wrapper were invisible (FC1)."""
+    src, frag = tmp_path / "_sources", tmp_path / "_fragments"
+    src.mkdir()
+    frag.mkdir()
+    (src / "fabrik-real.md").write_text("{{include:run-record}}\n")
+    (tmp_path / "docs" / "orchestrator").mkdir(parents=True)
+    (tmp_path / "docs" / "orchestrator" / "real.md").write_text("a canonical doc\n")
+    orch = tmp_path / "docs" / "orchestrator" / "_traycer-skills"
+    (orch / "fab-x").mkdir(parents=True)
+    (orch / "fab-x" / "SKILL.md").write_text(
+        "`/opt/fabrik/docs/orchestrator/real.md`\npython3 scripts/command_run.py start --command x\n"
+        "then /fabrik-nope-in-wrapper\n`python3 scripts/command_run.py done --command x --evidence e`\n"
+    )
+    problems = audit(src, frag, tmp_path / "no-assembler.py", tmp_path, traycer_skills=orch)
+    joined = "\n".join(problems)
+    assert (
+        "/fabrik-nope-in-wrapper does not exist" in joined
+        and "advertises a close with no --feedback" in joined
+    ), problems
+
+
+def test_the_recorder_leaves_no_wrapper_and_no_environment_behind(tmp_path, monkeypatch):
+    """The wrappers went on `spec.loader` and stayed in `sys.modules` for the process — a
+    `copy`/`pickle` of any wrapped spec recursed to death and 128 modules carried a foreign
+    loader for a pytest session; the probe also left `SUBAGENTS_NO_AUTOLOAD` set (FC1)."""
+    import copy
+    import pickle
+
+    import check_command_corpus as ccc
+
+    monkeypatch.delenv("SUBAGENTS_NO_AUTOLOAD", raising=False)
+    hub = _probe_hub(tmp_path, 'import json\nWEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+        del sys.modules[k]
+    try:
+        assert ccc._live_web_tool_names(hub) == frozenset({"web_search"})
+        assert "SUBAGENTS_NO_AUTOLOAD" not in os.environ
+        for name, mod in list(sys.modules.items()):
+            loader = getattr(getattr(mod, "__spec__", None), "loader", None)
+            assert not isinstance(loader, ccc._RecordingLoader), name
+            assert not isinstance(getattr(mod, "__loader__", None), ccc._RecordingLoader), name
+        spec = sys.modules["libs.subagents.web_tools"].__spec__
+        copy.deepcopy(spec)
+        pickle.loads(pickle.dumps(spec))
+    finally:
+        for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+            del sys.modules[k]
+        while str(hub) in sys.path:
+            sys.path.remove(
+                str(hub)
+            )  # the probe pins the hub on sys.path (DS1): a later REAL import must not resolve to this fake
+
+
+def test_the_recorder_stack_is_per_thread_and_its_loader_is_copyable():
+    """A concurrent import interleaved another thread's pushes; a half-built wrapper recursed
+    forever in `__getattr__` (FC1)."""
+    import copy
+    import threading
+
+    import check_command_corpus as ccc
+
+    rec = ccc._ImportRecorder()
+    rec.stack.append("main-thread-module")
+    seen: list[list[str]] = []
+    t = threading.Thread(target=lambda: seen.append(list(rec.stack)))
+    t.start()
+    t.join()
+    assert seen == [[]] and rec.stack == ["main-thread-module"]
+
+    class _L:
+        def exec_module(self, m):
+            pass
+
+    wrapper = ccc._RecordingLoader(_L(), "x", rec)
+    assert (
+        copy.copy(wrapper)._name == "x"
+    )  # `copy` probes `__reduce_ex__`/`__setstate__` through __getattr__ first
+    with pytest.raises(AttributeError):
+        wrapper.__setstate__  # noqa: B018 - a dunder probe must never recurse
 
 
 def test_a_lowercase_trailer_key_is_the_same_trailer(tmp_path):
@@ -134,6 +302,23 @@ def test_a_vanished_repo_file_is_listed_once_and_an_unreadable_agent_def_never_c
     ], ccc.SKIPPED
     assert any("fabrik-reviewer.md" in s for s in ccc.SKIPPED), ccc.SKIPPED
     ccc.SKIPPED.clear()
+
+
+def test_the_advisory_line_is_printed_and_a_multiline_message_is_one_row(
+    tmp_path, monkeypatch, capsys
+):
+    """`⚠ advisory —` reaches stdout on both exits (the whole point of the ADVISORIES list was
+    ungraded); an exception message with newlines rendered as several gate rows (FC1)."""
+    import check_command_corpus as ccc
+
+    monkeypatch.setattr(ccc, "audit", lambda *a, **kw: [])
+    ccc.ADVISORIES.append("web-tool names: a module wrote 9 bytes to stdout/stderr at import")
+    assert ccc.main(["--quiet"]) == 0
+    assert "⚠ advisory — web-tool names: a module wrote 9 bytes" in capsys.readouterr().out
+    ccc.ADVISORIES.clear()
+    assert ccc._safe_str(
+        RuntimeError("Missing configuration:\n  set EXA_API_KEY\n  set BRAVE_KEY")
+    ) == ("Missing configuration: set EXA_API_KEY set BRAVE_KEY")
 
 
 def test_the_selftest_never_grades_the_live_agent_definitions(tmp_path, monkeypatch, capsys):
@@ -231,7 +416,7 @@ def test_live_corpus_is_clean():
 def test_command_without_a_run_record_is_caught(corpus):
     """CLAUDE.md makes the record the first act; 24 of 27 commands never opened one."""
     problems = corpus("a command body that never opens a run record\n", with_record=False)
-    assert any("opens no run record" in p for p in problems)
+    assert any("no run record" in p for p in problems)
 
 
 def test_bespoke_start_block_satisfies_the_run_record(corpus):
@@ -294,11 +479,11 @@ def test_generated_orch_wrapper_without_a_run_record_is_a_defect(tmp_path: Path)
     (src / "fabrik-real.md").write_text("x\n{{include:run-record}}\n")
     orch = _orch_fixture(tmp_path)
     problems = audit(src, frag, tmp_path / "absent.py", tmp_path, traycer_skills=orch)
-    assert any("opens no run record" in p for p in problems)
+    assert any("no run record" in p for p in problems)
     # and the same wrapper WITH the record is clean
     orch2 = _orch_fixture(tmp_path, wrapper_extra="command_run.py start --command x\n")
     problems2 = audit(src, frag, tmp_path / "absent.py", tmp_path, traycer_skills=orch2)
-    assert not any("opens no run record" in p for p in problems2)
+    assert not any("no run record" in p for p in problems2)
 
 
 def test_orch_wrapper_pointing_at_a_missing_doc_is_a_defect(tmp_path: Path):
@@ -356,7 +541,7 @@ def test_every_wrapper_must_open_a_run_record_banner_or_not(tmp_path: Path):
         )
     )
     problems = audit(src, frag, tmp_path / "absent.py", tmp_path, traycer_skills=orch)
-    assert any("opens no run record" in p for p in problems), (
+    assert any("no run record" in p for p in problems), (
         "an unbannered wrapper with no record slipped the requirement — banner-stripping is an exemption again"
     )
 
@@ -518,6 +703,46 @@ def test_a_close_whose_flag_wraps_inside_its_own_span_or_continuation_is_complia
         "```\n"
     )
     assert not any("--feedback" in p for p in problems), problems
+
+
+def test_prose_after_the_close_span_on_the_same_line_never_excuses_it(corpus):
+    """The window was seeded with the WHOLE close line: prose after the span's closer — or a
+    neighbouring table cell — on the same line still excused a feedback-less close (FC1)."""
+    problems = corpus(
+        'run `python3 scripts/command_run.py done --command fabrik-probe --evidence "e"` — remember `--feedback` is required\n'
+    )
+    assert any("--feedback" in p for p in problems), problems
+    problems = corpus("| `done --command fabrik-probe --evidence e` | `--feedback none` |\n")
+    assert any("--feedback" in p for p in problems), problems
+    # the next close STOPS the window even when the first left its span open
+    problems = corpus(
+        '- `python3 scripts/command_run.py done --command fabrik-probe --evidence "e"\n'
+        "  python3 scripts/command_run.py blocked --command fabrik-probe --reason r --feedback none`\n"
+    )
+    assert any("--feedback" in p for p in problems), problems
+    # prose on the NEXT line, outside any span or continuation, never excuses either
+    problems = corpus(
+        '`python3 scripts/command_run.py done --command fabrik-probe --evidence "e"`\n'
+        "remember `--feedback` is required\n"
+    )
+    assert any("--feedback" in p for p in problems), problems
+    # a continuation that STOPS (a line without `\\`) ends the window before a later flag
+    problems = corpus(
+        "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e \\\n  --reason r\n  --feedback none\n```\n"
+    )
+    assert any("--feedback" in p for p in problems), problems
+    # `--command=x` is argparse-legal and a runnable close the tool then refuses
+    problems = corpus("`command_run.py done --command=fabrik-probe --evidence=e`\n")
+    assert any("--feedback" in p for p in problems), problems
+
+
+def test_a_long_fenced_continuation_that_carries_the_flag_is_compliant(corpus):
+    """A `\\` continuation runs while lines end in `\\` — a flat 3-line cap red a fenced
+    six-line command whose flag sat on the last line (FC1)."""
+    body = "```bash\npython3 scripts/command_run.py done --command fabrik-probe \\\n"
+    body += "".join(f"  --opt{i} v \\\n" for i in range(6))
+    body += "  --evidence e --feedback none\n```\n"
+    assert not any("--feedback" in p for p in corpus(body)), corpus(body)
 
 
 def test_a_compliant_close_is_silent(corpus):
@@ -1431,6 +1656,29 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     )
     (tmp_path / "rootpkg" / "db").mkdir()
     (tmp_path / "rootpkg" / "db" / "schema.sql").write_text("", encoding="utf-8")
+    # pass 63 (FC1): a raw fd-2 write and a `sys.__stdout__` write bypass every Python-level
+    # redirect — only the fd-level sink sees them, and their byte counts are exact
+    _fake_hub(
+        tmp_path / "fd2raw",
+        'import os\nos.write(2, b"[subagents] raw fd2 banner\\n")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    _fake_hub(
+        tmp_path / "dunder",
+        'import sys\nsys.__stdout__.write("[subagents] dunder banner\\n")\nsys.__stdout__.flush()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # a module's LEGITIMATE stream-API use at import (`sys.stderr.buffer`) raised inside the
+    # module under a StringIO redirect — a false block under its own name
+    _fake_hub(
+        tmp_path / "stderr_buffer",
+        'import sys\nsys.stderr.buffer.write(b"[subagents] buffered\\n")\nsys.stderr.flush()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # a PEP 562 raise AFTER a swallowed optional import: `rec.missing` is non-empty, so the
+    # "nothing failed or went missing" test read the target's own defect as an advisory
+    _fake_hub(
+        tmp_path / "lazygetattr_swallowmissing",
+        'try:\n    import optdep_absent_zzz\nexcept ImportError:\n    pass\ndef __getattr__(name):\n    raise RuntimeError("provider registry unavailable: " + name)\n',
+    )
+    _fake_hub(tmp_path / "healthy", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
     (
         tmp_path / "site" / "nsdist_xyz"
     ).mkdir()  # a namespace package: present for every sibling distribution
@@ -1599,7 +1847,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr', 'lazygetattr', 'createfail', 'pycraises', 'fdchatty', 'swallowreq', 'rootpkg'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr', 'lazygetattr', 'createfail', 'pycraises', 'fdchatty', 'swallowreq', 'rootpkg', 'fd2raw', 'dunder', 'stderr_buffer', 'lazygetattr_swallowmissing', 'healthy'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1632,7 +1880,13 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     # the driver prints ONE line: any module banner that reached fd 1 during an import is a leak
     # the old `json.loads(lines[-1])` silently tolerated — the grader could not see the invariant (FB7)
     assert len(r.stdout.strip().splitlines()) == 1, r.stdout
+    assert not r.stderr, (
+        "STDERR LEAK: " + r.stderr[:500]
+    )  # an fd-2 write rides into the gate row unscrubbed (FC1)
     out = json.loads(r.stdout.strip().splitlines()[-1])
+    # a first failing hub aborts the other verdicts; pytest shows captured stdout on failure, so
+    # one red run prints every hub's state instead of only the one that broke (L)
+    print(json.dumps(out, indent=1))
     # the hub with a raising module: a BLOCKING problem naming the exception, no skip, and the
     # bait never reaches the "is not a real tool" verdict (the predicate did not run)
     assert out["broken"]["failure"] == ["RuntimeError: broken vendor sync"], out["broken"]
@@ -2042,6 +2296,31 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     assert any(
         "present but unusable" in p and "imports it" in p for p in out["rootpkg"]["problems"]
     ), out["rootpkg"]
+    # pass 63 (FC1)
+    assert any(
+        re.search(r"wrote 2[4-8] bytes to stdout/stderr", s) for s in out["fd2raw"]["advisories"]
+    ), out[
+        "fd2raw"
+    ]  # the raw fd-2 banner, counted by the fd-level sink (no Python-level layer sees it)
+    assert any(re.search(r"wrote 2[3-7] bytes", s) for s in out["dunder"]["advisories"]), out[
+        "dunder"
+    ]
+    assert not any("present but unusable" in p for p in out["stderr_buffer"]["problems"]) and any(
+        "bytes to stdout/stderr" in s for s in out["stderr_buffer"]["advisories"]
+    ), out["stderr_buffer"]
+    assert any(
+        "present but unusable" in p and "provider registry unavailable" in p
+        for p in out["lazygetattr_swallowmissing"]["problems"]
+    ), out["lazygetattr_swallowmissing"]
+    assert out["healthy"]["advisories"] == [] and out["healthy"]["skipped"] == [], out[
+        "healthy"
+    ]  # cleared per audit
+    assert any(
+        s.startswith("web-tool names: importing libs/subagents/web_tools.py failed (")
+        for s in out["nsdist"]["skipped"]
+    ), out[
+        "nsdist"
+    ]  # the blank-blame render no longer names web_tools.py as the failing file and then disowns it
     assert any(
         "nsdist_xyz" in s and "not installed in this interpreter" in s
         for s in out["nsdist"]["skipped"]
@@ -2441,7 +2720,7 @@ def test_the_selftest_in_a_project_without_the_trailer_example_marks_that_canary
     out = capsys.readouterr().out
     assert "N/A: the trailer-model canary skipped" in out and "VACUOUS" not in out, out
     assert (
-        "6 canaries over 6 of the eight predicates" in out
+        "10 canaries over 6 of the eight predicates" in out
         and "(N/A: web-tool names, trailer model)" in out
     ), out
 
@@ -2524,7 +2803,7 @@ def test_the_selftest_names_a_broken_module_cites_no_synced_only_path_and_derive
     one = tree(
         "one", 'WEB_TOOL_NAMES = frozenset({"web_probe"})\n'
     )  # NOT web_search: the pad must come from the live set (EZ8)
-    assert one.returncode == 0 and "13 canaries over 8" in one.stdout, (one.stdout, one.stderr)
+    assert one.returncode == 0 and "17 canaries over 8" in one.stdout, (one.stdout, one.stderr)
     quoted = tree("quoted", 'WEB_TOOL_NAMES = frozenset({"web_search", \'docs"_lookup\'})\n')
     tree("pinned", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
     (tmp_path / "pinned" / "CLAUDE.md").write_text(
@@ -2583,13 +2862,11 @@ def test_the_selftest_in_a_project_marks_the_web_tool_canaries_not_applicable(
 ):
     """The script is synced to every project, the vendored pool module is not: there the six
     web-tool canaries printed VACUOUS and the selftest exited 1 (EU4)."""
-    import shutil
-
     import check_command_corpus as ccc
 
     repo = tmp_path / "project"
     (repo / "scripts" / "enforcement").mkdir(parents=True)
-    shutil.copy(ccc.REPO / "CLAUDE.md", repo / "CLAUDE.md")
+    (repo / "CLAUDE.md").write_text(_CLAUDE_MD, encoding="utf-8")
     (repo / "scripts" / "command_run.py").write_text("", encoding="utf-8")
     (repo / "scripts" / "enforcement" / "check_command_corpus.py").write_text("", encoding="utf-8")
     monkeypatch.setattr(ccc, "REPO", repo)
@@ -2597,7 +2874,7 @@ def test_the_selftest_in_a_project_marks_the_web_tool_canaries_not_applicable(
     assert ccc._selftest() == 0
     out = capsys.readouterr().out
     assert "N/A: 6 web-tool canaries skipped" in out and "VACUOUS" not in out, out
-    assert "7 canaries over 7 of the eight predicates" in out and "(N/A: web-tool names)" in out, (
+    assert "11 canaries over 7 of the eight predicates" in out and "(N/A: web-tool names)" in out, (
         out
     )
 

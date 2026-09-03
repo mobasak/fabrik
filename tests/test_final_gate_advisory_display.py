@@ -138,6 +138,11 @@ def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
         text=True,
         timeout=900,
     )
+    assert "{" in proc.stdout, (
+        proc.returncode,
+        proc.stdout[-2000:],
+        proc.stderr[-2000:],
+    )  # a gate that died before its JSON showed no stderr (L-C9)
     payload = json.loads(proc.stdout[proc.stdout.index("{") :])
 
     assert "advisory" in payload and "blocking" in payload

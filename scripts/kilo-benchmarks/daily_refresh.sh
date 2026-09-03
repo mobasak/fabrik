@@ -172,8 +172,10 @@ fi
   _step "external_services_chain" env LOG_FILE="$LOG_FILE" FABRIK_ROOT="$FABRIK_ROOT" bash "$FABRIK_ROOT/scripts/external_services_chain.sh" || _rc=$?
   # `$?` inside `if ! cmd; then` is the NEGATION's status (always 0) — the round-60 branch was dead (EY7/EZ2)
   if [ "$_rc" -ne 0 ]; then
-    case "$_rc" in 126|127)  # bash could not START the chain (missing / not executable): none of its own alerts ever ran
+    case "$_rc" in 126|127)  # bash could not START the chain (missing / unreadable): none of its own alerts ever ran
       bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
+      124|137)  # the chain PROCESS was killed (timeout / OOM): its own step alert never ran either — logged but never alerted before (FC6)
+      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain was KILLED' "exit $_rc — timeout or OOM took the chain process; its own step alerts never ran. Log: $LOG_FILE" || true ;;
     esac
     echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)"
   fi
@@ -421,7 +423,7 @@ fi
   # abort a healthy nightly refresh. Exit 2 = the golden predates the observer (re-snapshot).
   if ! ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 "$VENV_PY" "$KB/tests/capture_golden.py" --verify; then
     echo "[daily_refresh] contract oracle reported DRIFT or a stale golden — see above"
-    "$VENV_PY" -c "import sys; sys.path.insert(0, '$FABRIK_ROOT/libs'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title='daily_refresh.sh: contract oracle reported drift', body='tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot). Check the run log for the specific contract element.', severity='critical')" 2>&1 || true
+    bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: contract oracle reported drift' 'tests/capture_golden.py --verify did not come back clean on the pipeline host. Either an artifact/marker/query the fleet consumes stopped being produced or collapsed to a husk, or the frozen golden predates the current observer (exit 2 -> re-run --snapshot). Check the run log for the specific contract element.' || true  # through the helper: its return value was discarded here — a silent no-op FB10 closed everywhere else (FC6)
   fi
 
   # ── Push regenerated synced files to all projects (deploy-readiness-gaps Phase 3b) ──
@@ -497,7 +499,7 @@ fi
     find "$KB/translation_bench/cache" -type f -mtime +30 -delete 2>/dev/null || true
     # keep the newest 5 direct-vendor audit files
     ls -1t "$KB"/cache/direct_vendor_audit_* 2>/dev/null | tail -n +6 | xargs -r rm -f
-    # cap the rotated logs at the newest 3
+    # cap the rotated logs at the newest 3 (the hook rotates .2 ← .1 ← log, so three can exist — FC6)
     ls -1t "$KB"/cache/update.log.* 2>/dev/null | tail -n +4 | xargs -r rm -f
     # drop stray pytest caches + __pycache__ under kilo-benchmarks (regenerated on demand)
     find "$KB" -type d \( -name .pytest_cache -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true

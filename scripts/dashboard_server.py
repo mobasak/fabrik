@@ -6,7 +6,9 @@ load (auto-refresh 30s). Unlike gen_dashboard.py (a static snapshot), this is al
     python scripts/dashboard_server.py            # http://127.0.0.1:8770
     python scripts/dashboard_server.py 8888        # custom port
 
-Localhost-only (127.0.0.1). Serves metadata + a value_sha256 COUNT — never a raw secret.
+Binds 0.0.0.0 by default (a Windows browser reaches the WSL server through NAT — override with
+DASHBOARD_HOST=127.0.0.1); the page is metadata + a value_sha256 COUNT — never a raw secret, and
+it renders through gen_dashboard's own escaper/scheme-gate helpers (one source, FC4).
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gen_dashboard  # noqa: E402 - reuse CSS + the live DB query (load)
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8770
+PORT = 8770  # the CLI argument is read in main(), never at import: an importer (a test, a tool) carries its own argv (FC4)
 # Bind all interfaces by default so a Windows browser reaches the WSL server (a 127.0.0.1-only
 # bind is often unreachable through WSL2 NAT). Override with DASHBOARD_HOST=127.0.0.1 to restrict.
 HOST = os.getenv("DASHBOARD_HOST", "0.0.0.0")  # noqa: S104 - metadata-only, single-operator dev box
@@ -47,21 +49,19 @@ PAGE = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
     <th data-k="status">Status</th><th data-k="credit">Credit</th><th data-k="renews">Renews</th>
     <th data-k="price">Price</th><th data-k="keys" class="num">Keys</th><th data-k="account">Account</th>
     <th data-k="projects">Used by</th></tr></thead><tbody id="tb"></tbody></table></div>
-  <footer>Live view of the fabrik_services registry · auto-refresh 30s · no secret values</footer>
+  <footer>Live view of the fabrik_services registry · auto-refresh 30s · no secret values · ⚠ credit = last successful fetch older than __STALE_H__ h</footer>
 </div>
 <script>
 let DATA=[],sortK='category',sortAsc=true;
 const $=id=>document.getElementById(id);
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const cpill=v=>{const k=v==='?'?'unknown':v.replace('_','-');return '<span class="pill c-'+k+'">'+esc(v)+'</span>';};
-const cell=(v,cls)=>v?'<td class="'+(cls||'')+'">'+esc(v)+'</td>':'<td class="empty">—</td>';
+__HELPERS__
 function stats(){
   const n=DATA.length,cats=[...new Set(DATA.map(r=>r.category))].sort(),
     proj=new Set(DATA.flatMap(r=>r.projects)),bc=c=>DATA.filter(r=>r.cost===c).length;
   $('meta').textContent=n+' providers · '+proj.size+' projects · live '+new Date().toLocaleTimeString();
   const S=[[n,'services'],[cats.length,'categories'],[proj.size,'projects'],
     [bc('paid')+bc('freemium'),'paid / freemium'],[bc('free')+bc('self-host'),'free / self-host'],
-    [DATA.filter(r=>r.credit).length,'credit tracked'],[DATA.filter(r=>r.renews).length,'renewals set'],
+    [DATA.filter(r=>r.credit&&!r.credit.startsWith('⚠')).length,'credit tracked'],[DATA.filter(r=>r.credit.startsWith('⚠')).length,'credit stale'],[DATA.filter(r=>r.renews).length,'renewals set'],
     [DATA.filter(r=>r.category==='?').length,'need triage']];
   $('stats').innerHTML=S.map(x=>'<div class="stat"><div class="n">'+x[0]+'</div><div class="l">'+x[1]+'</div></div>').join('');
   const cur=$('fcat').value;
@@ -75,7 +75,7 @@ function render(){
   let out='',cat=null;
   for(const r of rows){
     if(sortK==='category'&&r.category!==cat){cat=r.category;out+='<tr class="catrow"><td colspan="10">'+esc(cat)+'</td></tr>';}
-    const url=r.url&&r.url!=='?'?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
+    const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td><td>'+cpill(r.status)+'</td>'
       +cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')+'<td class="num mono">'+r.keys+'</td>'
       +cell(r.account,'mono')+'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
@@ -106,18 +106,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._send(json.dumps(gen_dashboard.load()).encode("utf-8"), "application/json")
             else:
                 self._send(
-                    PAGE.replace("__CSS__", gen_dashboard.CSS).encode("utf-8"),
+                    PAGE.replace("__CSS__", gen_dashboard.CSS)
+                    .replace("__HELPERS__", gen_dashboard.HELPERS)
+                    .replace("__STALE_H__", str(gen_dashboard.STALE_AFTER_H))
+                    .encode("utf-8"),
                     "text/html; charset=utf-8",
                 )
         except Exception as exc:  # noqa: BLE001 - never crash the server on one bad request
             self.send_error(500, str(exc)[:120])
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    port = int(args[0]) if args else PORT
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((HOST, PORT), Handler) as srv:
-        url = f"http://localhost:{PORT}"  # noqa - user-facing message, not a backing-service host
-        print(f"Live dashboard on {HOST}:{PORT} — open {url}  (Ctrl-C to stop)")
+    with socketserver.TCPServer((HOST, port), Handler) as srv:
+        url = f"http://localhost:{port}"  # noqa - user-facing message, not a backing-service host
+        print(f"Live dashboard on {HOST}:{port} — open {url}  (Ctrl-C to stop)")
         try:
             srv.serve_forever()
         except KeyboardInterrupt:

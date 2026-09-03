@@ -224,3 +224,57 @@ def test_an_oversized_body_is_not_a_usage_answer():
         assert cf._get_json("https://x.example", {}) == {"data": {"totalUsageCreditsUsd": 1.5}}
     finally:
         cf._OPENER = orig
+
+
+def test_a_nan_or_infinite_vendor_number_is_no_snapshot(monkeypatch):
+    """`json.loads` accepts `NaN`/`Infinity`; `float()` passed them to a NUMERIC column and the
+    dashboard rendered `⚠ nan usd` (FC4)."""
+    for body in (
+        '{"data": {"totalUsageCreditsUsd": NaN}}',
+        '{"data": {"totalUsageCreditsUsd": Infinity}}',
+    ):
+        monkeypatch.setattr(
+            cf, "_get_json", lambda url, headers, b=body: __import__("json").loads(b)
+        )
+        assert cf.fetch_apify("k") is None, body
+    monkeypatch.setattr(
+        cf,
+        "_get_json",
+        lambda url, headers: {"character_count": 5, "character_limit": float("inf")},
+    )
+    assert cf.fetch_deepl("k") is None
+
+
+def test_deepls_no_limit_sentinel_is_usage_not_a_balance(monkeypatch):
+    """DeepL's documented `1e12 = no limit` sentinel rendered as `1e+12 chars_remaining` (FC4)."""
+    monkeypatch.setattr(
+        cf,
+        "_get_json",
+        lambda url, headers: {"character_count": 1234, "character_limit": 1000000000000},
+    )
+    snap = cf.fetch_deepl("k")
+    assert snap is not None and snap.unit == "chars_used_unlimited_plan" and snap.balance == 1234.0
+
+
+def test_crossing_the_body_cap_is_said(capsys):
+    """A body over MAX_BODY was a silent `None` — a stale cell whose stated causes never named it (FC4)."""
+    import io
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Opener:
+        def open(self, req, timeout=None):
+            return _Resp(b'{"a": 1}' + b" " * (cf.MAX_BODY * 2))
+
+    orig = cf._OPENER
+    try:
+        cf._OPENER = _Opener()
+        assert cf._get_json("https://x.example/usage", {}) is None
+    finally:
+        cf._OPENER = orig
+    assert "response over" in capsys.readouterr().err

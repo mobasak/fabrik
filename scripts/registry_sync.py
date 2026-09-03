@@ -15,6 +15,7 @@ import hashlib
 import os
 import re
 import sys
+import traceback
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -184,20 +185,33 @@ def parse(path: Path) -> list[dict]:
     provs: list[dict] = []
     cur: dict | None = None
     bad: list[str] = []
+    seen: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("# ═"):  # section header
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
+        s = (
+            line.lstrip("\ufeff").strip()
+        )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3)
         m = SVC_RE.fullmatch(
-            line.rstrip()  # trailing whitespace from a hand-edit is not a second provider (EZ4)
-        )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3)
+            s
+        )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3); trailing whitespace tolerated (EZ4)
         if m:
+            name = m.group("name")
+            if name in seen:
+                # two blocks under one name: the second's keys silently DELETED the first's on
+                # the same sync — refused like any unreadable header (FC3)
+                cur = None
+                bad.append(f"duplicate #svc name={name}")
+                continue
+            seen.add(name)
             cur = {"meta": m.groupdict(), "keys": []}
             provs.append(cur)
             continue
-        if line.rstrip().startswith(
-            "#svc"
-        ):  # ANY line that starts with the token: a tab or a bare `#svc` escaped both branches and folded the next provider\'s keys under the previous one (FB1)
+        if re.match(r"#svc(\s|$)", s, re.I):
+            # the TOKEN, in any case, however indented: a leading space or `#SVC` folded the next
+            # provider's keys under the previous one after FB1 (which caught a tab and a bare
+            # `#svc`); `#svcs are listed below` is a comment, never a header (FC3)
             # a #svc line SVC_RE cannot read ENDS the block and FAILS the sync: absorbing the next
             # provider's keys under the previous one would prune the provider, misattribute its
             # keys and hand its secret to another vendor's credit fetcher (AP2)
@@ -406,8 +420,12 @@ def sync_registry(
     # the services/api_keys row locks. fetch_balance never raises (guarded); a dead vendor => no
     # snapshot. The REAL key stays host-side (sent only to the vendor's own API).
     if to_fetch:
-        conn2 = registry_db.connect()
+        # the sync transaction above has COMMITTED: a failure here is a credit-phase failure of a
+        # registry that IS written — it was reported as "nothing written" and the chain skipped
+        # the dashboard for a synced registry (FC3)
+        conn2 = None
         try:
+            conn2 = registry_db.connect()
             for sid, name, value in to_fetch:
                 snap = fetch_balance(name, value)
                 if snap is not None:
@@ -417,8 +435,14 @@ def sync_registry(
                             (sid, snap.balance, snap.unit),
                         )
                     stats["credit_snapshots"] += 1
+        except Exception as exc:  # noqa: BLE001 - said, never a registry-sync refusal
+            print(
+                f"WARNING: registry synced; the credit fetch aborted after the commit ({exc.__class__.__name__}: {' '.join(str(exc).split())}) — balances age until the next lap",
+                file=sys.stderr,
+            )
         finally:
-            conn2.close()
+            if conn2 is not None:
+                conn2.close()
     if stats["provenance_unknown"]:
         print(
             f"WARNING: catalog provenance UNKNOWN — {stats['unattributed']} credential(s) stored unattributed, no credit fetch; the dashboard counts 0 keys until the catalog is readable (BM2)",
@@ -442,7 +466,17 @@ def main() -> int:
     try:
         stats = sync_registry(fetch_credits=args.fetch_credits)
     except Exception as exc:  # noqa: BLE001 - a dead DB (psycopg OperationalError) is the likeliest failure and was still a traceback (FB1)
-        print(f"ERROR: registry sync refused: {exc} — nothing written", file=sys.stderr)
+        # ONE line that names the CLASS: libpq's connection-refused text is two lines with a tab,
+        # and a defect in our own code wore a dead-DB costume — a builtin exception that is not a
+        # refusal also prints its traceback, since that one IS a bug to fix (FC3)
+        print(
+            f"ERROR: registry sync refused ({exc.__class__.__name__}): {' '.join(str(exc).split())} — nothing written",
+            file=sys.stderr,
+        )
+        if type(exc).__module__ == "builtins" and not isinstance(
+            exc, (ValueError, RuntimeError, OSError)
+        ):
+            traceback.print_exc()
         return 1
     print(
         f"synced {stats['services']} services, {stats['api_keys']} api_keys, "

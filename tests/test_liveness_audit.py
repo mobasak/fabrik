@@ -132,6 +132,9 @@ def test_the_audit_agrees_with_grep_a_on_the_real_sound_log(tmp_path: Path) -> N
     truth = subprocess.run(
         ["grep", "-a", "-c", "arg=sweep", str(log)], capture_output=True, text=True
     )
+    assert truth.returncode in (0, 1), (
+        truth
+    )  # exit 2 (unreadable, bad locale) degraded the grader to `hits == 0` (L-C8)
     inst, age, hits = la.Box().marker_age(str(log), "arg=sweep")
     assert inst.ok, inst.fault
     assert hits == int(truth.stdout.strip() or 0), (
@@ -1017,9 +1020,10 @@ def test_a_marker_echoed_by_the_report_itself_is_not_evidence(tmp_path):
         '          "detail": "carries no line with \'liveness-audit: report generated\'",\n',
         encoding="utf-8",
     )
-    box = la.Box(home=home) if "home" in la.Box.__init__.__code__.co_varnames else None
-    if box is None:
-        pytest.skip("Box has no injectable home")
+    assert "home" in la.Box.__init__.__code__.co_varnames, (
+        "Box lost its injectable home — this test's only isolation from the real ~/liveness.log"
+    )  # a rename turned this grader into a silent SKIP (L-C3/FC2)
+    box = la.Box(home=home)
     inst, age, hits = box.marker_age("~/liveness.log", "liveness-audit: report generated")
     assert inst.ok and hits == 2 and age is not None, (inst, age, hits)
     # the age is the NEWEST stamped line's (2026-09-02), never the oldest — `stamped[-1]` (DG2)
@@ -1200,3 +1204,173 @@ def test_duplicate_or_multiline_surface_ids_are_a_registry_fault(tmp_path: Path)
         out = la.proof_heartbeat(box, reg, "")
         assert [f["id"] for f in out["findings"]] == ["(registry)"], out["findings"]
         assert "surface ids must be unique" in out["findings"][0]["instrument_fault"]
+
+
+def _cron_surface(sid: str, **evidence):
+    return {"id": sid, "kind": "cron", "cron_match": "a", "evidence": evidence, "max_age_hours": 24}
+
+
+def test_one_malformed_registry_row_never_darkens_the_other_surfaces(tmp_path: Path) -> None:
+    """`float("abc")`, `int("abc")`, a string `evidence`, a non-dict row: each raised OUT of the
+    loop and every real surface's verdict went dark under one `(heartbeat)` UNKNOWN (FC2)."""
+    good = tmp_path / "good.log"
+    good.write_text("ran\n")
+    surfaces = [
+        _cron_surface("good", type="log", path=str(good)),
+        {**_cron_surface("badlimit", type="log", path=str(good)), "max_age_hours": "abc"},
+        {**_cron_surface("nanlimit", type="log", path=str(good)), "max_age_hours": float("nan")},
+        {**_cron_surface("boollimit", type="log", path=str(good)), "max_age_hours": True},
+        {
+            "id": "strevidence",
+            "kind": "cron",
+            "cron_match": "a",
+            "evidence": "log",
+            "max_age_hours": 24,
+        },
+        _cron_surface("badport", type="port", port="abc"),
+        _cron_surface("boolport", type="port", port=True),
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    out = la.proof_heartbeat(box, reg, "")
+    by_id = {f["id"]: f for f in out["findings"]}
+    assert by_id["good"]["verdict"] == "LIVE", by_id["good"]
+    for sid in ("badlimit", "nanlimit", "boollimit", "strevidence", "badport", "boolport"):
+        assert by_id[sid]["verdict"] == "UNKNOWN" and "registry" in by_id[sid]["instrument"], by_id[
+            sid
+        ]
+    # a row that is not an object faults the registry, never the process
+    raw = tmp_path / "raw.json"
+    raw.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "ownership": {"cron_owned_substrings": ["/opt/fabrik"]},
+                "surfaces": [_cron_surface("x", type="log", path=str(good)), "not-a-dict"],
+            }
+        )
+    )
+    reg2, _ = la.load_registry(raw)
+    out2 = la.proof_heartbeat(box, reg2, "")
+    assert [f["id"] for f in out2["findings"]] == ["(registry)"], out2["findings"]
+    assert "list of objects" in out2["findings"][0]["instrument_fault"]
+
+
+def test_a_directory_or_an_empty_path_as_log_evidence_is_an_instrument_fault(
+    tmp_path: Path,
+) -> None:
+    """`type: log` (24 of 34 surfaces — the `touch` stamps) had no regular-file check: a
+    directory at a stamp path read LIVE by its mtime forever; an empty path expanded to the
+    CWD (FC2)."""
+    (tmp_path / "dir.log").mkdir()
+    surfaces = [
+        _cron_surface("dir", type="log", path=str(tmp_path / "dir.log")),
+        _cron_surface("empty", type="log", path=""),
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    by_id = {f["id"]: f for f in la.proof_heartbeat(box, reg, "")["findings"]}
+    assert (
+        by_id["dir"]["verdict"] == "UNKNOWN"
+        and "not a regular file" in by_id["dir"]["instrument_fault"]
+    ), by_id["dir"]
+    assert (
+        by_id["empty"]["verdict"] == "UNKNOWN" and "empty" in by_id["empty"]["instrument_fault"]
+    ), by_id["empty"]
+
+
+def test_strict_bites_on_a_registry_the_proof_could_not_use(tmp_path: Path) -> None:
+    """A duplicate id, an empty or a missing registry produced one `(registry)` UNKNOWN that
+    `--strict` counted as nothing — a green no-op where every surface went unaudited (FC2)."""
+    log = tmp_path / "d.log"
+    log.write_text("ran\n")
+    dup = _registry(tmp_path, [_cron_surface("dup", type="log", path=str(log))] * 2)
+    for registry in (dup, tmp_path / "missing.json"):
+        rc = la.main(
+            [
+                "--strict",
+                "--proof",
+                "heartbeat",
+                "--registry",
+                str(registry),
+                "--repo-root",
+                str(tmp_path),
+            ]
+        )
+        assert rc == 1, (registry, rc)
+
+
+def test_empty_needles_are_registry_faults_never_permanent_live(tmp_path: Path) -> None:
+    """An empty `cron_match`, `command_contains` or `marker` matched everything (FC2)."""
+    log = tmp_path / "m.log"
+    log.write_text("2026-09-03 06:00:00 marker=x\n")
+    surfaces = [
+        {**_cron_surface("nomatch", type="log", path=str(log)), "cron_match": ""},
+        {
+            "id": "nohook",
+            "kind": "hook",
+            "evidence": {"type": "hook", "command_contains": ""},
+            "max_age_hours": 24,
+        },
+        _cron_surface("nomarker", type="log_marker", path=str(log), marker=""),
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    by_id = {f["id"]: f for f in la.proof_heartbeat(box, reg, "")["findings"]}
+    for sid in ("nomatch", "nohook", "nomarker"):
+        assert by_id[sid]["verdict"] == "UNKNOWN" and "empty" in by_id[sid]["instrument_fault"], (
+            by_id[sid]
+        )
+
+
+def test_a_read_that_fails_after_the_stat_and_a_dangling_link_are_said(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """EIO between the stat and the read escaped `proof_heartbeat` (B-C11); a dangling symlink
+    read as "the job has never written evidence" — the LINK exists (FC2)."""
+    log = tmp_path / "m.log"
+    log.write_text("2026-09-03 06:00:00 marker=x\n")
+    link = tmp_path / "link.log"
+    link.symlink_to(tmp_path / "gone.log")
+    surfaces = [
+        _cron_surface("m", type="log_marker", path=str(log), marker="marker=x"),
+        _cron_surface("link", type="log", path=str(link)),
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    box.log_instrument()
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+
+    def boom(p):
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr(la, "read_text", boom)
+    by_id = {f["id"]: f for f in la.proof_heartbeat(box, reg, "")["findings"]}
+    assert (
+        by_id["m"]["verdict"] == "UNKNOWN" and "read failed on" in by_id["m"]["instrument_fault"]
+    ), by_id["m"]
+    assert by_id["link"]["verdict"] == "DEAD" and "dangling symlink" in by_id["link"]["detail"], (
+        by_id["link"]
+    )
+
+
+def test_a_tilde_mid_path_and_a_long_fault_are_bounded(tmp_path: Path) -> None:
+    """`expand` replaced the FIRST `~` anywhere (`x~y.log` was mangled); `render` bounded the id
+    but not the fault (FC2)."""
+    box = FakeBox(tmp_path)
+    assert box.expand("/var/x~y.log") == Path("/var/x~y.log")
+    assert box.expand("~/a.log") == tmp_path / "a.log"
+    log = tmp_path / "d.log"
+    log.write_text("ran\n")
+    reg, _ = la.load_registry(
+        _registry(tmp_path, [_cron_surface("dup" * 200, type="log", path=str(log))] * 2)
+    )
+    report = la.audit(
+        tmp_path,
+        _registry(tmp_path, [_cron_surface("dup" * 200, type="log", path=str(log))] * 2),
+        {"heartbeat"},
+        box=box,
+    )
+    text = la.render(report)
+    assert all(len(line) < 600 for line in text.splitlines()), max(
+        len(line) for line in text.splitlines()
+    )  # detail and fault each bounded at 200 (an all-duplicated registry printed 889 chars)

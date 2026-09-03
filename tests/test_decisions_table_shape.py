@@ -17,7 +17,13 @@ def _bare_pipes(line: str) -> int:
 
 def test_every_decision_row_has_the_separator_column_count():
     lines = LEDGER.read_text(encoding="utf-8").splitlines()
-    separator = next(ln for ln in lines if ln.startswith("|---"))
+    header_i = next(
+        i for i, ln in enumerate(lines) if ln.startswith("| id ") or ln.startswith("| ID ")
+    )
+    separator = lines[
+        header_i + 1
+    ]  # the LEDGER's separator, never the first table's in the file (L-C11)
+    assert separator.startswith("|-") or separator.startswith("| -"), separator
     want = separator.count("|")
     rows = [ln for ln in lines if ln.startswith("| D-")]
     assert rows, "no decision rows found"
@@ -28,9 +34,7 @@ def test_every_decision_row_has_the_separator_column_count():
     # INSIDE the what cell, so no reader saw them as columns and no check said so). Both are red as
     # of 2026-09-03: measured 1 short row in 107 at the moment the bar moved, so the check fires on
     # a real defect and on nothing else.
-    assert not extra, (
-        f"{len(extra)} of {len(rows)} rows carry a bare pipe (want {want}): {extra}"
-    )
+    assert not extra, f"{len(extra)} of {len(rows)} rows carry a bare pipe (want {want}): {extra}"
     assert not short, (
         f"{len(short)} of {len(rows)} rows are SHORT (want {want} pipes — the why/where columns "
         f"render blank): {short}"

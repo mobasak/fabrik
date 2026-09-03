@@ -35,6 +35,8 @@ def credit_cell(
     """The balance, flagged with its age once the LAST successful fetch is older than two laps.
     A fetch that fails inserts no snapshot, so the dashboard kept rendering the last balance
     forever — a revoked key and a healthy one were the same cell (FB9)."""
+    if bal is None:
+        return ""  # the column is nullable: a NULL balance was a TypeError that took the whole dashboard step down (FC4)
     text = f"{bal:g} {unit or ''}".strip()
     if fetched is None:
         return text
@@ -94,7 +96,7 @@ def load() -> list[dict]:
                     s["account"] = email
             cur.execute(
                 "SELECT DISTINCT ON (service_id) service_id, balance, unit, fetched_at "
-                "FROM credit_snapshots ORDER BY service_id, fetched_at DESC"
+                "FROM credit_snapshots ORDER BY service_id, fetched_at DESC, id DESC"  # a tie-break: two backfilled rows at one timestamp published an arbitrary one (FC4)
             )
             for sid, bal, unit, fetched in cur.fetchall():
                 if sid in svc and bal is not None:
@@ -208,6 +210,11 @@ render();
 </script>"""
 
 
+HELPERS = SCRIPT[
+    SCRIPT.index("const esc=") : SCRIPT.index("function render")
+]  # the escaper, the scheme gate, the pill and the cell — ONE source; the live twin re-copied a pre-repair set (FC4)
+
+
 def json_for_script(rows: list[dict]) -> str:
     """JSON that is safe INSIDE an inline `<script>`: `json.dumps` leaves `</script>` intact, and
     the registry's `provider`/`url` strings are model-authored (`classify_services` writes the pool
@@ -234,7 +241,11 @@ def render(rows: list[dict]) -> str:
         (nproj, "projects"),
         (by_cost["paid"] + by_cost["freemium"], "paid / freemium"),
         (by_cost["free"] + by_cost["self-host"], "free / self-host"),
-        (sum(1 for r in rows if r["credit"]), "credit tracked"),
+        (sum(1 for r in rows if r["credit"] and not r["credit"].startswith("⚠")), "credit tracked"),
+        (
+            sum(1 for r in rows if r["credit"].startswith("⚠")),
+            "credit stale",
+        ),  # a stale cell fed the headline number (FC4)
         (sum(1 for r in rows if r["renews"]), "renewals set"),
         (sum(1 for r in rows if r["category"] == "?"), "need triage"),
         (
@@ -263,14 +274,14 @@ def render(rows: list[dict]) -> str:
     <th data-k="status">Status</th><th data-k="credit">Credit</th><th data-k="renews">Renews</th>
     <th data-k="price">Price</th><th data-k="keys" class="num">Keys</th><th data-k="account">Account</th>
     <th data-k="projects">Used by</th></tr></thead><tbody id="tb"></tbody></table></div>
-  <footer>Read-only view of the fabrik_services registry · no secret values (metadata + key hashes only)</footer>
+  <footer>Read-only view of the fabrik_services registry · no secret values (metadata + key hashes only) · ⚠ credit = last successful fetch older than __STALE_H__ h</footer>
 </div>"""
     script = SCRIPT.replace("__DATA__", json_for_script(rows))
     return (
         '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         "<title>External Services &amp; Credentials</title>\n"
-        f"<style>{CSS}</style></head>\n<body>\n{body}\n{script}\n</body></html>"
+        f"<style>{CSS}</style></head>\n<body>\n{body.replace('__STALE_H__', str(STALE_AFTER_H))}\n{script}\n</body></html>"
     )
 
 

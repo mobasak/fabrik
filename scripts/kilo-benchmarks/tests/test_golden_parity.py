@@ -740,6 +740,7 @@ def test_both_entry_points_flush_before_they_rank():
             for n, ln in enumerate(path.read_text().splitlines(), start=1)
             if not ln.lstrip().startswith("#")
         ]
+
         # Match INVOCATIONS, not mentions. The hook's own alert message names
         # flush_subagent_outboxes.py in prose, so a bare substring test already matches a
         # non-invocation line here; a future alert naming the ranker above the flush would
@@ -1428,9 +1429,23 @@ def _hook_inner_block() -> str:
     # Run the hook's own assignment block so every variable resolves exactly as it would at
     # boot, then let BASH perform the quote processing and print the result.
     prelude = _hook_prelude(src)
-    harness = prelude + "\nprintf '%s' " + quoted + "\n"
-    r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
-    assert r.returncode == 0, f"could not materialise the child block: {r.stderr[:300]}"
+    # `set --` then ONE argument: `printf '%s' <quoted>` recycled its format over the extra words
+    # an unescaped `"` inside the outer string produced, silently re-joining the split the child
+    # actually suffers — the grader validated 1 035 chars the child never executed (D3/FC8); and
+    # stderr must be EMPTY: a backtick in a comment inside the outer string is a command
+    # substitution the login shell runs (`bash -n` there hung the operator's terminal, D2)
+    harness = (
+        prelude
+        + "\nset -- "
+        + quoted
+        + '\n[ $# -eq 1 ] || { echo "outer string split into $# words" >&2; exit 3; }\nprintf %s "$1"\n'
+    )
+    r = subprocess.run(
+        ["bash", "-c", harness], capture_output=True, text=True, stdin=subprocess.DEVNULL
+    )
+    assert r.returncode == 0 and not r.stderr, (
+        f"could not materialise the child block faithfully: rc={r.returncode} {r.stderr[:400]}"
+    )
     return r.stdout
 
 

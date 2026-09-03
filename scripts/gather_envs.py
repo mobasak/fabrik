@@ -687,56 +687,53 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
         OSError
     ):  # the glob proved the path existed this run: unreadable, vanished or not a file → the
         raise  # "env files" cause, one line via CP2 — a silently dropped project fed DELETEs to the sync (CS2/CU2)
+    # newlines first, BYTES-wise: a lone `\r` inside a quoted multi-line value is a line ending to
+    # the app's text-mode open() (universal newlines) — a per-line rstrip kept it (FC5)
+    data = data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
     lines: list[str] = []
     for no, raw_line in enumerate(data.split(b"\n"), 1):
         try:
             line = raw_line.decode("utf-8")
         except UnicodeDecodeError:
             # `errors="replace"` silently turned a stray Latin-1 byte into U+FFFD and HASHED the
-            # mangled value as the credential; the line is dropped and SAID so instead (EZ7)
+            # mangled value as the credential; the line is dropped and SAID so instead (EZ7) —
+            # an EMPTY line stands in, so every later line number the parser reports is real (FC5)
             print(f"WARNING: {path}:{no}: not UTF-8 — line skipped", file=sys.stderr)
+            lines.append("")
             continue
-        # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key
-        # (EY4/EZ7); a CRLF file's `\r` is a line ending, not part of a multi-line value (FB4)
-        lines.append(line.lstrip("\ufeff").rstrip("\r"))
-    # python-dotenv's semantics — quotes, escapes, inline comments, `export`, multi-line values — are
-    # what every deployed app loads; a home-grown parser stored a value the app never sees and the
-    # registry hashed it (EZ7). Interpolation is resolved from the FILE's own values only:
-    # dotenv's `interpolate=True` reads THIS process's os.environ, so `${API_KEY}` in a project's
-    # .env pulled the hub shell's secret into that project's stored credential (FB4); it was also
-    # O(n²) in the key count. A line dotenv's own parser rejects is said WITH the file's path (FB4).
-    import logging  # noqa: PLC0415
+        lines.append(
+            line.lstrip("\ufeff")
+        )  # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key (EY4/EZ7)
+    # python-dotenv's OWN parser and OWN interpolation grammar, resolved in stream order against
+    # the values already read — exactly `resolve_variables(override=True)` with an EMPTY
+    # environ: what a deployed app loads when its environment lacks the name. A home-grown
+    # resolver diverged in five cells (forward references, duplicate keys, self-reference, the
+    # depth cap, dotenv's `[^}:]*` name class — FC5); dotenv's `interpolate=True` read THIS
+    # process's environ (FB4). The parser is iterated directly so a line it rejects is said with
+    # the file and line — no logger, no global state (FC5).
+    from dotenv.parser import parse_stream  # noqa: PLC0415
+    from dotenv.variables import parse_variables  # noqa: PLC0415
 
-    from dotenv import dotenv_values  # noqa: PLC0415
-
-    class _Named(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            print(f"WARNING: {path}: {record.getMessage()} — line skipped", file=sys.stderr)
-
-    handler = _Named()
-    dotenv_log = logging.getLogger("dotenv.main")
-    dotenv_log.addHandler(handler)
-    try:
-        parsed = dotenv_values(stream=io.StringIO("\n".join(lines)), interpolate=False)
-    finally:
-        dotenv_log.removeHandler(handler)
-    values = {k: v for k, v in parsed.items() if v is not None}
-
-    def resolve(value: str, depth: int = 0) -> str:
-        def sub(m: re.Match[str]) -> str:
-            name, default = m.group(1), m.group(2)
-            if name in values and depth < 10:
-                return resolve(values[name], depth + 1)
-            return (
-                default if default is not None else ""
-            )  # an unknown reference is empty, as dotenv resolves it without the variable
-
-        return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}", sub, value)
-
-    for key, value in values.items():
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+    resolved: dict[str, str | None] = {}
+    for binding in parse_stream(io.StringIO("\n".join(lines))):
+        if binding.error:
+            print(
+                f"WARNING: {path}:{binding.original.line}: not a KEY=value statement — line skipped",
+                file=sys.stderr,
+            )
             continue
-        out.append((key, resolve(value)))
+        if binding.key is None:
+            continue
+        value = binding.value
+        resolved[binding.key] = (
+            None
+            if value is None
+            else "".join(atom.resolve(resolved) for atom in parse_variables(value))
+        )
+    for key, value in resolved.items():
+        if value is None or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+            continue
+        out.append((key, value))
     return out
 
 
@@ -797,6 +794,17 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         raise CatalogError(f"{CATALOG_PATH} is not a JSON object")
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     validate_catalog_keys(catalog, str(CATALOG_PATH))
+    return parse_catalog(raw, str(CATALOG_PATH))
+
+
+def parse_catalog(raw: dict, where: str) -> tuple[dict, list[tuple[str, str]]]:
+    """Every rule the chain applies to a catalog, on an already-decoded object — the key rules
+    (`validate_catalog_keys`) AND the prefix-tie rule below. ONE function for the loader and for
+    the classifier's pre-write check: the writer once validated keys only, and a hand-edit that
+    claimed another vendor's prefix mid-dispatch was written back and refused by the next gather
+    (FC5)."""
+    catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
+    validate_catalog_keys(catalog, where)
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)
@@ -824,7 +832,7 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         # money daily FAILS the scan like a whitespace key does — the chain alerts, the previous
         # consolidation stands; a stderr warning in a cron log nobody tails was no channel (BW5)
         raise CatalogError(
-            f"{CATALOG_PATH}: prefix claimed by two providers — keys under it route to neither: "
+            f"{where}: prefix claimed by two providers — keys under it route to neither: "
             + "; ".join(f"{t} ({', '.join(sorted(o))})" for t, o in sorted(ties.items()))
         )
     return catalog, matchers

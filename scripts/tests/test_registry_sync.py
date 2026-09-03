@@ -1033,7 +1033,7 @@ def test_a_svc_header_with_a_tab_or_nothing_after_the_token_ends_the_block(tmp_p
             "FOO_API_KEY=aaaa\n" + bad + "\nBAR_API_KEY=bbbb\n",
             encoding="utf-8",
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"#svc"):  # the refusal, not any ValueError (B-C17)
             rs.parse(f)
 
 
@@ -1062,7 +1062,11 @@ def test_main_reports_a_dead_registry_as_one_typed_line(tmp_path, monkeypatch, c
 
     monkeypatch.setattr(rs.registry_db, "connect", dead)
     assert rs.main() == 1
-    assert "ERROR: registry sync refused" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "ERROR: registry sync refused (_DeadError): could not connect" in err, (
+        err
+    )  # the CLASS is named (FC3)
+    assert err.count("\n") == 1, err  # ONE line: libpq's text is two lines with a tab (FC3)
 
 
 def test_an_empty_dsn_variable_never_hands_libpq_an_empty_conninfo(monkeypatch):
@@ -1073,3 +1077,137 @@ def test_an_empty_dsn_variable_never_hands_libpq_an_empty_conninfo(monkeypatch):
     assert rdb.dsn() == rdb.DEFAULT_DSN
     monkeypatch.setenv("SERVICES_REGISTRY_DSN", "postgresql:///other")
     assert rdb.dsn() == "postgresql:///other"
+
+
+def _svc(name: str) -> str:
+    return (
+        "#svc "
+        + f'name={name} category=infra cost=paid capability="a" url=https://{name}.example status=active used_by=p\n'
+    )
+
+
+def test_any_svc_header_shape_ends_the_block_and_prose_never_does(tmp_path):
+    """FB1 caught a tab and a bare `#svc`; a LEADING space, tab or mid-file BOM still folded the
+    next provider's keys under the previous one (E2-C1/FC3) — such a header now PARSES as the
+    header it is; `#SVC` is refused like any unreadable header; `#svcs are listed below` is a
+    comment, never a header (H-F6)."""
+    head = "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+    for prefix in (" ", "\t", "\ufeff"):
+        f = tmp_path / "env"
+        f.write_text(
+            head
+            + _svc("test_zzz_a")
+            + "A_API_KEY=x\n"
+            + prefix
+            + _svc("test_zzz_b")
+            + "B_API_KEY=y\n",
+            encoding="utf-8",
+        )
+        provs = rs.parse(f)
+        assert [(p["meta"]["name"], [k[0] for k in p["keys"]]) for p in provs] == [
+            ("test_zzz_a", ["A_API_KEY"]),
+            ("test_zzz_b", ["B_API_KEY"]),
+        ], (prefix, provs)
+    f = tmp_path / "env"
+    f.write_text(
+        head
+        + _svc("test_zzz_a")
+        + "A_API_KEY=x\n"
+        + _svc("test_zzz_b").replace("#svc", "#SVC")
+        + "B_API_KEY=y\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"#svc"):
+        rs.parse(f)
+    f.write_text(
+        head + "#svcs are listed below\n" + _svc("test_zzz_a") + "A_API_KEY=x\n", encoding="utf-8"
+    )
+    assert [p["meta"]["name"] for p in rs.parse(f)] == ["test_zzz_a"]
+
+
+def test_a_duplicate_svc_name_is_refused(tmp_path):
+    """Two blocks under one name: the second's keys silently DELETED the first's on the same sync (FC3)."""
+    f = tmp_path / "env"
+    f.write_text(
+        "# "
+        + "═" * 10
+        + " infra "
+        + "═" * 10
+        + "\n"
+        + _svc("test_zzz_a")
+        + "A_API_KEY=x\n"
+        + _svc("test_zzz_a")
+        + "A2_API_KEY=y\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"duplicate #svc name=test_zzz_a"):
+        rs.parse(f)
+
+
+def test_a_credit_phase_failure_after_the_commit_is_a_warning_not_a_refusal(
+    tmp_path, monkeypatch, capsys
+):
+    """The sync transaction had COMMITTED when the credit phase's second connect raised — the
+    handler printed "nothing written" and the chain skipped the dashboard for a synced registry (FC3)."""
+    import sys as _sys
+    from unittest import mock
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n" + _svc("apify") + "APIFY_API_KEY=aaaa\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rs, "ALL_ENVS", f)
+    monkeypatch.setattr(_sys, "argv", ["registry_sync.py", "--fetch-credits"])
+    conn = mock.MagicMock()
+    conn.__enter__.return_value = conn
+    cur = mock.MagicMock()
+    cur.__enter__.return_value = cur
+    cur.fetchall.return_value = []
+    cur.fetchone.return_value = (0,)  # every COUNT(*) the sync reads
+    cur.rowcount = 0
+    conn.cursor.return_value = cur
+    calls = {"n": 0}
+
+    def connect():
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError("server closed the connection unexpectedly")
+        return conn
+
+    monkeypatch.setattr(rs.registry_db, "connect", connect)
+    monkeypatch.setattr(rs, "fetch_balance", lambda *a: None)
+    rc = rs.main()
+    err = capsys.readouterr().err
+    assert (
+        rc in (0, 2)
+        and "registry synced; the credit fetch aborted after the commit" in err
+        and "nothing written" not in err
+    ), (rc, err)
+
+
+def test_a_builtin_bug_prints_its_traceback_beside_the_typed_line(tmp_path, monkeypatch, capsys):
+    """A `KeyError` in our own code wore a dead-DB costume: one line, no class, no traceback (FC3)."""
+    import sys as _sys
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n" + _svc("test_zzz_a") + "A_API_KEY=aaaa\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rs, "ALL_ENVS", f)
+    monkeypatch.setattr(_sys, "argv", ["registry_sync.py"])
+
+    def bug():
+        raise KeyError("name")
+
+    monkeypatch.setattr(rs.registry_db, "connect", bug)
+    assert rs.main() == 1
+    err = capsys.readouterr().err
+    assert "ERROR: registry sync refused (KeyError): 'name'" in err and "Traceback" in err, err
+
+
+def test_a_whitespace_only_dsn_is_the_default(monkeypatch):
+    """`"   "` is truthy and parses to `{}` — the same libpq-defaults hole FB9 closed for `""` (FC3)."""
+    monkeypatch.setenv("SERVICES_REGISTRY_DSN", "   ")
+    assert rdb.dsn() == rdb.DEFAULT_DSN

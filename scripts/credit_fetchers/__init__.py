@@ -11,6 +11,8 @@ from all-envs.env by the caller; it is never sent anywhere but the vendor's own 
 from __future__ import annotations
 
 import json
+import math
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -45,7 +47,7 @@ TIMEOUT_S = 10
 RETRIES = 2
 MAX_BODY = (
     1 << 20
-)  # a usage answer is a few hundred bytes; an unbounded read let a misbehaving endpoint hold the daily chain's memory and clock (FB9)
+)  # Apify's monthly usage carries a daily per-service breakdown (tens of KB — EXTERNAL_SYSTEMS.md, Apify row 7), DeepL's usage a few fields; an unbounded read let a misbehaving endpoint hold the daily chain's memory and clock (FB9); crossing the cap is SAID so the chain log carries the cause (FC4)
 
 
 @dataclass
@@ -62,7 +64,11 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
             with _OPENER.open(req, timeout=TIMEOUT_S) as resp:  # noqa: S310 — never follows a redirect (BB8)
                 raw = resp.read(MAX_BODY + 1)
                 if len(raw) > MAX_BODY:
-                    return None  # not a usage answer, whatever it is
+                    print(
+                        f"WARNING: {url}: response over {MAX_BODY} bytes — not a usage answer, no snapshot",
+                        file=sys.stderr,
+                    )
+                    return None
                 obj = json.loads(raw.decode("utf-8"))
                 return obj if isinstance(obj, dict) else None
         except urllib.error.HTTPError as exc:
@@ -83,7 +89,7 @@ def fetch_apify(api_key: str) -> CreditSnapshot | None:
         {"Authorization": f"Bearer {api_key}"},
     )
     used = (d.get("data") or {}).get("totalUsageCreditsUsd") if d else None
-    return CreditSnapshot(float(used), "usd_used_month") if used is not None else None
+    return _finite(used, "usd_used_month")
 
 
 def fetch_deepl(api_key: str) -> CreditSnapshot | None:
@@ -92,8 +98,24 @@ def fetch_deepl(api_key: str) -> CreditSnapshot | None:
     d = _get_json(f"https://{host}/v2/usage", {"Authorization": f"DeepL-Auth-Key {api_key}"})
     if not d or d.get("character_count") is None or d.get("character_limit") is None:
         return None
-    remaining = float(d["character_limit"] - d["character_count"])
-    return CreditSnapshot(remaining, "chars_remaining")
+    limit = d["character_limit"]
+    if not isinstance(limit, (int, float)) or isinstance(limit, bool) or not math.isfinite(limit):
+        return None
+    if limit >= 1e12:
+        # DeepL's documented "no limit" sentinel (EXTERNAL_SYSTEMS.md, DeepL row 7): an unlimited
+        # plan is not a balance of 1e12 — the usage is the number worth tracking (FC4)
+        return _finite(d["character_count"], "chars_used_unlimited_plan")
+    return _finite(d["character_limit"] - d["character_count"], "chars_remaining")
+
+
+def _finite(value: object, unit: str) -> CreditSnapshot | None:
+    """A snapshot only for a FINITE number: `json.loads` accepts the non-standard `NaN`/`Infinity`
+    literals and `float()` passed them through to a NUMERIC column and the dashboard (FC4)."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return CreditSnapshot(number, unit) if math.isfinite(number) else None
 
 
 def fetch_exa(_api_key: str) -> CreditSnapshot | None:
