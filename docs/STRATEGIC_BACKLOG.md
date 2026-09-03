@@ -551,6 +551,36 @@ during the pass). Scope: core/ then ALL folders, to completion.
   flow step 4 said "Key absent" where it meant "key not yet in Redis". Zero literals (0 spans —
   claims-rot pack, not literal-rot).
 
+## [intel] `flush_outbox` reports `all-rows-malformed` on an EMPTY outbox — a data-loss verdict for a benign state (2026-09-03, owner: intel = me)
+
+Found on the FIRST unattended run of the newly-wired flush step (2026-09-03 06:01, `cache/update.log`),
+on the hub's own row — the line an operator is most likely to read:
+
+```
+fabrik   fabrik/.tmp/subagents   pending 0 · flushed 0 · left 0 · rounds 1 · reasons ['all-rows-malformed']
+```
+
+**No data was lost.** `libs/subagents/pg_ledger.py:1102-1104` returns `all-rows-malformed` whenever
+`good` is empty after parsing the `.flushing` file — which is also true when the file is EMPTY or
+whitespace-only, the common residual case. The real discriminator is already in hand and thrown away:
+`bad` is non-empty only when rows were genuinely parsed and rejected. Verified: `find /opt -name
+pg_outbox.corrupt.jsonl` returns **nothing**, so the `bad` bucket was empty on every walked dir — the
+hub simply had a leftover empty `.flushing`, which the same code path then unlinked.
+
+- `good` empty **and** `bad` empty ⇒ the outbox was empty. Benign. Should read `outbox-empty`.
+- `good` empty **and** `bad` non-empty ⇒ real quarantined data loss. `all-rows-malformed` is correct.
+
+**Why deferred rather than fixed in-run:** the fix is a one-line discriminator, but it lives in
+canonical `/opt/fabrik-lib/subagents` and carries the vendored blast radius (48 sync-reachable copies,
+50 live — see D-093). A fleet-wide re-vendor is disproportionate for a log string on its own. **It
+should ride the next `libs/subagents` change**, not trigger a sync of its own. Needs the operator's
+explicit cross-repo word at that point, as every vendored edit does.
+
+**Cost of leaving it:** advisory noise only — but it is exactly the noise that makes a REAL
+`all-rows-malformed` unreadable when one eventually fires. Wallpaper is how enforcement dies.
+
+---
+
 ## Activation
 
 Items move to active development when:
