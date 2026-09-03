@@ -188,7 +188,9 @@ def parse(path: Path) -> list[dict]:
         if line.startswith("# ═"):  # section header
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
-        m = SVC_RE.match(line)
+        m = SVC_RE.fullmatch(
+            line
+        )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3)
         if m:
             cur = {"meta": m.groupdict(), "keys": []}
             provs.append(cur)

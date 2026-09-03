@@ -103,6 +103,14 @@ def flagged_providers(path: Path) -> dict[str, dict]:
     return provs
 
 
+class _MissingResult:
+    """A dispatched unit the pool never returned: an error, no text (EY5)."""
+
+    error = "pool returned no result for this unit"
+    text = ""
+    status = "error"
+
+
 def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], set[str]]:
     """Split pool results into (proposals, errored).
 
@@ -116,6 +124,16 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
     and gets stubbed; otherwise it would re-bill a paid pool call on every daily run forever."""
     proposals: dict[str, dict] = {}
     errored: set[str] = set()
+    results = list(results)
+    if len(results) < len(names):
+        # fanout's 1:1 contract broken (a live class: fewer results than dispatched) — the missing
+        # providers are transport failures (retry next lap), never a ValueError out of zip after
+        # the cursor already moved past the slice (EY5)
+        print(
+            f"pool returned {len(results)} of {len(names)} results — {len(names) - len(results)} providers retry next lap",
+            file=sys.stderr,
+        )
+        results += [_MissingResult()] * (len(names) - len(results))
     for prov, r in zip(names, results, strict=True):
         # a CAPPED unit (max_turns hit) still carries the finalize call's real answer, but the
         # library stamps its hint on `error` — treating that as a failure discarded the answer AND

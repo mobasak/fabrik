@@ -168,8 +168,13 @@ fi
   # for the daily lock, so a step defined in only one of them silently never runs on the days
   # the other wins (the 2026-08-14 back-port lesson). It alerts on its own failures and writes
   # the dashboard (the liveness heartbeat) only when every DATA step succeeded.
-  _step "external_services_chain" env LOG_FILE="$LOG_FILE" FABRIK_ROOT="$FABRIK_ROOT" bash "$FABRIK_ROOT/scripts/external_services_chain.sh" \
-    || echo "[daily_refresh] external-services chain reported a failed step (already alerted, non-fatal)"
+  if ! _step "external_services_chain" env LOG_FILE="$LOG_FILE" FABRIK_ROOT="$FABRIK_ROOT" bash "$FABRIK_ROOT/scripts/external_services_chain.sh"; then
+    _rc=$?
+    case "$_rc" in 126|127)  # bash could not START the chain (missing / not executable): none of its own alerts ever ran (EY7)
+      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or not executable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
+    esac
+    echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)"
+  fi
 
   # Ensure the OR richer-extraction columns (canonical_slug, knowledge_cutoff,
   # cache_read/write_cost_per_m, reasoning_mandatory, reasoning_supported_efforts,

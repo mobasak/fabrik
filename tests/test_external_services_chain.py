@@ -83,9 +83,14 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
         'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
     assert "137 SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
-    assert (
-        "125-127 wrapper" in text
-    )  # a `timeout`/python absent from cron's PATH is bash's 127, not a step failure (EU3)
+    alert_line = next(
+        ln
+        for ln in text.splitlines()
+        if ln.lstrip().startswith('_alert "external-services chain: step')
+    )
+    assert "125-127 wrapper" in alert_line, (
+        alert_line
+    )  # in the BODY the operator reads, not anywhere in the file (EU3/EY7)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
@@ -905,3 +910,37 @@ def test_gen_dashboard_two_writers_both_succeed_and_a_bad_out_path_is_one_typed_
         bad.stdout,
         bad.stderr,
     )
+
+
+def test_gen_dashboard_reports_a_dead_registry_as_one_typed_line(monkeypatch, capsys, tmp_path):
+    """`load()` raising (a connection refused) left `main()` with a raw traceback; the write side
+    had been brought to one typed line and exit 1 — the read side now matches (EY6)."""
+    gd = _load_gen_dashboard()
+
+    def dead():
+        raise RuntimeError("connection refused (simulated)")
+
+    monkeypatch.setattr(gd, "load", dead)
+    assert gd.main([str(tmp_path / "dash.html")]) == 1
+    out = capsys.readouterr().out
+    assert "ERROR: registry unreadable" in out and "nothing written" in out, out
+    assert not (tmp_path / "dash.html").exists()
+
+
+def test_both_callers_alert_when_the_chain_never_started():
+    """`bash chain.sh` exiting 126/127 (missing, not executable) runs NONE of the chain's own
+    alerts, yet both callers said "already alerted". Each caller now alerts that case itself (EY7)."""
+    for src, name in (
+        (DAILY.read_text(encoding="utf-8"), "daily_refresh"),
+        (HOOK.read_text(encoding="utf-8"), "wsl_startup_hook"),
+    ):
+        start = (
+            src.index('bash "$FABRIK_ROOT/scripts/external_services_chain.sh"')
+            if 'bash "$FABRIK_ROOT/scripts/external_services_chain.sh"' in src
+            else src.index("bash $FABRIK_ROOT/scripts/external_services_chain.sh")
+        )
+        block = src[start : start + 900]
+        assert "126|127" in block and "pipeline_alert.sh" in block and "did NOT start" in block, (
+            name,
+            block,
+        )

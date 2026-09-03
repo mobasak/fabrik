@@ -71,7 +71,13 @@ def _staged_head(path: str) -> str | None:
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise GitUnavailableError(f"git show :{path}: {exc.__class__.__name__}") from exc
     if proc.returncode != 0:
-        return None
+        # ONLY "no stage-0 blob" is None; a git that FAILED (a corrupt index mid-loop) is not a
+        # deletion — the old branch called it one (EY1)
+        if re.search(r"not in the index|not at stage 0|does not exist", proc.stderr):
+            return None
+        raise GitUnavailableError(
+            f"git show :{path}: exit {proc.returncode}: {proc.stderr.strip()[:160]}"
+        )
     return "\n".join(proc.stdout.splitlines()[:HEADER_SCAN_LINES])
 
 
@@ -91,7 +97,10 @@ def _coupled_tokens(listed: str, script: Path) -> list[str]:
     directory — so `Makefile` counts and `(§ fix-first)` does not (DY2)."""
     out: list[str] = []
     for c in SEPARATORS.split(listed):
-        if not c or c.lower() in NONE_VALUES:
+        core = (
+            c[:-1] if c.endswith(".") and c.count(".") == 1 else c
+        )  # `none.` — a sentence's full stop, not a file (EY2)
+        if not c or core.lower() in NONE_VALUES:
             continue
         if (
             "/" in c or "." in c or Path(c).is_file() or (script.parent / c).is_file()
@@ -115,7 +124,9 @@ def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
         script.as_posix()
     }  # a glob that matches the script ITSELF proves nothing (EA2)
     for cand in cands:
-        if cand in staged_set:
+        if (
+            cand in staged_set
+        ):  # a script naming ITSELF is a self-reference (2 of 130 hub headers do) — kept (EY2)
             return True
         if any(ch in cand for ch in "*?[") and any(fnmatch(s, cand) for s in others):
             return True
@@ -134,9 +145,16 @@ def _git(args: list[str], sep: str = "\n") -> list[str]:
     nor the staged set, so a headerless script was invisible and a staged coupled file "not
     updated" (EU1/EW1). A git that does not answer is GitUnavailableError, never a traceback."""
     try:
-        out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20).stdout
+        proc = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20)
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise GitUnavailableError(f"git {' '.join(args)}: {exc.__class__.__name__}") from exc
+    if proc.returncode != 0:
+        # a git that ANSWERS with a failure (a corrupt index, no work tree, a cwd inside `.git/`)
+        # read as "nothing staged" — a convincing green for a check that could not ask (EY1)
+        raise GitUnavailableError(
+            f"git {' '.join(args)}: exit {proc.returncode}: {proc.stderr.strip()[:160]}"
+        )
+    out = proc.stdout
     return [x for x in out.strip(sep).split(sep) if x] if out.strip(sep) else []
 
 
@@ -200,11 +218,17 @@ def _main(quiet: bool) -> int:
     inspected = 0
     for f in scripts:
         p = Path(f)
-        if (
-            not p.exists()
-        ):  # a staged deletion — nothing to check; a dangling symlink lands HERE too
-            if p.is_symlink():
-                warnings.append(f"{f}: dangling symlink — not checked")
+        if p.is_symlink():
+            # the staged blob of a symlink is its LINK TEXT, never a script: a dangling one was
+            # already skipped; a live one (`scripts/verify_prod_parity.py`, the hub's one) was
+            # "inspected" against a path string and warned "no header" on every stage (EY1)
+            warnings.append(
+                f"{f}: dangling symlink — not checked"
+                if not p.exists()
+                else f"{f}: symlink — not checked (the target is inspected on its own)"
+            )
+            continue
+        if not p.exists():  # a staged deletion — nothing to check
             continue
         head = _staged_head(f)
         if head is None:

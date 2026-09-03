@@ -963,3 +963,22 @@ def test_the_guard_diff_survives_array_columns():
     assert _row_diff([a], [a]) == set()
     diff = _row_diff([a], [b])
     assert len(diff) == 2 and all(isinstance(r[7], tuple) for r in diff)
+
+
+def test_parse_fails_closed_on_a_svc_line_that_merely_starts_like_one(tmp_path):
+    """Two providers CONCATENATED onto one physical line (a bad merge, a hand-edit): `.match`
+    accepted the leading block and folded the second provider's keys under the first — the AP2
+    misattribution through a shape AP2's own grader never tried. `.fullmatch` refuses it (EY3)."""
+    import pytest
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        '#svc name=test_zzz_foo category=infra cost=paid capability="a" url=https://a.example status=active used_by=p '
+        '#svc name=test_zzz_bar category=infra cost=paid capability="b" url=https://b.example status=active used_by=p\n'
+        "FOO_API_KEY=aaaa\n"
+        "BAR_API_KEY=bbbb\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError):
+        rs.parse(f)

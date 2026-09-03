@@ -267,7 +267,13 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(
         ap.parse_args(argv).out
     )  # `--help` exits here — it used to WRITE a file named --help
-    rows = load()
+    try:
+        rows = load()
+    except Exception as exc:  # noqa: BLE001 - a dead registry is one typed line and exit 1, never a traceback (EY6)
+        print(
+            f"ERROR: registry unreadable ({exc.__class__.__name__}: {exc}) — nothing written; the previous dashboard stands"
+        )
+        return 1
     # atomic: a half-written dashboard is never served (the chain stamps its own heartbeat, CY1).
     # The tmp name carries the PID — a manual refresh overlapping the cron's step shared ONE tmp
     # name and the faster writer's pre-write unlink pulled it from under the slower one, whose

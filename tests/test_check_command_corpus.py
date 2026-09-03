@@ -1156,6 +1156,55 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     )
     (tmp_path / "twoimported" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
     (tmp_path / "twoimported" / "libs" / "subagents" / "bbb.py").write_bytes(b"B = 1\n\x00\n")
+    # pass 60 (EY8): a submodule the package __init__ SHADOWS is never imported; a PACKAGE wins over
+    # a same-stem module; a taken runtime branch's broken module is NAMED beside the block
+    _fake_hub(
+        tmp_path / "attrshadow",
+        'from .pkg import x\nraise ImportError("vendor sync broke")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/pkg/__init__.py": "x = 1\n", "libs/subagents/pkg/x.py": "X = 1\n"},
+    )
+    (tmp_path / "attrshadow" / "libs" / "subagents" / "pkg" / "x.py").write_bytes(b"X = 1\n\x00\n")
+    _fake_hub(
+        tmp_path / "stemtwin",
+        'from .x import X\nraise ImportError("vendor sync broke")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/x/__init__.py": "X = 1\n", "libs/subagents/x.py": "X = 1\n"},
+    )
+    (tmp_path / "stemtwin" / "libs" / "subagents" / "x.py").write_bytes(
+        b"X = 1\n\x00\n"
+    )  # the stale module nobody loads
+    _fake_hub(
+        tmp_path / "stemtwin2",
+        'from .x import X\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/x/__init__.py": "X = 1\n", "libs/subagents/x.py": "X = 1\n"},
+    )
+    (tmp_path / "stemtwin2" / "libs" / "subagents" / "x" / "__init__.py").write_bytes(
+        b"X = 1\n\x00\n"
+    )  # the loaded package IS the broken one
+    _fake_hub(
+        tmp_path / "vertaken",
+        'import sys\nif sys.version_info >= (3, 0):\n    from .compat import X\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/compat.py": "X = 1\n"},
+    )
+    (tmp_path / "vertaken" / "libs" / "subagents" / "compat.py").write_bytes(b"X = 1\n\x00\n")
+    # pass 60 (EY9): a runtime OSError is the target's OWN; find_spec raising; sys.exit at import; a bogus exc.path
+    _fake_hub(
+        tmp_path / "oserr_impnul",
+        'open("definitely_missing_cfg_xyz.yaml")\nfrom .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',  # the target's OWN OSError first; the NUL sibling is in the closure but never reached
+        tools_body="H = 1\n",
+    )
+    (tmp_path / "oserr_impnul" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
+    _fake_hub(
+        tmp_path / "stubdep",
+        'import sys, types\nsys.modules.setdefault("fakedep_xyz", types.ModuleType("fakedep_xyz"))\nfrom fakedep_xyz.sub import x\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    _fake_hub(
+        tmp_path / "sysexit0",
+        'import sys\nsys.exit(0)\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    _fake_hub(
+        tmp_path / "bogus_path",
+        'raise ImportError("vendor sync broke", path="/etc")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
     # a NUL module named only inside a FUNCTION BODY / an `if TYPE_CHECKING:` block is never
     # executed at import: the target's own SOURCE-SHAPED raise (an ImportError with no path — the
     # shape that opens the sibling redirect) stays the target's BLOCK (EU4)
@@ -1316,7 +1365,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1647,10 +1696,14 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     # pass 58 (EU4): a lazily / TYPE_CHECKING-imported NUL module never steals the target's blame
     for hub in ("lazysteal", "typesteal"):
         assert any(
-            "web_tools.py is present but unusable (ImportError: vendor sync broke)" in p
+            "web_tools.py is present but unusable (ImportError: vendor sync broke" in p
             for p in out[hub]["problems"]
         ), (hub, out[hub])
-        assert "typ.py" not in " ".join(out[hub]["problems"] + out[hub]["skipped"]), (hub, out[hub])
+        # named only INSIDE the "also broken" note — never the blamed file, never an advisory (EY8)
+
+        assert not out[hub]["skipped"] and not any(
+            p.startswith("libs/subagents/typ.py") for p in out[hub]["problems"]
+        ), (hub, out[hub])
     # a FIFO one import away: the driver returned (no hang) and the FIFO is the broken sibling named
     assert "libs/subagents/fifo.py" in " ".join(
         out["fifoimported"]["skipped"] + out["fifoimported"]["problems"]
@@ -1674,10 +1727,12 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     # pass 59 (EW7)
     for hub in ("trysteal", "versteal", "boolsteal"):
         assert any(
-            "web_tools.py is present but unusable (ImportError: vendor sync broke)" in p
+            "web_tools.py is present but unusable (ImportError: vendor sync broke" in p
             for p in out[hub]["problems"]
         ), (hub, out[hub])
-        assert "typ.py" not in " ".join(out[hub]["problems"] + out[hub]["skipped"]), (hub, out[hub])
+        assert not out[hub]["skipped"] and not any(
+            p.startswith("libs/subagents/typ.py") for p in out[hub]["problems"]
+        ), (hub, out[hub])
     for hub in ("typeelse", "nestedimports"):
         assert (
             len(out[hub]["skipped"]) == 1
@@ -1696,6 +1751,25 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     ), out["sibdep"]
     ext = " ".join(out["extthenthird"]["skipped"] + out["extthenthird"]["problems"])
     assert "extmod_xyz" in ext and "third.py" not in ext, out["extthenthird"]
+    # pass 60 (EY8/EY9)
+    for hub in ("attrshadow", "stemtwin", "bogus_path", "oserr_impnul", "stubdep", "sysexit0"):
+        assert any("web_tools.py is present but unusable" in p for p in out[hub]["problems"]), (
+            hub,
+            out[hub],
+        )
+        assert not out[hub]["skipped"], (hub, out[hub])
+    assert "x.py" not in " ".join(out["attrshadow"]["problems"]) and "x.py" not in " ".join(
+        out["stemtwin"]["problems"]
+    ), (out["attrshadow"], out["stemtwin"])
+    assert "libs/subagents/x/__init__.py failed to import" in " ".join(
+        out["stemtwin2"]["skipped"]
+    ), out["stemtwin2"]
+    vt = " ".join(out["vertaken"]["problems"])
+    assert (
+        "web_tools.py is present but unusable" in vt
+        and "also broken: libs/subagents/compat.py" in vt
+    ), out["vertaken"]
+    assert any("SystemExit" in p for p in out["sysexit0"]["problems"]), out["sysexit0"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -2173,6 +2247,161 @@ def test_the_selftest_in_a_project_without_the_trailer_example_marks_that_canary
         "6 canaries over 6 of the eight predicates" in out
         and "(N/A: web-tool names, trailer model)" in out
     ), out
+
+
+def _pkg(tmp_path):
+    pkg = tmp_path / "libs" / "subagents"
+    pkg.mkdir(parents=True)
+    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    return pkg
+
+
+def test_the_attribute_form_of_type_checking_is_the_same_idiom(tmp_path):
+    """`if typing.TYPE_CHECKING:` — every fixture used the bare name; reducing the detector to
+    `ast.Name` dropped this common spelling's else-branch from the closure (EY8)."""
+    import check_command_corpus as ccc
+
+    pkg = _pkg(tmp_path)
+    (pkg / "tools.py").write_text("H = 1\n", encoding="utf-8")
+    (pkg / "typ.py").write_text("X = 1\n", encoding="utf-8")
+    (pkg / "web_tools.py").write_text(
+        "import typing\nif typing.TYPE_CHECKING:\n    from .typ import X\nelse:\n    from .tools import H\n",
+        encoding="utf-8",
+    )
+    names = [p.name for p in ccc._import_order(pkg / "web_tools.py")]
+    assert "tools.py" in names and "typ.py" not in names, names
+
+
+def test_a_finally_body_import_is_proven_and_a_sourceless_package_counts(tmp_path):
+    """`finally:` always runs (its import is proven, unlike a handler's); a package that is only
+    `pkg/__init__.pyc` is loaded by CPython and belongs in the closure (EY8)."""
+    import importlib.util
+
+    import check_command_corpus as ccc
+
+    pkg = _pkg(tmp_path)
+    (pkg / "fin.py").write_text("F = 1\n", encoding="utf-8")
+    (pkg / "sl").mkdir()
+    (pkg / "sl" / "__init__.pyc").write_bytes(importlib.util.MAGIC_NUMBER + b"\x00" * 12)
+    (pkg / "web_tools.py").write_text(
+        "try:\n    pass\nfinally:\n    from .fin import F\nfrom .sl import S\n", encoding="utf-8"
+    )
+    names = [p.as_posix().split("/subagents/")[-1] for p in ccc._import_order(pkg / "web_tools.py")]
+    assert "fin.py" in names and "sl/__init__.pyc" in names, names
+
+
+def test_a_package_reached_through_a_symlink_is_one_package(tmp_path):
+    """Membership is by RESOLVED path: `real/` and `link/ -> real/` yielded six entries for
+    four files and a broken module named twice (EY8)."""
+    import check_command_corpus as ccc
+
+    pkg = _pkg(tmp_path)
+    (pkg / "real").mkdir()
+    (pkg / "real" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "real" / "mod.py").write_text("M = 1\n", encoding="utf-8")
+    (pkg / "link").symlink_to(pkg / "real", target_is_directory=True)
+    (pkg / "web_tools.py").write_text(
+        "from .real.mod import M\nfrom .link.mod import M as N\n", encoding="utf-8"
+    )
+    closure = ccc._import_order(pkg / "web_tools.py")
+    assert len(closure) == len({str(p.resolve()) for p in closure}) == 5, closure
+
+
+def test_an_unreadable_claude_md_turns_the_trailer_predicate_off_without_a_traceback(tmp_path):
+    """`_canonical_trailer_model` read `CLAUDE.md` after a bare `exists()`; mode 000 or a directory
+    at that path was a PermissionError/IsADirectoryError out of a blocking gate — and the home
+    path in stderr (EY9)."""
+    import os
+
+    import check_command_corpus as ccc
+
+    repo = tmp_path / "repo"
+    (repo / "CLAUDE.md").mkdir(parents=True)
+    assert ccc._canonical_trailer_model(repo) is None
+    repo2 = tmp_path / "repo2"
+    repo2.mkdir()
+    (repo2 / "CLAUDE.md").write_text("Co-Authored-By: Claude X <x@y>\n", encoding="utf-8")
+    (repo2 / "CLAUDE.md").chmod(0)
+    if os.access(repo2 / "CLAUDE.md", os.R_OK):
+        pytest.skip("running as root")
+    try:
+        assert ccc._canonical_trailer_model(repo2) is None
+    finally:
+        (repo2 / "CLAUDE.md").chmod(0o644)
+
+
+def test_the_selftest_names_a_broken_module_cites_no_synced_only_path_and_derives_its_tool_names(
+    tmp_path,
+):
+    """Three selftest shapes in fresh interpreters: a hub whose module RAISES prints the failure
+    before the VACUOUS lines (the module is broken, not the check); a bare tree without
+    `scripts/command_run.py` is not a FALSE POSITIVE; a live set of ONE tool name still passes
+    (the fixture derives its names from the live set) (EY9)."""
+    import shutil
+    import subprocess
+
+    def tree(name, web_tools_body):
+        hub = tmp_path / name
+        (hub / "scripts" / "enforcement").mkdir(parents=True)
+        shutil.copy(
+            REPO / "scripts" / "enforcement" / "check_command_corpus.py",
+            hub / "scripts" / "enforcement" / "check_command_corpus.py",
+        )
+        shutil.copy(REPO / "CLAUDE.md", hub / "CLAUDE.md")
+        if web_tools_body is not None:
+            (hub / "libs" / "subagents").mkdir(parents=True)
+            (hub / "libs" / "__init__.py").write_text("", encoding="utf-8")
+            (hub / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+            (hub / "libs" / "subagents" / "web_tools.py").write_text(
+                web_tools_body, encoding="utf-8"
+            )
+        return subprocess.run(
+            [
+                sys.executable,
+                str(hub / "scripts" / "enforcement" / "check_command_corpus.py"),
+                "--selftest",
+            ],
+            cwd=hub,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+    broken = tree("broken", 'raise RuntimeError("half-saved vendor sync")\n')
+    assert (
+        broken.returncode == 1
+        and "predicate 1 cannot run: RuntimeError: half-saved vendor sync" in broken.stdout
+    ), broken.stdout
+    bare = tree("bare", None)
+    assert bare.returncode == 0 and "FALSE POSITIVE" not in bare.stdout, (bare.stdout, bare.stderr)
+    one = tree("one", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    assert one.returncode == 0 and "13 canaries over 8" in one.stdout, (one.stdout, one.stderr)
+    dangling = tmp_path / "dangling"
+    (dangling / "scripts" / "enforcement").mkdir(parents=True)
+    shutil.copy(
+        REPO / "scripts" / "enforcement" / "check_command_corpus.py",
+        dangling / "scripts" / "enforcement" / "check_command_corpus.py",
+    )
+    shutil.copy(REPO / "CLAUDE.md", dangling / "CLAUDE.md")
+    (dangling / "libs" / "subagents").mkdir(parents=True)
+    (dangling / "libs" / "subagents" / "web_tools.py").symlink_to(
+        "/nonexistent/vendored/web_tools.py"
+    )
+    d = subprocess.run(
+        [
+            sys.executable,
+            str(dangling / "scripts" / "enforcement" / "check_command_corpus.py"),
+            "--selftest",
+        ],
+        cwd=dangling,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert d.returncode == 1 and "N/A" not in d.stdout, (
+        d.stdout
+    )  # a dangling link is PRESENT-and-broken, never "a project"
 
 
 def test_a_relative_import_above_the_package_root_reaches_nothing(tmp_path):

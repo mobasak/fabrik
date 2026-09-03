@@ -108,8 +108,14 @@ the target's own import line as the last frame, or CPython naming the `.pyc` in 
 attributed by asking the caches of the modules the import EXECUTES — the population is the
 target's import CLOSURE, derived by AST from the import statements the sources EXECUTE (the
 package `__init__.py` chain, then every module a `from .x import` / `import libs.subagents.x`
-reaches, depth-first in the order CPython loads them; never a function body or an
-`if TYPE_CHECKING:` block — a lazy import runs only when called; a sourceless `.pyc`, a
+reaches, depth-first in the order CPython loads them; only imports the module PROVABLY
+executes — never a function body (a lazy import runs only when called), never an
+`if TYPE_CHECKING:` block, and never a branch nothing static proves runs (a runtime `if`, a `try`
+handler or else, a `match` case, a loop body, any test mentioning `TYPE_CHECKING` beyond the two
+pure idioms) — a module named only there is never blamed, though a BROKEN one is named beside
+the target's block ("a conditionally imported module is also broken"); a package wins over a
+same-stem module and a sourceless `pkg/__init__.pyc` counts (CPython's finder order); a submodule
+the package `__init__` already binds by name is never loaded, so it is outside the closure; a sourceless `.pyc`, a
 directory or a dangling symlink at a module path counts; a FIFO is in the closure but never
 opened; a relative import that climbs above `libs/` reaches nothing), never a directory
 listing, so a broken file nobody imports can never take the blame — counting only a cache CPython would LOAD (its own validators
@@ -127,7 +133,9 @@ break (`__init__.py` importing a NUL-padded `agent.py`); a failure raised by the
 stays the target's problem however broken an unrelated file may be, because only a module the
 target's own import statements reach can take the blame. A `ModuleNotFoundError` for a
 distribution this interpreter lacks (`httpx`) is neither: the module is not broken and "fix the
-module" is the wrong remedy — an advisory names the missing dependency. Every failure text is scrubbed of the repo prefix and
+module" is the wrong remedy — an advisory names the missing dependency and the importing file.
+A runtime `OSError` (a data file the module opens) is always the module's own. A `sys.exit()` at
+import is the module's failure, never this process's exit code. Every failure text is scrubbed of the repo prefix and
 of the operator's home (`~/…`) before it is printed. A failure the file did not cause
 is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
 renamed constant names the target; a broken sibling's import names the sibling); any exception
@@ -241,7 +249,10 @@ $ python3 scripts/enforcement/check_command_corpus.py --selftest
 In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
 not — ABSENT, never present-but-broken: a hub whose module raises keeps all six and fails
 loudly) the six web-tool canaries are not applicable and say so; a project whose `CLAUDE.md`
-carries no `Co-Authored-By` example likewise marks the trailer canary N/A — one `N/A: 6 web-tool canaries
+carries no `Co-Authored-By` example likewise marks the trailer canary N/A. A hub whose module is
+present but BROKEN prints the failure first (`⚠ predicate 1 cannot run: …`) so the VACUOUS lines
+that follow are read as the module's fault, not the check's; the known-good fixture takes its tool
+names from the live set and cites only files every tree has — one `N/A: 6 web-tool canaries
 skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
 
 ```

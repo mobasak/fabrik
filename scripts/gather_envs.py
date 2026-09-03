@@ -681,7 +681,9 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
     cleanly or is skipped - it never yields a torn line."""
     out: list[tuple[str, str]] = []
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(
+            encoding="utf-8-sig", errors="replace"
+        )  # a BOM (PowerShell, "UTF-8 with BOM") silently deleted the first KEY=value (EY4)
     except (
         OSError
     ):  # the glob proved the path existed this run: unreadable, vanished or not a file → the
@@ -747,6 +749,12 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
         raise CatalogError(
             f"{CATALOG_PATH}: catalog keys must be single tokens (no whitespace): {bad_keys[:5]}"
         )
+    cased = [k for k in catalog if k != k.lower()]
+    if cased:
+        # every lookup lowers its side (`host_sld`, the classifier's answer): a mixed-case key was
+        # never found — a phantom `?` twin beside the curated entry — and two case variants would
+        # resolve non-deterministically; 0 of 120 live keys are mixed-case, so the rule costs nothing (EY4)
+        raise CatalogError(f"{CATALOG_PATH}: catalog keys must be lowercase: {cased[:5]}")
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)

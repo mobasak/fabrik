@@ -263,6 +263,63 @@ def test_a_git_that_does_not_answer_is_a_warning_and_exit_zero(
     assert "git did not answer" in out and "not checked" in out, out
 
 
+def test_a_git_that_answers_with_a_failure_is_the_same_warning_never_nothing_staged(
+    tmp_path: Path,
+) -> None:
+    """A corrupt index (or a cwd inside `.git/`, or no work tree) made git exit 128 with EMPTY
+    stdout, which `_git` read as "nothing staged" — a convincing green for a check that could
+    not ask its question (EY1). Real git, real corruption."""
+    repo = _repo(tmp_path, "x = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py"], check=True)
+    (repo / ".git" / "index").write_text("garbage", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout + proc.stderr
+    assert "nothing staged" not in out and "git" in out and "not checked" in out, out
+    # from inside .git/: rev-parse fails while diff would answer — the same WARN, never a clean 0-of-N
+    repo2 = _repo(tmp_path / "two", "x = 1\n")
+    subprocess.run(["git", "-C", str(repo2), "add", "scripts/thing.py"], check=True)
+    proc2 = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo2 / ".git", capture_output=True, text=True, timeout=60
+    )
+    out2 = proc2.stdout + proc2.stderr
+    assert proc2.returncode == 0 and "0 of 1" not in out2 and "not checked" in out2, out2
+
+
+def test_a_git_show_that_fails_structurally_is_not_a_deletion(monkeypatch) -> None:
+    """`git show :path` exits non-zero for a corrupt index too; only the no-stage-0-blob messages
+    mean "nothing to commit here" — anything else is git failing (EY1)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_script_headers_under_test", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class _P:
+        returncode = 128
+        stdout = ""
+        stderr = "fatal: .git/index: index file smaller than expected"
+
+    monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _P())
+    with pytest.raises(mod.GitUnavailableError):
+        mod._staged_head("scripts/thing.py")
+    _P.stderr = "fatal: path 'scripts/thing.py' exists on disk, but not in the index"
+    assert mod._staged_head("scripts/thing.py") is None
+
+
+def test_a_symlinked_script_is_not_inspected_as_its_link_text(tmp_path: Path) -> None:
+    """The staged blob of a symlink is the link text; the check tokenized it as a script head
+    and warned "no header" on every stage of the hub's one symlinked script. A symlink is
+    skipped with a line; its target is inspected on its own (EY1)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\nx = 1\n")
+    (repo / "scripts" / "link.py").symlink_to(repo / "scripts" / "thing.py")
+    out = _run(repo, "scripts/thing.py", "scripts/link.py")
+    assert "scripts/link.py: symlink — not checked" in out, out
+    assert "scripts/link.py: no `# AFTER-EDIT:`" not in out, out
+
+
 def test_a_slashless_dotted_coupled_file_is_still_enforced(tmp_path: Path) -> None:
     """The `.` half of the path-shape rule guards precisely the Doc Sync Matrix files
     (`CHANGELOG.md`, `INDEX.md`, `CLAUDE.md`, `PORTS.md`, `.env.example` — 17 of 217 hub tokens);
@@ -509,3 +566,10 @@ def test_a_bare_run_from_a_subdirectory_sees_the_staged_scripts(tmp_path: Path) 
     assert proc.returncode == 0
     out = proc.stdout + proc.stderr
     assert "scripts/thing.py: no `# AFTER-EDIT:` header" in out, out
+
+
+def test_a_sentinel_with_a_full_stop_is_still_the_sentinel(tmp_path: Path) -> None:
+    """`# AFTER-EDIT: none.` — the period promoted `none.` to a coupled FILE (a `.` is a path
+    shape), a false WARN on every edit forever (EY2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none.\nx = 1\n")
+    assert "WARNING" not in _run(repo, "scripts/thing.py")

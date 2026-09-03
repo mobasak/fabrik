@@ -3189,3 +3189,59 @@ def test_a_host_that_merely_ends_with_localhost_is_not_our_own(tmp_path):
     assert not ge.ignored_host("vendor.fakelocalhost")  # `attacker` itself is a placeholder label
     assert ge.ignored_host("localhost")
     assert ge.ignored_host("api.localhost")
+
+
+def test_a_bom_never_deletes_the_first_key(tmp_path):
+    """A `.env` saved "UTF-8 with BOM" lost its first KEY=value silently — the key regex rejected
+    the BOM-prefixed name and a one-key project vanished with no triage entry (EY4)."""
+    f = tmp_path / ".env"
+    f.write_bytes(b"\xef\xbb\xbfFIRST_API_KEY=sk-first\nPORT=8080\n")
+    keys = dict(ge.parse_env(f))
+    assert keys.get("FIRST_API_KEY") == "sk-first", keys
+
+
+def test_a_mixed_case_catalog_key_is_refused_at_load(tmp_path, monkeypatch):
+    """Every lookup lowers its side; a `OpenAI` key was never found (a phantom `?` twin beside
+    the curated entry) and two case variants resolved non-deterministically — the loader refuses
+    the key with one line, like a key with whitespace (EY4)."""
+    cat = tmp_path / "catalog.json"
+    cat.write_text(
+        json.dumps(
+            {
+                "OpenAI": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://o.example",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    with pytest.raises(ge.CatalogError, match="lowercase"):
+        ge.load_catalog()
+
+
+def test_a_pool_that_returns_fewer_results_than_dispatched_marks_the_rest_errored():
+    """`zip(strict=True)` raised ValueError out of the lap after the cursor had moved past the
+    slice — a live class (fanout returned fewer results than dispatched). The missing units are
+    transport failures: errored, retried next lap, never a crash (EY5)."""
+    proposals, errored = cs.build_proposals(
+        ["a", "b", "c"],
+        [
+            _Res(
+                json.dumps(
+                    {
+                        "name": "a",
+                        "category": "ai-llm",
+                        "cost": "paid",
+                        "capability": "x",
+                        "url": "https://a.example",
+                        "status": "active",
+                    }
+                )
+            )
+        ],
+    )
+    assert "a" in proposals and errored == {"b", "c"}, (proposals, errored)
