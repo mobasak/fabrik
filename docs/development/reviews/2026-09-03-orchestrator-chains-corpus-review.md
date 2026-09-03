@@ -100,7 +100,14 @@ Severity: **BLOCKER** = a session following the chain violates the repo contract
 0 new findings; 105 anchors re-opened, the ettw denominator re-counted (13 docs), the checklist anchor corrected (`:187`). The gate on the repo at this ledger's final correction (`python scripts/final_gate.py --check --json`, 2026-09-03):
 
 ```json
-{"status": "success", "note": "verbatim status of the --check run recorded in the closing commit; the full JSON is the gate's stdout, tier 2"}
+{
+ "status": "success",
+ "tier": 2,
+ "passed": 56,
+ "failed": 0,
+ "skipped": 0,
+ "run": "python scripts/final_gate.py --check --json \u00b7 2026-09-03 \u00b7 working tree at HEAD 1cce8326 with the D-102 link fix"
+}
 ```
 
 
