@@ -1422,3 +1422,23 @@ def test_projection_tolerates_reset_epoch_jitter_between_probes(monkeypatch, tmp
     monkeypatch.setattr(cr, "_now", lambda: NOW + 300)
     cr._fleet_flip_leg([], [_ob(96.0, 48.0, s_reset=NOW + 3000.4)], threshold=98.0)
     assert flips == ["sarp"], "a 0.4 s jitter in the reset epoch is the same window"
+
+
+def test_a_trip_flip_is_never_held_by_the_dwell(monkeypatch, tmp_path):
+    """Operator directive 2026-09-03 ("this is not the correct way … session limits immediately
+    stop all running agents"): a trip — the active account at the session line or its weekly
+    cap — is a WALL, never churn, so the 30-min dwell must not hold it. Today's log: mob@
+    cap-walled, `flip to ob within dwell (30m of the last flip) — holding` until the operator
+    switched by hand. Churn is already prevented by the candidate predicate (≥ threshold and
+    no-5h-budget siblings are never targets)."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("sarp", "sarp@test"))
+    calls: list[dict] = []
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: calls.append({"slug": slug, **kw}) or True)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    cr._fleet_flip_leg([], [_ob(98.5, 40.0)], threshold=98.0)            # the session line
+    cr._fleet_flip_leg([], [_ob(10.0, 80.0)], threshold=98.0)            # the weekly cap (80)
+    assert [c["slug"] for c in calls] == ["sarp", "sarp"]
+    assert all(c.get("ignore_dwell") is True for c in calls), calls

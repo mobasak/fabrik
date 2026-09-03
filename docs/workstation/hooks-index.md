@@ -135,7 +135,7 @@ leg at its `caps.json` cap — on the PROJECTED reading (2026-09-03: reading + t
 previous tick, remembered in `state/tick-last-reading.json`; the tick saw ob@ at 89 → 93 → 96 and the
 next tick found the wall — a 98 trip point is unobservable at a 5-minute cadence when the inter-tick
 burn is 3–4%), to the perishable-first sibling with proven headroom (walled / cap-walled / ≥threshold /
-no-5h-budget siblings excluded), under the 30-min dwell. Legacy mode (until the fleet root is
+no-5h-budget siblings excluded), DWELL-EXEMPT since 2026-09-03 — a trip is a wall, never churn (D-104). Legacy mode (until the fleet root is
 populated): polls the LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD`
 switches to the PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared
 switch flock — TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling

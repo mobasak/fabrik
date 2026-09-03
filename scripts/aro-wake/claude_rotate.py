@@ -2828,7 +2828,8 @@ def _flip_active(
       unless *manual* (``--switch`` is the deliberate escape hatch, same as legacy);
     - within the 30-min dwell of the last flip (``ROTATE_DWELL_MIN``, ledger-timed with the
       ``_CLOCK_SKEW_TOLERANCE_S`` clamp; unreadable ledger fails CLOSED) — unless *manual* or
-      *ignore_dwell* (the missing/dangling-pointer repair, where holding means fleet outage).
+      *ignore_dwell* (the missing/dangling-pointer repair, where holding means fleet outage —
+      and, since 2026-09-03, EVERY trip flip of the tick's flip leg: a trip is a wall, never churn).
 
     Every completed flip is ledgered ({"event": "flip", ts, from, to, at_pct}) — the dwell
     clock and the audit trail. Flipping to the already-active slug is an idempotent no-op
@@ -3878,7 +3879,13 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         )
         return
     slug, email = pick
-    if _flip_active(slug, at_pct=at_pct):
+    # A TRIP IS A WALL, NEVER CHURN (operator directive 2026-09-03: "session limits immediately
+    # stop all running agents … I don't want my running agents stopped while I pay for 4 Max
+    # accounts"): the dwell never holds a trip flip. Today's log had mob@ cap-walled and `flip to
+    # ob within dwell (30m of the last flip) — holding` until the operator switched by hand. Churn
+    # is already prevented where it belongs — the candidate predicate never targets a sibling at
+    # or over the threshold or without 5h budget — so the dwell has nothing left to protect here.
+    if _flip_active(slug, at_pct=at_pct, ignore_dwell=True):
         print(f"tick: flipped active {row['email']} -> {email} ({slug}) {at_desc}")
     else:
         print(f"tick: flip {row['email']} -> {email} ({slug}) withheld (see stderr)")
@@ -3915,7 +3922,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     with headroom and every agent keeps working. The "reach a checkpoint before the wall"
     advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
     could not relieve it (no successor with headroom, or the operator's pause held the flip).
-    A flip merely held by the transient 30-min dwell while a headroom sibling exists is NOT
+    (Historical: until 2026-09-03 a flip could be held by the 30-min dwell; trips are dwell-exempt now,
+    D-104, so this branch is reachable only through the pause.) A flip merely held while a headroom sibling exists is NOT
     exhaustion — relief is minutes away — so it is suppressed. Firing per-account on every ≥85%
     crossing was both spam — 10 near-identical mails on 2026-08-25, trade-intelligence 01M0YAB2 —
     and a false alarm. Fire once on entry to the walled state; suppress while it persists (the

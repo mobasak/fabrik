@@ -88,12 +88,16 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
   live re-verify failed…`) — read `~/.claude/rotate-tick.log` before touching anything.
 - **Never a dead chain:** the target's refresh token must pass the liveness gate
   (`_chain_stale_reason`) — a dir whose chain expired can never become the fleet's pointer.
-- **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`), so a noisy boundary
-  cannot thrash. A missing/dangling pointer is repaired immediately, dwell-exempt.
+- **Dwell:** 30 minutes between automatic flips (`ROTATE_DWELL_MIN`) — but **never on a trip** (operator
+  directive 2026-09-03, D-104: a session wall stops every running agent at once, so a trip is a wall,
+  never churn; on 2026-09-03 mob@ sat cap-walled with `flip to ob within dwell — holding` until the operator
+  switched by hand). The tick's trip flips and the missing/dangling-pointer repair are dwell-exempt; churn is
+  prevented where it belongs — the candidate predicate never targets a sibling at/over the threshold or
+  without 5h budget. The dwell still bounds the legacy (non-fleet) tick.
 - **No headroom anywhere:** nothing flips; ONE advisory per wall episode goes to Telegram AND
   broadcasts to every project mailbox ("reach a commit-and-push checkpoint") — it fires ONLY when
   the ACTIVE account is walled and this tick found no successor (`_fleet_active_wall_advisory`;
-  a walled active with a headroom sibling merely held by the dwell is silent). The same tick
+  a walled active with a headroom sibling is relieved by the same tick since trips are dwell-exempt). The same tick
   writes the `fleet-exhausted` stamp, and the synced PreToolUse hook `quota_stop.py` turns it
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
   instruction (commit + push, close the run record, end the turn); reads, git and the record

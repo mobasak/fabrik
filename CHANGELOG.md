@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rotation: a trip flip is never held by the 30-minute dwell (2026-09-03)
+
+- Operator directive after the D-103 report named the dwell as a "known limit": a session wall stops every
+  running agent at once, so a trip is a wall, never churn. Measured: 3 `flip … within dwell — holding` lines
+  in the tick log; today mob@ sat cap-walled with `flip to ob within dwell (30m of the last flip) — holding`
+  until the operator switched by hand — the day's second manual rescue.
+- `_fleet_flip_leg` passes `ignore_dwell=True` on both legs (session line, weekly cap). Churn stays
+  prevented where it belongs: the candidate predicate never targets a sibling at/over the threshold or
+  without 5h budget. The dwell still bounds the legacy tick and any other `_flip_active` caller. Test seen
+  red first; suite 116 green; twin `scripts/aro-wake/claude_rotate.py` byte-identical. Docs: the rotation
+  reference § Dwell, hooks-index § 2c. D-104.
+
 ### Fixed — auto-switch: the tick trips on the PROJECTED reading, and the board's fast path fires at the drain line when its probe is blind (2026-09-03)
 
 - Operator: ob@ passed 95% session and never auto-switched — "second time today". Measured in the tick log:
