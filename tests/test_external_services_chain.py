@@ -83,6 +83,7 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
         'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
     assert "137 SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
+    assert "127 no binary" in text  # a `timeout`/python absent from cron's PATH is bash's 127, not a step failure (EU3)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text

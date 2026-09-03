@@ -19,6 +19,7 @@ exit 0); promote to an ERROR gate once the active scripts are headered.
 from __future__ import annotations
 
 import io
+import os
 import re
 import subprocess
 import sys
@@ -109,12 +110,16 @@ def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
     return False
 
 
-SKIP_PATTERNS = ("tests/", "test_", "_test.py", "__pycache__/", "/__init__.py")
 HEADER_SCAN_LINES = 25
 
 
 def _git(args: list[str]) -> list[str]:
-    out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20).stdout.strip()
+    """`core.quotepath=false`: git's default C-quotes any path with a non-ASCII byte
+    (`"scripts/na\\303\\257ve.py"`), which then matches neither `startswith("scripts/")` nor the
+    staged set — a headerless script invisible, a staged coupled file "not updated" (EU1)."""
+    out = subprocess.run(
+        ["git", "-c", "core.quotepath=false", *args], capture_output=True, text=True, timeout=20
+    ).stdout.strip()
     return out.split("\n") if out else []
 
 
@@ -146,6 +151,11 @@ def main() -> int:
     # A BARE run (an agent or human invoking this directly) passes no flag and stays informative,
     # which is the whole point of 01M1E6S1EAK7DNP74C1K9YHP3Z.
     quiet = "--quiet" in sys.argv[1:]
+    top = _git(["rev-parse", "--show-toplevel"])
+    if top and top[0] and Path(top[0]).is_dir():
+        # the staged paths are repo-root-relative whatever the cwd; a bare run from `scripts/`
+        # read every real script as "a staged deletion" and printed a clean 0-of-N (EU1)
+        os.chdir(top[0])
     staged = _git(["diff", "--cached", "--name-only"])
     if not staged:
         # "Nothing staged" is a REASON, not a silent pass. This early return is the shape the

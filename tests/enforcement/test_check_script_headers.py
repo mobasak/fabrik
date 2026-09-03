@@ -416,3 +416,34 @@ def test_a_conftest_outside_a_tests_directory_is_inspected(tmp_path: Path) -> No
     repo = _repo(tmp_path, "# AFTER-EDIT: none\n")
     (repo / "scripts" / "conftest.py").write_text("x = 1\n", encoding="utf-8")
     assert "conftest.py" in _run(repo, "scripts/conftest.py")
+
+
+def test_a_non_ascii_script_path_is_inspected_and_a_non_ascii_coupled_file_counts(
+    tmp_path: Path,
+) -> None:
+    """git C-quotes a path with a non-ASCII byte under its default `core.quotepath`; the quoted
+    form matched neither `scripts/` nor the staged set, so a headerless `scripts/naïve.py` was a
+    clean 0-of-0 and a staged `docs/cöupled.md` was "not updated" forever (EU1)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/cöupled.md\nx = 1\n")
+    (repo / "scripts" / "naïve.py").write_text("x = 1\n", encoding="utf-8")
+    (repo / "docs" / "cöupled.md").write_text("# c\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py", "scripts/naïve.py", "docs/cöupled.md")
+    assert "scripts/naïve.py: no `# AFTER-EDIT:` header" in out, out
+    assert "not updated" not in out, out  # the staged `docs/cöupled.md` satisfies thing.py's coupling
+
+
+def test_a_bare_run_from_a_subdirectory_sees_the_staged_scripts(tmp_path: Path) -> None:
+    """Staged paths are repo-root-relative whatever the cwd; run from `scripts/`, every real
+    script read as "a staged deletion" and the run printed a clean `0 of 1` (EU1)."""
+    repo = _repo(tmp_path, "x = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py"], check=True)
+    proc = subprocess.run(
+        [sys.executable, str(CHECK)],
+        cwd=repo / "scripts",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0
+    out = proc.stdout + proc.stderr
+    assert "scripts/thing.py: no `# AFTER-EDIT:` header" in out, out

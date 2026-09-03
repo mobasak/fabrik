@@ -181,6 +181,21 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         tb = traceback.extract_tb(exc.__traceback__)
         innermost = tb[-1].filename if tb else ""
         frameless = not blame or _same_file(blame, Path(__file__))
+        if (
+            isinstance(exc, ModuleNotFoundError)
+            and exc.name
+            and exc.name.split(".")[0] != target.parent.parent.name  # never our own package
+            and not (repo / exc.name.split(".")[0]).exists()
+            and not (repo / f"{exc.name.split('.')[0]}.py").exists()
+        ):
+            # the vendored module imports a distribution this interpreter lacks (`httpx`): the
+            # module is not broken and "fix the module" is the wrong remedy — an advisory that
+            # names the distribution, never a block under web_tools.py's name (EU4)
+            _IMPORT_FAILURE.append(
+                _scrub(f"{failure} — a dependency is not installed in this interpreter", repo)
+            )
+            _IMPORT_BLAME.append("")
+            return None
         # CPython's "Non-code object in <pyc>" ImportError carries the CACHE as `exc.path` (EO1)
         if frameless or innermost.startswith("<frozen importlib") or blame.endswith(".pyc"):
             # the failure ended inside the IMPORT MACHINERY (no source frame at all, or only the
@@ -206,7 +221,10 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         source_shaped = isinstance(exc, (SyntaxError, OSError, ImportError)) and not _same_file(
             str(getattr(exc, "path", None) or ""), target
         )
-        if _same_file(blame, target) and not frameless and source_shaped:
+        blamed_healthy = (
+            bool(blame) and blame.endswith(".py") and _target_is_broken(Path(blame)) is None
+        )
+        if not frameless and source_shaped and (_same_file(blame, target) or blamed_healthy):
             # the frame says the TARGET and the failure is one a broken SOURCE produces (a
             # SyntaxError with no filename and stripped frames, an OSError, an ImportError that
             # did not name the target itself): a sibling it imports may be the broken one — NUL
@@ -328,6 +346,8 @@ def _import_order(target: Path) -> list[Path]:
             base = frm.parent
             for _ in range(level - 1):
                 base = base.parent
+            if base != root and root not in base.parents:
+                return []  # a relative import that climbs ABOVE the package root reaches nothing of ours (EU4)
             parts = name.split(".") if name else []
         else:
             parts = name.split(".")
@@ -342,8 +362,8 @@ def _import_order(target: Path) -> list[Path]:
                 out.append(walk / "__init__.py")
         cand = base.joinpath(*parts) if parts else base
         if (
-            parts and cand.with_suffix(".py").exists()
-        ):  # a DIRECTORY at the module path is the broken module itself
+            parts and (cand.with_suffix(".py").exists() or cand.with_suffix(".py").is_symlink())
+        ):  # a DIRECTORY at the module path is the broken module itself; a DANGLING symlink too (EU4)
             out.append(cand.with_suffix(".py"))
         elif (cand / "__init__.py").is_file():
             out.append(cand / "__init__.py")
@@ -351,20 +371,46 @@ def _import_order(target: Path) -> list[Path]:
             out.append(cand.with_suffix(".pyc"))
         return out
 
-    for pkg in (root / "__init__.py", target.parent / "__init__.py"):
-        if pkg.is_file():
-            add(pkg)
-    stack: list[Path] = [*seen, target]
-    while stack:
-        cur = stack.pop(0)
-        add(cur)
-        if cur.suffix != ".py":
-            continue
+    def type_checking(test: ast.expr) -> bool:
+        return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+            isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+        )
+
+    def executed(stmts: list[ast.stmt]) -> list[ast.stmt]:
+        """The import statements a module EXECUTES at import time, in order: never a function
+        body (a lazy import runs only when called) and never an `if TYPE_CHECKING:` block —
+        `ast.walk` harvested both, so a NUL-padded module named only there stole the target's
+        blame and a real hub defect went green (EU4)."""
+        out: list[ast.stmt] = []
+        for st in stmts:
+            if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if isinstance(st, ast.If) and type_checking(st.test):
+                out += executed(st.orelse)
+                continue
+            if isinstance(st, (ast.Import, ast.ImportFrom)):
+                out.append(st)
+            for field in ("body", "orelse", "finalbody"):
+                out += executed(getattr(st, field, None) or [])
+            for h in getattr(st, "handlers", None) or []:
+                out += executed(h.body)
+            for case in getattr(st, "cases", None) or []:
+                out += executed(case.body)
+        return out
+
+    def visit(cur: Path) -> None:
+        """Depth-first at the point of discovery — the order CPython loads the caches in, so the
+        first module named is the one the import fails on (EU4). A non-regular file (a FIFO) is
+        in the closure but never OPENED: `read_bytes` on it blocks forever (EU4)."""
+        if cur != target:
+            add(cur)
+        if cur.suffix != ".py" or not cur.is_file():
+            return
         try:
             tree = ast.parse(cur.read_bytes())
         except Exception:  # noqa: BLE001 - a source that does not parse imports nothing we can see
-            continue
-        for node in ast.walk(tree):
+            return
+        for node in executed(tree.body):
             mods: list[Path] = []
             if isinstance(node, ast.ImportFrom):
                 mods += resolve(node.module or "", node.level, cur)
@@ -376,8 +422,13 @@ def _import_order(target: Path) -> list[Path]:
                 for alias in node.names:
                     mods += resolve(alias.name, 0, cur)
             for mod in mods:
-                if mod not in seen and mod not in stack and mod != target:
-                    stack.append(mod)
+                if mod not in seen and mod != target:
+                    visit(mod)
+
+    for pkg in (root / "__init__.py", target.parent / "__init__.py"):
+        if pkg.is_file():
+            visit(pkg)
+    visit(target)
     return [*seen, target]
 
 
@@ -391,15 +442,12 @@ def _manual_cache_accepted(data: bytes, st: object, src: Path) -> bool:
         return False
     if src.suffix == ".pyc":  # sourceless: magic and flags only
         return True
-    if (
-        flags == 0
-        and (
-            int.from_bytes(data[8:12], "little") != int(st.st_mtime) & 0xFFFFFFFF  # type: ignore[attr-defined]
-            or int.from_bytes(data[12:16], "little") != st.st_size & 0xFFFFFFFF  # type: ignore[attr-defined]
+    if not flags & 0b1:  # timestamp-based (bit 0 clear — bit 1 alone is not "hash-based", EU4)
+        return (
+            int.from_bytes(data[8:12], "little") == int(st.st_mtime) & 0xFFFFFFFF  # type: ignore[attr-defined]
+            and int.from_bytes(data[12:16], "little") == st.st_size & 0xFFFFFFFF  # type: ignore[attr-defined]
         )
-    ):
-        return False
-    if flags & 0b10:
+    if flags & 0b10:  # hash-based AND checked: the source hash decides; unchecked is accepted as is
         try:
             return data[8:16] == importlib.util.source_hash(src.read_bytes())
         except OSError:
@@ -1015,6 +1063,18 @@ def _selftest() -> int:
                 "advertises a close with no --feedback",
             ),
         }
+        web_ok = _live_web_tool_names(REPO) is not None
+        if not web_ok:
+            # a PROJECT: the script is synced fleet-wide but the vendored pool module is not, so
+            # predicate 1 cannot run there and its canaries are N/A — the run printed six
+            # "VACUOUS" lines and exited 1 in every project, and the doc told agents to run it (EU4)
+            skipped_web = [k for k in cases if k.startswith("web-tool name")]
+            for k in skipped_web:
+                cases.pop(k)
+            print(
+                f"N/A: {len(skipped_web)} web-tool canaries skipped — no vendored "
+                "libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub"
+            )
         # Predicate 6 has its own fixture (an agent dir, not a command body) — asserted by ITS
         # signature, never by "something fired"
         bad_agents = root / "_bad_agents"
@@ -1048,10 +1108,14 @@ def _selftest() -> int:
         good.write_text(
             "{{include:run-record}}\n"
             "description: auto-called by /fabrik-real reactively.\n"
-            'fanout("research", web_tools=["web_search","docs_lookup"])\n'
-            'fanout("research", web_tools=["web_search"] if fast else ["web_scrape"])  # a ternary: `if`/`else` are not tool names (DQ2)\n'
-            'fanout("research", web_tools=["web_search"] if fast else DEFAULT, system="exa")  # a later argument is never harvested (DS2)\n'
-            "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
+            + (
+                'fanout("research", web_tools=["web_search","docs_lookup"])\n'
+                'fanout("research", web_tools=["web_search"] if fast else ["web_scrape"])  # a ternary: `if`/`else` are not tool names (DQ2)\n'
+                'fanout("research", web_tools=["web_search"] if fast else DEFAULT, system="exa")  # a later argument is never harvested (DS2)\n'
+                if web_ok
+                else ""
+            )
+            + "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
             "run `scripts/enforcement/check_command_corpus.py`\n"
             'close: `python3 scripts/command_run.py done --command x --evidence "e" '
             '--feedback "none — swept it"`\n'

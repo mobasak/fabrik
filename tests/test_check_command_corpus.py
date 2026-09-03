@@ -1156,6 +1156,67 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     )
     (tmp_path / "twoimported" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
     (tmp_path / "twoimported" / "libs" / "subagents" / "bbb.py").write_bytes(b"B = 1\n\x00\n")
+    # a NUL module named only inside a FUNCTION BODY / an `if TYPE_CHECKING:` block is never
+    # executed at import: the target's own SOURCE-SHAPED raise (an ImportError with no path — the
+    # shape that opens the sibling redirect) stays the target's BLOCK (EU4)
+    _fake_hub(
+        tmp_path / "lazysteal",
+        'raise ImportError("vendor sync broke")\n\ndef f():\n    from .typ import X\n    return X\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/typ.py": "X = 1\n"},
+    )
+    (tmp_path / "lazysteal" / "libs" / "subagents" / "typ.py").write_bytes(b"X = 1\n\x00\n")
+    _fake_hub(
+        tmp_path / "typesteal",
+        'from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .typ import X\nraise ImportError("vendor sync broke")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/typ.py": "X = 1\n"},
+    )
+    (tmp_path / "typesteal" / "libs" / "subagents" / "typ.py").write_bytes(b"X = 1\n\x00\n")
+    # a FIFO at an IMPORTED sibling's path: in the closure, named, never OPENED (a read blocks forever) (EU4)
+    _fake_hub(
+        tmp_path / "fifoimported",
+        'from .missing import x\nfrom .fifo import y\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    os.mkfifo(tmp_path / "fifoimported" / "libs" / "subagents" / "fifo.py")
+    # the break one hop away from a HEALTHY importer: the package __init__ imports a NUL agent.py —
+    # the frame names __init__.py, the closure names agent.py (EU4)
+    _fake_hub(
+        tmp_path / "indirectnul",
+        'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        init_body="from .agent import Runner\n",
+        extra={"libs/subagents/agent.py": "class Runner:\n    pass\n"},
+    )
+    (tmp_path / "indirectnul" / "libs" / "subagents" / "agent.py").write_bytes(
+        b"class Runner:\n    pass\n\x00\n"
+    )
+    # a DANGLING symlink at an imported sibling's path is in the closure and named (EU4)
+    _fake_hub(
+        tmp_path / "danglingsib",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    os.symlink(
+        "/nonexistent/vendored/tools.py",
+        tmp_path / "danglingsib" / "libs" / "subagents" / "tools.py",
+    )
+    # a distribution this interpreter lacks: the module is not broken — an advisory naming it (EU4)
+    _fake_hub(
+        tmp_path / "absentdep",
+        'import httpx_not_installed_xyz\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # two torn caches: named in the order CPython LOADS them — depth-first, `deep` before `b` (EU4)
+    _fake_hub(
+        tmp_path / "dfsorder",
+        'from .a import A\nfrom .b import B\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={
+            "libs/subagents/a.py": "from .deep import D\nA = 1\n",
+            "libs/subagents/b.py": "B = 1\n",
+            "libs/subagents/deep.py": "D = 1\n",
+        },
+    )
+    for name in ("deep", "b"):
+        modp = tmp_path / "dfsorder" / "libs" / "subagents" / f"{name}.py"
+        mp = Path(importlib.util.cache_from_source(str(modp)))
+        py_compile.compile(str(modp), cfile=str(mp), doraise=True)
+        mp.write_bytes(mp.read_bytes()[:20])
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -1185,7 +1246,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1513,6 +1574,33 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         and "libs/subagents/tools.py failed to import" in out["twoimported"]["skipped"][0]
         and "(also broken: libs/subagents/bbb.py)" in out["twoimported"]["skipped"][0]
     ), out["twoimported"]
+    # pass 58 (EU4): a lazily / TYPE_CHECKING-imported NUL module never steals the target's blame
+    for hub in ("lazysteal", "typesteal"):
+        assert any(
+            "web_tools.py is present but unusable (ImportError: vendor sync broke)" in p
+            for p in out[hub]["problems"]
+        ), (hub, out[hub])
+        assert "typ.py" not in " ".join(out[hub]["problems"] + out[hub]["skipped"]), (hub, out[hub])
+    # a FIFO one import away: the driver returned (no hang) and the FIFO is the broken sibling named
+    assert "libs/subagents/fifo.py" in " ".join(
+        out["fifoimported"]["skipped"] + out["fifoimported"]["problems"]
+    ), out["fifoimported"]
+    # the healthy importer is never blamed for the NUL module it imports
+    assert (
+        len(out["indirectnul"]["skipped"]) == 1
+        and "libs/subagents/agent.py failed to import" in out["indirectnul"]["skipped"][0]
+    ), out["indirectnul"]
+    assert "libs/subagents/tools.py" in " ".join(
+        out["danglingsib"]["skipped"] + out["danglingsib"]["problems"]
+    ), out["danglingsib"]
+    assert not any("present but unusable" in p for p in out["absentdep"]["problems"]) and any(
+        "httpx_not_installed_xyz" in s and "not installed in this interpreter" in s
+        for s in out["absentdep"]["skipped"]
+    ), out["absentdep"]
+    dfs = " ".join(out["dfsorder"]["skipped"] + out["dfsorder"]["problems"])
+    assert "bytecode cache of libs/subagents/deep.py, libs/subagents/b.py unloadable" in dfs, out[
+        "dfsorder"
+    ]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1838,6 +1926,95 @@ def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path, monkeyp
         pyc.read_bytes()[:16] + marshal.dumps(42)
     )  # a non-code body: CPython raises ImportError
     assert ccc._bad_cache_owners(src) == [src]
+
+
+def test_the_manual_rules_select_the_hash_branch_on_bit_zero_like_cpython(tmp_path):
+    """CPython's `hash_based` is bit 0; bit 1 is only `check_source`. The manual fallback keyed
+    the hash compare on bit 1, so a `flags=0b10` cache (timestamp-validated by CPython) read
+    "not accepted" and a torn body under it was missed (EU4)."""
+    import importlib.util
+
+    import check_command_corpus as ccc
+
+    src = tmp_path / "m.py"
+    src.write_text("x = 1\n", encoding="utf-8")
+    st = src.stat()
+    stamp = (int(st.st_mtime) & 0xFFFFFFFF).to_bytes(4, "little") + (
+        st.st_size & 0xFFFFFFFF
+    ).to_bytes(4, "little")
+    magic = importlib.util.MAGIC_NUMBER
+    good_hash = importlib.util.source_hash(src.read_bytes())
+    assert ccc._manual_cache_accepted(magic + (0b10).to_bytes(4, "little") + stamp, st, src) is True
+    assert (
+        ccc._manual_cache_accepted(magic + (0b10).to_bytes(4, "little") + b"\x00" * 8, st, src)
+        is False
+    )
+    assert (
+        ccc._manual_cache_accepted(magic + (0b01).to_bytes(4, "little") + b"\xff" * 8, st, src)
+        is True
+    )
+    assert (
+        ccc._manual_cache_accepted(magic + (0b11).to_bytes(4, "little") + b"\xff" * 8, st, src)
+        is False
+    )
+    assert (
+        ccc._manual_cache_accepted(magic + (0b11).to_bytes(4, "little") + good_hash, st, src)
+        is True
+    )
+
+
+def test_a_relative_import_above_the_package_root_reaches_nothing(tmp_path):
+    """`from ....x import y` in a closure module climbs above `libs/`; the walk must stop at the
+    root instead of admitting a file OUTSIDE the repo into the closure (and the blame) (EU4)."""
+    import check_command_corpus as ccc
+
+    (tmp_path / "outside.py").write_text("y = 1\n", encoding="utf-8")
+    pkg = tmp_path / "repo" / "libs" / "subagents"
+    pkg.mkdir(parents=True)
+    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "web_tools.py").write_text("from ....outside import y\n", encoding="utf-8")
+    closure = ccc._import_order(pkg / "web_tools.py")
+    assert all(tmp_path / "repo" in p.parents for p in closure), closure
+
+
+def test_the_selftest_in_a_project_marks_the_web_tool_canaries_not_applicable(
+    tmp_path, monkeypatch, capsys
+):
+    """The script is synced to every project, the vendored pool module is not: there the six
+    web-tool canaries printed VACUOUS and the selftest exited 1 (EU4)."""
+    import shutil
+
+    import check_command_corpus as ccc
+
+    repo = tmp_path / "project"
+    (repo / "scripts" / "enforcement").mkdir(parents=True)
+    shutil.copy(ccc.REPO / "CLAUDE.md", repo / "CLAUDE.md")
+    (repo / "scripts" / "command_run.py").write_text("", encoding="utf-8")
+    (repo / "scripts" / "enforcement" / "check_command_corpus.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(ccc, "REPO", repo)
+    monkeypatch.setattr(ccc, "_live_web_tool_names", lambda *a, **k: None)
+    assert ccc._selftest() == 0
+    out = capsys.readouterr().out
+    assert "N/A: 6 web-tool canaries skipped" in out and "VACUOUS" not in out, out
+
+
+def test_the_manual_fallback_accepts_a_sourceless_module_by_header_alone(tmp_path, monkeypatch):
+    """With CPython's validators absent (`_be` None) a SOURCELESS `.pyc` has no source to compare
+    an mtime or size against: the manual rules accept it by magic + flags alone. Without that
+    shortcut the module's own stat is compared to its header and a good cache reads torn (EU2)."""
+    import importlib.util
+
+    import check_command_corpus as ccc
+
+    monkeypatch.setattr(ccc, "_be", None)
+    pyc = tmp_path / "sourceless.pyc"
+    pyc.write_bytes(importlib.util.MAGIC_NUMBER + b"\x00" * 12 + b"body")
+    assert ccc._cache_accepted(pyc.read_bytes(), pyc.stat(), pyc) is True
+    torn = (
+        importlib.util.MAGIC_NUMBER + (0b1000).to_bytes(4, "little") + b"\x00" * 8
+    )  # reserved bit
+    assert ccc._cache_accepted(torn, pyc.stat(), pyc) is False
 
 
 def test_cpythons_validators_are_bound_on_this_interpreter_and_a_drifted_api_falls_back(

@@ -3088,9 +3088,12 @@ def test_a_fresh_identification_never_merges_into_a_tombstoned_target(tmp_path, 
 
 
 def test_a_curated_source_never_merges_into_a_tombstoned_target_either(tmp_path, monkeypatch):
-    """The guard must read the TARGET's status: with the source a curated `?` placeholder (its
-    own routing, not a tombstone) and the target a tombstone, the merge is still refused — a
-    guard that re-tested the SOURCE would let it through (ES4)."""
+    """The one cell only the TARGET guard protects: a source that is itself a TOMBSTONE (an
+    `unidentified` stub from an earlier failed pass, so the source guard lets it through) whose
+    fresh answer names another tombstone — the merge is still refused and the identification
+    lands on the source's own entry. (The first form of this test used a curated `?` source,
+    which the SOURCE guard already blocks — it passed with the target guard removed; pass 58.)
+    (ES4/EU2)"""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
         '#svc name=newprov category=? cost=? capability="?" url=? status=? used_by=web\n'
@@ -3114,7 +3117,11 @@ def test_a_curated_source_never_merges_into_a_tombstoned_target_either(tmp_path,
     cat.write_text(
         json.dumps(
             {
-                "newprov": {"category": "?", "capability": "?", "url": "?", "match": ["NEWPROV"]},
+                "newprov": {
+                    "category": "unidentified",
+                    "capability": "web could not classify; add a real entry or remove the key",
+                    "match": ["NEWPROV"],
+                },
                 "vendorx": {
                     "category": "unidentified",
                     "capability": "web could not classify; add a real entry or remove the key",
@@ -3127,7 +3134,8 @@ def test_a_curated_source_never_merges_into_a_tombstoned_target_either(tmp_path,
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
     assert "merged_match" not in out["vendorx"], out
-    assert out["newprov"]["category"] == "search", out
+    assert out["vendorx"]["category"] == "unidentified", out  # the target stub untouched
+    assert out["newprov"]["category"] == "search" and out["newprov"]["cost"] == "paid", out
 
 
 def test_a_host_that_merely_ends_with_localhost_is_not_our_own(tmp_path):

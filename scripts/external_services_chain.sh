@@ -47,8 +47,8 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
     case "$label" in gather_envs|gather_envs_reconsolidate|registry_sync) core_failed=1 ;; esac
     echo "[external-services-chain] $label failed (exit=$rc) — non-fatal, alerting"
     local hb="Dashboard not rewritten; liveness DEAD."  # rendered per label: the paid step never ages the heartbeat (G9/DA2)
-    [ "$label" = classify_services ] && hb="Dashboard and heartbeat unaffected (paid step)."
-    _alert "external-services chain: step $label FAILED (exit $rc)" "Step $label failed (exit $rc). 124 timeout; 137 SIGKILL; 2 the sync could not read the catalog (credentials stored unattributed); 1 gather steps: inputs refused (catalog, ripgrep, env files) or output path unusable; 1 elsewhere: the step's own failure, a prune refusal needs the force knob. The step's stderr names the cause; legend: docs/reference/external-services-registry.md. $hb Log: $LOG_FILE" warning
+    [ "$label" = classify_services ] && hb="Dashboard and heartbeat unaffected (paid step)"
+    _alert "external-services chain: step $label FAILED (exit $rc)" "Step $label failed (exit $rc). 124 timeout; 137 SIGKILL; 127 no binary; 2 the sync could not read the catalog (credentials stored unattributed); 1 gather steps: inputs refused (catalog, ripgrep, env files) or output path unusable; 1 elsewhere: the step's own failure, a prune refusal needs the force knob. stderr names the cause; legend: docs/reference/external-services-registry.md. $hb Log: $LOG_FILE" warning
   fi
   return $rc
 }

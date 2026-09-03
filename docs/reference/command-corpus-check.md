@@ -106,10 +106,13 @@ same-second, same-size rewrite is the measured residual — 0 today). A failure 
 import machinery (a torn bytecode cache: EOFError inside frozen importlib — no source frame, only
 the target's own import line as the last frame, or CPython naming the `.pyc` in `exc.path`) is
 attributed by asking the caches of the modules the import EXECUTES — the population is the
-target's import CLOSURE, derived by AST from the sources' own import statements (the package
-`__init__.py` chain, then every module a `from .x import` / `import libs.subagents.x` reaches,
-recursively; a sourceless `.pyc` counts), never a directory listing, so a broken file nobody
-imports can never take the blame — counting only a cache CPython would LOAD (its own validators
+target's import CLOSURE, derived by AST from the import statements the sources EXECUTE (the
+package `__init__.py` chain, then every module a `from .x import` / `import libs.subagents.x`
+reaches, depth-first in the order CPython loads them; never a function body or an
+`if TYPE_CHECKING:` block — a lazy import runs only when called; a sourceless `.pyc`, a
+directory or a dangling symlink at a module path counts; a FIFO is in the closure but never
+opened; a relative import that climbs above `libs/` reaches nothing), never a directory
+listing, so a broken file nobody imports can never take the blame — counting only a cache CPython would LOAD (its own validators
 decide: header, flags, the source hash for a hash-based cache, mtime and size for a timestamp one;
 a drifted private API falls back to the same rules hand-written; the source is read only for a
 hash-based cache): EVERY torn cache is named repo-relatively, the target among them ⇒ a block,
@@ -119,9 +122,12 @@ When the frame names the target itself and the failure is one a broken SOURCE pr
 SyntaxError with no filename and stripped frames, an OSError, an ImportError that did not name the
 target), the closure's sources get the same read-and-compile check — a NUL-padded or
 directory-shaped module the target imports is named instead of the target (every broken one is
-listed); a failure raised by the target itself stays the target's problem however broken an
-unrelated file may be, because only a module the target's own import statements reach can take
-the blame. Every failure text is scrubbed of the repo prefix and
+listed); the same closure check runs when the frame names a HEALTHY importer one hop above the
+break (`__init__.py` importing a NUL-padded `agent.py`); a failure raised by the target itself
+stays the target's problem however broken an unrelated file may be, because only a module the
+target's own import statements reach can take the blame. A `ModuleNotFoundError` for a
+distribution this interpreter lacks (`httpx`) is neither: the module is not broken and "fix the
+module" is the wrong remedy — an advisory names the missing dependency. Every failure text is scrubbed of the repo prefix and
 of the operator's home (`~/…`) before it is printed. A failure the file did not cause
 is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
 renamed constant names the target; a broken sibling's import names the sibling); any exception
@@ -230,6 +236,16 @@ fire, then a known-good one and requires silence:
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
 ✓ selftest: 13 canaries over the eight predicates fire on bad input and stay silent on good input
+```
+
+In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
+not) the six web-tool canaries are not applicable and say so — one `N/A: 6 web-tool canaries
+skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
+
+```
+$ python3 scripts/enforcement/check_command_corpus.py --selftest
+N/A: 6 web-tool canaries skipped — no vendored libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub
+✓ selftest: 7 canaries over the eight predicates fire on bad input and stay silent on good input
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in
