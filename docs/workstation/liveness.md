@@ -201,6 +201,8 @@ The audit prints this line at the end of every human run.
 
 ---
 
+**The auditor audits itself.** `main` ends by printing one `LOG_STAMP`-shaped line — `<date> <time> liveness-audit: report generated` — on stderr, after flushing the report (under the cron's `2>&1` an unflushed report glued the stamp to its last brace, review 2026-09-03 DC1). The registry's `liveness-audit` surface (`kind: cron`, `log_marker` on `~/.claude/liveness.log`, 180 h) ages that line, so an installed line that cannot even start the interpreter appends only an error, never the marker, and reads DEAD (absent). The line above is the one to install verbatim: the copy on this box lacked `cd /opt/fabrik`, so `.venv/bin/python` resolved against `$HOME` and the only scheduled attempt (2026-08-31) failed with nothing watching the watcher (DA1).
+
 ## Feeding kaizen
 
 The answerable question behind the roles spec's `Missed crons` metric is: did each registered

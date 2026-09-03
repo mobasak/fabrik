@@ -2079,9 +2079,12 @@ def main(argv: list[str] | None = None) -> int:
     registry = args.registry or (repo_root / DEFAULT_REGISTRY)
     proofs = {p.strip() for p in str(args.proof).split(",") if p.strip()}
     report = audit(repo_root, registry, proofs)
-    print(json.dumps(report.as_dict(), indent=2) if args.json else render(report))
+    # flush=True: under the cron's `>> log 2>&1` a report larger than the stdout buffer was written
+    # through with its trailing newline still buffered, so the stderr stamp landed GLUED to the last
+    # brace — never LOG_STAMP-shaped, the self-surface UNKNOWN forever (DC1)
+    print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
     # the auditor's OWN heartbeat: one LOG_STAMP-shaped line on stderr (the cron appends 2>&1), so
-    # the `liveness-audit` surface can age it — the installed weekly line failed for three weeks
+    # the `liveness-audit` surface can age it — the installed weekly line's only scheduled attempt failed
     # with nothing watching the watcher (review 2026-09-03, DA1)
     print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr)
     return 1 if (args.strict and (report.failures() or report.crashed())) else 0

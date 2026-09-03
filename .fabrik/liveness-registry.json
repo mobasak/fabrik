@@ -399,7 +399,7 @@
    "id": "liveness-audit",
    "kind": "cron",
    "max_age_hours": 180,
-   "why": "the auditor audits itself: the installed weekly line had no `cd /opt/fabrik`, so `.venv/bin/python` resolved against $HOME and every scheduled run since 2026-08-16 failed with 'not found' while 0 of 33 surfaces watched the watcher (review 2026-09-03, DA1). The marker is the stamped stderr line the audit prints on completion (a failed cron line appends only an error, never the marker); 180 h = a weekly run plus one missed Monday."
+   "why": "the auditor audits itself: the installed weekly line (crontab line 96) has no `cd /opt/fabrik`, so `.venv/bin/python` resolves against $HOME — its only scheduled attempt (2026-08-31) appended `not found` and 0 of 33 surfaces watched the watcher; it stays broken until the operator installs the script's own PROPOSED_CRON verbatim (review 2026-09-03, DA1). The marker is the stamped stderr line the audit prints on completion (a failed cron line appends only an error, never the marker); 180 h = a weekly run plus 12 h of late-cron slack — a MISSED Monday reads DEAD."
   },
   {
    "id": "external-services-chain",
@@ -411,7 +411,7 @@
     "path": "/opt/fabrik/.tmp/external-services/chain-heartbeat"
    },
    "max_age_hours": 30,
-   "why": "the external-services chain (scripts/external_services_chain.sh: gather_envs \u2192 classify \u2192 gather_envs \u2192 registry_sync \u2192 gen_dashboard), run by daily_refresh.sh and wsl_startup_hook.sh; the dashboard is written LAST and ONLY when every DATA step (gather_envs, the second gather_envs \u2014 step label gather_envs_reconsolidate \u2014 and registry_sync) succeeded, so its mtime is the DATA chain's heartbeat: a data step that fails ages it past 30 h and reads DEAD; the paid classify step is deliberately NOT part of the heartbeat \u2014 its failure alerts (Telegram) but never ages the dashboard, so a dead classifier is a page, not a DEAD row (G9). Undeclared, the chain sat half-dead for 46 days (registry + dashboard frozen on build day 2026-07-18) with no finding \u2014 the audit could not miss what it was never told to look for."
+   "why": "the external-services chain (scripts/external_services_chain.sh: gather_envs → classify → gather_envs → registry_sync → gen_dashboard), run by daily_refresh.sh and wsl_startup_hook.sh; the script stamps this file itself, ONLY after every DATA step (gather_envs, the second gather_envs — step label gather_envs_reconsolidate — and registry_sync) and the dashboard succeeded, via tmp + rename: a data step that fails, or a stamp it cannot write (alerted, exit 1), leaves the previous stamp to age past 30 h and read DEAD; the dashboard file's own mtime is NOT evidence — any manual gen_dashboard.py run refreshes it (review 2026-09-02, CY1/DA3)"
   }
  ],
  "version": 1

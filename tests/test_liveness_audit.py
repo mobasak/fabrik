@@ -803,3 +803,48 @@ def test_the_audit_stamps_its_own_heartbeat_line(tmp_path, capsys):
     age = la._stamp_age(lines[0])
     assert age is not None and 0 <= age < 0.01, lines[0]
     json.loads(captured.out)  # stdout stayed pure JSON — the stamp went to stderr
+
+
+def test_the_self_heartbeat_line_survives_the_crons_merged_streams(tmp_path):
+    """The installed line appends `>> log 2>&1`: a report larger than the stdout buffer was written
+    through with its trailing newline still BUFFERED, so the stderr stamp landed glued to the last
+    brace (`}2026-09-03 05:03:51 liveness-audit: …`) — never LOG_STAMP-shaped, the self-surface
+    UNKNOWN forever. Proven through ONE merged file the way cron sees it, with a report big enough
+    to overflow the buffer (DC1)."""
+    surfaces = [
+        {
+            "id": f"s{i}",
+            "kind": "cron",
+            "cron_match": f"never-matches-{i}",
+            "doc": "x.md",
+            "evidence": {"type": "none"},
+            "max_age_hours": 24,
+            "why": "x" * 120,
+        }
+        for i in range(80)
+    ]
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps({"surfaces": surfaces}), encoding="utf-8")
+    merged = tmp_path / "merged.log"
+    with merged.open("w", encoding="utf-8") as fh:
+        subprocess.run(
+            [
+                sys.executable,
+                la.__file__,
+                "--registry",
+                str(reg),
+                "--repo-root",
+                str(tmp_path),
+                "--proof",
+                "heartbeat",
+                "--json",
+            ],
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            check=True,
+            timeout=300,
+        )
+    text = merged.read_text(encoding="utf-8")
+    assert len(text) > 16384, len(text)  # the report must overflow the stdout buffer to prove it
+    lines = [ln for ln in text.splitlines() if la.SELF_MARKER in ln]
+    assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, lines

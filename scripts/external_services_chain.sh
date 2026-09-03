@@ -69,8 +69,9 @@ if [ "$core_failed" -eq 0 ]; then
     # the heartbeat is stamped HERE and nowhere else — after every step ran (CY1), via tmp + rename:
     # a bare `> "$HEARTBEAT"` truncated BEFORE `date` ran, so a failed write left a fresh EMPTY stamp
     # that read LIVE (DA3); a failed stamp keeps the previous one, alerts and exits 1 — it was the
-    # only failure in this script nobody was told about
-    if mkdir -p "$(dirname "$HEARTBEAT")" && date -u +%FT%TZ > "$HEARTBEAT.tmp.$$" && mv -f "$HEARTBEAT.tmp.$$" "$HEARTBEAT"; then :; else
+    # only failure in this script nobody was told about; `-T`: a DIRECTORY at the stamp path fails the
+    # rename instead of receiving the tmp inside it and reading LIVE by its own mtime forever (DC2)
+    if mkdir -p "$(dirname "$HEARTBEAT")" && date -u +%FT%TZ > "$HEARTBEAT.tmp.$$" && mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"; then :; else
       rm -f "$HEARTBEAT.tmp.$$"
       chain_failed=1
       echo "[external-services-chain] heartbeat NOT stamped ($HEARTBEAT) — liveness will read DEAD"

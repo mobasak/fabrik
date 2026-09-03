@@ -51,13 +51,13 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
     gated = re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then\n\s*if _step gen_dashboard [^\n]*; then\n(?:\s*#[^\n]*\n)*'
-        r'\s*if mkdir -p [^\n]*&& date -u [^\n]*> "\$HEARTBEAT\.tmp\.\$\$" && mv -f "\$HEARTBEAT\.tmp\.\$\$" "\$HEARTBEAT"; then',
+        r'\s*if mkdir -p [^\n]*&& date -u [^\n]*> "\$HEARTBEAT\.tmp\.\$\$" && mv -fT "\$HEARTBEAT\.tmp\.\$\$" "\$HEARTBEAT"; then',
         text,
     )
     assert gated, "gen_dashboard must be gated on the data steps and the heartbeat stamped after it"
     # one writer, and it is the RENAME: a bare `> "$HEARTBEAT"` truncates before `date` runs, so a
     # failed write left a fresh empty stamp that read LIVE (DA3)
-    assert text.count('mv -f "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
+    assert text.count('mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
     code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
     assert '> "$HEARTBEAT"' not in code, "no direct (truncating) writer"
     # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
@@ -147,8 +147,8 @@ def test_liveness_registry_declares_the_chain_heartbeat():
         stamp and stamp.group(1),
     )
     assert 24 <= s["max_age_hours"] <= 48  # a daily run, with slack for a late cron
-    # the auditor audits ITSELF: its installed weekly cron line lacked `cd /opt/fabrik` and failed
-    # on every scheduled run for three weeks with nothing watching the watcher (DA1)
+    # the auditor audits ITSELF: its installed weekly cron line lacks `cd /opt/fabrik`: its only
+    # scheduled attempt failed with nothing watching the watcher (DA1)
     me = [s for s in reg["surfaces"] if s["id"] == "liveness-audit"]
     assert len(me) == 1 and me[0]["cron_match"] == "liveness_audit.py", me
     assert me[0]["evidence"]["type"] == "log_marker"
@@ -156,9 +156,9 @@ def test_liveness_registry_declares_the_chain_heartbeat():
     marker = re.search(r'^SELF_MARKER = "([^"]+)"', la, re.M)
     assert marker and me[0]["evidence"]["marker"] == marker.group(1), (me[0]["evidence"], marker)
     assert 168 < me[0]["max_age_hours"] <= 336  # weekly, one missed Monday of slack
-    assert re.search(r'PROPOSED_CRON = \(\n\s*"40 6 \* \* 1 ', la), (
-        "the proposed cron line must cd into the repo first — a relative .venv path is what broke it"
-    )
+    assert re.search(
+        r'PROPOSED_CRON = \(\n\s*"40 6 \* \* 1 cd /opt/fabrik && \.venv/bin/python ', la
+    ), "the proposed cron line must cd into the repo first — a relative .venv path is what broke it"
 
 
 def _load_gen_dashboard():
@@ -193,7 +193,7 @@ def test_gen_dashboard_writes_the_named_output(tmp_path, monkeypatch):
 
 def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     """The page goes to a tmp path and is `os.replace`d into place; a write that dies mid-stream
-    leaves the old file untouched (the mtime IS the heartbeat). Discriminating: the pre-fix
+    leaves the old file untouched (a half-written dashboard is never served). Discriminating: the pre-fix
     `out.write_text(render(rows))` makes no `os.replace` call and truncates the target (H9)."""
     gd = _load_gen_dashboard()
     monkeypatch.setattr(gd, "load", lambda: [])
@@ -423,16 +423,26 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         tails = re.findall(r'^\s*LOG_FILE="\$FABRIK_ROOT(/[^"]+)"', text_e, re.M)
         assert tails, f"{entry.name} sets no LOG_FILE under FABRIK_ROOT"
         log_paths += [root.group(1) + tail for tail in tails]
+    # EVERY alert body the script sends is graded — the heartbeat alert (DA3) sat outside the
+    # step-alert regex and could grow past 500 or carry a `_` unnoticed (DC2)
+    bodies = re.findall(r'_alert "[^"]*" "([^"]*)"', text)
+    assert len(bodies) == 2 and body in bodies, bodies
+    heartbeat = re.search(r'^HEARTBEAT="\$FABRIK_ROOT(/[^"]+)"', text, re.M).group(1)
+    for b in bodies:
+        fixed_b = re.sub(r"\$\{?[A-Za-z_]+\}?", "", b)
+        assert "*" not in fixed_b and "_" not in fixed_b, fixed_b
     for label in _steps(text):
         for log_path in log_paths:
             hb = hb_classify.group(1) if label == "classify_services" else hb_default.group(1)
-            rendered = (
-                body.replace("$label", label)
-                .replace("$rc", "137")
-                .replace("$LOG_FILE", log_path)
-                .replace("$hb", hb)
-            )
-            assert len(rendered) <= 500, (label, log_path, len(rendered))
+            for b in bodies:
+                rendered = (
+                    b.replace("$label", label)
+                    .replace("$rc", "137")
+                    .replace("$LOG_FILE", log_path)
+                    .replace("$hb", hb)
+                    .replace("$HEARTBEAT", "/opt/fabrik" + heartbeat)
+                )
+                assert len(rendered) <= 500, (label, log_path, len(rendered))
     # the doc's exit-1 count is COUNTED against its own clauses, never pinned as a phrase (CJ4 fixed
     # the instance; a fifth clause under "one of four" passed a substring pin — CM2)
     sentence = re.search(r"exit 1 — one of (\w+): (.*?); never a degraded", doc, re.S)
@@ -601,4 +611,14 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert r.returncode == 1 and "heartbeat NOT stamped" in calls, (r.returncode, calls)
     assert stamp.read_text(encoding="utf-8").strip() == "2026-08-01T00:00:00Z"
     assert int(stamp.stat().st_mtime) == 1_700_000_000, "a failed write must not freshen the stamp"
+    assert list(stamp.parent.glob("chain-heartbeat.tmp.*")) == []
+    # 7. a DIRECTORY at the stamp path: `mv -f` would move the tmp INSIDE it and the audit would age
+    # the directory's own mtime — LIVE forever; `-T` refuses, alerted, exit 1 (DC2)
+    log.write_text("", encoding="utf-8")
+    stamp.unlink()
+    stamp.mkdir()
+    r = subprocess.run(["bash", str(CHAIN)], env=env, capture_output=True, text=True)
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and "heartbeat NOT stamped" in calls, (r.returncode, calls)
+    assert stamp.is_dir() and list(stamp.iterdir()) == [], list(stamp.iterdir())
     assert list(stamp.parent.glob("chain-heartbeat.tmp.*")) == []
