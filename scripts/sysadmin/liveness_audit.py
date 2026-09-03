@@ -2084,9 +2084,14 @@ def main(argv: list[str] | None = None) -> int:
     # flush=True: under the cron's `>> log 2>&1` a report larger than the stdout buffer was written
     # through with its trailing newline still buffered, so the stderr stamp landed GLUED to the last
     # brace — never LOG_STAMP-shaped, the self-surface UNKNOWN forever (DC1)
-    undeliverable = False
+    undeliverable = (
+        sys.stdout is None
+    )  # `1>&-`: print() silently no-ops on a None stdout — the report went nowhere (DK2)
     try:
-        print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
+        if not undeliverable:
+            print(
+                json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True
+            )
     except (
         BrokenPipeError
     ):  # the reader left (`| head`): its choice, not a failure — the stamp is still owed (DE2/DG1)

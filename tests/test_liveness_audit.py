@@ -930,6 +930,36 @@ def test_a_dead_merged_pipe_and_a_full_disk_never_raise_either(tmp_path):
         assert proc.wait(timeout=300) == 1
 
 
+def test_a_closed_stdout_is_an_undeliverable_report(tmp_path):
+    """`1>&-`: `print()` silently no-ops on a None stdout, so the report went nowhere while the run
+    exited 0 and STAMPED "report generated" — vacuous evidence, the mirror of DI2 (DK2). Exit 1,
+    the stamp still lands."""
+    reg = _big_registry(tmp_path, 40)
+    argv = [
+        sys.executable,
+        la.__file__,
+        "--registry",
+        str(reg),
+        "--repo-root",
+        str(tmp_path),
+        "--proof",
+        "heartbeat",
+        "--json",
+    ]
+    proc = subprocess.run(
+        argv,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        timeout=300,
+        preexec_fn=lambda: os.close(1),
+    )
+    err = proc.stderr.decode("utf-8", "replace")
+    assert proc.returncode == 1, err
+    assert "Traceback" not in err, err
+    lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
+    assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+
+
 def test_a_closed_stderr_never_corrupts_the_report(tmp_path):
     """`2>&-` leaves `sys.stderr` None: `print(file=None)` falls back to STDOUT, so the stamp was
     appended to the JSON report (unparseable), and the dead-stderr guard itself raised

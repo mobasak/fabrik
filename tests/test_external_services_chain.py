@@ -647,3 +647,32 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert r.returncode == 1 and "heartbeat NOT stamped" in calls, (r.returncode, calls)
     assert stamp.is_dir() and list(stamp.iterdir()) == [], list(stamp.iterdir())
     assert list(stamp.parent.glob("chain-heartbeat.tmp.*")) == []
+
+
+def test_every_web_tools_literal_names_real_tools_not_providers():
+    """`web_tools=` takes TOOL names (`web_search`, `web_search_brave`, `web_scrape`, `web_crawl`,
+    `docs_lookup`); the pool loop advertises only names it knows. The classifier passed the
+    PROVIDER names `{"exa", "brave"}`, so its paid "research" units ran with NO web tools — one
+    turn of model recall each, 10 of 10 on the first production run, the root of the `argusmedia`
+    misfile (DK1). The corpus gate checks only `commands/` markdown and only `[...]` literals; this
+    is the same check over every Python caller in the repo."""
+    sys.path.insert(0, str(REPO))
+    from libs.subagents.web_tools import WEB_TOOL_NAMES
+
+    pat = re.compile(r"web_tools\s*=\s*(?:frozenset\(|set\()?\s*[\[{(]([^\]})]*)[\]})]")
+    seen = 0
+    for path in list((REPO / "scripts").rglob("*.py")) + list((REPO / "libs").rglob("*.py")):
+        if "/tests/" in str(path) or "/.archive/" in str(path) or "/archived/" in str(path):
+            continue
+        if (
+            path.name == "check_command_corpus.py"
+        ):  # its docstring quotes the wrong shape on purpose
+            continue
+        for m in pat.finditer(path.read_text(encoding="utf-8", errors="replace")):
+            names = re.findall(r"[\"']([^\"']+)[\"']", m.group(1))
+            if not names:
+                continue
+            seen += 1
+            bad = [n for n in names if n not in WEB_TOOL_NAMES]
+            assert not bad, (str(path.relative_to(REPO)), bad, sorted(WEB_TOOL_NAMES))
+    assert seen >= 1, "the classifier's literal must be in the sweep"

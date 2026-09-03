@@ -777,9 +777,47 @@ def test_the_run_prints_and_persists_its_pool_cost(tmp_path, monkeypatch, capsys
     ]
     _cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
     assert cs.main() == 0
-    assert "pool cost this run: $0.0300 (2 unit(s))" in capsys.readouterr().out
+    assert "pool cost this run: $0.0300 (2 unit(s), 0 unknown)" in capsys.readouterr().out
     last = json.loads((state / "l.json").read_text(encoding="utf-8"))
-    assert last["cost_usd"] == 0.03 and last["units"] == 2, last
+    assert last["cost_usd"] == 0.03 and last["units"] == 2 and last["cost_unknown_units"] == 0, last
+
+
+def test_an_unknown_or_malformed_cost_never_loses_the_batch(tmp_path, monkeypatch, capsys):
+    """After the paid dispatch and before the merge, an unguarded `float()` on a malformed cost
+    raised out of `main` — the batch lost, the cursor already moved; an unknown cost (the library's
+    `None`) was reported as $0.00; a NaN wrote invalid JSON (DK2). Only finite numbers are summed,
+    unknowns are counted."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+        '#svc name=bar category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BAR_API_KEY=y\n"
+        '#svc name=baz category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BAZ_API_KEY=z\n"
+    )
+    answer = {
+        "category": "search",
+        "cost": "paid",
+        "capability": "x",
+        "url": "https://x.io",
+        "status": "active",
+    }
+    res = [
+        _Res(json.dumps({"name": "foo", **answer}), cost_usd="n/a"),
+        _Res(json.dumps({"name": "bar", **answer}), cost_usd=None),
+        _Res(json.dumps({"name": "baz", **answer}), cost_usd=float("nan")),
+    ]
+    cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.main() == 0
+    assert "pool cost this run: $0.0000 (3 unit(s), 3 unknown)" in capsys.readouterr().out
+    last = json.loads((state / "l.json").read_text(encoding="utf-8"))  # parses: no bare NaN
+    assert last["cost_usd"] == 0 and last["cost_unknown_units"] == 3 and last["units"] == 3
+    assert set(json.loads(cat.read_text(encoding="utf-8"))) >= {
+        "foo",
+        "bar",
+        "baz",
+    }  # the batch landed
 
 
 def test_identified_code_only_providers_get_no_match_prefix(tmp_path, monkeypatch):

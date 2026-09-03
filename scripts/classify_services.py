@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/service_catalog.json
+# AFTER-EDIT: scripts/service_catalog.json scripts/tests/test_gather_envs.py docs/reference/external-services-registry.md
 """Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
 
 For every NEEDS-TRIAGE provider in secrets/all-envs.env, dispatch ONE cheap pool research
@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import math
 import os
 import re
 import sys
@@ -393,7 +394,9 @@ def main() -> int:
         project="service-catalog",
         mode="read_only",
         k=1,
-        web_tools=frozenset({"exa", "brave"}),
+        web_tools=frozenset(
+            {"web_search", "web_search_brave"}
+        ),  # TOOL names (exa + brave engines), never provider names: `{"exa", "brave"}` advertised NO tools and every unit was one turn of model recall (DK1)
         max_turns=6,
         max_cost_usd=0.20,
         system=methodology("research"),
@@ -402,8 +405,19 @@ def main() -> int:
     proposals, errored = build_proposals(names, results)
     # the run's pool spend, printed and persisted: the first production run billed 10 units and no
     # log, alert or dashboard carried a cost figure (DI3)
-    cost_usd = round(sum(float(getattr(r, "cost_usd", 0) or 0) for r in results), 4)
-    print(f"pool cost this run: ${cost_usd:.4f} ({len(results)} unit(s))")
+    costs = [getattr(r, "cost_usd", None) for r in results]
+    known = [
+        c
+        for c in costs
+        if isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c)
+    ]
+    cost_usd = round(
+        float(sum(known)), 6
+    )  # only FINITE numbers: a string raised after the paid dispatch, NaN wrote invalid JSON (DK2)
+    cost_unknown = len(costs) - len(
+        known
+    )  # the library reports an unknown cost as None — never $0.00 (DK2)
+    print(f"pool cost this run: ${cost_usd:.4f} ({len(results)} unit(s), {cost_unknown} unknown)")
     for prov, r in zip(names, results, strict=True):
         # the flywheel sees the ENUM verdict, not the raw answer (AU5)
         score = 5 if _enum_category(proposals[prov].get("category")) != "?" else 2
@@ -644,6 +658,7 @@ def main() -> int:
             "tombstoned": sorted(tombstoned_names),
             "errored": sorted(errored),
             "cost_usd": cost_usd,
+            "cost_unknown_units": cost_unknown,
             "units": len(results),
         },
     )
