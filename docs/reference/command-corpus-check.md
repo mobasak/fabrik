@@ -105,18 +105,23 @@ predicate then uses come from the import, so a bytecode cache whose header still
 same-second, same-size rewrite is the measured residual — 0 today). A failure that ended inside the
 import machinery (a torn bytecode cache: EOFError inside frozen importlib — no source frame, only
 the target's own import line as the last frame, or CPython naming the `.pyc` in `exc.path`) is
-attributed by asking the caches themselves, in the order the import executes them — the parent
-package's modules, then every module under the target's package (recursively), the target last —
-counting only a cache CPython would LOAD (its own validators decide: header, flags, the source
-hash for a hash-based cache, mtime and size for a timestamp one; the source is read only for a
-hash-based cache): EVERY torn cache is named, the target among them ⇒ a block, else an advisory
-naming the first, the remedy listing every `__pycache__` to delete; when no cache is torn the
-frame's attribution stands. When the frame names the target itself and the failure is one a broken
-SOURCE produces (a SyntaxError with no filename and stripped frames, an OSError, an ImportError that
-did not name the target), the sibling sources get the same read-and-compile check — a NUL-padded
-or directory-shaped sibling is named instead of the target; a RuntimeError raised inside the target,
-or an ImportError whose own `path` is the target, stays the target's problem however broken an
-unrelated sibling may be. Every failure text is scrubbed of the repo prefix and
+attributed by asking the caches of the modules the import EXECUTES — the population is the
+target's import CLOSURE, derived by AST from the sources' own import statements (the package
+`__init__.py` chain, then every module a `from .x import` / `import libs.subagents.x` reaches,
+recursively; a sourceless `.pyc` counts), never a directory listing, so a broken file nobody
+imports can never take the blame — counting only a cache CPython would LOAD (its own validators
+decide: header, flags, the source hash for a hash-based cache, mtime and size for a timestamp one;
+a drifted private API falls back to the same rules hand-written; the source is read only for a
+hash-based cache): EVERY torn cache is named repo-relatively, the target among them ⇒ a block,
+else an advisory naming the first, the remedy listing every `__pycache__` to delete (a sourceless
+`.pyc` is named as the artifact to replace); when no cache is torn the frame's attribution stands.
+When the frame names the target itself and the failure is one a broken SOURCE produces (a
+SyntaxError with no filename and stripped frames, an OSError, an ImportError that did not name the
+target), the closure's sources get the same read-and-compile check — a NUL-padded or
+directory-shaped module the target imports is named instead of the target (every broken one is
+listed); a failure raised by the target itself stays the target's problem however broken an
+unrelated file may be, because only a module the target's own import statements reach can take
+the blame. Every failure text is scrubbed of the repo prefix and
 of the operator's home (`~/…`) before it is printed. A failure the file did not cause
 is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
 renamed constant names the target; a broken sibling's import names the sibling); any exception

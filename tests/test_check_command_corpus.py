@@ -1082,6 +1082,80 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     dppyc = Path(importlib.util.cache_from_source(str(dp)))
     py_compile.compile(str(dp), cfile=str(dppyc), doraise=True)
     dppyc.write_bytes(dppyc.read_bytes()[:20])
+    # the CLOSURE, not the directory: a target that raises ImportError / opens a missing file /
+    # imports a missing sibling, beside an UNRELATED NUL-padded file nobody imports (in the
+    # package or in the parent package) — every one stays the target's BLOCK (ES1)
+    for name, body in (
+        ("raiseimp_nul", "raise ImportError('vendor sync broke')\n"),
+        (
+            "oserr_nul",
+            'open("definitely_missing_cfg_xyz.yaml")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        ),
+        ("missingsib_nul", 'from .nope import x\nWEB_TOOL_NAMES = frozenset({"web_search"})\n'),
+    ):
+        _fake_hub(tmp_path / name, body, extra={"libs/subagents/other.py": "X = 1\n"})
+        (tmp_path / name / "libs" / "subagents" / "other.py").write_bytes(b"X = 1\n\x00\n")
+    _fake_hub(
+        tmp_path / "parentbroken",
+        "raise ImportError('vendor sync broke')\n",
+        extra={"libs/cost_budget.py": "X = 1\n"},
+    )
+    (tmp_path / "parentbroken" / "libs" / "cost_budget.py").write_bytes(b"X = 1\n\x00\n")
+    # a SOURCELESS sibling `.pyc` (tools.py deleted): a non-code body → CPython names the pyc in
+    # exc.path — an advisory naming the file itself as the artifact; a torn body → the frameless
+    # EOFError — the closure holds the sourceless module (ES1)
+    for name in ("noncode_sourceless", "sourceless_torn"):
+        _fake_hub(
+            tmp_path / name,
+            'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+            tools_body="H = 1\n",
+        )
+        tsrc = tmp_path / name / "libs" / "subagents" / "tools.py"
+        tpyc = tsrc.with_suffix(".pyc")
+        py_compile.compile(str(tsrc), cfile=str(tpyc), doraise=True)
+        tsrc.unlink()
+        raw = tpyc.read_bytes()
+        tpyc.write_bytes(
+            raw[:16] + marshal.dumps([1, 2, 3]) if name == "noncode_sourceless" else raw[:20]
+        )
+    # two nested same-named modules, both caches torn: both named repo-relatively, both dirs (ES1)
+    _fake_hub(
+        tmp_path / "twinutil",
+        'from .a.util.mod import A\nfrom .b.util.mod import B\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={f"libs/subagents/{d}/__init__.py": "" for d in ("a", "a/util", "b", "b/util")},
+    )
+    for d in ("a", "b"):
+        modp = tmp_path / "twinutil" / "libs" / "subagents" / d / "util" / "mod.py"
+        modp.write_text(f"{d.upper()} = 1\n", encoding="utf-8")
+        mp = Path(importlib.util.cache_from_source(str(modp)))
+        py_compile.compile(str(modp), cfile=str(mp), doraise=True)
+        mp.write_bytes(mp.read_bytes()[:20])
+    # a NUL-padded imported sibling beside a FIFO / a second NUL file that sort first but are not
+    # in the closure: the imported one is named (ES1)
+    _fake_hub(
+        tmp_path / "fifofirst",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="H = 1\n",
+    )
+    (tmp_path / "fifofirst" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
+    os.mkfifo(tmp_path / "fifofirst" / "libs" / "subagents" / "aaa_fifo.py")
+    _fake_hub(
+        tmp_path / "twobroken",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="H = 1\n",
+        extra={"libs/subagents/aaa.py": "A = 1\n"},
+    )
+    (tmp_path / "twobroken" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
+    (tmp_path / "twobroken" / "libs" / "subagents" / "aaa.py").write_bytes(b"A = 1\n\x00\n")
+    # TWO imported modules broken: both named, so fixing the first never runs into the second (ES1)
+    _fake_hub(
+        tmp_path / "twoimported",
+        'from .tools import H\nfrom .bbb import B\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="H = 1\n",
+        extra={"libs/subagents/bbb.py": "B = 1\n"},
+    )
+    (tmp_path / "twoimported" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
+    (tmp_path / "twoimported" / "libs" / "subagents" / "bbb.py").write_bytes(b"B = 1\n\x00\n")
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -1111,7 +1185,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1288,13 +1362,13 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         ]  # the exception's quoted path is scrubbed
     # a corrupt bytecode cache: a BLOCK on the target, blamed via the checker's own frame
     assert any(
-        "web_tools.py is present but unusable (bytecode cache of web_tools.py unloadable (EOFError"
+        "web_tools.py is present but unusable (bytecode cache of libs/subagents/web_tools.py unloadable (EOFError"
         in p
         for p in out["corruptpyc"]["problems"]
     ), out["corruptpyc"]
-    assert any("delete subagents/__pycache__" in p for p in out["corruptpyc"]["problems"]), out[
-        "corruptpyc"
-    ]
+    assert any("delete libs/subagents/__pycache__" in p for p in out["corruptpyc"]["problems"]), (
+        out["corruptpyc"]
+    )
     assert out["corruptpyc"]["skipped"] == [], out["corruptpyc"]
     # a missing data file opened at import: the module's own failure — a BLOCK
     assert any(
@@ -1306,7 +1380,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     assert not any("present but unusable" in p for p in out["sibpyc"]["problems"]), out["sibpyc"]
     assert (
         len(out["sibpyc"]["skipped"]) == 1
-        and "libs/subagents/__init__.py failed to import (bytecode cache of __init__.py unloadable (EOFError"
+        and "libs/subagents/__init__.py failed to import (bytecode cache of libs/subagents/__init__.py unloadable (EOFError"
         in out["sibpyc"]["skipped"][0]
     ), out["sibpyc"]
     # a zero-byte target cache beside a torn parent cache: the PARENT is named, not the target
@@ -1315,7 +1389,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     ]
     assert (
         len(out["zerotarget"]["skipped"]) == 1
-        and "libs/__init__.py failed to import (bytecode cache of __init__.py unloadable (EOFError"
+        and "libs/__init__.py failed to import (bytecode cache of libs/__init__.py unloadable (EOFError"
         in out["zerotarget"]["skipped"][0]
     ), out["zerotarget"]
     assert "delete libs/__pycache__" in out["zerotarget"]["skipped"][0], out["zerotarget"]
@@ -1325,7 +1399,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     ]
     assert (
         len(out["sibtoolspyc"]["skipped"]) == 1
-        and "libs/subagents/tools.py failed to import (bytecode cache of tools.py unloadable (EOFError"
+        and "libs/subagents/tools.py failed to import (bytecode cache of libs/subagents/tools.py unloadable (EOFError"
         in out["sibtoolspyc"]["skipped"][0]
     ), out["sibtoolspyc"]
     # a raising sibling beside another sibling's torn cache: the raise is named, not the cache
@@ -1361,17 +1435,18 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     ]
     assert (
         len(out["staletarget"]["skipped"]) == 1
-        and "bytecode cache of __init__.py unloadable" in out["staletarget"]["skipped"][0]
+        and "bytecode cache of libs/__init__.py unloadable" in out["staletarget"]["skipped"][0]
     ), out["staletarget"]
     # a non-code body in the target's own cache: a BLOCK, never an advisory on the pyc's path
     assert any(
-        "web_tools.py is present but unusable (bytecode cache of web_tools.py unloadable" in p
+        "web_tools.py is present but unusable (bytecode cache of libs/subagents/web_tools.py unloadable"
+        in p
         for p in out["noncode"]["problems"]
     ), out["noncode"]
     # both caches torn: a BLOCK naming both, the remedy naming both dirs
     assert any(
-        "bytecode cache of __init__.py, web_tools.py unloadable" in p
-        and "delete libs/__pycache__, subagents/__pycache__" in p
+        "bytecode cache of libs/__init__.py, libs/subagents/web_tools.py unloadable" in p
+        and "delete libs/__pycache__, libs/subagents/__pycache__" in p
         for p in out["bothtorn"]["problems"]
     ), out["bothtorn"]
     # an unrelated broken sibling never steals the target's own blame: still a BLOCK on the target
@@ -1390,9 +1465,54 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     assert not any("present but unusable" in p for p in out["deeppyc"]["problems"]), out["deeppyc"]
     assert (
         len(out["deeppyc"]["skipped"]) == 1
-        and "bytecode cache of deep.py unloadable" in out["deeppyc"]["skipped"][0]
-        and "delete sub/__pycache__" in out["deeppyc"]["skipped"][0]
+        and "bytecode cache of libs/subagents/sub/deep.py unloadable"
+        in out["deeppyc"]["skipped"][0]
+        and "delete libs/subagents/sub/__pycache__" in out["deeppyc"]["skipped"][0]
     ), out["deeppyc"]
+    # the closure: an unrelated NUL file (package or parent package) never takes the target's blame
+    for hub in ("raiseimp_nul", "oserr_nul", "missingsib_nul", "parentbroken"):
+        assert any("web_tools.py is present but unusable" in p for p in out[hub]["problems"]), (
+            hub,
+            out[hub],
+        )
+        assert out[hub]["skipped"] == [], (hub, out[hub])
+    # a sourceless sibling pyc: named as the artifact itself, with a remedy that fits
+    assert (
+        len(out["noncode_sourceless"]["skipped"]) == 1
+        and "bytecode cache of libs/subagents/tools.pyc unloadable"
+        in out["noncode_sourceless"]["skipped"][0]
+        and "replace libs/subagents/tools.pyc" in out["noncode_sourceless"]["skipped"][0]
+    ), out["noncode_sourceless"]
+    assert not any("present but unusable" in p for p in out["sourceless_torn"]["problems"]), out[
+        "sourceless_torn"
+    ]
+    assert (
+        len(out["sourceless_torn"]["skipped"]) == 1
+        and "bytecode cache of libs/subagents/tools.pyc unloadable"
+        in out["sourceless_torn"]["skipped"][0]
+    ), out["sourceless_torn"]
+    # two same-named nested modules: both named, both cache dirs, repo-relative
+    tw = (
+        out["twinutil"]["skipped"][0]
+        if out["twinutil"]["skipped"]
+        else " ".join(out["twinutil"]["problems"])
+    )
+    assert (
+        "libs/subagents/a/util/mod.py, libs/subagents/b/util/mod.py unloadable" in tw
+        and "delete libs/subagents/a/util/__pycache__, libs/subagents/b/util/__pycache__" in tw
+    ), out["twinutil"]
+    # the imported broken sibling is named, never a FIFO or NUL file outside the closure
+    for hub in ("fifofirst", "twobroken"):
+        assert (
+            len(out[hub]["skipped"]) == 1
+            and "libs/subagents/tools.py failed to import" in out[hub]["skipped"][0]
+        ), (hub, out[hub])
+        assert "aaa" not in out[hub]["skipped"][0], (hub, out[hub])
+    assert (
+        len(out["twoimported"]["skipped"]) == 1
+        and "libs/subagents/tools.py failed to import" in out["twoimported"]["skipped"][0]
+        and "(also broken: libs/subagents/bbb.py)" in out["twoimported"]["skipped"][0]
+    ), out["twoimported"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1718,3 +1838,34 @@ def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path, monkeyp
         pyc.read_bytes()[:16] + marshal.dumps(42)
     )  # a non-code body: CPython raises ImportError
     assert ccc._bad_cache_owners(src) == [src]
+
+
+def test_cpythons_validators_are_bound_on_this_interpreter_and_a_drifted_api_falls_back(
+    tmp_path, monkeypatch
+):
+    """The primary path must be LIVE on CPython (pinning `_be = None` forever kept the suite
+    green); a private validator whose signature drifted on a future CPython falls back to the
+    manual rules instead of taking the gate down (ES1)."""
+    import importlib.util
+    import py_compile
+    import types as _t
+
+    import check_command_corpus as ccc
+
+    assert (
+        ccc._be is not None
+        and callable(getattr(ccc._be, "_classify_pyc", None))
+        and callable(getattr(ccc._be, "_validate_timestamp_pyc", None))
+    )
+    (tmp_path / "libs" / "subagents").mkdir(parents=True)
+    src = tmp_path / "libs" / "subagents" / "web_tools.py"
+    src.write_text("WEB_TOOL_NAMES = frozenset()\n", encoding="utf-8")
+    pyc = Path(importlib.util.cache_from_source(str(src)))
+    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
+    pyc.write_bytes(pyc.read_bytes()[:20])
+    drifted = _t.SimpleNamespace(
+        _classify_pyc=lambda data, name, details: 0,
+        _validate_timestamp_pyc=lambda data, stats, name: None,
+    )
+    monkeypatch.setattr(ccc, "_be", drifted)
+    assert ccc._bad_cache_owners(src) == [src]  # the manual rules still see the torn body

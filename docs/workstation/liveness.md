@@ -75,6 +75,7 @@ presence either. Neuter that one function and 6 tests go red, headline first
   absence is reported; an unreachable user bus is UNKNOWN (failure 3's shape exactly —
   `ai.traycer.host.service` is `not-found` system-wide and `enabled` under `--user`).
 - Remote docker probes use `sudo docker`, and a permission failure is UNKNOWN, never absence (failure 3).
+- A stamp dated in the FUTURE (a clock jump after resume, a restored backup, a stray `touch`) gives a negative age; it is UNKNOWN ("a NEGATIVE age (clock skew or a rewritten stamp): not trusted"), never LIVE — the same one-minute jitter tolerance the audit's own canary applies to its own file, applied to every `log`/`log_marker` surface (review 2026-09-03, EQ3/ES3).
 
 ---
 

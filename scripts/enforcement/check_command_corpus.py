@@ -61,6 +61,7 @@ that cannot fail is not a check.
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import marshal
 import re
@@ -188,8 +189,17 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
             owners = _bad_cache_owners(target)
             if owners:
                 blame = str(target) if target in owners else str(owners[0])
-                names = ", ".join(o.name for o in owners)
-                dirs = ", ".join(sorted({f"{o.parent.name}/__pycache__" for o in owners}))
+                names = ", ".join(_display_path(str(o), repo) for o in owners)
+                dirs = ", ".join(
+                    sorted(
+                        {
+                            _display_path(str(o), repo)  # a sourceless .pyc IS the artifact
+                            if o.suffix == ".pyc"
+                            else _display_path(str(o.parent / "__pycache__"), repo)
+                            for o in owners
+                        }
+                    )
+                )
                 failure = f"bytecode cache of {names} unloadable ({failure}) — delete {dirs}"
             elif frameless:
                 blame = ""
@@ -202,18 +212,31 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
             # did not name the target itself): a sibling it imports may be the broken one — NUL
             # bytes, a directory at its path, an unreadable file (EO1). A RuntimeError raised
             # inside the target, or an ImportError whose own `path` IS the target, is the
-            # target's — an unrelated broken sibling must never steal that blame (EQ1)
-            sib = _bad_source_owner(target)
-            if sib is not None:
-                blame = str(sib)
+            # target's; the closure population (ES1) is what makes an UNRELATED broken file unable
+            # to take the blame at all — this guard is the cheap first cut (EQ1)
+            sibs = _bad_source_owners(target)
+            if sibs:
+                blame = str(sibs[0])
+                if (
+                    len(sibs) > 1
+                ):  # every broken source named — fixing one must not run into the next
+                    failure += (
+                        " (also broken: "
+                        + ", ".join(_display_path(str(s), repo) for s in sibs[1:])
+                        + ")"
+                    )
         if blame.endswith(".pyc"):
             # a cache CPython named that the directory population did not hold: the remedy is
             # still the cache directory, never a bare `.pyc` "failed to import" (EQ1)
             try:
                 src = Path(importlib.util.source_from_cache(blame))
-            except ValueError:
+                remedy = f"delete {_display_path(str(Path(blame).parent), repo)}"
+            except (
+                ValueError
+            ):  # a SOURCELESS module: the file itself is the artifact, not a cache dir
                 src = Path(blame)
-            failure = f"bytecode cache of {src.name} unloadable ({failure}) — delete {Path(blame).parent.parent.name}/__pycache__"
+                remedy = f"replace {_display_path(blame, repo)}"
+            failure = f"bytecode cache of {_display_path(str(src), repo)} unloadable ({failure}) — {remedy}"
             blame = str(src)
         _IMPORT_FAILURE.append(_scrub(failure, repo))
         _IMPORT_BLAME.append(blame)
@@ -287,35 +310,108 @@ def _scrub(text: str, repo: Path) -> str:
 
 
 def _import_order(target: Path) -> list[Path]:
-    """The sources a failure of the target's import can involve, in a stable order that follows
-    the import's shape — the parent package's modules, then every module under the target's
-    package (recursively: a nested subpackage the target imports is executed too), the target
-    last. This is a DIRECTORY population, not the import graph: a module nobody imports is in
-    it, which is why a broken UNRELATED sibling may never steal the target's own blame (EQ1)."""
-    parents = sorted(target.parent.parent.glob("*.py"))
-    siblings = sorted(
-        p for p in target.parent.rglob("*.py") if p != target and "__pycache__" not in p.parts
-    )
-    return [*parents, *siblings, target]
+    """The modules the target's import EXECUTES, derived from the sources' own import statements
+    — never a directory listing: the package `__init__.py` chain above the target, then the
+    transitive closure of the relative (`from .x import`, `from .sub.deep import`) and absolute
+    (`libs.subagents.x`) imports found by AST in each executed source, the target last. A module
+    nobody imports is never in it, so a broken UNRELATED file can never take the target's blame
+    (EQ1/ES1). A sourceless `.pyc` (no `.py` beside it) counts as a module."""
+    root = target.parent.parent
+    seen: list[Path] = []
+
+    def add(p: Path) -> None:
+        if p not in seen and p != target:
+            seen.append(p)
+
+    def resolve(name: str, level: int, frm: Path) -> list[Path]:
+        if level:
+            base = frm.parent
+            for _ in range(level - 1):
+                base = base.parent
+            parts = name.split(".") if name else []
+        else:
+            parts = name.split(".")
+            if not parts or parts[0] != root.name:
+                return []
+            base, parts = root.parent, parts
+        out: list[Path] = []
+        walk = base
+        for part in parts[:-1]:
+            walk = walk / part
+            if (walk / "__init__.py").is_file():
+                out.append(walk / "__init__.py")
+        cand = base.joinpath(*parts) if parts else base
+        if (
+            parts and cand.with_suffix(".py").exists()
+        ):  # a DIRECTORY at the module path is the broken module itself
+            out.append(cand.with_suffix(".py"))
+        elif (cand / "__init__.py").is_file():
+            out.append(cand / "__init__.py")
+        elif parts and cand.with_suffix(".pyc").is_file():
+            out.append(cand.with_suffix(".pyc"))
+        return out
+
+    for pkg in (root / "__init__.py", target.parent / "__init__.py"):
+        if pkg.is_file():
+            add(pkg)
+    stack: list[Path] = [*seen, target]
+    while stack:
+        cur = stack.pop(0)
+        add(cur)
+        if cur.suffix != ".py":
+            continue
+        try:
+            tree = ast.parse(cur.read_bytes())
+        except Exception:  # noqa: BLE001 - a source that does not parse imports nothing we can see
+            continue
+        for node in ast.walk(tree):
+            mods: list[Path] = []
+            if isinstance(node, ast.ImportFrom):
+                mods += resolve(node.module or "", node.level, cur)
+                if node.level or (node.module or "").startswith(root.name):
+                    for alias in node.names:  # `from .pkg import sub` — sub may be a module
+                        stem = f"{node.module}.{alias.name}" if node.module else alias.name
+                        mods += resolve(stem, node.level, cur)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    mods += resolve(alias.name, 0, cur)
+            for mod in mods:
+                if mod not in seen and mod not in stack and mod != target:
+                    stack.append(mod)
+    return [*seen, target]
 
 
-def _cache_would_fail(src: Path) -> bool:
-    """Would CPython FAIL on this source's bytecode cache? Decided by CPython's own validators
-    (`importlib._bootstrap_external`): a cache it REJECTS — a short or foreign header, reserved
-    flag bits, a timestamp header that no longer matches the source, a checked hash that no
-    longer matches — is silently recompiled from source and never fails; a cache it ACCEPTS
-    whose body cannot be unmarshalled or is not a code object raises inside frozen importlib
-    (EM1/EO1). The SOURCE is read only for a hash-based cache, as CPython does — a timestamp
-    cache beside an unreadable source still loads (EQ1). A hand-written header check
-    implemented three of CPython's five conditions."""
-    pyc = Path(importlib.util.cache_from_source(str(src)))
-    if not pyc.is_file():
+def _manual_cache_accepted(data: bytes, st: object, src: Path) -> bool:
+    """CPython's cache-acceptance conditions, hand-written — the fallback for an interpreter
+    without (or with a drifted) `importlib._bootstrap_external` (EQ1/ES1)."""
+    if len(data) < 16 or data[:4] != importlib.util.MAGIC_NUMBER:
         return False
-    try:
-        data = pyc.read_bytes()
-        st = src.stat()
-    except OSError:
+    flags = int.from_bytes(data[4:8], "little")
+    if flags & ~0b11:
         return False
+    if src.suffix == ".pyc":  # sourceless: magic and flags only
+        return True
+    if (
+        flags == 0
+        and (
+            int.from_bytes(data[8:12], "little") != int(st.st_mtime) & 0xFFFFFFFF  # type: ignore[attr-defined]
+            or int.from_bytes(data[12:16], "little") != st.st_size & 0xFFFFFFFF  # type: ignore[attr-defined]
+        )
+    ):
+        return False
+    if flags & 0b10:
+        try:
+            return data[8:16] == importlib.util.source_hash(src.read_bytes())
+        except OSError:
+            return False
+    return True
+
+
+def _cache_accepted(data: bytes, st: object, src: Path) -> bool:
+    """Would CPython LOAD this cache (rather than recompile from source)? Its own validators
+    decide when present; a rejection (ImportError/EOFError) is "recompiled, never fails"; a
+    DRIFTED private API (a changed signature or exception type on a future CPython) falls back
+    to the manual rules — never a traceback out of a gate (ES1)."""
     validators = (
         getattr(_be, "_classify_pyc", None),
         getattr(_be, "_validate_timestamp_pyc", None),
@@ -323,8 +419,10 @@ def _cache_would_fail(src: Path) -> bool:
     if all(validators):
         classify, validate = validators
         try:
-            details = {"name": src.stem, "path": str(pyc)}
+            details = {"name": src.stem, "path": str(src)}
             flags = classify(data, src.stem, details)
+            if src.suffix == ".pyc":
+                return True  # sourceless: nothing to validate against
             if flags & 0b1:
                 if flags & 0b10:
                     try:
@@ -334,26 +432,30 @@ def _cache_would_fail(src: Path) -> bool:
                     if data[8:16] != importlib.util.source_hash(source):
                         return False
             else:
-                validate(data, int(st.st_mtime), st.st_size, src.stem, details)
+                validate(data, int(st.st_mtime), st.st_size, src.stem, details)  # type: ignore[attr-defined]
+            return True
         except (ImportError, EOFError):
-            return False  # rejected → recompiled from source, never a failure
-    else:  # the manual header rules — CPython's conditions, hand-written
-        if len(data) < 16 or data[:4] != importlib.util.MAGIC_NUMBER:
             return False
-        flags = int.from_bytes(data[4:8], "little")
-        if flags & ~0b11:
-            return False
-        if flags == 0 and (
-            int.from_bytes(data[8:12], "little") != int(st.st_mtime) & 0xFFFFFFFF
-            or int.from_bytes(data[12:16], "little") != st.st_size & 0xFFFFFFFF
-        ):
-            return False
-        if flags & 0b10:
-            try:
-                if data[8:16] != importlib.util.source_hash(src.read_bytes()):
-                    return False
-            except OSError:
-                return False
+        except Exception:  # noqa: BLE001 - the private API drifted: the manual rules, never a crash
+            pass
+    return _manual_cache_accepted(data, st, src)
+
+
+def _cache_would_fail(src: Path) -> bool:
+    """Would CPython FAIL on this module's bytecode cache? A cache it REJECTS is silently
+    recompiled and never fails; a cache it ACCEPTS whose body cannot be unmarshalled or is not a
+    code object raises inside frozen importlib (EM1/EO1). The SOURCE is read only for a
+    hash-based cache, as CPython does (EQ1). A sourceless `.pyc` module IS its own cache."""
+    pyc = src if src.suffix == ".pyc" else Path(importlib.util.cache_from_source(str(src)))
+    if not pyc.is_file():
+        return False
+    try:
+        data = pyc.read_bytes()
+        st = src.stat()
+    except OSError:
+        return False
+    if not _cache_accepted(data, st, src):
+        return False
     try:
         code = marshal.loads(data[16:])
     except Exception:  # noqa: BLE001 - a torn body
@@ -370,17 +472,17 @@ def _bad_cache_owners(target: Path) -> list[Path]:
     return [src for src in _import_order(target) if _cache_would_fail(src)]
 
 
-def _bad_source_owner(target: Path) -> Path | None:
-    """The first module in import order whose SOURCE cannot be read or compiled — the same
-    compile-first certainty `_target_is_broken` gives the target, applied to the siblings it
-    imports (a NUL-padded sibling raises a SyntaxError with no filename and stripped frames; a
-    directory at a sibling's path a ModuleNotFoundError in the importer) (EO1)."""
-    for src in _import_order(target):
-        if src == target:
-            continue
-        if _target_is_broken(src):
-            return src
-    return None
+def _bad_source_owners(target: Path) -> list[Path]:
+    """Every module in the target's import closure whose SOURCE cannot be read or compiled — the
+    same compile-first certainty `_target_is_broken` gives the target, applied to what the
+    target's own import statements reach (a NUL-padded sibling raises a SyntaxError with no
+    filename and stripped frames; a directory at a sibling's path a ModuleNotFoundError in the
+    importer). All of them, so fixing one never runs into the next (EO1/ES1)."""
+    return [
+        src
+        for src in _import_order(target)
+        if src != target and src.suffix == ".py" and _target_is_broken(src)
+    ]
 
 
 def _shape_problem(value: object) -> str | None:

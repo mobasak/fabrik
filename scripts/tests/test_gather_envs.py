@@ -3082,5 +3082,57 @@ def test_a_fresh_identification_never_merges_into_a_tombstoned_target(tmp_path, 
     out = json.loads(cat.read_text(encoding="utf-8"))
     assert out["vendorx"]["category"] == "unidentified", out  # the stub is untouched
     assert "merged_match" not in out["vendorx"], out
-    real = [k for k, v in out.items() if isinstance(v, dict) and v.get("category") == "search"]
-    assert real, out  # the paid identification landed as a real entry somewhere, not discarded
+    # the identification lands under the provider's OWN name, with the model's fields (ES4)
+    assert out["newprov"]["category"] == "search" and out["newprov"]["cost"] == "paid", out
+    assert out["newprov"]["url"] == "https://vendorx.example", out
+
+
+def test_a_curated_source_never_merges_into_a_tombstoned_target_either(tmp_path, monkeypatch):
+    """The guard must read the TARGET's status: with the source a curated `?` placeholder (its
+    own routing, not a tombstone) and the target a tombstone, the merge is still refused — a
+    guard that re-tested the SOURCE would let it through (ES4)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=newprov category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "NEWPROV_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "vendorx",
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "a real search engine",
+                    "url": "https://vendorx.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "newprov": {"category": "?", "capability": "?", "url": "?", "match": ["NEWPROV"]},
+                "vendorx": {
+                    "category": "unidentified",
+                    "capability": "web could not classify; add a real entry or remove the key",
+                    "match": ["VENDORX"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "merged_match" not in out["vendorx"], out
+    assert out["newprov"]["category"] == "search", out
+
+
+def test_a_host_that_merely_ends_with_localhost_is_not_our_own(tmp_path):
+    """`OWN_HOST_SUFFIXES` matches by DOTTED suffix; a bare `localhost` entry matched
+    `vendor.fakelocalhost` as our own and dropped it from the scan (ES4)."""
+    assert not ge.ignored_host("vendor.fakelocalhost")  # `attacker` itself is a placeholder label
+    assert ge.ignored_host("localhost")
+    assert ge.ignored_host("api.localhost")

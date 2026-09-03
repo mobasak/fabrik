@@ -1061,3 +1061,40 @@ def test_a_future_dated_stamp_is_unknown_never_live(tmp_path: Path) -> None:
     f = {x["id"]: x for x in out["findings"]}["future"]
     assert f["verdict"] == "UNKNOWN", f
     assert "NEGATIVE age" in f["detail"], f
+
+
+def test_the_negative_age_threshold_is_a_minute_not_a_day(tmp_path: Path) -> None:
+    """A stamp two HOURS in the future is UNKNOWN too — the tolerance is one minute of clock
+    jitter (the canary's own), never a day of slack that a widened constant would smuggle in
+    (ES3)."""
+    import os
+    import time
+
+    soon = tmp_path / "soon.log"
+    soon.write_text("ran\n")
+    os.utime(soon, (time.time() + 2 * 3600, time.time() + 2 * 3600))
+    jitter = tmp_path / "jitter.log"
+    jitter.write_text("ran\n")
+    os.utime(jitter, (time.time() + 20, time.time() + 20))  # twenty seconds ahead: jitter, LIVE
+    surfaces = [
+        {
+            "id": "soon",
+            "kind": "cron",
+            "cron_match": "job_s",
+            "evidence": {"type": "log", "path": str(soon)},
+            "max_age_hours": 24,
+        },
+        {
+            "id": "jitter",
+            "kind": "cron",
+            "cron_match": "job_j",
+            "evidence": {"type": "log", "path": str(jitter)},
+            "max_age_hours": 24,
+        },
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/job_s", "0 * * * * /opt/fabrik/job_j"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    out = la.proof_heartbeat(box, reg, "")
+    by_id = {x["id"]: x for x in out["findings"]}
+    assert by_id["soon"]["verdict"] == "UNKNOWN", by_id["soon"]
+    assert by_id["jitter"]["verdict"] == "LIVE", by_id["jitter"]

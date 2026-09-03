@@ -260,10 +260,9 @@ CODE_EXCLUDE_GLOBS = (
     "!/*/cache",
 )
 # Hosts that are never an external SYSTEM: the fleet's own domains + local/test TLDs.
-OWN_HOST_SUFFIXES = (
+OWN_HOST_SUFFIXES = (  # every entry dotted: a bare "localhost" matched `attacker.fakelocalhost` by suffix (ES4); the exact host `localhost` is the dotted entry's `lstrip(".")` case
     ".ocoron.com",
     ".ozgurbasak.com",
-    "localhost",
     ".local",
     ".localhost",
     ".test",

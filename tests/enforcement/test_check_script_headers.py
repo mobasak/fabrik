@@ -386,3 +386,33 @@ def test_a_header_beyond_the_scan_window_is_no_header(tmp_path: Path) -> None:
     — the window constant is load-bearing (EQ2)."""
     repo = _repo(tmp_path, "x = 1\n" * 29 + "# AFTER-EDIT: none\n")
     assert "no `# AFTER-EDIT:` header" in _run(repo, "scripts/thing.py")
+
+
+def test_a_docstring_example_inside_an_unterminated_string_is_not_a_header(tmp_path: Path) -> None:
+    """The head is cut at HEADER_SCAN_LINES; a long docstring quoting the convention is
+    UNTERMINATED in the head, so tokenize raises before any COMMENT token — the except branch
+    must stop, never fall back to a text search that would harvest the example (ES2)."""
+    body = (  # the example is INSIDE the 25-line head; the string closes outside it
+        '"""Usage:\n'
+        + "put a `# AFTER-EDIT: docs/coupled.md` line at the top.\n"
+        + "\n" * 30
+        + '"""\nprint("x")\n'
+    )
+    repo = _repo(tmp_path, body)
+    out = _run(repo, "scripts/thing.py")
+    assert "no `# AFTER-EDIT:` header" in out and "docs/coupled.md" not in out, out
+
+
+def test_the_scan_window_boundary_is_exact(tmp_path: Path) -> None:
+    """A header on line 25 is seen, one on line 26 is not — the constant is 25, not about 25 (ES2)."""
+    repo = _repo(tmp_path, "x = 1\n" * 24 + "# AFTER-EDIT: none\n")
+    assert "WARNING" not in _run(repo, "scripts/thing.py")
+    repo2 = _repo(tmp_path / "two", "x = 1\n" * 25 + "# AFTER-EDIT: none\n")
+    assert "no `# AFTER-EDIT:` header" in _run(repo2, "scripts/thing.py")
+
+
+def test_a_conftest_outside_a_tests_directory_is_inspected(tmp_path: Path) -> None:
+    """The skip is by segment: `conftest.py` beside real scripts is a real script (ES2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\n")
+    (repo / "scripts" / "conftest.py").write_text("x = 1\n", encoding="utf-8")
+    assert "conftest.py" in _run(repo, "scripts/conftest.py")
