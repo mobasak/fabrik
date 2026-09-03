@@ -389,6 +389,19 @@
    "why": "the weekly grounding-integrity canary batch \u2014 feeds the grounding column in TASK_SUBAGENT_SELECTION.md; STALE here IS the axis's zero-forward-progress alarm"
   },
   {
+   "cron_match": "liveness_audit.py",
+   "doc": "docs/workstation/liveness.md",
+   "evidence": {
+    "marker": "liveness-audit: report generated",
+    "path": "~/.claude/liveness.log",
+    "type": "log_marker"
+   },
+   "id": "liveness-audit",
+   "kind": "cron",
+   "max_age_hours": 180,
+   "why": "the auditor audits itself: the installed weekly line had no `cd /opt/fabrik`, so `.venv/bin/python` resolved against $HOME and every scheduled run since 2026-08-16 failed with 'not found' while 0 of 33 surfaces watched the watcher (review 2026-09-03, DA1). The marker is the stamped stderr line the audit prints on completion (a failed cron line appends only an error, never the marker); 180 h = a weekly run plus one missed Monday."
+  },
+  {
    "id": "external-services-chain",
    "kind": "cron",
    "cron_match": "kilo-benchmarks/daily_refresh.sh",

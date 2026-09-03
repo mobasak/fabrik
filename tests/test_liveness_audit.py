@@ -57,17 +57,25 @@ def test_a_probe_whose_instrument_fails_reports_unknown_never_dead() -> None:
 def test_a_failed_instrument_also_cannot_prove_liveness() -> None:
     """The rule is symmetric: a broken instrument proves nothing in either direction."""
     f = la.finding(
-        proof="heartbeat", id="x", kind="cron",
+        proof="heartbeat",
+        id="x",
+        kind="cron",
         instrument=la.Instrument.broken("ss", "ss is not on PATH"),
-        verdict=la.Verdict.LIVE, detail="port looked open",
+        verdict=la.Verdict.LIVE,
+        detail="port looked open",
     )
     assert f.verdict is la.Verdict.UNKNOWN
 
 
 def test_a_proven_instrument_passes_the_verdict_through() -> None:
     f = la.finding(
-        proof="heartbeat", id="x", kind="cron", instrument=la.Instrument.proven("crontab -l"),
-        verdict=la.Verdict.DEAD, detail="no line matches", reason_class="unscheduled",
+        proof="heartbeat",
+        id="x",
+        kind="cron",
+        instrument=la.Instrument.proven("crontab -l"),
+        verdict=la.Verdict.DEAD,
+        detail="no line matches",
+        reason_class="unscheduled",
     )
     assert f.verdict is la.Verdict.DEAD
     assert f.reason_class == "unscheduled"
@@ -189,7 +197,9 @@ def _registry(tmp_path: Path, surfaces: list[dict], owned: list[str] | None = No
 class FakeBox(la.Box):
     """A Box whose box-level reads are supplied, so probes are testable off-machine."""
 
-    def __init__(self, tmp_path: Path, cron: list[str] | None = None, hooks: list[str] | None = None):
+    def __init__(
+        self, tmp_path: Path, cron: list[str] | None = None, hooks: list[str] | None = None
+    ):
         super().__init__(home=tmp_path)
         self._cron = cron
         self._hooks = hooks if hooks is not None else ["/x/claude-sound.sh done"]
@@ -213,10 +223,20 @@ def test_a_stale_log_is_overdue_and_a_fresh_one_is_live(tmp_path: Path) -> None:
     os.utime(stale, (time.time() - 40 * 3600, time.time() - 40 * 3600))
 
     surfaces = [
-        {"id": "fresh", "kind": "cron", "cron_match": "job_a",
-         "evidence": {"type": "log", "path": str(fresh)}, "max_age_hours": 24},
-        {"id": "stale", "kind": "cron", "cron_match": "job_b",
-         "evidence": {"type": "log", "path": str(stale)}, "max_age_hours": 24},
+        {
+            "id": "fresh",
+            "kind": "cron",
+            "cron_match": "job_a",
+            "evidence": {"type": "log", "path": str(fresh)},
+            "max_age_hours": 24,
+        },
+        {
+            "id": "stale",
+            "kind": "cron",
+            "cron_match": "job_b",
+            "evidence": {"type": "log", "path": str(stale)},
+            "max_age_hours": 24,
+        },
     ]
     box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/job_a", "0 * * * * /opt/fabrik/job_b"])
     reg, _ = la.load_registry(_registry(tmp_path, surfaces))
@@ -231,8 +251,15 @@ def test_a_surface_with_no_crontab_line_is_dead_even_with_a_fresh_log(tmp_path: 
     """The DR-backup class: the schedule is gone, so the fresh log is a hand-run."""
     log = tmp_path / "hand-run.log"
     log.write_text("ran by hand\n")
-    surfaces = [{"id": "dr", "kind": "cron", "cron_match": "dr_backup.sh",
-                 "evidence": {"type": "log", "path": str(log)}, "max_age_hours": 24}]
+    surfaces = [
+        {
+            "id": "dr",
+            "kind": "cron",
+            "cron_match": "dr_backup.sh",
+            "evidence": {"type": "log", "path": str(log)},
+            "max_age_hours": 24,
+        }
+    ]
     box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/something_else.sh"])
     reg, _ = la.load_registry(_registry(tmp_path, surfaces))
     out = la.proof_heartbeat(box, reg, "")
@@ -241,8 +268,15 @@ def test_a_surface_with_no_crontab_line_is_dead_even_with_a_fresh_log(tmp_path: 
 
 
 def test_an_unreadable_crontab_makes_every_cron_surface_unknown(tmp_path: Path) -> None:
-    surfaces = [{"id": "dr", "kind": "cron", "cron_match": "dr_backup.sh",
-                 "evidence": {"type": "log", "path": str(tmp_path / "x.log")}, "max_age_hours": 24}]
+    surfaces = [
+        {
+            "id": "dr",
+            "kind": "cron",
+            "cron_match": "dr_backup.sh",
+            "evidence": {"type": "log", "path": str(tmp_path / "x.log")},
+            "max_age_hours": 24,
+        }
+    ]
     box = FakeBox(tmp_path, cron=None)
     reg, _ = la.load_registry(_registry(tmp_path, surfaces))
     out = la.proof_heartbeat(box, reg, "")
@@ -261,8 +295,9 @@ def test_a_surface_with_no_evidence_channel_is_unknown_not_live(tmp_path: Path) 
 
 def test_the_box_to_registry_diff_reports_unregistered_surfaces(tmp_path: Path) -> None:
     """Unregistered = unmonitored. A registry that misses surfaces is its own blind spot."""
-    surfaces = [{"id": "known", "kind": "cron", "cron_match": "known_job.sh",
-                 "evidence": {"type": "none"}}]
+    surfaces = [
+        {"id": "known", "kind": "cron", "cron_match": "known_job.sh", "evidence": {"type": "none"}}
+    ]
     box = FakeBox(
         tmp_path,
         cron=[
@@ -293,7 +328,12 @@ def test_the_shipped_registry_parses_and_declares_surfaces() -> None:
     for surface in registry["surfaces"]:
         assert surface.get("kind") in {"cron", "hook", "service", "port"}
         assert (surface.get("evidence") or {}).get("type") in {
-            "log", "log_marker", "port", "unit", "hook", "none",
+            "log",
+            "log_marker",
+            "port",
+            "unit",
+            "hook",
+            "none",
         }
 
 
@@ -387,7 +427,11 @@ def test_a_real_check_goes_red_on_its_canary(tmp_path: Path) -> None:
         "sys.exit(1 if bad else 0)\n",
         encoding="utf-8",
     )
-    canary = {"form": "root", "files": {"compose.yaml": "platform: linux/arm64\n"}, "expect": "arm64"}
+    canary = {
+        "form": "root",
+        "files": {"compose.yaml": "platform: linux/arm64\n"},
+        "expect": "arm64",
+    }
     inst, went_red, reported = la.run_canary("check_real", canary, tmp_path)
     assert inst.ok and went_red is True
     assert reported is True, "it printed FAIL on the bad tree and PASS on the clean one"
@@ -552,10 +596,7 @@ def test_every_shipped_canary_names_a_real_check_script() -> None:
 def test_a_stale_cron_claim_is_detected_and_a_true_one_passes(tmp_path: Path) -> None:
     doc = tmp_path / "d.md"
     doc.write_text(
-        "```cron\n"
-        "0 6 * * 1 /opt/fabrik/real.sh\n"
-        "0 2 * * 0 /opt/fabrik/imaginary.sh\n"
-        "```\n",
+        "```cron\n0 6 * * 1 /opt/fabrik/real.sh\n0 2 * * 0 /opt/fabrik/imaginary.sh\n```\n",
         encoding="utf-8",
     )
     claims = la.extract_claims(doc, "d.md")
@@ -586,13 +627,16 @@ def test_schedule_drift_is_reported_distinctly_from_a_missing_line(tmp_path: Pat
     doc.write_text("```cron\n0 2 * * 0 /opt/fabrik/job.sh\n```\n", encoding="utf-8")
     claim = la.extract_claims(doc, "d.md")[0]
     f = la.verify_claim(
-        FakeBox(tmp_path), claim, la.Instrument.proven("crontab -l"), ["0 6 * * 1 /opt/fabrik/job.sh"]
+        FakeBox(tmp_path),
+        claim,
+        la.Instrument.proven("crontab -l"),
+        ["0 6 * * 1 /opt/fabrik/job.sh"],
     )
     assert f.verdict is la.Verdict.DEAD and "schedule drift" in f.detail
 
 
 def test_a_prose_word_is_not_mistaken_for_a_scheduled_job(tmp_path: Path) -> None:
-    """"the weekly cron line (Sun 02:00, ...)" once produced a job named "line"."""
+    """ "the weekly cron line (Sun 02:00, ...)" once produced a job named "line"."""
     doc = tmp_path / "d.md"
     doc.write_text(
         "- the weekly cron line (Sun 02:00, plaintext KEY) was removed\n"
@@ -603,10 +647,14 @@ def test_a_prose_word_is_not_mistaken_for_a_scheduled_job(tmp_path: Path) -> Non
     assert tokens == {"calendar-orchestration"}
 
 
-def test_a_doc_that_names_several_states_is_true_if_the_box_reports_any_of_them(tmp_path: Path) -> None:
+def test_a_doc_that_names_several_states_is_true_if_the_box_reports_any_of_them(
+    tmp_path: Path,
+) -> None:
     """A unit documented as `enabled` but ending `failed` on purpose is NOT a stale doc."""
     doc = tmp_path / "d.md"
-    doc.write_text("`x.service` is also `enabled` and ends `failed` on the port race\n", encoding="utf-8")
+    doc.write_text(
+        "`x.service` is also `enabled` and ends `failed` on the port race\n", encoding="utf-8"
+    )
     claim = next(c for c in la.extract_claims(doc, "d.md") if c.ctype == "unit")
     assert "enabled" in claim.extra and "failed" in claim.extra
 
@@ -634,7 +682,9 @@ def test_a_unit_the_box_cannot_resolve_is_unknown(tmp_path: Path) -> None:
 def test_only_loopback_ports_become_claims(tmp_path: Path) -> None:
     """A VPS port in prose is not a claim about THIS box; only localhost:NNNN is."""
     doc = tmp_path / "d.md"
-    doc.write_text("Serves <http://localhost:5051/> and the VPS runs on port 8443\n", encoding="utf-8")
+    doc.write_text(
+        "Serves <http://localhost:5051/> and the VPS runs on port 8443\n", encoding="utf-8"
+    )
     ports = {c.payload for c in la.extract_claims(doc, "d.md") if c.ctype == "port"}
     assert ports == {"5051"}
 
@@ -676,25 +726,47 @@ def test_the_report_is_json_serialisable_and_carries_the_proposed_cron(tmp_path:
 def test_the_cli_exits_zero_by_default_on_the_real_box(proof: str) -> None:
     """A monitoring layer that blocks work gets disabled, and then it monitors nothing."""
     result = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "scripts" / "sysadmin" / "liveness_audit.py"),
-         "--proof", proof, "--json"],
-        capture_output=True, text=True, cwd=REPO_ROOT, timeout=600,
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "sysadmin" / "liveness_audit.py"),
+            "--proof",
+            proof,
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=600,
     )
     assert result.returncode == 0, result.stderr[-800:]
     assert json.loads(result.stdout)["summary"]["LIVE"] >= 1
 
 
 def test_strict_is_opt_in_and_fails_only_on_dead(tmp_path: Path) -> None:
-    surfaces = [{"id": "dead-one", "kind": "cron", "cron_match": "gone.sh",
-                 "evidence": {"type": "none"}}]
+    surfaces = [
+        {"id": "dead-one", "kind": "cron", "cron_match": "gone.sh", "evidence": {"type": "none"}}
+    ]
     registry = _registry(tmp_path, surfaces)
     box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/other.sh"])
     report = la.audit(tmp_path, registry, {"heartbeat"}, box=box)
     assert report.failures() == 1
 
-    unknown_only = la.audit(tmp_path, _registry(tmp_path, [
-        {"id": "opaque", "kind": "cron", "cron_match": "other.sh", "evidence": {"type": "none"}}
-    ]), {"heartbeat"}, box=box)
+    unknown_only = la.audit(
+        tmp_path,
+        _registry(
+            tmp_path,
+            [
+                {
+                    "id": "opaque",
+                    "kind": "cron",
+                    "cron_match": "other.sh",
+                    "evidence": {"type": "none"},
+                }
+            ],
+        ),
+        {"heartbeat"},
+        box=box,
+    )
     assert unknown_only.failures() == 0, "UNKNOWN must never fail --strict; only DEAD does"
 
 
@@ -705,10 +777,29 @@ def test_mail_escalate_is_registered_with_the_precedent_fields():
     import json
     from pathlib import Path
 
-    reg = json.loads((Path(__file__).resolve().parent.parent / ".fabrik" / "liveness-registry.json").read_text())
+    reg = json.loads(
+        (Path(__file__).resolve().parent.parent / ".fabrik" / "liveness-registry.json").read_text()
+    )
     surfaces = reg["surfaces"] if isinstance(reg, dict) and "surfaces" in reg else reg
     row = next(s for s in surfaces if s.get("id") == "mail-escalate")
     assert row["cron_match"] == "mail_escalate.py"
     assert row["evidence"]["path"] == "/var/log/fabrik-mail-escalate.log"
     assert row["max_age_hours"] == 54 and "max_age_note" in row
     assert "crontab" in row["why"].lower()
+
+
+def test_the_audit_stamps_its_own_heartbeat_line(tmp_path, capsys):
+    """The auditor audits itself (registry surface `liveness-audit`, a log_marker on the cron's
+    log): on completion it prints ONE LOG_STAMP-shaped stderr line carrying SELF_MARKER, which is
+    exactly what `_stamp_age` can age — the installed weekly line had no `cd /opt/fabrik` and
+    failed on every scheduled run for three weeks with nothing watching the watcher (DA1)."""
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps({"surfaces": []}), encoding="utf-8")
+    argv = ["--registry", str(reg), "--repo-root", str(tmp_path), "--proof", "heartbeat", "--json"]
+    assert la.main(argv) == 0
+    captured = capsys.readouterr()
+    lines = [ln for ln in captured.err.splitlines() if la.SELF_MARKER in ln]
+    assert len(lines) == 1, captured.err
+    age = la._stamp_age(lines[0])
+    assert age is not None and 0 <= age < 0.01, lines[0]
+    json.loads(captured.out)  # stdout stayed pure JSON — the stamp went to stderr

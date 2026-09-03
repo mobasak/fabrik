@@ -14,7 +14,8 @@
 # `$HEARTBEAT`, `external-services-chain` in .fabrik/liveness-registry.json — is stamped by THIS
 # script ONLY, after every DATA step succeeded (gather_envs, reconsolidate, registry_sync) and the
 # dashboard was written, so a half-dead chain lets the stamp age past its 30 h budget and reads
-# DEAD instead of green (review 2026-09-02). The dashboard file's own mtime is NOT the heartbeat:
+# DEAD instead of green (review 2026-09-02); a stamp the script cannot write is alerted (exit 1)
+# and never replaces the previous one. The dashboard file's own mtime is NOT the heartbeat:
 # a manual `gen_dashboard.py` run refreshed it and certified LIVE a chain the cron had not run
 # for 46 h (CY1);
 # a failed classify (the paid, optional pass) alerts but does not age the heartbeat. Each step runs under
@@ -42,7 +43,9 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
     chain_failed=1
     case "$label" in gather_envs|gather_envs_reconsolidate|registry_sync) core_failed=1 ;; esac
     echo "[external-services-chain] $label failed (exit=$rc) — non-fatal, alerting"
-    _alert "external-services chain: step $label FAILED (exit $rc)" "Step $label failed (exit $rc). 124 timeout; 137 SIGKILL; 2 the sync could not read the catalog (credentials stored unattributed); 1 gather steps: inputs refused (catalog, ripgrep, env files) or output path unusable; 1 elsewhere: the step's own failure, a prune refusal needs the force knob. The step's stderr names the cause; legend: docs/reference/external-services-registry.md. Dashboard not rewritten; liveness DEAD. Log: $LOG_FILE" warning
+    local hb="Dashboard not rewritten; liveness DEAD."  # rendered per label: the paid step never ages the heartbeat (G9/DA2)
+    [ "$label" = classify_services ] && hb="Dashboard and heartbeat unaffected (paid step)."
+    _alert "external-services chain: step $label FAILED (exit $rc)" "Step $label failed (exit $rc). 124 timeout; 137 SIGKILL; 2 the sync could not read the catalog (credentials stored unattributed); 1 gather steps: inputs refused (catalog, ripgrep, env files) or output path unusable; 1 elsewhere: the step's own failure, a prune refusal needs the force knob. The step's stderr names the cause; legend: docs/reference/external-services-registry.md. $hb Log: $LOG_FILE" warning
   fi
   return $rc
 }
@@ -63,9 +66,16 @@ fi
 # (credits, pool transport) is alerted but must not report a fresh registry as DEAD (pass 2, G9).
 if [ "$core_failed" -eq 0 ]; then
   if _step gen_dashboard "$VENV_PY" "$FABRIK_ROOT/scripts/gen_dashboard.py" "$DASHBOARD"; then
-    # the heartbeat is stamped HERE and nowhere else — after every step ran (CY1); a failed stamp
-    # ages the heartbeat to DEAD, which is the right verdict for a chain nobody can see finish
-    mkdir -p "$(dirname "$HEARTBEAT")" && date -u +%FT%TZ > "$HEARTBEAT" || echo "[external-services-chain] heartbeat NOT stamped ($HEARTBEAT) — liveness will read DEAD"
+    # the heartbeat is stamped HERE and nowhere else — after every step ran (CY1), via tmp + rename:
+    # a bare `> "$HEARTBEAT"` truncated BEFORE `date` ran, so a failed write left a fresh EMPTY stamp
+    # that read LIVE (DA3); a failed stamp keeps the previous one, alerts and exits 1 — it was the
+    # only failure in this script nobody was told about
+    if mkdir -p "$(dirname "$HEARTBEAT")" && date -u +%FT%TZ > "$HEARTBEAT.tmp.$$" && mv -f "$HEARTBEAT.tmp.$$" "$HEARTBEAT"; then :; else
+      rm -f "$HEARTBEAT.tmp.$$"
+      chain_failed=1
+      echo "[external-services-chain] heartbeat NOT stamped ($HEARTBEAT) — liveness will read DEAD"
+      _alert "external-services chain: heartbeat NOT stamped" "Every step ran but $HEARTBEAT could not be written (mkdir, write or rename failed); liveness reads DEAD until the next successful run. Log: $LOG_FILE" warning
+    fi
   fi
 else
   echo "[external-services-chain] a data step failed — dashboard NOT rewritten (heartbeat left to age)"

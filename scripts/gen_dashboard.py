@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: .fabrik/liveness-registry.json docs/reference/external-services-registry.md tests/test_external_services_chain.py
+# AFTER-EDIT: docs/reference/external-services-registry.md tests/test_external_services_chain.py
 """Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
 
 Reads services/api_keys/credit_snapshots/subscriptions and emits ONE static HTML file (data
@@ -268,9 +268,9 @@ def main(argv: list[str] | None = None) -> int:
         ap.parse_args(argv).out
     )  # `--help` exits here — it used to WRITE a file named --help
     rows = load()
-    tmp = out.with_name(out.name + ".tmp")  # atomic: the mtime is a liveness heartbeat, so a
+    tmp = out.with_name(out.name + ".tmp")  # atomic: a half-written dashboard is never served (the
     try:
-        tmp.unlink(missing_ok=True)  # half-written file must never be fresh; no leftover either way
+        tmp.unlink(missing_ok=True)  # chain stamps its own heartbeat, CY1); no leftover either way
     except OSError:  # a DIRECTORY at the tmp name: let the open below say so (C10)
         pass
     try:

@@ -1,6 +1,6 @@
 # External Services Registry — the daily chain that keeps the fleet's vendor inventory true
 
-**Owner:** infra · **Definition:** `scripts/external_services_chain.sh` (ONE script) · **Schedule:** run by `scripts/kilo-benchmarks/daily_refresh.sh` (cron `0 6 * * *`) AND by `scripts/wsl_startup_hook.sh` at boot — the two share the daily lock, so both must carry it · **Heartbeat:** `external-services-chain` in `.fabrik/liveness-registry.json` (the dashboard file's mtime, ≤30 h — written ONLY when every DATA step succeeded; a failed classify alerts but never ages it) · **Human-readable output:** `docs/reference/apis/EXTERNAL_SYSTEMS.md` (the converged fleet index — hand-curated, sourced; this chain feeds its denominator, it does not write it)
+**Owner:** infra · **Definition:** `scripts/external_services_chain.sh` (ONE script) · **Schedule:** run by `scripts/kilo-benchmarks/daily_refresh.sh` (cron `0 6 * * *`) AND by `scripts/wsl_startup_hook.sh` at boot — the two share the daily lock, so both must carry it · **Heartbeat:** `external-services-chain` in `.fabrik/liveness-registry.json` (the chain script's own stamp, `.tmp/external-services/chain-heartbeat`, ≤30 h — written ONLY after every DATA step and the dashboard succeeded; a failed classify alerts but never ages it; the dashboard file's mtime is NOT evidence) · **Human-readable output:** `docs/reference/apis/EXTERNAL_SYSTEMS.md` (the converged fleet index — hand-curated, sourced; this chain feeds its denominator, it does not write it)
 
 ## What it is
 
@@ -42,7 +42,7 @@ Every step is non-fatal to the caller but never silent: a non-zero exit (124 = t
 
 ## Liveness
 
-The chain is declared once in `.fabrik/liveness-registry.json` as `external-services-chain`: evidence = the dashboard file's mtime (step 4 runs last and writes only when steps 1, 2b and 3 succeeded — so a half-dead chain ages past 30 h and reads DEAD), `max_age_hours: 30`. `python3 scripts/sysadmin/liveness_audit.py` reports it LIVE/DEAD/UNKNOWN like every other scheduled surface.
+The chain is declared once in `.fabrik/liveness-registry.json` as `external-services-chain`: evidence = the chain's own stamp (`.tmp/external-services/chain-heartbeat`, written by the script via tmp + rename after step 4 succeeded — so a half-dead chain, or a stamp the script could not write (alerted, exit 1, the previous stamp kept), ages past 30 h and reads DEAD; the dashboard file's mtime is not evidence, any manual `gen_dashboard.py` run refreshes it), `max_age_hours: 30`. The auditor audits itself (`liveness-audit`: the stamped `liveness-audit: report generated` line the audit prints on completion, in `~/.claude/liveness.log`, 180 h — a failed cron line appends only an error, never the marker) — the installed weekly line had no `cd /opt/fabrik` and failed on every scheduled run for three weeks with nothing watching the watcher (DA1). `python3 scripts/sysadmin/liveness_audit.py` reports it LIVE/DEAD/UNKNOWN like every other scheduled surface.
 
 ## History — why it lives inside `daily_refresh.sh`
 

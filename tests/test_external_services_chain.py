@@ -50,11 +50,16 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
     gated = re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then\n\s*if _step gen_dashboard [^\n]*; then\n(?:\s*#[^\n]*\n)*\s*mkdir -p [^\n]*&& date -u [^\n]*> "\$HEARTBEAT"',
+        r'if \[ "\$core_failed" -eq 0 \]; then\n\s*if _step gen_dashboard [^\n]*; then\n(?:\s*#[^\n]*\n)*'
+        r'\s*if mkdir -p [^\n]*&& date -u [^\n]*> "\$HEARTBEAT\.tmp\.\$\$" && mv -f "\$HEARTBEAT\.tmp\.\$\$" "\$HEARTBEAT"; then',
         text,
     )
     assert gated, "gen_dashboard must be gated on the data steps and the heartbeat stamped after it"
-    assert text.count('> "$HEARTBEAT"') == 1, "the heartbeat has exactly one writer"
+    # one writer, and it is the RENAME: a bare `> "$HEARTBEAT"` truncates before `date` runs, so a
+    # failed write left a fresh empty stamp that read LIVE (DA3)
+    assert text.count('mv -f "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
+    code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    assert '> "$HEARTBEAT"' not in code, "no direct (truncating) writer"
     # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
     assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
@@ -142,6 +147,18 @@ def test_liveness_registry_declares_the_chain_heartbeat():
         stamp and stamp.group(1),
     )
     assert 24 <= s["max_age_hours"] <= 48  # a daily run, with slack for a late cron
+    # the auditor audits ITSELF: its installed weekly cron line lacked `cd /opt/fabrik` and failed
+    # on every scheduled run for three weeks with nothing watching the watcher (DA1)
+    me = [s for s in reg["surfaces"] if s["id"] == "liveness-audit"]
+    assert len(me) == 1 and me[0]["cron_match"] == "liveness_audit.py", me
+    assert me[0]["evidence"]["type"] == "log_marker"
+    la = (REPO / "scripts" / "sysadmin" / "liveness_audit.py").read_text(encoding="utf-8")
+    marker = re.search(r'^SELF_MARKER = "([^"]+)"', la, re.M)
+    assert marker and me[0]["evidence"]["marker"] == marker.group(1), (me[0]["evidence"], marker)
+    assert 168 < me[0]["max_age_hours"] <= 336  # weekly, one missed Monday of slack
+    assert re.search(r'PROPOSED_CRON = \(\n\s*"40 6 \* \* 1 ', la), (
+        "the proposed cron line must cd into the repo first — a relative .venv path is what broke it"
+    )
 
 
 def _load_gen_dashboard():
@@ -385,6 +402,14 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # contract's ~500 chars (CC5)
     fixed = re.sub(r"\$\{?[A-Za-z_]+\}?", "", body)
     assert "*" not in fixed and "_" not in fixed, fixed
+    # the heartbeat clause is rendered PER LABEL: the paid step never ages the heartbeat, so its
+    # alert must not send the operator hunting a dead chain that is fresh (G9/DA2)
+    hb_default = re.search(r'local hb="([^"]*)"', text)
+    hb_classify = re.search(r'\[ "\$label" = classify_services \] && hb="([^"]*)"', text)
+    assert hb_default and hb_classify and "$hb" in body, "the per-label heartbeat clause"
+    assert "DEAD" in hb_default.group(1) and "unaffected" in hb_classify.group(1)
+    for clause in (hb_default.group(1), hb_classify.group(1)):
+        assert "*" not in clause and "_" not in clause, clause
     # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
     # step label and the production log path — not on the template with its variables erased (CD5)
     # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM2) ×
@@ -400,8 +425,12 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         log_paths += [root.group(1) + tail for tail in tails]
     for label in _steps(text):
         for log_path in log_paths:
+            hb = hb_classify.group(1) if label == "classify_services" else hb_default.group(1)
             rendered = (
-                body.replace("$label", label).replace("$rc", "137").replace("$LOG_FILE", log_path)
+                body.replace("$label", label)
+                .replace("$rc", "137")
+                .replace("$LOG_FILE", log_path)
+                .replace("$hb", hb)
             )
             assert len(rendered) <= 500, (label, log_path, len(rendered))
     # the doc's exit-1 count is COUNTED against its own clauses, never pinned as a phrase (CJ4 fixed
@@ -467,7 +496,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         'case "$*" in\n'
         '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
         '  *classify_services.py*) [ "${FAIL_CLASSIFY:-0}" = 1 ] && exit 1 ;;\n'
-        '  *gen_dashboard.py*) echo ok > "${@: -1}" ;;\n'
+        '  *gen_dashboard.py*) [ "${FAIL_DASHBOARD:-0}" = 1 ] && exit 7; echo ok > "${@: -1}" ;;\n'
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
@@ -492,7 +521,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     for skipped in ("classify_services.py", "registry_sync.py", "gen_dashboard.py"):
         assert skipped not in calls, (skipped, calls)
     assert calls.count("send_alert(") == 1, calls  # one cause, one alert (AC13/BR4)
-    assert "step gather_envs FAILED (exit 1)" in calls
+    assert "step gather_envs FAILED (exit 1)" in calls and "liveness DEAD" in calls
     # 2. a clean run
     log.write_text("", encoding="utf-8")
     r = subprocess.run(["bash", str(CHAIN)], env=env, capture_output=True, text=True)
@@ -527,3 +556,49 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert dash.exists() and stamp.exists() and "registry_sync.py" in calls
     assert calls.count("gather_envs.py") == 2
     assert calls.count("send_alert(") == 1 and "step classify_services FAILED (exit 1)" in calls
+    assert "liveness DEAD" not in calls and "heartbeat unaffected" in calls, calls  # DA2
+    # 4. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
+    # sits behind, executed in the failing direction (a regex-only proof, DA3)
+    log.write_text("", encoding="utf-8")
+    dash.unlink()
+    stamp.unlink()
+    r = subprocess.run(
+        ["bash", str(CHAIN)], env={**env, "FAIL_DASHBOARD": "1"}, capture_output=True, text=True
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
+    assert calls.count("send_alert(") == 1 and "step gen_dashboard FAILED (exit 7)" in calls
+    # 5. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
+    # failure is ALERTED and exits 1 — it was the only silent failure in the script (DA3)
+    log.write_text("", encoding="utf-8")
+    import shutil
+
+    shutil.rmtree(root / ".tmp")
+    (root / ".tmp").write_text("", encoding="utf-8")
+    r = subprocess.run(["bash", str(CHAIN)], env=env, capture_output=True, text=True)
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and dash.exists() and not stamp.exists(), (r.returncode, calls)
+    assert calls.count("send_alert(") == 1 and "heartbeat NOT stamped" in calls, calls
+    assert "heartbeat NOT stamped" in r.stdout
+    (root / ".tmp").unlink()
+    # 6. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
+    # stamp that read LIVE. The previous stamp must survive untouched, no tmp left behind (DA3)
+    stamp.parent.mkdir(parents=True)
+    stamp.write_text("2026-08-01T00:00:00Z\n", encoding="utf-8")
+    os.utime(stamp, (1_700_000_000, 1_700_000_000))
+    bad = tmp_path / "bad-bin"
+    bad.mkdir()
+    (bad / "date").write_text("#!/bin/bash\nexit 1\n", encoding="utf-8")
+    (bad / "date").chmod(0o755)
+    log.write_text("", encoding="utf-8")
+    r = subprocess.run(
+        ["bash", str(CHAIN)],
+        env={**env, "PATH": f"{bad}:{env['PATH']}"},
+        capture_output=True,
+        text=True,
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and "heartbeat NOT stamped" in calls, (r.returncode, calls)
+    assert stamp.read_text(encoding="utf-8").strip() == "2026-08-01T00:00:00Z"
+    assert int(stamp.stat().st_mtime) == 1_700_000_000, "a failed write must not freshen the stamp"
+    assert list(stamp.parent.glob("chain-heartbeat.tmp.*")) == []

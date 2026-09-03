@@ -188,6 +188,7 @@ CRON_LINE = re.compile(
 )
 # "2026-08-16 07:32:34  arg=sweep ..." -- the leading stamp of a dated log line.
 LOG_STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?")
+SELF_MARKER = "liveness-audit: report generated"  # the registry's `liveness-audit` log_marker (DA1)
 _UNIT_STATES = {
     "enabled",
     "enabled-runtime",
@@ -2079,6 +2080,10 @@ def main(argv: list[str] | None = None) -> int:
     proofs = {p.strip() for p in str(args.proof).split(",") if p.strip()}
     report = audit(repo_root, registry, proofs)
     print(json.dumps(report.as_dict(), indent=2) if args.json else render(report))
+    # the auditor's OWN heartbeat: one LOG_STAMP-shaped line on stderr (the cron appends 2>&1), so
+    # the `liveness-audit` surface can age it — the installed weekly line failed for three weeks
+    # with nothing watching the watcher (review 2026-09-03, DA1)
+    print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr)
     return 1 if (args.strict and (report.failures() or report.crashed())) else 0
 
 
