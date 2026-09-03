@@ -1379,13 +1379,14 @@ def test_fleet_wall_advisory_future_dated_latch_is_invalid_and_still_fires(tmp_p
     assert len(actions["telegrams"]) == 1, "a future-dated (invalid) latch must not silence a live wall"
 
 
-def test_fleet_wall_advisory_suppressed_during_dwell_hold_with_headroom_sibling(
+def test_fleet_wall_advisory_silent_when_a_headroom_sibling_relieves_the_wall(
     tmp_path, monkeypatch, capsys
 ):
-    """A flip HELD only by the transient 30-min dwell is NOT exhaustion — a headroom sibling
-    exists and relief is minutes away — so no wall advisory fires. This is the hysteresis false
-    alarm the reframe must not reintroduce (found in self-review of a0f56598; the state is the
-    reachable one test_fleet_tick_flips_at_threshold's second tick sets up)."""
+    """A walled active WITH a headroom sibling is NOT exhaustion, so no wall advisory fires.
+    Originally this state was "flip held by the 30-min dwell, relief minutes away"; since D-104
+    (2026-09-03) trip flips are dwell-exempt, so the second tick FLIPS to the sibling — the class
+    under test (no false alarm while the fleet has headroom) is unchanged, only the mechanism of
+    relief moved from "wait out the dwell" to "flip now"."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
@@ -1401,14 +1402,14 @@ def test_fleet_wall_advisory_suppressed_during_dwell_hold_with_headroom_sibling(
     assert os.readlink(fleet / "active") == "intel"
     assert actions["telegrams"] == [], "the flip relieved the wall — no advisory"
 
-    # tick 2 (same instant): intel walls to 96%, seo now has headroom, but the flip to seo is HELD
-    # by the 30-min dwell → active stays walled. Headroom sibling + not paused → relief coming.
+    # tick 2 (same instant): intel walls to 96%, seo now has headroom → the flip is NOT held
+    # (D-104), the pointer moves to seo, and the relieved wall fires nothing.
     usages["tok-intel"] = _usage_blob(96.0, 96.0)
     usages["tok-seo"] = _usage_blob(10.0, 10.0)
     _fake_oauth(monkeypatch, usages=usages)
     assert cr._cmd_tick() == 0
-    assert os.readlink(fleet / "active") == "intel", "a flip inside the dwell must be held"
-    assert actions["telegrams"] == [], "dwell-held flip with a headroom sibling fires NO advisory"
+    assert os.readlink(fleet / "active") == "seo", "a trip flip is never held by the dwell (D-104)"
+    assert actions["telegrams"] == [], "a wall relieved by a flip fires NO advisory"
     assert actions["mails"] == []
 
 
@@ -1688,13 +1689,18 @@ def test_fleet_tick_flips_at_threshold_to_the_headroom_account(tmp_path, monkeyp
     flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
     assert (flip["from"], flip["to"], flip["at_pct"]) == ("seo", "intel", 96.0)
 
-    # …and a second over-threshold tick moments later is held by the dwell (hysteresis)
+    # …and a second over-threshold tick moments later FLIPS AGAIN. Until 2026-09-03 this tick
+    # was held by the 30-min dwell; D-104 made every trip flip dwell-exempt (a trip is a wall,
+    # never churn — the session wall stops every running agent at once), and churn is prevented
+    # where it belongs: the candidate predicate never targets a sibling at/over the threshold or
+    # without 5h budget. seo at 10% IS such a target, so the pointer moves back to it.
     usages["tok-intel"] = _usage_blob(96.0, 96.0)
     usages["tok-seo"] = _usage_blob(10.0, 10.0)
     capsys.readouterr()
     assert cr._cmd_tick() == 0
-    assert "withheld" in capsys.readouterr().out
-    assert os.readlink(fleet / "active") == "intel", "a flip inside the dwell must be held"
+    out = capsys.readouterr().out
+    assert "withheld" not in out, out
+    assert os.readlink(fleet / "active") == "seo", "a trip flip is never held by the dwell (D-104)"
 
 
 def test_fleet_tick_below_threshold_never_flips(tmp_path, monkeypatch, capsys):
@@ -2992,3 +2998,104 @@ def test_no_advisory_churn_from_reset_jitter_while_a_sibling_has_headroom(tmp_pa
 
     assert actions["telegrams"] == [], "reset jitter must produce ZERO advisories while headroom exists"
     assert actions["mails"] == [], "and zero mail — the spam class is structurally gone"
+
+
+# ── operator rule 2026-09-03: "when we see 90% session limit reached and if no account is
+# available we must send an URGENT mail to repos: stop your work asap gracefully and hook
+# yourself to start 1 minute after next account session resets" ──────────────────────────────
+
+
+def _row(email, session, weekly, cap=None, s_reset=None, w_reset=None, slug=None):
+    return {
+        "email": email,
+        "slugs": [slug or email.split("@")[0]],
+        "source": "live",
+        "weekly_cap": cap,
+        "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
+        "seven_day": {"utilization": weekly, "resets_at_epoch": w_reset},
+    }
+
+
+def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():
+    now = FLEET_NOW
+    rows = [
+        _row("act@x", 91.0, 40.0, cap=99, s_reset=now + 4000),  # the active — never its own relief
+        _row("late@x", 97.0, 30.0, cap=90, s_reset=now + 9000, w_reset=now + 86400),
+        _row("soon@x", 98.0, 27.0, cap=90, s_reset=now + 3000, w_reset=now + 90000),
+        _row("wk@x", 0.0, 100.0, cap=99, s_reset=None, w_reset=now + 1000),  # weekly-walled
+    ]
+    assert cr._next_session_relief(rows, "act@x", now) == (now + 3000, "soon@x", "session")
+
+
+def test_next_session_relief_falls_back_to_the_soonest_weekly_reset_when_every_sibling_is_weekly_blocked():
+    now = FLEET_NOW
+    rows = [
+        _row("act@x", 91.0, 40.0, cap=99),
+        _row("a@x", 5.0, 100.0, cap=99, s_reset=now + 100, w_reset=now + 5000),
+        _row("b@x", 5.0, 96.0, cap=90, s_reset=now + 100, w_reset=now + 2000),  # cap-walled
+    ]
+    assert cr._next_session_relief(rows, "act@x", now) == (now + 2000, "b@x", "weekly")
+
+
+def test_next_session_relief_skips_stale_past_resets_and_returns_none_when_nothing_is_known():
+    now = FLEET_NOW
+    assert cr._next_session_relief([_row("act@x", 91.0, 40.0), _row("a@x", 97.0, 10.0, s_reset=now - 5)], "act@x", now) is None
+    assert cr._next_session_relief([_row("act@x", 91.0, 40.0)], "act@x", now) is None
+
+
+def test_urgent_drain_message_carries_the_operator_wording_and_the_resume_instant():
+    now = 1_800_000_000
+    msg = cr._urgent_drain_message("act@x", 91.0, (float(now), "soon@x", "session"))
+    assert "URGENT" in msg and "STOP YOUR WORK ASAP" in msg and "GRACEFULLY" in msg
+    assert "1 MINUTE AFTER soon@x's session window resets" in msg
+    assert f"epoch {now + 60}" in msg  # resume = reset + 60 s, stated as a number the agent can sleep on
+    assert f"sleep $(( {now + 60} - $(date +%s) ))" in msg
+    none = cr._urgent_drain_message("act@x", 91.0, None)
+    assert "STOP YOUR WORK ASAP" in none and "no resume time can be given" in none
+
+
+def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time(tmp_path, monkeypatch):
+    """The operator's rule end to end through the advisory: active at 91 session, every sibling
+    unusable, → ONE telegram + ONE broadcast mail carrying the next session reset + 60 s; the
+    latch then holds for the episode."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    now = FLEET_NOW
+    rows = [
+        _row("act@x", 91.0, 40.0, cap=99, slug="act"),
+        _row("full@x", 97.0, 30.0, cap=90, s_reset=now + 1800, w_reset=now + 86400, slug="full"),
+        _row("wall@x", 0.0, 100.0, cap=99, w_reset=now + 5000, slug="wall"),
+    ]
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    tg, mails, ledger = [], [], []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: tg.append(m))
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: mails.append((list(repos), m)))
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: ledger.append(e))
+    cr._fleet_active_wall_advisory(rows, now, threshold=95.0)
+    assert len(tg) == 1 and len(mails) == 1, (tg, mails)
+    assert mails[0][0] == ["fabrik", "seo"]
+    assert "URGENT" in mails[0][1] and f"epoch {int(now + 1800) + 60}" in mails[0][1]
+    assert ledger[-1]["tier"] == "urgent-90" and ledger[-1]["resume_epoch"] == int(now + 1800) + 60
+    cr._fleet_active_wall_advisory(rows, now + 60, threshold=95.0)
+    assert len(tg) == 1, "latched: one message per episode"
+
+
+def test_urgent_tier_is_silent_below_ninety_and_while_a_successor_exists(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    now = FLEET_NOW
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    tg = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: tg.append(m))
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: tg.append(m))
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    # 89: below the urgent line even with nobody available
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    cr._fleet_active_wall_advisory([_row("act@x", 89.0, 40.0, cap=99, slug="act")], now, threshold=95.0)
+    assert tg == []
+    # 93 but a successor exists: the flip leg is the remedy, not the mail
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("fresh", "fresh@x"))
+    cr._fleet_active_wall_advisory([_row("act@x", 93.0, 40.0, cap=99, slug="act"), _row("fresh@x", 5.0, 5.0, slug="fresh")], now, threshold=95.0)
+    assert tg == []

@@ -21,7 +21,10 @@ remains only as the fallback for a view that lands before the first loop iterati
 decision it feeds — current at 20s granularity, and four usage probes every 20s is the price.
 
 **The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
-at/over `ROTATE_THRESHOLD` (default **98**, the tick's own default) or the account is cap-walled — or, while
+at/over `ROTATE_THRESHOLD` (default **95**, the tick's own default) or the account is cap-walled — or, on the
+URGENT-DRAIN tier, at/over `ROTATE_URGENT_DRAIN_PCT` (default **90**: the tick then sends the operator's
+"stop gracefully, hook to the next reset" mail if NO successor exists; this tier has its OWN cooldown so a drain
+tick at 90 can never delay the flip tick at 95) — or, while
 the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`BLIND_TRIGGER_THRESHOLD`,
 `ROTATE_DRAIN_THRESHOLD` = 85; 2026-09-03 20:10: seven 60 s probe timeouts in a row hid ob@'s 96 → 100 and
 the trigger only ever saw the last good 96) — the

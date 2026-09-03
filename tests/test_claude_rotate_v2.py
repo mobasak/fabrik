@@ -321,8 +321,8 @@ def test_t8_account_status_fails_closed_on_partial_usage(monkeypatch):
 def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
     """Closer #4: 'successor exists but cannot install' must NOT shadow the drain — the
     silent burn to 100% is the failure mode the whole feature exists to prevent."""
-    # 98.5: above the default flip threshold (98 since 2026-09-03; this fixture sat at 97 while
-    # the default was 95 — the CLASS under test is unchanged, only the line moved)
+    # 98.5: above the default flip threshold (95 since 2026-09-03 — the line moved 95 → 98 → 95
+    # that day; 98.5 clears every one of them, and the CLASS under test is unaffected)
     live = _acct("live", session_pct=98.5)
     sib = _acct("sib", weekly_reset=NOW + 86400)
     state = tmp_path / "state"
@@ -1263,17 +1263,19 @@ def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
 # ── operator rule 2026-09-03: rotate at 98% on the 5h window (seen RED first) ─────────────────
 
 
-def test_default_flip_threshold_is_98_and_the_env_still_overrides(monkeypatch):
-    """`ROTATE_THRESHOLD` unset → 98 (operator: "trigger rotation as soon as session limits hit
-    98% for the 5h window"); the env override keeps working. ONE helper feeds every call site so
-    the four `_env_float("ROTATE_THRESHOLD", …)` copies cannot drift apart again."""
+def test_default_flip_threshold_is_95_and_the_env_still_overrides(monkeypatch):
+    """`ROTATE_THRESHOLD` unset → 95 (operator, 2026-09-03, after 98 let the wall be hit anyway:
+    "when we see 95% at these checks we need to switch next account"). 98 lost because the gap
+    between two checks is bursty — 34 measured gaps: median 4, p90 10, max 16 — so a reading of 93
+    can be past 100 by the next look. The env override keeps working, and ONE helper feeds every
+    call site so the `_env_float("ROTATE_THRESHOLD", …)` copies cannot drift apart again."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    assert cr._rotate_threshold() == 98.0
+    assert cr._rotate_threshold() == 95.0
     monkeypatch.setenv("ROTATE_THRESHOLD", "91")
     assert cr._rotate_threshold() == 91.0
 
 
-def test_fleet_flip_leg_holds_at_96_and_flips_at_98_on_the_session_window(monkeypatch, capsys):
+def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_window(monkeypatch, capsys):
     """The active account at 96% session with a fresh sibling: NO flip under the new default;
     at 98.2% it flips. The weekly window is low on both, so only the 5h leg decides."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
@@ -1292,9 +1294,11 @@ def test_fleet_flip_leg_holds_at_96_and_flips_at_98_on_the_session_window(monkey
              "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
              "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600}},
         ]
-    cr._fleet_flip_leg([], rows(96.0), threshold=cr._rotate_threshold())
+    # 93 holds, 95.2 flips: the line is 95 (see _rotate_threshold). No burn history exists in
+    # this fixture's state dir, so the projection adds 0 and the raw reading is what decides.
+    cr._fleet_flip_leg([], rows(93.0), threshold=cr._rotate_threshold())
     assert flips == [], capsys.readouterr().out
-    cr._fleet_flip_leg([], rows(98.2), threshold=cr._rotate_threshold())
+    cr._fleet_flip_leg([], rows(95.2), threshold=cr._rotate_threshold())
     assert flips == ["can"], capsys.readouterr().out
 
 

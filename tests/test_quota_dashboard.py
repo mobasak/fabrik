@@ -573,7 +573,7 @@ def test_the_active_account_crossing_the_session_threshold_triggers_the_tick_at_
     20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
     once per cooldown, never at 90%."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    qd, stub = _tick_env(tmp_path, monkeypatch, session=90.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=86.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
     qd.generate()
     assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
     assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
@@ -672,7 +672,7 @@ def test_dashboard_trigger_default_matches_the_tick_default(tmp_path, monkeypatc
     cr = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(cr)
-    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 98.0
+    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 95.0
 
 
 def test_rows_are_ordered_active_first_then_in_rotation_order(tmp_path, monkeypatch):
@@ -889,9 +889,9 @@ def test_a_blind_probe_triggers_the_tick_from_the_last_good_reading_at_the_drain
     to the drain line (85) and the TICK reads live; the cooldown still bounds it."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
-    qd, stub = _tick_env(tmp_path, monkeypatch, session=90.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=86.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
     qd.generate()
-    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None  # 90 < 98, sighted
+    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None  # 86: below the flip line (95) AND the drain tier (90), sighted
 
     def dead(*a, **kw):
         raise subprocess.TimeoutExpired(cmd="rotate", timeout=60)
@@ -901,7 +901,7 @@ def test_a_blind_probe_triggers_the_tick_from_the_last_good_reading_at_the_drain
     payload = json.loads(qd._JSON.read_text())
     assert payload.get("probe_failed"), "a fallback payload must say the probe is blind"
     t = qd._maybe_trigger_rotation(payload)
-    assert t is not None, "blind probe + last good 90 ≥ drain 85 → the tick reads live"
+    assert t is not None, "blind probe + last good 86 ≥ blind bar 85 → the tick reads live"
     t.join(10)
     assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
     assert qd._maybe_trigger_rotation(payload) is None  # cooldown still bounds the blind path
@@ -934,3 +934,44 @@ def test_a_sighted_probe_clears_the_blind_flag(tmp_path, monkeypatch):
     monkeypatch.setattr(qd, "_probe", real)
     qd.generate()
     assert not json.loads(qd._JSON.read_text()).get("probe_failed")
+
+
+# ── 2026-09-03 operator rule: at/over 90% session the tick must run within one probe interval
+# so the URGENT "stop gracefully, hook to the next reset" mail goes out in seconds when no
+# successor exists — on a cooldown of its OWN, so it can never delay the flip tier at 95 ──────
+
+
+def test_ninety_percent_session_invokes_the_tick_on_the_drain_tier(tmp_path, monkeypatch):
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.delenv("ROTATE_URGENT_DRAIN_PCT", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=91.0)
+    qd.generate()
+    t = qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text()))
+    assert t is not None, "91% is on the drain tier — the tick must run"
+    t.join(10)
+    assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
+
+
+def test_the_drain_tier_cooldown_never_delays_the_flip_tier(tmp_path, monkeypatch):
+    """A drain tick at 91 followed 30 s later by 96 must fire AGAIN — a shared cooldown would
+    hold the flip for up to two minutes, which a burst covers from 95 to 100."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=91.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="600")
+    qd.generate()
+    t = qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text()))
+    assert t is not None
+    t.join(10)
+    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=96.0)))
+    qd.generate()
+    t2 = qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text()))
+    assert t2 is not None, "the flip tier has its own cooldown"
+    t2.join(10)
+    assert len([c for c in _calls(stub) if c[:1] == ["--tick"]]) == 2
+
+
+def test_below_ninety_the_board_stays_quiet(tmp_path, monkeypatch):
+    monkeypatch.delenv("ROTATE_URGENT_DRAIN_PCT", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=89.0)
+    qd.generate()
+    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
+    assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]

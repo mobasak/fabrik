@@ -54,9 +54,15 @@ REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "20"))
 # window (or is cap-walled) — the cron tick (*/5) stays as the backstop; the board is the fast path.
 PROBE_INTERVAL_S = float(os.getenv("QUOTA_DASH_PROBE_INTERVAL_S", "20"))
 TRIGGER_THRESHOLD = float(
-    os.getenv("ROTATE_THRESHOLD", "98")
-)  # the tick's own default (claude_rotate)
+    os.getenv("ROTATE_THRESHOLD", "95")
+)  # the tick's own default (claude_rotate._rotate_threshold) — keep the two literals equal
 TRIGGER_COOLDOWN_S = float(os.getenv("QUOTA_DASH_TRIGGER_COOLDOWN_S", "120"))
+# The URGENT-DRAIN tier (operator rule 2026-09-03): at/over 90% session the tick must run within
+# one probe interval so that, if NO successor is eligible, every repo gets the "stop gracefully,
+# hook to the next reset" mail in seconds, not in the cron's 5 minutes. Its cooldown is SEPARATE
+# from the flip tier's: a drain tick at 90 must never delay the flip tick at 95 by up to two
+# minutes (a burst can cover 95→100 in that time).
+DRAIN_TRIGGER_THRESHOLD = float(os.getenv("ROTATE_URGENT_DRAIN_PCT", "90"))
 # The BLIND bar (2026-09-03 20:10): `--status --json` timed out seven times in a row (60 s each)
 # while ob@ burned 96 → 100, and the last GOOD reading (96 < 98) never re-armed the trigger. When
 # the probe is failing the last good reading is minutes old, so the bar drops to the drain line
@@ -786,7 +792,7 @@ def _regen_async() -> threading.Thread | None:
     return t
 
 
-_LAST_TRIGGER: list[float] = [0.0]
+_LAST_TRIGGER: list[float] = [0.0, 0.0]  # [flip tier, drain tier] — independent cooldowns
 
 
 def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
@@ -803,22 +809,29 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
     five = (row.get("five_hour") or {}).get("utilization")
     blind = bool(payload.get("probe_failed"))  # the last GOOD reading, minutes old — bar drops
     bar = BLIND_TRIGGER_THRESHOLD if blind else TRIGGER_THRESHOLD
-    hot = isinstance(five, (int, float)) and float(five) >= bar
-    if not (hot or row.get("cap_walled") is True):
+    sess = float(five) if isinstance(five, (int, float)) else None
+    hot = sess is not None and sess >= bar
+    drain = sess is not None and sess >= DRAIN_TRIGGER_THRESHOLD
+    if hot or row.get("cap_walled") is True:
+        tier = 0  # flip tier
+    elif drain:
+        tier = 1  # urgent-drain tier: the tick decides whether a successor exists
+    else:
         return None
     now = time.time()
-    if now - _LAST_TRIGGER[0] < TRIGGER_COOLDOWN_S:
+    if now - _LAST_TRIGGER[tier] < TRIGGER_COOLDOWN_S:
         return None
-    _LAST_TRIGGER[0] = now
-    why = (
-        (
-            f"last good session {float(five or 0):.0f}% >= {bar:.0f}% with the probe BLIND"
+    _LAST_TRIGGER[tier] = now
+    if tier == 1:
+        why = f"session {sess:.0f}% >= {DRAIN_TRIGGER_THRESHOLD:.0f}% (urgent-drain tier)"
+    elif hot:
+        why = (
+            f"last good session {sess:.0f}% >= {bar:.0f}% with the probe BLIND"
             if blind
-            else f"session {float(five or 0):.0f}% >= {bar:.0f}%"
+            else f"session {sess:.0f}% >= {bar:.0f}%"
         )
-        if hot
-        else "cap-walled"
-    )
+    else:
+        why = "cap-walled"
     sys.stderr.write(f"quota_dashboard: active {active} {why} — invoking the rotation tick\n")
 
     def run() -> None:  # off the loop thread: a slow tick must not stall the probes

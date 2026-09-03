@@ -50,9 +50,11 @@ survives it.
 
 The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude_rotate.py`):
 
-- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** — operator rule
-  2026-09-03, "as soon as session limits hit 98% for the 5h window"; was 95; ONE helper `_rotate_threshold()`
-  feeds every call site) on either the 5-hour or the weekly window — **on the PROJECTED reading**
+- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **95** — operator rule
+  2026-09-03, restated after 98 let the wall be hit anyway: "when we see 95% at these checks we need to switch";
+  98 lost because the gap between two checks is BURSTY — 34 measured inter-tick gaps: median 4, p90 10, max 16 —
+  so a reading of 93 can be past 100 by the next look; ONE helper `_rotate_threshold()` feeds every call
+  site) on either the 5-hour or the weekly window — **on the PROJECTED reading**
   (2026-09-03 19:50, D-103): each leg trips on reading + the burn since the previous tick, remembered per
   account + window in `~/.claude/state/tick-last-reading.json` (`_tick_burn`; same account, same window by
   reset epoch, memory ≤ 15 min, else 0). The tick had logged ob@ at 89 → 93 → 96 "below 98, no flip" and the
@@ -64,6 +66,16 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
   (`docs/workstation/quota-dashboard.md` § the rotation trigger). The **weekly** leg is governed by the account's `caps.json` cap when one exists
   (the cap IS the operator's weekly rule — a cap of 99 trips at 99, not at the session threshold) and by
   `ROTATE_THRESHOLD` otherwise; the 5-hour leg is never cap-gated.
+- **URGENT drain at 90 with NO successor (operator rule 2026-09-03, `_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
+  when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
+  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires FIVE POINTS EARLY — the runway a
+  graceful stop needs — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
+  words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 1 MINUTE AFTER the next account's
+  session resets** — with that instant as local time, UTC and epoch, plus a copy-paste `sleep` line
+  (`_next_session_relief`: the soonest 5h reset among siblings blocked only by their session; falls back to the
+  soonest weekly reset when every sibling is weekly-blocked; skips stale past resets). Same latch and re-arm as
+  the wall tier (one message per episode; re-armed the instant relief arrives). The quota board invokes the
+  tick on this tier within one 20 s probe, on a cooldown of its own so it can never delay the flip tier.
 - **Target — PERISHABLE-FIRST (operator rule 2026-09-02):** among accounts that are alive, not
   walled, not cap-walled, and not themselves already ≥ threshold on either window, the one whose
   **weekly reset is soonest** wins (quota about to refresh is the cheapest to burn); ties break

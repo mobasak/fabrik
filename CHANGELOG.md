@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rotation per the operator's spec: switch at 95% session; at 90% with no eligible account, URGENT mail every repo to stop gracefully and hook to the next session reset (2026-09-03)
+
+- Operator spec, verbatim in intent: every 20 s the board checks status; at 95% session usage switch to the
+  next account; the next account must have weekly AND session headroom and the CLOSEST weekly reset; at 90%
+  with no account available, send an URGENT mail to the repos — stop your work ASAP gracefully and hook
+  yourself to start 1 minute after the next account's session resets.
+- What already existed and was NOT rebuilt: the perishable-first picker (soonest weekly reset, then lowest
+  weekly, then lowest session) that refuses walled, cap-walled, ≥threshold and no-5h-budget siblings; the
+  board's 20 s probe that invokes the tick; the once-per-episode wall advisory with its latch and re-arm.
+- Trip line 98 → **95** (`_rotate_threshold`, and the board's own copy of the default, pinned equal by test).
+  98 was set earlier the same day and lost: the inter-tick burn is BURSTY — 34 measured gaps: median 4,
+  p90 10, max 16 — so a reading of 93 could be past 100 by the next look. The projected trip (reading +
+  burn since the last tick) stays; it fired once today (`can → sarp at 97% (projected)`).
+- **URGENT tier at 90** (`_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`): the existing wall advisory now also
+  fires when the active account's SESSION is ≥ 90 and `_validated_pick` finds no eligible successor — five
+  points before the wall, the runway a graceful stop needs. One Telegram + one broadcast fabrik-mail to
+  every mailbox repo, in the operator's words, carrying the resume instant as local time, UTC and epoch
+  plus a copy-paste `sleep` line. `_next_session_relief` picks the soonest 5h reset among siblings blocked
+  only by their session (weekly under cap), falls back to the soonest weekly reset when every sibling is
+  weekly-blocked, skips stale past resets, never names the active account as its own relief. Ledger row
+  carries `tier` and `resume_epoch`. Same latch and re-arm as the wall tier.
+- The board invokes the tick on a second, **drain tier at 90** with its OWN cooldown, so a drain tick at 90
+  can never delay the flip tick at 95 by up to two minutes (a burst covers 95 → 100 in that time).
+- Measured before any of this, and the reason the threshold alone would not have helped: at the moment of
+  the operator's report the picker had ZERO eligible targets (can 97% and sarp 98% session → refused as
+  "no 5h budget", mob weekly-walled), and the tick had printed "NO successor has headroom" 38 times today.
+  That is exactly the state the 90% URGENT mail exists for.
+- Tests: 6 new (relief helper ×3, message ×1, the tier through the advisory ×2) + 3 board tests (drain tier
+  fires at 91; its cooldown does not delay a flip at 96; quiet at 89), all proven red on revert. Two fleet
+  tests that still pinned the dwell hold retired by D-104 were red at HEAD since b74847fc — my earlier run
+  used the wrong suite — and are rewritten to the dwell-exempt rule. One unrelated red remains at HEAD
+  (`test_oauth_get_gives_up_after_attempts`, expects 2 tries and measures 4, from 627f8815): not mine,
+  reported to its author (01M1MG98SC90HB863AW18XJKQ6), not guessed at.
+- Docs: `docs/workstation/claude-account-rotation.md` (trip line + a new URGENT-drain bullet),
+  `docs/workstation/quota-dashboard.md` (two tiers), `docs/workstation/hooks-index.md` § 2c. Ledger row minted
+  with `decisions.py --next-id` at commit time. Board restarted on the new code (its thresholds are read at
+  import).
+
 ### Fixed — the 8.3 GB LiveCodeBench cache no longer lives inside the hub tree (2026-09-03)
 
 - `scripts/kilo-benchmarks/.lcb-hf-cache` was an orphan of the engine's departure (73bde59a): gitignored,

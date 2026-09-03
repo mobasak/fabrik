@@ -130,12 +130,15 @@ mode (≥1 scaffolded dir under `~/.claude-fleet/` — the login-once architectu
 telemetry + advisories ONLY — pinned-identity grouping, freshest-token quota with a
 cached-with-age fallback, ≥`ROTATE_DRAIN_THRESHOLD` (85) fires one advisory Telegram per
 account per 24h + drain fabrik-mail to that account's mapped repos; the FLIP LEG re-points the
-`active` pointer when the active account trips — the 5h leg at `ROTATE_THRESHOLD` (98), the weekly
+`active` pointer when the active account trips — the 5h leg at `ROTATE_THRESHOLD` (95 — moved 95→98→95 on 2026-09-03; 98 lost to bursty inter-tick burn,
+max 16 points measured), the weekly
 leg at its `caps.json` cap — on the PROJECTED reading (2026-09-03: reading + the burn since the
 previous tick, remembered in `state/tick-last-reading.json`; the tick saw ob@ at 89 → 93 → 96 and the
 next tick found the wall — a 98 trip point is unobservable at a 5-minute cadence when the inter-tick
 burn is 3–4%), to the perishable-first sibling with proven headroom (walled / cap-walled / ≥threshold /
-no-5h-budget siblings excluded), DWELL-EXEMPT since 2026-09-03 — a trip is a wall, never churn (D-104). Legacy mode (until the fleet root is
+no-5h-budget siblings excluded), DWELL-EXEMPT since 2026-09-03 — a trip is a wall, never churn (D-104); and at session ≥ 90 with NO
+eligible successor the wall advisory fires early as the operator's URGENT mail — stop gracefully, hook
+to 1 min after the next account's session reset, with the instant stated (`_next_session_relief`). Legacy mode (until the fleet root is
 populated): polls the LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD`
 switches to the PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared
 switch flock — TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling

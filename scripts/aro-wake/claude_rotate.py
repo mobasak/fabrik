@@ -43,6 +43,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal
 
@@ -2486,11 +2487,16 @@ def _env_float(name: str, default: float) -> float:
 
 def _rotate_threshold() -> float:
     """The flip-away threshold on either quota window — ONE source for every call site.
-    Default **98** (operator rule 2026-09-03: "trigger rotation as soon as session limits hit
-    98% for the 5h window"; was 95). `ROTATE_THRESHOLD` overrides. The weekly leg is governed by
-    the account's ``caps.json`` cap when one exists (the cap IS the operator's weekly rule) and by
-    this threshold otherwise — see ``_fleet_flip_leg``."""
-    return _env_float("ROTATE_THRESHOLD", 98.0)
+
+    Default **95** (operator rule 2026-09-03, restated twice after the wall was hit anyway: "when
+    we see 95% at these checks we need to switch next account"). It was briefly 98 the same day;
+    98 lost, because the gap between two checks is BURSTY — measured over 34 real inter-tick gaps:
+    median 4 points, p90 10, max 16 — so an account read at 93 could be past 100 before the next
+    look. 95 restores the margin a burst needs. `ROTATE_THRESHOLD` overrides.
+
+    The weekly leg is governed by the account's ``caps.json`` cap when one exists (the cap IS the
+    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``."""
+    return _env_float("ROTATE_THRESHOLD", 95.0)
 
 
 def _tick_inner() -> int:
@@ -3914,6 +3920,88 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
 
 
+def _urgent_drain_pct() -> float:
+    """The SESSION line at which, with NO eligible successor, every repo is told to stop
+    gracefully and hook itself to the next session reset. Default **90** (operator rule
+    2026-09-03: "when we see 90% session limit reached and if no account is available we must
+    send an URGENT mail to repos"). Below the flip line on purpose: the flip at 95 is the
+    remedy when a successor exists; this is the remedy when none does, and it needs the five
+    points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides."""
+    return _env_float("ROTATE_URGENT_DRAIN_PCT", 90.0)
+
+
+def _next_session_relief(
+    accounts: list[dict], active_email: str, now: float
+) -> tuple[float, str, str] | None:
+    """When will the fleet next have an eligible account? ``(epoch, email, window)`` or None.
+
+    Prefers the SOONEST 5h-window reset among siblings that are blocked ONLY by their session
+    (weekly under its cap and under 100) — those become eligible the moment their session
+    resets, which is hours, not days. Falls back to the soonest WEEKLY reset among siblings
+    blocked by their weekly window. None when no sibling has a reset time at all. A reset
+    already in the past is skipped (a stale cached row); the active account is never a
+    candidate for its own relief.
+    """
+    session_wait: list[tuple[float, str]] = []
+    weekly_wait: list[tuple[float, str]] = []
+    for row in accounts:
+        email = str(row.get("email") or "")
+        if not email or email == active_email:
+            continue
+        fh = row.get("five_hour") if isinstance(row.get("five_hour"), dict) else {}
+        wk = row.get("seven_day") if isinstance(row.get("seven_day"), dict) else {}
+        wu = wk.get("utilization")
+        cap = row.get("weekly_cap")
+        weekly_blocked = (isinstance(wu, (int, float)) and wu >= 100.0) or (
+            cap is not None and isinstance(wu, (int, float)) and wu >= float(cap)
+        )
+        fr = fh.get("resets_at_epoch")
+        wr = wk.get("resets_at_epoch")
+        if not weekly_blocked and isinstance(fr, (int, float)) and float(fr) > now:
+            session_wait.append((float(fr), email))
+        elif weekly_blocked and isinstance(wr, (int, float)) and float(wr) > now:
+            weekly_wait.append((float(wr), email))
+    if session_wait:
+        epoch, email = min(session_wait)
+        return epoch, email, "session"
+    if weekly_wait:
+        epoch, email = min(weekly_wait)
+        return epoch, email, "weekly"
+    return None
+
+
+def _urgent_drain_message(active_email: str, session_pct: float, relief: tuple[float, str, str] | None) -> str:
+    """The operator's wording, with the concrete time the repos must hook themselves to."""
+    head = (
+        f"URGENT — fleet quota: the active account {active_email} is at {session_pct:.0f}% of its "
+        "5-hour session window and NO other account is available to switch to (every sibling is "
+        "session-exhausted, weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
+        "commit-and-push checkpoint now, then stop."
+    )
+    if relief is None:
+        # The board's URL is env-derived (the dashboard's own knobs), never a literal — the
+        # localhost ban this repo enforces applies to message text too, and rightly: a hardcoded
+        # URL here would drift the moment the port moves.
+        board = os.getenv(
+            "QUOTA_DASH_URL",
+            f"http://{os.getenv('QUOTA_DASH_HOST', '127.0.0.1')}:{os.getenv('QUOTA_DASH_PORT', '5051')}/",
+        )
+        return head + (
+            " No sibling reports a reset time, so no resume time can be given — wait for the "
+            f"operator or re-check the quota board ({board}) before resuming."
+        )
+    epoch, email, window = relief
+    resume = int(epoch) + 60
+    local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
+    utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return head + (
+        f" HOOK YOURSELF TO RESUME 1 MINUTE AFTER {email}'s {window} window resets: resume at "
+        f"{local} (UTC {utc}, epoch {resume}). Schedule the wake now — e.g. "
+        f"`sleep $(( {resume} - $(date +%s) ))` in a Monitor / wake hook — and do not poll "
+        "before then: the rotation will have switched to that account by the time you wake."
+    )
+
+
 def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
     """Fire ONE advisory only when the fleet's ACTIVE account is walled with no auto-relief.
 
@@ -3932,8 +4020,16 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     51181918 defect class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
     walled, row = _active_account_walled(accounts, threshold)
+    # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
+    # eligible successor is the same emergency as the wall, five points earlier — the runway a
+    # graceful stop needs. Same latch, same re-arm, one message per episode.
+    session_pct = None
+    if row is not None and isinstance(row.get("five_hour"), dict):
+        v = row["five_hour"].get("utilization")
+        session_pct = float(v) if isinstance(v, (int, float)) else None
+    urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
-    if not walled or row is None:
+    if row is None or not (walled or urgent):
         stamp.unlink(missing_ok=True)  # relief arrived (flip/reset) → re-arm for the next wall
         return
     # Relief IS coming when a headroom successor exists AND rotation is not paused: the active
@@ -3969,24 +4065,31 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         ),
         default=0.0,
     )
-    msg = (
-        f"fleet quota advisory: the active account {row['email']} is at {hot:.0f}% and this tick"
-        " could not flip to an account with headroom (every sibling walled, or rotation paused)"
-        " — work will stall until a weekly reset. Reach a commit-and-push checkpoint NOW."
-    )
+    relief = _next_session_relief(accounts, str(row["email"]), now)
+    msg = _urgent_drain_message(str(row["email"]), session_pct if session_pct is not None else hot, relief)
     _tick_telegram(msg)
     repos = _mailbox_repos()  # a fleet-wide wall concerns every project → broadcast
     if repos:
-        _drain_mail(repos, "fleet quota advisory\n\n" + msg)
+        _drain_mail(repos, "URGENT fleet quota — stop gracefully, hook to the next reset\n\n" + msg)
     try:
         stamp.write_text(str(int(now)), encoding="utf-8")
         os.utime(stamp, (now, now))
     except OSError:
         pass
     _ledger_append(
-        {"event": "fleet-active-wall", "ts": now, "account": row["email"], "at_pct": hot}
+        {
+            "event": "fleet-active-wall",
+            "ts": now,
+            "account": row["email"],
+            "at_pct": hot,
+            "tier": "walled" if walled else "urgent-90",
+            "resume_epoch": (int(relief[0]) + 60) if relief else None,
+        }
     )
-    print(f"tick: ACTIVE-WALL advisory {row['email']} at {hot:.0f}%")
+    print(
+        f"tick: {'ACTIVE-WALL' if walled else 'URGENT-DRAIN'} advisory {row['email']} at "
+        f"{hot:.0f}%" + (f" — resume after {relief[1]}'s {relief[2]} reset" if relief else "")
+    )
 
 
 def _fleet_tick_inner(dirs: list[Path]) -> int:
