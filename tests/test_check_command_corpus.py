@@ -984,6 +984,72 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     tppyc = Path(importlib.util.cache_from_source(str(tp)))
     py_compile.compile(str(tp), cfile=str(tppyc), doraise=True)
     tppyc.write_bytes(tppyc.read_bytes()[:20])
+    # a sibling RAISING at import beside a coincidentally torn cache of ANOTHER sibling: the
+    # failure has a real innermost frame (the raising sibling), so the caches are NOT consulted
+    # and the raising sibling is named — the trigger guard is load-bearing (pass 55)
+    _fake_hub(
+        tmp_path / "raiseplustorn",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="raise RuntimeError('tools WIP')\n",
+        extra={"libs/subagents/other.py": "X = 1\n"},
+    )
+    oth = tmp_path / "raiseplustorn" / "libs" / "subagents" / "other.py"
+    othpyc = Path(importlib.util.cache_from_source(str(oth)))
+    py_compile.compile(str(oth), cfile=str(othpyc), doraise=True)
+    othpyc.write_bytes(othpyc.read_bytes()[:20])
+    # a NUL-padded SIBLING (a SyntaxError with no filename, frames stripped → the importer is the
+    # last frame): the sibling's SOURCE is asked, compile-first, and named — never the target (EO1)
+    _fake_hub(
+        tmp_path / "nulsib",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="H = 1\n",
+    )
+    (tmp_path / "nulsib" / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
+    # a DIRECTORY where a sibling belongs (a half-finished checkout): the sibling is named (EO1)
+    _fake_hub(
+        tmp_path / "dirsib", 'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n'
+    )
+    (tmp_path / "dirsib" / "libs" / "subagents" / "tools.py").mkdir()
+    # an UNREADABLE sibling: a PermissionError inside the machinery (frames kept, innermost
+    # frozen) with no torn cache — the frame's attribution must be KEPT (the round-54 `elif`) (EO1)
+    _fake_hub(
+        tmp_path / "nopermsib",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="H = 1\n",
+    )
+    (tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py").chmod(0)
+    # a STALE-header target cache (recompiled by Python) beside a torn parent cache: the parent
+    # is named — the header clause end-to-end, not only the zero-byte one (EO1)
+    _fake_hub(tmp_path / "staletarget", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    stt = tmp_path / "staletarget" / "libs" / "subagents" / "web_tools.py"
+    stpyc = Path(importlib.util.cache_from_source(str(stt)))
+    py_compile.compile(str(stt), cfile=str(stpyc), doraise=True)
+    hdr = bytearray(stpyc.read_bytes()[:20])
+    hdr[8:12] = (1).to_bytes(4, "little")
+    stpyc.write_bytes(bytes(hdr))
+    stpar = tmp_path / "staletarget" / "libs" / "__init__.py"
+    stparpyc = Path(importlib.util.cache_from_source(str(stpar)))
+    py_compile.compile(str(stpar), cfile=str(stparpyc), doraise=True)
+    stparpyc.write_bytes(stparpyc.read_bytes()[:20])
+    # a target cache whose body unmarshals to a NON-code object (CPython: ImportError "Non-code
+    # object", `path` = the pyc): the target's own cache is torn — a BLOCK (EO1)
+    _fake_hub(tmp_path / "noncode", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    nct = tmp_path / "noncode" / "libs" / "subagents" / "web_tools.py"
+    ncpyc = Path(importlib.util.cache_from_source(str(nct)))
+    py_compile.compile(str(nct), cfile=str(ncpyc), doraise=True)
+    import marshal
+
+    ncpyc.write_bytes(ncpyc.read_bytes()[:16] + marshal.dumps(42))
+    # BOTH the parent's and the target's caches torn: a BLOCK naming both dirs — the remedy
+    # must fix the failure in one step (EO1)
+    _fake_hub(tmp_path / "bothtorn", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    for src in (
+        tmp_path / "bothtorn" / "libs" / "__init__.py",
+        tmp_path / "bothtorn" / "libs" / "subagents" / "web_tools.py",
+    ):
+        pc = Path(importlib.util.cache_from_source(str(src)))
+        py_compile.compile(str(src), cfile=str(pc), doraise=True)
+        pc.write_bytes(pc.read_bytes()[:20])
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -1013,7 +1079,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1030,6 +1096,9 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     nopermdir_unreadable = not os.access(
         tmp_path / "nopermdir" / "libs" / "subagents", os.R_OK
     )  # measured BEFORE the mode is restored below
+    nopermsib_unreadable = not os.access(
+        tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py", os.R_OK
+    )
     try:
         r = subprocess.run(
             [sys.executable, str(driver)], capture_output=True, text=True, timeout=120
@@ -1038,6 +1107,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         (tmp_path / "nopermdir" / "libs" / "subagents").chmod(
             0o755
         )  # pytest's tmp cleanup must be able to remove it
+        (tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py").chmod(0o644)
     assert r.returncode == 0, r.stdout + r.stderr
     out = json.loads(r.stdout.strip().splitlines()[-1])
     # the hub with a raising module: a BLOCKING problem naming the exception, no skip, and the
@@ -1226,6 +1296,52 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         and "libs/subagents/tools.py failed to import (bytecode cache of tools.py unloadable (EOFError"
         in out["sibtoolspyc"]["skipped"][0]
     ), out["sibtoolspyc"]
+    # a raising sibling beside another sibling's torn cache: the raise is named, not the cache
+    assert not any("present but unusable" in p for p in out["raiseplustorn"]["problems"]), out[
+        "raiseplustorn"
+    ]
+    assert (
+        len(out["raiseplustorn"]["skipped"]) == 1
+        and "libs/subagents/tools.py failed to import (RuntimeError: tools WIP)"
+        in out["raiseplustorn"]["skipped"][0]
+    ), out["raiseplustorn"]
+    assert "bytecode cache" not in out["raiseplustorn"]["skipped"][0], out["raiseplustorn"]
+    # a NUL-padded sibling / a directory at a sibling's path: an advisory naming the sibling
+    for hub in ("nulsib", "dirsib"):
+        assert not any("present but unusable" in p for p in out[hub]["problems"]), (hub, out[hub])
+        assert (
+            len(out[hub]["skipped"]) == 1
+            and "libs/subagents/tools.py failed to import" in out[hub]["skipped"][0]
+        ), (hub, out[hub])
+    # an unreadable sibling with no torn cache: the frame's attribution is KEPT, never "unknown"
+    if nopermsib_unreadable:
+        assert not any("present but unusable" in p for p in out["nopermsib"]["problems"]), out[
+            "nopermsib"
+        ]
+        assert (
+            len(out["nopermsib"]["skipped"]) == 1
+            and "libs/subagents/tools.py failed to import (PermissionError"
+            in out["nopermsib"]["skipped"][0]
+        ), out["nopermsib"]
+    # a stale-header target cache beside a torn parent: the parent is named, end to end
+    assert not any("present but unusable" in p for p in out["staletarget"]["problems"]), out[
+        "staletarget"
+    ]
+    assert (
+        len(out["staletarget"]["skipped"]) == 1
+        and "bytecode cache of __init__.py unloadable" in out["staletarget"]["skipped"][0]
+    ), out["staletarget"]
+    # a non-code body in the target's own cache: a BLOCK, never an advisory on the pyc's path
+    assert any(
+        "web_tools.py is present but unusable (bytecode cache of web_tools.py unloadable" in p
+        for p in out["noncode"]["problems"]
+    ), out["noncode"]
+    # both caches torn: a BLOCK naming both, the remedy naming both dirs
+    assert any(
+        "bytecode cache of __init__.py, web_tools.py unloadable" in p
+        and "delete libs/__pycache__, subagents/__pycache__" in p
+        for p in out["bothtorn"]["problems"]
+    ), out["bothtorn"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1465,7 +1581,7 @@ def test_blame_for_skips_a_frame_whose_file_is_gone_and_scrub_hides_the_home(tmp
     )
 
 
-def test_bad_cache_owner_ignores_caches_python_would_not_load(tmp_path):
+def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path):
     """A zero-byte cache, one with a foreign magic, and a stale timestamp-mode header are all
     recompiled from source by the import machinery — never the torn one (EM1); only a
     current-header cache with a torn body is."""
@@ -1480,14 +1596,50 @@ def test_bad_cache_owner_ignores_caches_python_would_not_load(tmp_path):
     pyc = Path(importlib.util.cache_from_source(str(src)))
     pyc.parent.mkdir(exist_ok=True)
     pyc.write_bytes(b"")
-    assert ccc._bad_cache_owner(src) is None
+    assert ccc._bad_cache_owners(src) == []
     py_compile.compile(str(src), cfile=str(pyc), doraise=True)
     good = pyc.read_bytes()
     pyc.write_bytes(b"XXXX" + good[4:20])  # a foreign magic, torn
-    assert ccc._bad_cache_owner(src) is None
+    assert ccc._bad_cache_owners(src) == []
     stale = bytearray(good[:20])
     stale[8:12] = (0).to_bytes(4, "little")  # an mtime that no longer matches the source
     pyc.write_bytes(bytes(stale))
-    assert ccc._bad_cache_owner(src) is None
+    assert ccc._bad_cache_owners(src) == []
+    stale_size = bytearray(good[:20])
+    stale_size[12:16] = (src.stat().st_size + 1).to_bytes(
+        4, "little"
+    )  # a size that no longer matches
+    pyc.write_bytes(bytes(stale_size))
+    assert ccc._bad_cache_owners(src) == []
+    pyc.write_bytes(
+        good[:17]
+    )  # a header plus one body byte: torn — the header length is 16, not more
+    assert ccc._bad_cache_owners(src) == [src]
     pyc.write_bytes(good[:20])  # the current header, a torn body
-    assert ccc._bad_cache_owner(src) == src
+    assert ccc._bad_cache_owners(src) == [src]
+    reserved = bytearray(good[:20])
+    reserved[4:8] = (4).to_bytes(
+        4, "little"
+    )  # reserved flag bits: CPython rejects the header, recompiles
+    pyc.write_bytes(bytes(reserved))
+    assert ccc._bad_cache_owners(src) == []
+    py_compile.compile(
+        str(src),
+        cfile=str(pyc),
+        doraise=True,
+        invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH,
+    )
+    hashed = pyc.read_bytes()
+    pyc.write_bytes(hashed[:20])  # a checked-hash cache, current hash, torn body → torn
+    assert ccc._bad_cache_owners(src) == [src]
+    src.write_text(
+        "WEB_TOOL_NAMES = frozenset({'x'})\n", encoding="utf-8"
+    )  # the source moved on: the hash no longer matches → recompiled, not torn
+    assert ccc._bad_cache_owners(src) == []
+    import marshal
+
+    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
+    pyc.write_bytes(
+        pyc.read_bytes()[:16] + marshal.dumps(42)
+    )  # a non-code body: CPython raises ImportError
+    assert ccc._bad_cache_owners(src) == [src]

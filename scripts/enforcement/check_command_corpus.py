@@ -66,6 +66,7 @@ import marshal
 import re
 import sys
 import traceback
+import types
 from collections.abc import Collection
 from pathlib import Path
 
@@ -173,22 +174,27 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         blame = _blame_for(exc)
         tb = traceback.extract_tb(exc.__traceback__)
         innermost = tb[-1].filename if tb else ""
-        if (
-            not blame
-            or _same_file(blame, Path(__file__))
-            or innermost.startswith("<frozen importlib")
-        ):
-            # the failure ended inside the IMPORT MACHINERY (no source frame at all, or the last
-            # real frame is merely the importer — the target's own `from .tools import` line when
-            # a DIRECT sibling's cache is torn): ask the CACHES which module's is unloadable, the
-            # target's first, then its package siblings, then the parent package (EK1/EM1); none
-            # torn → keep the frame's attribution, or "an unknown file" when there is none
-            owner = _bad_cache_owner(target)
-            if owner is not None:
-                blame = str(owner)
-                failure = f"bytecode cache of {owner.name} unloadable ({failure}) — delete {owner.parent.name}/__pycache__"
-            elif not blame or _same_file(blame, Path(__file__)):
+        frameless = not blame or _same_file(blame, Path(__file__))
+        # CPython's "Non-code object in <pyc>" ImportError carries the CACHE as `exc.path` (EO1)
+        if frameless or innermost.startswith("<frozen importlib") or blame.endswith(".pyc"):
+            # the failure ended inside the IMPORT MACHINERY (no source frame at all, or only the
+            # target's own import line as the last frame): ask the CACHES, in the order the import
+            # executes them, which are unloadable — CPython's own validators decide (EM1/EO1)
+            owners = _bad_cache_owners(target)
+            if owners:
+                blame = str(target) if target in owners else str(owners[0])
+                names = ", ".join(o.name for o in owners)
+                dirs = ", ".join(sorted({f"{o.parent.name}/__pycache__" for o in owners}))
+                failure = f"bytecode cache of {names} unloadable ({failure}) — delete {dirs}"
+            elif frameless:
                 blame = ""
+        if _same_file(blame, target) and not frameless:
+            # the frame says the TARGET, but the target's own source compiled clean (checked
+            # first): a SIBLING it imports may be the broken one — NUL bytes (a SyntaxError with no
+            # filename and stripped frames), a directory at its path, an unreadable file (EO1)
+            sib = _bad_source_owner(target)
+            if sib is not None:
+                blame = str(sib)
         _IMPORT_FAILURE.append(_scrub(failure, repo))
         _IMPORT_BLAME.append(blame)
         return None
@@ -260,38 +266,80 @@ def _scrub(text: str, repo: Path) -> str:
     )  # a dependency under the operator's home reads `~/…` (EK1)
 
 
-def _bad_cache_owner(target: Path) -> Path | None:
-    """Which module's bytecode cache is unloadable: the target's first, then its package
-    siblings, then the parent package — the order the import executes them. Only a cache
-    Python would actually LOAD counts: a full 16-byte header with the current magic and, in
-    timestamp mode, a header matching the source's mtime and size — a zero-byte, foreign or
-    stale cache is silently recompiled from source and never fails (a zero-byte target cache
-    beside a torn parent cache was blamed on the target — EM1). A torn `.pyc` (a killed write,
-    ENOSPC) then raises EOFError inside frozen importlib with no path and no filename (EK1)."""
-    siblings = sorted(p for p in target.parent.glob("*.py") if p != target)
+def _import_order(target: Path) -> list[Path]:
+    """The package sources in the order the import executes them: the parent package, the
+    target's package siblings, the target last (EO1)."""
     parents = sorted(target.parent.parent.glob("*.py"))
-    for src in [target, *siblings, *parents]:
-        pyc = Path(importlib.util.cache_from_source(str(src)))
-        if not pyc.is_file():
-            continue
-        try:
-            data = pyc.read_bytes()
-            st = src.stat()
-        except OSError:
-            continue
+    siblings = sorted(p for p in target.parent.glob("*.py") if p != target)
+    return [*parents, *siblings, target]
+
+
+def _cache_would_fail(src: Path) -> bool:
+    """Would CPython FAIL on this source's bytecode cache? Decided by CPython's own validators
+    (`importlib._bootstrap_external`): a cache it REJECTS — a short or foreign header, reserved
+    flag bits, a timestamp header that no longer matches the source, a checked hash that no
+    longer matches — is silently recompiled from source and never fails; a cache it ACCEPTS
+    whose body cannot be unmarshalled or is not a code object raises inside frozen importlib
+    (EM1/EO1). A hand-written header check implemented three of CPython's five conditions."""
+    pyc = Path(importlib.util.cache_from_source(str(src)))
+    if not pyc.is_file():
+        return False
+    try:
+        data = pyc.read_bytes()
+        st = src.stat()
+        source = src.read_bytes()
+    except OSError:
+        return False
+    try:
+        from importlib import (
+            _bootstrap_external as be,  # noqa: PLC0415 - the validators CPython itself runs
+        )
+
+        details = {"name": src.stem, "path": str(pyc)}
+        flags = be._classify_pyc(data, src.stem, details)
+        if flags & 0b1:
+            if flags & 0b10 and data[8:16] != importlib.util.source_hash(source):
+                return False
+        else:
+            be._validate_timestamp_pyc(data, int(st.st_mtime), st.st_size, src.stem, details)
+    except (ImportError, EOFError):
+        return False  # rejected → recompiled from source, never a failure
+    except AttributeError:  # a CPython without those private names: the manual header rules
         if len(data) < 16 or data[:4] != importlib.util.MAGIC_NUMBER:
-            continue  # ignored by the import machinery, recompiled from source
+            return False
         flags = int.from_bytes(data[4:8], "little")
-        if (
-            flags == 0
-        ):  # timestamp mode: a header that no longer matches the source is stale, not torn
-            mtime = int.from_bytes(data[8:12], "little")
-            size = int.from_bytes(data[12:16], "little")
-            if mtime != int(st.st_mtime) & 0xFFFFFFFF or size != st.st_size & 0xFFFFFFFF:
-                continue
-        try:
-            marshal.loads(data[16:])
-        except Exception:  # noqa: BLE001 - any unloadable body is the answer
+        if flags & ~0b11:
+            return False
+        if flags == 0 and (
+            int.from_bytes(data[8:12], "little") != int(st.st_mtime) & 0xFFFFFFFF
+            or int.from_bytes(data[12:16], "little") != st.st_size & 0xFFFFFFFF
+        ):
+            return False
+    try:
+        code = marshal.loads(data[16:])
+    except Exception:  # noqa: BLE001 - a torn body
+        return True
+    return not isinstance(
+        code, types.CodeType
+    )  # `Non-code object in <pyc>` — CPython raises ImportError
+
+
+def _bad_cache_owners(target: Path) -> list[Path]:
+    """Every module whose cache CPython would fail on, in import-execution order — a
+    filesystem-level tear rarely stops at one cache, and the remedy must name every
+    `__pycache__` that holds one (EO1)."""
+    return [src for src in _import_order(target) if _cache_would_fail(src)]
+
+
+def _bad_source_owner(target: Path) -> Path | None:
+    """The first module in import order whose SOURCE cannot be read or compiled — the same
+    compile-first certainty `_target_is_broken` gives the target, applied to the siblings it
+    imports (a NUL-padded sibling raises a SyntaxError with no filename and stripped frames; a
+    directory at a sibling's path a ModuleNotFoundError in the importer) (EO1)."""
+    for src in _import_order(target):
+        if src == target:
+            continue
+        if _target_is_broken(src):
             return src
     return None
 
