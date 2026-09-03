@@ -2846,3 +2846,46 @@ def test_a_dot_env_directory_is_not_a_project_env_file(tmp_path, monkeypatch, ca
     assert ge.project_env_files() == []
     assert ge.main() == 1  # no project env at all — the "no files" line, not a traceback
     assert "No project .env files found" in capsys.readouterr().err
+    env.rmdir()
+    os.mkfifo(env)  # the other non-regular shape the listing names: skipped the same way (CY2)
+    assert ge.project_env_files() == []
+
+
+def test_an_unlistable_opt_names_its_cause(tmp_path, monkeypatch, capsys):
+    """`Path.glob` yields nothing from a directory it cannot list — no error — so an unreadable
+    `/opt` reaches the "no files" line: that line names the possibility, never "0 projects" alone
+    (CY2)."""
+    _one_project(tmp_path, monkeypatch)
+    tmp_path.chmod(0)
+    try:
+        if os.access(tmp_path, os.R_OK | os.X_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        assert ge.main() == 1
+        assert "or /opt cannot be listed" in capsys.readouterr().err
+    finally:
+        tmp_path.chmod(0o700)
+
+
+def test_a_project_dir_the_scan_cannot_enter_is_a_refusal_not_a_silent_drop(
+    tmp_path, monkeypatch, capsys
+):
+    """`/opt/p` mode 0: the glob cannot stat `p/.env`, so the LISTING drops the project silently —
+    the code-dir walk is what refuses (its `.git` probe raises), and nothing pinned that: had
+    `project_dirs` ever swallowed EACCES, the CS2 silent drop would be back for every unenterable
+    project (CY2). The contract is the whole scan's: one line naming the path, exit 1."""
+    real_project_dirs = ge.project_dirs
+    _one_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(ge, "project_dirs", real_project_dirs)
+    q = tmp_path / "q"
+    q.mkdir()
+    (q / ".env").write_text("BAR_API_KEY=y\n", encoding="utf-8")
+    p = tmp_path / "p"
+    p.chmod(0)
+    try:
+        if os.access(p, os.X_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        assert ge.main() == 1
+        err = capsys.readouterr().err
+        assert err.startswith("ERROR: the scan could not read its inputs (") and str(p) in err, err
+    finally:
+        p.chmod(0o700)

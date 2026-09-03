@@ -30,7 +30,7 @@ HOOK = REPO / "scripts" / "wsl_startup_hook.sh"
 
 
 def _steps(text: str) -> list[str]:
-    return re.findall(r"^\s*_step (\S+)", text, re.M)
+    return re.findall(r"^\s*(?:if )?_step (\S+)", text, re.M)  # the dashboard step is an `if` (CY1)
 
 
 def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
@@ -46,9 +46,15 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
         "daily classify must be bounded"
     )
     assert re.search(r"_step registry_sync.*--fetch-credits", text)
-    # the dashboard (the liveness heartbeat) is written ONLY when every DATA step succeeded
-    gated = re.search(r'if \[ "\$core_failed" -eq 0 \]; then\n\s*_step gen_dashboard', text)
-    assert gated, "gen_dashboard must be gated on the data steps or a half-dead chain reads LIVE"
+    # the dashboard is written ONLY when every DATA step succeeded, and the liveness heartbeat is
+    # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
+    # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
+    gated = re.search(
+        r'if \[ "\$core_failed" -eq 0 \]; then\n\s*if _step gen_dashboard [^\n]*; then\n(?:\s*#[^\n]*\n)*\s*mkdir -p [^\n]*&& date -u [^\n]*> "\$HEARTBEAT"',
+        text,
+    )
+    assert gated, "gen_dashboard must be gated on the data steps and the heartbeat stamped after it"
+    assert text.count('> "$HEARTBEAT"') == 1, "the heartbeat has exactly one writer"
     # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
     assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
@@ -126,7 +132,15 @@ def test_liveness_registry_declares_the_chain_heartbeat():
     s = rows[0]
     assert s["kind"] == "cron" and "daily_refresh.sh" in s["cron_match"]
     assert s["evidence"]["type"] == "log"
-    assert s["evidence"]["path"].endswith("external-services-dashboard.html")
+    # the evidence is the chain's own stamp, never the dashboard file (any manual run refreshes that)
+    assert "dashboard" not in s["evidence"]["path"]
+    stamp = re.search(
+        r'^HEARTBEAT="\$FABRIK_ROOT(/[^"]+)"', CHAIN.read_text(encoding="utf-8"), re.M
+    )
+    assert stamp and s["evidence"]["path"] == "/opt/fabrik" + stamp.group(1), (
+        s["evidence"]["path"],
+        stamp and stamp.group(1),
+    )
     assert 24 <= s["max_age_hours"] <= 48  # a daily run, with slack for a late cron
 
 
@@ -467,13 +481,14 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "LOG_FILE": str(tmp_path / "chain.log"),
     }
     dash = root / "external-services-dashboard.html"
+    stamp = root / ".tmp" / "external-services" / "chain-heartbeat"
     # 1. a failed scan
     r = subprocess.run(
         ["bash", str(CHAIN)], env={**env, "FAIL_GATHER": "1"}, capture_output=True, text=True
     )
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
-    assert not dash.exists(), "a failed scan must not write the heartbeat"
+    assert not dash.exists() and not stamp.exists(), "a failed scan must not write the heartbeat"
     for skipped in ("classify_services.py", "registry_sync.py", "gen_dashboard.py"):
         assert skipped not in calls, (skipped, calls)
     assert calls.count("send_alert(") == 1, calls  # one cause, one alert (AC13/BR4)
@@ -484,6 +499,9 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
     assert dash.read_text(encoding="utf-8").strip() == "ok"
+    assert re.fullmatch(
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp.read_text(encoding="utf-8").strip()
+    ), "the heartbeat is stamped by the chain after a clean run"
     assert (
         calls.count("gather_envs.py") == 2
         and "registry_sync.py" in calls
@@ -500,10 +518,12 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
     log.write_text("", encoding="utf-8")
     dash.unlink()
+    stamp.unlink()
     r = subprocess.run(
         ["bash", str(CHAIN)], env={**env, "FAIL_CLASSIFY": "1"}, capture_output=True, text=True
     )
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
-    assert dash.exists() and "registry_sync.py" in calls and calls.count("gather_envs.py") == 2
+    assert dash.exists() and stamp.exists() and "registry_sync.py" in calls
+    assert calls.count("gather_envs.py") == 2
     assert calls.count("send_alert(") == 1 and "step classify_services FAILED (exit 1)" in calls

@@ -1125,11 +1125,14 @@ def main() -> int:
 
     try:
         files = project_env_files()
-    except OSError as exc:  # a listed `.env` (or `/opt` itself) the scan cannot stat — the "env files" cause, the same one line as the read (CW1)
+    except OSError as exc:  # a listed `.env` the scan cannot stat — the "env files" cause, the same one line as the read (CW1); an unlistable `/opt` never raises (the glob yields nothing) and takes the line below
         print(inputs_refusal(exc), file=sys.stderr)
         return 1
     if not files:
-        print("No project .env files found under /opt/*/.env", file=sys.stderr)
+        print(
+            "No project .env files found under /opt/*/.env (or /opt cannot be listed)",
+            file=sys.stderr,
+        )
         return 1
 
     try:

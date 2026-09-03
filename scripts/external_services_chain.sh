@@ -10,10 +10,13 @@
 #   → registry_sync --fetch-credits (Postgres fabrik_services) → gen_dashboard (static HTML)
 #
 # Every step is non-fatal to the caller but NEVER silent: a non-zero exit alerts via
-# libs/alerting (the retired orchestrator's alert, kept), and the dashboard — the liveness
-# heartbeat, `external-services-chain` in .fabrik/liveness-registry.json — is written ONLY
-# when every DATA step succeeded (gather_envs, reconsolidate, registry_sync), so a half-dead chain
-# lets the mtime age past its 30 h budget and reads DEAD instead of green (review 2026-09-02);
+# libs/alerting (the retired orchestrator's alert, kept), and the liveness heartbeat —
+# `$HEARTBEAT`, `external-services-chain` in .fabrik/liveness-registry.json — is stamped by THIS
+# script ONLY, after every DATA step succeeded (gather_envs, reconsolidate, registry_sync) and the
+# dashboard was written, so a half-dead chain lets the stamp age past its 30 h budget and reads
+# DEAD instead of green (review 2026-09-02). The dashboard file's own mtime is NOT the heartbeat:
+# a manual `gen_dashboard.py` run refreshed it and certified LIVE a chain the cron had not run
+# for 46 h (CY1);
 # a failed classify (the paid, optional pass) alerts but does not age the heartbeat. Each step runs under
 # `timeout`.
 set -u
@@ -22,6 +25,7 @@ VENV_PY="${VENV_PY:-$FABRIK_ROOT/.venv/bin/python}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
 LOG_FILE="${LOG_FILE:-/dev/stderr}"
 DASHBOARD="$FABRIK_ROOT/external-services-dashboard.html"
+HEARTBEAT="$FABRIK_ROOT/.tmp/external-services/chain-heartbeat"  # the liveness evidence path (mirrored in .fabrik/liveness-registry.json)
 chain_failed=0   # any step failed (exit code of this script)
 core_failed=0    # a step the dashboard DEPENDS on failed (gather_envs / reconsolidate / registry_sync)
 
@@ -58,7 +62,11 @@ fi
 # The heartbeat depends on the DATA steps. classify is the paid, optional pass: its failure
 # (credits, pool transport) is alerted but must not report a fresh registry as DEAD (pass 2, G9).
 if [ "$core_failed" -eq 0 ]; then
-  _step gen_dashboard "$VENV_PY" "$FABRIK_ROOT/scripts/gen_dashboard.py" "$DASHBOARD"
+  if _step gen_dashboard "$VENV_PY" "$FABRIK_ROOT/scripts/gen_dashboard.py" "$DASHBOARD"; then
+    # the heartbeat is stamped HERE and nowhere else — after every step ran (CY1); a failed stamp
+    # ages the heartbeat to DEAD, which is the right verdict for a chain nobody can see finish
+    mkdir -p "$(dirname "$HEARTBEAT")" && date -u +%FT%TZ > "$HEARTBEAT" || echo "[external-services-chain] heartbeat NOT stamped ($HEARTBEAT) — liveness will read DEAD"
+  fi
 else
   echo "[external-services-chain] a data step failed — dashboard NOT rewritten (heartbeat left to age)"
 fi
