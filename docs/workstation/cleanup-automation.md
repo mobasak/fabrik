@@ -1,11 +1,12 @@
 # Cleanup Automation — WSL + Windows
 
-**Date:** 2026-08-03
+**Date:** 2026-08-03 · **Updated:** 2026-09-03 (§ D — the subagent spools, and why they are not swept)
 **Status:** ✅ CURRENT
 **Affects:** Local dev box (WSL2 `Ubuntu-24.04`) + its Windows host. NOT the VPS fleet.
 
 Three pieces, cleanly split so nothing overlaps: **one cleaner per OS side** (scheduled) + **one manual
-compaction tool**.
+compaction tool**. § D is not a fourth piece — it is the standing DO-NOT-SWEEP list, kept here because
+this page is where a new cleanup rule gets written.
 
 | Piece | Where | Schedule | Owns |
 |---|---|---|---|
@@ -72,6 +73,41 @@ This owns the **Windows** side; the WSL cleaner never touches `/mnt/c`. The two 
 
 ---
 
+## D. Deliberately NOT cleaned — the subagent spools (`.tmp/subagents/`)
+
+Every repo that dispatches to the OpenRouter pool writes a local spool at `<repo>/.tmp/subagents/`.
+**No cleaner touches it, and that is correct** — but the reason belongs here, because the directory
+looks exactly like something a cleaner should sweep, and § A and § B are where someone would go to
+add that rule.
+
+Measured 2026-09-03: **0.3 GB across 24 dirs** (largest: `fabrik` 72M · `web-ecommerce-factory` 62M ·
+`trade-intelligence` 29M). It is **not** a disk-pressure item — it is ~0.04% of the 826 G in use — but
+it grows without bound: `libs/subagents/ledger.py` caps the diff *inside a row* (`_MAX_DIFF_CHARS`)
+and never rotates or age-gates the FILE, and nothing in `logrotate.d` or `tmpfiles.d` covers it. The
+hub's spans 2026-07-08 → today at 18.6 KB/row, because each row embeds the agent's task text plus its
+capped diff.
+
+| File | Safe to delete? | Why |
+|---|---|---|
+| `pg_outbox.jsonl` · `pg_outbox.flushing.jsonl` | **NEVER** | Unflushed run records — the **only** copy until the 06:00 walker inserts them (`daily_refresh.sh` → `flush_subagent_outboxes.py`). Deleting one destroys exactly the runs the flush exists to rescue. Only **four** repos have a `SUBAGENT_RUNS_DSN` at all (measured 2026-09-02 — `fabrik`, `iterative_image_editor`, `trade-intelligence`, `tryton-crm`); for every other repo this file is the sole transport, refilling continuously between drains. |
+| `ledger.jsonl` | **No** — not without a retention plan | Read by `check_subagent_flywheel.py` (which `final_gate.py` runs), `kaizen_collect.py`, and `audit_unrecorded()`. Today's refresh reports **1,116 pool runs that ran and were never scored** — listable only from this file. |
+| `receipts.jsonl` | **No** | The flush's per-repo audit trail; asserted by `test_flush_subagent_outboxes.py`. |
+| `pg_outbox.corrupt.jsonl` | Age-gate it if it ever appears | Quarantined unparseable rows. Absent on every repo as of 2026-09-03. |
+| `*.lock` | Yes, if stale | Zero-byte `flock` targets. |
+
+**The trap this section exists to prevent:** a future rule globbing `.tmp/**` or `*.jsonl` would take
+`pg_outbox.jsonl` with it, silently, and the loss would look like models that never ran. § A's design
+principle — *"never touches source/data"* — already forbids it; the table names the files so nobody
+has to re-derive which ones are data.
+
+**If the size ever does start to matter,** the lever is retention inside `libs/subagents/ledger.py`,
+**not** a cron `find -delete`: the readers above need the history, so an age gate belongs where the
+writer can keep it consistent. That file is vendored — 48 sync-reachable copies, 50 live (D-093) — so
+it is a canonical `/opt/fabrik-lib/subagents` edit plus a re-vendor, and needs the operator's
+cross-repo word.
+
+---
+
 ## Notes
 
 - **Backups:** every edited config/script is copied to `~/backups/` before changes
@@ -79,4 +115,6 @@ This owns the **Windows** side; the WSL cleaner never touches `/mnt/c`. The two 
 - **`.wslconfig`:** swap pinned to `C:\wsl\swap.vhdx` (no more orphaned swaps in `%TEMP%`); the risky
   experimental `sparseVhd` flag is not set (Microsoft flags sparse mode as a data-corruption risk).
 - **Related:** [cleanup-maintenance-backlog.md](cleanup-maintenance-backlog.md) (remaining items) ·
-  [wsl-startup-inventory.md](wsl-startup-inventory.md) (what runs on boot).
+  [wsl-startup-inventory.md](wsl-startup-inventory.md) (what runs on boot) ·
+  `scripts/kilo-benchmarks/flush_subagent_outboxes.py` + `libs/subagents/ledger.py` — the spools
+  in § D and the 06:00 flush that drains them.
