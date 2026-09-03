@@ -84,7 +84,7 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 _CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
 _WEB_TOOLS_RE = re.compile(
     r"web_tools\s*=\s*(?:(?:frozenset|set|sorted|list|tuple)\(\s*)*[\[{(](.*?)[\]})](?!\s*(?:[|+]|if\b|else\b))"
-)  # list/set/frozenset and nested-call forms, captured to the END of the argument — the first closer NOT followed by an operator (`|`, `+`) or a ternary keyword — so `{"a"} | {"exa"}`, `sorted({"exa"})`, a ternary, an inline-code span and a bare prose tail (`web_tools=["exa"] for facts`) all keep every name; the capture is then cut at the first keyword-argument boundary (`, system=…`), so a following argument is never harvested; per LINE (a multi-line literal is out of scope); UNQUOTED names (`[exa]`) are invisible by design since pass 43 — the price of not harvesting `if`/`else` (DM2/DO2/DQ2/DS2)
+)  # list/set/frozenset and nested-call forms, captured to the END of the argument — the first closer NOT followed by an operator (`|`, `+`) or a ternary keyword — so `{"a"} | {"exa"}`, `sorted({"exa"})`, a ternary, an inline-code span and a bare prose tail (`web_tools=["exa"] for facts`) all keep every name; the capture is then cut at the first keyword-argument boundary (`, system=…`), so a following argument is never harvested; per LINE (a multi-line literal is out of scope); UNQUOTED names (`[exa]`) are invisible by design since pass 43 — the price of not harvesting `if`/`else`; a literal whose tail starts with an operator or ternary keyword and has NO later closer on the line is invisible too, and a keyword argument inside a ternary's condition cuts the harvest early — 0 of 58 lines in the repo take either shape (DM2/DO2/DQ2/DS2/DU3)
 _KWARG_CUT_RE = re.compile(
     r",\s*[A-Za-z_][A-Za-z0-9_]*\s*="
 )  # the first `, name=` after the literal ends the harvest (DS2)
@@ -158,10 +158,13 @@ def _canonical_trailer_model(repo: Path = REPO) -> str | None:
 
 
 # Files this run could NOT read. A skipped read must never be indistinguishable from a clean
-# one: `main` reports "all sound across N corpus file(s)" where N counts files COLLECTED, so a
+# one: `main` reports "all sound across N file(s) read" where N counts files the predicates OPENED, so a
 # silent skip would claim coverage the run did not have — the exact fail-silent-green shape this
 # check exists to catch, rebuilt inside the fix for the OSError crash.
 SKIPPED: list[str] = []
+SKIPPED_PREDICATES: list[
+    str
+] = []  # a predicate that could not run at all — the hub's web-tool check without its module (DU1)
 AUDITED: set[str] = (
     set()
 )  # every file a predicate actually OPENED this audit — the success line's denominator (DS2)
@@ -303,6 +306,7 @@ def audit(
     problems: list[str] = []
     SKIPPED.clear()
     AUDITED.clear()
+    SKIPPED_PREDICATES.clear()
     files = _corpus_files(sources, fragments, assembler)
     if not files:
         # ⚠️ NOT-APPLICABLE, not a failure — this check is SYNCED to ~46 projects, and the command
@@ -348,6 +352,13 @@ def audit(
         )
 
     valid_tools = _live_web_tool_names(repo)
+    if valid_tools is None and assembler.exists():
+        # the HUB without its vendored pool module: predicate 1 — the founding one — would run
+        # zero times and the success line would still name it; a project never vendors the
+        # module and skips by design (DU1)
+        SKIPPED_PREDICATES.append(
+            "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
+        )
     known_commands = {p.stem for p in sources.glob("*.md")}
     canonical_model = _canonical_trailer_model(repo)
     orch_doc_set = set(orch_docs)
@@ -659,16 +670,17 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
         " run records, agent definitions, advertised closes, caller claims —"
-        # max(): SKIPPED can name files outside _corpus_files (orchestrator docs, agent defs),
-        # so a bare subtraction can underflow into a nonsense negative denominator.
+        # the population is what was READ plus what could not be — never the collected list (DU1)
         f" all sound across {audited} file(s) read"
         + (
             f"\n⚠ {len(SKIPPED)} file(s) could NOT be read and were NOT audited "
-            f"(collected {audited}): {', '.join(SKIPPED)}"
+            f"(collected {audited + len(SKIPPED)}): {', '.join(SKIPPED)}"
             if SKIPPED
             else ""
         )
     )
+    for note in SKIPPED_PREDICATES:
+        print(f"⚠ predicate skipped — {note}")
     return 0
 
 

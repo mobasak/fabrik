@@ -128,7 +128,10 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
         # path), never a first-lap tombstone (DO1/DQ1)
         answered = obj is not None and not is_template(obj)
         # a template-only answer — capped OR completed — is no answer: a strike toward the error
-        # budget (retry next lap), never a first-lap tombstone; the two were asymmetric (DS1)
+        # budget (retry next lap), never a first-lap tombstone; the two were asymmetric (DS1).
+        # The cost mirror: an echoing provider is billed up to three units across three laps
+        # instead of one, inside the same per-run bound; a HEDGED or near-miss category is the
+        # model's answer — it fails the enum and is tombstoned on lap 1 like malformed JSON (DU3)
         template_only = obj is not None and not answered
         had_error = (
             getattr(r, "error", None) is not None and not (capped and answered)

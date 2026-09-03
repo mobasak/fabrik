@@ -65,7 +65,9 @@ def main() -> int:
         if not quiet:
             # Same "N staged script(s) inspected" wording as the clean path — one phrasing for one
             # concept, so a reader (and a test) is not matching two substrings for the same fact.
-            print("OK — nothing staged; this check is staged-scoped (0 staged script(s) inspected).")
+            print(
+                "OK — nothing staged; this check is staged-scoped (0 staged script(s) inspected)."
+            )
         return 0
     staged_set = set(staged)
     scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
@@ -88,7 +90,9 @@ def main() -> int:
         listed = m.group(1).strip()
         if listed.lower() in NONE_VALUES:
             continue
-        coupled = [c for c in SEPARATORS.split(listed) if c]
+        coupled = [
+            c for c in SEPARATORS.split(listed) if c and c.lower() not in NONE_VALUES
+        ]  # `<files | none>` is the sentinel form CLAUDE.md mandates — `none` is never a coupled file (28 of 128 headers, DU2)
         missing = [c for c in coupled if c not in staged_set]
         if missing:
             warnings.append(

@@ -537,6 +537,9 @@ def test_the_audited_count_never_goes_negative(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "across 0 file(s) read" in out, out
     assert "-2 " not in out, out
+    assert "(collected 3)" in out, (
+        out
+    )  # the population = read + unreadable, never the read count alone (DU1)
 
 
 def test_a_scriptless_close_is_still_policed(corpus):
@@ -690,23 +693,60 @@ def test_the_selftest_is_not_vacuous():
 def test_the_audited_denominator_counts_every_file_a_predicate_opened(tmp_path):
     """The success line said "55 corpus file(s)" while the predicates read 93 (the orchestrator
     docs, the wrappers and the agent definitions never counted) — a denominator the line's own
-    comment warned about (DS2)."""
+    comment warned about (DS2). Every read site is exercised by a DISJOINT file, so dropping any
+    one of the wrapper/agent sites reds this test; the two corpus-loop sites read the same files
+    and cover each other by design (DU1)."""
     import check_command_corpus as ccc
 
     src = tmp_path / "_sources"
     frag = tmp_path / "_fragments"
-    src.mkdir()
-    frag.mkdir()
+    skills = tmp_path / "_traycer-skills" / "fab-x"
+    agents = tmp_path / "_agents"
+    for d in (src, frag, skills, agents):
+        d.mkdir(parents=True)
     (src / "fabrik-a.md").write_text("{{include:run-record}}\n", encoding="utf-8")
     (src / "fabrik-b.md").write_text("{{include:run-record}}\n", encoding="utf-8")
+    (skills / "SKILL.md").write_text(
+        "`/opt/fabrik/docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md`\n{{include:run-record}}\n",
+        encoding="utf-8",
+    )
+    (agents / "agent-z.md").write_text(
+        "---\nname: agent-z\ndescription: d\n---\n", encoding="utf-8"
+    )
+    ccc.audit(src, frag, tmp_path / "absent.py", REPO, traycer_skills=skills.parent, agents=agents)
+    names = {Path(p).name for p in ccc.AUDITED}
+    assert {"fabrik-a.md", "fabrik-b.md", "SKILL.md", "agent-z.md"} <= names, names
+    assert names <= {
+        "fabrik-a.md",
+        "fabrik-b.md",
+        "SKILL.md",
+        "agent-z.md",
+        "00-trigger-fabrik.md",
+    }, names
+
+
+def test_a_hub_without_its_web_tools_module_says_the_predicate_did_not_run(tmp_path):
+    """With `libs/subagents/web_tools.py` absent the founding predicate ran zero times and the
+    success line still named it (executed at pass 45: the provider-name defect it exists for
+    passed green). In the hub — the assembler present — that is an advisory, never silence (DU1)."""
+    import check_command_corpus as ccc
+
+    repo = tmp_path / "hub"
+    (repo / "commands").mkdir(parents=True)
+    (repo / "commands" / "assemble_commands.py").write_text("# assembler\n", encoding="utf-8")
+    src = repo / "commands" / "_sources"
+    frag = repo / "commands" / "_fragments"
+    src.mkdir()
+    frag.mkdir()
+    (src / "fabrik-a.md").write_text(
+        '{{include:run-record}}\nfanout("r", web_tools=["exa"])\n', encoding="utf-8"
+    )
     ccc.audit(
         src,
         frag,
-        tmp_path / "absent.py",
-        REPO,
+        repo / "commands" / "assemble_commands.py",
+        repo,
         traycer_skills=tmp_path / "no-orch",
-        agents=tmp_path / "no-agents",  # else the repo's four agent definitions are opened too
+        agents=tmp_path / "no-agents",
     )
-    assert {Path(p).name for p in ccc.AUDITED} == {"fabrik-a.md", "fabrik-b.md"}, (
-        ccc.AUDITED
-    )  # exactly what was opened
+    assert ccc.SKIPPED_PREDICATES and "predicate 1 did not run" in ccc.SKIPPED_PREDICATES[0]
