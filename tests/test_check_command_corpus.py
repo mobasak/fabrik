@@ -818,7 +818,11 @@ def test_a_failing_run_still_prints_its_coverage_warnings(monkeypatch, capsys):
 
 
 def _fake_hub(
-    root: Path, web_tools_body: str | None, init_body: str = "", tools_body: str | None = None
+    root: Path,
+    web_tools_body: str | None,
+    init_body: str = "",
+    tools_body: str | None = None,
+    extra: dict[str, str] | None = None,
 ) -> Path:
     """A hub-shaped tree: the assembler (so predicate 1's hub branch runs), one source carrying
     the bait `["exa"]`, and a `libs/subagents/web_tools.py` whose body the test chooses — or no
@@ -836,6 +840,9 @@ def _fake_hub(
         (root / "libs" / "subagents" / "web_tools.py").write_text(web_tools_body, encoding="utf-8")
         if tools_body is not None:
             (root / "libs" / "subagents" / "tools.py").write_text(tools_body, encoding="utf-8")
+        for rel, body in (extra or {}).items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(body, encoding="utf-8")
     return root
 
 
@@ -880,6 +887,43 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     (tmp_path / "site" / "broken_dep_xyz.py").write_text(
         "raise ImportError('broken wheel')\n", encoding="utf-8"
     )
+    # an out-of-repo PACKAGE: the common shape (httpx, every dependency) — named with its package,
+    # never a bare `__init__.py` (EE1)
+    _fake_hub(tmp_path / "extpkg", "import broken_pkg\nWEB_TOOL_NAMES = frozenset()\n")
+    (tmp_path / "site" / "broken_pkg").mkdir()
+    (tmp_path / "site" / "broken_pkg" / "__init__.py").write_text(
+        "raise ImportError('broken pkg')\n", encoding="utf-8"
+    )
+    # the constant's SHAPE: a bare str is a set of characters, None crashes, a non-str member
+    # crashes the remediation join — every one a hub problem naming the shape (EE1)
+    _fake_hub(tmp_path / "strconst", 'WEB_TOOL_NAMES = "web_search"\n')
+    _fake_hub(tmp_path / "noneconst", "WEB_TOOL_NAMES = None\n")
+    _fake_hub(tmp_path / "badmember", "WEB_TOOL_NAMES = frozenset({1})\n")
+    # a RUNTIME SyntaxError (compile() of a string): `exc.filename` is `<string>`, the frames are
+    # kept — the blame must fall through to the frame, web_tools.py, and BLOCK (EE1)
+    _fake_hub(
+        tmp_path / "rtsyntax",
+        'compile("def (:", "<string>", "exec")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # a suffix collision: `deep_web_tools.py` ends with the name — identity, not suffix (EE1)
+    _fake_hub(
+        tmp_path / "suffix",
+        'from .deep_web_tools import X\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/deep_web_tools.py": "raise RuntimeError('deep WIP')\n"},
+    )
+    # a SYMLINKED libs/ (the vendored tree lives elsewhere): an in-repo file must still read
+    # repo-relative, never "(outside the repo)" (EE1)
+    vend = tmp_path / "vendored"
+    _fake_hub(tmp_path / "symlibs", None)
+    (vend / "subagents").mkdir(parents=True)
+    (vend / "__init__.py").write_text("", encoding="utf-8")
+    (vend / "subagents" / "__init__.py").write_text(
+        "raise RuntimeError('sibling WIP')\n", encoding="utf-8"
+    )
+    (vend / "subagents" / "web_tools.py").write_text(
+        'WEB_TOOL_NAMES = frozenset({"web_search"})\n', encoding="utf-8"
+    )
+    (tmp_path / "symlibs" / "libs").symlink_to(vend, target_is_directory=True)
     driver = tmp_path / "driver.py"
     driver.write_text(
         "import json, sys\n"
@@ -887,21 +931,21 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
+        f"    site = {str(tmp_path / 'site')!r}\n"
+        "    if site in sys.path:\n"
+        "        sys.path.remove(site)\n"
+        "    if name in ('extdep', 'extpkg'):\n"  # the dependency dir reaches ONLY the hubs that need it — a `libs` package there would beat a namespace-shaped hub (pass 50)
+        "        sys.path.append(site)\n"
         "    probs = c.audit(hub / 'commands' / '_sources', hub / 'commands' / '_fragments', hub / 'commands' / 'assemble_commands.py', hub, traycer_skills=hub / 'no-orch', agents=hub / 'no-agents')\n"
         "    out[name] = {'problems': probs, 'skipped': list(c.SKIPPED_PREDICATES), 'failure': list(c._IMPORT_FAILURE)}\n"
         "print(json.dumps(out))\n",
         encoding="utf-8",
     )
-    import os
-
-    env = {**os.environ, "PYTHONPATH": str(tmp_path / "site")}
-    r = subprocess.run(
-        [sys.executable, str(driver)], capture_output=True, text=True, timeout=120, env=env
-    )
+    r = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     out = json.loads(r.stdout.strip().splitlines()[-1])
     # the hub with a raising module: a BLOCKING problem naming the exception, no skip, and the
@@ -961,11 +1005,45 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         in out["extdep"]["skipped"][0]
     ), out["extdep"]
     assert (
-        "/"
-        not in out["extdep"]["skipped"][0]
-        .split(" failed to import")[0]
-        .split("web-tool names: ")[1]
-    ), out["extdep"]
+        "broken_pkg/__init__.py (outside the repo) failed to import (ImportError: broken pkg)"
+        in out["extpkg"]["skipped"][0]
+    ), out["extpkg"]
+    # the constant's shape — each a hub PROBLEM naming the shape, never a traceback or an inverted check
+    assert any(
+        "present but unusable (WEB_TOOL_NAMES is not a collection of str (str))" in p
+        for p in out["strconst"]["problems"]
+    ), out["strconst"]
+    assert not any("is not a real tool" in p for p in out["strconst"]["problems"]), out["strconst"]
+    assert any(
+        "present but unusable (WEB_TOOL_NAMES is not a collection of str (NoneType))" in p
+        for p in out["noneconst"]["problems"]
+    ), out["noneconst"]
+    assert any(
+        "present but unusable (WEB_TOOL_NAMES has a member that is not a non-empty str)" in p
+        for p in out["badmember"]["problems"]
+    ), out["badmember"]
+    # a runtime SyntaxError: BLOCK, blamed on web_tools.py by its frame
+    assert any(
+        "web_tools.py is present but unusable (SyntaxError" in p
+        for p in out["rtsyntax"]["problems"]
+    ), out["rtsyntax"]
+    assert out["rtsyntax"]["skipped"] == [], out["rtsyntax"]
+    # a suffix collision: an advisory naming deep_web_tools.py, never a block under web_tools.py's name
+    assert not any(
+        "web_tools.py is present but unusable" in p for p in out["suffix"]["problems"]
+    ), out["suffix"]
+    assert (
+        len(out["suffix"]["skipped"]) == 1
+        and "deep_web_tools.py failed to import (RuntimeError: deep WIP)"
+        in out["suffix"]["skipped"][0]
+    ), out["suffix"]
+    # a symlinked libs/: repo-relative, never "(outside the repo)"
+    assert (
+        len(out["symlibs"]["skipped"]) == 1
+        and "libs/subagents/__init__.py failed to import (RuntimeError: sibling WIP)"
+        in out["symlibs"]["skipped"][0]
+    ), out["symlibs"]
+    assert "outside" not in out["symlibs"]["skipped"][0], out["symlibs"]
 
 
 def test_quiet_drops_the_clean_denominator_line_and_keeps_every_warning(monkeypatch, capsys):

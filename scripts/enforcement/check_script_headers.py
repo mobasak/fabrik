@@ -106,8 +106,8 @@ def main() -> int:
         # bare run in 01M1E6S1EAK7DNP74C1K9YHP3Z actually hit (the reporter's scripts were
         # modified-UNSTAGED, and this check is staged-scoped by design).
         if not quiet:
-            # Same "N staged script(s) inspected" wording as the clean path — one phrasing for one
-            # concept, so a reader (and a test) is not matching two substrings for the same fact.
+            # The same `N of M staged script(s) inspected` shape as the clean path (without its third
+            # count — nothing is staged), so a reader (and a test) matches one phrasing for one fact.
             print(
                 "OK — nothing staged; this check is staged-scoped (0 of 0 staged script(s) inspected)."
             )

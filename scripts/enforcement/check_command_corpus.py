@@ -148,25 +148,72 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     try:
         from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
     except Exception as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1)
-        tb = traceback.extract_tb(exc.__traceback__)
-        # a SyntaxError (the half-saved-file shape) carries no `path` and CPython strips the
-        # import-machinery frames, so the last frame is the IMPORTER — `exc.filename` is the
-        # broken file (EC1); `exc.path` covers a renamed constant (ImportError at the import site)
-        blame = (
-            getattr(exc, "path", None)
-            or (exc.filename if isinstance(exc, SyntaxError) else None)
-            or (tb[-1].filename if tb else "")
-        )
         _IMPORT_FAILURE.append(f"{exc.__class__.__name__}: {exc}")
-        _IMPORT_BLAME.append(str(blame))
+        _IMPORT_BLAME.append(_blame_for(exc))
         return None
 
-    names = frozenset(WEB_TOOL_NAMES)
-    if not names:  # a stub constant would flag EVERY name in the corpus as not real (DY1)
-        _IMPORT_FAILURE.append("WEB_TOOL_NAMES is empty")
+    shape = _shape_problem(WEB_TOOL_NAMES)
+    if (
+        shape
+    ):  # a stub, a bare str, None, non-str members — each inverts or takes down the gate (DY1/EE1)
+        _IMPORT_FAILURE.append(shape)
         _IMPORT_BLAME.append(str(repo / "libs" / "subagents" / "web_tools.py"))
         return None
-    return names
+    return frozenset(WEB_TOOL_NAMES)
+
+
+def _blame_for(exc: BaseException) -> str:
+    """The FILE an import failure was raised in. `exc.path` — an ImportError at the import site
+    (a renamed constant); a SyntaxError's `filename` when it names a REAL file (a compile-time
+    error: CPython strips the import-machinery frames, so the last frame would be the importer);
+    otherwise the last traceback frame — a RUNTIME SyntaxError from `compile()`/`eval()` says
+    `<string>` and keeps its frames, so the frame is the truth there (EC1/EE1)."""
+    path = getattr(exc, "path", None)
+    if path:
+        return str(path)
+    if isinstance(exc, SyntaxError) and exc.filename and not exc.filename.startswith("<"):
+        if Path(exc.filename).is_file():
+            return exc.filename
+    tb = traceback.extract_tb(exc.__traceback__)
+    return tb[-1].filename if tb else ""
+
+
+def _shape_problem(value: object) -> str | None:
+    """`WEB_TOOL_NAMES` must be a non-empty collection of non-empty str. A bare str is a set of
+    CHARACTERS (`valid: _, a, b, …` — every real name flagged, fleet-wide); None or an int crash
+    the `frozenset`; a non-str member crashes the remediation join. `libs/` is excluded from
+    ruff and mypy, so this check is the constant's only reader (EE1)."""
+    if isinstance(value, str) or not isinstance(value, (set, frozenset, list, tuple)):
+        return f"WEB_TOOL_NAMES is not a collection of str ({type(value).__name__})"
+    if not value:
+        return "WEB_TOOL_NAMES is empty"
+    if not all(isinstance(n, str) and n for n in value):
+        return "WEB_TOOL_NAMES has a member that is not a non-empty str"
+    return None
+
+
+def _same_file(blame: str, target: Path) -> bool:
+    """Identity, never a suffix: `libs/web_tools.py` (a real standalone module in this tree) and
+    a `deep_web_tools.py` both end with the name (EE1)."""
+    try:
+        return Path(blame).resolve() == target.resolve()
+    except OSError:
+        return False
+
+
+def _display_path(blame: str, repo: Path) -> str:
+    """Repo-relative when the file is inside the repo — the LITERAL path first (a symlinked
+    `libs/` resolves outside the tree and must still read `libs/subagents/…`), then the resolved
+    one; otherwise the name, with its package for an `__init__.py`, never an absolute path under
+    the operator's home in a synced check's stdout (EC1/EE1)."""
+    p = Path(blame)
+    for a, b in ((p, repo), (p.resolve(), repo.resolve())):
+        try:
+            return str(a.relative_to(b))
+        except ValueError:
+            continue
+    shown = f"{p.parent.name}/{p.name}" if p.name.startswith("__init__") else p.name
+    return f"{shown} (outside the repo)"
 
 
 def _canonical_trailer_model(repo: Path = REPO) -> str | None:
@@ -392,7 +439,9 @@ def audit(
         # on import, a renamed or empty constant after a vendor sync) is a hub DEFECT: the
         # round-46 guard turned that from a blocking red into a green with an advisory the
         # `--json` mode never showed — it is a problem, never a skip (DY1)
-        if _IMPORT_FAILURE and _IMPORT_BLAME[-1].endswith("web_tools.py"):
+        if _IMPORT_FAILURE and _same_file(
+            _IMPORT_BLAME[-1], repo / "libs" / "subagents" / "web_tools.py"
+        ):
             problems.append(
                 f"libs/subagents/web_tools.py is present but unusable ({_IMPORT_FAILURE[-1]}) — "
                 "predicate 1 (web-tool names) could not run in the hub; fix the module, do not skip"
@@ -402,11 +451,7 @@ def audit(
             # raised in a SIBLING file — a peer session's half-saved agent.py on this shared tree —
             # is not this check's surface and must not red every session's gate under
             # web_tools.py's name (EA1); it is named, and predicate 1 is recorded as not run
-            blame = _IMPORT_BLAME[-1]
-            try:
-                blame = str(Path(blame).resolve().relative_to(repo.resolve()))
-            except ValueError:  # outside the repo (a site-packages dependency): its name, never an absolute path under the operator's home in a synced check's stdout (EC1)
-                blame = f"{Path(blame).name} (outside the repo)"
+            blame = _display_path(_IMPORT_BLAME[-1], repo)
             SKIPPED_PREDICATES.append(
                 f"web-tool names: {blame} failed to import ({_IMPORT_FAILURE[-1]}) while loading "
                 "libs/subagents/web_tools.py — predicate 1 did not run; not this check's surface"

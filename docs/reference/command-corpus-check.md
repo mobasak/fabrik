@@ -97,8 +97,14 @@ name. Flags: `--quiet` suppresses only the clean-path ✓ denominator line (the 
 as it does for the sibling Script Coupling Header row, so a green row never carries a
 content-free line fleet-wide); the ⚠ lines always print on both exits — first on the passing exit
 (the `--json` `warnings` array admits only ⚠-first output), after the `✗` block on the failing one.
-A SyntaxError is attributed by `exc.filename` (the import frames are stripped, so the last frame
-would name the importer); a failure raised outside the repo is named by file, never by absolute path.
+A SyntaxError is attributed by `exc.filename` when it names a real file (a compile-time error strips
+the import frames, so the last frame would name the importer); a runtime one (`compile()` of a
+string says `<string>` and keeps its frames) and every other exception are attributed by the last
+frame. The hub decision compares file IDENTITY with `libs/subagents/web_tools.py` — never a name
+suffix (`libs/web_tools.py` is a separate module). The constant must be a non-empty collection of
+non-empty `str`: a bare str, `None` or a non-str member is the same hub problem, named by shape. A
+failure raised outside the repo is named by file (with its package for an `__init__.py`), never by
+absolute path; an in-repo file behind a symlinked `libs/` still reads repo-relative.
 
 **The important negative:** path-shaped look-alikes are *not* chain references.
 `/opt/fabrik-lib`, `/run/fabrik-autoheal/pause` and `docs/reference/fabrik-mail.md` all
