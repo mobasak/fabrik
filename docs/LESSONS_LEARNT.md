@@ -1,6 +1,26 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 151: `git commit -- <paths>` commits the WORKING TREE of those paths — index-only staging is bypassed, and a sibling's unstaged hunk in the same file ships under your name (2026-09-03)
+
+The shared-tree contract has two commit forms and both fail on a SHARED FILE, in opposite directions.
+`git commit` (no pathspec) takes the index blobs — so a hand-built "HEAD + my hunk" blob staged with
+`git update-index --cacheinfo` is honoured — but it takes the WHOLE index, siblings' staged files
+included. `git commit -- <paths>` takes only those paths, but it reads their WORKING-TREE bytes, so the
+carefully built index blob is ignored and every uncommitted hunk a sibling left in that file rides along.
+Live: e001baa5 (intel) was meant to carry one ledger row and one INDEX.md row; it shipped a sibling's
+D-109 row and four of their test-count rows too, pushed before `git show --stat` revealed the wider
+stat. Nothing was lost — their tree equalled HEAD for those hunks — but HEAD then described tests and an
+alerting consolidation that were still uncommitted in their tree, under my trailers.
+
+The mechanical minimum until worktree-per-agent lands (the 2026-09-03 multi-agent spec, CONVERGED r10):
+**after EVERY commit compare `git show --stat HEAD` against the numstat you expected BEFORE pushing** — a
+wider stat is the tell, and unpushed it is recoverable with `reset --soft`. The only hunk-scoped commit
+on a shared tree is a private-index plumbing commit (`GIT_INDEX_FILE=$(mktemp)` + `read-tree HEAD` +
+`update-index --cacheinfo` per file + `write-tree` / `commit-tree` / `update-ref`), which also skips the
+pre-commit hooks — run the gate and the ledger check yourself first. Second hunk-level sweep in the hub
+in one day; the class is exactly why the sessions move into worktrees.
+
 # Lesson 150: a waker that must be RE-ARMED by the agent after every wake is a waker that fails in exactly the storm it exists for — make the watch standing, and make the wait re-ask the world it is waiting on
 
 The pane self-watch fired ONE wake and exited, with the wake text ordering the agent to re-arm it.
