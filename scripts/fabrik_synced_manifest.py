@@ -135,7 +135,7 @@ AGENT_HOOK_FILES = [
     ".claude/hooks/mail_notify.py",  # SessionStart + UserPromptSubmit: surface unread fabrik-mail (fail-open)
     ".claude/hooks/quota_stop.py",  # PreToolUse: fleet-wide graceful stop on the tick's fleet-exhausted stamp (fail-open)
     ".claude/hooks/agent_role.py",
-    ".claude/hooks/mcp_watch.py",  # SessionStart: inject the named agent's charter (fleet-safe silent no-op)
+    ".claude/hooks/mcp_watch.py",  # UserPromptSubmit: the D-041 per-message MCP forcing layer — staleness + cached-liveness banners (01M1GJQ3: the old comment was agent_role.py's)
     ".windsurf/hooks.json",
 ]
 

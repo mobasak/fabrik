@@ -94,6 +94,7 @@ def _section(text: str, head_re: re.Pattern[str]) -> str:
 def _digest_rows(section: str) -> list[tuple[str, str]]:
     """(quote, cited-path) per data row; header/separator rows skipped."""
     rows: list[tuple[str, str]] = []
+    seen_table_rows = 0  # rows are classified by POSITION: 1st = header, 2nd = separator (01M1GSBZ)
     for line in section.splitlines():
         line = line.strip()
         if not line.startswith("|"):
@@ -101,8 +102,11 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) < 2:
             continue
+        seen_table_rows += 1
+        if seen_table_rows <= 2:
+            continue  # the header row and the |---| separator, whatever their first cell says
         quote = _norm(cells[0])
-        if not quote or set(quote) <= {"-", ":", " "} or quote.lower().startswith("rule"):
+        if not quote or set(quote) <= {"-", ":", " "}:
             continue
         m = PATH_TOKEN_RE.search(cells[1].replace("`", ""))
         if not m:

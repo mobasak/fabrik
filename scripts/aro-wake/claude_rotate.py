@@ -2484,8 +2484,17 @@ def _env_float(name: str, default: float) -> float:
     return val
 
 
+def _rotate_threshold() -> float:
+    """The flip-away threshold on either quota window — ONE source for every call site.
+    Default **98** (operator rule 2026-09-03: "trigger rotation as soon as session limits hit
+    98% for the 5h window"; was 95). `ROTATE_THRESHOLD` overrides. The weekly leg is governed by
+    the account's ``caps.json`` cap when one exists (the cap IS the operator's weekly rule) and by
+    this threshold otherwise — see ``_fleet_flip_leg``."""
+    return _env_float("ROTATE_THRESHOLD", 98.0)
+
+
 def _tick_inner() -> int:
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
     if drain_thr > threshold:
         # The warning must never sit ABOVE the action it warns about: between the two there is a
@@ -2964,8 +2973,10 @@ def _flip_churn_excluded(
 def _pick_flip_target(
     accounts: list[dict], exclude: frozenset[str] | set[str] = frozenset()
 ) -> tuple[str, str] | None:
-    """The flip successor as ``(slug, email)``: the account with the most weekly-then-session
-    HEADROOM (lowest seven_day utilization, ties to lowest five_hour) among accounts whose dirs
+    """The flip successor as ``(slug, email)``: PERISHABLE-FIRST (operator rule 2026-09-02, the
+    same rule :func:`_pick_successor` applies on the reactive path) — the SOONEST weekly reset
+    wins (quota about to refresh is the cheapest to burn), ties to lowest seven_day then lowest
+    five_hour utilization, an unknown reset time sorts last — among accounts whose dirs
     hold LIVE-chained credentials (the F-P1 gate, via ``_account_flip_dir``) — excluding the
     *exclude* emails, walled ones (either window ≥100%), CAP-walled ones (weekly ≥ its
     ``caps.json`` cap — the operator's browser reserve), ones already at/over
@@ -2975,30 +2986,118 @@ def _pick_flip_target(
     choke point: the tick's flip leg and the pointer-repair fallback both inherit these
     exclusions through here. Cached readings count — ``_validated_pick`` live-verifies them
     before a flip. None when nothing qualifies (→ the drain advisory is the only recourse)."""
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
-    ranked: list[tuple[tuple[float, float], str, str]] = []
+    threshold = _rotate_threshold()
+    far = _now() + 365 * 86400  # an unknown reset time is unprovable perishability — sorts last
+    ranked: list[tuple[tuple[float, float, float], str, str]] = []
     for row in accounts:
         if row.get("email") in exclude:
             continue
-        slug = _account_flip_dir(row.get("slugs") or [])
-        if slug is None:
-            continue
-        utils: dict[str, float | None] = {}
-        for key in ("five_hour", "seven_day"):
-            w = row.get(key)
-            u = w.get("utilization") if isinstance(w, dict) else None
-            utils[key] = float(u) if isinstance(u, (int, float)) else None
-        if utils["five_hour"] is None and utils["seven_day"] is None:
-            continue  # no reading — cannot prove headroom
-        if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
-            continue  # walled / cap-walled / already ≥ threshold — never a flip target
+        slug, utils, reason = _flip_candidate_verdict(row, threshold)
+        if reason is not None or slug is None:
+            continue  # the ONE predicate source — the diagnostic line prints the same reason
+        wk = row.get("seven_day")
+        reset = wk.get("resets_at_epoch") if isinstance(wk, dict) else None
+        reset_at = float(reset) if isinstance(reset, (int, float)) else far
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
         session = utils["five_hour"] if utils["five_hour"] is not None else 100.0
-        ranked.append(((weekly, session), slug, str(row.get("email"))))
+        ranked.append(((reset_at, weekly, session), slug, str(row.get("email"))))
     if not ranked:
         return None
     ranked.sort()
     return ranked[0][1], ranked[0][2]
+
+
+def _cache_trust_s() -> float:
+    """How old a cached reading may be and still stand in for a failed live re-verify. Defaults
+    to the tick's own reading-refresh interval (``ROTATE_READING_MAX_AGE_S``) so one knob moves
+    both: a reading the tick would not yet refresh is, by the same rule, still trusted."""
+    return _env_float("ROTATE_CACHE_TRUST_S", _env_float("ROTATE_READING_MAX_AGE_S", 3600.0))
+
+
+def _flip_candidate_verdict(
+    row: dict, threshold: float
+) -> tuple[str | None, dict[str, float | None], str | None]:
+    """The ONE candidate predicate, returning ``(slug, utils, reason)`` — ``reason`` is None
+    when the row is a flip candidate. :func:`_pick_flip_target` DECIDES on it and
+    :func:`_flip_exclusion_reasons` PRINTS it, so the two can never drift (F-C1: two copies of
+    an exclusion predicate drifting apart IS the churn bug). The cached-unverifiable outcome is
+    not a predicate here — it is :func:`_validated_pick`'s live verdict — so the diagnostic
+    names it from the row's ``source``/``age_s`` instead."""
+    slug = _account_flip_dir(row.get("slugs") or [])
+    utils: dict[str, float | None] = {}
+    for key in ("five_hour", "seven_day"):
+        w = row.get(key)
+        u = w.get("utilization") if isinstance(w, dict) else None
+        utils[key] = float(u) if isinstance(u, (int, float)) else None
+    # A CACHED standby whose 5h reset time has already passed holds a ROLLED-OVER window: an idle
+    # account cannot burn fleet quota, so that window is empty by construction (the board applies
+    # the same rule). Read it as 0% — the stale 100% is not evidence of anything current.
+    fh = row.get("five_hour")
+    fh_reset = fh.get("resets_at_epoch") if isinstance(fh, dict) else None
+    if (
+        row.get("source") == "cache"
+        and utils["five_hour"] is not None
+        and isinstance(fh_reset, (int, float))
+        and float(fh_reset) <= _now()
+    ):
+        utils["five_hour"] = 0.0
+    if slug is None:
+        return None, utils, "no live-chained credentialed dir (chain stale or no credentials)"
+    if utils["five_hour"] is None and utils["seven_day"] is None:
+        return slug, utils, "no quota reading"
+    if any(u is not None and u >= 100.0 for u in utils.values()):
+        return slug, utils, "walled (a window at 100%)"  # the sharpest fact first
+    # OPERATOR RULE (2026-09-02): never rotate to an account that has no 5h session budget. A
+    # weekly reading alone proves nothing about the session window, and a sibling near its own
+    # session wall would be flipped to and flipped away from on the next tick.
+    # Default = the drain threshold: a target at/over it would be advisory-flagged the moment it
+    # became active, so "has 5h budget" and "not yet draining" are ONE line, not two knobs.
+    session_max = _env_float(
+        "ROTATE_TARGET_SESSION_MAX_PCT", _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    )
+    if utils["five_hour"] is None:
+        return slug, utils, "no session reading — 5h budget unproven"
+    if utils["five_hour"] > session_max:
+        return (
+            slug,
+            utils,
+            (
+                f"session {utils['five_hour']:.0f}% used — no 5h budget (target max {session_max:.0f}%)"
+            ),
+        )
+    if _flip_churn_excluded(utils, row.get("weekly_cap"), threshold):
+        wu = utils.get("seven_day")
+        cap = row.get("weekly_cap")
+        if cap is not None and wu is not None and wu >= cap:
+            return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
+        return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
+    return slug, utils, None
+
+
+def _flip_exclusion_reasons(
+    accounts: list[dict], exclude: set[str] | frozenset[str], threshold: float
+) -> list[str]:
+    """One ``email: reason`` per sibling the flip leg could NOT pick, from the SAME predicate the
+    picker decides on (:func:`_flip_candidate_verdict`), printed when the pick is None. "NO
+    successor has headroom" with no reason was undiagnosable twice on 2026-09-02."""
+    out: list[str] = []
+    for row in accounts:
+        email = str(row.get("email"))
+        if email in exclude:
+            continue
+        _slug, _utils, reason = _flip_candidate_verdict(row, threshold)
+        if reason is None:
+            if row.get("source") == "cache":
+                age = row.get("age_s")
+                age_s = f"{age / 60:.0f}m" if isinstance(age, (int, float)) else "?"
+                reason = (
+                    f"cached {age_s} ago and the live re-verify failed or the cache is older"
+                    f" than the trust window ({_cache_trust_s() / 60:.0f}m)"
+                )
+            else:
+                reason = "eligible on paper — the flip was withheld elsewhere (see stderr)"
+        out.append(f"{email}: {reason}")
+    return out
 
 
 def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
@@ -3008,14 +3107,16 @@ def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
     return _account_flip_dir([d.name for d in dirs])
 
 
-def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] | None:
+def _validated_pick(
+    accounts: list[dict], exclude: set[str], *, verbose: bool = False
+) -> tuple[str, str] | None:
     """F-P2: :func:`_pick_flip_target`, with cached candidates LIVE-verified before they can
     become the fleet's pointer. A candidate whose reading was live THIS tick is returned as-is;
     one ranked off a CACHED row gets ONE usage probe with its own dir's token — probe failure
     (dead/unreachable) or a walled live reading excludes it and the next-best is considered.
     Cached-and-unverifiable must never become the fleet's sole pointer. None when nobody
     survives (→ the caller falls through to the no-headroom advisory)."""
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     exclude = set(exclude)
     while True:
         pick = _pick_flip_target(accounts, exclude=exclude)
@@ -3028,12 +3129,39 @@ def _validated_pick(accounts: list[dict], exclude: set[str]) -> tuple[str, str] 
         tok = _read_access_token(_fleet_root() / slug / ".credentials.json")
         windows = _usage_windows(_oauth_get("usage", tok)) if tok is not None else None
         if windows is None:
-            exclude.add(email)  # cached-and-unverifiable — never the fleet's pointer
+            # F-P2 AMENDED (2026-09-02, measured on the 14:35 tick: "NO successor has headroom"
+            # while can@ sat at 12%/12%): the probe runs with the STANDBY's own access token,
+            # which is expired by construction — only the active chain self-refreshes
+            # (_stale_snapshot_reason says so) — so it 401s for every idle sibling and nothing
+            # cached could ever become the pointer. A reading younger than ROTATE_CACHE_TRUST_S
+            # on a chain that passes the liveness gate is accepted (the refresh token is what
+            # makes the standby usable; the CLI rolls the access token on first use). An OLDER
+            # cache stays excluded — the rosy-cache class F-P2 exists for.
+            age = row.get("age_s")
+            if (
+                isinstance(age, (int, float))
+                and age <= _cache_trust_s()
+                and _chain_stale_reason(_fleet_root() / slug) is None
+            ):
+                if verbose:  # the flip leg only — the advisory leg re-asks and must not repeat
+                    print(
+                        f"tick: {email} cached reading {age / 60:.0f}m old accepted — live probe"
+                        " failed (a standby's access token is expired by design; chain gate passed)"
+                    )
+                return pick
+            exclude.add(email)  # cached-and-unverifiable (or too old) — never the fleet's pointer
             continue
-        live_utils = {k: w["utilization"] for k, w in windows.items()}
-        if _flip_churn_excluded(live_utils, row.get("weekly_cap"), threshold):
-            # the rosy cache hid a wall / the cap / a ≥threshold window — the live reading
-            # wins, by the SAME predicate the selector applied to the cached one (F-C1)
+        # ONLY the two quota windows are utilization dicts — `model_windows` (added 2026-08-22)
+        # rides along and crashed a `.items()` comprehension here with KeyError 'utilization'.
+        # The live reading REPLACES the cached windows and goes through the SAME candidate verdict
+        # the picker applied to the cache (F-C1 — walled / cap / ≥threshold / the 5h-budget gate):
+        # a rosy cache that probes live at 90% session is not a target, whatever the cache said.
+        live_row = {**row, "source": "live"}
+        for k in ("five_hour", "seven_day"):
+            if isinstance(windows.get(k), dict):
+                live_row[k] = windows[k]
+        _slug2, _utils2, live_reason = _flip_candidate_verdict(live_row, threshold)
+        if live_reason is not None:
             exclude.add(email)
             continue
         return pick
@@ -3632,7 +3760,10 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
             else:
                 print(f"tick: active {row['email']} chain DEAD — flip to {slug} withheld")
             return
-        print(f"tick: active {row['email']} chain DEAD and NO successor has headroom")
+        print(
+            f"tick: active {row['email']} chain DEAD and NO successor has headroom — "
+            + "; ".join(_flip_exclusion_reasons(accounts, {row["email"]}, threshold))
+        )
         _tick_telegram(
             f"active account {row['email']} OAuth chain is DEAD and no sibling has headroom —"
             " every screen will prompt for login until ONE /login re-pins a chain"
@@ -3648,17 +3779,22 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
         return
     hot = max(present)
-    # The cap tightens the WEEKLY leg only (session threshold unchanged): the active account's
-    # effective weekly threshold is min(ROTATE_THRESHOLD, its caps.json cap) — at weekly ≥ cap
-    # it flips away even with the session low, reserving the remainder for the operator.
+    # TWO legs, decided separately (scoped review 2026-09-03 — `min(threshold, cap)` tripped a
+    # cap of 99 at 98 the moment the session threshold moved): the SESSION leg trips at
+    # ROTATE_THRESHOLD; the WEEKLY leg trips at the account's caps.json cap when one exists (the
+    # cap IS the operator's weekly rule — can/mob 99, sarp 90, ob 80) and at the threshold otherwise.
     cap = row.get("weekly_cap")
-    weekly_thr = min(threshold, float(cap)) if cap is not None else threshold
-    ordinary_trip = hot >= threshold
-    cap_trip = (
-        cap is not None and utils["seven_day"] is not None and utils["seven_day"] >= weekly_thr
-    )
+    weekly_thr = float(cap) if cap is not None else threshold
+    session_trip = utils["five_hour"] is not None and utils["five_hour"] >= threshold
+    weekly_trip = utils["seven_day"] is not None and utils["seven_day"] >= weekly_thr
+    ordinary_trip = session_trip or (cap is None and weekly_trip)
+    cap_trip = cap is not None and weekly_trip
     if not (ordinary_trip or cap_trip):
-        print(f"tick: active {row['email']} at {hot:.0f}% — below {threshold:.0f}%, no flip")
+        print(
+            f"tick: active {row['email']} at {hot:.0f}% — session below {threshold:.0f}%"
+            + (f", weekly below cap {cap}" if cap is not None else "")
+            + ", no flip"
+        )
         return
     # F-C3: the audit trail records the value that actually TRIPPED — the weekly reading on a
     # cap-only trip; the hottest window when the ordinary threshold fired (legacy shape kept).
@@ -3669,11 +3805,14 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         if cap_only
         else f"at {hot:.0f}%"
     )
-    pick = _validated_pick(accounts, {row["email"]})
+    pick = _validated_pick(accounts, {row["email"]}, verbose=True)
     if pick is None:
         # Every sibling is walled/cap-walled/unreadable/credential-less: nothing to flip to. The
         # ≥85% advisory loop below is the recourse (Telegram + drain mail), exactly as before.
-        print(f"tick: active {row['email']} {at_desc} but NO successor has headroom")
+        print(
+            f"tick: active {row['email']} {at_desc} but NO successor has headroom — "
+            + "; ".join(_flip_exclusion_reasons(accounts, {row["email"]}, threshold))
+        )
         return
     slug, email = pick
     if _flip_active(slug, at_pct=at_pct):
@@ -3709,7 +3848,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     """Fire ONE advisory only when the fleet's ACTIVE account is walled with no auto-relief.
 
     Under one-active-pointer-for-all-projects (memory rotation_continuity_over_binding), an
-    individual account crossing 95% is a NON-event — the flip leg above re-points to a sibling
+    individual account crossing the threshold is a NON-event — the flip leg above re-points to a sibling
     with headroom and every agent keeps working. The "reach a checkpoint before the wall"
     advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
     could not relieve it (no successor with headroom, or the operator's pause held the flip).
@@ -3793,9 +3932,9 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     pause holds action, never signal). The advisory is FLEET-WIDE, not per-account: it fires
     ONLY when the post-flip active account is walled with no auto-relief (no successor, or the
     pause held the flip) — see :func:`_fleet_active_wall_advisory`. A single account crossing
-    95% while a sibling has headroom is a non-event (the flip relieved it) and fires nothing.
+    the threshold while a sibling has headroom is a non-event (the flip relieved it) and fires nothing.
     """
-    threshold = _env_float("ROTATE_THRESHOLD", 95.0)
+    threshold = _rotate_threshold()
     drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
     now = _now()
     accounts, pending = _fleet_account_rows(dirs, allow_pings=True)
@@ -3817,7 +3956,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         status = "ok" if hot < drain_thr else "at/over drain threshold"
         print(f"tick: {status} — {row['email']} at {hot:.0f}%{stale}")
     # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
-    # every agent is using) is walled with no auto-relief. A single account crossing 95% is a
+    # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
     _fleet_active_wall_advisory(accounts, now, threshold)
     for warn in _fleet_row_warnings(accounts):

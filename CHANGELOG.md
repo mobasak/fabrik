@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — infra's mailbox drained (operator ask 2026-09-03): 43 mails handled (33 before this commit, 10 with it), five small machinery defects closed at root, two pre-existing test reds cleared
+
+- Operator: "fabrik infra is working for the last 2 days and its mailbox has too many mails — understand its work, claim
+  the easy mails, handle them." Infra spent the two days in a 49-round review loop over external-services and the
+  corpus gate (commits 31983d88…f6afa2e1); the box held 95 `@infra` mails. Handled by the fleet session, each read →
+  validated at its cited path → acted → replied/acked (never swept): 14 informational replies (two suggestions parked
+  as durable `docs/STRATEGIC_BACKLOG.md` rows: Stop-hook cause-6 re-arming after resume · the unrunnable scaffold
+  suite), 13 project relays the hub relay beat had never delivered (ONE consolidated relay to web-ecommerce-factory
+  `01M1KE14H82P1TP9P1TE4XQNM0`; seo's answers superseded the seo-bound ones; `01M1CGKV` forwarded verbatim to
+  fabrik-lib `01M1KE2W2CQVNQ3GE98H73B681`), the mcp_watch finding already fixed by 0a7aa22d but never replied
+  (`01M1KE14QDPQG8CEQ5Q1DCNAB7` to web-ecommerce-factory), tryton-crm's v4 note, the two FEEDBACK digests, a stale quota
+  advisory, and the secret-detector note (wontfix as the filer proposed, one data point).
+- Fixed at root, each seen RED first: `scripts/mail.py` D-035 checker — `WHEN/WHO:` credits both keys and a backtick
+  before the colon is never a header (01M1H52X, 01M1J0KY); `check_rule_grounding._digest_rows` classifies the header
+  and separator by POSITION and no longer drops quotes beginning with "Rule" (01M1GSBZ); `decisions.py --check` is
+  wired as the `decisions-ledger-check` pre-commit hook on `docs/DECISIONS.md`, scoped to this repo (01M1KDHT);
+  `fabrik_synced_manifest.py` describes `mcp_watch.py` as the UserPromptSubmit forcing layer it is (01M1GJQ3 item 1);
+  INDEX rows citing six gitignored kilo artifacts now say so on the line — the doc-links checker's own skip marker —
+  so a fresh checkout and the live tree agree (01M1HANX); CLAUDE.md § Merge-time render states the main-checkout
+  order render → --check → commit (01M1K6A15M); the denominator HARD STOP grows its FIFTH shape — a diff filter
+  sharing its alphabet with markdown bullets (01M1KC917) — in both contracts; the research-grounding fragment tells
+  a single-shot pool grounder it MUST fetch (01M1GSR9's systemic line).
+- Two pre-existing reds found by the suites and cleared as the repo's: `scripts/aro-wake/claude_rotate.py` is again
+  byte-identical to its sysadmin twin (a8bdad1f updated one copy — fleet's own miss); the kaizen addressed-send test
+  read a ruff-formatted source as one line (whitespace-normalised).
+- NOT handled (need a spec/plan or infra's own ruling — left in the box: 56 addressed to infra or unaddressed, measured by `mail.py list --agent infra` after the acks): the spec-review EXECUTE
+  requirement, the corpus-gate and convergence-check semantics, execute-plan's D2 precondition, check_schema_sync
+  for TS/YAML, check_citations_resolve, the non-standard vendored-dir sync gap, the governance-sync safety floor, the
+  route-detector redesign, the async-http-client counter-dependency ruling, the kaizen daily collections (infra's
+  weekly pass), the Python-pin drift, and the operator-directed independent verify request.
+
 ### Changed — pipeline: `/fabrik-deploy-checklist` moves AFTER certification, directly before `/fabrik-release` (D-096, 2026-09-03)
 
 - Operator ruling. The parity contract now freezes on the CERTIFIED build: certification consumes nothing from the

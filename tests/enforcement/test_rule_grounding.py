@@ -147,3 +147,29 @@ def test_cli_always_exits_zero(tmp_path):
             timeout=60,
         )
         assert r.returncode == 0, (args, r.returncode, r.stderr[:300])
+
+
+# ── 01M1GSBZ (fleet, 2026-09-02): rows are classified by POSITION, never by content — seen RED first ──
+
+
+def test_digest_header_row_is_skipped_by_position_not_by_its_first_word():
+    """A digest whose header cell is not literally 'Rule…' (e.g. 'Mandate | Where') was parsed as
+    DATA and produced a phantom QUOTE-NOT-FOUND on every honest artifact."""
+    section = (
+        "| Mandate (verbatim) | Cited file |\n"
+        "|---|---|\n"
+        "| Use uv, never pip | .windsurf/rules/core/10-python.md:12 |\n"
+    )
+    assert chk._digest_rows(section) == [("Use uv, never pip", ".windsurf/rules/core/10-python.md")]
+
+
+def test_a_quote_beginning_with_the_word_rule_is_data_not_a_header():
+    """`**Rule:** Edit existing sections…` (core/40-documentation.md:185) is a real mandate; the old
+    `startswith('rule')` filter silently dropped it, so its citation was never graded."""
+    section = (
+        "| Rule (verbatim) | Where |\n"
+        "|---|---|\n"
+        "| Rule: Edit existing sections, never append blindly | .windsurf/rules/core/40-documentation.md:185 |\n"
+    )
+    rows = chk._digest_rows(section)
+    assert rows == [("Rule: Edit existing sections, never append blindly", ".windsurf/rules/core/40-documentation.md")]

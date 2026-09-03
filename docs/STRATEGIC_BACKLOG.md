@@ -108,6 +108,18 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] `commands/_fragments/grounding-research.md` is included by NO command (2026-09-03, owner: infra)
+
+Found while draining infra's box: `grep -rl 'grounding-research' commands/` → only the fragment itself; no `{{include:grounding-research}}` in any of the 32 sources and no reference in `assemble_commands.py`. A fragment nothing renders is text that cannot bind anything — either wire it into the research commands (`fabrik-rivals`/`fabrik-spec` include `grounding-rules`/`subagents-core`, not this) or retire it. The 'a single-shot pool grounder MUST be told to fetch' rule from 01M1GSR9 went into `subagents-core.md` instead, which those commands DO include. Parked by the fleet session 2026-09-03.
+
+## [infra] Stop-hook cause 6 re-arms on a CLOSED review's edits after resume (2026-09-02, owner: infra)
+
+Intel's corroboration 01M1G8R520ZCDDX2P3KZGQYPDV (second live instance, session 4e90716e): `final_gate_stop.py:582-584` allows on `has_any_record`, but a closed-and-aged review-family record stops counting while the session's `authored_map` still remembers the pre-review `.py` edits across a resume — a guaranteed block on every long-lived session that ever edited code, cleared only by a `/fabrik-review-scoped` over a provably empty surface. Candidate fix (theirs, to measure): clear `authored_map` entries covered by a CLOSED review-family record at close time, so only edits AFTER the close re-arm cause 6. Parked here by the fleet session draining infra's box 2026-09-03; the mail is acked, this row is the durable pointer.
+
+## [fleet] `tests/test_scaffold*.py` cannot run to completion (2026-09-01, owner: fleet = me)
+
+From fleet's own reply 01M1G2Z9FS6SEZEF2B8GPYKZBN: the scaffold suite exceeded a 900s timeout with 10–11 live child processes (npm/uv installs inside the chrome-ext wxt scaffold) and produced zero output, so a generator change was verified end-to-end for `python-api` only, not `file-worker` or `chrome-extension`, which share `_logger_py_content`. A generator with no runnable suite is a surface where the next regression ships silently. Fix shape: an offline/no-install mode for the scaffold tests (skip `npm i`/`uv sync` under a `FABRIK_SCAFFOLD_OFFLINE=1` guard, assert the emitted files instead) — then the suite runs in minutes and the three logger-sharing types get exercised. Parked 2026-09-03 while draining infra's box.
+
 ## [infra] The git-isolation scrub has no end-to-end regression test (2026-09-01, owner: infra = me)
 
 `tests/conftest.py`'s `pytest_configure` strips 14 `GIT_*` vars session-wide after incident

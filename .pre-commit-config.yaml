@@ -93,6 +93,15 @@ repos:
       # Triggers on: governance files, core scripts, enforcement scripts, reference docs
       # Command-corpus drift gate: installed ~/.claude/commands must match
       # the rendered _sources/_fragments (hand-edits are silently lost on re-render)
+      # Decision-ledger integrity (01M1KDHT, 2026-09-03): three sessions mint ids from a stale
+      # max-id read; two collisions in one day were cleaned by hand while the detector sat unwired.
+      # Scoped to THIS repo's ledger (`--root .`), exits 1 on a duplicate id or a dangling supersede.
+      - id: decisions-ledger-check
+        name: Decision ledger has unique ids + resolving supersede pointers
+        entry: python3 scripts/decisions.py --root . --check
+        language: system
+        files: ^docs/DECISIONS\.md$
+        pass_filenames: false
       - id: command-corpus-check
         name: Command corpus matches rendered sources
         entry: bash -c 'if [ "$(pwd)" = "/opt/fabrik" ]; then python3 /opt/fabrik/commands/assemble_commands.py --check; fi'

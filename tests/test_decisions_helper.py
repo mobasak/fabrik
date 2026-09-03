@@ -204,3 +204,25 @@ def test_say_survives_unicode_fallback_hitting_a_closed_pipe(monkeypatch):
         assert e.code == 0
     else:
         raise AssertionError("compound Unicode→BrokenPipe path escaped _say")
+
+
+def test_ledger_check_is_wired_into_pre_commit_and_fails_on_a_duplicate(tmp_path):
+    """01M1KDHT (intel, 2026-09-03): `decisions.py --check` detected duplicate ids perfectly and
+    NOTHING ran it — two collisions in one day were cleaned by hand. The hook runs on every commit
+    touching docs/DECISIONS.md, scoped to THIS repo's ledger (`--root .`), and the check exits 1."""
+    cfg = (REPO / ".pre-commit-config.yaml").read_text()
+    assert "decisions-ledger-check" in cfg and "decisions.py --root . --check" in cfg
+    assert "files: ^docs/DECISIONS\\.md$" in cfg
+    repo = tmp_path / "x"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "docs" / "DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-002 | d | w | a | b | c |\n| D-002 | d | w | a | b | c |\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "decisions.py"), "--root", str(repo), "--check"],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 1 and "DUPLICATE" in (r.stdout + r.stderr)

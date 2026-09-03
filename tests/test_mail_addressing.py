@@ -219,7 +219,7 @@ def test_kaizen_sends_one_addressed_obligation_per_beat():
     src = _KAIZEN.read_text(encoding="utf-8")
     m = _re.search(r'for beat in \("infra", "fleet"\):.*?"send",.*?\]', src, _re.S)
     assert m, "kaizen per-beat addressed send loop not found"
-    argv = m.group(0)
+    argv = " ".join(m.group(0).split())  # formatting-insensitive: the source is ruff-formatted one arg per line
     assert '"--to-agent", beat' in argv, argv
     assert '"--broadcast"' not in argv and '"--ack"' not in argv, (
         "the obligation must keep kind-default ack:required and never broadcast: " + argv

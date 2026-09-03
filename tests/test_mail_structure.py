@@ -123,3 +123,26 @@ def test_header_immediately_followed_by_another_header_is_still_empty():
     body = ("Subject: x\nWHAT: the thing\nWHERE: f.py:1\nWHEN: today\nWHO: fleet\n"
             "WHY:\nHOW: like so\nSYSTEMIC: the class\n")
     assert mail._structure_gaps("finding", body) == ["WHY"]
+
+
+# ── two accidental-verdict classes, filed 2026-09-02/03 (01M1H52X, 01M1J0KY) — seen RED first ──
+
+
+def test_slash_combined_header_credits_both_keys():
+    """`WHEN/WHO: 2026-09-02, intel` is the form the corpus itself invites; the checker credited
+    only the first key and warned 'missing: WHO' on a compliant finding (01M1H52X)."""
+    body = ("WHAT: a thing\nWHERE: f.py:1\nWHEN/WHO: 2026-09-02, intel (three sessions)\n"
+            "WHY: proven\nHOW: so\nSYSTEMIC: class\n")
+    assert mail._structure_gaps("finding", body) == []
+    # only the contract's own keys combine: an arbitrary prefix never credits the key (review, pass 1)
+    garbage = body.replace("WHEN/WHO:", "abc/WHO:").replace("WHERE: f.py:1", "WHERE: f.py:1\nWHEN: today")
+    assert mail._structure_gaps("finding", garbage) == ["WHO"]
+
+
+def test_a_path_colon_inside_an_em_dash_header_does_not_pass_the_section():
+    """`WHERE — \\`scripts/x.py:496\\`:` is NOT a `WHERE:` header; the old regex stopped at the
+    `:496` colon and captured the tail as content, passing one mis-formatted section while
+    flagging the six written identically (01M1J0KY)."""
+    body = ("WHAT — a\nWHERE — `scripts/sync_enforcement_to_projects.py:496`:\nWHEN — today\n"
+            "WHO — me\nWHY — proven\nHOW — so\nSYSTEMIC — class\n")
+    assert len(mail._structure_gaps("finding", body)) == 7
