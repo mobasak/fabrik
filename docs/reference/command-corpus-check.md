@@ -102,9 +102,12 @@ so a NUL-corrupted, unreadable, directory-shaped, dangling-symlinked or syntacti
 `web_tools.py` — or one whose parent directory cannot be read — is a hub problem with certainty,
 never a verdict inferred from a traceback (certainty about the SOURCE's health; the names the
 predicate then uses come from the import, so a bytecode cache whose header still matches a
-same-second, same-size rewrite is the measured residual — 0 today). A failure whose last real
-frame is the checker itself (a corrupt bytecode cache: EOFError inside frozen importlib) is the
-target's too — the only import in the checker is the target's. A failure the file did not cause
+same-second, same-size rewrite is the measured residual — 0 today). A failure with NO source
+frame (a torn bytecode cache: EOFError inside frozen importlib) is attributed by asking the caches
+themselves — the target's first, then its package siblings, then the parent package — so the
+target's own torn cache blocks and a sibling's is an advisory naming that module, each with the
+remediation (`delete <package>/__pycache__`). Every failure text is scrubbed of the repo prefix and
+of the operator's home (`~/…`) before it is printed. A failure the file did not cause
 is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
 renamed constant names the target; a broken sibling's import names the sibling); any exception
 whose `filename` names a real `.py` by that (a compile-time SyntaxError in a sibling strips the

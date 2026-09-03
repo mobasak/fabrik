@@ -955,6 +955,13 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     pyc = Path(importlib.util.cache_from_source(str(src)))
     py_compile.compile(str(src), cfile=str(pyc), doraise=True)
     pyc.write_bytes(pyc.read_bytes()[:20])
+    # a SIBLING's torn bytecode cache with a healthy target: the same frameless EOFError — it
+    # must NOT block under web_tools.py's name; the caches are asked and the owner named (EK1)
+    _fake_hub(tmp_path / "sibpyc", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    sib = tmp_path / "sibpyc" / "libs" / "subagents" / "__init__.py"
+    sibpyc = Path(importlib.util.cache_from_source(str(sib)))
+    py_compile.compile(str(sib), cfile=str(sibpyc), doraise=True)
+    sibpyc.write_bytes(sibpyc.read_bytes()[:20])
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -984,7 +991,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1131,13 +1138,17 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
             for p in out["noperm"]["problems"]
         ), out["noperm"]
         assert out["noperm"]["skipped"] == [], out["noperm"]
+        unusable_file = [p for p in out["noperm"]["problems"] if "present but unusable" in p]
+        assert unusable_file and not any(str(tmp_path) in p for p in unusable_file), out[
+            "noperm"
+        ]  # the target-check branch scrubs too (EK1)
     assert any(
-        "web_tools.py is present but unusable (not a regular file" in p
+        "web_tools.py is present but unusable (not a regular file)" in p
         for p in out["dirmod"]["problems"]
     ), out["dirmod"]
     # a dangling symlink: present and broken, never "absent"
     assert any(
-        "web_tools.py is present but unusable (not a regular file" in p
+        "web_tools.py is present but unusable (not a regular file)" in p
         for p in out["dangling"]["problems"]
     ), out["dangling"]
     assert out["dangling"]["skipped"] == [], out["dangling"]
@@ -1153,8 +1164,13 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         ]  # the exception's quoted path is scrubbed
     # a corrupt bytecode cache: a BLOCK on the target, blamed via the checker's own frame
     assert any(
-        "web_tools.py is present but unusable (EOFError" in p for p in out["corruptpyc"]["problems"]
+        "web_tools.py is present but unusable (bytecode cache of web_tools.py unloadable (EOFError"
+        in p
+        for p in out["corruptpyc"]["problems"]
     ), out["corruptpyc"]
+    assert any("delete subagents/__pycache__" in p for p in out["corruptpyc"]["problems"]), out[
+        "corruptpyc"
+    ]
     assert out["corruptpyc"]["skipped"] == [], out["corruptpyc"]
     # a missing data file opened at import: the module's own failure — a BLOCK
     assert any(
@@ -1162,6 +1178,13 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         for p in out["missingcfg"]["problems"]
     ), out["missingcfg"]
     assert out["missingcfg"]["skipped"] == [], out["missingcfg"]
+    # a sibling's torn cache: an advisory naming the sibling's cache, never a block
+    assert not any("present but unusable" in p for p in out["sibpyc"]["problems"]), out["sibpyc"]
+    assert (
+        len(out["sibpyc"]["skipped"]) == 1
+        and "libs/subagents/__init__.py failed to import (bytecode cache of __init__.py unloadable (EOFError"
+        in out["sibpyc"]["skipped"][0]
+    ), out["sibpyc"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1351,7 +1374,7 @@ def test_blame_for_uses_any_exception_filename_that_names_a_real_file(tmp_path):
         compile("def (:", "<string>", "exec")
     except SyntaxError as exc:
         assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
-    # a filename that does not exist, or a real NON-.py (a data file the module opened): the frame
+    # a filename that does not exist (the `is_file()` clause) and a real NON-.py (the `.py` clause): the frame
     try:
         raise FileNotFoundError(2, "No such file", str(tmp_path / "gone.py"))
     except FileNotFoundError as exc:
@@ -1378,4 +1401,24 @@ def test_target_is_broken_asks_the_file(tmp_path):
     assert (ccc._target_is_broken(t) or "").startswith("SyntaxError")
     d = tmp_path / "dir.py"
     d.mkdir()
-    assert ccc._target_is_broken(d) == "not a regular file (a directory, or a dangling symlink)"
+    assert ccc._target_is_broken(d) == "not a regular file"
+
+
+def test_blame_for_skips_a_frame_whose_file_is_gone_and_scrub_hides_the_home(tmp_path, monkeypatch):
+    """A sourceless `.pyc` records a `.py` that no longer exists — such a frame is skipped for the
+    next real one; `_scrub` turns a path under the operator's home into `~/…` (EK1)."""
+    import check_command_corpus as ccc
+
+    try:
+        exec(compile("raise RuntimeError('ghost')", "/nonexistent/ghost.py", "exec"))
+    except RuntimeError as exc:
+        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
+    home = Path.home()
+    assert (
+        ccc._scrub(f"ImportError: {home}/.venv/lib/x.py broke", tmp_path)
+        == "ImportError: ~/.venv/lib/x.py broke"
+    )
+    assert (
+        ccc._scrub(f"PermissionError: '{tmp_path}/libs/a.py'", tmp_path)
+        == "PermissionError: 'libs/a.py'"
+    )

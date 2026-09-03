@@ -61,6 +61,8 @@ that cannot fail is not a check.
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import marshal
 import re
 import sys
 import traceback
@@ -159,7 +161,7 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         return None
     broken = _target_is_broken(target)
     if broken:
-        _IMPORT_FAILURE.append(broken)
+        _IMPORT_FAILURE.append(_scrub(broken, repo))
         _IMPORT_BLAME.append(str(target))
         return None
     if str(repo) not in sys.path:  # once — every audit() call inserted another copy (DS1)
@@ -167,13 +169,20 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     try:
         from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
     except Exception as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1)
-        _IMPORT_FAILURE.append(_scrub(f"{exc.__class__.__name__}: {exc}", repo))
+        failure = f"{exc.__class__.__name__}: {exc}"
         blame = _blame_for(exc)
-        if _same_file(blame, Path(__file__)):
-            # the only import statement in THIS file is the target's: a failure whose last real
-            # frame is the checker itself (a corrupt bytecode cache → EOFError inside frozen
-            # importlib, no path, no filename) is the target's (EI1)
-            blame = str(target)
+        if not blame or _same_file(blame, Path(__file__)):
+            # no source frame at all (the only import in THIS file is the target's, so the last
+            # real frame is the checker): the shape of a torn bytecode cache anywhere in the
+            # `libs.subagents` graph — ask the CACHES which module's is unloadable, the target's
+            # first, then its package siblings, then the parent package (EI1/EK1); none → unknown
+            owner = _bad_cache_owner(target)
+            if owner is None:
+                blame = ""
+            else:
+                blame = str(owner)
+                failure = f"bytecode cache of {owner.name} unloadable ({failure}) — delete {owner.parent.name}/__pycache__"
+        _IMPORT_FAILURE.append(_scrub(failure, repo))
         _IMPORT_BLAME.append(blame)
         return None
 
@@ -194,7 +203,7 @@ def _target_is_broken(target: Path) -> str | None:
     still fail at import (a raise, a renamed constant, a broken sibling) — that is
     `_blame_for`'s job."""
     if not target.is_file():
-        return "not a regular file (a directory, or a dangling symlink)"
+        return "not a regular file"
     try:
         compile(target.read_bytes(), str(target), "exec")
     except (
@@ -228,9 +237,10 @@ def _blame_for(exc: BaseException) -> str:
     # the last frame that names a REAL file: the import machinery's own frames (`<frozen
     # importlib._bootstrap_external>`) sit below the importer and name nothing (EI1)
     for frame in reversed(tb):
-        if not frame.filename.startswith("<"):
+        # a real, EXISTING file: a sourceless `.pyc` records a `.py` that is gone (EK1)
+        if not frame.filename.startswith("<") and Path(frame.filename).is_file():
             return frame.filename
-    return tb[-1].filename if tb else ""
+    return ""  # no source frame at all — the caller asks the bytecode caches (EK1)
 
 
 def _scrub(text: str, repo: Path) -> str:
@@ -238,7 +248,27 @@ def _scrub(text: str, repo: Path) -> str:
     a synced check's stdout never carries a path under the operator's home (EI1)."""
     for root in {str(repo), str(repo.resolve())}:
         text = text.replace(root + "/", "")
-    return text
+    return text.replace(
+        str(Path.home()) + "/", "~/"
+    )  # a dependency under the operator's home reads `~/…` (EK1)
+
+
+def _bad_cache_owner(target: Path) -> Path | None:
+    """Which module's bytecode cache is unloadable: the target's first, then its package
+    siblings, then the parent package — the order the import executes them. A torn `.pyc`
+    (a killed write, ENOSPC) raises EOFError inside frozen importlib with no path and no
+    filename; a zero-byte or unreadable one falls back to source and never fails (EK1)."""
+    siblings = sorted(p for p in target.parent.glob("*.py") if p != target)
+    parents = sorted(target.parent.parent.glob("*.py"))
+    for src in [target, *siblings, *parents]:
+        pyc = Path(importlib.util.cache_from_source(str(src)))
+        if not pyc.is_file():
+            continue
+        try:
+            marshal.loads(pyc.read_bytes()[16:])
+        except Exception:  # noqa: BLE001 - any unloadable cache is the answer
+            return src
+    return None
 
 
 def _shape_problem(value: object) -> str | None:
