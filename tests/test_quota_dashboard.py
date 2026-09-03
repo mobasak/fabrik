@@ -733,3 +733,67 @@ def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, m
     stop.set()
     probes = [c for c in _calls(stub) if c[:2] == ["--status", "--json"]]
     assert len(probes) >= 4, probes  # period 0.15 → ~5 in 0.8s; pause-after-probe would give ~3
+
+
+# ── Commands tab (operator ask 2026-09-03; seen RED first) ─────────────────────────────────────
+
+
+def test_description_parses_into_purpose_when_skip_stage(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    d = (
+        'Do the thing — well. TRIGGER — EN: "do it", "make it"; TR: "yap". '
+        "SKIP: undoing it (→ /fabrik-undo). Stage: 4-build."
+    )
+    p = qd._parse_description(d)
+    assert p["purpose"] == "Do the thing — well."
+    assert p["when"].startswith('EN: "do it"') and "yap" in p["when"]
+    assert p["skip"].startswith("undoing it")
+    assert p["stage"] == "4-build"
+    bare = qd._parse_description("Just a purpose.")
+    assert bare == {"purpose": "Just a purpose.", "when": "", "skip": "", "stage": ""}
+
+
+def test_commands_table_covers_every_fabrik_source_in_pipeline_order(tmp_path, monkeypatch):
+    """Denominator from the filesystem, never a hand count; order from PIPELINE_ORDER (CLAUDE.md
+    § Pipeline) with the gates and utilities after the stages; NEXT from the assembler's map."""
+    qd = _load(tmp_path, monkeypatch)
+    sources = sorted(
+        p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md")
+    )
+    cmds = qd._load_commands()
+    assert [c["name"] for c in sorted(cmds, key=lambda c: c["name"])] == sources
+    names = [c["name"] for c in cmds]
+    assert names[0] == "fabrik-rivals" and names.index("fabrik-spec") < names.index(
+        "fabrik-plan-review"
+    )
+    assert names.index("fabrik-deploy") < names.index("fabrik-deploy-verify")
+    assert set(names) - set(qd.PIPELINE_ORDER) == set(), "every source has an explicit order slot"
+    assert set(qd.PIPELINE_ORDER) - set(names) == set(), "no stale slot in PIPELINE_ORDER"
+    by = {c["name"]: c for c in cmds}
+    assert by["fabrik-deploy"]["next"].startswith("/fabrik-deploy-verify")
+    assert by["fabrik-deploy-verify"]["stage"] == "6-release"
+    assert by["fabrik-spec"]["when"] and by["fabrik-spec"]["purpose"]
+
+
+def test_page_has_two_tabs_quota_default_commands_second(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    html = qd.render(_payload(), time.time())
+    assert 'data-tab="quota"' in html and 'data-tab="commands"' in html
+    assert html.index('data-tab="quota"') < html.index('data-tab="commands"')
+    assert '<section id="pane-quota" class="pane">' in html
+    assert '<section id="pane-commands" class="pane" hidden>' in html
+    assert html.count('<tr><td class="ord">') == len(qd._load_commands())
+    assert "location.hash" in html  # the chosen tab survives the 20s reload
+    for col in ("Command", "Stage", "Purpose", "When to use", "Skip when", "Next"):
+        assert f"<th>{col}</th>" in html
+
+
+def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    qd._load_commands()
+    key1 = qd._cmd_cache_key
+    assert key1 and any(name == "assemble_commands.py" for name, _ in key1)
+    monkeypatch.setattr(qd, "_FABRIK_ROOT", tmp_path / "nowhere")
+    assert qd._load_commands() == []
+    html = qd.render(_payload(), time.time())
+    assert "Command corpus unreadable" in html

@@ -83,6 +83,19 @@ The older design's reasoning, kept for the record:
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
 
+### The Commands tab (2026-09-03)
+
+The page has two tabs. **Quota** (default) is the board above. **Commands** lists every `/fabrik-*`
+command in pipeline order — `#`, command, stage badge, purpose, when to use, skip when, next — and
+none of it is typed into the dashboard: each row is parsed live from the command's own frontmatter
+`description:` under `commands/_sources/` (purpose = the text before `TRIGGER —`; when = the
+TRIGGER clause; skip = the `SKIP:` clause; stage = `Stage:`), and the successor comes from the
+assembler's `NEXT` map (`commands/assemble_commands.py`). The one hand-held fact is
+`PIPELINE_ORDER` in `quota_dashboard.py` (CLAUDE.md § Pipeline: stages, then gates, then
+utilities); a test refuses a source with no slot and a slot with no source, so it cannot drift from
+the corpus silently. Rows are cached on the sources' mtimes. The chosen tab lives in the URL hash
+(`#commands`), so the 20-second reload lands on the same tab.
+
 ## Endpoints
 
 | Path | Serves |

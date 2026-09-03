@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — quota dashboard: a Commands tab listing every /fabrik-* command in pipeline order, derived from the corpus (2026-09-03)
+
+- Operator ask: a second tab on `http://localhost:5051/` (Quota stays the default) with a table of all
+  `fabrik-*` commands — order, purpose, when to use — in the board's own colours and structure. Rows are
+  parsed live from each `commands/_sources/fabrik-*.md` frontmatter description (purpose / TRIGGER / SKIP /
+  Stage) plus the assembler's `NEXT` map; `PIPELINE_ORDER` (CLAUDE.md § Pipeline: stages → gates → utilities)
+  is the only hand-held fact and a test refuses a slot↔source mismatch in either direction (32 sources today,
+  denominator from the filesystem). Stage badges reuse the existing badge tones; the tab choice persists in
+  `location.hash` across the 20-second reload.
+- Tests (seen RED first): description parsing (incl. `Stage:` mid-text as in deploy-verify and
+  `SKIP/ESCALATE…:` as in review-scoped), full-coverage + ordering + NEXT, and the two-pane page shape.
+  Docs: `docs/workstation/quota-dashboard.md` § The Commands tab.
+- Scoped review (same run): the cache key now includes `assemble_commands.py`'s mtime (the NEXT column could go
+  stale until a restart); an unreadable corpus renders a crit banner, never a quiet empty table; and the module's
+  one pre-existing mypy error (`float(five)` on a None-guarded value, HEAD:596) is fixed at the line — the repo's
+  defect, not this change's, closed while here.
+
 ### Fixed — deploy triad: `/fabrik-deploy-plan` and `/fabrik-deploy` read the FROZEN parity contract BEFORE the deploy; the no-interpreter leg class named (2026-09-03)
 
 - Grounded by grep after tryton-crm's v3 run: `commands/_sources/fabrik-deploy-plan.md` (346 lines) and

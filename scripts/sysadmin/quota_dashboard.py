@@ -352,6 +352,153 @@ def _eligible(a: dict) -> bool:
     return five <= _TARGET_SESSION_MAX
 
 
+# ── Commands tab (operator ask 2026-09-03) ───────────────────────────────────────────────────
+# The second tab lists every /fabrik-* command in pipeline order with purpose / when / skip /
+# next — DERIVED from the corpus (each `commands/_sources/fabrik-*.md` frontmatter description +
+# the assembler's NEXT map), never typed here. PIPELINE_ORDER is the ONE hand-held fact: the
+# order of CLAUDE.md § Pipeline (stages), then the gates, then the utilities — the test refuses a
+# source with no slot and a slot with no source, so the list cannot drift from the corpus silently.
+_FABRIK_ROOT = Path(__file__).resolve().parents[2]
+PIPELINE_ORDER: tuple[str, ...] = (
+    # 1-design
+    "fabrik-rivals",
+    "fabrik-spec",
+    "fabrik-spec-review",
+    # 5-certify EARLY position → 2-contract
+    "fabrik-features",
+    "fabrik-flows",
+    "fabrik-flows-review",
+    "fabrik-data-contract",
+    "fabrik-ui-design",
+    "fabrik-ui-design-review",
+    # 3-plan → 4-build
+    "fabrik-plan-after-chat",
+    "fabrik-plan-review",
+    "fabrik-execute-plan",
+    "fabrik-generate-tests",
+    # 5-certify → 6-release
+    "fabrik-deploy-checklist",
+    "fabrik-user-test",
+    "fabrik-service-test",
+    "fabrik-release",
+    "fabrik-deploy-plan",
+    "fabrik-deploy-plan-review",
+    "fabrik-deploy",
+    "fabrik-deploy-verify",
+    # gates (invoked at boundaries, no fixed position)
+    "fabrik-review-scoped",
+    "fabrik-review",
+    "fabrik-repo-review",
+    "fabrik-rules-review",
+    "fabrik-conformance-review",
+    "fabrik-workflow-review",
+    # utilities
+    "fabrik-docs-review",
+    "fabrik-doc-converge",
+    "fabrik-catchup",
+    "fabrik-upstream",
+    "fabrik-decommission",
+)
+_DESC_RE = re.compile(r"^description:\s*(.+?)\s*$", re.M)
+_SKIP_RE = re.compile(r"\s+SKIP(?:/ESCALATE[^:]{0,40})?:\s+")
+_STAGE_RE = re.compile(
+    r"\s*\bStage:\s*([A-Za-z0-9-]+)\.?"
+)  # anywhere: deploy-verify puts it mid-text
+
+
+def _parse_description(desc: str) -> dict[str, str]:
+    """Split a command's frontmatter description into purpose / when (TRIGGER) / skip / stage.
+    Markers absent → the whole text is the purpose and the rest is empty (never a guess)."""
+    desc = desc.strip().strip('"')
+    stage = ""
+    m = _STAGE_RE.search(desc)
+    if m:
+        stage, desc = m.group(1), (desc[: m.start()] + " " + desc[m.end() :]).strip()
+    skip = ""
+    sm = _SKIP_RE.search(desc)
+    if sm:  # "SKIP:" or "SKIP/ESCALATE to the full /fabrik-review:" (review-scoped)
+        desc, skip = desc[: sm.start()], desc[sm.end() :]
+    when = ""
+    for marker in (" TRIGGER — ", " TRIGGER - "):
+        if marker in desc:
+            desc, when = desc.split(marker, 1)
+            break
+    return {"purpose": desc.strip(), "when": when.strip(), "skip": skip.strip(), "stage": stage}
+
+
+def _next_map() -> dict[str, str]:
+    """The assembler's NEXT map, imported from its file (no package; the module only acts under
+    `__main__`). Unreadable → empty map, and the column says so rather than inventing a successor."""
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "assemble_commands", _FABRIK_ROOT / "commands" / "assemble_commands.py"
+        )
+        assert spec and spec.loader
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return dict(getattr(mod, "NEXT", {}))
+    except Exception as e:  # noqa: BLE001 — a broken assembler must not take the quota board down
+        sys.stderr.write(f"quota_dashboard: NEXT map unreadable: {e}\n")
+        return {}
+
+
+_cmd_cache_key: tuple[tuple[str, int], ...] | None = None
+_cmd_cache_rows: list[dict[str, str]] = []
+
+
+def _load_commands() -> list[dict[str, str]]:
+    """Every `commands/_sources/fabrik-*.md`, in PIPELINE_ORDER (unknown names last, alphabetical,
+    so a new command is visible before its slot exists). Cached on the sources' mtimes."""
+    src = _FABRIK_ROOT / "commands" / "_sources"
+    files = sorted(src.glob("fabrik-*.md"))
+    global _cmd_cache_key, _cmd_cache_rows
+    asm = _FABRIK_ROOT / "commands" / "assemble_commands.py"
+    # the NEXT column comes from the assembler, which can change with no _sources mtime moving
+    key = tuple((f.name, f.stat().st_mtime_ns) for f in [*files, asm] if f.exists())
+    if _cmd_cache_key == key:
+        return list(_cmd_cache_rows)
+    nxt = _next_map()
+    rows = []
+    for f in files:
+        m = _DESC_RE.search(f.read_text(encoding="utf-8")[:6000])
+        parsed = _parse_description(m.group(1) if m else "")
+        rows.append({"name": f.stem, "next": nxt.get(f.stem, "").strip(), **parsed})
+    order = {n: i for i, n in enumerate(PIPELINE_ORDER)}
+    rows.sort(key=lambda r: (order.get(r["name"], len(order)), r["name"]))
+    _cmd_cache_key, _cmd_cache_rows = key, rows
+    return list(rows)
+
+
+def _stage_tone(stage: str) -> str:
+    if stage == "gate":
+        return "crit"
+    if stage == "utility":
+        return "stale"
+    return "cap"
+
+
+def _commands_table(rows: list[dict[str, str]]) -> str:
+    body = []
+    for i, r in enumerate(rows, 1):
+        stage = r["stage"] or "—"
+        body.append(
+            f'<tr><td class="ord">{i}</td>'
+            f'<td class="cmd"><strong>/{escape(r["name"])}</strong></td>'
+            f'<td><span class="badge {_stage_tone(r["stage"])}">{escape(stage)}</span></td>'
+            f"<td>{escape(r['purpose'])}</td>"
+            f'<td class="when">{escape(r["when"]) or '<span class="muted">—</span>'}</td>'
+            f'<td class="when">{escape(r["skip"]) or '<span class="muted">—</span>'}</td>'
+            f'<td class="when">{escape(r["next"]) or '<span class="muted">—</span>'}</td></tr>'
+        )
+    return (
+        "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
+        "<th>When to use</th><th>Skip when</th><th>Next</th></tr></thead>"
+        f"<tbody>{''.join(body)}</tbody></table>"
+    )
+
+
 def render(payload: dict, generated_at: float, error: str | None = None) -> str:
     accounts = _display_order(payload)
     active = payload.get("active")
@@ -391,6 +538,8 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
             ranks.append("not eligible")
     rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
     gov_html = _governor_panel(payload)
+    cmd_rows = _load_commands()
+    cmd_html = _commands_table(cmd_rows)
     return f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -450,12 +599,22 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
  button.switch:hover {{ background:color-mix(in srgb, var(--accent) 12%, transparent); }}
  button.switch[disabled] {{ opacity:.5; cursor:progress; }}
  @media (max-width:720px) {{ .num {{ width:auto; }} th:nth-child(1) {{ width:40%; }} }}
+ nav.tabs {{ display:flex; gap:6px; margin-bottom:14px; border-bottom:1px solid var(--line); }}
+ nav.tabs button {{ font:inherit; font-size:13.5px; font-weight:600; padding:8px 14px; border:1px solid transparent;
+   border-bottom:none; border-radius:8px 8px 0 0; background:transparent; color:var(--sub); cursor:pointer; }}
+ nav.tabs button.is-on {{ color:var(--accent); border-color:var(--line); background:var(--card); margin-bottom:-1px; }}
+ .badge.stale {{ border-color:var(--line); color:var(--sub); }}
+ #pane-commands td {{ font-size:13.5px; }} #pane-commands .ord {{ color:var(--sub); width:1%; }}
+ #pane-commands .cmd strong {{ white-space:nowrap; color:var(--accent); }} #pane-commands .when {{ color:var(--sub); }}
+ #pane-commands .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
 </style></head><body><div class="wrap">
 <header>
   <h1>Claude account quota — active: <span class="who">{escape(str(active or "none"))}</span></h1>
   <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s ·
     <span id="conn">live</span></div>
 </header>
+<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="commands">Commands</button></nav>
+<section id="pane-quota" class="pane">
 {banner}
 {gov_html}
 <table>
@@ -463,6 +622,12 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
   <tbody>{rows}</tbody>
 </table>
 {warn_html}
+</section>
+<section id="pane-commands" class="pane" hidden>
+{'<div class="banner crit">Command corpus unreadable — no <code>commands/_sources/fabrik-*.md</code> under ' + escape(str(_FABRIK_ROOT)) + ".</div>" if not cmd_rows else ""}
+<p class="intro">Every <code>/fabrik-*</code> command in pipeline order ({len(cmd_rows)} sources under <code>commands/_sources/</code>, read live — purpose, when-to-use and skip-when come from each command's own description, the successor from the assembler's NEXT map). Stages run top to bottom; gates are invoked at boundaries; utilities at any point.</p>
+{cmd_html}
+</section>
 <footer>Rotation flips the active pointer at {TRIGGER_THRESHOLD:.0f}% on the 5h window (or either window, or an account's
 configured weekly cap). This board probes every {int(PROBE_INTERVAL_S)}s on its own and invokes the rotation tick the
 moment the active account crosses that line; the cron tick every 5 minutes is the backstop.
@@ -476,6 +641,18 @@ every session bound to the pointer follows it — no restart.</footer>
    answers, so the tab rides out server restarts, WSL restarts, and host hibernation, and
    self-heals the moment the box is back. */
 (function () {{
+  /* Tabs: the choice lives in location.hash so the 20s reload lands on the same tab. */
+  var tabs = document.querySelectorAll("nav.tabs button");
+  function showTab(name) {{
+    tabs.forEach(function (b) {{ b.classList.toggle("is-on", b.getAttribute("data-tab") === name); }});
+    document.querySelectorAll("section.pane").forEach(function (p) {{ p.hidden = (p.id !== "pane-" + name); }});
+  }}
+  tabs.forEach(function (b) {{ b.addEventListener("click", function () {{
+    var name = b.getAttribute("data-tab");
+    if (history.replaceState) {{ history.replaceState(null, "", name === "quota" ? location.pathname : "#" + name); }}
+    showTab(name);
+  }}); }});
+  showTab(location.hash === "#commands" ? "commands" : "quota");
   var conn = document.getElementById("conn");
   setInterval(function () {{
     fetch("/health", {{cache: "no-store"}})
@@ -593,7 +770,7 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
     if now - _LAST_TRIGGER[0] < TRIGGER_COOLDOWN_S:
         return None
     _LAST_TRIGGER[0] = now
-    why = f"session {float(five):.0f}% >= {TRIGGER_THRESHOLD:.0f}%" if hot else "cap-walled"
+    why = f"session {float(five or 0):.0f}% >= {TRIGGER_THRESHOLD:.0f}%" if hot else "cap-walled"
     sys.stderr.write(f"quota_dashboard: active {active} {why} — invoking the rotation tick\n")
 
     def run() -> None:  # off the loop thread: a slow tick must not stall the probes
