@@ -1,3 +1,6 @@
+---
+description: Ocoron design system — the visual identity every Ocoron-branded GUI inherits: colour tokens, typography, motion, component patterns, states, accessibility. Read for ANY screen, component or design-token work on a saas-skeleton, static-site, docusaurus, chrome-extension or desktop-app surface; the design-system ladder in saas/60-saas-ui.md points here.
+---
 <!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
      GOAL: Single source of truth for visual identity — colors, typography, motion, components, states, accessibility
      TRAYCER USAGE: Referenced in all UI tickets. Shapes visual decisions during epic-brief.

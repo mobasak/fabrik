@@ -194,6 +194,24 @@ def _is_git_repo(project_dir: Path) -> bool:
         return False
 
 
+def _uncovered_essentials(project_dir: Path) -> list[str]:
+    """Which floor patterns git does NOT ignore here — the names the failure message must carry."""
+    missing: list[str] = []
+    for pattern in _ESSENTIAL_PATTERNS:
+        try:
+            proc = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                ["git", "check-ignore", "-q", pattern],
+                cwd=project_dir,
+                capture_output=True,
+                check=False,
+            )
+        except OSError:
+            return list(_ESSENTIAL_PATTERNS)
+        if proc.returncode != 0:
+            missing.append(pattern)
+    return missing
+
+
 def _git_covers_essentials(project_dir: Path) -> bool:
     """Ask GIT whether this project already ignores the safety floor. Authoritative.
 
@@ -677,11 +695,14 @@ def sync_scripts_to_project(
                         # what must be asserted.
                         if _is_git_repo(project_dir) and not _git_covers_essentials(project_dir):
                             _SAFETY_FLOOR_FAILURES.append(project_dir.name)
+                            missing = _uncovered_essentials(project_dir)
                             print(
-                                f"  ❌ {project_dir.name}: SAFETY FLOOR FAILED — .env is STILL not "
-                                f"ignored after repair. A project rule is overriding it (look for a "
-                                f"`!.env` negation or a nested .gitignore). FIX THIS BY HAND: a "
-                                f"`git add -A` here can commit secrets."
+                                f"  ❌ {project_dir.name}: SAFETY FLOOR FAILED — "
+                                f"{', '.join(missing) or 'a floor pattern'} is STILL not ignored "
+                                f"after repair (the message names the FAILING pattern — it used to "
+                                f"say `.env` whatever failed, 01M1H1V2). A project rule is overriding "
+                                f"it (look for a negation or a nested .gitignore). FIX THIS BY HAND: "
+                                f"a `git add -A` here can commit what the floor exists to hide."
                             )
                     file_results.append(
                         SyncResult("COPY", gitignore, gitignore, ".gitignore Fabrik-synced block")
@@ -787,6 +808,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+_PRUNE_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".tmp", "archived", "dist", "build"}
+
+
+def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
+    """Vendored-dir copies that exist OUTSIDE the sync's fixed target path.
+
+    The sync writes `<repo>/<vendored_rel>` and never searches; a repo that vendors the module
+    elsewhere (ai-model-catalog/engine/libs/subagents, whatsapp-agent/src/libs/subagents — both
+    LOAD-BEARING, 01M1J0HN) receives nothing, forever, and every "does this repo have the module?"
+    check answers YES against the unused standard copy. Report what the sync did not reach —
+    the population of copies that EXIST, not just the files it WROTE."""
+    from fabrik_synced_manifest import VENDORED_DIRS
+
+    found: list[str] = []
+    for project_dir in projects:
+        for vendored_rel in VENDORED_DIRS:
+            leaf = Path(vendored_rel).name
+            target = project_dir / vendored_rel
+            for dirpath, dirnames, filenames in os.walk(project_dir):
+                dirnames[:] = [d for d in dirnames if d not in _PRUNE_DIRS]
+                if (
+                    Path(dirpath).name == leaf
+                    and "__init__.py" in filenames
+                    and Path(dirpath) != target
+                ):
+                    found.append(str(Path(dirpath).relative_to(project_dir.parent)))
+    return sorted(found)
+
+
 def main() -> int:
     # Reset the module-level tally. It is a mutable global; without this a second in-process call (a
     # future test, a wrapper, a dry-run-then-real flow) inherits the previous run's failures and returns
@@ -832,6 +882,13 @@ def main() -> int:
         if project_dir.name in exclude_folders:
             continue
         if project_dir == FABRIK_ROOT:
+            continue
+        if (project_dir / ".git").is_file():
+            # A git WORKTREE (`.git` is a file pointing at the main checkout). Its main repo is
+            # the sync target — or, for a sync-EXCLUDED repo, deliberately not one; adopting the
+            # worktree wrote hub governance into fabrik-lib branches and left `M .gitignore` in
+            # three trees their owners never touched (01M1H1V2, 2026-09-02).
+            print(f"SKIP (worktree, not a repo): {project_dir.name}")
             continue
         projects.append(project_dir)
 
@@ -889,6 +946,14 @@ def main() -> int:
             f"{', '.join(_SAFETY_FLOOR_FAILURES)} — .env is still committable there. Fix by hand."
         )
 
+    stray = _unreachable_vendored_copies(projects)
+    if stray:
+        print(
+            f"\n⚠️  {len(stray)} vendored copy(ies) the sync CANNOT reach — a repo imports a copy at a "
+            f"non-standard path, which receives nothing from any sync (01M1J0HN): "
+            + ", ".join(stray)
+            + ". Move the copy to the standard path or record the exception in the repo."
+        )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
     if total_warnings > 0:

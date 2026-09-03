@@ -57,7 +57,7 @@ NEXT = {
     "fabrik-ui-design-review": "/fabrik-plan-after-chat — turn the frozen design into an execution plan.",
     "fabrik-plan-after-chat": "/fabrik-plan-review (auto-invoked) — converge the plan to a fixed point, then /fabrik-execute-plan.",
     "fabrik-plan-review": "/fabrik-execute-plan — build it, phase by phase.",
-    "fabrik-execute-plan": "/fabrik-features REFRESH (flip Planned→Shipped, complete the cross-check) → end-to-end certification: /fabrik-user-test (UI-bearing types) · /fabrik-service-test (headless types).",
+    "fabrik-execute-plan": "/fabrik-features REFRESH (flip Planned→Shipped, complete the cross-check) → end-to-end certification: /fabrik-user-test (UI-bearing types) · /fabrik-service-test (headless types) — IF the project has a live registry (routes/jobs/screens); a module library (fabrik-lib) has none: the chain ENDS here.",
     "fabrik-features": "EARLY run: /fabrik-flows — walk the journeys that serve the planned features. REFRESH run: /fabrik-user-test (UI-bearing) · /fabrik-service-test (headless); the parity contract freezes AFTER certification.",
     "fabrik-doc-converge": "the workflow that called it, or /fabrik-docs-review for the whole-tree sweep (this was the single-doc deep converge).",
     "fabrik-catchup": "the routed converge command(s) for each queued item (/fabrik-doc-converge · /fabrik-features · /fabrik-data-contract · /fabrik-ui-design), then resume whatever pipeline stage the project was actually in.",

@@ -773,7 +773,12 @@ def send(
     # only in STRATEGIC_BACKLOG.md). The hub-relay workaround does not apply either:
     # asking infra to relay a message from a repo back to itself is a round trip
     # through a third party for a purely local handoff.
-    if frm != to and not _is_hub(frm) and not _is_hub(to):
+    # The free-text `--from` is a LANE name (wef1), not a repo — topology is decided by the repo
+    # this process runs in (01M1K6H6, 2026-09-03: `--from wef1 --to web-ecommerce-factory` was
+    # refused as project→project while sitting IN web-ecommerce-factory).
+    sending_repo = _current_repo()
+    same_repo = sending_repo == to
+    if not same_repo and frm != to and not _is_hub(frm) and not _is_hub(to):
         raise MailRefusedError(
             f"star-topology refusal: {frm}→{to} is project→project; route via the hub (--to fabrik)"
         )

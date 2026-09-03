@@ -292,8 +292,10 @@ def convergence_warning(series: list[int], command: str = "") -> str:
     return (
         f"\n⚠️  NON-CONVERGENCE — findings are OSCILLATING: {arrow} "
         f"(round {len(series)}; full series: {full}).\n"
-        "    Diagnosis: the loop is RE-SCOPING each round — inventing a fresh brief — "
-        "instead of RE-SWEEPING the persisted class ledger.\n"
+        "    Diagnosis (advisory): EITHER the loop is RE-SCOPING each round — inventing a fresh "
+        "brief instead of RE-SWEEPING the persisted class ledger — OR the ledger was IDENTICAL "
+        "every round and the surface keeps yielding (youtube 01M1H7ZQ: a stable ledger, 89 real "
+        "defects); the second case is the stall breaker's, not a re-scoping fault.\n"
         "    Fix: re-sweep EVERY known class with the SAME brief (see `status --json` "
         "→ classes). A round that changes the question cannot converge; a round that "
         "repeats the question can.\n"
@@ -316,8 +318,10 @@ def _round_report(rec: dict[str, Any]) -> str:
     if terminal:
         lines.append(
             f"✅ TERMINAL VERDICT — round {len(rounds)} swept every known class "
-            f"({', '.join(clean_c)}) clean and found 0 new findings. This IS the no-op "
-            "round the contract demands. Close the run: "
+            f"({', '.join(clean_c)}) clean and found 0 new findings. IF this round was a "
+            "FULL fresh sweep (never a round scoped to the last fixes), this IS the no-op round "
+            "the contract demands — a scoped round never closes the loop; run the closing full "
+            "sweep first (trade-intelligence 01M1GYB7: three early closes). Close the run: "
             f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
             '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
         )

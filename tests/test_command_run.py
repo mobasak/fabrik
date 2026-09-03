@@ -2734,3 +2734,18 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
         cwd=repo, env=env, capture_output=True, text=True, timeout=15,
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_terminal_verdict_names_the_full_sweep_condition_and_oscillation_names_both_diagnoses():
+    """01M1GYB7 (trade-intelligence ×3) + 01M1H7ZQ item 4 (youtube): the TERMINAL line fired on a
+    SCOPED round and agents closed two rounds early; the oscillation line diagnosed re-scoping on a
+    loop whose ledger was identical every round. The verdicts now state their own precondition."""
+    spec = importlib.util.spec_from_file_location("cr_wording", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(cr)
+    rec = {"command": "fabrik-review", "rounds": [{"findings": 0}], "classes": {"a": "clean"}}
+    text = cr._round_report(rec)
+    assert "FULL fresh sweep" in text and "scoped round never closes" in text
+    warn = cr.convergence_warning([9, 15, 10, 6, 4, 9, 9], "fabrik-review")
+    assert "RE-SCOPING" in warn and "ledger was IDENTICAL" in warn

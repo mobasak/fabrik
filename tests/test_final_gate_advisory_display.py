@@ -200,3 +200,17 @@ def test_an_advisory_row_keeps_a_warning_first_stdout_the_json_filter_admits(
     assert passed and message.lstrip().startswith("⚠"), message
     _, passed_plain, message_plain = fg.run_optional_check(str(script), "Plain Row")
     assert passed_plain and "⚠" not in message_plain, message_plain
+
+
+def test_json_summary_counts_skipped_checks_separately(tmp_path):
+    """01M1KDTV finding 2 + 01M1HJQD (seo, brand-identity-creator): `status: success, passed: 55`
+    with bandit + vulture NOT INSTALLED — the one field a CI job reads said green and nothing in
+    the machine-readable output said two configured checks never ran. `skipped` is now its own
+    count with the names, so 'did every configured check actually run?' is answerable."""
+    rows = [
+        ("ruff", True, "ok"),
+        ("bandit (NOT INSTALLED — skipped)", True, "⚠ skipped"),
+        ("vulture (NOT INSTALLED — skipped)", True, "⚠ skipped"),
+    ]
+    summary = fg._summarize_skipped(rows)
+    assert summary == {"skipped": 2, "skipped_checks": ["bandit", "vulture"]}

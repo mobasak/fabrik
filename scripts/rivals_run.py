@@ -109,6 +109,7 @@ def _resolve_engine() -> str:
 SCAFFOLD_TO_PRODUCT_TYPE = {
     "saas-skeleton": "saas",
     "chrome-extension": "extension",
+    "office-extension": "extension",  # an Office add-in is an extension-class product (found by the registry-coverage test)
     "desktop-app": "desktop",
     "mobile-app": "mobile-app",
     "python-api": "headless-api",
@@ -698,6 +699,16 @@ def render_dossier_md(d: dict[str, Any]) -> str:
     match = _as_dicts(d.get("match_list"))
     out.append("## MATCH — what rivals have that we lack")
     out.append("")
+    if not d.get("us"):
+        # Greenfield: MATCH is populated from RIVALS' features, so it is non-empty whenever they
+        # have any — the `us` column then reads ❌ everywhere while nothing was evaluated. A
+        # downstream spec read that as a determination (youtube 01M1J16A, 4 claims refuted).
+        out.append(
+            "_⚠ The `us` column was NOT EVALUATED — no `--us-name`/`--us-feature` was supplied "
+            "(greenfield run): ❌ here means UNKNOWN, never absent. Re-run with our features "
+            "to get a real MATCH list._"
+        )
+        out.append("")
     if match:
         for m in match:
             # `detail` is not emitted by the module; MATCH items carry `rivals_having` (+

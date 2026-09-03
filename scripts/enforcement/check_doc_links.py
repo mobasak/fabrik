@@ -182,7 +182,20 @@ def _iter_refs(text: str):
                 yield m.group(1), "bare"
 
 
-def _resolves(target: str, src: Path) -> bool:
+_LINK_BASE_RE = re.compile(r"<!--\s*link-base:\s*([A-Za-z0-9_./-]+?)\s*-->")
+
+
+def _link_bases(text: str) -> list[str]:
+    """Extra resolution roots a doc declares for ITSELF — `<!-- link-base: sites/bhdtrade -->`.
+
+    A doc that MIRRORS a manifest written relative to a sub-root (web-ecommerce-factory's
+    `sites/<ref>/` inheritance table, pinned to the tuple's spelling by a test) cannot be written
+    repo-relative and could never pass this check (01M1G8CR, 2026-09-02). Purely additive: a doc
+    without the marker resolves exactly as before."""
+    return [b.rstrip("/") for b in _LINK_BASE_RE.findall(text)]
+
+
+def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> bool:
     t = target.strip().strip("`")
     if not t or t.startswith(("http://", "https://", "mailto:", "#", "~")):
         return True
@@ -198,6 +211,10 @@ def _resolves(target: str, src: Path) -> bool:
     # repo-root resolution
     if (REPO / norm).exists():
         return True
+    # declared per-file bases (`<!-- link-base: … -->`), tried after the repo root
+    for base in extra_bases or ():
+        if (REPO / base / norm).exists():
+            return True
     # source-relative resolution
     cand = (src.parent / t).resolve()
     in_repo = str(cand).startswith(str(REPO) + "/")
@@ -225,6 +242,7 @@ def main() -> int:
         docs_scanned += 1
         rel_src = src.relative_to(REPO)
         seen: set[str] = set()
+        bases = _link_bases(text)
         for target, kind in _iter_refs(text):
             if target in seen:
                 continue
@@ -239,7 +257,7 @@ def main() -> int:
             ):
                 continue
             refs_checked += 1
-            if not _resolves(target, src):
+            if not _resolves(target, src, extra_bases=bases):
                 broken.append(f"{rel_src}: broken ref -> {target}")
     if as_json:
         print(

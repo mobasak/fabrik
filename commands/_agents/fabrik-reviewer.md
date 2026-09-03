@@ -1,6 +1,6 @@
 ---
 name: fabrik-reviewer
-description: Cheap-model adversarial code-review FINDER subagent. Dispatched in parallel (several at once) by /fabrik-review and by /fabrik-execute-plan's phase-boundary reviews to maximize RECALL over a changed surface. Each instance takes a partition of failure classes and surfaces every candidate defect with a concrete, nameable failure scenario. Read-only — it FINDS, it does not fix. The dispatching Opus session does refute/merge/decide-clean and applies the fixes.
+description: Cheap-model adversarial code-review FINDER subagent. Dispatched in parallel (several at once) by /fabrik-review and by /fabrik-execute-plan's phase-boundary reviews to maximize RECALL over a changed surface. Each instance takes a partition of failure classes and surfaces every candidate defect with a concrete, nameable failure scenario. Read-only — it FINDS, it does not fix. The dispatching Opus session does refute/merge/decide-clean and applies the fixes. NO WEB ACCESS (Read/Grep/Glob/Bash only): a brief that needs a LIVE external fact — a vendor API contract, a documented status value — routes to fabrik-researcher; a reviewer handed such a brief names the gap in a MACHINERY note rather than curl-ing around it (youtube 2026-09-03: the curl workaround WORKED, which is why nothing surfaced it).
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

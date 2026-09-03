@@ -114,3 +114,17 @@ def test_placeholder_form_of_those_keys_is_clean(tmp_path):
                  ' "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}",'
                  ' "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"}}')
     assert cs.check_file(f) == [], "placeholders are the CORRECT form"
+
+
+def test_credential_pattern_requires_matching_quotes():
+    """01M1GNV1 (youtube, 2026-08-31): `PW=$(grep -E '^X_PASSWORD=' .env | cut -d= -f2-)"` on ONE
+    line — a single-quoted grep pattern followed later by a double quote — matched the credential
+    regex, which accepted any quote type at either end. Only a matching pair is a literal."""
+    import re as _re
+
+    mixed = "PW=$(grep -E '^PAYMENTS_SERVICE_DB_PASSWORD=' .env | cut -d= -f2-)\"\n"
+    real = "password = 'hunter2hunter2'\n"
+    hits_mixed = [name for pat, name in cs.SECRET_PATTERNS if _re.search(pat, mixed)]
+    hits_real = [name for pat, name in cs.SECRET_PATTERNS if _re.search(pat, real)]
+    assert not hits_mixed, hits_mixed
+    assert hits_real, "a real quoted password must still match"

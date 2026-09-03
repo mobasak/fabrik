@@ -192,7 +192,7 @@ def cmd_line(session: str) -> str:
     out = []
     if anchors:
         out.append(
-            "## 🧵 OPEN THREADS (yours — close with `python3 scripts/thread_anchor.py done --match <substr>`)"
+            f"## 🧵 OPEN THREADS (yours — close with `python3 scripts/thread_anchor.py done --session {session} --match <substr>`)"
         )
         out += [f"- {a['text']}  ({_age(a['ts'])} ago)" for a in anchors]
     last = state.get("last_next")
@@ -203,8 +203,17 @@ def cmd_line(session: str) -> str:
 
 
 def cmd_done(session: str, match: str) -> None:
+    """Close every anchor whose text contains `match` — and SAY what happened. A close that prints
+    nothing is byte-identical to a typo'd match (youtube + wef, 2026-09-03: two threads "closed",
+    both re-printed by the next hook; the agent had told the operator they were closed)."""
     state = _load(session)
+    before = len(state["anchors"])
     state["anchors"] = [a for a in state["anchors"] if match.lower() not in a["text"].lower()]
+    closed = before - len(state["anchors"])
+    if closed:
+        print(f"closed {closed} anchor(s) ({len(state['anchors'])} remain)")
+    else:
+        print(f"no anchor matched {match!r} ({before} open)")
     # The latest-NEXT echo dies with its anchor — found by the suite's own red: `done` removed
     # the anchor and the stale last_next line resurrected the same text one line lower.
     last = state.get("last_next")
@@ -243,6 +252,16 @@ def main(argv: list[str] | None = None) -> int:
             except Exception:
                 pass
         if not session:
+            if args.cmd == "done":
+                # `done` without a session used to "close" into a placeholder store and exit 0 — a
+                # silent no-op that read as success. CLAUDE_SESSION_ID is NOT in an agent's shell;
+                # the hook now prints the session in its close command — copy it from there.
+                print(
+                    "thread_anchor: no session id — pass --session <id> (the OPEN THREADS line prints "
+                    "it) or run under --hook; nothing was closed",
+                    file=sys.stderr,
+                )
+                return 2
             session = "nosession"
 
         if args.cmd == "harvest":

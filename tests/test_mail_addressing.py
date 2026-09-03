@@ -224,3 +224,16 @@ def test_kaizen_sends_one_addressed_obligation_per_beat():
     assert '"--broadcast"' not in argv and '"--ack"' not in argv, (
         "the obligation must keep kind-default ack:required and never broadcast: " + argv
     )
+
+
+def test_a_lane_may_mail_its_own_repo(monkeypatch, env):
+    """01M1K6H6 (wef1, 2026-09-03): `--from wef1 --to web-ecommerce-factory` was refused as
+    project→project because the guard compared the free-text lane name to the recipient. The
+    SENDING REPO decides topology: a lane in web-ecommerce-factory mailing web-ecommerce-factory is
+    the same-repo handoff the constitution advertises."""
+    monkeypatch.setattr(mail, "_current_repo", lambda: "web-ecommerce-factory")
+    monkeypatch.setattr(mail, "_valid_recipient", lambda to: True)
+    p = mail.send("web-ecommerce-factory", "finding", "WHAT: a\nWHERE: b\nWHEN: c\nWHO: d\nWHY: e\nHOW: f\nSYSTEMIC: g\n", ack="no", frm="wef1")
+    assert p.parent.name == "inbox" and "web-ecommerce-factory" in str(p)
+    with pytest.raises(mail.MailRefusedError):  # a lane in one project still cannot mail ANOTHER project
+        mail.send("youtube", "finding", "x", ack="no", frm="wef1")

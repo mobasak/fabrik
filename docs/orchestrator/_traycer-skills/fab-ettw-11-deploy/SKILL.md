@@ -49,3 +49,5 @@ invoked BY another, silently ends the *caller* instead. A mismatched name is ref
 already-closed run is a warned no-op.
 
 **Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes.**
+
+**Sync-excluded repo (fabrik-lib and its worktrees)?** A check this command names by script is NOT necessarily present locally — enforcement freezes there at vendor date. Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip (fabrik-lib 2026-09-02/03: two CONVERGED flips on self-enforcement, 10 grammar defects and 2 BLOCKING spec defects found the moment the hub copies ran — 01M1G8NX, 01M1K28X).

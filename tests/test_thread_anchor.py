@@ -154,3 +154,22 @@ def test_divergence_inside_the_prefix_window_still_dedupes(tmp_path):
     out = line(tmp_path)
     assert out.count("corpus audit") == 1, f"still duplicating: {out!r}"
     assert "15 of 31" in out, "the newest progress must win"
+
+
+# ── 01M1J6HB + 01M1HJEH (2026-09-03): a silent no-op that reads as success — seen RED first ──
+
+
+def test_done_reports_what_it_closed_and_refuses_an_empty_session(tmp_path):
+    harvest("NEXT: command 3 of 31 — tryton release", tmp_path, session="s1")
+    rc, out = run(["done", "--match", "zzz-nope"], env_dir=tmp_path)  # no --session, no env
+    assert rc != 0 and not (tmp_path / "nosession.json").exists()
+    rc, out = run(["done", "--session", "s1", "--match", "zzz-nope"], env_dir=tmp_path)
+    assert rc == 0 and "no anchor matched" in out
+    rc, out = run(["done", "--session", "s1", "--match", "tryton"], env_dir=tmp_path)
+    assert rc == 0 and "closed 1 anchor" in out
+    assert "tryton" not in run(["line", "--session", "s1"], env_dir=tmp_path)[1]
+
+
+def test_hook_line_prints_the_session_in_the_close_command(tmp_path):
+    harvest("NEXT: command 7 of 31 — something open", tmp_path, session="s9")
+    assert "done --session s9 --match" in run(["line", "--session", "s9"], env_dir=tmp_path)[1]

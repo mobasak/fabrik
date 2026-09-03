@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — infra's mailbox, second pass (operator: "recheck the 58 — handle what needs no spec/plan"): 24 findings closed at root, 3 pre-existing reds cleared, one new advisory check (2026-09-03)
+
+- Re-read all 58 remaining `@infra` mails against their cited `path:line`. What needed no spec or plan, and no
+  edit in a sibling's in-flight surface (`libs/subagents`, the corpus gate, external-services — untouched), is
+  fixed here; each fix seen RED first where a test could see it.
+- **Contracts (both CLAUDE.md, fleet-synced):** the `.md` allowlist now names `docs/development/reviews/**` (the
+  convergence row REQUIRED it — 01M1HJQD); the revert-test rule asserts BOTH halves and writes the `.bak` before the
+  first mutation (01M1J1PT, 01M1K8K2); the denominator HARD STOP gains its SIXTH shape — a structural line counted
+  as data, and the shell as tiebreak over a stale Read view (01M1GGMK); the template's `allow_ungrounded` sentence
+  carries the hub's "fanout sets it, passing it RAISES" warning (01M1GNKP).
+- **Command corpus:** `/fabrik-review` — every dispatched finder must RETURN before a round can be the exit
+  (01M1J5M0, 01M1HATB, 01M1J6K8, 01M1H82E), the gate section is re-measured in the closing pass (01M1J02D), every
+  finder brief carries the surface digest + re-read (01M1HFSR), the artifact's per-phase verdicts are HEADINGS
+  (01M1H64D); the shared edit-termination fragment EXECUTES an artifact's executable rule in the closing pass
+  (01M1GMTZ); the run-record fragment tells a sync-excluded repo to run the hub copy with `--root` (01M1G8NX,
+  01M1K28X); `/fabrik-execute-plan`'s next-pointer carries its live-registry precondition (01M1HTES); the
+  `fabrik-reviewer` agent says it has NO web access (01M1J1WV, 01M1H7ZQ); the subagents fragment names the
+  `psycopg` prerequisite of the flywheel sink (01M1H9YH, 01M1H7ZQ).
+- **Rule packs:** 55-observability — a vendored module never constructs its own metrics, it exposes an injectable
+  callback (the async-http-client thread: 01M1GNMX, 01M1GNAM, 01M1GV6T, 01M1GVYN, 01M1GY91); 45-testing — the
+  `require_throwaway` predicate inline, anchored, for unscaffolded modules (01M1GQC1); the two design-system packs
+  gained frontmatter descriptions so `select_rules` can surface them (01M1J16A item 2; 0 of 56 packs now lack one).
+- **Scripts:** `thread_anchor.py done` reports what it closed and refuses an empty session; the hook prints the
+  session in its close command (01M1J6HB, 01M1HJEH) · `check_plan_quality.py` runs standalone like its siblings
+  (01M1GVW3) · `check_secrets.py`'s credential regex requires MATCHING quotes (01M1GNV1) · `command_run.py`'s
+  TERMINAL verdict states its full-sweep precondition and the oscillation advisory names both diagnoses (01M1GYB7,
+  01M1H7ZQ) · `mail.py`: the SENDING REPO decides topology, so a lane may mail its own repo (01M1K6H6) ·
+  `check_doc_links.py` honours a per-file `<!-- link-base: … -->` root — unblocks web-ecommerce-factory's gate
+  (01M1G8CR) · `rivals_run.py` leads MATCH with the not-evaluated caveat on every greenfield run (01M1J16A item 1)
+  and maps `office-extension` (a pre-existing registry-coverage red) · `sync_enforcement_to_projects.py` skips git
+  WORKTREES, names the FAILING floor pattern, and reports vendored copies it cannot reach (01M1H1V2 a+b, 01M1J0HN
+  — the two load-bearing copies it names today: ai-model-catalog/engine, whatsapp-agent/src) ·
+  `check_lint_ratchet.py` pins the ruff version in the baseline and re-seeds LOUDLY on a version change
+  (01M1H0D5) · `final_gate.py --json` carries `skipped` + `skipped_checks` (01M1KDTV 2, 01M1HJQD 2).
+- **New advisory check `check_citations_resolve.py`** (01M1J2TP, 01M1GNGS item 1, 01M1JF7Y): does a `path:line`
+  citation LAND — BEYOND-EOF and BLANK-TARGET on files that exist; registered warn-only in the gate on the
+  author's CHANGED docs. Measured before scoping: 557/1600 hub-wide (MISSING-FILE = other repos' files → REJECTED
+  as a class), 154/1197 with it dropped, 115/834 in a 30-day window — all true, none actionable per run — 0/3 on
+  the author's own changed docs. The measurement is the reason for the scope.
+- NOT handled here, each with its reason in the reply or backlog row: the check_convergence semantics cluster
+  (01M1H7DY, 01M1HKZA, 01M1GZB5, 01M1J02D item 2), execute-plan's D2 pool precondition (01M1GRPM) and the plan-7
+  dispatcher findings (01M1GXDV), check_schema_sync for TS/YAML (01M1JHZ2), the check_plan_tickets grammar
+  extensions (01M1GNGS 3-5), check_doc_links extension widening + anchor validation (01M1H0YY, 01M1JF7Y, 01M1KDTV 1),
+  final_gate running vendored test dirs (01M1HRWT), the route detector redesign (01M1H61P), the Python-pin drift
+  (01M1KCXY — a fleet runtime decision), the kaizen daily collections (infra's weekly pass), and the operator-directed
+  independent verify of `/fabrik-deploy-checklist` (01M1HT8B — independence requires infra). fanout's dropped
+  results (01M1HVS3) sit in `libs/subagents`, a sibling's live WIP.
+
 ### Fixed — infra's mailbox drained (operator ask 2026-09-03): 41 mails handled (33 before commit adce3017, 8 with it), five small machinery defects closed at root, two pre-existing test reds cleared
 
 - Operator: "fabrik infra is working for the last 2 days and its mailbox has too many mails — understand its work, claim

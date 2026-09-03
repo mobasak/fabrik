@@ -26,9 +26,19 @@ reclassified by a later rule):
 import re
 from pathlib import Path
 
-from .check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE
-from .check_plans import check_file as _check_plans_naming
-from .validate_conventions import CheckResult, Severity
+try:
+    from .check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE
+    from .check_plans import check_file as _check_plans_naming
+    from .validate_conventions import CheckResult, Severity
+except (
+    ImportError
+):  # run directly (`python scripts/enforcement/check_plan_quality.py`) — no package context
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from check_plans import PLAN_DIR_NAME_RE, TICKET_NAME_RE  # type: ignore[no-redef]
+    from check_plans import check_file as _check_plans_naming  # type: ignore[no-redef]
+    from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 # Check project's own plans directory
 PLAN_DIR = Path.cwd() / "docs" / "development" / "plans"

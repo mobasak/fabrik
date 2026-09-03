@@ -94,3 +94,23 @@ def test_success_line_states_how_much_it_examined(tmp_path, capsys, monkeypatch)
     out = capsys.readouterr().out
     assert "1 doc" in out, f"no denominator in the success line: {out!r}"
     assert "0 ref" in out or "refs" in out, f"no reference count: {out!r}"
+
+
+def test_link_base_marker_adds_a_resolution_root(tmp_path, monkeypatch):
+    """01M1G8CR (wef2, 2026-09-02): a doc that MIRRORS a manifest relative to `sites/<ref>/` cannot
+    be written repo-relative (a test pins it to the tuple's spelling) and cannot pass the checker.
+    `<!-- link-base: sites/bhdtrade -->` names a third candidate root for THAT file only."""
+    monkeypatch.setattr(cdl, "REPO", tmp_path)
+    (tmp_path / "sites" / "bhdtrade" / "scripts").mkdir(parents=True)
+    (tmp_path / "sites" / "bhdtrade" / "scripts" / "check.py").write_text("#\n")
+    (tmp_path / "docs").mkdir()
+    src = tmp_path / "docs" / "mirror.md"
+    src.write_text(
+        "<!-- link-base: sites/bhdtrade -->\n\nSee `scripts/check.py` and [it](scripts/check.py).\n"
+    )
+    bases = cdl._link_bases(src.read_text())
+    assert bases == ["sites/bhdtrade"]
+    assert cdl._resolves("scripts/check.py", src, extra_bases=bases)
+    assert not cdl._resolves(
+        "scripts/check.py", src
+    )  # without the marker it still does not resolve

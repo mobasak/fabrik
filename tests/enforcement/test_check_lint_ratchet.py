@@ -138,3 +138,36 @@ def test_ratchet_down_stages_the_baseline(repo: Path) -> None:
         check=True,
     ).stdout
     assert ".fabrik/lint-baseline.json" in staged
+
+
+def test_a_linter_version_change_reseeds_loudly_instead_of_redding_forever(
+    tmp_path, monkeypatch, capsys
+):
+    """01M1H0D5 (youtube, 2026-09-02): the baseline's own seeding commit measured 390 under a newer
+    ruff while the file said 388 — an unpinned linter under an absolute count is a permanent red no
+    code change can clear. The baseline now carries the ruff version; a version change re-seeds."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("lint_ratchet_mod", CHECK)
+    lr = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(lr)
+    monkeypatch.setattr(lr, "ROOT", tmp_path)
+    monkeypatch.setattr(lr, "BASELINE", tmp_path / ".fabrik" / "lint-baseline.json")
+    monkeypatch.setattr(lr, "_baseline_is_gitignored", lambda: False)
+    monkeypatch.setattr(lr, "_ruff_version", lambda: "0.15.12")
+    monkeypatch.setattr(lr, "_ruff_count", lambda: 390)
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py"])
+    (tmp_path / ".fabrik").mkdir()
+    (tmp_path / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 388, "ruff_version": "0.14.0"}\n'
+    )
+    rc = lr.main()
+    out = capsys.readouterr().out
+    assert rc == 0 and "re-seed" in out.lower() and "0.14.0" in out and "0.15.12" in out
+    assert json.loads((tmp_path / ".fabrik" / "lint-baseline.json").read_text()) == {
+        "ruff_errors": 390,
+        "ruff_version": "0.15.12",
+    }
+    monkeypatch.setattr(lr, "_ruff_count", lambda: 391)  # same version, more errors → a regression
+    assert lr.main() != 0

@@ -132,7 +132,7 @@ that a change re-exposes are in scope).
 ## Phase 1 — Independent finders (recall)
 
 Dispatch several independent finder subagents in parallel, **each committing to a DIFFERENT subset of
-failure classes** before seeing the others' results. **Worker: run BOTH layers for any substantial review —
+failure classes** before seeing the others' results. **Every brief carries the Phase-0 surface digest** (HEAD + `git diff HEAD | md5sum`) **and the instruction to RE-READ the file before concluding**: finders sweep a tree the orchestrator is fixing concurrently, so a finder can read a file mid-edit and CONFIRM a defect the fix already removed (web-ecommerce-factory 2026-09-02: 2 of 5 finders raced the fixer — 01M1HFSR); a finding whose digest differs from the round's is re-verified by the orchestrator against the current tree, never adjudicated from the finder's stale read. **Worker: run BOTH layers for any substantial review —
 never either/or (per `62-using-subagents.md` § Dispatch policy).** The **pool breadth layer is MANDATORY**:
 dispatch cheap pool finders via **`fanout("review", …, mode="read_only")`** in parallel — it picks the
 **flywheel-ranked** reviewers for the `review` task from the per-task selection table (below); **do not name a
@@ -392,6 +392,8 @@ uncovered behaviors), generate the missing tests via the pool:
 
 After each pass, show exactly what you inspected (files/paths + which failure classes) and what you found;
 a pass that finds nothing must still enumerate that coverage — an empty pass with no evidence doesn't count.
+
+**The artifact carries a `## Per-phase verdicts` section with one `### Phase N — <title>: <verdict>` heading per phase** — `check_convergence.py` keys on a `## Phase`/`## Step` HEADING (its `PHASE` regex), so a per-phase TABLE, however complete, fails the gate (trade-intelligence 2026-09-02: two extra gate runs to learn this — 01M1H64D).
 
 **Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted) AND the numbered Pass Ledger. Chat output is a courtesy copy; the FILE is the review:**
 

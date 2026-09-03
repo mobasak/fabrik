@@ -1100,3 +1100,21 @@ def test_neither_layout_falls_back_to_hub_or_raises(tmp_path: Path, monkeypatch)
     monkeypatch.setattr(rr, "HUB_LIBS", tmp_path / "nonexistent-hub")
     with pytest.raises(rr.PreflightError):
         rr._resolve_engine()
+
+
+# ── 01M1J16A item 1 (youtube, 2026-09-03) — seen RED first ──────────────────────────────────
+
+
+def test_greenfield_match_section_says_the_us_column_was_not_evaluated():
+    """The `--us-feature` caveat was emitted only when MATCH was EMPTY, but MATCH is populated from
+    rivals' features, so a greenfield dossier shipped a `us` column that was ❌ in 59/59 rows with
+    no caveat anywhere — a downstream spec read ❌ as a determination and shipped four refuted
+    comparative claims. The caveat now leads the section whenever there is no `us` side."""
+    d = {
+        "match_list": [{"feature": "SSO", "rivals_having": ["a", "b"]}],
+        "us": None,
+        "beat_list": [],
+    }
+    md = rr.render_dossier_md(d)
+    assert "NOT EVALUATED" in md and "--us-feature" in md
+    assert md.index("NOT EVALUATED") < md.index("SSO")

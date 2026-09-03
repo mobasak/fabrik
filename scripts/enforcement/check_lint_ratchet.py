@@ -128,6 +128,28 @@ def _baseline_is_gitignored() -> bool:
         return False
 
 
+def _ruff_version() -> str | None:
+    """The linter's version — an ABSOLUTE stored count is only comparable under the same ruleset
+    (youtube 01M1H0D5: 390 vs a stored 388 on the baseline's OWN seeding commit after a ruff
+    release widened a rule — permanent red no code change could clear)."""
+    try:
+        out = subprocess.run(
+            ["ruff", "--version"], capture_output=True, text=True, check=False
+        ).stdout.strip()
+    except OSError:
+        return None
+    return out.split()[-1] if out else None
+
+
+def _read_baseline_version() -> str | None:
+    try:
+        data = json.loads(BASELINE.read_text(encoding="utf-8"))
+        v = data.get("ruff_version")
+        return str(v) if v else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 def _read_baseline() -> int | None:
     try:
         data = json.loads(BASELINE.read_text(encoding="utf-8"))
@@ -139,7 +161,11 @@ def _read_baseline() -> int | None:
 
 def _write_baseline(count: int) -> None:
     BASELINE.parent.mkdir(parents=True, exist_ok=True)
-    BASELINE.write_text(json.dumps({"ruff_errors": count}) + "\n", encoding="utf-8")
+    payload: dict[str, object] = {"ruff_errors": count}
+    version = _ruff_version()
+    if version:
+        payload["ruff_version"] = version
+    BASELINE.write_text(json.dumps(payload) + "\n", encoding="utf-8")
     # Stage it so the tightened floor rides along with the change that lowered it. Best-effort: if git is
     # unavailable the write still stands and `final_gate`'s own auto-stage covers it.
     try:
@@ -170,6 +196,19 @@ def main() -> int:
         )
 
     baseline = _read_baseline()
+    stored_version, live_version = _read_baseline_version(), _ruff_version()
+    if baseline is not None and stored_version and live_version and stored_version != live_version:
+        # A ruleset change is not debt: re-seed LOUDLY at the new count and pass. The next run
+        # ratchets from here under the new version. Asymmetric drift (a REMOVED rule silently
+        # lowering the floor) is covered too — the floor is re-taken at the measured count.
+        print(
+            f"⚠ lint-ratchet — ruff changed {stored_version} → {live_version}; the stored count "
+            f"({baseline}) was measured under the OLD ruleset. RE-SEEDING the baseline at the "
+            f"current count ({current}) and passing — not a regression, a new floor."
+        )
+        if not check_only:
+            _write_baseline(current)
+        return 0
 
     if baseline is None:
         # SEED. First run in this repo — record the floor and pass. Nothing is ever blocked on the run

@@ -57,7 +57,10 @@ SECRET_PATTERNS = [
         # (\$[A-Za-z_]); this member lacked it — live false-positive 2026-08-07:
         # RESTIC_PASSWORD="$RESTIC_PW" in a sibling's sysadmin script tripped the gate.
         # (Also routed upstream earlier from a tryton-crm gauntlet: G3_PW via $(python3 …).)
-        r"(?:password|secret|api_key|token)\s*[:=]\s*['\"](?!\$[({A-Za-z_])[^'\"\n]{8,}['\"]",
+        # The opening quote is captured and the close must MATCH it — accepting either type at
+        # either end read `'^X_PASSWORD=' … "` (a grep pattern then a later double quote) as one
+        # quoted credential (youtube 01M1GNV1, 2026-08-31).
+        r"(?:password|secret|api_key|token)\s*[:=]\s*(['\"])(?!\$[({A-Za-z_])[^'\"\n]{8,}\1",
         "Hardcoded credential",
     ),
 ]

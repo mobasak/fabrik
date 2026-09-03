@@ -1,3 +1,6 @@
+---
+description: Tojlo design system — the Tojlo-branded overrides on top of ocoron-design-system.md: brand story, module naming, module-specific components, accent colour. Read for ANY GUI work in a Tojlo project (tojlo.com tenants); inherits everything else from the Ocoron pack.
+---
 <!-- CONSUMER: Coding agents building Tojlo-branded UI
      GOAL: Tojlo-specific overrides on top of Ocoron — brand story, module naming, module-specific components
      TRAYCER USAGE: Injects as Context File for Tojlo project tickets only.
