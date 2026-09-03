@@ -5,7 +5,8 @@
 **Affects:** Local dev box (WSL2 `Ubuntu-24.04`) + its Windows host. NOT the VPS fleet.
 
 Three pieces, cleanly split so nothing overlaps: **one cleaner per OS side** (scheduled) + **one manual
-compaction tool**. § D is not a fourth piece — it is the standing DO-NOT-SWEEP list, kept here because
+compaction tool**. § D is the standing DO-NOT-SWEEP list and § E the one scheduled task that legitimately
+empties a spool — both kept here because
 this page is where a new cleanup rule gets written.
 
 | Piece | Where | Schedule | Owns |
@@ -13,6 +14,7 @@ this page is where a new cleanup rule gets written.
 | `cache-prune.sh` | `~/.local/bin/` (WSL) | cron **Sun 03:00** | WSL caches, Docker, logs, journal |
 | `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup`, **Sun 04:00** | Windows Temp, crash dumps, WU downloads |
 | `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
+| `flush_subagent_outboxes.py` | `/opt/fabrik/scripts/kilo-benchmarks/` (WSL) | **daily 06:00** via `daily_refresh.sh` **+ every boot** via `wsl_startup_hook.sh` | drains `.tmp/subagents/pg_outbox*.jsonl` — see § E |
 
 ---
 
@@ -105,6 +107,35 @@ has to re-derive which ones are data.
 writer can keep it consistent. That file is vendored — 48 sync-reachable copies, 50 live (D-093) — so
 it is a canonical `/opt/fabrik-lib/subagents` edit plus a re-vendor, and needs the operator's
 cross-repo word.
+
+---
+
+## E. The one scheduled task that DOES empty a spool — `flush_subagent_outboxes.py`
+
+The § D files are not swept, but `pg_outbox.jsonl` does get emptied — by a **transport**, not a
+cleaner. That distinction is the whole point: `cache-prune.sh` deletes regenerable bytes; this
+**moves** run records into Postgres and only then removes the local copy.
+
+- **Schedule:** daily **06:00** as a step in `daily_refresh.sh`, **and on every boot** via
+  `wsl_startup_hook.sh`. Both entry points share `/tmp/.fabrik_daily_<UTC>`, so whichever runs first
+  that day makes the other skip entirely — which is why the step must exist in **both**. It was in
+  `daily_refresh.sh` alone until 2026-09-03, so on every boot-wins day the spools never drained;
+  guarded now by `test_both_entry_points_flush_before_they_rank`.
+- **What it does:** walks every `<repo>/.tmp/subagents/` under `/opt` depth-unbounded, and for each
+  loops `flush_outbox` until it returns 0 — `.flushing` residuals and the live outbox are separate
+  files, so one call per directory is not enough. Receipts are written back to the **owning** repo.
+- **Verified 2026-09-03 (first unattended run):** 250 of 250 pending rows flushed across 3 dirs; the
+  two non-empty ones needed `rounds 2`, so the loop is load-bearing, not defensive.
+- **Fail-open on purpose:** the script returns 0 on every internal path, including an empty outbox, so
+  a non-zero exit means the interpreter or an import failed — never "nothing to flush". Both entry
+  points alert on non-zero, because the ranking step runs immediately after and would otherwise
+  publish `TASK_SUBAGENT_SELECTION.md` from an incomplete ledger.
+- **Why it belongs on this page:** without it the outboxes only grow. Only four repos hold a
+  `SUBAGENT_RUNS_DSN`; for every other repo this task is the sole path from a local spool file to the
+  database, and it is what lets § D mark those files NEVER-delete without them accumulating forever.
+
+⚠️ **Not a cleanup knob.** Do not add age gates, size caps, or `find -delete` to the spools it manages —
+an unflushed row is the only copy of a run that happened. § D's table is the contract.
 
 ---
 
