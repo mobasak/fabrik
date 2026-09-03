@@ -255,4 +255,4 @@ Pass 3 absorbed the operator's mid-run scope addition (a fixing pass, so never t
 }
 ```
 
-**Artifact md5 at the flip:** recorded in the commit body (the flip is the post-convergence write, exempt from the no-op rule).
+**Artifact identity at the flip:** the CONVERGED report shipped in commit `97924022`; its content is addressable as `git rev-parse 97924022:docs/development/reviews/2026-09-03-deploy-triad-frozen-contract-precondition-review.md` (a blob id derived from the commit, never a hand-copied hash — the flip is the post-convergence write, exempt from the no-op rule; the second gate run after the flip: status success, 53 passed, 0 failed).
