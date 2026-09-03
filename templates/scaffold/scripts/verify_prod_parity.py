@@ -59,6 +59,14 @@ NOT_OBLIGATED: frozenset[str] = frozenset()
 #: from the hub, so the contract could never be CONFIRMED where the runner ran it).
 SITES = ("hub", "host", "container")
 
+#: WHICH container the `container` leg runs in — the compose SERVICE that can reach the database, redis
+#: and the internal network. Empty = this project's own app service (the compose service named after
+#: the project). Declare it when the DB-reaching container is NOT the app (tryton-crm: a deliberately
+#: DB-free FastAPI bridge in front of `trytond` — the leg must exec in `trytond`); the runner reads it
+#: from `--header` and never guesses. That container must carry the comparator's runtime deps
+#: (`python-dotenv` at least — `libs/health_probe` imports it at module level).
+CONTAINER_LEG_SERVICE: str = ""
+
 
 def site(name: str) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]]:
     """Declare the site a row must run at: `@site("container")`. Undeclared rows are `hub` rows."""
@@ -318,7 +326,7 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, Any], list[str]]:
     return flags, values, unknown
 
 
-def _rows_for(flags: list[str], values: dict[str, Any]) -> list[dict[str, Any]]:
+def _rows_for(values: dict[str, Any]) -> list[dict[str, Any]]:
     files = values.get("--rows-from")
     if files:
         merged: list[dict[str, Any]] = []
@@ -334,7 +342,7 @@ _USAGE = (
     "  --json        the row list as JSON (the shape /fabrik-deploy-verify consumes)\n"
     "  --verdict     the verdict algebra EXECUTED: the PARITY:/VERDICT: lines; exit 0 confirmed · 2 denied/DRAFT · 1 on a DOWN\n"
     "  --self-check  the FREEZE CHECKLIST; exit 0 when the contract may be frozen\n"
-    "  --header      the parsed Status/Version/Date header as JSON\n"
+    "  --header      the parsed Status/Version/Date header as JSON (+ container_leg_service)\n"
     "  --site NAME   run only the rows declared for that site (hub | host | container) — one leg of a multi-site run\n"
     "  --unreachable WHY   with --site: emit that site's rows as UNVERIFIABLE without running them (the leg could not be reached)\n"
     "  --rows-from F [F…]  with --verdict/--json: use the row lists in these JSON files (the legs' outputs) instead of running rows\n"
@@ -357,10 +365,10 @@ def main(argv: list[str] | None = None) -> int:
         return 64  # EX_USAGE — a typo must never fall through to a contract run
     hdr = parse_header()
     if "--header" in args:
-        print(json.dumps(hdr))
+        print(json.dumps({**hdr, "container_leg_service": CONTAINER_LEG_SERVICE}))
         return 0
     if "--verdict" in args:
-        rows = _rows_for(args, values)
+        rows = _rows_for(values)
         v = verdict(rows, hdr, not_obligated=NOT_OBLIGATED)
         p = v["parity"]
         if p:
@@ -379,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"SELF-CHECK MISS: {m}")
         print("self-check: OK" if not misses else f"self-check: {len(misses)} miss(es)")
         return 0 if not misses else 2
-    rows = _rows_for(args, values)
+    rows = _rows_for(values)
     if "--json" in args:
         print(json.dumps(rows, indent=1))
     else:

@@ -612,3 +612,25 @@ def test_deploy_commands_carry_the_multi_site_execution_model():
         assert needle in verify, needle
     for needle in ('@site(', "self-referential", "snapshot fallback", "floor"):
         assert needle in checklist, needle
+
+
+def test_deploy_commands_declare_the_container_leg_and_test_comparators_not_examples():
+    """tryton-crm's v2/v3 run: (1) the runner assumed 'the app container' — their bridge is DB-free by
+    design and the DB-reaching container is `trytond`; the contract declares `CONTAINER_LEG_SERVICE` and
+    the runner reads it from `--header`. (2) The comparator rule listed examples (filestore = exact,
+    attachments = floor) that grow on the SAME event; the rule is the TEST — does this number change when
+    a user does their job? — and coupled derived stores switch together."""
+    # whitespace-normalised: the sources wrap prose at ~100 columns, so a phrase can straddle a newline
+    checklist = " ".join(
+        (REPO / "commands" / "_sources" / "fabrik-deploy-checklist.md").read_text().split()
+    )
+    verify = " ".join(
+        (REPO / "commands" / "_sources" / "fabrik-deploy-verify.md").read_text().split()
+    )
+    assert "CONTAINER_LEG_SERVICE" in verify and "container_leg_service" in verify
+    assert "CONTAINER_LEG_SERVICE" in checklist
+    assert "does this number change when a user does their job" in checklist
+    assert "switch together" in checklist
+    assert (
+        "python-dotenv" in verify or "dotenv" in verify
+    )  # the comparator's runtime dependency, named

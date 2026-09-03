@@ -435,3 +435,38 @@ def test_a_misspelt_site_or_a_bare_unreachable_is_a_usage_error(tmp_path: Path) 
     )
     bare = _run_as_documented(stub, "--json", "--unreachable", "no ssh", cwd=proj)
     assert bare.returncode == 64 and "--site" in bare.stderr, (bare.returncode, bare.stderr[:200])
+
+
+# ── tryton-crm's v2/v3 run (01M1J0QP8J, 01M1J185FS) — seen RED first ─────────────────────────
+
+
+def test_the_contract_declares_its_container_leg_service_and_header_carries_it(
+    tmp_path: Path,
+) -> None:
+    """A DB-free bridge in front of a stateful backend is a common stack shape: the container that can
+    reach the database is not "the app container". The contract DECLARES it (`CONTAINER_LEG_SERVICE`)
+    and `--header` carries it, so the runner never guesses which container to `docker exec`."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    src = TEMPLATE.read_text()
+    assert 'CONTAINER_LEG_SERVICE: str = ""' in src  # seeded empty = the project's own app service
+    stub.write_text(
+        src.replace('CONTAINER_LEG_SERVICE: str = ""', 'CONTAINER_LEG_SERVICE: str = "trytond"')
+    )
+    hdr = json.loads(_run_as_documented(stub, "--header", cwd=proj).stdout)
+    assert hdr["container_leg_service"] == "trytond", hdr
+    stub.write_text(src)
+    hdr = json.loads(_run_as_documented(stub, "--header", cwd=proj).stdout)
+    assert hdr["container_leg_service"] == "", (
+        hdr
+    )  # empty → the runner uses the project's app service
+
+
+def test_rows_for_takes_only_the_parsed_values() -> None:
+    """`_rows_for(flags, values)` never read `flags` — a project's ruff (ARG001) refused the seeded stub
+    outright (tryton-crm). The helper takes the values it uses."""
+    import inspect
+
+    vp = _vp()
+    assert list(inspect.signature(vp._rows_for).parameters) == ["values"]

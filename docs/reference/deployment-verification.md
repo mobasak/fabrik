@@ -20,7 +20,7 @@ had declared what the product should hold. Spec: `docs/superpowers/specs/2026-09
 
 ## The row shape and the verdict algebra (executed, never applied in prose)
 
-**Where a row runs is part of the row.** `@site("container")` / `@site("host")` / undeclared = `hub`; `--site NAME` runs one leg, `--rows-from` merges legs. tryton-crm's first freeze showed why: executed from the hub, 15 of its 27 rows (every DB row, redis, the filestore, the internal renderer) were permanently UNVERIFIABLE — the contract could never be CONFIRMED where the runner ran it.
+**Where a row runs is part of the row.** `@site("container")` / `@site("host")` / undeclared = `hub`; `--site NAME` runs one leg, `--rows-from` merges legs. **The contract declares WHICH container its `container` leg runs in** (`CONTAINER_LEG_SERVICE`, surfaced by `--header` as `container_leg_service`; empty = the project's own app service): a DB-free bridge in front of a stateful backend is common (tryton-crm's leg runs in `trytond`, not the app), and that container must carry the comparator's runtime deps (`python-dotenv` at least). Comparators follow one test — *does this number change when a user does their job?* — and derived stores (a filestore, a search index) take the same comparator as the rows they mirror. tryton-crm's first freeze showed why: executed from the hub, 15 of its 27 rows (every DB row, redis, the filestore, the internal renderer) were permanently UNVERIFIABLE — the contract could never be CONFIRMED where the runner ran it.
 
 A parity row is the vendored comparison row `{system, status, detail, expected, actual, match, compare_error}`;
 `compare_error` is present only when the comparator raised. **What makes a row a parity row is the vendored

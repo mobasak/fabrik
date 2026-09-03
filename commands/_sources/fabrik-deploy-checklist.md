@@ -101,12 +101,21 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
 - **No snapshot fallback**: when a declaration cannot be derived where the row runs (the local app not
   importable), the row is `UNVERIFIABLE (<why>)` — never a number remembered from an earlier run, which
   drifts silently the first time a route is added.
-- **Comparators by what the data does after go-live**: reference data the deploy must carry intact (module
-  set, translations, the migrated filestore) is compared EXACTLY; business data that legitimately grows once
-  users work (companies, attachments, orders) is a **floor** (`comparator=lambda e, a: a >= e`) after the
-  first deploy, or the contract goes red the day the first real record is created and every re-freeze
-  chases production. The first-deploy freeze may be exact everywhere (it certifies the migration); the
-  contract says which rows switch to floors at the next bump.
+- **Comparators by ONE test, never by an example list — "does this number change when a user does their
+  job?"** No → compare EXACTLY (the activated module set, the shipped translations, a route count). Yes → a
+  **floor** (`comparator=lambda e, a: a >= e`) after the first deploy, or the contract goes red the day the
+  first real record is created and every re-freeze chases production. **Derived stores that mirror a row set
+  take the SAME comparator as the rows they mirror and switch together** — a file-backed attachment store
+  grows on the same event as its attachment rows, a search index on the same event as its documents
+  (tryton-crm's first freeze floored attachments and compared the filestore exactly: red on the first real
+  upload — the example list read naturally at deploy time and was wrong a day later). The first-deploy
+  freeze may be exact everywhere (it certifies the migration); the contract names which rows switch to
+  floors at the next bump, and coupled rows name each other.
+- **Declare the container leg's service when it is not the app**: `CONTAINER_LEG_SERVICE = "<compose
+  service>"` beside `SITES` — the container that can reach the database and the internal network. A
+  DB-free bridge in front of a stateful backend (tryton-crm: the FastAPI app has no psycopg by design; the
+  leg runs in `trytond`) is a common shape, and the runner reads this from `--header` rather than assuming.
+  That container must carry the comparator's runtime deps (`python-dotenv` at least).
 - **One function per corpus row**, named by its corpus id (`l1_identity_sha`, `l2_routes`,
   `l2_state_companies`, `l3_postgres`, … — lowercase: the hub's ruff N802 refuses capitalised function names), returning the `health-probe` comparison row shape —
   `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id.

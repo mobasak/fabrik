@@ -240,15 +240,25 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
      own code and the vendored `libs/health_probe`): `cd /opt/<project> && .venv/bin/python
      scripts/verify_prod_parity.py --json --site hub > <run>/hub.json`. Never against a hub cwd (a hub-cwd run
      once reported the hub's own tables as the project's).
-   - **container leg** — inside the RUNNING app container on the VPS, where the database, redis and the
-     internal network resolve. The vendored comparator is gitignored in projects, so the VPS checkout the
-     image was built from does NOT contain it: ship both files first, then run:
-     `ssh <vps> "docker cp /opt/<project>/scripts/verify_prod_parity.py <app>:/app/scripts/ 2>/dev/null;
+   - **container leg** — inside the RUNNING container that can REACH the database, redis and the internal
+     network. **Which container is the contract's to say, never yours to assume:** read `container_leg_service`
+     from `scripts/verify_prod_parity.py --header` (`CONTAINER_LEG_SERVICE` in the contract); empty means the
+     project's own app service. A DB-free bridge in front of a stateful backend is a common shape — tryton-crm's
+     app container carries no psycopg by design and its leg runs in `trytond` — so exec'ing "the app" there
+     kills every DB row. Resolve the service name to the running container (`ssh <vps> "docker compose -f
+     /opt/<project>/compose.yaml ps -q <service>"`, or the `container_name` the compose declares). The
+     vendored comparator is gitignored in projects, so the VPS checkout the image was built from does NOT
+     contain it: ship both files first, then run:
+     `ssh <vps> "docker cp /opt/<project>/scripts/verify_prod_parity.py <leg>:/app/scripts/ 2>/dev/null;
      true"` (the image already carries the script when the Dockerfile `COPY . .`s the checkout — the copy
      refreshes it), `scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "docker cp
-     /tmp/health_probe <app>:/app/libs/"`, then `ssh <vps> "docker exec <app> python scripts/verify_prod_parity.py
+     /tmp/health_probe <leg>:/app/libs/"`, then `ssh <vps> "docker exec <leg> python scripts/verify_prod_parity.py
      --json --site container" > <run>/container.json`. The container's own env (`DATABASE_URL`, `REDIS_URL`,
-     the compose network) is what makes these rows resolvable — that is why they live there.
+     the compose network) is what makes these rows resolvable — that is why they live there. **The leg
+     container must carry the comparator's runtime deps** — `libs/health_probe` imports `python-dotenv` at
+     module level (and `psycopg`/`redis` for the rows that use them); an image without them dies on import, and
+     the leg reads UNVERIFIABLE for every row. An `ImportError` in `container.json` is that, not a product FAIL:
+     route it to the project (add the dep to the leg service's Dockerfile), never to a rollback.
    - **host leg** — on the VPS host for rows that need `docker ps` or a volume path:
      `scp scripts/verify_prod_parity.py <vps>:/tmp/ && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount>
      python3 /tmp/verify_prod_parity.py --json --site host" > <run>/host.json` (the host leg needs no
