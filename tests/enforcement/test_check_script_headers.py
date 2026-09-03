@@ -122,19 +122,73 @@ def test_quiet_suppresses_the_denominator_but_never_a_warning(tmp_path: Path) ->
     suppress ONLY the clean-path chatter.
     """
     repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nx = 1\n")
-    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py", "docs/coupled.md"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "scripts/thing.py", "docs/coupled.md"], check=True
+    )
     quiet = subprocess.run(
-        [sys.executable, str(CHECK), "--quiet"], cwd=repo, capture_output=True, text=True, timeout=60
+        [sys.executable, str(CHECK), "--quiet"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     assert quiet.returncode == 0
-    assert quiet.stdout.strip() == "", f"--quiet must print nothing on a clean run: {quiet.stdout!r}"
+    assert quiet.stdout.strip() == "", (
+        f"--quiet must print nothing on a clean run: {quiet.stdout!r}"
+    )
 
     # ...but a real WARNING still speaks under --quiet.
     repo2 = _repo(tmp_path / "b", "x = 1\n")  # no AFTER-EDIT header at all
     subprocess.run(["git", "-C", str(repo2), "add", "scripts/thing.py"], check=True)
     warned = subprocess.run(
-        [sys.executable, str(CHECK), "--quiet"], cwd=repo2, capture_output=True, text=True, timeout=60
+        [sys.executable, str(CHECK), "--quiet"],
+        cwd=repo2,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     assert "no `# AFTER-EDIT:` header" in warned.stdout, (
         f"--quiet silenced a real finding — that is silent-green: {warned.stdout!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "# AFTER-EDIT: docs/coupled.md | none",
+        "# AFTER-EDIT: docs/coupled.md | (none)",
+        "# AFTER-EDIT: docs/coupled.md · scripts/thing.py (§ fix-first) | none",
+    ],
+)
+def test_the_none_sentinel_and_prose_tokens_are_never_coupled_files(
+    tmp_path: Path, header: str
+) -> None:
+    """The mandated `<files | none>` sentinel split into a phantom coupled file named `none` — an
+    unclosable WARN on 27 of 106 inspectable hub headers; `(none)`, a `·` and prose words were the
+    same class through other doors (10 more). A coupled file has a path shape (DU2/DW2)."""
+    repo = _repo(tmp_path, f"{header}\nprint('x')\n")
+    out = _run(repo, "scripts/thing.py", "docs/coupled.md")
+    assert "WARNING" not in out, out
+
+
+def test_an_unreadable_staged_script_is_a_warning_not_a_traceback(tmp_path: Path) -> None:
+    """A staged path that exists but cannot be read raised out of `main` — a non-zero exit that
+    FAILS a warn-only gate naming the wrong cause (DW2)."""
+    import os
+
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nprint('x')\n")
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "scripts/thing.py", "docs/coupled.md"], check=True
+    )
+    (repo / "scripts" / "thing.py").chmod(0)
+    try:
+        if os.access(repo / "scripts" / "thing.py", os.R_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        proc = subprocess.run(
+            [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+        )
+    finally:
+        (repo / "scripts" / "thing.py").chmod(0o644)
+    assert proc.returncode == 0 and "cannot read the header" in proc.stdout + proc.stderr, (
+        proc.stdout + proc.stderr
     )

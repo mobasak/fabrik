@@ -533,13 +533,14 @@ def test_the_audited_count_never_goes_negative(monkeypatch, capsys):
     ccc.SKIPPED.clear()
     ccc.SKIPPED.extend(["a.md: OSError", "b.md: OSError", "c.md: OSError"])
     ccc.AUDITED.clear()  # the denominator is what the predicates OPENED, never collected-minus-skipped (DS2)
+    ccc.SKIPPED_PREDICATES.clear()  # the patched-out audit() would otherwise leave an earlier test's advisory (DW1)
     ccc.main([])
     out = capsys.readouterr().out
     assert "across 0 file(s) read" in out, out
     assert "-2 " not in out, out
-    assert "(collected 3)" in out, (
+    assert "(attempted 3)" in out, (
         out
-    )  # the population = read + unreadable, never the read count alone (DU1)
+    )  # the population = read + unreadable, never the read count alone (DU1/DW3)
 
 
 def test_a_scriptless_close_is_still_policed(corpus):
@@ -715,8 +716,9 @@ def test_the_audited_denominator_counts_every_file_a_predicate_opened(tmp_path):
     )
     ccc.audit(src, frag, tmp_path / "absent.py", REPO, traycer_skills=skills.parent, agents=agents)
     names = {Path(p).name for p in ccc.AUDITED}
-    assert {"fabrik-a.md", "fabrik-b.md", "SKILL.md", "agent-z.md"} <= names, names
-    assert names <= {
+    # the wrapper's canonical doc is REQUIRED too — a regression dropping orchestrator docs from
+    # the audited set must red this, not only its sibling test (DW1)
+    assert names == {
         "fabrik-a.md",
         "fabrik-b.md",
         "SKILL.md",
@@ -741,7 +743,7 @@ def test_a_hub_without_its_web_tools_module_says_the_predicate_did_not_run(tmp_p
     (src / "fabrik-a.md").write_text(
         '{{include:run-record}}\nfanout("r", web_tools=["exa"])\n', encoding="utf-8"
     )
-    ccc.audit(
+    probs = ccc.audit(
         src,
         frag,
         repo / "commands" / "assemble_commands.py",
@@ -750,6 +752,65 @@ def test_a_hub_without_its_web_tools_module_says_the_predicate_did_not_run(tmp_p
         agents=tmp_path / "no-agents",
     )
     assert ccc.SKIPPED_PREDICATES and "predicate 1 did not run" in ccc.SKIPPED_PREDICATES[0]
+    # the silence is DELIBERATE and pinned: the bait `["exa"]` raises no web-tool finding here (DW1)
+    assert not any("is not a real tool" in p for p in probs), probs
+    # a SPOKE (no assembler) skips by design and stays silent
+    spoke = tmp_path / "spoke"
+    (spoke / "commands" / "_sources").mkdir(parents=True)
+    (spoke / "commands" / "_fragments").mkdir()
+    (spoke / "commands" / "_sources" / "fabrik-a.md").write_text(
+        "{{include:run-record}}\n", encoding="utf-8"
+    )
+    ccc.audit(
+        spoke / "commands" / "_sources",
+        spoke / "commands" / "_fragments",
+        spoke / "commands" / "assemble_commands.py",
+        spoke,
+        traycer_skills=tmp_path / "no-orch",
+        agents=tmp_path / "no-agents",
+    )
+    assert ccc.SKIPPED_PREDICATES == []  # cleared per audit, and never raised for a spoke (DW1)
+
+
+def test_the_skipped_predicate_advisory_reaches_stdout(monkeypatch, capsys):
+    """DU1 recorded the skip; only `main` prints it — the print half was ungraded (DW1)."""
+    import check_command_corpus as ccc
+
+    def fake_audit(*a, **kw):
+        ccc.SKIPPED_PREDICATES[:] = [
+            "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
+        ]
+        return []
+
+    monkeypatch.setattr(ccc, "audit", fake_audit)
+    ccc.SKIPPED.clear()
+    ccc.AUDITED.clear()
+    assert ccc.main([]) == 0
+    out = capsys.readouterr().out
+    assert "⚠ predicate skipped — web-tool names" in out, out
+
+
+def test_a_present_but_broken_web_tools_module_degrades_like_an_absent_one(tmp_path):
+    """`_live_web_tool_names` guarded only `exists()`: a module that raises on import, or lost
+    `WEB_TOOL_NAMES`, took the BLOCKING gate down with a raw traceback (DW1). Executed in a fresh
+    interpreter so the fake package is what gets imported."""
+    import subprocess
+
+    hub = tmp_path / "hub"
+    (hub / "libs" / "subagents").mkdir(parents=True)
+    (hub / "libs" / "__init__.py").write_text("", encoding="utf-8")
+    (hub / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+    (hub / "libs" / "subagents" / "web_tools.py").write_text(
+        "raise RuntimeError('broken vendor sync')\n", encoding="utf-8"
+    )
+    enforcement = str(REPO / "scripts" / "enforcement")
+    code = (
+        f"import sys; sys.path.insert(0, {enforcement!r}); import check_command_corpus as c; from pathlib import Path\n"
+        f"print(c._live_web_tool_names(Path({str(hub)!r})), c._IMPORT_FAILURE)"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and r.stdout.startswith("None ["), r.stdout + r.stderr
+    assert "RuntimeError: broken vendor sync" in r.stdout
 
 
 def test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after():
@@ -767,8 +828,12 @@ def test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after(
         assert "verify_prod_parity.py --header" in text
         assert "BLOCKED: parity contract DRAFT" in text
     assert "import dotenv" in plan  # Phase 2 proves the leg image can run the comparator
-    assert "parity contract re-frozen" in deploy  # plan-version ≠ checkout-version is a review re-entry
-    assert "not in the plan header" in deploy  # pre-2026-09-03 plans carry no version: WARN, never BLOCK
+    assert (
+        "parity contract re-frozen" in deploy
+    )  # plan-version ≠ checkout-version is a review re-entry
+    assert (
+        "not in the plan header" in deploy
+    )  # pre-2026-09-03 plans carry no version: WARN, never BLOCK
     assert "no `python` at all" in checklist
     assert "executable file not found" in verify
 
@@ -780,11 +845,25 @@ def test_every_deploy_chain_command_carries_the_shared_order_and_repo_block():
     the chain includes it and states its own step + previous + next above the include."""
     src = REPO / "commands" / "_sources"
     frag = (REPO / "commands" / "_fragments" / "deploy-chain.md").read_text()
-    for needle in ("/fabrik-deploy-checklist", "/fabrik-release", "/fabrik-deploy-plan", "/fabrik-deploy-plan-review",
-                   "/fabrik-deploy`", "/fabrik-deploy-verify", "**PROJECT**", "**HUB**", "Gate 2"):
+    for needle in (
+        "/fabrik-deploy-checklist",
+        "/fabrik-release",
+        "/fabrik-deploy-plan",
+        "/fabrik-deploy-plan-review",
+        "/fabrik-deploy`",
+        "/fabrik-deploy-verify",
+        "**PROJECT**",
+        "**HUB**",
+        "Gate 2",
+    ):
         assert needle in frag, needle
-    for name, step in (("fabrik-deploy-checklist.md", 1), ("fabrik-deploy-plan.md", 3),
-                       ("fabrik-deploy-plan-review.md", 4), ("fabrik-deploy.md", 5), ("fabrik-deploy-verify.md", 6)):
+    for name, step in (
+        ("fabrik-deploy-checklist.md", 1),
+        ("fabrik-deploy-plan.md", 3),
+        ("fabrik-deploy-plan-review.md", 4),
+        ("fabrik-deploy.md", 5),
+        ("fabrik-deploy-verify.md", 6),
+    ):
         text = (src / name).read_text()
         assert "{{include:deploy-chain}}" in text, name
         assert f"You are at step {step} of the chain" in text, name

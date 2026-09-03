@@ -77,9 +77,13 @@ def main() -> int:
         p = Path(f)
         if not p.exists():  # staged deletion — nothing to check
             continue
-        head = "\n".join(
-            p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
-        )
+        try:
+            head = "\n".join(
+                p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
+            )
+        except OSError as exc:  # a staged path that exists but cannot be read (a directory named *.py, a dead symlink): a WARN naming it, never a traceback that FAILS a warn-only gate for the wrong cause (DW2)
+            warnings.append(f"{f}: cannot read the header ({exc.__class__.__name__}) — not checked")
+            continue
         m = HEADER_RE.search(head)
         if not m:
             warnings.append(
@@ -90,9 +94,11 @@ def main() -> int:
         listed = m.group(1).strip()
         if listed.lower() in NONE_VALUES:
             continue
-        coupled = [
-            c for c in SEPARATORS.split(listed) if c and c.lower() not in NONE_VALUES
-        ]  # `<files | none>` is the sentinel form CLAUDE.md mandates — `none` is never a coupled file (28 of 128 headers, DU2)
+        # a coupled file has a path SHAPE (a `/` or a `.`): the `| none` sentinel, `(none)`, a `·`
+        # or a prose word (`(§ fix-first)`) are never files — the token-`none` fix of DU2 closed one
+        # instance; this closes the class (10 of 106 inspectable hub headers still minted a
+        # phantom after it), the rule fabrik-lib's sync-excluded copy already carries (DW2)
+        coupled = [c for c in SEPARATORS.split(listed) if c and ("/" in c or "." in c)]
         missing = [c for c in coupled if c not in staged_set]
         if missing:
             warnings.append(

@@ -22,6 +22,7 @@ must fail loudly rather than quietly downgrade a check, which is what
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -148,3 +149,18 @@ def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
     )
     assert payload["blocking"] == payload["passed"] - len(payload["advisory"])
     assert payload["blocking"] < payload["passed"], "the split must actually be visible"
+
+
+def test_the_command_corpus_row_keeps_its_advisory_stdout() -> None:
+    """The corpus gate prints `⚠ predicate skipped — …` / `⚠ N file(s) could NOT be read` on an
+    exit-0 run; registered without `advisory=True`, `run_optional_check` discarded that stdout and
+    the row read `[PASS]` with nothing beside it (review 2026-09-03, DW1)."""
+    src = (Path(__file__).resolve().parents[1] / "scripts" / "final_gate.py").read_text(
+        encoding="utf-8"
+    )
+    m = re.search(
+        r'run_optional_check\(\s*"scripts/enforcement/check_command_corpus\.py",[\s\S]{0,600}?advisory=True',
+        src,
+        re.S,
+    )
+    assert m, "the command-corpus registration must pass advisory=True"
