@@ -130,12 +130,16 @@ backoff, per-attempt connectivity gate with 30-min offline ceiling, storm jitter
 serialized starts via the `start.lock` mutex, cap 2 with pre-backoff short-circuit, per-attempt
 marker re-check, child carries `CLAUDE_SOUND_NO_REVIVE=1` + `CLAUDE_MESH_HEADLESS=1`; final failure
 re-fires the pipeline → ring), `claude-selfwatch.sh` (pane self-watch — EVERY interactive session
-is ordered to arm it by the ORIENT hook, first tool action; consumes a pre-arm marker silently,
-consumes on fire — one wake per death record; network-gated for all classes),
-`claude-mesh-test.sh` (sandboxed fixture harness — 114 fixtures, silent), `claude-quota.py` (quota-wall parser + the ONE wait computation both revival layers consult; state in `.claude-manager/wall-state.json`, 0600), `claude-reboot-sweep.sh` (@reboot: resumes AUTONOMOUS-marked, mid-work, not-still-live sessions, staggered). Markers in the sound lock
+is ordered to arm it, first tool action: by the hub's `session_orient.py` in synced repos, by the
+user-level SessionStart hook `/opt/fabrik/scripts/sysadmin/claude_selfwatch_orient.sh` in every other
+`/opt` repo; consumes a pre-arm marker silently, consumes on fire — one wake per death record,
+STANDING since 2026-09-03: keeps watching after a wake, a duplicate arm per sid exits at once
+(`<sess>.selfwatch.lock`), a `rate_limit` wait re-asks the quota helper every slice so a manual
+account switch ends it; network-gated for all classes),
+`claude-mesh-test.sh` (sandboxed fixture harness — 158 fixtures, silent), `claude-quota.py` (quota-wall parser + the ONE wait computation both revival layers consult; state in `.claude-manager/wall-state.json`, 0600), `claude-reboot-sweep.sh` (@reboot: resumes AUTONOMOUS-marked, mid-work, not-still-live sessions, staggered). Markers in the sound lock
 dir: `<sess>.errparked` (death record — cleared on the next normal Stop, on a busy turn-death
 verdict [a live waker exists], or consumed by the self-watch's fire), `rotation.last`,
-`<sess>.notified`, `<sess>.attempts`, `<sess>.reviving`, `<sess>.recheck`, `start.last` +
+`<sess>.notified`, `<sess>.attempts`, `<sess>.reviving`, `<sess>.recheck`, `<sess>.selfwatch.lock`, `start.last` +
 `start.lock`.
 
 ---

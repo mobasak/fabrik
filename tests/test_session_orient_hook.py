@@ -87,6 +87,10 @@ def test_selfwatch_arm_order_carries_the_real_session_id(tmp_path: Path) -> None
     # property that makes the watch pane-safe — dropping it must fail this test.
     assert "Monitor(persistent: true" in out
     assert 'command: "bash ~/.claude/bin/claude-selfwatch.sh sid-42-abc"' in out
+    # 2026-09-03: the watch is STANDING (loops after a wake; a duplicate arm exits at once) —
+    # an order that still says "fires ONCE — RE-ARM" breeds duplicate watchers per wake.
+    assert "STANDING watch" in out and "never re-arm" in out
+    assert "fires ONCE" not in out and "RE-ARM" not in out
 
 
 def test_no_branch_teaches_the_nohup_arming_form(tmp_path: Path) -> None:

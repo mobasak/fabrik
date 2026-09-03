@@ -249,8 +249,9 @@ def main() -> int:
             " if this session already armed it. The Monitor event IS the wake channel — NEVER a"
             " `nohup ... &` Bash arm: its wake line lands in /dev/null and the watch still"
             " consumes the death marker (a wef session revived 13 times became unrevivable the"
-            " day it re-armed that way, 2026-08-30). Each watch fires ONCE — RE-ARM the same way"
-            " first-thing after every delivered wake.\n"
+            " day it re-armed that way, 2026-08-30). It is a STANDING watch (2026-09-03): one wake"
+            " per death record, any number per arm — never re-arm after a wake; a duplicate arm"
+            " for this session exits at once.\n"
         )
 
     # Reboot sweep (plan 2026-08-10-plan-1, Phase D): a launcher that exports

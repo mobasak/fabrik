@@ -1,6 +1,26 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 150: a waker that must be RE-ARMED by the agent after every wake is a waker that fails in exactly the storm it exists for — make the watch standing, and make the wait re-ask the world it is waiting on
+
+The pane self-watch fired ONE wake and exited, with the wake text ordering the agent to re-arm it.
+That worked one death at a time. In the 2026-09-03 529 storm deaths came minutes apart, the
+re-arm was still in the agent's next turn when the next death landed, and that death had no waker.
+The second half was worse: a `rate_limit` death asked the quota helper ONCE for the walled
+account's reset time and slept toward it in slices — the operator switched accounts four minutes
+later, but nothing in the rotation touches the death markers, so the pane slept for hours on a
+clock that no longer applied. 17 of the 18 `/opt` sessions that died that day carry a typed
+"proceed" or "switched the account" after an error, and 429 is in every one of them — the
+sleeping clock was the storm's shape. Two shapes to recognise: (1) a mechanism
+whose CONTINUITY depends on an agent obeying prose after each firing has the same failure mode as
+the documentation-only fix (Lesson 116) — the check must live in the machinery, so the watch now
+loops and a duplicate arm exits at once under a per-sid flock; (2) a bounded wait computed ONCE
+from mutable state must RE-ASK that state every slice and take the smaller answer — the thing it
+waits on (the active account) can change under it, and a wait that cannot shrink is a wait the
+operator ends by hand. Third finding, same day: the arming order lived only in the hub's
+`session_orient.py`, so every sync-excluded repo (fabrik-lib) had no watch at all — a user-level
+SessionStart hook is the class fix, not another per-repo copy.
+
 # Lesson 149: a verification that must AUTHENTICATE AS the standby it verifies is dead by construction — and "no successor" without a per-candidate reason hid it twice in one day
 
 The rotation tick's successor picker re-verified every CACHED candidate with a live usage probe
