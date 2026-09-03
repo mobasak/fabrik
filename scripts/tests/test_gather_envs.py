@@ -776,6 +776,14 @@ def test_a_capped_unit_keeps_its_answer_and_takes_no_strike(tmp_path, monkeypatc
     proposals, errored = cs.build_proposals(["foo", "bar"], [good, dead])
     assert proposals["foo"]["category"] == "search" and "foo" not in errored
     assert errored == {"bar"}  # a true transport failure is still a retry, never a tombstone (C4)
+    # a cap whose finalize is PROSE (no object) or EMPTY is a retry (the strike path), never a
+    # first-lap tombstone — the exemption keys on a PARSED answer, not on any text (DO1)
+    prose = _Res(
+        "I could not confirm the vendor; the site was unreachable.", error="capped", status="capped"
+    )
+    empty = _Res("", error="capped", status="capped")
+    proposals, errored = cs.build_proposals(["p", "e"], [prose, empty])
+    assert errored == {"p", "e"} and proposals["p"]["category"] == "?"
 
 
 def test_extract_json_finds_the_object_among_other_braces():
@@ -793,6 +801,15 @@ def test_extract_json_finds_the_object_among_other_braces():
         got = cs.extract_json(shape)
         assert got and got["category"] == "research-data", shape[:60]
     assert cs.extract_json("no json here {") is None and cs.extract_json("") is None
+    # an echoed format template BEFORE the answer carries `category` too — the first object whose
+    # category is a real enum member wins; with none, the first object (DO1)
+    echo = (
+        '{"name": "<vendor>", "category": "<one of: ai-llm ai-image search>", "cost": "?"}\n' + obj
+    )
+    assert cs.extract_json(echo)["category"] == "research-data"
+    two = '{"category": "search", "name": "a"}\n{"category": "payments", "name": "b"}'
+    assert cs.extract_json(two)["name"] == "a"
+    assert cs.extract_json('{"category": "<template>"}')["category"] == "<template>"
 
 
 def test_the_run_prints_and_persists_its_pool_cost(tmp_path, monkeypatch, capsys):

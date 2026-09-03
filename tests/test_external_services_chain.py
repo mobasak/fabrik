@@ -49,8 +49,19 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     # the paid step's budget covers its units: 10 per run, up to 7 model calls + web searches each,
     # 4 at a time — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
     budget = re.search(r'^CLASSIFY_TIMEOUT="\$\{CLASSIFY_TIMEOUT:-(\d+)\}"', text, re.M)
-    assert budget and int(budget.group(1)) >= 1800, "CLASSIFY_TIMEOUT default"
-    assert re.search(r'\[ "\$label" = classify_services \] && budget="\$CLASSIFY_TIMEOUT"', text)
+    # one unit's wall clock is the pool's default (1800 s) + 30 s of outer grace: the budget must
+    # EXCEED it, or the kill lands exactly when a hung unit would have returned (DO1)
+    wall = re.search(
+        r"^\s*wall_clock_s: float = (\d+)",
+        (REPO / "libs" / "subagents" / "agent.py").read_text(encoding="utf-8"),
+        re.M,
+    )
+    assert wall and budget and int(budget.group(1)) > int(wall.group(1)) + 30, (budget, wall)
+    step_fn = re.search(r"^_step\(\) \{[^\n]*\n(.*?)^\}", text, re.M | re.S).group(
+        1
+    )  # scoped INSIDE _step (DO2)
+    assert re.search(r'\[ "\$label" = classify_services \] && budget="\$CLASSIFY_TIMEOUT"', step_fn)
+    assert 'timeout -k 30 "$budget"' in step_fn
     # the dashboard is written ONLY when every DATA step succeeded, and the liveness heartbeat is
     # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
@@ -542,11 +553,26 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         encoding="utf-8",
     )
     fake.chmod(0o755)
+    # a fake `timeout` on PATH logs the budget each step ran under: the classify budget is proven
+    # by execution, not by a text pin (DO2)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    budgets = tmp_path / "budgets.log"
+    (bin_dir / "timeout").write_text(
+        "#!/bin/bash\n"
+        f'echo "$3 ${{*: -1}}" >> "{budgets}"\n'  # "<budget> <last argv word>"
+        "shift 3\n"
+        'exec "$@"\n',
+        encoding="utf-8",
+    )
+    (bin_dir / "timeout").chmod(0o755)
     env = {
         **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "FABRIK_ROOT": str(root),
         "VENV_PY": str(fake),
         "STEP_TIMEOUT": "30",
+        "CLASSIFY_TIMEOUT": "4321",
         "LOG_FILE": str(tmp_path / "chain.log"),
     }
     dash = root / "external-services-dashboard.html"
@@ -583,6 +609,10 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "registry_sync.py",
         "gen_dashboard.py",
     ]
+    seen = [ln.split() for ln in budgets.read_text(encoding="utf-8").splitlines()]
+    by_step = {(ln[1].split("/")[-1] if "/" in ln[1] else ln[1]): ln[0] for ln in seen}
+    assert by_step.get("10") == "4321", by_step  # classify's last argv word is `--max-per-run 10`
+    assert {b for step, b in by_step.items() if step != "10"} == {"30"}, by_step
     # 3. the PAID step fails: alerted, exit 1 — but the data steps run and the heartbeat is
     # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
     log.write_text("", encoding="utf-8")
@@ -654,37 +684,115 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert list(stamp.parent.glob("chain-heartbeat.tmp.*")) == []
 
 
+def _tracked_python_files() -> list[Path]:
+    """Every tracked `.py` under scripts/ and libs/ — `git ls-files`, so an untracked vendored venv
+    (`scripts/kilo-benchmarks/.lcb-venv`, 1712 files) is never swept; outside a git checkout, the
+    same walk minus dot-directories (DO2)."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO), "ls-files", "-z", "scripts", "libs"],
+            capture_output=True,
+            check=True,
+            timeout=60,
+        ).stdout.decode()
+        files = [REPO / p for p in out.split("\0") if p.endswith(".py")]
+        if files:
+            return files
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return [
+        p
+        for d in ("scripts", "libs")
+        for p in (REPO / d).rglob("*.py")
+        if not any(part.startswith(".") for part in p.relative_to(REPO).parts)
+    ]
+
+
+def _web_tools_literals(source: str) -> list[list[str] | None]:
+    """Every `web_tools=` keyword in the file: the literal's names, or None when it is not a literal
+    (a name, an attribute, a call the walk cannot evaluate). AST, not a regex: a bare `{…}` set, a
+    `frozenset(sorted(…))`, a union and a following `system="…"` all defeated the regex (DO2)."""
+    import ast
+
+    def names(node: ast.AST) -> list[str] | None:
+        if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
+            out: list[str] = []
+            for elt in node.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    out.append(elt.value)
+                else:
+                    inner = names(elt)
+                    if inner is None:
+                        return None
+                    out.extend(inner)
+            return out
+        if isinstance(node, ast.Call) and node.args:
+            return names(node.args[0])  # frozenset(…), set(…), sorted(…)
+        if isinstance(node, ast.BinOp):
+            left, right = names(node.left), names(node.right)
+            return None if left is None or right is None else left + right
+        return None
+
+    found: list[list[str] | None] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg == "web_tools":
+                    found.append(names(kw.value))
+    return found
+
+
 def test_every_web_tools_literal_names_real_tools_not_providers():
     """`web_tools=` takes TOOL names (`web_search`, `web_search_brave`, `web_scrape`, `web_crawl`,
     `docs_lookup`); the pool loop advertises only names it knows. The classifier passed the
     PROVIDER names `{"exa", "brave"}`, so its paid "research" units ran with NO web tools — one
     turn of model recall each, 10 of 10 on the first production run, the root of the `argusmedia`
-    misfile (DK1). The corpus gate checks only `commands/` markdown and only `[...]` literals; this
-    is the same check over every Python caller in the repo."""
+    misfile (DK1). The corpus gate checks only `commands/` markdown; this is the same check over
+    every tracked Python caller in scripts/ and libs/, parsed, never pattern-matched (DO2)."""
     sys.path.insert(0, str(REPO))
     from libs.subagents.web_tools import WEB_TOOL_NAMES
 
-    # capture to the END of the argument (the first closing paren/bracket of the call), not to the
-    # first `}` — `frozenset({"a"} | {"exa"})` hid its second half (DM2)
-    pat = re.compile(
-        r"web_tools\s*=\s*((?:frozenset\(|set\()?\s*[\[{(].*?)[\]\)]\s*,?\s*(?:#[^\n]*)?\n", re.S
-    )  # literal forms only: `web_tools=spec.web_tools` / `=enabled_web` carry no names to check
-    seen = 0
-    classifier = (REPO / "scripts" / "classify_services.py").read_text(encoding="utf-8")
-    pinned = pat.search(classifier)
-    assert pinned and "web_search" in pinned.group(1), "the classifier's units must SEARCH (DK1)"
-    for path in list((REPO / "scripts").rglob("*.py")) + list((REPO / "libs").rglob("*.py")):
-        if "/tests/" in str(path) or "/.archive/" in str(path) or "/archived/" in str(path):
+    literals = 0
+    for path in _tracked_python_files():
+        if "/tests/" in str(path) or path.name == "check_command_corpus.py":
             continue
-        if (
-            path.name == "check_command_corpus.py"
-        ):  # its docstring quotes the wrong shape on purpose
+        try:
+            found = _web_tools_literals(path.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
             continue
-        for m in pat.finditer(path.read_text(encoding="utf-8", errors="replace")):
-            names = re.findall(r"[\"']([^\"']+)[\"']", m.group(1))
-            if not names:
+        for names in found:
+            if names is None:
                 continue
-            seen += 1
+            literals += 1
             bad = [n for n in names if n not in WEB_TOOL_NAMES]
             assert not bad, (str(path.relative_to(REPO)), bad, sorted(WEB_TOOL_NAMES))
-    assert seen >= 1, "the classifier's literal must be in the sweep"
+    assert literals >= 1, "the classifier's literal must be in the sweep"
+    classifier = (REPO / "scripts" / "classify_services.py").read_text(encoding="utf-8")
+    pinned = [n for n in _web_tools_literals(classifier) if n is not None]
+    assert pinned and "web_search" in pinned[0], "the classifier's units must SEARCH (DK1)"
+    assert "recover_caps=False" in classifier, (
+        "a zero-output cap is a retry, never a serial re-dispatch on top of the step budget (DO1)"
+    )
+
+
+def test_the_sweep_parses_every_literal_shape():
+    """The parser the sweep relies on, over the shapes the regexes lost (DO2)."""
+    src = (
+        'a(web_tools=["web_search"], system="research")\n'
+        'b(web_tools={"web_search", "exa"})\n'
+        'c(web_tools=frozenset({"web_search"} | {"brave"}))\n'
+        'd(web_tools=frozenset(sorted({"docs_lookup"})))\n'
+        "e(web_tools=spec.web_tools)\n"
+        "f(web_tools=None)\n"
+    )
+    got = _web_tools_literals(src)
+    assert got == [
+        ["web_search"],
+        ["web_search", "exa"],
+        ["web_search", "brave"],
+        ["docs_lookup"],
+        None,
+        None,
+    ], got

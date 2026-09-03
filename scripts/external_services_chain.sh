@@ -24,7 +24,7 @@ set -u
 FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
 VENV_PY="${VENV_PY:-$FABRIK_ROOT/.venv/bin/python}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
-CLASSIFY_TIMEOUT="${CLASSIFY_TIMEOUT:-1800}"  # the paid step: 10 units × up to 7 model calls + web searches, 4 at a time — the generic 900 s was shorter than one unit's own wall clock (DM1)
+CLASSIFY_TIMEOUT="${CLASSIFY_TIMEOUT:-2100}"  # the paid step: 10 units × up to 7 model calls + web searches, ALL in parallel (the pool caps concurrency at the unit count); one unit's wall clock is 1800 s + 30 s grace, so the budget must exceed 1830 — the generic 900 s was shorter than one unit (DM1/DO1)
 LOG_FILE="${LOG_FILE:-/dev/stderr}"
 DASHBOARD="$FABRIK_ROOT/external-services-dashboard.html"
 HEARTBEAT="$FABRIK_ROOT/.tmp/external-services/chain-heartbeat"  # the liveness evidence path (mirrored in .fabrik/liveness-registry.json)

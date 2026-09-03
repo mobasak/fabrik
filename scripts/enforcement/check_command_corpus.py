@@ -83,8 +83,8 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 # and the lookahead rejects file-shaped tails (``/fabrik-review.md``).
 _CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
 _WEB_TOOLS_RE = re.compile(
-    r"web_tools\s*=\s*(?:frozenset\(|set\()?\s*[\[{(]([^\]})]*)[\]})]"
-)  # list, set and frozenset forms — the hub's one production caller used `frozenset({"exa", "brave"})` and was invisible to the list-only form (DM2)
+    r"web_tools\s*=\s*(?:frozenset\(|set\()?\s*[\[{(](.*?)[\]})](?=\s*(?:\)|,|$))", re.M
+)  # list, set and frozenset forms, captured to the END of the argument — a closer followed by `)`, `,` or the line's end — so `{"a"} | {"exa"}` and `sorted({"exa"})` keep every name and a following `system="…"` is never harvested (DM2/DO2)
 _NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "context7", not "context"
 # Both citation forms: bare `scripts/x.py` AND hub-absolute `/opt/fabrik/scripts/x.py` — the
 # orchestrator docs cite almost exclusively in the absolute form, and the lookbehind-only regex
@@ -503,50 +503,72 @@ def _selftest() -> int:
         frag.mkdir()
         (src / "fabrik-real.md").write_text("placeholder\n{{include:run-record}}\n")
 
+        # every case opens a run record, so ONLY the predicate under test can fire — and each case
+        # names the SIGNATURE its predicate prints: "some problem fired" let the run-record
+        # predicate vouch for every other canary (review 2026-09-03, DM2/DO2)
         cases = {
-            # every case opens a run record, so ONLY the predicate under test can fire: without
-            # the include the run-record predicate failed every probe and made the others
-            # vacuous — a list-only web_tools regex passed a set-form canary (review 2026-09-03, DM2)
-            "web-tool name": '{{include:run-record}}\nfanout("research", web_tools=["exa","brave"])\n',
+            "web-tool name": (
+                '{{include:run-record}}\nfanout("research", web_tools=["exa","brave"])\n',
+                "is not a real tool",
+            ),
             "web-tool name (set form)": (
-                '{{include:run-record}}\nfanout("research", web_tools=frozenset({"exa","brave"}))\n'
+                '{{include:run-record}}\nfanout("research", web_tools=frozenset({"exa","brave"}))\n',
+                "is not a real tool",
             ),
-            "chain target": "{{include:run-record}}\nthen run /fabrik-does-not-exist to finish\n",
-            "script path": "{{include:run-record}}\nrun `scripts/enforcement/check_no_such_thing.py`\n",
+            "web-tool name (union form)": (
+                '{{include:run-record}}\nfanout("research", web_tools=frozenset({"web_search"} | {"exa"}))\n',
+                "name 'exa' is not a real tool",
+            ),
+            "chain target": (
+                "{{include:run-record}}\nthen run /fabrik-does-not-exist to finish\n",
+                "does not exist in commands/_sources/",
+            ),
+            "script path": (
+                "{{include:run-record}}\nrun `scripts/enforcement/check_no_such_thing.py`\n",
+                "check_no_such_thing.py does not exist",
+            ),
             "trailer model": (
-                "{{include:run-record}}\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n"
+                "{{include:run-record}}\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n",
+                "commit template says Co-Authored-By",
             ),
-            "run record": "a command body that never opens a run record\n",
+            "run record": ("a command body that never opens a run record\n", "opens no run record"),
             # Predicate 8: a caller CLAIM the alleged caller does not honour. fabrik-real.md
             # never names /fabrik-probe, so the advertised wiring does not exist.
             "caller claim": (
                 "{{include:run-record}}\n"
                 "## Where this auto-fires (1 call site)\n"
-                "- **`/fabrik-real` (reactive):** when a review finds an untested behavior.\n"
+                "- **`/fabrik-real` (reactive):** when a review finds an untested behavior.\n",
+                "claims caller /fabrik-real",
             ),
             # Predicate 7: an advertised close the tool would REFUSE. The good fixture below
             # carries the same command WITH --feedback, so this also pins the false-positive side.
             "advertised close": (
                 "{{include:run-record}}\n"
-                'close it: `python3 scripts/command_run.py done --command x --evidence "e"`\n'
+                'close it: `python3 scripts/command_run.py done --command x --evidence "e"`\n',
+                "advertises a close with no --feedback",
             ),
         }
-        # Predicate 6 has its own fixture (an agent dir, not a command body).
+        # Predicate 6 has its own fixture (an agent dir, not a command body) — asserted by ITS
+        # signature, never by "something fired"
         bad_agents = root / "_bad_agents"
         bad_agents.mkdir()
         (bad_agents / "mismatch.md").write_text("---\nname: something-else\ndescription: d\n---\n")
-        if not audit(
+        agent_probs = audit(
             src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch", agents=bad_agents
-        ):
+        )
+        if not any("declares `name:" in p for p in agent_probs):
             failures.append(
                 "VACUOUS: the agent-definition predicate did not fire on known-bad input"
             )
-        cases["agent definition"] = "(fixture-based — see bad_agents above)"
-        for label, bad in cases.items():
+        for label, (bad, signature) in cases.items():
             probe = src / "fabrik-probe.md"
             probe.write_text(bad)
-            if not audit(src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch"):
-                failures.append(f"VACUOUS: the {label} predicate did not fire on known-bad input")
+            probs = audit(src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch")
+            if not any(signature in p for p in probs):
+                failures.append(
+                    f"VACUOUS: the {label} predicate did not fire on known-bad input "
+                    f"(expected {signature!r}; got {probs or 'nothing'})"
+                )
             probe.unlink()
 
         # The honoured-claim half of predicate 8: fabrik-real must name fabrik-good back, or the

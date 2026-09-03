@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py docs/reference/external-services-registry.md
+# AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry.md
 """Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
 
 For every NEEDS-TRIAGE provider in secrets/all-envs.env, dispatch ONE cheap pool research
@@ -120,9 +120,12 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
         # a CAPPED unit (max_turns hit) still carries the finalize call's real answer, but the
         # library stamps its hint on `error` — treating that as a failure discarded the answer AND
         # struck the error budget: three laps → a permanent tombstone for a real vendor (DM1)
-        capped_with_answer = getattr(r, "status", None) == "capped" and bool(getattr(r, "text", ""))
-        had_error = getattr(r, "error", None) is not None and not capped_with_answer
-        obj = extract_json(getattr(r, "text", "")) if not had_error else None
+        capped = getattr(r, "status", None) == "capped"
+        raw = getattr(r, "text", "")
+        obj = extract_json(raw) if (getattr(r, "error", None) is None or capped) else None
+        # a cap is exempt from the error budget only when its answer PARSED: a prose finalize
+        # is a retry (the strike path), never a first-lap tombstone (DO1)
+        had_error = getattr(r, "error", None) is not None and not (capped and obj is not None)
         # KNOWN TRADEOFF: a COMPLETED response whose JSON is merely MALFORMED (trailing comma, bad
         # fence) also parses to None and is treated as unidentifiable → tombstoned under --apply
         # --tombstone-unresolved, not retried. Deliberate: bounded cost (no infinite re-bill) over
@@ -290,6 +293,7 @@ def extract_json(text: str) -> dict | None:
     unparseable answer is tombstoned, never retried (DM1)."""
     dec = json.JSONDecoder()
     text = text or ""
+    first: dict | None = None
     for i, ch in enumerate(text):
         if ch != "{":
             continue
@@ -297,9 +301,13 @@ def extract_json(text: str) -> dict | None:
             obj, _end = dec.raw_decode(text, i)
         except ValueError:
             continue
-        if isinstance(obj, dict) and "category" in obj:
-            return obj
-    return None
+        if not (isinstance(obj, dict) and "category" in obj):
+            continue
+        if _enum_category(obj.get("category")) != "?":
+            return obj  # the first object whose category is a real enum member — an echoed
+            # format template (`<one of: …>`) before the answer must not win (DO1)
+        first = first or obj
+    return first
 
 
 def main() -> int:
@@ -413,6 +421,7 @@ def main() -> int:
         max_turns=6,
         max_cost_usd=0.20,
         system=methodology("research"),
+        recover_caps=False,  # a zero-output cap is a retry next lap (the strike path); the library's sequential re-dispatch would add one full 1800 s wall clock per cap on top of the step budget (DO1)
     )
 
     proposals, errored = build_proposals(names, results)
