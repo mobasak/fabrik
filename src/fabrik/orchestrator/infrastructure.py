@@ -22,11 +22,11 @@ Applicability matrix (locked 2026-04-18, Plan §Phase 7):
  meilisearch  ``shape.has_search_feature``
  prometheus   ``shape.exposes_metrics`` AND ``spec.domain`` set
  redis        ``shape.needs_cache``
- watchdog     ``spec.watchdog.enabled`` — ⚠️ the default DIVERGES by path: THIS
-              (apply) path reads raw yaml and falls back to True; the model
-              (``WatchdogConfig``) defaults False and plan/audit/destroy see
-              that. Full note at the watchdog gate in ``resolve_applicability``;
-              rule pack ``.windsurf/rules/core/60-watchdog.md`` documents the
+ watchdog     ``spec.watchdog.enabled`` (default True on BOTH paths since D-108,
+              2026-09-03 — the model used to default False while this path
+              defaulted True; see the note at the watchdog gate below). Operator
+              opts out with ``watchdog: { enabled: false }``; rule pack
+              ``.windsurf/rules/core/60-watchdog.md`` documents the
               shape-kind-driven recommendation operators implement
 ===========  =============================================================
 
@@ -336,20 +336,19 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
         )
         out["prometheus"] = (False, reason)
 
-    # watchdog (T-P2). ⚠️ THE DEFAULT DIVERGES BY CODE PATH and this comment used to assert the
-    # wrong one (mail 01M1G851DWCX35T5NSQXADQW0H, 2026-09-01; the false claim had already been
-    # copied into docs/infrastructure/vps-ai-sysadmin.md before a second opinion caught it):
-    #   THIS path (apply) reads RAW yaml and falls back to True → a spec that omits the block
-    #     gets a sidecar provisioned;
-    #   the model path (`WatchdogConfig.enabled`, spec_loader.py:428) defaults to FALSE, and
-    #     `fabrik plan` / `audit` / the DESTROYER reach here through `model_dump()`, so the same
-    #     spec reports "not applicable" — the destroyer's replay is on that side, which is the
-    #     direction that matters: a sidecar apply created may not be torn down.
-    # 34 of 72 fleet specs omit the block, so this is a live divergence, not a hypothetical.
-    # Neither default is "the" documented intent: spec_loader.py:414/:417 cite a `_register_watchdog`
-    # dispatcher that computes True for service|worker|wordpress and False for static — that
-    # dispatcher does not exist. Reconciling the three is an operator call (it changes provisioning
-    # or teardown for those 34): docs/STRATEGIC_BACKLOG.md § watchdog default divergence.
+    # watchdog (T-P2). Default TRUE on both paths since 2026-09-03 (D-108, operator ruling).
+    # HISTORY, because this comment itself was the bug: it used to assert "WatchdogConfig.enabled
+    # defaults to True" while the model defaulted FALSE (mail 01M1G851DWCX35T5NSQXADQW0H; the false
+    # claim had already been copied into docs/infrastructure/vps-ai-sysadmin.md before a second
+    # opinion caught it). THIS path reads raw yaml and has always fallen back to True; the model
+    # path — which `fabrik plan`, `audit` and the DESTROYER reach through `model_dump()` — said
+    # False, so a sidecar apply created could be reported not-applicable at teardown, and 34 of 72
+    # fleet specs omit the block. D-108 made the MODEL match this path: no provisioning changed
+    # (apply already behaved this way) and the teardown gap closed. A spec opts out explicitly with
+    # `watchdog: { enabled: false }`. The shape-kind matrix in `.windsurf/rules/core/60-watchdog.md`
+    # (and the `_register_watchdog` dispatcher spec_loader.py cites, which was never built) stays
+    # operator discipline, not encoded behaviour — keeping this gate one line keeps applicability
+    # honest to what the spec actually says.
     watchdog_cfg = spec.get("watchdog", {}) or {}
     if watchdog_cfg.get("enabled", True):
         # D2 (fail-closed): the apply path is raw-dict — WatchdogConfig (and its both-caps-zero

@@ -426,11 +426,17 @@ class WatchdogConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
     enabled: bool = Field(
-        default=False,
+        default=True,
         description=(
-            "True to inject the watchdog sidecar into the project's compose. "
-            "Default is computed by the dispatcher from spec.shape.kind: True "
-            "for service|worker|wordpress, False for static. Owner can override."
+            "True to inject the watchdog sidecar into the project's compose; opt a spec out "
+            "with `watchdog: {enabled: false}`. DEFAULT TRUE since 2026-09-03 (D-108, operator "
+            "ruling) so this model agrees with the apply path, which has always read raw yaml "
+            "and fallen back to True — the two disagreed, and because `fabrik plan`, `audit` and "
+            "the DESTROYER reach applicability through `model_dump()`, a sidecar apply created "
+            "could be reported not-applicable at teardown. 34 of 72 fleet specs omit the block, "
+            "so they were all in that gap. This changes NO provisioning: apply already behaved "
+            "this way. The P2 sub-plan's original `False` and the never-built shape-kind "
+            "dispatcher it describes are superseded by D-108."
         ),
     )
 

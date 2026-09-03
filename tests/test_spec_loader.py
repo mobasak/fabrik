@@ -243,7 +243,13 @@ def test_post_merge_resolves_full_registrar_set(tmp_fabrik_root: Path) -> None:
     load_spec → resolve_applicability chain on a shape-less captcha-like spec.
     Expected registrars: gatus (is_public=true + domain), glitchtip
     (kind=service), grafana (always for shape.kind!=static), prometheus
-    (exposes_metrics=true + domain set)."""
+    (exposes_metrics=true + domain set), watchdog (D-108, 2026-09-03).
+
+    ⚠️ `watchdog` was ABSENT from this set until D-108, and its absence was the DEFECT, not the
+    contract: `fabrik apply` reads the raw yaml and has always defaulted the block to True, so a
+    shape-less spec like this one was provisioned a sidecar while this model-path resolution said
+    otherwise — the destroyer replays on this side, so the sidecar could outlive its stack. The
+    model default now matches apply, so this set is what is actually created."""
     from fabrik.orchestrator.infrastructure import resolve_applicability
 
     spec_path = _write_spec(
@@ -261,10 +267,11 @@ def test_post_merge_resolves_full_registrar_set(tmp_fabrik_root: Path) -> None:
     resolved = resolve_applicability(spec.model_dump(mode="python"))
     runs = {name for name, (run, _reason) in resolved.items() if run}
     # python-api defaults: is_public=true, exposes_metrics=true, kind=service
-    # → expect gatus, glitchtip, grafana, prometheus
-    assert runs == {"gatus", "glitchtip", "grafana", "prometheus"}, (
+    # → gatus, glitchtip, grafana, prometheus; + watchdog since D-108 (the block is absent, and
+    # an absent block means ENABLED on both paths now — apply always thought so)
+    assert runs == {"gatus", "glitchtip", "grafana", "prometheus", "watchdog"}, (
         f"expected python-api shape-less spec to resolve to "
-        f"{{gatus, glitchtip, grafana, prometheus}}; got {runs}"
+        f"{{gatus, glitchtip, grafana, prometheus, watchdog}}; got {runs}"
     )
 
 
@@ -289,7 +296,10 @@ class TestWatchdogConfig:
         from fabrik.spec_loader import WatchdogConfig
 
         w = WatchdogConfig()
-        assert w.enabled is False
+        # D-108 (2026-09-03) SUPERSEDES the sub-plan's `enabled: False` for this one field: the
+        # apply path always defaulted True, so the model's False made plan/audit/DESTROY disagree
+        # with what was actually provisioned. The other nine defaults still match the sub-plan.
+        assert w.enabled is True
         assert w.daily_budget_usd == 1.0
         assert w.daily_invocations_cap == 200
         assert w.auto_tier_b is False
@@ -452,7 +462,9 @@ class TestWatchdogConfig:
         assert spec.watchdog.llm_provider_primary == "claude-code"
 
     def test_spec_default_watchdog_when_absent(self) -> None:
-        """A spec without a ``watchdog:`` block gets the default (disabled) config."""
+        """A spec without a ``watchdog:`` block gets the default (ENABLED since D-108) config —
+        the same answer `fabrik apply` has always given, so plan/audit/destroy no longer contradict
+        what was provisioned. 34 of 72 fleet specs omit the block."""
         import yaml
 
         from fabrik.spec_loader import Spec
@@ -463,8 +475,8 @@ class TestWatchdogConfig:
         domain: bare.vps1.ocoron.com
         """
         spec = Spec.model_validate(yaml.safe_load(yaml_doc))
-        assert spec.watchdog.enabled is False
-        assert spec.watchdog.daily_budget_usd == 1.0
+        assert spec.watchdog.enabled is True
+        assert spec.watchdog.daily_budget_usd == 1.0  # the caps validator is satisfied by default
 
     def test_spec_model_dump_roundtrip(self) -> None:
         """``Spec.model_dump`` → ``Spec.model_validate`` round-trip is stable."""

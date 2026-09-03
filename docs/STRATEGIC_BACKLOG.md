@@ -987,7 +987,7 @@ parity-safe in review pass 25 (CC5), but the label and the log path still carry 
 caller is exposed. Fix at the root: escape the four legacy-Markdown metacharacters in `telegram.py` (or drop
 `parse_mode`), with a grader that sends a title containing `a_b*c` through the formatter. Measured 2026-09-02:
 the chain body had 1 `*` and 11 `_` before CC5; the alerting docstring's `body: up to ~500 chars` was exceeded (896).
-## [fleet] `fabrik apply` and `fabrik plan`/`destroy` disagree on the watchdog default — 34 of 72 specs (2026-09-03, owner: operator decision)
+## [fleet] ✅ RESOLVED 2026-09-03 (D-108) — `fabrik apply` and `fabrik plan`/`destroy` disagreed on the watchdog default
 
 Mail 01M1G851DWCX35T5NSQXADQW0H, validated at `path:line` this run. `resolve_applicability` reads RAW
 yaml on the apply path and falls back to `True` (`infrastructure.py`, the `watchdog_cfg.get("enabled", True)` gate in `resolve_applicability` — line numbers in that file shifted when the corrective comment landed, so it is cited by SYMBOL), while `WatchdogConfig.enabled`
@@ -1003,12 +1003,14 @@ The false comment that hid this (the watchdog gate's own comment, "WatchdogConfi
 FIXED this run, along with the module docstring; it had already propagated into
 `docs/infrastructure/vps-ai-sysadmin.md`, which infra has since corrected.
 
-Not fixed here because every reconciliation changes fleet behaviour for those 34 specs, and the choice is
-the operator's: (a) model default → True (plan/destroy start agreeing with what apply already does; the
-destroyer stops orphaning sidecars; no provisioning change); (b) apply default → False (34 projects lose
-their sidecar on the next apply; existing ones become orphans); (c) implement the documented
-default-by-kind dispatcher (both paths change; needs the kind matrix encoded). Recommended: (a), then (c)
-as a follow-up — it is the only option that changes no live provisioning while removing the teardown gap.
+RESOLUTION: the operator chose (a) — the MODEL default is now True (`spec_loader.py`), matching the apply
+path. No provisioning changed, because apply already behaved this way; `fabrik plan`, `audit` and the
+destroyer now report what was actually created, so the teardown gap is closed. Both pinned tests flipped
+with the reason inline, and the P2 sub-plan's original `False` is explicitly superseded (nine of its ten
+watchdog defaults still hold). Rejected at the same time: (b) apply → False, which would have taken the
+sidecar away from 34 projects on their next apply and orphaned the existing containers; (c) the documented
+default-by-kind dispatcher, which was never built — still open as a follow-up if the kind matrix is ever
+worth encoding, and it is the only remaining reason to touch this field again.
 
 ## [fleet] Fleet capability claims in `agents-fabrik.md` were written from intent, never probed — pgvector was false for months (2026-09-03, owner: operator decision + fleet)
 

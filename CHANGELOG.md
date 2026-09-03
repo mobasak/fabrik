@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the watchdog default now agrees on both code paths: an absent block means ENABLED (2026-09-03)
+
+- Operator ruling on fleet's three-option sizing: "make the model default match what apply already does,
+  which changes no provisioning and closes the teardown gap" (D-108).
+- `WatchdogConfig.enabled` defaults to `True` (`spec_loader.py`), matching the apply path, which reads raw
+  yaml and has always fallen back to `True`. The model default reached `fabrik plan`, `audit` and the
+  DESTROYER through `model_dump()` as `False`, so a spec omitting the block was provisioned a sidecar and
+  simultaneously reported not-applicable — and because the destroyer replays applicability on the model
+  side, that sidecar could outlive its stack. 34 of 72 `specs/services/*.yaml` omit the block.
+- NO live provisioning changes: apply already behaved this way. What changes is that plan/audit/destroy now
+  report what is actually created. Opt out explicitly with `watchdog: { enabled: false }`.
+- Three test assertions flipped, each with the reason inline and all three proven red on revert: the bare
+  `WatchdogConfig()` default, a spec with no `watchdog:` block, and the shape-less python-api registrar set
+  (which now includes `watchdog` — its absence was the defect, not the contract). The P2 sub-plan's original
+  `False` is explicitly superseded for this one field; its other nine watchdog defaults stand.
+- Rejected in the same ruling: apply → `False` (would strip the sidecar from 34 projects on their next apply
+  and orphan the running containers) and the documented default-by-kind dispatcher (never built; still open
+  as a follow-up). Docs: `infrastructure.py` comments, `docs/infrastructure/vps-ai-sysadmin.md`, and the
+  backlog row marked RESOLVED. Found by infra, mail 01M1G851DWCX35T5NSQXADQW0H.
+
 ### Fixed — the gate's skip summary missed two of three skip shapes; D-096 restored; the pgvector capability claim corrected (2026-09-03)
 
 - Fleet mailbox drain (operator: "check your mails and handle them"): 31 messages addressed to fleet, all
