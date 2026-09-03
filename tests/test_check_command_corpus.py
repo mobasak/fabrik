@@ -788,9 +788,34 @@ def test_the_skipped_predicate_advisory_reaches_stdout(monkeypatch, capsys):
     assert ccc.main([]) == 0
     out = capsys.readouterr().out
     assert "⚠ predicate skipped — web-tool names" in out, out
+    ccc.SKIPPED_PREDICATES.clear()  # module state — never leave it for the next test (pass 48)
 
 
-def _fake_hub(root: Path, web_tools_body: str | None) -> Path:
+def test_a_failing_run_still_prints_its_coverage_warnings(monkeypatch, capsys):
+    """The failing exit is the run that most needs to say the verdict was computed over an
+    incomplete corpus; the ⚠ lines were printed on success only (EA1)."""
+    import check_command_corpus as ccc
+
+    def fake_audit(*a, **kw):
+        ccc.SKIPPED[:] = ["commands/_sources/unreadable.md"]
+        ccc.SKIPPED_PREDICATES[:] = [
+            "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
+        ]
+        return ["commands/_sources/x.md: chain target /fabrik-nope does not exist"]
+
+    monkeypatch.setattr(ccc, "audit", fake_audit)
+    ccc.AUDITED.clear()
+    assert ccc.main(["--quiet"]) == 1
+    out = capsys.readouterr().out
+    assert out.startswith("✗ command corpus: 1 broken reference(s)"), out
+    assert (
+        "⚠ 1 file(s) could NOT be read" in out and "⚠ predicate skipped — web-tool names" in out
+    ), out
+    ccc.SKIPPED.clear()
+    ccc.SKIPPED_PREDICATES.clear()
+
+
+def _fake_hub(root: Path, web_tools_body: str | None, init_body: str = "") -> Path:
     """A hub-shaped tree: the assembler (so predicate 1's hub branch runs), one source carrying
     the bait `["exa"]`, and a `libs/subagents/web_tools.py` whose body the test chooses — or no
     module at all when `web_tools_body` is None."""
@@ -803,7 +828,7 @@ def _fake_hub(root: Path, web_tools_body: str | None) -> Path:
     if web_tools_body is not None:
         (root / "libs" / "subagents").mkdir(parents=True)
         (root / "libs" / "__init__.py").write_text("", encoding="utf-8")
-        (root / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+        (root / "libs" / "subagents" / "__init__.py").write_text(init_body, encoding="utf-8")
         (root / "libs" / "subagents" / "web_tools.py").write_text(web_tools_body, encoding="utf-8")
     return root
 
@@ -824,6 +849,13 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     _fake_hub(tmp_path / "broken", "raise RuntimeError('broken vendor sync')\n")
     _fake_hub(tmp_path / "empty", "WEB_TOOL_NAMES = frozenset()\n")
     _fake_hub(tmp_path / "absent", None)
+    # a SIBLING module broken (a peer's half-saved WIP on the shared tree): web_tools.py itself
+    # is fine, the package __init__ raises — not this check's surface (EA1)
+    _fake_hub(
+        tmp_path / "sibling",
+        'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        init_body="raise RuntimeError('sibling WIP')\n",
+    )
     driver = tmp_path / "driver.py"
     driver.write_text(
         "import json, sys\n"
@@ -831,7 +863,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -865,6 +897,15 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
     ], out["absent"]
     assert not any("web_tools.py" in p for p in out["absent"]["problems"]), out["absent"]
+    # a broken SIBLING: no problem under web_tools.py's name, an advisory naming the real file
+    assert not any(
+        "web_tools.py is present but unusable" in p for p in out["sibling"]["problems"]
+    ), out["sibling"]
+    assert len(out["sibling"]["skipped"]) == 1, out["sibling"]
+    assert (
+        "__init__.py failed to import (RuntimeError: sibling WIP)" in out["sibling"]["skipped"][0]
+    ), out["sibling"]
+    assert "predicate 1 did not run" in out["sibling"]["skipped"][0]
 
 
 def test_quiet_drops_the_clean_denominator_line_and_keeps_every_warning(monkeypatch, capsys):

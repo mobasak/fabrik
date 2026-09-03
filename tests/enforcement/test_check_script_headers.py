@@ -245,13 +245,13 @@ def test_an_extension_less_file_that_exists_is_a_coupled_file(tmp_path: Path) ->
     assert "WARNING" in out and "Makefile" in out, out
 
 
-def test_a_dangling_symlink_is_named_not_counted_as_inspected(tmp_path: Path) -> None:
+def test_a_dangling_symlink_is_named(tmp_path: Path) -> None:
     """A dangling symlink fails `exists()` and used to fall through the staged-deletion branch —
-    counted as inspected, warned about nowhere (DY2)."""
+    warned about nowhere (DY2); the counter placement is graded by the deletion test below."""
     repo = _repo(tmp_path, "# AFTER-EDIT: none\n")
     (repo / "scripts" / "dead.py").symlink_to("/nonexistent/target")
     out = _run(repo, "scripts/dead.py")
-    assert "dangling symlink" in out and "inspected" not in out, out  # a WARN, never a clean line
+    assert "WARNING: scripts/dead.py: dangling symlink" in out, out
 
 
 def test_the_clean_line_counts_scripts_read_not_scripts_collected(tmp_path: Path) -> None:
@@ -265,3 +265,50 @@ def test_the_clean_line_counts_scripts_read_not_scripts_collected(tmp_path: Path
         [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
     )
     assert proc.returncode == 0 and "0 of 1 staged script(s) inspected" in proc.stdout, proc.stdout
+
+
+def test_a_same_named_file_in_the_script_directory_never_closes_a_root_coupling(
+    tmp_path: Path,
+) -> None:
+    """`# AFTER-EDIT: README.md` on scripts/thing.py means the ROOT file; staging
+    `scripts/README.md` beside the script must not satisfy it (EA2 — the script-relative reading
+    applies only when the repo-rooted path does not exist)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: README.md\nprint('x')\n")
+    (repo / "README.md").write_text("# root\n", encoding="utf-8")
+    (repo / "scripts" / "README.md").write_text("# local\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py", "scripts/README.md")
+    assert "WARNING" in out and "README.md" in out, out
+
+
+def test_a_glob_token_is_a_coupled_file_when_nothing_matches_it(tmp_path: Path) -> None:
+    """The inclusion half: a glob nobody staged under must WARN — dropping glob tokens as prose
+    passed the satisfied-path case just as well (pass 48)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/**\nprint('x')\n")
+    out = _run(repo, "scripts/thing.py")
+    assert "WARNING" in out and "docs/**" in out, out
+
+
+def test_a_glob_matching_only_the_script_itself_is_not_satisfied(tmp_path: Path) -> None:
+    """`scripts/**` staged with the script alone matched the script — a coupling that could never
+    fire (EA2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: scripts/**\nprint('x')\n")
+    out = _run(repo, "scripts/thing.py")
+    assert "WARNING" in out and "scripts/**" in out, out
+
+
+def test_a_script_relative_directory_token_keeps_its_slash(tmp_path: Path) -> None:
+    """`as_posix()` dropped the trailing `/`, so a script-relative directory token could never be
+    closed (EA2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: fixtures/\nprint('x')\n")
+    (repo / "scripts" / "fixtures").mkdir()
+    (repo / "scripts" / "fixtures" / "golden.json").write_text("{}\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py", "scripts/fixtures/golden.json")
+    assert "WARNING" not in out, out
+
+
+def test_a_prose_word_naming_a_directory_is_not_a_coupled_file(tmp_path: Path) -> None:
+    """`docs` exists as a DIRECTORY in every repo; a prose token equal to it must not be promoted
+    to a phantom coupled file by the exists() rule (EA2 — files only)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md (and docs of the callers)\nprint('x')\n")
+    out = _run(repo, "scripts/thing.py", "docs/coupled.md")
+    assert "WARNING" not in out, out

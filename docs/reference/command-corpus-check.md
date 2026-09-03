@@ -81,6 +81,22 @@ audited orchestrator docs before that branch, so a project-shaped tree carrying
 ModuleNotFoundError, plus 28 bogus chain-ref failures against an empty command set —
 reproduced 2026-08-18, fixed the same day.
 
+**The hub/project split for the web-tool module (2026-09-03, review rows DU1 → DY1 → EA1):**
+`_live_web_tool_names` never lets an import failure escape as a traceback; what the failure
+MEANS is the caller's decision. In a project the module is absent by design — predicate 1 is
+recorded as skipped and the run prints `⚠ predicate skipped — …` (an advisory). In the hub
+(the assembler exists) a `libs/subagents/web_tools.py` that is present but unusable — a raise
+inside it, a renamed or EMPTY `WEB_TOOL_NAMES` after a vendor sync — is a **blocking problem**
+(`present but unusable (<Exc>) — fix the module, do not skip`): the round that guarded the
+import first turned that into a green whose advisory `--json` never showed. The import runs the
+whole `libs.subagents` package graph, so a failure raised in a SIBLING file (a peer session's
+half-saved `agent.py` on the shared tree) is attributed to that file and stays an advisory —
+it is not this check's surface and must not red every session's gate under `web_tools.py`'s
+name. Flags: `--quiet` suppresses only the clean-path ✓ denominator line (the gate passes it,
+as it does for the sibling Script Coupling Header row, so a green row never carries a
+content-free line fleet-wide); the ⚠ lines always print, first, on both exits — the `--json`
+`warnings` array admits only ⚠-first output.
+
 **The important negative:** path-shaped look-alikes are *not* chain references.
 `/opt/fabrik-lib`, `/run/fabrik-autoheal/pause` and `docs/reference/fabrik-mail.md` all
 contain a `fabrik-<word>` token. A naive matcher reports four broken chains that were

@@ -43,7 +43,9 @@ def _coupled_tokens(listed: str, script: Path) -> list[str]:
     for c in SEPARATORS.split(listed):
         if not c or c.lower() in NONE_VALUES:
             continue
-        if "/" in c or "." in c or Path(c).exists() or (script.parent / c).exists():
+        if (
+            "/" in c or "." in c or Path(c).is_file() or (script.parent / c).is_file()
+        ):  # a FILE: a prose word that happens to name a directory (`docs`, `src`) is not promoted (EA2)
             out.append(c)
     return out
 
@@ -53,12 +55,21 @@ def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
     the script's directory (`tests/test_x.py` beside `scripts/kilo-benchmarks/x.py`), by any
     staged path under a directory token (`docs/orchestrator/`), or by a glob (`docs/**`). Before
     this, 8 of 106 hub headers could never be closed by any staging action (DY2)."""
-    for cand in (token, (script.parent / token).as_posix()):
+    # repo-rooted FIRST; the script-relative reading only when the repo-rooted path does not
+    # exist on disk — a same-named file inside the script's directory (`scripts/README.md`) must
+    # never close a coupling declared on the root one (EA2); a directory token keeps its `/`
+    cands = [token]
+    if not Path(token).exists():
+        cands.append((script.parent / token).as_posix() + ("/" if token.endswith("/") else ""))
+    others = staged_set - {
+        script.as_posix()
+    }  # a glob that matches the script ITSELF proves nothing (EA2)
+    for cand in cands:
         if cand in staged_set:
             return True
-        if "*" in cand and any(fnmatch(s, cand) for s in staged_set):
+        if any(ch in cand for ch in "*?[") and any(fnmatch(s, cand) for s in others):
             return True
-        if cand.endswith("/") and any(s.startswith(cand) for s in staged_set):
+        if cand.endswith("/") and any(s.startswith(cand) for s in others):
             return True
     return False
 
@@ -98,7 +109,7 @@ def main() -> int:
             # Same "N staged script(s) inspected" wording as the clean path — one phrasing for one
             # concept, so a reader (and a test) is not matching two substrings for the same fact.
             print(
-                "OK — nothing staged; this check is staged-scoped (0 staged script(s) inspected)."
+                "OK — nothing staged; this check is staged-scoped (0 of 0 staged script(s) inspected)."
             )
         return 0
     staged_set = set(staged)

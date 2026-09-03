@@ -63,6 +63,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import traceback
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -146,13 +147,17 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         sys.path.insert(0, str(repo))
     try:
         from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
-    except Exception as exc:  # noqa: BLE001 - a PRESENT but broken module (a raise on import, a renamed constant, a missing third-party dep) must degrade like an absent one, never take the BLOCKING gate down with a traceback (DW1)
+    except Exception as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1)
+        tb = traceback.extract_tb(exc.__traceback__)
+        blame = getattr(exc, "path", None) or (tb[-1].filename if tb else "")
         _IMPORT_FAILURE.append(f"{exc.__class__.__name__}: {exc}")
+        _IMPORT_BLAME.append(str(blame))
         return None
 
     names = frozenset(WEB_TOOL_NAMES)
     if not names:  # a stub constant would flag EVERY name in the corpus as not real (DY1)
         _IMPORT_FAILURE.append("WEB_TOOL_NAMES is empty")
+        _IMPORT_BLAME.append(str(repo / "libs" / "subagents" / "web_tools.py"))
         return None
     return names
 
@@ -181,6 +186,9 @@ SKIPPED_PREDICATES: list[
 _IMPORT_FAILURE: list[
     str
 ] = []  # why `_live_web_tool_names` returned None when the module EXISTS (DW1)
+_IMPORT_BLAME: list[
+    str
+] = []  # the FILE the failure was raised in — the import runs the whole `libs.subagents` package graph, and only a failure inside web_tools.py itself is this check's to block on (EA1)
 AUDITED: set[str] = (
     set()
 )  # every file a predicate actually OPENED this audit — the success line's denominator (DS2)
@@ -324,6 +332,7 @@ def audit(
     AUDITED.clear()
     SKIPPED_PREDICATES.clear()
     _IMPORT_FAILURE.clear()
+    _IMPORT_BLAME.clear()
     files = _corpus_files(sources, fragments, assembler)
     if not files:
         # ⚠️ NOT-APPLICABLE, not a failure — this check is SYNCED to ~46 projects, and the command
@@ -376,10 +385,24 @@ def audit(
         # on import, a renamed or empty constant after a vendor sync) is a hub DEFECT: the
         # round-46 guard turned that from a blocking red into a green with an advisory the
         # `--json` mode never showed — it is a problem, never a skip (DY1)
-        if _IMPORT_FAILURE:
+        if _IMPORT_FAILURE and _IMPORT_BLAME[-1].endswith("web_tools.py"):
             problems.append(
                 f"libs/subagents/web_tools.py is present but unusable ({_IMPORT_FAILURE[-1]}) — "
                 "predicate 1 (web-tool names) could not run in the hub; fix the module, do not skip"
+            )
+        elif _IMPORT_FAILURE:
+            # the import executes the whole `libs.subagents` package graph (and httpx): a failure
+            # raised in a SIBLING file — a peer session's half-saved agent.py on this shared tree —
+            # is not this check's surface and must not red every session's gate under
+            # web_tools.py's name (EA1); it is named, and predicate 1 is recorded as not run
+            blame = _IMPORT_BLAME[-1]
+            try:
+                blame = str(Path(blame).resolve().relative_to(repo.resolve()))
+            except ValueError:
+                pass
+            SKIPPED_PREDICATES.append(
+                f"web-tool names: {blame} failed to import ({_IMPORT_FAILURE[-1]}) while loading "
+                "libs/subagents/web_tools.py — predicate 1 did not run; not this check's surface"
             )
         else:
             SKIPPED_PREDICATES.append(
@@ -693,6 +716,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"✗ command corpus: {len(problems)} broken reference(s)")
         for line in problems:
             print(f"  {line}")
+        # the verdict above was computed over whatever could be read — the run that most needs
+        # the coverage ⚠ lines is the failing one, and they were only printed on success (EA1)
+        _print_coverage_warnings(len(AUDITED))
         return 1
     # DENOMINATOR: this check is SYNCED to ~46 repos where the corpus does not exist, and it
     # correctly returns [] there — but "all sound" then reads as a clean audit of nothing.
@@ -707,14 +733,20 @@ def main(argv: list[str] | None = None) -> int:
             # the population is what was READ plus what could not be — never the collected list (DU1)
             f" all sound across {audited} file(s) read"
         )
-    if SKIPPED:  # printed under --quiet too — a ⚠ is the point of the row's stdout (DU1/DY1)
+    _print_coverage_warnings(audited)
+    return 0
+
+
+def _print_coverage_warnings(audited: int) -> None:
+    """The ⚠ lines — printed on BOTH exits and under `--quiet`: a ⚠ is the point of the row's
+    stdout (DU1/DY1/EA1)."""
+    if SKIPPED:
         print(
             f"⚠ {len(SKIPPED)} file(s) could NOT be read and were NOT audited "
             f"(attempted {audited + len(SKIPPED)}): {', '.join(SKIPPED)}"
         )
     for note in SKIPPED_PREDICATES:
         print(f"⚠ predicate skipped — {note}")
-    return 0
 
 
 if __name__ == "__main__":

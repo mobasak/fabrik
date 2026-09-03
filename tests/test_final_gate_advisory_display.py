@@ -175,7 +175,9 @@ def test_the_command_corpus_row_is_registered_advisory_and_quiet() -> None:
     ]
     assert len(calls) == 1, "exactly one command-corpus registration"
     call = calls[0]
-    positional = [x.value for x in call.args if isinstance(x, ast.Constant)]
+    positional = [
+        x.value for x in call.args[2:] if isinstance(x, ast.Constant)
+    ]  # the FLAG slots only — never the path or the display name (pass 48)
     assert "--quiet" in positional, positional
     assert any(
         k.arg == "advisory" and isinstance(k.value, ast.Constant) and k.value.value is True
