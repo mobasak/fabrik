@@ -57,6 +57,11 @@ TRIGGER_THRESHOLD = float(
     os.getenv("ROTATE_THRESHOLD", "98")
 )  # the tick's own default (claude_rotate)
 TRIGGER_COOLDOWN_S = float(os.getenv("QUOTA_DASH_TRIGGER_COOLDOWN_S", "120"))
+# The BLIND bar (2026-09-03 20:10): `--status --json` timed out seven times in a row (60 s each)
+# while ob@ burned 96 → 100, and the last GOOD reading (96 < 98) never re-armed the trigger. When
+# the probe is failing the last good reading is minutes old, so the bar drops to the drain line
+# and the TICK reads live for itself; the cooldown bounds the blind path exactly like the sighted one.
+BLIND_TRIGGER_THRESHOLD = float(os.getenv("ROTATE_DRAIN_THRESHOLD", "85"))
 TICK_TIMEOUT_S = float(os.getenv("QUOTA_DASH_TICK_TIMEOUT_S", "180"))
 # The SAME lock the cron line takes (`flock -n $HOME/.claude/state/rotate.lock … --tick`): two ticks
 # deciding at once is the double-flip race, so the board's tick is skipped while a cron tick holds it.
@@ -746,10 +751,13 @@ def _generate_locked() -> str:
         live = _pointer_slug()
         if live:
             payload = {**payload, "active": live}
-            try:
-                _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
-            except OSError:
-                pass
+        # The fallback SAYS it is blind: the trigger lowers its bar on this key (see
+        # _maybe_trigger_rotation) — a reading that cannot be refreshed is a reading to act on early.
+        payload = {**payload, "probe_failed": error}
+        try:
+            _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+        except OSError:
+            pass
     html = render(payload, time.time(), error)
     _HTML.write_text(html, encoding="utf-8")
     return html
@@ -793,14 +801,24 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
     if row is None:
         return None
     five = (row.get("five_hour") or {}).get("utilization")
-    hot = isinstance(five, (int, float)) and float(five) >= TRIGGER_THRESHOLD
+    blind = bool(payload.get("probe_failed"))  # the last GOOD reading, minutes old — bar drops
+    bar = BLIND_TRIGGER_THRESHOLD if blind else TRIGGER_THRESHOLD
+    hot = isinstance(five, (int, float)) and float(five) >= bar
     if not (hot or row.get("cap_walled") is True):
         return None
     now = time.time()
     if now - _LAST_TRIGGER[0] < TRIGGER_COOLDOWN_S:
         return None
     _LAST_TRIGGER[0] = now
-    why = f"session {float(five or 0):.0f}% >= {TRIGGER_THRESHOLD:.0f}%" if hot else "cap-walled"
+    why = (
+        (
+            f"last good session {float(five or 0):.0f}% >= {bar:.0f}% with the probe BLIND"
+            if blind
+            else f"session {float(five or 0):.0f}% >= {bar:.0f}%"
+        )
+        if hot
+        else "cap-walled"
+    )
     sys.stderr.write(f"quota_dashboard: active {active} {why} — invoking the rotation tick\n")
 
     def run() -> None:  # off the loop thread: a slow tick must not stall the probes

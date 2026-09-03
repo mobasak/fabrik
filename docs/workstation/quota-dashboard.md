@@ -21,7 +21,10 @@ remains only as the fallback for a view that lands before the first loop iterati
 decision it feeds — current at 20s granularity, and four usage probes every 20s is the price.
 
 **The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
-at/over `ROTATE_THRESHOLD` (default **98**, the tick's own default) or the account is cap-walled, the
+at/over `ROTATE_THRESHOLD` (default **98**, the tick's own default) or the account is cap-walled — or, while
+the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`BLIND_TRIGGER_THRESHOLD`,
+`ROTATE_DRAIN_THRESHOLD` = 85; 2026-09-03 20:10: seven 60 s probe timeouts in a row hid ob@'s 96 → 100 and
+the trigger only ever saw the last good 96) — the
 server invokes `claude_rotate.py --tick` at once (`_maybe_trigger_rotation`; once per
 `QUOTA_DASH_TRIGGER_COOLDOWN_S`, default 120s) — on its own thread (a slow tick never stalls the probes)
 and under the cron's own lock (`flock -n ~/.claude/state/rotate.lock`, `QUOTA_DASH_ROTATE_LOCK`), so the
@@ -51,7 +54,8 @@ The older design's reasoning, kept for the record:
   by the probe timeout) so the very next view shows the new account. Measured 2026-09-02 before
   this: a `--switch` at 14:36 left the board saying the OLD account for up to floor + reload.
 - A failed probe does **not** blank the page: it renders the last good payload behind a red
-  "live probe failed" banner (`quota.json` is the fallback store). Transient network blips are
+  "live probe failed" banner (`quota.json` is the fallback store, and the fallback carries `probe_failed`
+  so the rotation trigger lowers its bar — see above). Transient network blips are
   first **retried at the HTTP layer** (`_oauth_get`, `OAUTH_GET_ATTEMPTS`/`OAUTH_GET_TIMEOUT_S`
   — see `claude-account-rotation.md` § Transient-blip resilience) before this fallback triggers,
   so a single stalled call under a flaky VPN no longer trips the 60s cap

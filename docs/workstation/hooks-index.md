@@ -129,9 +129,14 @@ script `scripts/sysadmin/claude_rotate.py` + aro-wake twin). FEATURE-DETECTED, t
 mode (≥1 scaffolded dir under `~/.claude-fleet/` — the login-once architecture): per-ACCOUNT
 telemetry + advisories ONLY — pinned-identity grouping, freshest-token quota with a
 cached-with-age fallback, ≥`ROTATE_DRAIN_THRESHOLD` (85) fires one advisory Telegram per
-account per 24h + drain fabrik-mail to that account's mapped repos; structurally NO account
-switch (a walled account's windows pause until reset). Legacy mode (until the fleet root is
-populated): polls the LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD` (95)
+account per 24h + drain fabrik-mail to that account's mapped repos; the FLIP LEG re-points the
+`active` pointer when the active account trips — the 5h leg at `ROTATE_THRESHOLD` (98), the weekly
+leg at its `caps.json` cap — on the PROJECTED reading (2026-09-03: reading + the burn since the
+previous tick, remembered in `state/tick-last-reading.json`; the tick saw ob@ at 89 → 93 → 96 and the
+next tick found the wall — a 98 trip point is unobservable at a 5-minute cadence when the inter-tick
+burn is 3–4%), to the perishable-first sibling with proven headroom (walled / cap-walled / ≥threshold /
+no-5h-budget siblings excluded), under the 30-min dwell. Legacy mode (until the fleet root is
+populated): polls the LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD`
 switches to the PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared
 switch flock — TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling
 at 85 broadcasts the graceful-drain fabrik-mail (commit-and-push checkpoint + revival time;

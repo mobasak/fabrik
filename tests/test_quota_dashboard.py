@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import time
 from pathlib import Path
 
@@ -874,3 +875,62 @@ def test_external_services_route_serves_only_a_regular_html_file(tmp_path, monke
             assert e.value.code == 404, target
     finally:
         httpd.shutdown()
+
+
+# ── 2026-09-03 20:10: the probe timed out 7× in a row (60 s each) while ob@ burned 96 → 100 ──
+
+
+def test_a_blind_probe_triggers_the_tick_from_the_last_good_reading_at_the_drain_line(
+    tmp_path, monkeypatch
+):
+    """The fast path was blind for the whole crossing: `--status --json` timed out seven times in a
+    row and the last GOOD reading (96 < 98) never re-armed the trigger, so the wall came before any
+    probe succeeded. When the probe is failing, the last good reading is minutes old — the bar drops
+    to the drain line (85) and the TICK reads live; the cooldown still bounds it."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=90.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd.generate()
+    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None  # 90 < 98, sighted
+
+    def dead(*a, **kw):
+        raise subprocess.TimeoutExpired(cmd="rotate", timeout=60)
+
+    monkeypatch.setattr(qd, "_probe", dead)
+    qd.generate()
+    payload = json.loads(qd._JSON.read_text())
+    assert payload.get("probe_failed"), "a fallback payload must say the probe is blind"
+    t = qd._maybe_trigger_rotation(payload)
+    assert t is not None, "blind probe + last good 90 ≥ drain 85 → the tick reads live"
+    t.join(10)
+    assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
+    assert qd._maybe_trigger_rotation(payload) is None  # cooldown still bounds the blind path
+
+
+def test_a_blind_probe_below_the_drain_line_stays_quiet(tmp_path, monkeypatch):
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=40.0)
+    qd.generate()
+
+    def dead(*a, **kw):
+        raise OSError("no rotate cli")
+
+    monkeypatch.setattr(qd, "_probe", dead)
+    qd.generate()
+    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
+    assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
+
+
+def test_a_sighted_probe_clears_the_blind_flag(tmp_path, monkeypatch):
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=40.0)
+    real = qd._probe
+
+    def dead(*a, **kw):
+        raise OSError("down")
+
+    monkeypatch.setattr(qd, "_probe", dead)
+    qd.generate()
+    assert json.loads(qd._JSON.read_text()).get("probe_failed")
+    monkeypatch.setattr(qd, "_probe", real)
+    qd.generate()
+    assert not json.loads(qd._JSON.read_text()).get("probe_failed")

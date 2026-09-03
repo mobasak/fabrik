@@ -3716,6 +3716,58 @@ def _touch_refresh_stamp(email: str) -> None:
         pass  # a lost stamp costs one extra ping next tick, never the status itself
 
 
+_TICK_BURN_MAX_AGE_S = 900.0  # three tick intervals: an older memory says nothing about the next 5 min
+
+
+def _tick_burn(email: str, row: dict, now: float) -> dict[str, float]:
+    """The active account's PROJECTED burn until the next tick — the positive delta per window
+    since the previous tick's reading of the SAME account in the SAME window (reset epoch
+    unchanged), read from and written to ``<state>/tick-last-reading.json``. Zero when nothing
+    comparable is remembered (first tick after a flip, a rolled-over window, a memory older than
+    ``_TICK_BURN_MAX_AGE_S``, a corrupt or unwritable file). Never raises: the flip leg falls
+    back to the plain threshold. Why (2026-09-03 19:50): the tick saw ob@ at 89 → 93 → 96 and the
+    next tick found it at 100 with the operator already switched by hand — a 98% trip point is
+    UNOBSERVABLE at a 5-minute cadence when the inter-tick burn is 3–4%, so each leg trips on
+    reading + burn: the flip lands on the last tick that can still precede the wall."""
+    burn = {"five_hour": 0.0, "seven_day": 0.0}
+    current: dict[str, object] = {"email": email, "ts": now}
+    for key in ("five_hour", "seven_day"):
+        w = row.get(key)
+        u = w.get("utilization") if isinstance(w, dict) else None
+        r = w.get("resets_at_epoch") if isinstance(w, dict) else None
+        current[key] = float(u) if isinstance(u, (int, float)) else None
+        current[key + "_reset"] = float(r) if isinstance(r, (int, float)) else None
+    try:
+        path = _rotate_state_dir() / "tick-last-reading.json"
+        try:
+            prev = json.loads(path.read_text())
+        except (OSError, ValueError):
+            prev = None
+        if (
+            isinstance(prev, dict)
+            and prev.get("email") == email
+            and isinstance(prev.get("ts"), (int, float))
+            and 0.0 <= now - float(prev["ts"]) <= _TICK_BURN_MAX_AGE_S
+        ):
+            for key in burn:
+                pu, cu = prev.get(key), current[key]
+                pr, cr_ = prev.get(key + "_reset"), current[key + "_reset"]
+                # Same window = same reset epoch WITHIN A MINUTE: the endpoint derives the epoch
+                # per call and it jitters by a fraction of a second (found by the first live tick:
+                # 1788470999.95 → 1788471000.35 — exact equality never matched, burn was always 0).
+                same_window = (
+                    isinstance(pr, (int, float))
+                    and isinstance(cr_, (int, float))
+                    and abs(float(pr) - float(cr_)) < 60.0
+                ) or (pr is None and cr_ is None)
+                if isinstance(pu, (int, float)) and isinstance(cu, float) and same_window:
+                    burn[key] = max(0.0, cu - float(pu))
+        path.write_text(json.dumps(current))
+    except _STATE_DIR_ERRORS:
+        pass
+    return burn
+
+
 def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) -> None:
     """The tick's pointer decision — one printed line per outcome, never raises past the
     ledger/stderr writers already guarded inside :func:`_flip_active`.
@@ -3785,13 +3837,23 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # cap IS the operator's weekly rule — can/mob 99, sarp 90, ob 80) and at the threshold otherwise.
     cap = row.get("weekly_cap")
     weekly_thr = float(cap) if cap is not None else threshold
-    session_trip = utils["five_hour"] is not None and utils["five_hour"] >= threshold
-    weekly_trip = utils["seven_day"] is not None and utils["seven_day"] >= weekly_thr
+    # PROJECTED trip: reading + the burn since the previous tick (see _tick_burn) — a line that
+    # is only checked every 5 minutes must be crossed BEFORE the wall, not observed after it.
+    burn = _tick_burn(str(row.get("email")), row, _now())
+    session_trip = (
+        utils["five_hour"] is not None and utils["five_hour"] + burn["five_hour"] >= threshold
+    )
+    weekly_trip = (
+        utils["seven_day"] is not None and utils["seven_day"] + burn["seven_day"] >= weekly_thr
+    )
     ordinary_trip = session_trip or (cap is None and weekly_trip)
     cap_trip = cap is not None and weekly_trip
     if not (ordinary_trip or cap_trip):
+        proj = max(burn.values())
         print(
-            f"tick: active {row['email']} at {hot:.0f}% — session below {threshold:.0f}%"
+            f"tick: active {row['email']} at {hot:.0f}%"
+            + (f" (+{proj:.0f} since last tick)" if proj > 0 else "")
+            + f" — session below {threshold:.0f}%"
             + (f", weekly below cap {cap}" if cap is not None else "")
             + ", no flip"
         )
@@ -3800,10 +3862,11 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # cap-only trip; the hottest window when the ordinary threshold fired (legacy shape kept).
     cap_only = cap_trip and not ordinary_trip
     at_pct = utils["seven_day"] if cap_only else hot
+    projected = " (projected — reading + burn since the last tick)" if max(burn.values()) > 0 else ""
     at_desc = (
-        f"at weekly {utils['seven_day']:.0f}% ≥ cap {cap} (operator reserve, caps.json)"
+        f"at weekly {utils['seven_day']:.0f}% ≥ cap {cap} (operator reserve, caps.json){projected}"
         if cap_only
-        else f"at {hot:.0f}%"
+        else f"at {hot:.0f}%{projected}"
     )
     pick = _validated_pick(accounts, {row["email"]}, verbose=True)
     if pick is None:

@@ -52,7 +52,13 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
 
 - **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** — operator rule
   2026-09-03, "as soon as session limits hit 98% for the 5h window"; was 95; ONE helper `_rotate_threshold()`
-  feeds every call site) on either the 5-hour or the weekly window. **Latency:** the quota dashboard
+  feeds every call site) on either the 5-hour or the weekly window — **on the PROJECTED reading**
+  (2026-09-03 19:50, D-103): each leg trips on reading + the burn since the previous tick, remembered per
+  account + window in `~/.claude/state/tick-last-reading.json` (`_tick_burn`; same account, same window by
+  reset epoch, memory ≤ 15 min, else 0). The tick had logged ob@ at 89 → 93 → 96 "below 98, no flip" and the
+  next tick found the wall: at a 5-minute cadence and a 3–4% inter-tick burn no tick observes [98, 100), so a
+  line checked every 5 minutes must be crossed BEFORE the wall. The no-flip line shows `(+N since last
+  tick)`; a projected flip says so in its ledger line. **Latency:** the quota dashboard
   server probes every 20s and invokes `--tick` the moment the active account crosses the line (or is
   cap-walled), so a flip lands within ~20s of the crossing; the `*/5` cron tick is the backstop
   (`docs/workstation/quota-dashboard.md` § the rotation trigger). The **weekly** leg is governed by the account's `caps.json` cap when one exists

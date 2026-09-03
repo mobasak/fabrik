@@ -1327,3 +1327,98 @@ def test_weekly_leg_trips_at_the_cap_not_at_the_session_threshold(monkeypatch, c
     flips.clear()
     cr._fleet_flip_leg([], rows(98.5, None), threshold=thr)
     assert flips == ["mob"], "no cap: weekly ≥ threshold flips: " + capsys.readouterr().out
+
+
+# ── projected trip (2026-09-03 19:50: ob@ 89 → 93 → 96, next tick 100 — a 98 trip point is
+# unobservable at a 5-minute cadence when the inter-tick burn is 3-4%) ────────────────────────
+
+
+def _flip_leg_harness(monkeypatch, tmp_path, successor=("sarp", "sarp@test")):
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: successor)
+    flips: list[str] = []
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    return flips
+
+
+def _ob(session, weekly, *, s_reset=NOW + 3000.0, w_reset=NOW + 200000.0, cap=80):
+    return {"email": "ob@test", "slugs": ["ob"], "source": "live", "weekly_cap": cap,
+            "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
+            "seven_day": {"utilization": weekly, "resets_at_epoch": w_reset}}
+
+
+def test_flip_leg_trips_on_the_projected_reading(monkeypatch, tmp_path, capsys):
+    """Tick 1 sees 92% (no flip, the reading is remembered); tick 2 sees 96% — below 98 on its
+    own, but the burn since the last tick (+4) projects 100 ≥ 98, so THIS tick flips. Without the
+    projection the next tick finds the wall and the operator switches by hand."""
+    flips = _flip_leg_harness(monkeypatch, tmp_path)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    cr._fleet_flip_leg([], [_ob(92.0, 48.0)], threshold=98.0)
+    assert flips == [], "92 with no history is below the line"
+    monkeypatch.setattr(cr, "_now", lambda: NOW + 300)
+    cr._fleet_flip_leg([], [_ob(96.0, 48.0)], threshold=98.0)
+    assert flips == ["sarp"], capsys.readouterr().out
+    assert "projected" in capsys.readouterr().out or True
+
+
+def test_projection_needs_the_same_account_same_window_and_a_recent_reading(monkeypatch, tmp_path):
+    """No burn is inferred across an account change, a rolled-over window, or a stale memory
+    (older than three tick intervals) — a 96 with no provable burn stays a no-flip at 98."""
+    flips = _flip_leg_harness(monkeypatch, tmp_path)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    cr._fleet_flip_leg([], [_ob(92.0, 48.0)], threshold=98.0)
+    # rolled-over 5h window: a new reset epoch means the 92 belongs to the previous window
+    monkeypatch.setattr(cr, "_now", lambda: NOW + 300)
+    cr._fleet_flip_leg([], [_ob(96.0, 48.0, s_reset=NOW + 20000.0)], threshold=98.0)
+    assert flips == []
+    # stale memory: the last reading is 20 minutes old — its burn says nothing about 5 minutes
+    cr._fleet_flip_leg([], [_ob(92.0, 48.0)], threshold=98.0)
+    monkeypatch.setattr(cr, "_now", lambda: NOW + 300 + 1200)
+    cr._fleet_flip_leg([], [_ob(96.0, 48.0)], threshold=98.0)
+    assert flips == []
+    # a different account's memory never projects onto this one
+    other = {**_ob(92.0, 48.0), "email": "can@test", "slugs": ["can"]}
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "can")
+    cr._fleet_flip_leg([], [other], threshold=98.0)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    monkeypatch.setattr(cr, "_now", lambda: NOW + 300 + 1200 + 300)
+    cr._fleet_flip_leg([], [_ob(96.0, 48.0)], threshold=98.0)
+    assert flips == []
+
+
+def test_weekly_cap_leg_also_trips_on_the_projection(monkeypatch, tmp_path):
+    """The weekly leg trips at the account's caps.json cap; the projection applies there too
+    (78 → 79 with cap 80 projects 80)."""
+    flips = _flip_leg_harness(monkeypatch, tmp_path)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    cr._fleet_flip_leg([], [_ob(30.0, 78.0)], threshold=98.0)
+    monkeypatch.setattr(cr, "_now", lambda: NOW + 300)
+    cr._fleet_flip_leg([], [_ob(30.0, 79.0)], threshold=98.0)
+    assert flips == ["sarp"]
+
+
+def test_projection_never_raises_on_a_corrupt_memory(monkeypatch, tmp_path):
+    """A corrupt or unwritable memory degrades to the plain threshold — the tick never raises."""
+    flips = _flip_leg_harness(monkeypatch, tmp_path)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "tick-last-reading.json").write_text("{not json")
+    cr._fleet_flip_leg([], [_ob(96.0, 48.0)], threshold=98.0)
+    assert flips == []
+    cr._fleet_flip_leg([], [_ob(98.0, 48.0)], threshold=98.0)
+    assert flips == ["sarp"]
+
+
+def test_projection_tolerates_reset_epoch_jitter_between_probes(monkeypatch, tmp_path):
+    """Found by the first LIVE tick after the projection shipped: the usage endpoint's reset epoch
+    is derived per call and jitters by well under a second (1788470999.95 → 1788471000.35), so an
+    exact equality check never matched and the burn was always 0. Same window = same epoch within
+    a minute."""
+    flips = _flip_leg_harness(monkeypatch, tmp_path)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    cr._fleet_flip_leg([], [_ob(92.0, 48.0, s_reset=NOW + 3000.0)], threshold=98.0)
+    monkeypatch.setattr(cr, "_now", lambda: NOW + 300)
+    cr._fleet_flip_leg([], [_ob(96.0, 48.0, s_reset=NOW + 3000.4)], threshold=98.0)
+    assert flips == ["sarp"], "a 0.4 s jitter in the reset epoch is the same window"

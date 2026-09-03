@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — auto-switch: the tick trips on the PROJECTED reading, and the board's fast path fires at the drain line when its probe is blind (2026-09-03)
+
+- Operator: ob@ passed 95% session and never auto-switched — "second time today". Measured in the tick log:
+  the tick saw ob@ at 89 → 93 → 96 ("session below 98%, no flip") and the next tick, five minutes later,
+  found it at 100 with the operator already switched by hand. At a 5-minute cadence and a 3–4% inter-tick
+  burn there is no tick that observes [98, 100). The earlier episode (01:07, can@ at 100%, "NO successor has
+  headroom") was the caps working — ob 92 ≥ cap 80, sarp 91 ≥ cap 90, mob at 95 — the pool was spent.
+- `claude_rotate.py`: `_tick_burn` remembers the previous tick's reading per account + window in
+  `state/tick-last-reading.json` and returns the positive delta (same account, same window by reset epoch,
+  memory ≤ 15 min); both legs of `_fleet_flip_leg` now trip on reading + burn (5h vs `ROTATE_THRESHOLD`,
+  weekly vs the `caps.json` cap). The no-flip line shows `(+N since last tick)`; a projected flip says so
+  in the ledger line. Corrupt or unwritable memory degrades to the plain threshold. Twin
+  `scripts/aro-wake/claude_rotate.py` kept byte-identical. Tests: 4 (two seen red first: 92 → 96 at 98
+  flips; 78 → 79 at cap 80 flips); the negatives pin the limits (other account, rolled-over window, stale
+  memory, corrupt file). The first LIVE tick then found what the fixtures could not: the endpoint's reset epoch
+  jitters by a fraction of a second per call, so the exact "same window" check never matched and the burn was
+  always 0 — same window now means epochs within 60 s (test seen red first; a seeded memory printed
+  `at 86% (+4 since last tick)` live). Suite 115 green; mypy's 4 errors pre-exist at HEAD.
+- Second cause, same episode, the board's 20 s fast path (`quota_dashboard.py`): `--status --json` timed out
+  seven times in a row (60 s each — 136 timeouts in the current log file, which spans several restarts; the probe takes 1.5 s
+  when the API is healthy) while ob@ burned 96 → 100, and the trigger only ever evaluated the last GOOD
+  reading (96 < 98). A fallback payload now carries `probe_failed`, and while it does the trigger's bar
+  drops to the drain line (`BLIND_TRIGGER_THRESHOLD`, `ROTATE_DRAIN_THRESHOLD` = 85): the tick reads
+  live for itself; the cooldown bounds the blind path exactly like the sighted one. Tests: 3 (two seen
+  red first). Suite 44 green; board restarted on the new code, probe sighted.
+- Docs: `docs/workstation/claude-account-rotation.md` (the trigger paragraph), `docs/workstation/quota-dashboard.md`
+  (the trigger + failed-probe paragraphs), `docs/workstation/hooks-index.md`
+  § 2c (the fleet-mode sentence still said "structurally NO account switch" — the flip leg has existed since
+  the 2026-08-15 redesign). D-103.
+
 ### Fixed — resume mesh: the pane self-watch is a STANDING watch, re-asks the quota wall after an account switch, and arms in sync-excluded repos (2026-09-03)
 
 - Measured on the day's 429/529 storm (transcript scan, 16 h window; the 15 VS Code one-shot helpers in
