@@ -83,7 +83,9 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
         'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
     assert "137 SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
-    assert "127 no binary" in text  # a `timeout`/python absent from cron's PATH is bash's 127, not a step failure (EU3)
+    assert (
+        "125-127 wrapper" in text
+    )  # a `timeout`/python absent from cron's PATH is bash's 127, not a step failure (EU3)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
     assert re.search(
         r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
@@ -140,6 +142,12 @@ def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
             "gen_dashboard.py",
         ):
             assert step not in code, f"{entry.name} inlines {step} — the chain has ONE definition"
+    # both callers hand the chain THEIR root — the chain's own default merely coincided (EW5)
+    for src in (DAILY.read_text(encoding="utf-8"), HOOK.read_text(encoding="utf-8")):
+        line = next(
+            ln for ln in src.splitlines() if "bash" in ln and "external_services_chain.sh" in ln
+        )
+        assert 'FABRIK_ROOT="$FABRIK_ROOT"' in line, line
 
 
 def test_no_second_entry_point_advertises_an_uninstalled_cron():
@@ -240,9 +248,9 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     monkeypatch.setattr(gd.os, "replace", spy)
     assert gd.main([str(out)]) == 0
     assert (
-        str(out.with_name("dash.html.tmp")),
+        str(out.with_name(f"dash.html.tmp.{gd.os.getpid()}")),
         str(out),
-    ) in replaced  # ours is among the calls (AF11: the spy is process-wide)
+    ) in replaced  # ours is among the calls (AF11: the spy is process-wide); PID-named (EW4)
     assert out.read_text(encoding="utf-8") == "<p>new</p>"
 
     class _BoomError(Exception): ...
@@ -250,7 +258,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     orig_write = gd.Path.write_text
 
     def failing_write(self, *a, **k):
-        if self.name.endswith(".tmp"):
+        if ".tmp." in self.name:  # PID-named since EW4
             orig_write(self, "half", encoding="utf-8")  # the tmp EXISTS when the write dies (AF4)
             raise _BoomError()
         return orig_write(self, *a, **k)
@@ -259,7 +267,7 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     with pytest.raises(_BoomError):
         gd.main([str(out)])
     assert out.read_text(encoding="utf-8") == "<p>new</p>"  # the old page survived the crash
-    assert not out.with_name("dash.html.tmp").exists()  # and no tmp is left behind (AC14)
+    assert not list(out.parent.glob("dash.html.tmp*"))  # and no tmp is left behind (AC14)
 
 
 def test_dashboard_data_cannot_break_out_of_its_script_tag():
@@ -417,6 +425,9 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         index_row
     )  # INDEX's schema row names every value (CM7/CP4)
     assert re.search(r"2 = `registry_sync`", doc), "the doc must decode the sync's exit 2"
+    assert "125" in doc and "126" in doc and "127" in doc, (
+        "the doc must decode the timeout wrapper's own codes (EW3)"
+    )
     assert "2 the sync could not read the catalog" in text, (
         "the alert body must decode exit 2 too (BS11)"
     )
@@ -834,3 +845,63 @@ def test_the_sweep_parses_every_literal_shape():
         None,
         None,
     ], got
+
+
+def test_gen_dashboard_two_writers_both_succeed_and_a_bad_out_path_is_one_typed_line(tmp_path):
+    """Two concurrent invocations on ONE output path (a manual refresh overlapping the cron's
+    step) shared a tmp name; the faster writer's pre-write unlink made the slower one's
+    `os.replace` raise a raw FileNotFoundError. PID-named tmps: both exit 0 and the page is one
+    whole document. A directory (or a missing parent) at `out` is one `ERROR:` line and exit 1,
+    never a traceback (EW4)."""
+    import subprocess
+    import sys
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "gen_dashboard.py"
+    stub = tmp_path / "sitecustomize.py"  # slow the render so the two writers overlap
+    stub.write_text(
+        "import time, pathlib\n"
+        "import gen_dashboard as gd\n"
+        "_w = pathlib.Path.write_text\n"
+        "def slow(self, *a, **k):\n"  # the tmp EXISTS while the writer sleeps — the window the race needs
+        "    r = _w(self, *a, **k)\n"
+        "    time.sleep(0.7)\n"
+        "    return r\n"
+        "pathlib.Path.write_text = slow\n"
+        "gd.load = lambda: []\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "dash.html"
+    env = {**os.environ, "PYTHONPATH": f"{tmp_path}{os.pathsep}{script.parent}"}
+    procs = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                f"import sitecustomize, gen_dashboard as gd, sys; sys.exit(gd.main([{str(out)!r}]))",
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(2)
+    ]
+    results = [(pr.wait(timeout=60), pr.stderr.read()) for pr in procs]
+    assert all(rc == 0 for rc, _ in results), results
+    assert out.read_text(encoding="utf-8").rstrip().endswith("</html>"), out.read_text()[-80:]
+    assert not list(tmp_path.glob("dash.html.tmp*")), list(tmp_path.iterdir())
+    bad = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"import sitecustomize, gen_dashboard as gd, sys; sys.exit(gd.main([{str(tmp_path)!r}]))",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert bad.returncode == 1 and "ERROR:" in bad.stdout and "Traceback" not in bad.stderr, (
+        bad.stdout,
+        bad.stderr,
+    )

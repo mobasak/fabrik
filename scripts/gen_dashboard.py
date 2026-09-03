@@ -268,16 +268,24 @@ def main(argv: list[str] | None = None) -> int:
         ap.parse_args(argv).out
     )  # `--help` exits here — it used to WRITE a file named --help
     rows = load()
-    tmp = out.with_name(out.name + ".tmp")  # atomic: a half-written dashboard is never served (the
+    # atomic: a half-written dashboard is never served (the chain stamps its own heartbeat, CY1).
+    # The tmp name carries the PID — a manual refresh overlapping the cron's step shared ONE tmp
+    # name and the faster writer's pre-write unlink pulled it from under the slower one, whose
+    # `os.replace` then crashed with a raw FileNotFoundError (EW4; the pattern
+    # `gather_envs.write_secret_file` already uses, AW1). Every OSError on the way out is one
+    # typed line and exit 1 — a directory or a missing parent at `out` was a traceback (EW4).
+    tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
     try:
-        tmp.unlink(missing_ok=True)  # chain stamps its own heartbeat, CY1); no leftover either way
-    except OSError:  # a DIRECTORY at the tmp name: let the open below say so (C10)
-        pass
-    try:
-        tmp.write_text(render(rows), encoding="utf-8")
-        os.replace(tmp, out)
-    finally:
-        tmp.unlink(missing_ok=True)  # a failed write leaves nothing behind (AC14)
+        try:
+            tmp.write_text(render(rows), encoding="utf-8")
+            os.replace(tmp, out)
+        finally:
+            tmp.unlink(missing_ok=True)  # a failed write leaves nothing behind (AC14)
+    except OSError as exc:
+        print(
+            f"ERROR: {exc.__class__.__name__}: {exc} — nothing written; the previous dashboard stands"
+        )
+        return 1
     print(f"wrote {out} — {len(rows)} services")
     return 0
 

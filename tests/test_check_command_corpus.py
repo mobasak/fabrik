@@ -1217,6 +1217,76 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         mp = Path(importlib.util.cache_from_source(str(modp)))
         py_compile.compile(str(modp), cfile=str(mp), doraise=True)
         mp.write_bytes(mp.read_bytes()[:20])
+    # pass 59 (EW7): a NUL module named only in a branch nothing static proves runs — a never-taken
+    # `except ImportError:`, a version check, a `TYPE_CHECKING or …` test — never takes the blame
+    for hub, body in (
+        (
+            "trysteal",
+            'try:\n    import fcntl\nexcept ImportError:\n    from .typ import X\nraise ImportError("vendor sync broke")\n',
+        ),
+        (
+            "versteal",
+            'import sys\nif sys.version_info >= (3, 99):\n    from .typ import X\nraise ImportError("vendor sync broke")\n',
+        ),
+        (
+            "boolsteal",
+            'from typing import TYPE_CHECKING\nif TYPE_CHECKING or False:\n    from .typ import X\nraise ImportError("vendor sync broke")\n',
+        ),
+    ):
+        _fake_hub(
+            tmp_path / hub,
+            body + 'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
+            extra={"libs/subagents/typ.py": "X = 1\n"},
+        )
+        (tmp_path / hub / "libs" / "subagents" / "typ.py").write_bytes(b"X = 1\n\x00\n")
+    # the TYPE_CHECKING `else` and a `with` body DO run: a NUL module there is named
+    for hub, body in (
+        (
+            "typeelse",
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    pass\nelse:\n    from .tools import H\n",
+        ),
+        (
+            "nestedimports",
+            "import contextlib\nwith contextlib.nullcontext():\n    from .tools import H\n",
+        ),
+    ):
+        _fake_hub(
+            tmp_path / hub,
+            body + 'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
+            tools_body="H = 1\n",
+        )
+        (tmp_path / hub / "libs" / "subagents" / "tools.py").write_bytes(b"H = 1\n\x00\n")
+    # a typo'd ROOT of our own package and a missing SUBMODULE of an installed distribution are
+    # module defects (a BLOCK), never "a dependency is not installed" (EW7)
+    _fake_hub(
+        tmp_path / "typoimport",
+        'from subagents.impl import Z\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/impl.py": "Z = 1\n"},
+    )
+    _fake_hub(
+        tmp_path / "subdepmissing",
+        'from json.nope import z\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # a NUL module at the REPO ROOT is a broken file of ours, not a missing distribution
+    _fake_hub(tmp_path / "rootmod", 'import rootmod\nWEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    (tmp_path / "rootmod" / "rootmod.py").write_bytes(b"R = 1\n\x00\n")
+    # a SIBLING's missing distribution keeps the sibling's name in the advisory
+    _fake_hub(
+        tmp_path / "sibdep",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="import httpx_not_installed_xyz\nH = 1\n",
+    )
+    # a failure raised OUTSIDE the closure (a site-packages module) keeps its own blame even when
+    # a NUL sibling sits one import later
+    _fake_hub(
+        tmp_path / "extthenthird",
+        'import extmod_xyz\nfrom .third import T\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/third.py": "T = 1\n"},
+    )
+    (tmp_path / "extthenthird" / "libs" / "subagents" / "third.py").write_bytes(b"T = 1\n\x00\n")
+    (tmp_path / "site" / "extmod_xyz.py").write_text(
+        'raise ImportError("optional extra missing")\n', encoding="utf-8"
+    )
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -1246,14 +1316,14 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
         f"    site = {str(tmp_path / 'site')!r}\n"
         "    if site in sys.path:\n"
         "        sys.path.remove(site)\n"
-        "    if name in ('extdep', 'extpkg'):\n"  # the dependency dir reaches ONLY the hubs that need it — a `libs` package there would beat a namespace-shaped hub (pass 50)
+        "    if name in ('extdep', 'extpkg', 'extthenthird'):\n"  # the dependency dir reaches ONLY the hubs that need it — a `libs` package there would beat a namespace-shaped hub (pass 50)
         "        sys.path.append(site)\n"
         "    probs = c.audit(hub / 'commands' / '_sources', hub / 'commands' / '_fragments', hub / 'commands' / 'assemble_commands.py', hub, traycer_skills=hub / 'no-orch', agents=hub / 'no-agents')\n"
         "    out[name] = {'problems': probs, 'skipped': list(c.SKIPPED_PREDICATES), 'failure': list(c._IMPORT_FAILURE)}\n"
@@ -1601,6 +1671,31 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     assert "bytecode cache of libs/subagents/deep.py, libs/subagents/b.py unloadable" in dfs, out[
         "dfsorder"
     ]
+    # pass 59 (EW7)
+    for hub in ("trysteal", "versteal", "boolsteal"):
+        assert any(
+            "web_tools.py is present but unusable (ImportError: vendor sync broke)" in p
+            for p in out[hub]["problems"]
+        ), (hub, out[hub])
+        assert "typ.py" not in " ".join(out[hub]["problems"] + out[hub]["skipped"]), (hub, out[hub])
+    for hub in ("typeelse", "nestedimports"):
+        assert (
+            len(out[hub]["skipped"]) == 1
+            and "libs/subagents/tools.py failed to import" in out[hub]["skipped"][0]
+        ), (hub, out[hub])
+    for hub in ("typoimport", "subdepmissing", "rootmod"):
+        joined = " ".join(out[hub]["problems"] + out[hub]["skipped"])
+        assert "not installed in this interpreter" not in joined, (hub, out[hub])
+        assert (
+            any("present but unusable" in p for p in out[hub]["problems"]) or "rootmod.py" in joined
+        ), (hub, out[hub])
+    assert not any("present but unusable" in p for p in out["sibdep"]["problems"]) and any(
+        s.startswith("web-tool names: libs/subagents/tools.py failed to import")
+        and "not installed in this interpreter" in s
+        for s in out["sibdep"]["skipped"]
+    ), out["sibdep"]
+    ext = " ".join(out["extthenthird"]["skipped"] + out["extthenthird"]["problems"])
+    assert "extmod_xyz" in ext and "third.py" not in ext, out["extthenthird"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1963,6 +2058,123 @@ def test_the_manual_rules_select_the_hash_branch_on_bit_zero_like_cpython(tmp_pa
     )
 
 
+def test_the_negated_type_checking_idiom_keeps_its_else_branch_out_of_the_closure(tmp_path):
+    """`if not TYPE_CHECKING: … else: from .nulstub import Y` — the else is typing-only and never
+    executes; round 58 handled only the affirmative idiom, so a NUL module there could still
+    steal the blame (EW2)."""
+    import check_command_corpus as ccc
+
+    pkg = tmp_path / "libs" / "subagents"
+    pkg.mkdir(parents=True)
+    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "nulstub.py").write_text("Y = 1\n", encoding="utf-8")
+    (pkg / "real.py").write_text("X = 1\n", encoding="utf-8")
+    (pkg / "web_tools.py").write_text(
+        "from typing import TYPE_CHECKING\nif not TYPE_CHECKING:\n    from .real import X\nelse:\n    from .nulstub import Y\n",
+        encoding="utf-8",
+    )
+    names = [p.name for p in ccc._import_order(pkg / "web_tools.py")]
+    assert "real.py" in names and "nulstub.py" not in names, names
+
+
+def test_the_closure_puts_the_target_where_its_package_init_imports_it(tmp_path):
+    """`libs/subagents/__init__.py` imports web_tools THEN other: the load order is init, init,
+    web_tools, other — the target is not appended last (EW7)."""
+    import check_command_corpus as ccc
+
+    pkg = tmp_path / "libs" / "subagents"
+    pkg.mkdir(parents=True)
+    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text(
+        "from .web_tools import W\nfrom .other import O\n", encoding="utf-8"
+    )
+    (pkg / "web_tools.py").write_text("W = 1\n", encoding="utf-8")
+    (pkg / "other.py").write_text("O = 1\n", encoding="utf-8")
+    names = [p.name for p in ccc._import_order(pkg / "web_tools.py")]
+    assert names == ["__init__.py", "__init__.py", "web_tools.py", "other.py"], names
+
+
+def test_a_two_thousand_module_chain_does_not_overflow_the_closure(tmp_path):
+    """The recursive DFS of round 58 raised RecursionError out of a BLOCKING gate at 2000
+    modules; the explicit stack does not (EW7)."""
+    import check_command_corpus as ccc
+
+    pkg = tmp_path / "libs" / "subagents"
+    pkg.mkdir(parents=True)
+    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    n = 2000
+    for i in range(n):
+        nxt = f"from .m{i + 1} import X\n" if i + 1 < n else ""
+        (pkg / f"m{i}.py").write_text(nxt + "X = 1\n", encoding="utf-8")
+    (pkg / "web_tools.py").write_text("from .m0 import X\n", encoding="utf-8")
+    closure = ccc._import_order(pkg / "web_tools.py")
+    assert len(closure) == n + 3, len(closure)
+
+
+def test_the_selftest_keeps_its_web_tool_canaries_when_the_hub_module_is_present_but_broken(
+    tmp_path,
+):
+    """A hub whose `web_tools.py` RAISES is not a project: the six canaries stay and fail loudly
+    (exit 1), never "N/A … (a project)" and exit 0 (EW7). A fresh interpreter, so the hub's own
+    `libs` package is not already imported."""
+    import shutil
+    import subprocess
+
+    hub = tmp_path / "hub"
+    (hub / "scripts" / "enforcement").mkdir(parents=True)
+    (hub / "libs" / "subagents").mkdir(parents=True)
+    (hub / "libs" / "__init__.py").write_text("", encoding="utf-8")
+    (hub / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+    (hub / "libs" / "subagents" / "web_tools.py").write_text(
+        'raise ImportError("vendor sync broke")\n', encoding="utf-8"
+    )
+    shutil.copy(
+        REPO / "scripts" / "enforcement" / "check_command_corpus.py",
+        hub / "scripts" / "enforcement" / "check_command_corpus.py",
+    )
+    shutil.copy(REPO / "CLAUDE.md", hub / "CLAUDE.md")
+    (hub / "scripts" / "command_run.py").write_text("", encoding="utf-8")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(hub / "scripts" / "enforcement" / "check_command_corpus.py"),
+            "--selftest",
+        ],
+        cwd=hub,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 1 and "N/A" not in proc.stdout, (proc.stdout, proc.stderr)
+
+
+def test_the_selftest_in_a_project_without_the_trailer_example_marks_that_canary_not_applicable(
+    tmp_path, monkeypatch, capsys
+):
+    """A project whose CLAUDE.md carries no Co-Authored-By example turns predicate 4 off by design;
+    the canary said VACUOUS and exited 1 (EW7). The success line names what was N/A."""
+    import check_command_corpus as ccc
+
+    repo = tmp_path / "project"
+    (repo / "scripts" / "enforcement").mkdir(parents=True)
+    (repo / "CLAUDE.md").write_text(
+        "# a project contract with no trailer example\n", encoding="utf-8"
+    )
+    (repo / "scripts" / "command_run.py").write_text("", encoding="utf-8")
+    (repo / "scripts" / "enforcement" / "check_command_corpus.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(ccc, "REPO", repo)
+    monkeypatch.setattr(ccc, "_live_web_tool_names", lambda *a, **k: None)
+    assert ccc._selftest() == 0
+    out = capsys.readouterr().out
+    assert "N/A: the trailer-model canary skipped" in out and "VACUOUS" not in out, out
+    assert (
+        "6 canaries over 6 of the eight predicates" in out
+        and "(N/A: web-tool names, trailer model)" in out
+    ), out
+
+
 def test_a_relative_import_above_the_package_root_reaches_nothing(tmp_path):
     """`from ....x import y` in a closure module climbs above `libs/`; the walk must stop at the
     root instead of admitting a file OUTSIDE the repo into the closure (and the blame) (EU4)."""
@@ -1997,6 +2209,9 @@ def test_the_selftest_in_a_project_marks_the_web_tool_canaries_not_applicable(
     assert ccc._selftest() == 0
     out = capsys.readouterr().out
     assert "N/A: 6 web-tool canaries skipped" in out and "VACUOUS" not in out, out
+    assert "7 canaries over 7 of the eight predicates" in out and "(N/A: web-tool names)" in out, (
+        out
+    )
 
 
 def test_the_manual_fallback_accepts_a_sourceless_module_by_header_alone(tmp_path, monkeypatch):

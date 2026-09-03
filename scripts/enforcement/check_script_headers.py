@@ -48,14 +48,28 @@ def _header_of(head: str) -> str | None:
     return None
 
 
+class GitUnavailableError(Exception):
+    """git did not answer (a 20 s timeout behind a sibling's `index.lock`, or no git at all): the
+    check cannot ask its question — a WARN that says so and exit 0, never a traceback, which the
+    gate reads as a FAILURE of a warn-only check (EW1)."""
+
+
 def _staged_head(path: str) -> str | None:
     """The first HEADER_SCAN_LINES of the STAGED blob (`git show :path`) — what will be
     committed — never the working tree, which a later edit or a partial stage can make differ
-    from the index in either direction (EQ2). None when the index has no blob (an intent-to-add
-    path): the caller reads the working tree then."""
-    proc = subprocess.run(
-        ["git", "show", f":{path}"], capture_output=True, text=True, timeout=20, errors="replace"
-    )
+    from the index in either direction (EQ2). None when the index holds no stage-0 blob for a
+    listed path — a `git rm --cached` deletion with the file still on disk, or an unresolved
+    merge: nothing at that path is about to be committed, so nothing is checked (EW1)."""
+    try:
+        proc = subprocess.run(
+            ["git", "show", f":{path}"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            errors="replace",
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise GitUnavailableError(f"git show :{path}: {exc.__class__.__name__}") from exc
     if proc.returncode != 0:
         return None
     return "\n".join(proc.stdout.splitlines()[:HEADER_SCAN_LINES])
@@ -113,14 +127,17 @@ def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
 HEADER_SCAN_LINES = 25
 
 
-def _git(args: list[str]) -> list[str]:
-    """`core.quotepath=false`: git's default C-quotes any path with a non-ASCII byte
-    (`"scripts/na\\303\\257ve.py"`), which then matches neither `startswith("scripts/")` nor the
-    staged set — a headerless script invisible, a staged coupled file "not updated" (EU1)."""
-    out = subprocess.run(
-        ["git", "-c", "core.quotepath=false", *args], capture_output=True, text=True, timeout=20
-    ).stdout.strip()
-    return out.split("\n") if out else []
+def _git(args: list[str], sep: str = "\n") -> list[str]:
+    """Path lists are read with `-z` (NUL-separated, NEVER quoted): git's default C-quotes any
+    path with a non-ASCII byte (`"scripts/na\\303\\257ve.py"`), and `core.quotepath=false` still
+    quotes a tab, a backslash or a `"` — a quoted name matches neither `startswith("scripts/")`
+    nor the staged set, so a headerless script was invisible and a staged coupled file "not
+    updated" (EU1/EW1). A git that does not answer is GitUnavailableError, never a traceback."""
+    try:
+        out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20).stdout
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise GitUnavailableError(f"git {' '.join(args)}: {exc.__class__.__name__}") from exc
+    return [x for x in out.strip(sep).split(sep) if x] if out.strip(sep) else []
 
 
 def _skip(f: str) -> bool:
@@ -151,12 +168,20 @@ def main() -> int:
     # A BARE run (an agent or human invoking this directly) passes no flag and stays informative,
     # which is the whole point of 01M1E6S1EAK7DNP74C1K9YHP3Z.
     quiet = "--quiet" in sys.argv[1:]
+    try:
+        return _main(quiet)
+    except GitUnavailableError as exc:
+        print(f"WARNING: {exc} — git did not answer; script coupling headers not checked")
+        return 0
+
+
+def _main(quiet: bool) -> int:
     top = _git(["rev-parse", "--show-toplevel"])
     if top and top[0] and Path(top[0]).is_dir():
         # the staged paths are repo-root-relative whatever the cwd; a bare run from `scripts/`
         # read every real script as "a staged deletion" and printed a clean 0-of-N (EU1)
         os.chdir(top[0])
-    staged = _git(["diff", "--cached", "--name-only"])
+    staged = _git(["diff", "--cached", "--name-only", "-z"], sep="\0")
     if not staged:
         # "Nothing staged" is a REASON, not a silent pass. This early return is the shape the
         # bare run in 01M1E6S1EAK7DNP74C1K9YHP3Z actually hit (the reporter's scripts were
@@ -182,16 +207,13 @@ def main() -> int:
                 warnings.append(f"{f}: dangling symlink — not checked")
             continue
         head = _staged_head(f)
-        if head is None:  # no index blob (an intent-to-add path): the working tree
-            try:
-                head = "\n".join(
-                    p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
-                )
-            except OSError as exc:  # a staged path that exists but cannot be read (a permission-denied file): a WARN naming it, never a traceback that FAILS a warn-only gate for the wrong cause (DW2)
-                warnings.append(
-                    f"{f}: cannot read the header ({exc.__class__.__name__}) — not checked"
-                )
-                continue
+        if head is None:
+            # no stage-0 blob for a listed path: a `git rm --cached` deletion with the file still
+            # on disk, or an unresolved merge — the WORKING TREE is not what will be committed and
+            # is never read (EQ2's own principle; the fallback read it and reported "inspected"
+            # for content about to leave tracking, or one side of a conflict — EW1)
+            warnings.append(f"{f}: staged deletion or unresolved merge — not checked")
+            continue
         inspected += 1
         listed_header = _header_of(head)
         if listed_header is None:

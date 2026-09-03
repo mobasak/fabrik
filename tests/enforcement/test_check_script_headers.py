@@ -174,14 +174,15 @@ def test_the_none_sentinel_and_prose_tokens_are_never_coupled_files(
     assert "WARNING" not in out, out
 
 
-def test_an_unreadable_staged_script_is_a_warning_not_a_traceback(
+def test_a_listed_path_without_a_stage_zero_blob_is_skipped_never_read_from_the_worktree(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    """The header is read from the STAGED blob (EQ2), so an unreadable working-tree file whose
-    blob is in the index is inspected normally; a listed path with NO index blob falls back to
-    the working tree — and an unreadable one there is a WARN naming it, never a traceback that
-    FAILS a warn-only gate for the wrong cause (DW2). In-process: the blob lookup is patched out
-    so the fallback is the path under test."""
+    """The header is read from the STAGED blob (EQ2); a listed path with NO stage-0 blob — a
+    `git rm --cached` deletion with the file still on disk, an unresolved merge — is skipped
+    with a line saying so. The old fallback read the WORKING TREE and reported the file
+    "inspected" (an unreadable one was a WARN — DW2); that content is not what will be
+    committed (EW1). In-process: the blob lookup is patched out so the branch is the one
+    under test; the file is unreadable to prove it is never opened."""
     import importlib.util
     import os
 
@@ -193,14 +194,73 @@ def test_an_unreadable_staged_script_is_a_warning_not_a_traceback(
     if os.access(repo / "scripts" / "thing.py", os.R_OK):
         pytest.skip("running as root — permissions are not enforced")
     monkeypatch.chdir(repo)
-    monkeypatch.setattr(mod, "_git", lambda args: ["scripts/thing.py", "docs/coupled.md"])
+    monkeypatch.setattr(mod, "_git", lambda args, sep="\n": ["scripts/thing.py", "docs/coupled.md"])
     monkeypatch.setattr(mod, "_staged_head", lambda path: None)
     try:
         assert mod.main() == 0
     finally:
         (repo / "scripts" / "thing.py").chmod(0o644)
     out = capsys.readouterr().out
-    assert "cannot read the header" in out, out
+    assert "staged deletion or unresolved merge — not checked" in out, out
+    assert "cannot read" not in out and "inspected" not in out.replace("0 of 1", ""), out
+
+
+def test_a_git_rm_cached_script_still_on_disk_is_not_inspected(tmp_path: Path) -> None:
+    """`git rm --cached` lists the path in `--cached --name-only` with the file on disk and no
+    index blob: the worktree header must not be validated as if it were about to be committed (EW1)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nprint('x')\n")
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.email=t@x",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "base",
+        ],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(repo), "rm", "-q", "--cached", "scripts/thing.py"], check=True)
+    out = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert out.returncode == 0
+    assert "staged deletion or unresolved merge — not checked" in out.stdout + out.stderr, (
+        out.stdout
+    )
+
+
+def test_a_tab_in_a_staged_path_is_still_seen(tmp_path: Path) -> None:
+    """`core.quotepath=false` still C-quotes a tab, a backslash or a `"`; `-z` never quotes (EW1)."""
+    repo = _repo(tmp_path, "x = 1\n")
+    (repo / "scripts" / "wei\trd.py").write_text("x = 1\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py", "scripts/wei\trd.py")
+    assert "scripts/wei\trd.py: no `# AFTER-EDIT:` header" in out, out
+
+
+def test_a_git_that_does_not_answer_is_a_warning_and_exit_zero(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A 20 s timeout behind a sibling's `index.lock` raised `TimeoutExpired` out of the check —
+    a traceback and exit 1, which the gate counts as a FAILURE of a warn-only check (EW1)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_script_headers_under_test", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def slow(*a, **k):
+        raise subprocess.TimeoutExpired(cmd=a[0], timeout=20)
+
+    monkeypatch.setattr(mod.subprocess, "run", slow)
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert "git did not answer" in out and "not checked" in out, out
 
 
 def test_a_slashless_dotted_coupled_file_is_still_enforced(tmp_path: Path) -> None:
@@ -429,7 +489,9 @@ def test_a_non_ascii_script_path_is_inspected_and_a_non_ascii_coupled_file_count
     (repo / "docs" / "cöupled.md").write_text("# c\n", encoding="utf-8")
     out = _run(repo, "scripts/thing.py", "scripts/naïve.py", "docs/cöupled.md")
     assert "scripts/naïve.py: no `# AFTER-EDIT:` header" in out, out
-    assert "not updated" not in out, out  # the staged `docs/cöupled.md` satisfies thing.py's coupling
+    assert "not updated" not in out, (
+        out
+    )  # the staged `docs/cöupled.md` satisfies thing.py's coupling
 
 
 def test_a_bare_run_from_a_subdirectory_sees_the_staged_scripts(tmp_path: Path) -> None:

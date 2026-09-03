@@ -181,20 +181,28 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         tb = traceback.extract_tb(exc.__traceback__)
         innermost = tb[-1].filename if tb else ""
         frameless = not blame or _same_file(blame, Path(__file__))
+        dep_root = (getattr(exc, "name", None) or "").split(".")[0]
         if (
             isinstance(exc, ModuleNotFoundError)
-            and exc.name
-            and exc.name.split(".")[0] != target.parent.parent.name  # never our own package
-            and not (repo / exc.name.split(".")[0]).exists()
-            and not (repo / f"{exc.name.split('.')[0]}.py").exists()
+            and dep_root
+            and dep_root != target.parent.parent.name  # never our own package
+            and not (
+                target.parent.parent / dep_root
+            ).exists()  # `from subagents.x` — a typo'd ROOT of our own package, not a dependency (EW7)
+            and importlib.util.find_spec(dep_root)
+            is None  # `json.nope`: the distribution IS here, the module is wrong (EW7)
         ):
             # the vendored module imports a distribution this interpreter lacks (`httpx`): the
             # module is not broken and "fix the module" is the wrong remedy — an advisory that
-            # names the distribution, never a block under web_tools.py's name (EU4)
+            # names the distribution AND the importing file, never a block under web_tools.py's
+            # name (EU4); a sibling's missing dependency keeps the sibling's name (EW7)
             _IMPORT_FAILURE.append(
-                _scrub(f"{failure} — a dependency is not installed in this interpreter", repo)
+                _scrub(
+                    f"{failure} — {_display_path(blame, repo)} imports a distribution not installed in this interpreter",
+                    repo,
+                )
             )
-            _IMPORT_BLAME.append("")
+            _IMPORT_BLAME.append("" if not blame or _same_file(blame, target) else blame)
             return None
         # CPython's "Non-code object in <pyc>" ImportError carries the CACHE as `exc.path` (EO1)
         if frameless or innermost.startswith("<frozen importlib") or blame.endswith(".pyc"):
@@ -222,7 +230,12 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
             str(getattr(exc, "path", None) or ""), target
         )
         blamed_healthy = (
-            bool(blame) and blame.endswith(".py") and _target_is_broken(Path(blame)) is None
+            bool(blame)
+            and blame.endswith(".py")
+            and any(
+                _same_file(blame, m) for m in _import_order(target)
+            )  # a frame OUTSIDE the closure (site-packages) keeps its own blame (EW7)
+            and _target_is_broken(Path(blame)) is None
         )
         if not frameless and source_shaped and (_same_file(blame, target) or blamed_healthy):
             # the frame says the TARGET and the failure is one a broken SOURCE produces (a
@@ -338,7 +351,7 @@ def _import_order(target: Path) -> list[Path]:
     seen: list[Path] = []
 
     def add(p: Path) -> None:
-        if p not in seen and p != target:
+        if p not in seen:
             seen.append(p)
 
     def resolve(name: str, level: int, frm: Path) -> list[Path]:
@@ -371,47 +384,75 @@ def _import_order(target: Path) -> list[Path]:
             out.append(cand.with_suffix(".pyc"))
         return out
 
-    def type_checking(test: ast.expr) -> bool:
+    def mentions_type_checking(test: ast.expr) -> bool:
+        return any(
+            (isinstance(n, ast.Name) and n.id == "TYPE_CHECKING")
+            or (isinstance(n, ast.Attribute) and n.attr == "TYPE_CHECKING")
+            for n in ast.walk(test)
+        )
+
+    def pure_type_checking(test: ast.expr) -> bool:
         return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
             isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
         )
 
-    def executed(stmts: list[ast.stmt]) -> list[ast.stmt]:
-        """The import statements a module EXECUTES at import time, in order: never a function
-        body (a lazy import runs only when called) and never an `if TYPE_CHECKING:` block —
-        `ast.walk` harvested both, so a NUL-padded module named only there stole the target's
-        blame and a real hub defect went green (EU4)."""
-        out: list[ast.stmt] = []
+    def executed(stmts: list[ast.stmt], cond: bool = False) -> list[tuple[ast.stmt, bool]]:
+        """Every import statement a module could execute at import time, in order, each tagged
+        CONDITIONAL when nothing static proves it runs: never a function body (a lazy import
+        runs only when called); `if TYPE_CHECKING:` is typing-only and `if not TYPE_CHECKING:`
+        runs its body; any other `if` test, a `try` handler or else, a `match` case and a loop
+        body are conditional — a module named only there is in the closure but never takes the
+        BLAME: `ast.walk` (round 57) then a walker that harvested every branch (round 58) let a
+        NUL-padded module in a never-taken `except ImportError:` steal a genuine target failure
+        into a green advisory (EU4/EW7)."""
+        out: list[tuple[ast.stmt, bool]] = []
         for st in stmts:
             if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            if isinstance(st, ast.If) and type_checking(st.test):
-                out += executed(st.orelse)
-                continue
             if isinstance(st, (ast.Import, ast.ImportFrom)):
-                out.append(st)
-            for field in ("body", "orelse", "finalbody"):
-                out += executed(getattr(st, field, None) or [])
+                out.append((st, cond))
+                continue
+            if isinstance(st, ast.If):
+                if pure_type_checking(st.test):
+                    out += executed(st.orelse, cond)
+                elif (
+                    isinstance(st.test, ast.UnaryOp)
+                    and isinstance(st.test.op, ast.Not)
+                    and pure_type_checking(st.test.operand)
+                ):
+                    out += executed(st.body, cond)
+                elif mentions_type_checking(
+                    st.test
+                ):  # `TYPE_CHECKING or X` — neither branch is proven
+                    out += executed(st.body, True) + executed(st.orelse, True)
+                else:
+                    out += executed(st.body, True) + executed(st.orelse, True)
+                continue
+            if isinstance(st, (ast.For, ast.AsyncFor, ast.While)):
+                out += executed(st.body, True) + executed(st.orelse, True)
+                continue
+            out += executed(getattr(st, "body", None) or [], cond)  # class, with, try
+            out += executed(getattr(st, "orelse", None) or [], True)
             for h in getattr(st, "handlers", None) or []:
-                out += executed(h.body)
+                out += executed(h.body, True)
+            out += executed(getattr(st, "finalbody", None) or [], cond)
             for case in getattr(st, "cases", None) or []:
-                out += executed(case.body)
+                out += executed(case.body, True)
         return out
 
-    def visit(cur: Path) -> None:
-        """Depth-first at the point of discovery — the order CPython loads the caches in, so the
-        first module named is the one the import fails on (EU4). A non-regular file (a FIFO) is
-        in the closure but never OPENED: `read_bytes` on it blocks forever (EU4)."""
-        if cur != target:
-            add(cur)
+    def imports_of(cur: Path) -> list[Path]:
+        """The modules `cur` PROVABLY imports, in order. A non-regular file (a FIFO) is in the
+        closure but never OPENED: `read_bytes` on it blocks forever (EU4)."""
         if cur.suffix != ".py" or not cur.is_file():
-            return
+            return []
         try:
             tree = ast.parse(cur.read_bytes())
         except Exception:  # noqa: BLE001 - a source that does not parse imports nothing we can see
-            return
-        for node in executed(tree.body):
-            mods: list[Path] = []
+            return []
+        mods: list[Path] = []
+        for node, cond in executed(tree.body):
+            if cond:
+                continue
             if isinstance(node, ast.ImportFrom):
                 mods += resolve(node.module or "", node.level, cur)
                 if node.level or (node.module or "").startswith(root.name):
@@ -421,15 +462,32 @@ def _import_order(target: Path) -> list[Path]:
             elif isinstance(node, ast.Import):
                 for alias in node.names:
                     mods += resolve(alias.name, 0, cur)
-            for mod in mods:
-                if mod not in seen and mod != target:
-                    visit(mod)
+        return mods
+
+    def visit(start: Path) -> None:
+        """Depth-first at the point of discovery — the order CPython loads the caches in, so the
+        first module named is the one the import fails on — on an EXPLICIT stack: the recursive
+        form left a RecursionError out of a blocking gate on a 2000-module chain (EU4/EW7)."""
+        if start in seen:
+            return
+        add(start)
+        stack: list[tuple[Path, list[Path], int]] = [(start, imports_of(start), 0)]
+        while stack:
+            cur, mods, i = stack[-1]
+            if i >= len(mods):
+                stack.pop()
+                continue
+            stack[-1] = (cur, mods, i + 1)
+            nxt = mods[i]
+            if nxt not in seen:
+                add(nxt)
+                stack.append((nxt, imports_of(nxt), 0))
 
     for pkg in (root / "__init__.py", target.parent / "__init__.py"):
         if pkg.is_file():
             visit(pkg)
-    visit(target)
-    return [*seen, target]
+    visit(target)  # already in `seen` at its TRUE position when a package __init__ imports it (EW7)
+    return seen
 
 
 def _manual_cache_accepted(data: bytes, st: object, src: Path) -> bool:
@@ -1063,17 +1121,30 @@ def _selftest() -> int:
                 "advertises a close with no --feedback",
             ),
         }
+        web_target = REPO / "libs" / "subagents" / "web_tools.py"
         web_ok = _live_web_tool_names(REPO) is not None
-        if not web_ok:
+        not_applicable: list[str] = []
+        if not web_ok and not (web_target.exists() or web_target.is_symlink()):
+            not_applicable.append("web-tool names")
             # a PROJECT: the script is synced fleet-wide but the vendored pool module is not, so
             # predicate 1 cannot run there and its canaries are N/A — the run printed six
             # "VACUOUS" lines and exited 1 in every project, and the doc told agents to run it (EU4)
+            # (a hub whose module is PRESENT but broken keeps the six canaries — they fail loudly, EW7)
             skipped_web = [k for k in cases if k.startswith("web-tool name")]
             for k in skipped_web:
                 cases.pop(k)
             print(
                 f"N/A: {len(skipped_web)} web-tool canaries skipped — no vendored "
                 "libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub"
+            )
+        trailer_model = _canonical_trailer_model(
+            REPO
+        )  # explicit: the def-time default is the HUB (EW7)
+        if trailer_model is None:
+            cases.pop("trailer model")
+            not_applicable.append("trailer model")
+            print(
+                "N/A: the trailer-model canary skipped — this repo's CLAUDE.md carries no Co-Authored-By example, so predicate 4 is off by design"
             )
         # Predicate 6 has its own fixture (an agent dir, not a command body) — asserted by ITS
         # signature, never by "something fired"
@@ -1119,7 +1190,11 @@ def _selftest() -> int:
             "run `scripts/enforcement/check_command_corpus.py`\n"
             'close: `python3 scripts/command_run.py done --command x --evidence "e" '
             '--feedback "none — swept it"`\n'
-            f"Co-Authored-By: {_canonical_trailer_model()} <noreply@anthropic.com>\n"
+            + (
+                f"Co-Authored-By: {trailer_model} <noreply@anthropic.com>\n"
+                if trailer_model
+                else ""
+            )
         )
         noise = audit(src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch")
         if noise:
@@ -1129,8 +1204,9 @@ def _selftest() -> int:
         print(f"✗ {line}")
     if failures:
         return 1
+    na = f" (N/A: {', '.join(not_applicable)})" if not_applicable else ""
     print(
-        f"✓ selftest: {len(cases) + 1} canaries over the eight predicates fire on bad input and stay silent on good input"
+        f"✓ selftest: {len(cases) + 1} canaries over {8 - len(not_applicable)} of the eight predicates fire on bad input and stay silent on good input{na}"
     )
     return 0
 

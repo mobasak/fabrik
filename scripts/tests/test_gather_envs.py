@@ -3138,6 +3138,51 @@ def test_a_curated_source_never_merges_into_a_tombstoned_target_either(tmp_path,
     assert out["newprov"]["category"] == "search" and out["newprov"]["cost"] == "paid", out
 
 
+def test_an_identification_finds_a_mixed_case_catalog_key(tmp_path, monkeypatch):
+    """Catalog keys are validated as whitespace-free tokens, never lowercased; the answer's
+    `name` IS lowercased before `target in catalog`, so a hand-curated `OpenAI` key was never
+    found and the provider landed as a duplicate vendor beside it (EW5)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=newvendor category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "NEWVENDOR_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "OpenAI",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "models",
+                    "url": "https://openai.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "OpenAI": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "models",
+                    "url": "https://openai.example",
+                    "match": ["OPENAI"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "newvendor" not in out and "NEWVENDOR" in out["OpenAI"].get("merged_match", []) + out[
+        "OpenAI"
+    ].get("match", []), out
+
+
 def test_a_host_that_merely_ends_with_localhost_is_not_our_own(tmp_path):
     """`OWN_HOST_SUFFIXES` matches by DOTTED suffix; a bare `localhost` entry matched
     `vendor.fakelocalhost` as our own and dropped it from the scan (ES4)."""

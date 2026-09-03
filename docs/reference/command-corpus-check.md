@@ -235,17 +235,19 @@ fire, then a known-good one and requires silence:
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: 13 canaries over the eight predicates fire on bad input and stay silent on good input
+✓ selftest: 13 canaries over 8 of the eight predicates fire on bad input and stay silent on good input
 ```
 
 In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
-not) the six web-tool canaries are not applicable and say so — one `N/A: 6 web-tool canaries
+not — ABSENT, never present-but-broken: a hub whose module raises keeps all six and fails
+loudly) the six web-tool canaries are not applicable and say so; a project whose `CLAUDE.md`
+carries no `Co-Authored-By` example likewise marks the trailer canary N/A — one `N/A: 6 web-tool canaries
 skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
 
 ```
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
 N/A: 6 web-tool canaries skipped — no vendored libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub
-✓ selftest: 7 canaries over the eight predicates fire on bad input and stay silent on good input
+✓ selftest: 7 canaries over 7 of the eight predicates fire on bad input and stay silent on good input (N/A: web-tool names)
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

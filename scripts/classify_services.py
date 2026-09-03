@@ -517,8 +517,12 @@ def main() -> int:
         {k: v for k, v in raw_catalog.items() if not k.startswith("_") and not isinstance(v, dict)}
     )  # a non-dict value is metadata too (AY8)
     merged_into: dict[str, str] = {}
+    by_lower = {
+        k.lower(): k for k in catalog
+    }  # a hand-curated `OpenAI` key is legal; the lowered answer must still find it (EW5)
     for prov, v in list(identified.items()):
         target = str(v.get("name") or "").strip().lower()
+        target = by_lower.get(target, target)
         if (
             target
             and target != prov

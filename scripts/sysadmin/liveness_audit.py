@@ -520,6 +520,9 @@ def _stamp_age(line: str, now: dt.datetime | None = None) -> float | None:
     m = LOG_STAMP.match(line.strip())
     if not m:
         return None
+    # NAIVE LOCAL time on both sides — the only marker this module reads is the one its own
+    # writer stamps with `dt.datetime.now()` (SELF_MARKER); switching this default to UTC alone
+    # would skew every verdict by the box's offset (+03 here), fail-OPEN west of UTC (EW6)
     now = now or dt.datetime.now()
     try:
         day = dt.date.fromisoformat(m.group(1))

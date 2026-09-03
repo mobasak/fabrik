@@ -203,7 +203,7 @@ if [ ! -f "$LOCK_FILE" ]; then
             || echo '[wsl_startup_hook] freshness check errored (non-fatal)' >> $LOG_FILE
         # The external-services chain — the SAME script daily_refresh.sh runs (added 2026-09-02:
         # the chain was defined only in daily_refresh, so a boot before the 06:00 cron skipped it).
-        env LOG_FILE=$LOG_FILE bash $FABRIK_ROOT/scripts/external_services_chain.sh >> $LOG_FILE 2>&1 \
+        env LOG_FILE=$LOG_FILE FABRIK_ROOT="$FABRIK_ROOT" bash $FABRIK_ROOT/scripts/external_services_chain.sh >> $LOG_FILE 2>&1 \
             || echo '[wsl_startup_hook] external-services chain reported a failed step (already alerted, non-fatal)' >> $LOG_FILE
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
         # THIS is the daily-dirt fix: this hook regenerates ~14 tracked files every boot and
