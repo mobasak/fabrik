@@ -171,17 +171,24 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     except Exception as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1)
         failure = f"{exc.__class__.__name__}: {exc}"
         blame = _blame_for(exc)
-        if not blame or _same_file(blame, Path(__file__)):
-            # no source frame at all (the only import in THIS file is the target's, so the last
-            # real frame is the checker): the shape of a torn bytecode cache anywhere in the
-            # `libs.subagents` graph — ask the CACHES which module's is unloadable, the target's
-            # first, then its package siblings, then the parent package (EI1/EK1); none → unknown
+        tb = traceback.extract_tb(exc.__traceback__)
+        innermost = tb[-1].filename if tb else ""
+        if (
+            not blame
+            or _same_file(blame, Path(__file__))
+            or innermost.startswith("<frozen importlib")
+        ):
+            # the failure ended inside the IMPORT MACHINERY (no source frame at all, or the last
+            # real frame is merely the importer — the target's own `from .tools import` line when
+            # a DIRECT sibling's cache is torn): ask the CACHES which module's is unloadable, the
+            # target's first, then its package siblings, then the parent package (EK1/EM1); none
+            # torn → keep the frame's attribution, or "an unknown file" when there is none
             owner = _bad_cache_owner(target)
-            if owner is None:
-                blame = ""
-            else:
+            if owner is not None:
                 blame = str(owner)
                 failure = f"bytecode cache of {owner.name} unloadable ({failure}) — delete {owner.parent.name}/__pycache__"
+            elif not blame or _same_file(blame, Path(__file__)):
+                blame = ""
         _IMPORT_FAILURE.append(_scrub(failure, repo))
         _IMPORT_BLAME.append(blame)
         return None
@@ -255,9 +262,12 @@ def _scrub(text: str, repo: Path) -> str:
 
 def _bad_cache_owner(target: Path) -> Path | None:
     """Which module's bytecode cache is unloadable: the target's first, then its package
-    siblings, then the parent package — the order the import executes them. A torn `.pyc`
-    (a killed write, ENOSPC) raises EOFError inside frozen importlib with no path and no
-    filename; a zero-byte or unreadable one falls back to source and never fails (EK1)."""
+    siblings, then the parent package — the order the import executes them. Only a cache
+    Python would actually LOAD counts: a full 16-byte header with the current magic and, in
+    timestamp mode, a header matching the source's mtime and size — a zero-byte, foreign or
+    stale cache is silently recompiled from source and never fails (a zero-byte target cache
+    beside a torn parent cache was blamed on the target — EM1). A torn `.pyc` (a killed write,
+    ENOSPC) then raises EOFError inside frozen importlib with no path and no filename (EK1)."""
     siblings = sorted(p for p in target.parent.glob("*.py") if p != target)
     parents = sorted(target.parent.parent.glob("*.py"))
     for src in [target, *siblings, *parents]:
@@ -265,8 +275,23 @@ def _bad_cache_owner(target: Path) -> Path | None:
         if not pyc.is_file():
             continue
         try:
-            marshal.loads(pyc.read_bytes()[16:])
-        except Exception:  # noqa: BLE001 - any unloadable cache is the answer
+            data = pyc.read_bytes()
+            st = src.stat()
+        except OSError:
+            continue
+        if len(data) < 16 or data[:4] != importlib.util.MAGIC_NUMBER:
+            continue  # ignored by the import machinery, recompiled from source
+        flags = int.from_bytes(data[4:8], "little")
+        if (
+            flags == 0
+        ):  # timestamp mode: a header that no longer matches the source is stale, not torn
+            mtime = int.from_bytes(data[8:12], "little")
+            size = int.from_bytes(data[12:16], "little")
+            if mtime != int(st.st_mtime) & 0xFFFFFFFF or size != st.st_size & 0xFFFFFFFF:
+                continue
+        try:
+            marshal.loads(data[16:])
+        except Exception:  # noqa: BLE001 - any unloadable body is the answer
             return src
     return None
 

@@ -962,6 +962,28 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     sibpyc = Path(importlib.util.cache_from_source(str(sib)))
     py_compile.compile(str(sib), cfile=str(sibpyc), doraise=True)
     sibpyc.write_bytes(sibpyc.read_bytes()[:20])
+    # a ZERO-BYTE target cache (Python ignores it and recompiles) beside a torn PARENT cache:
+    # the parent is the owner — the target's harmless cache must not be blamed first (EM1)
+    _fake_hub(tmp_path / "zerotarget", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    zt = tmp_path / "zerotarget" / "libs" / "subagents" / "web_tools.py"
+    Path(importlib.util.cache_from_source(str(zt))).parent.mkdir(exist_ok=True)
+    Path(importlib.util.cache_from_source(str(zt))).write_bytes(b"")
+    par = tmp_path / "zerotarget" / "libs" / "__init__.py"
+    parpyc = Path(importlib.util.cache_from_source(str(par)))
+    py_compile.compile(str(par), cfile=str(parpyc), doraise=True)
+    parpyc.write_bytes(parpyc.read_bytes()[:20])
+    # a torn cache of a sibling web_tools.py imports DIRECTLY (`from .tools import` — the
+    # production shape): the target's own import line is a real frame, so the frame rule would
+    # blame the target; the failure ended inside the import machinery, so the caches decide (EM1)
+    _fake_hub(
+        tmp_path / "sibtoolspyc",
+        'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        tools_body="H = 1\n",
+    )
+    tp = tmp_path / "sibtoolspyc" / "libs" / "subagents" / "tools.py"
+    tppyc = Path(importlib.util.cache_from_source(str(tp)))
+    py_compile.compile(str(tp), cfile=str(tppyc), doraise=True)
+    tppyc.write_bytes(tppyc.read_bytes()[:20])
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -991,7 +1013,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1185,6 +1207,25 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         and "libs/subagents/__init__.py failed to import (bytecode cache of __init__.py unloadable (EOFError"
         in out["sibpyc"]["skipped"][0]
     ), out["sibpyc"]
+    # a zero-byte target cache beside a torn parent cache: the PARENT is named, not the target
+    assert not any("present but unusable" in p for p in out["zerotarget"]["problems"]), out[
+        "zerotarget"
+    ]
+    assert (
+        len(out["zerotarget"]["skipped"]) == 1
+        and "libs/__init__.py failed to import (bytecode cache of __init__.py unloadable (EOFError"
+        in out["zerotarget"]["skipped"][0]
+    ), out["zerotarget"]
+    assert "delete libs/__pycache__" in out["zerotarget"]["skipped"][0], out["zerotarget"]
+    # a torn cache of the DIRECT sibling: an advisory naming tools.py, never a block on the target
+    assert not any("present but unusable" in p for p in out["sibtoolspyc"]["problems"]), out[
+        "sibtoolspyc"
+    ]
+    assert (
+        len(out["sibtoolspyc"]["skipped"]) == 1
+        and "libs/subagents/tools.py failed to import (bytecode cache of tools.py unloadable (EOFError"
+        in out["sibtoolspyc"]["skipped"][0]
+    ), out["sibtoolspyc"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1422,3 +1463,31 @@ def test_blame_for_skips_a_frame_whose_file_is_gone_and_scrub_hides_the_home(tmp
         ccc._scrub(f"PermissionError: '{tmp_path}/libs/a.py'", tmp_path)
         == "PermissionError: 'libs/a.py'"
     )
+
+
+def test_bad_cache_owner_ignores_caches_python_would_not_load(tmp_path):
+    """A zero-byte cache, one with a foreign magic, and a stale timestamp-mode header are all
+    recompiled from source by the import machinery — never the torn one (EM1); only a
+    current-header cache with a torn body is."""
+    import importlib.util
+    import py_compile
+
+    import check_command_corpus as ccc
+
+    (tmp_path / "libs" / "subagents").mkdir(parents=True)
+    src = tmp_path / "libs" / "subagents" / "web_tools.py"
+    src.write_text("WEB_TOOL_NAMES = frozenset()\n", encoding="utf-8")
+    pyc = Path(importlib.util.cache_from_source(str(src)))
+    pyc.parent.mkdir(exist_ok=True)
+    pyc.write_bytes(b"")
+    assert ccc._bad_cache_owner(src) is None
+    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
+    good = pyc.read_bytes()
+    pyc.write_bytes(b"XXXX" + good[4:20])  # a foreign magic, torn
+    assert ccc._bad_cache_owner(src) is None
+    stale = bytearray(good[:20])
+    stale[8:12] = (0).to_bytes(4, "little")  # an mtime that no longer matches the source
+    pyc.write_bytes(bytes(stale))
+    assert ccc._bad_cache_owner(src) is None
+    pyc.write_bytes(good[:20])  # the current header, a torn body
+    assert ccc._bad_cache_owner(src) == src
