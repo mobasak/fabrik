@@ -137,6 +137,37 @@ def _check(root: Path) -> int:
     return 0
 
 
+def _next_id(repo: Path) -> int:
+    """Print the next free ``D-NNN`` for *repo*'s ledger, derived from the file right now.
+
+    Removes the HAND-derivation error, which is a real and repeated one: deriving "the next
+    number" by eye picks up a stale maximum whenever a sibling appended while you were reading —
+    it happened twice in one day here (a D-084 collision between two hub sessions, and a D-107
+    already taken by the time a row was written), and three concurrent agents in another repo
+    produced a duplicate D-006 the same way (mail 01M1KR2ANYTRZR80WF1H29399T).
+
+    It does NOT make allocation atomic, and saying so is the point: two agents calling this in
+    the same window still get the same number. The race is closed at the OTHER end — by minting
+    the id in the same change as the row (contract § the decision ledger) so the window is
+    seconds rather than a work session, and by ``--check`` / the gate's Decision Ledger check,
+    which refuses a duplicate before it can be pushed. Use this to read, not to reserve.
+    """
+    ledger = repo / "docs" / "DECISIONS.md" if repo.is_dir() else repo
+    try:
+        text = ledger.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
+        return 1
+    ids = [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", text, re.M)]
+    if not ids:
+        # A ledger with no rows yet starts at D-001, not D-000: every existing ledger's first
+        # row is 001, and a zeroth row would sort oddly against them.
+        print("D-001")
+        return 0
+    print(f"D-{max(ids) + 1:03d}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Query every repo's docs/DECISIONS.md at once.")
     parser.add_argument("term", nargs="?", help="case-insensitive substring to find")
@@ -146,8 +177,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="ledger integrity: supersede pointers resolve + no duplicate ids; exit 1 on either",
     )
+    parser.add_argument(
+        "--next-id",
+        metavar="REPO_DIR",
+        help="print the next free D- id for that repo's docs/DECISIONS.md, read AT THIS INSTANT "
+        "(mint it in the same change as the row — see _next_id)",
+    )
     args = parser.parse_args(argv)
     root = Path(args.root)
+    if args.next_id:
+        return _next_id(Path(args.next_id))
     if args.check:
         return _check(root)
     if not args.term:

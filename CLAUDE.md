@@ -117,7 +117,12 @@ what makes an in-flight command visible and un-abandonable.
   received this run — an operator ruling, a spec/plan approval or Status flip, a
   retirement/adoption, an architecture/storage/scope choice, "we built X at Y", a rejected option
   worth not re-proposing — gets its row in `docs/DECISIONS.md` in the SAME change (rows immutable;
-  a changed decision is a NEW row `supersedes D-NNN`). Subagents and the pipeline never hold the
+  a changed decision is a NEW row `supersedes D-NNN`). **Mint the id with
+  `python3 scripts/decisions.py --next-id .`, not by eye** — hand-deriving "the next number" picks up a
+  stale maximum whenever a sibling appended while you were reading (two collisions here in one day,
+  2026-09-03). It reads, it does not reserve: two callers in the same window still collide, which is why
+  the id is minted in the SAME change as the row and the gate's Decision Ledger check refuses duplicates.
+  Subagents and the pipeline never hold the
   pen — the dispatching session appends. And before answering "where is X / did we decide Y / why
   is Z like this / what did we build for W": **grep `docs/DECISIONS.md` first, then
   `python3 scripts/decisions.py <term>` fleet-wide** — the row's what+why+where is the full

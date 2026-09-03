@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `decisions.py --next-id`: mint a ledger id from the file, not by eye (2026-09-03)
+
+- Hand-deriving "the next number" picks up a stale maximum whenever a concurrent agent appended while you
+  were reading. It cost three collisions in one day: two hub sessions both minted D-084, a D-107 was
+  already taken by the time a row was written here, and three agents in iterative_image_editor produced a
+  duplicate D-006 (mail 01M1KR2ANYTRZR80WF1H29399T).
+- `python3 scripts/decisions.py --next-id <repo-or-ledger>` prints the next free id read at that instant.
+  Named in both governance contracts where the minting duty is stated.
+- It READS, it does not RESERVE, and the docstring and the contracts say so: two callers in the same
+  window still collide. The race is closed at the other end — minting in the SAME change as the row keeps
+  the window to seconds, and `--check` plus the gate's Decision Ledger check refuse a duplicate before it
+  can be pushed. 4 tests, proven red on revert: the maximum is re-read (not the last row), an empty ledger
+  starts at D-001 rather than D-000, a missing ledger exits 1 instead of silently handing out a taken id,
+  and a direct file path works as well as a repo dir.
+
 ### Fixed — `command_run.py start`: the confirmation shares stdout with the MCP-health block, so agents double-start (2026-09-03)
 
 - `start` printed the `RUN:` confirmation and then the MCP-health advisory on the SAME stream. An agent

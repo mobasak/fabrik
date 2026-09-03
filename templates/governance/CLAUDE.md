@@ -73,7 +73,11 @@ what makes an in-flight command visible and un-abandonable.
   received this run — an operator ruling, a spec/plan approval or Status flip, a
   retirement/adoption, an architecture/storage/scope choice, "we built X at Y", a rejected option
   worth not re-proposing — gets its row in `docs/DECISIONS.md` in the SAME change (rows immutable;
-  a changed decision is a NEW row `supersedes D-NNN`; the file header carries the format).
+  a changed decision is a NEW row `supersedes D-NNN`; the file header carries the format). **Mint the id
+  with `python3 /opt/fabrik/scripts/decisions.py --next-id .`, not by eye** — hand-deriving "the next
+  number" picks up a stale maximum whenever a concurrent agent appended while you were reading (three
+  agents in one repo produced a duplicate D-006 that way, 2026-09-03). It reads, it does not reserve:
+  minting in the SAME change as the row keeps the window to seconds, and the gate refuses duplicates.
   Subagents and the pipeline never hold the pen — the dispatching session appends. And before
   answering "where is X / did we decide Y / why is Z like this / what did we build for W":
   **grep `docs/DECISIONS.md` first** (fleet-wide questions: the hub runs

@@ -226,3 +226,37 @@ def test_ledger_check_is_wired_into_pre_commit_and_fails_on_a_duplicate(tmp_path
         text=True,
     )
     assert r.returncode == 1 and "DUPLICATE" in (r.stdout + r.stderr)
+
+# ── 2026-09-03, mail 01M1KR2ANYTRZR80WF1H29399T: three concurrent agents hand-derived "the next
+# number" and two produced the same D-006. The same error hit this repo twice in one day (a D-084
+# collision between two hub sessions, and a D-107 already taken by the time the row was written) ─
+
+
+def test_next_id_reads_the_maximum_at_this_instant(tmp_path, capsys):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "DECISIONS.md").write_text(
+        "| id | when |\n|---|---|\n| D-001 | x |\n| D-042 | y |\n| D-007 | z |\n"
+    )
+    assert dec.main(["--next-id", str(tmp_path)]) == 0
+    assert capsys.readouterr().out.strip() == "D-043"
+
+
+def test_next_id_on_an_empty_ledger_starts_at_001(tmp_path, capsys):
+    """Not D-000: every existing ledger's first row is 001, and a zeroth row sorts oddly."""
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "DECISIONS.md").write_text("| id | when |\n|---|---|\n")
+    assert dec.main(["--next-id", str(tmp_path)]) == 0
+    assert capsys.readouterr().out.strip() == "D-001"
+
+
+def test_next_id_reports_a_missing_ledger_instead_of_guessing(tmp_path, capsys):
+    """A silent D-001 against an unreadable ledger would hand out an id that is already taken."""
+    assert dec.main(["--next-id", str(tmp_path / "nope")]) == 1
+    assert "cannot read" in capsys.readouterr().err
+
+
+def test_next_id_accepts_a_direct_file_path_too(tmp_path, capsys):
+    f = tmp_path / "DECISIONS.md"
+    f.write_text("| D-009 | x |\n")
+    assert dec.main(["--next-id", str(f)]) == 0
+    assert capsys.readouterr().out.strip() == "D-010"
