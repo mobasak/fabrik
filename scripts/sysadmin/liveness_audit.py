@@ -2084,18 +2084,31 @@ def main(argv: list[str] | None = None) -> int:
     # flush=True: under the cron's `>> log 2>&1` a report larger than the stdout buffer was written
     # through with its trailing newline still buffered, so the stderr stamp landed GLUED to the last
     # brace — never LOG_STAMP-shaped, the self-surface UNKNOWN forever (DC1)
+    undeliverable = False
     try:
         print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
-    except OSError:  # a closed reader (`| head`) or a full disk (ENOSPC): the report is undeliverable — the stamp below is still owed to a stderr that works (DE2/DG1)
+    except (
+        BrokenPipeError
+    ):  # the reader left (`| head`): its choice, not a failure — the stamp is still owed (DE2/DG1)
         pass
+    except OSError:  # the box could not STORE the report (ENOSPC/EIO — the cron's own `>> log` on a full disk): the one non-zero exit outside --strict, never a raise (DI1)
+        undeliverable = True
     # the auditor's OWN heartbeat: one LOG_STAMP-shaped line on stderr (the cron appends 2>&1), so
     # the `liveness-audit` surface can age it — the installed weekly line's only scheduled attempt failed
     # with nothing watching the watcher (review 2026-09-03, DA1)
-    try:
-        print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr, flush=True)
-    except OSError:  # stderr is the same dead pipe (`2>&1 | head`): park it so the exit-time flush cannot fail either (DG1)
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stderr.fileno())
-    return 1 if (args.strict and (report.failures() or report.crashed())) else 0
+    if (
+        sys.stderr is not None
+    ):  # `2>&-` leaves it None and print() would fall back to STDOUT, corrupting the JSON (DI2)
+        try:
+            print(
+                f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr, flush=True
+            )
+        except OSError:  # stderr is the same dead pipe (`2>&1 | head`) or the same full disk: park it so the exit-time flush cannot fail either (DG1)
+            try:
+                os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stderr.fileno())
+            except OSError:
+                pass
+    return 1 if (undeliverable or (args.strict and (report.failures() or report.crashed()))) else 0
 
 
 if __name__ == "__main__":

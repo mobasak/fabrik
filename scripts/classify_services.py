@@ -400,6 +400,10 @@ def main() -> int:
     )
 
     proposals, errored = build_proposals(names, results)
+    # the run's pool spend, printed and persisted: the first production run billed 10 units and no
+    # log, alert or dashboard carried a cost figure (DI3)
+    cost_usd = round(sum(float(getattr(r, "cost_usd", 0) or 0) for r in results), 4)
+    print(f"pool cost this run: ${cost_usd:.4f} ({len(results)} unit(s))")
     for prov, r in zip(names, results, strict=True):
         # the flywheel sees the ENUM verdict, not the raw answer (AU5)
         score = 5 if _enum_category(proposals[prov].get("category")) != "?" else 2
@@ -639,6 +643,8 @@ def main() -> int:
             "identified": sorted(identified),
             "tombstoned": sorted(tombstoned_names),
             "errored": sorted(errored),
+            "cost_usd": cost_usd,
+            "units": len(results),
         },
     )
     if identified:  # the retired orchestrator's "new providers" alert, kept (best-effort)

@@ -181,7 +181,7 @@ python scripts/sysadmin/liveness_audit.py --proof heartbeat # one proof (fast)
 python scripts/sysadmin/liveness_audit.py --strict          # exit 1 on any DEAD or crashed proof
 ```
 
-**It exits 0 by default and never raises.** This is a REPORT, not a gate: a monitoring layer that blocks
+**It exits 0 by default and never raises.** The one non-zero exit outside `--strict`: a report the box itself cannot STORE (`ENOSPC`/`EIO` on the cron's own `>> log`) exits 1 without raising, the stamp still landing wherever stderr works; a reader that leaves (`| head`) is its choice, exit 0 (review 2026-09-03, DI1). This is a REPORT, not a gate: a monitoring layer that blocks
 work gets disabled, and then it monitors nothing. `--strict` is the opt-in CI mode; UNKNOWN never fails
 it (an instrument fault is not a defect), but a **crashed proof** does — a silently skipped proof is how
 a monitor learns to say all-clear.

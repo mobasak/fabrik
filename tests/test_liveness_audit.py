@@ -903,26 +903,65 @@ def test_a_closed_stdout_never_raises_and_the_stamp_still_lands(tmp_path):
 
 def test_a_dead_merged_pipe_and_a_full_disk_never_raise_either(tmp_path):
     """DE2 guarded only the stdout leg against BrokenPipeError: `--json 2>&1 | head` (stderr is the
-    same dead pipe) still exited 120 with the stamp lost, and `> /dev/full` (ENOSPC — the cron's own
-    `>> log` shape on a full disk) raised out of `main` with a traceback and no stamp (DG1). Both
-    exit 0; on a full disk the stamp still lands on stderr."""
+    same dead pipe) still exited 120 with the stamp lost, and `> /dev/full` (ENOSPC — the cron's
+    own `>> log` shape on a full disk) raised out of `main` with a traceback and no stamp (DG1).
+    A reader that leaves is its choice (exit 0); a box that cannot STORE the report exits 1 — the one
+    non-zero exit outside `--strict` — never a raise, the stamp still landing wherever stderr works
+    (DI1); with stdout and stderr on the same full disk nothing can be written, exit 1 (DI1)."""
     reg = _big_registry(tmp_path, 300)
     proc = _run_audit(tmp_path, reg, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     assert proc.stdout is not None
     proc.stdout.read(16)
     proc.stdout.close()
-    assert proc.wait(timeout=300) == 0
-    with open(os.devnull if not os.path.exists("/dev/full") else "/dev/full", "w") as full:
-        if full.name == os.devnull:
-            pytest.skip("no /dev/full on this box")
+    assert proc.wait(timeout=300) == 0  # the merged dead pipe: the reader's choice
+    if not (os.path.exists("/dev/full") and os.access("/dev/full", os.W_OK)):
+        pytest.skip("no writable /dev/full on this box")
+    with open("/dev/full", "w") as full:
         proc = _run_audit(tmp_path, reg, stdout=full, stderr=subprocess.PIPE)
         assert proc.stderr is not None
         with proc.stderr:
             err = proc.stderr.read().decode("utf-8", "replace")
-    assert proc.wait(timeout=300) == 0, err
-    assert "Traceback" not in err, err
-    lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
-    assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+        assert proc.wait(timeout=300) == 1, err  # the report could not be stored
+        assert "Traceback" not in err, err
+        lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
+        assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+        # the cron's own shape on a full disk: `>> log 2>&1` — both streams dead, exit 1, no raise
+        proc = _run_audit(tmp_path, reg, stdout=full, stderr=subprocess.STDOUT)
+        assert proc.wait(timeout=300) == 1
+
+
+def test_a_closed_stderr_never_corrupts_the_report(tmp_path):
+    """`2>&-` leaves `sys.stderr` None: `print(file=None)` falls back to STDOUT, so the stamp was
+    appended to the JSON report (unparseable), and the dead-stderr guard itself raised
+    `AttributeError` on `None.fileno()` (DI2). The stamp is skipped, the report stays pure JSON,
+    exit 0."""
+    reg = _big_registry(tmp_path, 40)
+    argv = [
+        sys.executable,
+        la.__file__,
+        "--registry",
+        str(reg),
+        "--repo-root",
+        str(tmp_path),
+        "--proof",
+        "heartbeat",
+        "--json",
+    ]
+    out = tmp_path / "out.json"
+    with out.open("w", encoding="utf-8") as fh:
+        rc = subprocess.run(
+            argv,
+            stdout=fh,
+            stderr=subprocess.DEVNULL,
+            timeout=300,
+            close_fds=True,
+            pass_fds=(),
+            preexec_fn=lambda: os.close(2),
+        ).returncode
+    assert rc == 0
+    text = out.read_text(encoding="utf-8")
+    assert la.SELF_MARKER not in text
+    json.loads(text)
 
 
 def test_a_marker_echoed_by_the_report_itself_is_not_evidence(tmp_path):
