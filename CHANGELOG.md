@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — infra's mailbox drained (operator ask 2026-09-03): 43 mails handled (33 before this commit, 10 with it), five small machinery defects closed at root, two pre-existing test reds cleared
+### Fixed — infra's mailbox drained (operator ask 2026-09-03): 41 mails handled (33 before commit adce3017, 8 with it), five small machinery defects closed at root, two pre-existing test reds cleared
 
 - Operator: "fabrik infra is working for the last 2 days and its mailbox has too many mails — understand its work, claim
   the easy mails, handle them." Infra spent the two days in a 49-round review loop over external-services and the
@@ -29,7 +29,7 @@ All notable changes to this project will be documented in this file.
 - Two pre-existing reds found by the suites and cleared as the repo's: `scripts/aro-wake/claude_rotate.py` is again
   byte-identical to its sysadmin twin (a8bdad1f updated one copy — fleet's own miss); the kaizen addressed-send test
   read a ruff-formatted source as one line (whitespace-normalised).
-- NOT handled (need a spec/plan or infra's own ruling — left in the box: 56 addressed to infra or unaddressed, measured by `mail.py list --agent infra` after the acks): the spec-review EXECUTE
+- NOT handled (need a spec/plan or infra's own ruling — left in the box: 58 addressed to infra or unaddressed, measured by `mail.py list --agent infra` after the acks): the spec-review EXECUTE
   requirement, the corpus-gate and convergence-check semantics, execute-plan's D2 precondition, check_schema_sync
   for TS/YAML, check_citations_resolve, the non-standard vendored-dir sync gap, the governance-sync safety floor, the
   route-detector redesign, the async-http-client counter-dependency ruling, the kaizen daily collections (infra's
