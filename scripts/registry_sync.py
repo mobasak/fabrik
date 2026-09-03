@@ -189,7 +189,7 @@ def parse(path: Path) -> list[dict]:
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
         m = SVC_RE.fullmatch(
-            line
+            line.rstrip()  # trailing whitespace from a hand-edit is not a second provider (EZ4)
         )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3)
         if m:
             cur = {"meta": m.groupdict(), "keys": []}
@@ -437,7 +437,14 @@ def main() -> int:
     if not ALL_ENVS.exists():
         print(f"{ALL_ENVS} missing — run scripts/gather_envs.py --apply first", file=sys.stderr)
         return 1
-    stats = sync_registry(fetch_credits=args.fetch_credits)
+    try:
+        stats = sync_registry(fetch_credits=args.fetch_credits)
+    except (
+        ValueError,
+        RuntimeError,
+    ) as exc:  # an unreadable #svc line, a bounded-prune refusal: one typed line, exit 1 — never a traceback (EZ4)
+        print(f"ERROR: registry sync refused: {exc} — nothing written", file=sys.stderr)
+        return 1
     print(
         f"synced {stats['services']} services, {stats['api_keys']} api_keys, "
         f"{stats['credit_snapshots']} credit snapshots into the registry "

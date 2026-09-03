@@ -102,54 +102,32 @@ so a NUL-corrupted, unreadable, directory-shaped, dangling-symlinked or syntacti
 `web_tools.py` — or one whose parent directory cannot be read — is a hub problem with certainty,
 never a verdict inferred from a traceback (certainty about the SOURCE's health; the names the
 predicate then uses come from the import, so a bytecode cache whose header still matches a
-same-second, same-size rewrite is the measured residual — 0 today). A failure that ended inside the
-import machinery (a torn bytecode cache: EOFError inside frozen importlib — no source frame, only
-the target's own import line as the last frame, or CPython naming the `.pyc` in `exc.path`) is
-attributed by asking the caches of the modules the import EXECUTES — the population is the
-target's import CLOSURE, derived by AST from the import statements the sources EXECUTE (the
-package `__init__.py` chain, then every module a `from .x import` / `import libs.subagents.x`
-reaches, depth-first in the order CPython loads them; only imports the module PROVABLY
-executes — never a function body (a lazy import runs only when called), never an
-`if TYPE_CHECKING:` block, and never a branch nothing static proves runs (a runtime `if`, a `try`
-handler or else, a `match` case, a loop body, any test mentioning `TYPE_CHECKING` beyond the two
-pure idioms) — a module named only there is never blamed, though a BROKEN one is named beside
-the target's block ("a conditionally imported module is also broken"); a package wins over a
-same-stem module and a sourceless `pkg/__init__.pyc` counts (CPython's finder order); a submodule
-the package `__init__` already binds by name is never loaded, so it is outside the closure; a sourceless `.pyc`, a
-directory or a dangling symlink at a module path counts; a FIFO is in the closure but never
-opened; a relative import that climbs above `libs/` reaches nothing), never a directory
-listing, so a broken file nobody imports can never take the blame — counting only a cache CPython would LOAD (its own validators
-decide: header, flags, the source hash for a hash-based cache, mtime and size for a timestamp one;
-a drifted private API falls back to the same rules hand-written; the source is read only for a
-hash-based cache): EVERY torn cache is named repo-relatively, the target among them ⇒ a block,
-else an advisory naming the first, the remedy listing every `__pycache__` to delete (a sourceless
-`.pyc` is named as the artifact to replace); when no cache is torn the frame's attribution stands.
-When the frame names the target itself and the failure is one a broken SOURCE produces (a
-SyntaxError with no filename and stripped frames, an OSError, an ImportError that did not name the
-target), the closure's sources get the same read-and-compile check — a NUL-padded or
-directory-shaped module the target imports is named instead of the target (every broken one is
-listed); the same closure check runs when the frame names a HEALTHY importer one hop above the
-break (`__init__.py` importing a NUL-padded `agent.py`); a failure raised by the target itself
-stays the target's problem however broken an unrelated file may be, because only a module the
-target's own import statements reach can take the blame. A `ModuleNotFoundError` for a
-distribution this interpreter lacks (`httpx`) is neither: the module is not broken and "fix the
-module" is the wrong remedy — an advisory names the missing dependency and the importing file.
-A runtime `OSError` (a data file the module opens) is always the module's own. A `sys.exit()` at
-import is the module's failure, never this process's exit code. Every failure text is scrubbed of the repo prefix and
-of the operator's home (`~/…`) before it is printed. A failure the file did not cause
-is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
-renamed constant names the target; a broken sibling's import names the sibling); any exception
-whose `filename` names a real `.py` by that (a compile-time SyntaxError in a sibling strips the
-import frames; a PermissionError carries the file it could not open — a DATA file the module
-opened is the module's own failure and stays with the frame); everything else by the last
-traceback frame (a runtime SyntaxError from `compile()` of a string says `<string>` and keeps its
-frames). The hub decision compares file IDENTITY with `libs/subagents/web_tools.py` — never a name
-suffix (`libs/web_tools.py` is a separate module). The constant must be a non-empty collection of
-non-empty `str` — any real collection, `dict` keys included; a bare str or bytes, `None`, a
-generator or a non-str member is the same hub problem, named by shape. A failure raised outside
-the repo is named by file (with its package for an `__init__.py`), never by absolute path; an
-in-repo file behind a symlinked `libs/` still reads repo-relative; a pseudo path (`<frozen …>`)
-is never rendered as a repo file, whatever the cwd.
+same-second, same-size rewrite is the measured residual — 0 today). An import that fails is attributed by what CPython DID, not by a model of it: a
+`sys.meta_path` recorder watches the import — which module CPython starts, which one is
+EXECUTING when an exception is raised, which name it could not find — and the blame is the
+module that was executing (the innermost record holding that very exception object; a failure
+an importer swallowed is a different object and never counts). Five review rounds of an
+AST-derived import closure each found a new way a module CPython never loads could steal the
+target's blame (a submodule the package `__init__` binds, a conditional branch, a `try` body a
+handler swallows, a sourceless package, a `__getattr__` package); the recorder makes every one
+moot by construction. The target itself raising ⇒ a block; a sibling raising ⇒ an advisory naming
+the sibling; a torn or non-code bytecode cache is named with its remedy (delete that module's
+`__pycache__`; a sourceless `.pyc` is the artifact to replace) when CPython's own validators say
+it would have LOADED that cache; a name CPython could not find is the importer's own defect when
+the name is ours (a typo'd package root, a submodule that does not exist — or a directory or
+dangling symlink AT that path, which is then the broken module), and an advisory naming the
+importer and the missing DISTRIBUTION otherwise (asked by the full dotted name under a namespace
+root such as `google.`, so `google.protobuf` missing is not masked by the present root); a
+renamed constant (`cannot import name`, raised by this check's own import statement) is the
+target's. CPython stops at the first broken module, so exactly one is named; fixing it may reveal
+the next — the recorder never guesses beyond what ran. A runtime `OSError` (a data file the
+module opens) is the module's own. A `sys.exit()` at import is the module's failure, never this
+process's exit code; `KeyboardInterrupt` propagates. The import runs inside the gate's process:
+its stdout is captured (a module printing at import would break the ⚠-first `--json` contract
+and is reported as an advisory), and the package's `.env` autoload is switched off so the
+gate never loads the CWD's secrets. Every failure text is bounded (500 chars), safe when
+`str(exc)` itself raises, and scrubbed of the repo prefix and of the operator's home (`~/…`)
+before it is printed.
 
 **The important negative:** path-shaped look-alikes are *not* chain references.
 `/opt/fabrik-lib`, `/run/fabrik-autoheal/pause` and `docs/reference/fabrik-mail.md` all

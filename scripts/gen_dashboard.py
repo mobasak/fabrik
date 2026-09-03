@@ -269,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     )  # `--help` exits here — it used to WRITE a file named --help
     try:
         rows = load()
+        html = render(rows)  # a row shape the template cannot render is the same typed line (EZ4)
     except Exception as exc:  # noqa: BLE001 - a dead registry is one typed line and exit 1, never a traceback (EY6)
         print(
             f"ERROR: registry unreadable ({exc.__class__.__name__}: {exc}) — nothing written; the previous dashboard stands"
@@ -283,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
     try:
         try:
-            tmp.write_text(render(rows), encoding="utf-8")
+            tmp.write_text(html, encoding="utf-8")
             os.replace(tmp, out)
         finally:
             tmp.unlink(missing_ok=True)  # a failed write leaves nothing behind (AC14)

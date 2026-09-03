@@ -47,6 +47,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
@@ -681,26 +682,32 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
     cleanly or is skipped - it never yields a torn line."""
     out: list[tuple[str, str]] = []
     try:
-        text = path.read_text(
-            encoding="utf-8-sig", errors="replace"
-        )  # a BOM (PowerShell, "UTF-8 with BOM") silently deleted the first KEY=value (EY4)
+        data = path.read_bytes()
     except (
         OSError
     ):  # the glob proved the path existed this run: unreadable, vanished or not a file → the
         raise  # "env files" cause, one line via CP2 — a silently dropped project fed DELETEs to the sync (CS2/CU2)
-    for line in text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
+    lines: list[str] = []
+    for no, raw_line in enumerate(data.split(b"\n"), 1):
+        try:
+            line = raw_line.decode("utf-8")
+        except UnicodeDecodeError:
+            # `errors="replace"` silently turned a stray Latin-1 byte into U+FFFD and HASHED the
+            # mangled value as the credential; the line is dropped and SAID so instead (EZ7)
+            print(f"WARNING: {path}:{no}: not UTF-8 — line skipped", file=sys.stderr)
             continue
-        if s.startswith("export "):
-            s = s[len("export ") :].lstrip()
-        if "=" not in s:
+        lines.append(
+            line.lstrip("\ufeff")
+        )  # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key (EY4/EZ7)
+    # python-dotenv's semantics — quotes, escapes, inline comments, `export`, `${VAR}` — are what
+    # every deployed app loads; a home-grown parser stored a value the app never sees and the
+    # registry hashed it (a PEM's `\n` escapes, an inline `# comment`, an interpolation) (EZ7)
+    from dotenv import dotenv_values  # noqa: PLC0415
+
+    for key, value in dotenv_values(stream=io.StringIO("\n".join(lines)), interpolate=True).items():
+        if value is None or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
             continue
-        key, _, raw = s.partition("=")
-        key = key.strip()
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
-            continue
-        out.append((key, normalize_value(raw)))
+        out.append((key, value))
     return out
 
 

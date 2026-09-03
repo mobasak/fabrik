@@ -55,30 +55,35 @@ class GitUnavailableError(Exception):
 
 
 def _staged_head(path: str) -> str | None:
-    """The first HEADER_SCAN_LINES of the STAGED blob (`git show :path`) — what will be
-    committed — never the working tree, which a later edit or a partial stage can make differ
-    from the index in either direction (EQ2). None when the index holds no stage-0 blob for a
-    listed path — a `git rm --cached` deletion with the file still on disk, or an unresolved
-    merge: nothing at that path is about to be committed, so nothing is checked (EW1)."""
+    """The first HEADER_SCAN_LINES of the STAGED blob — what will be committed — never the
+    working tree, which a later edit or a partial stage can make differ from the index in either
+    direction (EQ2). Read through `git cat-file --batch` with the path on STDIN as UTF-8 bytes:
+    a non-ASCII path could not even be encoded as an argv under an ASCII locale (EZ6), and the
+    batch protocol says `missing` for a path without a stage-0 blob instead of an English fatal
+    message the caller had to pattern-match (EY1). None when the index holds no stage-0 blob."""
     try:
         proc = subprocess.run(
-            ["git", "show", f":{path}"],
+            ["git", "cat-file", "--batch"],
+            input=(":" + path + "\n").encode("utf-8", "surrogateescape"),
             capture_output=True,
-            text=True,
             timeout=20,
-            errors="replace",
+            env={**os.environ, "LANGUAGE": "C"},
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
-        raise GitUnavailableError(f"git show :{path}: {exc.__class__.__name__}") from exc
+        raise GitUnavailableError(f"git cat-file :{path}: {exc.__class__.__name__}") from exc
     if proc.returncode != 0:
-        # ONLY "no stage-0 blob" is None; a git that FAILED (a corrupt index mid-loop) is not a
-        # deletion — the old branch called it one (EY1)
-        if re.search(r"not in the index|not at stage 0|does not exist", proc.stderr):
-            return None
+        # a git that FAILED (a corrupt index mid-loop) is not a deletion — the old branch called it one (EY1)
         raise GitUnavailableError(
-            f"git show :{path}: exit {proc.returncode}: {proc.stderr.strip()[:160]}"
+            f"git cat-file :{path}: exit {proc.returncode}: {proc.stderr.decode('utf-8', 'replace').strip()[:160]}"
         )
-    return "\n".join(proc.stdout.splitlines()[:HEADER_SCAN_LINES])
+    header, _, rest = proc.stdout.partition(b"\n")
+    if header.endswith((b" missing", b" ambiguous")):
+        return None
+    parts = header.split()
+    if len(parts) != 3 or parts[1] != b"blob":
+        raise GitUnavailableError(f"git cat-file :{path}: unexpected answer {header[:80]!r}")
+    body = rest[: int(parts[2])].decode("utf-8", "replace")
+    return "\n".join(body.splitlines()[:HEADER_SCAN_LINES])
 
 
 # Both separators the corpus actually uses: `a.py, b.md` AND `a.py | b.md`. The pipe form is the
@@ -98,8 +103,8 @@ def _coupled_tokens(listed: str, script: Path) -> list[str]:
     out: list[str] = []
     for c in SEPARATORS.split(listed):
         core = (
-            c[:-1] if c.endswith(".") and c.count(".") == 1 else c
-        )  # `none.` — a sentence's full stop, not a file (EY2)
+            c.rstrip(".") if c.rstrip(".") and "." not in c.rstrip(".") else c
+        )  # `none.` / `none..` — a sentence's full stop(s), not a file (EY2/EZ6)
         if not c or core.lower() in NONE_VALUES:
             continue
         if (
@@ -117,6 +122,8 @@ def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
     # repo-rooted FIRST; the script-relative reading only when the repo-rooted path does not
     # exist on disk — a same-named file inside the script's directory (`scripts/README.md`) must
     # never close a coupling declared on the root one (EA2); a directory token keeps its `/`
+    if not token.endswith("/") and Path(token).is_dir():
+        token += "/"  # a directory named without its slash could never be satisfied (EZ6)
     cands = [token]
     if not Path(token).exists():
         cands.append((script.parent / token).as_posix() + ("/" if token.endswith("/") else ""))
@@ -145,7 +152,17 @@ def _git(args: list[str], sep: str = "\n") -> list[str]:
     nor the staged set, so a headerless script was invisible and a staged coupled file "not
     updated" (EU1/EW1). A git that does not answer is GitUnavailableError, never a traceback."""
     try:
-        proc = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20)
+        proc = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            errors="replace",  # a non-UTF-8 path under an 8-bit locale was a UnicodeDecodeError out of a warn-only check (EZ6)
+            timeout=20,
+            env={
+                **os.environ,
+                "LANGUAGE": "C",
+            },  # git's fatal messages in English: the no-stage-0-blob allowlist reads them (EZ6)
+        )
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise GitUnavailableError(f"git {' '.join(args)}: {exc.__class__.__name__}") from exc
     if proc.returncode != 0:
@@ -156,6 +173,25 @@ def _git(args: list[str], sep: str = "\n") -> list[str]:
         )
     out = proc.stdout
     return [x for x in out.strip(sep).split(sep) if x] if out.strip(sep) else []
+
+
+def _index_entries(paths: list[str]) -> dict[str, tuple[str, str]]:
+    """`git ls-files -s -z` for the staged scripts: path → (mode, stage). The INDEX is what a
+    commit takes; the working tree lied three ways — a file deleted after `git add` read as "a
+    deletion" (its staged blob committed unchecked), a sparse-checkout path never on disk the
+    same, and a script rewritten as a symlink after `git add` skipped as a symlink (EZ6)."""
+    out: dict[str, tuple[str, str]] = {}
+    wanted = set(paths)
+    # the whole index, filtered here: a non-ASCII PATHSPEC could not even be encoded for git
+    # under an ASCII locale (UnicodeEncodeError before git ran) (EZ6)
+    for rec in _git(["ls-files", "-s", "-z"], sep="\0"):
+        meta, _, path = rec.partition("\t")
+        parts = meta.split()
+        if len(parts) >= 3 and path in wanted:
+            out.setdefault(
+                path, (parts[0], parts[2])
+            )  # stage 0 first; a conflict's stages 1–3 land only when 0 is absent
+    return out
 
 
 def _skip(f: str) -> bool:
@@ -186,6 +222,12 @@ def main() -> int:
     # A BARE run (an agent or human invoking this directly) passes no flag and stays informative,
     # which is the whole point of 01M1E6S1EAK7DNP74C1K9YHP3Z.
     quiet = "--quiet" in sys.argv[1:]
+    for stream in (
+        sys.stdout,
+        sys.stderr,
+    ):  # a non-ASCII path in a WARN line under an ASCII locale was a UnicodeEncodeError (EZ6)
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     try:
         return _main(quiet)
     except GitUnavailableError as exc:
@@ -213,24 +255,44 @@ def _main(quiet: bool) -> int:
         return 0
     staged_set = set(staged)
     scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
+    index = _index_entries(
+        scripts
+    )  # path → (mode, stage): what will be COMMITTED, never the working tree (EZ6)
 
     warnings: list[str] = []
     inspected = 0
     for f in scripts:
+        entry = index.get(f)
         p = Path(f)
-        if p.is_symlink():
-            # the staged blob of a symlink is its LINK TEXT, never a script: a dangling one was
-            # already skipped; a live one (`scripts/verify_prod_parity.py`, the hub's one) was
-            # "inspected" against a path string and warned "no header" on every stage (EY1)
+        if entry is None:
+            # listed by the diff but no index entry: a `git rm` (silent — nothing is committed
+            # there) or a `git rm --cached` with the file still on disk (said, so the operator
+            # sees the tracking leave) (EW1/EZ6)
+            if p.exists():
+                warnings.append(f"{f}: staged deletion or unresolved merge — not checked")
+            continue
+        mode, stage = entry
+        if stage != "0":
+            warnings.append(f"{f}: staged deletion or unresolved merge — not checked")
+            continue
+        if mode == "120000":
+            # the staged blob of a symlink is its LINK TEXT, never a script (EY1); the index says
+            # symlink even when the working tree was rewritten since `git add` (EZ6)
             warnings.append(
                 f"{f}: dangling symlink — not checked"
-                if not p.exists()
+                if not Path(f).exists()
                 else f"{f}: symlink — not checked (the target is inspected on its own)"
             )
             continue
-        if not p.exists():  # a staged deletion — nothing to check
+        if mode == "160000":
+            warnings.append(f"{f}: a submodule gitlink — not checked")
             continue
-        head = _staged_head(f)
+        try:
+            head = _staged_head(f)
+        except GitUnavailableError as exc:
+            # ONE path git could not answer for must not discard every other script's finding (EZ6)
+            warnings.append(f"{f}: git did not answer ({exc}) — not checked")
+            continue
         if head is None:
             # no stage-0 blob for a listed path: a `git rm --cached` deletion with the file still
             # on disk, or an unresolved merge — the WORKING TREE is not what will be committed and

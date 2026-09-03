@@ -1205,6 +1205,24 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         tmp_path / "bogus_path",
         'raise ImportError("vendor sync broke", path="/etc")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
     )
+    # pass 61 (EZ8): a module that PRINTS at import (the check's stdout must stay ⚠-first); an absent
+    # distribution under an installed NAMESPACE root (`google.protobuf`) is an advisory, not a block
+    _fake_hub(
+        tmp_path / "chatty",
+        'print("[subagents] loading provider registry")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    _fake_hub(
+        tmp_path / "nsdist",
+        'from nsdist_xyz.core import Thing\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    (
+        tmp_path / "site" / "nsdist_xyz"
+    ).mkdir()  # a namespace package: present for every sibling distribution
+    # an exception whose __str__ RAISES: the verdict must still be one line, never a traceback (EZ8)
+    _fake_hub(
+        tmp_path / "lazystr",
+        'class _LazyError(Exception):\n    def __str__(self):\n        raise ValueError("boom in __str__")\nraise _LazyError()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
     # a NUL module named only inside a FUNCTION BODY / an `if TYPE_CHECKING:` block is never
     # executed at import: the target's own SOURCE-SHAPED raise (an ImportError with no path — the
     # shape that opens the sibling redirect) stays the target's BLOCK (EU4)
@@ -1365,14 +1383,14 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
         f"    site = {str(tmp_path / 'site')!r}\n"
         "    if site in sys.path:\n"
         "        sys.path.remove(site)\n"
-        "    if name in ('extdep', 'extpkg', 'extthenthird'):\n"  # the dependency dir reaches ONLY the hubs that need it — a `libs` package there would beat a namespace-shaped hub (pass 50)
+        "    if name in ('extdep', 'extpkg', 'extthenthird', 'nsdist'):\n"  # the dependency dir reaches ONLY the hubs that need it — a `libs` package there would beat a namespace-shaped hub (pass 50)
         "        sys.path.append(site)\n"
         "    probs = c.audit(hub / 'commands' / '_sources', hub / 'commands' / '_fragments', hub / 'commands' / 'assemble_commands.py', hub, traycer_skills=hub / 'no-orch', agents=hub / 'no-agents')\n"
         "    out[name] = {'problems': probs, 'skipped': list(c.SKIPPED_PREDICATES), 'failure': list(c._IMPORT_FAILURE)}\n"
@@ -1623,11 +1641,11 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         in p
         for p in out["noncode"]["problems"]
     ), out["noncode"]
-    # both caches torn: a BLOCK naming both, the remedy naming both dirs
+    # both caches torn: CPython fails on the PACKAGE first — named with its remedy (an advisory);
+    # the target's own torn cache is the next run's block (the recorder names what CPython hit, EZ5)
     assert any(
-        "bytecode cache of libs/__init__.py, libs/subagents/web_tools.py unloadable" in p
-        and "delete libs/__pycache__, libs/subagents/__pycache__" in p
-        for p in out["bothtorn"]["problems"]
+        "bytecode cache of libs/__init__.py unloadable" in s and "delete libs/__pycache__" in s
+        for s in out["bothtorn"]["skipped"]
     ), out["bothtorn"]
     # an unrelated broken sibling never steals the target's own blame: still a BLOCK on the target
     for hub in ("unrelatedsib", "unrelatedsib2"):
@@ -1677,9 +1695,9 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         if out["twinutil"]["skipped"]
         else " ".join(out["twinutil"]["problems"])
     )
-    assert (
-        "libs/subagents/a/util/mod.py, libs/subagents/b/util/mod.py unloadable" in tw
-        and "delete libs/subagents/a/util/__pycache__, libs/subagents/b/util/__pycache__" in tw
+    assert (  # the first torn cache CPython loads, named repo-relatively with its own dir (EZ5)
+        "libs/subagents/a/util/mod.py unloadable" in tw
+        and "delete libs/subagents/a/util/__pycache__" in tw
     ), out["twinutil"]
     # the imported broken sibling is named, never a FIFO or NUL file outside the closure
     for hub in ("fifofirst", "twobroken"):
@@ -1688,10 +1706,9 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
             and "libs/subagents/tools.py failed to import" in out[hub]["skipped"][0]
         ), (hub, out[hub])
         assert "aaa" not in out[hub]["skipped"][0], (hub, out[hub])
-    assert (
+    assert (  # the first broken module CPython reached; the second is the next run's (EZ5)
         len(out["twoimported"]["skipped"]) == 1
         and "libs/subagents/tools.py failed to import" in out["twoimported"]["skipped"][0]
-        and "(also broken: libs/subagents/bbb.py)" in out["twoimported"]["skipped"][0]
     ), out["twoimported"]
     # pass 58 (EU4): a lazily / TYPE_CHECKING-imported NUL module never steals the target's blame
     for hub in ("lazysteal", "typesteal"):
@@ -1704,9 +1721,11 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         assert not out[hub]["skipped"] and not any(
             p.startswith("libs/subagents/typ.py") for p in out[hub]["problems"]
         ), (hub, out[hub])
-    # a FIFO one import away: the driver returned (no hang) and the FIFO is the broken sibling named
-    assert "libs/subagents/fifo.py" in " ".join(
-        out["fifoimported"]["skipped"] + out["fifoimported"]["problems"]
+    # a FIFO one import away: the driver returned (no hang — nothing static opens it, EZ5); the
+    # failure CPython hit first is the MISSING module the target imports — its own defect, a block
+    assert any(
+        "web_tools.py is present but unusable" in p and "libs.subagents.missing" in p
+        for p in out["fifoimported"]["problems"]
     ), out["fifoimported"]
     # the healthy importer is never blamed for the NUL module it imports
     assert (
@@ -1721,9 +1740,9 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         for s in out["absentdep"]["skipped"]
     ), out["absentdep"]
     dfs = " ".join(out["dfsorder"]["skipped"] + out["dfsorder"]["problems"])
-    assert "bytecode cache of libs/subagents/deep.py, libs/subagents/b.py unloadable" in dfs, out[
-        "dfsorder"
-    ]
+    assert "bytecode cache of libs/subagents/deep.py unloadable" in dfs and "b.py" not in dfs, (
+        out["dfsorder"]
+    )  # `deep` is what CPython loads first (a → deep before b) — the recorder needs no order model (EZ5)
     # pass 59 (EW7)
     for hub in ("trysteal", "versteal", "boolsteal"):
         assert any(
@@ -1764,12 +1783,29 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     assert "libs/subagents/x/__init__.py failed to import" in " ".join(
         out["stemtwin2"]["skipped"]
     ), out["stemtwin2"]
-    vt = " ".join(out["vertaken"]["problems"])
-    assert (
-        "web_tools.py is present but unusable" in vt
-        and "also broken: libs/subagents/compat.py" in vt
-    ), out["vertaken"]
+    # a TAKEN runtime branch's broken module is what CPython executed: named, an advisory —
+    # the healthy target is never blamed (EZ5)
+    assert "libs/subagents/compat.py failed to import" in " ".join(out["vertaken"]["skipped"]), out[
+        "vertaken"
+    ]
+    assert not any("present but unusable" in p for p in out["vertaken"]["problems"]), out[
+        "vertaken"
+    ]
     assert any("SystemExit" in p for p in out["sysexit0"]["problems"]), out["sysexit0"]
+    # pass 61 (EZ8)
+    assert not any("present but unusable" in p for p in out["chatty"]["problems"]), out["chatty"]
+    assert any("printed" in s and "bytes at import" in s for s in out["chatty"]["skipped"]), out[
+        "chatty"
+    ]
+    assert not any("present but unusable" in p for p in out["nsdist"]["problems"]), out["nsdist"]
+    assert any(
+        "nsdist_xyz" in s and "not installed in this interpreter" in s
+        for s in out["nsdist"]["skipped"]
+    ), out["nsdist"]
+
+    assert any(
+        "present but unusable (_LazyError: <str() failed>)" in p for p in out["lazystr"]["problems"]
+    ), out["lazystr"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1944,34 +1980,6 @@ def test_same_file_is_identity_and_survives_an_unresolvable_blame(tmp_path):
     assert not ccc._same_file("bad\0name", target)
 
 
-def test_blame_for_uses_any_exception_filename_that_names_a_real_file(tmp_path):
-    """A PermissionError carries the file it could not open; only a SyntaxError's filename was
-    consulted before (EG1). A `<string>` filename falls through to the frame."""
-    import check_command_corpus as ccc
-
-    real = tmp_path / "sib.py"
-    real.write_text("", encoding="utf-8")
-    try:
-        raise PermissionError(13, "Permission denied", str(real))
-    except PermissionError as exc:
-        assert ccc._blame_for(exc) == str(real)
-    try:
-        compile("def (:", "<string>", "exec")
-    except SyntaxError as exc:
-        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
-    # a filename that does not exist (the `is_file()` clause) and a real NON-.py (the `.py` clause): the frame
-    try:
-        raise FileNotFoundError(2, "No such file", str(tmp_path / "gone.py"))
-    except FileNotFoundError as exc:
-        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
-    data = tmp_path / "cfg.yaml"
-    data.write_text("", encoding="utf-8")
-    try:
-        raise PermissionError(13, "Permission denied", str(data))
-    except PermissionError as exc:
-        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
-
-
 def test_target_is_broken_asks_the_file(tmp_path):
     """NUL bytes, a directory, an unreadable file and a syntax error are settled by reading and
     compiling the target — never by a traceback (EG1); a file that compiles is not broken."""
@@ -1987,114 +1995,6 @@ def test_target_is_broken_asks_the_file(tmp_path):
     d = tmp_path / "dir.py"
     d.mkdir()
     assert ccc._target_is_broken(d) == "not a regular file"
-
-
-def test_blame_for_skips_a_frame_whose_file_is_gone_and_scrub_hides_the_home(tmp_path, monkeypatch):
-    """A sourceless `.pyc` records a `.py` that no longer exists — such a frame is skipped for the
-    next real one; `_scrub` turns a path under the operator's home into `~/…` (EK1)."""
-    import check_command_corpus as ccc
-
-    try:
-        exec(compile("raise RuntimeError('ghost')", "/nonexistent/ghost.py", "exec"))
-    except RuntimeError as exc:
-        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
-    home = Path.home()
-    assert (
-        ccc._scrub(f"ImportError: {home}/.venv/lib/x.py broke", tmp_path)
-        == "ImportError: ~/.venv/lib/x.py broke"
-    )
-    assert (
-        ccc._scrub(f"PermissionError: '{tmp_path}/libs/a.py'", tmp_path)
-        == "PermissionError: 'libs/a.py'"
-    )
-
-
-@pytest.mark.parametrize("fallback", [False, True], ids=["cpython-validators", "manual-rules"])
-def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path, monkeypatch, fallback):
-    """A zero-byte cache, one with a foreign magic, and a stale timestamp-mode header are all
-    recompiled from source by the import machinery — never the torn one (EM1); only a
-    current-header cache with a torn body is."""
-    import importlib.util
-    import py_compile
-
-    import check_command_corpus as ccc
-
-    if fallback:  # an interpreter without importlib's private validators: the manual rules (EQ1)
-        monkeypatch.setattr(ccc, "_be", None)
-    (tmp_path / "libs" / "subagents").mkdir(parents=True)
-    src = tmp_path / "libs" / "subagents" / "web_tools.py"
-    src.write_text("WEB_TOOL_NAMES = frozenset()\n", encoding="utf-8")
-    pyc = Path(importlib.util.cache_from_source(str(src)))
-    pyc.parent.mkdir(exist_ok=True)
-    pyc.write_bytes(b"")
-    assert ccc._bad_cache_owners(src) == []
-    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
-    good = pyc.read_bytes()
-    pyc.write_bytes(b"XXXX" + good[4:20])  # a foreign magic, torn
-    assert ccc._bad_cache_owners(src) == []
-    stale = bytearray(good[:20])
-    stale[8:12] = (0).to_bytes(4, "little")  # an mtime that no longer matches the source
-    pyc.write_bytes(bytes(stale))
-    assert ccc._bad_cache_owners(src) == []
-    stale_size = bytearray(good[:20])
-    stale_size[12:16] = (src.stat().st_size + 1).to_bytes(
-        4, "little"
-    )  # a size that no longer matches
-    pyc.write_bytes(bytes(stale_size))
-    assert ccc._bad_cache_owners(src) == []
-    pyc.write_bytes(
-        good[:17]
-    )  # a header plus one body byte: torn — the header length is 16, not more
-    assert ccc._bad_cache_owners(src) == [src]
-    pyc.write_bytes(good[:20])  # the current header, a torn body
-    assert ccc._bad_cache_owners(src) == [src]
-    reserved = bytearray(good[:20])
-    reserved[4:8] = (4).to_bytes(
-        4, "little"
-    )  # reserved flag bits: CPython rejects the header, recompiles
-    pyc.write_bytes(bytes(reserved))
-    assert ccc._bad_cache_owners(src) == []
-    py_compile.compile(
-        str(src),
-        cfile=str(pyc),
-        doraise=True,
-        invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH,
-    )
-    hashed = pyc.read_bytes()
-    pyc.write_bytes(hashed[:20])  # a checked-hash cache, current hash, torn body → torn
-    assert ccc._bad_cache_owners(src) == [src]
-    src.write_text(
-        "WEB_TOOL_NAMES = frozenset({'x'})\n", encoding="utf-8"
-    )  # the source moved on: the hash no longer matches → recompiled, not torn
-    assert ccc._bad_cache_owners(src) == []
-    # the hash compared on its full 8 bytes: a header whose FIRST four hash bytes still match
-    # but whose last four do not is stale (a 4-byte comparison would call it torn)
-    py_compile.compile(
-        str(src),
-        cfile=str(pyc),
-        doraise=True,
-        invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH,
-    )
-    half = bytearray(pyc.read_bytes()[:20])
-    half[12:16] = bytes(b ^ 0xFF for b in half[12:16])
-    pyc.write_bytes(bytes(half))
-    assert ccc._bad_cache_owners(src) == []
-    # a timestamp cache beside an UNREADABLE source still loads (CPython stats, never reads) —
-    # its torn body is a failure CPython raises, so it is reported (EQ1; root reads anything)
-    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
-    pyc.write_bytes(pyc.read_bytes()[:20])
-    src.chmod(0)
-    try:
-        assert ccc._bad_cache_owners(src) == [src]
-    finally:
-        src.chmod(0o644)
-    import marshal
-
-    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
-    pyc.write_bytes(
-        pyc.read_bytes()[:16] + marshal.dumps(42)
-    )  # a non-code body: CPython raises ImportError
-    assert ccc._bad_cache_owners(src) == [src]
 
 
 def test_the_manual_rules_select_the_hash_branch_on_bit_zero_like_cpython(tmp_path):
@@ -2132,59 +2032,106 @@ def test_the_manual_rules_select_the_hash_branch_on_bit_zero_like_cpython(tmp_pa
     )
 
 
-def test_the_negated_type_checking_idiom_keeps_its_else_branch_out_of_the_closure(tmp_path):
-    """`if not TYPE_CHECKING: … else: from .nulstub import Y` — the else is typing-only and never
-    executes; round 58 handled only the affirmative idiom, so a NUL module there could still
-    steal the blame (EW2)."""
+def test_the_failure_text_is_safe_and_bounded():
+    """`str(exc)` may raise (a lazy message) or run to megabytes: neither is a traceback out of a
+    gate nor a 10 MB gate row (EZ8)."""
     import check_command_corpus as ccc
 
-    pkg = tmp_path / "libs" / "subagents"
-    pkg.mkdir(parents=True)
-    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "nulstub.py").write_text("Y = 1\n", encoding="utf-8")
-    (pkg / "real.py").write_text("X = 1\n", encoding="utf-8")
-    (pkg / "web_tools.py").write_text(
-        "from typing import TYPE_CHECKING\nif not TYPE_CHECKING:\n    from .real import X\nelse:\n    from .nulstub import Y\n",
-        encoding="utf-8",
+    class _LazyError(Exception):
+        def __str__(self):
+            raise ValueError("boom in __str__")
+
+    assert ccc._safe_str(_LazyError()) == "<str() failed>"
+    big = ccc._safe_str(RuntimeError("x" * 10_000_000))
+    assert len(big) < 600 and "+9999500 chars" in big, big[-40:]
+
+
+def test_an_unread_corpus_file_is_reported_repo_relative(tmp_path, monkeypatch):
+    """The unread-file list bypassed `_scrub`: every other stdout path is scrubbed (EZ8)."""
+    import check_command_corpus as ccc
+
+    monkeypatch.setattr(ccc, "REPO", tmp_path)
+    ccc.SKIPPED.clear()
+    gone = tmp_path / "commands" / "_sources" / "fabrik-gone.md"
+    assert ccc._read(gone) is None
+    assert ccc.SKIPPED and str(tmp_path) not in ccc.SKIPPED[-1], ccc.SKIPPED
+
+
+def _probe_hub(tmp_path, web_tools_body, init_body=""):
+    import shutil
+
+    hub = tmp_path / "hub"
+    (hub / "scripts" / "enforcement").mkdir(parents=True)
+    (hub / "libs" / "subagents").mkdir(parents=True)
+    (hub / "libs" / "__init__.py").write_text(init_body, encoding="utf-8")
+    (hub / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+    (hub / "libs" / "subagents" / "web_tools.py").write_text(web_tools_body, encoding="utf-8")
+    shutil.copy(
+        REPO / "scripts" / "enforcement" / "check_command_corpus.py",
+        hub / "scripts" / "enforcement" / "check_command_corpus.py",
     )
-    names = [p.name for p in ccc._import_order(pkg / "web_tools.py")]
-    assert "real.py" in names and "nulstub.py" not in names, names
+    shutil.copy(REPO / "CLAUDE.md", hub / "CLAUDE.md")
+    (hub / "commands" / "_sources").mkdir(parents=True)
+    (hub / "commands" / "_sources" / "fabrik-x.md").write_text(
+        "{{include:run-record}}\n", encoding="utf-8"
+    )  # an empty corpus exits before the probe
+    return hub
 
 
-def test_the_closure_puts_the_target_where_its_package_init_imports_it(tmp_path):
-    """`libs/subagents/__init__.py` imports web_tools THEN other: the load order is init, init,
-    web_tools, other — the target is not appended last (EW7)."""
-    import check_command_corpus as ccc
+def test_the_import_probe_neither_loads_the_cwd_env_nor_lets_a_module_print(tmp_path):
+    """The import runs in the gate's process: the package autoloaded the CWD's `.env` (20 curated
+    secrets) into `os.environ`, and a module's print led the check's stdout — `--json` reads
+    only ⚠-first output (EZ8). A fresh interpreter, cwd = a dir holding a sentinel `.env`."""
+    import subprocess
 
-    pkg = tmp_path / "libs" / "subagents"
-    pkg.mkdir(parents=True)
-    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "__init__.py").write_text(
-        "from .web_tools import W\nfrom .other import O\n", encoding="utf-8"
+    seen = tmp_path / "seen.txt"
+    hub = _probe_hub(
+        tmp_path,
+        f"import os\nopen({str(seen)!r}, 'w').write(str(os.environ.get('EXA_API_KEY')))\nprint('[subagents] loading')\nWEB_TOOL_NAMES = frozenset({{'web_search'}})\n",
+        "import os\nfrom dotenv import load_dotenv\nif os.getenv('SUBAGENTS_NO_AUTOLOAD') != '1':\n    load_dotenv(os.path.join(os.getcwd(), '.env'))\n",
     )
-    (pkg / "web_tools.py").write_text("W = 1\n", encoding="utf-8")
-    (pkg / "other.py").write_text("O = 1\n", encoding="utf-8")
-    names = [p.name for p in ccc._import_order(pkg / "web_tools.py")]
-    assert names == ["__init__.py", "__init__.py", "web_tools.py", "other.py"], names
+    (hub / ".env").write_text("EXA_API_KEY=SENTINEL_FROM_CWD\n", encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k not in ("EXA_API_KEY", "SUBAGENTS_NO_AUTOLOAD")}
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(hub / "scripts" / "enforcement" / "check_command_corpus.py"),
+            "--quiet",
+        ],
+        cwd=hub,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
+    assert seen.read_text(encoding="utf-8") == "None", seen.read_text(encoding="utf-8")
+    first = proc.stdout.lstrip().splitlines()[:1]
+    assert not first or first[0].startswith("⚠"), proc.stdout[:200]
+    assert "[subagents] loading" not in proc.stdout, proc.stdout[:200]
 
 
-def test_a_two_thousand_module_chain_does_not_overflow_the_closure(tmp_path):
-    """The recursive DFS of round 58 raised RecursionError out of a BLOCKING gate at 2000
-    modules; the explicit stack does not (EW7)."""
-    import check_command_corpus as ccc
+def test_a_keyboard_interrupt_at_import_is_never_a_verdict(tmp_path):
+    """`except BaseException` must let Ctrl-C through: an interrupt during the import propagates
+    instead of becoming "present but unusable (KeyboardInterrupt)" (EZ8)."""
+    import subprocess
 
-    pkg = tmp_path / "libs" / "subagents"
-    pkg.mkdir(parents=True)
-    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "__init__.py").write_text("", encoding="utf-8")
-    n = 2000
-    for i in range(n):
-        nxt = f"from .m{i + 1} import X\n" if i + 1 < n else ""
-        (pkg / f"m{i}.py").write_text(nxt + "X = 1\n", encoding="utf-8")
-    (pkg / "web_tools.py").write_text("from .m0 import X\n", encoding="utf-8")
-    closure = ccc._import_order(pkg / "web_tools.py")
-    assert len(closure) == n + 3, len(closure)
+    hub = _probe_hub(tmp_path, "raise KeyboardInterrupt\n")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(hub / "scripts" / "enforcement" / "check_command_corpus.py"),
+            "--quiet",
+        ],
+        cwd=hub,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert (
+        proc.returncode != 0
+        and "KeyboardInterrupt" in proc.stderr
+        and "present but unusable" not in proc.stdout
+    ), (proc.returncode, proc.stdout[:200])
 
 
 def test_the_selftest_keeps_its_web_tool_canaries_when_the_hub_module_is_present_but_broken(
@@ -2257,57 +2204,6 @@ def _pkg(tmp_path):
     return pkg
 
 
-def test_the_attribute_form_of_type_checking_is_the_same_idiom(tmp_path):
-    """`if typing.TYPE_CHECKING:` — every fixture used the bare name; reducing the detector to
-    `ast.Name` dropped this common spelling's else-branch from the closure (EY8)."""
-    import check_command_corpus as ccc
-
-    pkg = _pkg(tmp_path)
-    (pkg / "tools.py").write_text("H = 1\n", encoding="utf-8")
-    (pkg / "typ.py").write_text("X = 1\n", encoding="utf-8")
-    (pkg / "web_tools.py").write_text(
-        "import typing\nif typing.TYPE_CHECKING:\n    from .typ import X\nelse:\n    from .tools import H\n",
-        encoding="utf-8",
-    )
-    names = [p.name for p in ccc._import_order(pkg / "web_tools.py")]
-    assert "tools.py" in names and "typ.py" not in names, names
-
-
-def test_a_finally_body_import_is_proven_and_a_sourceless_package_counts(tmp_path):
-    """`finally:` always runs (its import is proven, unlike a handler's); a package that is only
-    `pkg/__init__.pyc` is loaded by CPython and belongs in the closure (EY8)."""
-    import importlib.util
-
-    import check_command_corpus as ccc
-
-    pkg = _pkg(tmp_path)
-    (pkg / "fin.py").write_text("F = 1\n", encoding="utf-8")
-    (pkg / "sl").mkdir()
-    (pkg / "sl" / "__init__.pyc").write_bytes(importlib.util.MAGIC_NUMBER + b"\x00" * 12)
-    (pkg / "web_tools.py").write_text(
-        "try:\n    pass\nfinally:\n    from .fin import F\nfrom .sl import S\n", encoding="utf-8"
-    )
-    names = [p.as_posix().split("/subagents/")[-1] for p in ccc._import_order(pkg / "web_tools.py")]
-    assert "fin.py" in names and "sl/__init__.pyc" in names, names
-
-
-def test_a_package_reached_through_a_symlink_is_one_package(tmp_path):
-    """Membership is by RESOLVED path: `real/` and `link/ -> real/` yielded six entries for
-    four files and a broken module named twice (EY8)."""
-    import check_command_corpus as ccc
-
-    pkg = _pkg(tmp_path)
-    (pkg / "real").mkdir()
-    (pkg / "real" / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "real" / "mod.py").write_text("M = 1\n", encoding="utf-8")
-    (pkg / "link").symlink_to(pkg / "real", target_is_directory=True)
-    (pkg / "web_tools.py").write_text(
-        "from .real.mod import M\nfrom .link.mod import M as N\n", encoding="utf-8"
-    )
-    closure = ccc._import_order(pkg / "web_tools.py")
-    assert len(closure) == len({str(p.resolve()) for p in closure}) == 5, closure
-
-
 def test_an_unreadable_claude_md_turns_the_trailer_predicate_off_without_a_traceback(tmp_path):
     """`_canonical_trailer_model` read `CLAUDE.md` after a bare `exists()`; mode 000 or a directory
     at that path was a PermissionError/IsADirectoryError out of a blocking gate — and the home
@@ -2375,8 +2271,36 @@ def test_the_selftest_names_a_broken_module_cites_no_synced_only_path_and_derive
     ), broken.stdout
     bare = tree("bare", None)
     assert bare.returncode == 0 and "FALSE POSITIVE" not in bare.stdout, (bare.stdout, bare.stderr)
-    one = tree("one", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    one = tree(
+        "one", 'WEB_TOOL_NAMES = frozenset({"web_probe"})\n'
+    )  # NOT web_search: the pad must come from the live set (EZ8)
     assert one.returncode == 0 and "13 canaries over 8" in one.stdout, (one.stdout, one.stderr)
+    quoted = tree("quoted", 'WEB_TOOL_NAMES = frozenset({"web_search", \'docs"_lookup\'})\n')
+    tree("pinned", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    (tmp_path / "pinned" / "CLAUDE.md").write_text(
+        "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n", encoding="utf-8"
+    )
+    import subprocess as _sp
+
+    pinned2 = _sp.run(
+        [
+            sys.executable,
+            str(tmp_path / "pinned" / "scripts" / "enforcement" / "check_command_corpus.py"),
+            "--selftest",
+        ],
+        cwd=tmp_path / "pinned",
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert pinned2.returncode == 0 and "VACUOUS" not in pinned2.stdout, (
+        pinned2.stdout,
+        pinned2.stderr,
+    )  # the bad trailer derives from the canonical model — a repo pinning Opus 4.8 is not VACUOUS (EZ8)
+    assert quoted.returncode == 0, (
+        quoted.stdout,
+        quoted.stderr,
+    )  # a non-identifier name never enters the fixture's own syntax (EZ8)
     dangling = tmp_path / "dangling"
     (dangling / "scripts" / "enforcement").mkdir(parents=True)
     shutil.copy(
@@ -2402,21 +2326,6 @@ def test_the_selftest_names_a_broken_module_cites_no_synced_only_path_and_derive
     assert d.returncode == 1 and "N/A" not in d.stdout, (
         d.stdout
     )  # a dangling link is PRESENT-and-broken, never "a project"
-
-
-def test_a_relative_import_above_the_package_root_reaches_nothing(tmp_path):
-    """`from ....x import y` in a closure module climbs above `libs/`; the walk must stop at the
-    root instead of admitting a file OUTSIDE the repo into the closure (and the blame) (EU4)."""
-    import check_command_corpus as ccc
-
-    (tmp_path / "outside.py").write_text("y = 1\n", encoding="utf-8")
-    pkg = tmp_path / "repo" / "libs" / "subagents"
-    pkg.mkdir(parents=True)
-    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "web_tools.py").write_text("from ....outside import y\n", encoding="utf-8")
-    closure = ccc._import_order(pkg / "web_tools.py")
-    assert all(tmp_path / "repo" in p.parents for p in closure), closure
 
 
 def test_the_selftest_in_a_project_marks_the_web_tool_canaries_not_applicable(
@@ -2489,4 +2398,4 @@ def test_cpythons_validators_are_bound_on_this_interpreter_and_a_drifted_api_fal
         _validate_timestamp_pyc=lambda data, stats, name: None,
     )
     monkeypatch.setattr(ccc, "_be", drifted)
-    assert ccc._bad_cache_owners(src) == [src]  # the manual rules still see the torn body
+    assert ccc._cache_would_fail(src) is True  # the manual rules still see the torn body

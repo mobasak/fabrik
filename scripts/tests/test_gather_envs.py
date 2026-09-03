@@ -3245,3 +3245,110 @@ def test_a_pool_that_returns_fewer_results_than_dispatched_marks_the_rest_errore
         ],
     )
     assert "a" in proposals and errored == {"b", "c"}, (proposals, errored)
+
+
+def test_parse_env_reads_what_the_app_reads(tmp_path):
+    """The registry hashes the value `parse_env` stores; the apps load `.env` with python-dotenv.
+    Escapes, inline comments and interpolation stored a value the app never sees (EZ7)."""
+    from dotenv import dotenv_values
+
+    f = tmp_path / ".env"
+    f.write_text(
+        'PEM_KEY="-----BEGIN\\nline2\\n-----END"\nPLAIN_TOKEN=abc123 # trailing comment\nBASE=base\nDERIVED_SECRET=${BASE}-suffix\nQUOTED_API_KEY="double \\"escaped\\" value"\n',
+        encoding="utf-8",
+    )
+    ours = dict(ge.parse_env(f))
+    theirs = {k: v for k, v in dotenv_values(f).items() if v is not None}
+    assert ours == theirs, (ours, theirs)
+    assert ours["DERIVED_SECRET"] == "base-suffix" and "\n" in ours["PEM_KEY"], ours
+
+
+def test_a_mid_file_bom_never_eats_a_key_and_a_non_utf8_line_is_skipped_loudly(tmp_path, capsys):
+    """`utf-8-sig` strips only the leading BOM; a BOM before a later key (concatenated fragments)
+    still deleted that key silently — and a Latin-1 byte was replaced with U+FFFD and hashed as
+    the credential (EZ7)."""
+    f = tmp_path / ".env"
+    f.write_bytes(b"FIRST_KEY=one\n\xef\xbb\xbfSECOND_KEY=two\nBAD_KEY=caf\xe9\nTHIRD_KEY=three\n")
+    keys = dict(ge.parse_env(f))
+    assert (
+        keys.get("SECOND_KEY") == "two"
+        and keys.get("THIRD_KEY") == "three"
+        and "BAD_KEY" not in keys
+    ), keys
+    err = capsys.readouterr().err
+    assert ":3: not UTF-8 — line skipped" in err, err
+
+
+def test_the_classifier_refuses_a_catalog_the_next_gather_would_refuse(tmp_path, monkeypatch):
+    """`classify_services` read the catalog raw and kept merging into a mixed-case key that
+    `gather_envs.load_catalog` then refused — a self-inflicted fail-closed loop visible only
+    through the 30 h heartbeat (EZ9)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=newvendor category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "NEWVENDOR_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "newvendor",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://n.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "OpenAI": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://o.example",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    assert cs.main() == 1
+
+
+def test_a_short_pool_result_never_crashes_the_lap(tmp_path, monkeypatch):
+    """`build_proposals` padded its own copy while the caller re-zipped the ORIGINAL short list
+    strictly for the flywheel loop — the crash EY5 claimed to fix still fired two dozen lines
+    later; padded once, for every consumer (EZ3)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=alpha category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "ALPHA_API_KEY=x\n"
+        '#svc name=bravo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BRAVO_API_KEY=y\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "alpha",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://a.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]  # ONE result for two units
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    monkeypatch.setattr(
+        cs, "fanout", lambda *a, **k: (list(res), "")
+    )  # the pool answers ONE of two units
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "alpha" in out and "bravo" not in out, out

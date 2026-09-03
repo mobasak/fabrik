@@ -299,13 +299,17 @@ def test_a_git_show_that_fails_structurally_is_not_a_deletion(monkeypatch) -> No
 
     class _P:
         returncode = 128
-        stdout = ""
-        stderr = "fatal: .git/index: index file smaller than expected"
+        stdout = b""
+        stderr = b"fatal: .git/index: index file smaller than expected"
 
     monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _P())
     with pytest.raises(mod.GitUnavailableError):
         mod._staged_head("scripts/thing.py")
-    _P.stderr = "fatal: path 'scripts/thing.py' exists on disk, but not in the index"
+    _P.returncode, _P.stdout, _P.stderr = (
+        0,
+        b":scripts/thing.py missing\n",
+        b"",
+    )  # cat-file's own "no stage-0 blob" answer (EZ6)
     assert mod._staged_head("scripts/thing.py") is None
 
 
@@ -572,4 +576,98 @@ def test_a_sentinel_with_a_full_stop_is_still_the_sentinel(tmp_path: Path) -> No
     """`# AFTER-EDIT: none.` — the period promoted `none.` to a coupled FILE (a `.` is a path
     shape), a false WARN on every edit forever (EY2)."""
     repo = _repo(tmp_path, "# AFTER-EDIT: none.\nx = 1\n")
+    assert "WARNING" not in _run(repo, "scripts/thing.py")
+
+
+def test_the_index_not_the_working_tree_decides_what_is_inspected(tmp_path: Path) -> None:
+    """`git add` then `rm` (an AD state): the staged blob is COMMITTED yet the check read the
+    missing worktree file as "a deletion" and printed a clean 0-of-1; a script rewritten as a
+    symlink after `git add` skipped a real staged violation (EZ6)."""
+    repo = _repo(tmp_path, "x = 1\n")  # headerless
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py"], check=True)
+    (repo / "scripts" / "thing.py").unlink()
+    out = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert "scripts/thing.py: no `# AFTER-EDIT:` header" in out.stdout + out.stderr, out.stdout
+    repo2 = _repo(tmp_path / "two", "# AFTER-EDIT: docs/other.md\nx = 1\n")
+    subprocess.run(["git", "-C", str(repo2), "add", "scripts/thing.py"], check=True)
+    (repo2 / "scripts" / "thing.py").unlink()
+    (repo2 / "scripts" / "thing.py").symlink_to("/etc/hostname")
+    out2 = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo2, capture_output=True, text=True, timeout=60
+    )
+    assert "not updated in this change: docs/other.md" in out2.stdout + out2.stderr, out2.stdout
+
+
+def test_one_unanswerable_path_keeps_every_other_scripts_finding(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A per-file GitUnavailableError aborted the loop and discarded the warnings already
+    collected for the other staged scripts (EZ6)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_script_headers_under_test", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(
+        mod,
+        "_git",
+        lambda args, sep="\n": ["scripts/a.py", "scripts/b.py"]
+        if args[0] == "diff"
+        else (
+            ["100644 x 0\tscripts/a.py", "100644 x 0\tscripts/b.py"]
+            if args[0] == "ls-files"
+            else [str(tmp_path)]
+        ),
+    )
+
+    def show(path):
+        if path.endswith("b.py"):
+            raise mod.GitUnavailableError("git show :scripts/b.py: exit 128: fatal: bad object")
+        return "x = 1\n"
+
+    monkeypatch.setattr(mod, "_staged_head", show)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert (
+        "scripts/a.py: no `# AFTER-EDIT:` header" in out
+        and "scripts/b.py: git did not answer" in out
+    ), out
+
+
+def test_a_directory_token_without_its_slash_is_satisfied_by_a_staged_file_under_it(
+    tmp_path: Path,
+) -> None:
+    """`# AFTER-EDIT: docs` (a real directory, no trailing slash) could never be closed by any
+    staging action — the prefix branch required the slash (EZ6)."""
+    repo = _repo(
+        tmp_path, "# AFTER-EDIT: docs/sub\nx = 1\n"
+    )  # a `/` makes it a path token (a bare `docs` is prose, EA2)
+    (repo / "docs" / "sub").mkdir()
+    (repo / "docs" / "sub" / "x.md").write_text("# x\n", encoding="utf-8")
+    assert "WARNING" not in _run(repo, "scripts/thing.py", "docs/sub/x.md")
+
+
+def test_a_non_utf8_path_under_an_eight_bit_locale_is_not_a_traceback(tmp_path: Path) -> None:
+    """`_git` decoded `-z` output with the locale codec and no `errors=`: a non-ASCII staged path
+    under `LANG=C` (coercion off) was a UnicodeDecodeError out of a warn-only check (EZ6)."""
+    import os
+
+    repo = _repo(tmp_path, "x = 1\n")
+    (repo / "scripts" / "naïve.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "scripts/thing.py", "scripts/naïve.py"], check=True
+    )
+    env = {**os.environ, "LANG": "C", "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
+    proc = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60, env=env
+    )
+    assert proc.returncode == 0 and "Traceback" not in proc.stderr, proc.stderr
+    assert "scripts/thing.py: no `# AFTER-EDIT:` header" in proc.stdout, proc.stdout
+
+
+def test_a_double_full_stop_sentinel_is_still_the_sentinel(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "# AFTER-EDIT: none..\nx = 1\n")
     assert "WARNING" not in _run(repo, "scripts/thing.py")

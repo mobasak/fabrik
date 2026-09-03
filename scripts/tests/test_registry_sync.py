@@ -982,3 +982,35 @@ def test_parse_fails_closed_on_a_svc_line_that_merely_starts_like_one(tmp_path):
     )
     with pytest.raises(ValueError):
         rs.parse(f)
+
+
+def test_a_trailing_space_on_a_svc_line_is_not_a_second_provider(tmp_path):
+    """`fullmatch` (EY3) rejected a hand-edited line with trailing whitespace as if it were the
+    concatenation it guards against — a whole-sync failure for a stray space (EZ4)."""
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        '#svc name=test_zzz_foo category=infra cost=paid capability="a" url=https://a.example status=active used_by=p  \n'
+        "FOO_API_KEY=aaaa\n",
+        encoding="utf-8",
+    )
+    provs = rs.parse(f)
+    assert [p["meta"]["name"] for p in provs] == ["test_zzz_foo"], provs
+
+
+def test_main_reports_an_unreadable_svc_line_as_one_typed_line(tmp_path, monkeypatch, capsys):
+    """`main()` had no handler around `sync_registry()`: a bad `#svc` line or a bounded-prune
+    refusal was a raw traceback where `gen_dashboard` prints one typed line (EZ4)."""
+    import sys as _sys
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        '#svc name=test_zzz_a category=infra cost=free tier capability="a" url=https://a.example status=active used_by=p\n'
+        "A_API_KEY=aaaa\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rs, "ALL_ENVS", f)
+    monkeypatch.setattr(_sys, "argv", ["registry_sync.py"])
+    assert rs.main() == 1
+    assert "ERROR: registry sync refused" in capsys.readouterr().err

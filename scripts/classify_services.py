@@ -111,6 +111,20 @@ class _MissingResult:
     status = "error"
 
 
+def pad_results(names: list[str], results: list) -> list:
+    """fanout's 1:1 contract broken (a live class: fewer results than dispatched) — the missing
+    providers are transport failures (retry next lap), never a ValueError out of `zip` after the
+    cursor already moved past the slice (EY5); padded ONCE for every consumer (EZ3)."""
+    results = list(results)
+    if len(results) < len(names):
+        print(
+            f"pool returned {len(results)} of {len(names)} results — {len(names) - len(results)} providers retry next lap",
+            file=sys.stderr,
+        )
+        results += [_MissingResult()] * (len(names) - len(results))
+    return results
+
+
 def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], set[str]]:
     """Split pool results into (proposals, errored).
 
@@ -124,16 +138,7 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
     and gets stubbed; otherwise it would re-bill a paid pool call on every daily run forever."""
     proposals: dict[str, dict] = {}
     errored: set[str] = set()
-    results = list(results)
-    if len(results) < len(names):
-        # fanout's 1:1 contract broken (a live class: fewer results than dispatched) — the missing
-        # providers are transport failures (retry next lap), never a ValueError out of zip after
-        # the cursor already moved past the slice (EY5)
-        print(
-            f"pool returned {len(results)} of {len(names)} results — {len(names) - len(results)} providers retry next lap",
-            file=sys.stderr,
-        )
-        results += [_MissingResult()] * (len(names) - len(results))
+    results = pad_results(names, results)
     for prov, r in zip(names, results, strict=True):
         # a CAPPED unit (max_turns hit) still carries the finalize call's real answer, but the
         # library stamps its hint on `error` — treating that as a failure discarded the answer AND
@@ -376,6 +381,11 @@ def main() -> int:
         "daily path — the code-host scan can enqueue hundreds of hosts at once.",
     )
     args = ap.parse_args()
+    try:
+        gather_envs.load_catalog()  # the same key rules the next gather_envs applies (lowercase, no whitespace): a lap must never accept a catalog the chain's next step refuses (EZ9)
+    except gather_envs.CatalogError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     if not ALL_ENVS.exists():
         print(f"{ALL_ENVS} missing — run scripts/gather_envs.py --apply first", file=sys.stderr)
@@ -465,6 +475,9 @@ def main() -> int:
         recover_caps=False,  # a zero-output cap is a retry next lap (the strike path); the library's sequential re-dispatch would add one full 1800 s wall clock per cap on top of the step budget (DO1)
     )
 
+    results = pad_results(
+        names, results
+    )  # the flywheel loop below re-zips strictly — a short list crashed it after build_proposals had padded its own copy (EZ3)
     proposals, errored = build_proposals(names, results)
     # the run's pool spend, printed and persisted: the first production run billed 10 units and no
     # log, alert or dashboard carried a cost figure (DI3)

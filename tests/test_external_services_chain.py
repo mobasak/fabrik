@@ -982,3 +982,15 @@ def test_both_callers_parse_and_alert_when_the_chain_never_started(tmp_path):
             out,
         )
         assert "exit 127" in out, (name, out)
+
+
+def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_line(
+    monkeypatch, capsys, tmp_path
+):
+    """EY6 wrapped `load()` only; a row shape `render()` cannot take (a column drift) was still a
+    raw traceback (EZ4)."""
+    gd = _load_gen_dashboard()
+    monkeypatch.setattr(gd, "load", lambda: [{"provider": "x"}])  # every other key absent
+    assert gd.main([str(tmp_path / "dash.html")]) == 1
+    assert "ERROR: registry unreadable" in capsys.readouterr().out
+    assert not (tmp_path / "dash.html").exists()
