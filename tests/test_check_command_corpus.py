@@ -934,6 +934,33 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     (tmp_path / "dirmod" / "libs" / "subagents" / "web_tools.py").mkdir(parents=True)
     (tmp_path / "dirmod" / "libs" / "__init__.py").write_text("", encoding="utf-8")
     (tmp_path / "dirmod" / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+    # a DANGLING symlink at the module path is PRESENT and broken — never "absent" (EI1)
+    _fake_hub(tmp_path / "dangling", None)
+    (tmp_path / "dangling" / "libs" / "subagents").mkdir(parents=True)
+    (tmp_path / "dangling" / "libs" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "dangling" / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "dangling" / "libs" / "subagents" / "web_tools.py").symlink_to(
+        "/nonexistent/gone.py"
+    )
+    # an unreadable PARENT directory: `exists()` itself raises — the target's own defect (EI1)
+    _fake_hub(tmp_path / "nopermdir", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    (tmp_path / "nopermdir" / "libs" / "subagents").chmod(0)
+    # a corrupt bytecode cache with a healthy source: EOFError inside frozen importlib, no path,
+    # no filename — the last real frame is the checker itself, so it is the target's (EI1)
+    _fake_hub(tmp_path / "corruptpyc", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    import importlib.util
+    import py_compile
+
+    src = tmp_path / "corruptpyc" / "libs" / "subagents" / "web_tools.py"
+    pyc = Path(importlib.util.cache_from_source(str(src)))
+    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
+    pyc.write_bytes(pyc.read_bytes()[:20])
+    # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
+    # the frame — web_tools.py — is the truth: a BLOCK (EI1)
+    _fake_hub(
+        tmp_path / "missingcfg",
+        'open("definitely_missing_cfg_xyz.yaml")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
     # a real collection that is not a set literal — dict keys — is ACCEPTED: predicate 1 runs
     # and flags the bait (EG1; the consumer's `name in WEB_TOOL_NAMES` accepts it too)
     _fake_hub(tmp_path / "dictkeys", '_REG = {"web_search": 1}\nWEB_TOOL_NAMES = _REG.keys()\n')
@@ -957,7 +984,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -971,7 +998,17 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "print(json.dumps(out))\n",
         encoding="utf-8",
     )
-    r = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=120)
+    nopermdir_unreadable = not os.access(
+        tmp_path / "nopermdir" / "libs" / "subagents", os.R_OK
+    )  # measured BEFORE the mode is restored below
+    try:
+        r = subprocess.run(
+            [sys.executable, str(driver)], capture_output=True, text=True, timeout=120
+        )
+    finally:
+        (tmp_path / "nopermdir" / "libs" / "subagents").chmod(
+            0o755
+        )  # pytest's tmp cleanup must be able to remove it
     assert r.returncode == 0, r.stdout + r.stderr
     out = json.loads(r.stdout.strip().splitlines()[-1])
     # the hub with a raising module: a BLOCKING problem naming the exception, no skip, and the
@@ -1095,10 +1132,36 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         ), out["noperm"]
         assert out["noperm"]["skipped"] == [], out["noperm"]
     assert any(
-        "web_tools.py is present but unusable (libs/subagents/web_tools.py is not a regular file)"
-        in p
+        "web_tools.py is present but unusable (not a regular file" in p
         for p in out["dirmod"]["problems"]
     ), out["dirmod"]
+    # a dangling symlink: present and broken, never "absent"
+    assert any(
+        "web_tools.py is present but unusable (not a regular file" in p
+        for p in out["dangling"]["problems"]
+    ), out["dangling"]
+    assert out["dangling"]["skipped"] == [], out["dangling"]
+    # an unreadable parent: a BLOCK naming the PermissionError, no traceback, no absolute path
+    if nopermdir_unreadable:  # root reads anything — the shape is unreachable there
+        assert any(
+            "web_tools.py is present but unusable (PermissionError" in p
+            for p in out["nopermdir"]["problems"]
+        ), out["nopermdir"]
+        unusable = [p for p in out["nopermdir"]["problems"] if "present but unusable" in p]
+        assert unusable and not any(str(tmp_path) in p for p in unusable), out[
+            "nopermdir"
+        ]  # the exception's quoted path is scrubbed
+    # a corrupt bytecode cache: a BLOCK on the target, blamed via the checker's own frame
+    assert any(
+        "web_tools.py is present but unusable (EOFError" in p for p in out["corruptpyc"]["problems"]
+    ), out["corruptpyc"]
+    assert out["corruptpyc"]["skipped"] == [], out["corruptpyc"]
+    # a missing data file opened at import: the module's own failure — a BLOCK
+    assert any(
+        "web_tools.py is present but unusable (FileNotFoundError" in p
+        for p in out["missingcfg"]["problems"]
+    ), out["missingcfg"]
+    assert out["missingcfg"]["skipped"] == [], out["missingcfg"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1247,6 +1310,11 @@ def test_display_path_is_cwd_independent_and_never_absolute(tmp_path, monkeypatc
             ccc._display_path(str(tmp_path / "site" / "dep.py"), repo)
             == "dep.py (outside the repo)"
         )
+    # the RESOLVED branch: a blame given through a symlinked alias of the repo, the repo given
+    # resolved — the literal `relative_to` fails, the resolved one places it (pass 52)
+    alias = tmp_path / "alias"
+    alias.symlink_to(repo, target_is_directory=True)
+    assert ccc._display_path(str(alias / "libs" / "x.py"), repo.resolve()) == "libs/x.py"
 
 
 def test_same_file_is_identity_and_survives_an_unresolvable_blame(tmp_path):
@@ -1283,6 +1351,17 @@ def test_blame_for_uses_any_exception_filename_that_names_a_real_file(tmp_path):
         compile("def (:", "<string>", "exec")
     except SyntaxError as exc:
         assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
+    # a filename that does not exist, or a real NON-.py (a data file the module opened): the frame
+    try:
+        raise FileNotFoundError(2, "No such file", str(tmp_path / "gone.py"))
+    except FileNotFoundError as exc:
+        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
+    data = tmp_path / "cfg.yaml"
+    data.write_text("", encoding="utf-8")
+    try:
+        raise PermissionError(13, "Permission denied", str(data))
+    except PermissionError as exc:
+        assert ccc._blame_for(exc).endswith("test_check_command_corpus.py")
 
 
 def test_target_is_broken_asks_the_file(tmp_path):
@@ -1299,4 +1378,4 @@ def test_target_is_broken_asks_the_file(tmp_path):
     assert (ccc._target_is_broken(t) or "").startswith("SyntaxError")
     d = tmp_path / "dir.py"
     d.mkdir()
-    assert ccc._target_is_broken(d) == "libs/subagents/web_tools.py is not a regular file"
+    assert ccc._target_is_broken(d) == "not a regular file (a directory, or a dangling symlink)"

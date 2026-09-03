@@ -108,6 +108,24 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] Mailbox second pass 2026-09-03 — the findings that need infra's design or ruling, parked here so they are not re-hunted (owner: infra)
+
+Each row is a filed mail still in the box (`mail.py read <id>`), read in full by the fleet session, judged to need a design decision or a grader-semantics ruling rather than a one-hunk fix. None is refuted; none is dropped.
+
+- **check_convergence semantics cluster** — a plan whose ledger says RE-CONVERGED while its Status says DRAFT exits 0 (01M1H7DY: two-way consistency); an honest RED gate cannot be embedded (01M1HKZA: accept `failure` when every failing check is named); the coverage population is a diff RANGE, so a committed non-converged review flips verdicts as the base moves (01M1GZB5); the embedded gate must be no older than the last ledger row (01M1J02D item 2). One design pass over `check_convergence.py` + `check_review_coverage.py`.
+- **`/fabrik-execute-plan` D2 pool precondition** — passes on `permissions.allow` while the POOL coder has no shell (01M1GRPM: $0.142, two discarded worktrees); plus the plan-7 dispatcher findings (01M1GXDV: absolute-path gate false-green in worktrees, shared-index priming, unvalidated lock base, `ack:no` blocking asks). A dispatcher spec, not a hunk.
+- **`check_schema_sync.py` for TypeScript/YAML entity surfaces** (01M1JHZ2) — declare entity surfaces per project; the data-contract coupling is prose-only on every Astro/Zod project.
+- **`check_plan_tickets.py` grammar** — Gate-vs-Touches containment, Depends-vs-Interfaces coverage, `path::symbol` citations (01M1GNGS items 3–5).
+- **`check_doc_links.py`** — extension widening to mjs/ts/tsx/js (01M1H0YY, 01M1G8CR option C — WILL red gates fleet-wide, land advisory first), dead-anchor resolution against heading slugs (01M1KDTV finding 1), `path:NN` validation inside docs (01M1JF7Y — partly covered by `check_citations_resolve.py --changed` on reference docs). The link-base marker (option A) landed; these are the rest.
+- **`final_gate.py` running vendored test dirs** (01M1HRWT) — `_uninvoked_test_dirs()` already names them; running them can red every project that vendors a red suite. Blast radius needs a ruling.
+- **`check_index_md.py` unwired and failing** (01M1KDTV finding 3) — wire advisory-first or retire.
+- **Route detector redesign** (01M1H61P — fleet's own filing): `check_doc_sync._has_route_change` is content-based; a path-based or literal-aware detector is a design choice.
+- **Python runtime pin drift** (01M1KCXY): packs pin 3.13, the scaffold image is 3.12, upstream stable is 3.14 — a fleet runtime decision (rules-pass owner), not a one-line edit.
+- **`fanout()` drops completed units** (01M1HVS3) and the pool `research` empty units (01M1GVW3 item 2) — `libs/subagents`, a sibling's live WIP today; intel's beat.
+- **Governance-sync floor policy** (01M1H1V2 c): whether the floor may WRITE into a repo whose own rules ignore `.env` but not `.venv/` — the worktree adoption and the message are fixed; the policy is yours.
+- **Stop-hook `waiting-on` state** (01M1GNKP item 2) and a MACHINERY-note duty when a brief names a tool the agent lacks (01M1J1WV systemic) — measure before building.
+- **`exa` web_fetch strips angle-bracket URIs from plain-text payloads** (01M1GV6T machinery note) — MCP roster item.
+
 ## [infra] `commands/_fragments/grounding-research.md` is included by NO command (2026-09-03, owner: infra)
 
 Found while draining infra's box: `grep -rl 'grounding-research' commands/` → only the fragment itself; no `{{include:grounding-research}}` in any of the 32 sources and no reference in `assemble_commands.py`. A fragment nothing renders is text that cannot bind anything — either wire it into the research commands (`fabrik-rivals`/`fabrik-spec` include `grounding-rules`/`subagents-core`, not this) or retire it. The 'a single-shot pool grounder MUST be told to fetch' rule from 01M1GSR9 went into `subagents-core.md` instead, which those commands DO include. Parked by the fleet session 2026-09-03.

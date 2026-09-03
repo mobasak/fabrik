@@ -98,12 +98,18 @@ as it does for the sibling Script Coupling Header row, so a green row never carr
 content-free line fleet-wide); the ⚠ lines always print on both exits — first on the passing exit
 (the `--json` `warnings` array admits only ⚠-first output), after the `✗` block on the failing one.
 The target's OWN health is asked of the file before the import — one read and one `compile()` —
-so a NUL-corrupted, unreadable, directory-shaped or syntactically broken `web_tools.py` is a hub
-problem with certainty, never a verdict inferred from a traceback. A failure the file did not cause
+so a NUL-corrupted, unreadable, directory-shaped, dangling-symlinked or syntactically broken
+`web_tools.py` — or one whose parent directory cannot be read — is a hub problem with certainty,
+never a verdict inferred from a traceback (certainty about the SOURCE's health; the names the
+predicate then uses come from the import, so a bytecode cache whose header still matches a
+same-second, same-size rewrite is the measured residual — 0 today). A failure whose last real
+frame is the checker itself (a corrupt bytecode cache: EOFError inside frozen importlib) is the
+target's too — the only import in the checker is the target's. A failure the file did not cause
 is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
 renamed constant names the target; a broken sibling's import names the sibling); any exception
-whose `filename` names a real file by that (a compile-time SyntaxError in a sibling strips the
-import frames; a PermissionError carries the file it could not open); everything else by the last
+whose `filename` names a real `.py` by that (a compile-time SyntaxError in a sibling strips the
+import frames; a PermissionError carries the file it could not open — a DATA file the module
+opened is the module's own failure and stays with the frame); everything else by the last
 traceback frame (a runtime SyntaxError from `compile()` of a string says `<string>` and keeps its
 frames). The hub decision compares file IDENTITY with `libs/subagents/web_tools.py` — never a name
 suffix (`libs/web_tools.py` is a separate module). The constant must be a non-empty collection of

@@ -146,7 +146,16 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     same process reuses the first's names — one repo per process (0 of 48 callers; DU4).
     """
     target = repo / "libs" / "subagents" / "web_tools.py"
-    if not target.exists():
+    try:
+        # a dangling or looping symlink is PRESENT (a broken vendored link is a hub defect, never
+        # "absent"); an unreadable PARENT makes `exists()` itself raise EACCES — pathlib ignores
+        # only ENOENT/ENOTDIR/EBADF/ELOOP — and that too is the target's own defect (EI1)
+        present = target.exists() or target.is_symlink()
+    except OSError as exc:
+        _IMPORT_FAILURE.append(_scrub(f"{exc.__class__.__name__}: {exc}", repo))
+        _IMPORT_BLAME.append(str(target))
+        return None
+    if not present:
         return None
     broken = _target_is_broken(target)
     if broken:
@@ -158,8 +167,14 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     try:
         from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
     except Exception as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1)
-        _IMPORT_FAILURE.append(f"{exc.__class__.__name__}: {exc}")
-        _IMPORT_BLAME.append(_blame_for(exc))
+        _IMPORT_FAILURE.append(_scrub(f"{exc.__class__.__name__}: {exc}", repo))
+        blame = _blame_for(exc)
+        if _same_file(blame, Path(__file__)):
+            # the only import statement in THIS file is the target's: a failure whose last real
+            # frame is the checker itself (a corrupt bytecode cache → EOFError inside frozen
+            # importlib, no path, no filename) is the target's (EI1)
+            blame = str(target)
+        _IMPORT_BLAME.append(blame)
         return None
 
     shape = _shape_problem(WEB_TOOL_NAMES)
@@ -179,10 +194,16 @@ def _target_is_broken(target: Path) -> str | None:
     still fail at import (a raise, a renamed constant, a broken sibling) — that is
     `_blame_for`'s job."""
     if not target.is_file():
-        return "libs/subagents/web_tools.py is not a regular file"
+        return "not a regular file (a directory, or a dangling symlink)"
     try:
         compile(target.read_bytes(), str(target), "exec")
-    except (OSError, ValueError, SyntaxError) as exc:
+    except (
+        OSError,
+        ValueError,
+        SyntaxError,
+        RecursionError,
+        MemoryError,
+    ) as exc:  # a pathological source must not take the gate down either (EI1)
         return f"{exc.__class__.__name__}: {exc}"
     return None
 
@@ -199,10 +220,25 @@ def _blame_for(exc: BaseException) -> str:
     if path:
         return str(path)
     fn = getattr(exc, "filename", None)
-    if isinstance(fn, str) and fn and not fn.startswith("<") and Path(fn).is_file():
+    # a `.py` only: a module that fails opening a DATA file at import carries that file's name,
+    # and it is the module's own failure — the frame (the module) is the truth there (EI1)
+    if isinstance(fn, str) and fn.endswith(".py") and not fn.startswith("<") and Path(fn).is_file():
         return fn
     tb = traceback.extract_tb(exc.__traceback__)
+    # the last frame that names a REAL file: the import machinery's own frames (`<frozen
+    # importlib._bootstrap_external>`) sit below the importer and name nothing (EI1)
+    for frame in reversed(tb):
+        if not frame.filename.startswith("<"):
+            return frame.filename
     return tb[-1].filename if tb else ""
+
+
+def _scrub(text: str, repo: Path) -> str:
+    """An exception's text quotes absolute paths (`Permission denied: '/home/…/web_tools.py'`);
+    a synced check's stdout never carries a path under the operator's home (EI1)."""
+    for root in {str(repo), str(repo.resolve())}:
+        text = text.replace(root + "/", "")
+    return text
 
 
 def _shape_problem(value: object) -> str | None:

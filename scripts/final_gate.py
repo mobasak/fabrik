@@ -309,6 +309,17 @@ WARN_ONLY_CHECKS: set[str] = {
 }
 
 
+def _summarize_skipped(rows: list[tuple[str, bool, str]]) -> dict[str, object]:
+    """The rows whose tool was NOT INSTALLED: green by contract (a missing tool never traps an
+    agent) but never RUN. `status: success, passed: 55` said nothing about the two configured
+    scanners that did not execute (seo 01M1KDTV, brand-identity-creator 01M1HJQD, 2026-09-02/03);
+    a CI job or an agent reading the JSON can now ask "did every configured check run?"."""
+    names = [
+        name.split(" (NOT INSTALLED")[0] for name, _ok, _out in rows if "NOT INSTALLED" in name
+    ]
+    return {"skipped": len(names), "skipped_checks": names}
+
+
 def run_optional_check(
     script_path: str,
     check_name: str,
@@ -1185,6 +1196,19 @@ def run_consistency_checks(
         run_optional_check(
             "scripts/enforcement/check_rule_grounding.py",
             "Rule grounding (plans)",
+            warn_only=True,
+        )
+    )
+    # Do `path:line` citations LAND? Every other spec/plan claim has an executable check; a
+    # citation had none, so a plausible anchor passed review while pointing at a blank line
+    # (10 in one converged plan set, 01M1GNGS; 4 wrong ranges in one spec, 01M1J2TP; 8 stale in
+    # one doc, 01M1JF7Y). ADVISORY: fire rate unmeasured fleet-wide (FIX DIRECTIVE 5).
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_citations_resolve.py",
+            "Citations resolve (path:line lands)",
+            "--changed",
+            "--quiet",
             warn_only=True,
         )
     )
@@ -2454,6 +2478,7 @@ def main() -> int:
             "tier": tier,
             "passed": passed_count,
             "failed": len(failed),
+            **_summarize_skipped(all_results),
             "advisory": advisory_rows,
             "blocking": passed_count - len(advisory_rows),
             "failures": [
