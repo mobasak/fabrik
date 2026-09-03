@@ -1116,5 +1116,85 @@
     "url": "?",
     "status": "unidentified",
     "match": []
+  },
+  "argusmedia": {
+    "category": "media-stock",
+    "cost": "paid",
+    "capability": "Independent energy and commodities price reporting agency",
+    "url": "https://www.argusmedia.com",
+    "status": "active",
+    "match": []
+  },
+  "artificialanalysis": {
+    "category": "research-data",
+    "cost": "paid",
+    "capability": "platform for benchmarking and analyzing AI models",
+    "url": "https://artificialanalysis.ai",
+    "status": "active",
+    "match": []
+  },
+  "assemblyai": {
+    "category": "ai-audio",
+    "cost": "freemium",
+    "capability": "AI audio transcription, speech-to-text, and audio intelligence",
+    "url": "https://www.assemblyai.com",
+    "status": "active",
+    "match": []
+  },
+  "astm": {
+    "category": "research-data",
+    "cost": "freemium",
+    "capability": "Standards development and technical publishing",
+    "url": "https://www.astm.org",
+    "status": "active",
+    "match": []
+  },
+  "archive": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "ardot": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "asphaltinstitute": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "asphaltpavement": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "assanport": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "asyaport": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
   }
 }

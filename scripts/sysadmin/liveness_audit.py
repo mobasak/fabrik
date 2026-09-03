@@ -2086,14 +2086,15 @@ def main(argv: list[str] | None = None) -> int:
     # brace — never LOG_STAMP-shaped, the self-surface UNKNOWN forever (DC1)
     try:
         print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
-    except (
-        BrokenPipeError
-    ):  # `| head`: the reader is gone — the stamp below stays reachable, exit 0 (DE2)
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    except OSError:  # a closed reader (`| head`) or a full disk (ENOSPC): the report is undeliverable — the stamp below is still owed to a stderr that works (DE2/DG1)
+        pass
     # the auditor's OWN heartbeat: one LOG_STAMP-shaped line on stderr (the cron appends 2>&1), so
     # the `liveness-audit` surface can age it — the installed weekly line's only scheduled attempt failed
     # with nothing watching the watcher (review 2026-09-03, DA1)
-    print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr)
+    try:
+        print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr, flush=True)
+    except OSError:  # stderr is the same dead pipe (`2>&1 | head`): park it so the exit-time flush cannot fail either (DG1)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stderr.fileno())
     return 1 if (args.strict and (report.failures() or report.crashed())) else 0
 
 

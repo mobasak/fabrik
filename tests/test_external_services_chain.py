@@ -161,6 +161,14 @@ def test_liveness_registry_declares_the_chain_heartbeat():
     assert re.search(
         r'PROPOSED_CRON = \(\n\s*"[\d*/, \-]+ cd /opt/fabrik &&(?: exec)? \.venv/bin/python ', la
     ), "the proposed cron line must cd into the repo first — a relative .venv path is what broke it"
+    # the doc's fenced "install this verbatim" line and the script's constant are two sources of
+    # truth for the one line DA1 is still open on — bound here (DG2)
+    proposed = re.search(r'PROPOSED_CRON = \(\n((?:\s*"[^"]*"\n)+)\s*\)', la)
+    assert proposed, "PROPOSED_CRON literal"
+    constant = "".join(re.findall(r'"([^"]*)"', proposed.group(1)))
+    doc = (REPO / "docs" / "workstation" / "liveness.md").read_text(encoding="utf-8")
+    fenced = re.search(r"```cron\n([^\n]+)\n```", doc)
+    assert fenced and fenced.group(1) == constant, (fenced and fenced.group(1), constant)
 
 
 def _load_gen_dashboard():

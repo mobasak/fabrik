@@ -868,13 +868,7 @@ def _big_registry(tmp_path, n: int):
     return reg
 
 
-def test_a_closed_stdout_never_raises_and_the_stamp_still_lands(tmp_path):
-    """`--json | head`: with the report flushed inside `main` (DC1) a closed reader raised
-    BrokenPipeError out of `main` — a traceback, exit 1, and NO stamp — while the doc promises the
-    audit "exits 0 by default and never raises". The reader is gone: stdout is parked on /dev/null
-    and the stderr stamp still lands (DE2). A report far larger than the pipe buffer forces the
-    EPIPE."""
-    reg = _big_registry(tmp_path, 300)
+def _run_audit(tmp_path, reg, **popen):
     argv = [
         sys.executable,
         la.__file__,
@@ -886,13 +880,47 @@ def test_a_closed_stdout_never_raises_and_the_stamp_still_lands(tmp_path):
         "heartbeat",
         "--json",
     ]
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return subprocess.Popen(argv, **popen)
+
+
+def test_a_closed_stdout_never_raises_and_the_stamp_still_lands(tmp_path):
+    """`--json | head`: with the report flushed inside `main` (DC1) a closed reader raised
+    BrokenPipeError out of `main` — a traceback, exit 1, and NO stamp — while the doc promises the
+    audit "exits 0 by default and never raises" (DE2). The reader leaves after 16 bytes; the report
+    is large enough that its write is not one syscall, so the EPIPE lands mid-write (DG1)."""
+    reg = _big_registry(tmp_path, 300)
+    proc = _run_audit(tmp_path, reg, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert proc.stdout is not None and proc.stderr is not None
     proc.stdout.read(16)
     proc.stdout.close()  # the reader leaves — every later write is EPIPE
-    err = proc.stderr.read().decode("utf-8", "replace")
+    with proc.stderr:
+        err = proc.stderr.read().decode("utf-8", "replace")
     assert proc.wait(timeout=300) == 0, err
     assert "Traceback" not in err and "BrokenPipeError" not in err, err
+    lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
+    assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+
+
+def test_a_dead_merged_pipe_and_a_full_disk_never_raise_either(tmp_path):
+    """DE2 guarded only the stdout leg against BrokenPipeError: `--json 2>&1 | head` (stderr is the
+    same dead pipe) still exited 120 with the stamp lost, and `> /dev/full` (ENOSPC — the cron's own
+    `>> log` shape on a full disk) raised out of `main` with a traceback and no stamp (DG1). Both
+    exit 0; on a full disk the stamp still lands on stderr."""
+    reg = _big_registry(tmp_path, 300)
+    proc = _run_audit(tmp_path, reg, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert proc.stdout is not None
+    proc.stdout.read(16)
+    proc.stdout.close()
+    assert proc.wait(timeout=300) == 0
+    with open(os.devnull if not os.path.exists("/dev/full") else "/dev/full", "w") as full:
+        if full.name == os.devnull:
+            pytest.skip("no /dev/full on this box")
+        proc = _run_audit(tmp_path, reg, stdout=full, stderr=subprocess.PIPE)
+        assert proc.stderr is not None
+        with proc.stderr:
+            err = proc.stderr.read().decode("utf-8", "replace")
+    assert proc.wait(timeout=300) == 0, err
+    assert "Traceback" not in err, err
     lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
     assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
 
@@ -917,6 +945,9 @@ def test_a_marker_echoed_by_the_report_itself_is_not_evidence(tmp_path):
         pytest.skip("Box has no injectable home")
     inst, age, hits = box.marker_age("~/liveness.log", "liveness-audit: report generated")
     assert inst.ok and hits == 2 and age is not None, (inst, age, hits)
+    # the age is the NEWEST stamped line's (2026-09-02), never the oldest — `stamped[-1]` (DG2)
+    newest = la._stamp_age("2026-09-02 06:40:00 x")
+    assert newest is not None and abs(age - newest) < 0.01, (age, newest)
     log.write_text(
         '          "detail": "carries no line with \'liveness-audit: report generated\'",\n',
         encoding="utf-8",
