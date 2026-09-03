@@ -172,14 +172,16 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
             "and would silently rebalance this denominator instead of failing"
         )
 
-    # F8a — "guarded" needs a date on BOTH sides: `is_regression` compares worktree against HEAD, so
-    # a doc dated only in the worktree can never trigger the guard yet was counted as covered. That
-    # is the worktree-vs-HEAD error this very test was written to fix, one level up.
-    dated = sum(
-        1 for rel in paths
-        if refresh_date((repo / rel).read_text(encoding="utf-8-sig", errors="ignore"))
-        and refresh_date(head_text(rel, repo) or "")
-    )
+    # F8a — "guarded" is decided at HEAD, and ONLY at HEAD. `is_regression` compares worktree
+    # against HEAD, so a doc dated only in the WORKTREE can never trigger the guard; requiring the
+    # HEAD date alone already excludes it, which was F8a's whole point.
+    # F9 (infra finding 01M1H1YPHN, 2026-09-03) — the earlier form ALSO required a worktree date,
+    # and that extra term made this count sibling-dependent on a 3-session tree: all 12 staged paths
+    # are pipeline-REGENERATED docs that are routinely dirty, so one sibling's uncommitted edit to a
+    # `Last refresh:` line flipped the denominator and reddened an unrelated session's gate. Measured
+    # live the day this landed: `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` was dirty. A guard
+    # against worktree-derived counts must not itself count off the worktree.
+    dated = sum(1 for rel in paths if refresh_date(head_text(rel, repo) or ""))
 
     doc = (SCRIPTS / "guard_selection_freshness.py").read_text(encoding="utf-8")
     claim = re.search(r"\*\*(\d+) of (\d+) static paths\*\*", doc)
@@ -199,13 +201,9 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
     # guarded files and three non-existent ones and still pass. The identity claim is the point of
     # the paragraph, so grade the identity.
     named = set(re.findall(r"`([^`]+)`", doc[undated.start() : undated.start() + 400]))
-    derived = {
-        rel for rel in paths
-        if not (
-            refresh_date((repo / rel).read_text(encoding="utf-8-sig", errors="ignore"))
-            and refresh_date(head_text(rel, repo) or "")
-        )
-    }
+    # F9 — HEAD-only, for the same reason the count above is: this SET is sibling-dependent
+    # otherwise, and a moved set fails the identity assert just as loudly as a moved number.
+    derived = {rel for rel in paths if not refresh_date(head_text(rel, repo) or "")}
     # the docstring may name a file by basename; compare on basenames to stay readable
     assert {Path(n).name for n in named} >= {Path(d).name for d in derived}, (
         f"docstring names {sorted(named)} as the undated set; derived is {sorted(derived)}"
