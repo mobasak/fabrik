@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
 HEADER_RE = re.compile(r"#\s*AFTER-EDIT:\s*(.+)", re.IGNORECASE)
@@ -31,6 +32,37 @@ HEADER_RE = re.compile(r"#\s*AFTER-EDIT:\s*(.+)", re.IGNORECASE)
 # `run_optional_check` discarded its stdout on exit 0.
 SEPARATORS = re.compile(r"[,|\s]+")
 NONE_VALUES = {"none", "n/a", "na", "-", ""}
+
+
+def _coupled_tokens(listed: str, script: Path) -> list[str]:
+    """The tokens of an `# AFTER-EDIT:` list that name a FILE. A sentinel (`none`, `n/a`), a `·`
+    or a prose word (`(§ fix-first)`) never does (DU2/DW2); a token names a file when it has a
+    path shape (a `/` or a `.`) OR exists on disk — repo-rooted or relative to the script's own
+    directory — so `Makefile` counts and `(§ fix-first)` does not (DY2)."""
+    out: list[str] = []
+    for c in SEPARATORS.split(listed):
+        if not c or c.lower() in NONE_VALUES:
+            continue
+        if "/" in c or "." in c or Path(c).exists() or (script.parent / c).exists():
+            out.append(c)
+    return out
+
+
+def _satisfied(token: str, script: Path, staged_set: set[str]) -> bool:
+    """A coupled token is satisfied by a staged path that equals it repo-rooted OR relative to
+    the script's directory (`tests/test_x.py` beside `scripts/kilo-benchmarks/x.py`), by any
+    staged path under a directory token (`docs/orchestrator/`), or by a glob (`docs/**`). Before
+    this, 8 of 106 hub headers could never be closed by any staging action (DY2)."""
+    for cand in (token, (script.parent / token).as_posix()):
+        if cand in staged_set:
+            return True
+        if "*" in cand and any(fnmatch(s, cand) for s in staged_set):
+            return True
+        if cand.endswith("/") and any(s.startswith(cand) for s in staged_set):
+            return True
+    return False
+
+
 SKIP_PATTERNS = ("tests/", "test_", "_test.py", "__pycache__/", "/__init__.py")
 HEADER_SCAN_LINES = 25
 
@@ -73,17 +105,23 @@ def main() -> int:
     scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
 
     warnings: list[str] = []
+    inspected = 0
     for f in scripts:
         p = Path(f)
-        if not p.exists():  # staged deletion — nothing to check
+        if (
+            not p.exists()
+        ):  # a staged deletion — nothing to check; a dangling symlink lands HERE too
+            if p.is_symlink():
+                warnings.append(f"{f}: dangling symlink — not checked")
             continue
         try:
             head = "\n".join(
                 p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
             )
-        except OSError as exc:  # a staged path that exists but cannot be read (a directory named *.py, a dead symlink): a WARN naming it, never a traceback that FAILS a warn-only gate for the wrong cause (DW2)
+        except OSError as exc:  # a staged path that exists but cannot be read (a permission-denied file): a WARN naming it, never a traceback that FAILS a warn-only gate for the wrong cause (DW2)
             warnings.append(f"{f}: cannot read the header ({exc.__class__.__name__}) — not checked")
             continue
+        inspected += 1
         m = HEADER_RE.search(head)
         if not m:
             warnings.append(
@@ -94,12 +132,8 @@ def main() -> int:
         listed = m.group(1).strip()
         if listed.lower() in NONE_VALUES:
             continue
-        # a coupled file has a path SHAPE (a `/` or a `.`): the `| none` sentinel, `(none)`, a `·`
-        # or a prose word (`(§ fix-first)`) are never files — the token-`none` fix of DU2 closed one
-        # instance; this closes the class (10 of 106 inspectable hub headers still minted a
-        # phantom after it), the rule fabrik-lib's sync-excluded copy already carries (DW2)
-        coupled = [c for c in SEPARATORS.split(listed) if c and ("/" in c or "." in c)]
-        missing = [c for c in coupled if c not in staged_set]
+        coupled = _coupled_tokens(listed, p)
+        missing = [c for c in coupled if not _satisfied(c, p, staged_set)]
         if missing:
             warnings.append(
                 f"{f}: `# AFTER-EDIT:` lists coupled file(s) not updated in this change: "
@@ -119,7 +153,13 @@ def main() -> int:
         # The `not quiet` guard is what keeps this out of every green fleet gate — see the
         # note in main()'s head for the mechanism (it is NOT the ⚠ filter, which guards only
         # the `warnings` array; warn_only stdout ships unfiltered in `advisory`).
-        print(f"OK — {len(scripts)} staged script(s) inspected ({len(staged)} staged file(s)).")
+        # `inspected` counts what was READ — a staged deletion, a dangling symlink and an
+        # unreadable file are skipped above, and "1 inspected" for 0 read was the same
+        # collected-vs-attempted overstatement the corpus gate corrected (DY2)
+        print(
+            f"OK — {inspected} of {len(scripts)} staged script(s) inspected "
+            f"({len(staged)} staged file(s))."
+        )
     return 0  # WARN-only — never blocks the gate
 
 

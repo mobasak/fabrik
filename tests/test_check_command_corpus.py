@@ -790,27 +790,111 @@ def test_the_skipped_predicate_advisory_reaches_stdout(monkeypatch, capsys):
     assert "⚠ predicate skipped — web-tool names" in out, out
 
 
-def test_a_present_but_broken_web_tools_module_degrades_like_an_absent_one(tmp_path):
-    """`_live_web_tool_names` guarded only `exists()`: a module that raises on import, or lost
-    `WEB_TOOL_NAMES`, took the BLOCKING gate down with a raw traceback (DW1). Executed in a fresh
-    interpreter so the fake package is what gets imported."""
+def _fake_hub(root: Path, web_tools_body: str | None) -> Path:
+    """A hub-shaped tree: the assembler (so predicate 1's hub branch runs), one source carrying
+    the bait `["exa"]`, and a `libs/subagents/web_tools.py` whose body the test chooses — or no
+    module at all when `web_tools_body` is None."""
+    (root / "commands" / "_sources").mkdir(parents=True)
+    (root / "commands" / "_fragments").mkdir()
+    (root / "commands" / "assemble_commands.py").write_text("", encoding="utf-8")
+    (root / "commands" / "_sources" / "fabrik-a.md").write_text(
+        '{{include:run-record}}\nfanout("r", web_tools=["exa"])\n', encoding="utf-8"
+    )
+    if web_tools_body is not None:
+        (root / "libs" / "subagents").mkdir(parents=True)
+        (root / "libs" / "__init__.py").write_text("", encoding="utf-8")
+        (root / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
+        (root / "libs" / "subagents" / "web_tools.py").write_text(web_tools_body, encoding="utf-8")
+    return root
+
+
+def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_one_an_advisory(
+    tmp_path,
+):
+    """Round 46 guarded the import and turned a REAL hub defect (a module that raises, a renamed
+    or empty constant after a vendor sync) from a BLOCKING red into a green with an advisory the
+    `--json` mode never showed (DY1). In the hub: unusable ⇒ a problem; absent ⇒ the DU1 advisory
+    — and `_IMPORT_FAILURE` is cleared per audit, so an absent module after a broken one says
+    `absent`, never the previous repo's exception. Three hubs, one fresh interpreter (the package
+    import is cached in `sys.modules`; the driver purges it between hubs, as one process per repo
+    would)."""
+    import json
     import subprocess
 
-    hub = tmp_path / "hub"
-    (hub / "libs" / "subagents").mkdir(parents=True)
-    (hub / "libs" / "__init__.py").write_text("", encoding="utf-8")
-    (hub / "libs" / "subagents" / "__init__.py").write_text("", encoding="utf-8")
-    (hub / "libs" / "subagents" / "web_tools.py").write_text(
-        "raise RuntimeError('broken vendor sync')\n", encoding="utf-8"
+    _fake_hub(tmp_path / "broken", "raise RuntimeError('broken vendor sync')\n")
+    _fake_hub(tmp_path / "empty", "WEB_TOOL_NAMES = frozenset()\n")
+    _fake_hub(tmp_path / "absent", None)
+    driver = tmp_path / "driver.py"
+    driver.write_text(
+        "import json, sys\n"
+        f"sys.path.insert(0, {str(REPO / 'scripts' / 'enforcement')!r})\n"
+        "from pathlib import Path\n"
+        "import check_command_corpus as c\n"
+        "out = {}\n"
+        f"for name in ('broken', 'empty', 'absent'):\n"
+        f"    hub = Path({str(tmp_path)!r}) / name\n"
+        "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
+        "        del sys.modules[k]\n"
+        "    probs = c.audit(hub / 'commands' / '_sources', hub / 'commands' / '_fragments', hub / 'commands' / 'assemble_commands.py', hub, traycer_skills=hub / 'no-orch', agents=hub / 'no-agents')\n"
+        "    out[name] = {'problems': probs, 'skipped': list(c.SKIPPED_PREDICATES), 'failure': list(c._IMPORT_FAILURE)}\n"
+        "print(json.dumps(out))\n",
+        encoding="utf-8",
     )
-    enforcement = str(REPO / "scripts" / "enforcement")
-    code = (
-        f"import sys; sys.path.insert(0, {enforcement!r}); import check_command_corpus as c; from pathlib import Path\n"
-        f"print(c._live_web_tool_names(Path({str(hub)!r})), c._IMPORT_FAILURE)"
-    )
-    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
-    assert r.returncode == 0 and r.stdout.startswith("None ["), r.stdout + r.stderr
-    assert "RuntimeError: broken vendor sync" in r.stdout
+    r = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    # the hub with a raising module: a BLOCKING problem naming the exception, no skip, and the
+    # bait never reaches the "is not a real tool" verdict (the predicate did not run)
+    assert out["broken"]["failure"] == ["RuntimeError: broken vendor sync"], out["broken"]
+    assert any(
+        "present but unusable (RuntimeError: broken vendor sync)" in p
+        for p in out["broken"]["problems"]
+    ), out["broken"]
+    assert out["broken"]["skipped"] == [], out["broken"]
+    assert not any("is not a real tool" in p for p in out["broken"]["problems"]), out["broken"]
+    # an EMPTY constant would otherwise flag every name in the corpus — it is the same defect
+    assert out["empty"]["failure"] == ["WEB_TOOL_NAMES is empty"], out["empty"]
+    assert any(
+        "present but unusable (WEB_TOOL_NAMES is empty)" in p for p in out["empty"]["problems"]
+    ), out["empty"]
+    assert not any("is not a real tool" in p for p in out["empty"]["problems"]), out["empty"]
+    # an ABSENT module after a broken one: the advisory says absent (the failure list was
+    # cleared per audit), and nothing blocks
+    assert out["absent"]["failure"] == [], out["absent"]
+    assert out["absent"]["skipped"] == [
+        "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
+    ], out["absent"]
+    assert not any("web_tools.py" in p for p in out["absent"]["problems"]), out["absent"]
+
+
+def test_quiet_drops_the_clean_denominator_line_and_keeps_every_warning(monkeypatch, capsys):
+    """The gate passes `--quiet` (as it does the sibling header check): the ✓ line would otherwise
+    ship into every green gate run fleet-wide as a content-free advisory row, and the `--json`
+    `warnings` array admits only ⚠-FIRST output — so the ⚠ lines must print under `--quiet`, and
+    print FIRST (DY1)."""
+    import check_command_corpus as ccc
+
+    def fake_audit(*a, **kw):
+        ccc.SKIPPED_PREDICATES[:] = [
+            "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
+        ]
+        ccc.SKIPPED[:] = ["commands/_sources/x.md"]
+        return []
+
+    monkeypatch.setattr(ccc, "audit", fake_audit)
+    ccc.AUDITED.clear()
+    assert ccc.main(["--quiet"]) == 0
+    out = capsys.readouterr().out
+    assert "✓" not in out, out
+    assert out.lstrip().startswith("⚠"), out  # the runner's --json filter: ⚠-first or invisible
+    assert (
+        "⚠ 1 file(s) could NOT be read" in out and "⚠ predicate skipped — web-tool names" in out
+    ), out
+    ccc.SKIPPED.clear()
+    ccc.SKIPPED_PREDICATES.clear()
+    monkeypatch.setattr(ccc, "audit", lambda *a, **kw: [])
+    assert ccc.main(["--quiet"]) == 0
+    assert capsys.readouterr().out == ""  # a clean quiet run prints nothing at all
 
 
 def test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after():

@@ -192,3 +192,76 @@ def test_an_unreadable_staged_script_is_a_warning_not_a_traceback(tmp_path: Path
     assert proc.returncode == 0 and "cannot read the header" in proc.stdout + proc.stderr, (
         proc.stdout + proc.stderr
     )
+
+
+def test_a_slashless_dotted_coupled_file_is_still_enforced(tmp_path: Path) -> None:
+    """The `.` half of the path-shape rule guards precisely the Doc Sync Matrix files
+    (`CHANGELOG.md`, `INDEX.md`, `CLAUDE.md`, `PORTS.md`, `.env.example` — 17 of 217 hub tokens);
+    it was ungraded (DY2)."""
+    # the file is deliberately NOT on disk: an existing file is coupled by `exists()` whatever
+    # its shape, so only a missing dotted name isolates the `.` half (sandbox R6c, pass 47)
+    repo = _repo(tmp_path, "# AFTER-EDIT: CHANGELOG.md\nprint('x')\n")
+    out = _run(repo, "scripts/thing.py")
+    assert "WARNING" in out and "CHANGELOG.md" in out, out
+
+
+@pytest.mark.parametrize(
+    ("header", "extra", "stage"),
+    [
+        # script-relative: `tests/test_thing.py` beside scripts/thing.py
+        (
+            "# AFTER-EDIT: tests/test_thing.py",
+            "scripts/tests/test_thing.py",
+            "scripts/tests/test_thing.py",
+        ),
+        # a glob
+        ("# AFTER-EDIT: docs/**", None, "docs/coupled.md"),
+        # a directory (trailing slash)
+        ("# AFTER-EDIT: docs/", None, "docs/coupled.md"),
+        # `n/a` carries a `/` but is a sentinel, never a file
+        ("# AFTER-EDIT: docs/coupled.md, n/a", None, "docs/coupled.md"),
+    ],
+)
+def test_script_relative_glob_directory_and_sentinel_tokens_can_be_closed(
+    tmp_path: Path, header: str, extra: str | None, stage: str
+) -> None:
+    """8 of 106 hub headers named a coupled file the check could never see staged — a name
+    relative to the script's own directory, a glob, a directory — so their WARN was unclosable by
+    any staging action (DY2); and `n/a` (a `/`) must stay a sentinel."""
+    repo = _repo(tmp_path, f"{header}\nprint('x')\n")
+    if extra:
+        (repo / extra).parent.mkdir(parents=True, exist_ok=True)
+        (repo / extra).write_text("# t\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py", stage)
+    assert "WARNING" not in out, out
+
+
+def test_an_extension_less_file_that_exists_is_a_coupled_file(tmp_path: Path) -> None:
+    """`Makefile` / `Dockerfile` have no path shape; a token that EXISTS on disk names a file
+    whatever its spelling — the drop stays for prose only (DY2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: Makefile\nprint('x')\n")
+    (repo / "Makefile").write_text("all:\n", encoding="utf-8")
+    out = _run(repo, "scripts/thing.py")
+    assert "WARNING" in out and "Makefile" in out, out
+
+
+def test_a_dangling_symlink_is_named_not_counted_as_inspected(tmp_path: Path) -> None:
+    """A dangling symlink fails `exists()` and used to fall through the staged-deletion branch —
+    counted as inspected, warned about nowhere (DY2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\n")
+    (repo / "scripts" / "dead.py").symlink_to("/nonexistent/target")
+    out = _run(repo, "scripts/dead.py")
+    assert "dangling symlink" in out and "inspected" not in out, out  # a WARN, never a clean line
+
+
+def test_the_clean_line_counts_scripts_read_not_scripts_collected(tmp_path: Path) -> None:
+    """A staged deletion is collected, never read: `1 staged script(s) inspected` for 0 read was
+    the collected-vs-attempted overstatement (DY2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\n")
+    _run(repo, "scripts/thing.py")
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    subprocess.run(["git", "-C", str(repo), "rm", "-q", "scripts/thing.py"], check=True)
+    proc = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert proc.returncode == 0 and "0 of 1 staged script(s) inspected" in proc.stdout, proc.stdout

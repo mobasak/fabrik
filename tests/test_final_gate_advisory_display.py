@@ -22,7 +22,6 @@ must fail loudly rather than quietly downgrade a check, which is what
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -151,16 +150,51 @@ def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
     assert payload["blocking"] < payload["passed"], "the split must actually be visible"
 
 
-def test_the_command_corpus_row_keeps_its_advisory_stdout() -> None:
+def test_the_command_corpus_row_is_registered_advisory_and_quiet() -> None:
     """The corpus gate prints `⚠ predicate skipped — …` / `⚠ N file(s) could NOT be read` on an
-    exit-0 run; registered without `advisory=True`, `run_optional_check` discarded that stdout and
-    the row read `[PASS]` with nothing beside it (review 2026-09-03, DW1)."""
-    src = (Path(__file__).resolve().parents[1] / "scripts" / "final_gate.py").read_text(
-        encoding="utf-8"
+    exit-0 run; registered without `advisory=True`, `run_optional_check` discarded that stdout
+    (DW1), and without `--quiet` its ✓ denominator line rode into every green gate fleet-wide and
+    kept the ⚠ lines out of the --json `warnings` array, which admits only ⚠-first output (DY1).
+    Pinned on the AST — a text regex bled into the next registration (pass 47)."""
+    import ast
+
+    tree = ast.parse(
+        (Path(__file__).resolve().parents[1] / "scripts" / "final_gate.py").read_text(
+            encoding="utf-8"
+        )
     )
-    m = re.search(
-        r'run_optional_check\(\s*"scripts/enforcement/check_command_corpus\.py",[\s\S]{0,600}?advisory=True',
-        src,
-        re.S,
+    calls = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Name)
+        and n.func.id == "run_optional_check"
+        and n.args
+        and isinstance(n.args[0], ast.Constant)
+        and n.args[0].value == "scripts/enforcement/check_command_corpus.py"
+    ]
+    assert len(calls) == 1, "exactly one command-corpus registration"
+    call = calls[0]
+    positional = [x.value for x in call.args if isinstance(x, ast.Constant)]
+    assert "--quiet" in positional, positional
+    assert any(
+        k.arg == "advisory" and isinstance(k.value, ast.Constant) and k.value.value is True
+        for k in call.keywords
+    ), [k.arg for k in call.keywords]
+
+
+def test_an_advisory_row_keeps_a_warning_first_stdout_the_json_filter_admits(
+    tmp_path: Path,
+) -> None:
+    """Executed, not pinned: an exit-0 check whose stdout is ⚠-first keeps that stdout under
+    `advisory=True` and loses it without — and the kept text starts with ⚠, the predicate the
+    --json `warnings` array applies (DY1)."""
+    script = tmp_path / "quiet_row.py"
+    script.write_text(
+        "print('⚠ predicate skipped — web-tool names: libs/subagents/web_tools.py absent')\n",
+        encoding="utf-8",
     )
-    assert m, "the command-corpus registration must pass advisory=True"
+    _, passed, message = fg.run_optional_check(str(script), "Quiet Row", advisory=True)
+    assert passed and message.lstrip().startswith("⚠"), message
+    _, passed_plain, message_plain = fg.run_optional_check(str(script), "Plain Row")
+    assert passed_plain and "⚠" not in message_plain, message_plain

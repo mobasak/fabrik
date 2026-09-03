@@ -1629,6 +1629,7 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_command_corpus.py",
                 "Command Corpus (references resolve — BLOCKING)",
+                "--quiet",  # the ✓ denominator line stays out of every green gate run fleet-wide (the sibling Script Coupling Header row does the same); the ⚠ lines still print, and are ⚠-FIRST so the --json `warnings` filter admits them (DY1)
                 advisory=True,  # keeps the check's own ⚠ lines (a skipped predicate, unreadable files) on an exit-0 row — the row stays BLOCKING; without it `run_optional_check` discarded them (review 2026-09-03, DW1)
             )
         )

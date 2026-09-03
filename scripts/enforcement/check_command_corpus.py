@@ -132,8 +132,13 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     Takes ``repo`` as a parameter (same rule as everything else here: the module constant
     poisons any caller that isn't the default one). Returns ``None`` when the module is
     absent, and the caller SKIPS predicate 1 — never an empty set, which would invert the
-    check and flag every name as invalid; and never an import crash, which took a BLOCKING
-    gate down with a ModuleNotFoundError in any repo that never vendored the pool.
+    check and flag every name as invalid (an empty constant is recorded in ``_IMPORT_FAILURE``
+    and returns ``None`` too, DY1); and never an import crash, which took a BLOCKING gate down
+    with a ModuleNotFoundError in any repo that never vendored the pool. ⚠ The caller decides
+    what ``None`` means: in a project the module is absent BY DESIGN (an advisory); in the hub
+    a module that is present but unusable is a DEFECT and must red the gate (DY1). Known:
+    the ``libs.subagents`` package import is cached in ``sys.modules``, so a second repo in the
+    same process reuses the first's names — one repo per process (0 of 48 callers; DU4).
     """
     if not (repo / "libs" / "subagents" / "web_tools.py").exists():
         return None
@@ -145,7 +150,11 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         _IMPORT_FAILURE.append(f"{exc.__class__.__name__}: {exc}")
         return None
 
-    return frozenset(WEB_TOOL_NAMES)
+    names = frozenset(WEB_TOOL_NAMES)
+    if not names:  # a stub constant would flag EVERY name in the corpus as not real (DY1)
+        _IMPORT_FAILURE.append("WEB_TOOL_NAMES is empty")
+        return None
+    return names
 
 
 def _canonical_trailer_model(repo: Path = REPO) -> str | None:
@@ -363,11 +372,19 @@ def audit(
     if valid_tools is None and assembler.exists():
         # the HUB without its vendored pool module: predicate 1 — the founding one — would run
         # zero times and the success line would still name it; a project never vendors the
-        # module and skips by design (DU1)
-        why = f"failed to import ({_IMPORT_FAILURE[-1]})" if _IMPORT_FAILURE else "absent"
-        SKIPPED_PREDICATES.append(
-            f"web-tool names: libs/subagents/web_tools.py {why} — predicate 1 did not run"
-        )
+        # module and skips by design (DU1). A module that is PRESENT but unusable here (a raise
+        # on import, a renamed or empty constant after a vendor sync) is a hub DEFECT: the
+        # round-46 guard turned that from a blocking red into a green with an advisory the
+        # `--json` mode never showed — it is a problem, never a skip (DY1)
+        if _IMPORT_FAILURE:
+            problems.append(
+                f"libs/subagents/web_tools.py is present but unusable ({_IMPORT_FAILURE[-1]}) — "
+                "predicate 1 (web-tool names) could not run in the hub; fix the module, do not skip"
+            )
+        else:
+            SKIPPED_PREDICATES.append(
+                "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
+            )
     known_commands = {p.stem for p in sources.glob("*.md")}
     canonical_model = _canonical_trailer_model(repo)
     orch_doc_set = set(orch_docs)
@@ -660,6 +677,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--selftest", action="store_true", help="prove the predicates can fail (anti-vacuity)"
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="suppress the clean-path ✓ denominator line (the gate passes this: an `advisory` row "
+        "ships its stdout unfiltered into every green gate run fleet-wide, and the --json "
+        "`warnings` array admits only ⚠-first output — the ⚠ lines always print; DY1)",
+    )
     args = parser.parse_args(argv)
     if args.selftest:
         return _selftest()
@@ -676,18 +700,18 @@ def main(argv: list[str] | None = None) -> int:
     audited = len(
         AUDITED
     )  # what the predicates OPENED (corpus + orchestrator docs + wrappers + agent defs), never the collected list alone — 55 printed against 93 read (DS2)
-    print(
-        "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
-        " run records, agent definitions, advertised closes, caller claims —"
-        # the population is what was READ plus what could not be — never the collected list (DU1)
-        f" all sound across {audited} file(s) read"
-        + (
-            f"\n⚠ {len(SKIPPED)} file(s) could NOT be read and were NOT audited "
-            f"(attempted {audited + len(SKIPPED)}): {', '.join(SKIPPED)}"
-            if SKIPPED
-            else ""
+    if not args.quiet:
+        print(
+            "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
+            " run records, agent definitions, advertised closes, caller claims —"
+            # the population is what was READ plus what could not be — never the collected list (DU1)
+            f" all sound across {audited} file(s) read"
         )
-    )
+    if SKIPPED:  # printed under --quiet too — a ⚠ is the point of the row's stdout (DU1/DY1)
+        print(
+            f"⚠ {len(SKIPPED)} file(s) could NOT be read and were NOT audited "
+            f"(attempted {audited + len(SKIPPED)}): {', '.join(SKIPPED)}"
+        )
     for note in SKIPPED_PREDICATES:
         print(f"⚠ predicate skipped — {note}")
     return 0
