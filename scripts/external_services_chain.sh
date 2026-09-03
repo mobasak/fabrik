@@ -24,6 +24,7 @@ set -u
 FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
 VENV_PY="${VENV_PY:-$FABRIK_ROOT/.venv/bin/python}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
+CLASSIFY_TIMEOUT="${CLASSIFY_TIMEOUT:-1800}"  # the paid step: 10 units × up to 7 model calls + web searches, 4 at a time — the generic 900 s was shorter than one unit's own wall clock (DM1)
 LOG_FILE="${LOG_FILE:-/dev/stderr}"
 DASHBOARD="$FABRIK_ROOT/external-services-dashboard.html"
 HEARTBEAT="$FABRIK_ROOT/.tmp/external-services/chain-heartbeat"  # the liveness evidence path (mirrored in .fabrik/liveness-registry.json)
@@ -36,7 +37,9 @@ _alert() {  # $1 title, $2 body, $3 severity
 _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
   local label="$1"; shift
   local t0=$SECONDS
-  timeout -k 30 "$STEP_TIMEOUT" "$@"  # SIGKILL 30 s after SIGTERM: a hung child never outlives the budget (AF13)
+  local budget="$STEP_TIMEOUT"
+  [ "$label" = classify_services ] && budget="$CLASSIFY_TIMEOUT"  # a kill here loses the slice: the cursor moved before the paid dispatch (AC5, by design) — so the budget must cover the units
+  timeout -k 30 "$budget" "$@"  # SIGKILL 30 s after SIGTERM: a hung child never outlives the budget (AF13)
   local rc=$?
   printf '[timing] %s: %ds (exit=%d)\n' "$label" "$((SECONDS - t0))" "$rc"
   if [ "$rc" -ne 0 ]; then
