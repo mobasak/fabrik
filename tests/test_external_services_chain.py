@@ -152,7 +152,9 @@ def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
         line = next(
             ln for ln in src.splitlines() if "bash" in ln and "external_services_chain.sh" in ln
         )
-        assert 'FABRIK_ROOT="$FABRIK_ROOT"' in line, line
+        assert re.search(r'FABRIK_ROOT="?\$FABRIK_ROOT"?', line), (
+            line
+        )  # unquoted inside the hook's `bash -c "…"` string (EZ2)
 
 
 def test_no_second_entry_point_advertises_an_uninstalled_cron():
@@ -927,20 +929,56 @@ def test_gen_dashboard_reports_a_dead_registry_as_one_typed_line(monkeypatch, ca
     assert not (tmp_path / "dash.html").exists()
 
 
-def test_both_callers_alert_when_the_chain_never_started():
-    """`bash chain.sh` exiting 126/127 (missing, not executable) runs NONE of the chain's own
-    alerts, yet both callers said "already alerted". Each caller now alerts that case itself (EY7)."""
-    for src, name in (
-        (DAILY.read_text(encoding="utf-8"), "daily_refresh"),
-        (HOOK.read_text(encoding="utf-8"), "wsl_startup_hook"),
-    ):
-        start = (
-            src.index('bash "$FABRIK_ROOT/scripts/external_services_chain.sh"')
-            if 'bash "$FABRIK_ROOT/scripts/external_services_chain.sh"' in src
-            else src.index("bash $FABRIK_ROOT/scripts/external_services_chain.sh")
+def _caller_block(src: str, start_marker: str, end_marker: str) -> str:
+    start = src.index(start_marker)
+    return src[start : src.index(end_marker, start)]
+
+
+def test_both_callers_parse_and_alert_when_the_chain_never_started(tmp_path):
+    """EXECUTED, not text-matched: the round-60 text grader passed a hook block that did not even
+    PARSE (a `"` inside the outer `bash -c "…"` string broke every interactive shell that sources
+    the hook) and an `_rc=$?` captured inside `if ! cmd; then` — always 0, the 126/127 branch dead
+    in both callers. Each caller's block runs here in a harness whose chain script is MISSING:
+    the stub alert must be called with "did NOT start" and the log line must say exit 127 (EZ2)."""
+    import subprocess
+
+    for path in (DAILY, HOOK):  # each file separately: `bash -n a b` checks only `a`
+        assert (
+            subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True).returncode
+            == 0
+        ), path
+    root = tmp_path / "root"
+    (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
+    stub = root / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
+    stub.write_text(
+        '#!/usr/bin/env bash\nprintf \'%s|%s\\n\' "$1" "$2" >> "$ALERTS"\n', encoding="utf-8"
+    )
+    alerts = tmp_path / "alerts.txt"
+    log = tmp_path / "log.txt"
+    log.write_text("", encoding="utf-8")
+    daily_block = _caller_block(
+        DAILY.read_text(encoding="utf-8"), '  _rc=0\n  _step "external_services_chain"', "\n\n"
+    )
+    hook_block = _caller_block(
+        HOOK.read_text(encoding="utf-8"),
+        "        _rc=0; env LOG_FILE=$LOG_FILE",
+        "        # Auto-commit",
+    ).replace("\\$", "$")
+    for name, block in (("daily_refresh", daily_block), ("wsl_startup_hook", hook_block)):
+        alerts.write_text("", encoding="utf-8")
+        harness = tmp_path / f"{name}.sh"
+        harness.write_text(
+            'set -u\n_step() { local label="$1"; shift; "$@"; }\n'
+            f"FABRIK_ROOT={root}\nKB={root}/scripts/kilo-benchmarks\nLOG_FILE={log}\nexport ALERTS={alerts}\n"
+            + block
+            + "\n",
+            encoding="utf-8",
         )
-        block = src[start : start + 900]
-        assert "126|127" in block and "pipeline_alert.sh" in block and "did NOT start" in block, (
+        proc = subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=60)
+        out = proc.stdout + proc.stderr + log.read_text(encoding="utf-8")
+        assert "did NOT start" in alerts.read_text(encoding="utf-8"), (
             name,
-            block,
+            alerts.read_text(encoding="utf-8"),
+            out,
         )
+        assert "exit 127" in out, (name, out)

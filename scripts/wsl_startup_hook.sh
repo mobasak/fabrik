@@ -203,12 +203,10 @@ if [ ! -f "$LOCK_FILE" ]; then
             || echo '[wsl_startup_hook] freshness check errored (non-fatal)' >> $LOG_FILE
         # The external-services chain — the SAME script daily_refresh.sh runs (added 2026-09-02:
         # the chain was defined only in daily_refresh, so a boot before the 06:00 cron skipped it).
-        if ! env LOG_FILE=$LOG_FILE FABRIK_ROOT="$FABRIK_ROOT" bash $FABRIK_ROOT/scripts/external_services_chain.sh >> $LOG_FILE 2>&1; then
-            _rc=$?
-            case "$_rc" in 126|127)  # bash could not START the chain: none of its own alerts ever ran (EY7)
-                env FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or not executable; nothing inside the chain ran, so its own step alerts never fired." || true ;;
-            esac
-            echo "[wsl_startup_hook] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)" >> $LOG_FILE
+        _rc=0; env LOG_FILE=$LOG_FILE FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/external_services_chain.sh >> $LOG_FILE 2>&1 || _rc=\$?
+        if [ \$_rc -ne 0 ]; then
+            case \$_rc in 126|127) env FABRIK_ROOT=$FABRIK_ROOT bash $FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or not executable; nothing inside the chain ran, so its own step alerts never fired.' || true ;; esac
+            echo '[wsl_startup_hook] external-services chain failed (exit '\$_rc'; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)' >> $LOG_FILE
         fi
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
         # THIS is the daily-dirt fix: this hook regenerates ~14 tracked files every boot and
