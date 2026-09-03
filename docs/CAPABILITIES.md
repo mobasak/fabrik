@@ -153,8 +153,8 @@
 - [scripts/epic_order.py](../INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
 - [scripts/final_gate.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
-- [scripts/gather_envs.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
-- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/gather_envs.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json scripts/tests/test_gather_envs.py scripts/registry_sync.py
+- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/external-services-registry.md tests/test_external_services_chain.py
 - [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 - [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
@@ -162,6 +162,8 @@
 - [scripts/inject_deploy_resources.py](../INDEX.md) (owner: infra): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
 - [scripts/kilo-benchmarks/build_task_baselines.py](../INDEX.md) (owner: intel): AFTER-EDIT: rank_task_subagents.py (retained) engine/rank_coding_subagents.py (ai-model-catalog) libs/subagents/select.py
 - [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](../INDEX.md) (owner: intel): Heartbeat check for daily_refresh.sh — fires an alert when stale.
+- [scripts/kilo-benchmarks/flush_subagent_outboxes.py](../INDEX.md) (owner: intel): AFTER-EDIT: autocommit_pipeline_outputs.sh (none) | daily_refresh.sh (wires this) | tests/test_flush_subagent_outboxes.py
+- [scripts/kilo-benchmarks/reclassify_cap_rows.py](../INDEX.md) (owner: intel): AFTER-EDIT: tests/test_reclassify_cap_rows.py | rank_task_subagents.py (reads the status it writes)
 - [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
 - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
 - [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
@@ -169,7 +171,7 @@
 - [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
-- [scripts/registry_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql
+- [scripts/registry_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql scripts/tests/test_registry_sync.py scripts/gen_dashboard.py
 - [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
 - [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
@@ -198,6 +200,7 @@
 - [scripts/traycer_mirror.py](../INDEX.md) (owner: infra): traycer_mirror.py — mirror a disk artifact into the Traycer store so the
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): Traycer Report Writer
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
 - [scripts/vps_sync.py](../INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
 
 ## lib-module
