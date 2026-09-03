@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — three gate/scaffold defects from infra's queue: dockerignore, a localhost false positive, a route detector that graded the file instead of the change (2026-09-03)
+
+- Operator handed me infra's mailbox while they are busy. Three fixes, each with a grader proven red on
+  revert; two of them are on FLEET-SYNCED enforcement scripts, so both were measured for blast radius first.
+- `scaffold.py::_ensure_dockerignore` (NEW, called once before the initial commit): the scaffolder wrote a
+  `.dockerignore` for 3 of the ~10 Dockerfile-bearing types and skipped 7, while 8 emitted Dockerfiles do
+  `COPY . .` and the VPS deploys by `git pull` into a LONG-LIVED working tree — so a gitignored `.env`,
+  `node_modules/` or `dist/` surviving a pull is baked into the image. Emitted once for whatever the project
+  actually produces, at the BUILD CONTEXT root (Docker reads it from the context, and the emitted compose
+  uses `context: .`), never overwriting the bespoke files chrome-extension and mobile-app ship. 5 tests.
+  Mail 01M1M9CYEHA55DQP03081X09HS. Existing projects still need a backfill — sized in the backlog.
+- `check_env_vars.py::_is_env_default_constant` (SYNCED): the localhost ban fired on the sanctioned
+  `os.getenv(KEY, default)` idiom whenever the default lived in a module constant on its own line, because
+  a per-line regex cannot see the read two hundred lines below. A bare UPPER_SNAKE constant is now exempt
+  when it has consumers and EVERY one is a getenv default (positional, keyword, `or`, and the JS
+  `process.env.X || NAME` form). Teeth pinned by 8 tests: one direct consumer un-exempts it, an unread
+  constant still flags, a lowercase local still flags, a bare URL and an `@localhost` DSN still flag.
+  Fleet safety measured before shipping a synced change: both versions over 3583 hub files → 41 violations
+  each, ZERO files whose verdict changed. Mail 01M1MC5BBHEJJ3SYMS55NZBHAD (web-ecommerce-factory).
+- `check_doc_sync.py::_has_route_change` (SYNCED): it regex-scanned whole file TEXT, so any edit to a file
+  that merely CONTAINS route source read as an API change — a one-line `SCRIPT_FILES` append to
+  `scaffold.py` raised "API route changed but docs/QUICKSTART.md not updated", and the warning was then
+  misattributed to sibling commits because the receipt reasoned by path and the detector by content. It now
+  scans the diff, exactly as the resilience detector eleven lines below already did. Verified on the live
+  tree: over today's 37 changed files the old detector reports 2 route changes and the new one reports 0.
+  5 tests, including that ADDING and REMOVING a route both still fire. Mail 01M1H61P4CKFPX47CZGYKNM1EP.
+
 ### Changed — the watchdog default now agrees on both code paths: an absent block means ENABLED (2026-09-03)
 
 - Operator ruling on fleet's three-option sizing: "make the model default match what apply already does,

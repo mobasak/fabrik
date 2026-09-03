@@ -63,6 +63,57 @@ ALLOWED_CONTEXTS = [
 ]
 
 
+# The getenv-default positions a shared constant may legitimately occupy. ``{name}`` is
+# substituted with the constant's own identifier, so an unrelated symbol never matches.
+_CONST_DEFAULT_USES = (
+    r"os\.getenv\s*\([^)]*\)\s*or\s+{name}\b",  # os.getenv("K") or NAME
+    r"os\.getenv\s*\([^)]*,\s*(?:default\s*=\s*)?{name}\b",  # os.getenv("K", NAME)
+    r"os\.environ\.get\s*\([^)]*\)\s*or\s+{name}\b",
+    r"os\.environ\.get\s*\([^)]*,\s*(?:default\s*=\s*)?{name}\b",
+    r"process\.env\.[A-Za-z0-9_]+\s*(?:\|\||\?\?)\s*{name}\b",  # JS/TS
+)
+
+_CONST_ASSIGN_RE = re.compile(
+    # Python `NAME = "…"` / `NAME: str = "…"` and the JS/TS `export const NAME = "…";` form —
+    # this check scans .ts/.tsx/.js/.jsx as well as .py, so a Python-only shape would leave the
+    # JS half of the false positive in place.
+    r"""^\s*(?:(?:export\s+)?(?:const|let|var)\s+)?"""
+    r"""(?P<name>[A-Z][A-Z0-9_]*)\s*(?::\s*[^=]+)?=\s*['"][^'"]*['"]\s*;?\s*(?:(?:#|//).*)?$"""
+)
+
+
+def _is_env_default_constant(line: str, lines: list[str], line_num: int) -> bool:
+    """Is *line* a bare UPPER_SNAKE constant whose EVERY other mention is a getenv default?
+
+    The sanctioned ``os.getenv(KEY, default)`` idiom, written across two lines: a module
+    constant holding the default and a getenv read consuming it (wef finding
+    01M1MC5BBHEJJ3SYMS55NZBHAD — the per-line regex graded the FORM of the safe pattern
+    instead of the pattern, because it cannot see a read two hundred lines away). Sharing one
+    default between the getenv read and the test that asserts it is idiomatic, so the false
+    positive recurs wherever that is done.
+
+    Deliberately narrow, so the ban keeps its teeth: returns False when the constant is never
+    read (an unused localhost literal is still a smell) and when ANY mention sits outside a
+    getenv-default position — including a direct use such as ``requests.get(DEFAULT_API_URL)``,
+    which is precisely what the ban exists to catch. Comment lines are ignored.
+    """
+    m = _CONST_ASSIGN_RE.match(line)
+    if m is None:
+        return False
+    name = re.escape(m.group("name"))
+    uses = [
+        other
+        for i, other in enumerate(lines, 1)
+        if i != line_num and re.search(rf"\b{name}\b", other)
+    ]
+    if not uses:
+        return False
+    patterns = [re.compile(p.format(name=name)) for p in _CONST_DEFAULT_USES]
+    return all(
+        other.lstrip().startswith("#") or any(p.search(other) for p in patterns) for other in uses
+    )
+
+
 def check_file(file_path: Path) -> list[CheckResult]:
     """Check a file for hardcoded localhost patterns.
 
@@ -112,6 +163,11 @@ def check_file(file_path: Path) -> list[CheckResult]:
             "docker exec" in lines[i].lower()
             for i in range(max(0, line_num - 4), line_num)  # this line + 3 above
         ):
+            continue
+
+        # The same sanctioned idiom split across two lines: a shared DEFAULT constant and the
+        # getenv read that consumes it. See _is_env_default_constant for the narrow conditions.
+        if _is_env_default_constant(line, lines, line_num):
             continue
 
         # Check for violations

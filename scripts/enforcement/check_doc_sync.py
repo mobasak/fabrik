@@ -142,14 +142,49 @@ def _is_significant_code(f: str) -> bool:
     return (in_dir and is_code) or Path(f).name in SIGNIFICANT_FILES
 
 
-def _has_route_change(staged: list[str]) -> bool:
+def _has_route_change(staged: list[str], diff_scope: list[str] | None = None) -> bool:
+    """Did the CHANGE touch a route — not merely: does the file CONTAIN one?
+
+    Scans the diff's added/removed lines, the way the resilience detector below already does
+    ("so pre-existing retry code doesn't false-positive"). Reading whole file TEXT made every
+    edit to a file that merely embeds route source read as an API change: `src/fabrik/scaffold.py`
+    carries route templates for every scaffold type, so a one-line `SCRIPT_FILES` append raised
+    "API route changed but docs/QUICKSTART.md not updated" — and QUICKSTART documents the
+    `fabrik` CLI, which had not changed (mail 01M1H61P4CKFPX47CZGYKNM1EP; the same warning was
+    then misattributed to sibling commits, because the receipt reasoned by PATH and the detector
+    by CONTENT). A warning whose only correct response is to ignore it teaches scroll-past —
+    the same reasoning that dropped ``\bfallback\b`` from RESILIENCE_PATTERNS.
+
+    *diff_scope* is the ``git diff`` prefix the caller already computed (``["diff", "--cached"]``
+    or ``["diff", "<range>"]``). Omitted → falls back to reading file text, so any caller that
+    has no diff (a test, a future programmatic use) keeps the old, broader behaviour rather than
+    silently detecting nothing.
+    """
     for f in staged:
         if Path(f).suffix not in {".py", ".ts", ".tsx", ".js"} or _skip(f):
             continue
-        try:
-            text = Path(f).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
+        if diff_scope is None:
+            try:
+                text = Path(f).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+        else:
+            try:
+                out = subprocess.run(
+                    ["git", *diff_scope, "-U0", "--", f],
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                ).stdout
+            except (subprocess.SubprocessError, OSError):
+                continue
+            # Added/removed CONTENT only: the ``+++``/``---`` headers name the file and would
+            # otherwise put every path through the route regexes.
+            text = "\n".join(
+                ln[1:]
+                for ln in out.splitlines()
+                if ln[:1] in {"+", "-"} and not ln.startswith(("+++", "---"))
+            )
         if any(re.search(p, text) for p in ROUTE_PATTERNS):
             return True
     return False
@@ -379,7 +414,7 @@ def main(argv: list[str] | None = None) -> int:
             "but INDEX.md not updated."
         )
 
-    if _has_route_change(staged) and "docs/QUICKSTART.md" not in staged_set:
+    if _has_route_change(staged, diff_scope) and "docs/QUICKSTART.md" not in staged_set:
         warnings.append("API route changed but docs/QUICKSTART.md not updated (check it).")
     shape = [f for f in staged if f.startswith("specs/services/") and f.endswith(".yaml")]
     if shape and "docs/FEATURES.md" not in staged_set:

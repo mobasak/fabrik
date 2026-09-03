@@ -1103,3 +1103,14 @@ for weeks into a sink no consumer reads. The resolution step needs the fleet pat
 (`SELECT count(*), min(ts), max(ts), count(DISTINCT project) FROM subagent_runs`) and then a decision: one
 analytics DB with the hub reading it, or drop the injection. Note for whoever takes it: `libs/subagents/`
 carried a sibling session's uncommitted WIP through 2026-09-03 — check `git status` before editing that surface.
+## [fleet] Existing fleet projects have no `.dockerignore` — the scaffold fix only covers NEW ones (2026-09-03, owner: fleet)
+
+The scaffolder now emits `.dockerignore` at the build context root for every Dockerfile-bearing project
+(`_ensure_dockerignore`, one place, graded). That fixes new scaffolds only. Every project scaffolded before
+today as `node-api`, `file-api`, `file-worker`, `desktop-app`, `docusaurus`, `python-api-gpu` or
+`office-extension` still has none, and their Dockerfiles do `COPY . .` while the VPS deploys by `git pull`
+into a long-lived working tree — so a gitignored `.env`, `node_modules/` or `dist/` surviving a pull is
+baked into the image. Backfill wants: an enumeration of affected repos (Dockerfile present, `.dockerignore`
+absent), the file added per repo, and a decision on the delivery path — the governance sync does not carry
+project-local build files today, so it is either a one-off scripted pass or a new synced-manifest entry.
+Mail 01M1M9CYEHA55DQP03081X09HS (infra, pass 61).

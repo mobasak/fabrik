@@ -6009,6 +6009,42 @@ def _layer_preplan_into_project(project_dir: Path, preplan: object) -> None:
     )
 
 
+def _ensure_dockerignore(project_dir: Path) -> Path | None:
+    """Every project that emits a Dockerfile gets a ``.dockerignore`` at the BUILD CONTEXT root.
+
+    Written once here rather than per type: the scaffolder emitted one by hand for `python-api`
+    (its template map), `chrome-extension` and `mobile-app`, and NOT for `node-api`, `file-api`,
+    `file-worker`, `desktop-app`, `docusaurus`, `python-api-gpu` or `office-extension` — 7 of the
+    ~10 Dockerfile-bearing types — while every one of those Dockerfiles does ``COPY . .`` (mail
+    01M1M9CYEHA55DQP03081X09HS, infra pass 61). That matters because the VPS deploys by ``git
+    pull`` into a LONG-LIVED working tree, never a fresh clone, so a gitignored `.env`,
+    `node_modules/` or `dist/` that survives a pull is copied straight into the image layer —
+    "what git does not track never deploys" is true of the REPO and false of the build context.
+
+    Context root, not the Dockerfile's directory: Docker reads `.dockerignore` from the build
+    context, and the emitted compose uses ``context: .`` with the project root, so a type whose
+    Dockerfile lives in `server/` (chrome-extension, mobile-app) correctly keeps its file at the
+    root. An EXISTING file is never overwritten — those two types ship a bespoke one that excludes
+    the RN client and ships `server/` only, and it must win over this generic template.
+
+    Returns the path written, or None when nothing was needed. Never raises: a scaffold that
+    otherwise succeeded must not fail on this.
+    """
+    try:
+        if not any(project_dir.rglob("Dockerfile*")):
+            return None
+        target = project_dir / ".dockerignore"
+        if target.exists():
+            return None
+        tpl = TEMPLATE_DIR / "docker" / "dockerignore.template"
+        if not tpl.is_file():
+            return None
+        target.write_text(tpl.read_text(), encoding="utf-8")
+        return target
+    except OSError:
+        return None
+
+
 def create_project(
     name: str,
     description: str,
@@ -6103,6 +6139,10 @@ def create_project(
     # snapshot.
     if preplan is not None:
         _layer_preplan_into_project(project_dir, preplan)
+
+    # Every Dockerfile-bearing project carries a .dockerignore at the build context root —
+    # emitted here, once, so a new scaffold type cannot forget it (see _ensure_dockerignore).
+    _ensure_dockerignore(project_dir)
 
     # Final commit after all files (shared + type-specific) are in place so the
     # initial snapshot is complete and clean.
