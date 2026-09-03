@@ -546,6 +546,10 @@ def _tick_env(tmp_path, monkeypatch, session: float = 40.0, **env: str):
         encoding="utf-8",
     )
     (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=session)))
+    # Isolate the rotation lock by default: the trigger takes `flock -n` on ROTATE_LOCK, and the
+    # default is the LIVE box's ~/.claude/state/rotate.lock — a real tick holding it (the running
+    # dashboard fires one on an account switch) made both trigger tests fail mid-suite 2026-09-03.
+    env.setdefault("QUOTA_DASH_ROTATE_LOCK", str(tmp_path / "rotate.lock"))
     return _load(tmp_path, monkeypatch, QUOTA_DASH_ROTATE_CLI=str(stub), **env), stub
 
 
@@ -768,7 +772,11 @@ def test_commands_table_covers_every_fabrik_source_in_pipeline_order(tmp_path, m
     )
     assert names.index("fabrik-deploy") < names.index("fabrik-deploy-verify")
     # operator ruling 2026-09-03: the contract freezes on the CERTIFIED build — after the gauntlets, before release
-    assert names.index("fabrik-service-test") < names.index("fabrik-deploy-checklist") < names.index("fabrik-release")
+    assert (
+        names.index("fabrik-service-test")
+        < names.index("fabrik-deploy-checklist")
+        < names.index("fabrik-release")
+    )
     assert set(names) - set(qd.PIPELINE_ORDER) == set(), "every source has an explicit order slot"
     assert set(qd.PIPELINE_ORDER) - set(names) == set(), "no stale slot in PIPELINE_ORDER"
     by = {c["name"]: c for c in cmds}
@@ -799,3 +807,70 @@ def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_pa
     assert qd._load_commands() == []
     html = qd.render(_payload(), time.time())
     assert "Command corpus unreadable" in html
+
+
+# ── External-services tab (operator ask 2026-09-03; seen RED first) ───────────────────────────
+
+
+def test_external_services_page_is_served_from_the_static_file_and_404s_when_absent(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+    page = tmp_path / "external-services-dashboard.html"
+    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", page)
+    httpd, base = _serve(qd)
+    try:
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(base + "/external-services.html", timeout=10)
+        assert e.value.code == 404
+        page.write_text(
+            "<html><title>External Services</title><body>ok</body></html>", encoding="utf-8"
+        )
+        with urllib.request.urlopen(base + "/external-services.html", timeout=10) as r:
+            assert r.status == 200 and "text/html" in r.headers["Content-Type"]
+            assert b"External Services" in r.read()
+    finally:
+        httpd.shutdown()
+
+
+def test_page_has_an_external_services_tab_with_a_lazy_iframe_and_freshness(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    page = tmp_path / "external-services-dashboard.html"
+    page.write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", page)
+    html = qd.render(_payload(), time.time())
+    assert 'data-tab="external"' in html and html.index('data-tab="commands"') < html.index(
+        'data-tab="external"'
+    )
+    assert '<section id="pane-external" class="pane" hidden>' in html
+    assert 'data-src="/external-services.html"' in html  # set to src only when the tab is shown
+    import re as _re
+
+    # the phrase SHAPE is pinned: reusing `_fmt_age` once produced "regenerated cached 10h ago ago"
+    assert _re.search(r"regenerated \d+\.\d h ago by the daily chain", html)
+    assert '"#external"' in html  # the hash keeps the tab across the 20s reload
+    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", tmp_path / "missing.html")
+    absent = qd.render(_payload(), time.time())
+    assert (
+        "not generated yet" in absent and '<iframe id="ext-frame"' not in absent
+    )  # no iframe element → no 404 rendered inside it (the JS may still name the id)
+
+
+def test_external_services_route_serves_only_a_regular_html_file(tmp_path, monkeypatch):
+    """Review: the env override followed a symlink to /etc/hostname. A directory, a symlink whose
+    name is not .html, or a non-.html file all 404 — the single-operator threat model is stated in
+    the route comment; this is the cheap guard that still makes the measured leak impossible."""
+    import os
+
+    qd = _load(tmp_path, monkeypatch)
+    link = tmp_path / "l"
+    os.symlink("/etc/hostname", link)
+    httpd, base = _serve(qd)
+    try:
+        for target in (tmp_path, link, tmp_path / "nope.html"):
+            monkeypatch.setattr(qd, "EXT_SERVICES_HTML", target)
+            with pytest.raises(urllib.error.HTTPError) as e:
+                urllib.request.urlopen(base + "/external-services.html", timeout=10)
+            assert e.value.code == 404, target
+    finally:
+        httpd.shutdown()

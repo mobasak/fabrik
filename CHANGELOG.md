@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — quota dashboard: an External services tab that embeds the daily external-services page (2026-09-03)
+
+- Operator ask: the external-services & credentials inventory (`external-services-dashboard.html`, regenerated at
+  06:00 by infra's chain) visible as a tab on `http://localhost:5051/`. The board now SERVES that static file on
+  `/external-services.html` (byte-for-byte, no cache, 404 until generated) and shows it in a same-origin iframe
+  whose `src` is set on first open, with the file's age stamped from its mtime (the chain's own liveness contract).
+  Nothing of the generator or the chain is touched — infra is working that surface. `QUOTA_DASH_EXT_SERVICES`
+  overrides the file's location; tab hash `#external`. Tests (seen RED first): the route serves/404s; the tab,
+  lazy iframe and freshness line render. Docs: `docs/workstation/quota-dashboard.md` § The External services tab.
+- Scoped review (same run): the route serves only a regular `.html` file (a symlink to `/etc/hostname` was measured
+  to pass through the env override — closed, test); the freshness phrase shape is pinned (an earlier draft printed
+  "cached 10h ago ago"); no iframe is emitted while the file is absent (it would frame a 404). Test hygiene: the
+  dashboard test env now isolates the rotation lock (`QUOTA_DASH_ROTATE_LOCK` → tmp) — the two trigger tests took
+  `flock -n` on the LIVE box's lock and failed mid-suite the moment the running dashboard fired a real tick on an
+  account switch. The probe-cadence test remains wall-clock sensitive (0.8 s window): it fails under a load average
+  above ~5 and passes alone — not changed here, noted.
+
 ### Fixed — infra's mailbox, second pass (operator: "recheck the 58 — handle what needs no spec/plan"): 40 mail ids addressed in the map below (counted from the ids the entry names), 2 pre-existing reds cleared (the office-extension rivals mapping; the kaizen addressed-send test earlier today) and 1 left standing (`test_desktop_active_on_electron_dir_not_generic_main`, red at HEAD before this change), one new advisory check (2026-09-03)
 
 - Re-read all 58 remaining `@infra` mails against their cited `path:line`. What needed no spec or plan, and no

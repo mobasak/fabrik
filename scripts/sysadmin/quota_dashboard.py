@@ -359,6 +359,30 @@ def _eligible(a: dict) -> bool:
 # order of CLAUDE.md § Pipeline (stages), then the gates, then the utilities — the test refuses a
 # source with no slot and a slot with no source, so the list cannot drift from the corpus silently.
 _FABRIK_ROOT = Path(__file__).resolve().parents[2]
+# The external-services page (operator ask 2026-09-03): the STATIC file infra's daily chain regenerates
+# (scripts/gen_dashboard.py, 06:00 cron). This board only SERVES and EMBEDS it — never regenerates it.
+EXT_SERVICES_HTML = Path(
+    os.getenv("QUOTA_DASH_EXT_SERVICES", str(_FABRIK_ROOT / "external-services-dashboard.html"))
+)
+
+
+def _ext_services_intro() -> str:
+    """One line above the embedded page: when the generator last wrote it (its mtime), or that it has
+    not run yet — the chain's liveness contract is 'mtime <= 30 h', so the age is the useful fact."""
+    try:
+        age = time.time() - EXT_SERVICES_HTML.stat().st_mtime
+    except OSError:
+        return (
+            f'<p class="intro">External-services page not generated yet — expected at '
+            f"<code>{escape(str(EXT_SERVICES_HTML))}</code>, written daily by the external-services chain.</p>"
+        )
+    return (
+        f'<p class="intro">The fleet\'s external services &amp; credentials inventory, regenerated '
+        f"{age / 3600:.1f} h ago by the daily chain (<code>scripts/gen_dashboard.py</code>, 06:00) — "
+        f'embedded as-is; <a href="/external-services.html" target="_blank">open in its own tab</a>.</p>'
+    )
+
+
 PIPELINE_ORDER: tuple[str, ...] = (
     # 1-design
     "fabrik-rivals",
@@ -613,7 +637,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
   <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s ·
     <span id="conn">live</span></div>
 </header>
-<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="commands">Commands</button></nav>
+<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="commands">Commands</button><button type="button" class="tab" data-tab="external">External services</button></nav>
 <section id="pane-quota" class="pane">
 {banner}
 {gov_html}
@@ -627,6 +651,10 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 {'<div class="banner crit">Command corpus unreadable — no <code>commands/_sources/fabrik-*.md</code> under ' + escape(str(_FABRIK_ROOT)) + ".</div>" if not cmd_rows else ""}
 <p class="intro">Every <code>/fabrik-*</code> command in pipeline order ({len(cmd_rows)} sources under <code>commands/_sources/</code>, read live — purpose, when-to-use and skip-when come from each command's own description, the successor from the assembler's NEXT map). Stages run top to bottom; gates are invoked at boundaries; utilities at any point.</p>
 {cmd_html}
+</section>
+<section id="pane-external" class="pane" hidden>
+{_ext_services_intro()}
+{'<iframe id="ext-frame" title="External services" data-src="/external-services.html" style="width:100%;min-height:80vh;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>' if EXT_SERVICES_HTML.is_file() else ""}
 </section>
 <footer>Rotation flips the active pointer at {TRIGGER_THRESHOLD:.0f}% on the 5h window (or either window, or an account's
 configured weekly cap). This board probes every {int(PROBE_INTERVAL_S)}s on its own and invokes the rotation tick the
@@ -646,13 +674,15 @@ every session bound to the pointer follows it — no restart.</footer>
   function showTab(name) {{
     tabs.forEach(function (b) {{ b.classList.toggle("is-on", b.getAttribute("data-tab") === name); }});
     document.querySelectorAll("section.pane").forEach(function (p) {{ p.hidden = (p.id !== "pane-" + name); }});
+    var fr = document.getElementById("ext-frame");
+    if (name === "external" && fr && !fr.getAttribute("src")) {{ fr.setAttribute("src", fr.getAttribute("data-src")); }}
   }}
   tabs.forEach(function (b) {{ b.addEventListener("click", function () {{
     var name = b.getAttribute("data-tab");
     if (history.replaceState) {{ history.replaceState(null, "", name === "quota" ? location.pathname : "#" + name); }}
     showTab(name);
   }}); }});
-  showTab(location.hash === "#commands" ? "commands" : "quota");
+  showTab(location.hash === "#commands" ? "commands" : (location.hash === "#external" ? "external" : "quota"));
   var conn = document.getElementById("conn");
   setInterval(function () {{
     fetch("/health", {{cache: "no-store"}})
@@ -944,6 +974,19 @@ class _Handler(BaseHTTPRequestHandler):
             ctype = "application/json"
         elif path == "/health":
             body, ctype = b"ok", "text/plain"
+        elif path == "/external-services.html":
+            # Only a regular `.html` file is ever served — the env override is the operator's own
+            # process env on a 127.0.0.1-only server (single-operator threat model), but a symlink
+            # to /etc/hostname was measured to pass through; the suffix + regular-file guard closes it.
+            if EXT_SERVICES_HTML.suffix != ".html" or not EXT_SERVICES_HTML.is_file():
+                self.send_error(404)
+                return
+            try:
+                body = EXT_SERVICES_HTML.read_bytes()  # byte-for-byte, never cached
+            except OSError:
+                self.send_error(404)
+                return
+            ctype = "text/html; charset=utf-8"
         else:
             self.send_error(404)
             return
