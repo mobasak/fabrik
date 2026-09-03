@@ -679,6 +679,16 @@ def _heartbeat_one(
                     "absent",
                 )
             where = f"{raw} is {age:.1f}h old"
+        if age < -(1 / 60.0):
+            # a FUTURE stamp — a clock jump after resume, a restored backup, a stray `touch` —
+            # would satisfy `age <= limit` forever and read LIVE however long the real run stays
+            # absent; the same rule the instrument check applies to its own canary (EQ3)
+            return make(
+                inst,
+                Verdict.UNKNOWN,
+                f"{where} — a NEGATIVE age (clock skew or a rewritten stamp): not trusted",
+                "future",
+            )
         if age <= limit:
             return make(inst, Verdict.LIVE, f"{where}, within {limit:g}h")
         return make(inst, Verdict.DEAD, f"{where}, over its {limit:g}h budget", "overdue")

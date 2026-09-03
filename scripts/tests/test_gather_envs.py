@@ -3038,3 +3038,49 @@ def test_a_project_dir_the_scan_cannot_enter_is_a_refusal_not_a_silent_drop(
         assert err.startswith("ERROR: the scan could not read its inputs (") and str(p) in err, err
     finally:
         p.chmod(0o700)
+
+
+def test_a_fresh_identification_never_merges_into_a_tombstoned_target(tmp_path, monkeypatch):
+    """`newprov` gets a genuine answer naming `vendorx` — but `vendorx` is a TOMBSTONE (an
+    `unidentified` stub from an earlier failed pass). The merge path folded the paid answer into
+    the stub, kept the stub's `unidentified` fields, added a `merged_match` and reported
+    "1/1 identified": the identification was discarded for good and `newprov` left triage. A
+    tombstoned target is never a merge destination — the provider gets its own entry (EQ4)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=newprov category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "NEWPROV_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "vendorx",
+                    "category": "search",
+                    "cost": "paid",
+                    "capability": "a real search engine, correctly identified",
+                    "url": "https://vendorx.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "vendorx": {
+                    "category": "unidentified",
+                    "capability": "web could not classify; add a real entry or remove the key",
+                    "match": ["VENDORX"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert out["vendorx"]["category"] == "unidentified", out  # the stub is untouched
+    assert "merged_match" not in out["vendorx"], out
+    real = [k for k, v in out.items() if isinstance(v, dict) and v.get("category") == "search"]
+    assert real, out  # the paid identification landed as a real entry somewhere, not discarded

@@ -1034,3 +1034,30 @@ def test_a_marker_echoed_by_the_report_itself_is_not_evidence(tmp_path):
         age,
         hits,
     )  # an undelivered run is no evidence (DM2)
+
+
+def test_a_future_dated_stamp_is_unknown_never_live(tmp_path: Path) -> None:
+    """A stamp two days in the FUTURE (a clock jump after resume, a restored backup, a stray
+    `touch`) satisfied `age <= limit` and read LIVE however long the real run stayed absent —
+    the audit's own canary already refused a future mtime; the evidence readers did not (EQ3)."""
+    import os
+    import time
+
+    future = tmp_path / "future.log"
+    future.write_text("ran\n")
+    os.utime(future, (time.time() + 48 * 3600, time.time() + 48 * 3600))
+    surfaces = [
+        {
+            "id": "future",
+            "kind": "cron",
+            "cron_match": "job_f",
+            "evidence": {"type": "log", "path": str(future)},
+            "max_age_hours": 24,
+        }
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/job_f"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    out = la.proof_heartbeat(box, reg, "")
+    f = {x["id"]: x for x in out["findings"]}["future"]
+    assert f["verdict"] == "UNKNOWN", f
+    assert "NEGATIVE age" in f["detail"], f

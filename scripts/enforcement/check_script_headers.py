@@ -18,13 +18,48 @@ exit 0); promote to an ERROR gate once the active scripts are headered.
 
 from __future__ import annotations
 
+import io
 import re
 import subprocess
 import sys
+import tokenize
 from fnmatch import fnmatch
 from pathlib import Path
 
 HEADER_RE = re.compile(r"#\s*AFTER-EDIT:\s*(.+)", re.IGNORECASE)
+
+
+def _header_of(head: str) -> str | None:
+    """The `# AFTER-EDIT:` declaration among the head's COMMENT tokens — never a line inside a
+    docstring or a string (this check's own docstring quotes the convention; a script with only
+    such an example has NO header, and one that names a file there declared nothing) (EQ2)."""
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(head).readline):
+            if tok.type == tokenize.COMMENT:
+                m = HEADER_RE.match(tok.string)
+                if m:
+                    return m.group(1).strip()
+    except (
+        tokenize.TokenError,
+        SyntaxError,
+    ):  # the head is cut at HEADER_SCAN_LINES — a truncated block ends the stream after every comment before it was seen
+        pass
+    return None
+
+
+def _staged_head(path: str) -> str | None:
+    """The first HEADER_SCAN_LINES of the STAGED blob (`git show :path`) — what will be
+    committed — never the working tree, which a later edit or a partial stage can make differ
+    from the index in either direction (EQ2). None when the index has no blob (an intent-to-add
+    path): the caller reads the working tree then."""
+    proc = subprocess.run(
+        ["git", "show", f":{path}"], capture_output=True, text=True, timeout=20, errors="replace"
+    )
+    if proc.returncode != 0:
+        return None
+    return "\n".join(proc.stdout.splitlines()[:HEADER_SCAN_LINES])
+
+
 # Both separators the corpus actually uses: `a.py, b.md` AND `a.py | b.md`. The pipe form is the
 # majority style in scripts/sysadmin/ and was parsed as FILENAMES — every pipe became a coupled
 # file named "|" that was obviously never staged, so those scripts warned on every edit. Invisible
@@ -84,7 +119,18 @@ def _git(args: list[str]) -> list[str]:
 
 
 def _skip(f: str) -> bool:
-    return any(p in f for p in SKIP_PATTERNS)
+    """Skip test files and package markers by PATH SEGMENT, never by substring: a real enforcement
+    script named `check_test_proposal.py` carries `test_` inside its name and was invisible to
+    this check for as long as it existed (EQ2)."""
+    parts = Path(f).parts
+    name = parts[-1]
+    return (
+        "tests" in parts[:-1]
+        or "__pycache__" in parts
+        or name.startswith("test_")
+        or name.endswith("_test.py")
+        or name == "__init__.py"
+    )
 
 
 def main() -> int:
@@ -125,22 +171,26 @@ def main() -> int:
             if p.is_symlink():
                 warnings.append(f"{f}: dangling symlink — not checked")
             continue
-        try:
-            head = "\n".join(
-                p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
-            )
-        except OSError as exc:  # a staged path that exists but cannot be read (a permission-denied file): a WARN naming it, never a traceback that FAILS a warn-only gate for the wrong cause (DW2)
-            warnings.append(f"{f}: cannot read the header ({exc.__class__.__name__}) — not checked")
-            continue
+        head = _staged_head(f)
+        if head is None:  # no index blob (an intent-to-add path): the working tree
+            try:
+                head = "\n".join(
+                    p.read_text(encoding="utf-8", errors="replace").splitlines()[:HEADER_SCAN_LINES]
+                )
+            except OSError as exc:  # a staged path that exists but cannot be read (a permission-denied file): a WARN naming it, never a traceback that FAILS a warn-only gate for the wrong cause (DW2)
+                warnings.append(
+                    f"{f}: cannot read the header ({exc.__class__.__name__}) — not checked"
+                )
+                continue
         inspected += 1
-        m = HEADER_RE.search(head)
-        if not m:
+        listed_header = _header_of(head)
+        if listed_header is None:
             warnings.append(
                 f"{f}: no `# AFTER-EDIT:` header — declare the files to update when this "
                 "script changes (or `# AFTER-EDIT: none`)."
             )
             continue
-        listed = m.group(1).strip()
+        listed = listed_header
         if listed.lower() in NONE_VALUES:
             continue
         coupled = _coupled_tokens(listed, p)

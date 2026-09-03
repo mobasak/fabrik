@@ -1050,6 +1050,38 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         pc = Path(importlib.util.cache_from_source(str(src)))
         py_compile.compile(str(src), cfile=str(pc), doraise=True)
         pc.write_bytes(pc.read_bytes()[:20])
+    # an UNRELATED broken sibling (never imported) beside a target that raises at import: the
+    # target's own blame must not be stolen — a BLOCK, never an advisory naming other.py (EQ1)
+    _fake_hub(
+        tmp_path / "unrelatedsib",
+        "raise RuntimeError('real hub defect')\n",
+        extra={"libs/subagents/other.py": "X = 1\n"},
+    )
+    (tmp_path / "unrelatedsib" / "libs" / "subagents" / "other.py").write_bytes(b"X = 1\n\x00\n")
+    # the same, with a renamed constant (an ImportError whose own `path` IS the target)
+    _fake_hub(
+        tmp_path / "unrelatedsib2",
+        'WEB_TOOL_NAMES_V2 = frozenset({"web_search"})\n',
+        extra={"libs/subagents/other.py": "X = 1\n"},
+    )
+    (tmp_path / "unrelatedsib2" / "libs" / "subagents" / "other.py").write_bytes(b"X = 1\n\x00\n")
+    # a NESTED subpackage the target imports, NUL-padded: the population is recursive (EQ1)
+    _fake_hub(
+        tmp_path / "deepnul",
+        'from .sub.deep import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/sub/__init__.py": "", "libs/subagents/sub/deep.py": "H = 1\n"},
+    )
+    (tmp_path / "deepnul" / "libs" / "subagents" / "sub" / "deep.py").write_bytes(b"H = 1\n\x00\n")
+    # a nested module's cache torn: named with its cache remedy, never the target
+    _fake_hub(
+        tmp_path / "deeppyc",
+        'from .sub.deep import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={"libs/subagents/sub/__init__.py": "", "libs/subagents/sub/deep.py": "H = 1\n"},
+    )
+    dp = tmp_path / "deeppyc" / "libs" / "subagents" / "sub" / "deep.py"
+    dppyc = Path(importlib.util.cache_from_source(str(dp)))
+    py_compile.compile(str(dp), cfile=str(dppyc), doraise=True)
+    dppyc.write_bytes(dppyc.read_bytes()[:20])
     # the module fails opening a DATA file at import: the FileNotFoundError names a non-.py, so
     # the frame — web_tools.py — is the truth: a BLOCK (EI1)
     _fake_hub(
@@ -1079,7 +1111,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1342,6 +1374,25 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         and "delete libs/__pycache__, subagents/__pycache__" in p
         for p in out["bothtorn"]["problems"]
     ), out["bothtorn"]
+    # an unrelated broken sibling never steals the target's own blame: still a BLOCK on the target
+    for hub in ("unrelatedsib", "unrelatedsib2"):
+        assert any("web_tools.py is present but unusable" in p for p in out[hub]["problems"]), (
+            hub,
+            out[hub],
+        )
+        assert out[hub]["skipped"] == [], (hub, out[hub])
+    # a nested subpackage: the population is recursive — the deep module is named, not the target
+    assert not any("present but unusable" in p for p in out["deepnul"]["problems"]), out["deepnul"]
+    assert (
+        len(out["deepnul"]["skipped"]) == 1
+        and "libs/subagents/sub/deep.py failed to import" in out["deepnul"]["skipped"][0]
+    ), out["deepnul"]
+    assert not any("present but unusable" in p for p in out["deeppyc"]["problems"]), out["deeppyc"]
+    assert (
+        len(out["deeppyc"]["skipped"]) == 1
+        and "bytecode cache of deep.py unloadable" in out["deeppyc"]["skipped"][0]
+        and "delete sub/__pycache__" in out["deeppyc"]["skipped"][0]
+    ), out["deeppyc"]
     # dict keys ACCEPTED: the predicate ran and flagged the bait
     assert not any("present but unusable" in p for p in out["dictkeys"]["problems"]), out[
         "dictkeys"
@@ -1581,7 +1632,8 @@ def test_blame_for_skips_a_frame_whose_file_is_gone_and_scrub_hides_the_home(tmp
     )
 
 
-def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path):
+@pytest.mark.parametrize("fallback", [False, True], ids=["cpython-validators", "manual-rules"])
+def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path, monkeypatch, fallback):
     """A zero-byte cache, one with a foreign magic, and a stale timestamp-mode header are all
     recompiled from source by the import machinery — never the torn one (EM1); only a
     current-header cache with a torn body is."""
@@ -1590,6 +1642,8 @@ def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path):
 
     import check_command_corpus as ccc
 
+    if fallback:  # an interpreter without importlib's private validators: the manual rules (EQ1)
+        monkeypatch.setattr(ccc, "_be", None)
     (tmp_path / "libs" / "subagents").mkdir(parents=True)
     src = tmp_path / "libs" / "subagents" / "web_tools.py"
     src.write_text("WEB_TOOL_NAMES = frozenset()\n", encoding="utf-8")
@@ -1636,6 +1690,27 @@ def test_bad_cache_owners_ignores_caches_python_would_not_load(tmp_path):
         "WEB_TOOL_NAMES = frozenset({'x'})\n", encoding="utf-8"
     )  # the source moved on: the hash no longer matches → recompiled, not torn
     assert ccc._bad_cache_owners(src) == []
+    # the hash compared on its full 8 bytes: a header whose FIRST four hash bytes still match
+    # but whose last four do not is stale (a 4-byte comparison would call it torn)
+    py_compile.compile(
+        str(src),
+        cfile=str(pyc),
+        doraise=True,
+        invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH,
+    )
+    half = bytearray(pyc.read_bytes()[:20])
+    half[12:16] = bytes(b ^ 0xFF for b in half[12:16])
+    pyc.write_bytes(bytes(half))
+    assert ccc._bad_cache_owners(src) == []
+    # a timestamp cache beside an UNREADABLE source still loads (CPython stats, never reads) —
+    # its torn body is a failure CPython raises, so it is reported (EQ1; root reads anything)
+    py_compile.compile(str(src), cfile=str(pyc), doraise=True)
+    pyc.write_bytes(pyc.read_bytes()[:20])
+    src.chmod(0)
+    try:
+        assert ccc._bad_cache_owners(src) == [src]
+    finally:
+        src.chmod(0o644)
     import marshal
 
     py_compile.compile(str(src), cfile=str(pyc), doraise=True)

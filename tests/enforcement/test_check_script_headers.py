@@ -174,27 +174,33 @@ def test_the_none_sentinel_and_prose_tokens_are_never_coupled_files(
     assert "WARNING" not in out, out
 
 
-def test_an_unreadable_staged_script_is_a_warning_not_a_traceback(tmp_path: Path) -> None:
-    """A staged path that exists but cannot be read raised out of `main` — a non-zero exit that
-    FAILS a warn-only gate naming the wrong cause (DW2)."""
+def test_an_unreadable_staged_script_is_a_warning_not_a_traceback(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """The header is read from the STAGED blob (EQ2), so an unreadable working-tree file whose
+    blob is in the index is inspected normally; a listed path with NO index blob falls back to
+    the working tree — and an unreadable one there is a WARN naming it, never a traceback that
+    FAILS a warn-only gate for the wrong cause (DW2). In-process: the blob lookup is patched out
+    so the fallback is the path under test."""
+    import importlib.util
     import os
 
+    spec = importlib.util.spec_from_file_location("check_script_headers_under_test", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
     repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nprint('x')\n")
-    subprocess.run(
-        ["git", "-C", str(repo), "add", "scripts/thing.py", "docs/coupled.md"], check=True
-    )
     (repo / "scripts" / "thing.py").chmod(0)
+    if os.access(repo / "scripts" / "thing.py", os.R_OK):
+        pytest.skip("running as root — permissions are not enforced")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(mod, "_git", lambda args: ["scripts/thing.py", "docs/coupled.md"])
+    monkeypatch.setattr(mod, "_staged_head", lambda path: None)
     try:
-        if os.access(repo / "scripts" / "thing.py", os.R_OK):
-            pytest.skip("running as root — permissions are not enforced")
-        proc = subprocess.run(
-            [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
-        )
+        assert mod.main() == 0
     finally:
         (repo / "scripts" / "thing.py").chmod(0o644)
-    assert proc.returncode == 0 and "cannot read the header" in proc.stdout + proc.stderr, (
-        proc.stdout + proc.stderr
-    )
+    out = capsys.readouterr().out
+    assert "cannot read the header" in out, out
 
 
 def test_a_slashless_dotted_coupled_file_is_still_enforced(tmp_path: Path) -> None:
@@ -323,3 +329,60 @@ def test_a_question_mark_glob_is_a_glob(tmp_path: Path) -> None:
     repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.m?\nprint('x')\n")
     out = _run(repo, "scripts/thing.py", "docs/coupled.md")
     assert "WARNING" not in out, out
+
+
+def test_a_docstring_example_is_not_a_header(tmp_path: Path) -> None:
+    """A script whose docstring QUOTES the convention (as this check's own does) but declares
+    no header: the missing-header WARN must fire, and no coupling must be invented from the
+    example (EQ2)."""
+    repo = _repo(
+        tmp_path,
+        '"""Usage: put a `# AFTER-EDIT: docs/coupled.md` line at the top."""\nprint("x")\n',
+    )
+    out = _run(repo, "scripts/thing.py")
+    assert "no `# AFTER-EDIT:` header" in out, out
+    assert "docs/coupled.md" not in out, out
+    repo2 = _repo(
+        tmp_path / "two",
+        "# AFTER-EDIT: none\n" + '"""Example: `# AFTER-EDIT: docs/coupled.md`."""\n',
+    )
+    assert "WARNING" not in _run(repo2, "scripts/thing.py")
+
+
+def test_the_staged_blob_is_read_never_the_working_tree(tmp_path: Path) -> None:
+    """What is about to be COMMITTED is the index blob: a header added in the working tree after
+    `git add` must not satisfy the check, and a header removed after `git add` must not fail it
+    (EQ2)."""
+    repo = _repo(tmp_path, "x = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py"], check=True)
+    (repo / "scripts" / "thing.py").write_text("# AFTER-EDIT: none\nx = 1\n", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert "no `# AFTER-EDIT:` header" in proc.stdout, proc.stdout  # the staged blob has none
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/thing.py"], check=True)
+    (repo / "scripts" / "thing.py").write_text("x = 1\n", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(CHECK)], cwd=repo, capture_output=True, text=True, timeout=60
+    )
+    assert "WARNING" not in proc.stdout, proc.stdout  # the staged blob has one
+
+
+def test_a_script_whose_name_contains_test_is_inspected(tmp_path: Path) -> None:
+    """`check_test_proposal.py` is a real, registered enforcement script; a substring skip on
+    `test_` hid it (and 22 other headered scripts) from the check for as long as it existed —
+    the skip is by path segment (EQ2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: none\n")
+    (repo / "scripts" / "check_test_proposal.py").write_text("x = 1\n", encoding="utf-8")
+    out = _run(repo, "scripts/check_test_proposal.py")
+    assert "no `# AFTER-EDIT:` header" in out and "check_test_proposal.py" in out, out
+    (repo / "scripts" / "tests").mkdir()
+    (repo / "scripts" / "tests" / "helper.py").write_text("x = 1\n", encoding="utf-8")
+    assert "helper.py" not in _run(repo, "scripts/tests/helper.py")
+
+
+def test_a_header_beyond_the_scan_window_is_no_header(tmp_path: Path) -> None:
+    """The declaration belongs in the first HEADER_SCAN_LINES lines; one on line 30 is not seen
+    — the window constant is load-bearing (EQ2)."""
+    repo = _repo(tmp_path, "x = 1\n" * 29 + "# AFTER-EDIT: none\n")
+    assert "no `# AFTER-EDIT:` header" in _run(repo, "scripts/thing.py")

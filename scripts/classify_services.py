@@ -524,6 +524,9 @@ def main() -> int:
             and target != prov
             and target in catalog
             and not (prov in catalog and not tombstone_of(catalog, prov))
+            and not tombstone_of(
+                catalog, target
+            )  # never fold a PAID identification into a stale tombstone — the answer would be discarded and the block leaves triage for good (EQ4)
         ):
             # a catalogued NON-tombstone source (the curated shapes that reach here — a `?`
             # placeholder with curated routing, or an entry whose category is not a real category string

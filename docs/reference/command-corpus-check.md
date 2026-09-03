@@ -103,14 +103,20 @@ so a NUL-corrupted, unreadable, directory-shaped, dangling-symlinked or syntacti
 never a verdict inferred from a traceback (certainty about the SOURCE's health; the names the
 predicate then uses come from the import, so a bytecode cache whose header still matches a
 same-second, same-size rewrite is the measured residual — 0 today). A failure that ended inside the
-import machinery (a torn bytecode cache: EOFError inside frozen importlib — no source frame, or
-only the target's own import line as the last frame) is attributed by asking the caches themselves
-— the target's first, then its package siblings, then the parent package — counting only a cache
-Python would LOAD (a full 16-byte header with the current magic and, in timestamp mode, an mtime
-and size matching the source; a zero-byte, foreign or stale cache is recompiled and never fails):
-the target's own torn cache blocks and a sibling's is an advisory naming that module, each with
-the remediation (`delete <package>/__pycache__`); when no cache is torn the frame's attribution
-stands (a missing sibling stays the target's problem). Every failure text is scrubbed of the repo prefix and
+import machinery (a torn bytecode cache: EOFError inside frozen importlib — no source frame, only
+the target's own import line as the last frame, or CPython naming the `.pyc` in `exc.path`) is
+attributed by asking the caches themselves, in the order the import executes them — the parent
+package's modules, then every module under the target's package (recursively), the target last —
+counting only a cache CPython would LOAD (its own validators decide: header, flags, the source
+hash for a hash-based cache, mtime and size for a timestamp one; the source is read only for a
+hash-based cache): EVERY torn cache is named, the target among them ⇒ a block, else an advisory
+naming the first, the remedy listing every `__pycache__` to delete; when no cache is torn the
+frame's attribution stands. When the frame names the target itself and the failure is one a broken
+SOURCE produces (a SyntaxError with no filename and stripped frames, an OSError, an ImportError that
+did not name the target), the sibling sources get the same read-and-compile check — a NUL-padded
+or directory-shaped sibling is named instead of the target; a RuntimeError raised inside the target,
+or an ImportError whose own `path` is the target, stays the target's problem however broken an
+unrelated sibling may be. Every failure text is scrubbed of the repo prefix and
 of the operator's home (`~/…`) before it is printed. A failure the file did not cause
 is attributed to the file it was raised in: an `ImportError` at the import site by `exc.path` (a
 renamed constant names the target; a broken sibling's import names the sibling); any exception

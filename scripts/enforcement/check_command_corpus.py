@@ -67,6 +67,11 @@ import re
 import sys
 import traceback
 import types
+
+try:  # CPython's own bytecode-cache validators — the fallback below is for an interpreter without them
+    from importlib import _bootstrap_external as _be
+except ImportError:  # pragma: no cover - exercised by the fallback grader through monkeypatching
+    _be = None
 from collections.abc import Collection
 from pathlib import Path
 
@@ -188,13 +193,28 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
                 failure = f"bytecode cache of {names} unloadable ({failure}) — delete {dirs}"
             elif frameless:
                 blame = ""
-        if _same_file(blame, target) and not frameless:
-            # the frame says the TARGET, but the target's own source compiled clean (checked
-            # first): a SIBLING it imports may be the broken one — NUL bytes (a SyntaxError with no
-            # filename and stripped frames), a directory at its path, an unreadable file (EO1)
+        source_shaped = isinstance(exc, (SyntaxError, OSError, ImportError)) and not _same_file(
+            str(getattr(exc, "path", None) or ""), target
+        )
+        if _same_file(blame, target) and not frameless and source_shaped:
+            # the frame says the TARGET and the failure is one a broken SOURCE produces (a
+            # SyntaxError with no filename and stripped frames, an OSError, an ImportError that
+            # did not name the target itself): a sibling it imports may be the broken one — NUL
+            # bytes, a directory at its path, an unreadable file (EO1). A RuntimeError raised
+            # inside the target, or an ImportError whose own `path` IS the target, is the
+            # target's — an unrelated broken sibling must never steal that blame (EQ1)
             sib = _bad_source_owner(target)
             if sib is not None:
                 blame = str(sib)
+        if blame.endswith(".pyc"):
+            # a cache CPython named that the directory population did not hold: the remedy is
+            # still the cache directory, never a bare `.pyc` "failed to import" (EQ1)
+            try:
+                src = Path(importlib.util.source_from_cache(blame))
+            except ValueError:
+                src = Path(blame)
+            failure = f"bytecode cache of {src.name} unloadable ({failure}) — delete {Path(blame).parent.parent.name}/__pycache__"
+            blame = str(src)
         _IMPORT_FAILURE.append(_scrub(failure, repo))
         _IMPORT_BLAME.append(blame)
         return None
@@ -267,10 +287,15 @@ def _scrub(text: str, repo: Path) -> str:
 
 
 def _import_order(target: Path) -> list[Path]:
-    """The package sources in the order the import executes them: the parent package, the
-    target's package siblings, the target last (EO1)."""
+    """The sources a failure of the target's import can involve, in a stable order that follows
+    the import's shape — the parent package's modules, then every module under the target's
+    package (recursively: a nested subpackage the target imports is executed too), the target
+    last. This is a DIRECTORY population, not the import graph: a module nobody imports is in
+    it, which is why a broken UNRELATED sibling may never steal the target's own blame (EQ1)."""
     parents = sorted(target.parent.parent.glob("*.py"))
-    siblings = sorted(p for p in target.parent.glob("*.py") if p != target)
+    siblings = sorted(
+        p for p in target.parent.rglob("*.py") if p != target and "__pycache__" not in p.parts
+    )
     return [*parents, *siblings, target]
 
 
@@ -280,31 +305,39 @@ def _cache_would_fail(src: Path) -> bool:
     flag bits, a timestamp header that no longer matches the source, a checked hash that no
     longer matches — is silently recompiled from source and never fails; a cache it ACCEPTS
     whose body cannot be unmarshalled or is not a code object raises inside frozen importlib
-    (EM1/EO1). A hand-written header check implemented three of CPython's five conditions."""
+    (EM1/EO1). The SOURCE is read only for a hash-based cache, as CPython does — a timestamp
+    cache beside an unreadable source still loads (EQ1). A hand-written header check
+    implemented three of CPython's five conditions."""
     pyc = Path(importlib.util.cache_from_source(str(src)))
     if not pyc.is_file():
         return False
     try:
         data = pyc.read_bytes()
         st = src.stat()
-        source = src.read_bytes()
     except OSError:
         return False
-    try:
-        from importlib import (
-            _bootstrap_external as be,  # noqa: PLC0415 - the validators CPython itself runs
-        )
-
-        details = {"name": src.stem, "path": str(pyc)}
-        flags = be._classify_pyc(data, src.stem, details)
-        if flags & 0b1:
-            if flags & 0b10 and data[8:16] != importlib.util.source_hash(source):
-                return False
-        else:
-            be._validate_timestamp_pyc(data, int(st.st_mtime), st.st_size, src.stem, details)
-    except (ImportError, EOFError):
-        return False  # rejected → recompiled from source, never a failure
-    except AttributeError:  # a CPython without those private names: the manual header rules
+    validators = (
+        getattr(_be, "_classify_pyc", None),
+        getattr(_be, "_validate_timestamp_pyc", None),
+    )
+    if all(validators):
+        classify, validate = validators
+        try:
+            details = {"name": src.stem, "path": str(pyc)}
+            flags = classify(data, src.stem, details)
+            if flags & 0b1:
+                if flags & 0b10:
+                    try:
+                        source = src.read_bytes()
+                    except OSError:
+                        return False  # CPython raises that OSError itself — not a cache failure
+                    if data[8:16] != importlib.util.source_hash(source):
+                        return False
+            else:
+                validate(data, int(st.st_mtime), st.st_size, src.stem, details)
+        except (ImportError, EOFError):
+            return False  # rejected → recompiled from source, never a failure
+    else:  # the manual header rules — CPython's conditions, hand-written
         if len(data) < 16 or data[:4] != importlib.util.MAGIC_NUMBER:
             return False
         flags = int.from_bytes(data[4:8], "little")
@@ -315,6 +348,12 @@ def _cache_would_fail(src: Path) -> bool:
             or int.from_bytes(data[12:16], "little") != st.st_size & 0xFFFFFFFF
         ):
             return False
+        if flags & 0b10:
+            try:
+                if data[8:16] != importlib.util.source_hash(src.read_bytes()):
+                    return False
+            except OSError:
+                return False
     try:
         code = marshal.loads(data[16:])
     except Exception:  # noqa: BLE001 - a torn body
