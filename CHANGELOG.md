@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `command_run.py start`: the confirmation shares stdout with the MCP-health block, so agents double-start (2026-09-03)
+
+- `start` printed the `RUN:` confirmation and then the MCP-health advisory on the SAME stream. An agent
+  piping `| tail -5` saw only six `<server>: CONNECTED` lines, concluded the call had printed nothing,
+  re-ran it, and got TWO nested records for one invocation — the first `done` then closed the inner one
+  and "resumed" to the outer, which reads as a failed close. Reported from iterative_image_editor with
+  both `started_at` values nine seconds apart (mail 01M1KNW05P7MKKAXT9NGVS1GY8).
+- The advisory (all three of its paths: output, crashed probe, timeout) now goes to STDERR. Stdout is the
+  command's RESULT; the health block is a diagnostic side-channel, and both still show in a terminal.
+  Nothing parses it from stdout (grepped).
+- Second guard for the same outcome: a `start` for the SAME command while an outer record of that command
+  is open now warns loudly on stderr and names the fix. The record still opens — refusing would be worse
+  if a nest is deliberate — but a command invoking ITSELF is not a shape we have, so this is a
+  double-start in practice. A nested start of a DIFFERENT command stays silent.
+- 3 tests; the two that can be (stream routing, same-command warning) proven red on revert. The stream
+  test runs in-process because the subprocess harness always sets `COMMAND_RUN_DIR`, which is the probe's
+  own test seam.
+
 ### Fixed — three gate/scaffold defects from infra's queue: dockerignore, a localhost false positive, a route detector that graded the file instead of the change (2026-09-03)
 
 - Operator handed me infra's mailbox while they are busy. Three fixes, each with a grader proven red on

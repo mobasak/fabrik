@@ -2749,3 +2749,62 @@ def test_terminal_verdict_names_the_full_sweep_condition_and_oscillation_names_b
     assert "FULL fresh sweep" in text and "scoped round never closes" in text
     warn = cr.convergence_warning([9, 15, 10, 6, 4, 9, 9], "fabrik-review")
     assert "RE-SCOPING" in warn and "ledger was IDENTICAL" in warn
+
+
+# ── 2026-09-03, mail 01M1KNW05P7MKKAXT9NGVS1GY8: the start confirmation was buried under the
+# MCP-health block on the SAME stream, so an agent piping `| tail -5` saw no confirmation,
+# re-ran `start`, and produced two nested records for one invocation — the first `done` then
+# closed the inner one and "resumed" to the outer, which read as a failed close ───────────────
+
+
+def test_the_mcp_advisory_goes_to_stderr_not_stdout(capsys, monkeypatch) -> None:
+    """STDOUT is the command's RESULT; the health block is a diagnostic side-channel.
+
+    Exercised in-process because the subprocess harness always sets COMMAND_RUN_DIR, which is
+    the probe's own test seam (it never spawns live MCP servers under test) — so the stream
+    routing has to be asserted on the function itself.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_mod", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    for var in ("PYTEST_CURRENT_TEST", "FABRIK_MCP_PROBE", "COMMAND_RUN_DIR"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(cr.Path, "exists", lambda self: True)
+    monkeypatch.setattr(
+        cr.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a[0] if a else [], 0, "MCP-HEALTH: all live\n", ""),
+    )
+    cr._mcp_probe_advisory()
+    captured = capsys.readouterr()
+    assert "MCP-HEALTH" in captured.err
+    assert captured.out == "", f"the advisory must not touch stdout: {captured.out!r}"
+
+
+def test_a_second_start_of_the_same_command_warns_on_stderr(run_dir: Path) -> None:
+    """The double-start shape itself: the record still opens (a deliberate nest must never be
+    refused), but the agent is told why the first `done` will look like it failed."""
+    _start(run_dir)
+    second = _cr(
+        run_dir, "start", "--command", _PROBE, "--phases", "5", "--terminal", "found:0 no-op round"
+    )
+    assert "NESTED START of the SAME command" in second.stderr, second.stderr
+    assert second.stdout.strip().startswith("RUN: "), second.stdout
+
+
+def test_a_nested_start_of_a_different_command_stays_silent(run_dir: Path) -> None:
+    """A command invoking another is the normal shape — the warning must not cry wolf."""
+    _start(run_dir)
+    nested = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review",
+        "--phases",
+        "5",
+        "--terminal",
+        "found:0 no-op round",
+    )
+    assert "NESTED START" not in nested.stderr, nested.stderr

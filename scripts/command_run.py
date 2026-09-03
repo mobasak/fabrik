@@ -454,17 +454,23 @@ def _mcp_probe_advisory() -> None:
         )
         out = cp.stdout.strip()
         if out:
-            print(out)
+            # STDERR, not stdout (mail 01M1KNW05P7MKKAXT9NGVS1GY8): this block is a diagnostic
+            # side-channel, while the run-record confirmation is the command's RESULT. Sharing
+            # one stream buried the confirmation under six `<server>: CONNECTED` lines, an agent
+            # piping `| tail -5` saw no confirmation, re-ran `start`, and got TWO nested records
+            # for one invocation — the first `done` then closed the inner one and "resumed" to
+            # the outer, which read as a failed close. Both streams still show in a terminal.
+            sys.stderr.write(out + "\n")
         elif cp.returncode != 0:
             # A crashed probe must not silently disable the ORIENT-mandated
             # check (review finding: empty stdout + nonzero rc printed nothing).
             err = (cp.stderr or "").strip().splitlines()
-            print(
-                f"⚠ mcp probe crashed (rc={cp.returncode}): {err[-1] if err else 'no output'} — fix-first per D-033"
+            sys.stderr.write(
+                f"⚠ mcp probe crashed (rc={cp.returncode}): {err[-1] if err else 'no output'} — fix-first per D-033\n"
             )
     except Exception:
-        print(
-            "⚠ mcp probe: health script errored/timed out — fix-first per D-033 if MCPs matter to this run"
+        sys.stderr.write(
+            "⚠ mcp probe: health script errored/timed out — fix-first per D-033 if MCPs matter to this run\n"
         )
 
 
@@ -1029,6 +1035,21 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(new)
         fields["persisted"] = save(sid, new)
         print(pinned_line(new))
+        # A second `start` for the SAME command inside the join window is almost always a
+        # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
+        # shape we have, while an agent who missed the confirmation and re-ran is exactly what
+        # produced two nested `fabrik-spec` records nine seconds apart (mail
+        # 01M1KNW05P7MKKAXT9NGVS1GY8). Say so loudly on stderr — the record still opens, because
+        # refusing would be worse if the nest IS deliberate, but the agent now sees the cause
+        # instead of a close that appears to fail.
+        if any(str(fr.get("command")) == str(new.get("command")) for fr in stack):
+            sys.stderr.write(
+                f"[command_run] ⚠ NESTED START of the SAME command "
+                f"({new.get('command')}) — the outer record is still open. If you re-ran "
+                "`start` because you did not see a confirmation, close this one with "
+                f"`done --command {new.get('command')}` and keep the outer: two records for "
+                "one invocation make the first `done` look like it failed.\n"
+            )
         _mcp_probe_advisory()
         return 0
 
