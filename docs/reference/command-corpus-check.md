@@ -28,7 +28,7 @@ grounded that way was ungrounded. No gate, test, or review caught it while the t
 
 ## What it proves
 
-Five mechanically decidable facts — no judgement, no network:
+Eight mechanically decidable facts — no judgement, no network:
 
 | # | Check | Caught live |
 |---|---|---|
@@ -173,7 +173,7 @@ fire, then a known-good one and requires silence:
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: all 5 predicates fire on bad input and stay silent on good input
+✓ selftest: 13 canaries over the eight predicates fire on bad input and stay silent on good input
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

@@ -83,8 +83,11 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 # and the lookahead rejects file-shaped tails (``/fabrik-review.md``).
 _CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
 _WEB_TOOLS_RE = re.compile(
-    r"web_tools\s*=\s*(?:(?:frozenset|set|sorted|list|tuple)\(\s*)*[\[{(](.*?)[\]})](?=\s*(?:[),`]|$))"
-)  # list/set/frozenset and nested-call forms, captured to the END of the argument — a closer followed by `)`, `,`, a backtick or the line's end — so `{"a"} | {"exa"}`, `sorted({"exa"})`, an inline-code span and a prose tail all keep every name and a following `system="…"` is never harvested; the scan is per LINE (a multi-line literal is out of scope) (DM2/DO2/DQ2)
+    r"web_tools\s*=\s*(?:(?:frozenset|set|sorted|list|tuple)\(\s*)*[\[{(](.*?)[\]})](?!\s*(?:[|+]|if\b|else\b))"
+)  # list/set/frozenset and nested-call forms, captured to the END of the argument — the first closer NOT followed by an operator (`|`, `+`) or a ternary keyword — so `{"a"} | {"exa"}`, `sorted({"exa"})`, a ternary, an inline-code span and a bare prose tail (`web_tools=["exa"] for facts`) all keep every name; the capture is then cut at the first keyword-argument boundary (`, system=…`), so a following argument is never harvested; per LINE (a multi-line literal is out of scope); UNQUOTED names (`[exa]`) are invisible by design since pass 43 — the price of not harvesting `if`/`else` (DM2/DO2/DQ2/DS2)
+_KWARG_CUT_RE = re.compile(
+    r",\s*[A-Za-z_][A-Za-z0-9_]*\s*="
+)  # the first `, name=` after the literal ends the harvest (DS2)
 _NAME_RE = re.compile(
     r"[\"'\\]+([a-z0-9_]+)[\"'\\]+"
 )  # QUOTED names only — digits matter ("context7"); the wider capture would otherwise harvest `if`/`else`/`sorted` as tool names (DQ2)
@@ -134,7 +137,8 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     """
     if not (repo / "libs" / "subagents" / "web_tools.py").exists():
         return None
-    sys.path.insert(0, str(repo))
+    if str(repo) not in sys.path:  # once — every audit() call inserted another copy (DS1)
+        sys.path.insert(0, str(repo))
     from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
 
     return frozenset(WEB_TOOL_NAMES)
@@ -158,6 +162,9 @@ def _canonical_trailer_model(repo: Path = REPO) -> str | None:
 # silent skip would claim coverage the run did not have — the exact fail-silent-green shape this
 # check exists to catch, rebuilt inside the fix for the OSError crash.
 SKIPPED: list[str] = []
+AUDITED: set[str] = (
+    set()
+)  # every file a predicate actually OPENED this audit — the success line's denominator (DS2)
 
 
 def _read(path: Path) -> str | None:
@@ -170,7 +177,9 @@ def _read(path: Path) -> str | None:
     the caller skips. Unreadable means UNPROVABLE, never violated.
     """
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        AUDITED.add(str(path))
+        return text
     except OSError as exc:
         # DEDUPE by path: _read is called from four sites, so one vanished file otherwise
         # appended three entries and the "files actually audited" arithmetic over-subtracted.
@@ -241,6 +250,7 @@ def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[str
     for wrapper in sorted(traycer_skills.glob("*/SKILL.md")):
         name = wrapper.parent.name
         body = wrapper.read_text(encoding="utf-8", errors="replace")
+        AUDITED.add(str(wrapper))
         m = _ORCH_DOC_RE.search(body)
         if m is None:
             problems.append(
@@ -292,6 +302,7 @@ def audit(
     """Return one problem string per real defect; empty means the corpus is sound."""
     problems: list[str] = []
     SKIPPED.clear()
+    AUDITED.clear()
     files = _corpus_files(sources, fragments, assembler)
     if not files:
         # ⚠️ NOT-APPLICABLE, not a failure — this check is SYNCED to ~46 projects, and the command
@@ -367,7 +378,11 @@ def audit(
         # what left check_doc_sprawl silently inert for weeks.
         rel = path.relative_to(repo) if path.is_relative_to(repo) else path
         for lineno, line in enumerate(text.splitlines(), 1):
-            for literal in _WEB_TOOLS_RE.findall(line) if valid_tools is not None else []:
+            for literal in (
+                (_KWARG_CUT_RE.split(cap, 1)[0] for cap in _WEB_TOOLS_RE.findall(line))
+                if valid_tools is not None
+                else []
+            ):
                 for name in _NAME_RE.findall(literal):
                     if name and name not in valid_tools:
                         problems.append(
@@ -411,6 +426,7 @@ def audit(
     for path in files:
         try:
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            AUDITED.add(str(path))
         except OSError:
             continue
         rel = path.relative_to(repo) if path.is_relative_to(repo) else path
@@ -467,6 +483,7 @@ def audit(
     if agents_src.is_dir():
         for adef in sorted(agents_src.glob("*.md")):
             text = adef.read_text(encoding="utf-8", errors="replace")
+            AUDITED.add(str(adef))
             if not text.startswith("---"):
                 problems.append(
                     f"_agents/{adef.name}: no frontmatter — Claude Code cannot register it"
@@ -523,6 +540,10 @@ def _selftest() -> int:
             ),
             "web-tool name (sorted form)": (
                 '{{include:run-record}}\nfanout("research", web_tools=frozenset(sorted({"exa"})))\n',
+                "name 'exa' is not a real tool",
+            ),
+            "web-tool name (prose tail)": (
+                '{{include:run-record}}\nGround research with web_tools=["exa"] for best results\n',
                 "name 'exa' is not a real tool",
             ),
             "web-tool name (inline code)": (
@@ -593,6 +614,7 @@ def _selftest() -> int:
             "description: auto-called by /fabrik-real reactively.\n"
             'fanout("research", web_tools=["web_search","docs_lookup"])\n'
             'fanout("research", web_tools=["web_search"] if fast else ["web_scrape"])  # a ternary: `if`/`else` are not tool names (DQ2)\n'
+            'fanout("research", web_tools=["web_search"] if fast else DEFAULT, system="exa")  # a later argument is never harvested (DS2)\n'
             "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
             "run `scripts/enforcement/check_command_corpus.py`\n"
             'close: `python3 scripts/command_run.py done --command x --evidence "e" '
@@ -608,7 +630,7 @@ def _selftest() -> int:
     if failures:
         return 1
     print(
-        f"✓ selftest: {len(cases) + 1} canaries over 9 predicates fire on bad input and stay silent on good input"
+        f"✓ selftest: {len(cases) + 1} canaries over the eight predicates fire on bad input and stay silent on good input"
     )
     return 0
 
@@ -631,13 +653,15 @@ def main(argv: list[str] | None = None) -> int:
     # DENOMINATOR: this check is SYNCED to ~46 repos where the corpus does not exist, and it
     # correctly returns [] there — but "all sound" then reads as a clean audit of nothing.
     # See docs/reference/enforcement-battery-audit.md.
-    audited = len(_corpus_files(SOURCES, FRAGMENTS, REPO / "commands" / "assemble_commands.py"))
+    audited = len(
+        AUDITED
+    )  # what the predicates OPENED (corpus + orchestrator docs + wrappers + agent defs), never the collected list alone — 55 printed against 93 read (DS2)
     print(
         "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
         " run records, agent definitions, advertised closes, caller claims —"
         # max(): SKIPPED can name files outside _corpus_files (orchestrator docs, agent defs),
         # so a bare subtraction can underflow into a nonsense negative denominator.
-        f" all sound across {max(0, audited - len(SKIPPED))} corpus file(s)"
+        f" all sound across {audited} file(s) read"
         + (
             f"\n⚠ {len(SKIPPED)} file(s) could NOT be read and were NOT audited "
             f"(collected {audited}): {', '.join(SKIPPED)}"

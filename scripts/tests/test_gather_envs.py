@@ -791,6 +791,13 @@ def test_a_capped_unit_keeps_its_answer_and_takes_no_strike(tmp_path, monkeypatc
     assert (
         errored == {"p", "e", "t"} and proposals["p"]["category"] == "?"
     )  # a template is no answer (DQ1)
+    completed_template = _Res(
+        '{"name": "<vendor>", "category": "<one of: ai-llm search>"}'
+    )  # status done
+    proposals, errored = cs.build_proposals(["c"], [completed_template])
+    assert (
+        errored == {"c"} and proposals["c"]["category"] == "?"
+    )  # a COMPLETED template echo strikes too (DS1)
 
 
 def test_extract_json_finds_the_object_among_other_braces():
@@ -825,6 +832,8 @@ def test_extract_json_finds_the_object_among_other_braces():
     assert cs.extract_json(cited)["name"] == "argus"
     near_miss = '{"category": "llm", "name": "x"}\n{"category": "search", "name": "y"}'
     assert cs.extract_json(near_miss)["name"] == "x"
+    hedge = '{"name": "argus", "category": "research-data|media-stock"}\n{"name": "exa", "category": "search"}'
+    assert cs.extract_json(hedge)["name"] == "argus"  # a hedge is the answer, not a template (DS1)
 
 
 def test_the_run_prints_and_persists_its_pool_cost(tmp_path, monkeypatch, capsys):

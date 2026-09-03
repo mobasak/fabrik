@@ -127,7 +127,14 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
         # not the echoed template: a prose, empty or template-only finalize is a retry (the strike
         # path), never a first-lap tombstone (DO1/DQ1)
         answered = obj is not None and not is_template(obj)
-        had_error = getattr(r, "error", None) is not None and not (capped and answered)
+        # a template-only answer — capped OR completed — is no answer: a strike toward the error
+        # budget (retry next lap), never a first-lap tombstone; the two were asymmetric (DS1)
+        template_only = obj is not None and not answered
+        had_error = (
+            getattr(r, "error", None) is not None and not (capped and answered)
+        ) or template_only
+        if template_only:
+            obj = None
         # KNOWN TRADEOFF: a COMPLETED response whose JSON is merely MALFORMED (trailing comma, bad
         # fence) also parses to None and is treated as unidentifiable → tombstoned under --apply
         # --tombstone-unresolved, not retried. Deliberate: bounded cost (no infinite re-bill) over
@@ -288,8 +295,8 @@ def unit_prompt(prov: str, info: dict) -> str:
 
 
 _TEMPLATE_RE = re.compile(
-    r"^\s*<|\|"
-)  # `<one of: …>` / `free|freemium|…` — the prompt's own format echoed back, not an answer (DQ1)
+    r"^\s*<"
+)  # `<one of: …>` — the prompt's own category placeholder echoed back, not an answer (DQ1); a `|` is NOT a template mark: a hedged `a|b` answer is the model's answer — it fails the enum, it is never overridden by a later object (DS1)
 
 
 def is_template(obj: dict | None) -> bool:

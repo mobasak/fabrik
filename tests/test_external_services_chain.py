@@ -560,7 +560,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     budgets = tmp_path / "budgets.log"
     (bin_dir / "timeout").write_text(
         "#!/bin/bash\n"
-        f'echo "$3 $5" >> "{budgets}"\n'  # "<budget> <script path>" — the script is unique per step; the last argv word collapsed the two gather runs into one key (DQ2)
+        f'for a in "$@"; do case "$a" in *.py) echo "$3 $a" >> "{budgets}"; break;; esac; done\n'  # "<budget> <script path>" — the FIRST .py argv word, never a fixed position (DS3); the last argv word had collapsed the two gather runs (DQ2)
         "shift 3\n"
         'exec "$@"\n',
         encoding="utf-8",
@@ -806,6 +806,12 @@ def _fanout_web_tools(source: str) -> list[str] | None:
                     got = _web_tools_literals(ast.unparse(node))
                     return got[0] if got else None
     return None
+
+
+def test_the_pin_reads_the_fanout_call_not_the_first_literal():
+    """A decoy literal before the `fanout(` call must not be the one pinned (DS3)."""
+    src = 'cfg = dict(web_tools=["exa"])\nfanout("research", web_tools=["web_search"])\n'
+    assert _fanout_web_tools(src) == ["web_search"]
 
 
 def test_the_sweep_parses_every_literal_shape():
