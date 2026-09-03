@@ -46,6 +46,11 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
         "daily classify must be bounded"
     )
     assert re.search(r"_step registry_sync.*--fetch-credits", text)
+    # the paid step's budget covers its units: 10 per run, up to 7 model calls + web searches each,
+    # 4 at a time — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
+    budget = re.search(r'^CLASSIFY_TIMEOUT="\$\{CLASSIFY_TIMEOUT:-(\d+)\}"', text, re.M)
+    assert budget and int(budget.group(1)) >= 1800, "CLASSIFY_TIMEOUT default"
+    assert re.search(r'\[ "\$label" = classify_services \] && budget="\$CLASSIFY_TIMEOUT"', text)
     # the dashboard is written ONLY when every DATA step succeeded, and the liveness heartbeat is
     # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
@@ -64,7 +69,7 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
     assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
     assert (
-        'timeout -k 30 "$STEP_TIMEOUT"' in text and "send_alert(" in text
+        'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
     assert "137 SIGKILL" in text  # the -k path exits 137, and the alert must decode it (AJ9)
     # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
@@ -659,8 +664,15 @@ def test_every_web_tools_literal_names_real_tools_not_providers():
     sys.path.insert(0, str(REPO))
     from libs.subagents.web_tools import WEB_TOOL_NAMES
 
-    pat = re.compile(r"web_tools\s*=\s*(?:frozenset\(|set\()?\s*[\[{(]([^\]})]*)[\]})]")
+    # capture to the END of the argument (the first closing paren/bracket of the call), not to the
+    # first `}` — `frozenset({"a"} | {"exa"})` hid its second half (DM2)
+    pat = re.compile(
+        r"web_tools\s*=\s*((?:frozenset\(|set\()?\s*[\[{(].*?)[\]\)]\s*,?\s*(?:#[^\n]*)?\n", re.S
+    )  # literal forms only: `web_tools=spec.web_tools` / `=enabled_web` carry no names to check
     seen = 0
+    classifier = (REPO / "scripts" / "classify_services.py").read_text(encoding="utf-8")
+    pinned = pat.search(classifier)
+    assert pinned and "web_search" in pinned.group(1), "the classifier's units must SEARCH (DK1)"
     for path in list((REPO / "scripts").rglob("*.py")) + list((REPO / "libs").rglob("*.py")):
         if "/tests/" in str(path) or "/.archive/" in str(path) or "/archived/" in str(path):
             continue

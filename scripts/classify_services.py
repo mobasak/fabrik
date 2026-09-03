@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/service_catalog.json scripts/tests/test_gather_envs.py docs/reference/external-services-registry.md
+# AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py docs/reference/external-services-registry.md
 """Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
 
 For every NEEDS-TRIAGE provider in secrets/all-envs.env, dispatch ONE cheap pool research
@@ -117,7 +117,11 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
     proposals: dict[str, dict] = {}
     errored: set[str] = set()
     for prov, r in zip(names, results, strict=True):
-        had_error = getattr(r, "error", None) is not None
+        # a CAPPED unit (max_turns hit) still carries the finalize call's real answer, but the
+        # library stamps its hint on `error` — treating that as a failure discarded the answer AND
+        # struck the error budget: three laps → a permanent tombstone for a real vendor (DM1)
+        capped_with_answer = getattr(r, "status", None) == "capped" and bool(getattr(r, "text", ""))
+        had_error = getattr(r, "error", None) is not None and not capped_with_answer
         obj = extract_json(getattr(r, "text", "")) if not had_error else None
         # KNOWN TRADEOFF: a COMPLETED response whose JSON is merely MALFORMED (trailing comma, bad
         # fence) also parses to None and is treated as unidentifiable → tombstoned under --apply
@@ -279,14 +283,23 @@ def unit_prompt(prov: str, info: dict) -> str:
 
 
 def extract_json(text: str) -> dict | None:
-    m = re.search(r"\{.*\}", text or "", re.S)
-    if not m:
-        return None
-    try:
-        obj = json.loads(m.group(0))
-        return obj if isinstance(obj, dict) else None
-    except json.JSONDecodeError:
-        return None
+    """The first balanced JSON object in the answer that carries a `category`.
+
+    A greedy `\\{.*\\}` ran from the first `{` to the LAST `}`: any second brace in a search-grounded
+    answer (a cited `{"prices": [...]}`, a `{region}` placeholder) destroyed the parse — and an
+    unparseable answer is tombstoned, never retried (DM1)."""
+    dec = json.JSONDecoder()
+    text = text or ""
+    for i, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _end = dec.raw_decode(text, i)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and "category" in obj:
+            return obj
+    return None
 
 
 def main() -> int:

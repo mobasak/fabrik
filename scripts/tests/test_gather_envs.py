@@ -749,9 +749,50 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
 
 
 class _Res:
-    def __init__(self, text, error=None, cost_usd=None):
+    def __init__(self, text, error=None, cost_usd=None, status="done"):
         self.agent_id, self.model, self.error, self.text = "a", "m", error, text
         self.cost_usd = cost_usd
+        self.status = status
+
+
+def test_a_capped_unit_keeps_its_answer_and_takes_no_strike(tmp_path, monkeypatch):
+    """With web tools advertised (DK1) a unit can hit `max_turns`: the library's finalize call still
+    returns a real answer but stamps its hint on `error` — treating that as a failure discarded the
+    answer AND struck the error budget, three laps → a permanent tombstone for a real vendor (DM1)."""
+    answer = {
+        "name": "foo",
+        "category": "search",
+        "cost": "paid",
+        "capability": "x",
+        "url": "https://x.io",
+        "status": "active",
+    }
+    good = _Res(
+        json.dumps(answer),
+        error="capped: max_turns=6 reached; final answer synthesised",
+        status="capped",
+    )
+    dead = _Res("", error="transport: timeout", status="error")
+    proposals, errored = cs.build_proposals(["foo", "bar"], [good, dead])
+    assert proposals["foo"]["category"] == "search" and "foo" not in errored
+    assert errored == {"bar"}  # a true transport failure is still a retry, never a tombstone (C4)
+
+
+def test_extract_json_finds_the_object_among_other_braces():
+    """A greedy `{.*}` ran from the first `{` to the LAST `}` — any second brace in a search-grounded
+    answer destroyed the parse, and an unparseable answer is tombstoned, never retried (DM1)."""
+    obj = '{"name": "argus", "category": "research-data", "cost": "paid", "capability": "x", "url": "https://a.io", "status": "active"}'
+    shapes = [
+        obj,
+        obj + '\nSources: https://a.io/docs (their API returns {"prices": [...]})',
+        "The vendor uses a {region} placeholder in its endpoints.\n" + obj,
+        "```json\n" + obj + "\n```\nNote: pricing tier {enterprise}.",
+        '{"unrelated": 1}\n' + obj,
+    ]
+    for shape in shapes:
+        got = cs.extract_json(shape)
+        assert got and got["category"] == "research-data", shape[:60]
+    assert cs.extract_json("no json here {") is None and cs.extract_json("") is None
 
 
 def test_the_run_prints_and_persists_its_pool_cost(tmp_path, monkeypatch, capsys):

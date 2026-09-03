@@ -82,7 +82,9 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 # where the slash is part of a longer path (``/opt/fabrik-lib``, ``docs/x/fabrik-mail.md``)
 # and the lookahead rejects file-shaped tails (``/fabrik-review.md``).
 _CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
-_WEB_TOOLS_RE = re.compile(r"web_tools\s*=\s*\[([^\]]*)\]")
+_WEB_TOOLS_RE = re.compile(
+    r"web_tools\s*=\s*(?:frozenset\(|set\()?\s*[\[{(]([^\]})]*)[\]})]"
+)  # list, set and frozenset forms — the hub's one production caller used `frozenset({"exa", "brave"})` and was invisible to the list-only form (DM2)
 _NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "context7", not "context"
 # Both citation forms: bare `scripts/x.py` AND hub-absolute `/opt/fabrik/scripts/x.py` — the
 # orchestrator docs cite almost exclusively in the absolute form, and the lookbehind-only regex
@@ -502,10 +504,18 @@ def _selftest() -> int:
         (src / "fabrik-real.md").write_text("placeholder\n{{include:run-record}}\n")
 
         cases = {
-            "web-tool name": 'fanout("research", web_tools=["exa","brave"])\n',
-            "chain target": "then run /fabrik-does-not-exist to finish\n",
-            "script path": "run `scripts/enforcement/check_no_such_thing.py`\n",
-            "trailer model": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n",
+            # every case opens a run record, so ONLY the predicate under test can fire: without
+            # the include the run-record predicate failed every probe and made the others
+            # vacuous — a list-only web_tools regex passed a set-form canary (review 2026-09-03, DM2)
+            "web-tool name": '{{include:run-record}}\nfanout("research", web_tools=["exa","brave"])\n',
+            "web-tool name (set form)": (
+                '{{include:run-record}}\nfanout("research", web_tools=frozenset({"exa","brave"}))\n'
+            ),
+            "chain target": "{{include:run-record}}\nthen run /fabrik-does-not-exist to finish\n",
+            "script path": "{{include:run-record}}\nrun `scripts/enforcement/check_no_such_thing.py`\n",
+            "trailer model": (
+                "{{include:run-record}}\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\n"
+            ),
             "run record": "a command body that never opens a run record\n",
             # Predicate 8: a caller CLAIM the alleged caller does not honour. fabrik-real.md
             # never names /fabrik-probe, so the advertised wiring does not exist.

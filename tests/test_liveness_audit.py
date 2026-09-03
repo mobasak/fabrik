@@ -923,8 +923,11 @@ def test_a_dead_merged_pipe_and_a_full_disk_never_raise_either(tmp_path):
             err = proc.stderr.read().decode("utf-8", "replace")
         assert proc.wait(timeout=300) == 1, err  # the report could not be stored
         assert "Traceback" not in err, err
-        lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
+        # an undeliverable report stamps a DIFFERENT marker: the registry's `liveness-audit`
+        # surface must age to DEAD, not read LIVE for 180 h on a report that went nowhere (DM2)
+        lines = [ln for ln in err.splitlines() if la.SELF_MARKER_UNDELIVERED in ln]
         assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+        assert not [ln for ln in err.splitlines() if ln.rstrip().endswith(la.SELF_MARKER)], err
         # the cron's own shape on a full disk: `>> log 2>&1` — both streams dead, exit 1, no raise
         proc = _run_audit(tmp_path, reg, stdout=full, stderr=subprocess.STDOUT)
         assert proc.wait(timeout=300) == 1
@@ -956,8 +959,9 @@ def test_a_closed_stdout_is_an_undeliverable_report(tmp_path):
     err = proc.stderr.decode("utf-8", "replace")
     assert proc.returncode == 1, err
     assert "Traceback" not in err, err
-    lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
+    lines = [ln for ln in err.splitlines() if la.SELF_MARKER_UNDELIVERED in ln]
     assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+    assert not [ln for ln in err.splitlines() if ln.rstrip().endswith(la.SELF_MARKER)], err
 
 
 def test_a_closed_stderr_never_corrupts_the_report(tmp_path):
@@ -1023,3 +1027,10 @@ def test_a_marker_echoed_by_the_report_itself_is_not_evidence(tmp_path):
     )
     inst, age, hits = box.marker_age("~/liveness.log", "liveness-audit: report generated")
     assert not inst.ok and age is None, (inst, age, hits)  # untimestamped hits only: still UNKNOWN
+    log.write_text("2026-09-02 06:40:00 liveness-audit: report UNDELIVERED\n", encoding="utf-8")
+    inst, age, hits = box.marker_age("~/liveness.log", la.SELF_MARKER)
+    assert inst.ok and hits == 0 and age is None, (
+        inst,
+        age,
+        hits,
+    )  # an undelivered run is no evidence (DM2)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.md
+# AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | INDEX.md
 """LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
 
 Every failure this file exists to catch had passed code review and had tests. None of them
@@ -189,6 +189,7 @@ CRON_LINE = re.compile(
 # "2026-08-16 07:32:34  arg=sweep ..." -- the leading stamp of a dated log line.
 LOG_STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?")
 SELF_MARKER = "liveness-audit: report generated"  # the registry's `liveness-audit` log_marker (DA1)
+SELF_MARKER_UNDELIVERED = "liveness-audit: report UNDELIVERED"  # never matches the registry marker: an undeliverable report must age the surface to DEAD, not certify it LIVE for 180 h (DM2)
 _UNIT_STATES = {
     "enabled",
     "enabled-runtime",
@@ -2088,10 +2089,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout is None
     )  # `1>&-`: print() silently no-ops on a None stdout — the report went nowhere (DK2)
     try:
-        if not undeliverable:
-            print(
-                json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True
-            )
+        print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
     except (
         BrokenPipeError
     ):  # the reader left (`| head`): its choice, not a failure — the stamp is still owed (DE2/DG1)
@@ -2106,7 +2104,9 @@ def main(argv: list[str] | None = None) -> int:
     ):  # `2>&-` leaves it None and print() would fall back to STDOUT, corrupting the JSON (DI2)
         try:
             print(
-                f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER}", file=sys.stderr, flush=True
+                f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {SELF_MARKER_UNDELIVERED if undeliverable else SELF_MARKER}",
+                file=sys.stderr,
+                flush=True,
             )
         except OSError:  # stderr is the same dead pipe (`2>&1 | head`) or the same full disk: park it so the exit-time flush cannot fail either (DG1)
             try:
