@@ -26,7 +26,9 @@ from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import gather_envs  # noqa: E402 - the ONE category predicate, shared with the scan (CU3)
 from libs.subagents import fanout, methodology, set_quality  # noqa: E402
 
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
@@ -225,10 +227,10 @@ def tombstone_of(catalog: dict, prov: str) -> bool:
     placeholder with no curated routing (`match`/`hosts`/`url`) — never a curated one: the only
     entry the merge path may remove (CA3/CC4)."""
     meta = catalog.get(prov) or {}
-    category = str(meta.get("category") or "?")
-    if category == "unidentified":
+    category = meta.get("category")
+    if isinstance(category, str) and category.strip() == "unidentified":
         return True
-    return category == "?" and not any(
+    return not gather_envs.real_category(category) and not any(  # the ONE predicate (CU3)
         meta.get(k) not in (None, "", "?", []) for k in ("match", "hosts", "url")
     )
 
@@ -601,10 +603,7 @@ def main() -> int:
         for prov in names:
             if prov in identified or prov in errored or prov in merged_into:
                 continue  # a merged host joined its vendor — never also a stub (AF2)
-            _cat = catalog[prov].get("category") if prov in catalog else None
-            if (
-                isinstance(_cat, str) and _cat.strip() and _cat.strip() != "?"
-            ):  # == gather_envs.real_category, graded against it (CM3/CP1)
+            if prov in catalog and gather_envs.real_category(catalog[prov].get("category")):
                 # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
                 # non-str category buckets to `?` there, so treating it as real here re-billed it daily
                 continue

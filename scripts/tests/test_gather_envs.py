@@ -2691,6 +2691,28 @@ def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, 
     assert (
         "#svc name=listy category=?" in body and "['ai-llm']" not in body
     )  # the FIELD says `?` too (CP1)
+    # the bucket key is the STRIPPED value: ` ai-llm ` and `ai-llm` are one section (CS1, graded CU4)
+    catalog.write_text(
+        json.dumps(
+            {
+                "a": {"category": " ai-llm ", "match": ["A"]},
+                "b": {"category": "ai-llm", "match": ["B"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    env.write_text("A_API_KEY=x\nB_API_KEY=y\n", encoding="utf-8")
+    body, _ = ge.consolidate([env])
+    assert len([ln for ln in body.splitlines() if ln.startswith("# ═") and "ai-llm" in ln]) == 1, (
+        body
+    )
+    # and `tombstone_of` is the same predicate, not a seventh copy (CU3)
+    for cat in ("ai-llm", "?", "", None, ["ai-llm"], "   ", " ? ", "\t?\n"):
+        assert cs.tombstone_of({"p": {"category": cat}}, "p") is (not ge.real_category(cat)), cat
+    assert cs.tombstone_of({"p": {"category": " unidentified "}}, "p") is True
+    assert (
+        cs.tombstone_of({"p": {"category": " ? ", "match": ["P"]}}, "p") is False
+    )  # curated routing
     out = tmp_path / "all-envs.env"
     monkeypatch.setattr(ge, "OUTPUT", out)
     catalog.write_text("{}", encoding="utf-8")
@@ -2747,6 +2769,7 @@ def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypa
     env.write_text("FOO_API_KEY=x\n", encoding="utf-8")
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
     monkeypatch.setattr(ge, "OUTPUT", tmp_path / "all-envs.env")
+    real_pef = ge.project_env_files  # kept before the patch (monkeypatch rebinds the module dict)
     monkeypatch.setattr(ge, "project_env_files", lambda: [env])
     monkeypatch.setattr(ge, "project_dirs", lambda: [])
     monkeypatch.setattr(sys, "argv", ["gather_envs.py"])
@@ -2762,4 +2785,12 @@ def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypa
     finally:
         env.chmod(0o600)
     env.unlink()
-    assert ge.main() == 0  # a vanished file is a mid-save race, tolerated
+    assert (
+        ge.main() == 1
+    )  # the glob listed it: vanished between the listing and the read is a refusal too (CU2)
+    assert "could not read its inputs" in capsys.readouterr().err
+    # …and a `.env` DIRECTORY (`python -m venv .env`) is not a project env file at all — the glob
+    # skips it, the chain never fails on it (CU1)
+    env.mkdir()
+    monkeypatch.setattr(ge, "OPT", tmp_path)
+    assert real_pef() == []

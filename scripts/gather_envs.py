@@ -684,11 +684,9 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except (
-        FileNotFoundError
-    ):  # a mid-save race: the previous consolidation carries the project (torn-file tolerance)
-        return out
-    except OSError:  # unreadable (permissions): a silently dropped project fed DELETEs to the sync — the "env files" cause, one line (CS2)
-        raise
+        OSError
+    ):  # the glob proved the path existed this run: unreadable, vanished or not a file → the
+        raise  # "env files" cause, one line via CP2 — a silently dropped project fed DELETEs to the sync (CS2/CU2)
     for line in text.splitlines():
         s = line.strip()
         if not s or s.startswith("#"):
@@ -712,6 +710,10 @@ def project_env_files() -> list[Path]:
     )  # the hub's own env is never a project's — wherever THIS copy lives (BW3)
     for env in sorted(OPT.glob("*/.env")):
         if env in (hub_env, OUTPUT, REPO / ".env"):
+            continue
+        if (
+            not env.is_file()
+        ):  # `python -m venv .env` makes a DIRECTORY; a dangling symlink is no env either (CU1)
             continue
         if env.parent.name.startswith("_"):
             continue

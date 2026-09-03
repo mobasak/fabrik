@@ -417,6 +417,10 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
             buf += ch
         i += 1
     clauses.append(buf)
+    assert depth == 0, (
+        "unbalanced parens in the failure-visibility sentence",
+        flat,
+    )  # an unbalanced `(` hid a cause (CU4)
     assert len([c for c in clauses if c.strip()]) == words[sentence.group(1)], (
         sentence.group(1),
         clauses,
