@@ -177,6 +177,8 @@ scripts/kilo-benchmarks/models_browser.html
 # never source (coding-benchmark plan 2026-07-19). Rebuilt by the Phase-A provisioning step.
 scripts/kilo-benchmarks/.lcb-venv/
 scripts/kilo-benchmarks/.lcb-src/
+# The LCB HF cache lives at ~/.cache/fabrik/lcb-hf-cache (D-110); this line stays so a re-created copy can never
+# ride wip_backup.sh's `add -A` off-box — tests/test_no_orphan_lcb_cache.py is what makes it visible.
 scripts/kilo-benchmarks/.lcb-hf-cache/
 # Derived kilo selection/route dumps — regenerated every daily_refresh / kilo-review run
 # (pre_filter.py, embedding_*.py, category_*.py, kilo_model_sync.py write these from agents.db),
