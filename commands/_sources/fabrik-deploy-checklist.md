@@ -8,7 +8,7 @@ against what was BUILT rather than against liveness alone. It exists because a s
 liveness check while holding 0 of its 760 companies: nothing anywhere had declared what the deployed
 system was supposed to contain. This command is where the project declares it, as executable rows.
 
-**You are at step 1 of the chain below — previous: `/fabrik-features` REFRESH · next: `/fabrik-release`.**
+**You are at step 1 of the chain below — previous: end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`, green on the build you are about to freeze) · next: `/fabrik-release`.**
 
 {{include:deploy-chain}}
 

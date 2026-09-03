@@ -767,6 +767,8 @@ def test_commands_table_covers_every_fabrik_source_in_pipeline_order(tmp_path, m
         "fabrik-plan-review"
     )
     assert names.index("fabrik-deploy") < names.index("fabrik-deploy-verify")
+    # operator ruling 2026-09-03: the contract freezes on the CERTIFIED build — after the gauntlets, before release
+    assert names.index("fabrik-service-test") < names.index("fabrik-deploy-checklist") < names.index("fabrik-release")
     assert set(names) - set(qd.PIPELINE_ORDER) == set(), "every source has an explicit order slot"
     assert set(qd.PIPELINE_ORDER) - set(names) == set(), "no stale slot in PIPELINE_ORDER"
     by = {c["name"]: c for c in cmds}

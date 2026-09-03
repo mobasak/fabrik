@@ -376,10 +376,10 @@ PIPELINE_ORDER: tuple[str, ...] = (
     "fabrik-plan-review",
     "fabrik-execute-plan",
     "fabrik-generate-tests",
-    # 5-certify → 6-release
-    "fabrik-deploy-checklist",
+    # 5-certify → 6-release (the contract freezes on the CERTIFIED build — D-096)
     "fabrik-user-test",
     "fabrik-service-test",
+    "fabrik-deploy-checklist",
     "fabrik-release",
     "fabrik-deploy-plan",
     "fabrik-deploy-plan-review",

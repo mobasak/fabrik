@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — pipeline: `/fabrik-deploy-checklist` moves AFTER certification, directly before `/fabrik-release` (D-096, 2026-09-03)
+
+- Operator ruling. The parity contract now freezes on the CERTIFIED build: certification consumes nothing from the
+  contract (0 mentions in the user-test / service-test sources) and its fixes move exactly what the contract freezes,
+  so the D-091 position forced a re-freeze after every certification fix. Updated in the same change: both
+  `CLAUDE.md` contracts (§ Orient `6-release` row + § Pipeline flow — fleet-synced), the assembler NEXT map
+  (`fabrik-features` REFRESH → certification; `fabrik-user-test`/`fabrik-service-test` → `/fabrik-deploy-checklist`
+  → `/fabrik-release`), the checklist's previous-line and the shared `deploy-chain` fragment, the reference doc,
+  `docs/FEATURES.md`, and the quota dashboard's `PIPELINE_ORDER` (test asserts service-test < checklist < release,
+  seen RED first). Rendered from master; the governance sync distributes the contract change fleet-wide.
+- Ledger hygiene found by the review: `docs/DECISIONS.md` carried TWO `D-094` rows (the quota-rotation ruling and,
+  from 713846ec, the mail-ownership ruling); the later-minted one is renumbered `D-097` — content untouched, zero
+  references outside the ledger. Ids are minted as max+1 at commit time; two sessions minted the same max.
+
 ### Added — quota dashboard: a Commands tab listing every /fabrik-* command in pipeline order, derived from the corpus (2026-09-03)
 
 - Operator ask: a second tab on `http://localhost:5051/` (Quota stays the default) with a table of all

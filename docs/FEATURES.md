@@ -340,8 +340,8 @@ Sources: `commands/_sources/fabrik-deploy{,-plan,-plan-review}.md`; chained via 
 - **Release precondition** — `/fabrik-release`'s VPS path reads the header and stops with
   `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` (`commands/_sources/fabrik-release.md:78-85`);
   a stale `Version` is a ⚠ WARN in the Gate-2 block.
-- **Pipeline position** — `/fabrik-features` REFRESH → `/fabrik-deploy-checklist` → certification →
-  `/fabrik-release` → the deploy triad → `/fabrik-deploy-verify` (`CLAUDE.md` § Orient `6-release` row + § Pipeline
+- **Pipeline position** — `/fabrik-features` REFRESH → certification → `/fabrik-deploy-checklist` (on the
+  certified build; moved after certification 2026-09-03, D-096) → `/fabrik-release` → the deploy triad → `/fabrik-deploy-verify` (`CLAUDE.md` § Orient `6-release` row + § Pipeline
   flow, mirrored in the fleet-synced `templates/governance/CLAUDE.md`).
 
 ### How To Use

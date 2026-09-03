@@ -14,5 +14,8 @@ output where the next step will never read it. Every command below ends by namin
 | 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |
 | 6 | `/fabrik-deploy-verify` | the **HUB** (VPS surfaces; store surfaces hand back at Phase 0 with the provenance verdict) | `DEPLOY CONFIRMED` / `VERIFICATION FAILED` / `UNVERIFIED` — executes the FROZEN contract, one leg per site |
 
-Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks). A version
-BUMP of the contract after step 6 re-runs step 6 only.
+Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks) → end-to-end
+certification (`/fabrik-user-test` · `/fabrik-service-test`). **The contract freezes on the CERTIFIED build** —
+certification produces fixes, and fixes move exactly what the contract freezes (routes, env set, migration head,
+compose services), so a freeze before the gauntlets forces a re-freeze after them (operator ruling 2026-09-03,
+D-096, supersedes the D-091 position). A version BUMP of the contract after step 6 re-runs step 6 only.
