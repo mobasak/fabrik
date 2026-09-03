@@ -57,8 +57,8 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     assert gated, "gen_dashboard must be gated on the data steps and the heartbeat stamped after it"
     # one writer, and it is the RENAME: a bare `> "$HEARTBEAT"` truncates before `date` runs, so a
     # failed write left a fresh empty stamp that read LIVE (DA3)
-    assert text.count('mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
     code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    assert code.count('mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
     assert '> "$HEARTBEAT"' not in code, "no direct (truncating) writer"
     # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
@@ -155,9 +155,11 @@ def test_liveness_registry_declares_the_chain_heartbeat():
     la = (REPO / "scripts" / "sysadmin" / "liveness_audit.py").read_text(encoding="utf-8")
     marker = re.search(r'^SELF_MARKER = "([^"]+)"', la, re.M)
     assert marker and me[0]["evidence"]["marker"] == marker.group(1), (me[0]["evidence"], marker)
-    assert 168 < me[0]["max_age_hours"] <= 336  # weekly, one missed Monday of slack
+    assert (
+        168 < me[0]["max_age_hours"] < 336
+    )  # 168 h weekly + late-cron slack; a MISSED Monday (336 h) must read DEAD
     assert re.search(
-        r'PROPOSED_CRON = \(\n\s*"40 6 \* \* 1 cd /opt/fabrik && \.venv/bin/python ', la
+        r'PROPOSED_CRON = \(\n\s*"[\d*/, \-]+ cd /opt/fabrik &&(?: exec)? \.venv/bin/python ', la
     ), "the proposed cron line must cd into the repo first — a relative .venv path is what broke it"
 
 
@@ -425,24 +427,36 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         log_paths += [root.group(1) + tail for tail in tails]
     # EVERY alert body the script sends is graded — the heartbeat alert (DA3) sat outside the
     # step-alert regex and could grow past 500 or carry a `_` unnoticed (DC2)
-    bodies = re.findall(r'_alert "[^"]*" "([^"]*)"', text)
-    assert len(bodies) == 2 and body in bodies, bodies
+    alerts = re.findall(r'_alert "([^"]*)" "([^"]*)"', text)
+    assert len(alerts) == 2 and body in [b for _t, b in alerts], (
+        alerts
+    )  # the pin: two alerts, both graded
     heartbeat = re.search(r'^HEARTBEAT="\$FABRIK_ROOT(/[^"]+)"', text, re.M).group(1)
-    for b in bodies:
+    for _t, b in alerts:
         fixed_b = re.sub(r"\$\{?[A-Za-z_]+\}?", "", b)
         assert "*" not in fixed_b and "_" not in fixed_b, fixed_b
+    # parity is a property of the MESSAGE Telegram builds — `*{title}*\n{body}` — rendered per
+    # label: today it holds because `$label` sits once in the title and once in the body (the two
+    # underscores cancel); a copy-edit dropping one passed the template-level check (DE1)
     for label in _steps(text):
         for log_path in log_paths:
             hb = hb_classify.group(1) if label == "classify_services" else hb_default.group(1)
-            for b in bodies:
-                rendered = (
-                    b.replace("$label", label)
+
+            def _render(tpl: str, label=label, log_path=log_path, hb=hb) -> str:
+                return (
+                    tpl.replace("$label", label)
                     .replace("$rc", "137")
                     .replace("$LOG_FILE", log_path)
                     .replace("$hb", hb)
                     .replace("$HEARTBEAT", "/opt/fabrik" + heartbeat)
                 )
+
+            for t, b in alerts:
+                rendered = _render(b)
                 assert len(rendered) <= 500, (label, log_path, len(rendered))
+                message = f"*{_render(t)}*\n{rendered}"  # libs/alerting/telegram.py
+                assert message.count("_") % 2 == 0, (label, log_path, message.count("_"))
+                assert message.count("*") == 2, (label, log_path, message)
     # the doc's exit-1 count is COUNTED against its own clauses, never pinned as a phrase (CJ4 fixed
     # the instance; a fifth clause under "one of four" passed a substring pin — CM2)
     sentence = re.search(r"exit 1 — one of (\w+): (.*?); never a degraded", doc, re.S)

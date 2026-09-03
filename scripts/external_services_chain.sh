@@ -70,7 +70,8 @@ if [ "$core_failed" -eq 0 ]; then
     # a bare `> "$HEARTBEAT"` truncated BEFORE `date` ran, so a failed write left a fresh EMPTY stamp
     # that read LIVE (DA3); a failed stamp keeps the previous one, alerts and exits 1 — it was the
     # only failure in this script nobody was told about; `-T`: a DIRECTORY at the stamp path fails the
-    # rename instead of receiving the tmp inside it and reading LIVE by its own mtime forever (DC2)
+    # rename instead of receiving the tmp inside it and reading LIVE by its own mtime forever (DC2);
+    # the mirror: a SYMLINK at the stamp path is replaced by the file, never followed (DE3)
     if mkdir -p "$(dirname "$HEARTBEAT")" && date -u +%FT%TZ > "$HEARTBEAT.tmp.$$" && mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"; then :; else
       rm -f "$HEARTBEAT.tmp.$$"
       chain_failed=1

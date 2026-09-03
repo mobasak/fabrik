@@ -791,8 +791,8 @@ def test_mail_escalate_is_registered_with_the_precedent_fields():
 def test_the_audit_stamps_its_own_heartbeat_line(tmp_path, capsys):
     """The auditor audits itself (registry surface `liveness-audit`, a log_marker on the cron's
     log): on completion it prints ONE LOG_STAMP-shaped stderr line carrying SELF_MARKER, which is
-    exactly what `_stamp_age` can age — the installed weekly line had no `cd /opt/fabrik` and
-    failed on every scheduled run for three weeks with nothing watching the watcher (DA1)."""
+    exactly what `_stamp_age` can age — the installed weekly line has no `cd /opt/fabrik`, so its
+    only scheduled attempt failed with nothing watching the watcher (DA1)."""
     reg = tmp_path / "registry.json"
     reg.write_text(json.dumps({"surfaces": []}), encoding="utf-8")
     argv = ["--registry", str(reg), "--repo-root", str(tmp_path), "--proof", "heartbeat", "--json"]
@@ -848,3 +848,78 @@ def test_the_self_heartbeat_line_survives_the_crons_merged_streams(tmp_path):
     assert len(text) > 16384, len(text)  # the report must overflow the stdout buffer to prove it
     lines = [ln for ln in text.splitlines() if la.SELF_MARKER in ln]
     assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, lines
+
+
+def _big_registry(tmp_path, n: int):
+    surfaces = [
+        {
+            "id": f"s{i}",
+            "kind": "cron",
+            "cron_match": f"never-matches-{i}",
+            "doc": "x.md",
+            "evidence": {"type": "none"},
+            "max_age_hours": 24,
+            "why": "x" * 120,
+        }
+        for i in range(n)
+    ]
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps({"surfaces": surfaces}), encoding="utf-8")
+    return reg
+
+
+def test_a_closed_stdout_never_raises_and_the_stamp_still_lands(tmp_path):
+    """`--json | head`: with the report flushed inside `main` (DC1) a closed reader raised
+    BrokenPipeError out of `main` — a traceback, exit 1, and NO stamp — while the doc promises the
+    audit "exits 0 by default and never raises". The reader is gone: stdout is parked on /dev/null
+    and the stderr stamp still lands (DE2). A report far larger than the pipe buffer forces the
+    EPIPE."""
+    reg = _big_registry(tmp_path, 300)
+    argv = [
+        sys.executable,
+        la.__file__,
+        "--registry",
+        str(reg),
+        "--repo-root",
+        str(tmp_path),
+        "--proof",
+        "heartbeat",
+        "--json",
+    ]
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert proc.stdout is not None and proc.stderr is not None
+    proc.stdout.read(16)
+    proc.stdout.close()  # the reader leaves — every later write is EPIPE
+    err = proc.stderr.read().decode("utf-8", "replace")
+    assert proc.wait(timeout=300) == 0, err
+    assert "Traceback" not in err and "BrokenPipeError" not in err, err
+    lines = [ln for ln in err.splitlines() if la.SELF_MARKER in ln]
+    assert len(lines) == 1 and la._stamp_age(lines[0]) is not None, err
+
+
+def test_a_marker_echoed_by_the_report_itself_is_not_evidence(tmp_path):
+    """The audit's own JSON report names the marker in its `detail` text and the cron appends that
+    report to the marker's log: substring hits inflated the count, and a run that died before its
+    stamp left only untimestamped hits — UNKNOWN, which `--strict` never fails (DE2). Only a
+    LOG_STAMP-shaped line counts."""
+    home = tmp_path / "home"
+    home.mkdir()
+    log = home / "liveness.log"
+    log.write_text(
+        "2026-09-01 06:40:00 liveness-audit: report generated\n"
+        '          "detail": "~/liveness.log carries no line with \'liveness-audit: report generated\'",\n'
+        "2026-09-02 06:40:00 liveness-audit: report generated\n"
+        '          "detail": "carries no line with \'liveness-audit: report generated\'",\n',
+        encoding="utf-8",
+    )
+    box = la.Box(home=home) if "home" in la.Box.__init__.__code__.co_varnames else None
+    if box is None:
+        pytest.skip("Box has no injectable home")
+    inst, age, hits = box.marker_age("~/liveness.log", "liveness-audit: report generated")
+    assert inst.ok and hits == 2 and age is not None, (inst, age, hits)
+    log.write_text(
+        '          "detail": "carries no line with \'liveness-audit: report generated\'",\n',
+        encoding="utf-8",
+    )
+    inst, age, hits = box.marker_age("~/liveness.log", "liveness-audit: report generated")
+    assert not inst.ok and age is None, (inst, age, hits)  # untimestamped hits only: still UNKNOWN

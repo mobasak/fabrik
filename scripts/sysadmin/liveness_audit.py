@@ -332,10 +332,12 @@ class Box:
         hits = [ln for ln in read_text(path).splitlines() if marker in ln]
         if not hits:
             return inst, None, 0
-        for line in reversed(hits):
-            when = _stamp_age(line)
-            if when is not None:
-                return inst, when, len(hits)
+        # only a LOG_STAMP-shaped line is evidence: the audit's own JSON report echoes a marker in
+        # its `detail` text into the very log it is appended to, which inflated the count and — in
+        # a run that died before its stamp — left only untimestamped hits (DE2)
+        stamped = [ln for ln in hits if _stamp_age(ln) is not None]
+        if stamped:
+            return inst, _stamp_age(stamped[-1]), len(stamped)
         return (
             Instrument.broken(
                 f"log-reader[{raw}]",
@@ -2082,7 +2084,12 @@ def main(argv: list[str] | None = None) -> int:
     # flush=True: under the cron's `>> log 2>&1` a report larger than the stdout buffer was written
     # through with its trailing newline still buffered, so the stderr stamp landed GLUED to the last
     # brace — never LOG_STAMP-shaped, the self-surface UNKNOWN forever (DC1)
-    print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
+    try:
+        print(json.dumps(report.as_dict(), indent=2) if args.json else render(report), flush=True)
+    except (
+        BrokenPipeError
+    ):  # `| head`: the reader is gone — the stamp below stays reachable, exit 0 (DE2)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
     # the auditor's OWN heartbeat: one LOG_STAMP-shaped line on stderr (the cron appends 2>&1), so
     # the `liveness-audit` surface can age it — the installed weekly line's only scheduled attempt failed
     # with nothing watching the watcher (review 2026-09-03, DA1)

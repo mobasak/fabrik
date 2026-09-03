@@ -411,7 +411,7 @@
     "path": "/opt/fabrik/.tmp/external-services/chain-heartbeat"
    },
    "max_age_hours": 30,
-   "why": "the external-services chain (scripts/external_services_chain.sh: gather_envs → classify → gather_envs → registry_sync → gen_dashboard), run by daily_refresh.sh and wsl_startup_hook.sh; the script stamps this file itself, ONLY after every DATA step (gather_envs, the second gather_envs — step label gather_envs_reconsolidate — and registry_sync) and the dashboard succeeded, via tmp + rename: a data step that fails, or a stamp it cannot write (alerted, exit 1), leaves the previous stamp to age past 30 h and read DEAD; the dashboard file's own mtime is NOT evidence — any manual gen_dashboard.py run refreshes it (review 2026-09-02, CY1/DA3)"
+   "why": "the external-services chain (scripts/external_services_chain.sh: gather_envs → classify → gather_envs → registry_sync → gen_dashboard), run by daily_refresh.sh and wsl_startup_hook.sh; the script stamps this file itself, ONLY after every DATA step (gather_envs, the second gather_envs — step label gather_envs_reconsolidate — and registry_sync) and the dashboard succeeded, via tmp + rename: a data step that fails, or a stamp it cannot write (alerted, exit 1), leaves the previous stamp to age past 30 h and read DEAD; the dashboard file's own mtime is NOT evidence — any manual gen_dashboard.py run refreshes it (review 2026-09-02, CY1/DA3); the paid classify step is deliberately NOT part of the heartbeat — its failure alerts but never ages the stamp (G9); the chain sat half-dead for 46 days before any surface named it"
   }
  ],
  "version": 1
