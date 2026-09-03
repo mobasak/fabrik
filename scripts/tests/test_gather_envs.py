@@ -782,8 +782,15 @@ def test_a_capped_unit_keeps_its_answer_and_takes_no_strike(tmp_path, monkeypatc
         "I could not confirm the vendor; the site was unreachable.", error="capped", status="capped"
     )
     empty = _Res("", error="capped", status="capped")
-    proposals, errored = cs.build_proposals(["p", "e"], [prose, empty])
-    assert errored == {"p", "e"} and proposals["p"]["category"] == "?"
+    template = _Res(
+        '{"name": "<vendor>", "category": "<one of: ai-llm search>"}',
+        error="capped",
+        status="capped",
+    )
+    proposals, errored = cs.build_proposals(["p", "e", "t"], [prose, empty, template])
+    assert (
+        errored == {"p", "e", "t"} and proposals["p"]["category"] == "?"
+    )  # a template is no answer (DQ1)
 
 
 def test_extract_json_finds_the_object_among_other_braces():
@@ -810,6 +817,14 @@ def test_extract_json_finds_the_object_among_other_braces():
     two = '{"category": "search", "name": "a"}\n{"category": "payments", "name": "b"}'
     assert cs.extract_json(two)["name"] == "a"
     assert cs.extract_json('{"category": "<template>"}')["category"] == "<template>"
+    # the model's FIRST genuine answer wins — a `?` refusal or a near-miss included — and a later
+    # cited object never overrides it, or the merge path files the vendor under the citation (DQ1)
+    refusal = '{"category": "?", "capability": "unknown - needs human"}\n{"name": "argus", "category": "research-data"}'
+    assert cs.extract_json(refusal)["category"] == "?"
+    cited = obj + '\nSource object: {"name": "exa", "category": "search", "url": "https://exa.ai"}'
+    assert cs.extract_json(cited)["name"] == "argus"
+    near_miss = '{"category": "llm", "name": "x"}\n{"category": "search", "name": "y"}'
+    assert cs.extract_json(near_miss)["name"] == "x"
 
 
 def test_the_run_prints_and_persists_its_pool_cost(tmp_path, monkeypatch, capsys):

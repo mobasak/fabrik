@@ -47,7 +47,7 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     )
     assert re.search(r"_step registry_sync.*--fetch-credits", text)
     # the paid step's budget covers its units: 10 per run, up to 7 model calls + web searches each,
-    # 4 at a time — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
+    # ALL in parallel — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
     budget = re.search(r'^CLASSIFY_TIMEOUT="\$\{CLASSIFY_TIMEOUT:-(\d+)\}"', text, re.M)
     # one unit's wall clock is the pool's default (1800 s) + 30 s of outer grace: the budget must
     # EXCEED it, or the kill lands exactly when a hung unit would have returned (DO1)
@@ -560,7 +560,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     budgets = tmp_path / "budgets.log"
     (bin_dir / "timeout").write_text(
         "#!/bin/bash\n"
-        f'echo "$3 ${{*: -1}}" >> "{budgets}"\n'  # "<budget> <last argv word>"
+        f'echo "$3 $5" >> "{budgets}"\n'  # "<budget> <script path>" — the script is unique per step; the last argv word collapsed the two gather runs into one key (DQ2)
         "shift 3\n"
         'exec "$@"\n',
         encoding="utf-8",
@@ -590,6 +590,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert "step gather_envs FAILED (exit 1)" in calls and "liveness DEAD" in calls
     # 2. a clean run
     log.write_text("", encoding="utf-8")
+    budgets.write_text("", encoding="utf-8")  # the failed scan above logged its own budget
     r = subprocess.run(["bash", str(CHAIN)], env=env, capture_output=True, text=True)
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
@@ -609,10 +610,14 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "registry_sync.py",
         "gen_dashboard.py",
     ]
-    seen = [ln.split() for ln in budgets.read_text(encoding="utf-8").splitlines()]
-    by_step = {(ln[1].split("/")[-1] if "/" in ln[1] else ln[1]): ln[0] for ln in seen}
-    assert by_step.get("10") == "4321", by_step  # classify's last argv word is `--max-per-run 10`
-    assert {b for step, b in by_step.items() if step != "10"} == {"30"}, by_step
+    by_step: dict[str, list[str]] = {}
+    for b, script in (ln.split() for ln in budgets.read_text(encoding="utf-8").splitlines()):
+        by_step.setdefault(Path(script).name, []).append(b)
+    assert by_step["classify_services.py"] == ["4321"], by_step
+    assert by_step["gather_envs.py"] == ["30", "30"], by_step  # BOTH gather runs, never collapsed
+    assert {b for k, v in by_step.items() if k != "classify_services.py" for b in v} == {"30"}, (
+        by_step
+    )
     # 3. the PAID step fails: alerted, exit 1 — but the data steps run and the heartbeat is
     # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
     log.write_text("", encoding="utf-8")
@@ -696,8 +701,12 @@ def _tracked_python_files() -> list[Path]:
             capture_output=True,
             check=True,
             timeout=60,
-        ).stdout.decode()
-        files = [REPO / p for p in out.split("\0") if p.endswith(".py")]
+        ).stdout.decode(errors="surrogateescape")
+        files = [
+            REPO / p
+            for p in out.split("\0")
+            if p.endswith(".py") and "/.archive/" not in f"/{p}" and "/archived/" not in f"/{p}"
+        ]  # archives are dead code: a stale literal there must not red the live suite (DQ2)
         if files:
             return files
     except (OSError, subprocess.SubprocessError):
@@ -749,14 +758,21 @@ def test_every_web_tools_literal_names_real_tools_not_providers():
     `docs_lookup`); the pool loop advertises only names it knows. The classifier passed the
     PROVIDER names `{"exa", "brave"}`, so its paid "research" units ran with NO web tools — one
     turn of model recall each, 10 of 10 on the first production run, the root of the `argusmedia`
-    misfile (DK1). The corpus gate checks only `commands/` markdown; this is the same check over
-    every tracked Python caller in scripts/ and libs/, parsed, never pattern-matched (DO2)."""
+    misfile (DK1). The corpus gate checks the `commands/` markdown plus the assembler, per line;
+    this is the same check over every tracked Python caller in scripts/ and libs/ (archives
+    excluded), parsed, never pattern-matched (DO2/DQ2)."""
     sys.path.insert(0, str(REPO))
     from libs.subagents.web_tools import WEB_TOOL_NAMES
 
     literals = 0
     for path in _tracked_python_files():
-        if "/tests/" in str(path) or path.name == "check_command_corpus.py":
+        rel = f"/{path.relative_to(REPO)}"
+        if (
+            "/tests/" in rel
+            or "/.archive/" in rel
+            or "/archived/" in rel
+            or path.name == "check_command_corpus.py"
+        ):
             continue
         try:
             found = _web_tools_literals(path.read_text(encoding="utf-8", errors="replace"))
@@ -770,11 +786,26 @@ def test_every_web_tools_literal_names_real_tools_not_providers():
             assert not bad, (str(path.relative_to(REPO)), bad, sorted(WEB_TOOL_NAMES))
     assert literals >= 1, "the classifier's literal must be in the sweep"
     classifier = (REPO / "scripts" / "classify_services.py").read_text(encoding="utf-8")
-    pinned = [n for n in _web_tools_literals(classifier) if n is not None]
-    assert pinned and "web_search" in pinned[0], "the classifier's units must SEARCH (DK1)"
+    pinned = _fanout_web_tools(
+        classifier
+    )  # the `fanout(` call's own literal, never a positional guess (DQ2)
+    assert pinned and "web_search" in pinned, "the classifier's units must SEARCH (DK1)"
     assert "recover_caps=False" in classifier, (
         "a zero-output cap is a retry, never a serial re-dispatch on top of the step budget (DO1)"
     )
+
+
+def _fanout_web_tools(source: str) -> list[str] | None:
+    """The `web_tools=` literal of the FIRST `fanout(` call in the file (DQ2)."""
+    import ast
+
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "fanout":
+            for kw in node.keywords:
+                if kw.arg == "web_tools":
+                    got = _web_tools_literals(ast.unparse(node))
+                    return got[0] if got else None
+    return None
 
 
 def test_the_sweep_parses_every_literal_shape():

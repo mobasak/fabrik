@@ -83,9 +83,11 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 # and the lookahead rejects file-shaped tails (``/fabrik-review.md``).
 _CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
 _WEB_TOOLS_RE = re.compile(
-    r"web_tools\s*=\s*(?:frozenset\(|set\()?\s*[\[{(](.*?)[\]})](?=\s*(?:\)|,|$))", re.M
-)  # list, set and frozenset forms, captured to the END of the argument — a closer followed by `)`, `,` or the line's end — so `{"a"} | {"exa"}` and `sorted({"exa"})` keep every name and a following `system="…"` is never harvested (DM2/DO2)
-_NAME_RE = re.compile(r"[\"'\\]*([a-z0-9_]+)[\"'\\]*")  # digits matter: "context7", not "context"
+    r"web_tools\s*=\s*(?:(?:frozenset|set|sorted|list|tuple)\(\s*)*[\[{(](.*?)[\]})](?=\s*(?:[),`]|$))"
+)  # list/set/frozenset and nested-call forms, captured to the END of the argument — a closer followed by `)`, `,`, a backtick or the line's end — so `{"a"} | {"exa"}`, `sorted({"exa"})`, an inline-code span and a prose tail all keep every name and a following `system="…"` is never harvested; the scan is per LINE (a multi-line literal is out of scope) (DM2/DO2/DQ2)
+_NAME_RE = re.compile(
+    r"[\"'\\]+([a-z0-9_]+)[\"'\\]+"
+)  # QUOTED names only — digits matter ("context7"); the wider capture would otherwise harvest `if`/`else`/`sorted` as tool names (DQ2)
 # Both citation forms: bare `scripts/x.py` AND hub-absolute `/opt/fabrik/scripts/x.py` — the
 # orchestrator docs cite almost exclusively in the absolute form, and the lookbehind-only regex
 # was blind to every one of them (predicate 3 said "all sound" while it audited nothing there —
@@ -519,6 +521,14 @@ def _selftest() -> int:
                 '{{include:run-record}}\nfanout("research", web_tools=frozenset({"web_search"} | {"exa"}))\n',
                 "name 'exa' is not a real tool",
             ),
+            "web-tool name (sorted form)": (
+                '{{include:run-record}}\nfanout("research", web_tools=frozenset(sorted({"exa"})))\n',
+                "name 'exa' is not a real tool",
+            ),
+            "web-tool name (inline code)": (
+                '{{include:run-record}}\nthe grounder passes `web_tools=["exa"]` for facts\n',
+                "name 'exa' is not a real tool",
+            ),
             "chain target": (
                 "{{include:run-record}}\nthen run /fabrik-does-not-exist to finish\n",
                 "does not exist in commands/_sources/",
@@ -582,6 +592,7 @@ def _selftest() -> int:
             "{{include:run-record}}\n"
             "description: auto-called by /fabrik-real reactively.\n"
             'fanout("research", web_tools=["web_search","docs_lookup"])\n'
+            'fanout("research", web_tools=["web_search"] if fast else ["web_scrape"])  # a ternary: `if`/`else` are not tool names (DQ2)\n'
             "next: /fabrik-real · see /opt/fabrik-lib and docs/reference/fabrik-mail.md\n"
             "run `scripts/enforcement/check_command_corpus.py`\n"
             'close: `python3 scripts/command_run.py done --command x --evidence "e" '
@@ -597,7 +608,7 @@ def _selftest() -> int:
     if failures:
         return 1
     print(
-        f"✓ selftest: all {len(cases)} predicates fire on bad input and stay silent on good input"
+        f"✓ selftest: {len(cases) + 1} canaries over 9 predicates fire on bad input and stay silent on good input"
     )
     return 0
 

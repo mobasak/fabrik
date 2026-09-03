@@ -123,9 +123,11 @@ def build_proposals(names: list[str], results: list) -> tuple[dict[str, dict], s
         capped = getattr(r, "status", None) == "capped"
         raw = getattr(r, "text", "")
         obj = extract_json(raw) if (getattr(r, "error", None) is None or capped) else None
-        # a cap is exempt from the error budget only when its answer PARSED: a prose finalize
-        # is a retry (the strike path), never a first-lap tombstone (DO1)
-        had_error = getattr(r, "error", None) is not None and not (capped and obj is not None)
+        # a cap is exempt from the error budget only when it ANSWERED — a parsed object that is
+        # not the echoed template: a prose, empty or template-only finalize is a retry (the strike
+        # path), never a first-lap tombstone (DO1/DQ1)
+        answered = obj is not None and not is_template(obj)
+        had_error = getattr(r, "error", None) is not None and not (capped and answered)
         # KNOWN TRADEOFF: a COMPLETED response whose JSON is merely MALFORMED (trailing comma, bad
         # fence) also parses to None and is treated as unidentifiable → tombstoned under --apply
         # --tombstone-unresolved, not retried. Deliberate: bounded cost (no infinite re-bill) over
@@ -285,6 +287,15 @@ def unit_prompt(prov: str, info: dict) -> str:
     )
 
 
+_TEMPLATE_RE = re.compile(
+    r"^\s*<|\|"
+)  # `<one of: …>` / `free|freemium|…` — the prompt's own format echoed back, not an answer (DQ1)
+
+
+def is_template(obj: dict | None) -> bool:
+    return obj is not None and bool(_TEMPLATE_RE.search(str(obj.get("category") or "")))
+
+
 def extract_json(text: str) -> dict | None:
     """The first balanced JSON object in the answer that carries a `category`.
 
@@ -303,9 +314,11 @@ def extract_json(text: str) -> dict | None:
             continue
         if not (isinstance(obj, dict) and "category" in obj):
             continue
-        if _enum_category(obj.get("category")) != "?":
-            return obj  # the first object whose category is a real enum member — an echoed
-            # format template (`<one of: …>`) before the answer must not win (DO1)
+        if not is_template(obj):
+            return obj  # the model's FIRST genuine answer — a `?` refusal or a near-miss included:
+            # a later cited object (`{"name": "exa", "category": "search"}`) must never override
+            # it, or the merge path files the vendor under the citation (DQ1); only an echoed
+            # format template before the answer is skipped (DO1)
         first = first or obj
     return first
 
