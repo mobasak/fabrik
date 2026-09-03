@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the gate's skip summary missed two of three skip shapes; D-096 restored; the pgvector capability claim corrected (2026-09-03)
+
+- Fleet mailbox drain (operator: "check your mails and handle them"): 31 messages addressed to fleet, all
+  handled — 13 substantive replies, 3 kaizen, 15 acks; **fleet inbox 0**. Three fixes, seven sized rows.
+- `final_gate.py`: `_summarize_skipped` keyed on the substring "NOT INSTALLED", covering bandit/sqlfluff/
+  vulture and silently missing BOTH pytest NOT-RUN variants and the docs-only "static tier (diff-sensed
+  skip)" — so a gate whose entire suite never ran could print `skipped: 0`, re-creating the fail-silent-green
+  class the field was built to remove (mail 01M1KMF66S, infra). Now keyed on a declared `_SKIP_MARKERS`
+  tuple; `pytest (SUITE REFUSED — usage error)` is deliberately excluded (it is appended red, so the gate
+  already stopped the agent) and that exclusion is graded, not assumed. 3 tests, one seen red first.
+  First live run reported `skipped: 1 (['pytest'])`: this repo's gate NEVER runs pytest by design (its CI
+  does not), so every gate green here asserts nothing about the suite — pre-existing, now visible in the JSON.
+- `docs/DECISIONS.md`: D-096 had 4 cells against the separator's 6 — the why and where were written INSIDE
+  the what cell, so no reader saw them as columns (mail 01M1KZ359P). Restored verbatim, so the ruling is
+  unchanged and immutability holds. `tests/test_decisions_table_shape.py` now REDS on short rows, not just
+  bare pipes (measured 1 short in 107 before moving the bar; 0 in 108 after; red-on-revert proven).
+- `agents-fabrik.md`: the pgvector row claimed `pgvector/pgvector:pg16`, "fully self-hosted". Probed by
+  fleet: postgres-main is `postgres:16-alpine` and BOTH `pg_available_extensions` and `pg_extension` return 0
+  for `vector` — neither installed nor installable. Row corrected with both probes and their dates.
+- `infrastructure.py`: the watchdog gate's comment asserted "WatchdogConfig.enabled defaults to True" — the
+  class defaults False, and the lie had already propagated into a doc. Comment and module docstring corrected
+  to state the real divergence (apply reads raw yaml then True; plan/audit/DESTROY go through `model_dump()`
+  then False, and the teardown replay is on the False side). Behaviour unchanged: reconciling it moves 34 of
+  72 specs either way, so it is an operator decision with three options in the backlog.
+- `docs/STRATEGIC_BACKLOG.md`: 7 sized rows — watchdog default divergence, fleet capability claims
+  (pgvector/redis 7.x/scaffold bookworm literals), docusaurus scaffold vs rule 42, `pause_state.py` fail-open,
+  `is_admin_dashboard` domain-wide, Promtail EOL + node-api metrics, second flywheel database. Every count in
+  them re-derived from the tree, not copied from the reporting mail.
+- Review: `docs/development/reviews/2026-09-03-mailbox-drain-fleet-review.md` (2 rounds, 3 findings fixed,
+  including one where my own corrective comment invalidated the line number it cited).
+
 ### Fixed — rotation: a trip flip is never held by the 30-minute dwell (2026-09-03)
 
 - Operator directive after the D-103 report named the dwell as a "known limit": a session wall stops every

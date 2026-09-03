@@ -214,3 +214,55 @@ def test_json_summary_counts_skipped_checks_separately(tmp_path):
     ]
     summary = fg._summarize_skipped(rows)
     assert summary == {"skipped": 2, "skipped_checks": ["bandit", "vulture"]}
+
+
+# ── 2026-09-03, mail 01M1KMF66S0HCR1XCC0QASMEQP (infra pass 53): the skip summary keyed on ONE
+# substring and missed two of the three skip shapes the gate emits ────────────────────────────
+
+
+def test_the_skip_summary_catches_a_pytest_that_never_ran_and_a_diff_sensed_static_skip():
+    """`skipped: 0` used to be printable by a gate whose ENTIRE suite never ran (the transdoc
+    class: 123 tests outside the completion gate) or whose whole static tier was skipped for a
+    .md-only diff — both are green rows that assert nothing, which is what the field exists to
+    surface."""
+    rows = [
+        ("pytest (NOT RUN)", True, "no tests"),
+        ("pytest (NO TESTS COLLECTED)", True, "collected 0"),
+        ("static tier (diff-sensed skip)", True, "only .md changed"),
+        ("bandit (NOT INSTALLED — skipped)", True, "absent"),
+        ("mypy", True, "ok"),
+    ]
+    summary = fg._summarize_skipped(rows)
+    assert summary["skipped"] == 4, summary
+    assert summary["skipped_checks"] == ["pytest", "pytest", "static tier", "bandit"], summary
+
+
+def test_every_green_not_run_row_the_gate_emits_is_summarized():
+    """The marker set is the contract: every GREEN row the gate builds for a check that did not
+    run must match one marker. Pinned against the gate's own producers — WARN_ONLY_CHECKS plus the
+    literal skip row names.
+
+    Hand-maintained on purpose: deriving these from the source by shape is not practical, because
+    docstrings and section headers in `final_gate.py` share the "name (qualifier)" form (72 such
+    literals, 6 of them real skip rows). So the honest contract is this list plus the review habit
+    of re-deriving it — a new skip row that lands in neither WARN_ONLY_CHECKS nor this set would
+    pass, and that gap is named here rather than pretended away."""
+    produced = set(fg.WARN_ONLY_CHECKS) | {
+        "bandit (NOT INSTALLED — skipped)",
+        "sqlfluff (NOT INSTALLED — skipped)",
+        "vulture (NOT INSTALLED — skipped)",
+        "static tier (diff-sensed skip)",
+    }
+    unmatched = [n for n in produced if not any(m in n for m in fg._SKIP_MARKERS)]
+    assert not unmatched, f"green not-run row names no marker covers: {unmatched}"
+
+
+def test_a_refused_suite_is_deliberately_not_summarized_because_it_is_already_red():
+    """`pytest (SUITE REFUSED — usage error)` (exit 4, e.g. a conftest that refuses without
+    TEST_DATABASE_URL) is a not-run suite, but it is appended with ok=False, so `status` is
+    already failure and the agent is already stopped. The skip summary answers "this GREEN
+    asserts nothing" — folding a red row into it would double-count the same signal and imply the
+    gate passed. Graded here so the exclusion is a decision, not an oversight."""
+    rows = [("pytest (SUITE REFUSED — usage error)", False, "exit 4")]
+    assert fg._summarize_skipped(rows) == {"skipped": 0, "skipped_checks": []}
+    assert not any(m in "pytest (SUITE REFUSED — usage error)" for m in fg._SKIP_MARKERS)

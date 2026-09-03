@@ -987,3 +987,117 @@ parity-safe in review pass 25 (CC5), but the label and the log path still carry 
 caller is exposed. Fix at the root: escape the four legacy-Markdown metacharacters in `telegram.py` (or drop
 `parse_mode`), with a grader that sends a title containing `a_b*c` through the formatter. Measured 2026-09-02:
 the chain body had 1 `*` and 11 `_` before CC5; the alerting docstring's `body: up to ~500 chars` was exceeded (896).
+## [fleet] `fabrik apply` and `fabrik plan`/`destroy` disagree on the watchdog default — 34 of 72 specs (2026-09-03, owner: operator decision)
+
+Mail 01M1G851DWCX35T5NSQXADQW0H, validated at `path:line` this run. `resolve_applicability` reads RAW
+yaml on the apply path and falls back to `True` (`infrastructure.py`, the `watchdog_cfg.get("enabled", True)` gate in `resolve_applicability` — line numbers in that file shifted when the corrective comment landed, so it is cited by SYMBOL), while `WatchdogConfig.enabled`
+defaults to `False` (`spec_loader.py:428`) and `fabrik plan` (`cli.py:360`), `audit.py:87`, `dev_tools.py:121`
+and the DESTROYER (`destroyer.py:532`) all arrive through `model_dump()`. So a spec that omits the block gets
+a sidecar provisioned and reported "not applicable" — and the teardown replay is on the not-applicable side,
+so apply can create a sidecar destroy will not remove. **Measured: 34 of 72 `specs/services/*.yaml` omit the
+block**, and a test pins the model default (`test_spec_loader.py:454`). A third intent exists and is
+unimplemented: `spec_loader.py:414/:417` cite a `_register_watchdog` dispatcher computing True for
+service|worker|wordpress and False for static — no such dispatcher exists.
+
+The false comment that hid this (the watchdog gate's own comment, "WatchdogConfig.enabled defaults to True") is
+FIXED this run, along with the module docstring; it had already propagated into
+`docs/infrastructure/vps-ai-sysadmin.md`, which infra has since corrected.
+
+Not fixed here because every reconciliation changes fleet behaviour for those 34 specs, and the choice is
+the operator's: (a) model default → True (plan/destroy start agreeing with what apply already does; the
+destroyer stops orphaning sidecars; no provisioning change); (b) apply default → False (34 projects lose
+their sidecar on the next apply; existing ones become orphans); (c) implement the documented
+default-by-kind dispatcher (both paths change; needs the kind matrix encoded). Recommended: (a), then (c)
+as a follow-up — it is the only option that changes no live provisioning while removing the teardown gap.
+
+## [fleet] Fleet capability claims in `agents-fabrik.md` were written from intent, never probed — pgvector was false for months (2026-09-03, owner: operator decision + fleet)
+
+Mail 01M1EHNXT4829615ZARZF9WJP7 (infra, rules pass), each item re-probed by fleet this run rather than
+taken on report:
+
+- **pgvector — FIXED in the map this run.** `postgres-main` is `postgres:16-alpine` and
+  `pg_available_extensions` AND `pg_extension` both have **0** rows for `vector` — neither installed nor installable on this image, re-probed by fleet 2026-09-03. The map claimed `pgvector/pgvector:pg16`,
+  "✅ fully self-hosted". `fabrik-lib/rag` is real; the fleet DB cannot run it. **Operator decision owed:**
+  move postgres-main to the pgvector image (restarts the shared DB, so it wants a window) or record that
+  vector search is not a fleet capability today.
+- **redis-main is `redis:7-alpine`** (probed). Redis 7.x is security-only; 8.x is current. No urgency
+  claimed — a scheduled major upgrade of the shared cache, or a deliberate "stay on 7 until X" row.
+- **Scaffold Dockerfile literals** (`scaffold.py`, `python:3.12-slim-bookworm` ×4): bookworm regular
+  security ended 2026-07-12 and D-064 flipped the fleet to trixie. The rule packs are marker-spanned
+  against `versions.yaml`; the scaffold's literals are hardcoded and drift silently. Same class as the
+  docusaurus scaffold row below — both want the scaffold reading `versions.yaml`, not literals.
+
+SYSTEMIC (infra's framing, adopted): capability claims in infra docs rot exactly like version literals in
+rule packs. The rules corpus has `CLAIMS.yaml` (dated assertions, re-verified on a window); the RUNNING
+FLEET has no equivalent. A probe-backed claims register for fleet state is the class fix.
+
+## [fleet] The docusaurus scaffold emits the runtime its own rule pack bans (2026-09-03, owner: fleet)
+
+Mail 01M1G4PYGTQQGMXKK91VDKZGQJ. `templates/docusaurus/Dockerfile.j2` ends in `node:22-bookworm-slim`
+running `npm run serve`; `core/42-docusaurus.md` bans a Node runtime in production and prescribes a
+two-stage build ending in `nginx:mainline-<codename>` serving `build/`. Three divergences: the Node
+runtime (RAM on a shared VPS to serve static files), NO Pagefind anywhere (`grep -rn pagefind
+templates/docusaurus/ src/fabrik/scaffold.py` → nothing, so the pack's § Search is unreachable in every
+scaffolded site), and hardcoded `node:22` + `bookworm` against `versions.yaml`'s node_lts 24 / trixie
+(D-064). Sized as a scaffold change with a rendered-output grader, not a right-now edit: it rewrites the
+emitted image, adds a build step, and every existing docusaurus project's next redeploy inherits it.
+
+## [fleet] Scaffolded `pause_state.py` fails OPEN with no counter and no log line (2026-09-03, owner: fleet)
+
+Mail 01M1GGBFSHSNBRDH961QYZ1XQK. `templates/scaffold/python/pause_state.py:50-60` returns None on any
+Redis exception and every caller swallows it (`:84`, `:105`, `:117`), so when redis-main is unreachable
+every pause flag reads "not paused", the workers un-pause, and nothing records that it happened. Fail-open
+is the right POSTURE for a guard that optimises — the finding's own point is that the posture must be
+DECLARED and COUNTED, not silent (`58-resilience` now requires exactly that). Fix shape: one counter +
+one WARN log at the degrade point, and the docstring naming the posture. Emitted into every python-api and
+file-worker project, so it ships through the scaffolder with a regression test.
+
+## [fleet] `is_admin_dashboard` gates the whole DOMAIN, so a saas-skeleton cannot have both an admin surface and customers (2026-09-03, owner: fleet)
+
+Mail 01M1HJ0S4FMJ1A9RT8N9E4Z7PT (youtube). `shape.is_admin_dashboard: true` attaches
+`authelia-forward@docker` to the Traefik ROUTER, gating every path on the domain, not `/admin`. The
+project hit it because `project.yaml::type` was corrected (D-001) while `specs/services/<id>.yaml::shape`
+kept the old template's value — two independent statements of the same fact with no consistency check.
+Three fixes, ranked by the sender: (1) emit a PATH-SCOPED second router for the admin prefix; (2) refuse
+the combination at `fabrik apply` for types that serve public routes; (3) cheapest and worth doing
+regardless — a check that `shape` agrees with `project.yaml::type` after a type change. (3) is a gate
+addition on my beat and the natural first step; (1) changes the Authelia registrar's emitted labels for
+every affected project and wants a plan.
+
+## [fleet] Promtail is END-OF-LIFE (2026-03-02) and the fleet still ships logs with it (2026-09-03, owner: fleet + operator window)
+
+Mail 01M1EQ3NCA98EF178ZY366V47T. Grafana declared Promtail EOL on 2026-03-02 — no updates, no security
+fixes — and `configs/monitoring-compose.yaml:30` runs `grafana/promtail:3.4.2`. The successor is Grafana
+Alloy, and `alloy convert` takes the existing config, so the migration is mechanical; it is a live
+monitoring-stack change on vps1, so it wants a window and a rollback (keep the promtail service defined
+and stopped until Alloy is proven shipping). Second item in the same mail, smaller and independent:
+`templates/node-api/defaults.yaml:14` sets `exposes_metrics: true` while no Node metrics module is
+scaffolded anywhere (`grep -rn "prom-client\|metrics.js" src/fabrik/ templates/` → nothing), so every
+scaffolded node-api registers a Prometheus target that can never be scraped — flip the default to false
+or scaffold a metrics module; the flag is spec-canonical, so whichever is chosen must match the code.
+
+SYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus
+has `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.
+
+## [fleet] `redis-main` and `traefik` run with NO memory limit on vps1 — the Fabrik invariant is unenforced off the apply path (2026-09-03, owner: fleet + operator)
+
+Mail 01M1GQEJ14Z8TSH7KC4RVYDH0H, probed by infra 2026-09-02: `docker inspect --format {{.HostConfig.Memory}}`
+returns 0 for redis-main and traefik; postgres-main 2048 MiB, meilisearch 512 MiB, zitadel 1024 MiB. Both
+live in shared-infra compose stacks that `fabrik apply` never touches, so `deployer_ssh._validate_compose()`
+— the invariant's only enforcement point — never sees them. Two parts: (a) set `deploy.resources.limits.memory`
+on both, plus `maxmemory` and an eviction policy for redis-main that PROTECTS pause keys (a `volatile-*`
+policy evicts only keys with a TTL; the pause flags must outlive pressure) — this restarts both containers,
+so it is an operator window, and traefik restarting drops every route briefly; (b) the class fix: a periodic
+`docker inspect` sweep over ALL containers so "every service has a limit" becomes checkable rather than
+assumed.
+
+## [fleet] `fabrik apply` provisions a second flywheel database nothing reads (2026-09-03, owner: fleet)
+
+Mail 01M1H2XGV09Y78W9TGVG3G92TH (intel), which also CORRECTS the open finding 01M1EWW9G8SSFZX08KFPRQEAM2:
+the reported `missing-driver-psycopg` reason is not what stops the recording (psycopg 3.3.4 is installed).
+`infrastructure.py:748-755` unconditionally injects `SUBAGENT_RUNS_DSN` at `postgres-main:5432/fabrik_analytics`
+plus a per-project writer role, while the hub flywheel reads elsewhere — so a project can record faithfully
+for weeks into a sink no consumer reads. The resolution step needs the fleet path to postgres-main
+(`SELECT count(*), min(ts), max(ts), count(DISTINCT project) FROM subagent_runs`) and then a decision: one
+analytics DB with the hub reading it, or drop the injection. Note for whoever takes it: `libs/subagents/`
+carried a sibling session's uncommitted WIP through 2026-09-03 — check `git status` before editing that surface.

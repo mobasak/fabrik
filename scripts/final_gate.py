@@ -309,14 +309,37 @@ WARN_ONLY_CHECKS: set[str] = {
 }
 
 
+# Every way the gate can emit a GREEN row that did not actually RUN. `_summarize_skipped` keys on
+# this set, not on one substring: keying on "NOT INSTALLED" alone (the shipped shape, 2026-09-03)
+# covered bandit/sqlfluff/vulture and silently missed BOTH the pytest NOT-RUN variants and the
+# docs-only static-tier skip — so a gate whose entire suite never ran, or whose whole static tier
+# was skipped for a .md-only diff, still reported `skipped: 0` and re-created the fail-silent-green
+# class the field exists to remove (mail 01M1KMF66S0HCR1XCC0QASMEQP, infra pass 53).
+# ⚠️ A NEW SKIP SHAPE MUST BE ADDED HERE — `test_every_green_not_run_row_the_gate_emits_is_summarized`
+# pins this set against the row names the gate produces. Deliberately EXCLUDED:
+# `pytest (SUITE REFUSED — usage error)` (exit 4) is also a suite that did not run, but it is
+# appended ok=False, so the gate is already red and the agent already stopped — this summary
+# answers "which GREEN rows assert nothing", and folding a red row in would imply a pass.
+_SKIP_MARKERS: tuple[str, ...] = (
+    " (NOT INSTALLED",  # a configured tool is absent from the interpreter
+    " (NOT RUN",  # pytest never executed (WARN_ONLY_CHECKS)
+    " (NO TESTS COLLECTED",  # pytest ran and collected nothing
+    " (diff-sensed skip",  # the whole static tier skipped: only .md files changed
+)
+
+
 def _summarize_skipped(rows: list[tuple[str, bool, str]]) -> dict[str, object]:
-    """The rows whose tool was NOT INSTALLED: green by contract (a missing tool never traps an
-    agent) but never RUN. `status: success, passed: 55` said nothing about the two configured
-    scanners that did not execute (seo 01M1KDTV, brand-identity-creator 01M1HJQD, 2026-09-02/03);
-    a CI job or an agent reading the JSON can now ask "did every configured check run?"."""
-    names = [
-        name.split(" (NOT INSTALLED")[0] for name, _ok, _out in rows if "NOT INSTALLED" in name
-    ]
+    """The rows that are GREEN BUT NEVER RAN — a missing tool, a pytest that did not execute or
+    collected nothing, or the whole static tier skipped on a docs-only diff. Green by contract (a
+    skip never traps an agent) but asserting nothing, so `status: success, passed: 55` must not be
+    read as "everything was checked" (seo 01M1KDTV, brand-identity-creator 01M1HJQD, 2026-09-02/03).
+    A CI job or an agent reading the JSON asks `skipped == 0` for "did every configured check run?"."""
+    names: list[str] = []
+    for name, _ok, _out in rows:
+        for marker in _SKIP_MARKERS:
+            if marker in name:
+                names.append(name.split(marker)[0].strip())
+                break
     return {"skipped": len(names), "skipped_checks": names}
 
 

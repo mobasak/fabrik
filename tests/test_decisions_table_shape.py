@@ -23,8 +23,15 @@ def test_every_decision_row_has_the_separator_column_count():
     assert rows, "no decision rows found"
     extra = [(ln[:40], _bare_pipes(ln)) for ln in rows if _bare_pipes(ln) > want]
     short = [(ln[:40], _bare_pipes(ln)) for ln in rows if _bare_pipes(ln) < want]
-    # a bare pipe SHIFTS every later column (the table-corrupting class); a short row only
-    # renders blank cells — reported in the message, never a red on its own
+    # A bare pipe SHIFTS every later column; a SHORT row silently drops the why/where a reader
+    # needs (D-096, 2026-09-03: 4 cells against the separator's 6 — the why and where were written
+    # INSIDE the what cell, so no reader saw them as columns and no check said so). Both are red as
+    # of 2026-09-03: measured 1 short row in 107 at the moment the bar moved, so the check fires on
+    # a real defect and on nothing else.
     assert not extra, (
-        f"{len(extra)} of {len(rows)} rows carry a bare pipe (want {want}): {extra}; short rows: {short}"
+        f"{len(extra)} of {len(rows)} rows carry a bare pipe (want {want}): {extra}"
+    )
+    assert not short, (
+        f"{len(short)} of {len(rows)} rows are SHORT (want {want} pipes — the why/where columns "
+        f"render blank): {short}"
     )
