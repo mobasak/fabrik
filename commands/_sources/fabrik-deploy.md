@@ -14,6 +14,10 @@ protocol: a halted deploy unwinds (the rollback columns exist precisely for this
 `/fabrik-deploy-plan-review`, and returns as an AMENDED, re-converged plan whose runbook already accounts
 for anything that deliberately survived the halt.
 
+**You are at step 5 of the chain below — previous: Gate 2 on a `CONVERGED` plan from `/fabrik-deploy-plan-review` · next: `/fabrik-deploy-verify` (VPS) or the operator's publish act (stores).**
+
+{{include:deploy-chain}}
+
 {{include:run-record}}
 ## ⚠️ Termination contract
 
@@ -94,7 +98,19 @@ inside them.
 2. Verify the code state the plan deploys is real: committed AND pushed (VPS: on the branch the spec's
    `source.branch` declares — `git log origin/<that branch>..HEAD` empty in the SERVICE repo; a VPS
    deploy runs `git pull` from the remote, local-only commits deploy nothing. Store surfaces: the
-   plan's build SHA is on the service repo's remote).
+   plan's build SHA is on the service repo's remote). **And the parity contract is FROZEN (VPS
+   surfaces)** — this command is operator-dispatched and can run without `/fabrik-release` having
+   run, so it reads the gate itself: `scripts/verify_prod_parity.py --header` in the SERVICE's
+   checkout must read `status: FROZEN`, and its `version` must equal the one the plan header was
+   authored against. Absent, unparseable or `DRAFT` ⇒ refuse: `BLOCKED: parity contract DRAFT →
+   /fabrik-deploy-checklist` (pre-flip, nothing to unwind — a deploy whose verify can only reach
+   `UNVERIFIED` is not dispatched). A version DIFFERENT from the plan's ⇒ the contract was re-frozen
+   after the plan converged: `BLOCKED: parity contract re-frozen (plan v<a>, checkout v<b>) — run
+   /fabrik-deploy-plan-review` — the re-entry re-converges the plan on the current contract. **A plan
+   whose header carries NO contract version** (every deploy plan authored before 2026-09-03 — the field
+   did not exist) is not a mismatch: proceed on the checkout's version, print `⚠ parity contract version
+   not in the plan header — using checkout v<b>`, and carry `v<b>` into the hand-off; the WARN is the
+   record, never a refusal.
 3. **Reconcile healing state (VPS) — read BOTH files** (`stat /run/fabrik-autoheal/pause` + `cat
    /run/fabrik-autoheal/pause.owner`; **SSH alias:** `target_vps: vps1` connects as `ssh vps` — the
    fleet config has no `vps1` alias; `vps2`/`vps3` are literal. **Privilege:** every WRITE to
@@ -321,8 +337,11 @@ print; proceed to Phase 5 directly.
    alone leaves the pre-flip plan alive at the old path, a proven double-deploy vector — **with the
    provenance trailers) and PUSH** — an uncommitted flip is an unfinished task, and an unpushed one can
    be silently reverted by the next pre-commit stash cycle, losing the record that the deploy ran.
-5. Hand off — `/fabrik-deploy-verify` (VPS: fresh-probe certification of the live service) or the
-   operator's publish act (stores) — and print the 7-line FINAL OUTPUT block per CLAUDE.md:
+5. Hand off — `/fabrik-deploy-verify` (VPS: fresh-probe certification of the live service — the
+   hand-off names the contract version and the container leg the plan was authored against, so the
+   verify run's Phase 0 header read and Phase 6 legs are checked against the SAME facts this deploy
+   pre-flighted) or the operator's publish act (stores) — and print the 7-line FINAL OUTPUT block per
+   CLAUDE.md:
 
 ```
 GATE: <the battery + the plan's own gate commands run this turn> → success|failure
@@ -330,7 +349,7 @@ DOCS UPDATED: <files | none>
 CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <what actually deployed — SHA, target, battery verdict, plan archived at <path>>
-NEXT: /fabrik-deploy-verify <service> | operator decision: <the publish act> — named precisely
+NEXT: /fabrik-deploy-verify <service> (parity contract v<N>, container leg <service|app>) | operator decision: <the publish act> — named precisely
 ```
 
 Next command: /fabrik-deploy-verify — prove the deployed service against its live checklist.

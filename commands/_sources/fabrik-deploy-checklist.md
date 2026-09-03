@@ -8,9 +8,9 @@ against what was BUILT rather than against liveness alone. It exists because a s
 liveness check while holding 0 of its 760 companies: nothing anywhere had declared what the deployed
 system was supposed to contain. This command is where the project declares it, as executable rows.
 
-```
-/fabrik-features REFRESH  →  /fabrik-deploy-checklist (FREEZE)  →  /fabrik-release (precondition: FROZEN)  →  deploy triad  →  /fabrik-deploy-verify (consumes)
-```
+**You are at step 1 of the chain below — previous: `/fabrik-features` REFRESH · next: `/fabrik-release`.**
+
+{{include:deploy-chain}}
 
 **HARD GATE: no `/fabrik-release` READY verdict and no `DEPLOY CONFIRMED` against a contract that is still
 `DRAFT`.** A contract-less or unfrozen project reaches `UNVERIFIED` at verify time — a terminal verdict that
@@ -115,7 +115,13 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
   service>"` beside `SITES` — the container that can reach the database and the internal network. A
   DB-free bridge in front of a stateful backend (tryton-crm: the FastAPI app has no psycopg by design; the
   leg runs in `trytond`) is a common shape, and the runner reads this from `--header` rather than assuming.
-  That container must carry the comparator's runtime deps (`python-dotenv` at least).
+  That container must carry a Python interpreter AND the comparator's runtime deps (`python-dotenv` at
+  least) — read the leg service's Dockerfile before siting a row there. A Node image has no `python` at
+  all — `node-api` and `file-api` ship one (`Dockerfile.node`), so does `docusaurus` (its `Dockerfile.j2`);
+  those projects site their DB/redis rows on the hub or host leg, or declare a Python sidecar as the leg —
+  never the app container, where every row would read UNVERIFIABLE at the first verify run.
+  `saas-skeleton` and `static-site` pair a Node frontend with a Python backend service
+  (`scaffold.py::_scaffold_saas_backend`) — there the backend IS the leg; declare it.
 - **One function per corpus row**, named by its corpus id (`l1_identity_sha`, `l2_routes`,
   `l2_state_companies`, `l3_postgres`, … — lowercase: the hub's ruff N802 refuses capitalised function names), returning the `health-probe` comparison row shape —
   `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id.

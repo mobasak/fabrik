@@ -15,9 +15,9 @@ contain. That declaration is the project's **parity contract** — `scripts/veri
 and FROZEN by `/fabrik-deploy-checklist` — and Phase 6 EXECUTES it. Without a FROZEN contract the run's
 verdict is `UNVERIFIED`: terminal, not success, and the signal to run the authoring command.
 
-```
-/fabrik-features REFRESH → /fabrik-deploy-checklist (FREEZE) → /fabrik-release (precondition: FROZEN) → deploy triad → /fabrik-deploy-verify (consumes)
-```
+**You are at step 6 of the chain below — previous: `/fabrik-deploy` (VPS) or the operator's store submission · next: none, terminal (a FAIL's route is the next action).**
+
+{{include:deploy-chain}}
 
 **Where this runs:** hub-side, from `/opt/fabrik` — the hub carries fleet SSH creds (deploy is
 trigger-not-execute; `agents-fabrik-core.md` § Deploy). A project itself cannot reach its own deployed VPS
@@ -258,7 +258,11 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
      container must carry the comparator's runtime deps** — `libs/health_probe` imports `python-dotenv` at
      module level (and `psycopg`/`redis` for the rows that use them); an image without them dies on import, and
      the leg reads UNVERIFIABLE for every row. An `ImportError` in `container.json` is that, not a product FAIL:
-     route it to the project (add the dep to the leg service's Dockerfile), never to a rollback.
+     route it to the project (add the dep to the leg service's Dockerfile), never to a rollback. A `docker
+     exec` that dies with `executable file not found` (`python` absent — every Node image) is the OTHER class:
+     the same UNVERIFIABLE leg, but the route is the CONTRACT (`/fabrik-deploy-checklist`: re-site those rows
+     on the hub/host leg or declare a Python leg), never the Dockerfile. Both classes are the deploy plan's
+     Phase 2 to catch BEFORE the deploy; reaching them here is itself a finding for `/fabrik-deploy-plan`.
    - **host leg** — on the VPS host for rows that need `docker ps` or a volume path:
      `scp scripts/verify_prod_parity.py <vps>:/tmp/ && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount>
      python3 /tmp/verify_prod_parity.py --json --site host" > <run>/host.json` (the host leg needs no

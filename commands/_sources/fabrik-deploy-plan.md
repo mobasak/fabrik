@@ -12,6 +12,10 @@ classes named below (A1, A5, B1, B2, B3, M2, M3) are defined in
 `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md` — the review whose findings
 seeded this command's section list; each is also glossed inline where it binds.
 
+**You are at step 3 of the chain below — previous: `/fabrik-release` (Gate-2 handoff) · next: `/fabrik-deploy-plan-review`.**
+
+{{include:deploy-chain}}
+
 {{include:run-record}}
 ## ⚠️ Termination contract
 
@@ -61,6 +65,16 @@ OR the operator explicitly waived release readiness THIS turn — record the wai
 Neither → `BLOCKED: release readiness unproven — run /fabrik-release first`. A header that merely asserts
 "release: PASS" with no fenced evidence is the exact fabrication the review command is instructed to
 reject — and hub-repo evidence pasted for a service claim is the same fabrication.
+
+**⚠️ Second precondition (VPS surfaces) — the parity contract is FROZEN, and it is a plan INPUT.** Run
+`scripts/verify_prod_parity.py --header` in the SERVICE's checkout (`git -C` semantics as above — the
+header is the project's, never the hub symlink's) and embed the fenced output in the plan header: `status`
+must read `FROZEN`; `version` and `container_leg_service` are carried into the header as the two facts
+`/fabrik-deploy` and `/fabrik-deploy-verify` will hold this plan to. Absent, unparseable or `DRAFT` ⇒
+`BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` — no waiver: a plan whose verify can only
+reach `UNVERIFIED` plans a deploy nobody can confirm (the operator's rule: when we are ready to deploy,
+the checklist has run — that is all). Store surfaces: the contract is provenance-only there (the
+checklist's own Phase 0); read the header, record it, never BLOCK on it.
 
 ## Where this runs
 
@@ -150,6 +164,21 @@ The section that catches deploy-breakers. For `specs/services/<id>.yaml` + the r
   today and add a runbook guard step that prints (masked) what will be injected.
 - **Secrets lifecycle**: which values are minted (`secrets.generate`), which flow (`from_env`), which are
   created at init by a script — and the exact handoff order so the bridge/app and the hub agree.
+- **The container leg can RUN the comparator** (the tryton-crm class — found at verify time, belongs
+  here): the contract's `container_leg_service` (empty = the app service) names the container
+  `/fabrik-deploy-verify` will `docker exec` its container rows in, and that image must carry a Python
+  interpreter plus the comparator's runtime deps — `python-dotenv` at module level, `psycopg`/`redis` for
+  the rows that use them. **The PRIMARY proof is the leg service's OWN build read at `path:line`** — its
+  Dockerfile + requirements (a scaffolded Python image carries dotenv: `pyproject.toml.template:40`,
+  installed by `Dockerfile.python:21-23`; a third-party image is proven from ITS image's package list,
+  never assumed). The executable probe — `ssh <vps> "docker run --rm --entrypoint python <image> -c
+  'import dotenv'"` (the template declares no `ENTRYPOINT`, so the override is clean) — runs only where
+  the image EXISTS: images are built ON the VPS by `fabrik apply` (`deployer_ssh.py::_BUILD_TIMEOUT`), so
+  on a FIRST deploy there is no image anywhere at plan time and the probe is a runbook VERIFY step after
+  the build, never a Phase-2 proof. A third-party image (tryton-crm's `trytond`: no dotenv) or a Node
+  image (no `python` at all) fails this; the plan then carries the fix as a runbook step — the dep added
+  to that service's Dockerfile, or the contract re-frozen with those rows sited on the hub/host leg — so
+  the first verify run's container leg resolves instead of reading UNVERIFIABLE for every row.
 
 ## Phase 3 — Infra prerequisites `[hub-side]` (VPS)
 
@@ -280,6 +309,15 @@ battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — after the 
 runbook's terminal step is a DEFERRED gate, where it runs immediately before that gate (nothing can
 run after it); hub-side for VPS, project-side for stores.)
 
+**The battery is NOT the parity contract, and neither replaces the other.** The battery proves the DEPLOY
+works (write path, queue drain, companions, routing); the contract — `scripts/verify_prod_parity.py`,
+`FROZEN v<N>` per the precondition — proves PROD CONTAINS what was built, and `/fabrik-deploy-verify`
+executes it AFTER the deploy, one leg per site (hub · container in `<container_leg_service>` · host).
+The plan never runs the contract itself; it names, in its header, the contract version and the container
+leg it was authored against, so `/fabrik-deploy`'s close-out and the verify run agree on what
+`DEPLOY CONFIRMED` means — a contract re-frozen after the plan converged is a review re-entry, not a
+silent upgrade.
+
 ## Phase 7 — Monitoring / backup / DR truth check `[hub-side · stores: anywhere]` (all surfaces)
 
 Not "monitoring exists" — WHAT actually watches this surface, verified: the Gatus endpoint (with a
@@ -312,7 +350,8 @@ and a DRAFT that never converges must still carry the ruling somewhere greppable
 ## Output
 
 `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` with a header (`Status: DRAFT` · service ·
-surface · target · date · the fenced release-readiness evidence or the verbatim waiver), the surface's
+surface · target · date · the fenced release-readiness evidence or the verbatim waiver · the fenced parity
+contract header — `FROZEN v<N>`, `container_leg_service`), the surface's
 mandatory sections above with every claim grounded, AND the five gate-required sections — the plan gates
 (`check_plan_quality.py` modern pillars; `check_test_proposal.py` structure; `check_convergence.py` on the
 later `CONVERGED` flip) hard-check them:

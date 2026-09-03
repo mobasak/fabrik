@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deploy triad: `/fabrik-deploy-plan` and `/fabrik-deploy` read the FROZEN parity contract BEFORE the deploy; the no-interpreter leg class named (2026-09-03)
+
+- Grounded by grep after tryton-crm's v3 run: `commands/_sources/fabrik-deploy-plan.md` (346 lines) and
+  `fabrik-deploy.md` (336 lines) carried ZERO mentions of the parity contract, so a plan could be authored and a
+  deploy dispatched against a `DRAFT` contract, and a leg container unable to run the comparator (tryton-crm's
+  `trytond`: no `python-dotenv`) was only ever discovered by `/fabrik-deploy-verify` after the deploy.
+- `/fabrik-deploy-plan`: a second precondition — `scripts/verify_prod_parity.py --header` in the SERVICE's checkout
+  must read `FROZEN`; `version` + `container_leg_service` become plan-header facts (no waiver; store surfaces
+  record, never block). Phase 2 gains "the container leg can RUN the comparator": interpreter + `python-dotenv`
+  (+ `psycopg`/`redis` where used) proven from the leg service's own Dockerfile/requirements or an
+  `import dotenv` probe against the built image, with the fix carried as a runbook step. Phase 6 states that the
+  battery (does the deploy work) and the contract (does prod contain what was built) are distinct and both stay.
+- `/fabrik-deploy`: Phase 0 step 2 re-reads the header pre-flip (it is operator-dispatched and may run without
+  `/fabrik-release`): `DRAFT` ⇒ `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist`; a version different
+  from the plan's ⇒ `BLOCKED: parity contract re-frozen … → /fabrik-deploy-plan-review`; a plan header with NO
+  contract version (every plan authored before 2026-09-03 — the review found the first draft would have BLOCKED
+  every pre-existing `-plan-deploy-` plan — 3 on the box: tryton-crm 2026-08-11 + 2026-08-31, zitadel 2026-08-28) ⇒ proceed on the checkout's version with a `⚠` WARN. The close-out's `NEXT:`
+  carries the contract version and the container leg.
+- `/fabrik-deploy-checklist` + `/fabrik-deploy-verify`: a Node image has no `python` at all — `node-api`, `file-api`
+  (`Dockerfile.node`) and `docusaurus` (`Dockerfile.j2`); `saas-skeleton`/`static-site` pair a Node frontend with a
+  Python backend (`_scaffold_saas_backend`), which IS the leg. Those projects site DB/redis rows on the hub/host leg
+  or declare a Python leg; the runner routes `executable file not found` to the CONTRACT, `ImportError` to the
+  Dockerfile, and names both as plan-Phase-2 misses.
+- Review (`docs/development/reviews/2026-09-03-deploy-triad-frozen-contract-precondition-review.md`) also moved
+  the `import dotenv` image probe to a post-build runbook VERIFY step: images build ON the VPS under `fabrik apply`,
+  so at first-deploy plan time no image exists — the Dockerfile/requirements read is the Phase-2 proof.
+- Operator ask (same run): "in which order and in which repo these commands run must be indicated in the commands,
+  and the order inside them so agents know the next command" → ONE shared fragment `commands/_fragments/deploy-chain.md`
+  (six steps + Gate 2, each with its repo — PROJECT for checklist/release, HUB for the VPS plan/plan-review/deploy/verify,
+  PROJECT for store-surface plans) included by all five chain commands, each stating its own step, previous and next
+  above the include. Guarded by `test_every_deploy_chain_command_carries_the_shared_order_and_repo_block`.
+- Scaffolding needs nothing: the stub is seeded type-blind (`scaffold.py:494`) and every Python image already
+  carries `python-dotenv` (`pyproject.toml.template:40`, `Dockerfile.python:21-23`).
+- Grader: `tests/test_check_command_corpus.py::test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after`
+  — seen RED on the HEAD sources (red-on-revert, mutation asserted), green on the patch; corpus audit sound over
+  94 files (the fragment is the 94th); `assemble_commands.py --check` clean apart from the expected pre-render HAND-EDITED rows.
+- Docs: `docs/reference/deployment-verification.md` gains the deploy-triad row. NO-POOL (standing directive).
+
 ### Fixed — parity contract: the container leg is DECLARED (`CONTAINER_LEG_SERVICE`), comparators follow one test, `_rows_for` signature (tryton-crm's v2/v3 run, 2026-09-03)
 
 - tryton-crm re-ran `/fabrik-deploy-checklist` (v2 `0e50055`, v3 `48e0f03`) and filed two findings against the

@@ -21,6 +21,10 @@ question set, once; record the answers and continue the loop in the same invocat
 complete-deploy route back to `/fabrik-deploy`, the EXECUTED / live-IN-PROGRESS refusal, the
 absent/unrecognized-status refusal, the wrong-repo stop) — clean hand-backs, not failures.
 
+**You are at step 4 of the chain below — previous: `/fabrik-deploy-plan` · next: Gate 2 (the operator's explicit go), then `/fabrik-deploy`.**
+
+{{include:deploy-chain}}
+
 ## Where this runs
 
 Same split as `/fabrik-deploy-plan`: **VPS surfaces → hub-side (`/opt/fabrik`)** — the spec, the fleet

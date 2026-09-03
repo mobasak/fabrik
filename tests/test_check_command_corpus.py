@@ -750,3 +750,41 @@ def test_a_hub_without_its_web_tools_module_says_the_predicate_did_not_run(tmp_p
         agents=tmp_path / "no-agents",
     )
     assert ccc.SKIPPED_PREDICATES and "predicate 1 did not run" in ccc.SKIPPED_PREDICATES[0]
+
+
+def test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after():
+    """After tryton-crm's v3 run (2026-09-03): the checklist and the runner knew the contract, but
+    `/fabrik-deploy-plan` and `/fabrik-deploy` did not mention it at all — a plan could be authored and
+    a deploy dispatched against a DRAFT contract, and the leg container's missing interpreter/dotenv was
+    only ever discovered at verify time. Now: the plan reads `--header` as a precondition and proves the
+    container leg can run the comparator in Phase 2; the deploy re-reads the header pre-flip and refuses
+    DRAFT or a re-frozen version; checklist + verify name the no-interpreter (Node image) class."""
+    src = REPO / "commands" / "_sources"
+    norm = lambda name: " ".join((src / name).read_text().split())  # noqa: E731
+    plan, deploy = norm("fabrik-deploy-plan.md"), norm("fabrik-deploy.md")
+    checklist, verify = norm("fabrik-deploy-checklist.md"), norm("fabrik-deploy-verify.md")
+    for text in (plan, deploy):
+        assert "verify_prod_parity.py --header" in text
+        assert "BLOCKED: parity contract DRAFT" in text
+    assert "import dotenv" in plan  # Phase 2 proves the leg image can run the comparator
+    assert "parity contract re-frozen" in deploy  # plan-version ≠ checkout-version is a review re-entry
+    assert "not in the plan header" in deploy  # pre-2026-09-03 plans carry no version: WARN, never BLOCK
+    assert "no `python` at all" in checklist
+    assert "executable file not found" in verify
+
+
+def test_every_deploy_chain_command_carries_the_shared_order_and_repo_block():
+    """Operator, 2026-09-03: "in which order and in which repo (hub or project) these commands run must
+    be indicated IN the commands, and the order must be inside them so agents know the next command."
+    One fragment (`_fragments/deploy-chain.md`) names all six steps with their repo; every command in
+    the chain includes it and states its own step + previous + next above the include."""
+    src = REPO / "commands" / "_sources"
+    frag = (REPO / "commands" / "_fragments" / "deploy-chain.md").read_text()
+    for needle in ("/fabrik-deploy-checklist", "/fabrik-release", "/fabrik-deploy-plan", "/fabrik-deploy-plan-review",
+                   "/fabrik-deploy`", "/fabrik-deploy-verify", "**PROJECT**", "**HUB**", "Gate 2"):
+        assert needle in frag, needle
+    for name, step in (("fabrik-deploy-checklist.md", 1), ("fabrik-deploy-plan.md", 3),
+                       ("fabrik-deploy-plan-review.md", 4), ("fabrik-deploy.md", 5), ("fabrik-deploy-verify.md", 6)):
+        text = (src / name).read_text()
+        assert "{{include:deploy-chain}}" in text, name
+        assert f"You are at step {step} of the chain" in text, name
