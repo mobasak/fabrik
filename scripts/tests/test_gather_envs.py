@@ -749,8 +749,37 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
 
 
 class _Res:
-    def __init__(self, text, error=None):
+    def __init__(self, text, error=None, cost_usd=None):
         self.agent_id, self.model, self.error, self.text = "a", "m", error, text
+        self.cost_usd = cost_usd
+
+
+def test_the_run_prints_and_persists_its_pool_cost(tmp_path, monkeypatch, capsys):
+    """The first production run billed 10 units and nothing — log, alert, dashboard — carried a
+    cost figure (DI3): the run's spend is printed and stored in `classify_last.json`."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=foo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "FOO_API_KEY=x\n"
+        '#svc name=bar category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BAR_API_KEY=y\n"
+    )
+    answer = {
+        "category": "search",
+        "cost": "paid",
+        "capability": "x",
+        "url": "https://x.io",
+        "status": "active",
+    }
+    res = [
+        _Res(json.dumps({"name": "foo", **answer}), cost_usd=0.0123),
+        _Res(json.dumps({"name": "bar", **answer}), cost_usd=0.0177),
+    ]
+    _cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.main() == 0
+    assert "pool cost this run: $0.0300 (2 unit(s))" in capsys.readouterr().out
+    last = json.loads((state / "l.json").read_text(encoding="utf-8"))
+    assert last["cost_usd"] == 0.03 and last["units"] == 2, last
 
 
 def test_identified_code_only_providers_get_no_match_prefix(tmp_path, monkeypatch):

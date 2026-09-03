@@ -167,8 +167,11 @@ def test_liveness_registry_declares_the_chain_heartbeat():
     assert proposed, "PROPOSED_CRON literal"
     constant = "".join(re.findall(r'"([^"]*)"', proposed.group(1)))
     doc = (REPO / "docs" / "workstation" / "liveness.md").read_text(encoding="utf-8")
-    fenced = re.search(r"```cron\n([^\n]+)\n```", doc)
-    assert fenced and fenced.group(1) == constant, (fenced and fenced.group(1), constant)
+    fenced = re.search(r"### Proposed cron[^\n]*\n(?:[^`][^\n]*\n|\n)*```cron\n([^\n]+)\n```", doc)
+    assert fenced and fenced.group(1).strip() == constant.strip(), (
+        fenced and fenced.group(1),
+        constant,
+    )
 
 
 def _load_gen_dashboard():
