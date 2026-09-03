@@ -111,7 +111,7 @@ def test_binary_evidence_is_read_where_a_strict_decoder_would_fail(tmp_path: Pat
     assert age is not None and age >= 0
 
 
-def test_the_audit_agrees_with_grep_a_on_the_real_sound_log() -> None:
+def test_the_audit_agrees_with_grep_a_on_the_real_sound_log(tmp_path: Path) -> None:
     """The live incident, pinned against ground truth (`grep -a`, the binary-safe form).
 
     On 2026-08-16 plain `grep -c arg=sweep` on this file printed NOTHING and exited 1, and
@@ -122,9 +122,13 @@ def test_the_audit_agrees_with_grep_a_on_the_real_sound_log() -> None:
     to the binary-safe count, which is right in both regimes. Skipped where the log is
     absent (CI).
     """
-    log = Path.home() / ".claude" / "sound-debug.log"
-    if not log.is_file():
+    live = Path.home() / ".claude" / "sound-debug.log"
+    if not live.is_file():
         pytest.skip("no Stop-hook sound log on this machine")
+    # a SNAPSHOT: the live log grows under every Stop hook, so the audit's read and grep's read
+    # moments apart could see two different files (FB11)
+    log = tmp_path / "sound-debug.log"
+    log.write_bytes(live.read_bytes())
     truth = subprocess.run(
         ["grep", "-a", "-c", "arg=sweep", str(log)], capture_output=True, text=True
     )
@@ -1098,3 +1102,101 @@ def test_the_negative_age_threshold_is_a_minute_not_a_day(tmp_path: Path) -> Non
     by_id = {x["id"]: x for x in out["findings"]}
     assert by_id["soon"]["verdict"] == "UNKNOWN", by_id["soon"]
     assert by_id["jitter"]["verdict"] == "LIVE", by_id["jitter"]
+
+
+def test_a_directory_or_a_symlink_loop_at_an_evidence_path_breaks_one_surface_only(
+    tmp_path: Path,
+) -> None:
+    """A directory where a log was meant raised IsADirectoryError out of the WHOLE heartbeat
+    proof — every surface's verdict went dark under one `(heartbeat)` UNKNOWN; a symlink loop
+    read as "genuine, provable absence" (DEAD) because `Path.exists()` swallows ELOOP (FB8)."""
+    good = tmp_path / "good.log"
+    good.write_text("2026-09-03 06:00:00 marker=x\n")
+    (tmp_path / "dir.log").mkdir()
+    loop = tmp_path / "loop.log"
+    loop.symlink_to(loop)
+    surfaces = [
+        {
+            "id": "good",
+            "kind": "cron",
+            "cron_match": "a",
+            "evidence": {"type": "log_marker", "path": str(good), "marker": "marker=x"},
+            "max_age_hours": 24 * 365 * 10,
+        },
+        {
+            "id": "dir",
+            "kind": "cron",
+            "cron_match": "a",
+            "evidence": {"type": "log_marker", "path": str(tmp_path / "dir.log"), "marker": "x"},
+            "max_age_hours": 24,
+        },
+        {
+            "id": "loop",
+            "kind": "cron",
+            "cron_match": "a",
+            "evidence": {"type": "log", "path": str(loop)},
+            "max_age_hours": 24,
+        },
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    out = la.proof_heartbeat(box, reg, "")
+    by_id = {f["id"]: f for f in out["findings"]}
+    assert set(by_id) == {"good", "dir", "loop"}, by_id
+    assert by_id["good"]["verdict"] == "LIVE", by_id["good"]
+    assert (
+        by_id["dir"]["verdict"] == "UNKNOWN"
+        and "not a regular file" in by_id["dir"]["instrument_fault"]
+    ), by_id["dir"]
+    assert (
+        by_id["loop"]["verdict"] == "UNKNOWN" and "stat failed" in by_id["loop"]["instrument_fault"]
+    ), by_id["loop"]
+
+
+def test_a_surface_exactly_at_its_budget_is_live_and_a_hair_over_is_dead(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`age <= limit` mutated to `<` survived the whole suite: nothing pinned the boundary (FB8)."""
+    log = tmp_path / "b.log"
+    log.write_text("ran\n")
+    surfaces = [
+        {
+            "id": "b",
+            "kind": "cron",
+            "cron_match": "a",
+            "evidence": {"type": "log", "path": str(log)},
+            "max_age_hours": 24,
+        }
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    box.log_instrument()  # the positive control ages a fresh file — memoised BEFORE the age is faked
+    for age, verdict in ((24.0, "LIVE"), (24.001, "DEAD")):
+        monkeypatch.setattr(la, "age_hours", lambda path, now=None, _a=age: _a)
+        out = la.proof_heartbeat(box, reg, "")
+        assert out["findings"][0]["verdict"] == verdict, (age, out["findings"][0])
+
+
+def test_duplicate_or_multiline_surface_ids_are_a_registry_fault(tmp_path: Path) -> None:
+    """Two surfaces under one id silently coexisted (a consumer keyed by id drops one) and an id
+    with a newline split the one-line-per-finding report (FB8)."""
+    log = tmp_path / "d.log"
+    log.write_text("ran\n")
+    ev = {"type": "log", "path": str(log)}
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    for surfaces in (
+        [{"id": "dup", "kind": "cron", "cron_match": "a", "evidence": ev, "max_age_hours": 24}] * 2,
+        [
+            {
+                "id": "one\ntwo",
+                "kind": "cron",
+                "cron_match": "a",
+                "evidence": ev,
+                "max_age_hours": 24,
+            }
+        ],
+    ):
+        reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+        out = la.proof_heartbeat(box, reg, "")
+        assert [f["id"] for f in out["findings"]] == ["(registry)"], out["findings"]
+        assert "surface ids must be unique" in out["findings"][0]["instrument_fault"]

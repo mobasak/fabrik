@@ -736,6 +736,10 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
         ("LAST_RUN_PATH", state / "l.json"),
     ):
         monkeypatch.setattr(cs, name, val)
+    # the lap's start-of-run `gather_envs.load_catalog()` (EZ9) reads gather_envs' OWN path: left
+    # unpatched, every classifier test validated the REAL hub catalog and a fixture with a
+    # mixed-case key sailed through the guard it was written to exercise (FB6)
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
 
     def fake_fanout(*a, **k):
         units = k["units"]
@@ -3139,9 +3143,10 @@ def test_a_curated_source_never_merges_into_a_tombstoned_target_either(tmp_path,
 
 
 def test_an_identification_finds_a_mixed_case_catalog_key(tmp_path, monkeypatch):
-    """Catalog keys are validated as whitespace-free tokens, never lowercased; the answer's
-    `name` IS lowercased before `target in catalog`, so a hand-curated `OpenAI` key was never
-    found and the provider landed as a duplicate vendor beside it (EW5)."""
+    """The answer's `name` IS lowercased before `target in catalog`, so a `OpenAI` identification
+    lands on the curated `openai` entry instead of beside it as a duplicate vendor (EW5). Catalog
+    keys themselves are lowercase by rule (EY4) — this test's mixed-case KEY passed only because
+    the fixture let the lap validate the real hub catalog (FB6)."""
     text = (
         "# ═ NEEDS-TRIAGE ═\n"
         '#svc name=newvendor category=? cost=? capability="?" url=? status=? used_by=web\n'
@@ -3165,7 +3170,7 @@ def test_an_identification_finds_a_mixed_case_catalog_key(tmp_path, monkeypatch)
     cat.write_text(
         json.dumps(
             {
-                "OpenAI": {
+                "openai": {
                     "category": "ai-llm",
                     "cost": "paid",
                     "capability": "models",
@@ -3178,8 +3183,8 @@ def test_an_identification_finds_a_mixed_case_catalog_key(tmp_path, monkeypatch)
     )
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
-    assert "newvendor" not in out and "NEWVENDOR" in out["OpenAI"].get("merged_match", []) + out[
-        "OpenAI"
+    assert "newvendor" not in out and "NEWVENDOR" in out["openai"].get("merged_match", []) + out[
+        "openai"
     ].get("match", []), out
 
 
@@ -3352,3 +3357,130 @@ def test_a_short_pool_result_never_crashes_the_lap(tmp_path, monkeypatch):
     assert cs.main() == 0
     out = json.loads(cat.read_text(encoding="utf-8"))
     assert "alpha" in out and "bravo" not in out, out
+
+
+def test_interpolation_never_reads_the_gather_process_environment(tmp_path, monkeypatch):
+    """dotenv's `interpolate=True` resolved `${API_KEY}` from THIS process's os.environ — a
+    project's stored credential became the hub shell's secret (FB4). References resolve from the
+    file's own values only; an unknown one is empty, a `:-default` is its default."""
+    monkeypatch.setenv("API_KEY", "HUB_SECRET_abc123")
+    f = tmp_path / ".env"
+    f.write_text(
+        "BASE=base\nSTRIPE_KEY=${API_KEY}\nDERIVED=${BASE}-x\nDEF=${MISSING:-fallback}\n",
+        encoding="utf-8",
+    )
+    keys = dict(ge.parse_env(f))
+    assert keys == {"BASE": "base", "STRIPE_KEY": "", "DERIVED": "base-x", "DEF": "fallback"}, keys
+
+
+def test_a_crlf_multiline_value_matches_what_the_app_loads_and_a_big_file_is_linear(tmp_path):
+    """A CRLF-saved multi-line PEM kept its `\r` bytes where the app's loader strips them (FB4);
+    and dotenv's interpolation was O(n²) — 20 000 keys took 8 s; file-local resolution is linear."""
+    import time
+
+    from dotenv import dotenv_values
+
+    f = tmp_path / ".env"
+    f.write_bytes(b'PEM_KEY="-----BEGIN\r\nline2\r\n-----END"\r\nOTHER_KEY=v\r\n')
+    assert (
+        dict(ge.parse_env(f))["PEM_KEY"]
+        == dotenv_values(f)["PEM_KEY"]
+        == "-----BEGIN\nline2\n-----END"
+    )
+    big = tmp_path / "big.env"
+    big.write_text("".join(f"KEY_{i}=value{i}\n" for i in range(20000)), encoding="utf-8")
+    t0 = time.monotonic()
+    assert len(ge.parse_env(big)) == 20000
+    assert time.monotonic() - t0 < 5.0
+
+
+def test_a_line_dotenv_itself_rejects_is_said_with_the_file_path(tmp_path, capsys):
+    """dotenv's own parse failure logged "could not parse statement starting at line 2" with no
+    file — across a fleet of .env files nobody could tell which one lost a credential (FB4)."""
+    f = tmp_path / ".env"
+    f.write_text('GOOD=v\nREAL_API_KEY="unterminated\nAFTER=z\n', encoding="utf-8")
+    keys = dict(ge.parse_env(f))
+    err = capsys.readouterr().err
+    assert "GOOD" in keys and f"WARNING: {f}:" in err and "could not parse" in err, (keys, err)
+
+
+def test_the_classifier_never_writes_a_catalog_the_next_gather_refuses(tmp_path, monkeypatch):
+    """A hand-edit with a mixed-case key landing DURING the dispatch window passed the start-of-lap
+    check and was serialised back raw by the merge-write — the next gather fail-closed on the
+    whole catalog (FB5). The write validates the merged catalog and refuses with one line."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    before = cat.read_text(encoding="utf-8")
+
+    def fanout_that_hand_edits(*a, **k):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        data["OpenAI-Legacy"] = {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://o.example",
+        }
+        cat.write_text(json.dumps(data), encoding="utf-8")
+        return list(res), ""
+
+    monkeypatch.setattr(cs, "fanout", fanout_that_hand_edits)
+    assert cs.main() == 1
+    after = json.loads(cat.read_text(encoding="utf-8"))
+    assert "widget" not in after and "OpenAI-Legacy" in after, (
+        after
+    )  # the classifier wrote NOTHING; the hand-edit alone stands
+    assert before != cat.read_text(encoding="utf-8")
+
+
+def test_a_pool_that_answers_more_than_dispatched_refuses_the_lap(tmp_path, monkeypatch, capsys):
+    """Truncating the tail of an over-long result list (the first FB3 shape) misattributed every
+    answer after a mid-list duplicate to the wrong provider and `--apply` wrote it — the AP2 class
+    as a quiet write. The mapping is unknowable, so the lap is refused and nothing is written."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=alpha category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "ALPHA_API_KEY=x\n"
+        '#svc name=bravo category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BRAVO_API_KEY=y\n"
+    )
+
+    def ans(n):
+        return _Res(
+            json.dumps(
+                {
+                    "name": n,
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": f"https://{n}.example",
+                    "status": "active",
+                }
+            )
+        )
+
+    res = [ans("alpha"), ans("alpha"), ans("bravo")]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    monkeypatch.setattr(cs, "fanout", lambda *a, **k: (list(res), ""))
+    before = cat.read_text(encoding="utf-8")
+    assert cs.main() == 1
+    assert cat.read_text(encoding="utf-8") == before
+    assert "mapping is unknowable" in capsys.readouterr().err
+    assert len(cs.pad_results(["a", "b", "c"], [1])) == 3  # the SHORT direction still pads

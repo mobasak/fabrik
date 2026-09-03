@@ -68,6 +68,7 @@ import marshal
 import os
 import re
 import sys
+import tempfile
 import types
 
 try:  # CPython's own bytecode-cache validators — the fallback below is for an interpreter without them
@@ -93,7 +94,13 @@ _ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 # A chain reference is a bare /command token. The lookbehind rejects anything
 # where the slash is part of a longer path (``/opt/fabrik-lib``, ``docs/x/fabrik-mail.md``)
 # and the lookahead rejects file-shaped tails (``/fabrik-review.md``).
-_CHAIN_RE = re.compile(r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z-]*)(?!\.md)(?![\w/-])")
+_CHAIN_RE = re.compile(
+    r"(?<![\w/.-])/((?:fabrik|design)-[a-z][a-z0-9-]*)(?!\.md)(?![\w/-])"
+)  # digits belong to a name: `/fabrik-oauth2-setup` matched NOTHING under `[a-z-]*` (the lookahead refused the partial), so predicates 2 and 8 were blind to any digit-bearing command (FB7)
+_RUN_START_RE = re.compile(
+    r"command_run\.py\s*(?:\\\n\s*)?start\b"
+)  # a wrapped or re-spaced `command_run.py \\\n  start` opens a run record too — the bare substring test called it "no run record", a BLOCKING false positive on ordinary shell wrapping (FB7)
+
 _WEB_TOOLS_RE = re.compile(
     r"web_tools\s*=\s*(?:(?:frozenset|set|sorted|list|tuple)\(\s*)*[\[{(](.*?)[\]})](?!\s*(?:[|+]|if\b|else\b))"
 )  # list/set/frozenset and nested-call forms, captured to the END of the argument — the first closer NOT followed by an operator (`|`, `+`) or a ternary keyword — so `{"a"} | {"exa"}`, `sorted({"exa"})`, a ternary, an inline-code span and a bare prose tail (`web_tools=["exa"] for facts`) all keep every name; the capture is then cut at the first keyword-argument boundary (`, system=…`), so a following argument is never harvested; per LINE (a multi-line literal is out of scope); UNQUOTED names (`[exa]`) are invisible by design since pass 43 — the price of not harvesting `if`/`else`; a literal whose tail starts with an operator or ternary keyword and has NO later closer on the line is invisible too, and a keyword argument inside a ternary's condition cuts the harvest early — 0 of 49 tracked `web_tools=` lines outside the review ledger take either shape (DM2/DO2/DQ2/DS2/DU3)
@@ -114,7 +121,10 @@ _SCRIPT_RE = re.compile(r"(?:/opt/fabrik/|(?<![\w/-]))(scripts/[\w/-]+\.py)")
 # BLIND to every one of them (found at cmd 24/31: six feedback-less closes across four commands
 # hid behind it, each instructing a close the tool refuses).
 _CLOSE_CMD_RE = re.compile(r"(?:command_run\.py\s+)?\b(?:done|blocked|handoff)\s+--command\s")
-_TRAILER_RE = re.compile(r"Co-Authored-By:\s*(.+?)\s*<")
+_TRAILER_RE = re.compile(
+    r"Co-Authored-By:\s*(.+?)\s*<", re.I
+)  # git reads trailer keys case-insensitively, so `co-authored-by:` lands a real (wrong) trailer — the check must see what git sees (FB7)
+
 # A caller CLAIM — the two forms the corpus actually uses (surveyed, not guessed):
 #   (a) a verb of invocation: "auto-called by /fabrik-x", "invoked by /fabrik-x", "dispatched by …"
 #   (b) a section headed "Where this auto-fires (N call sites)", every bullet of which names one
@@ -180,9 +190,21 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     # broke the ⚠-first `--json` contract (F2); the package autoloads the CWD's `.env` into
     # os.environ (20 curated secrets) — off, the documented opt-out (F7) (EZ8)
     os.environ.setdefault("SUBAGENTS_NO_AUTOLOAD", "1")
+    # BOTH streams, at the FILE-DESCRIPTOR level as well as the Python level: `redirect_stdout`
+    # rebinds `sys.stdout` only, so `os.write(1, …)`, `sys.__stdout__` and any stderr write at
+    # import still led the check's output — an fd-1 write pushed the ⚠ row out of `--json`, and a
+    # stderr write carried a module's banner (a key path, verbatim) into the gate row unscrubbed (FB7)
     chatter = io.StringIO()
+    sink = tempfile.TemporaryFile()  # noqa: SIM115 - closed in the finally below, after the fds are restored
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            stream.flush()
+    saved = (os.dup(1), os.dup(2))
+    os.dup2(sink.fileno(), 1)
+    os.dup2(sink.fileno(), 2)
+    leaked = 0
     try:
-        with contextlib.redirect_stdout(chatter):
+        with contextlib.redirect_stdout(chatter), contextlib.redirect_stderr(chatter):
             from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
     except BaseException as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1); a `sys.exit()` at import is the module's failure, not this process's exit code (EY9)
         if isinstance(exc, KeyboardInterrupt):
@@ -194,9 +216,22 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     finally:
         if rec in sys.meta_path:
             sys.meta_path.remove(rec)
-        if chatter.getvalue().strip():
-            SKIPPED_PREDICATES.append(
-                f"web-tool names: the vendored module printed {len(chatter.getvalue())} bytes at import — swallowed so the ⚠-first --json contract holds (EZ8)"
+        for stream in (sys.stdout, sys.stderr):
+            with contextlib.suppress(Exception):
+                stream.flush()
+        os.dup2(saved[0], 1)
+        os.dup2(saved[1], 2)
+        os.close(saved[0])
+        os.close(saved[1])
+        sink.seek(0)
+        leaked = len(sink.read()) + len(chatter.getvalue().encode("utf-8", "replace"))
+        sink.close()
+        if leaked:
+            # an ADVISORY about a run that DID complete — never a "predicate skipped" entry, whose
+            # documented meaning is "could not run at all": a chatty module made a complete audit
+            # claim incomplete coverage (FB7)
+            ADVISORIES.append(
+                f"web-tool names: a module wrote {leaked} bytes to stdout/stderr at import — swallowed so the ⚠-first --json contract holds (EZ8/FB7)"
             )
 
     shape = _shape_problem(WEB_TOOL_NAMES)
@@ -248,8 +283,20 @@ class _RecordingLoader:
         self._orig, self._name, self._rec = orig, name, rec
 
     def create_module(self, spec):  # noqa: ANN001, ANN201
+        # an extension module's init function runs HERE, not in exec_module: a mis-built vendored
+        # `.so` raised unrecorded and its IMPORTER took the blame — the hub gate blocked under
+        # web_tools.py's name for a sibling's half-built extension (FB7)
         create = getattr(self._orig, "create_module", None)
-        return create(spec) if create else None
+        if create is None:
+            return None
+        self._rec.stack.append(self._name)
+        try:
+            return create(spec)
+        except BaseException as exc:
+            self._rec.failures.append((self._name, exc))
+            raise
+        finally:
+            self._rec.stack.pop()
 
     def exec_module(self, module) -> None:  # noqa: ANN001
         self._rec.stack.append(self._name)
@@ -337,9 +384,17 @@ def _attribute(
         # `cannot import name 'WEB_TOOL_NAMES'`: the module executed fine, the constant is gone —
         # the target's own defect, raised by OUR import statement, not inside any module (EE1/EZ5)
         return failure, str(target)
+    if failing is None and not rec.failures and not rec.missing:
+        # nothing failed while EXECUTING and no name was unresolvable: every module loaded, so
+        # the exception came out of OUR import statement — the target's own defect (a
+        # module-level `__getattr__` raising anything but AttributeError, PEP 562; a package that
+        # swapped `sys.meta_path` under the recorder). Blank blame here was a fail-OPEN: predicate
+        # 1 silently did not run while the gate stayed green (FB7)
+        return failure, str(target)
     if failing is None:
         # raised outside any module's execution (a finder, the import lock, a filesystem error
-        # before the loader ran): nothing to blame but the import itself — an advisory
+        # before the loader ran) after some module DID fail or go missing: nothing to blame but
+        # the import itself — an advisory
         return failure, ""
     origin = rec.origins.get(failing) or ""
     if not origin:
@@ -350,9 +405,10 @@ def _attribute(
     if not origin:
         return failure, ""
     src = Path(origin)
-    if src.suffix == ".pyc" or (
-        src.suffix == ".py" and _target_is_broken(src) is None and _cache_would_fail(src)
-    ):
+    if (
+        (src.suffix == ".pyc" and _cache_would_fail(src))
+        or (src.suffix == ".py" and _target_is_broken(src) is None and _cache_would_fail(src))
+    ):  # a sourceless module that merely RAISES is not a torn cache — "replace the .pyc" sent the operator to fix an artifact CPython loaded fine (FB7)
         # the module compiles but its CACHE is what CPython choked on (a torn or non-code
         # `.pyc` CPython would load): the remedy is the cache dir; a sourceless module IS its
         # own artifact (EM1/EO1/EK1)
@@ -582,6 +638,9 @@ SKIPPED: list[str] = []
 SKIPPED_PREDICATES: list[
     str
 ] = []  # a predicate that could not run at all — the hub's web-tool check without its module (DU1)
+ADVISORIES: list[
+    str
+] = []  # a ⚠ about a run that DID complete (a chatty import) — never a skipped predicate (FB7)
 _IMPORT_FAILURE: list[
     str
 ] = []  # why `_live_web_tool_names` returned None when the module EXISTS (DW1)
@@ -609,11 +668,12 @@ def _read(path: Path) -> str | None:
     except OSError as exc:
         # DEDUPE by path: _read is called from four sites, so one vanished file otherwise
         # appended three entries and the "files actually audited" arithmetic over-subtracted.
-        entry = f"{path}: {exc.__class__.__name__}"
+        # scrub FIRST, then dedupe on the scrubbed string: the membership test on the raw path
+        # never matched a stored (scrubbed) entry, so one vanished repo file was listed once per
+        # caller and the "attempted N" denominator inflated with it (FB7)
+        entry = _scrub(f"{path}: {exc.__class__.__name__}", REPO)
         if entry not in SKIPPED:
-            SKIPPED.append(
-                _scrub(entry, REPO)
-            )  # every stdout path scrubbed — this one was not (EZ8)
+            SKIPPED.append(entry)
         return None
 
 
@@ -646,6 +706,8 @@ def _claimed_callers(body: str) -> dict[str, int]:
         if in_callsites:
             for name in _CHAIN_RE.findall(line):
                 out.setdefault(name, lineno)
+        if in_fence:
+            continue  # a fenced `auto-called by /fabrik-x` is an example, exactly as the heading form treats a fenced `#` (FB7)
         for tail in _CLAIM_VERB_RE.findall(line):
             for name in _CHAIN_RE.findall(tail):
                 out.setdefault(name, lineno)
@@ -677,8 +739,11 @@ def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[str
     problems: list[str] = []
     for wrapper in sorted(traycer_skills.glob("*/SKILL.md")):
         name = wrapper.parent.name
-        body = wrapper.read_text(encoding="utf-8", errors="replace")
-        AUDITED.add(str(wrapper))
+        body = _read(
+            wrapper
+        )  # the assembler REGENERATES these: a sibling's render is the glob-then-read race (FB7)
+        if body is None:
+            continue
         m = _ORCH_DOC_RE.search(body)
         if m is None:
             problems.append(
@@ -706,7 +771,7 @@ def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[str
             )
             continue
         docs.append(doc)
-        if "command_run.py start" not in body:
+        if not _RUN_START_RE.search(body):
             problems.append(
                 f"docs/orchestrator/_traycer-skills/{name}: wrapper opens no run record — "
                 "every orchestrator command must; add it to assemble_commands.py's ORCH_SOURCES "
@@ -732,6 +797,7 @@ def audit(
     SKIPPED.clear()
     AUDITED.clear()
     SKIPPED_PREDICATES.clear()
+    ADVISORIES.clear()
     _IMPORT_FAILURE.clear()
     _IMPORT_BLAME.clear()
     files = _corpus_files(sources, fragments, assembler)
@@ -747,7 +813,12 @@ def audit(
         # box-wide). So fail only where the corpus is supposed to exist — i.e. where the assembler
         # lives — and stay silent elsewhere.
         if assembler.exists() or sources.exists():
-            return [f"{sources}: no command sources found — the corpus check has nothing to audit"]
+            return [
+                _scrub(
+                    f"{sources}: no command sources found — the corpus check has nothing to audit",
+                    repo,
+                )
+            ]
         return []
 
     # ⚠️ The orchestrator section runs ONLY behind the hub gate above — i.e. after a non-empty
@@ -774,8 +845,11 @@ def audit(
         # The hub without its tracked wrapper tree is a defect, not an N/A: ORCH commands are
         # invokable box-wide, and an absent tracked tree means nothing pins what they load.
         problems.append(
-            f"{traycer_skills}: orchestrator wrapper tree missing in the hub — "
-            "run `python3 commands/assemble_commands.py` to (re)generate it"
+            _scrub(
+                f"{traycer_skills}: orchestrator wrapper tree missing in the hub — "
+                "run `python3 commands/assemble_commands.py` to (re)generate it",
+                repo,
+            )
         )
 
     valid_tools = _live_web_tool_names(repo)
@@ -797,13 +871,22 @@ def audit(
             # raised in a SIBLING file — a peer session's half-saved agent.py on this shared tree —
             # is not this check's surface and must not red every session's gate under
             # web_tools.py's name (EA1); it is named, and predicate 1 is recorded as not run
-            blame = _display_path(
-                _IMPORT_BLAME[-1] or str(target), repo
-            )  # a blank blame is the target's own import (EY9)
-            SKIPPED_PREDICATES.append(
-                f"web-tool names: {blame} failed to import ({_IMPORT_FAILURE[-1]}) while loading "
-                "libs/subagents/web_tools.py — predicate 1 did not run; not this check's surface"
-            )
+            if _IMPORT_BLAME[-1]:
+                blame = _display_path(_IMPORT_BLAME[-1], repo)
+                SKIPPED_PREDICATES.append(
+                    f"web-tool names: {blame} failed to import ({_IMPORT_FAILURE[-1]}) while "
+                    "loading libs/subagents/web_tools.py — predicate 1 did not run; not this "
+                    "check's surface"
+                )
+            else:
+                # no FILE to blame: the target itself imports an absent distribution, or the
+                # import machinery (a finder, the import lock) raised after some module failed or
+                # went missing — the old render named web_tools.py as the failing file and then
+                # disowned it in the same sentence (FB7)
+                SKIPPED_PREDICATES.append(
+                    "web-tool names: importing libs/subagents/web_tools.py failed "
+                    f"({_IMPORT_FAILURE[-1]}) — predicate 1 did not run; not this check's surface"
+                )
         else:
             SKIPPED_PREDICATES.append(
                 "web-tool names: libs/subagents/web_tools.py absent — predicate 1 did not run"
@@ -822,7 +905,7 @@ def audit(
         body = _read(path)
         if body is None:
             continue
-        if "{{include:run-record}}" not in body and "command_run.py start" not in body:
+        if "{{include:run-record}}" not in body and not _RUN_START_RE.search(body):
             problems.append(
                 f"{path.relative_to(repo) if path.is_relative_to(repo) else path}: opens no run "
                 "record — add `{{include:run-record}}` (or a bespoke `command_run.py start` block). "
@@ -843,7 +926,9 @@ def audit(
                 if valid_tools is not None
                 else []
             ):
-                for name in _NAME_RE.findall(literal):
+                for name in _NAME_RE.findall(
+                    literal[:2000]
+                ):  # the quoted-name regex is quadratic on a quote/backslash run: a 60 000-char literal took the gate 17 s, 200 000 timed it out (FB7)
                     if name and name not in valid_tools:
                         problems.append(
                             f"{rel}:{lineno}: web_tools name {name!r} is not a real tool — "
@@ -884,16 +969,34 @@ def audit(
     # orchestrator wrappers, and the Stop hook — the fix reached 2 of them, and only a mechanical
     # sweep found the rest. The flag may wrap to a continuation line, so the window is 4 lines.
     for path in files:
-        try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-            AUDITED.add(str(path))
-        except OSError:
+        text7 = _read(path)  # a vanished file is SAID (SKIPPED), never silently dropped (FB7)
+        if text7 is None:
             continue
+        lines = text7.splitlines()
         rel = path.relative_to(repo) if path.is_relative_to(repo) else path
         for i, line in enumerate(lines):
             if not _CLOSE_CMD_RE.search(line):
                 continue
-            if "--feedback" not in "\n".join(lines[i : i + 4]):
+            # ⚠ the window is the close's OWN continuation: an unclosed inline-code span runs on
+            # until the line that closes it, a `\` continuation until a line without one — and it
+            # stops at the next close command. The flat 4-line window admitted the PROSE that
+            # documents the flag ("`--feedback` is REQUIRED") and a neighbouring close's flag:
+            # 21 of 47 live close sites, the run-record fragment first, passed with their own
+            # flag deleted (FB7)
+            window = [line]
+            in_span = line.count("`") % 2 == 1
+            cont = line.rstrip().endswith("\\")
+            for nxt in lines[i + 1 : i + 4]:
+                if not (in_span or cont) or _CLOSE_CMD_RE.search(nxt):
+                    break
+                if in_span and "`" in nxt:
+                    window.append(
+                        nxt.split("`", 1)[0]
+                    )  # up to the span's closer — the prose after it is not the command
+                    break
+                window.append(nxt)
+                cont = nxt.rstrip().endswith("\\")
+            if "--feedback" not in "\n".join(window):
                 problems.append(
                     f"{rel}:{i + 1}: advertises a close with no --feedback — the tool REFUSES "
                     "it, so this instructs a command that cannot succeed"
@@ -942,8 +1045,9 @@ def audit(
     agents_src = agents if agents is not None else AGENTS_SRC
     if agents_src.is_dir():
         for adef in sorted(agents_src.glob("*.md")):
-            text = adef.read_text(encoding="utf-8", errors="replace")
-            AUDITED.add(str(adef))
+            text = _read(adef)  # the assembler renders these too — same race as the wrappers (FB7)
+            if text is None:
+                continue
             if not text.startswith("---"):
                 problems.append(
                     f"_agents/{adef.name}: no frontmatter — Claude Code cannot register it"
@@ -1091,7 +1195,15 @@ def _selftest() -> int:
         for label, (bad, signature) in cases.items():
             probe = src / "fabrik-probe.md"
             probe.write_text(bad)
-            probs = audit(src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch")
+            probs = audit(
+                src,
+                frag,
+                root / "absent.py",
+                REPO,
+                traycer_skills=root / "no-orch",
+                agents=root
+                / "no-agents",  # never the LIVE _agents/: a real defect there read as "FALSE POSITIVE on known-good input" (FB7)
+            )
             if not any(signature in p for p in probs):
                 failures.append(
                     f"VACUOUS: the {label} predicate did not fire on known-bad input "
@@ -1126,7 +1238,14 @@ def _selftest() -> int:
                 else ""
             )
         )
-        noise = audit(src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch")
+        noise = audit(
+            src,
+            frag,
+            root / "absent.py",
+            REPO,
+            traycer_skills=root / "no-orch",
+            agents=root / "no-agents",
+        )
         if noise:
             failures.append(f"FALSE POSITIVE on known-good input: {noise}")
 
@@ -1193,6 +1312,8 @@ def _print_coverage_warnings(audited: int) -> None:
         )
     for note in SKIPPED_PREDICATES:
         print(f"⚠ predicate skipped — {note}")
+    for note in ADVISORIES:
+        print(f"⚠ advisory — {note}")
 
 
 if __name__ == "__main__":

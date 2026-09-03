@@ -26,6 +26,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import registry_db  # noqa: E402
 
+STALE_AFTER_H = 48  # the chain fetches daily; two missed laps (a revoked key, a renamed vendor field, an outage) is stale
+
+
+def credit_cell(
+    bal: float, unit: str | None, fetched: datetime | None, now: datetime | None = None
+) -> str:
+    """The balance, flagged with its age once the LAST successful fetch is older than two laps.
+    A fetch that fails inserts no snapshot, so the dashboard kept rendering the last balance
+    forever — a revoked key and a healthy one were the same cell (FB9)."""
+    text = f"{bal:g} {unit or ''}".strip()
+    if fetched is None:
+        return text
+    now = now or datetime.now(fetched.tzinfo)
+    age_h = (now - fetched).total_seconds() / 3600
+    if age_h > STALE_AFTER_H:
+        return f"⚠ {text} ({age_h / 24:.0f}d old)"
+    return text
+
 
 def load() -> list[dict]:
     conn = registry_db.connect()
@@ -75,12 +93,12 @@ def load() -> list[dict]:
                 if email and not s["account"]:
                     s["account"] = email
             cur.execute(
-                "SELECT DISTINCT ON (service_id) service_id, balance, unit "
+                "SELECT DISTINCT ON (service_id) service_id, balance, unit, fetched_at "
                 "FROM credit_snapshots ORDER BY service_id, fetched_at DESC"
             )
-            for sid, bal, unit in cur.fetchall():
+            for sid, bal, unit, fetched in cur.fetchall():
                 if sid in svc and bal is not None:
-                    svc[sid]["credit"] = f"{bal:g} {unit or ''}".strip()
+                    svc[sid]["credit"] = credit_cell(bal, unit, fetched)
             cur.execute("SELECT service_id, price, currency, renews_on FROM subscriptions")
             for sid, price, curr, renews in cur.fetchall():
                 s = svc.get(sid)

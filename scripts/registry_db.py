@@ -20,7 +20,11 @@ DEFAULT_DSN = "postgresql:///fabrik_services"
 
 
 def dsn() -> str:
-    return os.getenv("SERVICES_REGISTRY_DSN", DEFAULT_DSN)
+    # `or`, not the getenv default: a SET-BUT-EMPTY variable (`SERVICES_REGISTRY_DSN=` in a
+    # profile) handed psycopg2 an empty conninfo, which libpq resolves from PGHOST/PGDATABASE/…
+    # — a silent connection to whatever database the ambient environment names, then upserts and
+    # `ALTER TABLE` into it (FB9)
+    return os.getenv("SERVICES_REGISTRY_DSN") or DEFAULT_DSN
 
 
 def connect():

@@ -178,3 +178,49 @@ def test_only_transient_statuses_are_retried_and_retry_after_is_honoured_capped(
     assert cf._retry_after("99999", 0) == 30.0 and cf._retry_after("garbage", 1) == 2.0
     assert cf._retry_after("-5", 0) == 0.0  # a negative header would crash time.sleep (BJ3)
     assert cf._retry_after("nan", 0) == 0.0  # NaN would crash time.sleep too (BK5)
+
+
+def test_an_oversized_body_is_not_a_usage_answer():
+    """`resp.read()` was unbounded: a misbehaving endpoint could hold the daily chain's memory
+    and clock. The bound is what refuses the body — the first grader's oversized fixture was
+    INVALID JSON, so `None` came from the parse branch and the size guard was ungraded (K-9);
+    this body is valid JSON in its first bytes, padded past MAX_BODY with whitespace, and the
+    fake records how much was read and how many times the vendor was opened (E2-C7)."""
+    import io
+
+    class _Resp(io.BytesIO):
+        amt = None
+
+        def read(self, amt=-1):
+            _Resp.amt = amt
+            return super().read(amt)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Opener:
+        def __init__(self, body):
+            self.body, self.opens = body, 0
+
+        def open(self, req, timeout=None):
+            self.opens += 1
+            return _Resp(self.body)
+
+    orig = cf._OPENER
+    good = b'{"data": {"totalUsageCreditsUsd": 1.5}}'
+    try:
+        cf._OPENER = _Opener(good)
+        assert cf._get_json("https://x.example", {}) == {"data": {"totalUsageCreditsUsd": 1.5}}
+        assert _Resp.amt == cf.MAX_BODY + 1  # the read is BOUNDED, not `read()`
+        cf._OPENER = _Opener(good + b" " * (cf.MAX_BODY * 2))
+        assert cf._get_json("https://x.example", {}) is None
+        assert cf._OPENER.opens == 1  # refused once — never retried three times as a parse error
+        cf._OPENER = _Opener(
+            good + b" " * (cf.MAX_BODY - len(good))
+        )  # exactly MAX_BODY still parses
+        assert cf._get_json("https://x.example", {}) == {"data": {"totalUsageCreditsUsd": 1.5}}
+    finally:
+        cf._OPENER = orig

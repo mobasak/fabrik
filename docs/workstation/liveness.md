@@ -85,6 +85,11 @@ presence either. Neuter that one function and 6 tests go red, headline first
 
 `.fabrik/liveness-registry.json` declares each scheduled surface: `id`, `kind` (`cron`/`hook`/`service`/
 `port`), how to detect its evidence, and its expected max age. The audit compares evidence to expectation.
+Surface ids are unique, non-empty, single-line strings — a duplicate or a multi-line id is a registry
+fault (the `(registry)` finding, nothing else audited) rather than two findings under one id. An
+evidence path that is a directory, a FIFO, or a symlink loop is that ONE surface's broken instrument
+(UNKNOWN); it once took the whole heartbeat proof down with an `IsADirectoryError`, and a loop read
+as provable absence because `Path.exists()` swallows `ELOOP` (pass 62).
 
 The registry lives in `.fabrik/` because that is already the repo's **tracked** machine-state directory
 (`lint-baseline.json`, `plan-locks/*.json`), so it is versioned and reviewable in a diff rather than a

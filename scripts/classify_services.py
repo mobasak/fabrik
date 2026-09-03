@@ -116,6 +116,15 @@ def pad_results(names: list[str], results: list) -> list:
     providers are transport failures (retry next lap), never a ValueError out of `zip` after the
     cursor already moved past the slice (EY5); padded ONCE for every consumer (EZ3)."""
     results = list(results)
+    if len(results) > len(names):
+        # a pool that answers MORE than dispatched: the name↔answer mapping is UNKNOWABLE — a
+        # duplicate anywhere but the tail shifts every later answer onto the wrong provider (the
+        # AP2 class) and `--apply` would write it; refuse the lap, nothing written, the cursor
+        # unmoved (FB3 first truncated the tail — a quiet wrong write in place of a loud abort)
+        raise RuntimeError(
+            f"pool returned {len(results)} results for {len(names)} units — the name↔answer "
+            "mapping is unknowable; nothing is written, the lap retries"
+        )
     if len(results) < len(names):
         print(
             f"pool returned {len(results)} of {len(names)} results — {len(names) - len(results)} providers retry next lap",
@@ -475,9 +484,13 @@ def main() -> int:
         recover_caps=False,  # a zero-output cap is a retry next lap (the strike path); the library's sequential re-dispatch would add one full 1800 s wall clock per cap on top of the step budget (DO1)
     )
 
-    results = pad_results(
-        names, results
-    )  # the flywheel loop below re-zips strictly — a short list crashed it after build_proposals had padded its own copy (EZ3)
+    try:
+        results = pad_results(
+            names, results
+        )  # the flywheel loop below re-zips strictly — a short list crashed it after build_proposals had padded its own copy (EZ3)
+    except RuntimeError as exc:  # an over-answering pool: the mapping is unknowable — refuse the lap with one line, nothing written (FB3)
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     proposals, errored = build_proposals(names, results)
     # the run's pool spend, printed and persisted: the first production run billed 10 units and no
     # log, alert or dashboard carried a cost figure (DI3)
@@ -726,6 +739,19 @@ def main() -> int:
             catalog[prov] = stub
             tombstoned += 1
             tombstoned_names.append(prov)
+    try:
+        # the merged catalog must pass the same rule the next gather applies — a hand-edit landing
+        # mid-dispatch (a multi-minute window) was written back raw and left the chain fail-closed (FB5)
+        gather_envs.validate_catalog_keys(
+            {k: v for k, v in catalog.items() if not k.startswith("_") and isinstance(v, dict)},
+            str(CATALOG_PATH),
+        )
+    except gather_envs.CatalogError as exc:
+        print(
+            f"ERROR: {exc} — the merged catalog is NOT written; the previous one stands",
+            file=sys.stderr,
+        )
+        return 1
     tmp = CATALOG_PATH.with_name(CATALOG_PATH.name + ".tmp")  # atomic: no torn/corrupt JSON
     tmp.write_text(
         json.dumps({**catalog_meta, **catalog}, indent=2, ensure_ascii=False) + "\n",

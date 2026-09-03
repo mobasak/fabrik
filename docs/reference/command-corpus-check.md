@@ -110,10 +110,16 @@ an importer swallowed is a different object and never counts). Five review round
 AST-derived import closure each found a new way a module CPython never loads could steal the
 target's blame (a submodule the package `__init__` binds, a conditional branch, a `try` body a
 handler swallows, a sourceless package, a `__getattr__` package); the recorder makes every one
-moot by construction. The target itself raising ⇒ a block; a sibling raising ⇒ an advisory naming
-the sibling; a torn or non-code bytecode cache is named with its remedy (delete that module's
-`__pycache__`; a sourceless `.pyc` is the artifact to replace) when CPython's own validators say
-it would have LOADED that cache; a name CPython could not find is the importer's own defect when
+moot by construction. It records `create_module` as well as `exec_module` — an extension
+module's init function runs in the former, and a mis-built `.so` had blamed its importer. The
+target itself raising ⇒ a block; a sibling raising ⇒ an advisory naming the sibling; an
+exception that leaves the import STATEMENT after every module loaded and nothing went missing
+(a PEP 562 module-level `__getattr__` raising anything but `AttributeError`, a package that
+swapped `sys.meta_path` under the recorder) is the target's own — a blank blame there was a
+fail-open advisory with predicate 1 silently not run; a torn or non-code bytecode cache is named
+with its remedy (delete that module's `__pycache__`; a sourceless `.pyc` is the artifact to
+replace) when CPython's own validators say it would have LOADED that cache — a healthy sourceless
+module that merely raises is reported as its own failure, never as a cache; a name CPython could not find is the importer's own defect when
 the name is ours (a typo'd package root, a submodule that does not exist — or a directory or
 dangling symlink AT that path, which is then the broken module), and an advisory naming the
 importer and the missing DISTRIBUTION otherwise (asked by the full dotted name under a namespace
@@ -123,9 +129,11 @@ target's. CPython stops at the first broken module, so exactly one is named; fix
 the next — the recorder never guesses beyond what ran. A runtime `OSError` (a data file the
 module opens) is the module's own. A `sys.exit()` at import is the module's failure, never this
 process's exit code; `KeyboardInterrupt` propagates. The import runs inside the gate's process:
-its stdout is captured (a module printing at import would break the ⚠-first `--json` contract
-and is reported as an advisory), and the package's `.env` autoload is switched off so the
-gate never loads the CWD's secrets. Every failure text is bounded (500 chars), safe when
+both its streams are captured at the file-descriptor level as well as the Python level (an
+`os.write(1, …)` or a stderr banner had led the gate row — a `print` alone is what
+`redirect_stdout` sees) and any bytes written are reported as a `⚠ advisory —` line, distinct
+from a skipped predicate (the audit ran; a chatty module is not incomplete coverage), and the
+package's `.env` autoload is switched off so the gate never loads the CWD's secrets. Every failure text is bounded (500 chars), safe when
 `str(exc)` itself raises, and scrubbed of the repo prefix and of the operator's home (`~/…`)
 before it is printed.
 
@@ -173,8 +181,19 @@ orchestrator wrappers GENERATED from it, and the Stop hook's own remedy. The han
 them; only a mechanical sweep found the rest, which is precisely why this is a predicate and not a
 review note.
 
-The window is **4 lines**, because the real fragment wraps the flag onto a continuation line — a
-single-line window would flag every correctly-fixed site.
+The window is the close's OWN continuation: an inline-code span left open on the close line runs
+to the line that closes it (cut at that backtick), a `\` continuation runs while lines end in
+`\`, at most three lines, and it stops at the next close command. The first version used a flat
+4-line window, which admitted the PROSE that documents the flag ("`--feedback` is REQUIRED")
+and a neighbouring close's flag — 21 of 47 live close sites, the run-record fragment first,
+passed with their own flag deleted (pass 62). A single-line window would flag every
+correctly-fixed site, since the real fragment wraps the flag onto a continuation line.
+
+Predicate 5 (the run record) matches `command_run.py` … `start` across whitespace and a `\`
+line continuation — a wrapped start opens a record too, and the bare substring test had red it.
+Chain references admit digits (`/fabrik-oauth2-setup`); a caller claim inside a fenced block is
+an example, like a fenced `#` in the call-sites form; the trailer key is read case-insensitively,
+as git reads it.
 
 ## Predicate 8 — a CLAIMED caller must actually CALL (added 2026-08-29)
 
@@ -216,7 +235,9 @@ bytes. A "keep these in step" comment is a contract with no grader.
 
 ## Anti-vacuity
 
-`--selftest` feeds a known-bad corpus through the same predicates and requires **each** to
+`--selftest` is hermetic: its canary and good-fixture audits pass their own (empty) agent
+directory, never the live `commands/_agents/` — a real defect there once read as "FALSE POSITIVE
+on known-good input". It feeds a known-bad corpus through the same predicates and requires **each** to
 fire, then a known-good one and requires silence:
 
 ```console

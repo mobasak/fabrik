@@ -1014,3 +1014,62 @@ def test_main_reports_an_unreadable_svc_line_as_one_typed_line(tmp_path, monkeyp
     monkeypatch.setattr(_sys, "argv", ["registry_sync.py"])
     assert rs.main() == 1
     assert "ERROR: registry sync refused" in capsys.readouterr().err
+
+
+def test_a_svc_header_with_a_tab_or_nothing_after_the_token_ends_the_block(tmp_path):
+    """`#svc<TAB>name=…` and a bare `#svc` matched neither the header regex nor the fail-closed
+    detector (`startswith("#svc ")`), so the next provider's keys fell under the previous one —
+    the AP2 misattribution through a third shape (FB1)."""
+    import pytest
+
+    for bad in (
+        '#svc\tname=test_zzz_bar category=infra cost=paid capability="b" url=https://b.example status=active used_by=p',
+        "#svc",
+    ):
+        f = tmp_path / "all-envs.env"
+        f.write_text(
+            "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+            '#svc name=test_zzz_foo category=infra cost=paid capability="a" url=https://a.example status=active used_by=p\n'
+            "FOO_API_KEY=aaaa\n" + bad + "\nBAR_API_KEY=bbbb\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError):
+            rs.parse(f)
+
+
+def test_main_reports_a_dead_registry_as_one_typed_line(tmp_path, monkeypatch, capsys):
+    """`main()` caught `ValueError`/`RuntimeError` only; a `psycopg2.OperationalError` from
+    `registry_db.connect()` — the likeliest production failure — was still a traceback (FB1)."""
+    import sys as _sys
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "# " + "═" * 10 + " infra " + "═" * 10 + "\n"
+        '#svc name=test_zzz_a category=infra cost=paid capability="a" url=https://a.example status=active used_by=p\n'
+        "A_API_KEY=aaaa\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rs, "ALL_ENVS", f)
+    monkeypatch.setattr(_sys, "argv", ["registry_sync.py"])
+
+    class _DeadError(
+        Exception
+    ):  # psycopg2.OperationalError's shape: neither ValueError nor RuntimeError
+        pass
+
+    def dead():
+        raise _DeadError("could not connect to server (simulated)")
+
+    monkeypatch.setattr(rs.registry_db, "connect", dead)
+    assert rs.main() == 1
+    assert "ERROR: registry sync refused" in capsys.readouterr().err
+
+
+def test_an_empty_dsn_variable_never_hands_libpq_an_empty_conninfo(monkeypatch):
+    """`SERVICES_REGISTRY_DSN=` (set but empty) reached `psycopg2.connect("")`, which libpq
+    resolves from PGHOST/PGDATABASE/… — a silent connection to some OTHER database, then upserts
+    and `ALTER TABLE` into it (FB9)."""
+    monkeypatch.setenv("SERVICES_REGISTRY_DSN", "")
+    assert rdb.dsn() == rdb.DEFAULT_DSN
+    monkeypatch.setenv("SERVICES_REGISTRY_DSN", "postgresql:///other")
+    assert rdb.dsn() == "postgresql:///other"

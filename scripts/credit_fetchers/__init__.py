@@ -43,6 +43,9 @@ _OPENER = urllib.request.build_opener(_NoRedirect)
 
 TIMEOUT_S = 10
 RETRIES = 2
+MAX_BODY = (
+    1 << 20
+)  # a usage answer is a few hundred bytes; an unbounded read let a misbehaving endpoint hold the daily chain's memory and clock (FB9)
 
 
 @dataclass
@@ -57,7 +60,10 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
     for attempt in range(RETRIES + 1):
         try:
             with _OPENER.open(req, timeout=TIMEOUT_S) as resp:  # noqa: S310 — never follows a redirect (BB8)
-                obj = json.loads(resp.read().decode("utf-8"))
+                raw = resp.read(MAX_BODY + 1)
+                if len(raw) > MAX_BODY:
+                    return None  # not a usage answer, whatever it is
+                obj = json.loads(raw.decode("utf-8"))
                 return obj if isinstance(obj, dict) else None
         except urllib.error.HTTPError as exc:
             # only a transient status is retried (core/58 RETRYABLE_STATUS); a 3xx (BB8), 401/403/404

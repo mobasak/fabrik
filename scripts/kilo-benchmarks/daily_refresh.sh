@@ -173,7 +173,7 @@ fi
   # `$?` inside `if ! cmd; then` is the NEGATION's status (always 0) — the round-60 branch was dead (EY7/EZ2)
   if [ "$_rc" -ne 0 ]; then
     case "$_rc" in 126|127)  # bash could not START the chain (missing / not executable): none of its own alerts ever ran
-      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or not executable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
+      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
     esac
     echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)"
   fi

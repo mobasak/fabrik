@@ -297,7 +297,17 @@ class Box:
         path = self.expand(raw)
         name = f"log-reader[{raw}]"
         parent = path.parent
-        if not path.exists():
+        try:
+            path.stat()
+            present = True
+        except FileNotFoundError:
+            present = False
+        except OSError as exc:
+            # `Path.exists()` swallows ELOOP (a symlink loop) and a few more into False, and the
+            # absent branch then reported "genuine, provable absence" — failure 2 in miniature:
+            # a resolution failure read as content absence (FB8)
+            return Instrument.broken(name, f"stat failed on {path}: {exc}"), None
+        if not present:
             if not parent.is_dir():
                 return Instrument.broken(name, f"parent directory {parent} does not exist"), None
             if not os.access(parent, os.R_OK | os.X_OK):
@@ -330,7 +340,15 @@ class Box:
         path = self.expand(raw)
         if not path.exists():
             return inst, None, 0
-        hits = [ln for ln in read_text(path).splitlines() if marker in ln]
+        if not path.is_file():
+            # a directory where a file was meant (a `mkdir` for a `touch`): `evidence_age` stats
+            # it fine, `read_text` raised IsADirectoryError out of the WHOLE heartbeat proof and
+            # every surface's verdict went dark under one `(heartbeat)` UNKNOWN (FB8)
+            return Instrument.broken(f"log-reader[{raw}]", f"{path} is not a regular file"), None, 0
+        try:
+            hits = [ln for ln in read_text(path).splitlines() if marker in ln]
+        except OSError as exc:
+            return Instrument.broken(f"log-reader[{raw}]", f"read failed on {path}: {exc}"), None, 0
         if not hits:
             return inst, None, 0
         # only a LOG_STAMP-shaped line is evidence: the audit's own JSON report echoes a marker in
@@ -552,6 +570,16 @@ def proof_heartbeat(box: Box, registry: dict[str, Any], registry_fault: str) -> 
     """Did it fire? Registered surface vs. the age of its evidence."""
     findings: list[Finding] = []
     surfaces = registry.get("surfaces") or []
+    ids = [str(s.get("id", "?")) for s in surfaces] if isinstance(surfaces, list) else []
+    dups = sorted({i for i in ids if ids.count(i) > 1})
+    unprintable = [i for i in ids if not i.strip() or not i.isprintable()]
+    if not registry_fault and (dups or unprintable):
+        # two surfaces under one id silently coexist and any consumer keyed by id drops one; an
+        # id with a newline splits the one-line-per-finding report (FB8)
+        registry_fault = (
+            f"surface ids must be unique, single-line and non-empty — duplicates {dups}, "
+            f"unprintable {[repr(i) for i in unprintable]}"
+        )
     if registry_fault or not surfaces:
         broken = Instrument.broken(
             "registry", registry_fault or "registry declares no surfaces — nothing is monitored"

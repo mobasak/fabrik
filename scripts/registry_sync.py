@@ -195,7 +195,9 @@ def parse(path: Path) -> list[dict]:
             cur = {"meta": m.groupdict(), "keys": []}
             provs.append(cur)
             continue
-        if line.startswith("#svc "):
+        if line.rstrip().startswith(
+            "#svc"
+        ):  # ANY line that starts with the token: a tab or a bare `#svc` escaped both branches and folded the next provider\'s keys under the previous one (FB1)
             # a #svc line SVC_RE cannot read ENDS the block and FAILS the sync: absorbing the next
             # provider's keys under the previous one would prune the provider, misattribute its
             # keys and hand its secret to another vendor's credit fetcher (AP2)
@@ -439,10 +441,7 @@ def main() -> int:
         return 1
     try:
         stats = sync_registry(fetch_credits=args.fetch_credits)
-    except (
-        ValueError,
-        RuntimeError,
-    ) as exc:  # an unreadable #svc line, a bounded-prune refusal: one typed line, exit 1 — never a traceback (EZ4)
+    except Exception as exc:  # noqa: BLE001 - a dead DB (psycopg OperationalError) is the likeliest failure and was still a traceback (FB1)
         print(f"ERROR: registry sync refused: {exc} — nothing written", file=sys.stderr)
         return 1
     print(

@@ -15,6 +15,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -152,7 +153,7 @@ def test_both_entry_points_run_the_same_chain_script_and_inline_no_step():
         line = next(
             ln for ln in src.splitlines() if "bash" in ln and "external_services_chain.sh" in ln
         )
-        assert re.search(r'FABRIK_ROOT="?\$FABRIK_ROOT"?', line), (
+        assert re.search(r'FABRIK_ROOT=(?:\\?")?\$FABRIK_ROOT(?:\\?")?', line), (
             line
         )  # unquoted inside the hook's `bash -c "…"` string (EZ2)
 
@@ -893,7 +894,14 @@ def test_gen_dashboard_two_writers_both_succeed_and_a_bad_out_path_is_one_typed_
         )
         for _ in range(2)
     ]
-    results = [(pr.wait(timeout=60), pr.stderr.read()) for pr in procs]
+    try:
+        results = [(pr.wait(timeout=60), pr.stderr.read()) for pr in procs]
+    finally:
+        for pr in procs:  # a timeout must not leak two writers and their pipes (FB11)
+            if pr.poll() is None:
+                pr.kill()
+            pr.stdout.close()
+            pr.stderr.close()
     assert all(rc == 0 for rc, _ in results), results
     assert out.read_text(encoding="utf-8").rstrip().endswith("</html>"), out.read_text()[-80:]
     assert not list(tmp_path.glob("dash.html.tmp*")), list(tmp_path.iterdir())
@@ -947,7 +955,9 @@ def test_both_callers_parse_and_alert_when_the_chain_never_started(tmp_path):
             subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True).returncode
             == 0
         ), path
-    root = tmp_path / "root"
+    root = (
+        tmp_path / "root dir"
+    )  # a SPACE: the hook's block expanded bare `$LOG_FILE`/`$FABRIK_ROOT` into the inner shell's text (FB10)
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
     stub = root / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
     stub.write_text(
@@ -959,17 +969,21 @@ def test_both_callers_parse_and_alert_when_the_chain_never_started(tmp_path):
     daily_block = _caller_block(
         DAILY.read_text(encoding="utf-8"), '  _rc=0\n  _step "external_services_chain"', "\n\n"
     )
-    hook_block = _caller_block(
-        HOOK.read_text(encoding="utf-8"),
-        "        _rc=0; env LOG_FILE=$LOG_FILE",
-        "        # Auto-commit",
-    ).replace("\\$", "$")
+    hook_block = (
+        _caller_block(
+            HOOK.read_text(encoding="utf-8"),
+            '        _rc=0; env LOG_FILE=\\"$LOG_FILE\\"',
+            "        # Auto-commit",
+        )
+        .replace("\\$", "$")
+        .replace('\\"', '"')  # what the outer `bash -c "…"` string hands the inner shell
+    )
     for name, block in (("daily_refresh", daily_block), ("wsl_startup_hook", hook_block)):
         alerts.write_text("", encoding="utf-8")
         harness = tmp_path / f"{name}.sh"
         harness.write_text(
             'set -u\n_step() { local label="$1"; shift; "$@"; }\n'
-            f"FABRIK_ROOT={root}\nKB={root}/scripts/kilo-benchmarks\nLOG_FILE={log}\nexport ALERTS={alerts}\n"
+            f'FABRIK_ROOT="{root}"\nKB="{root}/scripts/kilo-benchmarks"\nLOG_FILE="{log}"\nexport ALERTS="{alerts}"\n'
             + block
             + "\n",
             encoding="utf-8",
@@ -982,6 +996,29 @@ def test_both_callers_parse_and_alert_when_the_chain_never_started(tmp_path):
             out,
         )
         assert "exit 127" in out, (name, out)
+        # the 126 half: the script PRESENT but unreadable (a lost permission bit) — the other branch of `126|127` (FB3)
+        chain = root / "scripts" / "external_services_chain.sh"
+        chain.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+        chain.chmod(0)
+        if os.access(chain, os.R_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        alerts.write_text("", encoding="utf-8")
+        log.write_text("", encoding="utf-8")
+        proc = subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=60)
+        out = proc.stdout + proc.stderr + log.read_text(encoding="utf-8")
+        chain.chmod(0o644)
+        assert "did NOT start" in alerts.read_text(encoding="utf-8") and "exit 126" in out, (
+            name,
+            out,
+        )
+        # the NEGATIVE path: a chain that started and failed normally (exit 3) must NOT get the caller's alert
+        chain.write_text("#!/usr/bin/env bash\nexit 3\n", encoding="utf-8")
+        alerts.write_text("", encoding="utf-8")
+        log.write_text("", encoding="utf-8")
+        proc = subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=60)
+        out = proc.stdout + proc.stderr + log.read_text(encoding="utf-8")
+        chain.unlink()
+        assert alerts.read_text(encoding="utf-8") == "" and "exit 3" in out, (name, out)
 
 
 def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_line(
@@ -994,3 +1031,93 @@ def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_lin
     assert gd.main([str(tmp_path / "dash.html")]) == 1
     assert "ERROR: registry unreadable" in capsys.readouterr().out
     assert not (tmp_path / "dash.html").exists()
+
+
+def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(monkeypatch):
+    """A failed fetch (a revoked key, a renamed vendor field, an outage) inserts no snapshot, so
+    the dashboard kept rendering the LAST balance forever — a dead credential and a healthy one
+    were the same cell (FB9)."""
+    import datetime as dt
+
+    gd = _load_gen_dashboard()
+    now = dt.datetime(2026, 9, 3, 6, 0, tzinfo=dt.UTC)
+    fresh = now - dt.timedelta(hours=20)
+    old = now - dt.timedelta(days=5)
+    assert gd.credit_cell(12.5, "usd", fresh, now) == "12.5 usd"
+    assert gd.credit_cell(12.5, "usd", old, now) == "⚠ 12.5 usd (5d old)"
+    assert gd.credit_cell(3, None, None, now) == "3"
+
+    answers = {
+        "FROM services": [("apify", "Apify", "scraping", "paid", "https://apify.com", "active")],
+        "information_schema": [(1,)],
+        "FROM api_keys": [],
+        "credit_snapshots": [("apify", 12.5, "usd", old)],
+        "FROM subscriptions": [],
+    }
+
+    class _Cur:
+        def __init__(self):
+            self.rows = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def execute(self, sql, *a):
+            self.rows = next(v for k, v in answers.items() if k in sql)
+
+        def fetchall(self):
+            return list(self.rows)
+
+        def fetchone(self):
+            return self.rows[0] if self.rows else None
+
+    class _Conn:
+        def cursor(self):
+            return _Cur()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(gd.registry_db, "connect", lambda: _Conn())
+    rows = gd.load()
+    assert rows[0]["credit"].startswith("⚠ 12.5 usd (") and "d old)" in rows[0]["credit"], rows
+
+
+def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
+    """`send_alert` returns False with no log line when alerting is disabled (no token, a fresh
+    .env) or the title is deduplicated: `pipeline_alert.sh` — the ONE signal for a chain that
+    never started — exited 0 with zero output. Now it says so on stderr (FB10)."""
+    import shutil
+
+    root = tmp_path / "root"
+    (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
+    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    shutil.copytree(
+        REPO / "scripts" / "kilo-benchmarks" / "alerting",
+        root / "scripts" / "kilo-benchmarks" / "alerting",
+    )
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "ALERT_VPS_HOST", "ALERT_ENABLED")
+    }
+    env["FABRIK_ROOT"] = str(root)
+    proc = subprocess.run(
+        [
+            "bash",
+            str(REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"),
+            "CRITICAL: probe",
+            "body",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0 and "NOT delivered" in proc.stdout + proc.stderr, (
+        proc.stdout,
+        proc.stderr,
+    )

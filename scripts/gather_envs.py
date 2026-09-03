@@ -696,18 +696,47 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
             # mangled value as the credential; the line is dropped and SAID so instead (EZ7)
             print(f"WARNING: {path}:{no}: not UTF-8 — line skipped", file=sys.stderr)
             continue
-        lines.append(
-            line.lstrip("\ufeff")
-        )  # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key (EY4/EZ7)
-    # python-dotenv's semantics — quotes, escapes, inline comments, `export`, `${VAR}` — are what
-    # every deployed app loads; a home-grown parser stored a value the app never sees and the
-    # registry hashed it (a PEM's `\n` escapes, an inline `# comment`, an interpolation) (EZ7)
+        # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key
+        # (EY4/EZ7); a CRLF file's `\r` is a line ending, not part of a multi-line value (FB4)
+        lines.append(line.lstrip("\ufeff").rstrip("\r"))
+    # python-dotenv's semantics — quotes, escapes, inline comments, `export`, multi-line values — are
+    # what every deployed app loads; a home-grown parser stored a value the app never sees and the
+    # registry hashed it (EZ7). Interpolation is resolved from the FILE's own values only:
+    # dotenv's `interpolate=True` reads THIS process's os.environ, so `${API_KEY}` in a project's
+    # .env pulled the hub shell's secret into that project's stored credential (FB4); it was also
+    # O(n²) in the key count. A line dotenv's own parser rejects is said WITH the file's path (FB4).
+    import logging  # noqa: PLC0415
+
     from dotenv import dotenv_values  # noqa: PLC0415
 
-    for key, value in dotenv_values(stream=io.StringIO("\n".join(lines)), interpolate=True).items():
-        if value is None or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+    class _Named(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            print(f"WARNING: {path}: {record.getMessage()} — line skipped", file=sys.stderr)
+
+    handler = _Named()
+    dotenv_log = logging.getLogger("dotenv.main")
+    dotenv_log.addHandler(handler)
+    try:
+        parsed = dotenv_values(stream=io.StringIO("\n".join(lines)), interpolate=False)
+    finally:
+        dotenv_log.removeHandler(handler)
+    values = {k: v for k, v in parsed.items() if v is not None}
+
+    def resolve(value: str, depth: int = 0) -> str:
+        def sub(m: re.Match[str]) -> str:
+            name, default = m.group(1), m.group(2)
+            if name in values and depth < 10:
+                return resolve(values[name], depth + 1)
+            return (
+                default if default is not None else ""
+            )  # an unknown reference is empty, as dotenv resolves it without the variable
+
+        return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}", sub, value)
+
+    for key, value in values.items():
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
             continue
-        out.append((key, value))
+        out.append((key, resolve(value)))
     return out
 
 
@@ -731,6 +760,22 @@ def project_env_files() -> list[Path]:
     return files
 
 
+def validate_catalog_keys(catalog: dict, where: str) -> None:
+    """The ONE key rule, for every reader AND writer of the catalog: single tokens (no whitespace
+    — a hand-edited key would round-trip as a DIFFERENT provider, AU7) and lowercase (every lookup
+    lowers its side — a mixed-case key was never found, EY4). The classifier calls it before it
+    WRITES the merged catalog: a hand-edit landing mid-dispatch was serialised back and left the
+    next gather fail-closed (FB5)."""
+    bad_keys = [k for k in catalog if _svc_token(k) != k]
+    if bad_keys:
+        raise CatalogError(
+            f"{where}: catalog keys must be single tokens (no whitespace): {bad_keys[:5]}"
+        )
+    cased = [k for k in catalog if k != k.lower()]
+    if cased:
+        raise CatalogError(f"{where}: catalog keys must be lowercase: {cased[:5]}")
+
+
 def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     """Catalog + matchers `[(PREFIX, provider)]` — curated `match` and model-merged `merged_match`.
     Fail-CLOSED on every catalog the chain cannot trust: unreadable, undecodable, not a JSON
@@ -751,17 +796,7 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     if not isinstance(raw, dict):  # a JSON list/string at the top level is unreadable too (BH6)
         raise CatalogError(f"{CATALOG_PATH} is not a JSON object")
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
-    bad_keys = [k for k in catalog if _svc_token(k) != k]
-    if bad_keys:  # a hand-edited key with whitespace would round-trip as a DIFFERENT provider (AU7)
-        raise CatalogError(
-            f"{CATALOG_PATH}: catalog keys must be single tokens (no whitespace): {bad_keys[:5]}"
-        )
-    cased = [k for k in catalog if k != k.lower()]
-    if cased:
-        # every lookup lowers its side (`host_sld`, the classifier's answer): a mixed-case key was
-        # never found — a phantom `?` twin beside the curated entry — and two case variants would
-        # resolve non-deterministically; 0 of 120 live keys are mixed-case, so the rule costs nothing (EY4)
-        raise CatalogError(f"{CATALOG_PATH}: catalog keys must be lowercase: {cased[:5]}")
+    validate_catalog_keys(catalog, str(CATALOG_PATH))
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)

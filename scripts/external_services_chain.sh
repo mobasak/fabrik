@@ -32,7 +32,8 @@ chain_failed=0   # any step failed (exit code of this script)
 core_failed=0    # a step the dashboard DEPENDS on failed (gather_envs / reconsolidate / registry_sync)
 
 _alert() {  # $1 title, $2 body, $3 severity
-  "$VENV_PY" -c "import sys; sys.path.insert(0, '$FABRIK_ROOT/libs'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3])" "$1" "$2" "$3" 2>&1 || true
+  # a False return (alerting disabled, deduplicated) is SAID in the log — it was a silent no-op (FB10)
+  "$VENV_PY" -c "import sys; sys.path.insert(0, '$FABRIK_ROOT/libs'); from dotenv import load_dotenv; load_dotenv('$FABRIK_ROOT/.env', override=False); from alerting import send_alert; sent = send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3]); print('[chain] alert NOT delivered (alerting disabled or deduplicated): ' + sys.argv[1]) if not sent else None" "$1" "$2" "$3" 2>&1 || true
 }
 _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
   local label="$1"; shift

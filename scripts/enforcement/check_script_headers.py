@@ -63,8 +63,13 @@ def _staged_head(path: str) -> str | None:
     message the caller had to pattern-match (EY1). None when the index holds no stage-0 blob."""
     try:
         proc = subprocess.run(
-            ["git", "cat-file", "--batch"],
-            input=(":" + path + "\n").encode("utf-8", "surrogateescape"),
+            [
+                "git",
+                "cat-file",
+                "--batch",
+                "-z",
+            ],  # NUL-delimited input: a newline in a path split the request into two `missing` answers (FB2)
+            input=(":" + path + "\0").encode("utf-8", "surrogateescape"),
             capture_output=True,
             timeout=20,
             env={**os.environ, "LANGUAGE": "C"},
@@ -101,11 +106,12 @@ def _coupled_tokens(listed: str, script: Path) -> list[str]:
     path shape (a `/` or a `.`) OR exists on disk — repo-rooted or relative to the script's own
     directory — so `Makefile` counts and `(§ fix-first)` does not (DY2)."""
     out: list[str] = []
-    for c in SEPARATORS.split(listed):
-        core = (
-            c.rstrip(".") if c.rstrip(".") and "." not in c.rstrip(".") else c
-        )  # `none.` / `none..` — a sentence's full stop(s), not a file (EY2/EZ6)
-        if not c or core.lower() in NONE_VALUES:
+    for raw in SEPARATORS.split(listed):
+        # trailing full stops are a SENTENCE's, never a file's: `none.`, `callers.` (the last word of
+        # trailing prose was minted a phantom file by its period), `docs/coupled.md.` (a real path
+        # made unsatisfiable by its period), `...` — every token is stripped, then tested (EY2/EZ6/FB2)
+        c = raw.rstrip(".")
+        if not c or c.lower() in NONE_VALUES:
             continue
         if (
             "/" in c or "." in c or Path(c).is_file() or (script.parent / c).is_file()
@@ -155,13 +161,8 @@ def _git(args: list[str], sep: str = "\n") -> list[str]:
         proc = subprocess.run(
             ["git", *args],
             capture_output=True,
-            text=True,
-            errors="replace",  # a non-UTF-8 path under an 8-bit locale was a UnicodeDecodeError out of a warn-only check (EZ6)
             timeout=20,
-            env={
-                **os.environ,
-                "LANGUAGE": "C",
-            },  # git's fatal messages in English: the no-stage-0-blob allowlist reads them (EZ6)
+            env={**os.environ, "LANGUAGE": "C"},  # git's fatal messages in English (EZ6)
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise GitUnavailableError(f"git {' '.join(args)}: {exc.__class__.__name__}") from exc
@@ -169,9 +170,12 @@ def _git(args: list[str], sep: str = "\n") -> list[str]:
         # a git that ANSWERS with a failure (a corrupt index, no work tree, a cwd inside `.git/`)
         # read as "nothing staged" — a convincing green for a check that could not ask (EY1)
         raise GitUnavailableError(
-            f"git {' '.join(args)}: exit {proc.returncode}: {proc.stderr.strip()[:160]}"
+            f"git {' '.join(args)}: exit {proc.returncode}: {proc.stderr.decode('utf-8', 'replace').strip()[:160]}"
         )
-    out = proc.stdout
+    # LOSSLESS decoding: `errors="replace"` turned a non-UTF-8 byte into U+FFFD, which re-encoded
+    # to DIFFERENT bytes for `cat-file`, so every such path was a false "staged deletion" (FB2);
+    # a surrogate prints as `?` because the streams are reconfigured to replace (EZ6)
+    out = proc.stdout.decode("utf-8", "surrogateescape")
     return [x for x in out.strip(sep).split(sep) if x] if out.strip(sep) else []
 
 

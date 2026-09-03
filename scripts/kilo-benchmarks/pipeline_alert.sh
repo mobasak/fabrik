@@ -40,11 +40,15 @@ sys.path.insert(0, str(kb))
 try:
     from dotenv import load_dotenv
     load_dotenv(kb.parents[1] / ".env", override=False)
-except Exception:
-    pass
+except Exception as exc:  # noqa: BLE001 — SAID, never swallowed: an unreadable .env was a silent no-op (FB10)
+    print(f"[pipeline_alert] .env not loaded: {type(exc).__name__}: {exc}", file=sys.stderr)
 try:
     from alerting import send_alert
-    send_alert(title=sys.argv[1], body=sys.argv[2], severity="critical")
+    # send_alert returns False — no exception, no log line — when alerting is disabled (no
+    # token, a fresh .env) or the title is deduplicated: the ONE signal for a chain that never
+    # started vanished with zero trace. A non-delivery is printed where the caller logs (FB10)
+    if not send_alert(title=sys.argv[1], body=sys.argv[2], severity="critical"):
+        print(f"[pipeline_alert] NOT delivered (alerting disabled or deduplicated): {sys.argv[1]}", file=sys.stderr)
 except Exception as exc:  # noqa: BLE001 — an alert failure must never break the pipeline
     print(f"[pipeline_alert] send failed: {type(exc).__name__}: {exc}", file=sys.stderr)
 PY

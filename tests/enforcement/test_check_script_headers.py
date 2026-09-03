@@ -671,3 +671,39 @@ def test_a_non_utf8_path_under_an_eight_bit_locale_is_not_a_traceback(tmp_path: 
 def test_a_double_full_stop_sentinel_is_still_the_sentinel(tmp_path: Path) -> None:
     repo = _repo(tmp_path, "# AFTER-EDIT: none..\nx = 1\n")
     assert "WARNING" not in _run(repo, "scripts/thing.py")
+
+
+def test_a_newline_or_an_undecodable_byte_in_a_staged_path_is_still_inspected(
+    tmp_path: Path,
+) -> None:
+    """`cat-file --batch` read one object name per LINE, so a newline inside a path split the
+    request into two `missing` answers — a headerless script read as "a staged deletion"; and
+    `_git`'s `errors="replace"` re-encoded a non-UTF-8 path to different bytes, the same false
+    deletion (FB2). NUL-delimited input and lossless decoding keep both inspected."""
+    import os
+
+    repo = _repo(tmp_path, "x = 1\n")
+    (repo / "scripts" / "no\nheader.py").write_text("x = 1\n", encoding="utf-8")
+    with open(os.fsencode(str(repo / "scripts")) + b"/bad_\xff\xfe.py", "wb") as fh:
+        fh.write(b"x = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A", "scripts"], check=True)
+    proc = subprocess.run([sys.executable, str(CHECK)], cwd=repo, capture_output=True, timeout=60)
+    out = proc.stdout.decode("utf-8", "replace")
+    assert proc.returncode == 0, proc.stderr[-300:]
+    assert "staged deletion" not in out, out
+    assert out.count("no `# AFTER-EDIT:` header") == 3, (
+        out
+    )  # thing.py, the newline path, the raw-byte path
+
+
+def test_trailing_prose_and_a_period_after_a_real_path_never_mint_phantom_files(
+    tmp_path: Path,
+) -> None:
+    """`docs/coupled.md — see the callers.` minted `callers.` as a coupled file (its period is a
+    path shape); `docs/coupled.md.` was unsatisfiable forever; `...` was a file (FB2)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md — see the callers.\nx = 1\n")
+    assert "WARNING" not in _run(repo, "scripts/thing.py", "docs/coupled.md")
+    repo2 = _repo(tmp_path / "two", "# AFTER-EDIT: docs/coupled.md.\nx = 1\n")
+    assert "WARNING" not in _run(repo2, "scripts/thing.py", "docs/coupled.md")
+    repo3 = _repo(tmp_path / "three", "# AFTER-EDIT: ... none\nx = 1\n")
+    assert "WARNING" not in _run(repo3, "scripts/thing.py")
