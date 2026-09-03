@@ -462,8 +462,9 @@ def main() -> int:
             and target in catalog
             and not (prov in catalog and not tombstone_of(catalog, prov))
         ):
-            # a catalogued NON-tombstone source (a `?` placeholder with curated routing — the one
-            # such shape that reaches here) is never folded into another vendor by a model's word:
+            # a catalogued NON-tombstone source (the curated shapes that reach here — a `?`
+            # placeholder with curated routing, or an entry whose category is not a real string
+            # but that carries routing) is never folded into another vendor by a model's word:
             # the identified path keeps the operator's fields and fills its `?`, so it leaves
             # triage — merged, it stayed `?` and re-billed every lap forever (CE2)
             # the vendor is ALREADY catalogued under another key: a code-only provider records its

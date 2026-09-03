@@ -2756,11 +2756,8 @@ def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monke
     ), err
 
 
-def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypatch, capsys):
-    """One project's `.env` losing read permission silently dropped that project's whole service
-    set (exit 0, the secrets file rewritten, its keys then DELETEs against the sync) — the doc
-    promises "never a degraded file": the scan fails closed with one line naming the file; a
-    vanished file (a mid-save race) is still tolerated (CS2)."""
+def _one_project(tmp_path, monkeypatch):
+    """A catalog, an output path and ONE project `p/.env` under a fake `/opt` (tmp_path)."""
     cat = tmp_path / "catalog.json"
     cat.write_text("{}", encoding="utf-8")
     p = tmp_path / "p"
@@ -2769,10 +2766,19 @@ def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypa
     env.write_text("FOO_API_KEY=x\n", encoding="utf-8")
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
     monkeypatch.setattr(ge, "OUTPUT", tmp_path / "all-envs.env")
-    real_pef = ge.project_env_files  # kept before the patch (monkeypatch rebinds the module dict)
-    monkeypatch.setattr(ge, "project_env_files", lambda: [env])
+    monkeypatch.setattr(ge, "OPT", tmp_path)
     monkeypatch.setattr(ge, "project_dirs", lambda: [])
     monkeypatch.setattr(sys, "argv", ["gather_envs.py"])
+    return env
+
+
+def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypatch, capsys):
+    """One project's `.env` losing read permission silently dropped that project's whole service
+    set (exit 0, the secrets file rewritten, its keys then DELETEs against the sync) — the doc
+    promises "never a degraded file": the scan fails closed with one line naming the file (CS2).
+    The permission concern is the ONLY one a root runner may skip — the vanished, unstat-able and
+    directory cases are their own tests (CW2: one `pytest.skip` used to silence all four)."""
+    env = _one_project(tmp_path, monkeypatch)
     env.chmod(0)
     try:
         if os.access(env, os.R_OK):
@@ -2784,13 +2790,59 @@ def test_an_unreadable_project_env_file_fails_the_scan_closed(tmp_path, monkeypa
         )
     finally:
         env.chmod(0o600)
+
+
+def test_a_listed_env_file_the_scan_cannot_read_or_stat_is_one_line(tmp_path, monkeypatch, capsys):
+    """The glob proved the path existed this run: vanished between the listing and the read is a
+    refusal (CU2), and so is a listing the scan cannot even stat — a dangling `.env` symlink
+    (`is_file()` swallowed ENOENT and skipped the project silently, CW1). Both through the one
+    "env files" line, never a traceback."""
+    env = _one_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(ge, "project_env_files", lambda: [env])
     env.unlink()
-    assert (
-        ge.main() == 1
-    )  # the glob listed it: vanished between the listing and the read is a refusal too (CU2)
+    assert ge.main() == 1
     assert "could not read its inputs" in capsys.readouterr().err
-    # …and a `.env` DIRECTORY (`python -m venv .env`) is not a project env file at all — the glob
-    # skips it, the chain never fails on it (CU1)
+    monkeypatch.undo()
+    (tmp_path / "b").mkdir()
+    env = _one_project(tmp_path / "b", monkeypatch)
+    env.unlink()
+    env.symlink_to(tmp_path / "b" / "missing")
+    assert ge.main() == 1
+    err = capsys.readouterr().err
+    assert err.startswith("ERROR: the scan could not read its inputs (") and str(env) in err, err
+
+
+def test_a_listed_env_file_under_an_untraversable_dir_is_one_line_not_a_traceback(
+    tmp_path, monkeypatch, capsys
+):
+    """A `.env` symlinked into a vault the chain cannot traverse: `is_file()` re-raised EACCES out of
+    `main` as a raw traceback, breaking the one-line contract the doc promises for every gather
+    refusal (CW1)."""
+    env = _one_project(tmp_path, monkeypatch)
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / ".env").write_text("FOO_API_KEY=x\n", encoding="utf-8")
+    env.unlink()
+    env.symlink_to(vault / ".env")
+    vault.chmod(0)
+    try:
+        if os.access(vault / ".env", os.R_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        assert ge.main() == 1
+        err = capsys.readouterr().err
+        assert err.startswith("ERROR: the scan could not read its inputs (") and str(env) in err, (
+            err
+        )
+    finally:
+        vault.chmod(0o700)
+
+
+def test_a_dot_env_directory_is_not_a_project_env_file(tmp_path, monkeypatch, capsys):
+    """`python -m venv .env` makes a DIRECTORY: it is no project env file at all — the glob skips
+    it and the chain never fails on it (CU1; round 31's `raise` had failed the scan daily)."""
+    env = _one_project(tmp_path, monkeypatch)
+    env.unlink()
     env.mkdir()
-    monkeypatch.setattr(ge, "OPT", tmp_path)
-    assert real_pef() == []
+    assert ge.project_env_files() == []
+    assert ge.main() == 1  # no project env at all — the "no files" line, not a traceback
+    assert "No project .env files found" in capsys.readouterr().err
