@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `audit_usage_cost.py`: the fleet's real token cost, measured not estimated (2026-09-04)
+
+- Fleet measured the fleet's actual consumption from `usage-history.json` — 111 days, 298,137.5M tokens, $230,838-$262,014 at Anthropic list,
+  amortizing to **$0.00764/MTok** against $2,000 of subscriptions across Jun-Aug. Reproduced byte-for-byte before committing.
+- The script lived in a session scratchpad and would have died with it. It is now `scripts/kilo-benchmarks/audit_usage_cost.py`, carrying the
+  provenance, a dated price table, and the three modelling traps in its docstring: the amortized rate is volume-dependent and moved 2.6x across
+  three months on a near-fixed cost; a subscription token's MARGINAL cost is zero until headroom runs out, when it becomes a blocked agent
+  rather than a dollar; and cache reads are 96-98% of all volume, so any model conflating the four counters is ~10x wrong on the input side.
+- Deliberately NOT folded into `derive_cost.py`: that answers "what did this run cost" for scoring; this answers "what has the fleet
+  consumed". `claude_p_cost.json`'s 25-day-stale rate and its windowed reshape are a larger change with 4+ code consumers — sized as plan work.
+
 ### Added — the quota board watches the OpenRouter pool balance, the fleet's other quota (2026-09-04)
 
 - On 2026-09-04 the metered pool ran to **-$0.0015 of $225** and nothing on this box knew. Three repos
