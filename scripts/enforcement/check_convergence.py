@@ -882,8 +882,9 @@ def _check_review(root: Path, path: Path) -> list[str]:
     ):
         fails.append(
             'no embedded final_gate run showing "status": "success" inside a fenced block '
-            "(concurrent lanes: embed the FAILING gate and declare `GATE-SCOPE: out-of-surface "
-            "— <check>; findings naming this surface: 0 of <N>; measured by: <command>`)"
+            "(concurrent lanes: embed the FAILING gate and declare, on ONE line, `GATE-SCOPE: out-of-surface "
+            "— <check>; findings naming this surface: 0 of <N>; measured by: <command>` — the value "
+            "stays on that line; a block fence on the NEXT lines is not read as the value)"
         )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")

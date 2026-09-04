@@ -1138,12 +1138,16 @@ def _oauth_get(
     the caller's budget on its own. ``--status --json`` — run by ``quota_dashboard.py`` under a
     60s ``subprocess`` cap — takes the FLEET path whenever fleet dirs exist (this box: yes), and
     ``_fleet_account_rows`` makes an unconditional ``usage`` call plus an hourly ``profile`` call
-    per FRESH account: the ``_FLEET_TOKEN_FRESH_S`` gate only skips STALE tokens, so two sequential
-    calls on ONE fresh account with one degraded host is ~65s — over the cap by itself; the legacy
-    ``_account_status``/``_collect_statuses`` path has the same shape across every account. Two
-    earlier edits of this paragraph got it wrong in opposite directions ("~32s, inside the cap";
-    then "the fleet path is gated") — both un-derived from the call graph (review 2026-09-05,
-    passes 3-4). The budget mismatch is a backlog row, not a docstring fix."""
+    per FRESH account: the ``_FLEET_TOKEN_FRESH_S`` gate only skips STALE tokens. The 32.6s
+    per-call figure needs BOTH hosts to stall every attempt — a LINK-WIDE degradation (the
+    2026-08-22 VPN drop), not one dead host, which costs ~16.6s/call because the other answers.
+    Under a link-wide stall two sequential calls on ONE fresh account are ~65s — over the cap by
+    themselves — and the fleet loop (``for email in sorted(groups)``) compounds per account: this
+    box has four, so ~260s; the legacy ``_account_status``/``_collect_statuses`` path has the same
+    shape (~195s for three). Three earlier edits of this paragraph each got one term wrong
+    ("inside the cap"; "the fleet path is gated"; "one degraded host") — all un-derived from the
+    call graph (review 2026-09-05, passes 3-5). The budget mismatch is a backlog row, not a
+    docstring fix."""
     import urllib.error
     import urllib.request
 
