@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 15 of the review: two writes with no shell operator at all — `find -delete` and `git log --output` (2026-09-05)
+
+Both proven on disk by the pass-14 finder and re-proven before fixing: `find . -name victim.txt -delete` destroyed a file through the hold's allow-list, and `git log --output=<any path>` wrote a file at an arbitrary path — a tool's own flags, invisible to every shell-syntax veto. The pass-14 entry had recorded `--output` as in-design; that was wrong, and this entry supersedes it: a write to any path is the edit the hold exists to forbid. `find` is off the allow-list entirely (`ls`, `rg --files`, `grep -rl` remain for a held session; enumerating find's action flags would be one more list to be wrong about); git's `--output[=…]`, `--output-directory` and a bare `-o <path>` are vetoed. Graded in both directions, red on revert; 22 hook tests.
+
 ### Fixed — pass 14 of the review: process substitution ran a command through the quota hold (2026-09-05)
 
 `git status <(touch marker)` was ALLOWED and the marker appeared — bash's `<(cmd)` / `>(cmd)` run the inner command with no operator on the veto list and nothing for the masker to blank. `_UNSAFE_SHELL` now vetoes `<(` and `>(`; a quoted `<(` stays data. Fourth pre-existing hole in the same hold found this session, every one by executing a candidate with a side-effect marker rather than reading the regex — the class is that a whole-line scan can only refuse what it was told to look for. Also measured and recorded as in-design, not chased: a tool's OWN write flag (`git log --output=m`) is not shell syntax — the hold is default-deny on commands, and `git commit` writes by design. Graded, red on revert; 20 hook tests.

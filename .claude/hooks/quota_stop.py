@@ -65,7 +65,11 @@ _ALLOWED_BASH = re.compile(
     r"|python3?\s+\S*command_run\.py\b"
     r"|python3?\s+\S*mail\.py\b"
     r"|python3?\s+\S*thread_anchor\.py\b"
-    r"|(cat|head|tail|grep|rg|ls|wc|md5sum|readlink|date|echo|pwd|find|stat)\b"
+    # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
+    # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
+    # held session locating files uses `ls`, `rg --files` or `grep -rl`; enumerating find's
+    # action flags (-delete/-exec/-ok/-fprint…) would be one more list to be wrong about.
+    r"|(cat|head|tail|grep|rg|ls|wc|md5sum|readlink|date|echo|pwd|stat)\b"
     r"|sed\s+-n\b(?!.*\s-i\b))"
 )
 # A lone `&` is bash's BACKGROUND separator — `git status & evil` runs both, and the whole-line
@@ -77,6 +81,11 @@ _ALLOWED_BASH = re.compile(
 # allowed and the marker appeared (review 2026-09-05, pass 14, executed). No operator on the
 # list, no quote to mask; the paren after `<`/`>` is the tell.
 _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<![0-9>])&(?!&)|[<>]\(")
+# git's OWN file-output flags are not shell syntax, so neither veto above can see them, and the
+# allow-list matches the leading `git log`: `git log --output=<any path>` wrote a file at an
+# arbitrary path (review 2026-09-05, pass 14, executed). `--output[=…]`, `--output-directory`
+# and a bare `-o <path>` (format-patch) are held; no checkpoint form needs them.
+_GIT_FILE_OUTPUT = re.compile(r"(?:^|\s)--output(?:[=\s]|-directory)|\s-o(?:\s|$)")
 # `(?!>)` after the optional second `>` and `>` in the lookbehind: without them `>>?` BACKTRACKED
 # on `>> /dev/null` — the two-char match failed the /dev/null exemption, so the engine matched a
 # single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names
@@ -207,6 +216,7 @@ def decide(
             command is not None
             and not _UNSAFE_SHELL.search(masked)
             and not _FILE_REDIRECT.search(masked)
+            and not _GIT_FILE_OUTPUT.search(masked)
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""

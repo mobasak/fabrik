@@ -233,6 +233,25 @@ def test_a_quoted_dev_null_target_is_a_known_fail_closed_limit():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
 
 
+def test_a_tools_own_write_flag_and_a_destroying_read_tool_are_held():
+    """Two writes with NO shell operator, both proven on disk (review 2026-09-05, pass 14):
+    `find . -name x -delete` destroyed a file through the allow-list, and `git log --output=<p>`
+    wrote a file at an arbitrary path. `find` is off the list entirely; git's `--output` forms
+    and a bare `-o <path>` are held. The checkpoint forms that read stay allowed."""
+    for cmd in (
+        "find . -name victim.txt -delete",
+        "find . -delete",
+        "find . -type f",  # even the read form — the tool is off the list, not its flags
+        "git log -n1 --output=/tmp/x",
+        "git log --output /tmp/x",
+        "git format-patch -o /tmp/patches HEAD~1",
+        "git diff --output=/tmp/d",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in ("git log -n1 --oneline", "git log --format=%h", "ls -la", "rg --files", "grep -rl x ."):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
 def test_process_substitution_runs_a_command_and_is_held():
     """`<(cmd)` / `>(cmd)` make bash RUN the inner command with no listed operator and nothing to
     mask: `git status <(touch marker)` was allowed and the marker appeared (review 2026-09-05,
