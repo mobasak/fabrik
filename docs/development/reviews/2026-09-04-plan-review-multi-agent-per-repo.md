@@ -167,4 +167,34 @@ design and its surviving job — resume after a crash — is per-tree and works 
 **Verdict: the plan does not converge, and should not.** Everything outside the lock family is closed and
 gate-green at 33 tickets. Five tickets wait on one spec decision that is cheaper to make than to keep patching.
 
-NEXT: re-open the spec on § Live locks (`/fabrik-spec-review`), then re-converge this plan against the outcome.
+## Re-convergence against spec r11
+
+The spec was re-opened on § Live locks alone and reached **CONVERGED r11** (fae8e820, ruling D-117): the lock
+relocation is WITHDRAWN, and § Assignment's disjointness claim is corrected as false. The plan was re-converged
+against it in 884a5728.
+
+**The five blocked tickets resolved mostly by SUBTRACTION, which is the point.** T05c, T05d and T05e were deleted
+outright — they owned the Stop hook, the metadata exemption, the certification check, the manifest's ignore leg and
+eight test files, and every line of that existed only because the locks were moving. T04b keeps the `Epic:` line,
+the dispatch containment and the merge target, and now states per-worktree locks as the design rather than a
+compromise. T05a keeps both epic-containment levels and loses its lock half (and its slug, which said
+"lock-dir-move"). T05b loses the gate-comment task; T14a's fourth item is void.
+
+**One thing r11 ADDED:** the disjointness check has always been credited with proving parallel-set `owned_paths`
+disjointness and does not — it intersects glob STRINGS for pairs that each declared the other parallel. T03b now
+owns making it real, keyed on `phased_order()` phases rather than the author-declared field.
+
+**Two splits, both forced by measurement rather than taste.** T02 scored 9 on the breadth check AND broke the read
+budget at 264,036 B once the spec grew at r11 — split into the hook (T02a) and the two governance contracts (T02b).
+T03 scored 9 on eight behaviours once the disjointness work landed — split into assignment (T03a) and the
+strengthening (T03b). Peak breadth fell from 9 to 7.
+
+**A process defect caught by grep, not by a check:** an earlier re-converge script died on an assertion BEFORE its
+write, so the spine's residuals, interfaces, constraints digest and dispatch lists silently kept describing a
+design that no longer existed. The count a script prints is not proof the file changed; verify inside the same
+script, after the write.
+
+Set is spine + 32 tickets. Emit gate exit 0 / zero WARN, no DAG violations.
+
+NEXT: a fourth author-blind pass over this re-convergence delta — every previous pass found defects in the
+previous pass's closure work, and deletion is the riskiest edit of all.
