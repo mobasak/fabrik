@@ -3403,7 +3403,9 @@ def _fleet_account_rows(
     caps = _account_caps()
     accounts: list[dict] = []
     cache_dirty = False
-    pings_used = 0  # per-run cap for stale-reading refresh pings (ROTATE_REFRESH_MAX_PER_RUN)
+    # The stale-reading refresh pings are allocated BEFORE the pass below, oldest reading
+    # first, because the pass itself walks `sorted(groups)` — see :func:`_ping_slots`.
+    ping_slots = _ping_slots(groups, cache, now) if allow_pings else set()
     for email in sorted(groups):
         members = sorted(groups[email], key=lambda m: m["slug"])
         with_creds = sorted(
@@ -3500,21 +3502,11 @@ def _fleet_account_rows(
             # itself the signal: `ping_failed` marks the chain DEAD, and the flip leg treats a
             # dead ACTIVE chain as a flip trigger (the 2026-08-17 21:00 outage sat undetected
             # for 9h precisely because quota, not liveness, was the only trigger).
-            c = cache.get(email)
-            cached_age = (
-                now - float(c["ts"])
-                if isinstance(c, dict) and isinstance(c.get("ts"), (int, float))
-                else None
-            )
-            max_age = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
-            max_pings = int(_env_float("ROTATE_REFRESH_MAX_PER_RUN", 3.0))
-            if (
-                allow_pings
-                and (cached_age is None or cached_age >= max_age)
-                and pings_used < max_pings
-                and _refresh_ping_due(email, now)
-            ):
-                pings_used += 1
+            # WHICH accounts get this run's pings is decided ONCE, before this pass, by
+            # STALENESS — see :func:`_ping_slots`. Spending the budget in `sorted(groups)`
+            # order starved whichever account sorted last (2026-09-04).
+            if email in ping_slots:
+                ping_slots.discard(email)
                 _touch_refresh_stamp(email)
                 if _keepalive_ping(with_creds[0]["dir"]):
                     tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
@@ -3700,6 +3692,55 @@ def _fleet_refresh_stamp(email: str) -> Path:
         return _rotate_state_dir() / f"fleet-refresh-{safe}"
     except _STATE_DIR_ERRORS:
         return Path(tempfile.gettempdir()) / f"claude-fleet-refresh-{safe}"
+
+
+def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[str]:
+    """Which accounts spend this run's stale-reading refresh pings — the OLDEST reading first.
+
+    The budget (``ROTATE_REFRESH_MAX_PER_RUN``, default 3) used to be spent inside
+    ``for email in sorted(groups)``, so a fleet with more stale accounts than budget starved
+    whichever account sorted LAST — deterministically, every run, for ever. Measured on the
+    2026-09-04 freeze: four accounts, budget 3, and sarp@ (last in sort) reached a 405-minute
+    reading while can@/mob@/ob@ were re-pinged each tick. :func:`_validated_pick` refuses any
+    cache past ``ROTATE_CACHE_TRUST_S`` (60m), so the ONE account that had headroom — 30% on its
+    first live reading after the operator switched to it BY HAND, 10h41m after the urgent drain
+    mail — was structurally
+    invisible to the picker, and the tick printed "NO successor has headroom" 47 times (the whole tail run of that line; 87 is the log-wide count, all accounts, all time).
+
+    Serving the stalest first CANNOT starve: an account dropped this run is staler next run and
+    outranks the ones just served. The gates are EXACTLY the ones the pass applied — a
+    credentialed account whose cached reading is at or past ``ROTATE_READING_MAX_AGE_S``, whose
+    own per-account stamp budget has elapsed — so no ping is issued that the old code would not
+    have issued; only the ORDER of spending changes. In particular it does NOT skip an account
+    whose token is fresh enough to probe live (the first cut did, and the review caught it): an
+    account becomes a candidate only once its reading is ALREADY an hour old, so a fresh token
+    with a stale reading means the PROBE is failing — precisely the account that needs the ping.
+    Skipping it would also have narrowed the dead-chain detector in silence, because
+    ``ping_failed`` is set only on that ping and it is what makes a dead ACTIVE chain a flip
+    trigger (the 2026-08-17 21:00 outage sat undetected for 9h when quota was the only trigger).
+    """
+    budget = int(_env_float("ROTATE_REFRESH_MAX_PER_RUN", 3.0))
+    if budget <= 0:
+        return set()
+    max_age = _env_float("ROTATE_READING_MAX_AGE_S", 3600.0)
+    ranked: list[tuple[float, str]] = []
+    for email, members in groups.items():
+        if not any(m["mtime"] is not None for m in members):
+            continue  # no credentialed dir — there is no chain to ping
+        c = cache.get(email)
+        age = (
+            now - float(c["ts"])
+            if isinstance(c, dict) and isinstance(c.get("ts"), (int, float))
+            else None
+        )
+        if age is not None and age < max_age:
+            continue  # the reading is still inside the freshness window
+        if not _refresh_ping_due(email, now):
+            continue  # this account's own stamp budget says not yet
+        # No cached reading at all is the STALEST state there is — it outranks any age.
+        ranked.append((float("inf") if age is None else age, email))
+    ranked.sort(key=lambda r: (-r[0], r[1]))  # oldest first; email breaks ties deterministically
+    return {email for _, email in ranked[:budget]}
 
 
 def _refresh_ping_due(email: str, now: float) -> bool:
@@ -3920,6 +3961,25 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
 
 
+def _promised_resume(stamp: Path) -> float | None:
+    """The resume epoch the current wall episode's message promised, or None.
+
+    The stamp's CONTENT carries it; no other reader consumes that content (``quota_stop.py``
+    tests ``.exists()``, the latch reads mtime), which is why it can hold this without a new
+    file. None whenever there is no live promise to break: an unreadable or non-numeric stamp,
+    the ``0`` written when no relief time could be given, and — deliberately — a value that is
+    not in the future OF THE STAMP ITSELF. That last case is how stamps written before this
+    field existed migrate silently: they hold their own write time, which is never later than
+    their mtime, so they fall through to the week-long re-arm instead of re-firing every tick.
+    """
+    try:
+        promised = float(stamp.read_text(encoding="utf-8").strip())
+        written = stamp.stat().st_mtime
+    except (OSError, ValueError):
+        return None
+    return promised if promised > written else None
+
+
 def _urgent_drain_pct() -> float:
     """The SESSION line at which, with NO eligible successor, every repo is told to stop
     gracefully and hook itself to the next session reset. Default **90** (operator rule
@@ -3948,8 +4008,12 @@ def _next_session_relief(
         email = str(row.get("email") or "")
         if not email or email == active_email:
             continue
-        fh = row.get("five_hour") if isinstance(row.get("five_hour"), dict) else {}
-        wk = row.get("seven_day") if isinstance(row.get("seven_day"), dict) else {}
+        # Bind THEN narrow: `x.get(k) if isinstance(x.get(k), dict) else {}` is two lookups and
+        # mypy cannot narrow through them (3 union-attr errors this function carried since it
+        # was written yesterday).
+        fh, wk = row.get("five_hour"), row.get("seven_day")
+        fh = fh if isinstance(fh, dict) else {}
+        wk = wk if isinstance(wk, dict) else {}
         wu = wk.get("utilization")
         cap = row.get("weekly_cap")
         weekly_blocked = (isinstance(wu, (int, float)) and wu >= 100.0) or (
@@ -3998,7 +4062,9 @@ def _urgent_drain_message(active_email: str, session_pct: float, relief: tuple[f
         f" HOOK YOURSELF TO RESUME 1 MINUTE AFTER {email}'s {window} window resets: resume at "
         f"{local} (UTC {utc}, epoch {resume}). Schedule the wake now — e.g. "
         f"`sleep $(( {resume} - $(date +%s) ))` in a Monitor / wake hook — and do not poll "
-        "before then: the rotation will have switched to that account by the time you wake."
+        "before then. Relief is EXPECTED, not promised: the rotation switches to that account "
+        "only if it really has headroom when the window turns. If it does not, another message "
+        "like this one follows, carrying the next time to try — so wake, check, and resume."
     )
 
 
@@ -4052,8 +4118,16 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         age = now - stamp.stat().st_mtime
     except OSError:
         age = None
+    # …and a THIRD re-arm: when the resume instant this episode PROMISED has come and gone
+    # while the wall still stands. The message orders every repo to sleep until a named epoch
+    # and not to poll; if relief does not arrive, the latch would keep the fleet silent until
+    # the week-long re-arm. Measured 2026-09-04: one message at 20:55 UTC named 21:31, nothing
+    # switched, and the fleet sat walled and unwarned for 10h41m — 47 "NO successor has
+    # headroom" ticks — until the operator flipped the pointer by hand.
+    promised = _promised_resume(stamp)
     latched = stamp.exists() and not (
-        age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S)
+        (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
+        or (promised is not None and now >= promised)
     )
     if latched:
         return  # already advised for this wall episode — one fact, one message
@@ -4072,7 +4146,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     if repos:
         _drain_mail(repos, "URGENT fleet quota — stop gracefully, hook to the next reset\n\n" + msg)
     try:
-        stamp.write_text(str(int(now)), encoding="utf-8")
+        # CONTENT = the resume epoch this message promised, so the latch can re-arm when the
+        # promise comes due (see _promised_resume). "0" when no relief time could be given.
+        stamp.write_text(str(int(relief[0]) + 60 if relief else 0), encoding="utf-8")
         os.utime(stamp, (now, now))
     except OSError:
         pass

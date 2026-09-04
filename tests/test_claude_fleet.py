@@ -3099,3 +3099,283 @@ def test_urgent_tier_is_silent_below_ninety_and_while_a_successor_exists(tmp_pat
     monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("fresh", "fresh@x"))
     cr._fleet_active_wall_advisory([_row("act@x", 93.0, 40.0, cap=99, slug="act"), _row("fresh@x", 5.0, 5.0, slug="fresh")], now, threshold=95.0)
     assert tg == []
+
+
+# ── BQ11: the refresh-ping budget must be spent on the STALEST reading, never by alphabet ────
+
+
+def _starving_fleet(tmp_path, monkeypatch, ages):
+    """Four accounts, every token too old to probe live, every cached reading past the 1h line.
+
+    *ages* maps email -> cache age in seconds. Returns (fleet, pinged-slug recorder).
+    """
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    slugs = {}
+    for i, email in enumerate(sorted(ages)):
+        slug = f"d{i}"
+        slugs[email] = slug
+        assert cr.main(["--new-dir", slug, email]) == 0
+        _pin(fleet, slug, email)
+        _fleet_creds(fleet, slug, f"tok-{slug}", age_s=10 * 3600.0)  # > 8h → no live probe
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                email: {
+                    "ts": FLEET_NOW - age,
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": FLEET_NOW + 3600},
+                    "seven_day": {"utilization": 10.0, "resets_at_epoch": FLEET_NOW + 86400},
+                }
+                for email, age in ages.items()
+            }
+        )
+    )
+    _fake_oauth(monkeypatch)  # the post-ping re-probe answers None → the cache row rides
+    pinged = []
+
+    def fake_run(argv, **kw):
+        pinged.append(Path(dict(kw.get("env") or {})["CLAUDE_CONFIG_DIR"]).name)
+        return subprocess.CompletedProcess(argv, 0, "pong", "")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    return slugs, pinged
+
+
+def test_the_ping_budget_serves_the_stalest_reading_not_the_first_in_the_alphabet(
+    tmp_path, monkeypatch
+):
+    """The 2026-09-04 fleet freeze, in one assertion.
+
+    `_fleet_account_rows` spends ROTATE_REFRESH_MAX_PER_RUN pings inside a
+    `for email in sorted(groups)` pass. With MORE stale accounts than budget, whichever account
+    sorts LAST is skipped — deterministically, every run, for ever. Measured that day: four
+    accounts, budget 3, and sarp@ (last in sort) reached a 405-minute-old reading while the
+    other three were re-pinged each tick. `_validated_pick` refuses any cache past
+    ROTATE_CACHE_TRUST_S (60m), so the one account that HAD headroom (30% on its first live reading after the operator
+    switched to it by hand, 10h41m after the urgent mail) was invisible to the picker, and the
+    tick printed "NO successor has headroom" 47 times (the whole tail run of that line; 87 is the log-wide count, all accounts, all time).
+    """
+    ages = {
+        "a@ocoron.com": 2 * 3600.0,
+        "b@ocoron.com": 3 * 3600.0,
+        "c@ocoron.com": 4 * 3600.0,
+        "z@ocoron.com": 9 * 3600.0,  # the STALEST — and last in the alphabet
+    }
+    slugs, pinged = _starving_fleet(tmp_path, monkeypatch, ages)
+
+    cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
+
+    assert len(pinged) == 3, f"the per-run budget must still hold: {pinged}"
+    assert slugs["z@ocoron.com"] in pinged, (
+        "the STALEST reading must get a ping; serving the alphabet starves the last account "
+        f"for ever (pinged {pinged}, z is {slugs['z@ocoron.com']})"
+    )
+    assert slugs["a@ocoron.com"] not in pinged, (
+        "the FRESHEST of the stale set is the one to drop when the budget binds"
+    )
+
+
+def test_a_skipped_account_is_served_on_the_next_run_so_starvation_cannot_persist(
+    tmp_path, monkeypatch
+):
+    """Staleness ordering is self-correcting: the account dropped this run is the stalest next
+    run, so it outranks the three just served. That is the property a fixed order lacks."""
+    ages = {
+        "a@ocoron.com": 5 * 3600.0,
+        "b@ocoron.com": 4 * 3600.0,
+        "c@ocoron.com": 3 * 3600.0,
+        "z@ocoron.com": 2 * 3600.0,  # freshest → dropped this run
+    }
+    slugs, pinged = _starving_fleet(tmp_path, monkeypatch, ages)
+    cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
+    assert slugs["z@ocoron.com"] not in pinged, f"freshest is dropped first: {pinged}"
+
+    # …an hour passes; the three served accounts refreshed their cache, z did not.
+    state = tmp_path / "state"
+    later = FLEET_NOW + 3600.0
+    monkeypatch.setattr(cr, "_now", lambda: later)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                email: {
+                    "ts": (FLEET_NOW if email != "z@ocoron.com" else FLEET_NOW - 2 * 3600.0),
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": later + 3600},
+                    "seven_day": {"utilization": 10.0, "resets_at_epoch": later + 86400},
+                }
+                for email in ages
+            }
+        )
+    )
+    for stamp in state.glob("fleet-refresh-*"):  # the per-account stamp budget has elapsed
+        os.utime(stamp, (FLEET_NOW - 7200.0, FLEET_NOW - 7200.0))
+    pinged.clear()
+
+    cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
+
+    assert slugs["z@ocoron.com"] in pinged, (
+        f"the account skipped last run must be served this run — else it starves: {pinged}"
+    )
+
+
+# ── BQ12: the wall latch re-arms when the resume instant it PROMISED comes due ────────────────
+
+
+def _walled_fleet_advisory(monkeypatch, tmp_path, relief_epoch, now):
+    """One walled active account, no successor, and a sibling whose session resets at
+    *relief_epoch*. Returns the list every message lands in."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state").mkdir(exist_ok=True)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m))
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    rows = [
+        _row("act@x", 100.0, 40.0, cap=99, slug="act"),
+        _row("sib@x", 100.0, 40.0, cap=99, slug="sib", s_reset=relief_epoch),
+    ]
+    return rows, sent
+
+
+def test_the_latch_refires_once_the_promised_resume_instant_has_passed(tmp_path, monkeypatch):
+    """2026-09-04: the 20:55 message named 21:31, nothing switched, and the fleet then sat
+    walled and SILENT for 10h41m (47 no-successor ticks of that exact line) because the latch only re-arms on
+    relief or after a week. A promise that comes due unmet is new information."""
+    now = FLEET_NOW
+    relief = now + 1800.0
+    rows, sent = _walled_fleet_advisory(monkeypatch, tmp_path, relief, now)
+
+    cr._fleet_active_wall_advisory(rows, now, threshold=95.0)
+    assert len(sent) == 1, "the wall fires once on entry"
+    assert f"epoch {int(relief) + 60}" in sent[0]
+
+    # still walled five minutes later, well before the promise comes due → silent
+    cr._fleet_active_wall_advisory(rows, now + 300.0, threshold=95.0)
+    assert len(sent) == 1, "latched while the promise still stands"
+
+    # the promised instant passes with the wall UNBROKEN → speak again, with the next time
+    later = relief + 120.0
+    rows[1]["five_hour"]["resets_at_epoch"] = later + 3600.0  # the window rolled, still walled
+    cr._fleet_active_wall_advisory(rows, later, threshold=95.0)
+    assert len(sent) == 2, "a broken promise must re-arm the latch, not extend the silence"
+    assert f"epoch {int(later + 3600.0) + 60}" in sent[1], "the new message carries the NEXT time"
+
+
+def test_a_stamp_written_before_the_promise_field_existed_does_not_refire_every_tick(
+    tmp_path, monkeypatch
+):
+    """Migration: the old stamp held its own write time. Read naively that is always 'due',
+    which would turn the latch into a per-tick spammer — the exact class the latch exists for."""
+    now = FLEET_NOW
+    rows, sent = _walled_fleet_advisory(monkeypatch, tmp_path, now + 1800.0, now)
+    stamp = cr._fleet_exhaustion_stamp()
+    stamp.write_text(str(int(now - 600.0)), encoding="utf-8")  # legacy content == its write time
+    os.utime(stamp, (now - 600.0, now - 600.0))
+
+    cr._fleet_active_wall_advisory(rows, now, threshold=95.0)
+
+    assert sent == [], "a legacy stamp falls through to the week-long re-arm, not to every tick"
+    assert cr._promised_resume(stamp) is None
+
+
+def test_no_relief_time_means_no_promise_to_break(tmp_path, monkeypatch):
+    """When no sibling reports a reset the message gives no time; the stamp must then hold no
+    promise, or the latch would re-arm on the very next tick."""
+    now = FLEET_NOW
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state").mkdir(exist_ok=True)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m))
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    rows = [_row("act@x", 100.0, 40.0, cap=99, slug="act")]  # nobody else at all
+
+    cr._fleet_active_wall_advisory(rows, now, threshold=95.0)
+    cr._fleet_active_wall_advisory(rows, now + 300.0, threshold=95.0)
+
+    assert len(sent) == 1, "no promise → the plain latch still holds"
+    assert "no resume time can be given" in sent[0]
+    assert cr._promised_resume(cr._fleet_exhaustion_stamp()) is None
+
+
+def test_the_urgent_message_does_not_promise_a_switch_it_cannot_guarantee(tmp_path, monkeypatch):
+    """The wording that shipped said "the rotation will have switched to that account by the
+    time you wake". It had not, 10h later. A message that asserts a future state the machinery
+    does not control is a false claim broadcast to every repo."""
+    msg = cr._urgent_drain_message("act@x", 90.0, (FLEET_NOW + 1800.0, "sib@x", "session"))
+    assert "will have switched" not in msg
+    assert "EXPECTED, not promised" in msg
+    assert "another message like this one follows" in msg
+
+
+def test_a_fresh_token_whose_live_probe_fails_still_earns_its_refresh_ping(tmp_path, monkeypatch):
+    """Review finding on my own `_ping_slots`: the first cut skipped any account whose token was
+    fresh enough to probe live, reasoning that the probe would refresh it "for free". But the
+    account only BECOMES a ping candidate when its cached reading is already an hour old, and a
+    fresh token that keeps a reading stale means the probe is FAILING — exactly the account that
+    needs the ping. Skipping it also silently narrowed the dead-chain detector: `ping_failed` is
+    set only in this branch, and it is what makes a dead ACTIVE chain a flip trigger (the
+    2026-08-17 21:00 outage sat undetected for 9h because quota was the only trigger)."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "d0", "a@ocoron.com"]) == 0
+    _pin(fleet, "d0", "a@ocoron.com")
+    _fleet_creds(fleet, "d0", "tok-d0", age_s=600.0)  # FRESH token → the live probe is attempted
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "a@ocoron.com": {
+                    "ts": FLEET_NOW - 5 * 3600.0,  # stale despite the fresh token → probe failing
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": FLEET_NOW + 3600},
+                    "seven_day": {"utilization": 10.0, "resets_at_epoch": FLEET_NOW + 86400},
+                }
+            }
+        )
+    )
+    _fake_oauth(monkeypatch)  # every probe answers None — the failing-probe condition
+    pinged = []
+
+    def fake_run(argv, **kw):
+        pinged.append(Path(dict(kw.get("env") or {})["CLAUDE_CONFIG_DIR"]).name)
+        return subprocess.CompletedProcess(argv, 1, "", "boom")  # the ping fails too
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+
+    accounts, _pending = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
+
+    assert pinged == ["d0"], f"a fresh token with a stale reading must still be pinged: {pinged}"
+    assert accounts[0]["ping_failed"] is True, (
+        "and a failed ping must still mark the chain DEAD — that flag is the dead-chain flip "
+        "trigger, and skipping the ping would silently retire it"
+    )
+
+
+def test_ping_slots_and_promised_resume_hold_at_their_edges(tmp_path, monkeypatch):
+    """The two guards that have no natural caller: a budget an operator can set to zero, and a
+    stamp whose content is not a number. Both must fail SAFE — no pings, and no promise."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state").mkdir(exist_ok=True)
+    groups = {"a@x": [{"slug": "d0", "dir": tmp_path / "d0", "mtime": FLEET_NOW - 10 * 3600.0}]}
+    cache = {"a@x": {"ts": FLEET_NOW - 9 * 3600.0}}
+
+    monkeypatch.setenv("ROTATE_REFRESH_MAX_PER_RUN", "0")
+    assert cr._ping_slots(groups, cache, FLEET_NOW) == set(), "a zero budget spends nothing"
+    monkeypatch.setenv("ROTATE_REFRESH_MAX_PER_RUN", "3")
+    assert cr._ping_slots(groups, cache, FLEET_NOW) == {"a@x"}, "guard: it would fire otherwise"
+    # an account with no credentialed dir has no chain to ping
+    assert cr._ping_slots({"b@x": [{"slug": "d1", "dir": tmp_path, "mtime": None}]}, {}, FLEET_NOW) == set()
+
+    stamp = tmp_path / "state" / "probe-stamp"
+    for content in ("", "not-a-number", "0"):
+        stamp.write_text(content)
+        assert cr._promised_resume(stamp) is None, f"{content!r} is not a promise"
+    assert cr._promised_resume(tmp_path / "state" / "absent") is None

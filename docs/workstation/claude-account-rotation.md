@@ -116,7 +116,16 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
   tools stay open; the hold lifts the moment the tick clears the stamp; a session that ended is
   restarted by the operator or the resume mesh. Before 2026-09-02 the four broadcasts of the day
   were the picker bug (§ Target) talking, not real exhaustion. Work resumes
-  as windows reset.
+  as windows reset. **The latch has a THIRD re-arm: the promise coming due.** The message names a
+  resume instant and tells every repo not to poll before it, so the `fleet-exhausted` stamp's
+  CONTENT holds that epoch (`0` when none could be given) and `_promised_resume` re-arms the latch
+  once it passes with the wall unbroken — the next message then carries the next time to try.
+  Without it the fleet goes silent until the week-long re-arm: on 2026-09-04 one message at 20:55
+  UTC named 21:31, nothing switched, and 47 "NO successor has headroom" ticks passed unannounced
+  until the operator flipped the pointer by hand at 07:36. For the same reason the message says
+  relief is EXPECTED, not promised — the rotation switches only if the named account really has
+  headroom when its window turns. A stamp written before this field existed holds its own write
+  time, which is never later than its mtime, so it migrates silently to the old behaviour.
 - **Manual:** `--switch <account>` flips now — pause- and dwell-exempt, the deliberate
   override. It warns if the target carries a cap.
 
@@ -220,6 +229,22 @@ flip; nothing installs into `~/.claude`.
 The hourly `--drift-check` cron and the SessionStart drift-check hook are gone — a settings
 symlink would have run the drift-check from every fleet dir against its hardcoded `~/.claude`
 paths, re-creating the capture/retarget hazard this design retires.
+
+**The refresh-ping budget is spent on the STALEST reading, never by alphabet (`_ping_slots`).**
+A reading that falls behind `ROTATE_READING_MAX_AGE_S` (1h) is refreshed by one `claude -p ping`
+against that account's own dir, capped at `ROTATE_REFRESH_MAX_PER_RUN` (3) per tick. That budget
+used to be spent inside `for email in sorted(groups)`, so a fleet with MORE stale accounts than
+budget starved whichever account sorted last — deterministically, every run, for ever. Measured on
+the 2026-09-04 freeze: four accounts, budget 3, and `sarp@` (last in sort) reached a 405-minute
+reading while the other three were re-pinged each tick. `_validated_pick` refuses any cache past
+`ROTATE_CACHE_TRUST_S` (60m), so the one account that HAD headroom — 30% on its first live reading after the operator switched
+to it by hand — was structurally invisible to the picker, and the fleet sat walled for 10h41m. The
+slots are therefore allocated once per run, oldest reading first, which cannot starve: an account
+dropped this run is the stalest next run and outranks the ones just served. The same three gates
+still bind (a credentialed chain too old to answer a live probe, a reading at/past the age line, its
+own per-account stamp elapsed), so no ping is issued that the old code would not have issued — only
+the ORDER of spending changed. Guarded by `tests/test_claude_fleet.py::test_the_ping_budget_serves_*`
+and `::test_a_skipped_account_is_served_on_the_next_run_*`.
 
 **Cron PATH — why the pings resolve `claude` without a `PATH=` line.** Cron runs with a minimal
 `PATH` (`/usr/bin:/bin`) that excludes `~/.local/bin`, where the `claude` CLI installs. Every
