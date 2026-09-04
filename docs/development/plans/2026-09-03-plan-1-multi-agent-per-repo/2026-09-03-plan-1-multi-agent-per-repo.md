@@ -1,6 +1,6 @@
 # Multi-agent per repo — N named sessions, one worktree each, one merge owner (build plan)
 
-Status: DRAFT
+Status: CONVERGED (2026-09-05 — 12 author-blind rounds plus a bounded confirmation of the closing commit; ruling D-123)
 **Owner:** infra (operator ruling 2026-09-03 — "approve + infra builds"; intel authored this plan while infra is saturated; no clock on execution)
 Spec: `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md` — **CONVERGED r13** (r11 at fae8e820; r12 editorial in 4637416b; r13 editorial this round — the spine pinned r11 for two revisions, caught by the confirming pass); r10 was approved 2026-09-04, and r11 re-froze § Live locks (D-117), withdrawing the lock relocation this plan had five tickets for
 Shape: spine + 33 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
@@ -551,6 +551,9 @@ method-stability, not truth — which this plan proved the expensive way.
 | Pass 12 | my own re-sweep of pass 11's five open classes | **method: re-derivation** | 3 | 3 | 3 | e6f284e6 → e6f284e6 |
 | Pass 13 | **author-blind #6** — first pass to EXECUTE all 64 `Gate:` lines rather than read them; found 3 gates that could never pass and 7 that could never fail | method: re-derivation | 16 | 16 | 16 | bf680901 → e7c9e68b |
 | Pass 14 | **author-blind #7** — pass 13's brief repeated VERBATIM, to separate a yielding surface from a re-scoping loop; caught a regression pass 13's own fix introduced | method: re-derivation | 7 | 7 | 7 | e7c9e68b → (this round) |
+| Pass 19 | **author-blind #12** — the closing pass; HELD the flip on T14c's unsatisfiable `git grep -c … = 0` gate | method: re-derivation | 2 | 2 | 2 | 83ef9d1a → 06352eaa |
+| Pass 20 | **author-blind #13** — the edit-free closing pass on a frozen artifact (plan-dir tree hash identical across 8 sibling commits) | method: re-derivation | 0 | 0 | 0 | 06352eaa → 06352eaa ✓ |
+| Pass 21 | bounded confirmation that the four prose closures broke nothing; every changed line re-derived, flip rehearsed with armed negative controls | **method: re-derivation** | 0 | 0 | 0 | 76a90746 → 76a90746 ✓ |
 
 **Pass 5 is the row worth reading.** It was edit-free and md5-stable — by the letter of the loop, convergence.
 Pass 6 then raised 34. Every subsequent author-blind pass found defects in the previous pass's closure work,

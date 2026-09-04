@@ -1193,6 +1193,19 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## Lesson — a gate needs BOTH halves: red today, AND green on the correct work (2026-09-05)
+
+Five consecutive review rounds each found a defect introduced by the previous round's own fix, all of them gates. The cause was one habit: **a whole `Gate:` line was REPLACED rather than edited**, composed from what I intended the gate to do rather than from what the line already did — so whatever the old line asserted beyond my current intent vanished silently, and no count-based check could see it because the line count never changed.
+
+Three concrete shapes, each proven by execution:
+- **A dropped conjunct.** A two-conjunct gate became one; the surviving pathspec still named the file the dropped half covered, so it *looked* complete while an entire deliverable went unenforced.
+- **A pathspec that can never match.** `git log -1 --diff-filter=R -- <destination>` returns empty: git scores a change as `A`, not `R`, when the pathspec excludes the rename's SOURCE. The gate exited 1 on the exact move its ticket mandated.
+- **A comparison unsatisfiable by construction.** `test "$(git grep -c … )" = 0` is never true: `git grep -c` PREFIXES the filename on a match (`file.py:2`) and prints NOTHING on none. Use `git grep -l` with `test -z`. Plain `grep -c FILE` does print a bare number and is fine — the two look identical at a glance.
+
+**The rule:** verifying a gate is RED today proves only that the work is not done. It says nothing about whether the gate can RECOGNISE the work when it arrives. Prove both halves — red now, green after the mandated change applied in a scratch clone — or the gate is unfalsifiable.
+
+**And build the detector, don't re-read.** Two cheap mechanical checks caught what four careful re-reads missed: per-line **backtick parity** (an odd count outside a fence is corruption from a blind replace) and **classifying every gate's shell shape** for comparisons that cannot hold. A detector generalises the class; a re-read finds the instance.
+
 ## Staging a whole shared doc commits the SIBLING's entry too — stage shared docs surgically (2026-09-02)
 
 **What happened:** commit `c2b1ad2f` was staged with `git add -- CHANGELOG.md` while a sibling session's uncommitted rotation/quota entries sat at the top of `[Unreleased]`. The commit carried ~38 lines of their rationale under an `Agent-Context` that names only external-services work; their next commit had to patch a line inside the entry mine had frozen. The same session had ALSO been on the receiving end an hour earlier (a sibling's bare `git commit` swept my staged CHANGELOG blob into their subject). Per-file discipline (explicit pathspecs, no `-a`) passed both times — the collision is INSIDE a shared file.

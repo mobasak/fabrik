@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Multi-agent-per-repo build plan CONVERGED after 12 author-blind rounds (2026-09-05)
+- `docs/development/plans/2026-09-03-plan-1-multi-agent-per-repo/` (spine + 33 tickets, Owner: infra) flips DRAFT → CONVERGED (D-123).
+- The rounds that mattered changed METHOD, not effort: the first pass to EXECUTE all 64 `Gate:` lines rather than read them found three gates that could never pass and seven that could never fail.
+- Five consecutive rounds then found a defect introduced by the previous round's own fix; the cause was a whole `Gate:` line REPLACED rather than edited. Two mechanical detectors now cover it — per-line backtick parity, and classifying every gate's shell shape for comparisons unsatisfiable by construction (`git grep -c` prefixes the filename on a match and prints nothing on none, so `= 0` is never true).
+
 ### Fixed — pass 6 of the review: the budget paragraph now states the invariant instead of a fifth number (2026-09-05)
 
 Fresh finders over the pass-5 fixes. The finder re-deriving the rotation budget paragraph found the fifth wrong term in five rewrites — "one dead host is under the cap" is false for the AGGREGATE: ~33s per account × this box's four fleet accounts ≈ 132s against a 60s cap. The class was the method, not any one number: every rewrite restated a figure. The paragraph, the backlog row and the rotation doc now state the invariant once — the aggregate has no wall-clock bound (per-call worst case × 2 calls × N fresh accounts, no budget across the loop), so ANY sustained slowness breaches the cap — with the two derived aggregates as illustrations and the ungrounded "195s for three" legacy figure dropped; the regression test the row demands asserts the aggregate under both fault shapes. `fabrik-execute-plan.md`'s copy of the GATE-SCOPE declaration lacked the one-line constraint the other three sources carry — aligned. Pool: three of five units died (`status=error`, 0 chars) — a rising death rate across six dispatches, filed to intel as `01M1QA45VGBPRV3K4J81GPFV8W`; the dead partitions were re-covered natively.
