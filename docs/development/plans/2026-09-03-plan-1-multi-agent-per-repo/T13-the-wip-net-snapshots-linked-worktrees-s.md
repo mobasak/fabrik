@@ -7,7 +7,7 @@ Depends: —
 Parallel: ⚡
 Complexity: complex
 Gate: python -m pytest tests/test_wip_backup.py -q
-Docs: docs/workstation/hooks-index.md is NOT touched (T02 owns it); the wip-net's own doc row lives in docs/reference (T15) · CHANGELOG.md — orchestrator-applied
+Docs: docs/workstation/hooks-index.md is NOT touched (T02a owns it); the wip-net's own doc row lives in docs/reference (T15) · CHANGELOG.md — orchestrator-applied
 
 ## Touches
 - scripts/wip_backup.sh — PRIMARY PATH

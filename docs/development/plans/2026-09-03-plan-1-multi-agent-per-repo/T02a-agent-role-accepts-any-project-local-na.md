@@ -16,7 +16,7 @@ Docs: docs/workstation/hooks-index.md · CHANGELOG.md — orchestrator-applied
 
 ## Behavior Contract
 - **Given** `CLAUDE_AGENT=alpha` and a charter at `docs/reference/agents/alpha.md`, **When** the hook runs, **Then** the charter is printed (.claude/hooks/agent_role.py:25)
-- **Given** `CLAUDE_AGENT=alpha` and no charter file, **When** the hook runs, **Then** it prints nothing and exits 0 (.claude/hooks/agent_role.py:26)
+- **Given** `CLAUDE_AGENT=alpha` and no charter file, **When** the hook runs, **Then** it prints nothing and exits 0 (.claude/hooks/agent_role.py:40 — the `except OSError: return 0` charter-open path; `:26` is the role-NAME gate this ticket relaxes)
 - **Given** `CLAUDE_AGENT=Alpha_1`, or a 33-character name, **When** the hook runs, **Then** it prints nothing and exits 0; a 32-character name is accepted (.claude/hooks/agent_role.py:20)
 - **Given** a symlinked charter escaping `docs/reference/agents/`, **When** the hook runs, **Then** it is refused exactly as today (.claude/hooks/agent_role.py:34)
 

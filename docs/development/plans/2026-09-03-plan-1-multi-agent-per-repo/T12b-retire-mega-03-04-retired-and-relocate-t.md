@@ -7,7 +7,7 @@ Depends: T06b, T06c, T07a, T07b
 Parallel: ⛓️
 Complexity: simple
 Gate: test "$(git ls-files 'docs/orchestrator/mega-epic-breakdown/*-fabrik.md' | wc -l)" = 0 && test "$(git ls-files docs/orchestrator/_retired/mega-epic-breakdown | wc -l)" = 5
-Gate: test -z "$(git diff --cached -M --numstat | awk '$2 > 0')"   # every staged change is a rename (+header only), zero deletions
+Gate: test -n "$(git show --numstat --format= -M HEAD)" && test -z "$(git show --numstat --format= -M HEAD | awk '$2 > 0')"   # asserted against the COMMIT: non-empty (the work exists) and every row a pure rename. NOT `git diff --cached`, which is empty after the commit and so passes with the work undone.
 Gate: python3 scripts/enforcement/check_doc_links.py
 Docs: INDEX.md (moved files) · docs/README.md · CHANGELOG.md — orchestrator-applied
 

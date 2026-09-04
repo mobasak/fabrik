@@ -1,7 +1,7 @@
 # T14a — Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer
 
 ## Scope
-THREE synced/hub governance edits, one line each. ⚠️ **Shares `CLAUDE.md` and `templates/governance/CLAUDE.md` with T02** (which carries the relaxed `Agent-Name` enum into both) — the Depends edge above serialises the pair; rebase onto T02's merge, then commit with an explicit pathspec naming only your own lines. **(4) VOID at spec r11** — this was the template's lock-path sentence (`templates/governance/CLAUDE.md:132`) naming `.fabrik/plan-locks/`; r11 withdrew the relocation (D-117), so the sentence is CORRECT as it stands and must not be touched. Back to three edits. DO-NOT: add any section; edit `agents-fabrik.md` (T14b).
+THREE synced/hub governance edits, one line each. ⚠️ **Shares `CLAUDE.md` with T02b** (which carries the relaxed `Agent-Name` row into the HUB contract ONLY — `templates/governance/CLAUDE.md` has no `Agent-Name` row at all, verified 0 hits, which is why T02b's gate names one file) — the Depends edge above serialises the pair; rebase onto T02b's merge, then commit with an explicit pathspec naming only your own lines. **(4) VOID at spec r11** — this was the template's lock-path sentence (`templates/governance/CLAUDE.md:132`) naming `.fabrik/plan-locks/`; r11 withdrew the relocation (D-117), so the sentence is CORRECT as it stands and must not be touched. Back to three edits. DO-NOT: add any section; edit `agents-fabrik.md` (T14b).
 
 Depends: T02a, T02b, T09
 Parallel: ⛓️

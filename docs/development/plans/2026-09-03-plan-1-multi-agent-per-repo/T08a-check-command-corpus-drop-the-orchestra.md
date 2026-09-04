@@ -15,7 +15,7 @@ Docs: CHANGELOG.md — orchestrator-applied; docs/reference/command-corpus-check
 
 ## Behavior Contract
 - **Given** a hub tree with no `docs/orchestrator/_traycer-skills/` directory, **When** the check runs, **Then** it reports no wrapper-tree problem and audits the three new sources with the same predicates as every other source (scripts/enforcement/check_command_corpus.py — symbol `_orch_corpus` call site)
-- **Given** the module, **When** imported, **Then** it exposes no `_orch_corpus` or `TRAYCER_SKILLS` name (scripts/enforcement/check_command_corpus.py:91 — the `TRAYCER_SKILLS` binding, the one anchor the sibling's 355-line growth did NOT move; `_orch_corpus` is cited by symbol because it did)
+- **Given** the module, **When** imported, **Then** it exposes no `_orch_corpus` or `TRAYCER_SKILLS` name (scripts/enforcement/check_command_corpus.py — the `TRAYCER_SKILLS` binding, cited BY SYMBOL because the line number has already moved once under sibling growth — it was asserted here as `:91`, and scripts/enforcement/check_command_corpus.py:94 is where it actually sits today; `_orch_corpus` is cited by symbol because it did)
 
 ## Context Files
 - .windsurf/rules/core/10-python.md

@@ -7,7 +7,7 @@ Depends: —
 Parallel: ⚡
 Complexity: never-route
 Gate: python -m pytest tests/enforcement/test_certification_coverage.py -q
-Gate: test -z "$(git grep -n 'final_gate_stop.py:785' -- scripts/enforcement/check_certification_coverage.py tests/enforcement/test_certification_coverage.py)"
+Gate: test -z "$(git grep -n 'final_gate_stop.py:785' -- scripts/enforcement/check_certification_coverage.py tests/enforcement/test_certification_coverage.py)" && test "$(git grep -l '_midrun_marker' -- scripts/enforcement/check_certification_coverage.py tests/enforcement/test_certification_coverage.py | wc -l)" = 2
 Docs: CHANGELOG.md — orchestrator-applied
 
 ## Touches

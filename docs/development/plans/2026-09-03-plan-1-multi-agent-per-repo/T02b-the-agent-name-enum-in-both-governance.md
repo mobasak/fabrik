@@ -6,7 +6,7 @@
 Depends: T02a
 Parallel: ⛓️
 Complexity: native
-Gate: test -z "$(git grep -n 'infra` · `fleet` · `intel' -- CLAUDE.md)"   # ONE file: the template has no Agent-Name row (verified 0 hits), so including it would let this gate pass with the real edit undone
+Gate: test -z "$(git grep -n 'infra` · `fleet` · `intel' -- CLAUDE.md)" && test "$(grep -c '\[a-z0-9-\]{1,32}' CLAUDE.md)" != 0   # ONE file: the template has no Agent-Name row (verified 0 hits), so including it would let this gate pass with the real edit undone
 Docs: CHANGELOG.md — orchestrator-applied
 
 ## Touches
