@@ -29,7 +29,7 @@ Traycer must ensure every Phase 1 item maps to a feature or ticket during planni
 
 ### Payment Routing
 
-- **BIN-based card routing** — Turkish-issued cards (BIN lookup) → the DOMESTIC rail (**PayTR** since 2026-09-03, with iyzico as its configured fallback — `core/85-payments-billing.md` § Payment Providers is canonical). All other cards → Paddle.
+- **BIN-based card routing** — WHEN the product runs both rails: Turkish-issued cards (BIN lookup) → the DOMESTIC rail (**PayTR** since 2026-09-03, with iyzico as its configured fallback — `core/85-payments-billing.md` § Payment Providers is canonical); all other cards → Paddle. A single-provider product (Paddle-only, no Turkish lane) has no BIN split to build — the item below reads "or a single provider per target market" for that reason.
 - Do NOT route by IP or locale — VPN users circumvent geographic routing.
 - Flat USD pricing at launch. No regional pricing (PPP) until fraud detection exists.
 - Paddle's **5-day unconditional refund policy** must be in Terms of Service — Paddle suspends vendors who omit it.

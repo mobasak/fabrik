@@ -1687,7 +1687,10 @@ def main() -> int:
         # budget and every other check actually run on a scratch copy instead of being skipped
         # wholesale by the plans-layout guard.
         external_root = root if not _is_plans_layout(target) else None
-        if external_root is not None and args.project_root == Path.cwd():
+        if external_root is not None and root == Path.cwd().resolve():
+            # compare RESOLVED paths: `--project-root .` and a symlinked `$(pwd)` both equal the
+            # cwd default and must warn the same way (review pass 3, native finder — the raw
+            # comparison let both through silently)
             # cwd is the default, and a scratch copy checked from the wrong directory measures
             # every Touches path against the wrong tree — 0 bytes each, the exact silent zero
             # this flag's fix removed, reached by another door (review pass 1, native finder).

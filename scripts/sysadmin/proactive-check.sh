@@ -448,6 +448,37 @@ if command -v docker >/dev/null 2>&1; then
     fi
 fi
 
+# ── Unbounded containers (the memory-limit invariant, off the apply path) ──
+# `deploy.resources.limits.memory` is mandatory on every service — enforced by
+# deployer_ssh._validate_compose() and auto-emitted by the scaffolder, but ONLY for
+# containers that pass through `fabrik apply`. The hand-composed monitoring/ingress
+# stack never does, so nothing was watching it: measured 2026-09-04, TEN of vps1's 32
+# containers ran with no ceiling at all, some since 2026-07-08. An unbounded container
+# that runs away takes an arbitrary subset of the box with it instead of only itself.
+#
+# `docker ps -aq`, not `-q`: a stopped-but-defined container keeps HostConfig.Memory
+# across a restart, so reading only the RUNNING set reports green while an unbounded
+# container sits waiting to start. Today both counts are equal, which is exactly why
+# the narrower query would have been easy to write and never notice.
+#
+# Fire rate, measured before shipping: 10/32 before the ceilings were applied, 0/32
+# after. It fires only on a genuine regression — a container arriving off the apply
+# path — which is signal, not wallpaper.
+#
+# Ceilings + derivation: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md
+# Applier:               scripts/vps_apply_limits.sh --apply   (--check for this same verdict)
+if command -v docker >/dev/null 2>&1; then
+    _unbounded=""
+    for _cid in $(sudo docker ps -aq 2>/dev/null); do
+        if [ "$(sudo docker inspect -f '{{.HostConfig.Memory}}' "$_cid" 2>/dev/null)" = "0" ]; then
+            _n=$(sudo docker inspect -f '{{.Name}}' "$_cid" 2>/dev/null)
+            _unbounded="${_unbounded}${_n#/},"
+        fi
+    done
+    [ -n "$_unbounded" ] \
+      && ANOMALIES+="container_no_memory_limit[$(hostname -s):${_unbounded%,}] "
+fi
+
 # ── All clear? Exit silently. ─────────────────────────────────────────────
 
 if [ -z "$ANOMALIES" ]; then

@@ -245,6 +245,32 @@ def test_staleness_resolves_a_scratch_copy_against_the_given_root_too(tmp_path: 
         cpt._repo_root = orig  # type: ignore[assignment]
 
 
+def test_an_external_run_names_a_defaulted_root_even_when_spelled_as_dot(tmp_path: Path, monkeypatch) -> None:
+    """The NOTE compared the RAW --project-root to Path.cwd(), so `--project-root .` — the most
+    natural spelling of the default — silenced it while resolving to the same tree (review pass 3,
+    native finder, executed). Compare resolved paths."""
+    import subprocess
+    import sys
+
+    real = _build(tmp_path)
+    scratch = tmp_path / "scratch" / DIRNAME
+    scratch.mkdir(parents=True)
+    for f in real.iterdir():
+        (scratch / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+    script = Path(cpt.__file__).resolve()
+    repo_root = script.parents[2]
+    outs = {}
+    for label, extra in (("default", []), ("dot", ["--project-root", "."]), ("explicit", ["--project-root", str(tmp_path)])):
+        proc = subprocess.run(
+            [sys.executable, "-m", "scripts.enforcement.check_plan_tickets", "--plan-dir", str(scratch), "--allow-external", *extra],
+            cwd=repo_root, capture_output=True, text=True, timeout=60,
+        )
+        outs[label] = proc.stdout
+    assert "NOTE: --allow-external is resolving" in outs["default"], outs["default"]
+    assert "NOTE: --allow-external is resolving" in outs["dot"], outs["dot"]  # the regression
+    assert "NOTE: --allow-external is resolving" not in outs["explicit"], outs["explicit"]
+
+
 def test_a_clean_run_says_what_it_graded_and_against_what(tmp_path: Path) -> None:
     """A green run printed ZERO BYTES, so "graded 33 tickets, found nothing" and "resolved the
     wrong directory and did nothing" were byte-identical — while two commands instruct agents to

@@ -222,7 +222,7 @@ GATE_OK = re.compile(r'"status"\s*:\s*"success"')
 GATE_ANY = re.compile(r'"status"\s*:\s*"(?:success|failure)"')
 GATE_OUT_OF_SURFACE = re.compile(
     r"GATE-SCOPE:\s*out-of-surface\b[^\n]*?findings naming this surface:\s*0\s+of\s+0*[1-9]\d*"
-    r"[^\n]*?measured by:\s*\S",
+    r"[^\n]*?measured by:[^\S\n]*\S",  # same-line: `\s*` crossed the newline and a dangling colon passed (review pass 3)
     re.I,
 )
 # PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick

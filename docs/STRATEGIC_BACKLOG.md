@@ -108,6 +108,10 @@ scaffold half is fleet's).
 
 ---
 
+## [infra] `claude_rotate.py --status --json` can exceed `quota_dashboard.py`'s 60s subprocess cap under partial network degradation (2026-09-05, owner: infra)
+
+Found by the closing pass of the 2026-09-05 mail-queue review (native finder, re-derived from the call graph, not executed against a degraded network). `_oauth_get`'s worst case is ~32.6s per call with the defaults (2 hosts × (8s + 0.3s backoff + 8s)); `_account_status` makes two sequential calls per account with no freshness gate (unlike the fleet-status path, which gates on `_FLEET_TOKEN_FRESH_S`), and `_collect_statuses` loops every account with no early exit — ~65s for one degraded account, ~195s for three, against `quota_dashboard.py:51` `PROBE_TIMEOUT_S=60`. That reproduces the 2026-08-22 "Live probe failed — TimeoutExpired after 60s" incident this retry was written to end, now needing only ONE flaky account among three rather than a dead link. Candidate fixes, sized as a change to a synced rotation surface (plan work, not inline): (a) a per-account freshness gate on `_account_status` mirroring the fleet-status path; (b) a shared wall-clock budget across the `_collect_statuses` loop; (c) raise `QUOTA_DASH_PROBE_TIMEOUT_S` — the weakest, since it moves the cliff rather than removing it. Guard to ship with it: a test asserting the aggregate `--status` worst case against the dashboard's cap, derived from the same constants, so the next host/attempt bump cannot re-open the gap silently. The `_oauth_get` docstring no longer claims the per-call bound is inside the cap.
+
 ## [infra] Mailbox second pass 2026-09-03 — the findings that need infra's design or ruling, parked here so they are not re-hunted (owner: infra)
 
 Each row is a filed mail still in the box (`mail.py read <id>`), read in full by the fleet session, judged to need a design decision or a grader-semantics ruling rather than a one-hunk fix. None is refuted; none is dropped.

@@ -1134,8 +1134,13 @@ def _oauth_get(
     env-tunable (``OAUTH_GET_TIMEOUT_S`` / ``OAUTH_GET_ATTEMPTS``).
 
     ⚠️ ``attempts`` is PER HOST. The worst case is ``len(_OAUTH_HOSTS) * attempts`` calls, so the
-    8s default bounds a total of ~32s, not ~16s — still inside the caller's 60s subprocess cap,
-    but the number to check when either knob moves."""
+    8s default bounds ONE CALL at ~32.6s (2 hosts × (8 + 0.3 + 8)), not ~16s. That is NOT inside
+    the caller's budget on its own: ``_account_status`` makes TWO sequential calls per account
+    (``profile`` then ``usage``, no freshness gate) and ``_collect_statuses`` loops every account,
+    so ``--status --json`` — run by ``quota_dashboard.py`` under a 60s ``subprocess`` cap — can
+    reach ~65s for one degraded account and ~195s for three. A previous edit claimed "~32s, inside
+    the 60s cap" here without deriving the caller's call count (review 2026-09-05, closing pass);
+    the budget mismatch is a backlog row, not a docstring fix."""
     import urllib.error
     import urllib.request
 

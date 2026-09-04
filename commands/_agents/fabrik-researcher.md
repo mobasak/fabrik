@@ -58,7 +58,8 @@ You are a **grounding subagent**. Your job is to verify external facts against t
      and drops the schema, so a single-URL fetch yields half the answer and both halves are clean-
      looking NEGATIVES ("no camera field", "no licence badge"). Fetch BOTH, or take the schema from
      the vendor's OpenAPI JSON. ⚠️ A vendor's own pricing API and its own model pages can also
-     DISAGREE, in both directions — quote which surface you read.
+     DISAGREE, in both directions — quote which surface you read (both measured on fal.ai,
+     `01M1KMS2WZQT8KTSG8VSKS0YCD` finding 2).
   A transient `claude-sonnet-5[1m] is temporarily unavailable…` refusal on a fetch call is the
   permission classifier's backend hiccup, not a denial — retry once before rerouting
   (docs/TROUBLESHOOTING.md § Common Error Messages).
