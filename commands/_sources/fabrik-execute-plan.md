@@ -358,7 +358,7 @@ if this run shipped a feature/route/service/schema/config change:
     run /fabrik-docs-review → converge docs to a truthful fixed point
 
 run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
-fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours — and a review record may then embed that FAILING gate beside a `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration; `check_convergence.py` accepts the pair, and a non-zero count is yours to fix)
+fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours — and a review record may then embed that FAILING gate beside a ONE-LINE `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration — the value stays on that line as plain text, a backtick span or an inline fence, never a block fence below; `check_convergence.py` accepts the pair, and a non-zero count is yours to fix)
 run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → PUSH (task-end law; ladder on rejection) → name the deploy decision
 ```
 
