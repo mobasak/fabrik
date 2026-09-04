@@ -29,7 +29,7 @@ Traycer must ensure every Phase 1 item maps to a feature or ticket during planni
 
 ### Payment Routing
 
-- **BIN-based card routing** — Turkish-issued cards (BIN lookup) → iyzico. All other cards → Paddle.
+- **BIN-based card routing** — Turkish-issued cards (BIN lookup) → the DOMESTIC rail (**PayTR** since 2026-09-03, with iyzico as its configured fallback — `core/85-payments-billing.md` § Payment Providers is canonical). All other cards → Paddle.
 - Do NOT route by IP or locale — VPN users circumvent geographic routing.
 - Flat USD pricing at launch. No regional pricing (PPP) until fraud detection exists.
 - Paddle's **5-day unconditional refund policy** must be in Terms of Service — Paddle suspends vendors who omit it.
@@ -114,7 +114,7 @@ Every SaaS with tenant isolation must ship:
 - Software exports from Teknokent = 0% KDV under "Geçici 20. Madde."
 - Paddle payouts: invoice Paddle's corporate entity as "Yazılım Lisans Bedeli."
 - Include exact phrase: "3065 Sayılı KDV Kanunu Geçici 20. Madde Kapsamında Yazılım İhracatı."
-- iyzico (domestic): issue e-Arşiv Fatura to Turkish customer, **20% KDV** (domestic sales are NOT exports — standard VAT applies).
+- Domestic rail (PayTR, or iyzico as its fallback): issue e-Arşiv Fatura to Turkish customer, **20% KDV** (domestic sales are NOT exports — standard VAT applies). The obligation is the LANE's, not the processor's — it does not change with the vendor.
 - Track in separate ledgers: Code 601 (Export) vs Code 600 (Domestic).
 
 ### SEO & Marketing Baseline
@@ -185,7 +185,7 @@ Every SaaS with tenant isolation must ship:
 
 During epic decomposition or epic-brief, verify these map to features or tickets:
 
-- [ ] Payment routing (BIN-based, iyzico + Paddle or single provider per target market)
+- [ ] Payment routing (BIN-based: domestic rail + Paddle, or a single provider per target market)
 - [ ] Legal pages (ToS, Privacy Policy, Cookie consent) — at least one epic includes them
 - [ ] GDPR/KVKK data rights (access, delete, export) — implemented, not just documented
 - [ ] Data retention policy with TTL enforcement

@@ -36,7 +36,7 @@ project's `project.yaml::type` + spec `shape:` (they decide which sections apply
 | `INDEX.md` | the real tree (`git ls-files`) | every tracked file/dir of significance has its row; no row cites a deleted path; purposes match reality (spot-open) |
 | `docs/README.md` | `docs/` dir listing · the doc registry buckets | every doc present is indexed with an honest purpose; no row for an absent doc; subdir list matches what exists |
 | `README.md` | the codebase + FEATURES.md | the 150–300-word identity is true (type, port, stack from real config); every capability claim maps to a FEATURES row; setup points at QUICKSTART, not inlined |
-| `docs/BUSINESS_MODEL.md` | pricing/entitlement code · payment-route config | tiers/prices match the enforcing code; payment routing matches the org's real routes (iyzico/Paddle/RevenueCat — never Stripe); internal-tool block used when nothing is billed |
+| `docs/BUSINESS_MODEL.md` | pricing/entitlement code · payment-route config | tiers/prices match the enforcing code; payment routing matches the org's real routes (PayTR/iyzico/Paddle/RevenueCat — never Stripe; `core/85-payments-billing.md` § Payment Providers is canonical, and the set changes); internal-tool block used when nothing is billed |
 | `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |
 
 ## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)

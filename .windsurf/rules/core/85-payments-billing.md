@@ -1,7 +1,7 @@
 ---
 activation: glob
-globs: ["**/billing/**", "**/payments/**", "**/paddle/**", "**/iyzico/**", "**/webhooks/**", "**/subscriptions/**"]
-description: Payments & billing discipline — Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle
+globs: ["**/billing/**", "**/payments/**", "**/paddle/**", "**/paytr/**", "**/iyzico/**", "**/webhooks/**", "**/subscriptions/**"]
+description: Payments & billing discipline — Paddle Billing v2 (MoR, international), PayTR (Turkish domestic) with iyzico as its fallback, webhook idempotency, entitlement modeling, subscription lifecycle
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents building SaaS billing + Traycer (epic-brief for SaaS)
@@ -13,7 +13,7 @@ trigger: glob
 
 Apply when working on SaaS payment integration, subscription lifecycle, entitlements, webhook processing, or checkout flows. Skip for unrelated API, UI, or infrastructure work.
 
-**Scope exclusion — WooCommerce:** WooCommerce storefront checkout is governed by `00-domain-wordpress.md` §9 (Monetization), not this pack. WooCommerce uses region-appropriate payment gateways (e.g. iyzico for Turkey, PayTR for physical D2C) because it operates as product e-commerce, not SaaS subscription billing.
+**Scope exclusion — WooCommerce:** WooCommerce storefront checkout is governed by `00-domain-wordpress.md` §9 (Monetization), not this pack, because it operates as product e-commerce rather than SaaS subscription billing. (The exclusion is about the CHECKOUT MODEL, not the gateway: PayTR is this pack's own Turkish domestic rail as of 2026-09-03 — see § Payment Providers. This line previously read "PayTR for physical D2C", which grepped as "PayTR is out of scope here" at the moment it became the primary in-scope processor.)
 
 **Scope exclusion — Mobile IAP:** For Google Play Billing, App Store StoreKit, RevenueCat entitlements, and mobile-specific Turkey constraints, see `81-mobile-billing.md`. Mobile IAP is a fundamentally different billing model — do not apply this pack's Paddle/iyzico patterns to mobile digital goods.
 
@@ -21,15 +21,18 @@ Apply when working on SaaS payment integration, subscription lifecycle, entitlem
 
 ## Payment Providers
 
-Two providers — Traycer determines which to use (or both) based on the product's target market during planning:
+THREE providers as of 2026-09-03, chosen at planning time by the product's target market:
 
 - **Paddle Billing v2 (MoR)** — for international customers. Paddle handles global VAT/GST calculation, collection, remittance, and invoicing. The Turkish LLC receives a single B2B service export transaction, classified as zero-rated VAT under Turkish law.
-- **iyzico** — for Turkish domestic customers. Required when the product serves the Turkish market directly (Turkish Lira pricing, local payment methods, Turkish consumer protection compliance).
-- **Paddle + iyzico together** — when the product serves both international AND Turkish domestic markets. Paddle handles international, iyzico handles Turkey.
+- **PayTR** — the Turkish DOMESTIC processor (Turkish Lira pricing, local payment methods, Turkish consumer protection compliance).
+- **iyzico** — PayTR's FALLBACK for the same domestic lane. Not removed, not paused: the adapter and its tests exist and are gated behind `PAYMENTS_IYZICO_ENABLED`.
+- **Paddle + the domestic rail together** — when the product serves both international AND Turkish domestic markets.
+
+⚠️ **"Fallback" is not yet a defined behaviour, and a design must not assume one.** `fabrik-lib/payments` has no fallback concept and deliberately refuses one — `ProviderUnavailable` exists so a routed-but-disabled provider RAISES, because *charging a customer through an unintended processor is never an acceptable default*. Whether the iyzico fallback is config-time failover, outage-time retry, or a per-currency precedence list is an OPEN design question owned by that module (fabrik-lib D-080). Until it is settled, treat the domestic rail as PayTR and iyzico as a configured alternative — never as an automatic runtime failover.
 
 Traycer decides which configuration applies during `epic-brief` or `trigger-workflow` based on the product's target customer geography.
 
-**Stripe** is NOT available to a Turkey-resident entity — Turkey is not a Stripe-supported country, so the Ocoron LLC cannot open a Stripe account directly. Accessing Stripe would require incorporating in a supported country (e.g. a US LLC) and operating through that foreign entity — out of scope for this pack and not a viable "fallback." For this business, the provider set is **Paddle (international, MoR) + iyzico (Turkish domestic).** There is no Stripe fallback; if neither Paddle nor iyzico can handle a requirement, escalate it as a planning decision, not a code choice.
+**Stripe** is NOT available to a Turkey-resident entity — Turkey is not a Stripe-supported country, so the Ocoron LLC cannot open a Stripe account directly. Accessing Stripe would require incorporating in a supported country (e.g. a US LLC) and operating through that foreign entity — out of scope for this pack and not a viable "fallback." That exclusion is STRUCTURAL and does not go stale. The provider SET does: it is **Paddle (international, MoR) + PayTR (Turkish domestic) + iyzico (PayTR's fallback)**, and it grew from two to three on 2026-09-03 by exactly the escalation this paragraph prescribes (fabrik-lib D-080 — this pack asserted a CLOSED two-provider set for a day after the ruling, because the decision was made in a sync-excluded repo that cannot edit this file). There is no Stripe fallback; if none of the three can handle a requirement, escalate it as a planning decision, not a code choice — and record the outcome in `docs/DECISIONS.md`, or the next reader inherits the same stale set.
 
 ---
 
@@ -80,7 +83,9 @@ Traycer decides which configuration applies during `epic-brief` or `trigger-work
 
 ### When iyzico Applies
 
-iyzico is used when the SaaS product serves Turkish domestic customers with TRY pricing. Common scenarios: B2B SaaS sold to Turkish companies, consumer products with Turkish pricing.
+The Turkish domestic lane (TRY pricing, B2B SaaS sold to Turkish companies, consumer products with Turkish pricing) is served by **PayTR** since 2026-09-03; **iyzico is its configured fallback**, and everything below still binds wherever iyzico is the provider in use.
+
+⚠️ **There is no PayTR integration section in this pack yet, and one must not be invented.** PayTR's checkout pattern, webhook signature scheme, retry policy and idempotency story are NOT grounded here — fabrik-lib's D-080 records its terms as operator-supplied and explicitly not vendor-verified. Building on PayTR means grounding it live first (the `/fabrik-spec` § 1a research gate), through fabrik-lib's `payments` module, which owns the adapter. Writing PayTR rules from memory here would be exactly the version-literal drift this corpus exists to prevent.
 
 ### Checkout Pattern
 
