@@ -8,7 +8,7 @@ Parallel: ⛓️
 Complexity: native
 Gate: python scripts/final_gate.py --check --json
 Gate: test -z "$(git grep -l 'epic-to-ticket-workflow' -- templates/governance/CLAUDE.md CLAUDE.md .windsurf/rules/core/40-documentation.md)"   # git grep -l prints nothing when no file matches; -c would print per-file zeros
-Gate: grep -c 'never edit the main checkout' templates/governance/CLAUDE.md
+Gate: bash -c 'grep -q "never edit the main checkout" templates/governance/CLAUDE.md && test "$(grep -c "rollout wait" CLAUDE.md)" = 0'   # BOTH edits, one gate line: without the second half a coder doing two of the three edits gets a fully green gate
 Docs: templates/governance/CLAUDE.md distributes to 47 repos via the post-commit governance sync · CHANGELOG.md — orchestrator-applied
 
 ## Touches
