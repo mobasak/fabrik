@@ -1,6 +1,6 @@
 # VPS Fleet — Status Snapshot
 
-**Last Updated:** 2026-09-04 22:29 UTC
+**Last Updated:** 2026-09-04 22:30 UTC
 **Snapshot taken:** 2026-06-07 20:20 UTC (live probe via `scripts/audit_infra_vs_docs.py --hosts vps,vps2,vps3` + `ssh` + `docker ps` + Prometheus `/api/v1/targets` + per-spoke `curl :8201/metrics` + Vultr API `/v2/instances` for drill-instance cleanup). **Current-state sections (Fleet at a glance + health table) re-verified live 2026-06-15** (vps1 31 ctr, RAM 4.1/11 Gi, disk 32/108 GB 30 %, uptime ~2 w 1 d, UFW 16, Authelia 8; vps2/vps3 5 ctr each, UFW 11; mesh RTT ~135–136 ms; Prometheus 12 active/14 targets/14 up; Gatus 31 endpoints (was 33 until `coolify`/`coolify-public` removed 2026-06-17); DR drills green).
 **Hosts:** vps1 (LA, hub) · vps2 (Coventry UK, spoke) · vps3 (Coventry UK, spoke)
 **Deploy model:** SSH + Docker Compose (no Coolify — removed 2026-05-30)
