@@ -99,7 +99,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 10 | flip pre-flight: `check_convergence`'s predicates run against a scratch copy flipped to CONVERGED | method: gate | 1 | 1 | 1 | 00612f7a → 81e04ecb |
 | Pass 11 | **author-blind #5** — the confirming pass over pass 9's closures | method: re-derivation | 18 | 18 | 18 | 3934a2d5 → e6f284e6 |
 | Pass 12 | my own re-sweep of pass 11's five open classes | **method: re-derivation** | 3 | 3 | 3 | e6f284e6 → e6f284e6 |
-| Pass 13 | **author-blind #6** — the confirming pass over pass 11's closures | method: re-derivation | — | — | — | (in flight) |
+| Pass 13 | **author-blind #6** — the confirming pass over pass 11's closures | method: re-derivation | 16 | 16 | 16 | bf680901 → e7c9e68b |
+| Pass 14 | **author-blind #7** — pass 13's brief REPEATED VERBATIM, to separate a yielding surface from a re-scoping loop | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -318,4 +319,45 @@ why a round that changes anything is never the round that closes the ledger.
 Both gates green at `e6f284e6`: `check_plan_tickets --plan-dir` exit 0 / 0 bytes, `check_convergence` exit 0.
 **Status stays DRAFT** pending pass 13 — the terminal condition asks for a confirming pass over these
 closures, not my own re-read of them.
+
+## Pass 13 — the method changed, and two whole classes appeared that no earlier round could see
+
+Pass 13 returned **16 findings, 5 HIGH, verdict "do not flip."** What made it different from the twelve
+passes before it was not effort but METHOD: it **executed all 64 `Gate:` lines** instead of reading them.
+Every earlier round, mine included, had inspected gates as text. Two classes fell out immediately, and
+neither is visible to a reader:
+
+**Gates that could never pass.** T14b's tree-wide token grep ran at Merge Order 25 while twelve matching
+files are cleared by T14c–T14g at positions 26–30 — a coder would have been handed twelve `UNOWNED:` lines
+naming files their own `DO-NOT` forbids them to touch, with no way to green the gate at dispatch or at merge.
+T15's `docs_updater.py --check` is repo-global with no `--path` flag and exits 1 today on 123 lines of
+pre-existing debt in *other* plans, none of it in T15's scope. And T05b said "DECIDED: bring the legacy epic
+to schema" while never naming `epic_n` — the obvious value from the filename (`epic-1`) collides with the
+zitadel epic and reds T05b's own gate; `epic_n: 3` is the only passing value.
+
+**Gates that could never fail.** Seven tickets had no gate that is red today, so a coder who did nothing
+passed. The Coverage Checklist had already recorded this class as FIXED — true for the five tickets it
+named, and never swept across the set. That is the more instructive half: the class was known, the fix was
+applied to its instances, and the sweep was declared without being run.
+
+**Three corrections to my own work, from the same pass.** The sibling-plan serialization paragraph I had
+written hours earlier carried three wrong facts about a six-row table: "six of seven tickets" came from
+`grep -c '^| T'` counting the `| Ticket |` HEADER as a data row — the exact structural-line-as-data-row shape
+this repo's contract warns about and which I had quoted the same day; the "one 🔴 ticket" is a conditional
+inside a run log, not a Board status; and the manifest belongs to T01a alone. The paragraph was itself the
+output of a disjointness check I ran to catch other people's ordering defects.
+
+**The breadth table moved under its own fixes.** T03b and T07a measured 5 earlier in this review and measure
+6 now — raised by *this round's* additions to their Behavior Contracts. The general lesson is recorded in the
+table itself: a breadth score is a function of the ticket as it stands, so it is re-derived at the end of a
+round, never cited from the round that opened it.
+
+**The stall-breaker fired** on 18 → 3 → 16 and offered two diagnoses: a loop that re-scopes each round, or a
+stable ledger over a surface that keeps yielding. The honest answer is the second with a caveat — the ledger
+was stable, but pass 13 widened the METHOD, and a widened method is how the two new classes surfaced. That is
+not a re-scope, and it is also not free: it means the earlier "0 findings" rounds were measuring a narrower
+question than they claimed. Pass 14 therefore repeats pass 13's brief **verbatim**, which is the only way to
+tell the two apart.
+
+Both gates green at `e7c9e68b`. **Status stays DRAFT.**
 
