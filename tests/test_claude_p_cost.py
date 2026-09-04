@@ -33,7 +33,7 @@ def test_api_equiv_opus_matches_list_price():
 def test_api_equiv_per_model_spread():
     u = _usage(1_300_000, 500_000)
     assert cpc.api_equiv(u, "haiku") == pytest.approx(3.8, abs=1e-6)  # 1.3×1 + 0.5×5
-    assert cpc.api_equiv(u, "sonnet") == pytest.approx(11.4, abs=1e-6)  # 1.3×3 + 0.5×15
+    assert cpc.api_equiv(u, "sonnet") == pytest.approx(7.6, abs=1e-6)  # 1.3×2 + 0.5×10
     assert cpc.api_equiv(u, "fable") == pytest.approx(38.0, abs=1e-6)  # 1.3×10 + 0.5×50
 
 
