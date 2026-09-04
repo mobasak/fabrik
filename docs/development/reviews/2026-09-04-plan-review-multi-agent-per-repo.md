@@ -101,7 +101,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 12 | my own re-sweep of pass 11's five open classes | **method: re-derivation** | 3 | 3 | 3 | e6f284e6 → e6f284e6 |
 | Pass 13 | **author-blind #6** — the confirming pass over pass 11's closures | method: re-derivation | 16 | 16 | 16 | bf680901 → e7c9e68b |
 | Pass 14 | **author-blind #7** — pass 13's brief REPEATED VERBATIM; caught a regression pass 13's own closure introduced | method: re-derivation | 7 | 7 | 7 | e7c9e68b → 7e93639a |
-| Pass 15 | **author-blind #8** — the same brief a THIRD time | method: re-derivation | — | — | — | (in flight) |
+| Pass 15 | **author-blind #8** — the same brief a THIRD time; found a BLOCKING gate no round had executed against the moved paths | method: re-derivation | 10 | 10 | 10 | 7e93639a → 2bf7767b |
+| Pass 16 | **author-blind #9** — the same brief a FOURTH time | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -403,4 +404,49 @@ T04b's *"8 of 118 project plans"* named no population at all, re-derived fleet-w
 across 40 of 950 plan files in 41 repos**, bound declared.
 
 Both gates green at `7e93639a`, with zero WARN. **Status stays DRAFT**; pass 15 repeats the brief a third time.
+
+## Pass 15 — the third identical brief, and a blocking gate nobody had ever run
+
+Findings went 16 → 7 → **10**. The rise is not a regression in the plan; it is the third repetition
+reaching a check no earlier round had *executed*. `check_doc_links.py` was Gate 3 on all four retirement
+tickets, and no pass had ever run it against the paths the plan MOVES.
+
+**The HIGH: a blocking gate that could not pass at four tickets' merge positions.** `check_doc_links.py`
+resolves bare repo-path mentions and does **not** skip `docs/orchestrator/_retired/`, so a move made at
+Merge Order 21 breaks references in files owned by tickets at 25 and 30 — T11 relocates
+`EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md`, cited by `docs/reference/command-evaluation-checklist.md:8`
+(T14g's, at 30); T12a relocates `00-trigger-mega-epic-fabrik.md`, cited by `agents-fabrik.md` (T14b's, at
+25). The coder gets an exit 1 whose only fix is a file their own `DO-NOT` forbids. Worse: **four referrers
+were owned by no ticket at all**, so the check would have stayed red through T16 and past the end of the
+plan.
+
+Fixed by moving the assertion to where it can be true, not by widening it. `check_doc_links` is a blocking
+Tier-2 check inside `final_gate.py:1518`, which *is* T16's Gate 1 at position 33 — so removing it from the
+four retirement tickets loses no coverage at all. The referrers each move breaks are now named on the
+**moving** ticket's `Docs:` line, which the orchestrator applies and which sits outside the read budget —
+they total 292,956 B and would have blown it as Touches.
+
+**The adjacent one, which the same fix exposed.** T12b's rename-purity gate forbade exactly the edit its
+doc-link gate required: `awk '$2 > 0'` reads the *deletions* column, so a tombstone header (`2 0`) passes
+and a content scrub (`N 1`) fails. All four rename gates now pin to the rename commit itself
+(`git log -1 --diff-filter=R`), which also closes the hazard round 6 had flagged and left open — `HEAD` on
+a three-session tree is whatever a sibling committed last.
+
+**T14c could be finished exactly as written and still red T16.** Its only gate read the *rendered* CLI
+hint; the banned token also sits in a source comment at `src/fabrik/cli.py:1882`. T16 owns a single file
+and cannot fix the tree, so the plan would have ended red. It now carries a token gate, verified red today.
+
+**Four counts corrected, each re-derived rather than accepted.** The Owner-line denominator drew numerator
+and denominator from *different populations* — `grep -rl` over directories swept in a `.md.archive` outside
+the `.md` list; it is 40 occurrences across 39 of 949 readable files (950 found, one a broken symlink).
+"13 dependents each" was one file's number generalised to three (`README.md` is 8). T03a put `:153` in the
+wrong token group. And two Evidence byte figures had drifted under sibling commits — one of them **seven
+seconds** before pass 14's own close commit.
+
+That last one is now annotated as expected drift rather than left to be re-raised: the figures that carry a
+verdict have margins of tens of kilobytes, and a reviewer finding a few hundred bytes of movement in a file
+three sessions write to should re-derive, not file. A review that regenerates the same finding every round
+is measuring the tree's churn, not the plan.
+
+Both gates green at `2bf7767b`. **Status stays DRAFT**; pass 16 repeats the brief a fourth time.
 
