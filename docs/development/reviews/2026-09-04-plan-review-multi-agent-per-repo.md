@@ -104,7 +104,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 15 | **author-blind #8** — the same brief a THIRD time; found a BLOCKING gate no round had executed against the moved paths | method: re-derivation | 10 | 10 | 10 | 7e93639a → 2bf7767b |
 | Pass 16 | **author-blind #9** — the same brief a FOURTH time; caught the previous round's gate fix rejecting the correct move | method: re-derivation | 4 | 4 | 4 | 2bf7767b → f1b456ca |
 | Pass 17 | **author-blind #10** — the same brief a FIFTH time, both-halves gate verification | method: re-derivation | 2 | 2 | 2 | f1b456ca → 5abab982 |
-| Pass 18 | **author-blind #11** — the same brief a SIXTH time, led by a diff of every changed `Gate:` line | method: re-derivation | — | — | — | (in flight) |
+| Pass 18 | **author-blind #11** — the same brief a SIXTH time, led by a diff of every changed `Gate:` line | method: re-derivation | 1 | 1 | 1 | 5abab982 → 83ef9d1a |
+| Pass 19 | **author-blind #12** — THE CLOSING PASS: the same brief on a frozen artifact, edit-free | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -532,4 +533,42 @@ correct pure-rename move, red on a move that also deletes content, red today —
 whose absence caused pass 16's HIGH. The method correction held.
 
 Both gates green at `5abab982`, zero WARN, 33/33 tickets red for the right reason. **Status stays DRAFT.**
+
+## Pass 18 — the drop-check comes back clean, and the residue is finally mechanical
+
+**Findings: 1.** Trajectory 16 → 7 → 10 → 4 → 2 → **1**. Two things about this round matter more than the
+count.
+
+**The highest-yield check came back CLEAN — first round in four.** Pass 18 led with the diagnosis pass 17
+produced: diff every changed `Gate:` line and ask what the old one asserted that the new one does not. Only
+one gate line had changed since the previous round (`T14d:10`), and what the old line asserted beyond the
+new one was *the ettw pattern over `README.md`* — measured at **0 hits**, not today and not ever. Nothing
+real was dropped. The method correction held under its own test.
+
+**The one finding was the repair of a corruption leaving a corruption.** Pass 17 fixed a doubled phrase
+created by a blind global replace; that repair itself left two broken tokens — a doubled opener at `:451`
+and a collided path prefix at `:482`, the second of which rendered the filename outside code and the prose
+*as* code. Fourth consecutive round in which my own fix left residue.
+
+What changed this time is the **detector**. Rather than re-reading and hoping, the corruption was found
+mechanically: **backtick parity per line — 6 of 574 spine lines odd, 4 of them legitimate ``` fences, 2
+genuinely broken.** After the surgical fix (only the broken token replaced, never the surrounding line)
+only the 4 fences remain odd. That check is cheap, objective, and catches exactly the class that four
+careful re-reads missed. It is the durable output of this whole sub-thread.
+
+Also confirmed by execution rather than argument: the four rename gates verified on **both halves** (pure
+`git mv` → exit 0; rename plus content loss, numstat `1 166` → exit 1), and T08b's three canary counts
+land exactly where the ticket says (`17 over 8 (12 of 18)` → `15 over 8 (10 of 13)`, **−2 each**) after
+performing T08a's mandated deletions in an isolated worktree. Round 9's two findings are genuinely closed,
+not merely marked closed.
+
+Two figures were correctly named as **drift, not defects**: the four-mega-doc sum (259,804 → 260,055, 251 B
+against 2,089 B of headroom) and T06a's read peak (238,897 → 239,535 B, 638 B against 22.6 KB). Both under
+the spine's own drift caveat; both leave their conclusions intact.
+
+**Pass 18 reported nothing unclosed — but it was not edit-free**, since the backtick repair landed mid-round
+at `83ef9d1a` and pass 18 then verified it. The terminal condition asks for an edit-free closing pass, so
+pass 19 runs the same brief once more against a frozen artifact. That distinction is the difference between
+*converged* and *claimed converged*, and after a run in which four consecutive fixes left residue, it is
+exactly the bar worth paying for.
 
