@@ -100,7 +100,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 11 | **author-blind #5** — the confirming pass over pass 9's closures | method: re-derivation | 18 | 18 | 18 | 3934a2d5 → e6f284e6 |
 | Pass 12 | my own re-sweep of pass 11's five open classes | **method: re-derivation** | 3 | 3 | 3 | e6f284e6 → e6f284e6 |
 | Pass 13 | **author-blind #6** — the confirming pass over pass 11's closures | method: re-derivation | 16 | 16 | 16 | bf680901 → e7c9e68b |
-| Pass 14 | **author-blind #7** — pass 13's brief REPEATED VERBATIM, to separate a yielding surface from a re-scoping loop | method: re-derivation | — | — | — | (in flight) |
+| Pass 14 | **author-blind #7** — pass 13's brief REPEATED VERBATIM; caught a regression pass 13's own closure introduced | method: re-derivation | 7 | 7 | 7 | e7c9e68b → 7e93639a |
+| Pass 15 | **author-blind #8** — the same brief a THIRD time | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -360,4 +361,46 @@ question than they claimed. Pass 14 therefore repeats pass 13's brief **verbatim
 tell the two apart.
 
 Both gates green at `e7c9e68b`. **Status stays DRAFT.**
+
+## Pass 14 — the same brief, a third of the findings, and the worst one was mine
+
+Repeating pass 13's brief verbatim was the stall-breaker's own prescription, and it did what it was
+supposed to: **16 → 7**. A re-scoping loop produces a fresh crop each round; a yielding surface drains.
+This one drained.
+
+**The regression I introduced.** Pass 13's fix for "seven tickets with no red gate" was supposed to ADD a
+marker gate beside each ticket's existing one. It did that for T08b, T04a, T04b and T16 (1→2, 2→3). For
+**T02a, T07b and T13 it REPLACED the pytest gate instead** — the count stayed at 1, so nothing that counts
+gates could see it, and the only surviving evidence was the comments I had written alongside: *"The pytest
+gate above passes 164 tests today"*, with no pytest gate above. Three suites holding 14, 164 and 5 passing
+tests — each proving four Behavior-Contract rows, each still named in its ticket's Touches — stopped being
+executed by anything. T02a would have merged green on a coder who wrote the new name bound as a *comment*
+in `agent_role.py` and left `_ROLES` untouched.
+
+That is the same class the round was created to hunt, manufactured by the round's own fix, and it is the
+argument for repeating a brief rather than declaring a class closed: **the sweep that closes a class is
+also an edit, and edits belong to the next round's surface.**
+
+**T15 was the last ticket of 33 with no red-today gate.** Scoping its docs gate in pass 13 made it
+satisfiable and left it green — a fix that solved the stated problem and missed the adjacent one. It now
+gates on its two actual deliverables, the Owner column in `PLANS.md` (0 today) and the reference doc
+(absent today), both verified red. The repo-global `docs_updater.py --check` is demoted to a Docs step with
+its reason recorded: with 123 lines of pre-existing debt in other plans, it is unsatisfiable as *any*
+ticket's gate.
+
+**Two enumerations were wrong in the direction that matters.** T09 justified KEEPing two docs with *"8 live
+references from rules packs"* and *"6"* — the rules packs reference them **zero** times. The verdict
+survives on 13 real dependents (11 once this plan set's own two files are excluded, the self-inflation shape
+the checklist warns about), but a false reason on the delete/keep axis of a retirement ticket is how a later
+reader gets a documented licence to delete something eleven files need. T03a enumerated **6 of 12**
+banned-token lines; a coder working that list merges green at Merge Order 5 and the gap surfaces only at
+T16's tree-wide gate at 33.
+
+Also closed: the Pass Ledger's last row still read `(pending)` at the moment of flip; the Evidence fence's
+byte figures were stale by 11–19% (the T08 pair is 284,847 B today, 22,703 **over** budget — which is why
+the split was right, stated with the current number); five dangling parent IDs in live instructions; and
+T04b's *"8 of 118 project plans"* named no population at all, re-derived fleet-wide as **41 occurrences
+across 40 of 950 plan files in 41 repos**, bound declared.
+
+Both gates green at `7e93639a`, with zero WARN. **Status stays DRAFT**; pass 15 repeats the brief a third time.
 
