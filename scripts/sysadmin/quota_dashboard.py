@@ -869,6 +869,7 @@ def render(
 {cmd_html}
 </section>
 <section id="pane-external" class="pane" hidden>
+{credits_html}
 {_ext_services_intro()}
 {'<iframe id="ext-frame" title="External services" data-src="/external-services.html" style="width:100%;min-height:80vh;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>' if EXT_SERVICES_HTML.is_file() else ""}
 </section>

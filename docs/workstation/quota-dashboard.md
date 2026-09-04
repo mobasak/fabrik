@@ -85,7 +85,7 @@ The older design's reasoning, kept for the record:
 | `unknown` in the session cell | the ACTIVE account with a reading older than its 5-hour window — it CAN be burning quota, so nothing is derivable and no number is shown; it re-reads on next use |
 | `Fable 5 weekly remaining` column | Fable-5's separate weekly limit, its own 4th column with the same remaining-framing as Weekly (`N% left` + bar + `used% · resets`). Read from the usage payload's `limits` array — a `weekly_scoped` entry whose `scope.model.display_name == "Fable"` (it has **no** top-level window key, the reason an earlier top-level-only scan missed it, 2026-08-22). An account with no Fable reading yet (idle, access token unrefreshed) shows `no reading` until the tick re-probes it. Undocumented always-0 codename windows (`nimbus_quill`, …) are not surfaced |
 | Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
-| `OpenRouter pool` banner | the metered pool's balance — **the fleet's other quota**, and until 2026-09-04 nothing on this box watched it. Green above `POOL_CREDITS_WARN_USD`, amber at or below it, red at zero with what the operator will actually see (`every fanout() returns HTTP 402 with no output and no spend`). Absent entirely when no key is configured. A balance served past its TTL says `endpoint unreachable` with its age rather than blanking — the same stale-beats-blank rule as the account rows |
+| `OpenRouter pool` banner | the metered pool's balance — **the fleet's other quota**, and until 2026-09-04 nothing on this box watched it. Shown on the **Quota** tab AND the **External services** tab, because OpenRouter is an external service before it is a quota and that page already lists it as a paid provider with an unfilled `credit` field — the operator looked for it there first, correctly. Green above `POOL_CREDITS_WARN_USD`, amber at or below it, red at zero with what the operator will actually see (`every fanout() returns HTTP 402 with no output and no spend`). Absent entirely when no key is configured. A balance served past its TTL says `endpoint unreachable` with its age rather than blanking — the same stale-beats-blank rule as the account rows |
 
 | `switch →` button | on every row that is NOT the active pointer: one click flips the fleet to that account NOW — the same manual flip as `--switch <slug>` (pause-, dwell- and cap-exempt), confirmed in-page first; every session bound to the pointer (`CLAUDE_CONFIG_DIR` → the `active` symlink, § How a session binds to the pointer in `claude-account-rotation.md`) follows it without a restart. The active row carries no button (nothing to rotate to) |
 
@@ -104,6 +104,11 @@ It is a **level, not a projection**. HTTP 402 "Insufficient credits" is issued o
 number is the direct signal rather than a proxy for one. No runway is estimated here: the burn RATE
 lives in the flywheel's Postgres rows (intel's beat), and a days-remaining figure this file cannot
 defend is worse than none.
+
+It renders in TWO panes — Quota and External services. Not duplication for its own sake: the
+external-services page lists OpenRouter as a paid provider whose `credit` column nothing fills, so
+"is my third-party spend OK" is a question people take to that tab. The operator went straight to
+`#external` looking for this banner on the day it shipped.
 
 Three properties worth knowing:
 

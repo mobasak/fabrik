@@ -31,6 +31,9 @@ All notable changes to this project will be documented in this file.
   nothing. The key is never rendered, never logged and never written to the cache — pinned by a test.
 - 11 tests, all proven red on revert. Verified LIVE after restarting the board: `$19.13 remaining of
   $245.00`, tone ok, and `grep -c sk-or` on the cache file returns 0.
+- Renders on the **External services** tab as well as Quota (operator, on `#external`: "i dont see it
+  here?"). They were right to look there: that page lists OpenRouter as a paid provider with a
+  `credit` field nothing fills, so it is where "is my third-party spend OK" gets asked. 12 tests now.
 - Also corrected in `docs/workstation/quota-dashboard.md` while in the file: the flip threshold still
   read 98% (95 since D-104), `QUOTA_DASH_MAX_AGE_S`/`QUOTA_DASH_REFRESH_S` were documented as 240/60
   against a code default of 20/20, and `QUOTA_DASH_PROBE_INTERVAL_S` had no row at all.

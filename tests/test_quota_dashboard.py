@@ -1175,3 +1175,21 @@ def test_the_refresher_runs_off_the_lock_and_drops_an_overlapping_request(tmp_pa
         assert qd._credits_async() is None, "an overlapping refresh is dropped, never queued"
     finally:
         qd._credits_lock.release()
+
+
+def test_the_pool_banner_shows_on_the_external_services_tab_too(tmp_path, monkeypatch):
+    """Operator, 2026-09-04, looking at #external: "i dont see it here?" — and they were right to
+    look there. OpenRouter is listed on the external-services page as a paid provider with a
+    `credit` field that nothing fills, so that tab is where a person goes to ask "is my third-party
+    spend OK". The Quota tab is about Claude ACCOUNTS; putting the pool balance only there hid it
+    behind a mental model the board does not actually teach."""
+    qd = _credits_env(tmp_path, monkeypatch)
+    c = {"granted": 245.0, "used": 225.87, "remaining": 19.13, "age_s": 0.0, "stale": False}
+
+    html = qd.render(_payload(), time.time(), credits=c)
+
+    ext = html[html.index('<section id="pane-external"') :]
+    assert "OpenRouter pool" in ext, "the external-services pane must carry the balance"
+    quota = html[html.index('<section id="pane-quota"') : html.index('<section id="pane-commands"')]
+    assert "OpenRouter pool" in quota, "and it stays on the quota tab — it IS a quota"
+    assert html.count("OpenRouter pool") == 2, "exactly the two panes, not a third copy"
