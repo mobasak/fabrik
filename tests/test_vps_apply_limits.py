@@ -26,6 +26,7 @@ runs the OLD script through this suite without ever mutating the working tree.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -56,7 +57,9 @@ def load():
         line = line.strip()
         if line:
             name, cid, mem = line.split()
-            out[name] = [cid, int(mem)]
+            # mem stays a STRING: the harness must be able to represent an UNREADABLE limit
+            # (the exact input that used to defeat the never-lower guard), not crash on it.
+            out[name] = [cid, mem]
     return out
 
 def save(d):
@@ -91,6 +94,12 @@ if a[0] == "inspect":
     sys.exit(0 if a[1] in d else 1)
 
 if a[0] == "update":
+    forced = os.environ.get("FAKE_DOCKER_UPDATE_ERROR", "")
+    if forced:
+        print(forced, file=sys.stderr); sys.exit(1)
+    warn = os.environ.get("FAKE_DOCKER_UPDATE_WARNING", "")
+    if warn:
+        print(warn, file=sys.stderr)   # writes to stderr but SUCCEEDS
     mem = None; target = None
     i = 1
     while i < len(a):
@@ -99,12 +108,15 @@ if a[0] == "update":
         elif a[i].startswith("--"): i += 2
         else: target = a[i]; i += 1
     want = int(mem.rstrip("m")) * 1024 * 1024
-    cur = d[target][1]
+    try:
+        cur = int(d[target][1])
+    except ValueError:
+        cur = 0
     # Docker refuses a decrease below the container's current usage. The fixture has no
     # usage, so model the stricter real-world rule: refuse ANY decrease.
     if cur and want < cur:
         print("cannot decrease", file=sys.stderr); sys.exit(1)
-    d[target][1] = want
+    d[target][1] = str(want)
     save(d)
     sys.exit(0)
 
@@ -133,11 +145,13 @@ def env(tmp_path):
 
     write_state(LIVE_TODAY)
 
-    def run(*args):
+    def run(*args, update_error: str = "", update_warning: str = ""):
         e = dict(os.environ)
         e["PATH"] = f"{bindir}:{os.environ['PATH']}"
         e["FAKE_DOCKER_STATE"] = str(state)
         e["FAKE_DOCKER_CALLS"] = str(calls)
+        e["FAKE_DOCKER_UPDATE_ERROR"] = update_error
+        e["FAKE_DOCKER_UPDATE_WARNING"] = update_warning
         return subprocess.run(
             ["bash", str(SCRIPT), *args], capture_output=True, text=True, env=e, timeout=20
         )
@@ -252,27 +266,104 @@ def test_the_recurrence_check_is_wired_into_the_fleet_health_sweep():
     sweep = (REPO / "scripts" / "sysadmin" / "proactive-check.sh").read_text()
 
     assert "container_no_memory_limit" in sweep, "the recurrence check is not wired anywhere"
+    # A dead daemon must not read as a clean bill of health: `docker ps -aq` on an unreachable
+    # daemon returns empty and exits nonzero, which is indistinguishable from "no containers".
+    # Without this branch the check reports GREEN on a host whose Docker is gone, and its silence
+    # is supposed to carry information.
+    assert "docker_daemon_unreachable" in sweep, "a dead docker daemon would report green"
+    assert 'if ! _ids=$(sudo docker ps -aq' in sweep, "the daemon failure is not detected at all"
     assert "docker ps -aq" in sweep, "the sweep reads only running containers"
     # It must land in ANOMALIES, which is what actually reaches the operator.
     assert 'ANOMALIES+="container_no_memory_limit' in sweep
 
 
-def test_the_ceilings_match_the_converged_spec():
-    """The numbers are reviewed in the spec, not chosen here. If they diverge, one of the
-    two is lying to whoever reads it next."""
+def _spec_ceilings() -> dict[str, int]:
+    """Parse the spec's ceiling table into {container: MiB}.
+
+    The predecessor of this helper asserted `f"{mib}M" in spec`, which is why it existed at all:
+    that disjunct matched "512M" ANYWHERE in a 380-line document, so changing the spec's cadvisor
+    row from 512M to 256M — a genuine spec-vs-script divergence — left the test GREEN. Proven by
+    mutation during the review that added this. A test that cannot fail is worse than no test,
+    because it is counted as coverage.
+    """
     spec = (REPO / "docs" / "superpowers" / "specs"
             / "2026-09-04-vps1-container-memory-limits-design.md").read_text()
-    src = SCRIPT.read_text()
+    rows = re.findall(r"^\|\s*`([a-z0-9-]+)`\s*\|[^|]*\|\s*(\d+)M\s*\|", spec, re.M)
+    return {name: int(mib) for name, mib in rows}
 
-    for name, mib in [("cadvisor", 512), ("loki", 512), ("promtail", 256), ("grafana", 256),
-                      ("traefik", 256), ("alertmanager", 128), ("postgres-exporter", 64),
-                      ("node-exporter", 64), ("redis-exporter", 64), ("redis-main", 640)]:
-        assert f"`{name}`" in spec, f"{name} is not in the spec's ceiling table"
-        assert f"| {mib}M |" in spec or f"{mib}M" in spec
-        assert any(
-            ln.split()[:2] == [name, str(mib)]
-            for ln in src.splitlines() if ln.strip() and not ln.startswith("#")
-        ), f"{name} {mib} is not in the applier table"
+
+def _script_ceilings() -> dict[str, int]:
+    """Parse the applier's own table, so both sides are read rather than hardcoded here."""
+    out, inside = {}, False
+    for ln in SCRIPT.read_text().splitlines():
+        if ln.startswith("CEILINGS="):
+            inside = True
+            continue
+        if inside:
+            if ln.startswith('"'):
+                break
+            body = ln.split("#")[0].strip()
+            if body:
+                name, mib = body.split()[:2]
+                out[name] = int(mib)
+    return out
+
+
+def test_the_ceilings_match_the_converged_spec():
+    """The numbers are reviewed in the spec, not chosen in the script. Both tables are PARSED and
+    compared as sets of pairs, so any divergence in either direction is red."""
+    spec, script = _spec_ceilings(), _script_ceilings()
+
+    assert script, "the applier's ceiling table did not parse — the test cannot grade anything"
+    missing = sorted(set(script) - set(spec))
+    assert not missing, f"applier bounds containers the spec never reviewed: {missing}"
+
+    mismatched = {n: (script[n], spec[n]) for n in script if spec[n] != script[n]}
+    assert not mismatched, f"script vs spec ceiling disagreement (script, spec): {mismatched}"
+
+    # The ten the spec actually decided must all be carried, or the applier silently under-covers.
+    assert len(script) == 10, f"expected the spec's ten ceilings, parsed {len(script)}: {sorted(script)}"
+
+
+def test_an_unreadable_limit_is_skipped_rather_than_overwritten(env):
+    """FAIL CLOSED. `[ "" -ge N ]` ERRORS rather than returning false, so an empty limit read used
+    to fall straight through to an update at the table's target — which, on a container whose real
+    ceiling was higher, would have LOWERED it. Docker offers no never-lower guarantee of its own
+    (it refuses only a decrease below current usage), so this comparison is the only thing there is.
+    """
+    env.write_state({**LIVE_TODAY, "traefik": "garbage"})
+
+    r = env.run("--apply")
+
+    assert "UNREADABLE" in r.stdout, "acted on a container whose limit it could not read"
+    assert not any("traefik" in u for u in env.updates()), "issued an update on an unreadable limit"
+    assert r.returncode == 1, "an unreadable limit must not exit clean"
+
+
+def test_a_failure_reports_dockers_own_message_not_a_guessed_cause(env):
+    """The failure line used to ASSERT 'a decrease below current usage is refused' while discarding
+    stderr entirely — a plausible invented mechanism, which is the hardest kind of wrong to catch."""
+    marker = "SENTINEL: the daemon's own words"
+
+    r = env.run("--apply", update_error=marker)
+
+    assert marker in r.stdout, "the failure line invented a cause instead of quoting Docker"
+    assert "a decrease below current usage is refused" not in r.stdout
+
+
+def test_a_warning_on_stderr_is_not_mistaken_for_a_failure(env):
+    """`docker update --memory-swap` provokes "WARNING: Your kernel does not support swap limit
+    capabilities" on many kernels — while SUCCEEDING. An earlier fix here captured stderr to stop the
+    script inventing a failure cause, and in doing so began branching on "stderr is non-empty", which
+    would turn every successful apply on such a kernel into a red run. Branch on the exit code."""
+    warning = "WARNING: Your kernel does not support swap limit capabilities"
+
+    r = env.run("--apply", update_warning=warning)
+
+    assert r.returncode == 0, f"a warning was treated as failure:\n{r.stdout}"
+    assert "FAILED" not in r.stdout
+    assert env.limits()["redis-main"] == 640 * MIB, "the update did not actually land"
+    assert warning in r.stdout, "the warning was swallowed instead of surfaced"
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")

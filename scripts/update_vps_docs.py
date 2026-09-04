@@ -44,6 +44,15 @@ BEGIN = "<!-- AUTO:{} -->"
 END = "<!-- /AUTO -->"
 
 
+# The ONLY paths this script may ever stage or commit. Single-sourced so the `add` and the
+# `commit` pathspec cannot drift apart — the drift between them WAS the defect.
+VPS_DOC_PATHS = [
+    "docs/infrastructure/vps-status.md",
+    "docs/infrastructure/vps-urls.md",
+    "docs/infrastructure/vps-complete-inventory.md",
+]
+
+
 def now_ts() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -365,17 +374,20 @@ def main() -> int:
     elif not args.dry_run:
         print(f"\n📝 {changed} file(s) updated. Committing...")
         subprocess.run(
-            [
-                "git",
-                "-C",
-                str(REPO),
-                "add",
-                "docs/infrastructure/vps-status.md",
-                "docs/infrastructure/vps-urls.md",
-                "docs/infrastructure/vps-complete-inventory.md",
-            ],
+            ["git", "-C", str(REPO), "add", *VPS_DOC_PATHS],
             check=True,
         )
+        # ⚠️ PATHSPEC IS MANDATORY. A bare `git commit` commits the whole INDEX, and this repo is
+        # a shared tree with up to three concurrent Claude sessions plus the daily pipeline. The
+        # `git add` above is correctly scoped to three files; the commit below was not, so every
+        # file ANY other session had staged rode along under this automated message and author.
+        # Measured 2026-09-05: commit 5b9c420d ("docs(auto): update VPS docs from live state")
+        # carried INDEX.md, a design spec, scripts/vps_apply_limits.sh and a 280-line new test
+        # file belonging to another session's in-flight work — and then PUSHED them. Staging is
+        # the normal way an agent protects work from pre-commit's stash, so this defect
+        # specifically ate the files that were being handled most carefully.
+        # `commit -- <paths>` reads the WORKING TREE for those paths, which is exactly what this
+        # script wants: it just wrote them.
         subprocess.run(
             [
                 "git",
@@ -384,6 +396,8 @@ def main() -> int:
                 "commit",
                 "-m",
                 f"docs(auto): update VPS docs from live state [{now_ts()}]",
+                "--",
+                *VPS_DOC_PATHS,
             ],
             check=True,
         )

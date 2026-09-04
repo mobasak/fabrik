@@ -86,6 +86,22 @@ while read -r name mib _rest; do
 
   live=$($D inspect -f '{{.HostConfig.Memory}}' "$name")
 
+  # FAIL CLOSED on an unreadable limit. `[ "" -ge N ]` does not return false — it ERRORS
+  # (exit 2, "integer expression expected"), so both guard tests below fail, `verb` stays SET,
+  # and the script would issue an update at the table's target. If that target were BELOW the
+  # container's real ceiling, the never-lower rule — the entire safety argument — would have
+  # LOWERED it. The read can fail for real: the container can be removed between the existence
+  # check one line above and this call, and this link has measured intermittency (spec C5).
+  # Docker itself offers no never-lower guarantee (it refuses only a decrease below CURRENT
+  # USAGE, which is far weaker), so this comparison is the ONLY thing standing between the
+  # table and a live ceiling. It does not get to be skipped by an error.
+  case "$live" in
+    ''|*[!0-9]*)
+      printf '  UNREADABLE %-19s limit read returned %s — SKIPPED (refusing to act blind)\n' \
+        "$name" "${live:-<empty>}"
+      failed=$(( failed + 1 )); continue ;;
+  esac
+
   if [ "$live" -ge "$target" ] && [ "$live" -ne 0 ]; then
     printf '  OK        %-20s %s MiB already ≥ target %s MiB — no call\n' \
       "$name" "$(( live / 1024 / 1024 ))" "$mib"
@@ -101,7 +117,17 @@ while read -r name mib _rest; do
 
   # --memory-swap equal to --memory: left unset, the total memory+swap allowance
   # silently becomes TWICE the ceiling.
-  if $D update --memory "${mib}m" --memory-swap "${mib}m" "$name" >/dev/null 2>&1; then
+  # Capture stderr instead of discarding it: the failure line below used to ASSERT the cause
+  # ("a decrease below current usage is refused") without ever reading Docker's own message.
+  # A plausible invented mechanism is the harder defect to catch, because it reads as diagnosis.
+  err=$($D update --memory "${mib}m" --memory-swap "${mib}m" "$name" 2>&1 >/dev/null); rc=$?
+  # Branch on the EXIT CODE, never on "did it write to stderr". Docker warns and succeeds all the
+  # time — "WARNING: Your kernel does not support swap limit capabilities" is the common one, and
+  # `--memory-swap` is exactly what provokes it. Reading a non-empty stderr as failure would turn
+  # every successful apply on such a kernel into a red run. (Found reviewing the fix that added
+  # this capture: the fix for an invented diagnosis shipped its own mirror.)
+  if [ "$rc" -eq 0 ]; then
+    [ -n "$err" ] && printf '  note      %-20s %s\n' "$name" "$err"
     now=$($D inspect -f '{{.HostConfig.Memory}}' "$name")
     if [ "$now" -eq "$target" ]; then
       printf '  %-9s %-20s %s MiB → %s MiB  ✅\n' "$verb" "$name" \
@@ -113,8 +139,7 @@ while read -r name mib _rest; do
       failed=$(( failed + 1 ))
     fi
   else
-    printf '  FAILED    %-9s %-20s (a decrease below current usage is refused) ❌\n' \
-      "$verb" "$name"
+    printf '  FAILED    %-9s %-20s ❌ %s\n' "$verb" "$name" "$err"
     failed=$(( failed + 1 ))
   fi
 done <<< "$(echo "$CEILINGS" | sed 's/#.*//' | grep -v '^[[:space:]]*$')"

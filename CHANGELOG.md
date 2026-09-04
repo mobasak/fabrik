@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 7 of the review: the derived figures now live in ONE place, and the grammar says N ≥ 1 (2026-09-05)
+
+The sixth fresh reader of the rotation budget paragraph certified the invariant (no wall-clock bound across the fleet loop — traced for thread pools, deadlines and early exits; none) and found the sixth wrong term: "~16.6s" for one dead host should be 16.3s (8 + 0.3 + 8), so ~32.6s per account and ~130s across four — a 0.3s slip copied into four files. Four copies of derived numbers is four drift sites: the docstring (both twins) and the rotation reference doc now carry only the invariant and point at the STRATEGIC_BACKLOG row, which is the single copy of the figures, corrected and tied to the constants they derive from. The pass-6 commit message's "the regression test defined against the aggregate" read as if such a test shipped — it did not (the row specifies it as the guard to ship WITH the fix); recorded, never amended. The GATE-SCOPE grammar's `N ≥ 1` rule lived only in the regex — the fix-hint, `/fabrik-review` and `/fabrik-execute-plan` now state it, and execute-plan carries the hard-wrap caveat the others had. Pool: all five units returned, every candidate a re-raise.
+
 ### Changed — Multi-agent-per-repo build plan CONVERGED after 12 author-blind rounds (2026-09-05)
 - `docs/development/plans/2026-09-03-plan-1-multi-agent-per-repo/` (spine + 33 tickets, Owner: infra) flips DRAFT → CONVERGED (D-123).
 - The rounds that mattered changed METHOD, not effort: the first pass to EXECUTE all 64 `Gate:` lines rather than read them found three gates that could never pass and seven that could never fail.
@@ -43,8 +47,9 @@ than none, so it was rewritten rather than duplicated: never lowers a live ceili
 and idempotent under the measured SSH intermittency. `--memory-swap` is set equal to `--memory` throughout; left
 unset, the total memory+swap allowance silently becomes twice the ceiling. Recurrence is caught by
 `container_no_memory_limit` in `proactive-check.sh` (every 15 min, `docker ps -aq` so a stopped-but-defined container
-still counts) — fire rate measured before shipping: 10/32 before, 0/32 after. 11 tests on a fake-docker harness,
-red-on-revert proven: 9 of 11 fail against the old script.
+still counts) — fire rate measured before shipping: 10/32 before, 0/32 after. 14 tests on a fake-docker harness,
+red-on-revert re-derived at close: 12 of 14 fail against the old script — the two that pass are the
+`proactive-check.sh` wiring test and `bash -n`, both correctly unaffected by reverting the applier.
 
 ### Fixed — the closing pass found two regressions in the pass-2 fixes, and a safety claim I had written un-derived (2026-09-05)
 

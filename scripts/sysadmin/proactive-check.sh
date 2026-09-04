@@ -468,8 +468,17 @@ fi
 # Ceilings + derivation: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md
 # Applier:               scripts/vps_apply_limits.sh --apply   (--check for this same verdict)
 if command -v docker >/dev/null 2>&1; then
+    # A DEAD daemon must not read as a clean bill of health. `docker ps -aq` on an unreachable
+    # daemon returns empty and exits nonzero — identical output to "no containers" — so an
+    # unguarded loop reports GREEN on a host whose Docker is gone. Nothing else in this file
+    # detects that (every other docker call here treats failure as "feature absent"), so the
+    # blind spot would be real: this check's silence is meant to MEAN something.
+    if ! _ids=$(sudo docker ps -aq 2>/dev/null); then
+        ANOMALIES+="docker_daemon_unreachable[$(hostname -s)] "
+        _ids=""
+    fi
     _unbounded=""
-    for _cid in $(sudo docker ps -aq 2>/dev/null); do
+    for _cid in $_ids; do
         if [ "$(sudo docker inspect -f '{{.HostConfig.Memory}}' "$_cid" 2>/dev/null)" = "0" ]; then
             _n=$(sudo docker inspect -f '{{.Name}}' "$_cid" 2>/dev/null)
             _unbounded="${_unbounded}${_n#/},"

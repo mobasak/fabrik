@@ -150,11 +150,24 @@ remove anything.
 ⚠️ **The honest gap in this proof: it was run on Docker 29.1.3 locally, and vps1 runs 29.0.2.** The
 versions are adjacent and both are cgroup v2, and `docker update --help` on vps1 was confirmed to carry
 `-m, --memory` and `--memory-swap` — but a proof executed on one host is evidence about that host. It
-is NOT re-run on vps1 here, deliberately: the operator has not authorised any write to live production,
-and creating even a throwaway container is a write. **Resolution, as the applier's own first act once
-authorised:** run the identical before/after on a scratch `alpine sleep` container on vps1, assert the
-id and `StartedAt` are unchanged, then remove it — and only then touch the fifteen. If that probe
-disagrees with this one, the whole approach stops there rather than proceeding on a local result.
+was NOT re-run on vps1 at authoring time, deliberately: the operator had not yet authorised any write to
+live production, and creating even a throwaway container is a write.
+
+**RESOLVED 2026-09-05 — the probe was run, and it agreed.** On the operator's authorisation, the identical
+before/after ran on a scratch `alpine:3.20 sleep` container on vps1's own Docker 29.0.2 *before* any live
+container was touched:
+
+```
+start id : 5641c16f67d7  limit=0          started=2026-09-04T22:17:52.853349553Z
+after up : 5641c16f67d7  limit=268435456  started=2026-09-04T22:17:52.853349553Z  running=true
+cgroup   : 268435456        # /sys/fs/cgroup/memory.max, read from inside
+swapmax  : 0                # --memory-swap == --memory, so no swap doubling
+VERDICT  : SAME CONTAINER ID — no recreate
+```
+
+The scratch container was then removed. The version gap named above is closed by execution on the TARGET
+host, not by analogy from the local one — and the same property was re-proven across the real run: a
+32-row before/after snapshot of (name, container id, `StartedAt`, status) diffed IDENTICAL.
 
 **And even if a container were recreated, no data would be lost**, because every data-bearing container
 keeps its state outside itself (verified 2026-09-04):
@@ -345,7 +358,7 @@ the rare design with no `specs/services/` footprint at all.
 | The invariant's second enforcement point | `docs/workstation/` — extend the existing ops surface, not a new doc |
 | The ceilings table + their derivation | This spec, referenced from the check's `AFTER-EDIT` header |
 | The check itself | `INDEX.md` row + `CHANGELOG.md` |
-| The corrected count | `docs/STRATEGIC_BACKLOG.md` — the row titled "15 of 37 containers run with NO memory limit on vps1" (edited in place; cited by TITLE, not line number, because inserting rows above it moves the line) |
+| The corrected count | `docs/STRATEGIC_BACKLOG.md` — the row now titled "RESOLVED for memory (2026-09-05) — the unbounded containers on vps1; the redis-main EVICTION-POLICY half stays open" (edited in place; cited by TITLE, not line number, because inserting rows above it moves the line. ⚠️ The title CHANGED when Part A landed — a title anchor survives inserted rows but not a rename, which is the tradeoff this row now demonstrates) |
 | The CPU gap (I6) + the two near-ceiling containers (I7) | A new `docs/STRATEGIC_BACKLOG.md` row |
 | The decision itself | `docs/DECISIONS.md` — a row minted with `decisions.py --next-id` |
 
