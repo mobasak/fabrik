@@ -204,6 +204,27 @@ PROOF = re.compile(r"[\w./-]+\.(?:py|ts|tsx|js|sql|md|csv|ya?ml|sh|json):\d+")
 EVIDENCE = re.compile(r"^#{2,}\s*Evidence\b", re.I | re.M)
 AUDIT = re.compile(r"self[- ]?audit|convergence floor", re.I)
 GATE_OK = re.compile(r'"status"\s*:\s*"success"')
+# A SURFACE-scoped review record graded against a REPO-WIDE gate inherits every other lane's
+# state. With one lane per repo that is correct; with concurrent lanes it is not — wef1 measured a
+# converged 6-round loop (307 tests green, ruff clean) that could not honestly embed a success
+# block because the gate's ONE failure was entirely inside a SIBLING'S plan directory, with 0
+# findings naming the reviewed surface (01M1KVAZGNJAXXSB4XFMKPQG0Z). All three exits were bad:
+# embed a failing gate under a CONVERGED claim (the unproven claim this gate exists to stop),
+# stamp IN-PROGRESS (mechanically green, semantically FALSE — and check_review_coverage then flags
+# it as a loop that never closed, which is how that repo accumulated four such records), or skip
+# the artifact /fabrik-review requires.
+#
+# So a FAILING gate is accepted only alongside a declaration that carries its own DENOMINATOR —
+# which failing check, how many of its findings name this surface out of how many total, and the
+# command that measured it. The trust level is unchanged (a fabricated success JSON was always
+# possible); what changes is that an honest multi-lane record can exist at all. Shape:
+#   GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>
+GATE_ANY = re.compile(r'"status"\s*:\s*"(?:success|failure)"')
+GATE_OUT_OF_SURFACE = re.compile(
+    r"GATE-SCOPE:\s*out-of-surface\b[^\n]*?findings naming this surface:\s*0\s+of\s+\d+"
+    r"[^\n]*?measured by:\s*\S",
+    re.I,
+)
 # PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
 # fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
 # plus inline single-line ```…``` quotes. Out of contract (documented, not
@@ -842,8 +863,17 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # an in-contract inline ```…``` quote precedes the real embed, uncapturing a
     # genuine success JSON (fail-closed false-failure, review finding).
     fenced = "\n".join(m.group(2) or m.group(3) or "" for m in _FENCED_CONTENTS.finditer(text))
-    if not GATE_OK.search(fenced):
-        fails.append('no embedded final_gate run showing "status": "success" inside a fenced block')
+    # The out-of-surface declaration is read on the WHOLE record (it is prose the reviewer writes),
+    # while the gate embed must still sit inside a fence — a failing gate has to be SHOWN, not
+    # merely asserted, so the reader can see which check failed.
+    if not GATE_OK.search(fenced) and not (
+        GATE_OUT_OF_SURFACE.search(text) and GATE_ANY.search(fenced)
+    ):
+        fails.append(
+            'no embedded final_gate run showing "status": "success" inside a fenced block '
+            "(concurrent lanes: embed the FAILING gate and declare `GATE-SCOPE: out-of-surface "
+            "— <check>; findings naming this surface: 0 of <N>; measured by: <command>`)"
+        )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")
     return [f"{rel}: {x}" for x in fails]

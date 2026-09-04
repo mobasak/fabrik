@@ -368,6 +368,44 @@ def test_review_without_embedded_success_fails(repo: Path) -> None:
 # PROSE satisfied the evidence regex while the doc explained why faking it is wrong.
 
 
+def test_a_converged_lane_may_embed_a_gate_a_sibling_lane_reds(repo: Path) -> None:
+    """A SURFACE-scoped record was graded against a REPO-WIDE gate.
+
+    With one lane per repo that is right; with concurrent lanes the record inherits every other
+    lane's state. wef1 measured a converged 6-round loop (307 tests green, ruff clean) whose gate
+    failed on ONE check with every finding inside a SIBLING's plan directory and 0 naming the
+    reviewed surface — leaving three bad exits: embed a failing gate under a CONVERGED claim,
+    stamp IN-PROGRESS (semantically false, and check_review_coverage then flags it as a loop that
+    never closed), or skip the artifact /fabrik-review requires
+    (01M1KVAZGNJAXXSB4XFMKPQG0Z).
+    """
+    honest = (
+        "# Review of aspect 18\n\n## Phase 1 verdict\nConverged: 6 rounds, 19 classes, 0 new.\n\n"
+        "reviewed — sign-off.\n\n"
+        "GATE-SCOPE: out-of-surface — Plan-Set Contract (Spine+Tickets); findings naming this "
+        "surface: 0 of 7; measured by: `check_plan_tickets --plan-dir <sibling set> | grep <my paths>`\n\n"
+        "```\n$ python scripts/final_gate.py --json\n"
+        '{"status": "failure", "tier": 2, "passed": 54, "failed": 1}\n```\n'
+    )
+    assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18-review.md", honest) == 0
+
+    # the declaration is not a magic word: it must carry its own denominator ...
+    no_denominator = honest.replace("findings naming this surface: 0 of 7; ", "")
+    assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18b-review.md", no_denominator) == 1
+
+    # ... it must name how it was measured ...
+    unmeasured = honest.split("; measured by:")[0] + "\n\n" + honest.split("```", 1)[1]
+    assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18c-review.md", unmeasured) == 1
+
+    # ... a NON-ZERO count naming this surface is the reviewer's own debt, not another lane's ...
+    mine = honest.replace("0 of 7", "3 of 7")
+    assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18d-review.md", mine) == 1
+
+    # ... and the failing gate must still be SHOWN, not merely asserted.
+    no_embed = honest.split("```")[0]
+    assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18e-review.md", no_embed) == 1
+
+
 def test_review_withholding_claims_is_not_a_claim(repo: Path) -> None:
     # Directly-negated claim words are a DISCLOSURE, not a claim — no evidence owed.
     doc = (
