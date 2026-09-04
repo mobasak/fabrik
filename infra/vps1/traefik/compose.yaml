@@ -18,6 +18,10 @@ services:
       - "--configFile=/traefik.yml"
     networks:
       - fabrik
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 networks:
   fabrik:

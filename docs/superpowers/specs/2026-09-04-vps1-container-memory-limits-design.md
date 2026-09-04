@@ -33,6 +33,21 @@
 > the hub's own corpus, not only of fabrik-lib** — the vendor→enhance→build question has three candidates,
 > and the spec only looked at two.
 
+
+> **PART B EXECUTED — 2026-09-05 (D-124).** The durable half is declared: `deploy.resources.limits.memory`
+> now sits in all three stacks' compose files, hub-side (`infra/vps1/{traefik,redis,monitoring}/compose.yaml`)
+> and on the VPS, backed up first. Verified with Docker's OWN parser rather than a YAML read —
+> `docker compose config` on each stack resolves all ten to byte-identical values to what is live, so a
+> recreate cannot move a ceiling. **No container was recreated:** `docker compose up -d --dry-run` confirms
+> the next deploy of each stack WILL recreate all ten (the config hash changed by design), and that deploy
+> is deliberately left to each stack's own schedule, exactly as § Lifecycle says. Pre-flight re-proven live
+> first: `redis-main` is on the named volume `redis_redis-data`, traefik is entirely host-bind-backed, and
+> nothing on the box auto-runs `compose up` (no cron entry, and `fabrik-autoheal` contains no `up -d`).
+>
+> The three sources now agree by TEST, not by care: `test_the_compose_files_declare_the_same_ceilings_the_applier_asserts`
+> pins the compose declarations against the applier's table (which is itself pinned against this spec's
+> ceiling table), so a redeploy that silently moved a ceiling would go red. Red on revert: 10 of 10.
+
 ---
 
 ## Intake Inventory
@@ -380,9 +395,16 @@ the rare design with no `specs/services/` footprint at all.
    these are *steady-state-derived* ceilings. **Resolution:** Prometheus has been scraping these
    containers all along — pull `container_memory_working_set_bytes` history before Part B freezes the
    numbers into compose. Part A's ceilings are generous enough that this is not a blocker for it.
-2. **Which stack owns each compose file for Part B.** The `ocoron-com` stack and the monitoring stack
-   have compose files on the VPS whose repo-of-record I have not traced. **Resolution:** locate each
-   before Part B; Part A is unaffected because it addresses running containers directly.
+2. ~~**Which stack owns each compose file for Part B.**~~ **RESOLVED 2026-09-05 by tracing the compose
+   labels** (`com.docker.compose.project` / `.working_dir`), not by guessing. The ten span exactly THREE
+   stacks: `/opt/traefik` (traefik) · `/opt/redis` (redis-main) · `/opt/monitoring` (the other eight).
+   Every one has a repo-of-record in the hub at `infra/vps1/<stack>/compose.yaml`, so Part B was a hub
+   edit plus a push to the VPS, not an untracked change on the box. **One drift found in passing:** the
+   VPS's `/opt/traefik/compose.yaml` is AHEAD of the hub copy by three lines (the Cloudflare DNS-01
+   `cf.env` env_file and the `acme-cloudflare.json` bind, from the tenant-wildcard work). Part B did NOT
+   reconcile it in either direction — the ceiling was inserted into each copy independently so the drift
+   survives untouched — but a hub-driven redeploy of traefik today would DROP the Cloudflare resolver.
+   That is its own item, filed to the backlog, not silently fixed here.
 3. **`redis-main`'s eviction policy is `allkeys-lru`, which can evict keys that have no TTL.** The
    pre-existing backlog row for this surface warns that the watchdog's pause flags *"must outlive
    pressure"* and argues for a `volatile-*` policy, which evicts only keys carrying a TTL. This spec

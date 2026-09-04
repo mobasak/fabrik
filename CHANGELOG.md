@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the vps1 memory ceilings are now DECLARED in compose, so a redeploy can no longer unbind them (2026-09-05)
+
+Part B of the memory-limits design (D-119/D-122/D-124), on the operator's word. Part A's `docker update`
+does not persist for compose-managed containers — the ceilings survived only until the next `up -d`, which
+made the fix a session's worth of luck rather than a property of the system. `deploy.resources.limits.memory`
+is now declared for all ten in all three stacks, hub-side (`infra/vps1/{traefik,redis,monitoring}/compose.yaml`)
+and pushed to the VPS copies, each backed up first. +40 lines, 0 deletions — purely additive, no reformatting
+of a live production compose.
+
+The spec's open unknown 2 ("which stack owns each compose file") is resolved by tracing
+`com.docker.compose.project`/`.working_dir` labels rather than guessing: exactly three stacks, each with a hub
+repo-of-record. Verified with Docker's own parser, not a YAML read — `docker compose config` on each stack
+resolves all ten to values byte-identical to the live cgroups, so the recreate these declarations imply
+cannot move a ceiling. **No container was recreated:** `up -d --dry-run` confirms the next deploy of each
+stack will recreate all ten (the config hash changed by design), and that deploy is left to each stack's own
+schedule. Pre-flight was re-proven live before that became possible — `redis-main` on the named volume
+`redis_redis-data`, traefik entirely host-bind-backed including `acme.json`, and nothing on the box auto-runs
+`compose up` (no cron entry, and `fabrik-autoheal` contains no `up -d`).
+
+Three sources now agree by test rather than by care: a new grader pins the compose declarations against the
+applier's table, which is itself pinned against the spec's ceiling table — red on revert, 10 of 10 unbounded
+at HEAD. Two findings raised in passing and filed rather than silently fixed: the VPS
+`/opt/traefik/compose.yaml` is AHEAD of its hub copy by the Cloudflare DNS-01 lines (a hub-driven traefik
+redeploy would drop the tenant wildcard resolver), and `monitoring_grafana-data` — 31 MB of dashboards — is
+the one monitoring volume carrying no compose labels.
+
 ### Fixed — pass 8 of the review: the docstring's last derived figure, the fix-hint's value forms, and my own stale-index hazard (2026-09-05)
 
 Fresh finders over the pass-7 edits. The single-copy backlog row's figures were re-derived and certified (per-host exhaustion 16.3s, one dead host ~130s across four accounts, link-wide ~260s; N=4 by `_fleet_dirs()`'s own filter), but the paragraph *above* the invariant still derived `~32.6s (2 hosts × (8 + 0.3 + 8))` in the docstring, contradicting the single-copy claim — removed in both twins. The GATE-SCOPE fix-hint did not enumerate the three value forms the two commands do — aligned. Two process findings, both mine: the private-index commits of passes 6–7 never realigned the shared index, leaving pre-pass blobs for eight paths that a bare commit by any session would have silently reverted — measured blob-by-blob and reset to HEAD; and fleet's 31af158b had swept my uncommitted pass-7 CHANGELOG hunk (nothing lost), so my re-add duplicated the entry in HEAD — deduplicated here. Pool: all five returned; one executable candidate refuted by running the router.

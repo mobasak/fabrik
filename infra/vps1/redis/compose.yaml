@@ -18,6 +18,10 @@ services:
       retries: 3
     ports:
     - 10.99.0.1:6379:6379
+    deploy:
+      resources:
+        limits:
+          memory: 640M
 volumes:
   redis-data: null
 networks:

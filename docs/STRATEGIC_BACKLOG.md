@@ -1085,6 +1085,41 @@ or scaffold a metrics module; the flag is spec-canonical, so whichever is chosen
 SYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus
 has `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.
 
+## [fleet] The VPS copy of `/opt/traefik/compose.yaml` is AHEAD of its hub repo-of-record — a hub-driven redeploy would drop the Cloudflare DNS-01 resolver (2026-09-05, owner: fleet)
+
+Found while executing Part B of the memory-ceilings spec (D-124), by diffing each stack's hub copy against
+the live VPS file rather than assuming they matched — `redis` and `monitoring` were byte-identical, traefik
+was not. The VPS file carries three lines the hub copy lacks: an `env_file: ./cf.env` (the scoped
+`CF_DNS_API_TOKEN`) and a `./acme-cloudflare.json:/acme-cloudflare.json` bind — the tenant-wildcard DNS-01
+certresolver work. Part B deliberately did NOT reconcile it in either direction: the ceiling was inserted
+into each copy independently so the drift survives untouched, because reconciling means choosing a
+direction and one direction pulls a secrets-file reference into the hub. **The risk is concrete:** anyone
+redeploying traefik from `infra/vps1/traefik/compose.yaml` drops the Cloudflare resolver, and `*.tojlo.com`
+tenant certificates stop renewing. Decide the direction (hub adopts the VPS lines, with `cf.env` gitignored
+and documented; or the VPS lines move into a documented override), then re-verify with a diff. Blocked by:
+an operator ruling on where the Cloudflare credential reference should live.
+
+**The GENERAL gap behind this instance, stated so it is not mistaken for a one-off:** nothing guards
+`infra/vps1/**` against the live box. The Part-B grader reads the HUB copies only, and no enforcement check
+references `infra/vps` for drift (`scripts/enforcement/` grep: only `check_env_contract.py`, for a different
+purpose) — so the hub can be right and the box wrong, or drift again tomorrow, with a fully green suite.
+Measured today: 1 of 3 stacks had drifted. That is a real rate, but a hub↔VPS compose differ is a NEW
+mechanism and this row is not the place to build one on a sample of three — measure the rate across all
+`infra/**` stacks first (there are ~14 on vps1 alone), then decide. Recorded rather than built.
+
+## [fleet] `monitoring_grafana-data` carries no compose labels — it is the one monitoring volume Docker Compose did not create (2026-09-05, owner: fleet)
+
+Surfaced by `docker compose up -d --dry-run` during Part B: *"volume monitoring_grafana-data already exists
+but was not created by Docker Compose."* Confirmed by inspection — its four siblings
+(`alertmanager-data`, `loki-data`, `prometheus-data`, `promtail-positions`) each carry
+`com.docker.compose.project`/`.volume` labels; `grafana-data` has `map[]`. It holds 31 MB: the dashboards,
+users and Grafana's SQLite DB. **No action was taken and none is urgent** — Compose reuses a same-named
+volume and never deletes one on `up -d` (only `down -v` does, which is a standing HARD STOP), so the
+recreate Part B enables is safe. It is filed because an unlabelled volume is invisible to any
+ownership-based tooling we might later write, and because "dangling ≠ disposable" makes mislabelled data
+worth knowing about BEFORE someone runs a cleanup. Candidate: declare it `external: true`, or recreate the
+label — neither without an operator decision, since both touch a live data volume.
+
 ## [fleet] RESOLVED for memory (2026-09-05) — the unbounded containers on vps1; the redis-main EVICTION-POLICY half stays open (2026-09-03, owner: fleet + operator)
 
 **RESOLVED 2026-09-05 (fleet), for the memory half only — D-122.** All ten remaining unbounded
@@ -1100,7 +1135,7 @@ the applier ALREADY EXISTED and named all ten containers — it had simply not b
 network renamed the day after it was last touched. A stale enforcer reads as coverage and is worse
 than none. **Still open here:** the redis-main eviction policy (`allkeys-lru` can evict pause keys
 that carry no TTL — the 640M ceiling is coupled to this, per the spec's open unknown 3), and
-**Part B**, persisting these ceilings into each stack's compose so they survive the next `up -d`.
+~~**Part B**~~ — **DONE 2026-09-05 (D-124)**: the ceilings are declared in all three stacks' compose (`infra/vps1/{traefik,redis,monitoring}/compose.yaml` + the VPS copies), verified with `docker compose config`, and a test now binds compose ↔ applier ↔ spec. No container was recreated; the recreate the declarations imply belongs to each stack's next deploy and cannot move a ceiling, since every declared value equals the live one.
 
 **CORRECTED 2026-09-04 (fleet), and SUPERSEDED by a spec:** this row said "redis-main and traefik".
 A live sweep of every container measured **15 of 37** with `HostConfig.Memory == 0` — also loki,

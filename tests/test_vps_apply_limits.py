@@ -366,6 +366,60 @@ def test_a_warning_on_stderr_is_not_mistaken_for_a_failure(env):
     assert warning in r.stdout, "the warning was swallowed instead of surfaced"
 
 
+def test_the_compose_files_declare_the_same_ceilings_the_applier_asserts():
+    """PART B. `docker update` does not persist for compose-managed containers, so the in-place
+    ceilings survive only until the next `up -d`. The durable half is a
+    `deploy.resources.limits.memory` declaration in each stack's compose — and it has to agree with
+    the applier and the spec, or a redeploy silently MOVES a ceiling instead of preserving it.
+
+    Three sources must say the same thing: the spec (reviewed), the applier (live enforcement), and
+    the compose (what survives a recreate). This pins the third against the first two.
+    """
+    import yaml
+
+    composes = {
+        "infra/vps1/traefik/compose.yaml": ["traefik"],
+        "infra/vps1/redis/compose.yaml": ["redis-main"],
+        "infra/vps1/monitoring/compose.yaml": [
+            "loki", "promtail", "alertmanager", "node-exporter",
+            "cadvisor", "grafana", "postgres-exporter", "redis-exporter",
+        ],
+    }
+    expected = _script_ceilings()
+
+    declared: dict[str, int] = {}
+    for rel, names in composes.items():
+        path = REPO / rel
+        assert path.exists(), f"{rel} is GONE — the stack lost its repo-of-record"
+        doc = yaml.safe_load(path.read_text())
+        services = doc.get("services") or {}
+        for name in names:
+            assert name in services, (
+                f"{rel} no longer defines service {name!r} (has: {sorted(services)}) — "
+                "renamed or removed, and its ceiling went with it"
+            )
+            svc = services[name]
+            limits = svc.get("deploy", {}).get("resources", {}).get("limits", {})
+            mem = limits.get("memory")
+            assert mem, f"{rel}:{name} declares NO memory limit — a redeploy unbounds it again"
+            # THE UNIT IS LOAD-BEARING. Compose reads a bare integer as BYTES, so `memory: 256`
+            # is 256 bytes and would OOM-kill the container instantly — yet a naive
+            # `int(str(mem).rstrip("M"))` parses it to 256 and compares EQUAL to an expected
+            # 256 MiB, passing the test on a catastrophic misconfiguration. Demand the suffix.
+            assert re.fullmatch(r"\d+M", str(mem)), (
+                f"{rel}:{name} memory is {mem!r}; this table is written in whole MiB with an "
+                "explicit M suffix. A bare integer means BYTES to compose, and a differing unit "
+                "would compare equal to the applier's number while meaning something else"
+            )
+            # container_name is what the applier and `docker inspect` key on, not the service key
+            declared[svc.get("container_name", name)] = int(str(mem).rstrip("M"))
+
+    assert declared == expected, (
+        "compose declarations disagree with the applier's table "
+        f"(compose, applier): { {k: (declared.get(k), expected.get(k)) for k in set(declared) | set(expected) if declared.get(k) != expected.get(k)} }"
+    )
+
+
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")
 def test_the_script_is_syntactically_valid():
     assert subprocess.run(["bash", "-n", str(SCRIPT)]).returncode == 0
