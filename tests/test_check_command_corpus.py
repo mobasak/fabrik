@@ -2684,6 +2684,9 @@ def test_the_import_probe_neither_loads_the_cwd_env_nor_lets_a_module_print(tmp_
     )
     (hub / ".env").write_text("EXA_API_KEY=SENTINEL_FROM_CWD\n", encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if k not in ("EXA_API_KEY", "SUBAGENTS_NO_AUTOLOAD")}
+    env.update(
+        {"ALERT_ENABLED": "0", "FABRIK_NO_AUTOLOAD": "1"}
+    )  # an explicit env cannot inherit the conftest mute (B67-9)
     proc = subprocess.run(
         [
             sys.executable,
@@ -3441,6 +3444,14 @@ def test_the_cli_survives_a_detached_original_and_a_wrapper_that_owns_the_fd(tmp
         "fdopen_rewrap": 'import sys\nsys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)\n',
         "stderr_detach": 'import io, sys\nsys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding="utf-8")\n',
         "keep_wrapper_atexit": 'import atexit, io, sys\nW = sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")\natexit.register(lambda: W.write("bye\\n"))\n',
+        # a module that DETACHES or CLOSES a stream and rebinds NOTHING: FF1 assumed a live wrapper and restored the dead original — exit 120 / no verdict (A67-1)
+        "detach_only": "import sys\nsys.stdout.detach()\n",
+        "dunder_rebind_only": 'import io, sys\nsys.__stdout__ = io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8")\n',
+        "close": "import sys\nsys.stdout.close()\n",
+        "buffer_detach": "import sys\nsys.stdout.buffer.detach()\n",
+        "detach_then_none": "import sys\nsys.stdout.detach()\nsys.stdout = None\n",
+        "stderr_detach_only": "import sys\nsys.stderr.detach()\n",
+        "stderr_close": "import sys\nsys.stderr.close()\n",
         "healthy": "",
     }
     script = REPO / "scripts" / "enforcement" / "check_command_corpus.py"
@@ -3461,6 +3472,9 @@ def test_the_cli_survives_a_detached_original_and_a_wrapper_that_owns_the_fd(tmp
         (root / "commands" / "_fragments").mkdir()
         (root / "commands" / "assemble_commands.py").write_text("")
         (root / "commands" / "_sources" / "fabrik-a.md").write_text("{{include:run-record}}\n")
+        (root / "docs" / "orchestrator" / "_traycer-skills").mkdir(
+            parents=True
+        )  # the healthy hub IS green: the first fixture was red on a missing wrapper tree and the ✓ path was never exercised (A67-4)
         proc = subprocess.run(
             [sys.executable, "scripts/enforcement/check_command_corpus.py"],
             cwd=root,
@@ -3476,7 +3490,14 @@ def test_the_cli_survives_a_detached_original_and_a_wrapper_that_owns_the_fd(tmp
         )
         assert "Exception ignored" not in proc.stderr, (name, proc.stderr)
         if name == "healthy":
-            assert proc.returncode == (0 if not proc.stdout.startswith("✗") else 1)
+            assert proc.returncode == 0 and proc.stdout.startswith("✓"), (proc.stdout, proc.stderr)
+        if name in ("detach_only", "dunder_rebind_only", "close", "buffer_detach"):
+            assert "left the process's stdout unusable" in proc.stdout, (name, proc.stdout)
+        if name == "detach_rewrap":
+            assert "a module detached the process" in proc.stdout, (
+                name,
+                proc.stdout,
+            )  # the FF1 advisory, ungraded (A67-5 M4)
 
 
 def test_shell_escapes_a_column_zero_comment_a_carried_quote_and_a_backticked_info_string(
@@ -3545,6 +3566,55 @@ def test_the_three_fence_readers_share_the_one_tracker():
     import check_command_corpus as ccc
 
     src = Path(ccc.__file__).read_text(encoding="utf-8")
-    assert src.count("_fence_step(") >= 4, src.count("_fence_step(")  # the def + three call sites
+    assert src.count("_fence_step(") == 5, (
+        src.count("_fence_step(")
+    )  # the def + FOUR call sites (`_unfenced`, `_blank_html_comments`, the claim side, predicate 7) — `>= 4` tolerated deleting exactly the one the comment forgot (B67-12)
     assert src.count('re.match(r"(`{3,}|~{3,})(.*)$"') == 1  # inside _fence_step only
     assert ccc._claimed_callers("````\n```\nauto-called by /fabrik-x\n````\n") == {}
+
+
+def test_the_second_round_of_predicate_shapes_a_found(corpus):
+    """A67-2: predicate 5 stripped comments with the naive regex — a `<!--` inside a fence paired
+    with a later `-->` and blanked the real start (2 of 98 live files carry a fenced `<!--`).
+    A67-3: `\\ ` is an escaped space, not a continuation. A67-6: an OPEN quote spans lines without
+    a `\\`. A67-5: `_fence_step` on a tilde fence with a backtick in its info string, an escape
+    inside single quotes, a comment closing line re-stripped, and the emitter SET (FG1)."""
+    import check_command_corpus as ccc
+
+    close = "python3 scripts/command_run.py done --command fabrik-probe"
+    body = (
+        "```bash\necho '<!--'\n```\npython3 scripts/command_run.py start --command x\nprose -->\n"
+    )
+    assert not any("opens no run record" in p for p in corpus(body, with_record=False)), corpus(
+        body, with_record=False
+    )
+    body = f"```bash\n{close} --evidence e \\ \necho --feedback\n```\n"
+    assert any("--feedback" in p for p in corpus(body)), corpus(body)
+    body = f"```bash\n{close} --evidence 'multi\nline' --feedback f\n```\n"
+    assert not any("--feedback" in p for p in corpus(body)), corpus(body)
+    assert ccc._fence_step("~~~a`b", "", 0) == ("~", 3, True)
+    assert ccc._cut_shell_comment("x 'a\\' # --feedback f") == ("x 'a\\' ", "")
+    assert ccc._blank_html_comments("<!-- a\nb --> <!-- c --> d") == "\n  d"
+    import ast
+
+    tree = ast.parse(Path(ccc.__file__).read_text(encoding="utf-8"))
+    own = frozenset(
+        n.lineno
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "append"
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "problems"
+    )
+    assert (
+        ccc._emitter_lines() == own
+    )  # SET equality: `end_lineno` survived a count-only grader while the selftest printed "2 of 18"
+
+
+def test_a_semicolon_comment_is_a_comment(corpus):
+    """bash: `set -- x;# --feedback f` has argc 1 — the whitespace-only rule kept the close whole
+    and predicate 7 accepted a close that lacks `--feedback` (G67-6, FG1)."""
+    close = "python3 scripts/command_run.py done --command fabrik-probe"
+    body = f"```bash\n{close} --evidence e;# --feedback f\n```\n"
+    assert any("--feedback" in p for p in corpus(body)), corpus(body)

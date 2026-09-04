@@ -111,6 +111,9 @@ def test_a_critical_escalation_is_not_swallowed_by_an_earlier_info_alert(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Dedup keys on (severity, title). A title-only key hid exactly this escalation."""
+    monkeypatch.delenv(
+        "ALERT_ENABLED", raising=False
+    )  # the root conftest MUTES the process; an armed test un-mutes itself (G67-1, FG1)
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "x")  # enable the module
     monkeypatch.setattr("time.time", lambda: 1000.0)
     alerting._last_sent.clear()
@@ -172,6 +175,9 @@ def test_failure_log_names_every_method_and_cause(
             DeliveryAttempt("telegram-direct", False, "HTTP 404: bot token rejected"),
         ],
     )
+    monkeypatch.delenv(
+        "ALERT_ENABLED", raising=False
+    )  # the root conftest MUTES the process; an armed test un-mutes itself (G67-1, FG1)
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "x")  # enable the module
     alerting._last_sent.clear()
 

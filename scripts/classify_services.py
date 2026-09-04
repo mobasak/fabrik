@@ -26,8 +26,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+for _p in (str(REPO), str(Path(__file__).resolve().parent)):
+    if (
+        _p not in sys.path
+    ):  # once — the B65-7 class was closed at two of four sites; 10 reloads grew sys.path 6 → 36 (B67-8, FG1)
+        sys.path.insert(0, _p)
 
 import gather_envs  # noqa: E402 - the ONE category predicate, shared with the scan (CU3)
 from libs.subagents import fanout, methodology, set_quality  # noqa: E402
@@ -79,15 +82,21 @@ def flagged_providers(path: Path) -> dict[str, dict]:
             "\ufeff", ""
         ).strip()  # the STRIPPED line, like registry_sync.parse: an indented section header was read past and a categorised provider handed to PAID triage every lap (FE5)
         if (
-            re.match(r"#[#\s]*═", line) and "NEEDS-TRIAGE" in line
+            re.match(r"#.*═", line) and "NEEDS-TRIAGE" in line
         ):  # the HEADER only — never a value (AU11); `## ═` commented twice is a header too, like registry_sync (FF1)
             in_triage = True
             continue
         if not in_triage:
             continue
-        if re.match(r"#[#\s]*═", line):  # next section header -> triage block ended
+        if re.match(r"#.*═", line):  # next section header -> triage block ended
             break
-        if line.lower().startswith("#svc name="):
+        if re.match(
+            r"#svc\s+name=", line, re.I
+        ):  # `\s+`, like the other readers: a TAB after `#svc` ended the block and dropped the provider silently (G67-7, FG1)
+            if not gather_envs.SVC_LINE_RE.fullmatch(re.sub(r"\s+", " ", line)):
+                raise ValueError(
+                    f"{path}: a #svc header the sync would refuse — nothing dispatched: {line[:120]!r}"
+                )  # the classifier SPENT on a truncated/malformed header and registry_sync then failed the lap closed on the same line (E67-7, FG1)
             cur = re.split(
                 r"name=", line, maxsplit=1, flags=re.I
             )[
@@ -433,7 +442,11 @@ def main() -> int:
         print(f"{ALL_ENVS} missing — run scripts/gather_envs.py --apply first", file=sys.stderr)
         return 1
 
-    provs = flagged_providers(ALL_ENVS)
+    try:
+        provs = flagged_providers(ALL_ENVS)
+    except ValueError as exc:
+        print(f"ERROR: {exc} — nothing written, cursor unmoved", file=sys.stderr)
+        return 1
     all_flagged = set(provs)  # the WHOLE queue, before any --only narrowing (pass 5, Z2)
     if args.only:  # the re-bill guard: classify ONLY the named (new) providers, not all flagged
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}

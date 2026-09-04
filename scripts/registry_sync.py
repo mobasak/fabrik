@@ -19,18 +19,15 @@ import traceback
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+if str(Path(__file__).resolve().parent) not in sys.path:  # once (B67-8, FG1)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gather_envs  # noqa: E402 - the one classifier of secret vs config, shared with the scan
 import registry_db  # noqa: E402
 from credit_fetchers import fetch_balance  # noqa: E402
 
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
-SVC_RE = re.compile(
-    r"#svc name=(?P<name>\S+) category=(?P<category>\S+) cost=(?P<cost>\S+) "
-    r'capability="(?P<capability>[^"]*)" url=(?P<url>\S+) status=(?P<status>\S+)'
-    r"(?: used_by=(?P<used_by>\S*))?"
-)
+SVC_RE = gather_envs.SVC_LINE_RE  # ONE header shape, owned by the generator that writes it: the classifier validates a triage header against it BEFORE the paid dispatch, this reader refuses what it does not match (E67-7, FG1)
 # A key NAME that carries a credential (the value is a secret): the fetcher's input.
 CREDENTIAL_KEY_RE = re.compile(
     r"(API_KEY|APIKEY|API_TOKEN|ACCESS_TOKEN|TOKEN|SECRET|PASSWORD|PASSPHRASE|PASSWD|AUTH_KEY"
@@ -191,7 +188,7 @@ def parse(path: Path) -> list[dict]:
             r"^[\s\ufeff]+|[\s\ufeff]+$", "", line
         )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); EVERY BOM, anywhere in the MARGIN — a mixed `\ufeff \ufeff` survived two strips (FD7/FE5); the margin ONLY: the whole-line replace mutated a value and stored a digest of a secret that does not exist (FF1)
         if re.match(
-            r"#[#\s]*═", s
+            r"#.*═", s
         ):  # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5); `## ═══` commented twice is a header too, like `## #svc` — 315 internal-config names folded under the provider above it otherwise (FF1)
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
@@ -205,6 +202,12 @@ def parse(path: Path) -> list[dict]:
         )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3); trailing whitespace tolerated (EZ4)
         if m:
             name = m.group("name")
+            if name != name.lower() or not re.fullmatch(r"[a-z0-9][a-z0-9_.-]*", name):
+                cur = None
+                bad.append(
+                    f"provider name the catalog cannot hold: {name!r}"
+                )  # the catalog's own key rule (lowercase, one token) — the classifier refuses it BEFORE the spend, this reader refuses it here (F67-11)
+                continue
             if name in seen:
                 # two blocks under one name: the second's keys silently DELETED the first's on
                 # the same sync — refused like any unreadable header (FC3)
@@ -240,11 +243,15 @@ def parse(path: Path) -> list[dict]:
             # "   # " (3-space-hash-SPACE) is gather_envs' exact note delimiter; splitting on it
             # (not "   #") avoids truncating a value that merely contains "   #".
             value = rest.split("   # ", 1)[0]
-            if value.endswith("   #"):
+            if value.endswith("   #") and line.rstrip("\r\n").endswith("   # "):
                 value = value[
                     :-4
-                ]  # an EMPTY note (`   # ` with the space stripped by the margin rule) is no value (FF1)
+                ]  # an EMPTY note (`   # ` with the space stripped by the margin rule) is no value (FF1) — decided on the RAW line's trailing space, so a value that legitimately ends in `   #` keeps it (R67-11)
             value = value.strip()
+            if "multi-line value, newlines escaped" in rest:
+                value = value.replace(
+                    "\\n", "\n"
+                )  # gather escapes a real newline so this reader can read the line at all; the DIGEST and the fetch credential must be the SECRET, not its rendering (E67-2, FG1). Mirror: a secret that literally contains backslash-n collides with one holding a newline — the note is the discriminator, and the generator only writes it for a real newline
             aliases: list[str] = []
             per_key_used: list[str] = []
             if "   # " in rest:
@@ -253,7 +260,15 @@ def parse(path: Path) -> list[dict]:
                     seg = note.split("aliases:", 1)[1].split("·")[0]
                     aliases = [a.strip() for a in seg.split(",") if a.strip()]
                 if "used by:" in note:
-                    seg = note.split("used by:", 1)[1]
+                    seg = note.split(
+                        "used by:", 1
+                    )[
+                        1
+                    ].split(
+                        "·"
+                    )[
+                        0
+                    ]  # up to the separator, like `aliases:` — the FF4 multi-line note landed AFTER `used by:` and two fake projects were written to the DB (E67-1, FG1)
                     per_key_used = [p.strip() for p in seg.split(",") if p.strip()]
             cur["keys"].append((key, value, aliases, per_key_used))
     if bad:
@@ -401,8 +416,8 @@ def sync_registry(
                     )
                     stats["keys_pruned"] += cur.rowcount
                     keys_allowed = max(
-                        5, preexisting_keys // 5, len(provs)
-                    )  # CUMULATIVE over the lap (a systemic parse failure prunes a few keys from EVERY provider — a per-DELETE bound never fires), floored at one rotation per provider: six honest rotations on a 20-key registry were refused as corruption (FF1)
+                        10, preexisting_keys // 5
+                    )  # CUMULATIVE over the lap (a systemic parse failure prunes a few keys from EVERY provider — a per-DELETE bound never fires). The floor is ABSOLUTE: FF1's `len(provs)` term read the denominator from the corrupt INPUT and was 54% of the live key table (456 of 839 deletable in one lap; a regeneration emitting 5 000 providers would allow 5 000) — the inflation GUARD 1 refuses (R67-1, FG1); ten covers six honest rotations on a 20-key registry
                     if stats["keys_pruned"] > keys_allowed and os.getenv(
                         "REGISTRY_PRUNE_FORCE", ""
                     ).strip().lower() not in ("1", "true", "yes"):
@@ -525,14 +540,11 @@ def main() -> int:
         f"(pruned {stats['pruned']} services, {stats['keys_pruned']} stale keys)"
     )
     if stats["provenance_unknown"]:
-        if stats.get("credit_phase_failed"):
-            print(
-                "registry_sync: the credit phase ALSO failed (exit 2 masks 3) — see the credit diagnosis above",
-                file=sys.stderr,
-            )  # exit 2 wins; the operator was never told the credit phase died too (FF1)
+        # under unknown provenance NO key is attributable, nothing is fetched, so the credit phase
+        # cannot fail: the FF1 "exit 2 masks 3" line was unreachable by construction (R67-7, FG1)
         return 2  # a degraded registry must not read LIVE: the chain's _step alerts and skips the dashboard (BM2)
     if stats.get("credit_phase_failed"):
-        return 3  # registry WRITTEN, credit phase failed: a WARNING alone was never alerted — the chain pages on 3 and still renders the dashboard (FD7)
+        return 3  # registry WRITTEN, credit phase failed: a WARNING alone was never alerted — the chain pages on 3 and still runs the dashboard step (FD7; the step runs, whether it renders is its own outcome — F67-10)
     return 0
 
 

@@ -243,7 +243,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Withheld when the log ladder bottomed out at /dev/null: that run produced no
         # reviewable output at all, so stamping it green would hide a blind run behind a
         # healthy freshness check. See daily_refresh.sh for the same guard.
-        [ \"$LOG_FILE\" = /dev/null ] || date -u '+%Y-%m-%dT%H:%M:%S+00:00' > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt 2>/dev/null \
+        [ \"$LOG_FILE\" = /dev/null ] || date -u '+%Y-%m-%dT%H:%M:%S+00:00' 2>/dev/null > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt \
             || { echo '[wsl_startup_hook] heartbeat write FAILED — next boot will alert as stale' >> \"$LOG_FILE\"; env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: heartbeat timestamp write FAILED' 'Could not write scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt at boot; the next freshness check alerts as STALE.' >> \"$LOG_FILE\" 2>&1 || true; }  # daily_refresh alerts this failure; the boot path only logged it (M-C8, FF1)
         echo '=== Pipeline complete — '\$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE  # \$ — expanded by the INNER shell at completion: the outer shell froze both stamps at source time, so every daily log reported a 0-second pipeline (FD6)
     " &

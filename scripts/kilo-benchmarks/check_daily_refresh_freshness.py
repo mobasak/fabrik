@@ -49,15 +49,20 @@ sys.path.insert(
 )  # FIRST, unconditionally: a libs entry already LATER on sys.path left SCRIPT_DIR ahead of it — the resolution order D-112 exists to prevent (FE7); and BEFORE the dotenv import, so the stdlib fallback below resolves (FF1)
 os.environ.setdefault(
     "FABRIK_NO_AUTOLOAD", "1"
-)  # the ONLY .env this checker reads is the hub's (below): the boot hook runs it from /opt/session-recall, where the package's cwd autoload read THAT repo's .env (FE6)
+)  # never the CWD's .env: the boot hook runs it from /opt/session-recall, where the package's cwd autoload read THAT repo's .env (FE6); the hub's .env below, plus the fleet-wide ~/.config/fabrik/subagents.env on the stdlib fallback (curated keys only — M67-C8)
 # load_dotenv before importing alerting so TELEGRAM_BOT_TOKEN is in env.
 try:
     from dotenv import load_dotenv  # type: ignore[import-not-found]
-
-    load_dotenv(SCRIPT_DIR.parents[1] / ".env", override=False)
 except ImportError:
+    load_dotenv = None  # type: ignore[assignment]
+try:
+    if load_dotenv is None:
+        raise ImportError("python-dotenv is not installed in this venv")
+    load_dotenv(SCRIPT_DIR.parents[1] / ".env", override=False)
+except Exception as exc:  # noqa: BLE001 — SAID, never a traceback: an unreadable hub .env (a lost permission bit) killed BOTH legs at import with one traceback in a log nobody tails — the helper and the chain say it and fall through (M67-C1, FG1)
+    print(f"[heartbeat] .env not loaded: {type(exc).__name__}: {exc}", file=sys.stderr)
     from alerting._dotenv import (
-        load_env as _load_env,  # the package's stdlib loader: a venv without python-dotenv loaded nothing here and blamed missing tokens — the helper and the chain fell back since FE6, this file did not (M-C2, FF1)
+        load_env as _load_env,  # the package's stdlib loader: a venv without python-dotenv loaded nothing here and blamed missing tokens (M-C2, FF1)
     )
 
     _load_env(str(SCRIPT_DIR.parents[1]))

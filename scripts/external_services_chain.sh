@@ -94,7 +94,7 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
     echo "[external-services-chain] $label failed (exit=$rc) — non-fatal, alerting"
     local hb="Dashboard not rewritten; liveness DEAD."  # rendered per label: the paid step never ages the heartbeat (G9/DA2)
     [ "$label" = classify_services ] && hb="Dashboard and heartbeat unaffected (paid step)"
-    _alert "external-services chain: step $label FAILED (exit $rc)" "Step $label failed (exit $rc). 124 timeout; 137 SIGKILL; 125-127 wrapper; 3 registry written, credit phase failed (warned; dashboard runs); 2 the sync could not read the catalog (keys stored unattributed); 1 gather: inputs refused or output path unusable; 1 elsewhere: the step's own failure (a prune refusal: the force knob). legend: docs/reference/external-services-registry.md. $hb Log: $LOG_FILE" warning
+    _alert "external-services chain: step $label FAILED (exit $rc)" "Step $label failed (exit $rc). 124 timeout; 137 SIGKILL; 125-127 wrapper; 2 the sync could not read the catalog (keys stored unattributed); 1 gather: inputs refused or output path unusable; 1 elsewhere: the step's own failure (a prune refusal: the force knob). legend: docs/reference/external-services-registry.md. $hb Log: $LOG_FILE" warning
   fi
   return $rc
 }

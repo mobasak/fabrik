@@ -443,7 +443,9 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     assert body, "the step-failure alert not found"
     body = body.group(1)
     assert "1 gather: inputs refused" in body and "1 elsewhere" in body, body
-    assert "3 registry written, credit phase failed" in body, body  # the legend decodes exit 3 (R66-C15, FF4)
+    assert "3 registry" not in body, (
+        body
+    )  # exit 3 never reaches this alert (the dedicated exit-3 alert carries its own body): a legend clause about a state the message cannot describe was dead text (F67-12)
     assert "output path unusable" in body, body  # exit 1 is complete for the scan (CC5/CJ4)
     # Telegram's legacy Markdown fallback rejects an unbalanced `*`/`_`: the body's own text carries
     # none (the label and the log path are the only variables), and it stays within the alerting
@@ -1356,6 +1358,9 @@ def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
     (D-112); the resolution is asserted OUT of process, from the callers' own cwd and path."""
     assert not (REPO / "scripts" / "kilo-benchmarks" / "alerting").exists()
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG") if k in os.environ}
+    env.update(
+        {"ALERT_ENABLED": "0", "FABRIK_NO_AUTOLOAD": "1"}
+    )  # an explicit env cannot inherit the conftest mute (B67-9)
     env["FABRIK_NO_AUTOLOAD"] = "1"
     kb = REPO / "scripts" / "kilo-benchmarks"
     for cwd, code in (
@@ -1804,6 +1809,9 @@ def test_the_chains_cd_failure_is_a_did_not_start_and_a_keyless_env_is_said(tmp_
         encoding="utf-8",
     )
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG") if k in os.environ}
+    env.update(
+        {"ALERT_ENABLED": "0", "FABRIK_NO_AUTOLOAD": "1"}
+    )  # an explicit env cannot inherit the conftest mute (B67-9)
     env["FABRIK_NO_AUTOLOAD"] = "1"
     proc = subprocess.run(
         ["bash", str(harness)], env=env, capture_output=True, text=True, timeout=60, cwd=root
@@ -2023,6 +2031,20 @@ def test_the_root_conftest_mutes_alerting_for_every_child(monkeypatch):
         timeout=30,
     )
     assert proc.stdout.strip() == "0"
+    proc = subprocess.run(  # an EXPLICIT env cannot inherit it: 16 of 631 spawns carried no mute (B67-9) — every hand-built env MUST carry the two keys itself
+        [sys.executable, "-c", "import os; print(os.environ.get('ALERT_ENABLED'))"],
+        env={"PATH": os.environ["PATH"]},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.stdout.strip() == "None", "documented: the conftest reaches env=None children only"
+    src = Path(__file__).read_text(encoding="utf-8")
+    hand_built = [
+        m.start() for m in re.finditer(r"\n    env = \{k: os\.environ\[k\] for k in", src)
+    ]
+    for pos in hand_built:
+        assert '"ALERT_ENABLED": "0"' in src[pos : pos + 400], src[pos : pos + 200]
 
 
 def test_the_dashboard_modules_insert_their_directory_once():
@@ -2040,10 +2062,20 @@ def test_the_dashboard_modules_insert_their_directory_once():
             )
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
+        for name in (
+            "classify_services",
+            "registry_sync",
+        ):  # the other two round-66 modules: unguarded at 2 of 4 sites (B67-8)
+            for _ in range(2):
+                spec = importlib.util.spec_from_file_location(name, REPO / "scripts" / f"{name}.py")
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
         assert sys.path.count(scripts) == max(1, before.count(scripts)), sys.path[:6]
+        assert sys.path.count(str(REPO)) == max(1, before.count(str(REPO))), sys.path[:6]
     finally:
         sys.path[:] = before
-        sys.modules.pop("dashboard_server", None)
+        for name in ("dashboard_server", "classify_services", "registry_sync"):
+            sys.modules.pop(name, None)
 
 
 def test_a_venv_without_python_dotenv_reads_the_env_file_through_the_stdlib_loader(tmp_path):
@@ -2168,6 +2200,18 @@ def test_an_unreadable_parent_directory_is_a_typed_status_on_both_checker_legs(t
         assert "FIRST RUN" not in proc.stdout  # an unreadable stamp is never a quiet first run
     finally:
         stamp_dir.chmod(0o755)
+    (stamp_dir / "stamp.txt").chmod(
+        0
+    )  # the FILE itself (parent readable): `read_text` raised and read as first_run before FF3 — this leg was ungraded (M67-C4)
+    try:
+        proc = subprocess.run(args, cwd=root, env=env, capture_output=True, text=True, timeout=120)
+        assert "[heartbeat] UNREADABLE (PermissionError" in proc.stdout, proc.stdout
+        assert "heartbeat is unreadable" in proc.stderr and "FIRST RUN" not in proc.stdout, (
+            proc.stdout,
+            proc.stderr,
+        )
+    finally:
+        (stamp_dir / "stamp.txt").chmod(0o644)
 
 
 def test_the_hook_finishes_a_stranded_rotation_before_it_starts_the_next(tmp_path):
@@ -2234,20 +2278,35 @@ def test_the_hooks_heartbeat_write_failure_alerts_like_daily_refreshs(tmp_path):
         log.read_text(encoding="utf-8"),
     )
     assert "heartbeat write FAILED" in log.read_text(encoding="utf-8")
+    assert proc.stderr == "", (
+        proc.stderr
+    )  # `> file 2>/dev/null` failed BEFORE fd 2 moved: `Permission denied` went to the login shell's nohup.out (M67-C2, FG1)
 
 
 def test_the_curated_env_loader_carries_every_key_the_alerting_package_reads():
     """`ALERT_APPRISE_CONTAINER` is read by apprise.py and was not in the stdlib loader's curated
     list — under the fallback a non-default container name was dropped (M-C9, FF1)."""
     sys.path.insert(0, str(REPO / "libs"))
+    before_mods = set(sys.modules)
     try:
         from alerting._dotenv import DOTENV_KEYS
     finally:
         sys.path.remove(str(REPO / "libs"))
+        for k in [
+            k
+            for k in sys.modules
+            if (k == "alerting" or k.startswith("alerting.")) and k not in before_mods
+        ]:
+            del sys.modules[
+                k
+            ]  # the B65-8 leak class, reintroduced by this round-66 grader (B67-10)
     read = set()
     for py in (REPO / "libs" / "alerting").glob("*.py"):
         read.update(
-            re.findall(r'getenv\("((?:ALERT|TELEGRAM)_[A-Z_]+)"', py.read_text(encoding="utf-8"))
+            re.findall(
+                r"""(?:getenv|environ\.get|environ)\(?\[?['"]((?:ALERT|TELEGRAM)_[A-Z0-9_]+)['"]""",  # every read shape and a digit in a key name (B67-6)
+                py.read_text(encoding="utf-8"),
+            )  # every read shape, not only double-quoted getenv (M67-C9)
         )
     assert read and read <= set(DOTENV_KEYS), sorted(read - set(DOTENV_KEYS))
 
@@ -2314,7 +2373,6 @@ def test_a_departing_client_before_the_500_and_a_broken_pipe_leave_no_traceback(
 def test_the_twin_rebinds_its_port_right_after_a_served_request(monkeypatch):
     """`allow_reuse_address` was ungraded: without it a Ctrl-C then an immediate restart printed the
     FE1 `cannot bind` line for a port nobody holds (the server's own TIME_WAIT) (K66-4, FF1)."""
-    import http.client
     import importlib.util
     import threading
 
@@ -2329,11 +2387,18 @@ def test_the_twin_rebinds_its_port_right_after_a_served_request(monkeypatch):
     port = srv.server_address[1]
     t = threading.Thread(target=srv.handle_request, daemon=True)
     t.start()
-    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-    conn.request("GET", "/api/services")
-    assert conn.getresponse().status == 200
-    conn.close()
+    import socket
+
+    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    s.sendall(b"GET /api/services HTTP/1.0\r\n\r\n")
+    data = b""
+    while (
+        chunk := s.recv(65536)
+    ):  # to EOF: the server's FIN arrives first, so ITS side sits in TIME_WAIT — with the client closing first the rebind succeeded with or without SO_REUSEADDR and the grader proved a proxy (K67-2, FG1)
+        data += chunk
+    assert data.startswith(b"HTTP/1.0 200"), data[:80]
     t.join(10)
+    s.close()
     srv.server_close()
     again = ds.Server(("127.0.0.1", port), ds.Handler)  # the same port, immediately
     again.server_close()
@@ -2344,6 +2409,9 @@ def test_a_negative_backfilled_balance_and_an_infinite_price_render_empty(monkey
     ±Infinity guard had no grader (G66-C13, K66-2, FF1)."""
     gd = _load_gen_dashboard()
     assert gd.credit_cell(-5.0, "usd", None) == "" and gd.credit_cell(5.0, "usd", None) == "5 usd"
+    assert gd.credit_cell(0.0, "usd", None) == "0 usd", (
+        "an exhausted credit is a balance, not a NULL — `bal <= 0` survived every grader (K67-3)"
+    )
     from decimal import Decimal
 
     answers = {
@@ -2385,6 +2453,15 @@ def test_a_negative_backfilled_balance_and_an_infinite_price_render_empty(monkey
     assert rows[0]["price"] == "", rows[0]
     answers["FROM subscriptions"] = [("apify", Decimal("12.50"), "usd", None)]
     assert "12.5" in gd.load()[0]["price"]
+    from datetime import date
+
+    answers["FROM subscriptions"] = [
+        ("apify", None, None, date(2026, 1, 1))
+    ]  # a renewal declared without a price (`--price` omitted; the upsert COALESCEs) — `math.isfinite(None)` would 500 every page (K67-4)
+    row = gd.load()[0]
+    assert row["price"] == "" and row["renews"] == "2026-01-01", row
+    answers["FROM subscriptions"] = [("apify", Decimal("-5"), "usd", None)]
+    assert gd.load()[0]["price"] == "", gd.load()[0]  # a negative price is no price (K67-6)
 
 
 def test_the_log_cap_never_enters_a_squatter_directory_and_ages_it_out(tmp_path):
@@ -2393,10 +2470,15 @@ def test_the_log_cap_never_enters_a_squatter_directory_and_ages_it_out(tmp_path)
     import time
 
     daily = (REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh").read_text(encoding="utf-8")
-    lines = [
-        ln for ln in daily.splitlines() if "update.log" in ln and ln.lstrip().startswith("find ")
+    start = daily.index("    # FILES only, never a `*.notalog.*` directory")
+    block = daily[
+        start : daily.index("    done\n", daily.index("env_watcher.log.*.notalog.*", start)) + 9
     ]
-    assert len(lines) == 2, lines
+    executable = [ln for ln in block.splitlines() if not ln.lstrip().startswith("#")]
+    assert block.count("find ") == 2 and not any("-mtime" in ln for ln in executable), (
+        block
+    )  # the squatter's age comes from the stamp in its NAME: `mv -T` keeps the renamed directory's own mtime (G67-2)
+    lines = [block]
     assert not any(
         ln.lstrip().startswith("ls -1t") and "update.log" in ln for ln in daily.splitlines()
     )
@@ -2407,14 +2489,23 @@ def test_the_log_cap_never_enters_a_squatter_directory_and_ages_it_out(tmp_path)
         p = cache / f"update.log.{i}"
         p.write_text(f"gen{i}\n")
         os.utime(p, (now - i * 100, now - i * 100))
-    fresh = cache / "update.log.1.notalog.111"
+    fresh = (
+        cache / f"update.log.1.notalog.{int(now) * 1_000_000_000}"
+    )  # a squatter set aside TODAY — its own mtime is 30 days old (an old operator directory)
     fresh.mkdir()
     (fresh / "inner.txt").write_text("keep\n")
-    old = cache / "update.log.2.notalog.222"
+    os.utime(fresh, (now - 30 * 86400, now - 30 * 86400))
+    old = (
+        cache / f"update.log.2.notalog.{int(now - 9 * 86400) * 1_000_000_000}"
+    )  # set aside nine days ago, touched today
     old.mkdir()
-    os.utime(old, (now - 9 * 86400, now - 9 * 86400))
     proc = subprocess.run(
-        ["bash", "-c", f'KB="{tmp_path}"\n' + "\n".join(lines)],
+        [
+            "bash",
+            "-c",
+            f'KB="{tmp_path}"\nFABRIK_ROOT="{tmp_path}"\nmkdir -p "{tmp_path}/.tmp"\n'
+            + "\n".join(lines),
+        ],
         capture_output=True,
         text=True,
         timeout=30,
@@ -2423,7 +2514,177 @@ def test_the_log_cap_never_enters_a_squatter_directory_and_ages_it_out(tmp_path)
     assert sorted(p.name for p in cache.iterdir()) == [
         "update.log.0",
         "update.log.1",
-        "update.log.1.notalog.111",
+        fresh.name,
         "update.log.2",
     ], sorted(p.name for p in cache.iterdir())
     assert (fresh / "inner.txt").exists()
+
+
+def test_an_unreadable_hub_env_file_is_said_by_the_checker_and_both_legs_still_run(tmp_path):
+    """With python-dotenv PRESENT, an unreadable hub `.env` (a lost permission bit) raised out of
+    `load_dotenv` at import: one traceback in a log nobody tails, both legs silent — the helper
+    and the chain say it and fall through to the stdlib loader; the checker's `.env` leg was
+    never swept (M67-C1, FG1)."""
+    root = tmp_path / "root"
+    kb = root / "scripts" / "kilo-benchmarks"
+    kb.mkdir(parents=True)
+    shutil.copy(REPO / "scripts" / "kilo-benchmarks" / "check_daily_refresh_freshness.py", kb)
+    shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
+    (root / ".env").write_text("ALERT_ENABLED=0\n", encoding="utf-8")
+    (root / ".env").chmod(0)
+    if os.access(root / ".env", os.R_OK):
+        pytest.skip("running as root — permissions are not enforced")
+    stamp = tmp_path / "stamp.txt"
+    stamp.write_text("2020-01-01T00:00:00+00:00\n", encoding="utf-8")
+    doc = tmp_path / "SELECTION.md"
+    doc.write_text("Last refresh: 2020-01-01\n", encoding="utf-8")
+    env = {
+        k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
+    }
+    env.update({"ALERT_ENABLED": "0", "FABRIK_NO_AUTOLOAD": "1"})
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(kb / "check_daily_refresh_freshness.py"),
+                "--timestamp-file",
+                str(stamp),
+                "--selection-doc",
+                str(doc),
+            ],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    finally:
+        (root / ".env").chmod(0o644)
+    assert proc.returncode == 0 and "Traceback" not in proc.stderr, (proc.stdout, proc.stderr)
+    assert "[heartbeat] .env not loaded: PermissionError" in proc.stderr, proc.stderr
+    assert proc.stderr.count("alert NOT delivered (ALERT_ENABLED=0 is set)") == 2, proc.stderr
+
+
+def test_the_killed_class_boundaries_are_executed_in_both_callers(tmp_path):
+    """The 129–192 class was graded by a substring pin only: `128|129|…` survives the pin. Both
+    callers' `case` blocks are EXECUTED at 124/125/128/193/255 (the generic line, no alert) and
+    at 129/192 (KILLED, the signal named) (M67-C5, FG1)."""
+    root = tmp_path / "root"
+    (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
+    stub = root / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
+    stub.write_text(
+        '#!/usr/bin/env bash\nprintf \'%s|%s\\n\' "$1" "$2" >> "$ALERTS"\n', encoding="utf-8"
+    )
+    chain = root / "scripts" / "external_services_chain.sh"
+    alerts, log = tmp_path / "alerts.txt", tmp_path / "log.txt"
+    daily_block = _caller_block(
+        DAILY.read_text(encoding="utf-8"), '  _rc=0\n  _step "external_services_chain"', "\n\n"
+    )
+    hook_block = (
+        _caller_block(
+            HOOK.read_text(encoding="utf-8"),
+            '        _rc=0; env LOG_FILE=\\"$LOG_FILE\\"',
+            "        # Auto-commit",
+        )
+        .replace("\\$", "$")
+        .replace('\\"', '"')
+    )
+    for code, killed, signal in (
+        (124, False, None),
+        (125, False, None),
+        (128, False, None),
+        (129, True, 1),
+        (192, True, 64),
+        (193, False, None),
+        (255, False, None),
+    ):
+        chain.write_text(f"#!/usr/bin/env bash\nexit {code}\n", encoding="utf-8")
+        for name, block in (("daily_refresh", daily_block), ("wsl_startup_hook", hook_block)):
+            alerts.write_text("", encoding="utf-8")
+            log.write_text("", encoding="utf-8")
+            harness = tmp_path / f"{name}.sh"
+            harness.write_text(
+                'set -u\n_step() { local label="$1"; shift; "$@"; }\n'
+                f'FABRIK_ROOT="{root}"\nKB="{root}/scripts/kilo-benchmarks"\nLOG_FILE="{log}"\nexport ALERTS="{alerts}"\n'
+                + block
+                + "\n",
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                ["bash", str(harness)], capture_output=True, text=True, timeout=60
+            )
+            body = alerts.read_text(encoding="utf-8")
+            out = proc.stdout + proc.stderr + log.read_text(encoding="utf-8")
+            if killed:
+                assert "was KILLED" in body and f"signal {signal}" in body, (code, name, body)
+            else:
+                assert body == "" and f"exit {code}" in out, (code, name, body, out)
+
+
+def test_two_squatters_of_one_generation_inside_a_second_get_distinct_names(tmp_path):
+    """`notalog.$(date +%s)` collided inside one second: the second `mv -T` onto an existing
+    directory failed silently and the rotation was skipped that lap; the nanosecond suffix (FF9)
+    was ungraded (M67-C6, FG1)."""
+    hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
+    start = hook.index("        # promote .1")
+    snippet = hook[start : hook.index("        fi\n", start) + 11]
+    log = tmp_path / "update.log"
+    for i in range(3):
+        log.write_text(f"LIVE{i}\n")
+        if (tmp_path / "update.log.1").is_file():
+            (
+                tmp_path / "update.log.1"
+            ).unlink()  # the previous lap promoted the live log there; a fresh squatter takes its place
+        (tmp_path / "update.log.1").mkdir()
+        proc = subprocess.run(
+            ["bash", "-c", f'logfile="{log}"\n{snippet}'],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert proc.returncode == 0 and proc.stderr == "", (proc.stdout, proc.stderr)
+        assert (tmp_path / "update.log.1").read_text() == f"LIVE{i}\n"
+    squatters = [p.name for p in tmp_path.iterdir() if ".notalog." in p.name]
+    assert len(squatters) == 3 and len(set(squatters)) == 3, squatters
+
+
+def test_a_client_that_resets_before_its_request_is_read_leaves_no_traceback(monkeypatch, capfd):
+    """`handle_one_request` catches `TimeoutError` only: a client that RESETS with no bytes, mid
+    request line or mid-headers (a port scan, a NAT'd browser abort) printed a 12-frame stdlib
+    traceback per reset on the default 0.0.0.0 bind — FE1/FF6 guarded the WRITE side only (K67-1,
+    FG1)."""
+    import http.client
+    import importlib.util
+    import socket
+    import struct
+    import threading
+
+    spec = importlib.util.spec_from_file_location(
+        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
+    )
+    ds = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ds)
+    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
+    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    t.start()
+    try:
+        for payload in (b"", b"GET /api", b"GET / HTTP/1.0\r\nX: y"):
+            s = socket.create_connection(("127.0.0.1", port), timeout=5)
+            s.setsockopt(
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+            )  # RST, not FIN
+            if payload:
+                s.sendall(payload)
+            s.close()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("GET", "/api/services")
+        assert conn.getresponse().status == 200  # the server is still serving after the resets
+        conn.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        t.join(5)
+    err = capfd.readouterr().err
+    assert "Traceback" not in err and "Exception occurred" not in err, err

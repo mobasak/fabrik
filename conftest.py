@@ -1,6 +1,6 @@
 """Root pytest configuration: a test process NEVER carries live alerting into a child.
 
-504 of the 526 subprocess spawns across the nine suites inherit the parent environment (env=None),
+504 of the 526 subprocess spawns across the nine suites measured in round 66 (the mute reaches every suite in the tree, eleven at last count) inherit the parent environment (env=None),
 and the hub's own `.env` arms Telegram delivery for every script that autoloads it — two graders
 DELIVERED real alerts before their throwaway-root forms landed (the FC6 and FE6 disclosures). Muting
 the parent once closes the class for every spawn; a test that needs alerting ARMED un-mutes itself

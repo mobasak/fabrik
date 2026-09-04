@@ -171,7 +171,7 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     ``libs.subagents`` package import is cached in ``sys.modules``, so a second repo in the
     same process reuses the first's names — one repo per process (0 of 48 callers; DU4). Known: a
     THREAD the import spawns writes after the fds are restored — outside the probe's window, so it
-    can lead the verdict; no lean fix at the probe (FF1, measured 0 of 33 sources spawn one).
+    can lead the verdict; no lean fix at the probe (FF1; measured: 0 of the 21 live closure modules under `libs/subagents/` spawn one — the earlier `0 of 33 sources` named the markdown sources, which spawn nothing, F67-7).
     """
     target = repo / "libs" / "subagents" / "web_tools.py"
     try:
@@ -289,6 +289,22 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
                 os.dup2(orig, fd)
             with contextlib.suppress(OSError):
                 os.close(orig)
+        for idx, fd in enumerate((1, 2)):
+            stream = restored[idx]
+            try:
+                if stream is None or stream.closed:
+                    raise ValueError("no live stream")
+                stream.flush()
+            except Exception:  # noqa: BLE001 - detached with NOTHING rebound (`sys.stdout.detach()` alone, a dunder-only rebind), closed, or a raw stream torn under it: FF1 assumed the module left a LIVE wrapper — the dead original went back as the binding and the verdict raised, exit 120 (A67-1, FG1)
+                restored[idx] = io.TextIOWrapper(
+                    io.FileIO(fd, "w", closefd=False),
+                    encoding="utf-8",
+                    errors="backslashreplace",
+                    line_buffering=True,
+                )
+                ADVISORIES.append(
+                    f"web-tool names: a module left the process's {'stdout' if fd == 1 else 'stderr'} unusable at import — the verdict prints through a fresh wrapper over the restored fd (FG1)"
+                )
         sys.stdout, sys.stderr = (
             restored  # the bindings, not a wrapper: the module's stream-API use during the import stays untouched (FD3)
         )
@@ -852,7 +868,9 @@ def _cut_shell_comment(seg: str, quote: str = "") -> tuple[str, str]:
                 quote = ""
         elif ch in "\"'":
             quote = ch
-        elif ch == "#" and (i == 0 or seg[i - 1] in " \t"):
+        elif (
+            ch == "#" and (i == 0 or seg[i - 1] in " \t;|&(")
+        ):  # `;#`, `|#`, `&#`, `(#` start a comment too — the whitespace-only rule kept `--evidence e;# --feedback f` whole (G67-6, FG1)
             return seg[:i], quote
         i += 1
     return seg, quote
@@ -1013,7 +1031,9 @@ def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[Pat
             )
             continue
         docs.append(doc)
-        if not _RUN_START_RE.search(re.sub(r"<!--.*?-->", "", body, flags=re.S)):
+        if not _RUN_START_RE.search(
+            _blank_html_comments(body)
+        ):  # fence-aware, like predicate 8: a `<!--` inside a fence paired with a later `-->` and blanked the real start (A67-2, FG1)
             problems.append(
                 f"docs/orchestrator/_traycer-skills/{name}: wrapper declares no run record — "
                 "every orchestrator command must; add it to assemble_commands.py's ORCH_SOURCES "
@@ -1150,7 +1170,7 @@ def audit(
             continue
         if (
             "{{include:run-record}}" not in body
-            and not _RUN_START_RE.search(re.sub(r"<!--.*?-->", "", body, flags=re.S))
+            and not _RUN_START_RE.search(_blank_html_comments(body))  # fence-aware (A67-2, FG1)
         ):  # an HTML-commented `start` is illustration, never a run record; a FENCED one is how a bespoke start block is written — 3 of 33 live sources (FD4, measured)
             problems.append(
                 f"{path.relative_to(repo) if path.is_relative_to(repo) else path}: opens no run "
@@ -1262,7 +1282,9 @@ def audit(
                     )  # a trailing shell COMMENT is not the command (FD4); the quote state carries into the continuation (FF1)
                 in_span = open_before and "`" not in line[m7.start() : stop]
                 window = [seg]
-                cont = seg.rstrip().endswith("\\")
+                cont = (
+                    seg.endswith("\\") or bool(q7)
+                )  # no rstrip: `\ ` is an escaped SPACE and ends the command (A67-3); an open quote spans lines without a `\` (A67-6, FG1)
                 if k + 1 < len(closes):
                     cont = in_span = False  # a later close on the same line ends this one's window
                 closed = not in_span
@@ -1280,7 +1302,7 @@ def audit(
                     if fenced:
                         nxt, q7 = _cut_shell_comment(nxt, q7)
                     window.append(nxt)
-                    cont = nxt.rstrip().endswith("\\")
+                    cont = nxt.endswith("\\") or bool(q7)
                 if not closed:
                     window = [
                         seg

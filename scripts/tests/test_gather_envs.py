@@ -3813,15 +3813,6 @@ def test_the_triage_reader_and_the_header_count_read_stripped_lines(tmp_path, mo
         flagged
     )  # the raw-line reader appended BETA_API_KEY to alpha
     monkeypatch.setattr(ge, "OUTPUT", envs)
-    known = sum(
-        1
-        for ln in (
-            raw.replace("\ufeff", "").strip() for raw in ge.read_existing_body(envs).splitlines()
-        )
-        if ln.lower().startswith("#svc ")
-        and not re.match(r"#svc name=\S+ category=\?(?: |$)", ln, re.I)
-    )
-    assert known == 1  # the indented, categorised beta counts; the `?` alpha does not
     # the REAL guard, executed — the first grader re-implemented the expression and pinned a source
     # substring: green on the regression, red on a reformat (E66-C7, FF1)
     cat = tmp_path / "catalog.json"
@@ -4169,3 +4160,174 @@ def test_parse_env_keeps_a_margin_bom_key_and_says_an_unusable_key_name(tmp_path
     assert got == {"FOO_API_KEY": "one", "KEEP": "in\ufeffside"}, got
     assert "'A-B_API_KEY' is not a usable KEY name — line skipped" in err, err
     assert "'1FOO_API_KEY' is not a usable KEY name — line skipped" in err, err
+
+
+def _hand_edit_fanout(cat, res):
+    def f(*a, **k):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        data["Bad Key"] = {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://o.example",
+        }
+        cat.write_text(json.dumps(data), encoding="utf-8")
+        return list(res), ""
+
+    return f
+
+
+def test_the_curated_elsewhere_and_tombstone_tie_lines_are_spoken_once(
+    tmp_path, monkeypatch, capsys
+):
+    """Two of the five buffered in-loop sites had no double-speak grader (E67-5, FG1)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "vendor",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://v.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "vendor": {"category": "ai-llm", "match": ["VENDOR"]},
+                "other": {"category": "search", "match": ["WIDGET"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cs, "fanout", _hand_edit_fanout(cat, res))
+    assert cs.main() == 0
+    out = capsys.readouterr().out
+    assert out.count("is curated elsewhere") == 1, out
+    res = [_Res(json.dumps({"name": "?", "category": "?"}))]
+    cat, _state = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res
+    )
+    cat.write_text(
+        json.dumps({"other": {"category": "search", "match": ["WIDGET"]}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(cs, "fanout", _hand_edit_fanout(cat, res))
+    assert cs.main() == 0
+    out = capsys.readouterr().out
+    assert out.count("routed by another entry already") == 1, out
+
+
+def test_a_code_only_merge_with_no_usable_url_mints_no_hosts_key(tmp_path, monkeypatch):
+    """`setdefault` wrote `hosts: []` onto the target on every code-only merge with no usable url —
+    the FF5 fix was ungraded: a revert shipped green across 242 tests (E67-4/G67-4, FG1)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=codehost category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "CODE_HOST_URL=notaurl\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "vendor",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://v.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps({"vendor": {"category": "ai-llm", "match": ["VENDOR"]}}), encoding="utf-8"
+    )
+    assert cs.main() == 0
+    out = json.loads(cat.read_text(encoding="utf-8"))
+    assert "hosts" not in out["vendor"], out["vendor"]
+
+
+def test_a_header_the_sync_would_refuse_is_never_dispatched(tmp_path, monkeypatch, capsys):
+    """A truncated `#svc name=zeta category=?` header was dispatched to the paid pool and then
+    refused by `registry_sync.parse` on the same line — the paid batch lost between two steps of one
+    lap (E67-7, FG1). The generator's own shape is the contract for both readers."""
+    text = "# ═ NEEDS-TRIAGE ═\n#svc name=zeta category=?\nZETA_API_KEY=x\n"
+    _cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+    calls = []
+    monkeypatch.setattr(cs, "fanout", lambda *a, _c=calls, **k: _c.append(a) or ([], ""))
+    assert cs.main() == 1
+    err = capsys.readouterr().err
+    assert "a #svc header the sync would refuse" in err and "nothing dispatched" in err, err
+    assert calls == [] and not (state / "c.json").exists()
+
+
+def test_a_bom_on_a_continuation_line_inside_a_value_survives_and_the_key_warning_names_its_line(
+    tmp_path, capsys
+):
+    """The FF1 margin strip ran per PHYSICAL line: a BOM at the start of a continuation line inside a
+    quoted multi-line value was eaten — a PEM is exactly such a value (E67-3); the unusable-key
+    warning named the file but not the line (E67-10, FG1)."""
+    f = tmp_path / ".env"
+    f.write_text('FOO="a\n\ufeffb"\n  \ufeffBAR_API_KEY=one\n\nA-B=two\n', encoding="utf-8")
+    got = dict(ge.parse_env(f))
+    err = capsys.readouterr().err
+    assert got == {"FOO": "a\n\ufeffb", "BAR_API_KEY": "one"}, got
+    assert f"WARNING: {f}:5: 'A-B' is not a usable KEY name — line skipped" in err, err
+
+
+def test_the_generator_and_both_readers_share_one_header_shape():
+    """`SVC_LINE_RE` is owned by the generator; `registry_sync.SVC_RE` IS it (F67-11/E67-7)."""
+    sys.path.insert(0, str(Path(cs.REPO) / "scripts"))
+    try:
+        import registry_sync as rs
+    finally:
+        sys.path.pop(0)
+    assert rs.SVC_RE is ge.SVC_LINE_RE
+    line = ge.svc_line(
+        "acme",
+        {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://a.example",
+            "status": "active",
+        },
+        {"web"},
+    )
+    assert ge.SVC_LINE_RE.fullmatch(line.strip()), line
+
+
+def test_an_internal_config_value_with_a_newline_renders_one_line():
+    """The escape was applied to the provider emitter only; the internal-config loop wrote a
+    multi-line value raw and the file stopped being line-structured (R67-14, FG1)."""
+    assert ge._escape_newlines("a\nb") == "a\\nb"
+    src = Path(ge.__file__).read_text(encoding="utf-8")
+    assert src.count("_escape_newlines(value)") >= 2, "both emitters escape"
+
+
+def test_the_triage_reader_agrees_with_the_sync_on_case_and_a_tab(tmp_path):
+    """`#SVC NAME=upperco` parses in both readers now; `#svc<TAB>name=` is a header in both — the
+    classifier ended the block and dropped the provider silently (F67-11, G67-7, FG1)."""
+    body = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#SVC NAME=upperco category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "UPPERCO_API_KEY=x\n"
+        '#svc\tname=tabbed category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "TABBED_API_KEY=y\n"
+    )
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(body, encoding="utf-8")
+    flagged = cs.flagged_providers(envs)
+    assert list(flagged) == ["upperco", "tabbed"], flagged
+    assert flagged["tabbed"]["names"] == ["TABBED_API_KEY"]

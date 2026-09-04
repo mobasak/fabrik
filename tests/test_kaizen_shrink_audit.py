@@ -983,3 +983,23 @@ def test_a_blank_needle_never_kills_the_surface_census(tmp_path: Path):
         encoding="utf-8",
     )
     assert _registry_surface_map(tmp_path) == {"hook.sh": ["null-then-hook"], "good.py": ["good"]}
+
+
+def test_a_malformed_registry_container_never_kills_the_census(tmp_path: Path):
+    """The needle guard left the CONTAINER unguarded: a list top level, a string element, a dict
+    `surfaces` raised AttributeError out of audit() (R67-5, FG1)."""
+    reg = tmp_path / ".fabrik" / "liveness-registry.json"
+    reg.parent.mkdir()
+    for shape in (
+        '["not", "a", "mapping"]',
+        '"text"',
+        '{"surfaces": "text"}',
+        '{"surfaces": {"a": 1}}',
+    ):
+        reg.write_text(shape, encoding="utf-8")
+        assert _registry_surface_map(tmp_path) == {}, shape
+    reg.write_text(
+        json.dumps({"surfaces": ["str", None, {"id": "ok", "cron_match": "x.sh"}]}),
+        encoding="utf-8",
+    )
+    assert _registry_surface_map(tmp_path) == {"x.sh": ["ok"]}

@@ -769,6 +769,12 @@ def _heartbeat_one(
                 Verdict.UNKNOWN,
                 "the registry row could not be probed",
             )  # `" "`/`null` read as a DEAD "  is not-found" — the needle rule stopped at cron/hook/marker/path (FF1)
+        if evidence.get("expect") is not None and _needle(evidence.get("expect")) is None:  # a JSON `null` is "not declared" (the default applies); a declared non-string is the fault
+            return make(
+                Instrument.broken(f"{sid}:registry", "expect is empty or not a string"),
+                Verdict.UNKNOWN,
+                "the registry row could not be probed",
+            )  # a declared `expect: 42` / `" "` was silently read as `enabled` — the operator's declaration discarded (R67-10, FG1)
         expect = _needle(evidence.get("expect")) or "enabled"
         inst, state = box.unit_state(unit)
         if not inst.ok or state is None:
@@ -924,6 +930,7 @@ def _unregistered(
             "owned": [],
             "foreign_count": None,
             "total": 0,
+            "sweep_raised": False,
         }  # the same shape on every producer — FE3 gave `total` to the rare guarded fallback only (FF1)
     else:
         owned, foreign = [], 0
@@ -938,11 +945,17 @@ def _unregistered(
             "owned": sorted(set(owned)),
             "foreign_count": foreign,
             "total": len(cron_lines),
+            "sweep_raised": False,  # the same shape on every producer — a key present only under fault is a schema change under fault (R67-16, FG1)
         }
 
     hook_inst, commands = box.hooks()
     if not hook_inst.ok:
-        out["hooks"] = {"instrument_fault": hook_inst.fault, "unregistered": [], "total": 0}
+        out["hooks"] = {
+            "instrument_fault": hook_inst.fault,
+            "unregistered": [],
+            "total": 0,
+            "sweep_raised": False,
+        }
     else:
         needles = [
             m
@@ -953,7 +966,12 @@ def _unregistered(
             and (m := _needle((s.get("evidence") or {}).get("command_contains")))
         ]  # a blank `command_contains` made every hook look registered (FE3)
         unreg = sorted({c[:160] for c in commands if not any(n and n in c for n in needles)})
-        out["hooks"] = {"instrument_fault": "", "unregistered": unreg, "total": len(commands)}
+        out["hooks"] = {
+            "instrument_fault": "",
+            "unregistered": unreg,
+            "total": len(commands),
+            "sweep_raised": False,
+        }
 
     return out
 
@@ -1944,6 +1962,9 @@ def _find_script(box: Box, basename: str) -> str:
         REPO_ROOT / "scripts",
         REPO_ROOT / "scripts" / "sysadmin",
         REPO_ROOT / "scripts" / "enforcement",
+        REPO_ROOT
+        / "scripts"
+        / "kilo-benchmarks",  # two FALSE `DEAD/stale-doc` findings on the live box: the daily pipeline's scripts live here and no root named it — a NEGATIVE asserted from a bounded search that never said its bound (R67-4, FG1)
         REPO_ROOT,
     ]
     for root in roots:
@@ -2233,7 +2254,7 @@ _ICON = {"LIVE": "LIVE   ", "DEAD": "DEAD   ", "UNKNOWN": "UNKNOWN"}
 
 def render(report: Report) -> str:
     out: list[str] = [
-        f"LIVENESS AUDIT — {report.generated}   registry: {report.registry}",
+        f"LIVENESS AUDIT — {report.generated}   registry: {str(report.registry)[:200]}",  # the one unbounded interpolation left: a 5 000-char registry path printed a 5 068-char line — FD5's exact symptom (R67-6, FG1)
         "Three states. UNKNOWN means the INSTRUMENT could not be proven — never read it as DEAD.",
         "",
     ]
@@ -2329,6 +2350,13 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     registry = args.registry or (repo_root / DEFAULT_REGISTRY)
     proofs = {p.strip() for p in str(args.proof).split(",") if p.strip()}
+    known_proofs = {"heartbeat", "vacuity", "doc_claim"}
+    if not proofs or proofs - known_proofs:
+        print(
+            f"liveness-audit: unknown --proof name(s) {sorted(proofs - known_proofs) or ['(none)']} — known: {sorted(known_proofs)}; the flag is ONE comma-separated list, not repeatable",
+            file=sys.stderr,
+        )  # a typo (or the repeated form the usage block modelled) ran ZERO proofs, printed an empty report and `--strict` exited 0 — the silently skipped proof the docstring warns about (R67-2, FG1)
+        return 2
     report = audit(repo_root, registry, proofs)
     # flush=True: under the cron's `>> log 2>&1` a report larger than the stdout buffer was written
     # through with its trailing newline still buffered, so the stderr stamp landed GLUED to the last

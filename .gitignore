@@ -209,3 +209,4 @@ mutants/
 /duplicate-report.json
 /jscpd-report.json
 /.fabrik/plan-locks/*-salvage-*.diff
+.ruff_cache/

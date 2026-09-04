@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1627,10 +1628,9 @@ def test_strict_ignores_declared_and_box_faults_but_bites_a_raise_and_a_row_faul
     assert by_id["blank-unit"]["verdict"] == "UNKNOWN" and by_id["blank-unit"][
         "instrument"
     ].endswith(":registry")
-    assert (
-        by_id["null-expect"]["verdict"] != "DEAD"
-        or "expected None" not in by_id["null-expect"]["detail"]
-    )
+    assert "expected None" not in by_id["null-expect"]["detail"], (
+        by_id["null-expect"]
+    )  # `expect: null` reads as the default `enabled`, never the literal None (the pool's unit 21 found the old disjunction weak, FG1)
     assert report.failures() == 0
     assert report.crashed() == 1, (
         report.crashed(),
@@ -1650,7 +1650,112 @@ def test_strict_ignores_declared_and_box_faults_but_bites_a_raise_and_a_row_faul
     registry.write_text(json.dumps(reg), encoding="utf-8")
     raised = la.audit(tmp_path, registry, {"heartbeat"}, box=box)
     unreg = raised.proofs["heartbeat"]["unregistered"]
-    if unreg["cron"].get("sweep_raised"):
-        assert raised.crashed() == 2, raised.crashed()  # the blank-unit row + ONE sweep raise
-        text = "\n".join(la.render(raised)) if hasattr(la, "render") else ""
-        assert all(len(line) < 600 for line in text.splitlines())
+    assert (
+        unreg["cron"]["sweep_raised"] is False and unreg["hooks"]["sweep_raised"] is False
+    )  # a guarded `ownership` no longer raises — the healthy shape carries the key too (R67-16)
+
+    class _RaisingBox(FakeBox):
+        def hooks(self):  # type: ignore[override]
+            raise RuntimeError("the sweep died")
+
+    registry = _registry(
+        tmp_path, surfaces
+    )  # the unreadable case above rewrote registry.json with one row
+    raised = la.audit(
+        tmp_path,
+        registry,
+        {"heartbeat"},
+        box=_RaisingBox(tmp_path, cron=["0 * * * * /opt/fabrik/other.sh"]),
+    )
+    unreg = raised.proofs["heartbeat"]["unregistered"]
+    assert unreg["cron"]["sweep_raised"] is True and unreg["hooks"]["sweep_raised"] is True
+    assert raised.crashed() == 2, (
+        raised.crashed()
+    )  # the blank-unit row + ONE sweep raise, counted once across both blocks — the first grader's block was gated on a flag its own fixture could no longer set (R67-3)
+    raised.registry = Path("/tmp/" + "z" * 5000 + "/registry.json")
+    text = la.render(raised)
+    assert text and all(len(line) < 600 for line in text.splitlines()), (
+        max(len(ln) for ln in text.splitlines())
+    )  # every interpolation bounded — `render()` returns a str, and the first grader char-joined it (R67-3/6/9)
+
+
+def test_an_unknown_proof_name_is_refused_never_an_empty_all_clear(tmp_path: Path, capsys) -> None:
+    """A typo'd or REPEATED `--proof` ran zero proofs, printed an empty report and `--strict`
+    exited 0 — the silently skipped proof the docstring warns about (R67-2, FG1)."""
+    registry = _registry(tmp_path, [])
+    rc = la.main(
+        [
+            "--proof",
+            "doc_claims",
+            "--strict",
+            "--json",
+            "--registry",
+            str(registry),
+            "--repo-root",
+            str(tmp_path),
+        ]
+    )
+    err = capsys.readouterr().err
+    assert rc == 2 and "unknown --proof name(s) ['doc_claims']" in err, (rc, err)
+
+
+def test_a_script_under_kilo_benchmarks_is_a_search_root(tmp_path: Path) -> None:
+    """`_find_script` had no `scripts/kilo-benchmarks` root: two FALSE `DEAD/stale-doc` findings on
+    the live box for scripts that exist (R67-4, FG1)."""
+    src = Path(la.__file__).read_text(encoding="utf-8")
+    roots = src[
+        src.index("def _find_script") : src.index("def ", src.index("def _find_script") + 10)
+    ]
+    assert 'REPO_ROOT / "scripts" / "kilo-benchmarks"' in re.sub(r"\s+", " ", roots), roots
+    assert la._find_script(FakeBox(tmp_path, cron=[]), "daily_refresh.sh"), (
+        "the live tree's daily_refresh.sh is found through the new root"
+    )
+
+
+def test_a_declared_but_unusable_expect_is_a_registry_fault(tmp_path: Path) -> None:
+    """`expect: 42` / `" "` collapsed to `enabled` and the row read LIVE against a value nobody
+    wrote; a JSON `null` is "not declared" and takes the default (R67-10, FG1)."""
+    surfaces = [
+        {
+            "id": "bad-expect",
+            "kind": "systemd",
+            "evidence": {"type": "unit", "unit": "cron.service", "expect": " "},
+        },
+        {
+            "id": "null-expect",
+            "kind": "systemd",
+            "evidence": {"type": "unit", "unit": "cron.service", "expect": None},
+        },
+    ]
+    registry = _registry(tmp_path, surfaces)
+    report = la.audit(tmp_path, registry, {"heartbeat"}, box=FakeBox(tmp_path, cron=[]))
+    by_id = {f["id"]: f for f in report.proofs["heartbeat"]["findings"]}
+    assert (
+        by_id["bad-expect"]["verdict"] == "UNKNOWN"
+        and "expect is empty" in by_id["bad-expect"]["instrument_fault"]
+    )
+    assert "expect is empty" not in by_id["null-expect"]["instrument_fault"]
+
+
+def test_the_hooks_fault_shape_carries_total_and_the_sweep_render_lines_are_bounded(
+    tmp_path: Path,
+) -> None:
+    """FF4 graded `total` on the cron producer only and `[:200]` on neither sweep render line
+    (G67-4, F67-5, FG1)."""
+    surfaces = [_cron_surface("s", type="log", path=str(tmp_path / "x.log"))]
+    (tmp_path / "x.log").write_text("ran\n")
+    registry = _registry(tmp_path, surfaces)
+
+    class _NoHooksBox(FakeBox):
+        def hooks(self):  # type: ignore[override]
+            return la.Instrument.broken("claude settings hooks", "settings.json unreadable"), []
+
+    box = _NoHooksBox(tmp_path, cron=["0 * * * * /opt/fabrik/x.sh"])
+    report = la.audit(tmp_path, registry, {"heartbeat"}, box=box)
+    hooks = report.proofs["heartbeat"]["unregistered"]["hooks"]
+    assert hooks["instrument_fault"] and hooks["total"] == 0 and hooks["unregistered"] == []
+    report.proofs["heartbeat"]["unregistered"]["cron"]["instrument_fault"] = "x" * 4000
+    report.proofs["heartbeat"]["unregistered"]["hooks"]["instrument_fault"] = "y" * 4000
+    text = la.render(report)
+    lines = [ln for ln in text.splitlines() if "UNREGISTERED" in ln]
+    assert len(lines) == 2 and all(len(ln) < 260 for ln in lines), [len(ln) for ln in lines]

@@ -7,7 +7,7 @@
 
 **Lesson:** a proof tally is ONE sequential run of the shipped harness, reported with the environment that makes it reproducible — never a union across re-runs, which hides exactly the row that needs looking at. And any harness that mutates source and re-imports it in the same second must disable bytecode caching (`PYTHONDONTWRITEBYTECODE=1`) or bump the mtime; a length-preserving mutation is the shape that slips through.
 
-**Guard:** `proofs66.py` sets `PYTHONDONTWRITEBYTECODE=1`, takes the interpreter from the tree it is handed, validates every anchor in a `CHECK=1` pass before the 15-minute run, and the ledger cell quotes its single log. The `\1` trap (Lesson 152's sibling) fired again this round: a `lambda m: rep` replacement never expands a backreference — the harness helper now refuses a replacement containing `\\\1`.
+**Guard:** `proofs66.py`/`proofs67.py` (scratchpad-local, per round — never committed) set `PYTHONDONTWRITEBYTECODE=1`, take the interpreter from the tree they are handed, validate every anchor in a `CHECK=1` pass before the 15-minute run, refuse a replacement carrying a backreference with an assert in the mutation loop (round 67 — the `\1` trap, Lesson 152's sibling, fired again in round 66), and the ledger cell quotes its single log. A Lesson whose guard lives in a throwaway file guards only the round that reads the Lesson, which is why the rule is stated here in words too.
 
 # Lesson 152: a package that shares its NAME with the one it re-exports is a circular import under the only name its callers use — and a grader that loads it under another name proves nothing (2026-09-04)
 

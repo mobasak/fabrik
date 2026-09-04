@@ -96,6 +96,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *_a):
         pass
 
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except (ConnectionResetError, BrokenPipeError):
+            pass  # the client reset BEFORE its request was read (a port scan, a NAT'd browser abort): FE1/FF6 guarded the WRITE side only — the READ side printed a 12-frame stdlib traceback per reset (K67-1, FG1)
+
     def _send(self, body: bytes, ctype: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", ctype)

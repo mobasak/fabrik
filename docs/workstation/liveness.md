@@ -198,7 +198,7 @@ file that exists but is not in `settings.json` is UNKNOWN with the limit named, 
 ```bash
 python scripts/sysadmin/liveness_audit.py                   # human table
 python scripts/sysadmin/liveness_audit.py --json            # machine report
-python scripts/sysadmin/liveness_audit.py --proof heartbeat # one proof (fast)
+python scripts/sysadmin/liveness_audit.py --proof heartbeat # one proof (fast); ONE comma-separated list (`--proof heartbeat,vacuity`), not repeatable — an unknown name exits 2 (round 67: a typo used to run zero proofs and exit 0)
 python scripts/sysadmin/liveness_audit.py --strict          # exit 1 on any DEAD or crashed proof
 ```
 

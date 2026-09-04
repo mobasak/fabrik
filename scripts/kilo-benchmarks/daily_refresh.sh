@@ -503,7 +503,21 @@ fi
     # cap the rotated logs at the newest 3 (the hook rotates .2 ← .1 ← log, so three can exist — FC6)
     # FILES only, never a `*.notalog.*` directory's contents (`ls -1t dir` listed the squatter's files, never the squatter — FF1); the squatters themselves go after a week
     find "$KB/cache" -maxdepth 1 -type f -name 'update.log.*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | tail -n +4 | cut -d' ' -f2- | xargs -r rm -f
-    find "$KB/cache" -maxdepth 1 -name 'update.log.*.notalog.*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+    # age from the epoch-ns stamp in the NAME: `mv -T` keeps the renamed directory's OWN mtime, so `-mtime +7` deleted an old operator directory the day it was set aside (G67-2, FG1)
+    for _d in "$KB"/cache/update.log.*.notalog.*; do
+      [ -e "$_d" ] || continue
+      _ns=${_d##*.notalog.}
+      case $_ns in ''|*[!0-9]*) continue ;; esac
+      [ $(( $(date +%s) - _ns / 1000000000 )) -gt 604800 ] && rm -rf -- "$_d"
+    done
+    # the boot hook rotates .tmp/env_watcher.log through the same ring: cap and age it the same way (M67-C7, FG1)
+    find "$FABRIK_ROOT/.tmp" -maxdepth 1 -type f -name 'env_watcher.log.*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | tail -n +4 | cut -d' ' -f2- | xargs -r rm -f
+    for _d in "$FABRIK_ROOT"/.tmp/env_watcher.log.*.notalog.*; do
+      [ -e "$_d" ] || continue
+      _ns=${_d##*.notalog.}
+      case $_ns in ''|*[!0-9]*) continue ;; esac
+      [ $(( $(date +%s) - _ns / 1000000000 )) -gt 604800 ] && rm -rf -- "$_d"
+    done
     # drop stray pytest caches + __pycache__ under kilo-benchmarks (regenerated on demand)
     find "$KB" -type d \( -name .pytest_cache -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true
     # remove stale daily lockfiles from /tmp (keep today's UTC)

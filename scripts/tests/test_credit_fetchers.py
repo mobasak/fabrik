@@ -360,9 +360,49 @@ def test_a_truncated_chunked_body_and_a_bottomless_json_are_no_snapshot_not_a_ra
     try:
         cf._OPENER = _Opener(_Resp(b""))
         assert cf._get_json("https://x.example", {}) is None
-        cf._OPENER = _Opener(io.BytesIO(b"[" * 100_000))
-        cf._OPENER.resp.__enter__ = lambda s=cf._OPENER.resp: s
-        cf._OPENER.resp.__exit__ = lambda *a: False
+
+        class _Deep(
+            io.BytesIO
+        ):  # `with` resolves the dunders on the TYPE — instance attributes were dead lines (B67-13)
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        cf._OPENER = _Opener(_Deep(b"[" * 100_000))
         assert cf._get_json("https://x.example", {}) is None
+    finally:
+        cf._OPENER = orig
+
+
+def test_a_transient_failure_is_retried_and_the_second_answer_is_used():
+    """The retry on TRANSIENT failures — a vendor timeout, a DNS blip — is the core/58 contract in
+    the module docstring, and it was ungraded: an exception arm returning at once survived the
+    whole suite (K67-5, FG1)."""
+    import io
+
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Opener:
+        def __init__(self):
+            self.opens = 0
+
+        def open(self, req, timeout=None):
+            self.opens += 1
+            if self.opens == 1:
+                raise TimeoutError("vendor stalled")
+            return _Resp(b'{"data": {"totalUsageCreditsUsd": 1.5}}')
+
+    orig = cf._OPENER
+    try:
+        cf._OPENER = _Opener()
+        assert cf._get_json("https://x.example", {}) == {"data": {"totalUsageCreditsUsd": 1.5}}
+        assert cf._OPENER.opens == 2
     finally:
         cf._OPENER = orig

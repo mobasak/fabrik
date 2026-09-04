@@ -114,9 +114,9 @@ def load() -> list[dict]:
                     continue
                 if renews:
                     s["renews"] = str(renews)
-                if price is not None and math.isfinite(
-                    price
-                ):  # a NaN/Infinity price rendered as a number (FE1)
+                if (
+                    price is not None and math.isfinite(price) and price >= 0
+                ):  # a NaN/Infinity price rendered as a number (FE1); a NEGATIVE one too, asymmetric with the balance guard — the CLI's `--price` is an unbounded float (K67-6, FG1)
                     s["price"] = f"{price:g} {curr or ''}".strip()
     finally:
         conn.close()

@@ -392,11 +392,16 @@ def _registry_surface_map(repo: Path) -> dict[str, list[str]]:
     having no liveness at all)."""
     reg = repo / ".fabrik" / "liveness-registry.json"
     try:
-        surfaces = json.loads(reg.read_text(encoding="utf-8")).get("surfaces") or []
+        raw = json.loads(reg.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+    surfaces = (raw.get("surfaces") if isinstance(raw, dict) else None) or []
+    if not isinstance(surfaces, list):
+        return {}  # the FF7 needle guard left the CONTAINER unguarded: a list top level or a string element raised AttributeError out of audit() — the same file liveness_audit contains (R67-5, FG1)
     out: dict[str, list[str]] = {}
     for s in surfaces:
+        if not isinstance(s, dict):
+            continue
         sid = s.get("id")
         if not isinstance(sid, str):
             continue

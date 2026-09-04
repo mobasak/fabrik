@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -17,8 +18,8 @@ from pathlib import Path
 import pytest
 
 SCRIPTS = Path(__file__).resolve().parent.parent
-TEST_PROVIDER = "test_zzz_regsync"
-TEST_PROVIDER2 = "test_zzz_regsync2"  # a second vendor for cross-block cases (BQ2)
+TEST_PROVIDER = f"test_zzz_regsync_{os.getpid()}"  # per PROCESS: two concurrent suite runs (three sessions + the gate) corrupted each other through the live registry under one fixed key (B67-7, FG1)
+TEST_PROVIDER2 = f"test_zzz_regsync2_{os.getpid()}"  # a second vendor for cross-block cases (BQ2)
 TEST_PREFIX = "test_zzz"  # every provider a test may write starts with this (BQ2 guard)
 SECRET = "sk-super-secret-registry-test-value-1234567890"
 
@@ -37,6 +38,10 @@ rdb = _load("registry_db")
 
 @pytest.fixture
 def fixture_env(tmp_path, monkeypatch):
+    if os.environ.get("REGISTRY_WRITE_TESTS") != "1":
+        pytest.skip(
+            "writes `test_zzz_regsync` rows to the LIVE registry (state leaked between runs: 1 flake in 4, E67-8) — opt in with REGISTRY_WRITE_TESTS=1 (B66-C14's rule)"
+        )
     try:
         rdb.connect().close()
     except Exception:  # noqa: BLE001
@@ -259,6 +264,10 @@ def test_prune_force_rejects_falsy_strings(tmp_path, monkeypatch):
     """Given REGISTRY_PRUNE_FORCE set to a conventional 'off' value ('0'), When a mass delete
     trips the bound, Then the guard STILL fires — only explicit '1'/'true'/'yes' may disable a
     data-loss guard (bare non-empty truthiness would silently accept '0'/'false'/'no')."""
+    if os.environ.get("REGISTRY_WRITE_TESTS") != "1":
+        pytest.skip(
+            "syncs the LIVE registry (it pruned two phantom rows on 2026-09-04) — opt in with REGISTRY_WRITE_TESTS=1 (B66-C14's rule)"
+        )
     try:
         rdb.connect().close()
     except Exception:  # noqa: BLE001
@@ -1117,8 +1126,13 @@ def test_any_svc_header_shape_ends_the_block_and_prose_never_does(tmp_path):
         + "B_API_KEY=y\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"#svc"):
-        rs.parse(f)
+    assert (
+        [p["meta"]["name"] for p in rs.parse(f)]
+        == [
+            "test_zzz_a",
+            "test_zzz_b",
+        ]
+    )  # `#SVC` is a header since round 67 (the field keys are case-insensitive, F67-11); an uppercase NAME is what is refused
     f.write_text(
         head + "#svcs are listed below\n" + _svc("test_zzz_a") + "A_API_KEY=x\n", encoding="utf-8"
     )
@@ -1353,9 +1367,23 @@ def test_the_key_prune_bound_is_a_lap_wide_floor_of_one_rotation_per_provider(
     )  # six providers × one rotated key = 6 > 5, but one per provider is a lap of rotations
     assert rc == 0 and "bounded prune" not in err, (rc, err)
     rc, err = run(50)  # 50 of 20 at the FIRST provider: corruption, refused inside the loop
-    assert rc == 1 and "refusing to delete 50/20 api_keys (> 6 allowed)" in err, (rc, err)
+    assert rc == 1 and "refusing to delete 50/20 api_keys (> 10 allowed)" in err, (
+        rc,
+        err,
+    )  # the floor is ABSOLUTE (10), never the input's provider count (R67-1)
     rc, err = run(50, force="1")
     assert rc == 0, (rc, err)  # the override is honoured on GUARD 2 too
+    # the LIVE shape: 456 providers / 839 keys, one key lost per provider — the FF1 floor
+    # `len(provs)` allowed 456 of 839 (54%) in one lap; the denominator is never the input's (R67-1)
+    f.write_text(
+        "".join(_svc(f"test_zzz_p{i}") + f"P{i}_API_KEY=k{i}\n" for i in range(456)),
+        encoding="utf-8",
+    )
+    rc, err = run(1, keys=839)
+    assert rc == 1 and "/839 api_keys (> 167 allowed)" in err, (
+        rc,
+        err,
+    )  # refused inside the loop at the first exceed (168), never 456
 
 
 def test_a_double_commented_header_ends_a_block_and_the_margin_rule_never_touches_a_value(tmp_path):
@@ -1409,4 +1437,40 @@ def test_a_multi_line_value_the_generator_writes_is_read_back_by_its_own_reader(
     f.write_text(body, encoding="utf-8")
     provs = rs.parse(f)
     keys = {k: v for p in provs for k, v, *_ in p["keys"]}
-    assert keys["PEMCO_PRIVATE_KEY"] == "-----BEGIN KEY-----\\nabc\\n-----END KEY-----", keys
+    assert keys["PEMCO_PRIVATE_KEY"] == "-----BEGIN KEY-----\nabc\n-----END KEY-----", (
+        keys
+    )  # the REAL secret: the first grader pinned the escaped rendering, so the digest and the fetch credential were of a string that is not the secret (E67-2)
+    used = {k: u for p in provs for k, _v, _a, u in p["keys"]}
+    assert used["PEMCO_PRIVATE_KEY"] == ["web"], (
+        used
+    )  # the note after `used by:` was read as two fake projects (E67-1)
+
+
+def test_a_value_ending_in_hash_and_a_double_hash_text_header(tmp_path):
+    """`K=sec   #` (no note) had its tail cut as an empty note (R67-11); `## internal-config ═══`
+    was not a header and folded the keys below it (R67-13, FG1)."""
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        _svc("test_zzz_h")
+        + "H_API_KEY=sec   #\nJ_API_KEY=abc   # \n## internal-config ═══\nNOT_A_KEY=1\n",
+        encoding="utf-8",
+    )
+    provs = rs.parse(f)
+    keys = {k: v for p in provs for k, v, *_ in p["keys"]}
+    assert keys == {"H_API_KEY": "sec   #", "J_API_KEY": "abc"}, keys
+
+
+def test_an_uppercase_header_parses_and_an_uppercase_name_is_refused_like_the_classifier(tmp_path):
+    """`SVC_RE` had no `re.I` while the token guards did: `#SVC NAME=` was dispatched by the
+    classifier and refused here — the paid batch lost between two steps of one lap. The field keys
+    are case-insensitive now; a NAME the catalog cannot hold is refused by both readers (F67-11, FG1)."""
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        _svc("test_zzz_upper").replace("#svc name", "#SVC NAME") + "UPPER_API_KEY=k\n",
+        encoding="utf-8",
+    )
+    provs = rs.parse(f)
+    assert [p["meta"]["name"] for p in provs] == ["test_zzz_upper"]
+    f.write_text(_svc("Test_Zzz_Upper") + "UPPER_API_KEY=k\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="provider name the catalog cannot hold"):
+        rs.parse(f)
