@@ -1,6 +1,6 @@
 # Review — the mail-queue session's nine commits (hooks · enforcement · synced rules · fragments)
 
-Status: IN-PROGRESS — pass 1 finders dispatched (5 pool + 2 native), not yet returned; the loop closes in this invocation.
+Status: IN-PROGRESS — passes 1–2 recorded; the closing full re-derivation pass (3) runs next in this invocation.
 
 Surface: `f4e67cfefb75077a452be0201d01cdece74da808` + combined-diff md5 `e387e4715f847ffa120c4bee3f8be2a0`
 (the surface is a COMMIT SET, not the working tree — `git diff HEAD` is empty at a clean tree, so its
@@ -61,26 +61,29 @@ post-commit sync. A defect here is a defect everywhere, which is why (f) is a fi
 
 | # | Class | Verdict | Evidence |
 |---|---|---|---|
-| C1 | fail-open vs fail-closed on every gate/guard (standing) | UNCHECKED | |
-| C2 | cost/quota/limit accounting edges — unknown≠0, per-call vs batch (standing) | UNCHECKED | |
-| C3 | boundary/sentinel/prefix collisions (standing) | UNCHECKED | |
-| C4 | behavior-without-a-test (standing) | UNCHECKED | |
-| C5 | `_mask_quoted` bypass surface — nested/ANSI-C quoting, lookbehind interaction, masked-vs-raw split | UNCHECKED | |
-| C6 | `check_plan_tickets` external_root — consumer leakage of the PASS row, git-based paths on an out-of-repo dir | UNCHECKED | |
-| C7 | `GATE_OUT_OF_SURFACE` — accidental satisfaction, fence-strip semantics, text vs fenced | UNCHECKED | |
-| C8 | rotation twin byte-identity + `_OAUTH_HOSTS` shadowing | UNCHECKED | |
-| C9 | `skill_router` ordering — prompt theft from release/deploy/deploy-plan/deploy-verify; TR forms | UNCHECKED | |
-| C10 | BLAST RADIUS — is each synced edit correct for ALL ~46 projects | UNCHECKED | |
-| C11 | D-120 ledger row shape — cells, bare pipes, supersede pointer | UNCHECKED | |
-| C12 | DENOMINATOR audit — every count asserted in a commit message or CHANGELOG this session | UNCHECKED | |
-| C13 | core/10-python.md compliance on the changed hook/script code | UNCHECKED | |
-| C14 | core/45-testing-strategy.md — the new tests' own quality (vacuity, red-on-revert, isolation) | UNCHECKED | |
-| C15 | core/40-documentation.md — doc-sync completeness for the changed packs/docs | UNCHECKED | |
-| C16 | core/62-using-subagents.md — the subagents-core fragment edit's own correctness | UNCHECKED | |
+| C1 | fail-open vs fail-closed on every gate/guard (standing) | CLEAN | N2 walked every guard the diff touched (`check_plan_dir` layout guard, `_staleness` root, PASS-row context gate, `GATE_OK`/`GATE_ANY`/`GATE_OUT_OF_SURFACE`): each fails closed on the missing-evidence side; N1 confirmed an unbalanced quote returns the RAW line so no operator is ever hidden (probe `git status 'abc` → allow only because no operator exists). Pass 1, 2 native finders |
+| C2 | cost/quota/limit accounting edges (standing) | CLEAN | P1's "~32s ignores backoff" REFUTED: `backoff_s` defaults to 0.3 (`claude_rotate.py:1123`), 2×(2×8+0.3) ≈ 32.6s; the pool dispatch itself cost $0.026 across 5 units, all recorded + scored. Pass 1 |
+| C3 | boundary/sentinel/prefix collisions (standing) | CLEAN | mask char `x` never creates a veto match (N1, 20 probes); `<scratchpad>` is an established corpus token (3 files: fabrik-review.md:119, fabrik-execute-plan.md:771,774); `GATE-SCOPE:` in check_convergence's own fix-hint cannot self-satisfy (regex requires digits, hint carries `<N>`); `deploy-checklist` vs `deploy` ordering measured over 44 prompts. Pass 1 |
+| C4 | behavior-without-a-test (standing) | FIXED(4) | P4 named three `_mask_quoted` branches with no test (single-quote imbalance, `$VAR` in double quotes, non-special escape) — added to `test_the_masker_never_invents_or_hides_an_operator`; N2 named `_staleness` under external_root with no test — added `test_staleness_resolves_a_scratch_copy_against_the_given_root_too`. Pass 2 |
+| C5 | `_mask_quoted` bypass surface | FIXED(1) | **CRITICAL** — N1: a top-level `\'` toggled quote state; `git status \'; rm -rf x\'` → allow, and `bash -c` ran the second command (file created by the backtick form). Fixed: a top-level backslash makes the next char literal (`quota_stop.py` `_mask_quoted`, `quote is None` branch). Grader `test_an_escaped_quote_outside_quotes_cannot_open_a_span_that_hides_an_operator` (6 bypass forms + 2 counter-cases), red on revert. N1's other 19 probes CLEAN (ANSI-C, `"'"` alternation, `\;`, masked-digit lookbehind, `$(` variants, quoted command word). Pass 1 → 2 |
+| C6 | `check_plan_tickets` external_root | FIXED(2) | N2: `_staleness` had its own `_repo_root(plan_dir)` (`:647`), so the execution-window class was still skipped under `--allow-external` — threaded `external_root`, grader red on revert; a defaulted `--project-root` (cwd) silently measured against the wrong tree — now prints a NOTE naming the root. PASS row confirmed absent on gate/flip/adapter paths (3 call sites read; 1 `Severity.PASS` literal in file); `--json` includes it, no consumer counts entries by schema. Pass 1 → 2 |
+| C7 | `GATE_OUT_OF_SURFACE` semantics | FIXED(2) | N2: read on RAW text — a review documenting the grammar in a fence + an unrelated fenced failure JSON passed with zero evidence (reproduced, and `check_review_coverage` did not catch it either); now read on `FENCE_STRIP`-ed text, the `_claims_reviewed` convention. `0 of 0` accepted — now `0*[1-9]\d*`. Grader `test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declaration`, red on revert. Pass 1 → 2 |
+| C8 | rotation twin + `_OAUTH_HOSTS` | CLEAN | `diff` of both files at HEAD: IDENTICAL; 1 definition, 0 stray host tuples; test accesses `cr._OAUTH_HOSTS` and passes (P1's AttributeError candidate REFUTED by execution). Pass 1, orchestrator re-derivation |
+| C9 | `skill_router` ordering | FIXED(1) | Orchestrator corpus walk (44 prompts, old vs new matcher): 4 intended changes + **1 theft** — `"verify the deploy checklist"` old `deploy-verify` → new `deploy-checklist` (P1 independently raised the same class). Reordered AFTER deploy-verify; re-walked: theft gone, 4 intended routes hold; regression added. P1's "create the deploy checklist → deploy-checklist" REFUTED (that is the correct route). Pass 1 → 2 |
+| C10 | BLAST RADIUS (~46 repos) | FIXED(2) | P2: `88-saas:37` blockquote still said "Paddle vs iyzico vs both" — missed by my own sweep, fixed; `<debian_codename>` prose could be copied literally — six mentions now say to write the VALUE. REFUTED: "undefined fallback is a contradiction" (it is a documented open question, fabrik-lib D-080); "57 weakens to optionality" (the Profile line is still required, on the project's equivalent card); "20-vision still names Runway" (the line names them as add-key); "BIN routing unreachable for static-site" (pack scope line excludes no-billing types, pre-existing). Pass 1 → 2 |
+| C11 | D-120 row shape | CLEAN | 6 cells vs 6 separator cells (code spans stripped); no bare pipe (P3#7 REFUTED by count); no `supersedes` pointer to resolve; cross-repo `fabrik-lib D-080` is prose, and the BLOCKING uniqueness check passed at commit `0dd638f6`. Pass 1 |
+| C12 | DENOMINATOR audit | CLEAN | Re-derived independently: router 28/33 static-mapped, of which user/service-test are the dynamic `test` stem → 4 of 33 unmapped pre-fix holds (method note recorded); capabilities.json 32/33 (absentee `design-review`, not fabrik-*); slim-bookworm pre-commit 7 incl. the Dockerfile line = 6 prose, 0 now; D-062 warnings 3; `graded 33 / 115 / 62`; `20 of 33`; 4 files in `0dd638f6`. P3's 7 candidates all REFUTED (two different tools' counts, mails ≠ surfaces, D-121 is fleet's). Pass 1 |
+| C13 | core/10-python.md on hooks/scripts | CLEAN | N1: `now: float | None = None` on `decide()` is a dead parameter — PRE-EXISTING, outside this diff, no caller passes it; noted, not fixed here. The double `command is not None` guard is load-bearing (short-circuit before `re.match(None)`). ruff clean repo-wide. Pass 1 |
+| C14 | new tests' quality | FIXED(1) | P4: red-on-revert guaranteed for each new test by construction (each asserts the fixed behaviour, not an import); no isolation leaks (tmp_path only, no monkeypatch); one vacuous assertion I wrote was already removed before commit; one wrong mask-length assertion of mine caught by the suite (5 → 6 chars). Pass 1 → 2 |
+| C15 | doc-sync completeness | FIXED(3) | AFTER-EDIT walk of 6 scripts: `claude-account-rotation.md` carries no allow-list vocabulary (CLEAN), `bot.py`/`aro-wake/main.py` no `_oauth_get` refs (CLEAN), `final_gate.py` registration unchanged (CLEAN); `fabrik-execute-plan.md:361` sibling-red sentence now points at the GATE-SCOPE declaration; `skill_router.py` had NO AFTER-EDIT header (2 of 7 hooks lack one; `check_script_headers` scopes `scripts/**` only) — added; three truncated mail ids (`01M1KN0H6JR...`) expanded to full. Pass 1 → 2 |
+| C16 | subagents-core fragment | CLEAN | P5: `<scratchpad>` established (see C3); an md5 cell on a Pass row parses — `_pass_counters` returned `(0, 0)` on a 7-cell row; the contract text says extra columns ride the same row. Pass 1 |
 
 ## Pass Ledger
 
-(rows appended per pass)
+| Pass 1 | method: citation | found: 13 | new: 13 | fixed: 0 | finders: pool P1–P5 (deepseek-v4-flash ×2, gemini-3-flash, qwen3-max, deepseek-v3.2-exp — dispatched 5, returned 5, $0.026, all scored) + native N1 (quota_stop, 20 probes + 5 bash cross-checks) + N2 (plan_tickets + convergence, 53 tool uses) + orchestrator (C8, C9 corpus walk, C11, C12, C15 AFTER-EDIT walk) — 46 candidates raised (33 pool + 6 N1 + 4 N2 + 3 orchestrator), 13 adjudicated real, 33 REFUTED by execution or surrounding text |
+| Pass 2 | method: citation | found: 0 | new: 0 | fixed: 13 | finders: orchestrator scoped re-check of every fix + its callers (398 tests across the four suites; each script fix proven red on revert against HEAD with the backup asserted before and after) — the SCOPED middle pass, never the exit |
+
+(Pass 3, the closing FULL fresh sweep with non-author finders and `method: re-derivation`, follows.)
 
 ## Gate
 

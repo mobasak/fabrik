@@ -216,6 +216,35 @@ def test_the_read_budget_measures_a_scratch_copy_against_the_given_root(tmp_path
     assert any("READ budget" in m for m in _errors(caught)), caught
 
 
+def test_staleness_resolves_a_scratch_copy_against_the_given_root_too(tmp_path: Path) -> None:
+    """`_staleness` had its OWN `_repo_root(plan_dir)` call, missed by the external_root change,
+    so the execution-window staleness class was silently skipped for every --allow-external run
+    even with a real lock at <root>/.fabrik/plan-locks/ (review pass 1, native finder). The
+    fix's own claim was "every structural check now runs" — this pins the one it did not."""
+    real = _build(tmp_path)
+    scratch = tmp_path / "scratch" / DIRNAME
+    scratch.mkdir(parents=True)
+    for f in real.iterdir():
+        (scratch / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+    seen: list[Path | None] = []
+    orig = cpt._repo_root
+
+    def spy(p: Path) -> Path | None:
+        r = orig(p)
+        seen.append(r)
+        return r
+
+    cpt._repo_root = spy  # type: ignore[assignment]
+    try:
+        cpt._staleness(scratch, "", {}, external_root=None)
+        assert seen == [None], seen  # the old path: no root, silently []
+        seen.clear()
+        cpt._staleness(scratch, "", {}, external_root=tmp_path)
+        assert seen == [], seen  # the given root is used; _repo_root is never consulted
+    finally:
+        cpt._repo_root = orig  # type: ignore[assignment]
+
+
 def test_a_clean_run_says_what_it_graded_and_against_what(tmp_path: Path) -> None:
     """A green run printed ZERO BYTES, so "graded 33 tickets, found nothing" and "resolved the
     wrong directory and did nothing" were byte-identical — while two commands instruct agents to

@@ -407,7 +407,7 @@ CMD ["python", "-m", "src.worker"]
 
 - **`tini` as PID 1** — handles zombie child reaping and signal proxying. Without it, forked child processes become zombies.
 - **JSON exec form** for CMD — shell form swallows SIGTERM.
-- **`-slim-<debian_codename>`** base image (the codename is machine-owned — `.windsurf/rules/versions.yaml`; never hardcode it), `platform: linux/amd64`.
+- **`-slim-<debian_codename>`** base image — `<debian_codename>` is a PLACEHOLDER for the value in `.windsurf/rules/versions.yaml` (`debian_codename:`); write the real codename in the Dockerfile, and take it from that file rather than from memory (the `10-python.md` Dockerfile shows the rendered form), `platform: linux/amd64`.
 - **`deploy.resources.limits.memory`** mandatory in compose.yaml. Workers processing large files may need higher limits than API services.
 - **`fabrik` network** — worker connects to `postgres-main:5432` and `redis-main:6379` via Docker DNS.
 - **No `ports:` section** in compose.yaml — Traefik routes all traffic. See `30-ops.md`.
@@ -481,7 +481,7 @@ CMD ["python", "-m", "src.worker"]
 - [ ] External subprocesses spawned with `start_new_session=True`; timeouts kill the **group** (`killpg`), not just the child.
 - [ ] Per-subprocess hard-timeout wall + kill-count poison cap; poison classified as operational/transient, never a content verdict.
 - [ ] OS-process orphan reaper runs (separate from the DB orphan-job sweep); identifies orphans by "parent not a live worker", not `PPID == 1`.
-- [ ] Dockerfile uses `tini` as ENTRYPOINT, JSON exec form for CMD, `-slim-<debian_codename>` base (from `versions.yaml`, never hardcoded).
+- [ ] Dockerfile uses `tini` as ENTRYPOINT, JSON exec form for CMD, `-slim-<debian_codename>` base (`<debian_codename>` = the value in `versions.yaml`, written out — not the placeholder).
 - [ ] `stop_grace_period` in compose >= longest task execution time.
 - [ ] `deploy.resources.limits.memory` set in compose.yaml.
 - [ ] Structured logging via `structlog` — no `print()`.

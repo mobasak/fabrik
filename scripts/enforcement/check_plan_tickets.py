@@ -642,9 +642,17 @@ def _board_states(spine_text: str) -> dict[str, str]:
     return states
 
 
-def _staleness(plan_dir: Path, spine_text: str, tickets: dict[str, Ticket]) -> list[CheckResult]:
+def _staleness(
+    plan_dir: Path,
+    spine_text: str,
+    tickets: dict[str, Ticket],
+    external_root: Path | None = None,
+) -> list[CheckResult]:
     """Execution-window board-currency checks — fail-safe (NOTE + skip) on git errors."""
-    root = _repo_root(plan_dir)
+    # a scratch copy resolves its lock + git baseline against the caller's root, as sizing does —
+    # this call site was missed by the external_root change and silently skipped the whole
+    # execution-window staleness class under --allow-external (review pass 1, native finder).
+    root = external_root if external_root is not None else _repo_root(plan_dir)
     if root is None:
         return []
     lock = root / ".fabrik" / "plan-locks" / f"{plan_dir.name}.json"
@@ -1467,7 +1475,7 @@ def check_plan_dir(
         )
 
     # --- Board staleness (execution window) --------------------------------------------
-    results.extend(_staleness(plan_dir, spine_scan, tickets))
+    results.extend(_staleness(plan_dir, spine_scan, tickets, external_root=external_root))
 
     # --- What was graded, and against what -------------------------------------------
     # A clean run used to print ZERO BYTES and exit 0, so "the gate graded 33 tickets and found
@@ -1679,6 +1687,15 @@ def main() -> int:
         # budget and every other check actually run on a scratch copy instead of being skipped
         # wholesale by the plans-layout guard.
         external_root = root if not _is_plans_layout(target) else None
+        if external_root is not None and args.project_root == Path.cwd():
+            # cwd is the default, and a scratch copy checked from the wrong directory measures
+            # every Touches path against the wrong tree — 0 bytes each, the exact silent zero
+            # this flag's fix removed, reached by another door (review pass 1, native finder).
+            print(
+                f"NOTE: --allow-external is resolving Touches/Context-Files against {root} "
+                "(the cwd default) — pass --project-root <repo> if that is not the repo the "
+                "tickets name"
+            )
     else:
         _SEEN_DIRS.clear()  # in-process reuse safety (one logical run per main())
         dirs, lock_only = _discover_dirs(root)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workstation/hooks-index.md, tests/test_skill_router_hook.py
 """Claude Code UserPromptSubmit hook — bilingual (EN+TR) skill router.
 
 Injects a directive-with-escape ("this matches /fabrik-X — invoke it, or say
@@ -585,10 +586,19 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
         ),
         "release",
     ),
-    # Sits BEFORE deploy-verify and the deploy-execution rule: "deploy checklist" carries the word
-    # "deploy", and this must win it. No clash either way — deploy-verify's regex needs BOTH
-    # "deploy" and "verify", and the execution rule needs "deploy it/this/now" or run/execute + a
-    # deploy PLAN, neither of which any phrase here matches.
+    (
+        re.compile(
+            r"\bdeploy(ment)?\b.*\bverify\b|\bverify\b.*\bdeploy(ment)?\b|"
+            r"\bda[ğg][ıi]t[ıi]m[ıi]?\b.*\bdo[ğg]rula\b|\bdo[ğg]rula\b.*\bda[ğg][ıi]t[ıi]m[ıi]?\b",
+            re.I,
+        ),
+        "deploy-verify",
+    ),
+    # Sits AFTER deploy-verify and BEFORE the deploy-execution rule. Ordering measured, not
+    # reasoned: placed before deploy-verify it STOLE "verify the deploy checklist" (old verdict
+    # deploy-verify, new deploy-checklist — the review's own corpus walk, pass 1). After it, the
+    # verify rule keeps every prompt carrying both words, and nothing here matches the execution
+    # rule ("deploy it/this/now" or run/execute + a deploy PLAN).
     (
         re.compile(
             r"\bdeploy(ment)?\s+checklist\b"
@@ -599,14 +609,6 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "deploy-checklist",
-    ),
-    (
-        re.compile(
-            r"\bdeploy(ment)?\b.*\bverify\b|\bverify\b.*\bdeploy(ment)?\b|"
-            r"\bda[ğg][ıi]t[ıi]m[ıi]?\b.*\bdo[ğg]rula\b|\bdo[ğg]rula\b.*\bda[ğg][ıi]t[ıi]m[ıi]?\b",
-            re.I,
-        ),
-        "deploy-verify",
     ),
     # Deploy EXECUTION sits AFTER deploy-verify (its regex needs both words,
     # so "verify the deploy" keeps routing to deploy-verify) and after the

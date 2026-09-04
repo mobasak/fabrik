@@ -97,7 +97,7 @@ One brand partial governs all templates — no per-template colour/font drift. O
 
 ### 12-Factor / Docker
 
-- Compilation is build-time; **runtime image stays `python:*-slim-<debian_codename>` (the codename from `versions.yaml`), linux/amd64, zero Node**.
+- Compilation is build-time; **runtime image stays `python:*-slim-<debian_codename>` (`<debian_codename>` = the value in `versions.yaml`, written out), linux/amd64, zero Node**.
 - ESP keys via env, never committed. Templates are code — versioned in the repo.
 
 ---

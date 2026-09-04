@@ -34,7 +34,7 @@ Traycer must ensure every Phase 1 item maps to a feature or ticket during planni
 - Flat USD pricing at launch. No regional pricing (PPP) until fraud detection exists.
 - Paddle's **5-day unconditional refund policy** must be in Terms of Service — Paddle suspends vendors who omit it.
 
-> Provider selection (Paddle vs iyzico vs both) is decided during vision intake based on target market. See `85-payments-billing.md` for implementation rules.
+> Provider selection — Paddle alone, the domestic rail alone (PayTR, iyzico as its fallback), or both — is decided during vision intake based on target market. `85-payments-billing.md` § Payment Providers is canonical for the SET; this line read "Paddle vs iyzico vs both" for a day after PayTR became the domestic rail (D-120).
 
 ### Documentation Site
 

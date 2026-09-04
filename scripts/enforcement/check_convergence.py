@@ -221,7 +221,7 @@ GATE_OK = re.compile(r'"status"\s*:\s*"success"')
 #   GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>
 GATE_ANY = re.compile(r'"status"\s*:\s*"(?:success|failure)"')
 GATE_OUT_OF_SURFACE = re.compile(
-    r"GATE-SCOPE:\s*out-of-surface\b[^\n]*?findings naming this surface:\s*0\s+of\s+\d+"
+    r"GATE-SCOPE:\s*out-of-surface\b[^\n]*?findings naming this surface:\s*0\s+of\s+0*[1-9]\d*"
     r"[^\n]*?measured by:\s*\S",
     re.I,
 )
@@ -863,11 +863,17 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # an in-contract inline ```…``` quote precedes the real embed, uncapturing a
     # genuine success JSON (fail-closed false-failure, review finding).
     fenced = "\n".join(m.group(2) or m.group(3) or "" for m in _FENCED_CONTENTS.finditer(text))
-    # The out-of-surface declaration is read on the WHOLE record (it is prose the reviewer writes),
-    # while the gate embed must still sit inside a fence — a failing gate has to be SHOWN, not
-    # merely asserted, so the reader can see which check failed.
+    # The out-of-surface declaration is read on FENCE-STRIPPED text — the same convention
+    # `_claims_reviewed` uses, and for the same reason: a fenced copy of the grammar is a
+    # QUOTATION (a template, a review documenting this very mechanism), not a declaration. The
+    # first cut read the raw record and a documentation fixture with one real sign-off claim, a
+    # fenced grammar quote and an unrelated fenced failure JSON passed with zero evidence — found
+    # and reproduced by this fix's own review (pass 1, native finder). The gate embed must still
+    # sit INSIDE a fence: a failing gate is SHOWN, not asserted, so the reader sees which check
+    # failed. And the denominator must be >= 1 — a failing gate with `0 of 0` findings is a
+    # contradiction wearing the grammar.
     if not GATE_OK.search(fenced) and not (
-        GATE_OUT_OF_SURFACE.search(text) and GATE_ANY.search(fenced)
+        GATE_OUT_OF_SURFACE.search(FENCE_STRIP.sub("", text)) and GATE_ANY.search(fenced)
     ):
         fails.append(
             'no embedded final_gate run showing "status": "success" inside a fenced block '

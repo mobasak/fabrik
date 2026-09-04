@@ -406,6 +406,32 @@ def test_a_converged_lane_may_embed_a_gate_a_sibling_lane_reds(repo: Path) -> No
     assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18e-review.md", no_embed) == 1
 
 
+def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declaration(repo: Path) -> None:
+    """The first cut read the declaration on the RAW record, so a review documenting this very
+    mechanism — one real sign-off claim, the grammar quoted inside a fence as an example, and an
+    unrelated fenced `"status": "failure"` — passed with zero evidence. Found and reproduced by
+    the fix's own review (pass 1, native finder), which also ran check_review_coverage on the
+    same fixture: it did not catch it either. Same convention as `_claims_reviewed`: fenced text
+    is a quotation.
+    """
+    quoted = (
+        "# Review notes on the out-of-surface mechanism\n\n## Phase 1 verdict\nDocumenting the grammar.\n\n"
+        "reviewed — sign-off.\n\n"
+        "The declaration shape is:\n\n```\nGATE-SCOPE: out-of-surface — Plan-Set Contract; "
+        "findings naming this surface: 0 of 7; measured by: `grep`\n```\n\n"
+        "and an unrelated example of a failing run:\n\n```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-09-05-quoted-grammar-review.md", quoted) == 1
+
+    # a denominator of ZERO is a contradiction wearing the grammar — a failing gate has findings
+    zero = (
+        "# Review of aspect 19\n\n## Phase 1 verdict\nConverged.\n\nreviewed — sign-off.\n\n"
+        "GATE-SCOPE: out-of-surface — Plan-Set Contract; findings naming this surface: 0 of 0; "
+        "measured by: `grep`\n\n```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-09-05-zero-denominator-review.md", zero) == 1
+
+
 def test_review_withholding_claims_is_not_a_claim(repo: Path) -> None:
     # Directly-negated claim words are a DISCLOSURE, not a claim — no evidence owed.
     doc = (

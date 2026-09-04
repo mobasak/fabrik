@@ -54,6 +54,9 @@ _spec.loader.exec_module(hook)
         ("freeze the parity contract", "deploy-checklist"),
         ("what must prod contain", "deploy-checklist"),
         ("deploy kontrol listesini yaz", "deploy-checklist"),
+        # the stem sits AFTER deploy-verify: placed before it, it STOLE this prompt (measured in
+        # the review's pass-1 corpus walk — old verdict deploy-verify, new deploy-checklist).
+        ("verify the deploy checklist", "deploy-verify"),
         ("catch this project up", "catchup"),
         ("bu proje güncel mi", "catchup"),
         ("let's retire this old service", "retire"),

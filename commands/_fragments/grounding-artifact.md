@@ -14,10 +14,10 @@ This command almost always runs against a project with **existing code, a live D
 - ⚠️ **Verify against the layer the claim is ASSERTED AGAINST, not the layer that is convenient to
   open.** Two independent instances in one day, different surfaces, one shape: a claim about a
   WRITTEN artifact grounded on the dict BUILD site while a `pop` before the write removed the key
-  (`01M1KN0H6JR...`), and a claim about a TOOL's behaviour grounded on the MODULE it calls — the
+  (`01M1KN0H6JRPXVFKH911425K2Y`), and a claim about a TOOL's behaviour grounded on the MODULE it calls — the
   registry and the raise were both real, but the tool wrapped them per-item and emitted an error
   row, so a defect reported as HIDDEN was self-surfacing and had a kept test pinning it
-  (`01M1KZ28H3H...`, retracted by its own author). Both read as thorough because something real WAS
+  (`01M1KZ28H3H9PXGSE65MY947GA`, retracted by its own author). Both read as thorough because something real WAS
   checked. Name the layer your claim binds to, then open THAT one.
 - **A constraint INHERITED from the brief, the session, or a prior report is a CLAIM to re-verify,
   never a datum** — it arrives pre-trusted, which is exactly why it escapes. (Same run: a "standing

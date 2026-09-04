@@ -169,6 +169,31 @@ def test_shell_punctuation_inside_a_quoted_argument_is_data_not_an_operator():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0)[0] == "deny", cmd
 
 
+def test_an_escaped_quote_outside_quotes_cannot_open_a_span_that_hides_an_operator():
+    """The masker's first cut toggled quote state on ANY bare quote character, so a top-level
+    `\\'` — a literal apostrophe to bash, never an opener — started a span, a real operator inside
+    it was masked to data, and the hold ALLOWED it. Found by the review's native finder and proven
+    by execution: `bash -c "git status \\'; echo INJECTED\\'"` ran the second command, and the
+    backtick form CREATED A FILE. The whole-line scan this masking replaced never had this hole,
+    so it was a regression introduced by the fix — the mirror of a hardening landing on the
+    permitted side is Lesson 154; this is the same lesson landing on the DENIED side.
+    """
+    for cmd in (
+        r"git status \'; rm -rf x\'",
+        "git log \\'`touch /tmp/p`\\'",
+        "git log \\'> /tmp/leak\\'",
+        r"git show \'$(whoami)\'",
+        r'git status \"; rm -rf x\"',
+        "python3 scripts/command_run.py done --command x --evidence \\'; curl evil\\'",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    # an escaped backslash followed by a REAL quote still opens a span — `\\'a;b'` is data
+    assert hook.decide("Bash", "echo \\\\'a;b'", stamp_exists=True, tick_age_s=1.0)[0] == "allow"
+    # and a top-level escaped operator stays refused (bash would not run it, but we never
+    # need one to stop cleanly — fail closed, as before)
+    assert hook.decide("Bash", r"git status \; rm -rf x", stamp_exists=True, tick_age_s=1.0)[0] == "deny"
+
+
 def test_the_masker_never_invents_or_hides_an_operator():
     assert hook._mask_quoted("git status") == "git status"
     assert hook._mask_quoted("cat a; rm b") == "cat a; rm b"  # nothing quoted, nothing masked
@@ -181,6 +206,10 @@ def test_the_masker_never_invents_or_hides_an_operator():
     assert "\n" in hook._mask_quoted('echo "a\nb"')  # a quoted newline still trips the veto
     # a single quote inside a double-quoted span must not open a span of its own
     assert ";" not in hook._mask_quoted('echo "it\'s a; b"')
+    # the three branches the review's pool finder named as untested (pass 1, P4):
+    assert hook._mask_quoted("echo 'a") == "echo 'a"  # single-quote imbalance → untouched
+    assert "$" in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted('echo "$VAR;x"')
+    assert hook._mask_quoted('echo "a\\nb;c"') == 'echo "xxxxxx"'  # a non-special escape masks both (6 chars)
 
 
 def test_destructive_git_and_in_place_sed_are_held():

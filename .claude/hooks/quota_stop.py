@@ -103,6 +103,18 @@ def _mask_quoted(command: str) -> str:
     while i < n:
         ch = command[i]
         if quote is None:
+            if ch == "\\" and i + 1 < n:
+                # OUTSIDE quotes a backslash makes the next character literal, whatever it is —
+                # so `\'` is a quote CHARACTER, never a quote OPENER. Without this the first cut
+                # of the masker toggled quote state on any bare quote, and a real operator
+                # placed between two escaped single quotes was masked to data and ALLOWED:
+                # `git status \'; rm -rf x\'` passed decide() and bash ran the second command
+                # (review pass 1, native finder, proven by execution with a file side effect).
+                # Both characters are kept visible: an escaped operator (`\;`) stays refused,
+                # which is the pre-existing fail-closed the finder confirmed CLEAN.
+                out.extend((ch, command[i + 1]))
+                i += 2
+                continue
             if ch in ("'", '"'):
                 quote = ch
             out.append(ch)
