@@ -227,5 +227,35 @@ worktree-include leg). Nothing was dropped silently.
 Closing state: 32 tickets, Board 32 = disk 32, spine roll-up 106 = ticket roll-up 106, checklist 17/17 verdicts and
 0 UNCHECKED, emit gate exit 0 with zero WARN, class ledger clean.
 
-NEXT: the fourth author-blind pass over this delta — every previous pass found defects in the previous pass's
-closure work, so the flip waits for it.
+## Passes 4 and 5 — and a false BLOCKED close I have to own
+
+**Correction first.** I closed the previous run BLOCKED, reasoning that the author-blind layer was unavailable: the
+pool returns HTTP 402 fleet-wide, and two native dispatches each showed a 130-byte output file that had been quiet
+for minutes. **That reasoning was wrong.** Both passes completed and returned full reports; the 130-byte file is
+not where the result lands. I reported an infrastructure outage that did not exist, on a proxy I had never
+validated — the same class as the proxy-never-evidence rule, committed while enforcing it elsewhere. The pool
+exhaustion is real; the native failure was not.
+
+Between them the two passes raised **24 findings**. The severest were not in the plan at all:
+
+| # | Finding | Why it mattered |
+|---|---|---|
+| P4-H1 | **The SPEC was self-contradicting.** r11 re-froze § Live locks but left four r10 residuals naming the withdrawn path (§ Personas, § Chain consolidation (e), the fabrik-lib verdict row, § Documentation landing sites). | A plan cannot conform to a contract that disagrees with itself. Fixed as an r12 editorial pass — no design change. |
+| P4-H2 | **§ Self-audit (b) was CORRUPTED by my own blind global replace**, which consumed a four-clause span and left a fragment mid-sentence in a `check_convergence` artifact. | Self-inflicted, and invisible to every gate. Restored from `884a5728^` and re-derived. |
+| P4-H3 | **T02b's premise was false.** `templates/governance/CLAUDE.md` has no `Agent-Name` row — its trailer table never carried one, because Agent-Name is hub-only by design. | The ticket would have sent a coder to invent that concept in a file syncing to ~46 repos, and its gate went green after editing the hub file alone. |
+| P4-H4 | **T05b would have redded the hub's own gate.** `epic_order --check` FAILS today on a legacy epic with no frontmatter, and the script it registers is in no synced manifest. | The row would ship to ~46 repos pointing at a file none of them has, while the ticket's own gate could never pass here. |
+| P4-H5 | **T03b failed open on the design's primary case.** Epics are authored before the code, so two greenfield epics owning the same path both realise to ∅ and no finding fires — exactly the case its own contract row demands. | Now unions realised sets with a pattern-level check. |
+| P4-H6 | **Both glob predicates named bare `fnmatch`, which is separator-blind** — it matches `src/a/b/deep.py` against `src/a/*`. | A deliberately shallow epic scope would have admitted a whole subtree, silently voiding the "a window cannot build outside its epic" guarantee. |
+| P4-H7 | **The dispatch and fan-out lists omitted T02b, T03b and T14g entirely.** | The three tickets carrying the r11 work would never have been dispatched, and no gate parses that prose. |
+
+Also closed: T06c told a project-side command to run a hub-only script by relative path; the one NON-relocation
+item the three deletions dropped (a stale `final_gate_stop.py:785` citation at three sites) is rescued as **T14h**;
+`docs/reference/plan-lock-lifecycle.md` went back into scope under T15, since this design makes it partly untrue;
+`phased_order()` raises on a cycle and would have turned `--check` into a traceback inside the gate; and T14a's
+rollout-wait edit had no gate at all, so two of its three edits would have gone green.
+
+Set is spine + 33 tickets. `check_plan_tickets --plan-dir` exit 0 with zero WARN; `final_gate.py --check --json`
+**success, 55 passed, 0 failed**.
+
+NEXT: the plan is ready for its CONVERGED flip. Five author-blind passes have now run over it; the last two found
+24 defects between them, two of which were in the spec and one of which was damage I caused.
