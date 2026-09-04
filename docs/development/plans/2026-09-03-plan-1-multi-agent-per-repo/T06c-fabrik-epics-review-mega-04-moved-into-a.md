@@ -5,7 +5,7 @@ Create `commands/_sources/fabrik-epics-review.md` from `04-cross-epic-validation
 
 ⚠️ **The renderer auto-appends only ONE fragment.** `commands/assemble_commands.py:774` appends `close-feedback` and nothing else; every other fragment is substituted from an explicit `{{include:<name>}}` line (`:760`), which is why 30 of the 33 existing sources carry `{{include:run-record}}` themselves (e.g. `commands/_sources/fabrik-spec.md:8`). So this source MUST carry, verbatim on their own lines: `{{include:run-record}}`, `{{include:questionbar}}`, `{{include:grounding-rules}}` and `{{include:subagents-core}}`. Omit them and the command renders with no run record — no pinned `RUN:` line, and `check_command_corpus` (BLOCKING) flags the missing close sites. NEXT is not a fragment at all: `_emit_skill` (`:288`) injects it into the SKILL description from the assembler's NEXT map, which is T07a's edit.
 
-Depends: T03
+Depends: T03a
 Parallel: ⛓️
 Complexity: native
 Gate: python3 commands/assemble_commands.py --check
