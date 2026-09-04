@@ -527,6 +527,36 @@ External research: INHERITED from the spec — every URL fetched 2026-09-03 (wor
 - **Isolation simulation (authorial, authoritative):** every ticket names its files, its anchors, the exact CLI and field strings, and its watched-red test; the two prose-only classes (the three sources, the governance lines) carry `git grep` denominators plus the chain and assembler checks as gates. A cold agent can code any one of them from the ticket and its Context Files. The single judgment call left is T06a–c's editorial rewriting, whose target sentences are quoted with their line numbers.
 - **Grounding passes run:** the rule census + rubric (2026-09-03), repo grounding of every `path:line` in § Evidence (bash + `git grep`, this session), sizing by `wc -c`, the reference-sweep denominators, the manifest and settings probes, and a re-derivation of every anchor on 2026-09-04 after a sibling's three commits landed (one file moved; T08a re-anchored to symbols and split). Fixed point NOT claimed — `/fabrik-plan-review` runs next.
 
+## Pass Ledger
+
+Every row is a pass that actually ran. The `method` column is what the closing-pass contract anchors on:
+`citation` re-verifies that a cited anchor exists; `re-derivation` recomputes the number itself from its
+primary source; `gate` is a mechanical check's own verdict. Convergence under one method is
+method-stability, not truth — which this plan proved the expensive way.
+
+| Pass | axes re-checked | method | raised | new | edits | combined md5 (start → end) |
+|-----:|---|---|---:|---:|---:|---|
+| Pass 1 | rubric arming · constraints digest · anchors · gate runnability · read budgets · spec coverage | method: citation | 12 | 12 | 12 | 38a0f16f → … |
+| Pass 2 | counts · denominators · breadth adjudication · board-vs-tickets | **method: re-derivation** | 3 | 3 | 3 | … |
+| Pass 3 | definedness · context files · budget recheck | method: citation | 3 | 3 | 3 | … |
+| Pass 4 | dangling ticket IDs · roll-up set equality | method: gate | 3 | 3 | 3 | … |
+| Pass 5 | full mechanical sweep + anchor re-resolution | **method: re-derivation** | 0 | 0 | 0 | d4d10ce3 → d4d10ce3 ✓ |
+| Pass 6 | **author-blind #1** — spec coverage · retirement ordering · definedness · interfaces | method: re-derivation | 34 | 34 | 21 | … |
+| Pass 7 | **author-blind #2** — the six tickets pass 6's closures created | method: re-derivation | 10 | 10 | 10 | … |
+| Pass 8 | **author-blind #3** — the closure delta of pass 7 | method: re-derivation | 7 | 7 | 7 | … |
+| Pass 9 | **author-blind #4** — the r11 re-convergence, plus a re-read of both earlier passes | method: re-derivation | 24 | 24 | 24 | … |
+| Pass 10 | flip pre-flight: `check_convergence`'s own predicates run against a scratch copy flipped to CONVERGED | method: gate | 1 | 1 | 1 | 00612f7a → (this row) |
+| Pass 11 | **author-blind #5** — the confirming pass over pass 9's closures | method: re-derivation | — | — | — | (pending) |
+
+**Pass 5 is the row worth reading.** It was edit-free and md5-stable — by the letter of the loop, convergence.
+Pass 6 then raised 34. Every subsequent author-blind pass found defects in the previous pass's closure work,
+including one that had corrupted this very spine and one that had left the SPEC contradicting the plan. That is
+why the author's own re-read never counts as the independent pass, and why the flip waits for Pass 11.
+
+**Pass 10 found its own kind of defect: this section did not exist.** `check_convergence.py:507` refuses a
+CONVERGED claim whose spine carries no `method: re-derivation` Pass-Ledger row, so the flip would have failed
+after the loop rather than during it. Simulating the flip on a scratch copy surfaced it before the attempt.
+
 ## Residual unknowns
 
 - **Resolved by ticket:** R2 (the wip-net does not walk linked worktrees) → T13 fixes it; R4 (merging from inside a worktree) → impossible by design, the merge owner lives in the main checkout; R5 (`.venv`) → symlink under C2, with `uv sync --all-extras` (101 s) as the documented fallback.
