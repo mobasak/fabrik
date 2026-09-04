@@ -1,0 +1,27 @@
+# T15 — PLANS.md regeneration with an Owner column, and the dedicated reference doc
+
+## Scope
+(1) `scripts/docs_updater.py`: `generate_plans_table()` (`:876`, a tested utility with no live caller) gains an `Owner` column read from a plan's `**Owner:**` line or a spine's frontmatter/`Owner:` header and from epic frontmatter `owner` under `docs/development/epics/` (rows `| Epic/Plan | Owner | Status | Phase |`); `sync_plans_index()` (`:915`, "Skipped (Traycer-managed)") regenerates the `AUTO-GENERATED:PLANS` block (`PLANS_BLOCK_RE`, `:640`) in `docs/development/PLANS.md` the same Tier-0 way `STRUCTURE` is regenerated (`:1240`); `validate_plans_indexed()` (`:920`) returns a finding when the block is stale (the `--check` path). Untagged epics/plans render `—` in Owner — the sweep at the tail (spec § Personas, agent-1) is where they get filled. (2) `docs/reference/multi-agent-operating-model.md` (new, ≤150 lines): the launch recipe per window, the four emitted artifacts (T01's names), the merge protocol (rebase-first, `--no-ff`, phase order, `rerere`), the lock location, the shared-DB caveat, the retirement recipe, the residual probes' results — written from the spec's § Chosen approach / § Lifecycle, cited by section; the hub-vs-project caveat (spec § Decisions derived (b)). DO-NOT: hand-edit the generated block; touch `INDEX.md`/`docs/README.md` (orchestrator Deltas).
+
+Depends: T03
+Parallel: ⛓️
+Complexity: complex
+Gate: python -m pytest tests/test_docs_updater.py -q
+Gate: python3 scripts/docs_updater.py --check
+Docs: docs/reference/multi-agent-operating-model.md (NEW — the Doc Sync Matrix 'new subsystem' row) · INDEX.md + docs/README.md rows · docs/development/PLANS.md (regenerated block) · CHANGELOG.md — orchestrator-applied except PLANS.md, which this ticket owns
+
+## Touches
+- scripts/docs_updater.py — PRIMARY PATH
+- tests/test_docs_updater.py
+- docs/development/PLANS.md
+- docs/reference/multi-agent-operating-model.md
+
+## Behavior Contract
+- **Given** two plans with `**Owner:** alpha` / no owner and one epic with `owner: beta`, **When** `generate_plans_table()` runs, **Then** the rows carry `alpha`, `—`, `beta` in the Owner column with their Status values (scripts/docs_updater.py:876)
+- **Given** `docs/development/PLANS.md` with a stale `AUTO-GENERATED:PLANS` block, **When** `docs_updater.py` runs, **Then** the block is regenerated in place and `--check` afterwards reports no PLANS finding (scripts/docs_updater.py:915)
+- **Given** the same file untouched, **When** `docs_updater.py --check` runs, **Then** it reports the PLANS block stale (scripts/docs_updater.py:920)
+- **Given** the new reference doc, **When** `check_doc_links.py` and the INDEX row check run, **Then** both pass and the doc names the four artifacts, the launch form and the lock path exactly as T01/T04 implement them (scripts/docs_updater.py:640)
+
+## Context Files
+- docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md
+- .windsurf/rules/core/40-documentation.md
