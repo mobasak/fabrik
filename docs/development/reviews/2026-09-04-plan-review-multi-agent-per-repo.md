@@ -106,7 +106,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 17 | **author-blind #10** — the same brief a FIFTH time, both-halves gate verification | method: re-derivation | 2 | 2 | 2 | f1b456ca → 5abab982 |
 | Pass 18 | **author-blind #11** — the same brief a SIXTH time, led by a diff of every changed `Gate:` line | method: re-derivation | 1 | 1 | 1 | 5abab982 → 83ef9d1a |
 | Pass 19 | **author-blind #12** — the closing pass; HELD the flip on an unsatisfiable gate | method: re-derivation | 2 | 2 | 2 | 83ef9d1a → 06352eaa |
-| Pass 20 | **author-blind #13** — the closing pass, re-run on a frozen artifact | method: re-derivation | — | — | — | (in flight) |
+| Pass 20 | **author-blind #13** — the closing pass on a frozen artifact (plan-dir tree hash identical across 8 sibling commits) | method: re-derivation | 0 | 0 | 0 | 06352eaa → 06352eaa ✓ |
+| Pass 21 | bounded confirmation that the four prose closures broke nothing — every changed line re-derived, flip rehearsed with armed negative controls | **method: re-derivation** | 0 | 0 | 0 | 76a90746 → 76a90746 ✓ |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -610,4 +611,50 @@ against 2,089 B of headroom; +638 B against 22.6 KB).
 Pass 20 repeats the brief on the frozen artifact, now with a second mechanical detector: classify every
 gate's shell shape and ask whether its comparison is satisfiable **by construction** — the generalisation of
 the T14c defect, so the class is swept rather than the instance.
+
+## Passes 20–21 — CONVERGED, and what twelve rounds actually bought
+
+**Pass 20 was the edit-free closing pass and returned 0 blocking findings.** The plan-dir tree hash was
+identical (`5817c607`) at the briefed HEAD and at re-derivation, across 8 sibling commits — the artifact was
+genuinely frozen, which is what makes an edit-free verdict mean anything. I then closed four PROSE items
+(two it declared optional, two it read past — a duplicated `DO-NOT` clause in T03a and an enumeration
+sentence two earlier fixes had each inserted into). **Pass 21** confirmed that commit broke nothing,
+re-deriving every changed line against primary source and rehearsing the flip with armed negative controls.
+
+`Status: DRAFT → CONVERGED` at `bf3c7e02`, ruling **D-123**.
+
+### The honest accounting
+
+Findings ran 18 → 3 → 16 → 7 → 10 → 4 → 2 → 1 → 2 → 0. **The trajectory is the least interesting part**, and
+the two early convergences to zero were false: they measured a narrower question than they claimed.
+
+**What actually moved the needle was METHOD.** Pass 13 was the first to *execute* all 64 `Gate:` lines rather
+than read them, and immediately found three gates that could never pass and seven that could never fail.
+Pass 15 was the first to run `check_doc_links` against the paths the plan MOVES, and found a blocking Tier-2
+check unsatisfiable at four tickets' merge positions with four referrers owned by nobody. Neither class is
+reachable by reading, however carefully — which is the standing argument for repeating a brief verbatim
+rather than declaring a class closed.
+
+**Five consecutive rounds found a defect introduced by the previous round's own fix.** At three it was
+embarrassing; at five it was a diagnosis. Every one came from **replacing a whole `Gate:` line rather than
+editing it** — composing the replacement from what I intended the gate to do instead of from what the line
+already did, so anything the old line asserted beyond my intent vanished silently, invisible to any
+count-based check because the line count never changed.
+
+**The durable output is two mechanical detectors, not the fixes.** Per-line **backtick parity** (an odd count
+outside a fence is corruption from a blind replace) and **classifying every gate's shell shape** for
+comparisons unsatisfiable by construction. Both caught what four careful re-reads had missed. A detector
+generalises the class; a re-read finds the instance.
+
+### One more, at the very last step
+
+The flip commit itself nearly destroyed a sibling's work. `CHANGELOG.md` needed private-index plumbing
+because a sibling held an uncommitted hunk there and a pathspec commit reads the working tree (Lesson 151).
+My first attempt built the blob from a HEAD that **moved between the read and `commit-tree`**, reverting a
+sibling's just-committed entry. It was caught by comparing `--numstat` against the expected `+5/-0` *before
+pushing*, rolled back with `update-ref`, and rebuilt against a **pinned parent** with three assertions run
+before the ref moved: my entry present, the sibling's entry present, deletions-vs-parent exactly 0.
+
+That is the same lesson as the gates, one layer down: **the check has to run against the state you are
+actually committing, not the state you read a minute ago.**
 
