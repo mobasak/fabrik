@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the model-ranking axis was pricing Sonnet 33% high (2026-09-04)
+
+- `claude_price_ratios.json` feeds `derive_cost.api_equiv`, the axis `rank_task_subagents.py` sorts on. It carried sonnet at $3/$15
+  behind a note saying the $2/$10 introductory rate ran "through 2026-08-31" — the live list shows Sonnet 5 at **$2/$10 with no
+  expiry**, so the note's own instruction to edit was four days overdue and every sonnet run scored 1.5x its real cost.
+- Verified against platform.claude.com before the edit, not from the citation that reported it; guarded by
+  `tests/test_price_ratios_current.py`, watched red at $3/$15 and green at $2/$10.
+- Documented, not fixed: the table is FAMILY-level with ONE global cache-read multiplier (0.1x input). The live footnote reads
+  "prompt cache reads cost 10% of the base input price (2.5% on Claude Fable 5.1 and Claude Mythos 5.1)" — so 0.1x is right for
+  Fable 5 and **4x too high for Fable 5.1**, on the 96-98% of volume that cache reads represent. A family key cannot hold both
+  rates; per-model rows are plan work. The blind spot is now written into the file and a test fails if that warning is dropped.
+- Also re-pointed `derive_cost.py`'s `AFTER-EDIT` header, which still named `tests/test_derive_cost_by_family.py` — deleted by
+  73bde59a's catalog-engine excise, the same commit that orphaned the 8.3 GB benchmark cache fixed yesterday.
+
 ### Added — `audit_usage_cost.py`: the fleet's real token cost, measured not estimated (2026-09-04)
 
 - Fleet measured the fleet's actual consumption from `usage-history.json` — 111 days, 298,137.5M tokens, $230,838-$262,014 at Anthropic list,

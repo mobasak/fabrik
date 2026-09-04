@@ -1,8 +1,24 @@
 {
-  "_comment": "Anthropic API list prices (USD per 1M tokens, input/output) — grounded 2026-07-20 from platform.claude.com/docs/en/about-claude/pricing. Used by derive_cost.api_equiv (the ranking axis). Cache multipliers x the input price, from the prompt-caching doc. NOTE: claude-code/sonnet carries an intro $2/$10 through 2026-08-31 (standard $3/$15 after) — edit 'in'/'out' below if scoring claude-sonnet-5 during the intro window.",
-  "claude-code/opus":   {"in": 5.0,  "out": 25.0},
-  "claude-code/sonnet": {"in": 3.0,  "out": 15.0},
-  "claude-code/haiku":  {"in": 1.0,  "out": 5.0},
-  "claude-code/fable":  {"in": 10.0, "out": 50.0},
-  "_cache": {"read": 0.1, "write_5m": 1.25, "write_1h": 2.0}
+  "_comment": "Anthropic API list prices (USD per 1M tokens, input/output) \u2014 re-grounded 2026-09-04 from platform.claude.com/docs/en/about-claude/models/overview.md. Used by derive_cost.api_equiv (the RANKING axis), so a stale figure here silently re-ranks the pool. Cache multipliers are \u00d7 the input price. SONNET was corrected 2026-09-04: the file carried $3/$15 behind a note saying the $2/$10 introductory rate ran 'through 2026-08-31'; the live page lists Sonnet 5 at $2/$10 with NO expiry, so the rate is current and the old note was four days overdue. \u26a0\ufe0f KNOWN BLIND SPOT \u2014 `_cache.read` is ONE GLOBAL multiplier (0.1\u00d7 base input) and this table is FAMILY-level, so it cannot express a per-model cache rate. The live footnote reads: 'prompt cache reads cost 10% of the base input price (2.5% on Claude Fable 5.1 and Claude Mythos 5.1)'. So 0.1\u00d7 is right for Fable 5 ($1.00 on a $10 input) and 4\u00d7 TOO HIGH for Fable 5.1, whose real rate is $0.25/MTok \u2014 and cache reads are 96-98% of real volume, so that is the dominant term, not a rounding error. Fixing it needs per-model rows, not an edited number; sized as plan work. Until then, treat any fable-tier api_equiv as an UPPER BOUND if the tier is running Fable 5.1. Reported by fleet (mail 01M1PTQ5QXJR0AAGW3YYG3HHWE); guarded by tests/test_price_ratios_current.py.",
+  "claude-code/opus": {
+    "in": 5.0,
+    "out": 25.0
+  },
+  "claude-code/sonnet": {
+    "in": 2.0,
+    "out": 10.0
+  },
+  "claude-code/haiku": {
+    "in": 1.0,
+    "out": 5.0
+  },
+  "claude-code/fable": {
+    "in": 10.0,
+    "out": 50.0
+  },
+  "_cache": {
+    "read": 0.1,
+    "write_5m": 1.25,
+    "write_1h": 2.0
+  }
 }

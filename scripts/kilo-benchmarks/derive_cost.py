@@ -1,4 +1,4 @@
-# AFTER-EDIT: claude_price_ratios.json (the ① price source) · tests/test_derive_cost_by_family.py
+# AFTER-EDIT: claude_price_ratios.json (the ① price source) · tests/test_price_ratios_current.py
 """Three-number subscription-run cost model for claude -p benchmark scoring.
 
 ① api_equiv     — cache-aware API-equivalent USD (the RANKING axis), from a run's raw per-type tokens at
