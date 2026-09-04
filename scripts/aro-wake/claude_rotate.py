@@ -1107,6 +1107,14 @@ def _iso_to_epoch(s: object) -> float | None:
         return None
 
 
+_OAUTH_HOSTS = ("api.anthropic.com", "platform.claude.com")
+"""Probe hosts, tried in order. A module constant so the retry BOUND is derivable: the total
+worst-case call count is ``len(_OAUTH_HOSTS) * attempts``, not ``attempts``. It was a literal
+inside ``_oauth_get`` when the second host landed (d365a0a1, 2026-08-30), which silently doubled
+a bound the test had pinned exactly 8 days earlier (627f8815) — the test then read 4 == 2 and sat
+red until fleet ran the full suite and reported it (01M1MG98SC90HB863AW18XJKQ6)."""
+
+
 def _oauth_get(
     path: str,
     token: str,
@@ -1123,8 +1131,11 @@ def _oauth_get(
     ``urlopen`` under a flaky link (VPN drop) used to trip it (observed 2026-08-22 — the board
     showed "Live probe failed — TimeoutExpired after 60s"). A 4xx (esp. 401/403) is DEFINITIVE
     auth, NEVER retried — retrying a dead/wrong token only burns the budget. Both knobs are
-    env-tunable (``OAUTH_GET_TIMEOUT_S`` / ``OAUTH_GET_ATTEMPTS``); the short 8s default keeps
-    two attempts comfortably inside a caller's budget."""
+    env-tunable (``OAUTH_GET_TIMEOUT_S`` / ``OAUTH_GET_ATTEMPTS``).
+
+    ⚠️ ``attempts`` is PER HOST. The worst case is ``len(_OAUTH_HOSTS) * attempts`` calls, so the
+    8s default bounds a total of ~32s, not ~16s — still inside the caller's 60s subprocess cap,
+    but the number to check when either knob moves."""
     import urllib.error
     import urllib.request
 
@@ -1138,7 +1149,7 @@ def _oauth_get(
     # is a HOST verdict, not a token verdict — falling through to the sibling host turns a
     # permanently-throttled vantage into a working probe. 401/403 stays definitive (dead/wrong
     # token — no host will differ); 5xx retries the same host.
-    for host in ("api.anthropic.com", "platform.claude.com"):
+    for host in _OAUTH_HOSTS:
         req = urllib.request.Request(
             f"https://{host}/api/oauth/{path}",
             headers={

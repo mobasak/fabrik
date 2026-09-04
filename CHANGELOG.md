@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a retry bound that a second probe host silently doubled (2026-09-05)
+
+`tests/test_claude_fleet.py::test_oauth_get_gives_up_after_attempts` had been RED, asserting 2 calls and measuring 4. Fleet found it running the full suite for an unrelated change and asked which of two opposite fixes was right, correctly declining to guess (`01M1MG98SC90HB863AW18XJKQ6`). The code answers it by dates: the exact-count assertion landed with the retry on 2026-08-22, and a **second probe host** landed 8 days later (`d365a0a1` — a measured 429-vs-200 split between `api.anthropic.com` and `platform.claude.com`), multiplying the worst case by the host count. So `attempts` is per-host, 4 is the contract, and the test was stale. The host tuple is now the module constant `_OAUTH_HOSTS` and the test derives its bound from it, so the next host cannot silently re-stale it; the docstring's "two attempts comfortably inside a caller's budget" is corrected to the real ~32s worst case against the caller's 60s subprocess cap. Mirrored into the byte-identical `scripts/aro-wake/claude_rotate.py` twin, as its own doc requires.
+
 ### Fixed — the quota drain notice named the wrong window, and told agents to arm a timer that cannot fire (2026-09-05)
 
 - fabrik-lib finding 01M1P86NZ2DEDGKJ62CS3K346A, plus a second defect found while reading it.

@@ -2901,7 +2901,13 @@ def test_oauth_get_gives_up_after_attempts(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     out = cr._oauth_get("usage", "tok", attempts=2, backoff_s=0)
     assert out is None
-    assert calls["n"] == 2, "bounded — exactly `attempts` tries, then give up (fail-soft)"
+    # `attempts` is PER HOST — the bound is hosts x attempts. Derived from the constant, never
+    # hardcoded: this assertion read `== 2` from 2026-08-22 until the second probe host landed on
+    # 2026-08-30 and doubled the real bound, leaving the test red and unnoticed until fleet ran
+    # the full suite (01M1MG98SC90HB863AW18XJKQ6). A literal here goes stale on the next host.
+    assert calls["n"] == len(cr._OAUTH_HOSTS) * 2, (
+        "bounded — exactly `attempts` tries PER HOST, then give up (fail-soft)"
+    )
 
 
 # ── per-model weekly limits from the `limits` array (2026-08-22: Fable-5 visibility) ──
