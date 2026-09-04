@@ -264,11 +264,11 @@ identity `profile` probe) go through `_oauth_get`, which retries **transient** f
 — TimeoutExpired after 60s", 2026-08-22). A **4xx (esp. 401/403) is definitive auth and is never
 retried** — retrying a dead/wrong token only burns the budget. Both knobs are env-tunable:
 `OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**) — PER HOST, and there
-are two hosts, so ONE call bounds at ~32.6s (both hosts stalling) or ~16.6s (one dead host). The
-call is inside the 60s cap; the AGGREGATE is not: the live fleet path makes `usage` + an hourly
-`profile` call per fresh account with no budget across the loop, so four accounts reach ~132s on
-one dead host and ~260s on a link-wide stall (STRATEGIC_BACKLOG row, 2026-09-05; this sentence
-used to claim two attempts fit the budget). A sustained outage still falls soft to the last-good
+are two hosts. ONE call is inside the 60s cap; the AGGREGATE is not: the live fleet path makes
+`usage` + an hourly `profile` call per fresh account with no budget across the loop, so any
+sustained slowness breaches the cap. The derived figures live in one place — the STRATEGIC_BACKLOG
+row `claude_rotate.py --status --json can exceed …` (2026-09-05); this sentence used to claim two
+attempts fit the budget. A sustained outage still falls soft to the last-good
 reading (the dashboard's red banner) — no retry conjures a working network. Regression-guarded
 in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
 

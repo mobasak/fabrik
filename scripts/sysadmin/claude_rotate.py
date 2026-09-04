@@ -1138,17 +1138,14 @@ def _oauth_get(
     the caller's budget on its own. ``--status --json`` — run by ``quota_dashboard.py`` under a
     60s ``subprocess`` cap — takes the FLEET path whenever fleet dirs exist (this box: yes), and
     ``_fleet_account_rows`` makes an unconditional ``usage`` call plus an hourly ``profile`` call
-    per FRESH account: the ``_FLEET_TOKEN_FRESH_S`` gate only skips STALE tokens. THE INVARIANT
-    THAT MATTERS: the aggregate has NO wall-clock bound — per-call worst case × (2 calls × N fresh
-    accounts), with N=4 on this box and no budget across the loop (``for email in sorted(groups)``).
-    So ANY sustained slowness breaches the 60s cap: one dead host (~16.6s/call — host 1 exhausts
-    its attempts, host 2 answers) is ~33s per account and ~132s across four; a link-wide stall
-    (both hosts, ~32.6s/call — the 2026-08-22 VPN drop) is ~65s per account and ~260s across
-    four. The legacy ``_account_status``/``_collect_statuses`` path has the same unbounded shape.
-    Four earlier edits of this paragraph each restated a NUMBER and got one term wrong ("inside
-    the cap"; "the fleet path is gated"; "one degraded host"; "one dead host is under the cap") —
-    the fix is the invariant, not another number (review 2026-09-05, passes 3-6). The budget
-    mismatch is a backlog row, not a docstring fix."""
+    per FRESH account: the ``_FLEET_TOKEN_FRESH_S`` gate only skips STALE tokens. THE INVARIANT:
+    the aggregate has NO wall-clock bound — per-call worst case × (2 calls × N fresh accounts),
+    no budget across the loop (``for email in sorted(groups)``) — so ANY sustained slowness
+    breaches the 60s cap. The derived figures live in ONE place, the STRATEGIC_BACKLOG row
+    "claude_rotate.py --status --json can exceed quota_dashboard.py's 60s subprocess cap", not
+    here: five edits of this paragraph each restated a number and each got one term wrong, the
+    last a 0.3s arithmetic slip copied into four files (review 2026-09-05, passes 3-7). The
+    legacy ``_account_status``/``_collect_statuses`` path has the same unbounded shape."""
     import urllib.error
     import urllib.request
 
