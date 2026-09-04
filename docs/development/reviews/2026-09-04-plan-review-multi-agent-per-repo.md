@@ -97,7 +97,9 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 8 | **author-blind #3** — the closure delta of pass 7 | method: re-derivation | 7 | 7 | 7 | … |
 | Pass 9 | **author-blind #4** — the r11 re-convergence + a re-read of both earlier passes | method: re-derivation | 24 | 24 | 24 | … |
 | Pass 10 | flip pre-flight: `check_convergence`'s predicates run against a scratch copy flipped to CONVERGED | method: gate | 1 | 1 | 1 | 00612f7a → 81e04ecb |
-| Pass 11 | **author-blind #5** — the confirming pass over pass 9's closures | method: re-derivation | — | — | — | (in flight) |
+| Pass 11 | **author-blind #5** — the confirming pass over pass 9's closures | method: re-derivation | 18 | 18 | 18 | 3934a2d5 → e6f284e6 |
+| Pass 12 | my own re-sweep of pass 11's five open classes | **method: re-derivation** | 3 | 3 | 3 | e6f284e6 → e6f284e6 |
+| Pass 13 | **author-blind #6** — the confirming pass over pass 11's closures | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -276,3 +278,44 @@ Written and re-simulated clean at 81e04ecb.
 NEXT: **pass 11, the confirming author-blind pass, is in flight** — the flip waits for it. It is not ready before
 then, and the earlier version of this line said otherwise, which was wrong: pass 10 had not yet run and pass 9's
 closures have never been independently reviewed.
+
+## Pass 11 — the confirming pass was not a no-op, and three of its findings were wrong
+
+I held the flip on a confirming author-blind pass and it raised **18 findings — 6 HIGH, 8 MED, 4 LOW**. The
+headline is worth stating plainly, because it is the reason the flip was held: the pass found the plan
+**mechanically sound and the flip pre-flight clean**, and the artifact that flip would pass on **untrue** in
+several places. `check_convergence` gates on the presence and shape of the Coverage Checklist, the Pass
+Ledger's re-derivation row and the rubric header — none of which can tell whether the numbers inside them
+are true. The gate would have passed. That is the failure mode this pass existed to catch.
+
+**Two decisions had been delegated to the coder.** T05b named two blockers and offered a fork on each, and
+in both cases every remedy it offered was outside its own Touches — the coder could not have taken either.
+Decided at plan time: bring the one non-compliant epic (of three on disk) up to the schema, and do **not**
+relax `check_integrity`, which would silently un-gate every future malformed epic; and register `epic_order`
+conditionally on the script existing, rather than adding it to the synced set, which is a ~46-repo
+distribution call this plan has no mandate to make. The epic's path is now in T05b's Touches and the spine
+File Scope, which is what makes the first decision executable rather than a wish.
+
+**Four gates passed with the work undone.** T10/T11/T12a/T12b asserted rename-purity with
+`git diff --cached -M --numstat`, which is empty after the commit — the same "green with the work undone"
+class an earlier round fixed for `|| true`, reappearing in a different disguise. I proved it rather than
+reasoning about it: the old form passes against the empty index, and the replacement (`git show ... HEAD`)
+correctly flags a content commit. T02b and T14h asserted only that the old string was gone, so deleting the
+row outright would have passed; both now carry the positive half.
+
+**Three of the eighteen were wrong, and checking rather than accepting is the point.** The pass's File Scope
+count of 109 came from a hardcoded `sed -n '296,406p'` range that my own earlier insert had already shifted
+— the real count is 112, and the same bound is why its T12a byte figure (196,735 B) disagreed with the
+measured 181,435 B. It attributed a misquote to T14b; the misquote is in T14e. And it reported the spec
+repeating a rotted `check_traycer_chain.py:28-33` anchor at `:152` — the spec cites that check **by symbol**
+at `:315`, and `:152` carries no anchor at all. A reviewer's finding is a claim like any other.
+
+**Pass 12 was my own re-sweep and it found three residuals — all created by pass 11's own fixes.** Adding
+the legacy epic to File Scope invalidated the rubric block I had refreshed minutes earlier (111 → 112), and
+two dangling ranges survived the first sweep. This is the fix-residue share the contract predicts, and it is
+why a round that changes anything is never the round that closes the ledger.
+
+Both gates green at `e6f284e6`: `check_plan_tickets --plan-dir` exit 0 / 0 bytes, `check_convergence` exit 0.
+**Status stays DRAFT** pending pass 13 — the terminal condition asks for a confirming pass over these
+closures, not my own re-read of them.
+
