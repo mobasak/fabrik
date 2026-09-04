@@ -102,7 +102,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 13 | **author-blind #6** — the confirming pass over pass 11's closures | method: re-derivation | 16 | 16 | 16 | bf680901 → e7c9e68b |
 | Pass 14 | **author-blind #7** — pass 13's brief REPEATED VERBATIM; caught a regression pass 13's own closure introduced | method: re-derivation | 7 | 7 | 7 | e7c9e68b → 7e93639a |
 | Pass 15 | **author-blind #8** — the same brief a THIRD time; found a BLOCKING gate no round had executed against the moved paths | method: re-derivation | 10 | 10 | 10 | 7e93639a → 2bf7767b |
-| Pass 16 | **author-blind #9** — the same brief a FOURTH time | method: re-derivation | — | — | — | (in flight) |
+| Pass 16 | **author-blind #9** — the same brief a FOURTH time; caught the previous round's gate fix rejecting the correct move | method: re-derivation | 4 | 4 | 4 | 2bf7767b → f1b456ca |
+| Pass 17 | **author-blind #10** — the same brief a FIFTH time, now requiring BOTH-halves gate verification | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -449,4 +450,45 @@ three sessions write to should re-derive, not file. A review that regenerates th
 is measuring the tree's churn, not the plan.
 
 Both gates green at `2bf7767b`. **Status stays DRAFT**; pass 16 repeats the brief a fourth time.
+
+## Pass 16 — the fix that was red for the right reason and could never go green
+
+Findings fell 10 → **4**, and two of the four were regressions pass 15 introduced. The worst is the one
+worth keeping.
+
+**My rename-gate fix rejected the correct move.** Pass 15 re-pinned the four rename-purity gates to the
+rename commit via `git log -1 --format=%H --diff-filter=R -- <retired dir>`. That returns **empty**: git
+scores a change as `A`, not `R`, when the pathspec excludes the rename's **source**. `test -n "$R"` fails,
+and the gate exits 1 on the exact move its ticket mandates. Four tickets could never have shown a green
+gate on correct work.
+
+**The lesson, stated precisely because I keep re-learning it:** I verified the new gate was RED today and
+never verified it would go GREEN after the correct action. *A gate needs both halves.* Redness alone proves
+only that the work is not yet done — it says nothing about whether the gate can ever recognise the work. It
+is the same shape as pass 15's own HIGH (a blocking gate nobody had executed against the state it would
+actually meet), reintroduced one round later by the fix for it. Now proven three ways: on a real `R088`
+rename in this repo's history, on a purpose-built fixture with distinct content (byte-identical files defeat
+git's rename detection and give a false verdict), and with a negative control where a move that also deletes
+content still exits 1. Pass 17's brief makes both-halves verification an explicit requirement.
+
+**T08a's mandated deletion made T08b unsatisfiable — pre-existing, missed by four rounds.** T08a deletes
+`TRAYCER_SKILLS` and `_orch_corpus`, but `check_command_corpus.py::_selftest_body:1616` builds a
+`_traycer-skills` fixture and asserts two orchestrator-wrapper signatures fire. Neither of T08a's gates ran
+`--selftest`, so nothing surfaced it before T08b inherited it — and T08b's only gate is that file's pytest
+suite (`:342` asserts `_selftest() == 0`) while its `DO-NOT` forbids editing the file. The class here is
+worth naming: **a gate can be unsatisfiable not because of its own ticket, but because of what a dependency
+is mandated to do first.** T08a now names `_selftest_body` in scope and gates on `--selftest`, verified
+passing today so it is a genuine before/after invariant.
+
+**And a count was wrong inside the commit that corrected it.** T09's `fabrik-workflow.md` dependents went
+13 → 14 because pass 15's own commit added a reference to that file in T09's `Docs:` line — the
+self-inflation the same paragraph warns about two sentences later. Now stated as one population with the
+plan set subtracted every time: 11 / 13 / 7 pre-existing, 13 / 14 / 8 repo-wide.
+
+One item was correctly named as **drift, not filed**: the four-doc byte sum moved 259,804 → 260,055 against
+a 2,089 B margin. That is the annotation from pass 15 working as intended.
+
+Both gates green at `f1b456ca`, zero warnings — and `check_plan_tickets` now prints its own PASS
+denominator, which is infra shipping one of the three findings this run filed to them this morning.
+**Status stays DRAFT.**
 
