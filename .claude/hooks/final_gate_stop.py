@@ -510,6 +510,30 @@ def _run_record(sid: str) -> dict | None:
         return None
 
 
+def _run_record_exists(sid: str) -> bool:
+    """Did this session EVER open a command run record? Freshness-independent, on purpose.
+
+    `_run_record` fails OPEN on anything it cannot positively prove fresh — correct for the
+    "still running" cause, where a stale record must never trap a session forever. But its None
+    was also being read as `has_any_record=False` by the review checkpoint, whose question is a
+    different one: "was this code reviewed under a command at all?" A record that exists and is
+    13h old answers YES to that and NO to the other. Collapsing the two meant a session that ran
+    /fabrik-review-scoped to a clean terminal, closed it properly, then sat idle under a quota
+    hold got re-blocked as UNREVIEWED SPONTANEOUS WORK (youtube, session 50328fe3, record age
+    13.01h — 01M1NTNCFEWMP82YQFGNN6NHYP).
+
+    Same fail-open direction as everything else here: unreadable/corrupt/absent → False only
+    because that is genuinely "no record", and the checkpoint's own CAP still warns through.
+    """
+    try:
+        raw_dir = os.environ.get("COMMAND_RUN_DIR")
+        base = Path(raw_dir) if raw_dir else Path.home() / ".claude" / "state" / "command-runs"
+        rec = json.loads((base / f"{_safe_sid(sid)}.json").read_text(encoding="utf-8"))
+        return isinstance(rec, dict) and bool(rec)
+    except Exception:
+        return False
+
+
 def _run_block_reason(rec: dict, attempt: int) -> str:
     cmd = rec.get("command") or "?"
     cur, total = rec.get("phase") or 1, rec.get("phases") or "?"
@@ -580,7 +604,13 @@ def _count_code_files(authored: dict[str, int]) -> int:
 
 
 def decide_review(code_files: int, has_any_record: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
-    """Pure review-checkpoint decision. Returns (action, attempts')."""
+    """Pure review-checkpoint decision. Returns (action, attempts').
+
+    ⚠️ `has_any_record` means EXISTS, never IS-FRESH. It used to be fed `bool(_run_record(sid))`,
+    whose None also means "I could not prove this record fresh" — so a stale-but-real record read
+    as "never reviewed" and this cause blocked a session that had already reviewed and closed
+    (01M1NTNCFEWMP82YQFGNN6NHYP). Feed it `_run_record_exists(sid)`.
+    """
     if code_files == 0 or has_any_record:
         return "allow", 0
     attempts += 1
@@ -1252,7 +1282,11 @@ def main(argv: list[str]) -> int:
                 # construction. The remedy is the light /fabrik-review-scoped; running it
                 # creates the record, which clears this cause on the next stop.
                 v_action, v_att = decide_review(
-                    _count_code_files(authored_map), bool(run), v_att
+                    # EXISTS, not IS-FRESH: `run` is None for a stale record too, and this
+                    # cause's question is "reviewed under a command at all?" (01M1NTNCFEWMP82YQFGNN6NHYP)
+                    _count_code_files(authored_map),
+                    _run_record_exists(sid),
+                    v_att,
                 )
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")

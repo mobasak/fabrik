@@ -60,7 +60,11 @@ def test_new_failures_block_up_to_cap() -> None:
 
 
 def test_over_cap_allows_with_warning() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=3) == ("allow_warn_gate", 0, 0)
+    assert hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=3) == (
+        "allow_warn_gate",
+        0,
+        0,
+    )
 
 
 # --- integration: baseline diffing (the real bug) -----------------------------
@@ -156,7 +160,9 @@ def test_baseline_mode_writes_snapshot(fake_project: Path) -> None:
 
 
 def test_own_uncommitted_blocks_with_commit_action() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=True) == (
+    assert hook.decide(
+        git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=True
+    ) == (
         "block_commit",
         0,
         1,
@@ -165,18 +171,26 @@ def test_own_uncommitted_blocks_with_commit_action() -> None:
 
 def test_gate_failures_outrank_commit_block() -> None:
     # Fix first, commit second — red gate takes the block slot.
-    action, _, _ = hook.decide(git_dirty=True, has_new_failures=True, gate_attempts=0, own_uncommitted=True)
+    action, _, _ = hook.decide(
+        git_dirty=True, has_new_failures=True, gate_attempts=0, own_uncommitted=True
+    )
     assert action == "block"
 
 
 def test_own_uncommitted_respects_cap() -> None:
     assert hook.decide(
-        git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=True, commit_attempts=3
+        git_dirty=True,
+        has_new_failures=False,
+        gate_attempts=0,
+        own_uncommitted=True,
+        commit_attempts=3,
     ) == ("allow_warn_commit", 0, 0)
 
 
 def test_committed_own_work_allows() -> None:
-    assert hook.decide(git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=False) == (
+    assert hook.decide(
+        git_dirty=True, has_new_failures=False, gate_attempts=0, own_uncommitted=False
+    ) == (
         "allow",
         0,
         0,
@@ -207,11 +221,15 @@ def _push_repo(tmp_path: Path, *, upstream: bool, push: bool) -> Path:
     subprocess.run(["git", "add", "-A"], cwd=p, check=True, timeout=15)
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "w"],
-        cwd=p, check=True, timeout=15,
+        cwd=p,
+        check=True,
+        timeout=15,
     )
     if upstream:
         bare = tmp_path / "origin.git"
-        subprocess.run(["git", "init", "-q", "--bare", "-b", "master", str(bare)], check=True, timeout=15)
+        subprocess.run(
+            ["git", "init", "-q", "--bare", "-b", "master", str(bare)], check=True, timeout=15
+        )
         subprocess.run(["git", "remote", "add", "origin", str(bare)], cwd=p, check=True, timeout=15)
         subprocess.run(["git", "push", "-qu", "origin", "master"], cwd=p, check=True, timeout=15)
         if not push:  # leave ONE commit ahead of the upstream
@@ -219,7 +237,9 @@ def _push_repo(tmp_path: Path, *, upstream: bool, push: bool) -> Path:
             subprocess.run(["git", "add", "b.txt"], cwd=p, check=True, timeout=15)
             subprocess.run(
                 ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "ahead"],
-                cwd=p, check=True, timeout=15,
+                cwd=p,
+                check=True,
+                timeout=15,
             )
     return p
 
@@ -258,23 +278,28 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
             proc = subprocess.run(
                 [sys.executable, str(_HOOK)],
                 input=json.dumps({"session_id": sid, "cwd": str(p), "hook_event_name": "Stop"}),
-                capture_output=True, text=True, timeout=60, env=env,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
             )
             return proc.stdout.strip()
 
-        assert "UNPUSHED" in stop()                      # p -> 1
+        assert "UNPUSHED" in stop()  # p -> 1
         subprocess.run(["git", "push", "-q"], cwd=p, check=True, timeout=15)  # cause resolves
-        (p / "dirty.txt").write_text("x")                # dirty tree
-        env["FAKE_FAILS"] = "NewCheck"                   # NEW gate failure -> gate block
+        (p / "dirty.txt").write_text("x")  # dirty tree
+        env["FAKE_FAILS"] = "NewCheck"  # NEW gate failure -> gate block
         out = stop()
         assert "DEFINITION OF DONE NOT MET" in out
         env["FAKE_FAILS"] = ""
         (p / "dirty.txt").unlink()
-        (p / "c.txt").write_text("z")                    # brand-new unpushed streak
+        (p / "c.txt").write_text("z")  # brand-new unpushed streak
         subprocess.run(["git", "add", "c.txt"], cwd=p, check=True, timeout=15)
         subprocess.run(
             ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "new"],
-            cwd=p, check=True, timeout=15,
+            cwd=p,
+            check=True,
+            timeout=15,
         )
         out = stop()
         assert "UNPUSHED WORK (attempt 1/3)" in out, out  # fresh streak starts at 1, not 2
@@ -292,13 +317,25 @@ def test_baseline_survives_resume_but_not_fresh_start(fake_project: Path) -> Non
     try:
         bl.write_text(json.dumps(["Original"]))
         env = {**os.environ, "FAKE_FAILS": "NewCheck"}
-        for source, expect in (("resume", ["Original"]), ("compact", ["Original"]),
-                               ("startup", ["NewCheck"])):
+        for source, expect in (
+            ("resume", ["Original"]),
+            ("compact", ["Original"]),
+            ("startup", ["NewCheck"]),
+        ):
             proc = subprocess.run(
                 [sys.executable, str(_HOOK), "--baseline"],
-                input=json.dumps({"session_id": sid, "cwd": str(fake_project),
-                                  "hook_event_name": "SessionStart", "source": source}),
-                capture_output=True, text=True, timeout=60, env=env,
+                input=json.dumps(
+                    {
+                        "session_id": sid,
+                        "cwd": str(fake_project),
+                        "hook_event_name": "SessionStart",
+                        "source": source,
+                    }
+                ),
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
             )
             assert proc.returncode == 0
             assert json.loads(bl.read_text()) == expect, f"source={source}"
@@ -313,8 +350,15 @@ def test_counters_read_legacy_three_slot(tmp_path: Path) -> None:
 
 
 def _run_stop_with_transcript(
-    project: Path, sid: str, fake_fails: str, fail_output: str, authored_file: str, *, baseline: list[str],
-    extra_authored: list[str] | None = None, per_check_outputs: dict[str, str] | None = None,
+    project: Path,
+    sid: str,
+    fake_fails: str,
+    fail_output: str,
+    authored_file: str,
+    *,
+    baseline: list[str],
+    extra_authored: list[str] | None = None,
+    per_check_outputs: dict[str, str] | None = None,
 ) -> str:
     """Stop-hook run with a transcript naming session-authored (committed) file(s)."""
     (project / "scripts" / "final_gate.py").write_text(_FAKE_GATE_WITH_OUTPUT)
@@ -324,13 +368,24 @@ def _run_stop_with_transcript(
         ap = project / af
         ap.parent.mkdir(parents=True, exist_ok=True)
         ap.write_text("session work")
-        lines.append(json.dumps({"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "name": "Edit", "input": {"file_path": str(ap)}}
-        ]}}))
+        lines.append(
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {"type": "tool_use", "name": "Edit", "input": {"file_path": str(ap)}}
+                        ]
+                    },
+                }
+            )
+        )
     subprocess.run(["git", "add", *authored_all], cwd=project, check=True, timeout=15)
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "session work"],
-        cwd=project, check=True, timeout=15,
+        cwd=project,
+        check=True,
+        timeout=15,
     )
     transcript = project / "transcript.jsonl"
     transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -344,18 +399,31 @@ def _run_stop_with_transcript(
     run_dir = project / "command-runs"
     run_dir.mkdir(exist_ok=True)
     import time as _t
-    (run_dir / f"{sid}.json").write_text(json.dumps(
-        {"state": "done", "command": "fabrik-review-scoped", "updated_ts": _t.time()}))
-    env = {**os.environ, "FAKE_FAILS": fake_fails, "FAKE_FAIL_OUTPUT": fail_output,
-           "COMMAND_RUN_DIR": str(run_dir),
-           "FAKE_FAIL_OUTPUTS": json.dumps(per_check_outputs or {})}
+
+    (run_dir / f"{sid}.json").write_text(
+        json.dumps({"state": "done", "command": "fabrik-review-scoped", "updated_ts": _t.time()})
+    )
+    env = {
+        **os.environ,
+        "FAKE_FAILS": fake_fails,
+        "FAKE_FAIL_OUTPUT": fail_output,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "FAKE_FAIL_OUTPUTS": json.dumps(per_check_outputs or {}),
+    }
     proc = subprocess.run(
         [sys.executable, str(_HOOK)],
-        input=json.dumps({
-            "session_id": sid, "cwd": str(project),
-            "transcript_path": str(transcript), "hook_event_name": "Stop",
-        }),
-        capture_output=True, text=True, timeout=60, env=env,
+        input=json.dumps(
+            {
+                "session_id": sid,
+                "cwd": str(project),
+                "transcript_path": str(transcript),
+                "hook_event_name": "Stop",
+            }
+        ),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
     )
     bl.unlink(missing_ok=True)
     ctr.unlink(missing_ok=True)
@@ -365,9 +433,12 @@ def _run_stop_with_transcript(
 def test_new_failure_citing_only_sibling_files_does_not_block(fake_project: Path) -> None:
     # NEW failing check whose output cites ONLY a sibling's file → shared-tree cause → allow.
     out = _run_stop_with_transcript(
-        fake_project, "s_sibling", "DocSync",
+        fake_project,
+        "s_sibling",
+        "DocSync",
         "CHANGELOG.md not updated for src/fabrik/orchestrator/__init__.py (sibling staged)",
-        "mine/session_file.py", baseline=[],
+        "mine/session_file.py",
+        baseline=[],
     )
     assert out == "", f"sibling-caused new failure must not block, got: {out}"
 
@@ -375,9 +446,12 @@ def test_new_failure_citing_only_sibling_files_does_not_block(fake_project: Path
 def test_new_failure_citing_session_file_still_blocks(fake_project: Path) -> None:
     # Same shape, but the failure output cites the session-authored file → still block.
     out = _run_stop_with_transcript(
-        fake_project, "s_selfcause", "DocSync",
+        fake_project,
+        "s_selfcause",
+        "DocSync",
         "CHANGELOG.md not updated for mine/session_file.py",
-        "mine/session_file.py", baseline=[],
+        "mine/session_file.py",
+        baseline=[],
     )
     assert out, "session-caused new failure must still block"
     assert json.loads(out)["decision"] == "block"
@@ -389,9 +463,13 @@ def test_routine_governance_cite_alone_does_not_attribute(fake_project: Path) ->
     # CHANGELOG.md + sibling files must NOT attribute to a session that authored
     # CHANGELOG.md (plus unrelated work).
     out = _run_stop_with_transcript(
-        fake_project, "s_govonly", "DocSync",
+        fake_project,
+        "s_govonly",
+        "DocSync",
         "CHANGELOG.md not updated for 1 significant code/infra change(s) (e.g. src/sibling/thing.py).",
-        "mine/session_file.py", baseline=[], extra_authored=["CHANGELOG.md"],
+        "mine/session_file.py",
+        baseline=[],
+        extra_authored=["CHANGELOG.md"],
     )
     assert out == "", f"governance-name cite alone must not attribute, got: {out}"
 
@@ -400,9 +478,12 @@ def test_pathless_output_is_indeterminate_and_blocks(fake_project: Path) -> None
     # A NEW failure whose output cites no path at all cannot be attributed — the hook
     # must NOT wave it through (the fail-open hole): keep blocking up to the cap.
     out = _run_stop_with_transcript(
-        fake_project, "s_pathless", "shapeCheck",
+        fake_project,
+        "s_pathless",
+        "shapeCheck",
         "0 rows matched the expected shape",
-        "mine/session_file.py", baseline=[],
+        "mine/session_file.py",
+        baseline=[],
     )
     assert out, "path-less new failure is indeterminate and must block"
 
@@ -411,8 +492,12 @@ def test_two_empty_outputs_still_block(fake_project: Path) -> None:
     # Two failures with empty outputs used to make the joined text truthy ("\n") and
     # skip the guard; count must not change the verdict — still indeterminate → block.
     out = _run_stop_with_transcript(
-        fake_project, "s_twoempty", "checkA,checkB", "",
-        "mine/session_file.py", baseline=[],
+        fake_project,
+        "s_twoempty",
+        "checkA,checkB",
+        "",
+        "mine/session_file.py",
+        baseline=[],
     )
     assert out, "empty outputs are indeterminate regardless of failure count"
 
@@ -421,8 +506,12 @@ def test_inherited_failure_output_does_not_contaminate_attribution(fake_project:
     # Baseline failure cites the session's file; the NEW failure cites only a sibling's.
     # Attribution must scope to the NEW failure's output → downgrade (allow).
     out = _run_stop_with_transcript(
-        fake_project, "s_contam", "inheritedCheck,newCheck", "",
-        "mine/session_file.py", baseline=["inheritedCheck"],
+        fake_project,
+        "s_contam",
+        "inheritedCheck,newCheck",
+        "",
+        "mine/session_file.py",
+        baseline=["inheritedCheck"],
         per_check_outputs={
             "inheritedCheck": "old debt in mine/session_file.py",
             "newCheck": "sibling broke src/sibling/x.py",
@@ -434,9 +523,12 @@ def test_inherited_failure_output_does_not_contaminate_attribution(fake_project:
 def test_substring_cite_does_not_attribute(fake_project: Path) -> None:
     # Cited data_app.py must not match authored app.py (substring ban) → downgrade.
     out = _run_stop_with_transcript(
-        fake_project, "s_substr", "lintCheck",
+        fake_project,
+        "s_substr",
+        "lintCheck",
         "syntax error in src/data_app.py line 3",
-        "app.py", baseline=[],
+        "app.py",
+        baseline=[],
     )
     assert out == "", f"substring collision must not attribute, got: {out}"
 
@@ -444,9 +536,12 @@ def test_substring_cite_does_not_attribute(fake_project: Path) -> None:
 def test_abs_path_cite_still_attributes(fake_project: Path) -> None:
     # A failure citing the session file by ABSOLUTE path still attributes (suffix match).
     out = _run_stop_with_transcript(
-        fake_project, "s_abs", "lintCheck",
+        fake_project,
+        "s_abs",
+        "lintCheck",
         "error at /opt/whatever/checkout/mine/session_file.py:3",
-        "mine/session_file.py", baseline=[],
+        "mine/session_file.py",
+        baseline=[],
     )
     assert out, "absolute-path cite of a session file must still block"
 
@@ -456,9 +551,12 @@ def test_session_breaking_governance_file_itself_is_indeterminate(fake_project: 
     # sibling trigger file in the output → the session may have broken it itself →
     # indeterminate → block (never waved through by the governance exclusion).
     out = _run_stop_with_transcript(
-        fake_project, "s_govself", "MarkdownLint",
+        fake_project,
+        "s_govself",
+        "MarkdownLint",
         "CHANGELOG.md: malformed heading at line 12",
-        "CHANGELOG.md", baseline=[],
+        "CHANGELOG.md",
+        baseline=[],
     )
     assert out, "governance-only cite with the file session-authored must block (indeterminate)"
 
@@ -488,10 +586,26 @@ def test_session_files_parses_edit_tools_and_scopes_to_root(tmp_path: Path) -> N
                 "type": "assistant",
                 "message": {
                     "content": [
-                        {"type": "tool_use", "name": "Edit", "input": {"file_path": str(root / "src/a.py")}},
-                        {"type": "tool_use", "name": "Write", "input": {"file_path": str(root / "docs/b.md")}},
-                        {"type": "tool_use", "name": "Read", "input": {"file_path": str(root / "c.py")}},
-                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/elsewhere/outside.py"}},
+                        {
+                            "type": "tool_use",
+                            "name": "Edit",
+                            "input": {"file_path": str(root / "src/a.py")},
+                        },
+                        {
+                            "type": "tool_use",
+                            "name": "Write",
+                            "input": {"file_path": str(root / "docs/b.md")},
+                        },
+                        {
+                            "type": "tool_use",
+                            "name": "Read",
+                            "input": {"file_path": str(root / "c.py")},
+                        },
+                        {
+                            "type": "tool_use",
+                            "name": "Edit",
+                            "input": {"file_path": "/elsewhere/outside.py"},
+                        },
                     ]
                 },
             }
@@ -508,6 +622,7 @@ def test_session_files_returns_last_edit_timestamp(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     root.mkdir()
     transcript = tmp_path / "t.jsonl"
+
     def mk(ts: str) -> str:
         return json.dumps(
             {
@@ -524,7 +639,10 @@ def test_session_files_returns_last_edit_timestamp(tmp_path: Path) -> None:
                 },
             }
         )
-    transcript.write_text(mk("2026-07-19T18:35:00.000Z") + "\n" + mk("2026-08-07T10:00:00.000Z"), encoding="utf-8")
+
+    transcript.write_text(
+        mk("2026-07-19T18:35:00.000Z") + "\n" + mk("2026-08-07T10:00:00.000Z"), encoding="utf-8"
+    )
     got = hook._session_files(str(transcript), root.resolve())
     assert got["a.py"] == 1786096800  # the LATER edit wins (2026-08-07T10:00Z)
 
@@ -543,7 +661,9 @@ def test_committed_session_edit_does_not_reattach_to_new_dirt(tmp_path: Path) ->
     f = root / "doc.md"
     f.write_text("v1\n", encoding="utf-8")
     sp.run(["git", "-C", str(root), "add", "doc.md"], check=True, timeout=15)
-    sp.run(["git", "-C", str(root), "commit", "-qm", "session work committed"], check=True, timeout=15)
+    sp.run(
+        ["git", "-C", str(root), "commit", "-qm", "session work committed"], check=True, timeout=15
+    )
     f.write_text("v2 pipeline bump\n", encoding="utf-8")  # someone ELSE's new dirt
     # Session's last edit timestamp: long BEFORE the commit above (weeks ago).
     edit_ts = 1752950100  # 2026-07-19
@@ -551,7 +671,11 @@ def test_committed_session_edit_does_not_reattach_to_new_dirt(tmp_path: Path) ->
     # Wiring equivalent of the Stop-path filter:
     authored = {"doc.md": edit_ts}
     dirty = hook._dirty_paths(root)
-    own = {r for r, ts in authored.items() if r in dirty and not (ts and hook._last_commit_ts(root, r) >= ts)}
+    own = {
+        r
+        for r, ts in authored.items()
+        if r in dirty and not (ts and hook._last_commit_ts(root, r) >= ts)
+    }
     assert own == set()  # committed session work + foreign dirt → NOT flagged
 
 
@@ -597,11 +721,14 @@ def test_warn_actions_name_their_cause() -> None:
     # Review finding: an unconditional "gate still RED" warn was false on
     # commit-cap exhaustion — the two exhaustion paths must be distinguishable.
     a_gate, _, _ = hook.decide(True, True, gate_attempts=3)
-    a_commit, _, _ = hook.decide(True, False, gate_attempts=0, own_uncommitted=True, commit_attempts=3)
+    a_commit, _, _ = hook.decide(
+        True, False, gate_attempts=0, own_uncommitted=True, commit_attempts=3
+    )
     assert a_gate == "allow_warn_gate" and a_commit == "allow_warn_commit"
 
 
 # --- promise-guard (stall detection) ------------------------------------------
+
 
 def _turn(transcript: Path, *entries: str) -> None:
     transcript.write_text("\n".join(entries) + "\n", encoding="utf-8")
@@ -612,12 +739,18 @@ def _user(text: str = "do the thing") -> str:
 
 
 def _asst_text(text: str) -> str:
-    return json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
+    return json.dumps(
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
+    )
 
 
 def _asst_tool(name: str, **inp) -> str:
-    return json.dumps({"type": "assistant", "message": {"content": [
-        {"type": "tool_use", "name": name, "input": inp}]}})
+    return json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "name": name, "input": inp}]},
+        }
+    )
 
 
 def test_promise_without_dispatch_is_a_stall(tmp_path: Path) -> None:
@@ -630,8 +763,12 @@ def test_promise_without_dispatch_is_a_stall(tmp_path: Path) -> None:
 def test_promise_with_background_dispatch_is_kept(tmp_path: Path) -> None:
     # The promise was KEPT: a subagent dispatch happened in the same final turn.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_tool("Task", prompt="run pass 5"),
-          _asst_text("Starting it now — Pass 5 dispatched, will report."))
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("Task", prompt="run pass 5"),
+        _asst_text("Starting it now — Pass 5 dispatched, will report."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -657,8 +794,12 @@ def test_passive_obligation_without_dispatch_is_a_stall(tmp_path: Path) -> None:
 
 def test_passive_obligation_with_dispatch_is_kept(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_tool("Task", prompt="run pass 7"),
-          _asst_text("Pass 7 is owed — dispatched, reporting at the quiet round."))
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("Task", prompt="run pass 7"),
+        _asst_text("Pass 7 is owed — dispatched, reporting at the quiet round."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -672,8 +813,11 @@ def test_first_person_owe_is_a_stall(tmp_path: Path) -> None:
 def test_negated_obligation_is_allowed(tmp_path: Path) -> None:
     # A convergence CONCLUSION uses the same nouns — "no further pass is owed".
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "Ledger row 3: edits 0, md5 identical — CONVERGED. No further pass is owed."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text("Ledger row 3: edits 0, md5 identical — CONVERGED. No further pass is owed."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -699,17 +843,26 @@ def test_continuation_claim_without_dispatch_is_a_stall(tmp_path: Path) -> None:
 
 def test_continuation_claim_with_dispatch_is_kept(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_tool("Agent", prompt="round 7 finders"),
-          _asst_text(_BRAND_IDENTITY_CONTINUING_FINAL))
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("Agent", prompt="round 7 finders"),
+        _asst_text(_BRAND_IDENTITY_CONTINUING_FINAL),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
 def test_next_round_footer_alone_is_a_stall(tmp_path: Path) -> None:
     # The structural form with NO continuation gerund at all.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "Round 6 committed, gates green.\n\nNEXT: round 7 on the r6 diff — a clean "
-        "round closes Phase B."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Round 6 committed, gates green.\n\nNEXT: round 7 on the r6 diff — a clean "
+            "round closes Phase B."
+        ),
+    )
     kind = hook._detect_stall(str(tr), tmp_path, set())
     assert kind and kind[0] == "promise"
 
@@ -719,12 +872,20 @@ def test_next_round_footer_operator_gated_is_exempt(tmp_path: Path) -> None:
     # the line must also name a HARD-STOP class (gate 1/2, deploy, cross-repo,
     # spend, destructive, policy). Both directions asserted.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "Round 6 committed.\n\nNEXT: round 7 — operator decision: Gate 2 approval of the deploy."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Round 6 committed.\n\nNEXT: round 7 — operator decision: Gate 2 approval of the deploy."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
     tr2 = tmp_path / "t2.jsonl"
-    _turn(tr2, _user(), _asst_text(
-        "Round 6 committed.\n\nNEXT: round 7 — operator decision: resume or reshape."))
+    _turn(
+        tr2,
+        _user(),
+        _asst_text("Round 6 committed.\n\nNEXT: round 7 — operator decision: resume or reshape."),
+    )
     kind = hook._detect_stall(str(tr2), tmp_path, set())
     assert kind and kind[0] == "promise", "a bare deferral must not disarm the stall guard"
 
@@ -739,16 +900,24 @@ def test_terminal_bare_continuing_is_a_stall(tmp_path: Path) -> None:
 def test_conversational_continuing_is_not_a_stall(tmp_path: Path) -> None:
     # Plain gerund with neither qualifier nor terminal position — conversational.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "Continuing our earlier discussion of the tradeoffs, option B is better "
-        "because it keeps the contract in one file."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Continuing our earlier discussion of the tradeoffs, option B is better "
+            "because it keeps the contract in one file."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
 def test_quoted_continuation_claim_is_not_a_stall(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        'The guard now also catches "Continuing autonomously." as a stall shape.'))
+    _turn(
+        tr,
+        _user(),
+        _asst_text('The guard now also catches "Continuing autonomously." as a stall shape.'),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -756,22 +925,36 @@ def test_obligation_quoted_mid_sentence_is_exempt(tmp_path: Path) -> None:
     # The quote span, not just the char before the noun: a report QUOTING a
     # stall snippet is discussing it, not making it.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        'Finding 3: the final said "the confirming pass is owed" and stopped — classic stall, now fixed.'))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            'Finding 3: the final said "the confirming pass is owed" and stopped — classic stall, now fixed.'
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
 def test_negated_obligation_with_long_subject_is_allowed(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "No adversarial or confirming pass is owed. No whole-plan review pass is owed either."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "No adversarial or confirming pass is owed. No whole-plan review pass is owed either."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
 def test_obligation_adverb_variants_are_stalls(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    for text in ("Pass 7 is now owed.", "The confirming round is already owed.",
-                 "Pass 7 is still outstanding.", "The sweep remains to be run."):
+    for text in (
+        "Pass 7 is now owed.",
+        "The confirming round is already owed.",
+        "Pass 7 is still outstanding.",
+        "The sweep remains to be run.",
+    ):
         _turn(tr, _user(), _asst_text(text))
         kind = hook._detect_stall(str(tr), tmp_path, set())
         assert kind and kind[0] == "promise", f"missed: {text!r}"
@@ -779,11 +962,13 @@ def test_obligation_adverb_variants_are_stalls(tmp_path: Path) -> None:
 
 def test_deadline_and_gratitude_prose_are_allowed(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    for text in ("The quarterly review is due on Friday for the operator.",
-                 "Two fixes are due before release; both landed and are committed.",
-                 "Phase C is due once the operator approves.",
-                 "We owe a debt of gratitude to the pool finders.",
-                 "We owe it to future sessions to keep the ledger honest."):
+    for text in (
+        "The quarterly review is due on Friday for the operator.",
+        "Two fixes are due before release; both landed and are committed.",
+        "Phase C is due once the operator approves.",
+        "We owe a debt of gratitude to the pool finders.",
+        "We owe it to future sessions to keep the ledger honest.",
+    ):
         _turn(tr, _user(), _asst_text(text))
         assert hook._detect_stall(str(tr), tmp_path, set()) is None, f"false positive: {text!r}"
 
@@ -791,8 +976,13 @@ def test_deadline_and_gratitude_prose_are_allowed(tmp_path: Path) -> None:
 def test_due_to_causal_is_allowed(tmp_path: Path) -> None:
     # "due to" is causal prose, not an obligation.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "The DataError on first run is due to the missing jsonb codec listener; fixed and green."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "The DataError on first run is due to the missing jsonb codec listener; fixed and green."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -801,7 +991,11 @@ def test_permission_question_with_session_owned_lock_is_a_stall(tmp_path: Path) 
     locks.mkdir(parents=True)
     (locks / "x.json").write_text('{"status": "active"}')
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text("The T2 cap says route to a plan. Want me to run /fabrik-plan-after-chat now?"))
+    _turn(
+        tr,
+        _user(),
+        _asst_text("The T2 cap says route to a plan. Want me to run /fabrik-plan-after-chat now?"),
+    )
     # session-scoped: the lock counts only when THIS session authored it
     kind = hook._detect_stall(str(tr), tmp_path, {".fabrik/plan-locks/x.json"})
     assert kind and kind[0] == "permission"
@@ -836,7 +1030,9 @@ def test_unchecked_review_is_a_midrun_marker(tmp_path: Path) -> None:
     # No obligation clause here on purpose — this fixture isolates the PERMISSION
     # path (the UNCHECKED review doc arming the mid-run marker).
     _turn(tr, _user(), _asst_text("Round 2 finished clean. Shall I continue with the next pass?"))
-    kind = hook._detect_stall(str(tr), tmp_path, {"docs/development/reviews/2026-01-01-x-review.md"})
+    kind = hook._detect_stall(
+        str(tr), tmp_path, {"docs/development/reviews/2026-01-01-x-review.md"}
+    )
     assert kind and kind[0] == "permission"
 
 
@@ -862,8 +1058,13 @@ def test_quoted_stall_phrases_are_exempt(tmp_path: Path) -> None:
     (locks / "x.json").write_text('{"status": "active"}')
     owned = {".fabrik/plan-locks/x.json"}
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "Agents get bounced when they end a turn on 'I'll run it' or \"Want me to…?\" — the guard is live."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Agents get bounced when they end a turn on 'I'll run it' or \"Want me to…?\" — the guard is live."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, owned) is None
 
 
@@ -873,8 +1074,11 @@ def test_unquoted_stall_still_fires_alongside_quotes(tmp_path: Path) -> None:
     (locks / "x.json").write_text('{"status": "active"}')
     owned = {".fabrik/plan-locks/x.json"}
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "The old stall was 'I did nothing'. Anyway: want me to run the next pass now?"))
+    _turn(
+        tr,
+        _user(),
+        _asst_text("The old stall was 'I did nothing'. Anyway: want me to run the next pass now?"),
+    )
     kind = hook._detect_stall(str(tr), tmp_path, owned)
     assert kind and kind[0] == "permission"
 
@@ -884,9 +1088,14 @@ def test_next_operator_decision_line_does_not_blind_the_guard(tmp_path: Path) ->
     # line must not disarm a genuine undispatched promise elsewhere in the
     # message — exemption tokens are line-scoped (BLOCKED: stays global).
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "I'll run the confirming pass and report back.\n\n"
-        "GATE: success\nNEXT: operator decision: whether to push\n"))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "I'll run the confirming pass and report back.\n\n"
+            "GATE: success\nNEXT: operator decision: whether to push\n"
+        ),
+    )
     kind = hook._detect_stall(str(tr), tmp_path, set())
     assert kind and kind[0] == "promise"
 
@@ -895,14 +1104,24 @@ def test_conditional_offer_is_an_operator_gate_not_a_stall(tmp_path: Path) -> No
     # 2026-08-29 hardening: the offer exempts only when its line names a
     # HARD-STOP class; a bare "say the word" offer is the stall it always was.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "This is a cross-repo change into another repo — say the word and "
-        "I'll run it through the pipeline."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "This is a cross-repo change into another repo — say the word and "
+            "I'll run it through the pipeline."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
     tr2 = tmp_path / "t2.jsonl"
-    _turn(tr2, _user(), _asst_text(
-        "This is a command-source change plus a small helper — say the word and "
-        "I'll run it through the pipeline."))
+    _turn(
+        tr2,
+        _user(),
+        _asst_text(
+            "This is a command-source change plus a small helper — say the word and "
+            "I'll run it through the pipeline."
+        ),
+    )
     kind = hook._detect_stall(str(tr2), tmp_path, set())
     assert kind and kind[0] == "promise", "a bare offer must not disarm the stall guard"
 
@@ -911,7 +1130,11 @@ def test_gate_exemption_suppresses_a_real_promise(tmp_path: Path) -> None:
     """Mutation-killer: the exemption must be load-bearing — a REAL promise inside
     human-gate wording is exempt; delete the exemption regex and this goes red."""
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text("Gate 2 is yours — after you approve, I'll run the deploy-verify suite."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text("Gate 2 is yours — after you approve, I'll run the deploy-verify suite."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -920,9 +1143,15 @@ def test_blocked_header_exempts_despite_long_detail(tmp_path: Path) -> None:
     away from a trailing promise by the 600-char tail cut."""
     detail = "search detail line\n" * 60
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "BLOCKED: vendor API — searched: docs, web — missing: auth scheme.\n" + detail +
-        "Once you supply the scheme I'll run the suite."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "BLOCKED: vendor API — searched: docs, web — missing: auth scheme.\n"
+            + detail
+            + "Once you supply the scheme I'll run the suite."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -941,8 +1170,11 @@ def test_quoted_promise_does_not_mask_a_later_real_one(tmp_path: Path) -> None:
     """Guard-defeat killer: a quoted example must not disarm a genuine promise
     that follows it."""
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "The old stall was 'I'll run it'. Anyway, I'll run the next pass now."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text("The old stall was 'I'll run it'. Anyway, I'll run the next pass now."),
+    )
     kind = hook._detect_stall(str(tr), tmp_path, set())
     assert kind and kind[0] == "promise"
 
@@ -961,36 +1193,60 @@ def test_conversational_verbs_without_action_object_are_silent(tmp_path: Path) -
 
 def test_rund_and_slashcommand_count_as_dispatch(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_tool("Bash", command="rund -- pytest -q tests/"),
-          _asst_text("I'll run the suite and report as results land."))
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("Bash", command="rund -- pytest -q tests/"),
+        _asst_text("I'll run the suite and report as results land."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
-    _turn(tr, _user(), _asst_tool("SlashCommand", command="/fabrik-review"),
-          _asst_text("I'll run /fabrik-review now."))
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("SlashCommand", command="/fabrik-review"),
+        _asst_text("I'll run /fabrik-review now."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
-def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(tmp_path: Path) -> None:
+def test_prior_turn_dispatch_does_not_exempt_and_prior_promise_not_inherited(
+    tmp_path: Path,
+) -> None:
     """Turn-boundary killers: (a) a PRIOR turn's Task must not exempt this turn's
     promise; (b) an empty final message must not inherit an older promise."""
     tr = tmp_path / "t.jsonl"
-    _turn(tr,
-          _user("first ask"), _asst_tool("Task", prompt="old work"), _asst_text("done that."),
-          _user("second ask"), _asst_text("I'll run the confirming pass now."))
+    _turn(
+        tr,
+        _user("first ask"),
+        _asst_tool("Task", prompt="old work"),
+        _asst_text("done that."),
+        _user("second ask"),
+        _asst_text("I'll run the confirming pass now."),
+    )
     kind = hook._detect_stall(str(tr), tmp_path, set())
     assert kind and kind[0] == "promise", "prior-turn dispatch must not exempt"
-    _turn(tr,
-          _user(), _asst_text("I'll run the suite now."), _asst_tool("Read", file_path="/x"),
-          _asst_text(""))
+    _turn(
+        tr,
+        _user(),
+        _asst_text("I'll run the suite now."),
+        _asst_tool("Read", file_path="/x"),
+        _asst_text(""),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None, "empty final text must not inherit"
 
 
 def test_counter_format_round_trips(tmp_path: Path) -> None:
     c = tmp_path / "ctr"
-    for raw, expect in [("3", (3, 0, 0, 0, 0, 0)), ("3,1", (3, 1, 0, 0, 0, 0)),
-                        ("3,1,2", (3, 1, 2, 0, 0, 0)), ("", (0, 0, 0, 0, 0, 0)),
-                        ("x,y", (0, 0, 0, 0, 0, 0)), ("1,2,3,4", (1, 2, 3, 4, 0, 0)),
-                        ("1,2,3,4,5", (1, 2, 3, 4, 5, 0)),
-                        ("1,2,3,4,5,6", (1, 2, 3, 4, 5, 6))]:
+    for raw, expect in [
+        ("3", (3, 0, 0, 0, 0, 0)),
+        ("3,1", (3, 1, 0, 0, 0, 0)),
+        ("3,1,2", (3, 1, 2, 0, 0, 0)),
+        ("", (0, 0, 0, 0, 0, 0)),
+        ("x,y", (0, 0, 0, 0, 0, 0)),
+        ("1,2,3,4", (1, 2, 3, 4, 0, 0)),
+        ("1,2,3,4,5", (1, 2, 3, 4, 5, 0)),
+        ("1,2,3,4,5,6", (1, 2, 3, 4, 5, 6)),
+    ]:
         c.write_text(raw)
         assert hook._read_counters(c) == expect, raw
 
@@ -1005,14 +1261,27 @@ def test_e2e_stall_blocks_and_gate_block_does_not_strand_stall_counter(fake_proj
     bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
     ctr.unlink(missing_ok=True)
     bl.write_text(json.dumps([]))
+
     def stop(fails: str, final_text: str) -> str:
         tr.write_text("\n".join([_user(), _asst_text(final_text)]) + "\n")
         env = {**os.environ, "FAKE_FAILS": fails}
-        proc = subprocess.run([sys.executable, str(_HOOK)],
-            input=json.dumps({"session_id": sid, "cwd": str(fake_project),
-                              "transcript_path": str(tr), "hook_event_name": "Stop"}),
-            capture_output=True, text=True, timeout=60, env=env)
+        proc = subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=json.dumps(
+                {
+                    "session_id": sid,
+                    "cwd": str(fake_project),
+                    "transcript_path": str(tr),
+                    "hook_event_name": "Stop",
+                }
+            ),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+        )
         return proc.stdout.strip()
+
     out = stop("", "I'll run the confirming pass now.")
     assert out and json.loads(out)["decision"] == "block" and "STALL" in json.loads(out)["reason"]
     assert ctr.read_text().split(",")[2] == "1"
@@ -1029,9 +1298,14 @@ def test_passive_availability_stall_dispatchable(tmp_path: Path) -> None:
     # "T03 and T05 are now both dispatchable in parallel" with the tickets undispatched —
     # availability phrasing carries the same undone-own-work signal as "is owed".
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "T02's review round is closed and pushed. "
-        "T03 and T05 are now both dispatchable in parallel."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "T02's review round is closed and pushed. "
+            "T03 and T05 are now both dispatchable in parallel."
+        ),
+    )
     kind = hook._detect_stall(str(tr), tmp_path, set())
     assert kind and kind[0] == "promise"
 
@@ -1046,15 +1320,24 @@ def test_passive_availability_ready_to_dispatch(tmp_path: Path) -> None:
 def test_passive_availability_with_dispatch_is_kept(tmp_path: Path) -> None:
     # Availability phrasing + an ACTUAL dispatch in the same turn = work continuing.
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_tool("Task", prompt="execute T03"),
-          _asst_text("T03 and T05 are dispatchable — T03 dispatched now, T05 queued behind it."))
+    _turn(
+        tr,
+        _user(),
+        _asst_tool("Task", prompt="execute T03"),
+        _asst_text("T03 and T05 are dispatchable — T03 dispatched now, T05 queued behind it."),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
 def test_negated_availability_is_a_conclusion(tmp_path: Path) -> None:
     tr = tmp_path / "t.jsonl"
-    _turn(tr, _user(), _asst_text(
-        "Nothing further is dispatchable — every ticket is merged; the plan is EXECUTED."))
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Nothing further is dispatchable — every ticket is merged; the plan is EXECUTED."
+        ),
+    )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
 
 
@@ -1277,3 +1560,40 @@ def test_blocked_exemption_still_fires_on_real_escalations() -> None:
         "T1a-BLOCKED: 3 consecutive same-test failures",
     ):
         assert hook._GATE_EXEMPT_GLOBAL_RE.search(msg), msg
+
+
+def test_a_stale_but_real_record_is_not_unreviewed_work(tmp_path, monkeypatch):
+    """`_run_record` fails OPEN on anything it cannot prove FRESH — right for the "still running"
+    cause, where a stale record must never trap a session. Its None was also being read as
+    `has_any_record=False` by the review checkpoint, whose question is a different one: "was this
+    reviewed under a command AT ALL?" So a session that ran /fabrik-review-scoped to a clean
+    terminal, closed it, then sat idle under a quota hold was re-blocked as UNREVIEWED SPONTANEOUS
+    WORK once its record aged past the bound (youtube, session 50328fe3, age 13.01h —
+    01M1NTNCFEWMP82YQFGNN6NHYP). A fail-open on one cause became a fail-CLOSED block on another."""
+    mod = hook
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path))
+    sid = "50328fe3-aaaa-bbbb-cccc-ddddeeeeffff"
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "done",
+        "updated_ts": time.time() - 13.01 * 3600,
+    }
+    (tmp_path / f"{mod._safe_sid(sid)}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+    assert mod._run_record(sid) is None, (
+        "freshness is unprovable at 13h — the run-record cause stays fail-open"
+    )
+    assert mod._run_record_exists(sid) is True, (
+        "but the record EXISTS, which is the review checkpoint's question"
+    )
+    assert mod.decide_review(3, bool(mod._run_record(sid)), 0)[0] == "block_review"  # the defect
+    assert mod.decide_review(3, mod._run_record_exists(sid), 0)[0] == "allow"  # the fix
+
+    (tmp_path / f"{mod._safe_sid(sid)}.json").unlink()
+    assert mod._run_record_exists(sid) is False
+    assert mod.decide_review(3, mod._run_record_exists(sid), 0)[0] == "block_review", (
+        "a session that genuinely never opened a record must still be caught — the cause survives"
+    )
+    for junk in ("[]", "null", "{}", "not json at all"):
+        (tmp_path / f"{mod._safe_sid(sid)}.json").write_text(junk, encoding="utf-8")
+        assert mod._run_record_exists(sid) is False, junk
