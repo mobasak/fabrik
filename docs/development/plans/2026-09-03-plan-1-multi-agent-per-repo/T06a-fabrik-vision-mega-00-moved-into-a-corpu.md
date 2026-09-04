@@ -10,7 +10,7 @@ Parallel: ⚡
 Complexity: native
 Gate: python3 commands/assemble_commands.py --check
 Gate: python3 -c "import sys; sys.path.insert(0,'scripts/enforcement'); import check_traycer_chain as c; h=c.scan('commands/_sources/fabrik-vision.md'); print('\n'.join(h)); sys.exit(1 if h else 0)"   # the bare check scans only its four docs/ roots until T09 — a plain invocation passes without ever reading this file
-Docs: CHANGELOG.md · INDEX.md (new source) — orchestrator-applied
+Docs: CHANGELOG.md · INDEX.md (new source) — orchestrator-applied; **the render is the merge-time step**: this ticket edits `commands/_sources/` or `commands/_fragments/`, so the merge owner runs `python3 commands/assemble_commands.py` in the MAIN master checkout (never a worktree — it PRUNES box-wide, CLAUDE.md:155) and then `--check`, BEFORE the commit. A commit that lands un-rendered is refused by the `command-corpus-check` pre-commit hook, and every other session's commit under `commands/` is refused until someone renders.
 
 ## Touches
 - commands/_sources/fabrik-vision.md — PRIMARY PATH

@@ -1,12 +1,13 @@
 # T08b — the corpus check's tests lose the wrapper fixtures
 
 ## Scope
-`tests/test_check_command_corpus.py` (169 KB; 10 references to `_traycer-skills`): remove the fixtures and assertions covering the orchestrator-wrapper audit T08a deleted — namely everything exercising the names **`TRAYCER_SKILLS`**, **`_orch_corpus`** and its call site's "wrapper tree missing in the hub" problem string. Those three names ARE the consumed interface: `scripts/enforcement/check_command_corpus.py` is deliberately NOT a Context File here because the pair exceeds the read budget (278,365 B vs 262,144 — the very collision that split T08), and `git show` of T08a's commit is the executor's view of the diff. Grep the test for those three names and delete what they anchor; and assert the three new sources pass the per-source predicates with no special case. ⚠️ This file carries a SIBLING's uncommitted edits in the hub tree (measured 2026-09-03, still dirty 2026-09-04) — `git status --porcelain tests/test_check_command_corpus.py` must be CLEAN before this ticket edits it; dirty → message the author and wait, never stash, never commit their hunks (§ Global Constraints). DO-NOT: touch `scripts/enforcement/check_command_corpus.py` (T08a).
+`tests/test_check_command_corpus.py` (188,050 B (184 KB); 12 references to `_traycer-skills`): remove the fixtures and assertions covering the orchestrator-wrapper audit T08a deleted — namely everything exercising the names **`TRAYCER_SKILLS`**, **`_orch_corpus`** and its call site's "wrapper tree missing in the hub" problem string. Those three names ARE the consumed interface: `scripts/enforcement/check_command_corpus.py` is deliberately NOT a Context File here because the pair exceeds the read budget (284,847 B vs 262,144 — the very collision that split T08), and `git show` of T08a's commit is the executor's view of the diff. Grep the test for those three names and delete what they anchor; and assert the three new sources pass the per-source predicates with no special case. ⚠️ This file carries a SIBLING's uncommitted edits in the hub tree (measured 2026-09-03, still dirty 2026-09-04) — `git status --porcelain tests/test_check_command_corpus.py` must be CLEAN before this ticket edits it; dirty → message the author and wait, never stash, never commit their hunks (§ Global Constraints). DO-NOT: touch `scripts/enforcement/check_command_corpus.py` (T08a).
 
 Depends: T08a
 Parallel: ⛓️
 Complexity: never-route
 Gate: python -m pytest tests/test_check_command_corpus.py -q
+Gate: test "$(grep -c '_traycer-skills' tests/test_check_command_corpus.py)" = 0   # RED today (12 occurrences): the wrapper anchors are still in the test. `Depends: T08a` also reds the suite, but that is a dependency's redness, not this ticket's.
 Docs: CHANGELOG.md — orchestrator-applied
 
 ## Touches

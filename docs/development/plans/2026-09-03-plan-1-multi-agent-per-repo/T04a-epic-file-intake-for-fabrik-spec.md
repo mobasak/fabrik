@@ -6,6 +6,7 @@
 Depends: —
 Parallel: ⚡
 Complexity: native
+Gate: test "$(grep -c 'docs/development/epics' commands/_sources/fabrik-spec.md)" != 0   # RED today (0): the command has no epic-file intake path. Both gates below are green today and stay green if nothing is done.
 Gate: python3 commands/assemble_commands.py --check
 Gate: python3 scripts/enforcement/check_command_corpus.py
 Docs: CHANGELOG.md — orchestrator-applied; the rendered command is the merge-time render step

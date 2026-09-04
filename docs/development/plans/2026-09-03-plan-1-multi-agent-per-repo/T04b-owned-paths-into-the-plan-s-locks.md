@@ -6,9 +6,10 @@ Two source edits (spec § Chain consolidation (e), § Live locks). (1) `commands
 Depends: —
 Parallel: ⚡
 Complexity: native
+Gate: test "$(grep -c 'owned_paths' commands/_sources/fabrik-plan-after-chat.md)" != 0   # RED today (0): nothing seeds File Scope from the epic's owned_paths. Both gates below are green today and stay green if nothing is done.
 Gate: python3 commands/assemble_commands.py --check
 Gate: python3 scripts/enforcement/check_command_corpus.py
-Docs: CHANGELOG.md — orchestrator-applied
+Docs: CHANGELOG.md — orchestrator-applied; **the render is the merge-time step**: this ticket edits `commands/_sources/` or `commands/_fragments/`, so the merge owner runs `python3 commands/assemble_commands.py` in the MAIN master checkout (never a worktree — it PRUNES box-wide, CLAUDE.md:155) and then `--check`, BEFORE the commit. A commit that lands un-rendered is refused by the `command-corpus-check` pre-commit hook, and every other session's commit under `commands/` is refused until someone renders.
 
 ## Touches
 - commands/_sources/fabrik-plan-after-chat.md — PRIMARY PATH
