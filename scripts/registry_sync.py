@@ -187,15 +187,17 @@ def parse(path: Path) -> list[dict]:
     bad: list[str] = []
     seen: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
-        s = (
-            line.strip().lstrip("\ufeff").strip()
-        )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); strip BEFORE the BOM cut too — U+FEFF is not whitespace (FD7)
-        if s.startswith(
-            "# ═"
-        ):  # section header — on the STRIPPED line, like the #svc header: an indented internal-config header folded 50 credential-shaped names under the last provider (FD7)
+        s = line.replace(
+            "\ufeff", ""
+        ).strip()  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); EVERY BOM, anywhere in the margin — a mixed `\ufeff \ufeff` survived two strips (FD7/FE5)
+        if re.match(
+            r"#\s*═", s
+        ):  # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5)
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
-        if re.match(r"#\s*#svc\b", s, re.I):
+        if re.match(
+            r"#[#\s]*#svc\b", s, re.I
+        ):  # `## #svc` — a line commented twice — folded its keys under the neighbour (FE5)
             cur = None  # a COMMENTED-OUT provider ends the block: its keys belong to nobody, never to the neighbour (FD7)
             continue
         m = SVC_RE.fullmatch(
@@ -224,8 +226,15 @@ def parse(path: Path) -> list[dict]:
             bad.append(line[:120])
             continue
         kv = KV_RE.match(
-            line.lstrip("\ufeff").lstrip()
-        )  # an indented or BOM-prefixed KEY was silently DROPPED — and then pruned from the registry (FD7)
+            s
+        )  # the HEADER's order: an indented-then-BOM key was dropped by the FD7 order and then pruned (FE5)
+        if cur is not None and not kv and s and not s.startswith("#"):
+            # a non-blank, non-comment line inside a provider block that is not KEY=value (`A-B=1`,
+            # `1KEY=x`) was silently dropped — then PRUNED from the registry; fail closed like an
+            # unreadable #svc line (FE5)
+            cur = None
+            bad.append(line[:120])
+            continue
         if cur is not None and kv:
             key, rest = kv.group(1), kv.group(2)
             # "   # " (3-space-hash-SPACE) is gather_envs' exact note delimiter; splitting on it
@@ -291,6 +300,10 @@ def sync_registry(
             # the cap (the exact irreversible outcome the bound exists to prevent).
             cur.execute("SELECT count(*) FROM services")
             preexisting_total = cur.fetchone()[0]
+            cur.execute("SELECT count(*) FROM api_keys")
+            preexisting_keys = int(
+                (cur.fetchone() or (0,))[0] or 0
+            )  # the key-prune bound's denominator (FE5)
             for p in provs:
                 meta = p["meta"]
                 ub = meta.get("used_by") or ""
@@ -382,6 +395,19 @@ def sync_registry(
                         (sid, digests),
                     )
                     stats["keys_pruned"] += cur.rowcount
+                    keys_allowed = max(5, preexisting_keys // 5)
+                    if stats["keys_pruned"] > keys_allowed and os.getenv(
+                        "REGISTRY_PRUNE_FORCE", ""
+                    ).strip().lower() not in ("1", "true", "yes"):
+                        # GUARD 2 for api_keys: a systemic KV-parse failure dropped every key from
+                        # every provider while `services` stayed intact, so the service guard never
+                        # fired and the whole key history went in one lap (FE5)
+                        raise RuntimeError(
+                            f"bounded prune: refusing to delete {stats['keys_pruned']}/{preexisting_keys} "
+                            f"api_keys (> {keys_allowed} allowed) — all-envs.env is likely corrupt/"
+                            "truncated; no changes applied (transaction rolled back). Set "
+                            "REGISTRY_PRUNE_FORCE=1 to override deliberately."
+                        )
                 cred = next(
                     (
                         v

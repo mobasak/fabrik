@@ -315,7 +315,6 @@ def test_cpill_class_token_is_sanitized_when_the_script_runs():
     """The AP1 guard EXECUTED, not string-matched (AQ1): the `cpill` one-liner is lifted from the
     page script and run under node with a hostile cost — the class token it builds is
     `[A-Za-z0-9-]` only. The source-text assertion in the script-tag test stays as the floor."""
-    import shutil
     import subprocess
 
     gd = _load_gen_dashboard()
@@ -337,7 +336,6 @@ def test_cpill_class_token_is_sanitized_when_the_script_runs():
 def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
     """The render-time scheme gate for the provider link, EXECUTED under node (AS5): a
     `javascript:` or `data:` url from a hand-edited catalog never becomes a live link."""
-    import shutil
     import subprocess
 
     gd = _load_gen_dashboard()
@@ -378,7 +376,6 @@ def test_unattributed_count_renders_on_the_row_when_the_script_runs():
     """BM9 EXECUTED, not string-matched (BQ3): the keys cell is lifted from the row template and
     run under node — an unattributed count renders its pill next to the key count, zero renders
     no pill. The `r.unattributed` source-text assertion stays as the always-on floor."""
-    import shutil
     import subprocess
 
     gd = _load_gen_dashboard()
@@ -667,7 +664,6 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     # 5. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
     # failure is ALERTED and exits 1 — it was the only silent failure in the script (DA3)
     log.write_text("", encoding="utf-8")
-    import shutil
 
     shutil.rmtree(root / ".tmp")
     (root / ".tmp").write_text("", encoding="utf-8")
@@ -1105,7 +1101,6 @@ def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
     """`send_alert` returns False with no log line when alerting is disabled (no token, a fresh
     .env) or the title is deduplicated: `pipeline_alert.sh` — the ONE signal for a chain that
     never started — exited 0 with zero output. Now it says so on stderr (FB10)."""
-    import shutil
 
     root = tmp_path / "root"
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
@@ -1189,6 +1184,12 @@ def test_the_live_twin_renders_through_the_dashboards_own_helpers():
     assert "unattributed keys" in page and "unattributed</span>" in page, (
         "the twin dropped the BM9 degraded-case signal (K64-7)"
     )
+    assert "a model-merged prefix, or provenance unknown at sync time" in page, (
+        "the served row's tooltip names both causes (BR8) — the twin's own copy named one (FE1)"
+    )
+    assert page.count("keysCell(r)") == 1 and gd.SCRIPT.count("keysCell(r)") == 1, (
+        "both renders use the shared keys cell"
+    )
     assert "<option value=\"'+esc(c)+'\"" in page, (
         "an <option> without value= strips whitespace and filters zero rows (K64-15)"
     )
@@ -1242,7 +1243,6 @@ def test_the_chains_own_alert_says_why_it_was_not_delivered_and_survives_a_bad_e
     carrying the one alerting package and no delivery vars — the cause is named; an unreadable
     `.env` is said instead of a traceback that swallowed the alert (M-C2/FC6); the root travels
     as argv, so a `'` in it is not a SyntaxError (M-C13)."""
-    import shutil
 
     root = tmp_path / "ro'ot"
     (root / "libs").mkdir(parents=True)
@@ -1284,7 +1284,9 @@ def test_a_killed_chain_is_alerted_by_both_callers(tmp_path):
         '#!/usr/bin/env bash\nprintf \'%s|%s\\n\' "$1" "$2" >> "$ALERTS"\n', encoding="utf-8"
     )
     chain = root / "scripts" / "external_services_chain.sh"
-    chain.write_text("#!/usr/bin/env bash\nexit 137\n", encoding="utf-8")
+    chain.write_text(
+        "#!/usr/bin/env bash\nexit 131\n", encoding="utf-8"
+    )  # SIGQUIT — outside the five codes the first fix enumerated (FE6)
     alerts, log = tmp_path / "alerts.txt", tmp_path / "log.txt"
     daily_block = _caller_block(
         DAILY.read_text(encoding="utf-8"), '  _rc=0\n  _step "external_services_chain"', "\n\n"
@@ -1335,7 +1337,7 @@ def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
     `alerting` from that directory (`from alerting import *` found the half-initialised shim) and
     every `except ImportError` caller — the freshness heartbeat alert — went silent; the first
     grader loaded the shim under a name no caller uses (M-1/D-1, FD6). The directory is gone
-    (D-110); the resolution is asserted OUT of process, from the callers' own cwd and path."""
+    (D-112); the resolution is asserted OUT of process, from the callers' own cwd and path."""
     assert not (REPO / "scripts" / "kilo-benchmarks" / "alerting").exists()
     env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG") if k in os.environ}
     env["FABRIK_NO_AUTOLOAD"] = "1"
@@ -1345,6 +1347,10 @@ def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
             kb,
             "import sys; sys.path.insert(0, '.'); import check_daily_refresh_freshness; import alerting; print(alerting.__file__)",
         ),
+        (
+            kb,
+            f"import sys; sys.path.append({str(REPO / 'libs')!r}); sys.path.insert(0, '.'); import check_daily_refresh_freshness; import alerting; assert sys.path[0] == {str(REPO / 'libs')!r}, sys.path[:3]; print(alerting.__file__)",
+        ),  # libs already LATER on sys.path: the conditional insert left SCRIPT_DIR ahead of it (F-9, FE7)
         (
             kb / "tests",
             "import sys; sys.path.insert(0, '.'); import conftest; import alerting; print(alerting.__file__)",
@@ -1390,12 +1396,14 @@ def test_a_signal_death_of_the_chain_is_alerted_by_both_callers(tmp_path):
     daily = (REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh").read_text(encoding="utf-8")
     hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
     for text in (daily, hook):
-        assert text.count("124|129|130|137|143)") == 1, "both callers alert on every signal death"
-        assert "124|137)" not in text
+        assert text.count("12[4-9]|1[3-9][0-9]|2[0-5][0-9])") == 1, (
+            "both callers alert on EVERY signal death (>128), not five enumerated codes (FE6)"
+        )
+        assert "124|137)" not in text and "124|129|130|137|143)" not in text
     assert "export FABRIK_ROOT" in daily
-    assert 'cd "$FABRIK_ROOT" || exit 1' in (
-        REPO / "scripts" / "external_services_chain.sh"
-    ).read_text(encoding="utf-8")
+    assert 'cd "$FABRIK_ROOT" || {' in (REPO / "scripts" / "external_services_chain.sh").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_the_hooks_stderr_redirect_precedes_the_append_and_its_stamps_are_inner(tmp_path):
@@ -1462,7 +1470,9 @@ def test_the_hook_rotation_never_loses_a_generation_and_never_enters_a_directory
         p.name for p in tmp_path.rglob("*")
     )
     assert "Log rotated" in log.read_text()
-    shutil.rmtree(tmp_path / "update.log.2")
+    assert any(
+        p.name.startswith("update.log.1.notalog.") and p.is_dir() for p in tmp_path.iterdir()
+    ), sorted(p.name for p in tmp_path.iterdir())  # the squatter was moved aside (FE4)
     log.write_text("LIVE2\n")
     proc = run()
     assert proc.returncode == 0 and proc.stderr == "", (proc.stdout, proc.stderr)
@@ -1471,6 +1481,27 @@ def test_the_hook_rotation_never_loses_a_generation_and_never_enters_a_directory
         "the older generation is promoted, never lost"
     )
     assert "Log rotated" in log.read_text()
+    # the two squatter shapes the first grader never staged: a directory at `.2` with a file at `.1`
+    # (the promotion failed and `.1` was overwritten — GEN lost) and a directory at `.1.new` (no
+    # rotation, silently); both are moved aside as `*.notalog.<epoch>` (FE4)
+    (tmp_path / "update.log.2").unlink()
+    (tmp_path / "update.log.2").mkdir()
+    (tmp_path / "update.log.1").write_text("GEN1\n")
+    log.write_text("LIVE3\n")
+    proc = run()
+    assert proc.returncode == 0 and proc.stderr == "", (proc.stdout, proc.stderr)
+    assert (tmp_path / "update.log.1").read_text() == "LIVE3\n" and (
+        tmp_path / "update.log.2"
+    ).read_text() == "GEN1\n", sorted(p.name for p in tmp_path.iterdir())
+    assert any(
+        p.name.startswith("update.log.2.notalog.") and p.is_dir() for p in tmp_path.iterdir()
+    )
+    (tmp_path / "update.log.1.new").mkdir()
+    log.write_text("LIVE4\n")
+    proc = run()
+    assert (tmp_path / "update.log.1").read_text() == "LIVE4\n", sorted(
+        p.name for p in tmp_path.iterdir()
+    )
 
 
 def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
@@ -1493,10 +1524,10 @@ def _helpers_shape(helpers: str) -> bool:
     the twin and defined it twice, quietly (K64-12, FD7)."""
     consts = re.findall(r"^const (\w+)=", helpers, flags=re.M)
     return (
-        consts == ["esc", "href", "cpill", "cell"]
+        consts == ["esc", "href", "cpill", "cell", "keysCell"]
         and "function render" not in helpers
         and "<script>" not in helpers
-    )
+    )  # keysCell joined the slice: the twin's keys cell had drifted from the static row in the same commit that fixed the previous drift (FE1)
 
 
 def test_the_live_twins_500_never_puts_the_exception_on_the_wire(monkeypatch, capsys):
@@ -1576,6 +1607,10 @@ def test_the_stale_credit_count_and_the_nan_balance(monkeypatch):
         gd.credit_cell(float("nan"), "usd", None) == ""
         and gd.credit_cell(Decimal("NaN"), "usd", None) == ""
     )
+    assert (
+        gd.credit_cell(Decimal("Infinity"), "usd", None) == ""
+        and gd.credit_cell(float("-inf"), "usd", None) == ""
+    )  # NUMERIC accepts Infinity too (FE1)
     assert gd.credit_cell(Decimal("12.5"), "usd", None) == "12.5 usd"
 
 
@@ -1603,3 +1638,320 @@ def test_the_chain_alerts_a_credit_phase_failure_without_failing_the_step(tmp_pa
     assert out.rstrip().endswith("chain_failed=1"), (
         out
     )  # exit 3 from any OTHER step is still a failure
+
+
+def test_the_live_twin_bounds_its_port_error_names_a_bind_failure_and_survives_a_leaving_client(
+    monkeypatch, capsys
+):
+    """`choices=range(1, 65536)` printed every choice (447 KB for port 0); a port in use or below
+    1024 was a traceback; a client that left mid-response was logged as a registry failure plus a
+    stdlib traceback; an exception whose `__str__` raises sent zero bytes; nosniff had no grader (FE1)."""
+    import importlib.util
+    import socket
+
+    _load_gen_dashboard()
+    spec = importlib.util.spec_from_file_location(
+        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
+    )
+    ds = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ds)
+    for bad in ("0", "65536", "-1", "abc"):
+        with pytest.raises(SystemExit) as exc:
+            ds.main([bad])
+        assert exc.value.code == 2
+        err = capsys.readouterr().err
+        assert len(err) < 400 and "PORT must be" in err, (bad, len(err), err[:200])
+    with socket.socket() as holder:
+        holder.bind(("127.0.0.1", 0))
+        holder.listen(1)
+        port = holder.getsockname()[1]
+        monkeypatch.setattr(ds, "HOST", "127.0.0.1")
+        assert ds.main([str(port)]) == 1
+        err = capsys.readouterr().err
+        assert err.startswith("ERROR: cannot bind 127.0.0.1:") and "Traceback" not in err, err
+    errors: list[tuple[int, str]] = []
+    headers: list[tuple[str, str]] = []
+
+    class _Probe(ds.Handler):
+        def __init__(self, path, fail_send=False):
+            self.path, self.fail_send = path, fail_send
+
+        def send_error(self, code, message=None, explain=None):
+            errors.append((code, message))
+
+        def send_response(self, code, message=None):
+            headers.append(("status", str(code)))
+
+        def send_header(self, k, v):
+            headers.append((k, v))
+
+        def end_headers(self):
+            pass
+
+        @property
+        def wfile(self):
+            class _W:
+                @staticmethod
+                def write(b):
+                    if self.fail_send:
+                        raise ConnectionResetError(104, "Connection reset by peer")
+
+            return _W()
+
+    _Probe("/", fail_send=True).do_GET()
+    assert errors == [] and "dashboard:" not in capsys.readouterr().err, (
+        "a client that left is neither a registry failure nor a traceback"
+    )
+    assert ("X-Content-Type-Options", "nosniff") in headers, headers
+
+    class _UnrenderableError(Exception):
+        def __str__(self):
+            raise RuntimeError("no message")
+
+    def boom():
+        raise _UnrenderableError()
+
+    monkeypatch.setattr(ds.gen_dashboard, "load", boom)
+    _Probe("/api/services").do_GET()
+    assert errors == [(500, "registry query failed")], errors
+    assert "dashboard: _UnrenderableError: <str() failed>" in capsys.readouterr().err
+    assert (
+        ds.Handler.timeout == 30
+        and issubclass(ds.Server, __import__("socketserver").ThreadingTCPServer)
+        and ds.Server.daemon_threads
+    )
+
+
+def test_a_stalled_client_never_blocks_the_next_one(monkeypatch):
+    """`socketserver.TCPServer` is single-threaded with no handler timeout: one LAN host holding a
+    half-open socket froze the live dashboard for everyone (FE1)."""
+    import importlib.util
+    import socket
+    import threading
+
+    _load_gen_dashboard()
+    spec = importlib.util.spec_from_file_location(
+        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
+    )
+    ds = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ds)
+    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
+    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
+    port = srv.server_address[1]
+    th = threading.Thread(target=srv.serve_forever, daemon=True)
+    th.start()
+    try:
+        stalled = socket.create_connection(("127.0.0.1", port))
+        stalled.sendall(b"GET /api/serv")  # and stops
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as b:
+            b.sendall(b"GET /api/services HTTP/1.0\r\nHost: x\r\n\r\n")
+            data = b.recv(4096)
+        assert data.startswith(b"HTTP/1.0 200") and b"X-Content-Type-Options: nosniff" in data, (
+            data[:200]
+        )
+        stalled.close()
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_the_chains_cd_failure_is_a_did_not_start_and_a_keyless_env_is_said(tmp_path):
+    """`cd … || exit 1` was a silent exit 1 both callers read as a step failure the chain would
+    have alerted itself; `_alert` never said a missing/keyless `.env` while the helper did (FE4)."""
+    text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
+    head = text[: text.index("VENV_PY=")]
+    proc = subprocess.run(
+        ["bash", "-c", head + "\necho reached"],
+        env={"PATH": os.environ["PATH"], "FABRIK_ROOT": str(tmp_path / "nowhere")},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert (
+        proc.returncode == 126 and "cannot cd to" in proc.stdout and "reached" not in proc.stdout
+    ), (proc.returncode, proc.stdout, proc.stderr)
+    fn = text[text.index("_alert() {") : text.index("_step() {")]
+    root = tmp_path / "root"
+    (root / "libs").mkdir(parents=True)
+
+    shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
+    harness = tmp_path / "h.sh"
+    harness.write_text(
+        f'FABRIK_ROOT="{root}"\nVENV_PY="{sys.executable}"\n' + fn + '\n_alert "t3" "b" warning\n',
+        encoding="utf-8",
+    )
+    env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG") if k in os.environ}
+    env["FABRIK_NO_AUTOLOAD"] = "1"
+    proc = subprocess.run(
+        ["bash", str(harness)], env=env, capture_output=True, text=True, timeout=60, cwd=root
+    )
+    assert (
+        "[chain] .env missing or without usable keys at" in proc.stdout
+        and "alert NOT delivered" in proc.stdout
+    ), (proc.stdout, proc.stderr)
+    assert "dashboard step still runs" in text and "the dashboard is rendered" not in text
+
+
+def test_the_helper_names_a_directory_interpreter_a_keyless_env_and_an_explicit_mute(tmp_path):
+    """Five FD6 hunks had no grader (M-C3): a DIRECTORY at the helper's interpreter path, the
+    `no usable keys in` wording, and — new — an explicit `ALERT_ENABLED=0` named as the cause
+    instead of "no TELEGRAM_*" (FE6)."""
+
+    root = tmp_path / "root"
+    (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
+    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
+    helper = REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
+    env = {
+        k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
+    }
+    env.update({"FABRIK_ROOT": str(root), "FABRIK_NO_AUTOLOAD": "1", "ALERT_ENABLED": "0"})
+    (root / ".env").write_text("# comment only\n", encoding="utf-8")
+    proc = subprocess.run(
+        ["bash", str(helper), "t5", "b"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=root,
+    )
+    both = (
+        proc.stdout + proc.stderr
+    )  # the helper merges python's stderr into its stdout (`2>&1`); the guard line goes to stderr
+    assert (
+        "[pipeline_alert] no usable keys in" in both
+        and "NOT delivered (ALERT_ENABLED=0 is set)" in both
+    ), both
+    (root / ".venv").unlink()
+    (root / ".venv" / "bin" / "python").mkdir(
+        parents=True
+    )  # a directory at the interpreter path passes `-x`
+    proc = subprocess.run(
+        ["bash", str(helper), "t6", "b"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=root,
+    )
+    both = proc.stdout + proc.stderr
+    assert "NOT delivered (no interpreter at" in both and "Is a directory" not in both, both
+    assert proc.returncode == 0
+
+
+def test_the_chain_cwd_and_the_daily_export_are_executed_not_spelled(tmp_path):
+    """`cd "$FABRIK_ROOT"` and `export FABRIK_ROOT` were pinned as substrings only — commenting
+    either out with the substring kept stayed green (M-C3, FE6)."""
+    text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
+    head = text[: text.index("VENV_PY=")]
+    proc = subprocess.run(
+        ["bash", "-c", head + "\npwd"],
+        env={"PATH": os.environ["PATH"], "FABRIK_ROOT": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.returncode == 0 and proc.stdout.strip() == str(tmp_path.resolve()), (
+        proc.stdout,
+        proc.stderr,
+    )
+    daily = (REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh").read_text(encoding="utf-8")
+    dhead = daily[daily.index("set -u") : daily.index("LOG_FILE=")]
+    proc = subprocess.run(
+        ["bash", "-c", dhead + "\nbash -c 'echo \"${FABRIK_ROOT:-unset}\"'"],
+        env={"PATH": os.environ["PATH"]},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.stdout.strip() == "/opt/fabrik", (
+        proc.stdout,
+        proc.stderr,
+    )  # a CHILD process sees it: exported, not merely assigned
+    hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
+    i = hook.index("pipeline log unwritable")
+    assert '>>"$LOG_FILE" 2>&1 & )' in hook[i : i + 900], (
+        "the unwritable-log alert's diagnostics reach the re-pointed log (positive pin, not the absence of one literal)"
+    )
+
+
+def test_the_freshness_checker_says_a_non_delivery_and_never_autoloads_the_cwd_env(tmp_path):
+    """Both legs returned `bool(send_alert(...))` and said NOTHING on False — the one alert for
+    "the pipeline stopped running" was a silent no-op whenever alerting was disabled; the boot hook
+    ran it from /opt/session-recall, where the package's cwd autoload read THAT repo's .env; an
+    unreadable selection doc was "missing", a non-alert status (M-C1/C2/C6, FE6).
+
+    ⚠ The checker loads ITS OWN repo's `.env` by design (`SCRIPT_DIR.parents[1] / ".env"`), so it
+    runs here from a THROWAWAY copy of the tree with no `.env` at all — the first draft of this
+    grader ran the real script and DELIVERED two real Telegram alerts (disclosed, FE6)."""
+    import shutil
+
+    root = tmp_path / "root"
+    (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
+    shutil.copy(
+        REPO / "scripts" / "kilo-benchmarks" / "check_daily_refresh_freshness.py",
+        root / "scripts" / "kilo-benchmarks",
+    )
+    shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
+    assert not (root / ".env").exists()
+    checker = root / "scripts" / "kilo-benchmarks" / "check_daily_refresh_freshness.py"
+    stamp = tmp_path / "stamp.txt"
+    stamp.write_text("2020-01-01T00:00:00+00:00\n", encoding="utf-8")
+    doc = tmp_path / "SELECTION.md"
+    doc.write_text("Last refresh: 2020-01-01\n", encoding="utf-8")
+    cwd = tmp_path / "other-repo"
+    cwd.mkdir()
+    (cwd / ".env").write_text(
+        "TELEGRAM_BOT_TOKEN=canary-not-a-real-token\nTELEGRAM_CHAT_ID=1\nALERT_VPS_HOST=nowhere.invalid\n",
+        encoding="utf-8",
+    )
+    env = {
+        k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
+    }
+    env["ALERT_ENABLED"] = "0"
+    args = [
+        sys.executable,
+        str(checker),
+        "--timestamp-file",
+        str(stamp),
+        "--selection-doc",
+        str(doc),
+    ]
+    proc = subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0, (proc.stdout, proc.stderr)
+    assert (
+        "[heartbeat] alert NOT delivered (ALERT_ENABLED=0 is set): kilo-benchmarks daily refresh is stale"
+        in proc.stderr
+    ), proc.stderr
+    assert (
+        "[heartbeat] alert NOT delivered (ALERT_ENABLED=0 is set): TASK_SUBAGENT_SELECTION.md is stale"
+        in proc.stderr
+    ), proc.stderr
+    env.pop(
+        "ALERT_ENABLED"
+    )  # the throwaway root has no .env: only the cwd canary could arm alerting — and it must not
+    proc = subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=120)
+    assert (
+        "alert fired" not in proc.stdout
+        and "alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST" in proc.stderr
+    ), (
+        "the cwd's canary .env was autoloaded — the checker must opt out of the package's cwd autoload",
+        proc.stdout,
+        proc.stderr,
+    )
+    doc.chmod(0)
+    try:
+        if os.access(doc, os.R_OK):
+            pytest.skip("running as root — permissions are not enforced")
+        env["ALERT_ENABLED"] = "0"
+        proc = subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=120)
+        assert (
+            "selection doc: unreadable" in proc.stdout
+            and "TASK_SUBAGENT_SELECTION.md is unreadable" in proc.stderr
+        ), (proc.stdout, proc.stderr)
+    finally:
+        doc.chmod(0o644)
+    hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
+    assert "( cd /opt/session-recall && timeout 600 .venv/bin/python -m ingest.reindex )" in hook, (
+        "the session-recall step runs in a SUBSHELL so its cd never leaks"
+    )

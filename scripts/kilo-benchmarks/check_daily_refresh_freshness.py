@@ -30,6 +30,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from datetime import UTC, datetime, timedelta
@@ -49,9 +50,14 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 _LIBS = (
     SCRIPT_DIR.parents[1] / "libs"
-)  # the ONE alerting implementation (D-110): a same-named shim in this directory self-imported and this file's `except ImportError` made the stale-heartbeat alert a silent no-op (FD6)
-if str(_LIBS) not in sys.path:
-    sys.path.insert(0, str(_LIBS))
+)  # the ONE alerting implementation (D-112): a same-named shim in this directory self-imported and this file's `except ImportError` made the stale-heartbeat alert a silent no-op (FD6)
+sys.path[:] = [p for p in sys.path if p != str(_LIBS)]
+sys.path.insert(
+    0, str(_LIBS)
+)  # FIRST, unconditionally: a libs entry already LATER on sys.path left SCRIPT_DIR ahead of it — the resolution order D-112 exists to prevent (FE7)
+os.environ.setdefault(
+    "FABRIK_NO_AUTOLOAD", "1"
+)  # the ONLY .env this checker reads is the hub's (above): the boot hook runs it from /opt/session-recall, where the package's cwd autoload read THAT repo's .env (FE6)
 
 TIMESTAMP_FILE_DEFAULT = SCRIPT_DIR / "cache" / "daily_refresh_last_success.txt"
 MAX_AGE_HOURS_DEFAULT = 36
@@ -140,7 +146,11 @@ def check_selection_doc(
     try:
         text = doc.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return {"status": "missing", "age_days": None, "threshold_days": max_age_days}
+        return {
+            "status": "unreadable",
+            "age_days": None,
+            "threshold_days": max_age_days,
+        }  # a permission slip on the fleet-synced doc silenced this leg as "missing" (FE6)
     if "AGGREGATION FAILED" in text:
         return {"status": "stub", "age_days": None, "threshold_days": max_age_days}
     m = _DOC_DATE.search(text)
@@ -175,6 +185,20 @@ def check_selection_doc(
     }
 
 
+def _why() -> str:
+    """Why `send_alert` returned False: an explicit mute, no delivery keys, or every method failed."""
+    if os.getenv("ALERT_ENABLED", "").strip() == "0":
+        return "ALERT_ENABLED=0 is set"
+    try:
+        from alerting import _is_enabled  # type: ignore[import-not-found]
+
+        if not _is_enabled():
+            return "alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST in the environment"
+    except Exception:  # noqa: BLE001 - the diagnosis must never read as the send failing
+        return "reason unavailable"
+    return "every delivery method failed (see the diagnosis above)"
+
+
 def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
     """Fire an alert when the ranker's output has stopped being refreshed."""
     if result["status"] in ("fresh", "missing"):
@@ -206,6 +230,12 @@ def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
             "hand-edited date. select.py's 14-day staleness gate reads this same line, so a "
             "future stamp makes the doc look permanently fresh to every vendored pick_models."
         )
+    elif status == "unreadable":
+        body = (
+            "TASK_SUBAGENT_SELECTION.md exists but cannot be READ (a permission slip on the "
+            "fleet-synced doc) — its staleness cannot be checked and every vendored pick_models "
+            "may already be on the baked-in _TABLE."
+        )
     elif status == "undated":
         body = (
             "TASK_SUBAGENT_SELECTION.md has no parseable 'Last refresh:' line, so its "
@@ -221,14 +251,12 @@ def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
             f"[heartbeat] selection doc {result['status']} (alerting unavailable)", file=sys.stderr
         )
         return False
+    title = f"TASK_SUBAGENT_SELECTION.md is {status}"
     try:
-        return bool(
-            send_alert(
-                title=f"TASK_SUBAGENT_SELECTION.md is {status}",
-                body=body,
-                severity="critical",
-            )
-        )
+        sent = bool(send_alert(title=title, body=body, severity="critical"))
+        if not sent:
+            print(f"[heartbeat] alert NOT delivered ({_why()}): {title}", file=sys.stderr)  # FE6
+        return sent
     except Exception as exc:  # noqa: BLE001 — never break the refresh pipeline
         print(f"[heartbeat] alert failed: {type(exc).__name__}", file=sys.stderr)
         return False
@@ -252,10 +280,11 @@ def maybe_alert(result: dict[str, object]) -> bool:
     # config, etc.) we still want the heartbeat script to exit cleanly so
     # daily_refresh.sh continues with its other steps. Logging the failure
     # to stderr means the operator still sees it in the daily refresh log.
+    title = "kilo-benchmarks daily refresh is stale"
     try:
-        return bool(
+        sent = bool(
             send_alert(
-                title="kilo-benchmarks daily refresh is stale",
+                title=title,
                 body=(
                     f"daily_refresh.sh last completed successfully at "
                     f"{result['timestamp']} UTC "
@@ -270,6 +299,12 @@ def maybe_alert(result: dict[str, object]) -> bool:
                 severity="critical",
             )
         )
+        if not sent:
+            print(
+                f"[heartbeat] alert NOT delivered ({_why()}): {title}",
+                file=sys.stderr,
+            )  # a False return was silent on both legs — the one alert for "the pipeline stopped running" said nothing (FE6)
+        return sent
     except Exception as e:
         print(
             f"[heartbeat] send_alert raised {type(e).__name__}: {e}; "

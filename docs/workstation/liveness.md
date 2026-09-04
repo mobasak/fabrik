@@ -98,7 +98,13 @@ missing marker). A needle (`cron_match`, `command_contains`, `marker`) must be a
 (`" "` matched every line and `0` every stamp — permanent LIVE), an evidence path must be absolute, a
 `max_age_hours` beyond 2**53 is refused before `isfinite` can overflow, a malformed `ownership` block
 never discards the surface verdicts (the sweep reports its own fault), and a render line carries at
-most 200 chars of detail. Only a leading `~` expands.
+most 200 chars of detail. Every needle the UNREGISTERED sweep reads (`cron_match`, `command_contains`, the
+`ownership` substrings) goes through the same non-blank-string rule, stripped — a single `" "` row had
+blanked the whole unregistered report and a padded ownership needle had counted every owned line as
+foreign. `--strict` bites on every skipped proof: a registry fault, a row the proof could not probe
+(an UNKNOWN finding carrying an instrument fault — a blank needle, a string `evidence`), and the
+sweep's own failure (reported in the real `cron`/`hooks` shape with `instrument_fault` set). Only a
+leading `~` expands.
 
 The registry lives in `.fabrik/` because that is already the repo's **tracked** machine-state directory
 (`lint-baseline.json`, `plan-locks/*.json`), so it is versioned and reviewable in a diff rather than a

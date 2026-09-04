@@ -74,17 +74,20 @@ def flagged_providers(path: Path) -> dict[str, dict]:
     provs: dict[str, dict] = {}
     cur: str | None = None
     in_triage = False
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.replace(
+            "\ufeff", ""
+        ).strip()  # the STRIPPED line, like registry_sync.parse: an indented section header was read past and a categorised provider handed to PAID triage every lap (FE5)
         if (
-            line.startswith("# ═") and "NEEDS-TRIAGE" in line
+            re.match(r"#\s*═", line) and "NEEDS-TRIAGE" in line
         ):  # the HEADER only — never a value (AU11)
             in_triage = True
             continue
         if not in_triage:
             continue
-        if line.startswith("# ═"):  # next section header -> triage block ended
+        if re.match(r"#\s*═", line):  # next section header -> triage block ended
             break
-        if line.startswith("#svc name="):
+        if line.lower().startswith("#svc name="):
             cur = line.split("name=", 1)[1].split(" ", 1)[0]
             provs[cur] = {"names": [], "urls": []}
             continue
@@ -269,7 +272,11 @@ def _curated_tokens(meta: dict) -> set[str]:
     for field in ("match", "merged_match"):
         raw = meta.get(field) or []
         out |= {
-            str(x).upper().rstrip("_") for x in (raw if isinstance(raw, list) else [raw]) if str(x)
+            str(x).upper().rstrip("_")
+            for x in (raw if isinstance(raw, list) else [raw])
+            if x is not None
+            and str(x)
+            != ""  # `parse_catalog`'s own predicate: a JSON `null` minted the phantom token NONE here and nowhere else (FE5)
         }
     return out
 
@@ -574,6 +581,9 @@ def main() -> int:
         # as an existing vendor was in neither map and — on the daily argv — written as a
         # permanent tombstone, the paid answer inverted (E1-C1/G-C2/P-2, FD8)
         identified, errored = dict(identified_all), set(errored_all)
+        pass_lines: list[
+            str
+        ] = []  # only the WINNING pass speaks — a discarded pass narrated work that was thrown away, twice (FE5)
         raw_catalog = source
         # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
         # gather_envs.load_catalog applies; kept aside and written back first (AU9)
@@ -627,7 +637,7 @@ def main() -> int:
                 else:
                     # a MODEL-merged prefix lives in `merged_match`, never in the curated `match`:
                     # gather_envs matches on both, registry_sync never feeds a fetcher from one (BH1)
-                    match = entry.setdefault("merged_match", [])
+                    match = entry.get("merged_match", [])
                     if not isinstance(
                         match, list
                     ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
@@ -650,10 +660,13 @@ def main() -> int:
                         # by name. Unreachable from the scan — a key whose token any entry curates is
                         # routed, never flagged; CA5's own-entry orphan duplicated the target's url and
                         # de-attributed its host (CC3)
-                        print(
+                        pass_lines.append(
                             f"  {prov}: merged into {target} without a prefix — {token} is curated elsewhere"
                         )
                     elif prov.upper() not in match:
+                        entry["merged_match"] = (
+                            match  # minted only when a prefix is appended — an empty key accumulated on targets that declined one (FE5)
+                        )
                         match.append(prov.upper())
                 if prov in catalog and tombstone_of(catalog, prov):
                     # a TOMBSTONE re-tried into another vendor: its own `match: [PROV]` left behind ties
@@ -680,6 +693,13 @@ def main() -> int:
             status = (
                 str(v.get("status", "?")).strip().lower()
             )  # an OMITTED status is unknown too (BB4/BE5)
+            tied_root = not code_only_provider(provs.get(prov, {})) and root.rstrip(
+                "_"
+            ) in _tokens_elsewhere(catalog, prov)
+            if tied_root:
+                pass_lines.append(
+                    f"  {prov}: prefix {root} is routed by another entry already — no prefix minted"
+                )  # the new-entry suppression was SILENT while the tombstone one spoke (FE5)
             entry = {
                 "category": _enum_category(
                     v.get("category")
@@ -693,8 +713,7 @@ def main() -> int:
                 # a provider seen ONLY as a code call site has no env key behind it: a bare-word
                 # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
                 "match": []
-                if code_only_provider(provs.get(prov, {}))
-                or root.rstrip("_") in _tokens_elsewhere(catalog, prov)
+                if code_only_provider(provs.get(prov, {})) or tied_root
                 else [
                     root
                 ],  # a token another entry routes is never minted — the curator keeps routing it (FD8)
@@ -722,7 +741,7 @@ def main() -> int:
                 # non-str category copied back re-flagged the block every lap, forever (CE3)
                 entry = {**entry, **kept}
                 if kept:  # never a claim of a keep that did not happen (CJ2)
-                    print(
+                    pass_lines.append(
                         f"  {prov}: kept the operator's {', '.join(sorted(kept))}"
                     )  # not the proposal (CE5)
             catalog[prov] = entry
@@ -766,7 +785,7 @@ def main() -> int:
                     catalog, prov
                 ):
                     stub["match"] = []  # the classifier's own prefix tie, tombstone flavour (FD8)
-                    print(
+                    pass_lines.append(
                         f"  {prov}: prefix {prov.upper()} is routed by another entry already — no prefix minted"
                     )
                 if (
@@ -789,6 +808,8 @@ def main() -> int:
                 tombstoned_names.append(prov)
         try:
             gather_envs.parse_catalog({**catalog_meta, **catalog}, str(CATALOG_PATH))
+            for pass_line in pass_lines:
+                print(pass_line)
             break
         except gather_envs.CatalogError as exc:
             if source is _catalog_probe:

@@ -1491,3 +1491,102 @@ def test_boundaries_the_first_graders_left_open(tmp_path: Path) -> None:
     assert all(len(line) < 600 for line in text.splitlines()), max(
         len(line) for line in text.splitlines()
     )
+
+
+def test_the_unregistered_sweep_uses_stripped_needles_and_its_fault_bites_strict(
+    tmp_path: Path,
+) -> None:
+    """`" "`/`0` as `cron_match` or `command_contains` blanked the WHOLE unregistered report; a padded
+    ownership needle passed the predicate and matched nothing; the sweep's own fault was contained
+    by FD5 and invisible to `--strict`; a string `evidence` row was contained the same way (FE3)."""
+    log = tmp_path / "s.log"
+    log.write_text("ran\n")
+    cron = [
+        "0 7 * * * /opt/fabrik/scripts/mail.py digest",
+        "0 2 * * * /opt/other/nobody_watches.sh",
+    ]
+    box = (
+        FakeBox(
+            tmp_path,
+            cron=cron,
+            hooks=["bash /opt/fabrik/.claude/hooks/a.sh", "bash /opt/fabrik/.claude/hooks/b.sh"],
+        )
+        if "hooks" in FakeBox.__init__.__code__.co_varnames
+        else FakeBox(tmp_path, cron=cron)
+    )
+    surfaces = [
+        {**_cron_surface("blank", type="log", path=str(log)), "cron_match": " "},
+        {**_cron_surface("zero", type="log", path=str(log)), "cron_match": 0},
+        {
+            "id": "hookblank",
+            "kind": "hook",
+            "evidence": {"type": "hook", "command_contains": " "},
+            "max_age_hours": 24,
+        },
+        {"id": "strev", "kind": "hook", "evidence": "oops", "max_age_hours": 24},
+    ]
+    raw = tmp_path / "raw.json"
+    raw.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "ownership": {"cron_owned_substrings": [" /opt/fabrik "]},
+                "surfaces": surfaces,
+            }
+        )
+    )
+    reg, _ = la.load_registry(raw)
+    out = la.proof_heartbeat(box, reg, "")
+    unreg = out["unregistered"]
+    assert unreg["cron"]["owned"] == [cron[0]], unreg[
+        "cron"
+    ]  # the padded needle is stripped; the blank needles register nothing
+    assert unreg["cron"]["foreign_count"] == 1, unreg["cron"]
+    assert unreg["hooks"]["unregistered"] == sorted(box._hooks), unreg[
+        "hooks"
+    ]  # the blank `command_contains` row registers NOTHING: both hooks stay unregistered (FE3)
+    by_id = {f["id"]: f for f in out["findings"]}
+    assert by_id["strev"]["verdict"] == "UNKNOWN" and by_id["strev"]["instrument_fault"], by_id[
+        "strev"
+    ]
+    report = la.audit(tmp_path, raw, {"heartbeat"}, box=box)
+    assert report.crashed() >= 4, [
+        f["id"] for f in out["findings"]
+    ]  # every unprobed row is a skipped proof under --strict
+    # the sweep's own failure is a --strict failure too, in the real shape
+    reg2, _ = la.load_registry(_registry(tmp_path, [_cron_surface("o", type="log", path=str(log))]))
+    import types
+
+    original = la._unregistered
+
+    def boom(*a, **k):
+        raise RuntimeError("the sweep died")
+
+    la._unregistered = boom
+    try:
+        out2 = la.proof_heartbeat(box, reg2, "")
+        assert sorted(out2["unregistered"]["cron"]) == [
+            "foreign_count",
+            "instrument_fault",
+            "owned",
+            "total",
+        ], out2["unregistered"]
+        rep2 = types.SimpleNamespace(proofs={"heartbeat": out2})
+        assert la.Report.crashed(rep2) >= 1
+    finally:
+        la._unregistered = original
+
+
+def test_a_finite_but_huge_max_age_names_its_reason(tmp_path: Path) -> None:
+    """The refusal said "positive finite number" for 2**53+1, which IS finite (FE3)."""
+    log = tmp_path / "h.log"
+    log.write_text("ran\n")
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(
+        _registry(
+            tmp_path,
+            [{**_cron_surface("huge", type="log", path=str(log)), "max_age_hours": 2**53 + 1}],
+        )
+    )
+    f = la.proof_heartbeat(box, reg, "")["findings"][0]
+    assert f["verdict"] == "UNKNOWN" and "below 2**53" in f["instrument_fault"], f

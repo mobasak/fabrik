@@ -200,7 +200,10 @@ correctly-fixed site, since the real fragment wraps the flag onto a continuation
 on a line is graded (the next close bounds the window); a backtick inside an ARGUMENT of a fenced or
 plain-prose close is the command's own text — only a span's closer cuts (a fenced `--evidence` with
 backticks was a blocking false positive one edit away); a fenced close's trailing `#` comment is not
-the command; a span left unclosed within twelve lines grades the close on its own line (round 64).
+the command — but a `#` inside a QUOTED argument is (`--evidence "PR #42 merged"`); a span left
+unclosed within twelve lines grades the close on its own line (round 64). Fences are tracked by ONE
+CommonMark rule (`_fence_step`) on the claim side, the honour side and predicate 7 alike — a bare
+toggle let a nested or info-string fence invert the state for the rest of a file (round 65).
 
 Predicate 5 (the run record) matches `command_run.py` … `start` across whitespace and a `\`
 line continuation — a wrapped start opens a record too, and the bare substring test had red it; an
@@ -211,8 +214,8 @@ Chain references admit digits anywhere after the prefix (`/fabrik-oauth2-setup`,
 a caller claim inside a fenced block is an example, like a fenced `#` in the call-sites form —
 fences are real CommonMark fences (`~~~` too, closed only by a same-char run at least as long) and a
 heading may carry up to three leading spaces; a claim is honoured by a TOKEN in the caller's
-UNFENCED source, never a substring (`/fabrik-review-scoped` contains `/fabrik-review`); the trailer key is
-read case-insensitively, as git reads it; an agent's `name:` may be quoted or followed by a comment (a `#`
+UNFENCED, comment-stripped source, never a substring (`/fabrik-review-scoped` contains `/fabrik-review`); the trailer key is
+read case-insensitively, as git reads it; an agent's `name:` may be quoted, spaced before its colon (`name : x`) or followed by a comment (a `#`
 inside the quotes is part of the name; a TAB before `#` is a comment), an unclosed frontmatter is
 refused rather than read as the whole file, and a BOM is not "no frontmatter"; a `web_tools` literal checked only to its 2 000-char bound says so.
 
@@ -235,8 +238,9 @@ It surfaced only because the operator asked, in passing, which command was calli
   and its review is about which REPO you run the command from — not who calls it.
 
 **What does NOT count, deliberately.** A bare cross-reference asserts nothing: successor pointers, `SKIP:`
-routes and "see also" name other commands constantly. Measured across the live corpus: **460** such
-mentions, **17.8%** of them with no back-reference. Grading those would put 82 findings on the board the
+routes and "see also" name other commands constantly. Measured across the live corpus (33 sources; `_CHAIN_RE` over `_unfenced` text, resolving, non-self —
+re-derived with the shipped module in pass 65): **498** such mentions, **35.9%** (179) with no
+back-reference, 92 unique (source, name) pairs. Grading those would put 179 findings on the board the
 day it landed and teach every reader to skip this check's output — so the predicate reads only the claim
 forms, of which the corpus makes **3** (all in `fabrik-generate-tests.md`). Small denominator, zero
 noise, and it caught the one that was false.
@@ -259,11 +263,14 @@ bytes. A "keep these in step" comment is a contract with no grader.
 `--selftest` is hermetic: its canary and good-fixture audits pass their own (empty) agent
 directory, never the live `commands/_agents/` — a real defect there once read as "FALSE POSITIVE
 on known-good input". It feeds a known-bad corpus through the same predicates and requires **each** to
-fire, then a known-good one and requires silence:
+fire, then a known-good one and requires silence. The `N of M problem emitters … executed` figure is
+MEASURED: the selftest traces itself and counts the `problems.append(` lines its canaries actually
+reached, against every such line in the file (a signature count had credited two signatures to one
+emitter and none to an unexercised one):
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: 17 canaries over 8 of the eight predicates (13 distinct signatures of 18 problem emitters in this file) fire on bad input and stay silent on good input
+✓ selftest: 17 canaries over 8 of the eight predicates (12 of 19 problem emitters in this file executed) fire on bad input and stay silent on good input
 ```
 
 In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
@@ -278,7 +285,7 @@ skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
 ```
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
 N/A: 6 web-tool canaries skipped — no vendored libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub
-✓ selftest: 11 canaries over 7 of the eight predicates (11 distinct signatures of 18 problem emitters in this file) fire on bad input and stay silent on good input (N/A: web-tool names)
+✓ selftest: 11 canaries over 7 of the eight predicates (11 of 19 problem emitters in this file executed) fire on bad input and stay silent on good input (N/A: web-tool names)
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

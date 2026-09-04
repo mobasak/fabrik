@@ -305,3 +305,23 @@ def test_a_flag_a_string_and_an_overflowing_int_are_not_measurements(monkeypatch
         assert cf.fetch_deepl("k:fx") == want, body
     monkeypatch.setattr(cf, "_get_json", lambda *a, **k: {"data": {"totalUsageCreditsUsd": True}})
     assert cf.fetch_apify("k") is None
+    for data in (
+        [1],
+        "x",
+        5,
+        True,
+        None,
+    ):  # a non-dict `data` raised AttributeError inside the fetcher (FE1)
+        monkeypatch.setattr(cf, "_get_json", lambda *a, _d=data, **k: {"data": _d})
+        assert cf.fetch_apify("k") is None, data
+    monkeypatch.setattr(cf, "_get_json", lambda *a, **k: {"data": {"totalUsageCreditsUsd": -5}})
+    assert cf.fetch_apify("k") is None, "a negative usage is not a measurement"
+    assert cf._finite(-0.5, "u") is None and cf._finite(0, "u") == cf.CreditSnapshot(0.0, "u")
+    for body in (
+        '{"character_count": -100, "character_limit": 500}',
+        '{"character_count": 600, "character_limit": 500}',
+    ):
+        monkeypatch.setattr(cf, "_get_json", lambda *a, _b=body, **k: __import__("json").loads(_b))
+        assert cf.fetch_deepl("k:fx") is None, (
+            body
+        )  # a negative count inflated the remainder; an overage is a negative remainder — neither is a balance (FE1)

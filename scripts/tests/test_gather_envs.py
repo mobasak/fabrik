@@ -3755,3 +3755,167 @@ def test_the_classifier_never_mints_a_prefix_another_entry_routes(tmp_path, monk
         after = json.loads(cat.read_text(encoding="utf-8"))
         assert after["widget"]["match"] == [] and after["other"]["match"] == ["WIDGET_"], after
         ge.parse_catalog(after, "after")  # the next gather accepts it
+
+
+def test_the_line_number_is_the_statements_own_after_a_blank_or_dropped_line(tmp_path, capsys):
+    """dotenv marks the binding where its LEADING WHITESPACE starts: after a blank line or a dropped
+    non-UTF-8 line the warning pointed at the blank — the FC5 grader passed only because a good
+    statement sat between them (FE5)."""
+    f = tmp_path / ".env"
+    f.write_bytes(b'K="q\rr"\n\xff\xfe\nBAD="unterminated\nZ=1\n')
+    ge.parse_env(f)
+    err = capsys.readouterr().err
+    assert f"WARNING: {f}:4: not a KEY=value" in err, err
+    f.write_bytes(b'A=1\n\n\n\nBAD="u\nZ=1\n')
+    ge.parse_env(f)
+    assert f"WARNING: {f}:5: not a KEY=value" in capsys.readouterr().err
+
+
+def test_the_triage_reader_and_the_header_count_read_stripped_lines(tmp_path, monkeypatch):
+    """`classify_services.flagged_providers` read past an INDENTED section header and handed a
+    categorised provider to paid triage; `gather_envs`'s emptied-catalog guard counted `#svc` on the
+    raw line and failed OPEN on an indented header (FE5)."""
+    body = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=alpha category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "ALPHA_API_KEY=x\n"
+        "  # ═══ ai-llm ═══\n"
+        '  #svc name=beta category=ai-llm cost=paid capability="c" url=https://b.example status=active used_by=web\n'
+        "BETA_API_KEY=y\n"
+    )
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(body, encoding="utf-8")
+    flagged = cs.flagged_providers(envs)
+    assert list(flagged) == ["alpha"] and flagged["alpha"]["names"] == ["ALPHA_API_KEY"], (
+        flagged
+    )  # the raw-line reader appended BETA_API_KEY to alpha
+    monkeypatch.setattr(ge, "OUTPUT", envs)
+    known = sum(
+        1
+        for ln in (
+            raw.replace("\ufeff", "").strip() for raw in ge.read_existing_body(envs).splitlines()
+        )
+        if ln.lower().startswith("#svc ")
+        and not re.match(r"#svc name=\S+ category=\?(?: |$)", ln, re.I)
+    )
+    assert known == 1  # the indented, categorised beta counts; the `?` alpha does not
+    src = Path(ge.__file__).read_text(encoding="utf-8")
+    assert (
+        'raw.replace("\\ufeff", "").strip() for raw in read_existing_body(OUTPUT).splitlines()'
+        in src
+    )
+
+
+def test_a_suppressed_new_entry_prefix_is_said_and_only_the_winning_pass_speaks(
+    tmp_path, monkeypatch, capsys
+):
+    """The new-entry mint suppression was silent while the tombstone one spoke; a discarded pass
+    narrated its work twice (FE5)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    _existing_catalog(cat, name="other", match=("WIDGET_",))
+
+    def fanout_that_hand_edits(*a, **k):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        data["Bad Key"] = {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://o.example",
+        }
+        cat.write_text(json.dumps(data), encoding="utf-8")
+        return list(res), ""
+
+    monkeypatch.setattr(cs, "fanout", fanout_that_hand_edits)
+    assert cs.main() == 0
+    out = capsys.readouterr().out
+    assert (
+        out.count("widget: prefix WIDGET is routed by another entry already — no prefix minted")
+        == 1
+    ), out
+
+
+def test_a_null_match_token_and_an_empty_merged_match_key(tmp_path, monkeypatch):
+    """`_curated_tokens` minted the phantom token NONE from a JSON `null`; the merge path minted
+    `merged_match: []` on a target it declined to add a prefix to (FE5)."""
+    assert cs._curated_tokens({"match": [None, ""]}) == set() and cs._curated_tokens(
+        {"match": ["a", None]}
+    ) == {"A"}
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "existing",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://e.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "existing": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://e.example",
+                    "status": "active",
+                    "match": ["EXISTING"],
+                },
+                "third": {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://t.example",
+                    "status": "active",
+                    "match": ["WIDGET"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert cs.main() == 0
+    after = json.loads(cat.read_text(encoding="utf-8"))
+    assert "merged_match" not in after["existing"], after["existing"]
+
+
+def test_a_pathological_unclosed_brace_value_is_stored_verbatim_in_bounded_time(tmp_path):
+    """dotenv's `${` regex is quadratic on an unclosed brace: a 314 KB line would outlive the chain's
+    step budget; above 64 000 chars with no `}` the value is stored as-is (FE5)."""
+    import time
+
+    f = tmp_path / ".env"
+    big = "${" * 40_000
+    f.write_text(f"BIG={big}\nSMALL=${{A:-x}}\n", encoding="utf-8")
+    t0 = time.monotonic()
+    got = dict(ge.parse_env(f))
+    assert time.monotonic() - t0 < 5, "quadratic interpolation ran"
+    assert got["BIG"] == big and got["SMALL"] == "x"

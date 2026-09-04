@@ -3,9 +3,10 @@
 #
 # Fire one critical Telegram alert from a pipeline step.
 #
-# EVERY alert in daily_refresh.sh routes through here (seven call sites: the sync/classify
-# steps, the chain's did-not-start and was-killed cases, the contract oracle — which joined them
-# 2026-09-03/FC6 — and the heartbeat pair). The ranker alert that
+# EVERY alert in daily_refresh.sh routes through here (seven call sites: the unwritable-log
+# ladder, the chain's did-not-start and was-killed cases, the contract oracle — which joined them
+# 2026-09-03/FC6 — and the heartbeat trio: the cache dir, the ran-BLIND guard, the timestamp
+# write; the sync/classify steps alert from external_services_chain.sh's own _alert, not here). The ranker alert that
 # test_flywheel_safety.py::test_the_alert_can_actually_fire_not_just_exist pins lives in
 # wsl_startup_hook.sh, not here. The heartbeat pair were migrated because they had NO load_dotenv
 # at all and were therefore silent no-ops — alerting._is_enabled() reads TELEGRAM_BOT_TOKEN from
@@ -56,6 +57,12 @@ try:
         print(f"[pipeline_alert] {'no .env at' if not env_file.exists() else 'no usable keys in'} {env_file}", file=sys.stderr)
 except Exception as exc:  # noqa: BLE001 — SAID, never swallowed: an unreadable .env was a silent no-op (FB10)
     print(f"[pipeline_alert] .env not loaded: {type(exc).__name__}: {exc}", file=sys.stderr)
+    try:
+        from alerting._dotenv import load_env as _load_env  # the package's stdlib loader: a venv without python-dotenv lost every alert under FABRIK_NO_AUTOLOAD (FE6)
+
+        _load_env(str(root))
+    except Exception as exc2:  # noqa: BLE001
+        print(f"[pipeline_alert] stdlib .env fallback failed: {type(exc2).__name__}: {exc2}", file=sys.stderr)
 try:
     import alerting
     # send_alert returns False — no exception, no log line — when alerting is DISABLED (no token,
@@ -63,7 +70,11 @@ try:
     # (its dict lives in this interpreter). The cause is named, not guessed (FB10/FC6)
     if not alerting.send_alert(title=sys.argv[1], body=sys.argv[2], severity="critical"):
         try:
-            why = "alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST in the environment" if not alerting._is_enabled() else "every delivery method failed (see the diagnosis above)"
+            why = (
+                "ALERT_ENABLED=0 is set"  # an explicit mute sent the operator hunting missing tokens (FE6)
+                if os.getenv("ALERT_ENABLED", "").strip() == "0"
+                else "alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST in the environment"
+            ) if not alerting._is_enabled() else "every delivery method failed (see the diagnosis above)"
         except Exception:  # noqa: BLE001 — the DIAGNOSIS failing must never read as the send failing (FD6)
             why = "reason unavailable"
         print(f"[pipeline_alert] NOT delivered ({why}): {sys.argv[1]}", file=sys.stderr)

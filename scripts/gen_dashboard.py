@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import os
 import sys
 from datetime import UTC, datetime
@@ -35,7 +36,9 @@ def credit_cell(
     """The balance, flagged with its age once the LAST successful fetch is older than two laps.
     A fetch that fails inserts no snapshot, so the dashboard kept rendering the last balance
     forever — a revoked key and a healthy one were the same cell (FB9)."""
-    if bal is None or bal != bal:  # noqa: PLR0124 - NaN: NUMERIC accepts 'NaN' and a backfilled row bypasses the fetchers' guard (FD7)
+    if (
+        bal is None or not math.isfinite(bal)
+    ):  # NaN AND Infinity: NUMERIC accepts both and a backfilled row bypasses the fetchers' guard (FD7/FE1)
         return ""  # the column is nullable — defensive: `load()` filters NULLs today (FC4)
     text = f"{bal:g} {unit or ''}".strip()
     if fetched is None:
@@ -108,7 +111,9 @@ def load() -> list[dict]:
                     continue
                 if renews:
                     s["renews"] = str(renews)
-                if price is not None:
+                if price is not None and math.isfinite(
+                    price
+                ):  # a NaN/Infinity price rendered as a number (FE1)
                     s["price"] = f"{price:g} {curr or ''}".strip()
     finally:
         conn.close()
@@ -184,6 +189,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const href=u=>/^https?:\/\//i.test(String(u||''))?u:null;  // render-time scheme gate: a hand-edited or pre-guard `javascript:` url is never a live link (AS5)
 const cpill=v=>{const k=v==='?'?'unknown':String(v).replace(/[^A-Za-z0-9]+/g,'-');return '<span class="pill c-'+k+'">'+esc(v)+'</span>';};  // class token restricted: cost/status are model-authored (AP1)
 const cell=(v,cls)=>v?'<td class="'+(cls||'')+'">'+esc(v)+'</td>':'<td class="empty">—</td>';
+const keysCell=r=>'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials no catalog prefix attributes to this vendor: a model-merged prefix, or provenance unknown at sync time">'+r.unattributed+' unattributed</span>':'')+'</td>';
 function render(){
   const term=q.value.toLowerCase(),fc=fcat.value,fk=fcost.value;
   let rows=DATA.filter(r=>(!fc||r.category===fc)&&(!fk||r.cost===fk)&&
@@ -196,7 +202,7 @@ function render(){
     const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td>'
       +'<td>'+cpill(r.status)+'</td>'+cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')
-      +'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials no catalog prefix attributes to this vendor: a model-merged prefix, or provenance unknown at sync time">'+r.unattributed+' unattributed</span>':'')+'</td>'+cell(r.account,'mono')
+      +keysCell(r)+cell(r.account,'mono')
       +'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
   }
   tb.innerHTML=out||'<tr><td colspan="10" class="empty" style="padding:24px;text-align:center">No services match.</td></tr>';

@@ -665,9 +665,9 @@ def _unregistered_guarded(
         return _unregistered(box, registry, cron_inst, cron_lines)
     except Exception as exc:  # noqa: BLE001 - a string `ownership` or an int needle raised out of the sweep
         fault = f"{exc.__class__.__name__}: {exc}"[:200]
-        return {
-            "cron": {"instrument_fault": fault, "unregistered": []},
-            "hooks": {"instrument_fault": fault, "unregistered": []},
+        return {  # the REAL shape, so a `--json` consumer keyed on `cron.owned` sees no schema change under fault (FE3)
+            "cron": {"instrument_fault": fault, "owned": [], "foreign_count": None, "total": 0},
+            "hooks": {"instrument_fault": fault, "unregistered": [], "total": 0},
         }
 
 
@@ -677,7 +677,10 @@ def _heartbeat_one(
     sid = str(surface.get("id", "?"))
     kind = str(surface.get("kind", "?"))
     doc = str(surface.get("doc", ""))
-    evidence = surface.get("evidence") or {}
+    ev = surface.get("evidence")
+    evidence = (
+        ev if isinstance(ev, dict) else {}
+    )  # a string `evidence` raised out of the row and the containment was invisible to `--strict` (FE3)
     etype = str(evidence.get("type", "none"))
     make = lambda inst, verdict, detail, rc="": finding(  # noqa: E731 - local partial
         proof="heartbeat",
@@ -690,6 +693,12 @@ def _heartbeat_one(
         doc=doc,
     )
 
+    if ev is not None and not isinstance(ev, dict):
+        return make(
+            Instrument.broken(f"{sid}:registry", "evidence is not an object"),
+            Verdict.UNKNOWN,
+            "the registry row could not be probed",
+        )  # a string `evidence` raised out of the row; the containment was invisible to `--strict` (FE3)
     # A cron surface is DEAD the moment its schedule is gone, whatever the stale log says.
     if kind == "cron":
         match = _needle(surface.get("cron_match")) or ""
@@ -787,7 +796,7 @@ def _heartbeat_one(
             return make(
                 Instrument.broken(
                     f"{sid}:registry",
-                    f"max_age_hours must be a positive finite number, got {raw_limit!r}",
+                    f"max_age_hours must be a positive finite number below 2**53, got {raw_limit!r}",  # the refusal names its reason for a finite-but-huge int (FE3)
                 ),
                 Verdict.UNKNOWN,
                 "the registry row could not be probed",
@@ -879,17 +888,17 @@ def _unregistered(
     """Surfaces PRESENT on the box but ABSENT from the registry. Unregistered = unmonitored."""
     ownership = registry.get("ownership")
     owned_needles = [
-        n
+        m
         for n in (
             (ownership.get("cron_owned_substrings") if isinstance(ownership, dict) else None) or []
         )
-        if _needle(n)
-    ]  # a string `ownership` or an int needle raised out of the sweep (FD5)
+        if (m := _needle(n))
+    ]  # the STRIPPED needle: a padded `" /opt/fabrik "` passed the predicate and then matched nothing (FE3)  # a string `ownership` or an int needle raised out of the sweep (FD5)
     matches = [
-        str(s.get("cron_match", ""))
+        m
         for s in registry.get("surfaces") or []
-        if isinstance(s, dict) and s.get("cron_match")
-    ]
+        if isinstance(s, dict) and (m := _needle(s.get("cron_match")))
+    ]  # `" "` and `0` matched every crontab line and blanked the WHOLE unregistered report — the FD5 class, five lines below the line FD5 fixed (FE3)
     out: dict[str, Any] = {}
 
     if not cron_inst.ok:
@@ -914,16 +923,13 @@ def _unregistered(
         out["hooks"] = {"instrument_fault": hook_inst.fault, "unregistered": []}
     else:
         needles = [
-            str(
-                (s.get("evidence") if isinstance(s.get("evidence"), dict) else {}).get(
-                    "command_contains", ""
-                )
-            )
+            m
             for s in registry.get("surfaces") or []
             if isinstance(s, dict)
             and (s.get("evidence") if isinstance(s.get("evidence"), dict) else {}).get("type")
             == "hook"
-        ]
+            and (m := _needle((s.get("evidence") or {}).get("command_contains")))
+        ]  # a blank `command_contains` made every hook look registered (FE3)
         unreg = sorted({c[:160] for c in commands if not any(n and n in c for n in needles)})
         out["hooks"] = {"instrument_fault": "", "unregistered": unreg, "total": len(commands)}
 
@@ -2142,15 +2148,24 @@ class Report:
     def crashed(self) -> int:
         """Proofs that raised. They report UNKNOWN (they proved nothing), but `--strict`
         must still bite: a silently skipped proof is how a monitor learns to say all-clear."""
-        return sum(
+        sweep_faults = sum(
             1
             for block in self.proofs.values()
-            for f in block.get("findings", [])
-            if f["kind"]
-            in (
-                "proof",
-                "registry",
-            )  # a registry the proof could not use is a skipped proof: `--strict` was a green no-op on a duplicate id, an empty or a missing registry (FC2)
+            for part in (block.get("unregistered") or {}).values()
+            if isinstance(part, dict) and part.get("instrument_fault")
+        )  # the unregistered sweep's own failure was contained by FD5 and INVISIBLE to `--strict` (FE3)
+        return (
+            sweep_faults
+            + sum(
+                1
+                for block in self.proofs.values()
+                for f in block.get("findings", [])
+                if f["kind"] in ("proof", "registry")
+                or (
+                    f["verdict"] == "UNKNOWN" and f["instrument_fault"]
+                )  # a row the proof could not probe (a blank needle, a string `evidence`) is a skipped proof too — `--strict` was green on it (FE3)
+                # a registry the proof could not use is a skipped proof: `--strict` was a green no-op on a duplicate id, an empty or a missing registry (FC2)
+            )
         )
 
 

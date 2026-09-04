@@ -88,7 +88,10 @@ def fetch_apify(api_key: str) -> CreditSnapshot | None:
         "https://api.apify.com/v2/users/me/usage/monthly",
         {"Authorization": f"Bearer {api_key}"},
     )
-    used = (d.get("data") or {}).get("totalUsageCreditsUsd") if d else None
+    data = d.get("data") if d else None
+    used = (
+        data.get("totalUsageCreditsUsd") if isinstance(data, dict) else None
+    )  # a list/str/number `data` raised AttributeError inside the fetcher (FE1)
     return _finite(used, "usd_used_month")
 
 
@@ -122,7 +125,9 @@ def _finite(value: object, unit: str) -> CreditSnapshot | None:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         return None
-    return CreditSnapshot(number, unit) if math.isfinite(number) else None
+    if not math.isfinite(number) or number < 0:
+        return None  # every unit is a non-negative measure: a negative balance/usage/remainder is not a snapshot (FE1)
+    return CreditSnapshot(number, unit)
 
 
 def fetch_exa(_api_key: str) -> CreditSnapshot | None:

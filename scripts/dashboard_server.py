@@ -77,7 +77,7 @@ function render(){
     if(sortK==='category'&&r.category!==cat){cat=r.category;out+='<tr class="catrow"><td colspan="10">'+esc(cat)+'</td></tr>';}
     const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td><td>'+cpill(r.status)+'</td>'
-      +cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')+'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials no catalog prefix attributes to this vendor">+'+r.unattributed+' unattributed</span>':'')+'</td>'
+      +cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')+keysCell(r)
       +cell(r.account,'mono')+'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
   }
   $('tb').innerHTML=out||'<tr><td colspan="10" class="empty" style="padding:24px;text-align:center">No services match.</td></tr>';
@@ -90,6 +90,8 @@ refresh();setInterval(refresh,30000);
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    timeout = 30  # a client that opens a socket and stops no longer holds the server (FE1)
+
     def log_message(self, *_a):
         pass
 
@@ -106,9 +108,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         try:
             if self.path.startswith("/api/services"):
-                self._send(json.dumps(gen_dashboard.load()).encode("utf-8"), "application/json")
+                body, ctype = json.dumps(gen_dashboard.load()).encode("utf-8"), "application/json"
             else:
-                self._send(
+                body, ctype = (
                     PAGE.replace("__CSS__", gen_dashboard.CSS)
                     .replace("__HELPERS__", gen_dashboard.HELPERS)
                     .replace("__STALE_H__", str(gen_dashboard.STALE_AFTER_H))
@@ -120,11 +122,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # into the status line unsanitised — libpq's own text carries a newline (response
             # splitting), a `—`/`⚠` raised UnicodeEncodeError INSIDE the except (zero bytes sent),
             # and the WireGuard host + role name reached every LAN client (FD7)
-            print(
-                f"dashboard: {exc.__class__.__name__}: {' '.join(str(exc).split())[:300]}",
-                file=sys.stderr,
-            )
-            self.send_error(500, "registry query failed")
+            try:
+                print(
+                    f"dashboard: {exc.__class__.__name__}: {_safe(exc)}",
+                    file=sys.stderr,
+                )
+            finally:
+                self.send_error(
+                    500, "registry query failed"
+                )  # even when str(exc) itself raises (FE1)
+            return
+        try:
+            self._send(body, ctype)
+        except (BrokenPipeError, ConnectionResetError):
+            return  # the client left mid-response (a closed tab on the 30 s refresh): not a registry failure, not a traceback (FE1)
+
+
+def _safe(exc: BaseException) -> str:
+    try:
+        return " ".join(str(exc).split())[:300]
+    except Exception:  # noqa: BLE001 - a message that cannot be rendered is still a 500
+        return "<str() failed>"
+
+
+def _port(value: str) -> int:
+    """`choices=range(1, 65536)` printed every choice — a 447 KB error for port 0 (FE1)."""
+    import argparse  # noqa: PLC0415
+
+    try:
+        port = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"PORT must be an integer, got {value!r}") from exc
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"PORT must be 1-65535, got {port}")
+    return port
+
+
+class Server(socketserver.ThreadingTCPServer):
+    """One stalled client no longer blocks every other client (a 0.0.0.0 bind; FE1)."""
+
+    allow_reuse_address = True
+    daemon_threads = True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -134,11 +172,15 @@ def main(argv: list[str] | None = None) -> int:
         description="Live external-services dashboard (reads the registry DB)."
     )
     ap.add_argument(
-        "port", nargs="?", type=int, default=PORT, choices=range(1, 65536), metavar="PORT"
-    )  # `abc`/`-1`/`99999` were tracebacks (FD7)
+        "port", nargs="?", type=_port, default=PORT, metavar="PORT"
+    )  # `abc`/`-1`/`99999` were tracebacks (FD7); a one-line bound, never a 447 KB choices dump (FE1)
     port = ap.parse_args(sys.argv[1:] if argv is None else argv).port
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((HOST, port), Handler) as srv:
+    try:
+        srv = Server((HOST, port), Handler)
+    except OSError as exc:  # a port in use or below 1024 without privilege was a traceback (FE1)
+        print(f"ERROR: cannot bind {HOST}:{port} ({exc.strerror or exc})", file=sys.stderr)
+        return 1
+    with srv:
         url = f"http://localhost:{port}"  # noqa - user-facing message, not a backing-service host
         print(f"Live dashboard on {HOST}:{port} — open {url}  (Ctrl-C to stop)")
         try:

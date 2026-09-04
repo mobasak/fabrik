@@ -717,10 +717,13 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
     resolved: dict[str, str | None] = {}
     for binding in parse_stream(io.StringIO("\n".join(lines))):
         if binding.error:
+            lead = binding.original.string[
+                : len(binding.original.string) - len(binding.original.string.lstrip())
+            ]
             print(
-                f"WARNING: {path}:{binding.original.line}: not a KEY=value statement — line skipped",
+                f"WARNING: {path}:{binding.original.line + lead.count(chr(10))}: not a KEY=value statement — line skipped",
                 file=sys.stderr,
-            )
+            )  # dotenv marks the line where the binding's LEADING WHITESPACE starts: after a blank or a dropped line the number pointed at the blank (FE5)
             continue
         if binding.key is None:
             continue
@@ -728,6 +731,10 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
         resolved[binding.key] = (
             None
             if value is None
+            else value
+            if len(value) > 64_000
+            and "}"
+            not in value  # dotenv's `${` regex is O(n²) on an unclosed brace; a 314 KB line would outlive the chain's step budget (FE5)
             else "".join(atom.resolve(resolved) for atom in parse_variables(value))
         )
     for key, value in resolved.items():
@@ -1145,11 +1152,13 @@ def refuse_emptied_catalog() -> None:
         return
     known = sum(
         1
-        for ln in read_existing_body(OUTPUT).splitlines()
-        if ln.startswith("#svc ")
+        for ln in (
+            raw.replace("\ufeff", "").strip() for raw in read_existing_body(OUTPUT).splitlines()
+        )
+        if ln.lower().startswith("#svc ")
         and not re.match(
-            r"#svc name=\S+ category=\?(?: |$)", ln
-        )  # the FIELD at its position, never the literal in a capability (CM6/CP3)
+            r"#svc name=\S+ category=\?(?: |$)", ln, re.I
+        )  # the STRIPPED line, case-insensitive, like registry_sync.parse: an indented header made the emptied-catalog guard fail OPEN (FE5)  # the FIELD at its position, never the literal in a capability (CM6/CP3)
     )
     if known and not load_catalog()[0]:
         raise CatalogError(

@@ -1700,7 +1700,19 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     _fake_hub(
         tmp_path / "finder_raises",
         'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
-        init_body="import sys\nclass _F:\n    def find_spec(self, name, path=None, target=None):\n        if name == 'libs.subagents.web_tools':\n            raise RuntimeError('editable-install finder broke')\n        return None\nsys.meta_path.insert(0, _F())\n",
+        init_body="import sys\nclass _F:\n    def find_spec(self, name, path=None, target=None):\n        if name == 'libs.subagents.web_tools' and path and 'finder_raises' in str(list(path)[0]):\n            raise RuntimeError('editable-install finder broke')\n        return None\nsys.meta_path.insert(0, _F())\n",
+    )
+    # pass 65 (FE2): the pre-`reconfigure()` UTF-8 idiom re-wraps the ORIGINAL buffer; dropping the
+    # wrapper on the binding restore let its finalizer close the buffer — no verdict, exit 1
+    _fake_hub(
+        tmp_path / "rewrap_stdout",
+        'import io, sys\nsys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # an unflushed `sys.__stdout__` write made BEFORE a rebind stayed pending and led the verdict on
+    # the restored fd with no advisory (FE2)
+    _fake_hub(
+        tmp_path / "dunder_rebind",
+        'import io, sys\nsys.__stdout__.write("BANNER-VIA-DUNDER\\n")\nsys.stdout = io.StringIO()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
     )
     (
         tmp_path / "site" / "nsdist_xyz"
@@ -1870,7 +1882,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr', 'lazygetattr', 'createfail', 'pycraises', 'fdchatty', 'swallowreq', 'rootpkg', 'fd2raw', 'dunder', 'stderr_buffer', 'lazygetattr_swallowmissing', 'healthy', 'proxy_sibling', 'stdout_rebind', 'finder_raises'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr', 'lazygetattr', 'createfail', 'pycraises', 'fdchatty', 'swallowreq', 'rootpkg', 'fd2raw', 'dunder', 'stderr_buffer', 'lazygetattr_swallowmissing', 'healthy', 'proxy_sibling', 'stdout_rebind', 'finder_raises', 'rewrap_stdout', 'dunder_rebind'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -2356,6 +2368,14 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "editable-install finder broke" in s
         for s in out["finder_raises"]["skipped"] + out["finder_raises"]["problems"]
     ), out["finder_raises"]
+    assert (
+        out["rewrap_stdout"]["problems"] == list(out["healthy"]["problems"])
+        and out["rewrap_stdout"]["failure"] == []
+    ), out["rewrap_stdout"]  # the driver printed its verdict at all (FE2)
+    assert any("bytes to stdout/stderr" in s for s in out["dunder_rebind"]["advisories"]), out[
+        "dunder_rebind"
+    ]
+    assert "BANNER-VIA-DUNDER" not in r.stdout, "the banner led the verdict on the restored fd"
     assert any(
         s.startswith("web-tool names: importing libs/subagents/web_tools.py failed (")
         for s in out["nsdist"]["skipped"]
@@ -3070,7 +3090,9 @@ def test_two_closes_on_one_line_and_fenced_backticks_and_comments(corpus):
     body = "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e   # refuses without --feedback\n```\n"
     assert any("--feedback" in p for p in corpus(body)), corpus(body)
     # an UNCLOSED span absorbed twelve lines of prose — the close is graded on its own line (I-C6)
-    problems = corpus("`done --command fabrik-probe --evidence e\nprose says --feedback is required here\n")
+    problems = corpus(
+        "`done --command fabrik-probe --evidence e\nprose says --feedback is required here\n"
+    )
     assert any("--feedback" in p for p in problems), problems
     # the same-line closer half of the seed: prose after the closer on the NEXT line, no backtick there
     problems = corpus(
@@ -3176,13 +3198,10 @@ def test_the_selftest_counts_distinct_signatures_over_the_real_emitter_count(cap
     monkeypatch.setattr(ccc, "AGENTS_SRC", ccc.REPO / "commands" / "_agents")
     assert ccc._selftest() == 0
     line = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("✓ selftest")][-1]
-    m = re.search(r"\((\d+) distinct signatures of (\d+) problem emitters", line)
+    m = re.search(r"\((\d+) of (\d+) problem emitters in this file executed\)", line)
     assert m, line
     covered, emitters = int(m.group(1)), int(m.group(2))
-    src = (ccc.REPO / "scripts" / "enforcement" / "check_command_corpus.py").read_text(
-        encoding="utf-8"
-    )
-    assert emitters == src.count("problems.append(") - 1 and covered <= emitters, line
+    assert emitters == len(ccc._emitter_lines()) and 0 < covered <= emitters, line
 
 
 def test_safe_str_keeps_only_printable_text():
@@ -3190,3 +3209,193 @@ def test_safe_str_keeps_only_printable_text():
     import check_command_corpus as ccc
 
     assert ccc._safe_str(RuntimeError("a\x00b\x1b[0m c\n d")) == "a b [0m c d"
+
+
+def test_the_probe_survives_a_rewrapped_stream_flushes_the_originals_and_blames_the_same_way_twice(
+    tmp_path, monkeypatch, capfd
+):
+    """`sys.stdout = io.TextIOWrapper(sys.stdout.buffer)` at import closed the SHARED buffer when the
+    FD3 restore dropped the wrapper (the gate's own print then raised); an unflushed `sys.__stdout__`
+    write made before a rebind led the verdict on the restored fd with no advisory; a cached PEP 562
+    target was blamed on the first probe and silently skipped on the second (`was_loaded`, FE2)."""
+    import check_command_corpus as ccc
+
+    saved_mods = {
+        k: sys.modules.pop(k) for k in list(sys.modules) if k == "libs" or k.startswith("libs.")
+    }
+    out0 = sys.stdout
+    hub = _probe_hub(
+        tmp_path,
+        'import io, sys\nsys.__stdout__.write("BANNER-VIA-DUNDER\\n")\nsys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    try:
+        ccc.ADVISORIES.clear()
+        assert ccc._live_web_tool_names(hub) == frozenset({"web_search"})
+        assert sys.stdout is out0 and not sys.stdout.closed
+        print("verdict-still-printable")
+        captured = capfd.readouterr()
+        assert (
+            "verdict-still-printable" in captured.out and "BANNER-VIA-DUNDER" not in captured.out
+        ), captured.out
+    finally:
+        ccc.ADVISORIES.clear()
+        for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+            del sys.modules[k]
+        sys.modules.update(saved_mods)
+        while str(hub) in sys.path:
+            sys.path.remove(str(hub))
+    # the same PEP 562 target probed twice is blamed the same way twice
+    hub2 = _probe_hub(
+        tmp_path / "second",
+        "def __getattr__(name):\n    raise RuntimeError('provider registry unavailable: ' + name)\n",
+    )
+    saved_mods = {
+        k: sys.modules.pop(k) for k in list(sys.modules) if k == "libs" or k.startswith("libs.")
+    }
+    try:
+        blames = []
+        for _ in range(2):
+            ccc._IMPORT_FAILURE.clear()
+            ccc._IMPORT_BLAME.clear()
+            assert ccc._live_web_tool_names(hub2) is None
+            blames.append(list(ccc._IMPORT_BLAME))
+        assert blames[0] == blames[1] and blames[0] != [""], blames
+    finally:
+        ccc._IMPORT_FAILURE.clear()
+        ccc._IMPORT_BLAME.clear()
+        for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+            del sys.modules[k]
+        sys.modules.update(saved_mods)
+        while str(hub2) in sys.path:
+            sys.path.remove(str(hub2))
+
+
+def test_a_second_dup_failure_leaks_no_fd_and_a_proxy_sibling_leaves_no_wrapper(
+    tmp_path, monkeypatch
+):
+    """`saved = [os.dup(1), os.dup(2)]` leaked the first fd when the second raised; the unwind's
+    `getattr(mod, "__loader__", None)` form left two modules carrying a `_RecordingLoader` after a
+    proxy sibling — both FD3 claims had no grader (FE2)."""
+    import check_command_corpus as ccc
+
+    hub = _probe_hub(
+        tmp_path, 'from . import lazy\nimport json\nWEB_TOOL_NAMES = frozenset({"web_search"})\n'
+    )
+    (hub / "libs" / "subagents" / "lazy.py").write_text(
+        "import sys\nclass _P:\n    def __getattr__(self, a):\n        raise ImportError('backend unavailable: ' + a)\nsys.modules[__name__] = _P()\n"
+    )
+    saved_mods = {
+        k: sys.modules.pop(k) for k in list(sys.modules) if k == "libs" or k.startswith("libs.")
+    }
+    try:
+        assert ccc._live_web_tool_names(hub) == frozenset({"web_search"})
+
+        def _wrapped(mod):
+            try:
+                d = getattr(mod, "__dict__", None)
+                loader = d.get("__loader__") if isinstance(d, dict) else None
+                spec = d.get("__spec__") if isinstance(d, dict) else None
+                return isinstance(loader, ccc._RecordingLoader) or isinstance(
+                    getattr(spec, "loader", None), ccc._RecordingLoader
+                )
+            except Exception:  # noqa: BLE001
+                return False
+
+        assert [n for n, m in list(sys.modules.items()) if _wrapped(m)] == []
+        real_dup = os.dup
+        calls = {"n": 0}
+
+        def flaky_dup(fd):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise OSError(24, "Too many open files")
+            return real_dup(fd)
+
+        for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+            del sys.modules[k]
+        ccc._IMPORT_FAILURE.clear()
+        ccc._IMPORT_BLAME.clear()
+        monkeypatch.setattr(os, "dup", flaky_dup)
+        before = len(os.listdir("/proc/self/fd"))
+        assert ccc._live_web_tool_names(hub) is None
+        assert len(os.listdir("/proc/self/fd")) == before and ccc._IMPORT_BLAME == [""], (
+            ccc._IMPORT_FAILURE,
+            ccc._IMPORT_BLAME,
+        )
+    finally:
+        ccc._IMPORT_FAILURE.clear()
+        ccc._IMPORT_BLAME.clear()
+        for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+            del sys.modules[k]
+        sys.modules.update(saved_mods)
+        while str(hub) in sys.path:
+            sys.path.remove(str(hub))
+
+
+def test_a_quoted_hash_a_nested_fence_and_a_caller_comment(corpus, tmp_path):
+    """A `#` inside a QUOTED argument of a fenced close was a shell comment (a blocking false positive);
+    predicate 7's fence tracker was a bare toggle (one nested/info-string fence inverted it for the
+    rest of the file); a caller naming the claimant only inside an HTML comment honoured it (FE2)."""
+    for body in (
+        '```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence "PR #42 merged" --feedback "none"\n```\n',
+        "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence '3 of 5 # files' --feedback f\n```\n",
+    ):
+        assert not any("--feedback" in p for p in corpus(body)), corpus(body)
+    body = "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e   # refuses without --feedback\n```\n"
+    assert any("--feedback" in p for p in corpus(body)), corpus(body)
+    # a nested fence: the outer ```` holds an inner ``` — the inner closer does not close the outer,
+    # so the close after it is still fenced and its comment is still cut
+    body = "````markdown\n```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e   # documents --feedback\n```\n````\n"
+    assert any("--feedback" in p for p in corpus(body)), corpus(body)
+    # a `~~~` inside an open ``` fence is content, not a closer: the span AFTER the real closer is prose
+    body = "```\n~~~\n```\n\n`done --command fabrik-probe --evidence e` — note `--feedback` is required\n"
+    assert any("--feedback" in p for p in corpus(body)), corpus(body)
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\n<!-- calls /fabrik-probe -->\n"
+    )
+    problems = corpus("description: auto-called by /fabrik-real reactively.\n")
+    assert any("claims caller /fabrik-real" in p for p in problems), problems
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\n```\n```bash\n/fabrik-probe\n```\n"
+    )
+    problems = corpus("description: auto-called by /fabrik-real reactively.\n")
+    assert any("claims caller /fabrik-real" in p for p in problems), (
+        "a ```bash inside an open fence in the CALLER is content — the honour side must not close on it"
+    )
+
+
+def test_the_selftest_counts_the_emitter_lines_it_executed(capsys):
+    """`13 distinct signatures` credited two signatures to one emitter and none to an unexercised
+    one; the count is now the emitter LINES the canaries executed, measured independently here (FE2)."""
+    import check_command_corpus as ccc
+
+    assert ccc._selftest() == 0  # its own tracer replaces ours — it publishes the lines it saw
+    hit = set(ccc._SELFTEST_HIT)
+    line = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("✓ selftest")][-1]
+    m = re.search(r"\((\d+) of (\d+) problem emitters in this file executed\)", line)
+    assert m, line
+    covered, emitters = int(m.group(1)), int(m.group(2))
+    assert emitters == len(ccc._emitter_lines()) and covered == len(hit & ccc._emitter_lines()), (
+        line,
+        sorted(hit & ccc._emitter_lines()),
+    )
+    assert 0 < covered <= emitters
+
+
+def test_a_yaml_name_with_a_space_before_the_colon(tmp_path):
+    """`name : probe` is YAML-legal and was "declares no `name:`" (FE2)."""
+    src, frag = tmp_path / "_s8", tmp_path / "_f8"
+    src.mkdir()
+    frag.mkdir()
+    (src / "fabrik-real.md").write_text("{{include:run-record}}\n")
+    agents = tmp_path / "_a8"
+    agents.mkdir()
+    (agents / "probe.md").write_text("---\nname : probe\ndescription: d\n---\n")
+    assert not audit(
+        src,
+        frag,
+        tmp_path / "no-assembler.py",
+        tmp_path,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )

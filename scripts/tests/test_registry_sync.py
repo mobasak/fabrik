@@ -1239,3 +1239,66 @@ def test_headers_kv_lines_and_a_commented_provider_are_read_on_the_stripped_line
         "test_zzz_a": ["A_API_KEY", "A_SECRET", "A_TOKEN"],
         "test_zzz_b": ["B_API_KEY"],
     }, got
+
+
+def test_every_margin_shape_reads_the_same_on_header_and_kv_lines(tmp_path):
+    """An indented-then-BOM key was dropped (the FD7 KV order was backwards), a mixed BOM survived
+    both strips (the header after it was not a header — the keys below folded under the previous
+    provider), `#═══` without the space was not a header, `## #svc` folded a commented provider's
+    keys under its neighbour, and a KV line the regex cannot read was silently dropped — then
+    pruned. Each shape sits where a miss FOLDS a key under the wrong provider (FE5)."""
+    env = tmp_path / "all-envs.env"
+    env.write_text(
+        '#svc name=test_zzz_a category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "A_API_KEY=1\n"
+        "  \ufeffA_SECRET=2\n"
+        " \ufeff \ufeff# ═══ internal-config ═══\n"
+        "DB_PASSWORD=4\n"
+        '#svc name=test_zzz_b category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "B_API_KEY=5\n"
+        "#═══ misc ═══\n"
+        "X_KEY=6\n"
+        '#svc name=test_zzz_d category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "D_API_KEY=7\n"
+        '## #svc name=test_zzz_c category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "C_API_KEY=8\n",
+        encoding="utf-8",
+    )
+    got = {p["meta"]["name"]: [k for k, *_ in p["keys"]] for p in rs.parse(env)}
+    assert got == {
+        "test_zzz_a": ["A_API_KEY", "A_SECRET"],
+        "test_zzz_b": ["B_API_KEY"],
+        "test_zzz_d": ["D_API_KEY"],
+    }, got
+    env.write_text(
+        '#svc name=test_zzz_a category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "A_API_KEY=1\n"
+        "A-DASH-KEY=2\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"A-DASH-KEY"):
+        rs.parse(env)
+
+
+def test_the_key_prune_is_bounded_like_the_service_prune(monkeypatch, tmp_path, capsys):
+    """A systemic KV-parse failure dropped every key from every provider while `services` stayed
+    intact — the service guard never fired and the whole key history went in one lap (FE5)."""
+    from unittest import mock
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(_svc("test_zzz_regsync") + "REGSYNC_API_KEY=aaaa\n", encoding="utf-8")
+    monkeypatch.setattr(rs, "ALL_ENVS", f)
+    monkeypatch.setattr(sys, "argv", ["registry_sync.py"])
+    conn = mock.MagicMock()
+    conn.__enter__.return_value = conn
+    cur = mock.MagicMock()
+    cur.__enter__.return_value = cur
+    cur.fetchall.return_value = []
+    cur.fetchone.side_effect = lambda: (500,)  # every COUNT(*): 500 services, 500 keys
+    cur.rowcount = 300  # the key DELETE reports a mass removal
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(rs.registry_db, "connect", lambda: conn)
+    monkeypatch.delenv("REGISTRY_PRUNE_FORCE", raising=False)
+    rc = rs.main()
+    err = capsys.readouterr().err
+    assert rc == 1 and "bounded prune: refusing to delete" in err and "api_keys" in err, (rc, err)

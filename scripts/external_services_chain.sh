@@ -22,7 +22,7 @@
 # `timeout`.
 set -u
 FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
-cd "$FABRIK_ROOT" || exit 1  # the boot hook reaches this script from /opt/session-recall (its `cd` never returns): the classifier's alerting autoload read THAT repo's .env and its "new providers" alert was never delivered on the boot path (FD6)
+cd "$FABRIK_ROOT" || { echo "[external-services-chain] cannot cd to $FABRIK_ROOT — nothing ran"; exit 126; }  # the boot hook reaches this script from /opt/session-recall (its `cd` never returns): the classifier's alerting autoload read THAT repo's .env (FD6); a failed cd is a DID-NOT-START the callers alert on 126, never a silent exit 1 (FE4)
 VENV_PY="${VENV_PY:-$FABRIK_ROOT/.venv/bin/python}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
 [ "$STEP_TIMEOUT" -gt 0 ] 2>/dev/null || STEP_TIMEOUT=900  # `0` DISABLES timeout(1): a numeric override passed every guard and switched the only hang protection off (FC6)
@@ -51,15 +51,21 @@ root = sys.argv[4]
 sys.path.insert(0, root + "/libs")
 try:
     from dotenv import load_dotenv
-    load_dotenv(root + "/.env", override=False)
+    if not load_dotenv(root + "/.env", override=False):
+        print("[chain] .env missing or without usable keys at " + root + "/.env")
 except Exception as exc:
     print("[chain] .env not loaded: " + type(exc).__name__ + ": " + str(exc))
+    try:
+        from alerting._dotenv import load_env as _load_env
+        _load_env(root)
+    except Exception as exc2:
+        print("[chain] stdlib .env fallback failed: " + type(exc2).__name__ + ": " + str(exc2))
 try:
     import alerting
     sent = alerting.send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3])
     if not sent:
         try:
-            why = "alerting disabled (no TELEGRAM_*/ALERT_VPS_HOST in the environment)" if not alerting._is_enabled() else "every delivery method failed (see the per-method causes above)"
+            why = ("ALERT_ENABLED=0 is set" if os.getenv("ALERT_ENABLED", "").strip() == "0" else "alerting disabled (no TELEGRAM_*/ALERT_VPS_HOST in the environment)") if not alerting._is_enabled() else "every delivery method failed (see the per-method causes above)"
         except Exception:
             why = "reason unavailable"
         print("[chain] alert NOT delivered (" + why + "): " + sys.argv[1])
@@ -79,7 +85,7 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
     # the registry IS written; only the post-commit credit phase failed — a stderr WARNING that
     # nobody was paged for, surfacing 48 h later as a `credit stale` cell (FD7)
     echo "[external-services-chain] registry_sync: registry written, the credit phase FAILED (exit 3) — alerting, the dashboard proceeds"
-    _alert "external-services chain: credit fetch failed after the registry commit" "registry-sync exited 3: the registry is written and the dashboard is rendered; balances age until the next lap. See the WARNING line in the chain log." warning
+    _alert "external-services chain: credit fetch failed after the registry commit" "registry-sync exited 3: the registry is written; the dashboard step still runs; balances age until the next lap. See the WARNING line in the chain log." warning
     rc=0
   fi
   if [ "$rc" -ne 0 ]; then

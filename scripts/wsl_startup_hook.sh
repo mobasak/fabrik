@@ -55,9 +55,15 @@ for logfile in "$LOG_FILE" "$ENV_WATCHER_LOG"; do
     if [ -f "$logfile" ] && [ "$(stat -c%s "$logfile" 2>/dev/null || echo 0)" -gt "$MAX_LOG_SIZE" ]; then
         # promote .1 → .2 only AFTER the live log has left its place, and `-T` so a directory named
         # like a generation never swallows the live log (the chain's own DC2 lesson; FD6)
+        # a NON-REGULAR squatter on any generation (a directory at `.1`, `.2` or `.1.new`) is moved
+        # aside first: `mv -T dir file` fails and the promotion chain stranded the live log in
+        # `.1.new` (overwritten on the NEXT rotation) or overwrote `.1` with nothing promoted (FE4)
+        for _g in "${logfile}.1.new" "${logfile}.1" "${logfile}.2"; do
+            if [ -e "$_g" ] && [ ! -f "$_g" ]; then mv -T "$_g" "$_g.notalog.$(date +%s)" 2>/dev/null; fi
+        done
         if mv -T "$logfile" "${logfile}.1.new" 2>/dev/null; then
-            [ -e "${logfile}.1" ] && mv -T "${logfile}.1" "${logfile}.2" 2>/dev/null  # -e: a DIRECTORY squatting on `.1` is moved aside too, so the live log never strands in `.1.new`
-            mv -T "${logfile}.1.new" "${logfile}.1" 2>/dev/null
+            [ -e "${logfile}.1" ] && mv -T "${logfile}.1" "${logfile}.2" 2>/dev/null
+            mv -T "${logfile}.1.new" "${logfile}.1" 2>/dev/null || echo "[wsl_startup_hook] log rotation stranded ${logfile}.1.new" >&2
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log rotated" > "$logfile" 2>/dev/null || true
         fi
         # a second generation: `.1` was overwritten on every rotation, so one login shell could erase a boot-time NOT-delivered line (FC6)
@@ -177,7 +183,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # Command-corpus drift check: installed ~/.claude/commands vs rendered _sources/_fragments (WARN-only in the daily log)
         python3 $FABRIK_ROOT/commands/assemble_commands.py --check >> $LOG_FILE 2>&1 || echo 'WARN: ~/.claude/commands drifted from /opt/fabrik/commands sources — re-render or reconcile' >> $LOG_FILE
         # session-recall incremental index (fail-quiet; initial heavy ingest already done 2026-07-26)
-        cd /opt/session-recall && timeout 600 .venv/bin/python -m ingest.reindex >> $LOG_FILE 2>&1 || echo \"[session-recall] incremental index failed (non-fatal)\" >> $LOG_FILE
+        ( cd /opt/session-recall && timeout 600 .venv/bin/python -m ingest.reindex ) >> $LOG_FILE 2>&1 || echo \"[session-recall] incremental index failed (non-fatal)\" >> $LOG_FILE  # a SUBSHELL: the bare cd never returned, and every later step (the freshness checker's alerting autoload above all) ran from that repo (FE6)
         # === STEPS THIS HOOK WAS MISSING (added 2026-08-14) ===
         # Both entry points share /tmp/.fabrik_daily_<UTC>, so whichever wins the race, the
         # other SKIPS ENTIRELY. Measured: 7 'Pipeline complete' runs, 0 'Refresh complete' —
@@ -211,7 +217,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # \" — the values are expanded by THIS shell into the inner script's text, so they are quoted for the INNER shell (FB10)
         _rc=0; env LOG_FILE=\"$LOG_FILE\" FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/external_services_chain.sh\" >> \"$LOG_FILE\" 2>&1 || _rc=\$?
         if [ \$_rc -ne 0 ]; then
-            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; 124|129|130|137|143) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - timeout or OOM took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
+            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; 12[4-9]|1[3-9][0-9]|2[0-5][0-9]) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - signal \$((_rc > 128 ? _rc - 128 : 0)) took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
             echo '[wsl_startup_hook] external-services chain failed (exit '\$_rc'; a step failure is alerted by the chain, a 126/127 or a kill by this caller, non-fatal)' >> \"$LOG_FILE\"
         fi
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).

@@ -175,8 +175,8 @@ fi
   if [ "$_rc" -ne 0 ]; then
     case "$_rc" in 126|127)  # bash could not START the chain (missing / unreadable): none of its own alerts ever ran
       bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
-      124|129|130|137|143)  # the chain PROCESS was killed (timeout / OOM / SIGHUP / SIGINT / SIGTERM — the chain's own exits are only 0/1, so >128 is a signal; FD6): its own step alert never ran either — logged but never alerted before (FC6)
-      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain was KILLED' "exit $_rc — timeout or OOM took the chain process; its own step alerts never ran. Log: $LOG_FILE" || true ;;
+      12[4-9]|1[3-9][0-9]|2[0-5][0-9])  # the chain PROCESS died on a SIGNAL (>128: SIGHUP/INT/QUIT/ABRT/KILL/SEGV/PIPE/TERM …) — the chain's own exits are only 0/1; five enumerated codes missed SIGQUIT/ABRT/SEGV/PIPE (FE6)
+      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain was KILLED' "exit $_rc (signal $((_rc > 128 ? _rc - 128 : 0))) took the chain process; its own step alerts never ran. Log: $LOG_FILE" || true ;;
     esac
     echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 or a kill by this caller, non-fatal)"
   fi
