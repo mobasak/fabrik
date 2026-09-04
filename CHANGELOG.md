@@ -4,9 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 13 of the review: two more ways past the quota hold, both proven with a file on disk (2026-09-05)
+
+Both pre-existing in the original whole-line hardening, both found by executing rather than reading, both on the hook this review had already hardened twice. A lone `&` is bash's BACKGROUND separator — `git status & touch marker` was ALLOWED and the marker appeared, because `_UNSAFE_SHELL` listed `&&` and never the single form; now `&` not preceded by a digit or `>` is an operator, so `2>&1` and `>&2` stay allowed while `git status & evil` is held. And `>&word` is bash's redirect-both-streams-to-FILE — `git log >&x` was allowed and created `x`, because `(?!&)` exempted every `>&` as an fd duplication; the exemption now requires the whole token to be digits or `-` (`2>&1`, `>&12`, `2>&-`), so `>&x` and `>&1x` — which opens a file named `1x` — are held. Graded in both directions, red on revert; 19 hook tests.
+
 ### Fixed — pass 12 of the review: the quota hold's `/dev/null` exemption was a prefix match (2026-09-05)
 
 Probing the pass-11 regex myself before its finder returned: `git log >/dev/nullx`, `> /dev/null/../x` and `>>/dev/null.txt` were ALLOWED — the exemption matched the bare prefix `/dev/null` and everything after it rode along. Pre-existing (the old lookahead had the same shape) and harmless on this box as non-root (`/dev` is root-owned, `null/..` is not a directory), but a hold that exists to stop work must not exempt a path because it starts with the device's name. The exemption now requires `/dev/null` to be followed by whitespace, end of line or a shell operator; graded with the three prefix forms (deny) alongside every exempt form (allow), red on revert.
+
+### Fixed — site-provisioner exposed /metrics that nothing scraped, and the obvious one-line fix would have made it worse (2026-09-05)
+
+Filed by site-provisioner (`01M1Q7RJ5ZWAP7BGFQE1EWJC6Z`) and validated here rather than taken on trust.
+Their finding is real: `specs/services/site-provisioner.yaml` had no `exposes_metrics` line at all while
+`/metrics` is live, the registrar gate is `shape.get("exposes_metrics", False) and domain`
+(`orchestrator/infrastructure.py:325`), and an absent flag defaults false — so `fabrik apply` skipped the
+Prometheus registrar silently. Confirmed against the live box first: Prometheus had 18 active jobs and
+none of them was site-provisioner.
+
+**Their proposed fix — the one line — would have registered a scrape target that is DOWN forever.** The
+driver defaults to `<domain>:443` over https, and this service sits behind a custom IP-allowlist
+middleware: `https://provision.vps1.ocoron.com/metrics` returns **403** from the internet, and so does
+`/health`. The sender's "auth- and rate-limit-exempt" claim is true at the application layer and cannot
+see the block, which is at the Traefik edge. A permanently-down target is worse than no target, because
+`max_over_time(up[10m])==0` in `proactive-check.sh` would then fire `target_down` every 15 minutes —
+converting a silent gap into permanent alarm fatigue. That failure is not hypothetical: `fabrik-zitadel`
+is in exactly that state right now (health=down, 404), filed separately.
+
+So the spec gets BOTH halves: `exposes_metrics: true` and an internal `monitoring:` target
+(`site-provisioner:8001`, scheme http) — the pattern `fabrik-tryton-crm` already uses and the only
+`fabrik-*` job currently up. Proven reachable on the fabrik network from a peer container before it was
+written, after a false negative was correctly discarded: `docker exec prometheus wget` cannot resolve ANY
+name including `tryton-crm`, which prometheus itself scrapes successfully, so that was an artifact of the
+exec environment and not a DNS fault. `fabrik plan` now reports `prometheus RUNS`.
+
+The class the sender named — an absent shape flag is byte-identical to a deliberate false, so
+"code exposes X, spec never mentions X" is silent by construction — is real and is NOT closed by this
+spec. It is recorded in the backlog with its measured population (28 of 72 specs carry no
+`exposes_metrics` line at all) rather than answered with a detector, because the fire rate has not been
+measured and an unmeasured detector is how enforcement becomes wallpaper.
 
 ### Fixed — pass 11 of the review: the quota hold refused `>> /dev/null`, a form its own exemption names (2026-09-05)
 

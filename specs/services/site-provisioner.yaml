@@ -15,6 +15,12 @@ shape:
   has_persistent_data: false     # DB lives on postgres-main, backed up separately
   needs_database: true           # uses postgres-main::site_provisioner (already created)
   has_search_feature: false
+  exposes_metrics: true          # → Prometheus scrape job; /metrics is live at
+                                 # api/main.py, auth- and rate-limit-exempt by design.
+                                 # Absent until 2026-09-05: an ABSENT flag defaults false
+                                 # and is byte-identical to a deliberate false, so the
+                                 # registrar silently never fired (site-provisioner,
+                                 # 01M1Q7RJ5ZWAP7BGFQE1EWJC6Z).
 
 # Git-sourced dockercompose app. The SSH deployer uses the repo's /compose.yaml
 # for this build_pack — which contains the custom IP allowlist middleware +
@@ -76,6 +82,19 @@ secrets:
 resources:
   memory: 512M
   cpu: "0.5"
+
+monitoring:
+  # INTERNAL scrape, not the public edge. The prometheus driver defaults to
+  # `<domain>:443` over https, but this service sits behind a custom IP-allowlist
+  # middleware: https://provision.vps1.ocoron.com/metrics returns 403 from the
+  # internet (so does /health), so the default target would register a scrape job
+  # that is DOWN forever — which is worse than no job, because
+  # `max_over_time(up[10m])==0` in proactive-check.sh would then alert every 15
+  # minutes. fabrik-zitadel is that failure already live (health=down, 404).
+  # Proven reachable on the fabrik network 2026-09-05: a peer container gets real
+  # metrics from http://site-provisioner:8001/metrics.
+  target: site-provisioner:8001
+  scheme: http
 
 health:
   path: /health

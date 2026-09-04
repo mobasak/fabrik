@@ -1085,6 +1085,54 @@ or scaffold a metrics module; the flag is spec-canonical, so whichever is chosen
 SYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus
 has `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.
 
+## [fleet] `fabrik-zitadel`'s Prometheus target has been DOWN (404) — a registered scrape job that has never worked (2026-09-05, owner: fleet)
+
+Found while validating a different finding: `fabrik-zitadel` scrapes
+`https://auth.ocoron.com:443/debug/metrics` and reports `health=down`, `lastError: server returned HTTP
+status 404 Not Found`. It is one of only two `fabrik-*` jobs; the other (`fabrik-tryton-crm`, an INTERNAL
+`http://tryton-crm:8000/metrics` target) is up.
+
+**Why it matters beyond one dashboard:** `proactive-check.sh` alerts on `max_over_time(up[10m])==0`, so a
+permanently-down target is either firing `target_down` continuously or has already been tuned out — either
+way the signal is worthless, and a monitoring job that has never once succeeded is indistinguishable from
+one that just broke. This is the concrete instance of "a wrong scrape target is worse than no scrape
+target", which is why the site-provisioner spec fixed the same day was given an internal target instead of
+the default public one.
+
+Likely cause, NOT yet confirmed (stated as a hypothesis, not a finding): the path. Zitadel's metrics path
+is configurable and `/debug/metrics` may be wrong for the deployed version, or the endpoint may require
+auth that the public edge refuses. Next step is to probe the container directly on the fabrik network the
+way site-provisioner's was probed, then either correct `monitoring.metrics_path` or move it to an internal
+target. Blocked by: nothing — this is a small, self-contained fix, it simply was not mine to make inside
+another finding's scope.
+
+## [fleet] An ABSENT `shape:` flag is byte-identical to a deliberate `false`, so "code exposes X, spec never mentions X" is silent by construction (2026-09-05, owner: fleet)
+
+Raised by site-provisioner (`01M1Q7RJ5ZWAP7BGFQE1EWJC6Z`) and validated here: their `/metrics` endpoint
+is live and deliberately auth- and rate-limit-exempt, but the spec had no `exposes_metrics` line, so
+`fabrik apply` skipped the Prometheus registrar and nothing scraped it. Confirmed live before fixing —
+Prometheus carried 18 active jobs, none of them site-provisioner. The one spec is FIXED (2026-09-05);
+this row is the CLASS, which that fix does not close.
+
+**Why it is invisible:** every registrar gate reads `shape.get("<flag>", False)`
+(`orchestrator/infrastructure.py:325` for prometheus, same shape for the others), so an omitted flag and
+a considered `false` are the same bytes. Code and spec each look correct in isolation; only a
+cross-reading finds the contradiction, and nothing does that cross-reading today.
+
+**Measured, and stated as a population rather than a defect count:** of the **72** specs in
+`specs/services/`, **28** carry no `exposes_metrics` line at all. That is how many COULD be wrong, not
+how many ARE — each needs its code checked for a live `/metrics` route before it counts. The same
+question applies independently to `needs_cache`, `has_search_feature`, `needs_database` and
+`is_admin_dashboard`, so the real population is larger than 28.
+
+**Candidate fix, deliberately NOT built yet:** a hub-side check that greps each project's routes for
+flag-bearing surfaces (`/metrics`, a Redis client, a Meilisearch index) and WARNS when the corresponding
+flag is absent. Before building it, measure the fire rate across those 28 — a detector that fires on
+legitimate patterns is wallpaper, and wallpaper is how enforcement dies (FIX DIRECTIVE 5). Note the
+cheaper half first: the checker only has to distinguish *absent* from *false*, which is a one-line
+change to how specs are loaded, and might be better solved by making the flag REQUIRED in new specs than
+by detecting its absence in old ones. Blocked by: the fire-rate measurement.
+
 ## [fleet] The VPS copy of `/opt/traefik/compose.yaml` is AHEAD of its hub repo-of-record — a hub-driven redeploy would drop the Cloudflare DNS-01 resolver (2026-09-05, owner: fleet)
 
 Found while executing Part B of the memory-ceilings spec (D-124), by diffing each stack's hub copy against
