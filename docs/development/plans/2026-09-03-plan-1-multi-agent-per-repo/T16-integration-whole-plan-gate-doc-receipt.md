@@ -8,6 +8,7 @@ Parallel: ⛓️
 Complexity: native
 Integration: true
 Gate: python scripts/final_gate.py --check --json
+Gate: bash -c 'set -e; allow="INDEX.md docs/STRATEGIC_BACKLOG.md"; got=$(git grep -l "epic-to-ticket-workflow\|_traycer-skills\|fab-mega-0\|fab-ettw-\|traycer_mirror\|traycer-command-wiring" -- ":!docs/orchestrator/_retired/" ":!docs/orchestrator/orchestrator-cockpit-*" ":!docs/development/epics/" ":!docs/CAPABILITIES.md" ":!capabilities.json" ":!docs/workstation/kaizen-shrink-audit.md" ":!docs/workstation/claude-configuration-inventory.md" ":!docs/DECISIONS.md" ":!CHANGELOG.md" ":!docs/LESSONS_LEARNT.md" ":!docs/development/reviews/" ":!docs/superpowers/" ":!docs/archive/" ":!docs/development/plans/" ":!.fabrik/plan-locks/"); for f in $got; do case " $allow " in *" $f "*) ;; *) echo "UNOWNED: $f"; exit 1;; esac; done'   # ALLOWLIST, not `| grep -x 0`: see Scope   # the TREE-WIDE zero assertion, moved here from T14b: this ticket merges last (Merge Order 33), so every ticket that clears a reference has landed.
 Gate: python3 scripts/enforcement/check_convergence.py
 Docs: the whole-plan Doc Sync Matrix receipt (`check_doc_sync.py --range` + `check_doc_stubs.py --range`) · /fabrik-docs-review · CHANGELOG/INDEX/docs/README consolidation via Deltas
 
