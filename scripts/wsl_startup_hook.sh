@@ -5,18 +5,24 @@
 # Add to ~/.bashrc:
 #   source /opt/fabrik/scripts/wsl_startup_hook.sh
 #
-# Pipeline:
+# Pipeline — the ACTUAL step list, in the order the block below runs them.
+#
+# ⚠️ This header was stale for a month and cost a sibling a wrong-file hunt (finding
+# 01M1PWB4GJX5B4QTHWA6FZCDFF, 2026-09-04): it advertised a six-script "Kilo agent workflow"
+# (kilo_agents_db.py, update_kilo_benchmarks.py, scrape_artificial_analysis.py, role_mapper.py,
+# export_traycer_registry.py, generate_kilo_agents.py) that moved to /opt/ai-model-catalog/engine
+# on 2026-08-15 and a "Cascade backup freshness check" for a tool retired by D-071. NONE of the
+# seven was still invoked here. If you edit the block, edit this list in the same change — a
+# comment that describes a pipeline which does not exist sends the next reader somewhere else.
+#
 # 1. Env watcher: monitors /opt/*/.env changes → runs audit (violations logged, never writes secrets)
-# 2. Project registry sync: project.yaml → data/projects.yaml + PROJECT_CATALOG.md + PORTS.md (daily)
-# 3. Cascade backup freshness check (daily)
+# 2. wait_for_network.sh — WSL brings the network up AFTER the first login shell; bounded
+#      (WAIT_NET_TIMEOUT_S, default 90s) and ALWAYS exit 0, since this file is sourced into every
+#      interactive login and a guard that can hang is worse than the race it closes
+# 3. Project registry sync: project.yaml → data/projects.yaml + PROJECT_CATALOG.md + PORTS.md (daily)
 # 4. Health summary (daily)
-# 5. Kilo agent workflow (daily, deterministic — no LLM):
-#      a. kilo_agents_db.py all              — sync model catalog from Kilo CLI + Ollama
-#      b. update_kilo_benchmarks.py --force  — scrape Arena ELO + Terminal-Bench
-#      c. scrape_artificial_analysis.py      — scrape throughput (tokens/sec) + TTFT
-#      d. role_mapper.py                     — pre_filter → selector → post_filter → DB
-#      e. export_traycer_registry.py         — refresh scripts/kilo_47_agents_final.json from DB
-#      f. generate_kilo_agents.py            — emit Traycer CLI agent scripts
+# 5. rank_task_subagents.py — deterministic subagent selection (~50ms, $0, byte-identical re-runs).
+#      The model-catalog scrapes it used to sit beside now live in /opt/ai-model-catalog/engine.
 # 6. OpenRouter category routing (daily, deterministic): classifies models
 #      into the 7 ai/NN-*.md packs, ranks per-category, injects OPENROUTER_ROUTES
 #      markers + refreshes 'Last content verification:' stamps. Pure SQL, no
@@ -25,8 +31,15 @@
 #      steps 7 or 8. Operator kill-switch: `touch /tmp/.openrouter_routing_disabled`.
 # 7. AI rule pack freshness check (warn-only): warns in update.log when any
 #      .windsurf/rules/ai/*.md 'Last content verification:' line is >90 days old
-# 8. Extensions sync: auto-update Windsurf extensions documentation (daily)
-# 9. session-recall incremental index: yesterday's Claude Code sessions into the
+# 8. Command-corpus drift check: installed ~/.claude/commands vs rendered sources
+# 9. flush_subagent_outboxes.py — stranded flywheel rows, BEFORE the ranker reads the ledger
+# 10. capture_golden.py --verify — the contract oracle, ABOVE the auto-commit that would
+#      otherwise commit a husk before anything verified it
+# 11. check_daily_refresh_freshness.py — the stale-heartbeat + selection-doc legs
+# 12. external_services_chain.sh — the SAME chain daily_refresh.sh runs (a boot before the
+#      06:00 cron would otherwise skip it entirely)
+# 13. autocommit_pipeline_outputs.sh — commits the ~14 tracked docs this hook regenerates
+# 14. session-recall incremental index: yesterday's Claude Code sessions into the
 #      local search DB (bounded: timeout 600; fail-quiet when Postgres is down)
 #
 # Full reference: docs/workflows/DATA_SYNC_WORKFLOW.md
@@ -38,7 +51,10 @@ EXTENSIONS_SCRIPT="$FABRIK_ROOT/scripts/sync_extensions.sh"
 ENV_WATCHER_SCRIPT="$FABRIK_ROOT/scripts/watch_env_changes.sh"
 ENV_WATCHER_LOG="$FABRIK_ROOT/.tmp/env_watcher.log"
 SYNC_PROJECTS_SCRIPT="$FABRIK_ROOT/scripts/sync_projects.py"
-CASCADE_BACKUP_SCRIPT="$FABRIK_ROOT/scripts/sync_cascade_backup.sh"
+# sync_cascade_backup.sh is NOT called from the boot path any more: Windsurf/Cascade is retired
+# (D-071) and the check printed `⚠️  CASCADE BACKUP MISSING` on every single boot for a tool
+# nobody runs. The script itself stays for a hand-run; its only other mention is the
+# watch-list in watch_enforcement_changes.sh, which watches files, it does not invoke them.
 HEALTH_SUMMARY_SCRIPT="$FABRIK_ROOT/scripts/health_summary.py"
 AI_PACK_FRESHNESS_SCRIPT="$FABRIK_ROOT/scripts/check_ai_pack_freshness.py"
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
@@ -151,8 +167,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # channels, stranded the pipeline's own auto-commit off-box, and returned 0 of 10 pool units.
         # Bounded and FAIL-OPEN (always exit 0): a boot guard that can hang is worse than the race.
         bash $FABRIK_ROOT/scripts/wait_for_network.sh >> $LOG_FILE 2>&1
-        cd $FABRIK_ROOT && $VENV_PYTHON $SYNC_PROJECTS_SCRIPT >> $LOG_FILE 2>&1 && \
-        cd $FABRIK_ROOT && bash $CASCADE_BACKUP_SCRIPT >> $LOG_FILE 2>&1 ; \
+        cd $FABRIK_ROOT && $VENV_PYTHON $SYNC_PROJECTS_SCRIPT >> $LOG_FILE 2>&1 ; \
         cd $FABRIK_ROOT && $VENV_PYTHON $HEALTH_SUMMARY_SCRIPT >> $LOG_FILE 2>&1 ;
         # === KILO AGENT BENCHMARK WORKFLOW ===
         # Deterministic role assignment (pre_filter → selector → post_filter)
