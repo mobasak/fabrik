@@ -444,7 +444,9 @@ The run surfaced a MATCHED pack the author's Constraints Digest never named — 
 
 The check is a screen, not a verdict (its own footer: recall 2/3, precision 0.50, ρ = 0.45 at n = 14), so each flag was weighed, not obeyed.
 
-**What the splits actually did to the score, stated plainly:** re-running the check afterwards flags **18** tickets rather than 16 — splitting two tickets into four necessarily adds flagged rows. What improved is the PEAK: the worst score fell from 9 to 7, and the two tickets the check ranked most expensive (T01 at 9, T07 at 8) no longer exist. Since the model's own basis is rounds ≈ 1.0 × score for the WORST ticket, that is the number worth moving; a reader who sees only 16 → 18 would draw the opposite conclusion.
+**Second round of splits (closing the author-blind findings), same honest read:** the set went 26 → 32 tickets and the flagged count 18 → 20, while the peak stayed at 7. The six new tickets were sized deliberately: T05c, T05d and T14e/T14f score BELOW the threshold and are not flagged at all, because each is one file plus its test. T05e (5) and T14d (5) each carry a small tail of related files and are kept for the same reason as the rest of the 5s — one mechanism, one review class, and the read budget is the constraint that actually bit.
+
+**What the first round of splits did to the score, stated plainly:** re-running the check afterwards flags **18** tickets rather than 16 — splitting two tickets into four necessarily adds flagged rows. What improved is the PEAK: the worst score fell from 9 to 7, and the two tickets the check ranked most expensive (T01 at 9, T07 at 8) no longer exist. Since the model's own basis is rounds ≈ 1.0 × score for the WORST ticket, that is the number worth moving; a reader who sees only 16 → 18 would draw the opposite conclusion.
 
 | Ticket | Score | Verdict | Reason |
 |---|---:|---|---|
@@ -457,7 +459,8 @@ The check is a screen, not a verdict (its own footer: recall 2/3, precision 0.50
 | T09 | 6 | KEEP | A single retirement act with one ordering constraint. Splitting deletion from re-pointing `check_traycer_chain.py`'s DIRS would leave the tree in a state where that check scans paths that no longer exist. |
 | T14b | 6 | KEEP | One sweep with one denominator (`git grep` → 0 files outside the excluded set); the four docs are the sweep's targets, not independent risks. |
 | T15 | 6 | KEEP | The PLANS.md regenerator and the reference doc are producer and reader of the same Owner column; the doc's content is verified against what the generator emits. |
-| T01a · T04a · T04b · T05a · T05b · T06a · T06b · T06c · T07a · T07b · T13 | 5 | KEEP (each) | All eight sit exactly at the threshold where the check's measured precision is ~0.50. Each is already one file (or one file plus its test), one mechanism, and one review class; T04, T05 and T08 were ALREADY split once on the harder read-budget constraint, so a second split would trade a real cost (more merge points, more dispatch overhead) for a screen this uncertain. |
+| T14b | 7 | KEEP | It rose from 6 when the author-blind pass forced its gate to enumerate every DECLARED deferral as an explicit pathspec. That is the whole point of the ticket — a reader must see what was deferred rather than infer it from a passing check — and the three FUNCTIONAL survivors it used to carry are now T14d, T14e and T14f. What remains is one prose sweep with one denominator. |
+| T01a · T04a · T04b · T05a · T05b · T05e · T06a · T06b · T06c · T07a · T07b · T13 · T14d | 5 | KEEP (each) | All eight sit exactly at the threshold where the check's measured precision is ~0.50. Each is already one file (or one file plus its test), one mechanism, and one review class; T04, T05 and T08 were ALREADY split once on the harder read-budget constraint, so a second split would trade a real cost (more merge points, more dispatch overhead) for a screen this uncertain. |
 
 ## Evidence
 
