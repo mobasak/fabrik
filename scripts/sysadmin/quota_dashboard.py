@@ -35,6 +35,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from datetime import datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -89,6 +90,206 @@ _JSON = OUT_DIR / "quota.json"
 # The fleet's active-account pointer (a symlink). Read on every view so a flip — by the tick, a
 # --switch, or the button — regenerates the board at once instead of waiting out the floor.
 _POINTER = Path(os.getenv("QUOTA_DASH_POINTER", str(Path.home() / ".claude-fleet" / "active")))
+
+# ── The OpenRouter pool balance: the fleet's OTHER quota ──────────────────────────────────────
+# Until 2026-09-04 nothing on this box watched it. The pool ran to -$0.0015 of $225 and three
+# repos discovered it by hitting HTTP 402 mid-run — one lost 24 grounder units, another's closing
+# review sweep fell back to a lane that records nothing to the flywheel. This board already polls
+# every 20s and the key is already on disk, so the balance is one GET away. It is a LEVEL, not a
+# projection: 402 "Insufficient credits" is issued on balance, so the number is the direct signal
+# rather than a proxy for one. (The burn RATE lives in the flywheel's Postgres rows — intel's
+# beat — so no runway estimate is made here rather than one that cannot be defended.)
+CREDITS_KEY_FILE = Path(
+    os.getenv(
+        "QUOTA_DASH_CREDITS_KEY_FILE",
+        str(Path.home() / ".config" / "fabrik" / "subagents.env"),
+    )
+)
+CREDITS_URL = os.getenv("QUOTA_DASH_CREDITS_URL", "https://openrouter.ai/api/v1/credits")
+# Credits move only when something spends. At the 20s page refresh an uncached read would be
+# 4,320 calls a day to learn a number that changes a few times an hour.
+CREDITS_TTL_S = float(os.getenv("QUOTA_DASH_CREDITS_TTL_S", "300"))
+CREDITS_TIMEOUT_S = float(os.getenv("QUOTA_DASH_CREDITS_TIMEOUT_S", "10"))
+# An absolute floor, not a percentage: after a top-up the percentage is meaningless ($20 of $245
+# reads as 8% and is the whole runway). Roughly a few fan-outs of warning.
+CREDITS_WARN_USD = float(os.getenv("POOL_CREDITS_WARN_USD", "5"))
+CREDITS_CACHE = OUT_DIR / "pool-credits.json"
+CREDITS_STAMP = OUT_DIR / "pool-credits-drained"  # the once-per-episode latch
+_KEY_RE = re.compile(r"^\s*(?:export\s+)?OPENROUTER_API_KEY\s*=\s*[\'\"]?([^\'\"\s#]+)", re.M)
+
+
+def _openrouter_key() -> str | None:
+    """The pool key, from the environment or the subagents env file. Never logged, never
+    rendered, never written to the cache — the only thing that leaves this function is a
+    balance."""
+    key = os.getenv("OPENROUTER_API_KEY")
+    if key and key.strip():
+        return key.strip()
+    try:
+        m = _KEY_RE.search(CREDITS_KEY_FILE.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
+def _credits_get(key: str) -> dict:
+    """One GET. Isolated so the cache/fallback logic above it is testable without a network."""
+    req = urllib.request.Request(CREDITS_URL, headers={"Authorization": f"Bearer {key}"})
+    with urllib.request.urlopen(req, timeout=CREDITS_TIMEOUT_S) as resp:  # noqa: S310
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _pool_credits(now: float | None = None, *, fetch: bool = True) -> dict | None:
+    """``{granted, used, remaining, ts, age_s, stale}`` or None when the pool is not configured.
+
+    Cached in ``CREDITS_CACHE`` for ``CREDITS_TTL_S``. FAIL-SOFT in the same direction as the
+    account table: a dead endpoint serves the last known balance MARKED STALE with its age, because
+    a number with a date on it beats a blank when the operator is deciding whether work can run.
+    """
+    now = time.time() if now is None else now
+    cached: dict | None
+    try:
+        raw = json.loads(CREDITS_CACHE.read_text(encoding="utf-8"))
+        cached = raw if isinstance(raw, dict) else None
+    except (OSError, ValueError):
+        cached = None
+    if cached is not None and isinstance(cached.get("ts"), (int, float)):
+        age = now - float(cached["ts"])
+        if 0.0 <= age < CREDITS_TTL_S:
+            return {**cached, "age_s": age, "stale": False}
+    if not fetch:
+        # RENDER PATH: cache only, never a network call. The GET is up to CREDITS_TIMEOUT_S and
+        # _generate_locked holds _gen_lock, so fetching here would put a third-party endpoint on
+        # the board's critical path — the exact shape of the 2026-08-18 hang, where a stalled
+        # probe made every page load sit for its full timeout and the operator read the dashboard
+        # as "not reachable". The refresher below keeps this cache warm off the lock.
+        if cached is not None and isinstance(cached.get("ts"), (int, float)):
+            return {**cached, "age_s": now - float(cached["ts"]), "stale": True}
+        return None
+    key = _openrouter_key()
+    if key is None:
+        return None  # the pool is not configured on this box — not an error, just nothing to show
+    try:
+        data = (_credits_get(key) or {}).get("data") or {}
+        granted, used = float(data["total_credits"]), float(data["total_usage"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        sys.stderr.write(f"quota_dashboard: pool-credits probe failed ({type(exc).__name__})\n")
+        if cached is not None and isinstance(cached.get("ts"), (int, float)):
+            return {**cached, "age_s": now - float(cached["ts"]), "stale": True}
+        return None
+    fresh = {"granted": granted, "used": used, "remaining": granted - used, "ts": now}
+    try:
+        CREDITS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        CREDITS_CACHE.write_text(json.dumps(fresh), encoding="utf-8")
+    except OSError:
+        pass  # a lost cache costs one extra GET, never the reading
+    return {**fresh, "age_s": 0.0, "stale": False}
+
+
+def _pool_credits_panel(credits: dict | None) -> str:
+    """The board row. Says what the operator will SEE when it runs out, not merely that a number
+    is low — "$0.00 remaining" and "every fanout returns 402" are different sentences to act on."""
+    if not credits:
+        return ""
+    remaining = float(credits.get("remaining") or 0.0)
+    granted = float(credits.get("granted") or 0.0)
+    if remaining <= 0:
+        tone = "crit"
+        note = (
+            " — EXHAUSTED: every <code>fanout()</code> returns HTTP 402 with no output and no "
+            "spend. Top up at openrouter.ai/settings/credits."
+        )
+    elif remaining <= CREDITS_WARN_USD:
+        tone = "warn"
+        note = (
+            f" — under ${CREDITS_WARN_USD:,.0f}; a long fan-out will hit HTTP 402 mid-run. "
+            "Top up at openrouter.ai/settings/credits."
+        )
+    else:
+        tone = "ok"
+        note = ""
+    age = ""
+    if credits.get("stale"):
+        age = f" · {escape(_fmt_age(float(credits.get('age_s') or 0.0)))}, endpoint unreachable"
+    return (
+        f'<section class="gov banner {tone}"><b>OpenRouter pool</b> — '
+        f"${remaining:,.2f} remaining of ${granted:,.2f}{age}{note}</section>"
+    )
+
+
+def _notify(msg: str) -> None:
+    """The box's mesh-notify path, same as the rotation tick's. Best-effort by design."""
+    sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
+    if not sound.is_file():
+        return
+    try:
+        subprocess.run(
+            ["bash", str(sound), "mesh-notify", "pool-credits", "/opt/fabrik", msg],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _maybe_alert_pool_credits(credits: dict | None) -> None:
+    """One message per drain episode, re-armed the moment the balance recovers.
+
+    The latch the fleet wall advisory taught us: an alert that repeats every 20s is an alert
+    everyone filters, and a latch with no re-arm goes silent through the NEXT incident. An unknown
+    balance (no key, unreadable endpoint with no cache) is silence, never a false alarm.
+    """
+    if not credits:
+        return
+    remaining = float(credits.get("remaining") or 0.0)
+    if remaining > CREDITS_WARN_USD:
+        CREDITS_STAMP.unlink(missing_ok=True)  # relief arrived → re-arm for the next drain
+        return
+    if CREDITS_STAMP.exists():
+        return  # already said it for this episode
+    _notify(
+        f"OpenRouter pool ${remaining:,.2f} remaining"
+        + (" — EXHAUSTED" if remaining <= 0 else f" (under ${CREDITS_WARN_USD:,.0f})")
+        + ". Every fanout() will return HTTP 402 with no output; pool-default fan-out is dead "
+        "fleet-wide until it is topped up at openrouter.ai/settings/credits."
+    )
+    try:
+        CREDITS_STAMP.parent.mkdir(parents=True, exist_ok=True)
+        CREDITS_STAMP.write_text(str(int(time.time())), encoding="utf-8")
+    except OSError:
+        pass
+
+
+_credits_lock = threading.Lock()
+
+
+def _refresh_pool_credits() -> None:
+    """TTL-gated fetch + the drain advisory, run OFF the render path and OFF ``_gen_lock``.
+
+    The probe loop calls this once per cycle in its own daemon thread, so a slow or hanging
+    OpenRouter endpoint can delay neither the account probe's cadence nor a page load. Overlapping
+    calls are dropped rather than queued — one in flight is enough for a number that moves a few
+    times an hour.
+    """
+    if not _credits_lock.acquire(blocking=False):
+        return
+    try:
+        _maybe_alert_pool_credits(_pool_credits())
+    except (OSError, ValueError, TypeError) as exc:
+        sys.stderr.write(f"quota_dashboard: pool-credits refresh: {type(exc).__name__}\n")
+    finally:
+        _credits_lock.release()
+
+
+def _credits_async() -> threading.Thread | None:
+    """Start one refresher; drop the request if one is already running. Returns the thread so a
+    test can join it instead of racing it."""
+    if _credits_lock.locked():
+        return None
+    th = threading.Thread(target=_refresh_pool_credits, daemon=True, name="quota-credits")
+    th.start()
+    return th
 
 
 def _pointer_slug() -> str | None:
@@ -534,7 +735,9 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
     )
 
 
-def render(payload: dict, generated_at: float, error: str | None = None) -> str:
+def render(
+    payload: dict, generated_at: float, error: str | None = None, credits: dict | None = None
+) -> str:
     accounts = _display_order(payload)
     active = payload.get("active")
     warns = payload.get("fleet_warnings") or []
@@ -573,6 +776,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
             ranks.append("not eligible")
     rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
     gov_html = _governor_panel(payload)
+    credits_html = _pool_credits_panel(credits)
     cmd_rows = _load_commands()
     cmd_html = _commands_table(cmd_rows)
     return f"""<!doctype html>
@@ -652,6 +856,7 @@ def render(payload: dict, generated_at: float, error: str | None = None) -> str:
 <section id="pane-quota" class="pane">
 {banner}
 {gov_html}
+{credits_html}
 <table>
   <thead><tr><th>Account</th><th>Session (5h) remaining</th><th>Weekly remaining</th><th>Fable 5 weekly remaining</th><th></th></tr></thead>
   <tbody>{rows}</tbody>
@@ -764,7 +969,11 @@ def _generate_locked() -> str:
             _JSON.write_text(json.dumps(payload, indent=1), encoding="utf-8")
         except OSError:
             pass
-    html = render(payload, time.time(), error)
+    # The pool balance rides the SAME loop, behind its own TTL, and can never break the board:
+    # _pool_credits already fails soft, and this guard covers anything it did not anticipate.
+    # Cache only — see _pool_credits(fetch=False). The refresh happens off this lock.
+    credits = _pool_credits(fetch=False)
+    html = render(payload, time.time(), error, credits=credits)
     _HTML.write_text(html, encoding="utf-8")
     return html
 
@@ -869,6 +1078,7 @@ def _start_probe_loop() -> threading.Event:
             started = time.monotonic()
             try:
                 generate()
+                _credits_async()  # own thread, own TTL — never delays this cadence
                 _maybe_trigger_rotation(json.loads(_JSON.read_text(encoding="utf-8")))
             except Exception as exc:  # noqa: BLE001 — the loop must outlive any single probe
                 sys.stderr.write(f"quota_dashboard: probe loop: {type(exc).__name__}: {exc}\n")

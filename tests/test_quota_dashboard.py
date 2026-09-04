@@ -975,3 +975,203 @@ def test_below_ninety_the_board_stays_quiet(tmp_path, monkeypatch):
     qd.generate()
     assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
     assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
+
+
+# ── The OpenRouter pool balance — the fleet's OTHER quota, previously unwatched ───────────────
+#
+# 2026-09-04: the pool ran to -$0.0015 of $225 and NOTHING on the box knew. Three repos found out
+# by hitting HTTP 402 mid-run; one lost 24 grounder units, another's closing review sweep silently
+# fell back to a lane that records nothing to the flywheel. This board already polls every 20s and
+# already holds the key — the balance is one GET away, and a level is worth watching because 402
+# is issued on BALANCE, so a positive number is the direct signal, not a proxy for one.
+
+
+def _key_file(tmp_path: Path, value: str = "sk-or-v1-TESTKEY") -> Path:
+    cfg = tmp_path / "cfg"
+    cfg.mkdir(exist_ok=True)
+    f = cfg / "subagents.env"
+    f.write_text(f'# comment\nOPENROUTER_API_KEY="{value}"\nOTHER=1\n')
+    return f
+
+
+def _credits_env(tmp_path, monkeypatch, **env):
+    monkeypatch.setenv("QUOTA_DASH_CREDITS_KEY_FILE", str(_key_file(tmp_path)))
+    return _load(tmp_path, monkeypatch, **env)
+
+
+def test_the_balance_is_read_and_inverted_into_remaining(tmp_path, monkeypatch):
+    """The API reports granted and used. The board must show what is LEFT — the same inversion
+    the account table does, and the same bug class if it is got wrong."""
+    qd = _credits_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        qd, "_credits_get", lambda key: {"data": {"total_credits": 245.0, "total_usage": 225.0015}}
+    )
+
+    c = qd._pool_credits(now=1000.0)
+
+    assert c is not None
+    assert c["granted"] == 245.0
+    assert round(c["remaining"], 4) == 19.9985, "granted MINUS used, never the raw usage"
+
+
+def test_the_balance_is_cached_so_a_20s_refresh_is_not_a_20s_api_call(tmp_path, monkeypatch):
+    """The page refreshes every 20s. Credits move only when something spends, so re-reading them
+    per view would be 4,320 calls a day to learn a number that changes a few times an hour."""
+    qd = _credits_env(tmp_path, monkeypatch)
+    calls = []
+
+    def fake(key):
+        calls.append(key)
+        return {"data": {"total_credits": 100.0, "total_usage": 40.0}}
+
+    monkeypatch.setattr(qd, "_credits_get", fake)
+
+    first = qd._pool_credits(now=1000.0)
+    for t in (1005.0, 1100.0, 1000.0 + qd.CREDITS_TTL_S - 1):
+        again = qd._pool_credits(now=t)
+        assert again is not None and again["remaining"] == first["remaining"]
+    assert len(calls) == 1, f"one call inside the TTL, got {len(calls)}"
+
+    qd._pool_credits(now=1000.0 + qd.CREDITS_TTL_S + 1)
+    assert len(calls) == 2, "and exactly one more once the TTL has passed"
+
+
+def test_a_dead_endpoint_serves_the_last_known_balance_with_its_age(tmp_path, monkeypatch):
+    """Same rule as the account table: a stale number with a date on it beats a blank."""
+    qd = _credits_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        qd, "_credits_get", lambda key: {"data": {"total_credits": 100.0, "total_usage": 40.0}}
+    )
+    qd._pool_credits(now=1000.0)
+
+    def boom(key):
+        raise OSError("network down")
+
+    monkeypatch.setattr(qd, "_credits_get", boom)
+    c = qd._pool_credits(now=1000.0 + qd.CREDITS_TTL_S + 1)
+
+    assert c is not None and c["remaining"] == 60.0
+    assert c["stale"] is True and c["age_s"] >= qd.CREDITS_TTL_S
+
+
+def test_no_key_is_not_an_error_and_never_blanks_the_board(tmp_path, monkeypatch):
+    """A box without the pool configured must render exactly as before."""
+    monkeypatch.setenv("QUOTA_DASH_CREDITS_KEY_FILE", str(tmp_path / "nope.env"))
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    qd = _load(tmp_path, monkeypatch)
+
+    assert qd._pool_credits(now=1000.0) is None
+    assert qd._pool_credits_panel(None) == ""
+    html = qd.render(_payload(), time.time())
+    assert "<table" in html, "the board still renders"
+
+
+def test_the_key_never_reaches_the_page_or_the_cache(tmp_path, monkeypatch):
+    """The one thing that must never leak. The panel and the on-disk cache are both readable by
+    anything that can read the board."""
+    qd = _credits_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        qd, "_credits_get", lambda key: {"data": {"total_credits": 100.0, "total_usage": 40.0}}
+    )
+    c = qd._pool_credits(now=1000.0)
+
+    panel = qd._pool_credits_panel(c)
+    assert "TESTKEY" not in panel
+    assert "TESTKEY" not in qd.CREDITS_CACHE.read_text()
+    assert "TESTKEY" not in qd.render(_payload(), time.time(), credits=c)
+
+
+def test_the_panel_reaches_the_page_and_goes_critical_when_the_pool_is_dry(tmp_path, monkeypatch):
+    qd = _credits_env(tmp_path, monkeypatch)
+
+    healthy = qd._pool_credits_panel(
+        {"granted": 245.0, "used": 25.0, "remaining": 220.0, "age_s": 0.0, "stale": False}
+    )
+    assert "ok" in healthy and "$220.00" in healthy
+
+    dry = qd._pool_credits_panel(
+        {"granted": 245.0, "used": 245.01, "remaining": -0.01, "age_s": 0.0, "stale": False}
+    )
+    assert "crit" in dry
+    assert "402" in dry, "say WHAT the operator will see, not just that a number is low"
+
+    html = qd.render(_payload(), time.time(), credits={"granted": 1.0, "used": 0.0,
+                                                       "remaining": 1.0, "age_s": 0.0,
+                                                       "stale": False})
+    assert "OpenRouter" in html, "the panel must actually be placed in the page"
+
+
+def test_the_drain_advisory_fires_once_per_episode_and_re_arms_on_a_top_up(tmp_path, monkeypatch):
+    """The latch the wall advisory taught us: one message per episode, re-armed the moment relief
+    arrives — an alert that repeats every 20s is an alert everyone filters."""
+    qd = _credits_env(tmp_path, monkeypatch, POOL_CREDITS_WARN_USD="5")
+    sent = []
+    monkeypatch.setattr(qd, "_notify", lambda msg: sent.append(msg))
+
+    low = {"granted": 245.0, "used": 241.0, "remaining": 4.0, "age_s": 0.0, "stale": False}
+    qd._maybe_alert_pool_credits(low)
+    qd._maybe_alert_pool_credits(low)
+    qd._maybe_alert_pool_credits(low)
+    assert len(sent) == 1, f"latched — one message per drain episode, got {len(sent)}"
+    assert "4.00" in sent[0] and "openrouter.ai" in sent[0], "name the number and where to fix it"
+
+    qd._maybe_alert_pool_credits({**low, "remaining": 60.0})  # topped up → re-arm
+    assert len(sent) == 1, "recovery is not an alarm"
+    qd._maybe_alert_pool_credits(low)
+    assert len(sent) == 2, "a NEW drain episode speaks again"
+
+
+def test_a_healthy_balance_and_an_unknown_one_never_alert(tmp_path, monkeypatch):
+    qd = _credits_env(tmp_path, monkeypatch, POOL_CREDITS_WARN_USD="5")
+    sent = []
+    monkeypatch.setattr(qd, "_notify", lambda msg: sent.append(msg))
+
+    qd._maybe_alert_pool_credits(
+        {"granted": 245.0, "used": 25.0, "remaining": 220.0, "age_s": 0.0, "stale": False}
+    )
+    qd._maybe_alert_pool_credits(None)  # no key / unreadable — silence, not a false alarm
+
+    assert sent == []
+
+
+def test_the_render_path_never_makes_the_network_call(tmp_path, monkeypatch):
+    """Found by this file's own cadence tests when the first cut fetched inline: the GET is up to
+    CREDITS_TIMEOUT_S and `_generate_locked` holds `_gen_lock`, so an inline fetch puts a
+    third-party endpoint on the board's critical path — the shape of the 2026-08-18 hang, where a
+    stalled probe made every page load sit for its full timeout. (It also took this suite from
+    9.9s to 38.6s, which is what surfaced it.)"""
+    qd = _credits_env(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        qd,
+        "_credits_get",
+        lambda key: calls.append(key) or {"data": {"total_credits": 9.0, "total_usage": 1.0}},
+    )
+
+    assert qd._pool_credits(now=1000.0, fetch=False) is None, "no cache yet, and it must NOT fetch"
+    assert calls == [], "the render path made a network call"
+
+    qd._pool_credits(now=1000.0)  # the refresher warms the cache
+    assert len(calls) == 1
+    cached = qd._pool_credits(now=1_000_000.0, fetch=False)
+    assert cached is not None and cached["remaining"] == 8.0
+    assert cached["stale"] is True, "a cache served past its TTL must SAY it is stale"
+    assert len(calls) == 1, "and still no second call from the render path"
+
+
+def test_the_refresher_runs_off_the_lock_and_drops_an_overlapping_request(tmp_path, monkeypatch):
+    qd = _credits_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        qd, "_credits_get", lambda key: {"data": {"total_credits": 9.0, "total_usage": 1.0}}
+    )
+
+    th = qd._credits_async()
+    assert th is not None
+    th.join(timeout=10)
+    assert qd.CREDITS_CACHE.exists(), "the refresher warmed the cache"
+
+    qd._credits_lock.acquire()  # simulate one already in flight
+    try:
+        assert qd._credits_async() is None, "an overlapping refresh is dropped, never queued"
+    finally:
+        qd._credits_lock.release()

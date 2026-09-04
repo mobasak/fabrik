@@ -85,10 +85,40 @@ The older design's reasoning, kept for the record:
 | `unknown` in the session cell | the ACTIVE account with a reading older than its 5-hour window — it CAN be burning quota, so nothing is derivable and no number is shown; it re-reads on next use |
 | `Fable 5 weekly remaining` column | Fable-5's separate weekly limit, its own 4th column with the same remaining-framing as Weekly (`N% left` + bar + `used% · resets`). Read from the usage payload's `limits` array — a `weekly_scoped` entry whose `scope.model.display_name == "Fable"` (it has **no** top-level window key, the reason an earlier top-level-only scan missed it, 2026-08-22). An account with no Fable reading yet (idle, access token unrefreshed) shows `no reading` until the tick re-probes it. Undocumented always-0 codename windows (`nimbus_quill`, …) are not surfaced |
 | Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
+| `OpenRouter pool` banner | the metered pool's balance — **the fleet's other quota**, and until 2026-09-04 nothing on this box watched it. Green above `POOL_CREDITS_WARN_USD`, amber at or below it, red at zero with what the operator will actually see (`every fanout() returns HTTP 402 with no output and no spend`). Absent entirely when no key is configured. A balance served past its TTL says `endpoint unreachable` with its age rather than blanking — the same stale-beats-blank rule as the account rows |
 
 | `switch →` button | on every row that is NOT the active pointer: one click flips the fleet to that account NOW — the same manual flip as `--switch <slug>` (pause-, dwell- and cap-exempt), confirmed in-page first; every session bound to the pointer (`CLAUDE_CONFIG_DIR` → the `active` symlink, § How a session binds to the pointer in `claude-account-rotation.md`) follows it without a restart. The active row carries no button (nothing to rotate to) |
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
+
+### The OpenRouter pool banner (2026-09-04)
+
+The board watches Claude account quota. It did not watch the **metered pool** — and on 2026-09-04
+the pool ran to **-$0.0015 of $225** with nothing on the box aware of it. Three repos found out by
+hitting HTTP 402 mid-run: one lost 24 grounder units, another's closing review sweep fell back to a
+lane that records nothing to the flywheel, and the operator learned of it from a mail rather than a
+screen. The board already polls every 20s and the key was already on disk, so the balance was one
+GET away.
+
+It is a **level, not a projection**. HTTP 402 "Insufficient credits" is issued on balance, so the
+number is the direct signal rather than a proxy for one. No runway is estimated here: the burn RATE
+lives in the flywheel's Postgres rows (intel's beat), and a days-remaining figure this file cannot
+defend is worse than none.
+
+Three properties worth knowing:
+
+- **Off the critical path.** The GET runs in its own daemon thread on the probe loop's cadence,
+  never inside `_gen_lock` and never on a page load. The first cut fetched inline and this repo's
+  own cadence tests caught it — an inline fetch puts a third-party endpoint on the board's critical
+  path, the shape of the 2026-08-18 hang where a stalled probe made every page load sit for its full
+  timeout and the operator read the dashboard as "not reachable". It also took the dashboard suite
+  from 9.9s to 38.6s, which is what surfaced it.
+- **The drain advisory is latched.** One mesh-notify per drain episode, re-armed the instant the
+  balance recovers — the same rule as the fleet wall advisory, for the same reason: an alert that
+  repeats every 20s is an alert everyone filters, and a latch with no re-arm goes silent through the
+  next incident.
+- **Unknown is silence.** No key, or an unreachable endpoint with no cached balance, renders nothing
+  and alerts nothing. A box without the pool configured looks exactly as it did before.
 
 ### The Commands tab (2026-09-03)
 
@@ -150,14 +180,20 @@ files and exit — useful for a scripted refresh without a browser).
 |---|---|---|
 | `QUOTA_DASH_PORT` | `5051` | listen port (PORTS.md: WSL Python range) |
 | `QUOTA_DASH_HOST` | `127.0.0.1` | bind address — loopback by design |
-| `QUOTA_DASH_MAX_AGE_S` | `240` | regeneration floor (probe-volume bound) |
-| `QUOTA_DASH_REFRESH_S` | `60` | the page's own meta-refresh interval |
+| `QUOTA_DASH_MAX_AGE_S` | `20` | regeneration floor (probe-volume bound) |
+| `QUOTA_DASH_REFRESH_S` | `20` | the page's own meta-refresh interval |
+| `QUOTA_DASH_PROBE_INTERVAL_S` | `20` | the server's own probe cadence, viewer or not — a PERIOD, not a pause after each probe |
 | `QUOTA_DASH_OUT_DIR` | `~/.claude/quota-dashboard` | render output |
 | `QUOTA_DASH_ROTATE_CLI` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | the CLI it shells |
 | `QUOTA_DASH_PROBE_TIMEOUT_S` | `60` | per-probe subprocess timeout |
 | `QUOTA_DASH_SWITCH_TIMEOUT_S` | `90` | `POST /switch` subprocess timeout (the CLI probes the target before flipping) |
 | `QUOTA_DASH_SOCKET_TIMEOUT_S` | `15` | per-connection socket timeout — a client that under-sends its declared body is dropped, never parked |
 | `QUOTA_DASH_POINTER` | `~/.claude-fleet/active` | the fleet pointer symlink the board compares against its last render — a flip regenerates the page on the next view, floor or no floor |
+| `QUOTA_DASH_CREDITS_KEY_FILE` | `~/.config/fabrik/subagents.env` | where the OpenRouter key is read from (`OPENROUTER_API_KEY` in the environment wins). The key is never rendered, never logged and never written to the cache |
+| `QUOTA_DASH_CREDITS_TTL_S` | `300` | how long a balance is reused. Credits move only when something spends; at the 20s refresh an uncached read would be ~4,320 calls a day |
+| `QUOTA_DASH_CREDITS_TIMEOUT_S` | `10` | the balance GET's timeout — it runs OFF the render path, so this can never delay a page load |
+| `QUOTA_DASH_CREDITS_URL` | `https://openrouter.ai/api/v1/credits` | the balance endpoint |
+| `POOL_CREDITS_WARN_USD` | `5` | the drain line. An ABSOLUTE floor, not a percentage: after a top-up the percentage is meaningless ($20 of $245 reads as 8% and is the whole runway) |
 
 ## Boundaries
 
@@ -165,7 +201,7 @@ files and exit — useful for a scripted refresh without a browser).
   the operator's click — `--switch <slug>` to flip. It never decides a rotation, never writes
   `caps.json`, never reads or writes a credential file; the CLI owns every one of those
   contracts (see `docs/workstation/claude-account-rotation.md`). The tick's own automation is
-  unchanged: it still flips at 98% / the cap — and since 2026-09-03 the board itself invokes the tick within ~20s of the crossing, which is why the
+  unchanged: it still flips at 95% / the cap (98 until 2026-09-03; D-104) — and since 2026-09-03 the board itself invokes the tick within ~20s of the crossing, which is why the
   button exists: a fast burn (94% → 100% inside one tick, seen 2026-09-02) reaches the wall
   before the tick does, and the operator can see it coming on this board.
 - **Loopback only.** No auth, because nothing off-box can reach it; do not rebind it to

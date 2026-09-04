@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the quota board watches the OpenRouter pool balance, the fleet's other quota (2026-09-04)
+
+- On 2026-09-04 the metered pool ran to **-$0.0015 of $225** and nothing on this box knew. Three repos
+  discovered it by hitting HTTP 402 mid-run: iterative_image_editor lost 24 grounder units,
+  web-ecommerce-factory's closing review sweep fell back to a lane that records nothing to the flywheel,
+  and the operator learned of it from a mail rather than a screen. The board already polls every 20s and
+  the key was already on disk.
+- `_pool_credits` reads `openrouter.ai/api/v1/credits` and shows what is LEFT (granted minus used — the
+  same remaining-not-used inversion the account rows use, and the same bug class if got wrong). Cached
+  for `QUOTA_DASH_CREDITS_TTL_S` (300s): credits move only when something spends, so an uncached read at
+  the 20s refresh would be ~4,320 calls a day.
+- A **level, not a projection** — HTTP 402 is issued on balance, so the number is the direct signal.
+  No runway is estimated: the burn rate lives in the flywheel's Postgres rows (intel's beat).
+- The drain advisory is **latched** — one mesh-notify per episode, re-armed the moment the balance
+  recovers. The same rule as the fleet wall advisory: an alert repeating every 20s is one everyone
+  filters, and a latch with no re-arm goes silent through the next incident. `POOL_CREDITS_WARN_USD`
+  (default $5) is an ABSOLUTE floor, because after a top-up a percentage is meaningless ($20 of $245
+  reads as 8% and is the whole runway).
+- **Caught by this repo's own tests and fixed:** the first cut fetched inline in `_generate_locked`,
+  which holds `_gen_lock` — putting a third-party endpoint on the board's critical path, the shape of
+  the 2026-08-18 hang where a stalled probe made every page load sit for its full timeout. It also took
+  the dashboard suite from 9.9s to 38.6s, which is what surfaced it. The GET now runs in its own daemon
+  thread on the probe loop's cadence; the render path is cache-only and marks a past-TTL balance stale.
+- Unknown is silence: no key, or an unreachable endpoint with no cache, renders nothing and alerts
+  nothing. The key is never rendered, never logged and never written to the cache — pinned by a test.
+- 11 tests, all proven red on revert. Verified LIVE after restarting the board: `$19.13 remaining of
+  $245.00`, tone ok, and `grep -c sk-or` on the cache file returns 0.
+- Also corrected in `docs/workstation/quota-dashboard.md` while in the file: the flip threshold still
+  read 98% (95 since D-104), `QUOTA_DASH_MAX_AGE_S`/`QUOTA_DASH_REFRESH_S` were documented as 240/60
+  against a code default of 20/20, and `QUOTA_DASH_PROBE_INTERVAL_S` had no row at all.
+
 ### Fixed — a scaffolded repo now comes out of `git init` able to push its own branch and remember a conflict resolution (2026-09-04)
 
 - Mail 01M1NX7FS39E8999W2R6VSE5XD (intel to fleet): `grep -c 'git config\|rerere\|autoSetupRemote' src/fabrik/scaffold.py`
