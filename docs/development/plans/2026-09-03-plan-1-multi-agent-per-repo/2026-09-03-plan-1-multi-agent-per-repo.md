@@ -24,12 +24,12 @@ Grounding: the 2026-09-03 chain audit `docs/development/reviews/2026-09-03-orche
 | I1 | "approve + infra builds" | IN — r10 approved; the build owner is infra | header Owner line; the two `docs/DECISIONS.md` rows minted with this plan |
 | I2 | "starts /fabrik-plan-after-chat … with Owner: infra" | IN | this plan |
 | I3 | "it is better if infra build this" + no clock — intel authors, infra executes when free | IN | header; § Execution Discipline |
-| I4 | the spec's § Documentation landing sites (every surface named there) | IN — one ticket per surface | § Ticket Board T01–T15 |
+| I4 | the spec's § Documentation landing sites (every surface named there) | IN — one ticket per surface | § Ticket Board T01a–T15 |
 | I5 | the spec's open unknowns R1/R2/R3/R6 as build-time probes | IN — R1 + R3 in T01, R6 in T04b; R2 is FIXED (T13), not probed | T01, T04b, T13 |
 | I6 | the retirement ordering the spec fixes | IN | § Merge Order (T06 → T07 → T08a/b → T09 → T10–T12) |
 | I7 | "lean and enforceful" — one contract line, mechanisms in code | IN | T14a (one line); § Global Constraints |
-| I8 | nothing edits a project's synced copy | IN | § Global Constraints; T01 emits from the hub only |
-| I9 | merge-time render only (CLAUDE.md:155 § Behavior “Merge-time render only”) | IN | T07 scope; T16 gate; § Global Constraints |
+| I8 | nothing edits a project's synced copy | IN | § Global Constraints; T01a declares and T01b emits, both from the hub only |
+| I9 | merge-time render only (CLAUDE.md:155 § Behavior “Merge-time render only”) | IN | T07a scope; T16 gate; § Global Constraints |
 | I10 | Lesson 151 — the pathspec form reads the working tree; compare `git show --stat HEAD` to the expected numstat BEFORE pushing | IN | § Global Constraints |
 | I11 | "fix the two leaks but do not cause data loss" | OUT-OF-SCOPE — done the same day (e001baa5, D-110); not plan work | `CHANGELOG.md` 2026-09-03 Fixed entry |
 | I12 | "do you think we need a cleaning task for /tmp/claude-1000 too?" | OUT-OF-SCOPE — answered no (tmpfiles already ages `/tmp` at 30 d); recorded | `docs/DECISIONS.md` D-110 |
@@ -56,7 +56,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | C11 | `core/30-ops.md:148` | "**`deploy.resources.limits.memory` is mandatory.**" | `unconstrained` — no compose or service in scope; recorded as evidence of the read. |
 | C12 | `core/30-ops.md:474` | "A twelve-factor app never relies on implicit existence of system-wide packages" | A worktree's toolchain comes from the symlinked venv, never from the box (T01). |
 | C13 | FLOOR `core/25-data-postgres.md` | 0 hits for `worktree`/`git branch`/`concurrent agent`/`merge` (re-derived 2026-09-03) | `unconstrained` — evidence, not assertion. |
-| C14 | `CLAUDE.md:155` | "NEVER bare-render `commands/assemble_commands.py` from a worktree — the renderer PRUNES" | T07 and T16 render only in the main master checkout: render → `--check` → commit. |
+| C14 | `CLAUDE.md:155` | "NEVER bare-render `commands/assemble_commands.py` from a worktree — the renderer PRUNES" | T07a and T16 render only in the main master checkout: render → `--check` → commit. |
 | C15 | `core/45-testing-strategy.md:19` | "**Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | MATCHED via the three new test files (T01, T03, T05a, T05b, T07, T13, T14c). Every ticket's Behavior Contract is the enumeration; each row names the test file, and that file sits in the SAME ticket's Touches — a split never separates a test from the behaviour it proves. |
 | C16 | `core/45-testing-strategy.md:21` | "**Watched-fail-first** (for tests this change adds or modifies…): a non-trivial behavior's test proves somet" (line continues) | Every ticket that adds a test says "watched-red" or names the red-on-revert; T13 and T05a spell the red state explicitly. |
 
@@ -84,7 +84,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **12-Factor non-negotiables** (inherited by every ticket; none ships a service): logs = unbuffered JSON to stdout only, never a logfile (XI) · migrations = a one-off process, never from `lifespan`/startup (XII) · the same backing services in dev/test/prod — no SQLite-for-Postgres, no `fakeredis` (X) · no sticky sessions, session state in `redis-main` + `shape.needs_cache: true` (VI) · no daemonizing or PID files (VIII) · workers requeue their in-flight job on SIGTERM, handlers idempotent (IX) · releases immutable, never hot-patch a container (V) · config = granular env vars, no grouped env sets, no secrets in code (III) · shelled-out binaries installed + pinned in the Dockerfile (II).
 - **Backing services (inherited, unexercised — no compose in scope):** `postgres-main:5432` · `redis-main:6379` · external `fabrik` network · per-service `deploy.resources.limits.memory` · no host `ports:`.
 - **Environment preflight — every ticket's first step:** `git --version` (≥ 2.5 for worktrees), `claude --version` (2.1.258 on the box; `--worktree` is grounded by PROBE, never by `--help`, whose visibility is account-gated — spec § Isolation), `uv --version`, `.venv/bin/python -m pytest --version`.
-- **Hub adoption of the MODEL stays deferred** (spec § Decisions derived (b)); T01's settings block is inert on the hub.
+- **Hub adoption of the MODEL stays deferred** (spec § Decisions derived (b)); T01b's settings block is inert on the hub.
 
 ## Execution Discipline (binding on /fabrik-execute-plan)
 
@@ -225,7 +225,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** the retirement commit, **When** `git ls-files docs/orchestrator/_traycer-skills scripts/traycer_mirror.py` runs, **Then** it prints nothing (scripts/traycer_mirror.py:86)
 - **Given** the re-pointed `DIRS`, **When** `check_traycer_chain.py` runs, **Then** it scans exactly the three sources and exits 0 (scripts/enforcement/check_traycer_chain.py:89)
 - **Given** the rules packs, **When** `git grep -l 'docs/traycer/kilo_selected_agents.md'` runs, **Then** every referenced file still exists at its path (docs/orchestrator/traycer-command-wiring.md:1)
-- **Given** the render from T07 has run in the main checkout, **When** `ls ~/.claude/skills | grep -c '^fab-'` runs, **Then** it prints 0 (commands/assemble_commands.py:809)
+- **Given** the render from T07a has run in the main checkout, **When** `ls ~/.claude/skills | grep -c '^fab-'` runs, **Then** it prints 0 (commands/assemble_commands.py:809)
 - **Given** the move commit, **When** `git ls-files docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md` runs, **Then** it prints nothing and `docs/orchestrator/_retired/epic-to-ticket-workflow/00-trigger-fabrik.RETIRED.md` exists byte-identical to the moved text plus its tombstone header (docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md:1)
 - **Given** the moved files, **When** `git log --follow` is run on any of them, **Then** history is preserved through the rename (docs/orchestrator/epic-to-ticket-workflow/05-ticket-outline-fabrik.md:1)
 - **Given** the tree after the move, **When** `python3 scripts/enforcement/check_doc_links.py` runs, **Then** no link into the moved paths is reported broken from a non-archived, non-ledger doc (scripts/enforcement/check_traycer_chain.py:28)
