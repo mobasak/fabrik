@@ -7,8 +7,8 @@ Depends: T09, T11
 Parallel: ⛓️
 Complexity: never-route
 Gate: python -m pytest tests/test_review_rubric.py tests/test_review_rubric_edges.py -q
-Gate: test -z "$(git grep -nE 'epic-to-ticket-workflow|EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS|\bettw\b' -- scripts/review_rubric.py)" && test -z "$(git grep -n '\.traycer' -- README.md)"   # the docstring names ettw without a directory; a path-only grep passes over it
-# ⚠️ SCOPE NOTE: this ticket's Touches also hold tests/test_review_rubric.py:61 and tests/test_review_rubric_edges.py:60, which each BUILD the string `epic-to-ticket-workflow`. Dropping the ettw key forces edits at :144/:163, but a coder can delete those assertions and leave the dead fixture line — green here, red at T16. The pytest gate plus T16's tree-wide sweep are what close it.
+Gate: test -z "$(git grep -nE 'epic-to-ticket-workflow|EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS|\bettw\b' -- scripts/review_rubric.py tests/test_review_rubric.py tests/test_review_rubric_edges.py README.md)"   # scoped to ALL FOUR Touches, not just review_rubric.py + README.md. tests/test_review_rubric.py:61 and tests/test_review_rubric_edges.py:60 each BUILD the token inside `_mk_tree()`, a helper five tests share — a coder who rewrites the assertions at :144/:163 and leaves the shared fixture line passes the pytest gate (a dead fixture just makes a temp dir) and reds T16 at Merge Order 33, where T16 owns one file and cannot fix the tree. This is the same gap round 7 closed for T14c.
+# ⚠️ SCOPE NOTE: this ticket's Touches also hold tests/test_review_rubric.py:61 and tests/test_review_rubric_edges.py:60, which each BUILD the string `epic-to-ticket-workflow`. Dropping the ettw key forces edits at :144/:163, but a coder can delete those assertions and leave the dead fixture line — green here, red at T16. ⚠️ The pytest gate does NOT close it — a dead fixture line only creates a temp dir and passes. The widened gate above is what closes it, inside this ticket, at its own position.
 Docs: INDEX.md (the two ~/.traycer rows) · CHANGELOG.md — orchestrator-applied
 
 ## Touches
