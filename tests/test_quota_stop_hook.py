@@ -135,6 +135,54 @@ def test_chained_or_redirected_bash_is_held_whole():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
+def test_shell_punctuation_inside_a_quoted_argument_is_data_not_an_operator():
+    """The hold refused the graceful exit its own message orders.
+
+    The vetoes scanned the RAW line, so the `;` in a `--reason` string read as a control operator.
+    CLAUDE.md mandates `BLOCKED: <what> — searched: <sources> — missing: <need>`, and any operator
+    listing two sources writes a comma or a semicolon — so the hold structurally refused the very
+    `command_run.py blocked` call it instructs a held session to make, while the Stop hook blocked
+    the turn for the record that could not be closed. Reported by trade-intelligence
+    (01M1NTZJEHF9NY93JW8YZNDAVB) after four refusals across three turns; the mechanism (quoting,
+    not wording) was proven by fleet at 01M1NTZZEZJGHKYR7VQF4PZAM2. These are their verbatim
+    probe commands.
+    """
+    for cmd in (
+        'python3 scripts/command_run.py blocked --command x --reason "hold - searched: hook, docs; missing: relief"',
+        "python3 scripts/command_run.py done --command x --evidence 'a|b'",
+        'python scripts/mail.py send --body "names git|command_run.py as allowed"',
+        'git commit -q -F m -- a.py -m "fix: a && b"',
+        'git log --grep="a;b"',
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0)[0] == "allow", cmd
+    # every tooth the whole-line scan was added to grow still bites: the operator is UNQUOTED,
+    # or it is one the shell expands even inside double quotes.
+    for cmd in (
+        "git status;evil",  # shlex.split would return ['git','status;evil'] and allow this
+        'git status "$(rm -rf x)"',  # $( survives masking inside double quotes
+        'git status "`rm -rf x`"',  # so does a backtick
+        "git status --porcelain | grep -v '^??'",  # a genuine pipe, outside the quotes
+        'git log --grep="a" > /tmp/leak.txt',  # redirect outside the quotes
+        'git status "unbalanced ; rm -rf y',  # an unclosed quote cannot hide an operator:
+        # the masker returns the line UNTOUCHED when quotes do not balance, so the raw `;` is seen
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0)[0] == "deny", cmd
+
+
+def test_the_masker_never_invents_or_hides_an_operator():
+    assert hook._mask_quoted("git status") == "git status"
+    assert hook._mask_quoted("cat a; rm b") == "cat a; rm b"  # nothing quoted, nothing masked
+    assert ";" not in hook._mask_quoted("echo 'a;b'")
+    assert "|" not in hook._mask_quoted('echo "a|b"')
+    assert "$(" in hook._mask_quoted('echo "$(whoami)"')  # expanded inside double quotes
+    assert "$(" not in hook._mask_quoted("echo '$(whoami)'")  # inert inside single quotes
+    assert "$" not in hook._mask_quoted('echo "\\$(whoami)"')  # escaped: a literal, so masked
+    assert hook._mask_quoted('echo "a') == 'echo "a'  # unbalanced → untouched → fails closed
+    assert "\n" in hook._mask_quoted('echo "a\nb"')  # a quoted newline still trips the veto
+    # a single quote inside a double-quoted span must not open a span of its own
+    assert ";" not in hook._mask_quoted('echo "it\'s a; b"')
+
+
 def test_destructive_git_and_in_place_sed_are_held():
     for cmd in (
         "git reset --hard HEAD~1",

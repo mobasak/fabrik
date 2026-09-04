@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the fleet-quota hold refused the graceful exit its own message orders (2026-09-05)
+
+`quota_stop.py`'s `_UNSAFE_SHELL` / `_FILE_REDIRECT` vetoes scanned the RAW command line, so a `;` or `|` inside a shell-QUOTED argument read as a control operator. CLAUDE.md mandates `BLOCKED: <what> — searched: <sources> — missing: <need>`, and any operator listing two sources writes a semicolon there — so the hold structurally refused the `command_run.py blocked` call it instructs a held session to make, while the Stop hook simultaneously blocked the turn for the record that could not be closed. Two repos deadlocked on it (trade-intelligence 01M1NTZJEHF9NY93JW8YZNDAVB — four refusals across three turns, a converged review left uncommitted for a day; mechanism proven by fleet at 01M1NTZZEZJGHKYR7VQF4PZAM2, correcting my own wrong diagnosis that the allow-list was dead code). The vetoes now read the line with quoted spans masked: single-quoted spans masked whole, double-quoted spans keeping `$(`/backticks the shell still expands there, newlines never masked, and an unbalanced quote left untouched so it fails closed. Every chained-command tooth still bites — `shlex.split` would not have done it (`git status;evil` splits to one token). Graded by fleet's own eight probe commands plus the masker's invariants, proven red on revert.
+
 ### Changed — /fabrik-review-scoped may no longer close on a self-sweep (D-118) (2026-09-04)
 
 The light review command's every exit condition was self-certifiable: step 5 closed on "a pass that raises zero new candidates", with no clause about independent recall, and the run-record banner stamps TERMINAL VERDICT on exactly that. Acting on fabrik-lib's finding 01M1ME3Y58P6ATSPX087QRVAZ4, the closing pass now owes ONE independent reader that actually returned, and the close's evidence must name it and what it returned. The floor is one reader — a read-only pool fan-out over the diff, or a single native reviewer — not the heavy command's breadth; the review-file omission that is the real lightness is untouched.

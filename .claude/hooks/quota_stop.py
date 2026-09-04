@@ -72,6 +72,67 @@ _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n")
 _FILE_REDIRECT = re.compile(r"(?<![0-9])>>?(?!\s*/dev/null)(?!&)|\d>>?(?!\s*/dev/null)(?!&\d)")
 
 
+def _mask_quoted(command: str) -> str:
+    """Blank shell-QUOTED spans so the vetoes above see OPERATORS, not DATA.
+
+    They scan the raw line, so a `;` or `|` inside a quoted ARGUMENT reads as a control operator
+    and refuses an otherwise-allowed command. Not hypothetical: the BLOCKED format CLAUDE.md
+    mandates ("<what> - searched: <a>; <b> - missing: <need>") puts a semicolon in the `--reason`
+    of the very `command_run.py blocked` call this hold's own message orders a held session to
+    make, so the hold structurally refused its own graceful exit while the Stop hook blocked the
+    turn for the record it could not close (trade-intelligence 01M1NTZJEHF9NY93JW8YZNDAVB;
+    mechanism proven by fleet 01M1NTZZEZJGHKYR7VQF4PZAM2, who wrote the whole-line scan).
+
+    Every existing tooth survives, because masking only removes characters the SHELL would not
+    have acted on either:
+      - single-quoted spans are masked whole - the shell expands nothing inside them;
+      - double-quoted spans KEEP `$` and a backtick, which the shell still expands there, so
+        `git status "$(rm -rf x)"` is still refused;
+      - a backslash escape inside double quotes masks BOTH characters, since an escaped dollar
+        or backtick is a literal rather than an expansion;
+      - a newline is NEVER masked, quoted or not - a multi-line command stays refused;
+      - an UNBALANCED quote returns the line untouched, so something that would not even parse
+        meets the vetoes raw and fails closed.
+
+    `shlex.split` is not a substitute: it returns ['git', 'status;evil'] for `git status;evil`,
+    so a leading-word parse would ALLOW the chained bypass this masking still denies.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    i, n = 0, len(command)
+    while i < n:
+        ch = command[i]
+        if quote is None:
+            if ch in ("'", '"'):
+                quote = ch
+            out.append(ch)
+            i += 1
+        elif ch == quote:
+            quote = None
+            out.append(ch)
+            i += 1
+        elif ch == "\n":
+            out.append(ch)  # a quoted newline is still a refused multi-line command
+            i += 1
+        elif quote == '"' and ch == "\\" and i + 1 < n:
+            out.extend(("x", "x"))  # an escaped $ ` " or \ is a literal, not an expansion
+            i += 2
+        elif quote == '"' and ch in "$`":
+            # the shell expands these INSIDE double quotes - keep them visible. The `(` of a
+            # substitution rides along, because _UNSAFE_SHELL keys on the PAIR `$(`: masking the
+            # paren alone let a double-quoted command substitution through, which this fix's own
+            # test caught before it shipped.
+            out.append(ch)
+            i += 1
+            if ch == "$" and i < n and command[i] == "(":
+                out.append("(")
+                i += 1
+        else:
+            out.append("x")
+            i += 1
+    return command if quote is not None else "".join(out)
+
+
 def _state_dir() -> Path:
     return Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
 
@@ -105,10 +166,13 @@ def decide(
             "freezes the fleet; check `crontab -l` and ~/.claude/rotate-tick.log"
         )
     if tool == "Bash":
+        # the vetoes read the MASKED line (operators only); the allow-list reads the RAW line,
+        # because the leading command word is never quoted in a command we would allow.
+        masked = _mask_quoted(command) if command is not None else ""
         if (
             command is not None
-            and not _UNSAFE_SHELL.search(command)
-            and not _FILE_REDIRECT.search(command)
+            and not _UNSAFE_SHELL.search(masked)
+            and not _FILE_REDIRECT.search(masked)
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""
