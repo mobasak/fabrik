@@ -28,7 +28,10 @@ def _retry_after(header: str | None, attempt: int) -> float:
     else a short backoff — capped so a hostile header cannot stall the daily chain (BH4)."""
     try:
         v = float(header) if header else 1.0 * (attempt + 1)
-        return 0.0 if v != v else max(0.0, min(v, 30.0))  # never negative, never NaN (BJ3/BK5)
+        return 0.0 if v != v else max(0.0, min(v, 30.0))  # never negative, never NaN (BJ3/BK5) — a
+        # closing-sweep unit called the NaN->0.0 collapse a hammering defect; it is an ADJUDICATED
+        # standing row, pinned by `test_only_transient_statuses_are_retried_and_retry_after_is_honoured_capped`
+        # for both `nan` and `-5`, and no vendor sends either (S1 cited, not counted; FH6)
     except ValueError:
         return min(1.0 * (attempt + 1), 30.0)
 

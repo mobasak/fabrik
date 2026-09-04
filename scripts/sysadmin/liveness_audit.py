@@ -1994,7 +1994,10 @@ def _cron_command(entry: str) -> str:
     if not parts:
         return ""
     n = 1 if parts[0].startswith("@") else 5
-    return " ".join(parts[n:])
+    return " ".join(
+        parts[n:]
+    )  # `@daily` with no command yields "" — the caller's blank-needle rule
+    # refuses it rather than matching every line (the FE3/R68 needle class, third reader; S2, FH6)
 
 
 def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list[str]) -> Finding:

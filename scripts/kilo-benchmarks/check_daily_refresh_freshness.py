@@ -192,7 +192,8 @@ def check_selection_doc(
     try:
         stamped = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=UTC)
     except ValueError:
-        # `_DOC_DATE` accepts any \d{4}-\d{2}-\d{2}, so `2026-13-45` matches and then raises
+        # `_DOC_DATE` accepts any \d{4}-\d{2}-\d{2} after its `Last refresh:` anchor, so
+        # `2026-13-45` matches and then raises
         # out of main() — the same "an unhealthy doc kills the check" class this module
         # already fixed once. An unparseable date is `undated`, not a crash.
         return {"status": "undated", "age_days": None, "threshold_days": max_age_days}

@@ -1762,3 +1762,18 @@ def test_the_hooks_fault_shape_carries_total_and_the_sweep_render_lines_are_boun
     text = la.render(report)
     lines = [ln for ln in text.splitlines() if "UNREGISTERED" in ln]
     assert len(lines) == 2 and all(len(ln) < 260 for ln in lines), [len(ln) for ln in lines]
+
+
+def test_a_cron_entry_with_no_command_yields_an_empty_needle_not_a_wildcard():
+    """`@daily` with no command (or a five-field schedule with nothing after it) leaves
+    `" ".join([])` — an empty needle. An empty needle is a WILDCARD under `in`, so it would match
+    every crontab line: the blank-needle class this review closed twice already, in a third reader
+    (S2, FH6)."""
+    assert la._cron_command("@daily") == ""
+    assert la._cron_command("0 6 * * *") == ""
+    assert la._cron_command("") == ""
+    assert la._cron_command("   ") == ""
+    assert la._cron_command("@daily /usr/bin/true") == "/usr/bin/true"
+    assert la._cron_command("0 6 * * * /opt/fabrik/x.sh --flag") == "/opt/fabrik/x.sh --flag"
+    # the contract the callers rely on: a blank needle is falsy, so every `if needle:` guard refuses it
+    assert not la._cron_command("@daily") and bool(la._cron_command("@daily /x"))
