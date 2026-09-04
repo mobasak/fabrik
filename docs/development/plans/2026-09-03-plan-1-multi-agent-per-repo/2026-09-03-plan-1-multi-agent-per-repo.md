@@ -3,7 +3,7 @@
 Status: DRAFT
 **Owner:** infra (operator ruling 2026-09-03 — "approve + infra builds"; intel authored this plan while infra is saturated; no clock on execution)
 Spec: `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md` — CONVERGED r10 (82acf32d), approved 2026-09-03
-Shape: spine + 24 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
+Shape: spine + 26 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
 Grounding: the 2026-09-03 chain audit `docs/development/reviews/2026-09-03-orchestrator-chains-corpus-review.md` (R1–R15, D-101/D-102)
 
 ## What we already agreed
@@ -29,7 +29,7 @@ Grounding: the 2026-09-03 chain audit `docs/development/reviews/2026-09-03-orche
 | I6 | the retirement ordering the spec fixes | IN | § Merge Order (T06 → T07 → T08a/b → T09 → T10–T12) |
 | I7 | "lean and enforceful" — one contract line, mechanisms in code | IN | T14a (one line); § Global Constraints |
 | I8 | nothing edits a project's synced copy | IN | § Global Constraints; T01 emits from the hub only |
-| I9 | merge-time render only (CLAUDE.md:150) | IN | T07 scope; T16 gate; § Global Constraints |
+| I9 | merge-time render only (CLAUDE.md:155 § Behavior “Merge-time render only”) | IN | T07 scope; T16 gate; § Global Constraints |
 | I10 | Lesson 151 — the pathspec form reads the working tree; compare `git show --stat HEAD` to the expected numstat BEFORE pushing | IN | § Global Constraints |
 | I11 | "fix the two leaks but do not cause data loss" | OUT-OF-SCOPE — done the same day (e001baa5, D-110); not plan work | `CHANGELOG.md` 2026-09-03 Fixed entry |
 | I12 | "do you think we need a cleaning task for /tmp/claude-1000 too?" | OUT-OF-SCOPE — answered no (tmpfiles already ages `/tmp` at 30 d); recorded | `docs/DECISIONS.md` D-110 |
@@ -39,7 +39,7 @@ Intake: 13 items — 10 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 
 ## Constraints Digest (rule-grounding gate — verbatim quotes, `file:line`)
 
-MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/30-ops`, 12-factor) + MATCHED by `python scripts/review_rubric.py --changed <the 20 build surfaces>` (`ai/50-agentic.md` via the epic schema; `core/10-python.md` via the hooks + assembler; `core/40-documentation.md` via the sources + template) + `core/62-using-subagents.md` (dispatch policy, design-shaping). Fresh reads of exactly that set, 2026-09-03; the census was 26 ACTIVE / 30 AVAILABLE.
+MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/30-ops`, 12-factor) + MATCHED by `python scripts/review_rubric.py --changed <the 20 build surfaces>` (`ai/50-agentic.md` via the epic schema; `core/10-python.md` via the hooks + assembler; `core/40-documentation.md` via the sources + template) + `core/45-testing-strategy.md` (MATCHED by this plan's three new test files — ADDED at review pass 1, which caught that the author's rubric run predated the T05 split) + `core/62-using-subagents.md` (dispatch policy, design-shaping; always-AVAILABLE, not glob-matched). Fresh reads of exactly that set, 2026-09-03; re-run over the full File Scope 2026-09-04. Census: 26 ACTIVE / 30 AVAILABLE.
 
 | # | Pack · line | Verbatim | Bearing on this plan |
 |---|---|---|---|
@@ -56,7 +56,9 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | C11 | `core/30-ops.md:148` | "**`deploy.resources.limits.memory` is mandatory.**" | `unconstrained` — no compose or service in scope; recorded as evidence of the read. |
 | C12 | `core/30-ops.md:474` | "A twelve-factor app never relies on implicit existence of system-wide packages" | A worktree's toolchain comes from the symlinked venv, never from the box (T01). |
 | C13 | FLOOR `core/25-data-postgres.md` | 0 hits for `worktree`/`git branch`/`concurrent agent`/`merge` (re-derived 2026-09-03) | `unconstrained` — evidence, not assertion. |
-| C14 | `CLAUDE.md:150` | "NEVER bare-render `commands/assemble_commands.py` from a worktree — the renderer PRUNES" | T07 and T16 render only in the main master checkout: render → `--check` → commit. |
+| C14 | `CLAUDE.md:155` | "NEVER bare-render `commands/assemble_commands.py` from a worktree — the renderer PRUNES" | T07 and T16 render only in the main master checkout: render → `--check` → commit. |
+| C15 | `core/45-testing-strategy.md:19` | "**Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | MATCHED via the three new test files (T01, T03, T05a, T05b, T07, T13, T14c). Every ticket's Behavior Contract is the enumeration; each row names the test file, and that file sits in the SAME ticket's Touches — a split never separates a test from the behaviour it proves. |
+| C16 | `core/45-testing-strategy.md:21` | "**Watched-fail-first** (for tests this change adds or modifies…): a non-trivial behavior's test proves somet" (line continues) | Every ticket that adds a test says "watched-red" or names the red-on-revert; T13 and T05a spell the red state explicitly. |
 
 ## Context Ledger
 
@@ -75,8 +77,8 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 
 - **Shared tree — three hub sessions plus the daily pipeline.** Stage explicit paths only; `git diff --cached --numstat` before every commit; **compare `git show --stat HEAD` against the numstat you expected BEFORE pushing** — `git commit -- <paths>` reads the WORKING TREE, so a sibling's uncommitted hunk in a shared file ships under your trailers (Lesson 151, e001baa5). A file dirty with a sibling's edits is not edited until they commit — message the author. Never amend, never stash on the shared stack, never `--force`.
 - **Anchors move under you.** Cite a symbol, not a line, in any file a sibling is actively editing: `check_command_corpus.py` grew 355 lines between this plan's grounding and its commit (`_orch_corpus` 791 → 895). `grep -n 'def <symbol>'` is the anchor of record.
-- **Merge-time render only.** `commands/assemble_commands.py` renders in the main master checkout: render → `--check` → commit (the `command-corpus-check` pre-commit hook refuses sources ahead of the installed corpus); a worktree render PRUNES box-wide (CLAUDE.md:150).
-- **Synced surfaces distribute fleet-wide on commit** (~46 repos): T01, T02, T05a, T05b, T07, T14a. Every such edit must be correct for ALL projects; nothing hand-edits a project's copy.
+- **Merge-time render only.** `commands/assemble_commands.py` renders in the main master checkout: render → `--check` → commit (the `command-corpus-check` pre-commit hook refuses sources ahead of the installed corpus); a worktree render PRUNES box-wide (CLAUDE.md:155 § Behavior “Merge-time render only”).
+- **Synced surfaces distribute fleet-wide on commit** (~46 repos): T01a, T01b, T02, T05a, T05b, T07a, T07b, T14a. Every such edit must be correct for ALL projects; nothing hand-edits a project's copy.
 - **No new dependency, no package-manifest edits** (`pyproject.toml` / `uv.lock` untouched — C1, C2).
 - **Read budget:** `READ_BUDGET_BYTES` = 262144 per ticket (`scripts/enforcement/check_plan_tickets.py`); the split in § Self-audit is sized to it; `src/fabrik/scaffold.py` (278 KB) is deliberately outside every ticket.
 - **12-Factor non-negotiables** (inherited by every ticket; none ships a service): logs = unbuffered JSON to stdout only, never a logfile (XI) · migrations = a one-off process, never from `lifespan`/startup (XII) · the same backing services in dev/test/prod — no SQLite-for-Postgres, no `fakeredis` (X) · no sticky sessions, session state in `redis-main` + `shape.needs_cache: true` (VI) · no daemonizing or PID files (VIII) · workers requeue their in-flight job on SIGTERM, handlers idempotent (IX) · releases immutable, never hot-patch a container (V) · config = granular env vars, no grouped env sets, no secrets in code (III) · shelled-out binaries installed + pinned in the Dockerfile (II).
@@ -87,14 +89,15 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 ## Execution Discipline (binding on /fabrik-execute-plan)
 
 - **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green, and the pass that fixed anything is never the last look at the classes it touched.
-- **Dispatch policy** — pool-default (`fanout(task_type, …)`, which auto-records to the flywheel and wants the `set_quality` back-fill) for the gradeable work: `Complexity: simple` (T10, T11, T12a, T12b, T14c) → `pick_models("code", prefer="value")`; `Complexity: complex` (T03, T13, T14b, T15) → mid-pool coder. Native is ADDED on top, never instead: `never-route` (T05, T08a, T08b, T09 — `scripts/enforcement/`, `scripts/final_gate.py`) and `native` (T01, T02, T04a, T04b, T06a, T06b, T06c, T07, T14a, T16 — synced governance, hooks, design-heavy corpus prose, the receipt) dispatch to the native worktree coder, `claude -p opus` for T04b/T05a/T07 and `sonnet` elsewhere. Haiku never codes. The decide/refute/merge stays with the orchestrator.
-- **Parallelism + merge** — fan-out 1: T01, T02, T03, T13, T04a, T04b, T06a, T06b concurrently — disjoint Touches, no Depends; each merges into master at its § Merge Order position, rebase-first, `--no-ff`, one at a time. Fan-out 2 after T03/T04b: T05a, T05b and T06c. Serial spine: T07 → T08a → T08b → T09 (the assembler must stop referencing the wrappers before the corpus check drops its audit path, before the tree is deleted). Fan-out 3 after T09: T10, T11, T12a, T12b, T14a, T14b, T14c, T15 concurrently. T16 last, alone. Review findings dedupe in the orchestrator's per-ticket loop; a finding that belongs to another ticket routes to that ticket's Deltas, never fixed in place.
+- **Dispatch policy** — pool-default (`fanout(task_type, …)`, which auto-records to the flywheel and wants the `set_quality` back-fill) for the gradeable work: `Complexity: simple` (T10, T11, T12a, T12b, T14c) → `pick_models("code", prefer="value")`; `Complexity: complex` (T03, T13, T14b, T15) → mid-pool coder. Native is ADDED on top, never instead: `never-route` (T05, T08a, T08b, T09 — `scripts/enforcement/`, `scripts/final_gate.py`) and `native` (T01a, T01b, T02, T04a, T04b, T06a, T06b, T06c, T07a, T07b, T14a, T16 — synced governance, hooks, design-heavy corpus prose, the receipt) dispatch to the native worktree coder, `claude -p opus` for T04b/T05a/T07a and `sonnet` elsewhere. Haiku never codes. The decide/refute/merge stays with the orchestrator.
+- **Parallelism + merge** — fan-out 1: T01a, T02, T03, T13, T04a, T04b, T06a, T06b concurrently (T01b follows T01a) — disjoint Touches, no Depends; each merges into master at its § Merge Order position, rebase-first, `--no-ff`, one at a time. Fan-out 2 after T03/T04b: T05a, T05b and T06c. Serial spine: T07a → T07b → T08a → T08b → T09 (the assembler must stop referencing the wrappers before the corpus check drops its audit path, before the tree is deleted). Fan-out 3 after T09: T10, T11, T12a, T12b, T14a, T14b, T14c, T15 concurrently. T16 last, alone. Review findings dedupe in the orchestrator's per-ticket loop; a finding that belongs to another ticket routes to that ticket's Deltas, never fixed in place.
 
 ## Ticket Board
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | Adoption artifacts — .worktreeinclude, settings worktree block, .claude/worktrees ignore, git config keys | — | ⚡ | ⬜ | |
+| T01a | the manifest declares the worktree artifacts | — | ⚡ | ⬜ | |
+| T01b | the sync emits the worktree artifacts into every project | T01a | ⛓️ | ⬜ | |
 | T02 | Identity — agent_role.py accepts any project-local agent name, charter optional | — | ⚡ | ⬜ | |
 | T03 | Epic assignment — epic_order.py --assign, owner in the schema and the mega checklist | — | ⚡ | ⬜ | |
 | T13 | The wip-net snapshots linked worktrees (spec residual R2) | — | ⚡ | ⬜ | |
@@ -105,63 +108,67 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T06a | /fabrik-vision — mega 00 moved into a corpus source, with the rivals pre-step | — | ⚡ | ⬜ | |
 | T06b | /fabrik-epics — mega 02 + 03 moved into one corpus source; epics in a phase run concurrently | — | ⚡ | ⬜ | |
 | T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03 | ⛓️ | ⬜ | |
-| T07 | Assembler + router — render the three sources, delete the orchestrator-wrapper path, route the stems | T06a, T06b, T06c | ⛓️ | ⬜ | |
-| T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07 | ⛓️ | ⬜ | |
+| T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | ⬜ | |
+| T07b | router: three new stems for the assembled commands | T07a | ⛓️ | ⬜ | |
+| T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07a, T07b | ⛓️ | ⬜ | |
 | T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | ⬜ | |
-| T09 | Retire the Traycer layer — wrapper tree, traycer_mirror.py, the wiring doc, the Traycer workflow docs; re-point check_traycer_chain | T07, T08a, T08b | ⛓️ | ⬜ | |
-| T10 | Retire ettw 00–05 → _retired/ (the first half of the 13-doc chain) | T07 | ⛓️ | ⬜ | |
-| T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07 | ⛓️ | ⬜ | |
-| T12a | Retire mega 00 + 02 → _retired/ (their text now lives in /fabrik-vision and /fabrik-epics) | T06a, T06b, T07 | ⛓️ | ⬜ | |
-| T12b | Retire mega 03 + 04 → _retired/ and relocate the 05 tombstone; the mega dir keeps only the schema + checklist | T06b, T06c, T07 | ⛓️ | ⬜ | |
+| T09 | Retire the Traycer layer — wrapper tree, traycer_mirror.py, the wiring doc, the Traycer workflow docs; re-point check_traycer_chain | T07a, T07b, T08a, T08b | ⛓️ | ⬜ | |
+| T10 | Retire ettw 00–05 → _retired/ (the first half of the 13-doc chain) | T07a, T07b | ⛓️ | ⬜ | |
+| T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | ⬜ | |
+| T12a | Retire mega 00 + 02 → _retired/ (their text now lives in /fabrik-vision and /fabrik-epics) | T06a, T06b, T07a, T07b | ⛓️ | ⬜ | |
+| T12b | Retire mega 03 + 04 → _retired/ and relocate the 05 tombstone; the mega dir keeps only the schema + checklist | T06b, T06c, T07a, T07b | ⛓️ | ⬜ | |
 | T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T09 | ⛓️ | ⬜ | |
 | T14b | References — agents-fabrik.md, the north-star, command-corpus-check.md: zero references to the retired chains outside archives and ledgers | T09 | ⛓️ | ⬜ | |
 | T14c | The fabrik CLI's orchestrator hint names the assembled commands, not a docs/traycer path that does not exist | T09 | ⛓️ | ⬜ | |
 | T15 | PLANS.md regeneration with an Owner column, and the dedicated reference doc | T03 | ⛓️ | ⬜ | |
-| T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01, T02, T05a, T05b, T09, T10, T11, T12a, T12b, T13, T14a, T14b, T14c, T15 | ⛓️ | ⬜ | |
+| T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01a, T01b, T02, T05a, T05b, T09, T10, T11, T12a, T12b, T13, T14a, T14b, T14c, T15 | ⛓️ | ⬜ | |
 
 ## Merge Order
 
-1. T01
-2. T02
-3. T03
-4. T13
-5. T04a
-6. T04b
-7. T05a
-8. T05b
-9. T06a
-10. T06b
-11. T06c
-12. T07
-13. T08a
-14. T08b
-15. T09
-16. T10
-17. T11
-18. T12a
-19. T12b
-20. T14a
-21. T14b
-22. T14c
-23. T15
-24. T16
+1. T01a
+2. T01b
+3. T02
+4. T03
+5. T13
+6. T04a
+7. T04b
+8. T05a
+9. T05b
+10. T06a
+11. T06b
+12. T06c
+13. T07a
+14. T07b
+15. T08a
+16. T08b
+17. T09
+18. T10
+19. T11
+20. T12a
+21. T12b
+22. T14a
+23. T14b
+24. T14c
+25. T15
+26. T16
 
 ## Interfaces
 
 - **T03 → T06c, T15** — `python3 scripts/epic_order.py --assign <a,b,c>` writes `owner: <name>` into each epic's frontmatter (round-robin per phase, `epic_n` order; exit 1 and no write when `check_integrity` has findings); `--check --owners <a,b,c>` adds one finding class (owner missing or outside the set). The frontmatter field is `owner` (string). Seam test: T15's `tests/test_docs_updater.py` parses `owner:` from an epic fixture (consumer-owned); T06c cites the exact CLI strings in its Step 1.5.
 - **T04b → T05a** — the spine header line `Epic: docs/development/epics/<file>` (one line, repo-relative, emitted by `/fabrik-plan-after-chat` when the plan came from an epic-born spec) and the lock path `~/.claude/state/plan-locks/<repo-basename>/<plan-id>.json` with the `FABRIK_PLAN_LOCK_DIR` env override. Seam tests: T05a's `tests/enforcement/test_plan_tickets_epic_scope.py` (fixture spine carrying the line) and `tests/enforcement/test_plan_lock_release_dir.py` (env override) — both consumer-owned.
-- **T01 → T14a, T15, T16** — the four artifact names, verbatim: `.worktreeinclude` (tracked at `templates/governance/.worktreeinclude`), `.claude/settings.json` → `worktree: {"baseRef": "head", "symlinkDirectories": [".venv"]}`, the `.gitignore` block line `.claude/worktrees/`, and the git config keys `rerere.enabled=true` + `push.autoSetupRemote=true`. Consumers quote them (T14a's contract line, T15's reference doc, T16's fleet proof).
-- **T06a, T06b, T06c → T07** — the source file names `commands/_sources/fabrik-vision.md`, `commands/_sources/fabrik-epics.md`, `commands/_sources/fabrik-epics-review.md` and their one-line skill descriptions, which the assembler's NEXT rows and `_emit_skill` consume. Seam test: T07's `tests/test_assemble_orch_retired.py` renders all three (consumer-owned).
-- **T07 → T08a → T08b → T09** — after T07 the assembler references neither `docs/orchestrator/_traycer-skills/` nor `ORCH_SOURCES`; T08a drops the audit path; T08b drops its tests; T09 deletes the tree. Seam: T09's gate asserts `! -e docs/orchestrator/_traycer-skills` and `ls ~/.claude/skills | grep -c '^fab-'` = 0.
+- **T01a → T01b, T14a, T15, T16** — the four artifact names, verbatim: `.worktreeinclude` (tracked at `templates/governance/.worktreeinclude`), `.claude/settings.json` → `worktree: {"baseRef": "head", "symlinkDirectories": [".venv"]}`, the `.gitignore` block line `.claude/worktrees/`, and the git config keys `rerere.enabled=true` + `push.autoSetupRemote=true`. Consumers quote them (T14a's contract line, T15's reference doc, T16's fleet proof).
+- **T06a, T06b, T06c → T07a** — the source file names `commands/_sources/fabrik-vision.md`, `commands/_sources/fabrik-epics.md`, `commands/_sources/fabrik-epics-review.md` and their one-line skill descriptions, which the assembler's NEXT rows and `_emit_skill` consume. Seam test: T07a's `tests/test_assemble_orch_retired.py` renders all three (consumer-owned).
+- **T07a/T07b → T08a → T08b → T09** — after T07a the assembler references neither `docs/orchestrator/_traycer-skills/` nor `ORCH_SOURCES`; T08a drops the audit path; T08b drops its tests; T09 deletes the tree. Seam: T09's gate asserts `! -e docs/orchestrator/_traycer-skills` and `ls ~/.claude/skills | grep -c '^fab-'` = 0.
 - **T09 → T14a, T14b, T14c** — the final tombstone paths `docs/orchestrator/_retired/<chain>/<name>.RETIRED.md`, which the reference sweep points every surviving link at.
 
 ## Behavior Contract
 
-- **Given** the manifest, **When** `worktreeinclude_text()` renders, **Then** it lists every `gitignore_dest_paths()` entry plus `.env` and `.mcp.json` and never `.claude/settings.local.json` (scripts/fabrik_synced_manifest.py:181)
-- **Given** `templates/governance/.worktreeinclude` differs from `worktreeinclude_text()`, **When** `tests/test_synced_manifest.py` runs, **Then** it fails naming the regeneration command (scripts/fabrik_synced_manifest.py:229)
+- **Given** the manifest, **When** `worktreeinclude_text()` renders, **Then** it lists every `gitignore_dest_paths()` entry plus `.env` and `.mcp.json`, and never `.claude/settings.local.json` (scripts/fabrik_synced_manifest.py:181)
+- **Given** `templates/governance/.worktreeinclude` differs from `worktreeinclude_text()`, **When** the test runs, **Then** it fails naming the regeneration command (scripts/fabrik_synced_manifest.py:229)
 - **Given** `gitignore_block_text()`, **When** rendered, **Then** it contains the line `.claude/worktrees/` (scripts/fabrik_synced_manifest.py:229)
 - **Given** a project directory, **When** the sync runs without `--dry-run`, **Then** `git -C <project> config rerere.enabled` prints `true` and `push.autoSetupRemote` prints `true`, and a second run changes nothing (scripts/sync_enforcement_to_projects.py:660)
 - **Given** a project with a linked worktree under `.claude/worktrees/`, **When** the sync lands, **Then** the manifest's gitignored set is re-copied into that worktree and the run prints the worktree count (scripts/sync_enforcement_to_projects.py:840)
+- **Given** a project with NO worktrees, **When** the sync runs, **Then** the loop performs no copy and the run's output is otherwise unchanged (scripts/sync_enforcement_to_projects.py:840)
 - **Given** the hub `.claude/settings.json`, **When** parsed, **Then** `worktree` equals exactly `{"baseRef": "head", "symlinkDirectories": [".venv"]}` and the `hooks`/`permissions` keys are byte-identical to before (scripts/fabrik_synced_manifest.py:131)
 - **Given** `CLAUDE_AGENT=alpha` and a charter at `docs/reference/agents/alpha.md`, **When** the hook runs, **Then** the charter is printed (.claude/hooks/agent_role.py:25)
 - **Given** `CLAUDE_AGENT=alpha` and no charter file, **When** the hook runs, **Then** it prints nothing and exits 0 (.claude/hooks/agent_role.py:26)
@@ -173,7 +180,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** an epic with `owner: delta`, **When** `--check --owners alpha,beta,gamma` runs, **Then** a finding names the epic and the exit code is 1 (scripts/epic_order.py:83)
 - **Given** an epic with no `owner` field, **When** `--check` runs without `--owners`, **Then** the result is unchanged from today (scripts/epic_order.py:160)
 - **Given** a repo with a dirty linked worktree at `.claude/worktrees/beta`, **When** `wip_backup.sh` runs, **Then** `refs/wip/wt-beta` exists and its tree contains the worktree's uncommitted change (scripts/wip_backup.sh:26)
-- **Given** the same repo with the worktree clean, **When** the script runs, **Then** no `refs/wip/wt-beta` is created and the main snapshot is byte-identical to a run without the worktree (scripts/wip_backup.sh:41)
+- **Given** the same repo with the worktree clean, **When** the script runs, **Then** no `refs/wip/wt-beta` is created and the main snapshot is byte-identical to a run without the worktree (scripts/wip_backup.sh:40)
 - **Given** a worktree whose directory was deleted without `git worktree prune`, **When** the script runs, **Then** it skips that entry, logs one line, and still snapshots the repo's main tree (scripts/wip_backup.sh:28)
 - **Given** a `refs/wip/wt-*` ref older than `KEEP_DAYS`, **When** the script runs, **Then** the ref is deleted by the same prune loop (scripts/wip_backup.sh:34)
 - **Given** `/fabrik-spec docs/development/epics/3-billing.md`, **When** Phase 0 runs, **Then** the Intake Inventory carries one row per Scope / Success Criteria / Metadata item, including named rows for `target_vps`, `Registrars`, Watchdog and the LLM gateway (commands/_sources/fabrik-spec.md:10)
@@ -188,9 +195,9 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** the same spine with the ticket touching `src/a/x.py`, **When** the check runs, **Then** no epic-containment finding is raised (scripts/enforcement/check_plan_tickets.py:1067)
 - **Given** a spine with no `Epic:` line, **When** the check runs, **Then** its output is byte-identical to today's (scripts/enforcement/check_plan_tickets.py:1067)
 - **Given** `FABRIK_PLAN_LOCK_DIR` pointing at a temp dir holding a stale `active` lock, **When** `check_plan_lock_release.py` runs, **Then** it reports the leaked lock; with the dir empty it reports PASS (scripts/enforcement/check_plan_lock_release.py:396)
-- **Given** a project without `docs/development/epics/`, **When** `final_gate.py --check --json` runs, **Then** the epic_order check appears as skipped, never as passed (scripts/final_gate.py:906)
-- **Given** a project WITH the dir and one integrity finding, **When** the gate runs, **Then** that check reports failure and the finding text reaches the JSON (scripts/final_gate.py:932)
-- **Given** the dir present and integrity clean, **When** the gate runs, **Then** the check passes and the run's overall status is unchanged (scripts/final_gate.py:906)
+- **Given** a project without `docs/development/epics/`, **When** `final_gate.py --check --json` runs, **Then** the epic_order check appears as skipped, never as passed (scripts/final_gate.py:772)
+- **Given** a project WITH the dir and one integrity finding, **When** the gate runs, **Then** that check reports failure and the finding text reaches the JSON (scripts/final_gate.py:929)
+- **Given** the dir present and integrity clean, **When** the gate runs, **Then** the check passes and the run's overall status is unchanged (scripts/final_gate.py:772)
 - **Given** a market-facing intake and no `docs/reference/rivals/<market>.md`, **When** `/fabrik-vision` reaches Path A discovery, **Then** it stops and names `/fabrik-rivals <market>` as the pre-step (commands/_sources/fabrik-rivals.md:2)
 - **Given** a dossier exists, **When** discovery runs, **Then** MATCH rows appear as Feature Inventory candidates and BEAT rows as Value-Stream problems, each citing the dossier row (docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md:193)
 - **Given** the rendered command, **When** `check_traycer_chain.py` scans the source, **Then** it reports 0 [A]/[B]/[C] findings (scripts/enforcement/check_traycer_chain.py:89)
@@ -203,11 +210,14 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** integrity FAIL, **When** Step 1.5 runs, **Then** `--assign` is never invoked and the command stops on the integrity findings (scripts/epic_order.py:83)
 - **Given** the review converges, **When** the close prints NEXT, **Then** it names `/fabrik-spec <epic file>` per window with the exact launch form per agent (docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md:141)
 - **Given** the source, **When** `check_traycer_chain.py` scans it, **Then** it reports 0 findings (scripts/enforcement/check_traycer_chain.py:89)
-- **Given** the three new sources exist, **When** `assemble_commands.py` renders to a temp dir, **Then** `fabrik-vision.md`, `fabrik-epics.md`, `fabrik-epics-review.md` and their `SKILL.md` wrappers are emitted with the run-record, close-feedback and NEXT fragments, and no `fab-*` wrapper is emitted (commands/assemble_commands.py:720)
+- **Given** the three new sources exist, **When** the assembler renders to a temp dir, **Then** `fabrik-vision.md`, `fabrik-epics.md` and `fabrik-epics-review.md` and their `SKILL.md` wrappers are emitted with the run-record, close-feedback and NEXT fragments, and no `fab-*` wrapper is emitted (commands/assemble_commands.py:720)
 - **Given** the assembler module, **When** imported, **Then** it exposes no `ORCH_SOURCES`, `TRAYCER_SKILLS`, `_render_orch_wrapper` or `_emit_orch_wrappers` name (commands/assemble_commands.py:101)
 - **Given** an installed `fab-mega-00-trigger/SKILL.md` carrying the generator banner, **When** the render runs against a temp skills dir seeded with it, **Then** the prune removes it (commands/assemble_commands.py:809)
-- **Given** the prompt "decompose this vision into epics", **When** `first_regex_match` runs, **Then** it returns `fabrik-epics`; "write the product vision for a multi-epic project" returns `fabrik-vision`; "assign the epics to the three windows" returns `fabrik-epics-review` (.claude/hooks/skill_router.py:671)
 - **Given** the NEXT map, **When** `_emit_skill` renders `fabrik-epics-review`, **Then** the skill description's NEXT names `/fabrik-spec docs/development/epics/<its epic>.md` per window (commands/assemble_commands.py:288)
+- **Given** the prompt "decompose this vision into epics", **When** `first_regex_match` runs, **Then** it returns `fabrik-epics` (.claude/hooks/skill_router.py:671)
+- **Given** "write the product vision for a multi-epic project", **When** it runs, **Then** it returns `fabrik-vision`, not `spec` (.claude/hooks/skill_router.py:256)
+- **Given** "assign the epics to the three windows", **When** it runs, **Then** it returns `fabrik-epics-review` (.claude/hooks/skill_router.py:671)
+- **Given** a prompt matching none of the three, **When** it runs, **Then** routing is unchanged from today (.claude/hooks/skill_router.py:671)
 - **Given** a hub tree with no `docs/orchestrator/_traycer-skills/` directory, **When** the check runs, **Then** it reports no wrapper-tree problem and audits the three new sources with the same predicates as every other source (scripts/enforcement/check_command_corpus.py — symbol `_orch_corpus` call site)
 - **Given** the module, **When** imported, **Then** it exposes no `_orch_corpus` or `TRAYCER_SKILLS` name (scripts/enforcement/check_command_corpus.py:91 — the `TRAYCER_SKILLS` binding, the one anchor the sibling's 355-line growth did NOT move; `_orch_corpus` is cited by symbol because it did)
 - **Given** the test module, **When** grepped for `_traycer-skills` or `_orch_corpus`, **Then** the count is 0 (tests/test_check_command_corpus.py:1)
@@ -229,7 +239,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** the moved files, **When** `git log --follow` is run on any of them, **Then** history is preserved through the rename (docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md:1)
 - **Given** the tree after the move, **When** `python3 scripts/enforcement/check_doc_links.py` runs, **Then** no link into the moved paths is reported broken from a non-archived, non-ledger doc (scripts/enforcement/check_traycer_chain.py:28)
 - **Given** the template, **When** its § Orient session-start block is read, **Then** it carries exactly one new line (d) naming the `--worktree` launch form, the never-edit-main rule, the quoted heredoc rule and the shared-DB caveat, and no other line changed (templates/governance/CLAUDE.md:45)
-- **Given** the hub `CLAUDE.md`, **When** grepped for `rollout wait`, **Then** the count is 0 and the availability rule names 2.1.224 and 2.1.248 (CLAUDE.md:173)
+- **Given** the hub `CLAUDE.md`, **When** grepped for `rollout wait`, **Then** the count is 0 and the availability rule names 2.1.224 and 2.1.248 (CLAUDE.md:178)
 - **Given** `40-documentation.md`, **When** grepped for `epic-to-ticket-workflow`, **Then** the count is 0 and the ticket-format pointer names `/fabrik-plan-after-chat` (.windsurf/rules/core/40-documentation.md:149)
 - **Given** the governance-sync trigger filter, **When** the commit lands, **Then** the post-commit sync distributes the template and the pack (the filter matches `^templates/governance/` and `^\.windsurf/rules/`) (scripts/enforcement/check_sync_trigger_coverage.py:142)
 - **Given** the four docs, **When** the gate's `git grep` runs with the stated exclusions, **Then** it lists 0 files (agents-fabrik.md:344)
@@ -345,27 +355,66 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 
 ## Coverage Checklist
 
-Armed by the rubric over the build surfaces (the invocation, fenced, is the gate's `RUBRIC_RUN` proof):
+Armed 2026-09-04 by running the rubric over this plan's own `## File Scope (owned paths)` (95 entries, the glob-matching set). Pasted output:
 
 ```
-$ python scripts/review_rubric.py --changed commands/_sources/fabrik-vision.md commands/_sources/fabrik-epics.md commands/_sources/fabrik-epics-review.md commands/_sources/fabrik-spec.md commands/_sources/fabrik-plan-after-chat.md commands/_sources/fabrik-execute-plan.md commands/assemble_commands.py scripts/enforcement/check_command_corpus.py scripts/enforcement/check_traycer_chain.py scripts/enforcement/check_plan_lock_release.py scripts/enforcement/check_plan_tickets.py scripts/epic_order.py scripts/fabrik_synced_manifest.py scripts/sync_enforcement_to_projects.py scripts/docs_updater.py scripts/wip_backup.sh .claude/hooks/agent_role.py .claude/hooks/skill_router.py templates/governance/CLAUDE.md docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md docs/reference/multi-agent-operating-model.md
+$ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
+# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
+# Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
+
 ## FLOOR — always injected, regardless of glob (spec L3)
-### core/35-security-auth.md … ### core/25-data-postgres.md … ### core/30-ops.md … ### 12-FACTOR (all twelve axes)
+### core/35-security-auth.md
+### core/25-data-postgres.md
+### core/30-ops.md
+### 12-FACTOR (all twelve axes)
 ## MATCHED — packs whose globs hit the changed paths
-### ai/50-agentic.md  (hit: docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md)
+### ai/50-agentic.md  (hit: docs/orchestrator/00-autonomous-factory-north-star.md, docs/orchestrator/_retired/epic-to-ticket-workflow/00-trigger-fabrik.RETIRED.md, docs/orchestrator/_retired/epic-to-ticket-workflow/01-decisions-lock-fabrik.RETIRED.md)
 ### core/10-python.md  (hit: .claude/hooks/agent_role.py, .claude/hooks/skill_router.py, commands/assemble_commands.py)
-### core/40-documentation.md  (hit: commands/_sources/fabrik-epics-review.md, commands/_sources/fabrik-epics.md, commands/_sources/fabrik-execute-plan.md, …)
+### core/40-documentation.md  (hit: .windsurf/rules/core/40-documentation.md, CLAUDE.md, agents-fabrik-core.md)
+### core/45-testing-strategy.md  (hit: tests/enforcement/test_final_gate_epic_order.py, tests/enforcement/test_plan_lock_release_dir.py, tests/enforcement/test_plan_tickets_epic_scope.py)
+[STRUCTURAL EXCERPT — the verbatim header + every section line of a 33069-byte output; the body of each pack's rules is elided for length. Regenerate in full with the command below.]
 ```
 
-| Class | Where it can bite this plan | Owner |
+The run surfaced a MATCHED pack the author's Constraints Digest never named — `core/45-testing-strategy.md`, matched by this plan's three new test files, whose rubric run predated the T05 split. Added as C15/C16. Every row below is adjudicated; the four standing recurrence classes are included whether or not the rubric named them.
+
+| Class (source) | Verdict | Evidence — what was hunted, and where |
 |---|---|---|
-| fail-open / fail-closed | T05a's epic containment must ERROR (not WARN) on an escaping path; `check_plan_lock_release.py` must not PASS forever on an empty new dir; T02's hook stays a silent no-op (fail-open BY DESIGN — fleet-safe, and the test asserts it) | T05a, T02 |
-| cost / limit edges | the R3 re-copy loop's fire rate across 47 repos; the 262144-byte read budget per ticket (T08's split); `_MAX_BYTES` charter cut unchanged in T02 | T01, T08a, T08b, T02 |
-| boundary / sentinel | `[a-z0-9-]{1,32}` exact bounds (32 accepted, 33 refused, uppercase refused); `--assign` round-robin across a phase boundary; the `Epic:` line absent vs present; `.claude/worktrees/` with and without the trailing slash | T02, T03, T05a, T01 |
-| behavior-without-a-test | every G/W/T row above names its test file; the prose-only tickets (T04a, T04b, T06a–c, T14a, T14b) are graded by `assemble_commands.py --check`, `check_traycer_chain.py` and the `git grep` denominators written into their gates | all |
-| shared-tree collision (added — Lesson 151) | T08b's test file carries sibling WIP today; every commit compares `show --stat` to the expected numstat before pushing | T08b, § Global Constraints |
-| moved anchors (added — measured this run) | a sibling grew `check_command_corpus.py` by 355 lines mid-plan; T08a cites symbols only | T08a, § Global Constraints |
-| render-from-worktree prune (added — CLAUDE.md:150) | T07 and T16 render only in the main checkout | T07, T16 |
+| `core/35-security-auth.md` (FLOOR) | CLEAN | No auth surface, no secret, no credential in any of the 26 tickets. The single env var the plan introduces, `FABRIK_PLAN_LOCK_DIR` (T05a), carries a default and is read-only test plumbing — C10's `os.getenv("KEY","default")` mandate. |
+| `core/25-data-postgres.md` (FLOOR) | CLEAN | Zero schema objects, migrations or queries in scope; re-derived by grepping all 26 tickets for `postgres`/`redis`/`migration`/`ALTER` → the only hits are the inherited § Global Constraints text, which no ticket steps. |
+| `core/30-ops.md` (FLOOR) | CLEAN | No compose file, service or container in scope (C11 recorded as read). The one system tool the plan shells out to is `git` (≥ 2.5 for worktrees), probed in every ticket's preflight — C12's "never relies on implicit existence of system-wide packages". |
+| 12-FACTOR, all twelve (FLOOR) | CLEAN | No ticket ships a service, so no axis is steppable; all twelve are still written verbatim into § Global Constraints so a ticket cannot quietly violate one. Swept axis by axis against every ticket's Scope. |
+| `ai/50-agentic.md` (MATCHED) | CLEAN | Model-selection only (C9). Confirms the N sessions are Claude Code subscription OAuth, so the model's cost is quota, not dollars — which is what makes N windows viable at all. |
+| `core/10-python.md` (MATCHED) | CLEAN | No `pyproject.toml`/`uv.lock` edit in any ticket (grepped); `uv` is the only package verb mentioned (C1), and C2 is the precondition that makes the `.venv` symlink safe. |
+| `core/40-documentation.md` (MATCHED) | CLEAN | Plan location and stem conform to C5; PLANS.md stays a Tier-0 `docs_updater.py` regen (C3, C4) rather than a hand table; every ticket carries a `Docs:` line naming its Doc-Sync rows. |
+| `core/45-testing-strategy.md` (MATCHED) | FIXED (1) | It was MISSING from the Constraints Digest — the author's rubric run predated the T05 split that introduced the three test files that match it. Added as C15/C16; then verified that every ticket's Behavior Contract IS the behaviour enumeration C15 demands, and that no split separated a test from its behaviour. |
+| fail-open vs fail-closed (standing) | FIXED (5) | **The most valuable class this pass.** Four retirement tickets (T10, T11, T12a, T12b) carried `… ; test "$(git ls-files <dir> \| wc -l)" = "0" \|\| true` — the trailing `\|\| true` makes the line exit 0 unconditionally. PROVEN vacuous by execution: run against today's tree, where the asserted condition is false, it exits 0; the replacement exits 1. Two of them also asserted a directory would be EMPTY when the plan leaves files in it by design (T10 moves 7 of 14; the mega dir keeps its schema + checklist forever). Fifth: T14a's first gate called `scripts/enforcement/check_governance_texts.py`, which does not exist, behind a `2>/dev/null \|\|` that would have swallowed the failure. All five rewritten to assertions that fail today and pass only after the ticket's work. |
+| cost / quota / limit edges (standing) | FIXED (3) | The per-ticket READ budget: T04 (293,629 B), T05 (267,161 B) and T08 (258,556 B, only 3.6 KB of headroom while a sibling actively grew both its files) were split before this review; re-measured after every edit this pass. Also recorded: the OpenRouter pool returned HTTP 402 on all 24 grounder units — $225.00 of $225.00 spent — so the breadth layer of this review was unavailable and the authoritative native pass carried it (§ Residual unknowns). |
+| boundary / sentinel / prefix collisions (standing) | CLEAN | T02's name bound is tested at exactly 32 (accept), 33 (refuse) and uppercase (refuse); T05a's containment is tested on the `Epic:`-present and `Epic:`-absent branches, the second asserting byte-identical output to today; T01a asserts the `.claude/worktrees/` line with its trailing slash; T03's round-robin is tested across a phase boundary. |
+| behavior-without-a-test (standing) | CLEAN | Walked all 26 tickets: every Behavior-Contract row's implied test file appears in that SAME ticket's Touches. The prose-only tickets (T04a, T04b, T06a–c, T14a, T14b) are graded instead by executable gates — `assemble_commands.py --check`, `check_traycer_chain.py`, `check_command_corpus.py` and `git grep` denominators — which is why they carry no test file. |
+| anchor rot (added — measured this pass) | FIXED (4) | Every `path:line` in all 26 tickets was resolved against the real repo and its actual line content compared to the claim. Four had rotted under sibling commits since the plan's grounding: `CLAUDE.md:150` → the render rule is at `:155` (`:150` now holds the D-035 mail contract); `CLAUDE.md:173` → the messaging clause is at `:178`; `final_gate.py:906,932` → the "NOT INSTALLED — skipped" precedent is at `:772` and `:929` (`:906` is a YAML check, `:932` is a bare `else:`); `wip_backup.sh:41` → the clean-tree skip is at `:40` (`:41` is blank). All corrected and re-verified. |
+| path shape (added — measured this pass) | FIXED (1) | T06b cited `EPIC-ARTIFACT-SCHEMA.md:16-21` as a bare filename, which does not resolve from the repo root; now `docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md:16-21`. Every other citation in the set was confirmed repo-root-relative by the same sweep. |
+| ticket breadth (advisory, adjudicated) | FIXED (2) | 16 of 24 tickets scored ≥ 5. Two split (T01 → T01a/T01b, T07 → T07a/T07b); 14 kept with a recorded reason — see § Breadth adjudication. |
+| shared-tree collision (added — Lesson 151) | CLEAN | T08b names its file as sibling-dirty and forbids stashing or committing their hunks; § Global Constraints carries the stat-comparison rule; this review's own commits are made from a verified index and checked with `git show --stat` before push. |
+| render-from-worktree prune (added — `CLAUDE.md:155`) | CLEAN | Only T07a and T16 render, both explicitly in the main master checkout, in the order render → `--check` → commit that the `command-corpus-check` pre-commit hook requires. |
+
+## Breadth adjudication (every flagged ticket, split or kept — required by the review contract)
+
+The check is a screen, not a verdict (its own footer: recall 2/3, precision 0.50, ρ = 0.45 at n = 14), so each flag was weighed, not obeyed.
+
+**What the splits actually did to the score, stated plainly:** re-running the check afterwards flags **18** tickets rather than 16 — splitting two tickets into four necessarily adds flagged rows. What improved is the PEAK: the worst score fell from 9 to 7, and the two tickets the check ranked most expensive (T01 at 9, T07 at 8) no longer exist. Since the model's own basis is rounds ≈ 1.0 × score for the WORST ticket, that is the number worth moving; a reader who sees only 16 → 18 would draw the opposite conclusion.
+
+| Ticket | Score | Verdict | Reason |
+|---|---:|---|---|
+| T01 | 9 | **SPLIT** → T01a / T01b | The suggested peel was right and the seam is real: the manifest DECLARES the artifacts (a pure function plus a tracked file, testable alone), the sync EMITS them into 46 repos (git config, a worktree re-copy loop, the settings key). Different failure modes, different blast radii, and each half has its own test. |
+| T07 | 8 | **SPLIT** → T07a / T07b | Two unrelated mechanisms sharing only a name: deleting the assembler's wrapper-render path, and adding three regex stems to a prompt router. The router half is fleet-synced and its test file is 56 KB; separating them also relieved the read set. |
+| T14a | 7 | KEEP | Three one-line prose edits to three governance files. The classes are genuinely coupled — one contract sentence, verified by one `git grep` gate — and splitting would spread a single review class across three tickets while tripling the fleet-sync events. |
+| T01b | 6 | KEEP | The emission half is one sync step with one idempotency property; its three behaviours (git config, the re-copy loop, the settings key) are proven by one test file against one dry-run. Splitting further would separate a loop from the config it runs beside. |
+| T02 | 6 | KEEP | One hook, one regex bound, one enum relaxation. The score comes from counting its charter/containment/silent-no-op behaviours, which are all the SAME invariant read three ways. |
+| T03 | 6 | KEEP | `--assign` and `--check --owners` are one CLI contract with one parser; the schema and checklist edits are the documentation OF that contract and would be untestable apart from it. |
+| T09 | 6 | KEEP | A single retirement act with one ordering constraint. Splitting deletion from re-pointing `check_traycer_chain.py`'s DIRS would leave the tree in a state where that check scans paths that no longer exist. |
+| T14b | 6 | KEEP | One sweep with one denominator (`git grep` → 0 files outside the excluded set); the four docs are the sweep's targets, not independent risks. |
+| T15 | 6 | KEEP | The PLANS.md regenerator and the reference doc are producer and reader of the same Owner column; the doc's content is verified against what the generator emits. |
+| T01a · T04a · T04b · T05a · T05b · T06a · T06b · T06c · T07a · T07b · T13 | 5 | KEEP (each) | All eight sit exactly at the threshold where the check's measured precision is ~0.50. Each is already one file (or one file plus its test), one mechanism, and one review class; T04, T05 and T08 were ALREADY split once on the harder read-budget constraint, so a second split would trade a real cost (more merge points, more dispatch overhead) for a screen this uncertain. |
 
 ## Evidence
 
@@ -381,7 +430,7 @@ Every ticket's primary path was opened on 2026-09-03 and the moved ones re-deriv
 - `.claude/hooks/agent_role.py:20` `_ROLES = ("infra", "fleet", "intel")`, `:25-28` the gate, `:32` the realpath containment; `.claude/hooks/skill_router.py:256` `KEYWORD_STEMS` (30 tuples; `grep -c '\bfab-'` → 0), `:671` the first-match loop.
 - `scripts/fabrik_synced_manifest.py:131` `.claude/settings.json` inside `AGENT_HOOK_FILES`, `:181` `gitignore_dest_paths`, `:229` `gitignore_block_text`; `scripts/sync_enforcement_to_projects.py:660-700` the `.gitignore` patch site, `:852` `exclude_folders`; `src/fabrik/scaffold.py:539-556` (the block comes from the manifest), `:1216-1231` (the `.claude/` copy already excludes `worktrees`).
 - `scripts/docs_updater.py:876` `generate_plans_table` (no live caller), `:915` `sync_plans_index` ("Skipped (Traycer-managed)"), `:920` `validate_plans_indexed`, `:640` `PLANS_BLOCK_RE`, `:1240` the STRUCTURE regen; `scripts/wip_backup.sh:26` `for repo in "$ROOT"/*/`, `:28` the `-e` tolerance, `:46-56` the isolated-index recipe.
-- `templates/governance/CLAUDE.md:45-48` the session-start block (a)–(c); `CLAUDE.md:173` the rollout-wait clause; `.windsurf/rules/core/40-documentation.md:149` the ettw-06 pointer; `src/fabrik/cli.py:1882-1887` the stale hint; `agents-fabrik.md:344`; `docs/reference/command-corpus-check.md:55,67,80`.
+- `templates/governance/CLAUDE.md:45-48` the session-start block (a)–(c); `CLAUDE.md:178` the rollout-wait clause; `.windsurf/rules/core/40-documentation.md:149` the ettw-06 pointer; `src/fabrik/cli.py:1882-1887` the stale hint; `agents-fabrik.md:344`; `docs/reference/command-corpus-check.md:55,67,80`.
 - `docs/orchestrator/mega-epic-breakdown/02-epic-decomposition-fabrik.md:77,153,155`; `03-expand-epic-files-fabrik.md:224-227`; `00-trigger-mega-epic-fabrik.md:193-199`; `04-cross-epic-validation-fabrik.md:89,141`; `EPIC-ARTIFACT-SCHEMA.md:16-21,32-34`; the mega checklist `:93,137,138,153`; `docs/orchestrator/mega-epic-breakdown/_retired/05-dispatch-epic-tickets-fabrik.RETIRED.md` (the tombstone pattern).
 
 ```
@@ -394,12 +443,15 @@ $ wc -c docs/orchestrator/mega-epic-breakdown/0*.md commands/assemble_commands.p
    89266 scripts/enforcement/check_command_corpus.py
   169290 tests/test_check_command_corpus.py
   278667 src/fabrik/scaffold.py
-$ for pat in epic-to-ticket-workflow _traycer-skills traycer-command-wiring traycer_mirror fab-mega-0 fab-ettw-; do printf '%-26s files: %s\n' "$pat" "$(git grep -l "$pat" -- ':!docs/orchestrator/epic-to-ticket-workflow/' ':!docs/orchestrator/_traycer-skills/' ':!docs/DECISIONS.md' ':!CHANGELOG.md' ':!docs/LESSONS_LEARNT.md' ':!docs/development/reviews/' ':!docs/superpowers/' ':!docs/archive/' | wc -l)"; done
-epic-to-ticket-workflow    files: 34
+$ # re-derived at review pass 2 with T14b's EXACT exclusion set — the authoring run omitted
+$ # ':!docs/development/plans/', so it counted archived plans, and once this plan set existed its own
+$ # 26 tickets would have inflated the same number. The denominator and the gate must be one query.
+$ for pat in epic-to-ticket-workflow _traycer-skills traycer-command-wiring traycer_mirror fab-mega-0 fab-ettw-; do printf '%-26s files: %s\n' "$pat" "$(git grep -l "$pat" -- ':!docs/orchestrator/epic-to-ticket-workflow/' ':!docs/orchestrator/_traycer-skills/' ':!docs/DECISIONS.md' ':!CHANGELOG.md' ':!docs/LESSONS_LEARNT.md' ':!docs/development/reviews/' ':!docs/superpowers/' ':!docs/archive/' ':!docs/development/plans/' | wc -l)"; done
+epic-to-ticket-workflow    files: 28
 _traycer-skills            files: 8
-traycer-command-wiring     files: 3
+traycer-command-wiring     files: 2
 traycer_mirror             files: 10
-fab-mega-0                 files: 9
+fab-mega-0                 files: 8
 fab-ettw-                  files: 6
 $ ls -l ~/.claude/skills | grep -c 'fab-'; ls docs/orchestrator/_traycer-skills/ | wc -l
 17
@@ -413,17 +465,17 @@ External research: INHERITED from the spec — every URL fetched 2026-09-03 (wor
 
 ## Self-audit
 
-- **(a) Coverage of "What we already agreed":** isolation + adoption artifacts → T01; identity → T02; assignment → T03 + T06c; the per-epic corpus chain (d) → T04a, (e) + live locks → T04b + T05a + T05b; the three assembled commands (c) + rivals placement (g) → T06a, T06b, T06c, T07; retire ettw (a) → T10, T11 (+ T07 for its wrapper entries); retire Traycer (b) → T09 (+ T08a, T08b); the mega docs moved → T12a, T12b; ownership surfaces → T15 (+ T04, which writes the `Owner:`/`Status:` lines at creation); the wip-net R2 → T13; every landing site (template line (d), hub `:173`, `40-documentation`, `agents-fabrik`, the north-star, the corpus-check doc, the CLI hint, hooks-index, the reference doc) → T14a, T14b, T14c, T02, T15. The tail, the merge protocol and the epic range are DOCUMENTED (T15's reference doc) and need no build — the corpus already carries those commands. Gap check: mega checklist rows 48/77/78/84a → T03; `check_traycer_chain.py` DIRS → T09; `check_plan_lock_release.py:396` → T05a; the 17 skill symlinks → T07's render, verified in T09 and T16. No agreement is left without a ticket.
+- **(a) Coverage of "What we already agreed":** isolation + adoption artifacts → T01a (declaration) + T01b (emission); identity → T02; assignment → T03 + T06c; the per-epic corpus chain (d) → T04a, (e) + live locks → T04b + T05a + T05b; the three assembled commands (c) + rivals placement (g) → T06a, T06b, T06c, T07a, T07b; retire ettw (a) → T10, T11 (+ T07 for its wrapper entries); retire Traycer (b) → T09 (+ T08a, T08b); the mega docs moved → T12a, T12b; ownership surfaces → T15 (+ T04, which writes the `Owner:`/`Status:` lines at creation); the wip-net R2 → T13; every landing site (template line (d), hub `:173`, `40-documentation`, `agents-fabrik`, the north-star, the corpus-check doc, the CLI hint, hooks-index, the reference doc) → T14a, T14b, T14c, T02, T15. The tail, the merge protocol and the epic range are DOCUMENTED (T15's reference doc) and need no build — the corpus already carries those commands. Gap check: mega checklist rows 48/77/78/84a → T03; `check_traycer_chain.py` DIRS → T09; `check_plan_lock_release.py:396` → T05a; the 17 skill symlinks → T07a's render, verified in T09 and T16. No agreement is left without a ticket.
 - **(b) Cross-ticket signature consistency:** `--assign <a,b,c>` and `--check --owners <a,b,c>` are spelled identically in T03, T06c and § Interfaces; the `Epic:` header line and `FABRIK_PLAN_LOCK_DIR` identically in T04b, T05a and § Interfaces; the settings JSON identically in T01, T14a's line, T15's doc and T16's probe; the three source file names identically in T06a–c, T07, T09's DIRS and T14b; the tombstone root `docs/orchestrator/_retired/<chain>/<name>.RETIRED.md` identically in T09, T10, T11, T12a, T12b — ONE root, a plan-time decision (the spec said `_retired/` under `docs/orchestrator/`, the live pattern was a dir inside `mega-epic-breakdown/`; T12b moves the existing 05 tombstone so one root holds them all; reversible).
-- **Sizing (mechanical + authorial) — three author-splits, all forced by measurement:** `READ_BUDGET_BYTES` = 262144. The four mega docs total 259,804 bytes, so they can never share a ticket with a Context File: they move in two tickets (T12a 181 KB, T12b 78 KB) and are Context Files — not Touches — for the source-writing tickets, each under budget (T06a 166 KB + spec, T06b 119 KB + spec, T06c 48 KB + spec). **T04 and T05 were also SPLIT during this run, by the emit gate's own measurement** (T04 read 293,629 bytes, T05 267,161): T04a takes the `/fabrik-spec` intake, T04b the plan/execute lock edits; T05a takes the two enforcement checks, T05b the `final_gate.py` registration (that file alone is 123 KB). T07 holds the assembler (68 KB) + router (46 KB) + router test (56 KB) ≈ 172 KB. **T08 was SPLIT during this run:** check (89 KB) + its test (169 KB) = 258,556 bytes, 3.6 KB under the budget while a sibling was actively adding to both — T08a takes the check, T08b the test, serialized by Depends. `src/fabrik/scaffold.py` (278 KB) is outside every ticket because the manifest already feeds it.
+- **Sizing (mechanical + authorial) — three author-splits, all forced by measurement:** `READ_BUDGET_BYTES` = 262144. The four mega docs total 259,804 bytes, so they can never share a ticket with a Context File: they move in two tickets (T12a 181 KB, T12b 78 KB) and are Context Files — not Touches — for the source-writing tickets, each under budget (T06a 166 KB + spec, T06b 119 KB + spec, T06c 48 KB + spec). **T04 and T05 were also SPLIT during this run, by the emit gate's own measurement** (T04 read 293,629 bytes, T05 267,161): T04a takes the `/fabrik-spec` intake, T04b the plan/execute lock edits; T05a takes the two enforcement checks, T05b the `final_gate.py` registration (that file alone is 123 KB). T07 was split by the breadth adjudication, which also relieved its read set: T07a holds the assembler (68 KB), T07b the router (46 KB) + its test (56 KB). **T08 was SPLIT during this run:** check (89 KB) + its test (169 KB) = 258,556 bytes, 3.6 KB under the budget while a sibling was actively adding to both — T08a takes the check, T08b the test, serialized by Depends. `src/fabrik/scaffold.py` (278 KB) is outside every ticket because the manifest already feeds it.
 - **Isolation simulation (authorial, authoritative):** every ticket names its files, its anchors, the exact CLI and field strings, and its watched-red test; the two prose-only classes (the three sources, the governance lines) carry `git grep` denominators plus the chain and assembler checks as gates. A cold agent can code any one of them from the ticket and its Context Files. The single judgment call left is T06a–c's editorial rewriting, whose target sentences are quoted with their line numbers.
 - **Grounding passes run:** the rule census + rubric (2026-09-03), repo grounding of every `path:line` in § Evidence (bash + `git grep`, this session), sizing by `wc -c`, the reference-sweep denominators, the manifest and settings probes, and a re-derivation of every anchor on 2026-09-04 after a sibling's three commits landed (one file moved; T08a re-anchored to symbols and split). Fixed point NOT claimed — `/fabrik-plan-review` runs next.
 
 ## Residual unknowns
 
 - **Resolved by ticket:** R2 (the wip-net does not walk linked worktrees) → T13 fixes it; R4 (merging from inside a worktree) → impossible by design, the merge owner lives in the main checkout; R5 (`.venv`) → symlink under C2, with `uv sync --all-extras` (101 s) as the documented fallback.
-- **Open, self-service, each with a probe and a default:** R1 — does `.worktreeinclude` apply on `EnterWorktree` as well as `--worktree`? → T01's probe step; default: the contract line names `--worktree` as the only launch form, which it already does. R3 — the mid-epic re-copy loop's fire rate and cost across 47 repos → measured on T01's first fleet run; default: keep it if it costs ≈0 when no worktree exists. R6 — do nested subagent worktrees work inside an isolated session, and does the merge into the current branch pass the isolation enforcement? → T04's probe step; default: subagents dispatch on branches inside the agent's worktree instead of nested worktrees.
+- **Open, self-service, each with a probe and a default:** R1 — does `.worktreeinclude` apply on `EnterWorktree` as well as `--worktree`? → T01b's probe step; default: the contract line names `--worktree` as the only launch form, which it already does. R3 — the mid-epic re-copy loop's fire rate and cost across 47 repos → measured on T01b's first fleet run; default: keep it if it costs ≈0 when no worktree exists. R6 — do nested subagent worktrees work inside an isolated session, and does the merge into the current branch pass the isolation enforcement? → T04's probe step; default: subagents dispatch on branches inside the agent's worktree instead of nested worktrees.
 - **Open, operator-visible, deliberately no ticket:** `docs/orchestrator/orchestrator-cockpit-*.md` and the north-star's cockpit sections describe a layer that was never built (audit R8). This plan rewrites the north-star's chain references (T14b) and files the cockpit docs as a STRATEGIC_BACKLOG row via T16's Deltas; retiring them is a separate decision.
 - **To be recorded at the CONVERGED flip** by `/fabrik-plan-review`: the emit gate's per-ticket read-set bytes and a zero-WARN run.
-- **OPEN for `/fabrik-plan-review` to adjudicate — TICKET BREADTH, measured, not guessed.** The Tier-2 breadth check scores **16 of the 24 tickets at ≥ 5 independent risk classes**: T01 = 9, T07 = 8, T14a = 7, then T02/T03/T09/T14b/T15 = 6 and T04a/T04b/T05a/T05b/T06a/T06b/T06c/T13 = 5 (the full distribution — the gate's JSON truncates this list at two entries with 55 lines omitted, so it was re-run directly). Its cost model is this repo's own review ledgers: 4.2 rounds per plan (n = 14/22, max 16) and per-ticket rounds ≈ 1.0 × score, which predicts ~4–14 review rounds for T01 alone. Its recommendation for T01 is to peel `templates/` and `.claude/` off `scripts/` (tests moving with their behaviour) and to hold tickets to ≤ 2 Behavior-Contract rows. This plan does NOT pre-empt that: the three splits already made (T04, T05, T08) were forced by the mechanical read budget, which is a hard gate, while breadth is advisory and trades ticket count against review rounds — a judgment the convergence pass owns with the same numbers in hand. The author's position, for the reviewer to accept or overturn: T01's three areas are ONE adoption artifact set emitted by ONE sync step and split poorly (each half would be untestable alone), whereas T07's assembler/router split is genuine and probably worth taking.
+- **OPEN for `/fabrik-plan-review` to adjudicate — TICKET BREADTH, measured, not guessed.** The Tier-2 breadth check scores **16 of the 24 tickets at ≥ 5 independent risk classes**: T01 = 9, T07 = 8, T14a = 7, then T02/T03/T09/T14b/T15 = 6 and T04a/T04b/T05a/T05b/T06a/T06b/T06c/T13 = 5 (the full distribution — the gate's JSON truncates this list at two entries with 55 lines omitted, so it was re-run directly). Its cost model is this repo's own review ledgers: 4.2 rounds per plan (n = 14/22, max 16) and per-ticket rounds ≈ 1.0 × score, which predicts ~4–14 review rounds for T01 alone. Its recommendation for T01 is to peel `templates/` and `.claude/` off `scripts/` (tests moving with their behaviour) and to hold tickets to ≤ 2 Behavior-Contract rows. This plan does NOT pre-empt that: the splits made before this review (T04, T05, T08) were forced by the mechanical read budget, which is a hard gate, while breadth is advisory and trades ticket count against review rounds — a judgment the convergence pass owns with the same numbers in hand. The author's position, for the reviewer to accept or overturn: T01's three areas are ONE adoption artifact set emitted by ONE sync step and split poorly (each half would be untestable alone), whereas T07's assembler/router split is genuine and probably worth taking.
 - No BLOCKING unknown remains.

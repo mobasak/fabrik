@@ -3,7 +3,7 @@
 ## Scope
 `scripts/enforcement/check_command_corpus.py`: delete `TRAYCER_SKILLS`, `_orch_corpus()` and its call site with the `elif assembler.exists()` "wrapper tree missing in the hub" problem — cited BY SYMBOL, never by line: a sibling grew this file by 355 lines between this plan's grounding and its commit (`_orch_corpus` moved 791 → 895, its call 912 → 1016), so `grep -n 'def _orch_corpus'` is the anchor. With the wrapper path gone, a hub without `docs/orchestrator/_traycer-skills/` is the normal state, not a defect; the three new sources are audited by the existing per-source predicates (run-record close sites, close-feedback, NEXT) with no special case. SPLIT NOTE: this ticket was T08 until the read budget forced the split — check + test together were 258,556 bytes against `READ_BUDGET_BYTES` 262144 while a sibling is actively growing both (rounds 63–64). The test edit is T08b, serialized behind this one. DO-NOT: touch `tests/test_check_command_corpus.py` (T08b); touch the assembler (T07) or delete the wrapper tree (T09).
 
-Depends: T07
+Depends: T07a, T07b
 Parallel: ⛓️
 Complexity: never-route
 Gate: python3 scripts/enforcement/check_command_corpus.py

@@ -1,0 +1,25 @@
+# T07a — assembler: render the three sources, delete the orchestrator-wrapper path
+
+## Scope
+`commands/assemble_commands.py`: delete `ORCH_SOURCES` (`:101`, 17 entries), `TRAYCER_SKILLS` (`:198`), `_orch_phase_count`, `_render_orch_wrapper` (`:230`), `_emit_orch_wrappers`, the `_emit_orch_wrappers(...)` call and the `keep = source_names | set(ORCH_SOURCES)` union in `render()` (`:720`, the union comment at `:809`), and the three `_traycer-skills` loops in `check()`. Add `NEXT` rows (`:49`) for `fabrik-vision` ("/fabrik-epics — decompose the confirmed Vision into typed epic files"), `fabrik-epics` ("/fabrik-epics-review — prove integrity, assign owners, re-cut shared owned_paths") and `fabrik-epics-review` ("per window: /fabrik-spec docs/development/epics/<its epic>.md — the corpus chain to /fabrik-execute-plan; agent-1 in the main checkout, agents 2..N via `claude --worktree <name> -n <name>-<repo>`"); `fabrik-rivals`' NEXT gains "… or /fabrik-vision when the work is multi-epic". The render is MERGE-TIME (`CLAUDE.md:155`): in the main master checkout the order is render → `--check` → commit, because the `command-corpus-check` pre-commit hook refuses sources ahead of the installed corpus. The prune deletes the 17 installed `fab-*` skills and their `~/.claude/skills` symlinks once the names leave the keep-set — a render side effect, never a Touches entry. SPLIT NOTE: was T07 until the breadth check scored it 8 (assembler + router, code+governance mix); the router half is T07b. DO-NOT: touch `.claude/hooks/skill_router.py` (T07b); touch `check_command_corpus.py` (T08a) or delete the wrapper tree (T09).
+
+Depends: T06a, T06b, T06c
+Parallel: ⛓️
+Complexity: native
+Gate: python -m pytest tests/test_assemble_orch_retired.py -q
+Gate: python3 commands/assemble_commands.py --check
+Docs: CHANGELOG.md · INDEX.md — orchestrator-applied; the render itself is the merge-time step
+
+## Touches
+- commands/assemble_commands.py — PRIMARY PATH
+- tests/test_assemble_orch_retired.py
+
+## Behavior Contract
+- **Given** the three new sources exist, **When** the assembler renders to a temp dir, **Then** `fabrik-vision.md`, `fabrik-epics.md` and `fabrik-epics-review.md` and their `SKILL.md` wrappers are emitted with the run-record, close-feedback and NEXT fragments, and no `fab-*` wrapper is emitted (commands/assemble_commands.py:720)
+- **Given** the assembler module, **When** imported, **Then** it exposes no `ORCH_SOURCES`, `TRAYCER_SKILLS`, `_render_orch_wrapper` or `_emit_orch_wrappers` name (commands/assemble_commands.py:101)
+- **Given** an installed `fab-mega-00-trigger/SKILL.md` carrying the generator banner, **When** the render runs against a temp skills dir seeded with it, **Then** the prune removes it (commands/assemble_commands.py:809)
+- **Given** the NEXT map, **When** `_emit_skill` renders `fabrik-epics-review`, **Then** the skill description's NEXT names `/fabrik-spec docs/development/epics/<its epic>.md` per window (commands/assemble_commands.py:288)
+
+## Context Files
+- docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md
+- .windsurf/rules/core/10-python.md

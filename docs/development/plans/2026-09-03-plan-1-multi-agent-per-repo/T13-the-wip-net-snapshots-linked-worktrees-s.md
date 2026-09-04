@@ -15,7 +15,7 @@ Docs: docs/workstation/hooks-index.md is NOT touched (T02 owns it); the wip-net'
 
 ## Behavior Contract
 - **Given** a repo with a dirty linked worktree at `.claude/worktrees/beta`, **When** `wip_backup.sh` runs, **Then** `refs/wip/wt-beta` exists and its tree contains the worktree's uncommitted change (scripts/wip_backup.sh:26)
-- **Given** the same repo with the worktree clean, **When** the script runs, **Then** no `refs/wip/wt-beta` is created and the main snapshot is byte-identical to a run without the worktree (scripts/wip_backup.sh:41)
+- **Given** the same repo with the worktree clean, **When** the script runs, **Then** no `refs/wip/wt-beta` is created and the main snapshot is byte-identical to a run without the worktree (scripts/wip_backup.sh:40)
 - **Given** a worktree whose directory was deleted without `git worktree prune`, **When** the script runs, **Then** it skips that entry, logs one line, and still snapshots the repo's main tree (scripts/wip_backup.sh:28)
 - **Given** a `refs/wip/wt-*` ref older than `KEEP_DAYS`, **When** the script runs, **Then** the ref is deleted by the same prune loop (scripts/wip_backup.sh:34)
 

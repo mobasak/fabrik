@@ -3,7 +3,7 @@
 ## Scope
 Delete `docs/orchestrator/_traycer-skills/` (17 tracked wrappers, 67 KB — generated artifacts, tombstoned by nothing: the assembler that made them is gone at T07) and `scripts/traycer_mirror.py` (a no-op without `TRAYCER_EPIC_ID`, `scripts/traycer_mirror.py:86`; callers: the mega docs only, which T06b already dropped). Move `docs/orchestrator/traycer-command-wiring.md` and the two Traycer workflow docs `docs/traycer/traycer-agile-workflow.md`, `docs/traycer/traycer-refactoring-workflow.md` to `docs/orchestrator/_retired/traycer/<name>.RETIRED.md` — the tombstone pattern mega 05 set (`docs/orchestrator/mega-epic-breakdown/_retired/05-dispatch-epic-tickets-fabrik.RETIRED.md`; that file MOVES to the new single `docs/orchestrator/_retired/` root in T12b so every tombstone lives in one place). KEEP `docs/traycer/README.md`, `kilo_selected_agents.md` (8 live references from rules packs), `fabrik-workflow.md` (6) and `PLAN_OUTPUT_LOCATION.md` — referenced by the rules packs, not Traycer-specific. `scripts/enforcement/check_traycer_chain.py`: `DIRS` (`:28-33`) → the three sources (`commands/_sources/fabrik-vision.md`, `fabrik-epics.md`, `fabrik-epics-review.md`) as explicit files — its glob at `:89` becomes a file list — so the [A]/[B]/[C] detectors keep running over the moved text; the `docs/traycer/*` twin roots (non-existent since 2026-07-17) are dropped. The `~/.claude/skills/fab-*` symlinks (17) disappear with T07's render (the prune) — verify here, never a Touches entry. DO-NOT: touch the mega or ettw docs (T10–T12).
 
-Depends: T07, T08a, T08b
+Depends: T07a, T07b, T08a, T08b
 Parallel: ⛓️
 Complexity: never-route
 Gate: python3 scripts/enforcement/check_traycer_chain.py

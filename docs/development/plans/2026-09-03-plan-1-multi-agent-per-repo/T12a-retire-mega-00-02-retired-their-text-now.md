@@ -3,10 +3,11 @@
 ## Scope
 Pure `git mv` of 2 canonical docs into the single tombstone root `docs/orchestrator/_retired/` (per-file destination paths, `.RETIRED.md` suffix — the pattern mega 05 set), each gaining a two-line tombstone header naming the corpus twin that replaced it (spec § Chain consolidation (a)/(c)). No content rewrite. Both halves of a `git mv` go in the commit pathspec (CLAUDE.md § Shared repo) and `git diff --cached --numstat` must show only renames.  DO-NOT: edit the text beyond the header; touch the assembler, the checks or the sources.
 
-Depends: T06a, T06b, T07
+Depends: T06a, T06b, T07a, T07b
 Parallel: ⛓️
 Complexity: simple
-Gate: git diff --cached --numstat | grep -vc '^0\t0\|=>' ; test "$(git ls-files docs/orchestrator/mega-epic-breakdown | wc -l)" = "0" || true
+Gate: test "$(git ls-files 'docs/orchestrator/mega-epic-breakdown/*-fabrik.md' | wc -l)" = 2 && test "$(git ls-files docs/orchestrator/_retired/mega-epic-breakdown | wc -l)" = 2
+Gate: test -z "$(git diff --cached -M --numstat | awk '$2 > 0')"   # every staged change is a rename (+header only), zero deletions
 Gate: python3 scripts/enforcement/check_doc_links.py
 Docs: INDEX.md (moved files) · docs/README.md · CHANGELOG.md — orchestrator-applied
 
