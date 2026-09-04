@@ -1135,12 +1135,15 @@ def _oauth_get(
 
     ⚠️ ``attempts`` is PER HOST. The worst case is ``len(_OAUTH_HOSTS) * attempts`` calls, so the
     8s default bounds ONE CALL at ~32.6s (2 hosts × (8 + 0.3 + 8)), not ~16s. That is NOT inside
-    the caller's budget on its own: ``_account_status`` makes TWO sequential calls per account
-    (``profile`` then ``usage``, no freshness gate) and ``_collect_statuses`` loops every account,
-    so ``--status --json`` — run by ``quota_dashboard.py`` under a 60s ``subprocess`` cap — can
-    reach ~65s for one degraded account and ~195s for three. A previous edit claimed "~32s, inside
-    the 60s cap" here without deriving the caller's call count (review 2026-09-05, closing pass);
-    the budget mismatch is a backlog row, not a docstring fix."""
+    the caller's budget on its own. ``--status --json`` — run by ``quota_dashboard.py`` under a
+    60s ``subprocess`` cap — takes the FLEET path whenever fleet dirs exist (this box: yes), and
+    ``_fleet_account_rows`` makes an unconditional ``usage`` call plus an hourly ``profile`` call
+    per FRESH account: the ``_FLEET_TOKEN_FRESH_S`` gate only skips STALE tokens, so two sequential
+    calls on ONE fresh account with one degraded host is ~65s — over the cap by itself; the legacy
+    ``_account_status``/``_collect_statuses`` path has the same shape across every account. Two
+    earlier edits of this paragraph got it wrong in opposite directions ("~32s, inside the cap";
+    then "the fleet path is gated") — both un-derived from the call graph (review 2026-09-05,
+    passes 3-4). The budget mismatch is a backlog row, not a docstring fix."""
     import urllib.error
     import urllib.request
 

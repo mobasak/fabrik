@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 4 of the review: my pass-3 risk analysis named the wrong call site, and a fenced value was a false failure (2026-09-05)
+
+Fresh finders over the pass-3 fixes. The rotation budget row and docstring I wrote in pass 3 attributed the ~65s/~195s worst case to the legacy `_account_status` path and called the fleet path "gated" — on this box `--status --json` takes the FLEET path, whose `_FLEET_TOKEN_FRESH_S` gate only skips STALE tokens; a fresh account still makes `usage` + an hourly `profile` call, so one degraded host on one fresh account is over the 60s cap by itself, and the 2026-08-22 incident entry describes exactly that path. Both twins, the backlog row and the candidate fix (a wall-clock budget on `_fleet_account_rows`, not a freshness gate) now say so; `docs/workstation/claude-account-rotation.md` still carried the original "sized so two attempts stay inside a caller's budget" sentence and is corrected. `check_convergence.py` deleted fences before reading the `GATE-SCOPE` declaration, so an honest `measured by:` value written as a triple-backtick span was a fail-closed false failure — fences are now replaced by a token (a fenced grammar QUOTE still collapses to nothing; a fenced VALUE still counts), graded in its own repo because the sibling test's deliberately-failing fixtures stay staged in theirs. `20-vision.md` no longer carries a copied count from the reach map. Every pool candidate this pass was a re-raise of an adjudicated row.
+
+### Fixed — the ten unbounded containers on vps1 now carry memory ceilings, and the applier that should have prevented them turned out to already exist (2026-09-05)
+
+Part A of the converged memory-limits design (D-119/D-122), on the operator's explicit authorisation to write to
+live production. Ten containers on vps1 — `traefik`, `redis-main`, `loki`, `grafana`, `alertmanager`, `promtail`,
+`cadvisor`, and the three exporters — were running with `HostConfig.Memory == 0`, some since 2026-07-08, because
+`deployer_ssh._validate_compose()` only sees containers that pass through `fabrik apply` and the hand-composed
+monitoring stack never does. All ten are now bounded **in place**: `0 of 32 unbounded`, verified against the kernel's
+own cgroup files, `oom_kill 0` on every one, and a 32-row before/after snapshot of (name, container id, StartedAt,
+status) that diffed IDENTICAL — nothing recreated, nothing restarted, host uptime unbroken at 58 days. The mechanism
+was re-proven on vps1's own Docker 29.0.2 with a scratch container before anything live was touched, because the
+existing local proof was made on 29.1.3 and a proof executed on one host is evidence about that host.
+
+The finding that changed the work: the spec planned to BUILD an applier, but `scripts/vps_apply_limits.sh` already
+existed and already named all ten containers — it had simply not been run since 2026-05-30. Re-running it unmodified
+would have done real damage: it would have FAILED on `promtail` (target 128m against a 134.4 MiB working set, and
+`docker update` refuses a decrease below current usage), SILENTLY LOWERED `prometheus` from a live 1.5 GiB ceiling to
+1g and its CPU allowance from 2.0 to 1.0, and mutated container networking on the `coolify` network — renamed to
+`fabrik` on 2026-05-31, one day after that script was last touched. A stale enforcer reads as coverage and is worse
+than none, so it was rewritten rather than duplicated: never lowers a live ceiling, dry-run by default, memory-only,
+and idempotent under the measured SSH intermittency. `--memory-swap` is set equal to `--memory` throughout; left
+unset, the total memory+swap allowance silently becomes twice the ceiling. Recurrence is caught by
+`container_no_memory_limit` in `proactive-check.sh` (every 15 min, `docker ps -aq` so a stopped-but-defined container
+still counts) — fire rate measured before shipping: 10/32 before, 0/32 after. 11 tests on a fake-docker harness,
+red-on-revert proven: 9 of 11 fail against the old script.
+
 ### Fixed — the closing pass found two regressions in the pass-2 fixes, and a safety claim I had written un-derived (2026-09-05)
 
 `/fabrik-review` pass 3 (fresh non-author finders, re-derivation method). `check_convergence.py`'s `measured by:\s*\S` matched across newlines, so a dangling `measured by:` label with any later non-space text PASSED — the exact "unproven declaration" the pass-2 fix existed to refuse; now same-line (`[^\S\n]*\S`), graded. `check_plan_tickets.py`'s wrong-cwd NOTE compared the raw `--project-root` to `Path.cwd()`, so `--project-root .` silenced it while resolving to the same tree; now compares resolved roots, graded through the real CLI three ways. `_oauth_get`'s docstring — the sentence I added earlier today — claimed "~32s, inside the caller's 60s cap" for ONE call, while `_account_status` makes two calls per account and `_collect_statuses` loops three accounts (~195s worst case vs `quota_dashboard.py`'s 60s subprocess timeout): the claim is corrected in both twins and the budget mismatch is a STRATEGIC_BACKLOG row, since a freshness gate on a synced rotation surface is plan work. Also: the BIN-routing line now applies only when both rails run; `20-vision.md` no longer copies the reach map's live list (the drift its own warning names); one catalogue-split sentence gained its mail id. The masker itself survived 20+ probes and 5 real `bash -c` cross-checks with no bypass.

@@ -263,8 +263,10 @@ identity `profile` probe) go through `_oauth_get`, which retries **transient** f
 `--status` probe runs behind a 60s cap that a single 15s stall used to trip ("Live probe failed
 — TimeoutExpired after 60s", 2026-08-22). A **4xx (esp. 401/403) is definitive auth and is never
 retried** — retrying a dead/wrong token only burns the budget. Both knobs are env-tunable:
-`OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**), sized so two
-attempts stay inside a caller's budget. A sustained outage still falls soft to the last-good
+`OAUTH_GET_TIMEOUT_S` (default **8s**) and `OAUTH_GET_ATTEMPTS` (default **2**) — PER HOST, and there
+are two hosts, so one call bounds at ~32.6s; that is NOT inside the 60s cap once the live fleet path
+makes its `usage` + hourly `profile` calls on a single fresh account (~65s worst case — the budget
+mismatch is a STRATEGIC_BACKLOG row, 2026-09-05; this sentence used to claim the opposite). A sustained outage still falls soft to the last-good
 reading (the dashboard's red banner) — no retry conjures a working network. Regression-guarded
 in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
 

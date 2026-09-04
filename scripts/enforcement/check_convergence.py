@@ -872,8 +872,13 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # sit INSIDE a fence: a failing gate is SHOWN, not asserted, so the reader sees which check
     # failed. And the denominator must be >= 1 — a failing gate with `0 of 0` findings is a
     # contradiction wearing the grammar.
+    # Fences are REPLACED by a token, not deleted, for the declaration read: a fenced QUOTE of the
+    # whole grammar still collapses to the token (the pass-2 exploit stays closed), while an honest
+    # declaration whose `measured by:` VALUE is a fenced command still has a non-space value on its
+    # line — deleting the fence made that a fail-closed false failure (review pass 4).
+    declaration_text = FENCE_STRIP.sub(" FENCED ", text)
     if not GATE_OK.search(fenced) and not (
-        GATE_OUT_OF_SURFACE.search(FENCE_STRIP.sub("", text)) and GATE_ANY.search(fenced)
+        GATE_OUT_OF_SURFACE.search(declaration_text) and GATE_ANY.search(fenced)
     ):
         fails.append(
             'no embedded final_gate run showing "status": "success" inside a fenced block '

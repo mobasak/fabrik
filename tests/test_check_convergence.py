@@ -442,6 +442,21 @@ def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declara
     assert _run(repo, "docs/development/reviews/2026-09-05-dangling-measured-review.md", dangling) == 1
 
 
+
+def test_an_honest_declaration_with_a_fenced_value_passes(repo: Path) -> None:
+    """Fences are replaced by a token for the declaration read, never deleted: deleting them made
+    `measured by: ```cmd```` a fail-closed false failure while the fenced-grammar QUOTE still fails
+    (review pass 4). Its own repo: the sibling test's failing fixtures stay staged in theirs, and a
+    passing assertion graded beside them reads 1 for THEM — which is how this case first went red."""
+    fenced_value = (
+        "# Review of aspect 21\n\n## Phase 1 verdict\nConverged.\n\nreviewed — sign-off.\n\n"
+        "GATE-SCOPE: out-of-surface — Plan-Set Contract; findings naming this surface: 0 of 7; "
+        "measured by: ```check_plan_tickets --plan-dir x | grep mine```\n\n"
+        "```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+    )
+    assert _run(repo, "docs/development/reviews/2026-09-05-fenced-value-review.md", fenced_value) == 0
+
+
 def test_review_withholding_claims_is_not_a_claim(repo: Path) -> None:
     # Directly-negated claim words are a DISCLOSURE, not a claim — no evidence owed.
     doc = (

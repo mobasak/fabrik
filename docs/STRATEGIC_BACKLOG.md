@@ -110,7 +110,7 @@ scaffold half is fleet's).
 
 ## [infra] `claude_rotate.py --status --json` can exceed `quota_dashboard.py`'s 60s subprocess cap under partial network degradation (2026-09-05, owner: infra)
 
-Found by the closing pass of the 2026-09-05 mail-queue review (native finder, re-derived from the call graph, not executed against a degraded network). `_oauth_get`'s worst case is ~32.6s per call with the defaults (2 hosts × (8s + 0.3s backoff + 8s)); `_account_status` makes two sequential calls per account with no freshness gate (unlike the fleet-status path, which gates on `_FLEET_TOKEN_FRESH_S`), and `_collect_statuses` loops every account with no early exit — ~65s for one degraded account, ~195s for three, against `quota_dashboard.py:51` `PROBE_TIMEOUT_S=60`. That reproduces the 2026-08-22 "Live probe failed — TimeoutExpired after 60s" incident this retry was written to end, now needing only ONE flaky account among three rather than a dead link. Candidate fixes, sized as a change to a synced rotation surface (plan work, not inline): (a) a per-account freshness gate on `_account_status` mirroring the fleet-status path; (b) a shared wall-clock budget across the `_collect_statuses` loop; (c) raise `QUOTA_DASH_PROBE_TIMEOUT_S` — the weakest, since it moves the cliff rather than removing it. Guard to ship with it: a test asserting the aggregate `--status` worst case against the dashboard's cap, derived from the same constants, so the next host/attempt bump cannot re-open the gap silently. The `_oauth_get` docstring no longer claims the per-call bound is inside the cap.
+Found by the closing pass of the 2026-09-05 mail-queue review (native finder, re-derived from the call graph, not executed against a degraded network). `_oauth_get`'s worst case is ~32.6s per call with the defaults (2 hosts × (8s + 0.3s backoff + 8s)); on this box `--status --json` takes the FLEET path (`_cmd_status` → `_cmd_fleet_status` whenever `_fleet_dirs()` is non-empty), where `_fleet_account_rows` makes an unconditional `usage` call plus an hourly `profile` call per FRESH account — the `_FLEET_TOKEN_FRESH_S` gate only skips STALE tokens, so it does not bound latency in the normal steady state; ONE fresh account with one degraded host is ~65s, over `quota_dashboard.py:51` `PROBE_TIMEOUT_S=60` by itself (the legacy `_account_status`/`_collect_statuses` path has the same shape, ~195s across three accounts). The 2026-08-22 incident entry in CHANGELOG describes exactly this path. A first draft of this row put the risk on the legacy path and called the fleet path gated — corrected by the review's pass-4 finder. That reproduces the 2026-08-22 "Live probe failed — TimeoutExpired after 60s" incident this retry was written to end, now needing only ONE flaky account among three rather than a dead link. Candidate fixes, sized as a change to a synced rotation surface (plan work, not inline): (a) a per-account wall-clock budget or short-circuit on `_fleet_account_rows` (the live path) and `_account_status` alike — a freshness gate is NOT the fix, since fresh accounts are the steady state; (b) a shared wall-clock budget across the `_collect_statuses` loop; (c) raise `QUOTA_DASH_PROBE_TIMEOUT_S` — the weakest, since it moves the cliff rather than removing it. Guard to ship with it: a test asserting the aggregate `--status` worst case against the dashboard's cap, derived from the same constants, so the next host/attempt bump cannot re-open the gap silently. The `_oauth_get` docstring no longer claims the per-call bound is inside the cap.
 
 ## [infra] Mailbox second pass 2026-09-03 — the findings that need infra's design or ruling, parked here so they are not re-hunted (owner: infra)
 
@@ -1085,7 +1085,22 @@ or scaffold a metrics module; the flag is spec-canonical, so whichever is chosen
 SYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus
 has `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.
 
-## [fleet] 15 of 37 containers run with NO memory limit on vps1 — the Fabrik invariant is unenforced off the apply path (2026-09-03, owner: fleet + operator)
+## [fleet] RESOLVED for memory (2026-09-05) — the unbounded containers on vps1; the redis-main EVICTION-POLICY half stays open (2026-09-03, owner: fleet + operator)
+
+**RESOLVED 2026-09-05 (fleet), for the memory half only — D-122.** All ten remaining unbounded
+containers now carry ceilings, applied in place on the operator's authorisation: **0 of 32 unbounded**,
+every kernel cgroup verified carrying its value, `oom_kill 0`, and a 32-row before/after snapshot of
+(name, id, StartedAt, status) diffed IDENTICAL — nothing recreated, nothing restarted. The count moved
+15/37 → 10/32 when the operator removed the `ocoron-com` stack (D-121), not because five were fixed.
+The recurrence check that makes this stick is `container_no_memory_limit` in `proactive-check.sh`
+(every 15 min, `docker ps -aq` so a stopped-but-defined container still counts) plus
+`scripts/vps_apply_limits.sh --check`. **Two things this row's own history teaches, worth keeping:**
+the applier ALREADY EXISTED and named all ten containers — it had simply not been run since
+2026-05-30, and re-running it unmodified would have lowered prometheus 1.5 GiB to 1g and mutated a
+network renamed the day after it was last touched. A stale enforcer reads as coverage and is worse
+than none. **Still open here:** the redis-main eviction policy (`allkeys-lru` can evict pause keys
+that carry no TTL — the 640M ceiling is coupled to this, per the spec's open unknown 3), and
+**Part B**, persisting these ceilings into each stack's compose so they survive the next `up -d`.
 
 **CORRECTED 2026-09-04 (fleet), and SUPERSEDED by a spec:** this row said "redis-main and traefik".
 A live sweep of every container measured **15 of 37** with `HostConfig.Memory == 0` — also loki,
@@ -1109,13 +1124,13 @@ so it is an operator window, and traefik restarting drops every route briefly; (
 `docker inspect` sweep over ALL containers so "every service has a limit" becomes checkable rather than
 assumed.
 
-## [fleet] 28 of 37 vps1 containers have NO CPU limit, and two bounded containers sit near their ceiling (2026-09-04, owner: fleet)
+## [fleet] 23 of 32 vps1 containers have NO CPU limit, and two bounded containers sit near their ceiling (2026-09-04, owner: fleet)
 
 Measured live 2026-09-04 while specifying the memory-limit fix. `core/30-ops.md:186` mandates
 `deploy.resources.limits.memory` **and `cpus`** together; the checklist treats them as one row. The
 memory half is being closed by
 `docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md`; the CPU half is not.
-`docker inspect -f '{{.HostConfig.NanoCpus}}'` returns 0 for **28 of 37** containers. Deliberately
+`docker inspect -f '{{.HostConfig.NanoCpus}}'` returns 0 for **23 of 32** containers (re-derived live 2026-09-05; was 28 of 37 before the `ocoron-com` removal, D-121). Deliberately
 scoped OUT of that spec: an unbounded CPU degrades neighbours, while an unbounded memory ceiling
 lets one container trigger a host-level OOM kill that takes an arbitrary subset of all 37 down —
 different severity, different urgency. Whoever picks this up should reuse that spec's Part C check,
