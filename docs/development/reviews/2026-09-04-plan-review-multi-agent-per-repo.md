@@ -105,7 +105,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 16 | **author-blind #9** — the same brief a FOURTH time; caught the previous round's gate fix rejecting the correct move | method: re-derivation | 4 | 4 | 4 | 2bf7767b → f1b456ca |
 | Pass 17 | **author-blind #10** — the same brief a FIFTH time, both-halves gate verification | method: re-derivation | 2 | 2 | 2 | f1b456ca → 5abab982 |
 | Pass 18 | **author-blind #11** — the same brief a SIXTH time, led by a diff of every changed `Gate:` line | method: re-derivation | 1 | 1 | 1 | 5abab982 → 83ef9d1a |
-| Pass 19 | **author-blind #12** — THE CLOSING PASS: the same brief on a frozen artifact, edit-free | method: re-derivation | — | — | — | (in flight) |
+| Pass 19 | **author-blind #12** — the closing pass; HELD the flip on an unsatisfiable gate | method: re-derivation | 2 | 2 | 2 | 83ef9d1a → 06352eaa |
+| Pass 20 | **author-blind #13** — the closing pass, re-run on a frozen artifact | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -571,4 +572,42 @@ at `83ef9d1a` and pass 18 then verified it. The terminal condition asks for an e
 pass 19 runs the same brief once more against a frozen artifact. That distinction is the difference between
 *converged* and *claimed converged*, and after a run in which four consecutive fixes left residue, it is
 exactly the bar worth paying for.
+
+## Pass 19 — the closing pass held the flip, on a gate of mine that exits 1 on correct work
+
+The pass that was meant to authorise the flip refused it, and was right to.
+
+**The blocker.** T14c's Gate 2 was `test "$(git grep -c '…' -- src/fabrik/cli.py)" = 0`. `git grep -c`
+**prefixes the filename** when it matches (`src/fabrik/cli.py:2`) and prints **nothing** when it does not —
+so the captured string is never the literal `0`. Executed both halves: exit 1 today, and exit 1 again after
+the ticket's mandated work is applied in a scratch clone. A coder finishes T14c exactly as written and gets
+an exit 1 with no diagnostic and no available edit.
+
+This is the round-7/8 class — *a gate that cannot go green on correct work* — and it is precisely the
+failure the both-halves rule was added to catch. I had verified the gate was RED and never that it could
+ever be GREEN. Replaced with the `-l` + `-z` shape this plan already uses five times, verified on both
+halves. **Denominator, because it bounds the blast radius: 1 of 70 gate lines used `git grep -c`.** The
+eleven plain `grep -c FILE` gates print a bare number and are correct — a distinction worth stating, since
+the two shapes look identical at a glance and behave differently.
+
+**The minor finding's cause outranks its fix.** "This plan's three new test files" was read off the rubric's
+`(hit: A, B, C)` line — which `scripts/review_rubric.py:230` emits as `sorted(set(hits))[:3]`, a **truncated
+sample**, not a population. The plan creates **seven**. A bounded search misread as a total, sitting in the
+very Coverage-Checklist row that adjudicates bounded searches. The cause is now recorded in that row rather
+than the number quietly corrected, because the number was never the interesting part.
+
+**Two notes on my own method, both against me.** Both post-edit verification predicates I wrote returned
+false negatives — one tripped on my own explanatory comment quoting `git grep -c`, the other on a deliberate
+quotation of the superseded wording. The edits were correct; the *checks* were wrong. A verification
+predicate is code too, and it deserves the same care as the thing it verifies; a false negative there costs
+a re-inspection, and a false positive would have shipped an unfixed defect under a green tick.
+
+**And the streak broke.** For the first time since pass 15, the previous round's fix introduced nothing:
+pass 19's diff found no assertion lost, and the mechanical parity detector reports **0** odd-backtick lines
+outside fences across all 34 files. Two byte figures were correctly named as drift rather than filed (+251 B
+against 2,089 B of headroom; +638 B against 22.6 KB).
+
+Pass 20 repeats the brief on the frozen artifact, now with a second mechanical detector: classify every
+gate's shell shape and ask whether its comparison is satisfiable **by construction** — the generalisation of
+the T14c defect, so the class is swept rather than the instance.
 
