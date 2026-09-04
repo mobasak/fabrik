@@ -111,4 +111,32 @@ method-stability, not truth**, which is precisely why this command forbids the a
 
 Two MED claims were also withdrawn rather than defended: the Self-audit's four-way settings-JSON identity (T14a's line (d) and T15's doc never restated it), and the silent contradiction of the spec's "hub `.claude/settings.json` untouched" — now a declared, argued supersede in § What we already agreed.
 
-NEXT: the closing re-derivation pass, then the CONVERGED flip. The remaining MED/LOW items ride § Residual unknowns.
+## Second author-blind pass — on the six tickets the first pass's closures created
+
+Work written to close a review finding is the least-reviewed work in a set, so the six new tickets got their own
+author-blind pass. It raised **10 HIGH + 5 MED + 3 LOW**, every one verified by me against the live code before
+acting. The severest was in my own fix:
+
+| # | Finding | Proof | Closed by |
+|---|---|---|---|
+| P2-H1 | **The Stop-hook fix could not work.** T05c re-keyed `final_gate_stop.py:864`, but that line iterates `authored`, built by `_session_files()` (`:303`) whose docstring reads *"Only paths INSIDE root count"* and which drops everything else. A lock at `~/.claude/state/` can never enter `authored`, so the re-key arms nothing — silently, in the hub and ~46 projects. | `sed -n '303,310p'` + `:861` | T05c now owns the ARMING SOURCE, not the path: stat the lock directly, and re-derive the session-scoping the `authored` membership used to give (matching the lock's `plan` field against a plan set this session authored), because losing it turns every sibling's active plan into a stall for everyone. |
+| P2-H2 | All three lock tickets mandated "the single `FABRIK_PLAN_LOCK_DIR`-aware helper T05a introduces" — **T05a introduces no such helper, and cannot**: enforcement checks are synced dependency-free and the Stop hook is standalone. | T05a's Scope + Touches | The phrase is gone from all three; each carries the verbatim four-line snippet instead. |
+| P2-H3 | `scripts/enforcement/check_phase_tests.py:36` builds the path COMPONENTWISE, so no slash-grep census found it; `_active_locks()` returns `[]` when the dir is absent, so the whole phase-tests gate would pass silently for every plan. | `grep -n 'plan-locks' scripts/enforcement/check_phase_tests.py` | T05e owns it as PRIMARY PATH. |
+| P2-H4 | `check_plan_tickets.py:650` and `:1574` are componentwise too and both fail OPEN (board-staleness class dies; sibling plan sets never discovered) — and T05d's own gate greps only the slash form, so it passed with both still wrong. | `grep -n 'plan-locks'` → 320, 650, 1038, 1052, 1574 | T05d names both, with a gate pattern matching BOTH forms. |
+| P2-H5 | T05e's Gate 2 was unsatisfiable: `final_gate.py:1153` matches and T05e was forbidden to touch that file. | the residual after T05a–T05e | The comment is handed to T05b, which already owns the file — carrying a 123 KB file for one comment blew T05e's budget at 337,981 B. |
+| P2-H6 | `tests/test_check_certification_coverage.py:47` builds fixtures at the old dir and is a different file from the one T05e's gate ran — a guaranteed red escaping the plan. | `ls tests/ \| grep cert` | Added to T05e's Touches and its pytest gate. |
+| P2-H7 | The functional cert-lock site is the constant `FORBIDDEN_LOCK_DIR` (`:59`, consumed `:237`), not the `:257` message the ticket cited — leaving it makes a BLOCKING detector scan an empty directory while a message-only edit reports green. | `grep -n 'FORBIDDEN_LOCK_DIR'` | T05e cites it by SYMBOL, per the spine's own anchors-move rule. |
+| P2-H8 | **T14e's Gate 1 ran no test and could not fail:** `tests/test_check_review_coverage.py` does not exist, pytest exits 4, `2>/dev/null` hides it and `\|\|` runs a fallback that exits 0. | measured exit codes | Gate now runs the two files that DO exist, with no `\|\|` and no stderr suppression. |
+| P2-H9 | **T14e's stated root cause was false.** Both `fab-mega-04-validate` strings are prose; routing is by `MEGA_REPORT_H1` (`:604`) and a reserved filename regex (`:606`). The real risk is the inverse — if `/fabrik-epics-review` renames its report, the mega grammar stops routing and the report falls through. | `grep -n 'MEGA_REPORT_H1\|_is_mega_report'` | T14e is re-scoped to a prose re-word; **T06c** now pins the report filename and H1 as a contract, with a Behavior-Contract row, and T14e depends on it. |
+| P2-H10 | `templates/governance/CLAUDE.md:132` states the old lock path to 47 repos and was owned by NOBODY — T05e delegated it to T14a, whose Scope never mentioned it. | both Scopes | T14a gains it as a fourth numbered item. |
+
+MED closures: T16's Depends omitted all six new tickets and the dispatch policy still named a retired `T05`; the
+census was stale in both directions (55 by the slash form, 69 including componentwise); T14b's gate still could not
+reach 0, so **T14g** now owns the six survivors — one of them, `fabrik-conformance-review.md:11`, is a live routing
+instruction naming a deleted command; T05e's gitignore row asserted something a repo-relative pattern cannot do
+(the leg is DELETED, not re-pointed); T14d left a two-branch decision to the coder (now: drop the `ettw` key) with a
+gate blind to the docstring mentions.
+
+Set is now spine + 33 tickets. Emit gate exit 0 / zero WARN after every edit; closing pass edit-free.
+
+NEXT: the plan is ready for its CONVERGED flip. The remaining LOW items ride § Residual unknowns.

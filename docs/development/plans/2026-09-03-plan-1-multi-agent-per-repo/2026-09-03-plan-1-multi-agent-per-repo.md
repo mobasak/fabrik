@@ -3,7 +3,7 @@
 Status: DRAFT
 **Owner:** infra (operator ruling 2026-09-03 — "approve + infra builds"; intel authored this plan while infra is saturated; no clock on execution)
 Spec: `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md` — CONVERGED r10 (82acf32d), approved 2026-09-03
-Shape: spine + 32 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
+Shape: spine + 33 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
 Grounding: the 2026-09-03 chain audit `docs/development/reviews/2026-09-03-orchestrator-chains-corpus-review.md` (R1–R15, D-101/D-102)
 
 ## What we already agreed
@@ -91,7 +91,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 
 - **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green, and the pass that fixed anything is never the last look at the classes it touched.
 - **Dispatch policy** — pool-default (`fanout(task_type, …)`, which auto-records to the flywheel and wants the `set_quality` back-fill) for the gradeable work: `Complexity: simple` (T10, T11, T12a, T12b, T14c) → `pick_models("code", prefer="value")`; `Complexity: complex` (T03, T13, T14b, T15) → mid-pool coder. Native is ADDED on top, never instead: `never-route` (T05, T08a, T08b, T09 — `scripts/enforcement/`, `scripts/final_gate.py`) and `native` (T01a, T01b, T02, T04a, T04b, T06a, T06b, T06c, T07a, T07b, T14a, T16 — synced governance, hooks, design-heavy corpus prose, the receipt) dispatch to the native worktree coder, `claude -p opus` for T04b/T05a/T07a and `sonnet` elsewhere. Haiku never codes. The decide/refute/merge stays with the orchestrator.
-- **Parallelism + merge** — fan-out 1: T01a, T02, T03, T13, T04a, T04b, T06a, T06b concurrently (T01b follows T01a) — disjoint Touches, no Depends; each merges into master at its § Merge Order position, rebase-first, `--no-ff`, one at a time. Fan-out 2 after T03/T04b: T05a, T05b and T06c. Serial spine: T07a → T07b → T08a → T08b → T09 (the assembler must stop referencing the wrappers before the corpus check drops its audit path, before the tree is deleted). Fan-out 3 after T09: T10, T11, T12a, T12b, T14a, T14b, T14c, T15 concurrently. T16 last, alone. Review findings dedupe in the orchestrator's per-ticket loop; a finding that belongs to another ticket routes to that ticket's Deltas, never fixed in place.
+- **Parallelism + merge** — fan-out 1: T01a, T02, T03, T13, T04a, T04b, T06a, T06b concurrently (T01b follows T01a) — disjoint Touches, no Depends; each merges into master at its § Merge Order position, rebase-first, `--no-ff`, one at a time. Fan-out 2 after T03/T04b: T05a, T05b and T06c; then the lock chain T05c → T05d → T05e, serialised because each shares a file with the last. Serial spine: T07a → T07b → T08a → T08b → T09 (the assembler must stop referencing the wrappers before the corpus check drops its audit path, before the tree is deleted). Fan-out 3 after T09: T10, T11, T12a, T12b, T14a, T14b, T14c, T14d, T14e, T14f, T14g, T15 concurrently. T16 last, alone. Review findings dedupe in the orchestrator's per-ticket loop; a finding that belongs to another ticket routes to that ticket's Deltas, never fixed in place.
 
 ## Ticket Board
 
@@ -105,7 +105,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T04a | epic-file intake for /fabrik-spec | — | ⚡ | ⬜ | |
 | T04b | owned_paths into the plan's locks, and the live locks leave the tree | — | ⚡ | ⬜ | |
 | T05a | epic containment in check_plan_tickets, and the lock dir moves with the locks | T04b | ⛓️ | ⬜ | |
-| T05b | epic_order --check as an optional Tier-2 gate check | T03 | ⛓️ | ⬜ | |
+| T05b | epic_order --check as an optional Tier-2 gate check | T03, T05a | ⛓️ | ⬜ | |
 | T05c | the Stop hook follows the locks (the fleet-synced one) | T04b, T05a | ⛓️ | ⬜ | |
 | T05d | check_plan_tickets' lock-metadata exemption follows the locks | T05a, T05c | ⛓️ | ⬜ | |
 | T05e | the remaining lock consumers: cert coverage, the manifest, the tests | T01a, T05d | ⛓️ | ⬜ | |
@@ -127,8 +127,9 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T14d | review_rubric's dead checklist path, and the ~/.traycer install step | T09, T11 | ⛓️ | ⬜ | |
 | T14e | check_review_coverage stops keying on a deleted command | T07a, T06c | ⛓️ | ⬜ | |
 | T14f | command_run stops owing a report to a deleted command | T07a, T06c | ⛓️ | ⬜ | |
+| T14g | the command corpus stops routing to deleted chain steps | T04a, T07a, T11 | ⛓️ | ⬜ | |
 | T15 | PLANS.md regeneration with an Owner column, and the dedicated reference doc | T03 | ⛓️ | ⬜ | |
-| T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01a, T01b, T02, T05a, T05b, T09, T10, T11, T12a, T12b, T13, T14a, T14b, T14c, T15 | ⛓️ | ⬜ | |
+| T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01a, T01b, T02, T03, T13, T04a, T04b, T05a, T05b, T05c, T05d, T05e, T06a, T06b, T06c, T07a, T07b, T08a, T08b, T09, T10, T11, T12a, T12b, T14a, T14b, T14c, T14d, T14e, T14f, T14g, T15 | ⛓️ | ⬜ | |
 
 ## Merge Order
 
@@ -162,8 +163,9 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 28. T14d
 29. T14e
 30. T14f
-31. T15
-32. T16
+31. T14g
+32. T15
+33. T16
 
 ## Interfaces
 
@@ -212,15 +214,20 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** `FABRIK_PLAN_LOCK_DIR` pointing at a temp dir holding a stale `active` lock, **When** `check_plan_lock_release.py` runs, **Then** it reports the leaked lock; with the dir empty it reports PASS (scripts/enforcement/check_plan_lock_release.py:396)
 - **Given** a project without `docs/development/epics/`, **When** `final_gate.py --check --json` runs, **Then** the epic_order result row carries an explicit `(N/A — no docs/development/epics/)` skip label, matching the shipped convention at `:929` rather than silently reading as an ordinary pass (scripts/final_gate.py:929)
 - **Given** a project WITH the dir and one integrity finding, **When** the gate runs, **Then** that check reports failure and the finding text reaches the JSON (scripts/final_gate.py:929)
+- **Given** `scripts/final_gate.py` after this ticket, **When** grepped for `.fabrik/plan-locks`, **Then** the count is 0 (scripts/final_gate.py:1153)
 - **Given** the dir present and integrity clean, **When** the gate runs, **Then** the check passes and the run's overall status is unchanged (scripts/final_gate.py:772)
-- **Given** a live plan lock in the NEW directory, **When** the Stop hook evaluates whether a run is in flight, **Then** it arms exactly as it does today for a lock at the old path (.claude/hooks/final_gate_stop.py:864)
+- **Given** a live plan lock in the NEW directory whose `plan` field names a plan set THIS session authored, **When** the Stop hook evaluates whether a run is in flight, **Then** it arms — proving the arming path no longer depends on the lock appearing in `authored`, which by construction it cannot (.claude/hooks/final_gate_stop.py:303)
+- **Given** a live lock in the new directory belonging to a DIFFERENT session's plan, **When** the hook runs, **Then** it does NOT arm — the session-scoping property at `:857-860` survives the redesign (.claude/hooks/final_gate_stop.py:857)
 - **Given** a lock at the OLD `.fabrik/plan-locks/` path only, **When** the hook runs, **Then** it does NOT arm — proving the move is complete rather than dual-homed (.claude/hooks/final_gate_stop.py:864)
 - **Given** no lock anywhere, **When** the hook runs, **Then** its behaviour is unchanged from today (.claude/hooks/final_gate_stop.py:864)
 - **Given** a spine whose File Scope names its own lock at the NEW path, **When** `check_plan_tickets` runs, **Then** the own-lock metadata exemption applies and no finding is raised (scripts/enforcement/check_plan_tickets.py:320)
+- **Given** a plan set whose board is stale, **When** the check runs after the move, **Then** the board-staleness ERROR still fires — proving `:650` resolves the lock at the new directory rather than returning `[]` (scripts/enforcement/check_plan_tickets.py:650)
+- **Given** two concurrent plan sets, **When** the check runs on the gate path, **Then** the sibling set is still discovered (scripts/enforcement/check_plan_tickets.py:1574)
 - **Given** a ticket whose Touches names its own lock, **When** the check runs, **Then** the dedicated own-lock ERROR still fires at the new path (scripts/enforcement/check_plan_tickets.py:1038)
-- **Given** a cert lock and a plan lock in the new directory, **When** `check_certification_coverage` runs, **Then** it still tells them apart (scripts/enforcement/check_certification_coverage.py:257)
-- **Given** the manifest's gitignore legs, **When** rendered, **Then** the salvage-diff pattern points at the new directory and no project ignores a path that no longer exists (scripts/fabrik_synced_manifest.py:258)
-- **Given** the whole repo after this ticket, **When** `git grep -l '.fabrik/plan-locks' -- '*.py' '*.sh'` runs, **Then** it prints nothing (scripts/enforcement/check_certification_coverage.py:257)
+- **Given** a plan lock in the new directory, **When** `check_phase_tests` runs, **Then** it enumerates that lock — proving the gate did not silently degrade to `[]` for every plan (scripts/enforcement/check_phase_tests.py:44)
+- **Given** a cert lock and a plan lock in the new directory, **When** `check_certification_coverage` runs, **Then** it still tells them apart, driven by the relocated `FORBIDDEN_LOCK_DIR` constant rather than by its message text (scripts/enforcement/check_certification_coverage.py:59)
+- **Given** the manifest's gitignore legs, **When** rendered, **Then** the salvage-diff leg is REMOVED — the new directory is outside every repo, so a repo-relative ignore pattern cannot address it — and no project ignores a path that no longer exists (scripts/fabrik_synced_manifest.py:258)
+- **Given** the whole repo after this ticket, **When** `git grep -l '.fabrik/plan-locks' -- '*.py' '*.sh'` runs, **Then** it prints nothing (scripts/enforcement/check_phase_tests.py:36)
 - **Given** a market-facing intake and no `docs/reference/rivals/<market>.md`, **When** `/fabrik-vision` reaches Path A discovery, **Then** it stops and names `/fabrik-rivals <market>` as the pre-step (commands/_sources/fabrik-rivals.md:2)
 - **Given** a dossier exists, **When** discovery runs, **Then** MATCH rows appear as Feature Inventory candidates and BEAT rows as Value-Stream problems, each citing the dossier row (docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md:193)
 - **Given** the rendered command, **When** `check_traycer_chain.py` scans the source, **Then** it reports 0 [A]/[B]/[C] findings (scripts/enforcement/check_traycer_chain.py:89)
@@ -232,6 +239,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** epics with integrity PASS and no owners, **When** Step 1.5 runs with `--assign alpha,beta,gamma`, **Then** every epic carries one owner from the set and the follow-up `--check --owners alpha,beta,gamma` passes before any lens runs (scripts/epic_order.py:127)
 - **Given** integrity FAIL, **When** Step 1.5 runs, **Then** `--assign` is never invoked and the command stops on the integrity findings (scripts/epic_order.py:83)
 - **Given** the review converges, **When** the close prints NEXT, **Then** it names `/fabrik-spec <epic file>` per window with the exact launch form per agent (docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md:141)
+- **Given** `/fabrik-epics-review` writes its report, **When** the path and first heading are read, **Then** they match `…-mega-<slug>-validation-review.md` and `# Cross-Epic Validation Report` exactly, so `_is_mega_report` still routes it (scripts/enforcement/check_review_coverage.py:610)
 - **Given** the source, **When** `check_traycer_chain.py` scans it, **Then** it reports 0 findings (scripts/enforcement/check_traycer_chain.py:89)
 - **Given** the three new sources exist, **When** the assembler renders to a temp dir, **Then** `fabrik-vision.md`, `fabrik-epics.md` and `fabrik-epics-review.md` and their `SKILL.md` wrappers are emitted with the run-record, close-feedback and NEXT fragments, and no `fab-*` wrapper is emitted (commands/assemble_commands.py:720)
 - **Given** the assembler module, **When** imported, **Then** it exposes no `ORCH_SOURCES`, `TRAYCER_SKILLS`, `_render_orch_wrapper` or `_emit_orch_wrappers` name, and `grep -c 'ORCH_SOURCES' commands/assemble_commands.py` prints 0 — no surviving reference to raise `NameError` at render time (commands/assemble_commands.py:877)
@@ -270,12 +278,15 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** `docs/reference/command-corpus-check.md`, **When** grepped for `_traycer-skills`, **Then** the count is 0 and the audit denominator paragraph counts sources only (docs/reference/command-corpus-check.md:55)
 - **Given** the tree, **When** `check_doc_links.py` runs, **Then** it reports no broken link into `docs/orchestrator/` (docs/orchestrator/00-autonomous-factory-north-star.md:1)
 - **Given** the CLI hint is rendered, **When** its text is read, **Then** it names `/fabrik-vision`, `/fabrik-epics`, `/fabrik-epics-review` and contains neither `docs/traycer` nor `epic-to-ticket-workflow` (src/fabrik/cli.py:1885)
-- **Given** the retired ettw checklist has moved, **When** `review_rubric.py` runs, **Then** every path it reads resolves and no leg points into `docs/orchestrator/epic-to-ticket-workflow/` (scripts/review_rubric.py:103)
+- **Given** the retired ettw checklist has moved, **When** `review_rubric.py` runs, **Then** the `ettw` key is gone from `CHECKLISTS`, `--workflow` offers only `mega`, and neither the code nor the module docstring names the retired checklist (scripts/review_rubric.py:103)
 - **Given** the README after this ticket, **When** grepped for `.traycer`, **Then** the count is 0 and no section instructs the reader to configure a Traycer CLI agent (README.md:152)
-- **Given** a cross-epic validation report produced by `/fabrik-epics-review`, **When** `check_review_coverage` parses it, **Then** it is recognised exactly as a `fab-mega-04-validate` report is today (scripts/enforcement/check_review_coverage.py:581)
+- **Given** a report emitted by `/fabrik-epics-review` at the pinned filename and H1, **When** `_is_mega_report` runs, **Then** it routes through the mega grammar — the routing predicate is unchanged by this ticket, which is the point (scripts/enforcement/check_review_coverage.py:610)
 - **Given** a report whose hash was not computed, **When** the check emits its remedy line, **Then** it names `/fabrik-epics-review`, a command that exists (scripts/enforcement/check_review_coverage.py:1314)
 - **Given** `/fabrik-epics-review` closes with `done` and no report artifact, **When** `command_run.py` validates the close, **Then** it refuses exactly as it does today for `fab-mega-04-validate` (scripts/command_run.py:1236)
 - **Given** the module after this ticket, **When** grepped for `fab-mega-04-validate`, **Then** the count is 0 in both the script and its test (tests/test_command_run.py:1575)
+- **Given** `/fabrik-conformance-review` after this ticket, **When** its per-epic guidance is read, **Then** it names a command that exists and never `/fab-ettw-08-implementation-validation` (commands/_sources/fabrik-conformance-review.md:11)
+- **Given** `docs/reference/command-evaluation-checklist.md`, **When** its checklist pointer is followed, **Then** the path resolves after T11's move (docs/reference/command-evaluation-checklist.md:8)
+- **Given** the four command sources, **When** grepped for `fab-ettw-`, `fab-mega-0` or `epic-to-ticket-workflow`, **Then** the count is 0 and `assemble_commands.py --check` is clean (commands/_sources/fabrik-flows.md:10)
 - **Given** two plans with `**Owner:** alpha` / no owner and one epic with `owner: beta`, **When** `generate_plans_table()` runs, **Then** the rows carry `alpha`, `—`, `beta` in the Owner column, the header reads `| Epic/Plan | Owner | Status | Phase |`, and the two existing call sites in `tests/enforcement/test_plan_shape_gates.py` still pass (scripts/docs_updater.py:884)
 - **Given** `docs/development/PLANS.md` with a stale `AUTO-GENERATED:PLANS` block, **When** `docs_updater.py` runs, **Then** the block is regenerated in place and `--check` afterwards reports no PLANS finding (scripts/docs_updater.py:915)
 - **Given** the same file untouched, **When** `docs_updater.py --check` runs, **Then** it reports the PLANS block stale (scripts/docs_updater.py:920)
@@ -290,18 +301,22 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - .claude/hooks/final_gate_stop.py
 - .claude/hooks/skill_router.py
 - .claude/settings.json
+- .gitignore
 - .windsurf/rules/core/40-documentation.md
 - CLAUDE.md
 - README.md
 - agents-fabrik-core.md
 - agents-fabrik.md
 - commands/_fragments/grounding-rules.md
+- commands/_sources/fabrik-conformance-review.md
 - commands/_sources/fabrik-epics-review.md
 - commands/_sources/fabrik-epics.md
 - commands/_sources/fabrik-execute-plan.md
+- commands/_sources/fabrik-flows.md
 - commands/_sources/fabrik-plan-after-chat.md
 - commands/_sources/fabrik-spec.md
 - commands/_sources/fabrik-vision.md
+- commands/_sources/fabrik-workflow-review.md
 - commands/assemble_commands.py
 - docs/development/PLANS.md
 - docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-review.md
@@ -352,6 +367,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - docs/orchestrator/mega-epic-breakdown/_retired/05-dispatch-epic-tickets-fabrik.RETIRED.md
 - docs/orchestrator/traycer-command-wiring.md
 - docs/reference/command-corpus-check.md
+- docs/reference/command-evaluation-checklist.md
 - docs/reference/multi-agent-operating-model.md
 - docs/reference/plan-lock-lifecycle.md
 - docs/traycer/traycer-agile-workflow.md
@@ -362,6 +378,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - scripts/docs_updater.py
 - scripts/enforcement/check_certification_coverage.py
 - scripts/enforcement/check_command_corpus.py
+- scripts/enforcement/check_phase_tests.py
 - scripts/enforcement/check_plan_lock_release.py
 - scripts/enforcement/check_plan_tickets.py
 - scripts/enforcement/check_review_coverage.py
@@ -386,7 +403,9 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - tests/enforcement/test_plan_tickets_epic_scope.py
 - tests/test_agent_role_hook.py
 - tests/test_assemble_orch_retired.py
+- tests/test_check_certification_coverage.py
 - tests/test_check_command_corpus.py
+- tests/test_check_review_coverage_rederivation.py
 - tests/test_cli_orchestrator_hint.py
 - tests/test_command_run.py
 - tests/test_docs_updater.py
