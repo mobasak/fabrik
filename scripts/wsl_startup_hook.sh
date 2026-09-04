@@ -53,10 +53,14 @@ for logfile in "$LOG_FILE" "$ENV_WATCHER_LOG"; do
     # Rotation is best-effort housekeeping: if the log is not writable the daily block's probe
     # will detect and alert on it properly, so stay silent here rather than shout in a terminal.
     if [ -f "$logfile" ] && [ "$(stat -c%s "$logfile" 2>/dev/null || echo 0)" -gt "$MAX_LOG_SIZE" ]; then
-        [ -f "${logfile}.1" ] && mv "${logfile}.1" "${logfile}.2" 2>/dev/null  # a second generation: `.1` was overwritten on every rotation, so one login shell could erase a boot-time NOT-delivered line (FC6)
-        if mv "$logfile" "${logfile}.1" 2>/dev/null; then
+        # promote .1 → .2 only AFTER the live log has left its place, and `-T` so a directory named
+        # like a generation never swallows the live log (the chain's own DC2 lesson; FD6)
+        if mv -T "$logfile" "${logfile}.1.new" 2>/dev/null; then
+            [ -e "${logfile}.1" ] && mv -T "${logfile}.1" "${logfile}.2" 2>/dev/null  # -e: a DIRECTORY squatting on `.1` is moved aside too, so the live log never strands in `.1.new`
+            mv -T "${logfile}.1.new" "${logfile}.1" 2>/dev/null
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log rotated" > "$logfile" 2>/dev/null || true
         fi
+        # a second generation: `.1` was overwritten on every rotation, so one login shell could erase a boot-time NOT-delivered line (FC6)
     fi
 done
 
@@ -98,13 +102,13 @@ if [ ! -f "$LOCK_FILE" ]; then
     # write at the end, with NOT ONE alert reachable (the failure only surfaces on the next
     # boot's freshness check). `mkdir -p` cannot detect it: it returns 0 on an existing but
     # unwritable directory. Probe the real append, and fall back rather than run blind.
-    if ! { mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null && : >>"$LOG_FILE" 2>/dev/null; }; then
+    if ! { mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null && : 2>/dev/null >>"$LOG_FILE"; }; then  # redirections apply LEFT to RIGHT: the old order printed "Permission denied" into the login shell before fd 2 moved (FD6)
         _fallback="/tmp/fabrik_daily_pipeline_$(date -u +%Y%m%d).log"
         _broken="$LOG_FILE"
         # ⚠️ DECIDE FIRST, ANNOUNCE SECOND. Announcing "falling back to $_fallback" before the
         # ladder ran told the operator to look in /tmp for a log that had actually gone to
         # /dev/stderr or /dev/null.
-        if { mkdir -p /tmp 2>/dev/null && : >>"$_fallback" 2>/dev/null; }; then
+        if { mkdir -p /tmp 2>/dev/null && : 2>/dev/null >>"$_fallback"; }; then
             LOG_FILE="$_fallback"
         elif : >>/dev/stderr 2>/dev/null; then
             LOG_FILE="/dev/stderr"
@@ -121,13 +125,13 @@ if [ ! -f "$LOCK_FILE" ]; then
         ( bash "$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh" \
             "wsl_startup_hook.sh: pipeline log unwritable — the boot pipeline would have run blind" \
             "Could not append to $_broken. Every step of the boot pipeline redirects there, so each would have been skipped individually and the heartbeat never written — with no alert reachable from inside. Now logging to $LOG_FILE for this boot. Investigate disk/permissions now." \
-            >/dev/null 2>&1 & )
+            >>"$LOG_FILE" 2>&1 & )  # the ONE alert whose non-delivery line was discarded — and the one where knowing it ALSO failed matters most; LOG_FILE is already re-pointed by the ladder above (FD6)
     fi
     # Run full pipeline in background (chained to ensure order)
     # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
     nohup bash -c "
         echo '' >> $LOG_FILE
-        echo '=== Fabrik Daily Pipeline — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
+        echo '=== Fabrik Daily Pipeline — '\$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
         cd $FABRIK_ROOT && $VENV_PYTHON $SYNC_PROJECTS_SCRIPT >> $LOG_FILE 2>&1 && \
         cd $FABRIK_ROOT && bash $CASCADE_BACKUP_SCRIPT >> $LOG_FILE 2>&1 ; \
         cd $FABRIK_ROOT && $VENV_PYTHON $HEALTH_SUMMARY_SCRIPT >> $LOG_FILE 2>&1 ;
@@ -207,8 +211,8 @@ if [ ! -f "$LOCK_FILE" ]; then
         # \" — the values are expanded by THIS shell into the inner script's text, so they are quoted for the INNER shell (FB10)
         _rc=0; env LOG_FILE=\"$LOG_FILE\" FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/external_services_chain.sh\" >> \"$LOG_FILE\" 2>&1 || _rc=\$?
         if [ \$_rc -ne 0 ]; then
-            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; 124|137) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - timeout or OOM took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
-            echo '[wsl_startup_hook] external-services chain failed (exit '\$_rc'; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)' >> \"$LOG_FILE\"
+            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; 124|129|130|137|143) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - timeout or OOM took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
+            echo '[wsl_startup_hook] external-services chain failed (exit '\$_rc'; a step failure is alerted by the chain, a 126/127 or a kill by this caller, non-fatal)' >> \"$LOG_FILE\"
         fi
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
         # THIS is the daily-dirt fix: this hook regenerates ~14 tracked files every boot and
@@ -229,6 +233,6 @@ if [ ! -f "$LOCK_FILE" ]; then
         # healthy freshness check. See daily_refresh.sh for the same guard.
         [ \"$LOG_FILE\" = /dev/null ] || date -u '+%Y-%m-%dT%H:%M:%S+00:00' > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt 2>/dev/null \
             || echo '[wsl_startup_hook] heartbeat write FAILED — next boot will alert as stale' >> $LOG_FILE
-        echo '=== Pipeline complete — '$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
+        echo '=== Pipeline complete — '\$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE  # \$ — expanded by the INNER shell at completion: the outer shell froze both stamps at source time, so every daily log reported a 0-second pipeline (FD6)
     " &
 fi

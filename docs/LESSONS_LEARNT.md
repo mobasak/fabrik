@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 152: a package that shares its NAME with the one it re-exports is a circular import under the only name its callers use — and a grader that loads it under another name proves nothing (2026-09-04)
+
+**What happened.** Round 63 replaced the vendored `scripts/kilo-benchmarks/alerting/` with a shim: `from alerting import *` after inserting `libs/` on `sys.path`. Every caller imports it as `alerting` from `scripts/kilo-benchmarks`, so `sys.modules["alerting"]` already held the half-initialised shim when its own `from alerting import *` ran — `ImportError: cannot import name '_is_enabled' from partially initialized module 'alerting'`. The freshness checker's `except ImportError` turned the pipeline's stale-heartbeat CRITICAL into a silent no-op on both entry points, from 0fc1c0d1 until round 64. The grader shipped green because it loaded the shim as `kb_alerting_shim` via `spec_from_file_location` — a name no consumer uses, which is precisely the condition that avoids the defect.
+
+**Why.** A re-export shim is a package; Python resolves `import X` inside a package named `X` to the package itself. There is no spelling of a same-named shim that works on a caller's path. And a grader that constructs the import differently from production grades a different program.
+
+**How to apply.** Delete, never shim, a vendored copy whose name matches its replacement; make the callers resolve the real path. Grade an import the way production imports it — out of process, from the caller's cwd and `sys.path` order — and assert `module.__file__` (`test_import_alerting_from_the_kilo_directory_is_libs_alerting`). D-112 supersedes D-109; ledger FD6.
+
 # Lesson 151: `git commit -- <paths>` commits the WORKING TREE of those paths — index-only staging is bypassed, and a sibling's unstaged hunk in the same file ships under your name (2026-09-03)
 
 The shared-tree contract has two commit forms and both fail on a SHARED FILE, in opposite directions.

@@ -47,6 +47,11 @@ except ImportError:
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+_LIBS = (
+    SCRIPT_DIR.parents[1] / "libs"
+)  # the ONE alerting implementation (D-110): a same-named shim in this directory self-imported and this file's `except ImportError` made the stale-heartbeat alert a silent no-op (FD6)
+if str(_LIBS) not in sys.path:
+    sys.path.insert(0, str(_LIBS))
 
 TIMESTAMP_FILE_DEFAULT = SCRIPT_DIR / "cache" / "daily_refresh_last_success.txt"
 MAX_AGE_HOURS_DEFAULT = 36

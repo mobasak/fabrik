@@ -196,17 +196,25 @@ until pass 63. The first version used a flat
 4-line window, which admitted the PROSE that documents the flag ("`--feedback` is REQUIRED")
 and a neighbouring close's flag — 21 of 47 live close sites, the run-record fragment first,
 passed with their own flag deleted (pass 62). A single-line window would flag every
-correctly-fixed site, since the real fragment wraps the flag onto a continuation line.
+correctly-fixed site, since the real fragment wraps the flag onto a continuation line. Every close
+on a line is graded (the next close bounds the window); a backtick inside an ARGUMENT of a fenced or
+plain-prose close is the command's own text — only a span's closer cuts (a fenced `--evidence` with
+backticks was a blocking false positive one edit away); a fenced close's trailing `#` comment is not
+the command; a span left unclosed within twelve lines grades the close on its own line (round 64).
 
 Predicate 5 (the run record) matches `command_run.py` … `start` across whitespace and a `\`
-line continuation — a wrapped start opens a record too, and the bare substring test had red it.
+line continuation — a wrapped start opens a record too, and the bare substring test had red it; an
+HTML-commented `start` is illustration and `start-run` is not `start`, while a FENCED start stays
+legitimate (3 of 33 live sources write their bespoke start block fenced — measured before the
+fence exclusion was rejected).
 Chain references admit digits anywhere after the prefix (`/fabrik-oauth2-setup`, `/fabrik-2fa`);
 a caller claim inside a fenced block is an example, like a fenced `#` in the call-sites form —
 fences are real CommonMark fences (`~~~` too, closed only by a same-char run at least as long) and a
 heading may carry up to three leading spaces; a claim is honoured by a TOKEN in the caller's
-source, never a substring (`/fabrik-review-scoped` contains `/fabrik-review`); the trailer key is
-read case-insensitively, as git reads it; an agent's `name:` may be quoted or followed by a comment,
-and a BOM is not "no frontmatter"; a `web_tools` literal checked only to its 2 000-char bound says so.
+UNFENCED source, never a substring (`/fabrik-review-scoped` contains `/fabrik-review`); the trailer key is
+read case-insensitively, as git reads it; an agent's `name:` may be quoted or followed by a comment (a `#`
+inside the quotes is part of the name; a TAB before `#` is a comment), an unclosed frontmatter is
+refused rather than read as the whole file, and a BOM is not "no frontmatter"; a `web_tools` literal checked only to its 2 000-char bound says so.
 
 ## Predicate 8 — a CLAIMED caller must actually CALL (added 2026-08-29)
 
@@ -255,7 +263,7 @@ fire, then a known-good one and requires silence:
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: 17 canaries over 8 of the eight predicates (17 of 18 problem emitters in this file) fire on bad input and stay silent on good input
+✓ selftest: 17 canaries over 8 of the eight predicates (13 distinct signatures of 18 problem emitters in this file) fire on bad input and stay silent on good input
 ```
 
 In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
@@ -270,7 +278,7 @@ skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
 ```
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
 N/A: 6 web-tool canaries skipped — no vendored libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub
-✓ selftest: 11 canaries over 7 of the eight predicates (11 of 18 problem emitters in this file) fire on bad input and stay silent on good input (N/A: web-tool names)
+✓ selftest: 11 canaries over 7 of the eight predicates (11 distinct signatures of 18 problem emitters in this file) fire on bad input and stay silent on good input (N/A: web-tool names)
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

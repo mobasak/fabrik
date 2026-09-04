@@ -15,6 +15,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -475,9 +476,9 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # EVERY alert body the script sends is graded — the heartbeat alert (DA3) sat outside the
     # step-alert regex and could grow past 500 or carry a `_` unnoticed (DC2)
     alerts = re.findall(r'_alert "([^"]*)" "([^"]*)"', text)
-    assert len(alerts) == 2 and body in [b for _t, b in alerts], (
+    assert len(alerts) == 3 and body in [b for _t, b in alerts], (
         alerts
-    )  # the pin: two alerts, both graded
+    )  # the pin: three alerts (step failure, heartbeat, the post-commit credit failure — FD7), all graded
     heartbeat = re.search(r'^HEARTBEAT="\$FABRIK_ROOT(/[^"]+)"', text, re.M).group(1)
     for _t, b in alerts:
         fixed_b = re.sub(r"\$\{?[A-Za-z_]+\}?", "", b)
@@ -781,7 +782,8 @@ def test_every_web_tools_literal_names_real_tools_not_providers():
     misfile (DK1). The corpus gate checks the `commands/` markdown plus the assembler, per line;
     this is the same check over every tracked Python caller in scripts/ and libs/ (archives
     excluded), parsed, never pattern-matched (DO2/DQ2)."""
-    sys.path.insert(0, str(REPO))
+    if str(REPO) not in sys.path:  # unguarded, a duplicate per run (L64-2, FD8)
+        sys.path.insert(0, str(REPO))
     from libs.subagents.web_tools import WEB_TOOL_NAMES
 
     literals = 0
@@ -1167,9 +1169,30 @@ def test_the_live_twin_renders_through_the_dashboards_own_helpers():
     ds = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ds)
     assert "__HELPERS__" in ds.PAGE and "const esc=" not in ds.PAGE and "href(r.url)" in ds.PAGE
-    page = ds.PAGE.replace("__HELPERS__", gd.HELPERS).replace("__STALE_H__", str(gd.STALE_AFTER_H))
+    # the SERVED page, through the handler — the first grader re-did the substitution itself and a
+    # deleted `.replace("__HELPERS__", …)` shipped a blank dashboard green (H-1/K64-3, FD7)
+    sent: dict[str, bytes] = {}
+
+    class _Probe(ds.Handler):
+        def __init__(self, path):  # no socket: only the routing + substitution is exercised
+            self.path = path
+
+        def _send(self, body, ctype):
+            sent[ctype] = body
+
+    _Probe("/").do_GET()
+    page = sent["text/html; charset=utf-8"].decode("utf-8")
     assert gd.HELPERS in page and "'&#39;'" in gd.HELPERS and "/^https?:" in gd.HELPERS
+    assert not re.findall(r"__[A-Z_]+__", page), re.findall(r"__[A-Z_]+__", page)
+    assert page.count("const esc=") == 1
     assert "credit stale" in page and f"older than {gd.STALE_AFTER_H} h" in page
+    assert "unattributed keys" in page and "unattributed</span>" in page, (
+        "the twin dropped the BM9 degraded-case signal (K64-7)"
+    )
+    assert "<option value=\"'+esc(c)+'\"" in page, (
+        "an <option> without value= strips whitespace and filters zero rows (K64-15)"
+    )
+    assert _helpers_shape(gd.HELPERS)
     assert "Localhost-only" not in (REPO / "scripts" / "dashboard_server.py").read_text(
         encoding="utf-8"
     )
@@ -1237,17 +1260,8 @@ def test_the_chains_own_alert_says_why_it_was_not_delivered_and_survives_a_bad_e
         f'FABRIK_ROOT="{root}"\nVENV_PY="{sys.executable}"\n' + fn + '\n_alert "t1" "b" warning\n',
         encoding="utf-8",
     )
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k
-        not in (
-            "TELEGRAM_BOT_TOKEN",
-            "TELEGRAM_FULL_BOT_TOKEN",
-            "TELEGRAM_CHAT_ID",
-            "ALERT_VPS_HOST",
-            "ALERT_ENABLED",
-        )
+    env = {  # a MINIMAL environment — the name-list filter was one key short of a real delivery (B-2, FD6)
+        k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
     }
     env["FABRIK_NO_AUTOLOAD"] = "1"
     proc = subprocess.run(
@@ -1255,7 +1269,8 @@ def test_the_chains_own_alert_says_why_it_was_not_delivered_and_survives_a_bad_e
     )
     assert (
         "[chain] .env not loaded:" in proc.stdout
-        and "[chain] alert NOT delivered (alerting disabled): t1" in proc.stdout
+        and "[chain] alert NOT delivered (alerting disabled (no TELEGRAM_*/ALERT_VPS_HOST in the environment)): t1"
+        in proc.stdout
     ), (proc.stdout, proc.stderr)
 
 
@@ -1315,24 +1330,147 @@ def test_a_zero_step_budget_never_disables_the_timeout():
     assert proc.stdout.strip() == "900 2100", (proc.stdout, proc.stderr)
 
 
-def test_the_vendored_alerting_package_is_a_shim_over_libs():
-    """`scripts/kilo-benchmarks/alerting` was the PRE-REPAIR copy (the split-token 404, a
-    title-only dedup, no TELEGRAM_FULL_BOT_TOKEN) and `pipeline_alert.sh` resolved to it (M-C1/FC6)."""
-    import importlib.util
+def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
+    """A same-named SHIM in scripts/kilo-benchmarks/alerting self-imported when loaded as
+    `alerting` from that directory (`from alerting import *` found the half-initialised shim) and
+    every `except ImportError` caller — the freshness heartbeat alert — went silent; the first
+    grader loaded the shim under a name no caller uses (M-1/D-1, FD6). The directory is gone
+    (D-110); the resolution is asserted OUT of process, from the callers' own cwd and path."""
+    assert not (REPO / "scripts" / "kilo-benchmarks" / "alerting").exists()
+    env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG") if k in os.environ}
+    env["FABRIK_NO_AUTOLOAD"] = "1"
+    kb = REPO / "scripts" / "kilo-benchmarks"
+    for cwd, code in (
+        (
+            kb,
+            "import sys; sys.path.insert(0, '.'); import check_daily_refresh_freshness; import alerting; print(alerting.__file__)",
+        ),
+        (
+            kb / "tests",
+            "import sys; sys.path.insert(0, '.'); import conftest; import alerting; print(alerting.__file__)",
+        ),
+    ):
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert proc.returncode == 0, (cwd, proc.stderr[-800:])
+        assert (
+            Path(proc.stdout.strip()).resolve()
+            == (REPO / "libs" / "alerting" / "__init__.py").resolve()
+        ), proc.stdout
 
-    shim = REPO / "scripts" / "kilo-benchmarks" / "alerting"
-    assert sorted(p.name for p in shim.iterdir() if p.suffix == ".py") == ["__init__.py"]
-    spec = importlib.util.spec_from_file_location("kb_alerting_shim", shim / "__init__.py")
-    mod = importlib.util.module_from_spec(spec)
-    os.environ.setdefault("FABRIK_NO_AUTOLOAD", "1")
-    spec.loader.exec_module(mod)
-    assert mod.send_alert.__module__ == "alerting"
-    assert (
-        Path(sys.modules["alerting"].__file__).resolve()
-        == (REPO / "libs" / "alerting" / "__init__.py").resolve()
+
+def test_the_chains_alert_says_when_its_interpreter_is_missing(tmp_path):
+    """`_alert` claimed "alerting" while `timeout` failed to run a missing venv python and every
+    alert was lost (D-6/M-4, FD6); a DIRECTORY at the interpreter path is the same silence."""
+    text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
+    fn = text[text.index("_alert() {") : text.index("_step() {")]
+    (tmp_path / "dirpy").mkdir()
+    for py in (tmp_path / "no-venv" / "python", tmp_path / "dirpy"):
+        harness = tmp_path / "h.sh"
+        harness.write_text(
+            f'FABRIK_ROOT="{tmp_path}"\nVENV_PY="{py}"\n' + fn + '\n_alert "t9" "b" warning\n',
+            encoding="utf-8",
+        )
+        proc = subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=60)
+        assert (
+            "[chain] alert NOT delivered (no interpreter at" in proc.stdout and "t9" in proc.stdout
+        ), (proc.stdout, proc.stderr)
+        assert proc.stderr == "", proc.stderr
+
+
+def test_a_signal_death_of_the_chain_is_alerted_by_both_callers(tmp_path):
+    """The killed-chain branch matched `124|137` only: SIGHUP (129), SIGINT (130) and SIGTERM (143) —
+    the realistic deaths of a boot-path pipeline — logged a line nobody was paged for (D-4, FD6)."""
+    daily = (REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh").read_text(encoding="utf-8")
+    hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
+    for text in (daily, hook):
+        assert text.count("124|129|130|137|143)") == 1, "both callers alert on every signal death"
+        assert "124|137)" not in text
+    assert "export FABRIK_ROOT" in daily
+    assert 'cd "$FABRIK_ROOT" || exit 1' in (
+        REPO / "scripts" / "external_services_chain.sh"
+    ).read_text(encoding="utf-8")
+
+
+def test_the_hooks_stderr_redirect_precedes_the_append_and_its_stamps_are_inner(tmp_path):
+    """`: >>FILE 2>/dev/null` printed "Permission denied" into the login shell before fd 2 moved
+    (D-5); both `=== … ===` stamps were expanded by the OUTER shell, so every daily log reported a
+    0-second pipeline (D-8); the unwritable-log alert's own diagnostics went to /dev/null (D-7) (FD6)."""
+    hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
+    assert ': 2>/dev/null >>"$LOG_FILE"' in hook and ': 2>/dev/null >>"$_fallback"' in hook
+    assert ': >>"$LOG_FILE" 2>/dev/null' not in hook
+    assert hook.count("'\\$(date '+%Y-%m-%d %H:%M:%S')' ==='") == 2, (
+        "both stamps are expanded by the inner shell"
     )
-    text = (REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh").read_text(encoding="utf-8")
-    assert 'sys.path.insert(0, str(root / "libs"))' in text and "FABRIK_NO_AUTOLOAD" in text
+    assert ">/dev/null 2>&1 & )" not in hook
+    daily = (REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh").read_text(encoding="utf-8")
+    assert ': 2>/dev/null >>"$1"' in daily
+    # the order is executable, not just spelled: an unwritable target prints NOTHING
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    ro.chmod(0o555)
+    try:
+        proc = subprocess.run(
+            [
+                "bash",
+                "-c",
+                f'if ! {{ mkdir -p "{ro}" 2>/dev/null && : 2>/dev/null >>"{ro}/x.log"; }}; then echo GUARDED; fi',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    finally:
+        ro.chmod(0o755)
+    if proc.stdout.strip() == "GUARDED":  # not root
+        assert proc.stderr == "", proc.stderr
+
+
+def test_the_hook_rotation_never_loses_a_generation_and_never_enters_a_directory(tmp_path):
+    """`.1 → .2` ran BEFORE `log → .1`; on an unwritable dir the promotion alone succeeded and the
+    oldest generation vanished. `mv` without `-T` moved the live log INTO a directory named `.1`
+    (D-12, the chain's DC2 class) (FD6)."""
+    hook = (REPO / "scripts" / "wsl_startup_hook.sh").read_text(encoding="utf-8")
+    start = hook.index("        # promote .1")
+    snippet = hook[start : hook.index("        fi\n", start) + 11]
+    assert (
+        'mv -T "$logfile" "${logfile}.1.new"' in snippet
+        and 'mv -T "${logfile}.1" "${logfile}.2"' in snippet
+    )
+    assert snippet.index('mv -T "$logfile"') < snippet.index('mv -T "${logfile}.1" "${logfile}.2"')
+    log = tmp_path / "update.log"
+    log.write_text("LIVE\n")
+    (tmp_path / "update.log.1").mkdir()
+    run = lambda: subprocess.run(  # noqa: E731
+        ["bash", "-c", f'logfile="{log}"\n{snippet}'], capture_output=True, text=True, timeout=30
+    )
+    proc = run()
+    assert proc.returncode == 0 and proc.stderr == "", (proc.stdout, proc.stderr)
+    # a directory in the way: `-T` moves the directory aside as `.2`; the live log lands in `.1`
+    # as a FILE — never inside the directory (the pre-fix `mv` put update.log.1/update.log there)
+    assert (
+        not (tmp_path / "update.log.2" / "update.log").exists()
+        and not (tmp_path / "update.log.1").is_dir()
+    )
+    assert (tmp_path / "update.log.1").read_text() == "LIVE\n", sorted(
+        p.name for p in tmp_path.rglob("*")
+    )
+    assert "Log rotated" in log.read_text()
+    shutil.rmtree(tmp_path / "update.log.2")
+    log.write_text("LIVE2\n")
+    proc = run()
+    assert proc.returncode == 0 and proc.stderr == "", (proc.stdout, proc.stderr)
+    assert (tmp_path / "update.log.1").read_text() == "LIVE2\n"
+    assert (tmp_path / "update.log.2").read_text() == "LIVE\n", (
+        "the older generation is promoted, never lost"
+    )
+    assert "Log rotated" in log.read_text()
 
 
 def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
@@ -1343,6 +1481,125 @@ def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
     start = text.index('nohup bash -c "')
     outer = text[start : text.index('\n    " &', start)]
     calls = [ln for ln in outer.splitlines() if "pipeline_alert.sh" in ln]
-    assert len(calls) >= 4, calls
+    assert len(calls) == 4, (
+        calls
+    )  # exact: the three sibling calls + the killed-chain alert — `>=` accepted a deleted site (B-9, FD8)
     for ln in calls:
         assert '>> \\"$LOG_FILE\\" 2>&1' in ln, ln
+
+
+def _helpers_shape(helpers: str) -> bool:
+    """The shared slice is exactly the four helper consts — a widened slice dragged `render()` into
+    the twin and defined it twice, quietly (K64-12, FD7)."""
+    consts = re.findall(r"^const (\w+)=", helpers, flags=re.M)
+    return (
+        consts == ["esc", "href", "cpill", "cell"]
+        and "function render" not in helpers
+        and "<script>" not in helpers
+    )
+
+
+def test_the_live_twins_500_never_puts_the_exception_on_the_wire(monkeypatch, capsys):
+    """`send_error(500, str(exc))` wrote libpq's newline-bearing text into the STATUS LINE (response
+    splitting), raised UnicodeEncodeError inside the except on a `—` (zero bytes sent), and told
+    every LAN client the WireGuard host + role name (K64-1/2/5, FD7)."""
+    import importlib.util
+
+    _load_gen_dashboard()
+    spec = importlib.util.spec_from_file_location(
+        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
+    )
+    ds = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ds)
+    errors: list[tuple[int, str]] = []
+
+    class _Probe(ds.Handler):
+        def __init__(self, path):
+            self.path = path
+
+        def send_error(self, code, message=None, explain=None):
+            errors.append((code, message))
+
+    def boom():
+        raise RuntimeError(
+            'connection to server at "10.99.0.1", port 5432 failed\r\nX-Injected: yes — ⚠ café'
+        )
+
+    monkeypatch.setattr(ds.gen_dashboard, "load", boom)
+    _Probe("/api/services").do_GET()
+    assert errors == [(500, "registry query failed")], errors
+    err = capsys.readouterr().err
+    assert "dashboard: RuntimeError:" in err and "10.99.0.1" in err and "\r" not in err
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc:
+        ds.main(["abc"])
+    assert exc.value.code == 2
+    with _pytest.raises(SystemExit):
+        ds.main(["99999"])
+
+
+def test_the_stale_credit_count_and_the_nan_balance(monkeypatch):
+    """The `credit stale` NUMBER was never asserted (hardcoding 0 passed); a NaN balance rendered
+    as a number and counted as tracked (K64-10/14, FD7)."""
+    gd = _load_gen_dashboard()
+    row = {
+        "provider": "a",
+        "category": "c",
+        "cost": "paid",
+        "url": "",
+        "status": "active",
+        "keys": 1,
+        "unattributed": 0,
+        "projects": [],
+        "account": "",
+        "credit": "⚠ 1 usd (5d old)",
+        "renews": "",
+        "price": "",
+    }
+    html = gd.render(
+        [
+            row,
+            {**row, "provider": "b", "credit": "2 usd"},
+            {**row, "provider": "c", "credit": "⚠ 3 usd (6d old)"},
+        ]
+    )
+    m = re.search(r'<div class="n">(\d+)</div><div class="l">credit stale</div>', html)
+    assert m and m.group(1) == "2", html[
+        html.index("credit stale") - 120 : html.index("credit stale")
+    ]
+    m = re.search(r'<div class="n">(\d+)</div><div class="l">credit tracked</div>', html)
+    assert m and m.group(1) == "1"
+    from decimal import Decimal
+
+    assert (
+        gd.credit_cell(float("nan"), "usd", None) == ""
+        and gd.credit_cell(Decimal("NaN"), "usd", None) == ""
+    )
+    assert gd.credit_cell(Decimal("12.5"), "usd", None) == "12.5 usd"
+
+
+def test_the_chain_alerts_a_credit_phase_failure_without_failing_the_step(tmp_path):
+    """registry_sync exit 3 (registry written, credit phase failed) was a stderr WARNING nobody was
+    paged for; the chain now alerts it and still renders the dashboard (G-C6/E2-C10, FD7)."""
+    text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
+    fn = text[text.index("_step() {") : text.index("\n}\n", text.index("_step() {")) + 3]
+    harness = tmp_path / "h.sh"
+    harness.write_text(
+        "STEP_TIMEOUT=30\nCLASSIFY_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
+        '_alert() { echo "ALERT: $1 [$3]"; }\n'
+        + fn
+        + '\n_step registry_sync bash -c "exit 3"\necho "chain_failed=$chain_failed core_failed=$core_failed"\n'
+        '_step gather_envs bash -c "exit 3"\necho "chain_failed=$chain_failed"\n',
+        encoding="utf-8",
+    )
+    proc = subprocess.run(["bash", str(harness)], capture_output=True, text=True, timeout=60)
+    out = proc.stdout
+    assert (
+        "ALERT: external-services chain: credit fetch failed after the registry commit [warning]"
+        in out
+    ), out
+    assert "chain_failed=0 core_failed=0" in out, out
+    assert out.rstrip().endswith("chain_failed=1"), (
+        out
+    )  # exit 3 from any OTHER step is still a failure

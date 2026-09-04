@@ -42,7 +42,13 @@ def corpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         prefix = "{{include:run-record}}\n" if with_record else ""
         (src / "fabrik-probe.md").write_text(prefix + body)
         return audit(
-            src, frag, tmp_path / "no-assembler.py", REPO, traycer_skills=tmp_path / "no-orch"
+            src,
+            frag,
+            tmp_path / "no-assembler.py",
+            REPO,
+            traycer_skills=tmp_path / "no-orch",
+            agents=tmp_path
+            / "no-agents",  # never the LIVE _agents/: a peer's half-saved definition red every `assert not corpus(...)` (FD4)
         )
 
     return write
@@ -54,10 +60,6 @@ def test_a_digit_bearing_command_name_is_a_chain_reference(corpus, tmp_path):
     `.md` filename is still a file, never a chain reference."""
     problems = corpus("run /fabrik-oauth2-setup, then read /fabrik-real.md and /fabrik-nope.md\n")
     assert any("/fabrik-oauth2-setup does not exist" in p for p in problems), problems
-    problems = corpus(
-        "run /fabrik-2fa\n"
-    )  # a digit-FIRST segment was still invisible after FB7 (FC1)
-    assert any("/fabrik-2fa does not exist" in p for p in problems), problems
     problems = corpus(
         "run /fabrik-2fa\n"
     )  # a digit-FIRST segment was still invisible after FB7 (FC1)
@@ -105,10 +107,10 @@ def test_a_fenced_caller_claim_is_an_example_and_a_claim_ends_at_the_sentence(co
 def test_a_prefix_sibling_never_honours_a_caller_claim(corpus, tmp_path):
     """`/fabrik-review-scoped` CONTAINS `/fabrik-review`: the substring back-reference honoured a
     false claim through a prefix sibling — 9 such pairs live (FC1)."""
-    (tmp_path / "_sources" / "fabrik-real-scoped.md").write_text("{{include:run-record}}\n")
+    (tmp_path / "_sources" / "fabrik-probe-scoped.md").write_text("{{include:run-record}}\n")
     (tmp_path / "_sources" / "fabrik-real.md").write_text(
-        "{{include:run-record}}\nsee /fabrik-real-scoped\n"
-    )  # names only the SIBLING, never /fabrik-probe
+        "{{include:run-record}}\nsee /fabrik-probe-scoped\n"
+    )  # names only the claimant's PREFIX SIBLING — a substring test finds `/fabrik-probe` inside it
     problems = corpus("description: auto-called by /fabrik-real reactively.\n")
     assert any("claims caller /fabrik-real" in p for p in problems), problems
 
@@ -197,8 +199,9 @@ def test_the_recorder_leaves_no_wrapper_and_no_environment_behind(tmp_path, monk
 
     monkeypatch.delenv("SUBAGENTS_NO_AUTOLOAD", raising=False)
     hub = _probe_hub(tmp_path, 'import json\nWEB_TOOL_NAMES = frozenset({"web_search"})\n')
-    for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
-        del sys.modules[k]
+    saved_mods = {
+        k: sys.modules.pop(k) for k in list(sys.modules) if k == "libs" or k.startswith("libs.")
+    }
     try:
         assert ccc._live_web_tool_names(hub) == frozenset({"web_search"})
         assert "SUBAGENTS_NO_AUTOLOAD" not in os.environ
@@ -212,6 +215,9 @@ def test_the_recorder_leaves_no_wrapper_and_no_environment_behind(tmp_path, monk
     finally:
         for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
             del sys.modules[k]
+        sys.modules.update(
+            saved_mods
+        )  # the REAL libs.* modules come back: deleting them split identities for every later importer (L64-10, FD8)
         while str(hub) in sys.path:
             sys.path.remove(
                 str(hub)
@@ -1312,7 +1318,6 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         b"WEB_TOOL_NAMES = frozenset()\n\x00\x00"
     )
     _fake_hub(tmp_path / "noperm", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
-    (tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py").chmod(0)
     _fake_hub(tmp_path / "dirmod", None)
     (tmp_path / "dirmod" / "libs" / "subagents" / "web_tools.py").mkdir(parents=True)
     (tmp_path / "dirmod" / "libs" / "__init__.py").write_text("", encoding="utf-8")
@@ -1327,7 +1332,6 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     )
     # an unreadable PARENT directory: `exists()` itself raises — the target's own defect (EI1)
     _fake_hub(tmp_path / "nopermdir", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
-    (tmp_path / "nopermdir" / "libs" / "subagents").chmod(0)
     # a corrupt bytecode cache with a healthy source: EOFError inside frozen importlib, no path,
     # no filename — the last real frame is the checker itself, so it is the target's (EI1)
     _fake_hub(tmp_path / "corruptpyc", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
@@ -1400,7 +1404,6 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         'from .tools import H\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
         tools_body="H = 1\n",
     )
-    (tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py").chmod(0)
     # a STALE-header target cache (recompiled by Python) beside a torn parent cache: the parent
     # is named — the header clause end-to-end, not only the zero-byte one (EO1)
     _fake_hub(tmp_path / "staletarget", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
@@ -1679,6 +1682,26 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         'try:\n    import optdep_absent_zzz\nexcept ImportError:\n    pass\ndef __getattr__(name):\n    raise RuntimeError("provider registry unavailable: " + name)\n',
     )
     _fake_hub(tmp_path / "healthy", 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    # pass 64 (FD3): a sibling installs a non-module PROXY in sys.modules whose __getattr__ raises
+    # on `__loader__` — the unwind raised before the fd restore and the gate exited 1 with no output
+    _fake_hub(
+        tmp_path / "proxy_sibling",
+        'from . import lazy\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        extra={
+            "libs/subagents/lazy.py": "import sys\nclass _P:\n    def __getattr__(self, a):\n        raise ImportError('backend unavailable: ' + a)\nsys.modules[__name__] = _P()\n"
+        },
+    )
+    # a module that REBINDS sys.stdout kept the binding after the probe
+    _fake_hub(
+        tmp_path / "stdout_rebind",
+        'import io, sys\nsys.stdout = io.StringIO()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    # a finder that raises for the target's name — the import machinery's failure, never the target's
+    _fake_hub(
+        tmp_path / "finder_raises",
+        'WEB_TOOL_NAMES = frozenset({"web_search"})\n',
+        init_body="import sys\nclass _F:\n    def find_spec(self, name, path=None, target=None):\n        if name == 'libs.subagents.web_tools':\n            raise RuntimeError('editable-install finder broke')\n        return None\nsys.meta_path.insert(0, _F())\n",
+    )
     (
         tmp_path / "site" / "nsdist_xyz"
     ).mkdir()  # a namespace package: present for every sibling distribution
@@ -1847,7 +1870,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "from pathlib import Path\n"
         "import check_command_corpus as c\n"
         "out = {}\n"
-        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr', 'lazygetattr', 'createfail', 'pycraises', 'fdchatty', 'swallowreq', 'rootpkg', 'fd2raw', 'dunder', 'stderr_buffer', 'lazygetattr_swallowmissing', 'healthy'):\n"
+        f"for name in ('broken', 'empty', 'absent', 'sibling', 'syntax', 'renamed', 'sibtools', 'extdep', 'extpkg', 'strconst', 'noneconst', 'badmember', 'rtsyntax', 'suffix', 'symlibs', 'parentwt', 'nulbytes', 'noperm', 'dirmod', 'dictkeys', 'dangling', 'nopermdir', 'corruptpyc', 'missingcfg', 'sibpyc', 'zerotarget', 'sibtoolspyc', 'raiseplustorn', 'nulsib', 'dirsib', 'nopermsib', 'staletarget', 'noncode', 'bothtorn', 'unrelatedsib', 'unrelatedsib2', 'deepnul', 'deeppyc', 'raiseimp_nul', 'oserr_nul', 'missingsib_nul', 'parentbroken', 'noncode_sourceless', 'sourceless_torn', 'twinutil', 'fifofirst', 'twobroken', 'twoimported', 'lazysteal', 'typesteal', 'fifoimported', 'indirectnul', 'danglingsib', 'absentdep', 'dfsorder', 'trysteal', 'versteal', 'boolsteal', 'typeelse', 'nestedimports', 'typoimport', 'subdepmissing', 'rootmod', 'sibdep', 'extthenthird', 'attrshadow', 'stemtwin', 'stemtwin2', 'vertaken', 'oserr_impnul', 'stubdep', 'sysexit0', 'bogus_path', 'chatty', 'nsdist', 'lazystr', 'lazygetattr', 'createfail', 'pycraises', 'fdchatty', 'swallowreq', 'rootpkg', 'fd2raw', 'dunder', 'stderr_buffer', 'lazygetattr_swallowmissing', 'healthy', 'proxy_sibling', 'stdout_rebind', 'finder_raises'):\n"
         f"    hub = Path({str(tmp_path)!r}) / name\n"
         "    for k in [k for k in sys.modules if k == 'libs' or k.startswith('libs.')]:\n"
         "        del sys.modules[k]\n"
@@ -1867,6 +1890,12 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     nopermsib_unreadable = not os.access(
         tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py", os.R_OK
     )
+    # the unreadable fixtures are armed LAST: 500 lines of fixture construction sat between the
+    # chmod(0) and the finally that restores it — a raise in between left pytest's tmp dir
+    # undeletable (L64-3/9, FD8)
+    (tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py").chmod(0)
+    (tmp_path / "nopermdir" / "libs" / "subagents").chmod(0)
+    (tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py").chmod(0)
     try:
         r = subprocess.run(
             [sys.executable, str(driver)], capture_output=True, text=True, timeout=120
@@ -1876,6 +1905,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
             0o755
         )  # pytest's tmp cleanup must be able to remove it
         (tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py").chmod(0o644)
+        (tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py").chmod(0o644)
     assert r.returncode == 0, r.stdout + r.stderr
     # the driver prints ONE line: any module banner that reached fd 1 during an import is a leak
     # the old `json.loads(lines[-1])` silently tolerated — the grader could not see the invariant (FB7)
@@ -2315,6 +2345,17 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
     assert out["healthy"]["advisories"] == [] and out["healthy"]["skipped"] == [], out[
         "healthy"
     ]  # cleared per audit
+    # pass 64 (FD3): the driver printed its JSON line at all — a raising unwind had left fd 1 on the sink
+    assert not any("present but unusable" in p for p in out["proxy_sibling"]["problems"]), out[
+        "proxy_sibling"
+    ]
+    assert not any("present but unusable" in p for p in out["stdout_rebind"]["problems"]), out[
+        "stdout_rebind"
+    ]
+    assert any(
+        "editable-install finder broke" in s
+        for s in out["finder_raises"]["skipped"] + out["finder_raises"]["problems"]
+    ), out["finder_raises"]
     assert any(
         s.startswith("web-tool names: importing libs/subagents/web_tools.py failed (")
         for s in out["nsdist"]["skipped"]
@@ -2652,6 +2693,9 @@ def test_a_keyboard_interrupt_at_import_is_never_a_verdict(tmp_path):
             "--quiet",
         ],
         cwd=hub,
+        env={
+            k: os.environ[k] for k in ("PATH", "HOME", "LANG") if k in os.environ
+        },  # never the whole parent environment into an import probe (B-10, FD8)
         capture_output=True,
         text=True,
         timeout=120,
@@ -2926,3 +2970,223 @@ def test_cpythons_validators_are_bound_on_this_interpreter_and_a_drifted_api_fal
     )
     monkeypatch.setattr(ccc, "_be", drifted)
     assert ccc._cache_would_fail(src) is True  # the manual rules still see the torn body
+
+
+def test_the_probe_restores_the_stream_bindings_and_survives_its_own_setup_failing(
+    tmp_path, monkeypatch
+):
+    """A module that rebinds `sys.stdout` kept the binding (the verdict then printed into its
+    object); a cached target plus a setup failure (ENOSPC on the sink) read as the target's own
+    defect; the fd from `os.dup(1)` leaked when `os.dup(2)` raised (FD3)."""
+    import tempfile
+
+    import check_command_corpus as ccc
+
+    hub = _probe_hub(
+        tmp_path,
+        'import io, sys\nsys.stdout = io.StringIO()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n',
+    )
+    saved_mods = {
+        k: sys.modules.pop(k) for k in list(sys.modules) if k == "libs" or k.startswith("libs.")
+    }
+    out0, err0 = sys.stdout, sys.stderr
+    try:
+        assert ccc._live_web_tool_names(hub) == frozenset({"web_search"})
+        assert sys.stdout is out0 and sys.stderr is err0
+        ccc._IMPORT_FAILURE.clear()
+        ccc._IMPORT_BLAME.clear()
+
+        def enospc():
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(tempfile, "TemporaryFile", enospc)
+        fds_before = len(os.listdir("/proc/self/fd"))
+        assert ccc._live_web_tool_names(hub) is None
+        assert ccc._IMPORT_BLAME == [""] and "could not set up" in ccc._IMPORT_FAILURE[0], (
+            ccc._IMPORT_FAILURE,
+            ccc._IMPORT_BLAME,
+        )
+        assert len(os.listdir("/proc/self/fd")) == fds_before  # nothing leaked on the failed setup
+        assert sys.stdout is out0
+    finally:
+        ccc._IMPORT_FAILURE.clear()
+        ccc._IMPORT_BLAME.clear()
+        for k in [k for k in sys.modules if k == "libs" or k.startswith("libs.")]:
+            del sys.modules[k]
+        sys.modules.update(saved_mods)
+        while str(hub) in sys.path:
+            sys.path.remove(str(hub))
+
+
+def test_two_recorders_never_recurse_and_a_spec_is_wrapped_once():
+    """The recorder walked the WHOLE meta_path: a second recorder called it back — RecursionError
+    on the first import; a caching finder handing the same spec back twice was wrapped twice and
+    the outer wrapper hid the inner from unwind (FD3)."""
+    import importlib.machinery
+
+    import check_command_corpus as ccc
+
+    r1, r2 = ccc._ImportRecorder(), ccc._ImportRecorder()
+    sys.meta_path.insert(0, r1)
+    sys.meta_path.insert(0, r2)
+    cache = None
+    try:
+        assert (
+            r2.find_spec("json") is not None
+        )  # resolves through r1 and PathFinder without recursion
+        cached = importlib.machinery.ModuleSpec(
+            "x.cached", importlib.machinery.SourceFileLoader("x.cached", "/dev/null")
+        )
+        first = ccc._RecordingLoader(cached.loader, "x.cached", r1)
+        cached.loader = first
+        r1.wrappers.append((cached, first))
+
+        class _Cache:
+            def find_spec(self, name, path=None, target=None):
+                return cached if name == "x.cached" else None
+
+        cache = _Cache()
+        sys.meta_path.insert(sys.meta_path.index(r1) + 1, cache)
+        assert r1.find_spec("x.cached") is cached and cached.loader is first  # ONE wrapper
+        r1.unwind()
+        assert not isinstance(cached.loader, ccc._RecordingLoader)
+    finally:
+        sys.meta_path[:] = [
+            f for f in sys.meta_path if f is not r1 and f is not r2 and f is not cache
+        ]
+        r2.unwind()
+        r1.unwind()
+
+
+def test_two_closes_on_one_line_and_fenced_backticks_and_comments(corpus):
+    """The second of two closes on a line was never windowed; inside a fence a backtick in an
+    argument cut the window; a trailing shell comment carried the flag (FD4)."""
+    problems = corpus(
+        "`done --command fabrik-probe --feedback f` or `blocked --command fabrik-probe --reason r`\n"
+    )
+    assert sum("--feedback" in p for p in problems) == 1, problems
+    body = '```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence "see `docs`" --feedback f\n```\n'
+    assert not any("--feedback" in p for p in corpus(body)), corpus(body)
+    body = "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e   # refuses without --feedback\n```\n"
+    assert any("--feedback" in p for p in corpus(body)), corpus(body)
+    # an UNCLOSED span absorbed twelve lines of prose — the close is graded on its own line (I-C6)
+    problems = corpus("`done --command fabrik-probe --evidence e\nprose says --feedback is required here\n")
+    assert any("--feedback" in p for p in problems), problems
+    # the same-line closer half of the seed: prose after the closer on the NEXT line, no backtick there
+    problems = corpus(
+        "`python3 scripts/command_run.py done --command fabrik-probe --evidence e` prose\n--feedback is documented here\n"
+    )
+    assert any("--feedback" in p for p in problems), problems
+
+
+def test_a_closing_fence_never_carries_an_info_string_and_a_tab_comment_is_a_comment(
+    corpus, tmp_path
+):
+    """```bash inside an open fence is CONTENT (a nested-markdown demo fabricated a claim); a TAB
+    before `#` in `name:` is a YAML comment; `command_run.py \\` + a BLANK line + `start` is two
+    commands, not a run-record start (FD4)."""
+    assert not corpus("```markdown\n```bash\nauto-called by /fabrik-real\n```\n```\n")
+    src, frag = tmp_path / "_s", tmp_path / "_f"
+    src.mkdir()
+    frag.mkdir()
+    (src / "fabrik-real.md").write_text("{{include:run-record}}\n")
+    agents = tmp_path / "_a"
+    agents.mkdir()
+    (agents / "tabbed.md").write_text("---\nname: tabbed\t# the reviewer\ndescription: d\n---\n")
+    assert not audit(
+        src,
+        frag,
+        tmp_path / "no-assembler.py",
+        tmp_path,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )
+    problems = corpus("python3 scripts/command_run.py \\\n\nstart --command x\n", with_record=False)
+    assert any("opens no run record" in p for p in problems), problems
+    problems = corpus("python3 scripts/command_run.py\tstart --command x\n", with_record=False)
+    assert not any("opens no run record" in p for p in problems), problems
+
+
+def test_a_fenced_or_commented_start_and_an_unclosed_frontmatter_and_a_quoted_hash(
+    corpus, tmp_path
+):
+    """Predicate 5 was satisfied by a `start` inside a fence, an HTML comment, or `start-run`;
+    predicate 6 fell back to the WHOLE file on an unclosed frontmatter and truncated a quoted
+    `name:` at its `#` (FD4)."""
+    for body in (
+        "<!-- python3 scripts/command_run.py start --command x -->\nbody\n",
+        "python3 scripts/command_run.py start-run --command x\n",
+    ):
+        problems = corpus(body, with_record=False)
+        assert any("opens no run record" in p for p in problems), (body, problems)
+    src, frag = tmp_path / "_s6", tmp_path / "_f6"
+    src.mkdir()
+    frag.mkdir()
+    agents = tmp_path / "_a6"
+    agents.mkdir()
+    (src / "fabrik-real.md").write_text(
+        "{{include:run-record}}\n"
+    )  # an EMPTY sources dir is refused before the agents predicate runs
+    (agents / "probe.md").write_text("---\n\nprose\nname: probe\ndescription: d\n")
+    problems = audit(
+        src,
+        frag,
+        tmp_path / "no-assembler.py",
+        tmp_path,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )
+    assert any("never closed" in p for p in problems), problems
+    (agents / "probe.md").write_text('---\nname: "probe"  # a note\ndescription: d\n---\n')
+    assert not audit(
+        src,
+        frag,
+        tmp_path / "no-assembler.py",
+        tmp_path,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )
+    (agents / "probe.md").write_text('---\nname: "pro # be"\ndescription: d\n---\n')
+    problems = audit(
+        src,
+        frag,
+        tmp_path / "no-assembler.py",
+        tmp_path,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )
+    assert any("declares `name: pro # be`" in p for p in problems), problems
+
+
+def test_a_caller_naming_the_claimant_only_inside_a_fence_honours_nothing(corpus, tmp_path):
+    """The claim side skips fences; the honour side did not — a fenced example in the caller
+    honoured a false claim (FD4)."""
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\n```\nexample: /fabrik-probe\n```\n"
+    )
+    problems = corpus("description: auto-called by /fabrik-real reactively.\n")
+    assert any("claims caller /fabrik-real" in p for p in problems), problems
+
+
+def test_the_selftest_counts_distinct_signatures_over_the_real_emitter_count(capsys, monkeypatch):
+    """The first line printed "17 of 18": canaries counted as emitters, and the counter counted
+    its own `problems.append(` literal (FD4)."""
+    import check_command_corpus as ccc
+
+    monkeypatch.setattr(ccc, "AGENTS_SRC", ccc.REPO / "commands" / "_agents")
+    assert ccc._selftest() == 0
+    line = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("✓ selftest")][-1]
+    m = re.search(r"\((\d+) distinct signatures of (\d+) problem emitters", line)
+    assert m, line
+    covered, emitters = int(m.group(1)), int(m.group(2))
+    src = (ccc.REPO / "scripts" / "enforcement" / "check_command_corpus.py").read_text(
+        encoding="utf-8"
+    )
+    assert emitters == src.count("problems.append(") - 1 and covered <= emitters, line
+
+
+def test_safe_str_keeps_only_printable_text():
+    """A NUL or an ANSI escape in an import failure's message rode into the gate row (FD3)."""
+    import check_command_corpus as ccc
+
+    assert ccc._safe_str(RuntimeError("a\x00b\x1b[0m c\n d")) == "a b [0m c d"

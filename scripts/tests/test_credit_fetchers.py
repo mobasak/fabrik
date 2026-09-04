@@ -278,3 +278,30 @@ def test_crossing_the_body_cap_is_said(capsys):
     finally:
         cf._OPENER = orig
     assert "response over" in capsys.readouterr().err
+
+
+def test_a_flag_a_string_and_an_overflowing_int_are_not_measurements(monkeypatch):
+    """`_finite(True)` published a fresh $1.00 balance (which also silenced the staleness flag);
+    `"12"` became 12.0 while DeepL rejected the same string; `math.isfinite(10**400)` raised
+    OverflowError inside `fetch_deepl`; a negative limit produced a negative balance (K64-6/13/18, FD7)."""
+    assert (
+        cf._finite(True, "u") is None
+        and cf._finite("12", "u") is None
+        and cf._finite(10**400, "u") is None
+    )
+    assert cf._finite(12, "u") == cf.CreditSnapshot(12.0, "u")
+    cases = {
+        '{"character_count": true, "character_limit": 500000}': None,
+        '{"character_count": "100", "character_limit": 500000}': None,
+        '{"character_count": 100, "character_limit": -500}': None,
+        '{"character_count": 100, "character_limit": 1e400}': None,
+        '{"character_count": 100, "character_limit": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000}': None,  # a 400-digit INT: `math.isfinite` raises OverflowError on it
+        '{"character_count": 100, "character_limit": 500}': cf.CreditSnapshot(
+            400.0, "chars_remaining"
+        ),
+    }
+    for body, want in cases.items():
+        monkeypatch.setattr(cf, "_get_json", lambda *a, _b=body, **k: __import__("json").loads(_b))
+        assert cf.fetch_deepl("k:fx") == want, body
+    monkeypatch.setattr(cf, "_get_json", lambda *a, **k: {"data": {"totalUsageCreditsUsd": True}})
+    assert cf.fetch_apify("k") is None

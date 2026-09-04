@@ -98,8 +98,13 @@ def fetch_deepl(api_key: str) -> CreditSnapshot | None:
     d = _get_json(f"https://{host}/v2/usage", {"Authorization": f"DeepL-Auth-Key {api_key}"})
     if not d or d.get("character_count") is None or d.get("character_limit") is None:
         return None
-    limit = d["character_limit"]
-    if not isinstance(limit, (int, float)) or isinstance(limit, bool) or not math.isfinite(limit):
+    count, limit = d["character_count"], d["character_limit"]
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in (count, limit)):
+        return None  # `character_count: true` was `limit - 1`; a string count raised inside the fetcher (FD7)
+    try:
+        if not math.isfinite(limit) or not math.isfinite(count) or limit < 0 or count < 0:
+            return None  # a negative limit is nonsense, not a balance (FD7)
+    except OverflowError:  # `math.isfinite(10**400)` raises — the "never raises" contract held only through the caller's blanket catch (FD7)
         return None
     if limit >= 1e12:
         # DeepL's documented "no limit" sentinel (EXTERNAL_SYSTEMS.md, DeepL row 7): an unlimited
@@ -111,9 +116,11 @@ def fetch_deepl(api_key: str) -> CreditSnapshot | None:
 def _finite(value: object, unit: str) -> CreditSnapshot | None:
     """A snapshot only for a FINITE number: `json.loads` accepts the non-standard `NaN`/`Infinity`
     literals and `float()` passed them through to a NUMERIC column and the dashboard (FC4)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None  # a flag or a string is not a measurement: `float(True)` published a fresh 1.0 balance (FD7)
     try:
-        number = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
         return None
     return CreditSnapshot(number, unit) if math.isfinite(number) else None
 

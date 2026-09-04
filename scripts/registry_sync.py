@@ -187,12 +187,17 @@ def parse(path: Path) -> list[dict]:
     bad: list[str] = []
     seen: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("# ═"):  # section header
+        s = (
+            line.strip().lstrip("\ufeff").strip()
+        )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); strip BEFORE the BOM cut too — U+FEFF is not whitespace (FD7)
+        if s.startswith(
+            "# ═"
+        ):  # section header — on the STRIPPED line, like the #svc header: an indented internal-config header folded 50 credential-shaped names under the last provider (FD7)
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
-        s = (
-            line.lstrip("\ufeff").strip()
-        )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3)
+        if re.match(r"#\s*#svc\b", s, re.I):
+            cur = None  # a COMMENTED-OUT provider ends the block: its keys belong to nobody, never to the neighbour (FD7)
+            continue
         m = SVC_RE.fullmatch(
             s
         )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3); trailing whitespace tolerated (EZ4)
@@ -218,7 +223,9 @@ def parse(path: Path) -> list[dict]:
             cur = None
             bad.append(line[:120])
             continue
-        kv = KV_RE.match(line)
+        kv = KV_RE.match(
+            line.lstrip("\ufeff").lstrip()
+        )  # an indented or BOM-prefixed KEY was silently DROPPED — and then pruned from the registry (FD7)
         if cur is not None and kv:
             key, rest = kv.group(1), kv.group(2)
             # "   # " (3-space-hash-SPACE) is gather_envs' exact note delimiter; splitting on it
@@ -425,7 +432,7 @@ def sync_registry(
         # the dashboard for a synced registry (FC3)
         conn2 = None
         try:
-            conn2 = registry_db.connect()
+            conn2 = registry_db.connect()  # a failure here is a WARNING and exit 3: the chain alerts it without failing the step (FD7)
             for sid, name, value in to_fetch:
                 snap = fetch_balance(name, value)
                 if snap is not None:
@@ -436,6 +443,7 @@ def sync_registry(
                         )
                     stats["credit_snapshots"] += 1
         except Exception as exc:  # noqa: BLE001 - said, never a registry-sync refusal
+            stats["credit_phase_failed"] = 1
             print(
                 f"WARNING: registry synced; the credit fetch aborted after the commit ({exc.__class__.__name__}: {' '.join(str(exc).split())}) — balances age until the next lap",
                 file=sys.stderr,
@@ -485,6 +493,8 @@ def main() -> int:
     )
     if stats["provenance_unknown"]:
         return 2  # a degraded registry must not read LIVE: the chain's _step alerts and skips the dashboard (BM2)
+    if stats.get("credit_phase_failed"):
+        return 3  # registry WRITTEN, credit phase failed: a WARNING alone was never alerted — the chain pages on 3 and still renders the dashboard (FD7)
     return 0
 
 

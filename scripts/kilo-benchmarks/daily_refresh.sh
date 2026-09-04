@@ -33,6 +33,7 @@
 # Logs: stdout (12-Factor XI). Redirect at the invocation layer if you want a file.
 set -u
 FABRIK_ROOT="/opt/fabrik"
+export FABRIK_ROOT  # the seven alert-helper calls below inherit it — unexported, the helper fell back to its own default (identical today, silently divergent the day either moves; FD6)
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 VENV_PY="$FABRIK_ROOT/.venv/bin/python"
 KB="$FABRIK_ROOT/scripts/kilo-benchmarks"
@@ -59,7 +60,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 # passes cleanly while the redirect below still fails and still skips the whole body. Verified:
 # `chmod 500` the cache dir and the mkdir guard reports success, the block exits 1, and nothing
 # runs. Only appending to the actual target proves the actual redirect can succeed.
-_log_usable() { mkdir -p "$(dirname "$1")" 2>/dev/null && : >>"$1" 2>/dev/null; }
+_log_usable() { mkdir -p "$(dirname "$1")" 2>/dev/null && : 2>/dev/null >>"$1"; }  # redirections apply LEFT to RIGHT: `>>FILE 2>/dev/null` printed "Permission denied" before fd 2 moved (FD6)
 
 if ! _log_usable "$LOG_FILE"; then
   _fallback="/tmp/fabrik_daily_refresh_$(date -u +%Y%m%d).log"
@@ -174,10 +175,10 @@ fi
   if [ "$_rc" -ne 0 ]; then
     case "$_rc" in 126|127)  # bash could not START the chain (missing / unreadable): none of its own alerts ever ran
       bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
-      124|137)  # the chain PROCESS was killed (timeout / OOM): its own step alert never ran either — logged but never alerted before (FC6)
+      124|129|130|137|143)  # the chain PROCESS was killed (timeout / OOM / SIGHUP / SIGINT / SIGTERM — the chain's own exits are only 0/1, so >128 is a signal; FD6): its own step alert never ran either — logged but never alerted before (FC6)
       bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain was KILLED' "exit $_rc — timeout or OOM took the chain process; its own step alerts never ran. Log: $LOG_FILE" || true ;;
     esac
-    echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 by this caller, non-fatal)"
+    echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 or a kill by this caller, non-fatal)"
   fi
 
   # Ensure the OR richer-extraction columns (canonical_slug, knowledge_cutoff,

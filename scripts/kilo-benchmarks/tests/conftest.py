@@ -14,6 +14,14 @@ coverage. Create the throwaway once per box:
 from __future__ import annotations
 
 import os
+import sys as _sys
+from pathlib import Path as _Path
+
+_LIBS_FOR_ALERTING = (
+    _Path(__file__).resolve().parents[3] / "libs"
+)  # `import alerting` in this suite is libs/alerting — the vendored copy is gone (D-110/FD6)
+if str(_LIBS_FOR_ALERTING) not in _sys.path:
+    _sys.path.insert(0, str(_LIBS_FOR_ALERTING))
 
 _FALLBACK = "postgresql:///canary_grounding_test"
 

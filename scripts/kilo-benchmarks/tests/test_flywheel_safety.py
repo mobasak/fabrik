@@ -264,8 +264,11 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # 12 -> 11 at the Phase-D cutover (2026-08-15): D.1 removed the rank_task_subagents `_step`
     # from daily_refresh.sh (the ranker now runs in the ai-model-catalog engine), taking its alert
     # site with it. fabrik's ranker alert survives in wsl_startup_hook.sh, which this count covers.
-    assert len(sites) == 12, (
-        f"expected exactly 12 alert sites across the three entry points, found {len(sites)}. "
+    # 12 -> 16 (round 64, FD6): the pin was already red at 15 before round 63 (the 126/127
+    # cannot-start alerts in both callers and the hook's unwritable-log alert landed without
+    # bumping it — G-C5); round 63 added the killed-chain alert in daily_refresh.sh (16).
+    assert len(sites) == 16, (
+        f"expected exactly 16 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:
@@ -380,7 +383,7 @@ def test_block_scope_log_redirect_cannot_silently_skip_the_whole_pipeline():
         # existing-but-unwritable directory, so a mkdir-based guard reports success while the
         # redirect still fails and still skips the entire body — the guard would be decorative
         # in exactly the scenario it exists for. Empirically reproduced with `chmod 500`.
-        assert re.search(r'_log_usable\(\)\s*\{[^}]*:\s*>>"?\$1', head), (
+        assert re.search(r'_log_usable\(\)\s*\{[^}]*:\s*(?:2>/dev/null\s*)?>>"?\$1', head), (
             f"{src.name} must prove the log is WRITABLE by appending to it before the block "
             f"opens. `mkdir -p` alone is not that proof: it succeeds on an existing unwritable "
             f"directory, and the whole pipeline body is then skipped in silence"
@@ -423,6 +426,7 @@ def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(sc
             and ('>> "$LOG_FILE"' in ln or ">> $LOG_FILE" in ln or '>>"$LOG_FILE"' in ln)
             # the probe itself is the thing being asserted, not a violation of it
             and ': >>"$LOG_FILE"' not in ln
+            and ': 2>/dev/null >>"$LOG_FILE"' not in ln  # stderr-first is the same probe (redirections apply left to right; FD6)
         ),
         None,
     )
@@ -432,8 +436,8 @@ def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(sc
     # Two equivalent shapes are allowed: the probe written inline, or a `_log_usable` helper
     # that appends to its argument and is then invoked on $LOG_FILE. Both prove appendability;
     # pinning only the inline spelling would fail a legitimate refactor into a helper.
-    inline = ': >>"$LOG_FILE"' in head
-    via_helper = ': >>"$1"' in head and '_log_usable "$LOG_FILE"' in head
+    inline = ': >>"$LOG_FILE"' in head or ': 2>/dev/null >>"$LOG_FILE"' in head
+    via_helper = (': >>"$1"' in head or ': 2>/dev/null >>"$1"' in head) and '_log_usable "$LOG_FILE"' in head
     assert inline or via_helper, (
         f"{script} redirects to $LOG_FILE at line {first_redirect + 1} without ever proving the "
         f"file is appendable. `mkdir -p` is not that proof — it returns 0 on an existing "

@@ -287,6 +287,18 @@ def tombstone_of(catalog: dict, prov: str) -> bool:
     )
 
 
+def _tokens_elsewhere(catalog: dict, prov: str) -> set[str]:
+    """Every prefix token some OTHER entry routes — a new entry or a tombstone minting one of these
+    is the classifier's OWN prefix tie: both merge passes refused it, after the cursor had moved
+    and the batch was paid (E1-C2, FD8)."""
+    return {
+        t
+        for other, meta in catalog.items()
+        if other != prov and isinstance(meta, dict)
+        for t in _curated_tokens(meta)
+    }
+
+
 def tombstone_entry(prov: str, code_only: bool = False) -> dict:
     """A catalog stub for a provider the WEB genuinely could not identify.
 
@@ -555,7 +567,13 @@ def main() -> int:
     # hand-edit landing mid-dispatch that breaks a key rule or claims another vendor's prefix)
     # is re-merged onto the pre-dispatch probe — the last validated state — so the paid batch
     # is never thrown away and the state files below are still written (FB5/G-C1/FC5)
+    identified_all, errored_all = dict(identified), set(errored)
     for source in (raw_catalog, _catalog_probe):
+        # pass 1 MUTATES both (`identified.pop` on every merge, `errored -= exhausted`) and
+        # `merged_into` is rebuilt per pass: on the fallback pass a provider the pool identified
+        # as an existing vendor was in neither map and — on the daily argv — written as a
+        # permanent tombstone, the paid answer inverted (E1-C1/G-C2/P-2, FD8)
+        identified, errored = dict(identified_all), set(errored_all)
         raw_catalog = source
         # `_`-prefixed keys are metadata (`_README`), never providers — the same convention
         # gather_envs.load_catalog applies; kept aside and written back first (AU9)
@@ -674,7 +692,12 @@ def main() -> int:
                 else "?",  # an out-of-enum status is UNKNOWN, never "active" (BB4)
                 # a provider seen ONLY as a code call site has no env key behind it: a bare-word
                 # match prefix would hijack unrelated vars (`allowed` → ALLOWED_ORIGINS; pass 2)
-                "match": [] if code_only_provider(provs.get(prov, {})) else [root],
+                "match": []
+                if code_only_provider(provs.get(prov, {}))
+                or root.rstrip("_") in _tokens_elsewhere(catalog, prov)
+                else [
+                    root
+                ],  # a token another entry routes is never minted — the curator keeps routing it (FD8)
             }
             # `identified` is enum-gated above, so entry["category"] is never "?" here (AS1/AU1)
             if (
@@ -739,6 +762,13 @@ def main() -> int:
                     # non-str category buckets to `?` there, so treating it as real here re-billed it daily
                     continue
                 stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
+                if stub["match"] and stub["match"][0].rstrip("_") in _tokens_elsewhere(
+                    catalog, prov
+                ):
+                    stub["match"] = []  # the classifier's own prefix tie, tombstone flavour (FD8)
+                    print(
+                        f"  {prov}: prefix {prov.upper()} is routed by another entry already — no prefix minted"
+                    )
                 if (
                     prov in catalog
                 ):  # a curated `?` entry keeps its match/hosts when re-stubbed (AC11)
@@ -765,7 +795,8 @@ def main() -> int:
                 # the classifier's OWN merge onto a validated catalog is what the next gather
                 # refuses: nothing written, the previous catalog stands
                 print(
-                    f"ERROR: {exc} — the merged catalog is NOT written; the previous one stands",
+                    f"ERROR: {exc} — the merged catalog is NOT written; the previous one stands. "
+                    "The paid batch is LOST and the cursor has moved: the providers in it are re-billed on a later lap (FD8)",
                     file=sys.stderr,
                 )
                 return 1
@@ -794,7 +825,10 @@ def main() -> int:
     )
     if identified:  # the retired orchestrator's "new providers" alert, kept (best-effort)
         try:
-            sys.path.insert(0, str(REPO / "libs"))
+            if (
+                str(REPO / "libs") not in sys.path
+            ):  # unguarded, this grew sys.path by one entry per lap (26 duplicates over one test session; FD6)
+                sys.path.insert(0, str(REPO / "libs"))
             from alerting import send_alert  # noqa: PLC0415 - optional, box-local
 
             if not send_alert(

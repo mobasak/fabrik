@@ -1549,9 +1549,9 @@ def test_the_alert_helper_loads_dotenv_before_importing_alerting():
     code = "\n".join(ln for ln in helper.splitlines() if not ln.lstrip().startswith("#"))
     assert "from dotenv import load_dotenv" in code, "the helper does not import load_dotenv"
     assert "load_dotenv(" in code, "the helper never CALLS load_dotenv"
-    assert code.index("load_dotenv(") < code.index("from alerting import send_alert"), (
+    assert code.index("load_dotenv(") < code.index("import alerting"), (
         "alerting is imported before dotenv is loaded — the alert is a silent no-op"
-    )
+    )  # the helper imports the package (`import alerting`) since it names `_is_enabled` too (FC6)
 
 
 def test_the_hook_prelude_slice_stays_side_effect_free():

@@ -22,6 +22,7 @@
 # `timeout`.
 set -u
 FABRIK_ROOT="${FABRIK_ROOT:-/opt/fabrik}"
+cd "$FABRIK_ROOT" || exit 1  # the boot hook reaches this script from /opt/session-recall (its `cd` never returns): the classifier's alerting autoload read THAT repo's .env and its "new providers" alert was never delivered on the boot path (FD6)
 VENV_PY="${VENV_PY:-$FABRIK_ROOT/.venv/bin/python}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-900}"
 [ "$STEP_TIMEOUT" -gt 0 ] 2>/dev/null || STEP_TIMEOUT=900  # `0` DISABLES timeout(1): a numeric override passed every guard and switched the only hang protection off (FC6)
@@ -36,7 +37,13 @@ core_failed=0    # a step the dashboard DEPENDS on failed (gather_envs / reconso
 _alert() {  # $1 title, $2 body, $3 severity
   # a False return is SAID in the log with its cause (disabled vs every method failed — dedup
   # cannot fire across processes); the root is argv, never source text (a `'` in FABRIK_ROOT was
-  # a swallowed SyntaxError); an unreadable .env is said, not a traceback; bounded at 60 s (FB10/FC6)
+  # a swallowed SyntaxError); an unreadable .env is said, not a traceback; bounded at 60 s (FB10/FC6);
+  # a MISSING interpreter is said too — `timeout: failed to run command` was swallowed by `|| true`
+  # and the chain went on as if every step alert had fired (FD6)
+  if [ ! -f "$VENV_PY" ] || [ ! -x "$VENV_PY" ]; then
+    echo "[chain] alert NOT delivered (no interpreter at $VENV_PY): $1"
+    return 0
+  fi
   timeout -k 5 60 "$VENV_PY" -c '
 import os, sys
 os.environ.setdefault("FABRIK_NO_AUTOLOAD", "1")
@@ -47,11 +54,17 @@ try:
     load_dotenv(root + "/.env", override=False)
 except Exception as exc:
     print("[chain] .env not loaded: " + type(exc).__name__ + ": " + str(exc))
-import alerting
-sent = alerting.send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3])
-if not sent:
-    why = "alerting disabled" if not alerting._is_enabled() else "every delivery method failed"
-    print("[chain] alert NOT delivered (" + why + "): " + sys.argv[1])
+try:
+    import alerting
+    sent = alerting.send_alert(title=sys.argv[1], body=sys.argv[2], severity=sys.argv[3])
+    if not sent:
+        try:
+            why = "alerting disabled (no TELEGRAM_*/ALERT_VPS_HOST in the environment)" if not alerting._is_enabled() else "every delivery method failed (see the per-method causes above)"
+        except Exception:
+            why = "reason unavailable"
+        print("[chain] alert NOT delivered (" + why + "): " + sys.argv[1])
+except Exception as exc:
+    print("[chain] alert NOT delivered (" + type(exc).__name__ + ": " + str(exc) + "): " + sys.argv[1])
 ' "$1" "$2" "$3" "$FABRIK_ROOT" 2>&1 || true
 }
 _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
@@ -62,6 +75,13 @@ _step() {  # $1 label, rest = command; records timing, alerts + flags on failure
   timeout -k 30 "$budget" "$@"  # SIGKILL 30 s after SIGTERM: a hung child never outlives the budget (AF13)
   local rc=$?
   printf '[timing] %s: %ds (exit=%d)\n' "$label" "$((SECONDS - t0))" "$rc"
+  if [ "$rc" -eq 3 ] && [ "$label" = registry_sync ]; then
+    # the registry IS written; only the post-commit credit phase failed — a stderr WARNING that
+    # nobody was paged for, surfacing 48 h later as a `credit stale` cell (FD7)
+    echo "[external-services-chain] registry_sync: registry written, the credit phase FAILED (exit 3) — alerting, the dashboard proceeds"
+    _alert "external-services chain: credit fetch failed after the registry commit" "registry-sync exited 3: the registry is written and the dashboard is rendered; balances age until the next lap. See the WARNING line in the chain log." warning
+    rc=0
+  fi
   if [ "$rc" -ne 0 ]; then
     chain_failed=1
     case "$label" in gather_envs|gather_envs_reconsolidate|registry_sync) core_failed=1 ;; esac

@@ -91,9 +91,14 @@ findings under one id; `surfaces` must be a list of objects. A malformed ROW (`m
 a non-integer `port`, a string `evidence`, an empty `cron_match`/`command_contains`/`marker`) is that
 one surface's UNKNOWN, never an exception out of the proof. An evidence path that is a directory, a
 FIFO, a device, a symlink loop or empty is that ONE surface's broken instrument (UNKNOWN) on BOTH file
-readers — the `log` reader (24 of 34 surfaces, every `touch` stamp) had kept aging a directory by
-its mtime after pass 62 guarded the marker reader only; a dangling symlink is DEAD with its target
-named. Only a leading `~` expands.
+readers — the `log` reader (21 of 34 surfaces directly, 23 through the two `log_marker` rows, every
+`touch` stamp) had kept aging a directory by its mtime after pass 62 guarded the marker reader only;
+a dangling symlink is DEAD with its target named on both readers (the marker reader had blamed a
+missing marker). A needle (`cron_match`, `command_contains`, `marker`) must be a non-blank STRING
+(`" "` matched every line and `0` every stamp — permanent LIVE), an evidence path must be absolute, a
+`max_age_hours` beyond 2**53 is refused before `isfinite` can overflow, a malformed `ownership` block
+never discards the surface verdicts (the sweep reports its own fault), and a render line carries at
+most 200 chars of detail. Only a leading `~` expands.
 
 The registry lives in `.fabrik/` because that is already the repo's **tracked** machine-state directory
 (`lint-baseline.json`, `plan-locks/*.json`), so it is versioned and reviewable in a diff rather than a

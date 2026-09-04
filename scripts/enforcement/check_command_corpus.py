@@ -98,7 +98,7 @@ _CHAIN_RE = re.compile(
     r"(?<![\w/.-])/((?:fabrik|design)-[a-z0-9][a-z0-9-]*)(?!\.md)(?![\w/-])"
 )  # digits belong to a name: `/fabrik-oauth2-setup` matched NOTHING under `[a-z-]*` (the lookahead refused the partial), so predicates 2 and 8 were blind to any digit-bearing command (FB7)
 _RUN_START_RE = re.compile(
-    r"command_run\.py(?:[ \t]+|[ \t]*\\\n\s*)start\b"
+    r"command_run\.py(?:[ \t]+|[ \t]*\\\n[ \t]*)start(?![\w-])"
 )  # a wrapped or re-spaced `command_run.py \\\n  start` opens a run record too — the bare substring test called it "no run record", a BLOCKING false positive on ordinary shell wrapping (FB7)
 
 _WEB_TOOLS_RE = re.compile(
@@ -190,6 +190,14 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     saved: list[int] = []
     sink = None
     leaked = 0
+    streams = (
+        sys.stdout,
+        sys.stderr,
+    )  # the BINDINGS: a module that rebinds `sys.stdout` kept it after the probe and the verdict printed into its object — an empty gate row (FD3)
+    was_loaded = (
+        f"{target.parent.parent.name}.{target.parent.name}.{target.stem}" in sys.modules
+    )  # a cached target makes a later SETUP failure look like the target's (FD3)
+    setup_done = False
     autoload_was = os.environ.get("SUBAGENTS_NO_AUTOLOAD")
     os.environ.setdefault(
         "SUBAGENTS_NO_AUTOLOAD", "1"
@@ -207,22 +215,37 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
             with contextlib.suppress(Exception):
                 stream.flush()
         sink = tempfile.TemporaryFile()  # noqa: SIM115 - closed in the finally below, after the fds are restored
-        saved = [os.dup(1), os.dup(2)]
+        saved.append(os.dup(1))
+        saved.append(
+            os.dup(2)
+        )  # one at a time: a list bound after BOTH dups leaked the first when the second raised (FD3)
         os.dup2(sink.fileno(), 1)
         os.dup2(sink.fileno(), 2)
         sys.meta_path.insert(0, rec)
+        setup_done = True
         from libs.subagents.web_tools import WEB_TOOL_NAMES  # noqa: PLC0415
     except BaseException as exc:  # noqa: BLE001 - never a traceback out of a gate; the CALLER decides what the failure means (a problem in the hub when it is web_tools.py's own, an advisory otherwise — EA1); a `sys.exit()` at import is the module's failure, not this process's exit code (EY9)
         if isinstance(exc, KeyboardInterrupt):
             raise
-        failure, blame = _attribute(exc, rec, target, repo)
+        if not setup_done:
+            # OUR setup failed (ENOSPC on the sink, EMFILE on a dup): a resource failure of the
+            # gate process, never the import's — it read as "present but unusable" when the
+            # target was cached from an earlier probe (FD3)
+            _IMPORT_FAILURE.append(
+                _scrub(f"the import probe could not set up ({_safe_str(exc)})", repo)
+            )
+            _IMPORT_BLAME.append("")
+            return None
+        failure, blame = _attribute(exc, rec, target, repo, was_loaded)
         _IMPORT_FAILURE.append(_scrub(failure, repo))
         _IMPORT_BLAME.append(blame)
         return None
     finally:
+        # RELEASE FIRST, in the order acquired — the process's stdout is not ours to keep: an
+        # unwind that raised (a sibling's proxy module whose `__getattr__` raises on `__loader__`)
+        # left fds 1/2 on the deleted sink and the gate exited 1 with zero bytes of verdict (FD3)
         if rec in sys.meta_path:
             sys.meta_path.remove(rec)
-        rec.unwind()  # the wrappers it installed on `__spec__.loader` never outlive the probe (FC1)
         for stream in (sys.stdout, sys.stderr):
             with contextlib.suppress(Exception):
                 stream.flush()
@@ -231,12 +254,18 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
                 os.dup2(orig, fd)
             with contextlib.suppress(OSError):
                 os.close(orig)
+        sys.stdout, sys.stderr = (
+            streams  # the bindings, not a wrapper: the module's stream-API use during the import stays untouched (FD3)
+        )
         if sink is not None:
             with contextlib.suppress(OSError):
                 leaked = os.fstat(
                     sink.fileno()
                 ).st_size  # the size, never the bytes: a 64 MiB banner is not read into RAM (FC1)
-            sink.close()
+            with contextlib.suppress(OSError):
+                sink.close()
+        with contextlib.suppress(Exception):
+            rec.unwind()  # the wrappers it installed on `__spec__.loader` never outlive the probe (FC1); a raise here must not cost the verdict (FD3)
         if autoload_was is None:
             os.environ.pop(
                 "SUBAGENTS_NO_AUTOLOAD", None
@@ -297,14 +326,26 @@ class _ImportRecorder:
                 spec.loader = wrapper._orig
         if originals:
             for mod in list(sys.modules.values()):
-                loader = getattr(mod, "__loader__", None)
+                try:
+                    loader = mod.__loader__
+                except Exception:  # noqa: BLE001 - a proxy in sys.modules whose __getattr__ raises anything (FD3)
+                    loader = None
                 if id(loader) in originals:
                     with contextlib.suppress(Exception):
                         mod.__loader__ = originals[id(loader)]
+                d = getattr(
+                    mod, "__dict__", None
+                )  # a class-property `__loader__` shadows the module dict's ghost (FD3)
+                if isinstance(d, dict) and id(d.get("__loader__")) in originals:
+                    d["__loader__"] = originals[id(d["__loader__"])]
         self.wrappers.clear()
 
     def find_spec(self, name, path=None, target=None):  # noqa: ANN001, ANN201 - the finder protocol
-        for finder in list(sys.meta_path):
+        mp = sys.meta_path
+        behind = mp[mp.index(self) + 1 :] if self in mp else list(mp)
+        for finder in list(
+            behind
+        ):  # only the finders BEHIND me: walking the whole meta_path called a second recorder back into this one — RecursionError on the first import (FD3)
             if finder is self or not hasattr(finder, "find_spec"):
                 continue
             spec = finder.find_spec(name, path, target)
@@ -314,8 +355,11 @@ class _ImportRecorder:
             self.missing.append((name, tuple(self.stack)))
             return None
         self.origins[name] = getattr(spec, "origin", None)
-        if spec.loader is not None and hasattr(spec.loader, "exec_module"):
-            spec.loader = _RecordingLoader(spec.loader, name, self)
+        loader = spec.loader
+        if isinstance(loader, _RecordingLoader) and loader._rec is self:
+            return spec  # already mine: a caching finder handed the same spec back twice, and the second wrapper hid the first from unwind (FD3)
+        if loader is not None and hasattr(loader, "exec_module"):
+            spec.loader = _RecordingLoader(loader, name, self)
             self.wrappers.append((spec, spec.loader))
         return spec
 
@@ -377,7 +421,7 @@ def _module_path(repo: Path, name: str) -> Path | None:
 
 
 def _attribute(
-    exc: BaseException, rec: _ImportRecorder, target: Path, repo: Path
+    exc: BaseException, rec: _ImportRecorder, target: Path, repo: Path, was_loaded: bool = False
 ) -> tuple[str, str]:
     """(failure text, blamed file) for an import that raised — from what CPython DID (EZ5)."""
     failure = f"{exc.__class__.__name__}: {_safe_str(exc)}"
@@ -389,7 +433,11 @@ def _attribute(
     if isinstance(exc, ModuleNotFoundError) and getattr(exc, "name", None):
         name = exc.name
         stacks = [st for n, st in rec.missing if n == name]
-        importer = stacks[-1][-1] if stacks and stacks[-1] else ""
+        importer = (
+            stacks[-1][-1]
+            if stacks and stacks[-1]
+            else next((n for n, e in rec.failures if e is exc), "")
+        )  # a miss on a WORKER thread carries an empty stack: the module whose exec re-raised this very exception is the importer, never the target (FD3)
         importer_file = rec.origins.get(importer) or (str(target) if not importer else "")
         root = name.split(".")[0]
         ours = (
@@ -433,7 +481,11 @@ def _attribute(
         # `cannot import name 'WEB_TOOL_NAMES'`: the module executed fine, the constant is gone —
         # the target's own defect, raised by OUR import statement, not inside any module (EE1/EZ5)
         return failure, str(target)
-    if failing is None and f"{pkg}.{target.parent.name}.{target.stem}" in sys.modules:
+    if (
+        failing is None
+        and not was_loaded
+        and f"{pkg}.{target.parent.name}.{target.stem}" in sys.modules
+    ):
         # the target FINISHED executing (CPython drops a module whose exec raised), so the
         # exception came out of OUR import statement — the target's own defect (a module-level
         # `__getattr__` raising anything but AttributeError, PEP 562). Blank blame here was a
@@ -477,8 +529,8 @@ def _safe_str(exc: BaseException, limit: int = 500) -> str:
     out of a gate nor a 10 MB gate row (EZ8)."""
     try:
         text = " ".join(
-            str(exc).split()
-        )  # ONE line: a multi-line message read as several gate rows (FC1)
+            "".join(ch if ch.isprintable() else " " for ch in str(exc)).split()
+        )  # ONE line of printable text: a multi-line message read as several gate rows (FC1); a NUL or an ANSI escape rode into the row (FD3)
     except Exception:  # noqa: BLE001 - the message failed; the class name still says what happened
         return "<str() failed>"
     return text if len(text) <= limit else text[:limit] + f"… (+{len(text) - limit} chars)"
@@ -729,6 +781,25 @@ def _read(path: Path) -> str | None:
         return None
 
 
+def _unfenced(body: str) -> str:
+    """The body with every fenced block blanked (the same CommonMark rule `_claimed_callers` applies)."""
+    out: list[str] = []
+    fence_char, fence_len = "", 0
+    for line in body.splitlines():
+        fence = re.match(r"(`{3,}|~{3,})(.*)$", line.lstrip())
+        if fence:
+            run, rest = fence.group(1), fence.group(2).strip()
+            if not fence_char:
+                fence_char, fence_len = run[0], len(run)
+                continue
+            if run[0] == fence_char and len(run) >= fence_len and not rest:
+                fence_char, fence_len = "", 0
+                continue
+        if not fence_char:
+            out.append(line)
+    return "\n".join(out)
+
+
 def _claimed_callers(body: str) -> dict[str, int]:
     """Map each command this source CLAIMS calls it -> the 1-indexed line making the claim.
 
@@ -745,14 +816,17 @@ def _claimed_callers(body: str) -> dict[str, int]:
     )  # CommonMark: a fence closes only on a same-char run at least as long — `~~~` and a 4-backtick fence holding a 3-backtick one both fabricated claims under a bare ``` toggle (FC1)
     head_level = 0
     for lineno, line in enumerate(body.splitlines(), 1):
-        fence = re.match(r"(`{3,}|~{3,})", line.lstrip())
+        fence = re.match(r"(`{3,}|~{3,})(.*)$", line.lstrip())
         if fence:
-            run = fence.group(1)
+            run, rest = fence.group(1), fence.group(2).strip()
             if not fence_char:
                 fence_char, fence_len = run[0], len(run)
                 continue
-            if run[0] == fence_char and len(run) >= fence_len:
-                fence_char, fence_len = "", 0
+            if run[0] == fence_char and len(run) >= fence_len and not rest:
+                fence_char, fence_len = (
+                    "",
+                    0,
+                )  # a closer carries NO info string — ```bash inside an open fence is content (FD4)
                 continue
         in_fence = bool(fence_char)
         if in_fence:
@@ -841,7 +915,7 @@ def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[Pat
             )
             continue
         docs.append(doc)
-        if not _RUN_START_RE.search(body):
+        if not _RUN_START_RE.search(re.sub(r"<!--.*?-->", "", body, flags=re.S)):
             problems.append(
                 f"docs/orchestrator/_traycer-skills/{name}: wrapper declares no run record — "
                 "every orchestrator command must; add it to assemble_commands.py's ORCH_SOURCES "
@@ -976,7 +1050,10 @@ def audit(
         body = _read(path)
         if body is None:
             continue
-        if "{{include:run-record}}" not in body and not _RUN_START_RE.search(body):
+        if (
+            "{{include:run-record}}" not in body
+            and not _RUN_START_RE.search(re.sub(r"<!--.*?-->", "", body, flags=re.S))
+        ):  # an HTML-commented `start` is illustration, never a run record; a FENCED one is how a bespoke start block is written — 3 of 33 live sources (FD4, measured)
             problems.append(
                 f"{path.relative_to(repo) if path.is_relative_to(repo) else path}: opens no run "
                 "record — add `{{include:run-record}}` (or a bespoke `command_run.py start` block). "
@@ -1050,8 +1127,12 @@ def audit(
             continue
         lines = text7.splitlines()
         rel = path.relative_to(repo) if path.is_relative_to(repo) else path
+        fenced = False  # inside a fence a backtick is not a span delimiter — an argument carrying one cut the window (FD4)
         for i, line in enumerate(lines):
-            if not _CLOSE_CMD_RE.search(line):
+            if re.match(r"(`{3,}|~{3,})", line.lstrip()):
+                fenced = not fenced
+            closes = list(_CLOSE_CMD_RE.finditer(line))
+            if not closes:
                 continue
             # ⚠ the window is the close's OWN continuation: an unclosed inline-code span runs on
             # until the line that closes it, a `\` continuation until a line without one — and it
@@ -1059,31 +1140,49 @@ def audit(
             # documents the flag ("`--feedback` is REQUIRED") and a neighbouring close's flag:
             # 21 of 47 live close sites, the run-record fragment first, passed with their own
             # flag deleted (FB7)
-            m7 = _CLOSE_CMD_RE.search(line)
-            head, seg = line[: m7.start()], line[m7.start() :]
-            open_before = head.count("`") % 2 == 1  # the close sits inside an inline-code span
-            if "`" in seg:
-                seg = seg.split(
-                    "`", 1
-                )[
-                    0
-                ]  # the span closes (or another opens) on this line — what follows is prose, not the command (FC1)
-            in_span = open_before and "`" not in line[m7.start() :]
-            window = [seg]
-            cont = seg.rstrip().endswith("\\")
-            for nxt in lines[
-                i + 1 : i + 13
-            ]:  # a `\` continuation runs while lines end in `\` — a flat 3-line cap red a long fenced command (FC1)
-                if not (in_span or cont) or _CLOSE_CMD_RE.search(nxt):
-                    break
-                if in_span and "`" in nxt:
-                    window.append(
-                        nxt.split("`", 1)[0]
-                    )  # up to the span's closer — the prose after it is not the command
-                    break
-                window.append(nxt)
-                cont = nxt.rstrip().endswith("\\")
-            if "--feedback" not in "\n".join(window):
+            for k, m7 in enumerate(
+                closes
+            ):  # EVERY close on the line — the second of two was never windowed (FD4)
+                stop = closes[k + 1].start() if k + 1 < len(closes) else len(line)
+                head, seg = line[: m7.start()], line[m7.start() : stop]
+                open_before = (
+                    not fenced and head.count("`") % 2 == 1
+                )  # the close sits inside an inline-code span
+                if open_before and "`" in seg:
+                    seg = seg.split(
+                        "`", 1
+                    )[
+                        0
+                    ]  # the span closes on this line — what follows is prose, not the command (FC1); a backtick in an ARGUMENT of a fenced or plain-prose close is the command's own text, never a cut (FD4)
+                if fenced:
+                    seg = re.split(r"[ \t]+#", seg, maxsplit=1)[
+                        0
+                    ]  # a trailing shell COMMENT is not the command (FD4)
+                in_span = open_before and "`" not in line[m7.start() : stop]
+                window = [seg]
+                cont = seg.rstrip().endswith("\\")
+                if k + 1 < len(closes):
+                    cont = in_span = False  # a later close on the same line ends this one's window
+                closed = not in_span
+                for nxt in lines[
+                    i + 1 : i + 13
+                ]:  # a `\\` continuation runs while lines end in `\\` — a flat 3-line cap red a long fenced command (FC1)
+                    if not (in_span or cont) or _CLOSE_CMD_RE.search(nxt):
+                        break
+                    if in_span and "`" in nxt:
+                        window.append(
+                            nxt.split("`", 1)[0]
+                        )  # up to the span's closer — the prose after it is not the command
+                        closed = True
+                        break
+                    window.append(re.split(r"[ \t]+#", nxt, maxsplit=1)[0] if fenced else nxt)
+                    cont = nxt.rstrip().endswith("\\")
+                if not closed:
+                    window = [
+                        seg
+                    ]  # a span UNCLOSED within twelve lines is malformed markdown: the close is graded on its own line, never on the prose it absorbed (FD4)
+                if "--feedback" in "\n".join(window):
+                    continue
                 problems.append(
                     f"{rel}:{i + 1}: advertises a close with no --feedback — the tool REFUSES "
                     "it, so this instructs a command that cannot succeed"
@@ -1115,6 +1214,9 @@ def audit(
             caller_body = _read(sources / f"{caller}.md")
             if caller_body is None:
                 continue
+            caller_body = _unfenced(
+                caller_body
+            )  # a name inside a fenced example honours nothing, as the claim side already treats fences (FD4)
             if (
                 path.stem not in set(_CHAIN_RE.findall(caller_body))
             ):  # `/fabrik-review-scoped` CONTAINS `/fabrik-review`: a substring honoured a false claim through a prefix sibling — 9 such pairs live (FC1)
@@ -1143,13 +1245,27 @@ def audit(
                     f"_agents/{adef.name}: no frontmatter — Claude Code cannot register it"
                 )
                 continue
-            head = text.split("\n---", 1)[0]
+            split6 = text.split("\n---", 1)
+            if len(split6) == 1:
+                problems.append(
+                    f"_agents/{adef.name}: frontmatter is never closed by `---` — Claude Code cannot register it"
+                )  # the fallback was the WHOLE file, so a `name:` in the prose body satisfied the check (FD4)
+                continue
+            head = split6[0]
             declared = ""
             for line in head.splitlines():
                 if line.startswith("name:"):
-                    declared = (
-                        line.split(":", 1)[1].split(" #", 1)[0].strip().strip("\"'")
-                    )  # `name: "x"` and `name: x  # note` are valid YAML that resolves to x — a BLOCKING false positive otherwise (FC1)
+                    raw6 = line.split(":", 1)[1].strip()
+                    if raw6[:1] in ('"', "'") and raw6.count(raw6[0]) > 1:
+                        declared = raw6[
+                            1 : raw6.index(raw6[0], 1)
+                        ]  # a `#` INSIDE a quoted scalar is part of the value (FD4)
+                    else:
+                        declared = re.split(
+                            r"[ \t]+#", raw6, maxsplit=1
+                        )[
+                            0
+                        ].strip()  # a TAB before `#` is a YAML comment too (FD4)  # `name: "x"` and `name: x  # note` are valid YAML that resolves to x — a BLOCKING false positive otherwise (FC1)
                     break
             if not declared:
                 problems.append(f"_agents/{adef.name}: frontmatter declares no `name:`")
@@ -1309,7 +1425,7 @@ def _selftest() -> int:
             (
                 "fab-nodoc",
                 "`/opt/fabrik/docs/orchestrator/nope.md`\npython3 scripts/command_run.py start --command x\n",
-                "does not exist",
+                "canonical doc docs/orchestrator/nope.md does not exist",
             ),
             (
                 "fab-norecord",
@@ -1327,7 +1443,10 @@ def _selftest() -> int:
             traycer_skills=wrappers,
             agents=root / "no-agents",
         )
-        for _, _, sig in (("", "", "does not exist"), ("", "", "wrapper declares no run record")):
+        for _, _, sig in (
+            ("", "", "canonical doc docs/orchestrator/nope.md does not exist"),
+            ("", "", "wrapper declares no run record"),
+        ):
             extra += 1
             if not any(sig in p for p in probs):
                 failures.append(
@@ -1396,11 +1515,21 @@ def _selftest() -> int:
         return 1
     na = f" (N/A: {', '.join(not_applicable)})" if not_applicable else ""
     emitters = (
-        Path(__file__).read_text(encoding="utf-8", errors="replace").count("problems.append(")
+        Path(__file__).read_text(encoding="utf-8", errors="replace").count("problems.append(") - 1
+    )  # minus THIS line's own literal: the first draft printed "17 of 18" for 12 emitters exercised (FD4)
+    covered = len(
+        {sig for _, sig in cases.values()}
+        | {
+            "declares `name:",
+            "no frontmatter",
+            "no `description:`",
+            "canonical doc docs/orchestrator/nope.md does not exist",
+            "wrapper declares no run record",
+        }
     )
     print(
         f"✓ selftest: {len(cases) + 1 + extra} canaries over {8 - len(not_applicable)} of the eight predicates "
-        f"({len(cases) + 1 + extra} of {emitters} problem emitters in this file) fire on bad input and stay silent on good input{na}"
+        f"({covered} distinct signatures of {emitters} problem emitters in this file) fire on bad input and stay silent on good input{na}"
     )
     return 0
 

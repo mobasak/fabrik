@@ -1180,7 +1180,8 @@ def test_a_credit_phase_failure_after_the_commit_is_a_warning_not_a_refusal(
     rc = rs.main()
     err = capsys.readouterr().err
     assert (
-        rc in (0, 2)
+        rc
+        == 3  # registry WRITTEN, credit phase failed: the chain alerts 3 and still renders (FD7); `in (0, 2)` accepted the degraded code the test exists to forbid (B-7)
         and "registry synced; the credit fetch aborted after the commit" in err
         and "nothing written" not in err
     ), (rc, err)
@@ -1211,3 +1212,30 @@ def test_a_whitespace_only_dsn_is_the_default(monkeypatch):
     """`"   "` is truthy and parses to `{}` — the same libpq-defaults hole FB9 closed for `""` (FC3)."""
     monkeypatch.setenv("SERVICES_REGISTRY_DSN", "   ")
     assert rdb.dsn() == rdb.DEFAULT_DSN
+
+
+def test_headers_kv_lines_and_a_commented_provider_are_read_on_the_stripped_line(tmp_path):
+    """The `#svc` header was matched on the stripped line but the section header and the KV line on
+    the RAW one: an indented internal-config header folded 50 credential-shaped names under the last
+    provider, an indented/BOM-prefixed KEY was silently dropped (then pruned), a space before a BOM
+    matched neither branch, and a commented-out `#svc` folded the next block (E2-C1/C2/C3, FD7)."""
+    env = tmp_path / "all-envs.env"
+    env.write_text(
+        '#svc name=test_zzz_a category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "A_API_KEY=1\n"
+        "  A_SECRET=2\n"
+        "\ufeffA_TOKEN=3\n"
+        "  # ═══ internal-config ═══\n"
+        "DB_PASSWORD=4\n"
+        ' \ufeff#svc name=test_zzz_b category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "B_API_KEY=5\n"
+        '# #svc name=test_zzz_c category=x cost=free capability="c" url=u status=active used_by=p\n'
+        "C_API_KEY=6\n",
+        encoding="utf-8",
+    )
+    provs = rs.parse(env)
+    got = {p["meta"]["name"]: [k for k, *_ in p["keys"]] for p in provs}
+    assert got == {
+        "test_zzz_a": ["A_API_KEY", "A_SECRET", "A_TOKEN"],
+        "test_zzz_b": ["B_API_KEY"],
+    }, got

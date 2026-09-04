@@ -1285,7 +1285,10 @@ def test_strict_bites_on_a_registry_the_proof_could_not_use(tmp_path: Path) -> N
     log = tmp_path / "d.log"
     log.write_text("ran\n")
     dup = _registry(tmp_path, [_cron_surface("dup", type="log", path=str(log))] * 2)
-    for registry in (dup, tmp_path / "missing.json"):
+    empty = _registry(
+        tmp_path, []
+    )  # the "green no-op on an empty registry" case FC2 named and never graded (M12, FD5)
+    for registry in (dup, tmp_path / "missing.json", empty):
         rc = la.main(
             [
                 "--strict",
@@ -1374,3 +1377,117 @@ def test_a_tilde_mid_path_and_a_long_fault_are_bounded(tmp_path: Path) -> None:
     assert all(len(line) < 600 for line in text.splitlines()), max(
         len(line) for line in text.splitlines()
     )  # detail and fault each bounded at 200 (an all-duplicated registry printed 889 chars)
+
+
+def test_a_malformed_ownership_block_never_discards_the_surface_verdicts(tmp_path: Path) -> None:
+    """`_unregistered` ran inline in the return dict: a string `ownership` or an int needle raised
+    out of `proof_heartbeat` and the verdicts already computed were thrown away (FD5)."""
+    log = tmp_path / "o.log"
+    log.write_text("ran\n")
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    for ownership in ("x", {"cron_owned_substrings": ["/opt/fabrik", 0]}):
+        raw = tmp_path / "raw.json"
+        raw.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "ownership": ownership,
+                    "surfaces": [_cron_surface("o", type="log", path=str(log))],
+                }
+            )
+        )
+        reg, _ = la.load_registry(raw)
+        out = la.proof_heartbeat(box, reg, "")
+        assert [f["id"] for f in out["findings"]] == ["o"] and out["findings"][0][
+            "verdict"
+        ] == "LIVE", out
+        assert isinstance(out["unregistered"], dict)
+
+
+def test_a_blank_or_non_string_needle_is_a_registry_fault(tmp_path: Path) -> None:
+    """`" "` matched every crontab line and `0` every dated stamp — permanent LIVE through the
+    emptiness-only guard (FD5)."""
+    log = tmp_path / "n.log"
+    log.write_text("2026-09-03 06:00:00 marker=x\n")
+    surfaces = [
+        {**_cron_surface("space", type="log", path=str(log)), "cron_match": " "},
+        {**_cron_surface("zero", type="log", path=str(log)), "cron_match": 0},
+        {
+            "id": "hookspace",
+            "kind": "hook",
+            "evidence": {"type": "hook", "command_contains": " "},
+            "max_age_hours": 24,
+        },
+        _cron_surface("intmarker", type="log_marker", path=str(log), marker=0),
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    by_id = {f["id"]: f for f in la.proof_heartbeat(box, reg, "")["findings"]}
+    for sid in ("space", "zero", "hookspace", "intmarker"):
+        assert (
+            by_id[sid]["verdict"] == "UNKNOWN" and "not a string" in by_id[sid]["instrument_fault"]
+        ), by_id[sid]
+
+
+def test_boundaries_the_first_graders_left_open(tmp_path: Path) -> None:
+    """port 0 / 65536 / 5051.0, max_age 0 / inf / 10**400, a relative path, `~user/x`, a missing
+    log_marker file, a future stamp, the 24 h default, and a 3 000-char path in the render (FD5)."""
+    import os
+    import time
+
+    log = tmp_path / "b.log"
+    log.write_text("ran\n")
+    old = tmp_path / "old.log"
+    old.write_text("ran\n")
+    os.utime(old, (time.time() - 100 * 3600, time.time() - 100 * 3600))
+    future = tmp_path / "future.log"
+    future.write_text("ran\n")
+    os.utime(future, (time.time() + 300, time.time() + 300))
+    surfaces = [
+        _cron_surface("p0", type="port", port=0),
+        _cron_surface("p65536", type="port", port=65536),
+        _cron_surface("pfloat", type="port", port=5051.0),
+        {**_cron_surface("m0", type="log", path=str(log)), "max_age_hours": 0},
+        {**_cron_surface("minf", type="log", path=str(log)), "max_age_hours": float("inf")},
+        {**_cron_surface("mhuge", type="log", path=str(log)), "max_age_hours": 10**400},
+        _cron_surface("relative", type="log", path="b.log"),
+        _cron_surface(
+            "nomarkerfile", type="log_marker", path=str(tmp_path / "nope.log"), marker="x"
+        ),
+        _cron_surface("future", type="log", path=str(future)),
+        {
+            "id": "default",
+            "kind": "cron",
+            "cron_match": "a",
+            "evidence": {"type": "log", "path": str(old)},
+        },
+    ]
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/a"])
+    assert box.expand("~user/x") == Path("~user/x")  # only a leading `~/` is the home
+    reg, _ = la.load_registry(_registry(tmp_path, surfaces))
+    by_id = {f["id"]: f for f in la.proof_heartbeat(box, reg, "")["findings"]}
+    for sid in ("p0", "p65536", "pfloat", "m0", "minf", "relative"):
+        assert by_id[sid]["verdict"] == "UNKNOWN", (sid, by_id[sid])
+    assert "positive finite number" in by_id["mhuge"]["instrument_fault"], by_id["mhuge"]
+    assert (
+        by_id["nomarkerfile"]["verdict"] == "DEAD"
+        and "does not exist" in by_id["nomarkerfile"]["detail"]
+    ), by_id["nomarkerfile"]
+    assert (
+        by_id["future"]["verdict"] == "UNKNOWN" and "NEGATIVE age" in by_id["future"]["detail"]
+    ), by_id["future"]
+    assert by_id["default"]["verdict"] == "DEAD", by_id[
+        "default"
+    ]  # 100 h old against the 24 h default
+    long_path = tmp_path / ("p" * 3000 + ".log")
+    text = la.render(
+        la.audit(
+            tmp_path,
+            _registry(tmp_path, [_cron_surface("long", type="log", path=str(long_path))]),
+            {"heartbeat"},
+            box=box,
+        )
+    )
+    assert all(len(line) < 600 for line in text.splitlines()), max(
+        len(line) for line in text.splitlines()
+    )

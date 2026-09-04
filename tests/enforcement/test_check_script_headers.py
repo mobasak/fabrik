@@ -749,6 +749,8 @@ def test_an_empty_declaration_is_said_in_both_spellings(tmp_path):
 def test_a_form_feed_in_a_docstring_never_shrinks_the_scan_window(tmp_path):
     """`str.splitlines` breaks on \\x0c/\\u2028 where the tokenizer does not: a form feed on
     line 1 pushed a line-25 header out of the window (C-3/FC7)."""
-    repo = _repo(tmp_path, '"""doc\x0c string"""\n' + "# filler\n" * 22 + "# AFTER-EDIT: none\n")
+    repo = _repo(
+        tmp_path, '"""doc\x0c string"""\n' + "# filler\n" * 23 + "# AFTER-EDIT: none\n"
+    )  # the header on line 25 exactly — the form feed made it line 26 under splitlines
     out = _run(repo, "scripts/thing.py")
     assert "no `# AFTER-EDIT:` header" not in out, out

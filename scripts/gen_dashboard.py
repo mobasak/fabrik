@@ -35,8 +35,8 @@ def credit_cell(
     """The balance, flagged with its age once the LAST successful fetch is older than two laps.
     A fetch that fails inserts no snapshot, so the dashboard kept rendering the last balance
     forever — a revoked key and a healthy one were the same cell (FB9)."""
-    if bal is None:
-        return ""  # the column is nullable: a NULL balance was a TypeError that took the whole dashboard step down (FC4)
+    if bal is None or bal != bal:  # noqa: PLR0124 - NaN: NUMERIC accepts 'NaN' and a backfilled row bypasses the fetchers' guard (FD7)
+        return ""  # the column is nullable — defensive: `load()` filters NULLs today (FC4)
     text = f"{bal:g} {unit or ''}".strip()
     if fetched is None:
         return text

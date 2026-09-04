@@ -1,2 +1,0 @@
-# alerting module — uses only stdlib (subprocess, urllib, json, os, time)
-# No additional packages required.

@@ -3,14 +3,16 @@
 #
 # Fire one critical Telegram alert from a pipeline step.
 #
-# daily_refresh.sh's two HEARTBEAT alerts (:530, :534) now route through here. Its two RANKER
-# and ORACLE alerts (:425, :480) deliberately stay inline: test_flywheel_safety.py::test_the_alert_can_actually_fire_not_just_exist pins
-# that form for the ranker line specifically. The heartbeat pair were migrated because they had
-# NO load_dotenv at all and were therefore silent no-ops — alerting._is_enabled() reads
-# TELEGRAM_BOT_TOKEN from the process env, so a disk-full heartbeat failure alerted nobody.
-# An earlier version of this header said daily_refresh carried "two" inlined copies; it carried
-# FOUR, and the two the header omitted were exactly the broken ones. The header's inaccuracy is
-# what hid them — which is why it now enumerates all four.
+# EVERY alert in daily_refresh.sh routes through here (seven call sites: the sync/classify
+# steps, the chain's did-not-start and was-killed cases, the contract oracle — which joined them
+# 2026-09-03/FC6 — and the heartbeat pair). The ranker alert that
+# test_flywheel_safety.py::test_the_alert_can_actually_fire_not_just_exist pins lives in
+# wsl_startup_hook.sh, not here. The heartbeat pair were migrated because they had NO load_dotenv
+# at all and were therefore silent no-ops — alerting._is_enabled() reads TELEGRAM_BOT_TOKEN from
+# the process env, so a disk-full heartbeat failure alerted nobody. Two earlier versions of this
+# header enumerated call sites by LINE NUMBER (:530/:534, :425/:480) and by a count ("two", then
+# "four"); both drifted within days and each stale enumeration hid the very sites it omitted — cite
+# call sites by ROLE, never by line (FD6).
 #
 # Extracted 2026-08-15 because the call sites live INSIDE wsl_startup_hook.sh's double-quoted
 # `nohup bash -c "…"` string, where an inline `python -c "…"` needs its quotes escaped and a
@@ -34,7 +36,7 @@ BODY="${2:-(no body)}"
 # variable while sys.path and .env were pinned to /opt/fabrik, so under an override the helper
 # either sent nothing or read the wrong repo's .env — silently, since every path exits 0.
 PY_BIN="$FABRIK_ROOT/.venv/bin/python"
-if [ ! -x "$PY_BIN" ]; then
+if [ ! -f "$PY_BIN" ] || [ ! -x "$PY_BIN" ]; then  # `-x` is true for a DIRECTORY — a venv rebuilt half-way printed "Is a directory" and exited 0 (FD6)
   # a rebuilt or interrupted venv: the heredoc never ran and NOTHING was said — the one alert
   # for "the chain never started" exited 0 in silence (FC6)
   echo "[pipeline_alert] NOT delivered (no interpreter at $PY_BIN): $TITLE" >&2
@@ -49,7 +51,9 @@ env_file = root / ".env"
 try:
     from dotenv import load_dotenv
     if not load_dotenv(env_file, override=False):
-        print(f"[pipeline_alert] no .env at {env_file}", file=sys.stderr)  # a MISSING .env was silent; only an unreadable one was said (FC6)
+        # a MISSING .env was silent; only an unreadable one was said (FC6); `load_dotenv` is also
+        # False for a file that parses no keys — that one was reported as missing (FD6)
+        print(f"[pipeline_alert] {'no .env at' if not env_file.exists() else 'no usable keys in'} {env_file}", file=sys.stderr)
 except Exception as exc:  # noqa: BLE001 — SAID, never swallowed: an unreadable .env was a silent no-op (FB10)
     print(f"[pipeline_alert] .env not loaded: {type(exc).__name__}: {exc}", file=sys.stderr)
 try:
@@ -58,7 +62,10 @@ try:
     # a fresh .env) or when EVERY delivery method failed; dedup cannot fire across processes
     # (its dict lives in this interpreter). The cause is named, not guessed (FB10/FC6)
     if not alerting.send_alert(title=sys.argv[1], body=sys.argv[2], severity="critical"):
-        why = "alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST in the environment" if not alerting._is_enabled() else "every delivery method failed (see the diagnosis above)"
+        try:
+            why = "alerting disabled — no TELEGRAM_*/ALERT_VPS_HOST in the environment" if not alerting._is_enabled() else "every delivery method failed (see the diagnosis above)"
+        except Exception:  # noqa: BLE001 — the DIAGNOSIS failing must never read as the send failing (FD6)
+            why = "reason unavailable"
         print(f"[pipeline_alert] NOT delivered ({why}): {sys.argv[1]}", file=sys.stderr)
 except Exception as exc:  # noqa: BLE001 — an alert failure must never break the pipeline
     print(f"[pipeline_alert] send failed: {type(exc).__name__}: {exc}", file=sys.stderr)

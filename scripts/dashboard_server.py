@@ -62,10 +62,10 @@ function stats(){
   const S=[[n,'services'],[cats.length,'categories'],[proj.size,'projects'],
     [bc('paid')+bc('freemium'),'paid / freemium'],[bc('free')+bc('self-host'),'free / self-host'],
     [DATA.filter(r=>r.credit&&!r.credit.startsWith('⚠')).length,'credit tracked'],[DATA.filter(r=>r.credit.startsWith('⚠')).length,'credit stale'],[DATA.filter(r=>r.renews).length,'renewals set'],
-    [DATA.filter(r=>r.category==='?').length,'need triage']];
+    [DATA.filter(r=>r.category==='?').length,'need triage'],[DATA.reduce((a,r)=>a+(r.unattributed||0),0),'unattributed keys']];
   $('stats').innerHTML=S.map(x=>'<div class="stat"><div class="n">'+x[0]+'</div><div class="l">'+x[1]+'</div></div>').join('');
   const cur=$('fcat').value;
-  $('fcat').innerHTML='<option value="">All categories</option>'+cats.map(c=>'<option'+(c===cur?' selected':'')+'>'+esc(c)+'</option>').join('');
+  $('fcat').innerHTML='<option value="">All categories</option>'+cats.map(c=>'<option value="'+esc(c)+'"'+(c===cur?' selected':'')+'>'+esc(c)+'</option>').join('');
 }
 function render(){
   const term=$('q').value.toLowerCase(),fc=$('fcat').value,fk=$('fcost').value;
@@ -77,7 +77,7 @@ function render(){
     if(sortK==='category'&&r.category!==cat){cat=r.category;out+='<tr class="catrow"><td colspan="10">'+esc(cat)+'</td></tr>';}
     const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
     out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td><td>'+cpill(r.status)+'</td>'
-      +cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')+'<td class="num mono">'+r.keys+'</td>'
+      +cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')+'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials no catalog prefix attributes to this vendor">+'+r.unattributed+' unattributed</span>':'')+'</td>'
       +cell(r.account,'mono')+'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
   }
   $('tb').innerHTML=out||'<tr><td colspan="10" class="empty" style="padding:24px;text-align:center">No services match.</td></tr>';
@@ -97,6 +97,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header(
+            "X-Content-Type-Options", "nosniff"
+        )  # a 0.0.0.0 bind: the JSON carries model-authored strings (FD7)
         self.end_headers()
         self.wfile.write(body)
 
@@ -113,12 +116,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "text/html; charset=utf-8",
                 )
         except Exception as exc:  # noqa: BLE001 - never crash the server on one bad request
-            self.send_error(500, str(exc)[:120])
+            # the cause goes to the console, NEVER onto the wire: `send_error` writes the message
+            # into the status line unsanitised — libpq's own text carries a newline (response
+            # splitting), a `—`/`⚠` raised UnicodeEncodeError INSIDE the except (zero bytes sent),
+            # and the WireGuard host + role name reached every LAN client (FD7)
+            print(
+                f"dashboard: {exc.__class__.__name__}: {' '.join(str(exc).split())[:300]}",
+                file=sys.stderr,
+            )
+            self.send_error(500, "registry query failed")
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = sys.argv[1:] if argv is None else argv
-    port = int(args[0]) if args else PORT
+    import argparse  # noqa: PLC0415
+
+    ap = argparse.ArgumentParser(
+        description="Live external-services dashboard (reads the registry DB)."
+    )
+    ap.add_argument(
+        "port", nargs="?", type=int, default=PORT, choices=range(1, 65536), metavar="PORT"
+    )  # `abc`/`-1`/`99999` were tracebacks (FD7)
+    port = ap.parse_args(sys.argv[1:] if argv is None else argv).port
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer((HOST, port), Handler) as srv:
         url = f"http://localhost:{port}"  # noqa - user-facing message, not a backing-service host

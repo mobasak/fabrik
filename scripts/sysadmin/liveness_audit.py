@@ -298,10 +298,15 @@ class Box:
             return base, None
         path = self.expand(raw)
         name = f"log-reader[{raw}]"
-        if not str(raw).strip():
+        if not isinstance(raw, str) or not raw.strip():
             return Instrument.broken(
-                name, "evidence path is empty — it expands to the CWD"
-            ), None  # FC2
+                name, "evidence path is empty or not a string — it would expand to the CWD"
+            ), None  # FC2/FD5
+        if not path.is_absolute():
+            return Instrument.broken(
+                name,
+                f"evidence path {raw!r} is relative — resolved against whatever CWD ran the audit",
+            ), None  # FD5
         parent = path.parent
         try:
             st = path.stat()
@@ -330,7 +335,7 @@ class Box:
             return Instrument.proven(name), None  # genuine, provable absence
         if not stat.S_ISREG(st.st_mode):
             # a directory, a FIFO, a device where a file was meant: aged by its mtime it read LIVE
-            # forever — 24 of 34 registry surfaces are `type: log` and the round-62 guard sat on
+            # forever — 21 of 34 registry surfaces are `type: log` and the round-62 guard sat on
             # the marker reader only (FC2)
             return Instrument.broken(name, f"{path} is not a regular file"), None
         if not os.access(path, os.R_OK):
@@ -350,7 +355,11 @@ class Box:
             return inst, None, 0
         path = self.expand(raw)
         if not path.exists():
-            return inst, None, 0
+            return (
+                inst,
+                None,
+                -1,
+            )  # -1: the FILE is absent (a dangling link included) — not "no line carries the marker" (FD5)
         if not path.is_file():
             # a directory where a file was meant (a `mkdir` for a `touch`): `evidence_age` stats
             # it fine, `read_text` raised IsADirectoryError out of the WHOLE heartbeat proof and
@@ -643,9 +652,23 @@ def proof_heartbeat(box: Box, registry: dict[str, Any], registry_fault: str) -> 
 
     return {
         "findings": [f.as_dict() for f in findings],
-        "unregistered": _unregistered(box, registry, cron_inst, cron_lines),
+        "unregistered": _unregistered_guarded(box, registry, cron_inst, cron_lines),
         "summary": _tally(findings),
     }
+
+
+def _unregistered_guarded(
+    box: Box, registry: dict[str, Any], cron_inst: Instrument, cron_lines: list[str]
+) -> dict[str, Any]:
+    """A malformed `ownership` block must never discard the verdicts computed above it (FD5)."""
+    try:
+        return _unregistered(box, registry, cron_inst, cron_lines)
+    except Exception as exc:  # noqa: BLE001 - a string `ownership` or an int needle raised out of the sweep
+        fault = f"{exc.__class__.__name__}: {exc}"[:200]
+        return {
+            "cron": {"instrument_fault": fault, "unregistered": []},
+            "hooks": {"instrument_fault": fault, "unregistered": []},
+        }
 
 
 def _heartbeat_one(
@@ -669,11 +692,12 @@ def _heartbeat_one(
 
     # A cron surface is DEAD the moment its schedule is gone, whatever the stale log says.
     if kind == "cron":
-        match = str(surface.get("cron_match", ""))
+        match = _needle(surface.get("cron_match")) or ""
         if not match:
             return make(
                 Instrument.broken(
-                    f"{sid}:registry", "cron_match is empty — it would match every line"
+                    f"{sid}:registry",
+                    "cron_match is empty or not a string — it would match every line",
                 ),
                 Verdict.UNKNOWN,
                 "the registry row could not be probed",
@@ -732,11 +756,12 @@ def _heartbeat_one(
 
     if etype == "hook":
         inst, commands = box.hooks()
-        needle = str(evidence.get("command_contains", ""))
+        needle = _needle(evidence.get("command_contains")) or ""
         if not needle:
             return make(
                 Instrument.broken(
-                    f"{sid}:registry", "command_contains is empty — it would match every hook"
+                    f"{sid}:registry",
+                    "command_contains is empty or not a string — it would match every hook",
                 ),
                 Verdict.UNKNOWN,
                 "the registry row could not be probed",
@@ -753,6 +778,9 @@ def _heartbeat_one(
         if (
             isinstance(raw_limit, bool)
             or not isinstance(raw_limit, (int, float))
+            or (
+                isinstance(raw_limit, int) and abs(raw_limit) > 2**53
+            )  # `math.isfinite` itself raised OverflowError on 10**400 (FD5)
             or not math.isfinite(raw_limit)
             or raw_limit <= 0
         ):
@@ -766,11 +794,12 @@ def _heartbeat_one(
             )  # `float("abc")` raised out of the proof; `nan` was "over its nan budget" (FC2)
         limit = float(raw_limit)
         if etype == "log_marker":
-            marker = str(evidence.get("marker", ""))
+            marker = _needle(evidence.get("marker")) or ""
             if not marker:
                 return make(
                     Instrument.broken(
-                        f"{sid}:registry", "marker is empty — every line would carry it"
+                        f"{sid}:registry",
+                        "marker is empty or not a string — every line would carry it",
                     ),
                     Verdict.UNKNOWN,
                     "the registry row could not be probed",
@@ -779,6 +808,19 @@ def _heartbeat_one(
             if not inst.ok:
                 return make(inst, Verdict.UNKNOWN, f"cannot age {marker!r} in {raw}")
             if age is None:
+                if hits == -1:
+                    gone = box.expand(raw)
+                    what = (
+                        f"is a dangling symlink → {os.readlink(gone)}"
+                        if gone.is_symlink()
+                        else "does not exist"
+                    )
+                    return make(
+                        inst,
+                        Verdict.DEAD,
+                        f"{raw} {what} — the job has never written evidence",
+                        "absent",
+                    )
                 return make(inst, Verdict.DEAD, f"{raw} carries no line with {marker!r}", "absent")
             where = f"last {marker!r} in {raw} is {age:.1f}h old ({hits} occurrence(s))"
         else:
@@ -825,11 +867,24 @@ def _heartbeat_one(
     )
 
 
+def _needle(value: object) -> str | None:
+    """A registry needle is a NON-BLANK STRING: `" "` matched every crontab line and `0` (`"0"`)
+    every dated stamp — permanent LIVE through the FC2 guard, which tested emptiness only (FD5)."""
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 def _unregistered(
     box: Box, registry: dict[str, Any], cron_inst: Instrument, cron_lines: list[str]
 ) -> dict[str, Any]:
     """Surfaces PRESENT on the box but ABSENT from the registry. Unregistered = unmonitored."""
-    owned_needles = (registry.get("ownership") or {}).get("cron_owned_substrings") or []
+    ownership = registry.get("ownership")
+    owned_needles = [
+        n
+        for n in (
+            (ownership.get("cron_owned_substrings") if isinstance(ownership, dict) else None) or []
+        )
+        if _needle(n)
+    ]  # a string `ownership` or an int needle raised out of the sweep (FD5)
     matches = [
         str(s.get("cron_match", ""))
         for s in registry.get("surfaces") or []
@@ -2155,7 +2210,7 @@ def render(report: Report) -> str:
         )
         out.append("-" * 100)
         for f in block.get("findings", []):
-            tail = f["detail"]
+            tail = f["detail"][:200]  # a 5 000-char registry path printed a 5 386-char line (FD5)
             if f["instrument_fault"]:
                 tail = f"{tail} [instrument: {f['instrument_fault'][:200]}]"  # bounded: an all-duplicated registry printed an 889-char line (FC2)
             rc = f"({f['reason_class']}) " if f["reason_class"] else ""

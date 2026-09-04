@@ -740,6 +740,10 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
     # unpatched, every classifier test validated the REAL hub catalog and a fixture with a
     # mixed-case key sailed through the guard it was written to exercise (FB6)
     monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    # a test never DELIVERS: 21 tests reach `cs.main()`'s "new providers" alert, and the package's
+    # cwd autoload read the hub's .env — one real Telegram alert per suite run (B-1, FD6)
+    monkeypatch.setenv("ALERT_ENABLED", "0")
+    monkeypatch.setenv("FABRIK_NO_AUTOLOAD", "1")
 
     def fake_fanout(*a, **k):
         units = k["units"]
@@ -3531,6 +3535,24 @@ def test_a_lone_cr_inside_a_quoted_value_and_a_skipped_line_keep_the_apps_view(t
     assert f"WARNING: {f}:3: not UTF-8" in err and f"WARNING: {f}:5: not a KEY=value" in err, err
 
 
+def _existing_catalog(cat, name="existing", match=("EXISTING",)):
+    cat.write_text(
+        json.dumps(
+            {
+                name: {
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://e.example",
+                    "status": "active",
+                    "match": list(match),
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_the_classifier_never_writes_a_prefix_tie_the_next_gather_refuses(
     tmp_path, monkeypatch, capsys
 ):
@@ -3556,6 +3578,9 @@ def test_the_classifier_never_writes_a_prefix_tie_the_next_gather_refuses(
         )
     ]
     cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    _existing_catalog(
+        cat
+    )  # the tie is the HAND-EDIT's own: a token the classifier would mint is never minted when another entry routes it (FD8)
 
     def fanout_that_claims_the_prefix(*a, **k):
         data = json.loads(cat.read_text(encoding="utf-8"))
@@ -3564,7 +3589,7 @@ def test_the_classifier_never_writes_a_prefix_tie_the_next_gather_refuses(
             "cost": "paid",
             "capability": "x",
             "url": "https://o.example",
-            "match": ["WIDGET_"],
+            "match": ["EXISTING"],
         }
         cat.write_text(json.dumps(data), encoding="utf-8")
         return list(res), ""
@@ -3572,7 +3597,8 @@ def test_the_classifier_never_writes_a_prefix_tie_the_next_gather_refuses(
     monkeypatch.setattr(cs, "fanout", fanout_that_claims_the_prefix)
     assert cs.main() == 0
     after = json.loads(cat.read_text(encoding="utf-8"))
-    assert "widget" in after and "other" not in after, after
+    assert "widget" in after and "other" not in after and "existing" in after, after
+    assert after["widget"]["match"] == ["WIDGET"], after["widget"]
     assert "DISCARDED" in capsys.readouterr().err
     ge.load_catalog()  # the written catalog passes every rule
 
@@ -3604,3 +3630,128 @@ def test_metadata_keys_survive_the_apply_path(tmp_path, monkeypatch):
     assert cs.main() == 0
     after = json.loads(cat.read_text(encoding="utf-8"))
     assert "_README" in after and "widget" in after
+
+
+def test_the_classifier_fixture_never_delivers_an_alert(tmp_path, monkeypatch):
+    """21 tests reach the classifier's "new providers" alert with alerting armed by the hub's own
+    .env — a real Telegram alert per suite run until the fixture disabled it (B-1, FD6)."""
+    _classify_env(tmp_path, monkeypatch, "", [], [])
+    assert os.environ.get("ALERT_ENABLED") == "0" and os.environ.get("FABRIK_NO_AUTOLOAD") == "1"
+    sys.path.insert(0, str(Path(cs.REPO) / "libs")) if str(
+        Path(cs.REPO) / "libs"
+    ) not in sys.path else None
+    import alerting
+
+    assert alerting._is_enabled() is False
+
+
+def test_the_classifiers_new_providers_alert_says_when_it_was_not_delivered(
+    tmp_path, monkeypatch, capsys
+):
+    """The boolean `send_alert` returns was discarded — a silent no-op FB10 closed everywhere else
+    (M-C8/FC6); ungraded until pass 64 (M-8/FD6)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.main() == 0
+    captured = capsys.readouterr()
+    assert "alert NOT delivered" in captured.err, (captured.out[-300:], captured.err)
+
+
+def test_the_fallback_pass_keeps_a_paid_identification_that_merged_on_pass_one(
+    tmp_path, monkeypatch
+):
+    """Pass 1 popped the merged provider from `identified`; the fallback pass (a hand-edit landed
+    mid-dispatch) rebuilt `merged_into` empty and — on the daily argv — tombstoned the provider the
+    pool had just identified as an existing vendor (E1-C1/G-C2/P-2, FD8)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "existing",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://e.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, state = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res
+    )
+    _existing_catalog(cat)
+
+    def fanout_that_hand_edits(*a, **k):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        data["Bad Key"] = {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://o.example",
+        }
+        cat.write_text(json.dumps(data), encoding="utf-8")
+        return list(res), ""
+
+    monkeypatch.setattr(cs, "fanout", fanout_that_hand_edits)
+    assert cs.main() == 0
+    after = json.loads(cat.read_text(encoding="utf-8"))
+    assert "widget" not in after and "WIDGET" in after["existing"].get("merged_match", []), after
+    last = json.loads((state / "l.json").read_text(encoding="utf-8"))
+    assert last["tombstoned"] == [], last
+
+
+def test_the_classifier_never_mints_a_prefix_another_entry_routes(tmp_path, monkeypatch):
+    """A new entry and a tombstone both minted `match: [PROV]` unconditionally; when another entry
+    already routed that token the classifier's OWN merge was a prefix tie, both passes refused it,
+    the paid batch was lost after the cursor moved — and the WARNING blamed a hand-edit (E1-C2, FD8)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    for answer, argv in (
+        (
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            ),
+            ["--apply"],
+        ),
+        ("not json at all", ["--apply", "--tombstone-unresolved"]),
+    ):
+        cat, _ = _classify_env(tmp_path, monkeypatch, text, argv, [_Res(answer)])
+        _existing_catalog(cat, name="other", match=("WIDGET_",))
+        assert cs.main() == 0, argv
+        after = json.loads(cat.read_text(encoding="utf-8"))
+        assert after["widget"]["match"] == [] and after["other"]["match"] == ["WIDGET_"], after
+        ge.parse_catalog(after, "after")  # the next gather accepts it
