@@ -6,6 +6,7 @@ Relax `.claude/hooks/agent_role.py:20` `_ROLES = ("infra", "fleet", "intel")` to
 Depends: —
 Parallel: ⚡
 Complexity: native
+Gate: python -m pytest tests/test_agent_role_hook.py -q
 Gate: test "$(grep -c '\[a-z0-9-\]' .claude/hooks/agent_role.py)" != 0   # RED today (0): the hook still binds a fixed `_ROLES` tuple; this passes only once the relaxed name bound lands. The pytest gate above is green today and cannot tell 'done' from 'not started'.
 Docs: docs/workstation/hooks-index.md · CHANGELOG.md — orchestrator-applied
 

@@ -6,6 +6,7 @@
 Depends: T07a
 Parallel: ⛓️
 Complexity: native
+Gate: python -m pytest tests/test_skill_router_hook.py -q
 Gate: test "$(grep -c 'fabrik-epics-review' .claude/hooks/skill_router.py)" != 0   # RED today (0): none of the three new stems exists yet. The pytest gate above passes 164 tests today with no work done.
 Docs: CHANGELOG.md — orchestrator-applied
 

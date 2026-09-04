@@ -6,6 +6,7 @@
 Depends: —
 Parallel: ⚡
 Complexity: complex
+Gate: python -m pytest tests/test_wip_backup.py -q
 Gate: test "$(grep -c 'refs/wip/wt-' scripts/wip_backup.sh)" != 0   # RED today (0): the script has no per-worktree ref namespace yet. The pytest gate above passes 5 tests today with no work done.
 Docs: docs/workstation/hooks-index.md is NOT touched (T02a owns it); the wip-net's own doc row lives in docs/reference (T15) · CHANGELOG.md — orchestrator-applied
 

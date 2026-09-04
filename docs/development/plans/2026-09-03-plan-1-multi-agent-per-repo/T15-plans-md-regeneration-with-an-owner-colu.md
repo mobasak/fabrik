@@ -6,8 +6,9 @@
 Depends: T03a
 Parallel: ⛓️
 Complexity: complex
-Gate: python -m pytest tests/test_docs_updater.py -q
-Gate: bash -c 'python3 scripts/docs_updater.py --check 2>&1 | grep -E "PLANS\.md|multi-agent-operating-model|plan-lock-lifecycle" ; test ${PIPESTATUS[1]} -eq 1'   # SCOPED: `--check` is REPO-GLOBAL with no --path/--range flag (`--check-files` only applies with --task-file/--prompt), and it exits 1 today on 123 lines of PRE-EXISTING debt in other plans — 0 of which name PLANS.md or this plan set. An unscoped gate here is unsatisfiable inside this ticket's Touches: the coder would have to fix seven unrelated docs on a shared tree. This form passes only when NONE of this ticket's own three docs is named in the output. The repo-wide green is not this ticket's to deliver and is not gated anywhere in this plan.
+Gate: python -m pytest tests/test_docs_updater.py tests/enforcement/test_plan_shape_gates.py -q   # both files are in Touches; BC row 1 asserts the two existing call sites in test_plan_shape_gates.py still pass, and nothing ran that file before.
+Gate: test "$(grep -c 'Owner' docs/development/PLANS.md)" != 0   # RED today (0): PLANS.md has the AUTO-GENERATED block but no Owner column. This is the ticket's deliverable.
+Gate: test -f docs/reference/multi-agent-operating-model.md   # RED today: the reference doc does not exist. The pytest gate above passes 14 tests today with the work undone, so it cannot tell 'done' from 'not started'; these two markers can. NOTE on `docs_updater.py --check`: it is NOT a gate here. It is REPO-GLOBAL with no --path flag and exits 1 today on 123 lines of pre-existing debt in OTHER plans (0 of which name this ticket's three docs), so as a gate it would be unsatisfiable inside these Touches. The orchestrator still runs it at the Docs step; it is simply not this ticket's pass/fail.
 Docs: docs/reference/multi-agent-operating-model.md (NEW — the Doc Sync Matrix 'new subsystem' row) · INDEX.md + docs/README.md rows · docs/development/PLANS.md (regenerated block) · CHANGELOG.md — orchestrator-applied except PLANS.md, which this ticket owns
 
 ## Touches
