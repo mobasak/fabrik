@@ -136,7 +136,7 @@ Then hand off: the next step is **`10-cross-artifact-validation-fabrik`** (`09`'
 - **Change ticket Title prefixes** — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>`.
 - **Skip the top-down cascade order** — Step 5's strict order prevents contradictions; lower-layer edits without upper-layer confirmation introduce drift.
 - **Propose `09` recursively** — Step 8 contradictions return to the originating layer; never spawn a nested `09`.
-- **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); the coder fixups merge via `07`-style worktree→default-branch.
+- **Push the DEFAULT branch from a worktree, or commit files you did not author** — the gate auto-STAGES; staging is not committing, and CLAUDE.md § EXIT + § HARD STOPS make committing AND pushing your own work at task end REQUIRED (the Stop hook enforces it). Commit with explicit pathspecs + Agent Provenance Trailers and push the CURRENT branch; the coder fixups MERGE via `07`-style worktree→default-branch (R1).
 
 ## Acceptance Criteria
 

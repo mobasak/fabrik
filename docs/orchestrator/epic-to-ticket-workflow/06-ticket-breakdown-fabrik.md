@@ -62,7 +62,7 @@ For the CONTENT of Steps (function names, paths, schemas): **Tech Plan** (Compon
 
 **DO NOT:**
 - Do not refactor/reorganize/improve any code outside the Scope files.
-- Do not run `git commit`/`git push` — `scripts/final_gate.py` auto-stages on success.
+- Do not commit files you did not author, and never push the default branch from a worktree — the gate auto-STAGES; staging is not committing, and CLAUDE.md § EXIT + § HARD STOPS make committing AND pushing your own work at task end REQUIRED (the Stop hook enforces it). Commit with explicit pathspecs + Agent Provenance Trailers and push the CURRENT branch: the ticket set this step WRITES is your own work and is committed at task end (R1).
 - `Adjacent fixes` applies only within Scope files; new files outside Scope are forbidden.
 - Do not create API endpoints (T3) or add seed data (T2).
 
@@ -101,7 +101,7 @@ For the CONTENT of Steps (function names, paths, schemas): **Tech Plan** (Compon
 
 **Completion Self-Check:** re-read every scope file; run the gate + paste JSON, fix to `status:"success"`; list files touched (none outside scope); confirm each Acceptance Criterion with evidence; Lessons Learnt: none.
 
-**Governance Checklist:** no out-of-scope files · Data Model fully implemented · first-output `RULES ACTIVE: <agent> | 25-data-postgres, 55-observability` · no `git commit`/`push` · gate `status:"success"` · no silent failures · CHANGELOG + INDEX updated · structured logger in the health check (no `print()`) · `DATABASE_URL` in `docs/CONFIGURATION.md` + `.env.example`.
+**Governance Checklist:** no out-of-scope files · Data Model fully implemented · first-output `RULES ACTIVE: <agent> | 25-data-postgres, 55-observability` · commit your own work with pathspecs + trailers, never a sibling's files · gate `status:"success"` · no silent failures · CHANGELOG + INDEX updated · structured logger in the health check (no `print()`) · `DATABASE_URL` in `docs/CONFIGURATION.md` + `.env.example`.
 
 **Gate Tier:** 2 (schema change).
 
@@ -171,7 +171,7 @@ Every ticket has ALL fields (no stubs/placeholders/truncation) · Steps use VERB
 - Execute tickets — that is `07-execute-fabrik` (the coder dispatch); this writes the spec.
 - Validate implementation correctness — that is `08-implementation-validation-fabrik`; cross-artifact — `10-cross-artifact-validation-fabrik`.
 - Rename/restructure Titles — the outline emits `Tn — <verb>` (or `Tn — Retrofit: <area>` `[canonical: mega/03-expand-epic-files-fabrik § Step 2]`); expand the spec under the existing Title.
-- Inject rule packs not in the outline's category table (route back to 05); write commit messages/PRs; run `git commit`/`push` (auto-staged by `final_gate.py` on success).
+- Inject rule packs not in the outline's category table (route back to 05); write commit messages/PRs for ANOTHER agent's work; push the default branch from a worktree (R1 — your own ticket set is committed at task end; the gate auto-STAGES, which is not committing).
 - Force Epic Closure for a scoped Retrofit (state "skipped (Retrofit — [reason])"); propose `revise-requirements` mid-batch; re-enforce all mandate rows for a Retrofit (only the target area).
 
 ## Acceptance Criteria

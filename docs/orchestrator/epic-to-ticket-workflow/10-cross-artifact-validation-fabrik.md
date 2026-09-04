@@ -119,7 +119,7 @@ When the cross-artifact review reaches its lens-adjudicated exit: post the asses
 - **Flag a missing Deploy Plan / Epic Closure / a <5-SC Decisions Lock for a Retrofit** where `04`/`06` correctly skipped or the Retrofit default applies (per the Step-2 Retrofit adjustments); a Retrofit's 1:1 parallelism is not a budget failure.
 - **Change ticket Title prefixes** — Delta-feature stays `T<n> — <action verb>`; Retrofit stays `T<n> — Retrofit: <area>`.
 - **Deploy** — that is `11-deploy-fabrik` (the deploy-out gate). `10` is the pre-deploy consistency gate.
-- **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); the fixups merge via `07`-style worktree→default-branch.
+- **Push the DEFAULT branch from a worktree, or commit files you did not author** — the gate auto-STAGES; staging is not committing, and CLAUDE.md § EXIT + § HARD STOPS make committing AND pushing your own work at task end REQUIRED (the Stop hook enforces it). Commit with explicit pathspecs + Agent Provenance Trailers and push the CURRENT branch; the fixups MERGE via `07`-style worktree→default-branch (R1).
 
 ## Acceptance Criteria
 

@@ -139,7 +139,7 @@ When the epic-level review reaches its lens-adjudicated exit: run **`final_gate.
 - **Force `final_gate.py --systemic` for a Retrofit epic where Epic Closure was skipped** at `06`/`07` — use Tier-2 `--json` there (Step 1).
 - **Flag a Retrofit Decisions Lock with 3–5 Success Criteria as under-specced** — that is the Retrofit default; low-SC is a Blocker only for a Delta-feature with <5 SC.
 - **Execute `fabrik apply` / deploy** — that is `11-deploy-fabrik` (the deploy-out gate). `08` is the PRE-deploy epic-level review.
-- **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); the coder fixups merge via `07`-style worktree→default-branch.
+- **Push the DEFAULT branch from a worktree, or commit files you did not author** — the gate auto-STAGES; staging is not committing, and CLAUDE.md § EXIT + § HARD STOPS make committing AND pushing your own work at task end REQUIRED (the Stop hook enforces it). Commit with explicit pathspecs + Agent Provenance Trailers and push the CURRENT branch; the coder fixups MERGE via `07`-style worktree→default-branch (R1).
 
 ## Acceptance Criteria
 

@@ -268,7 +268,7 @@ A route-back instead hands to `02`/`03`/`00` and re-enters here after they re-em
 - **Dispatch the epics** — dispatch is the cockpit card-click / the driver's phase queue (`05-dispatch` retired); this command only converges the set and emits the code-generated order.
 - **Validate rule-pack CONTENT** — it verifies the `Rule Packs` field propagates and that a cited pack exists; the pack semantics are the producer commands' job.
 - **Apply a blanket 4-stage expectation to a Retrofit epic** — a Retrofit on a deployed service owns no Stage-1/Stage-3 (Core Philosophy).
-- **Run `git commit` / `push`** — `scripts/final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS).
+- **Push the DEFAULT branch from a worktree, or commit files you did not author** — the gate auto-STAGES; staging is not committing, and CLAUDE.md § EXIT + § HARD STOPS make committing AND pushing your own work at task end REQUIRED (the Stop hook enforces it). Commit with explicit pathspecs + Agent Provenance Trailers and push the CURRENT branch (R1).
 
 ## Acceptance Criteria
 

@@ -90,7 +90,7 @@ Epic execution done → post the Telegram digest (`Epic complete: 12 done + 3 fi
 - Loop fixups indefinitely on one ticket — **3 consecutive same-test failures is BLOCKED case 1** → Telegram, pause that ticket.
 - Bypass `scripts/final_gate.py` — a `status:"success"` is required; agent self-reports without gate output are rejected.
 - Change the coder tier from the ticket's `Complexity` — `06-ticket-breakdown-fabrik` Step 9 decided pool-vs-`claude -p`; this dispatches accordingly.
-- Run `git commit`/`push` — `final_gate.py` auto-stages on success (CLAUDE.md HARD STOPS); merge is the worktree→default-branch step (Step 5).
+- Push the DEFAULT branch from a worktree, or commit files you did not author — the gate auto-STAGES; staging is not committing, and CLAUDE.md § EXIT + § HARD STOPS make committing AND pushing your own work at task end REQUIRED (the Stop hook enforces it). Commit with explicit pathspecs + Agent Provenance Trailers and push the CURRENT branch; the MERGE to the default branch is Step 5's worktree→default-branch flow, never a direct push from here (R1, 01M1M1VAE9HX7J03705T500QT4).
 - Execute `fabrik apply` / deploy — that is `11-deploy-fabrik` (the deploy-out gate).
 - Do the epic-wide validation itself — Step 3 is only the per-ticket in-loop check; the authoritative epic-level code-vs-spec review is 07's paired `08-implementation-validation-fabrik` (CC5), and the cross-artifact pass is `10-cross-artifact-validation-fabrik`; a scope change routes to `09-revise-requirements-fabrik` and re-enters the chain.
 
