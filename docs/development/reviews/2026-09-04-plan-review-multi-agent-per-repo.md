@@ -196,5 +196,36 @@ script, after the write.
 
 Set is spine + 32 tickets. Emit gate exit 0 / zero WARN, no DAG violations.
 
-NEXT: a fourth author-blind pass over this re-convergence delta — every previous pass found defects in the
-previous pass's closure work, and deletion is the riskiest edit of all.
+### Class re-sweep — the Stop hook refused the close, correctly
+
+The run record's class ledger still had `lost-script-write` OPEN, so the hook refused to let the run end. Re-sweeping
+that class with the SAME brief (never a re-scoped one) found **nine more instances of exactly it** — text that
+survived a change to the set because nothing re-derived it:
+
+| What | Was | Now |
+|---|---|---|
+| Coverage Checklist coverage claims (×4) | "all 26 tickets" | all 32 |
+| Breadth residual | "16 of the 24 tickets" | "16 of the then-24" |
+| Synced-surface list, testing-strategy digest row | named a split-away `T02` / `T03` | T02a/T02b, T03a/T03b |
+| Boundary-collision row | "T02's name bound", "T03's round-robin" | T02a's, T03a's |
+| Self-audit gap check | "84a → T03" | T03a |
+| Breadth adjudication table | a KEEP row for a `T03` that no longer exists | replaced by the T03a split record |
+| Self-audit | `check_plan_lock_release.py:396` → T05a | the relocation → NO ticket (r11) |
+| Cost/limit row | three budget-forced splits | four — spec r11 grew the design doc and pushed T02 to 264,036 B |
+
+One thing the sweep deliberately did NOT "fix": `all 24 grounder units` is the number of pool units dispatched, not
+a ticket count. Correcting it would have been the denominator error in reverse.
+
+### Subtraction verified independently
+
+The riskiest edit in a re-convergence is DELETION, so the twelve files the three deleted tickets used to own were
+checked one by one. Every one is now either unowned AND unmentioned by the plan — correct, because the relocation
+was their only reason to exist — or owned by a surviving ticket for an unrelated reason
+(`check_plan_tickets.py` by T05a for epic containment, `fabrik_synced_manifest.py` by T01a/T01b for the
+worktree-include leg). Nothing was dropped silently.
+
+Closing state: 32 tickets, Board 32 = disk 32, spine roll-up 106 = ticket roll-up 106, checklist 17/17 verdicts and
+0 UNCHECKED, emit gate exit 0 with zero WARN, class ledger clean.
+
+NEXT: the fourth author-blind pass over this delta — every previous pass found defects in the previous pass's
+closure work, so the flip waits for it.
