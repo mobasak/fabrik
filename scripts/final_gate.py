@@ -1343,8 +1343,8 @@ def run_consistency_checks(
                 run_optional_check(
                     "scripts/enforcement/check_decisions_unique.py",
                     "Decision Ledger (unique ids)",
-                    warn_only=True,
-                )
+                )  # BLOCKING since 2026-09-04 — the second half of the D-057 sequencing, flipped
+                #   after wef's repair reply and re-measured first: 0 duplicates in 49 ledgers
             )
         # Subagent flywheel — WARN when a POOL run (run_agents) ran but was never scored+recorded
         # (ledger − receipts, reconciled locally since the subagent_runs writer role is INSERT-only).

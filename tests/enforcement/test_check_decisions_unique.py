@@ -9,7 +9,7 @@ about past collisions, and a naive matcher reds on all of them.
 
 from pathlib import Path
 
-from scripts.enforcement.check_decisions_unique import find_duplicates
+from scripts.enforcement.check_decisions_unique import find_duplicates, main
 
 
 def test_duplicate_id_cells_detected():
@@ -46,26 +46,52 @@ def test_padded_and_bold_id_cells_still_match():
     assert find_duplicates(text) == {"D-003": 2}
 
 
-def test_warn_lines_carry_the_gate_prefix(tmp_path, monkeypatch, capsys):
-    # The visibility contract: bare "WARN:" under advisory=True is INVISIBLE in
-    # --json (warnings filters on the ⚠ prefix; advisory_rows on warn_only
-    # registration) — the defect this check itself shipped with for one commit.
+def test_failure_lines_carry_the_gate_prefix(tmp_path, monkeypatch, capsys):
+    # The visibility contract, now at the BLOCKING tier (promoted 2026-09-04, the second half of
+    # the D-057 sequencing): failure lines carry ✗ so they reach --json's failures. The original
+    # defect this pins is unchanged in shape — a bare "WARN:"/unprefixed line is JSON-invisible.
     import scripts.enforcement.check_decisions_unique as mod
 
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "DECISIONS.md").write_text("| D-001 | a |\n| D-001 | b |\n")
     monkeypatch.setattr(mod, "LEDGER", tmp_path / "docs" / "DECISIONS.md")
-    assert mod.main() == 0
+    assert mod.main() == 1
     out = capsys.readouterr().out
-    assert out.count("⚠") >= 2
-    assert "WARN:" not in out
+    assert out.count("✗") >= 2
+    assert "WARN:" not in out and "⚠" not in out
 
 
-def test_gate_registers_the_check_warn_only():
-    # warn_only=True is what routes the row into --json's advisory list; a
-    # regression to bare advisory=True silently reopens the invisibility.
+def test_gate_registers_the_check_as_blocking():
+    # Promoted from warn_only on 2026-09-04 after wef's repair reply landed and the fleet was
+    # re-measured (0 duplicates in 49 ledgers, so blocking reds no repo). A regression to
+    # warn_only reopens the hole the finding named: a duplicate id survives every gate.
     gate = (Path(__file__).resolve().parents[2] / "scripts" / "final_gate.py").read_text(
         encoding="utf-8"
     )
     block = gate[gate.index("check_decisions_unique.py") :]
-    assert "warn_only=True" in block[:300]
+    assert "warn_only" not in block[:300], "the duplicate-id check blocks; it does not advise"
+
+
+def test_a_duplicate_id_now_reds_the_gate_not_just_warns(tmp_path, monkeypatch):
+    """This landed WARN-first per the D-057 sequencing, explicitly "after wef's repair reply". That
+    reply arrived (01M1MDXY6N6DD0CEAZ9M3778AH) and the promotion was re-measured before flipping:
+    0 duplicate ids across 49 fleet ledgers, so blocking reds no repo at landing. A duplicate id
+    breaks every citation of it, and while this was advisory it survived every gate."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "docs").mkdir()
+    led = tmp_path / "docs" / "DECISIONS.md"
+
+    led.write_text("| D-001 | a |\n| D-002 | b |\n", encoding="utf-8")
+    assert main() == 0, "unique ids stay green"
+
+    led.write_text("| D-001 | a |\n| D-002 | b |\n| D-002 | c |\n", encoding="utf-8")
+    assert main() == 1, "a duplicate id must RED the gate, not merely warn"
+
+    led.write_text(
+        "| D-001 | a |\n\nSee D-001 and D-001 again in this narrative about D-001.\n",
+        encoding="utf-8",
+    )
+    assert main() == 0, "prose occurrences are not id cells — the wef repair report's own lesson"
+
+    led.unlink()
+    assert main() == 0, "no ledger is not a failure"
