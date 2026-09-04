@@ -1538,7 +1538,7 @@ def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
     directory the login shell sat in (D5/FC6)."""
     text = HOOK.read_text(encoding="utf-8")
     start = text.index('nohup bash -c "')
-    outer = text[start : text.index('\n    " &', start)]
+    outer = text[start : text.index('\n    " ', start)]
     calls = [ln for ln in outer.splitlines() if "pipeline_alert.sh" in ln]
     assert len(calls) == 6 and all(ln.count("pipeline_alert.sh") == 1 for ln in calls), (
         calls
@@ -2730,4 +2730,36 @@ def test_a_handler_bug_still_reaches_handle_error(monkeypatch):
         sys.modules.pop("dashboard_server", None)
     assert seen == ["handled"], (
         "a handler BUG must reach handle_error — a blanket `except Exception` in handle() hides it"
+    )
+
+
+def test_the_boot_hooks_nohup_carries_its_own_redirect():
+    """`nohup bash -c "…" &` with no redirect prints `nohup: appending output to 'nohup.out'` to the
+    operator's terminal and mints that file in whatever cwd the login shell sat in — the D5/FC6
+    stray-nohup.out class at the one site the redirect sweep missed. Every line INSIDE the string
+    already redirects to `$LOG_FILE` (0 of 38 output-producing lines lack one; the 8 without are
+    `if`/`fi`/`case`/`esac`/subshell delimiters), so nohup has nothing left to save.
+
+    Source-shaped by necessity: nohup only creates the file when its stdout is a TTY, so an
+    executed twin needs a pty — the shape is what the fix is (S-3, FH7)."""
+    hook = HOOK.read_text(encoding="utf-8")
+    start = hook.index('nohup bash -c "')
+    close = hook.index('\n    " ', start)
+    tail = hook[close : hook.index("\n", close + 1)]
+    assert ">/dev/null 2>&1 &" in tail, (
+        f"the nohup invocation must carry its own redirect, found: {tail!r}"
+    )
+    assert hook.count('nohup bash -c "') == 1, "one nohup site — a second would need the same"
+    block = hook[start : hook.index('\n    " ', start)]
+    writers = [
+        ln
+        for ln in block.splitlines()[1:]
+        if ln.strip()
+        and not ln.strip().startswith("#")
+        and ">" not in ln
+        and ln.strip() not in ("(", ")", "fi", "esac")
+        and not ln.strip().startswith(("if ", "case ", "for ", "while ", "done", "else", "elif"))
+    ]
+    assert writers == [], (
+        f"a line inside the nohup string writes with no redirect of its own: {writers[:3]}"
     )

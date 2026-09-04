@@ -1424,7 +1424,7 @@ def _hook_inner_block() -> str:
     hook = cg.SCRIPT_DIR.parent / "wsl_startup_hook.sh"
     src = hook.read_text()
     i = src.index('nohup bash -c "')
-    j = src.index('\n    " &', i)
+    j = src.index('\n    " ', i)
     quoted = src[i + len("nohup bash -c ") : j + len('\n    "')]
     # Run the hook's own assignment block so every variable resolves exactly as it would at
     # boot, then let BASH perform the quote processing and print the result.
