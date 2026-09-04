@@ -938,3 +938,17 @@ supply `TELEGRAM_BOT_ID` so the halves can be composed.
 - [.env.example](../.env.example) - Complete list of all environment variables
 - [SERVICES.md](SERVICES.md) - External services catalog
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common configuration issues
+
+## External-services chain knobs
+
+Five env vars gate the daily chain (`scripts/external_services_chain.sh`) and its steps. None is
+required; two of them gate DESTRUCTIVE behaviour, which is why they are named here rather than only
+in `docs/reference/external-services-registry.md`.
+
+| Var | Default | Effect |
+|---|---|---|
+| `STEP_TIMEOUT` | `900` | seconds per chain step; must be positive (`0` switches `timeout(1)` off) |
+| `CLASSIFY_TIMEOUT` | `2100` | seconds for the paid classify step |
+| `REGISTRY_PRUNE_FORCE` | unset | `1`/`true`/`yes` overrides the bounded-prune refusal — **disables a data-loss guard** |
+| `REGISTRY_WRITE_TESTS` | unset | `1` opts the live-registry tests in; unset they skip (they WRITE to `fabrik_services`) |
+| `FABRIK_NO_AUTOLOAD` | unset | `1` stops `libs/alerting` autoloading a `.env` from the cwd |

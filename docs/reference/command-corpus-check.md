@@ -165,6 +165,18 @@ trusts explicit `## Phase N` headings only once there are at least two of them: 
 declares a lone `Phase 0` and then branches into VPS/MOBILE/STORE sections, so the literal count
 would claim the run was finished with most of it still ahead.
 
+**A module that leaves a stream DEAD no longer takes the verdict down.** A bare `sys.stdout.detach()`,
+a dunder-only rebind, `close()`, `buffer.detach()` — round 66 restored those as the binding and the
+gate's own verdict `print` raised (exit 120, no output). The probe now rebuilds a fresh wrapper over
+the restored fd and says so: `⚠ advisory — web-tool names: a module left the process's stdout unusable
+at import — the verdict prints through a fresh wrapper over the restored fd`. A stream the CALLER
+launched closed (`>&-`) is left closed — nothing to rebuild (round 68).
+
+**Predicate 7's comment rule.** A trailing shell comment is cut from a FENCED close only, and a `#`
+starts one only outside quotes and at column 0 or after whitespace, `;`, `|`, `&`, `(`, `)`, `<`, `>`.
+A `\` escapes the next character outside single quotes (`$'it\'s'` is one word), and a line continues
+only on an ODD trailing run of backslashes.
+
 ## Predicate 6 — agent definitions (added 2026-08-27)
 
 The four subagent definitions lived ONLY in `~/.claude/agents/`: hand-authored, box-local, absent from git, owned by no generator, and outside this audit. So the check vouched for 31 commands and 31 skills while the agents those commands **dispatch** were unreviewable — the same shape as the orchestrator-corpus blind spot above, one layer down.

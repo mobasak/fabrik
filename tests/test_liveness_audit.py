@@ -1641,9 +1641,14 @@ def test_strict_ignores_declared_and_box_faults_but_bites_a_raise_and_a_row_faul
         tmp_path, _registry(tmp_path, surfaces[:1]), {"heartbeat"}, box=FakeBox(tmp_path, cron=None)
     )
     assert unreadable.crashed() == 0, unreadable.proofs["heartbeat"]["unregistered"]
-    assert (
-        unreadable.proofs["heartbeat"]["unregistered"]["cron"]["total"] == 0
-    )  # the same shape on every producer
+    unreg_u = unreadable.proofs["heartbeat"]["unregistered"]
+    assert unreg_u["cron"]["total"] == 0  # the same shape on every producer
+    assert unreg_u["cron"]["sweep_raised"] is False, unreg_u[
+        "cron"
+    ]  # the ONE producer round 67 added the key to had no assertion at all (B68-4, FH1)
+    assert unreg_u["hooks"]["sweep_raised"] is False, unreg_u[
+        "hooks"
+    ]  # the hooks block of a cron-fault box is healthy — only its `sweep_raised` is asserted here
     # a sweep that RAISES counts once, not once per block it is carried into
     reg = json.loads(registry.read_text(encoding="utf-8"))
     reg["ownership"] = "not-a-mapping"

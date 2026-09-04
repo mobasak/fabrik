@@ -91,6 +91,8 @@ refresh();setInterval(refresh,30000);
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    server_version = "fabrik-dashboard"  # every response carried `Server: BaseHTTP/0.6 Python/3.12.3` on the 0.0.0.0 bind (K68-7, FH1)
+    sys_version = ""
     timeout = 30  # a client that opens a socket and stops no longer holds the server (FE1)
 
     def log_message(self, *_a):
@@ -99,8 +101,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def handle(self) -> None:
         try:
             super().handle()
-        except (ConnectionResetError, BrokenPipeError):
-            pass  # the client reset BEFORE its request was read (a port scan, a NAT'd browser abort): FE1/FF6 guarded the WRITE side only — the READ side printed a 12-frame stdlib traceback per reset (K67-1, FG1)
+        except OSError:
+            pass  # ANY socket error, not the two loopback shapes — a NAT'd LAN peer's EHOSTUNREACH/ECONNABORTED on the write of a 400 still reached `handle_error` (K68-8, FH1); a handler BUG cannot land here (`do_GET` catches Exception, `handle_one_request` catches TimeoutError). The client reset BEFORE its request was read (a port scan, a NAT'd browser abort): FE1/FF6 guarded the WRITE side only — the READ side printed a 12-frame stdlib traceback per reset (K67-1, FG1)
 
     def _send(self, body: bytes, ctype: str) -> None:
         self.send_response(200)

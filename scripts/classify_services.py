@@ -81,19 +81,26 @@ def flagged_providers(path: Path) -> dict[str, dict]:
         line = raw_line.replace(
             "\ufeff", ""
         ).strip()  # the STRIPPED line, like registry_sync.parse: an indented section header was read past and a categorised provider handed to PAID triage every lap (FE5)
+        _is_svc = bool(
+            re.match(r"#[#\s]*#?svc\b", line, re.I)
+        )  # a `#svc` line is never a header, whatever its capability holds (R68-C1, FH1)
         if (
-            re.match(r"#.*═", line) and "NEEDS-TRIAGE" in line
+            re.match(r"#.*═", line) and not _is_svc and "NEEDS-TRIAGE" in line
         ):  # the HEADER only — never a value (AU11); `## ═` commented twice is a header too, like registry_sync (FF1)
             in_triage = True
             continue
         if not in_triage:
             continue
-        if re.match(r"#.*═", line):  # next section header -> triage block ended
+        if (
+            re.match(r"#.*═", line) and not _is_svc
+        ):  # next section header -> triage block ended (never a `#svc` line — R68-C1)
             break
         if re.match(
             r"#svc\s+name=", line, re.I
         ):  # `\s+`, like the other readers: a TAB after `#svc` ended the block and dropped the provider silently (G67-7, FG1)
-            if not gather_envs.SVC_LINE_RE.fullmatch(re.sub(r"\s+", " ", line)):
+            if not gather_envs.SVC_LINE_RE.fullmatch(
+                line
+            ):  # the RAW line, exactly as `registry_sync.parse` reads it: collapsing whitespace made the guard a strict SUBSET of the sync, so a TAB or a double space was dispatched, PAID for, then failed the lap closed (E68-1, FH1)
                 raise ValueError(
                     f"{path}: a #svc header the sync would refuse — nothing dispatched: {line[:120]!r}"
                 )  # the classifier SPENT on a truncated/malformed header and registry_sync then failed the lap closed on the same line (E67-7, FG1)
@@ -495,7 +502,10 @@ def main() -> int:
 
     names = list(provs)
     bad_names = [
-        p for p in names if gather_envs._svc_token(p) != p or p != p.lower() or p.startswith("_")
+        p
+        for p in names
+        if not gather_envs.SVC_NAME_RE.fullmatch(p)
+        or p.startswith("_")  # the SYNC's rule, not the catalog-key rule (E68-3, FH1)
     ]
     if bad_names:  # the OTHER input is validated before the spend too: a `#svc name=Widget` was dispatched, paid for, then refused by the catalog's own key rules — and the pass-1 WARNING blamed a mid-dispatch hand-edit that never happened; a `_foo` wrote an inert entry and claimed success (FF1)
         print(

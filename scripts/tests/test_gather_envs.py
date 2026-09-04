@@ -4308,26 +4308,181 @@ def test_the_generator_and_both_readers_share_one_header_shape():
     assert ge.SVC_LINE_RE.fullmatch(line.strip()), line
 
 
-def test_an_internal_config_value_with_a_newline_renders_one_line():
+def test_an_internal_config_value_with_a_newline_renders_one_line(tmp_path, monkeypatch):
     """The escape was applied to the provider emitter only; the internal-config loop wrote a
     multi-line value raw and the file stopped being line-structured (R67-14, FG1)."""
     assert ge._escape_newlines("a\nb") == "a\\nb"
-    src = Path(ge.__file__).read_text(encoding="utf-8")
-    assert src.count("_escape_newlines(value)") >= 2, "both emitters escape"
+    # executed, not a source pin (pool-68 unit 13): an internal-config value with a newline renders ONE line
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    env = tmp_path / "web" / ".env"
+    env.parent.mkdir()
+    env.write_text('PORT=8000\nBANNER="line one\nline two"\n', encoding="utf-8")
+    body, _stats = ge.consolidate([env])
+    banner = [ln for ln in body.splitlines() if ln.startswith("BANNER=")]
+    assert banner == ["BANNER=line one\\nline two"] or (len(banner) == 1 and "\\n" in banner[0]), (
+        body
+    )
 
 
 def test_the_triage_reader_agrees_with_the_sync_on_case_and_a_tab(tmp_path):
-    """`#SVC NAME=upperco` parses in both readers now; `#svc<TAB>name=` is a header in both — the
-    classifier ended the block and dropped the provider silently (F67-11, G67-7, FG1)."""
-    body = (
+    """`#SVC NAME=upperco` parses in both readers now (F67-11, G67-7, FG1). And the pre-spend guard
+    is the SYNC's own rule: this test used to PIN the divergence — it asserted the classifier accepts
+    a TAB-separated header, which `registry_sync.parse` refuses, so the shape was dispatched, PAID
+    for, and then failed the lap closed. Both readers are asserted on the SAME fixture now (E68-1)."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(cs.REPO) / "scripts"))
+    try:
+        import registry_sync as rs68
+    finally:
+        _sys.path.pop(0)
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(
         "# ═ NEEDS-TRIAGE ═\n"
         '#SVC NAME=upperco category=? cost=? capability="?" url=? status=? used_by=web\n'
-        "UPPERCO_API_KEY=x\n"
-        '#svc\tname=tabbed category=? cost=? capability="?" url=? status=? used_by=web\n'
-        "TABBED_API_KEY=y\n"
+        "UPPERCO_API_KEY=x\n",
+        encoding="utf-8",
     )
-    envs = tmp_path / "all-envs.env"
-    envs.write_text(body, encoding="utf-8")
     flagged = cs.flagged_providers(envs)
-    assert list(flagged) == ["upperco", "tabbed"], flagged
-    assert flagged["tabbed"]["names"] == ["TABBED_API_KEY"]
+    assert list(flagged) == ["upperco"], flagged
+    assert [p["meta"]["name"] for p in rs68.parse(envs)] == ["upperco"]  # the sync agrees
+    assert (
+        ge.SVC_NAME_RE.fullmatch("x=y") is None
+    )  # ONE name rule for the guard and the sync (E68-3)
+    assert ge.SVC_NAME_RE.fullmatch("upperco") and ge.SVC_NAME_RE.fullmatch("a.b-c_1")
+    for shape in (  # every SHAPE the sync refuses, the classifier refuses BEFORE the spend
+        '#svc\tname=tabbed category=? cost=? capability="?" url=? status=? used_by=web\n',
+        '#svc  name=dbl category=? cost=? capability="?" url=? status=? used_by=web\n',
+    ):
+        envs.write_text("# ═ NEEDS-TRIAGE ═\n" + shape + "TABBED_API_KEY=y\n", encoding="utf-8")
+        with pytest.raises(ValueError):
+            cs.flagged_providers(envs)
+        with pytest.raises(ValueError):
+            rs68.parse(envs)
+
+
+def test_a_svc_header_whose_capability_carries_the_section_bar_is_a_provider(tmp_path):
+    """`#.*═` matched a `#svc` line whose free-text capability holds `═`: the provider was dropped
+    with NO `bad` entry (the AP2 fail-closed contract bypassed), then the prune deleted its keys and
+    credit history one provider at a time; the classifier truncated the triage queue there (R68-C1)."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(cs.REPO) / "scripts"))
+    try:
+        import registry_sync as rs68
+    finally:
+        _sys.path.pop(0)
+    line = ge.svc_line(
+        "acme",
+        {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "search API ═ fast",
+            "url": "https://a.example",
+            "status": "active",
+        },
+        {"web"},
+    )
+    assert "═" in line
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(line + "\nACME_API_KEY=x\n", encoding="utf-8")
+    provs = rs68.parse(envs)
+    assert [p["meta"]["name"] for p in provs] == ["acme"], provs
+    assert [k for k, *_ in provs[0]["keys"]] == ["ACME_API_KEY"]
+    envs.write_text(
+        "# ═ NEEDS-TRIAGE ═\n"
+        + line.replace("category=ai-llm", "category=?").replace("cost=paid", "cost=?")
+        + "\nACME_API_KEY=x\n"
+        + '#svc name=beta category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BETA_API_KEY=y\n",
+        encoding="utf-8",
+    )
+    assert list(cs.flagged_providers(envs)) == ["acme", "beta"]  # the queue is not truncated
+
+
+def test_a_secret_holding_both_a_newline_and_a_literal_backslash_n_round_trips(
+    tmp_path, monkeypatch
+):
+    """The reader inverted EVERY `\n` whenever the note was present, so a value holding both a real
+    newline and a literal backslash-n came back as a string that is not the secret — and the stored
+    digest was of that rendering (E68-5). The marker is read from the NOTE, never from the value
+    (R68-C5). The SECRET is whatever dotenv reads: never a hand-escaped literal in this file."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(cs.REPO) / "scripts"))
+    try:
+        import registry_sync as rs68
+    finally:
+        _sys.path.pop(0)
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    env = tmp_path / "web" / ".env"
+    env.parent.mkdir()
+    env.write_text(
+        'ACMEX_API_KEY="-----BEGIN-----\nabc\\\\ndef\n-----END-----"\n'
+        "PLAIN_API_KEY='multi-line value, newlines escaped: a literal \\\\n and no newline'\n",
+        encoding="utf-8",
+    )
+    truth = dict(ge.parse_env(env))
+    assert "\n" in truth["ACMEX_API_KEY"] and "\\n" in truth["ACMEX_API_KEY"], truth[
+        "ACMEX_API_KEY"
+    ]
+    body, _stats = ge.consolidate([env])
+    f = tmp_path / "all-envs.env"
+    f.write_text(body, encoding="utf-8")
+    keys = {k: v for p in rs68.parse(f) for k, v, *_ in p["keys"]}
+    assert keys["ACMEX_API_KEY"] == truth["ACMEX_API_KEY"], (
+        keys["ACMEX_API_KEY"],
+        truth["ACMEX_API_KEY"],
+    )
+    assert keys["PLAIN_API_KEY"] == truth["PLAIN_API_KEY"], (
+        keys["PLAIN_API_KEY"],
+        truth["PLAIN_API_KEY"],
+    )
+
+
+def test_the_emptied_catalog_guard_reads_a_tab_separated_triage_header(tmp_path, monkeypatch):
+    """Round 67 widened the exclusion regex and DELETED its only assertion in the same commit: with
+    the old one a TAB-separated `category=?` header counts as a catalogued vendor, so a legitimate
+    all-triage bootstrap raises and the whole scan fails closed (E68-6/B68-3)."""
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc\tname=zeta\tcategory=?\tcost=?\tcapability="?"\turl=?\tstatus=?\tused_by=web\n'
+        "ZETA_API_KEY=x\n",
+        encoding="utf-8",
+    )
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(ge, "OUTPUT", envs)
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    ge.refuse_emptied_catalog()  # a bootstrap: every vendor is in triage, nothing to lose
+    envs.write_text(
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc\tname=zeta\tcategory=ai-llm\tcost=paid\tcapability="c"\turl=https://z.example\tstatus=active\tused_by=web\n'
+        "ZETA_API_KEY=x\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
+        ge.refuse_emptied_catalog()
+
+
+def test_the_registry_sync_import_leaves_no_module_behind():
+    """The B67-10 leak class, reintroduced by a round-67 grader: `sys.path` was restored and
+    `sys.modules["registry_sync"]` was not (B68-8)."""
+    import sys as _sys
+
+    before = set(_sys.modules)
+    path_before = list(_sys.path)
+    _sys.path.insert(0, str(Path(cs.REPO) / "scripts"))
+    try:
+        import registry_sync  # noqa: F401
+    finally:
+        _sys.path.pop(0)
+        for k in [k for k in _sys.modules if k == "registry_sync" and k not in before]:
+            del _sys.modules[k]
+    assert _sys.path == path_before
+    assert "registry_sync" not in _sys.modules or "registry_sync" in before

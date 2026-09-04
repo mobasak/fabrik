@@ -3618,3 +3618,142 @@ def test_a_semicolon_comment_is_a_comment(corpus):
     close = "python3 scripts/command_run.py done --command fabrik-probe"
     body = f"```bash\n{close} --evidence e;# --feedback f\n```\n"
     assert any("--feedback" in p for p in corpus(body)), corpus(body)
+
+
+def test_pass_68_corpus_shapes(corpus, tmp_path):
+    """A68: `>&-` launches (below, in the CLI grader); `<!-->` is a complete comment; `$'it\\'s'`
+    is one word; an escaped trailing backslash is not a continuation; `)#`/`>#` start a comment;
+    an open quote never crosses the closing fence; `description:` is a KEY; the four round-67
+    hunks that had no grader (`&#`, the orch-wrapper comment strip, both continuation rules) (FH1)."""
+    import check_command_corpus as ccc
+
+    close = "python3 scripts/command_run.py done --command fabrik-probe"
+    assert ccc._blank_html_comments("<!-->\nx") == "\nx"
+    assert ccc._blank_html_comments("<!--->\nx") == "\nx"
+    assert not any(
+        "opens no run record" in p
+        for p in corpus(
+            "<!-->\npython3 scripts/command_run.py start --command x\n", with_record=False
+        )
+    )
+    for body in (  # these FIRE
+        f"```bash\n{close} --evidence $'it\\'s' # --feedback f\n```\n",
+        f"```bash\n{close} --evidence e \\\\\n--feedback f\n```\n",
+        f"```bash\n{close} --evidence e )# --feedback f\n```\n",
+        f"```bash\n{close} --evidence e ># --feedback f\n```\n",
+        f"```bash\n{close} --evidence e &# --feedback f\n```\n",
+        f"```bash\n{close} --evidence e \\\n  --evidence f \\ \n--feedback f\n```\n",
+        f'```bash\n{close} --evidence "oops\n```\nThe flag `--feedback` is REQUIRED.\n',
+    ):
+        assert any("--feedback" in p for p in corpus(body)), (body, corpus(body))
+    for body in (  # these are SILENT
+        f'```bash\n{close} --evidence "multi \\\nline\nmore" --feedback f\n```\n',
+    ):
+        assert not any("--feedback" in p for p in corpus(body)), (body, corpus(body))
+    assert ccc._continues("a \\") and not ccc._continues("a \\\\") and ccc._continues("a \\\\\\")
+    # the IN-LOOP recompute (line 1305), which the round-67 cases never reached — both directions
+    # were vacuous: a quote spanning TWO continuation lines, and an escaped space on a continuation
+    # line (B68-1, FH1)
+    assert not any(
+        "--feedback" in p
+        for p in corpus(f"```bash\n{close} --evidence 'a\nb\nc' --feedback f\n```\n")
+    )
+    assert any(
+        "--feedback" in p
+        for p in corpus(f"```bash\n{close} \\\n --evidence e \\ \necho --feedback\n```\n")
+    )
+
+
+def test_an_orchestrator_wrapper_reads_its_start_through_the_same_comment_blanker(tmp_path):
+    """The A67-2 fix landed at both `sources` sites and at `_orch_corpus`; only the first two were
+    graded (the `corpus` fixture passes `traycer_skills=<no-orch>`, so this leg never ran). A fence
+    line inside an HTML comment then hid a wrapper's real `start` — a BLOCKING false positive on a
+    wrapper that DOES open a record (B68-2, FH1)."""
+    import check_command_corpus as ccc
+
+    real_doc = next(iter(sorted((REPO / "docs" / "orchestrator").rglob("*.md"))))
+    doc_line = f"`/opt/fabrik/{real_doc.relative_to(REPO)}`\n"
+    ts = tmp_path / "_traycer-skills"
+    (ts / "probe").mkdir(parents=True)
+    (ts / "probe" / "SKILL.md").write_text(
+        doc_line
+        + "```md\n<!--\n```\n\npython3 scripts/command_run.py start --command x\n\nprose -->\n",
+        encoding="utf-8",
+    )
+    problems = ccc._orch_corpus(ts, REPO)[2]
+    assert not [p for p in problems if "run record" in p], problems
+    (ts / "probe" / "SKILL.md").write_text(doc_line + "no record here at all\n", encoding="utf-8")
+    problems = ccc._orch_corpus(ts, REPO)[2]
+    assert [p for p in problems if "run record" in p], problems
+
+
+def test_pass_68_agent_description_is_a_key_and_a_closed_stdout_launch_is_green(tmp_path, corpus):
+    """`#description:` passed (a YAML comment), `description :` fired (A68-8); a launch with stdout
+    or stderr CLOSED tracebacked on a green corpus and printed a false `unusable` advisory (A68-1);
+    `detach()` alone printed the FF1 wrapper advisory with no wrapper (A68-7) (FH1)."""
+    import check_command_corpus as ccc
+
+    agents = tmp_path / "agents68"
+    agents.mkdir()
+    (agents / "one.md").write_text("---\nname: one\n#description: d\n---\n")
+    (agents / "two.md").write_text("---\nname: two\ndescription : d\n---\n")
+    (agents / "three.md").write_text("---\nname: three\ndescription:d\n---\n")
+    probs = ccc.audit(
+        tmp_path / "_sources",
+        tmp_path / "_fragments",
+        tmp_path / "no-assembler.py",
+        REPO,
+        traycer_skills=tmp_path / "no-orch",
+        agents=agents,
+    )
+    assert any("_agents/one.md: no `description:`" in p for p in probs), probs
+    assert not any("_agents/two.md" in p for p in probs), probs
+    assert not any("_agents/three.md" in p and "description" in p for p in probs), probs
+    root = tmp_path / "closedfd"
+    (root / "scripts" / "enforcement").mkdir(parents=True)
+    shutil.copy(
+        REPO / "scripts" / "enforcement" / "check_command_corpus.py",
+        root / "scripts" / "enforcement" / "check_command_corpus.py",
+    )
+    (root / "libs" / "subagents").mkdir(parents=True)
+    (root / "libs" / "__init__.py").write_text("")
+    (root / "libs" / "subagents" / "__init__.py").write_text("")
+    (root / "libs" / "subagents" / "web_tools.py").write_text(
+        'WEB_TOOL_NAMES = frozenset({"web_search"})\n'
+    )
+    (root / "CLAUDE.md").write_text("Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>\n")
+    (root / "commands" / "_sources").mkdir(parents=True)
+    (root / "commands" / "_fragments").mkdir()
+    (root / "commands" / "assemble_commands.py").write_text("")
+    (root / "commands" / "_sources" / "fabrik-a.md").write_text("{{include:run-record}}\n")
+    (root / "docs" / "orchestrator" / "_traycer-skills").mkdir(parents=True)
+    for redirect in (">&-", "2>&-"):
+        proc = subprocess.run(
+            [
+                "bash",
+                "-c",
+                f"exec {redirect}; exec {sys.executable} scripts/enforcement/check_command_corpus.py --quiet",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert proc.returncode == 0, (redirect, proc.returncode, proc.stdout, proc.stderr)
+        assert "Traceback" not in proc.stderr and "unusable" not in proc.stdout, (
+            redirect,
+            proc.stdout,
+            proc.stderr,
+        )
+    (root / "libs" / "subagents" / "web_tools.py").write_text(
+        'import sys\nsys.stdout.detach()\nWEB_TOOL_NAMES = frozenset({"web_search"})\n'
+    )
+    proc = subprocess.run(
+        [sys.executable, "scripts/enforcement/check_command_corpus.py", "--quiet"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert "its own wrapper is now the binding" not in proc.stdout, proc.stdout
+    assert "left the process's stdout unusable" in proc.stdout, proc.stdout

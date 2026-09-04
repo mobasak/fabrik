@@ -769,7 +769,9 @@ def _heartbeat_one(
                 Verdict.UNKNOWN,
                 "the registry row could not be probed",
             )  # `" "`/`null` read as a DEAD "  is not-found" — the needle rule stopped at cron/hook/marker/path (FF1)
-        if evidence.get("expect") is not None and _needle(evidence.get("expect")) is None:  # a JSON `null` is "not declared" (the default applies); a declared non-string is the fault
+        if (
+            evidence.get("expect") is not None and _needle(evidence.get("expect")) is None
+        ):  # a JSON `null` is "not declared" (the default applies); a declared non-string is the fault
             return make(
                 Instrument.broken(f"{sid}:registry", "expect is empty or not a string"),
                 Verdict.UNKNOWN,
@@ -1952,11 +1954,19 @@ def extract_claims(path: Path, rel: str) -> list[Claim]:
     return claims
 
 
+_SCRIPT_ROOT_COUNT = (
+    10  # the length of `_find_script`'s root list — the DEAD detail states its bound (R68-C3)
+)
+
+
 def _find_script(box: Box, basename: str) -> str:
     """Bounded lookup for a script by basename. Never a whole-disk walk."""
     roots = [
         box.home / ".claude" / "bin",
         box.home / ".claude" / "hooks",
+        box.home
+        / ".claude"
+        / ".claude-manager",  # session-start-tap.js lives here — 2 of the 31 scripts the registry names were "no such file exists" (R68-C3, FH1)
         box.home / ".claude",
         REPO_ROOT / ".claude" / "hooks",
         REPO_ROOT / "scripts",
@@ -2103,7 +2113,8 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
         return make(
             inst,
             Verdict.DEAD,
-            f"doc names {claim.payload}; no hook runs it and no such file exists",
+            f"doc names {claim.payload}; no hook runs it and it is not under any of the "
+            f"{len(roots) if (roots := _SCRIPT_ROOT_COUNT) else 0} searched roots",  # a bounded search returns "not found in N", never "does not exist" (R68-C3, FH1)
             "stale-doc",
         )
 
@@ -2340,7 +2351,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--proof",
         default="heartbeat,vacuity,doc_claim",
-        help="comma-separated subset of heartbeat,vacuity,doc_claim",
+        help="ONE comma-separated subset of heartbeat,vacuity,doc_claim — not repeatable; an unknown name exits 2",
     )
     return p
 

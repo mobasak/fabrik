@@ -279,9 +279,12 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
                 # detached` on the verdict print, and a detached stderr failed the exit-time flush: a
                 # green verdict with exit 120 (FF1)
                 restored.append(cur)
-                ADVISORIES.append(
-                    "web-tool names: a module detached the process's stdout/stderr at import — its own wrapper is now the binding (FF1)"
-                )
+                if (
+                    cur is not orig and cur is not None
+                ):  # the advisory names a wrapper only when there is one — `detach()` alone printed it falsely (A68-7, FH1)
+                    ADVISORIES.append(
+                        "web-tool names: a module detached the process's stdout/stderr at import — its own wrapper is now the binding (FF1)"
+                    )
             else:
                 restored.append(orig)
         for fd, orig in enumerate(saved, 1):
@@ -291,6 +294,11 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
                 os.close(orig)
         for idx, fd in enumerate((1, 2)):
             stream = restored[idx]
+            if streams[idx] is None:
+                restored[idx] = (
+                    None  # the CALLER launched with the fd closed (`>&-`): nothing to rebuild — the FG1 wrapper sat on a descriptor the sink had recycled and the verdict print raised on a GREEN corpus (A68-1, FH1)
+                )
+                continue
             try:
                 if stream is None or stream.closed:
                     raise ValueError("no live stream")
@@ -860,34 +868,46 @@ def _cut_shell_comment(seg: str, quote: str = "") -> tuple[str, str]:
     i = 0
     while i < len(seg):
         ch = seg[i]
-        if ch == "\\" and quote != "'":
+        if ch == "\\" and quote != "'":  # inside `$'…'` (quote == "$") a `\'` IS an escape (A68-5)
             i += 2
             continue
         if quote:
-            if ch == quote:
+            if ch == ("'" if quote == "$" else quote):
                 quote = ""
         elif ch in "\"'":
-            quote = ch
+            quote = (
+                "$" if (ch == "'" and i > 0 and seg[i - 1] == "$") else ch
+            )  # ANSI-C quoting: `$'it\'s'` is one word (A68-5, FH1)
         elif (
-            ch == "#" and (i == 0 or seg[i - 1] in " \t;|&(")
-        ):  # `;#`, `|#`, `&#`, `(#` start a comment too — the whitespace-only rule kept `--evidence e;# --feedback f` whole (G67-6, FG1)
+            ch == "#" and (i == 0 or seg[i - 1] in " \t;|&()<>")
+        ):  # `;#`, `|#`, `&#`, `(#`, `)#`, `<#`, `>#` start a comment — the whitespace-only rule kept `--evidence e;# --feedback f` whole (G67-6, FG1; the paren/redirect shapes A68-5, FH1)
             return seg[:i], quote
         i += 1
     return seg, quote
+
+
+def _continues(seg: str) -> bool:
+    """A line continues when it ends in an ODD run of backslashes: `\\\\` is an escaped backslash and bash
+    ends the command there (A68-5, FH1)."""
+    return (len(seg) - len(seg.rstrip("\\"))) % 2 == 1
 
 
 def _blank_html_comments(body: str) -> str:
     """`<!-- … -->` blanked OUTSIDE fences, newlines kept so line numbers hold. The claim side kept
     a commented-out claim (a BLOCKING fire on a note), and the honour side unfenced BEFORE it
     stripped comments, so a fence line inside a comment swallowed the caller's real reference;
-    a `<!--` inside a fence is content (FF1)."""
+    a `<!--` inside a fence is content (FF1). An UNCLOSED `<!--` hides everything to EOF — the
+    CommonMark HTML-block rule (the block closes at EOF too): predicate 5 then fails CLOSED and
+    predicate 8's claim side hides its claim — stated, 0 of 90 live files unbalanced (A68-4)."""
 
     def strip(line: str) -> tuple[str, bool]:
         while True:
             start = line.find("<!--")
             if start < 0:
                 return line, False
-            end = line.find("-->", start + 4)
+            end = line.find(
+                "-->", start + 2
+            )  # `<!-->` is a complete comment (CommonMark 0.31 §6.6); `+4` skipped the overlapping closer and hid to EOF (A68-3, FH1)
             if end < 0:
                 return line[:start], True
             line = line[:start] + line[end + 3 :]
@@ -1283,7 +1303,7 @@ def audit(
                 in_span = open_before and "`" not in line[m7.start() : stop]
                 window = [seg]
                 cont = (
-                    seg.endswith("\\") or bool(q7)
+                    _continues(seg) or bool(q7)
                 )  # no rstrip: `\ ` is an escaped SPACE and ends the command (A67-3); an open quote spans lines without a `\` (A67-6, FG1)
                 if k + 1 < len(closes):
                     cont = in_span = False  # a later close on the same line ends this one's window
@@ -1299,10 +1319,12 @@ def audit(
                         )  # up to the span's closer — the prose after it is not the command
                         closed = True
                         break
+                    if fenced and re.match(r"(`{3,}|~{3,})\s*$", nxt.lstrip()):
+                        break  # the closing fence ends the window — an OPEN quote ran across it into prose (A68-6, FH1)
                     if fenced:
                         nxt, q7 = _cut_shell_comment(nxt, q7)
                     window.append(nxt)
-                    cont = nxt.endswith("\\") or bool(q7)
+                    cont = _continues(nxt) or bool(q7)
                 if not closed:
                     window = [
                         seg
@@ -1400,7 +1422,9 @@ def audit(
                     f"_agents/{adef.name}: declares `name: {declared}` — an agent whose name "
                     f"disagrees with its filename cannot be dispatched by either"
                 )
-            if "description:" not in head:
+            if not re.search(
+                r"^description\s*:", head, re.M
+            ):  # a KEY: `#description:` (a YAML comment) passed and `description :` (YAML-legal, like `name :`) fired (A68-8, FH1)
                 problems.append(
                     f"_agents/{adef.name}: no `description:` — the dispatcher selects on it, so an "
                     f"agent without one is invisible to model-native routing"

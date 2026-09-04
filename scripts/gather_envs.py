@@ -945,10 +945,15 @@ def _svc_token(v) -> str:
 
 def _escape_newlines(value: str) -> str:
     """One escape for BOTH emitters: the internal-config loop wrote a multi-line value raw and the
-    file stopped being line-structured (R67-14, FG1)."""
-    return value.replace("\n", "\\n")
+    file stopped being line-structured (R67-14, FG1). REVERSIBLE: the backslash is escaped FIRST, so
+    a value holding BOTH a real newline and a literal backslash-n round-trips — the reader inverted
+    every `\n` and returned a string that is not the secret (E68-5, FH1)."""
+    return value.replace("\\", "\\\\").replace("\n", "\\n")
 
 
+SVC_NAME_RE = re.compile(
+    r"[a-z0-9][a-z0-9_.-]*"
+)  # the catalog key `registry_sync.parse` will accept — the classifier's pre-spend rule was the CATALOG-key rule and 10 of 17 names passed it and were then refused by the sync (E68-3, FH1)
 SVC_LINE_RE = re.compile(
     r"#svc name=(?P<name>\S+) category=(?P<category>\S+) cost=(?P<cost>\S+) "
     r'capability="(?P<capability>[^"]*)" url=(?P<url>\S+) status=(?P<status>\S+)'

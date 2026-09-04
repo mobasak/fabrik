@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: scripts/kilo-benchmarks/daily_refresh.sh, scripts/wsl_startup_hook.sh, tests/test_external_services_chain.py | none
 """Heartbeat check for daily_refresh.sh — fires an alert when stale.
 
 daily_refresh.sh writes a UTC timestamp to
@@ -53,7 +54,7 @@ os.environ.setdefault(
 # load_dotenv before importing alerting so TELEGRAM_BOT_TOKEN is in env.
 try:
     from dotenv import load_dotenv  # type: ignore[import-not-found]
-except ImportError:
+except Exception:  # noqa: BLE001 — a CORRUPT or unreadable shadow `dotenv.py` raises SyntaxError/PermissionError, never ImportError (M68-C3, FH1)
     load_dotenv = None  # type: ignore[assignment]
 try:
     if load_dotenv is None:
@@ -61,11 +62,17 @@ try:
     load_dotenv(SCRIPT_DIR.parents[1] / ".env", override=False)
 except Exception as exc:  # noqa: BLE001 — SAID, never a traceback: an unreadable hub .env (a lost permission bit) killed BOTH legs at import with one traceback in a log nobody tails — the helper and the chain say it and fall through (M67-C1, FG1)
     print(f"[heartbeat] .env not loaded: {type(exc).__name__}: {exc}", file=sys.stderr)
-    from alerting._dotenv import (
-        load_env as _load_env,  # the package's stdlib loader: a venv without python-dotenv loaded nothing here and blamed missing tokens (M-C2, FF1)
-    )
+    try:
+        from alerting._dotenv import (
+            load_env as _load_env,  # the package's stdlib loader: a venv without python-dotenv loaded nothing here and blamed missing tokens (M-C2, FF1)
+        )
 
-    _load_env(str(SCRIPT_DIR.parents[1]))
+        _load_env(str(SCRIPT_DIR.parents[1]))
+    except Exception as exc2:  # noqa: BLE001 — a corrupt or unreadable shadow `dotenv.py`, or an unreadable `libs/alerting`, killed BOTH legs with a traceback; the helper and the chain SAY it and continue (M68-C3, FH1)
+        print(
+            f"[heartbeat] stdlib .env fallback failed: {type(exc2).__name__}: {exc2}",
+            file=sys.stderr,
+        )
 
 TIMESTAMP_FILE_DEFAULT = SCRIPT_DIR / "cache" / "daily_refresh_last_success.txt"
 MAX_AGE_HOURS_DEFAULT = 36
@@ -92,17 +99,21 @@ def _read_timestamp(path: Path) -> datetime | None:
     first_run, a silent no-op, and the parent case crashed both legs (M-C3, FF1)."""
     if not path.exists():
         return None
-    text = path.read_text(encoding="utf-8").strip()
+    text = path.read_text(
+        encoding="utf-8"
+    ).strip()  # a non-UTF-8 byte raises UnicodeDecodeError (a ValueError) — it took BOTH legs down as `check failed` (M68-C2, FH1)
     if not text:
-        return None
+        raise ValueError(
+            "the heartbeat file exists but is EMPTY — a truncated write (ENOSPC/EIO)?"
+        )  # a truncated write leaves 0 bytes and EVERY later day read it as FIRST RUN, silently: the very backstop both writers promise (M68-C1, FH1)
     try:
         # Accept ISO 8601 with or without timezone; treat naive as UTC.
         ts = datetime.fromisoformat(text)
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=UTC)
         return ts
-    except ValueError:
-        return None
+    except ValueError as exc:
+        raise ValueError(f"the heartbeat file holds no timestamp: {text[:40]!r}") from exc
 
 
 def check(
@@ -121,7 +132,10 @@ def check(
     now = now or _now_utc()
     try:
         ts = _read_timestamp(timestamp_file)
-    except OSError as exc:
+    except (
+        OSError,
+        ValueError,
+    ) as exc:  # ValueError too: empty, garbage or non-UTF-8 (M68-C1/C2, FH1)
         return {
             "status": "unreadable",
             "age_hours": None,
@@ -353,9 +367,15 @@ def main() -> int:
 
     try:
         result = check(args.timestamp_file, args.max_age_hours)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — leg 2 is INDEPENDENT and must still run: `return 1` here took the selection-doc leg down with the stamp leg (M68-C2, FH1)
         print(f"[heartbeat] check failed: {e}", file=sys.stderr)
-        return 1
+        result = {
+            "status": "unreadable",
+            "age_hours": None,
+            "timestamp": None,
+            "threshold_hours": args.max_age_hours,
+            "error": f"{type(e).__name__}: {e}",
+        }
 
     if not args.quiet:
         if result["status"] == "first_run":

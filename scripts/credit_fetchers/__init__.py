@@ -76,6 +76,9 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
             # only a transient status is retried (core/58 RETRYABLE_STATUS); a 3xx (BB8), 401/403/404
             # is final on the first answer — a revoked key is not hammered three times (BH4)
             if exc.code not in RETRYABLE_STATUS or attempt == RETRIES:
+                print(
+                    f"WARNING: {url}: HTTP {exc.code} — no snapshot", file=sys.stderr
+                )  # SILENT before: a revoked key and an outage both read as one missing row, and 48h later the cell said `⚠` with the cause nowhere (K68-1, FH1). The url and the status only — never the key
                 return None
             time.sleep(_retry_after(exc.headers.get("Retry-After"), attempt))
         except (
@@ -85,9 +88,13 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
             OSError,
             http.client.HTTPException,
             RecursionError,
-        ):  # a truncated chunked body (`IncompleteRead`) and a 100 000-deep JSON escaped the "never raises" contract (FF1)
+        ) as exc:  # a truncated chunked body (`IncompleteRead`) and a 100 000-deep JSON escaped the "never raises" contract (FF1)
             if attempt == RETRIES:
+                print(f"WARNING: {url}: {exc.__class__.__name__} — no snapshot", file=sys.stderr)
                 return None
+            time.sleep(
+                _retry_after(None, attempt)
+            )  # core/58's bounded jittered retry: this arm retried a refused connect three times in 0.00 s — decorative (K68-2, FH1)
     return None
 
 

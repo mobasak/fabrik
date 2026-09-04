@@ -187,10 +187,9 @@ def parse(path: Path) -> list[dict]:
         s = re.sub(
             r"^[\s\ufeff]+|[\s\ufeff]+$", "", line
         )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); EVERY BOM, anywhere in the MARGIN — a mixed `\ufeff \ufeff` survived two strips (FD7/FE5); the margin ONLY: the whole-line replace mutated a value and stored a digest of a secret that does not exist (FF1)
-        if re.match(
-            r"#.*═", s
-        ):  # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5); `## ═══` commented twice is a header too, like `## #svc` — 315 internal-config names folded under the provider above it otherwise (FF1)
-            cur = None  # a header ends the current provider block (incl. internal-config)
+        if re.match(r"#.*═", s) and not re.match(r"#[#\s]*#?svc\b", s, re.I):
+            # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5); `## ═══` commented twice is a header too, like `## #svc` — 315 internal-config names folded under the provider above it otherwise (FF1)
+            cur = None  # a header ends the current provider block (incl. internal-config)  # a `#svc` line is NEVER a header, whatever its free-text capability holds: `#.*═` swallowed a provider whose capability carried `═` and dropped it with no `bad` entry — then the prune deleted its keys and credit history (R68-C1, FH1)
             continue
         if re.match(
             r"#[#\s]*#svc\b", s, re.I
@@ -202,7 +201,9 @@ def parse(path: Path) -> list[dict]:
         )  # `.match` accepted a line that CONCATENATED two providers, folding the second's keys under the first — the very AP2 class (EY3); trailing whitespace tolerated (EZ4)
         if m:
             name = m.group("name")
-            if name != name.lower() or not re.fullmatch(r"[a-z0-9][a-z0-9_.-]*", name):
+            if name != name.lower() or not gather_envs.SVC_NAME_RE.fullmatch(
+                name
+            ):  # ONE rule, shared with the classifier's pre-spend guard (E68-3, FH1)
                 cur = None
                 bad.append(
                     f"provider name the catalog cannot hold: {name!r}"
@@ -236,7 +237,9 @@ def parse(path: Path) -> list[dict]:
             # `1KEY=x`) was silently dropped — then PRUNED from the registry; fail closed like an
             # unreadable #svc line (FE5)
             cur = None
-            bad.append(line[:120])
+            bad.append(
+                re.sub(r"=.*", "=<redacted>", line)[:120]
+            )  # a KEY=value line's VALUE is a secret and this message rides into the chain log in cleartext (R68-C7, FH1)
             continue
         if cur is not None and kv:
             key, rest = kv.group(1), kv.group(2)
@@ -248,10 +251,13 @@ def parse(path: Path) -> list[dict]:
                     :-4
                 ]  # an EMPTY note (`   # ` with the space stripped by the margin rule) is no value (FF1) — decided on the RAW line's trailing space, so a value that legitimately ends in `   #` keeps it (R67-11)
             value = value.strip()
-            if "multi-line value, newlines escaped" in rest:
-                value = value.replace(
-                    "\\n", "\n"
-                )  # gather escapes a real newline so this reader can read the line at all; the DIGEST and the fetch credential must be the SECRET, not its rendering (E67-2, FG1). Mirror: a secret that literally contains backslash-n collides with one holding a newline — the note is the discriminator, and the generator only writes it for a real newline
+            note_text = rest.split("   # ", 1)[1] if "   # " in rest else ""
+            if (
+                "multi-line value, newlines escaped" in note_text
+            ):  # the NOTE, never the value: a secret that merely CONTAINS the marker phrase had every literal `\n` in it rewritten, and the stored digest was of a string that is not the secret (R68-C5, FH1)
+                value = re.sub(
+                    r"\\(.)", lambda m: "\n" if m.group(1) == "n" else m.group(1), value
+                )  # the symmetric inverse of `_escape_newlines` (backslash-aware): gather escapes a real newline so this reader can read the line at all; the DIGEST and the fetch credential must be the SECRET, not its rendering (E67-2, FG1). Mirror: a secret that literally contains backslash-n collides with one holding a newline — the note is the discriminator, and the generator only writes it for a real newline
             aliases: list[str] = []
             per_key_used: list[str] = []
             if "   # " in rest:
