@@ -104,7 +104,7 @@
 - [scripts/bootstrap/bootstrap-vps.sh](../INDEX.md) (owner: infra): bootstrap-vps.sh — Fabrik W-Multi M1
 - [scripts/check_zed_extensions.py](../INDEX.md) (owner: infra): Gate: verify every Zed extension that settings.json depends on is installed.
 - [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
-- [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json
+- [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry
 - [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
@@ -192,7 +192,7 @@
 - [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_events.py, docs/workstation/kaizen-event-stream.md | none
 - [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
-- [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | scripts/sysadmin/archived/kaizen_metrics.py | INDEX.m
+- [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | INDEX.md
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mcp_health.py · docs/workstation/mcp-roster.md (§ fix-first) | none
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
@@ -330,9 +330,9 @@
 - [core/90-bootstrap-scripts.md](../.windsurf/rules/core/90-bootstrap-scripts.md) (owner: infra): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
 - [core/app-audit-log.md](../.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
 - [core/cost-budget.md](../.windsurf/rules/core/cost-budget.md) (owner: infra): Per-project LLM cost caps + shared cost_ledger + fail-open WAL — required for any service calling paid AI APIs or the watchdog sidecar
-- [core/ocoron-design-system.md](../.windsurf/rules/core/ocoron-design-system.md) (owner: infra): <!-- CONSUMER: Coding agents building UI + Traycer (epic-brief for visual decisions)
+- [core/ocoron-design-system.md](../.windsurf/rules/core/ocoron-design-system.md) (owner: infra): Ocoron design system — the visual identity every Ocoron-branded GUI inherits: colour tokens, typography, motion, component patterns, states, accessibility. Read
 - [core/self-healing.md](../.windsurf/rules/core/self-healing.md) (owner: infra): Self-healing escalation ladder — orchestrates the primitives in 58-resilience, 60-watchdog, 75-workers-jobs into one ordered response per failure class
-- [core/tojlo-design-system.md](../.windsurf/rules/core/tojlo-design-system.md) (owner: infra): <!-- CONSUMER: Coding agents building Tojlo-branded UI
+- [core/tojlo-design-system.md](../.windsurf/rules/core/tojlo-design-system.md) (owner: infra): Tojlo design system — the Tojlo-branded overrides on top of ocoron-design-system.md: brand story, module naming, module-specific components, accent colour. Read
 - [desktop-app/00-domain-desktop-app.md](../.windsurf/rules/desktop-app/00-domain-desktop-app.md) (owner: infra): Desktop-app domain — PLANNING layer. Vision-intake dimensions (ICP, the standalone-vs-connected fork that decides whether revenue can be gated at all, zero-inte
 - [desktop-app/72-desktop.md](../.windsurf/rules/desktop-app/72-desktop.md) (owner: infra): Electron 30+ desktop app — process model, IPC zero-trust, code signing (Azure Trusted Signing / Apple notarization), R2 auto-update, native integrations, KVKK
 - [mobile-app/00-domain-mobile-app.md](../.windsurf/rules/mobile-app/00-domain-mobile-app.md) (owner: infra): Mobile domain — PLANNING layer. The 17 vision-intake dimensions, the 3 forks (billing/distribution/platform-dependency), the attribution stack, and the epic-dec
