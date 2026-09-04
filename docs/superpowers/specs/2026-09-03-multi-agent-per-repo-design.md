@@ -1,6 +1,6 @@
 # Multi-agent per repo — N named sessions, one worktree each, one merge owner
 
-Status: CONVERGED (r10 — 2026-09-03; re-opened from r9 (md5 ad0637f0) to fold the operator's epic range (3–20) as a budget formula, 02's band as a signal, the merge owner's load at E = 20, and `/fabrik-conformance-review` before certification; 3 passes, 11 findings → 1 → 0; closing pass edit-free at md5 e3585667 with the 02 anchors and the arithmetic re-derived and probes ×3 verbatim)
+Status: CONVERGED (r11 — 2026-09-04; re-opened on § Live locks alone after three author-blind passes over the build plan disproved three successive implementations of the r10 relocation (D-116). r11 WITHDRAWS the relocation, records the five invariants that block it, corrects § Assignment's disjointness claim (proven false by execution), and adds R7. 3 passes, 3 findings → 0; closing pass edit-free at md5 a0854f28 with all 8 § Live-locks citations re-resolved and probes ×3 re-run. The r10 stamp was md5 e3585667. Ruling: D-117.)
 Owner: intel (authoring; the mega chain, `.claude/hooks/`, and `templates/governance/` are infra's beat — infra is saturated and the operator authorised intel to carry the design, 2026-09-03; implementation lands on whoever is free at CONVERGED)
 Supersedes in part: `docs/superpowers/specs/2026-08-12-hub-agent-roles-design.md` (its single-writer rationale; its identity mechanism stands). **Retires:** `docs/orchestrator/epic-to-ticket-workflow/` (13 command docs + its checklist) and the Traycer layer (`docs/orchestrator/_traycer-skills/`, `scripts/traycer_mirror.py`, `docs/orchestrator/traycer-command-wiring.md`); supersedes D-101's patch-in-place verdict for the mega chain (§ Chain consolidation).
 Prior art: 2026-07-12 Vibe Kanban evaluation (session `dd3c06d1`, seq 8125) — same diagnosis ("two Claude sessions inside one window share a single working tree… silently clobber each other's uncommitted work"), an external cockpit as the mechanism, never adopted (referenced in 3 hub docs, no binary on the box)
@@ -142,7 +142,7 @@ The symlink is 0 s and carries whatever the main venv has. Safe because D4 makes
 - **Two names, deliberately.** `CLAUDE_AGENT=<agent>` (`alpha`) is repo-local — it is what `owner:` fields, `[tags]` and the `Agent-Name:` trailer carry. The **session** name is `<agent>-<repo>` (`-n alpha-transdoc`), because session names are **box-wide**: "When you start or resume an interactive session with a name that another live session on this machine already uses… Claude Code leaves the name with the session that already has it, renames yours to a variant with a two-word suffix" (sessions doc § "Name your sessions", fetched 2026-09-03). With three windows in each of several repos, a bare `-n alpha` silently becomes `alpha-graceful-unicorn` in the second repo and `@alpha` addressing breaks. `/list-agents` shows each session's working directory, so `@alpha-transdoc` is unambiguous.
 
 ### Assignment (I3, I5, I11)
-- `EPIC-ARTIFACT-SCHEMA.md` gains `owner: ""` (string; the named agent). `/fabrik-epics` emits it empty. **`scripts/epic_order.py --assign <a,b,c>`** — one new subcommand — takes `phased_order()`'s `list[list[int]]` and hands each phase's epics to the named agents round-robin in `epic_n` order (deterministic, balanced, no judgment), writing `owner:` into each file. `--check` additionally proves every epic has exactly one owner ∈ the named set. `/fabrik-epics-review` (the assembled 04) runs `--assign` itself in Step 1.5 — after `--check` proves integrity, before any lens — so the owner row can never fail on a first pass (audit R9 found the r7 placement, `--assign` AFTER 04, circular). Disjointness needs no new proof — `--check` already proves parallel-set `owned_paths` disjointness and single-migration-owner; the field's "declare file scope up front and reject overlap at task creation" (withagents, 194 agents, 0 conflicts; fetched 2026-09-03) is what `owned_paths` already is.
+- `EPIC-ARTIFACT-SCHEMA.md` gains `owner: ""` (string; the named agent). `/fabrik-epics` emits it empty. **`scripts/epic_order.py --assign <a,b,c>`** — one new subcommand — takes `phased_order()`'s `list[list[int]]` and hands each phase's epics to the named agents round-robin in `epic_n` order (deterministic, balanced, no judgment), writing `owner:` into each file. `--check` additionally proves every epic has exactly one owner ∈ the named set. `/fabrik-epics-review` (the assembled 04) runs `--assign` itself in Step 1.5 — after `--check` proves integrity, before any lens — so the owner row can never fail on a first pass (audit R9 found the r7 placement, `--assign` AFTER 04, circular). ⚠️ **Disjointness is SMOKE-TESTED, not proven — corrected at r11.** `check_integrity` (`scripts/epic_order.py:108-124`) intersects `owned_paths` as sets of GLOB STRINGS and only for pairs that each name the other in `parallel_with`; executed at r11, `src/app/**` vs `src/app/models/**` declared parallel yields no finding, and identical globs with an empty `parallel_with` also yield none while `phased_order()` puts them in the same phase. Strengthening it to a real path-overlap test across every same-phase pair is a build item (the plan's T03 owns `epic_order.py`). The design's actual safety property is physical isolation plus merge-time conflict resolution, never this check; the field's "declare file scope up front and reject overlap at task creation" (withagents, 194 agents, 0 conflicts; fetched 2026-09-03) is what `owned_paths` already is.
 - **Epic count (I23):** `/fabrik-epics` keeps 02's sanity band as a SIGNAL — `02:153` "3–7 epics is typical. **≥10** → re-examine the boundaries" and `02:155` "the band is a signal, not a cap" — with the operator's stated range written next to it: E = 3–20. A 20-epic decomposition is re-examined for layer-slicing, never re-cut by reflex; with 3 agents that is up to ~7 epics per window, handed out per phase in `epic_order` order — the mechanism is unchanged, only the assumption. Agents stay at 3–5 (§ Lifecycle — bounded by review, not by E).
 - `02-epic-decomposition-fabrik.md:77` — "One epic runs through epic-to-ticket-workflow at a time. Epics execute sequentially (owner can only orchestrate one epic-to-ticket-workflow cycle at a time)" — is rewritten inside `/fabrik-epics`: epics in the same phase run concurrently, one per named agent. The same assumption at checklist mega 48 (`:93`) and ettw 24/77 (`:58,161`) goes with it (the ettw checklist retires; the mega checklist row is rewritten).
 
@@ -169,8 +169,67 @@ Agent-1 runs the existing § Pipeline from `5-certify`, with one addition the op
 ### Merge (derived from D12)
 Agent-1 merges finished branches into master **in `epic_order` phase order**, `git rebase master` on the branch first, `git merge --no-ff`, one at a time — the serialised, rebase-before-merge pattern every source converges on (battyterm: "merge one branch at a time… catches conflicts incrementally"; augmentcode: "rebase a feature branch on the latest main before merging"; withagents: dry-run `git merge --no-commit --no-ff` first — all fetched 2026-09-03). `git config rerere.enabled true` per project so a resolved conflict replays. **The merge owner's load scales with E, not with agents (I23):** at E = 20 alpha performs ~20 rebase-first merges and sends ~20 "merged epic N — rebase" messages over the project's life; rebase-first + `rerere` keep that linear, and nothing else changes shape. After each merge agent-1 messages the others "merged epic N — rebase" (cross-session messaging "requires Claude Code v2.1.224 or later on macOS and Linux, including Linux inside WSL 2… When a session meets the requirements, messaging is on with nothing to enable" — with one qualifier: on third-party providers or with feature-flag fetching off the floor is 2.1.248; the box runs Claude OAuth at 2.1.258, past both — https://code.claude.com/docs/en/cross-session-messaging § Availability, fetched 2026-09-03; the hub CLAUDE.md's "flag may not be rolled out" clause predates this and is corrected under § Documentation landing sites). A message "can't approve anything… can't change configuration" (same doc) — it is data, as the contract already says.
 
-### Live locks
-`.fabrik/` is **tracked** (verified `git check-ignore` → nothing, hub and transdoc), so a `.fabrik/plan-locks/*.json` minted in one worktree is invisible in another until committed — the wrong latency for a live lock, and writing it into the main checkout from a worktree is exactly what the isolation enforcement blocks. `/fabrik-execute-plan`'s lock reads/writes move to `~/.claude/state/plan-locks/<repo-identity>/` — the same box-local pattern `command_run.py:87` and `thread_anchor.py:53` already use, keyed by the main-checkout basename `mail_notify.py:41-52` already derives. The lock's `owned_paths` semantics are unchanged. `scripts/enforcement/check_plan_lock_release.py:396` scans `root/.fabrik/plan-locks` — it moves with the locks in the same change, or it reports PASS on an empty directory forever (the leaked-lock class it caught twice, per its own docstring).
+### Live locks — RE-FROZEN at r11 (the r10 relocation is WITHDRAWN)
+
+**Decision: `.fabrik/plan-locks/` stays IN-REPO, one lock directory per working tree.** The r10 spec moved it to
+`~/.claude/state/plan-locks/<repo>/` because `.fabrik/` is tracked, so a lock minted in worktree A is invisible in
+worktree B. Three author-blind passes over the build plan then disproved three successive implementations of that
+move, and the fourth attempt would have been the fourth patch of the same design (D-116). The move is withdrawn.
+
+**Why it cannot be built as specced — five invariants, each verified against the live code at r11:**
+1. **The Stop hook cannot see an out-of-repo lock.** `.claude/hooks/final_gate_stop.py:864` arms from `authored`,
+   built by `_session_files()` (`:303`), whose docstring is *"Only paths INSIDE root count"*; anything else is
+   dropped. And its `root` is `Path(data.get("cwd") or os.getcwd())` (`:1081`), so inside a worktree `root.name` is
+   the WORKTREE name — the `<repo>` segment the relocated path needs is not derivable there at all. Shipping the
+   move silently disarms a fleet-synced Stop hook here and in ~46 projects.
+2. **The ticket grammar refuses out-of-repo tokens BY DESIGN.** `scripts/enforcement/check_plan_tickets.py:998` and
+   `:1129` ERROR and `continue` on any `~`- or `/`-prefixed path before any lock logic runs, and `:313` says why in
+   words: *"`~/` is deliberately NOT here — rendered ~/.claude outputs are the orchestrator's render step, never
+   ownable."* The relocation makes `_SPINE_METADATA_PREFIXES`' lock leg unreachable code.
+3. **The certification check addresses the directory as a tuple joined onto the repo root.**
+   `scripts/enforcement/check_certification_coverage.py:59` `FORBIDDEN_LOCK_DIR = (".fabrik", "plan-locks")`, consumed at `:237`
+   `root.joinpath(*FORBIDDEN_LOCK_DIR)` — that shape cannot express an absolute path outside the repo.
+4. **The salvage-diff ignore leg is repo-relative and could only be deleted**, not re-pointed
+   (`scripts/fabrik_synced_manifest.py:258`, `.gitignore:211`), stranding `commands/_sources/fabrik-execute-plan.md:532`'s artifact.
+5. **No session-scoping predicate can be built on the lock's `plan` field as it stands.** Census of the 60 tracked
+   locks: 50 archived `.md` paths, 5 live `.md`, 1 directory, and **4 a bare plan-id carrying no path at all**;
+   `commands/_sources/fabrik-execute-plan.md:83` constrains the field to nothing.
+
+**Why keeping them in-repo is CORRECT, not merely cheaper — and the r10 rationale for moving them was itself
+weak.** The lock's cross-agent job is to stop the failure its own protocol names: *"two runs committing the same
+paths to shared `master` = data loss"* (`commands/_sources/fabrik-execute-plan.md:80`). Under THIS design that scenario is
+structurally absent between agents — each agent commits to its own branch and only the merge owner writes
+`master` (§ Merge). Two agents editing one file in two worktrees cannot clobber each other; the conflict surfaces
+at merge time as an ordinary git conflict, which is exactly what § Why this exists sets out to achieve. What the
+lock still does is INTRA-tree — resume after a crash, and stopping two runs of overlapping plans inside one
+agent's tree — and every lock that job needs is already visible in that tree.
+
+⚠️ **Do NOT justify this with "`epic_order.py --check` proves the epics are disjoint" — it does not, and § Assignment
+is corrected at r11 to stop claiming it.** `check_integrity` (`scripts/epic_order.py:108-124`) intersects
+`owned_paths` as SETS OF GLOB STRINGS, and only for pairs that each name the other in `parallel_with`. Executed at
+r11: two epics owning `src/app/**` and `src/app/models/**` and declared parallel produce **no finding** though they
+share every file under `models/`; two epics owning the byte-identical `src/app/**` with an empty `parallel_with`
+also produce **no finding**, while `phased_order()` places them in the SAME phase — i.e. dispatched together. Only
+the byte-identical-plus-explicitly-declared case is caught. The disjointness is a useful smoke test, not a proof,
+and the real safety property here is physical isolation, not the check.
+
+**Cross-agent visibility, if it is wanted, is an additive READ — never a relocation (R7, self-service).** Each
+agent WRITES only its own tree's `.fabrik/plan-locks/` (in-repo, all five invariants intact); the overlap scan may
+additionally READ sibling trees enumerated by `git worktree list --porcelain`. A read of a sibling worktree is
+neither an edit to the main checkout nor a `cwd` that resolves there, so the isolation enforcement should permit
+it — but that is a claim about behaviour, so it is a build-time probe, not an assumption. **Default if reads are
+blocked: per-tree visibility only**, which the paragraph above argues is sufficient.
+
+**Rejected at r11:**
+- **P — relocate to `~/.claude/state/plan-locks/<repo>/` (the r10 choice).** Withdrawn on the five invariants
+  above, after three implementations were each disproved by an author-blind pass.
+- **Q — locks in `$MAIN/.fabrik/`, worktrees READ, only the main-checkout agent WRITES.** Rejected: a worktree
+  agent must still mint its own lock somewhere, so this needs a second location anyway; and it surfaces only the
+  merge owner's locks, not the sibling agents' — the visibility actually at issue. Alternative J already rejected
+  the write half; this is its read-only cousin and it buys nothing the additive read above does not.
+- **R — an atomic lock primitive or a lock service.** No measured need (FIX DIRECTIVE 5): the protocol at
+  `commands/_sources/fabrik-execute-plan.md:80` already refuses to auto-reclaim precisely because no liveness signal exists, and
+  worktree isolation removes the data-loss consequence that would justify the machinery.
 
 ## Decisions derived (not asked — each overridable)
 - **(a) Tail:** § Pipeline from `5-certify`, run by agent-1. Source: CLAUDE.md § Pipeline + D-096.
@@ -270,6 +329,7 @@ No `shape:` flag changes; no scaffold type changes; no deployed service. Four em
 - **R2 (self-service):** does `wip_backup.sh` snapshot linked worktrees? It walks "every dirty /opt git repo"; a worktree under `.claude/worktrees/` is inside the repo dir but is its own working tree. Probe: dirty a scratch worktree, run the script, `git log refs/wip/autobackup -- <path>`.
 - **R3 (self-service, measured at build):** the mid-epic synced-file re-copy loop (§ Lifecycle) — fire rate and cost measured on the 47-repo sync before it ships.
 - **R4 (resolved by design):** merges from inside a worktree — impossible (D12); the merge owner lives in main.
+- **R7 (self-service, at build — new at r11):** may a session inside worktree A READ `…/worktrees/B/.fabrik/plan-locks/*.json`? A sibling-worktree read is neither a main-checkout edit nor a cwd that resolves there, so the isolation enforcement should allow it — but that is behaviour, so probe it: in a scratch repo, `claude -p --worktree agent-alpha` with a brief that cats a file from a sibling worktree. Default if blocked: per-tree lock visibility only (§ Live locks argues it is sufficient).
 - **R6 (self-service, at build):** does `git worktree add` from INSIDE an isolated Claude Code session (an agent's `--worktree`) create the nested subagent worktree where `/fabrik-execute-plan` expects it, and does the isolation enforcement let the merge back into the CURRENT branch through? Probe: in the scratch repo, `claude -p --worktree agent-alpha` with a brief that adds a nested worktree, commits in it, merges into `worktree-agent-alpha`. Default if blocked: `/fabrik-execute-plan` dispatches its subagents on branches within the agent's worktree, not nested worktrees.
 - **R5 (resolved):** `.venv` — symlink under the D4 invariant; `uv sync --all-extras` (101 s) is the documented fallback.
 - No BLOCKING unknown remains; R1–R3 and R6 each carry an executable probe and a default.
