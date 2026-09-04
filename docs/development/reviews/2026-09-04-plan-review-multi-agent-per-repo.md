@@ -103,7 +103,8 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 14 | **author-blind #7** — pass 13's brief REPEATED VERBATIM; caught a regression pass 13's own closure introduced | method: re-derivation | 7 | 7 | 7 | e7c9e68b → 7e93639a |
 | Pass 15 | **author-blind #8** — the same brief a THIRD time; found a BLOCKING gate no round had executed against the moved paths | method: re-derivation | 10 | 10 | 10 | 7e93639a → 2bf7767b |
 | Pass 16 | **author-blind #9** — the same brief a FOURTH time; caught the previous round's gate fix rejecting the correct move | method: re-derivation | 4 | 4 | 4 | 2bf7767b → f1b456ca |
-| Pass 17 | **author-blind #10** — the same brief a FIFTH time, now requiring BOTH-halves gate verification | method: re-derivation | — | — | — | (in flight) |
+| Pass 17 | **author-blind #10** — the same brief a FIFTH time, both-halves gate verification | method: re-derivation | 2 | 2 | 2 | f1b456ca → 5abab982 |
+| Pass 18 | **author-blind #11** — the same brief a SIXTH time, led by a diff of every changed `Gate:` line | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
@@ -491,4 +492,44 @@ a 2,089 B margin. That is the annotation from pass 15 working as intended.
 Both gates green at `f1b456ca`, zero warnings — and `check_plan_tickets` now prints its own PASS
 denominator, which is infra shipping one of the three findings this run filed to them this morning.
 **Status stays DRAFT.**
+
+## Pass 17 — three regressions in a row is a method problem, not bad luck
+
+Findings fell 4 → **2**, and for the third consecutive round the worst one came from the previous round's
+own fix. At that point it stops being a run of bad luck and becomes a diagnosis.
+
+**What happened.** Pass 16 widened T14d's grep gate to cover all four Touches. The gate it replaced had
+**two** conjuncts; the replacement had one, and the `\.traycer` half was gone. `README.md` stayed in the
+pathspec but carries **0** hits of the `ettw` pattern — not today, not ever — so naming it there was
+decorative, and T14d's *other* mandated deliverable (retiring `~/.traycer`, 7 references at
+`README.md:112,115,152,163,174,175,445`, asserted verbatim by the ticket's own Behavior-Contract row 2) had
+nothing enforcing it. A coder finishes the `ettw` half, sees both gates green, and ships with the whole
+Traycer-install retirement undone — through Merge Order 33 and past the flip.
+
+**The diagnosis, stated so it can be acted on.** All three regressions share one cause: **a whole `Gate:`
+line was REPLACED rather than edited.** Pass 15 dropped a pytest gate while adding a marker gate; pass 16
+changed a pathspec without executing the new form against a real rename; pass 17 dropped a conjunct while
+widening a pathspec. Each time the replacement was composed from *what I intended the gate to do* rather
+than from *what the line already did* — so whatever the old line asserted beyond my current intent was lost
+silently, and no count-based check can see it because the line count never changes. Pass 18's brief now
+leads with the corresponding check: diff every changed `Gate:` line and ask what the old one asserted that
+the new one does not. Both T14d conjuncts are restored, each carrying a comment naming which deliverable it
+covers, so the next widening has to notice it is dropping one.
+
+**T08b was under-specified in the one place it forbids looking.** Its Scope prescribes "grep the test for
+those three names", but three anti-vacuity canary counts (`:2792`, `:2875`, `:2946`) carry none of those
+anchors, and the ticket bars reading `check_command_corpus.py` on read-budget grounds. The expected drop is
+exactly **−2** in each — the two orchestrator-wrapper canaries T08a removes — and any other delta means a
+real canary was lost and is a STOP, not a number to update. Updating a canary count blind is precisely how
+an anti-vacuity check stops being one.
+
+**One I caught before the pass reported:** a blind global replace had nested itself inside two anchor-rot
+phrases, yielding `asserted as \`:28-33\`)\` (\`DIRS\` is at \`:31\`)`. Same class that corrupted the
+§ Self-audit span earlier in this run — a global replace with no check on what follows the match.
+
+On the credit side, pass 17 verified **both halves** of the four rename gates by execution — green on a
+correct pure-rename move, red on a move that also deletes content, red today — which is exactly the check
+whose absence caused pass 16's HIGH. The method correction held.
+
+Both gates green at `5abab982`, zero WARN, 33/33 tickets red for the right reason. **Status stays DRAFT.**
 
