@@ -7,6 +7,7 @@ Depends: T09
 Parallel: ⛓️
 Complexity: simple
 Gate: python -m pytest tests/test_cli_orchestrator_hint.py -q
+Gate: test "$(git grep -c 'epic-to-ticket-workflow\|fab-mega-0\|fab-ettw-\|_traycer-skills' -- src/fabrik/cli.py)" = 0   # RED today: the token also sits in a SOURCE COMMENT at src/fabrik/cli.py:1882, outside the rendered hint the pytest gate reads. Without this, a coder completes the ticket exactly as written and T16's tree-wide gate reds at Merge Order 33 — where T16 owns one file and cannot fix the tree.
 Docs: docs/QUICKSTART.md only if the CLI's printed text is documented there (grep first) · CHANGELOG.md — orchestrator-applied
 
 ## Touches

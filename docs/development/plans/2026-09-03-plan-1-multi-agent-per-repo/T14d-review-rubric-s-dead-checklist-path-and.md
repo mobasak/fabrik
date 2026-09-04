@@ -8,6 +8,7 @@ Parallel: ⛓️
 Complexity: never-route
 Gate: python -m pytest tests/test_review_rubric.py tests/test_review_rubric_edges.py -q
 Gate: test -z "$(git grep -nE 'epic-to-ticket-workflow|EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS|\bettw\b' -- scripts/review_rubric.py)" && test -z "$(git grep -n '\.traycer' -- README.md)"   # the docstring names ettw without a directory; a path-only grep passes over it
+# ⚠️ SCOPE NOTE: this ticket's Touches also hold tests/test_review_rubric.py:61 and tests/test_review_rubric_edges.py:60, which each BUILD the string `epic-to-ticket-workflow`. Dropping the ettw key forces edits at :144/:163, but a coder can delete those assertions and leave the dead fixture line — green here, red at T16. The pytest gate plus T16's tree-wide sweep are what close it.
 Docs: INDEX.md (the two ~/.traycer rows) · CHANGELOG.md — orchestrator-applied
 
 ## Touches
