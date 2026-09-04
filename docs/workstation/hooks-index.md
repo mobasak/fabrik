@@ -108,6 +108,27 @@ The hooks below are identical across the legacy copy and the account dirs.
 | PostCompact | `claude-sound.sh compact-end` | Clears the `compacting` marker |
 | StopFailure | `claude-sound.sh failure` | Failure pipeline + the **resume mesh**: writes the `errparked` death record (skipped for sid-less payloads; the decider CLEARS it on a busy turn-death — a live waker makes the death non-terminal), triggers HEALTH-AWARE account rotation for auth/rate classes (**default ON since 2026-08-10** — a switch requires a VERIFIED unwalled sibling and targets it by name via `--switch`, so the blind churn of 2026-08-09 cannot recur; `CLAUDE_SOUND_AUTOROTATE=0` is the wait-only escape hatch; 10-min limiter), spawns the opt-in headless reviver (`claude-autoresume.sh`, `CLAUDE_SOUND_AUTORESUME=1`; its `claude -p` child carries `NO_REVIVE` + `CLAUDE_MESH_HEADLESS` so it never forks a second writer or arms a pane watch), and on a truly-dead `/opt` ring escalates to Telegram (`mesh-notify`, 30-min suppress, every outcome logged; its cwd gate matches `/opt` **and** `/opt/*` since 2026-08-16 — the earlier `/opt/*`-only glob silently dropped 4 sessions whose cwd was `/opt` exactly, logged as `cut-unnotifiable`). Pane auto-continue: **EVERY interactive session arms `claude-selfwatch.sh` via the ORIENT-ordered persistent Monitor** (operator-mandated, commit 50675991; skipped for headless runs and compact-resume — the armed Monitor survives compaction). The self-watch consumes a pre-arm marker silently and consumes on fire — one wake per death record, network-gated for all classes; **STANDING since 2026-09-03**: it keeps watching after a wake (the one-wake-then-exit shape left every second death un-woken whenever the agent had not re-armed yet — 17 of the 18 `/opt` sessions that died in one 429/529 storm carried a typed "proceed"), a duplicate arm for the same sid exits at once under a per-sid flock (`<sid>.selfwatch.lock`), the offline ceiling restarts the cycle instead of ending the watch, and a `rate_limit` wait RE-ASKS `claude-quota.py` every slice so a manual account switch ends the wait within one slice instead of sleeping to the DEAD account's reset clock (429 was in every one of the 17). Fixtures W6/W7/W9/BQ10 in `claude-mesh-test.sh`. Quota-health (plan 2026-08-10-plan-1): a `rate_limit` death is parsed by `claude-quota.py` into a WALL (`rateLimitType` + `resetsAt`, from the manager tap's exhausted window or the payload's `error_details`); both revival layers then wait to that CLOCK in ≤60s slices instead of a blind 90s, and the operator gets a "revival scheduled in Nm" Telegram. Fixture harness: `claude-mesh-test.sh` (158 fixtures). The decider also bridges WAKER LOSS (operator-observed: "Connection closed mid-response" stranding a pending task/subagent → permanent busy-silence): every busy-waker verdict arms a detached zero-API sleeper that re-evaluates after the staleness bound — a **provably** lost waker (dispatched, never completed; persistent Monitors are standing watches, never wakers) rings "(waker lost)" in the error voice, writes a `waker_lost` death record (armed self-watches wake the pane), and Telegrams for `/opt` sessions with the true class |
 
+## 2c. Boot network guard — `scripts/wait_for_network.sh` (not a hook; the startup pipeline's first step)
+
+WSL brings its network up **after** the first interactive shell, and `~/.bashrc` sources
+`wsl_startup_hook.sh` the moment one opens. Measured 2026-09-04: boot at 20:41:29, pipeline at
+20:44:31, DNS still dead — and that single race produced three failures in one boot:
+
+1. `pipeline_alert.sh` lost a REAL contract-drift alert — telegram-direct died on
+   `[Errno -3] Temporary failure in name resolution`, ssh-apprise on `No route to host`.
+2. `[auto-commit] push failed — commit left local` — the pipeline's own commit stranded off-box.
+3. the pool classification round returned 0 of 10 units at `$0.0000`.
+
+All three would have succeeded ninety seconds later; the alert path itself was healthy (a selftest
+that evening returned `PASS: alert delivered`). The guard blocks until `getent hosts` resolves
+`WAIT_NET_HOST` (default `api.telegram.org`), bounded by `WAIT_NET_TIMEOUT_S` (default 90s), polling
+every `WAIT_NET_INTERVAL_S` (default 3s).
+
+**It ALWAYS exits 0.** A boot guard that can hang is worse than the race it fixes — it would freeze
+every login shell on a box that is offline by choice. A timeout prints a warning naming the steps
+that may fail, and stands aside. A non-numeric override falls back to the default rather than
+looping forever. Tests: `tests/test_wait_for_network.py`.
+
 ## 2b. Cron @reboot — the resume sweep (not a hook; documented here as mesh Layer 4)
 
 `claude-reboot-sweep.sh` (crontab `@reboot`, box-side, DR-versioned). Standby-survivable since

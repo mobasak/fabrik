@@ -7,6 +7,18 @@ set -e
 EXTENSIONS_FILE="docs/reference/windsurf/actively-used-windsurf-extensions.md"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M")
 
+# A RETIRED tool is not a slow tool. Windsurf/Cascade was decommissioned (LLM access is Claude Max
+# OAuth + OpenRouter only), and `windsurf` is no longer installed on this box — so the retry loop
+# below, written for "the IDE may not be ready yet at WSL boot", spent 2 x 30s sleeping for a binary
+# that will never appear, on EVERY boot, and then printed a warning that read like a transient fault.
+# Measured 2026-09-04: 60s of every WSL start. Absent binary => nothing to sync, say so once and go.
+# The retry still applies when the CLI genuinely EXISTS but has not finished starting — its original
+# and only valid purpose.
+if ! command -v windsurf >/dev/null 2>&1; then
+    echo "Skipped: windsurf CLI is not installed (Windsurf/Cascade is retired) — nothing to sync"
+    exit 0
+fi
+
 # Get extensions list with retry (IDE may not be ready at WSL boot)
 MAX_RETRIES=3
 RETRY_DELAY=30

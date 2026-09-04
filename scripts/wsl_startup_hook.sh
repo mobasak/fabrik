@@ -141,6 +141,11 @@ if [ ! -f "$LOCK_FILE" ]; then
     nohup bash -c "
         echo '' >> $LOG_FILE
         echo '=== Fabrik Daily Pipeline — '\$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE
+        # WSL brings its network up AFTER the first login shell — measured 2026-09-04: boot 20:41:29,
+        # pipeline 20:44:31, DNS still dead. That one race lost a real contract-drift alert on both
+        # channels, stranded the pipeline's own auto-commit off-box, and returned 0 of 10 pool units.
+        # Bounded and FAIL-OPEN (always exit 0): a boot guard that can hang is worse than the race.
+        bash $FABRIK_ROOT/scripts/wait_for_network.sh >> $LOG_FILE 2>&1
         cd $FABRIK_ROOT && $VENV_PYTHON $SYNC_PROJECTS_SCRIPT >> $LOG_FILE 2>&1 && \
         cd $FABRIK_ROOT && bash $CASCADE_BACKUP_SCRIPT >> $LOG_FILE 2>&1 ; \
         cd $FABRIK_ROOT && $VENV_PYTHON $HEALTH_SUMMARY_SCRIPT >> $LOG_FILE 2>&1 ;

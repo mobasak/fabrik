@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the WSL startup pipeline ran before the network was up, and burned 60s waiting for a retired tool (2026-09-04)
+
+- Operator restarted WSL and asked what was broken. Boot was 20:41:29; the startup pipeline began at
+  20:44:31 with DNS still dead. **One race, three failures in a single boot:** `pipeline_alert.sh` lost a
+  REAL contract-drift alert (telegram-direct on `[Errno -3] Temporary failure in name resolution`,
+  ssh-apprise on `No route to host`); `[auto-commit] push failed — commit left local` stranded the
+  pipeline's own commit off-box until a human pushed it; and the pool classification round returned 0 of
+  10 units at `$0.0000`. All three would have worked ninety seconds later — a selftest that evening
+  returned `PASS: alert delivered`, so the alert path itself was never broken.
+- `scripts/wait_for_network.sh` is now the pipeline's first step: block until `getent hosts` resolves
+  (`WAIT_NET_HOST`, default `api.telegram.org`), bounded by `WAIT_NET_TIMEOUT_S` (90s), polling every
+  `WAIT_NET_INTERVAL_S` (3s). **It always exits 0** — a boot guard that can hang is worse than the race
+  it fixes, since it would freeze every login shell on a box that is deliberately offline. A garbage
+  override falls back to the default instead of looping forever.
+- `scripts/sync_extensions.sh` now skips immediately when `windsurf` is absent. Windsurf/Cascade is
+  retired and the binary is gone, but the loop written for "the IDE may not be ready yet at boot" spent
+  **2 x 30s sleeping on every WSL start** and then printed a warning that read like a transient fault.
+  The red-on-revert run measured it exactly: 60.07s. The retry still applies when the CLI genuinely
+  exists but has not finished starting — its original and only valid purpose.
+- 6 tests, proven red before the fix (the wiring test) and red on revert (the retired-tool test).
+- NOT fixed here, because it is one crontab line and crontab writes are policy-blocked for agents after
+  the 2026-08-19 wipe: the `/opt/ai-model-catalog/engine` catalog pipeline has **no cron entry at all**.
+  It was relocated on 2026-08-15 to run from its own repo and nothing was ever scheduled — every file in
+  it is frozen at Aug 19 01:14, the same day the crontab was wiped. Consequence: every `OPENROUTER_ROUTES`
+  block in the fleet-synced `.windsurf/rules/ai/*.md` has read "No eligible models today" since
+  2026-08-18, across ~46 projects, while the catalog holds 917 models of which **325 pass the code-category
+  floor right now**. Handed to the operator as a ready-to-paste cron line.
+
 ### Fixed — the model-ranking axis was pricing Sonnet 33% high (2026-09-04)
 
 - `claude_price_ratios.json` feeds `derive_cost.api_equiv`, the axis `rank_task_subagents.py` sorts on. It carried sonnet at $3/$15
