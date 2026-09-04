@@ -1538,7 +1538,7 @@ def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
     directory the login shell sat in (D5/FC6)."""
     text = HOOK.read_text(encoding="utf-8")
     start = text.index('nohup bash -c "')
-    outer = text[start : text.index('\n    " ', start)]
+    outer = text[start : text.index('\n    " >/dev/null 2>&1 &', start)]
     calls = [ln for ln in outer.splitlines() if "pipeline_alert.sh" in ln]
     assert len(calls) == 6 and all(ln.count("pipeline_alert.sh") == 1 for ln in calls), (
         calls
@@ -2744,21 +2744,22 @@ def test_the_boot_hooks_nohup_carries_its_own_redirect():
     executed twin needs a pty — the shape is what the fix is (S-3, FH7)."""
     hook = HOOK.read_text(encoding="utf-8")
     start = hook.index('nohup bash -c "')
-    close = hook.index('\n    " ', start)
-    tail = hook[close : hook.index("\n", close + 1)]
-    assert ">/dev/null 2>&1 &" in tail, (
+    m = re.search(r'\n    "[^\n]*', hook[start:])  # LOCATE the terminator generically, then assert
+    assert m, "the nohup string has no closing line"  # its shape — searching for the shape and
+    tail = m.group(0).strip()  # asserting it is present proves nothing
+    assert tail == '" >/dev/null 2>&1 &', (
         f"the nohup invocation must carry its own redirect, found: {tail!r}"
     )
     assert hook.count('nohup bash -c "') == 1, "one nohup site — a second would need the same"
-    block = hook[start : hook.index('\n    " ', start)]
+    block = hook[start : start + m.start()]
     writers = [
         ln
         for ln in block.splitlines()[1:]
         if ln.strip()
         and not ln.strip().startswith("#")
         and ">" not in ln
-        and ln.strip() not in ("(", ")", "fi", "esac")
-        and not ln.strip().startswith(("if ", "case ", "for ", "while ", "done", "else", "elif"))
+        and ln.strip() not in ("(", ")", "fi", "esac", "do", "done", "else", "then", "{", "}")
+        and not ln.strip().startswith(("if ", "case ", "for ", "while ", "elif ", "until "))
     ]
     assert writers == [], (
         f"a line inside the nohup string writes with no redirect of its own: {writers[:3]}"

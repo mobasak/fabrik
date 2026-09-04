@@ -138,7 +138,8 @@ if [ ! -f "$LOCK_FILE" ]; then
     fi
     # Run full pipeline in background (chained to ensure order)
     # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
-    # `>/dev/null 2>&1`: every line inside carries its own redirect to $LOG_FILE, so nohup had
+    # `>/dev/null 2>&1`: every line inside carries its OWN redirect (to $LOG_FILE, or — for the
+    # heartbeat stamp — to its own file), so nohup had
     # nothing left to save — it still printed `nohup: appending output to 'nohup.out'` to the
     # operator's terminal and minted the file in whatever cwd the login shell sat in (the D5/FC6
     # stray-nohup.out class, at the one site the redirect sweep missed; FH7)
