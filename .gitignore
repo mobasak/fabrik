@@ -210,4 +210,4 @@ mutants/
 /jscpd-report.json
 /.fabrik/plan-locks/*-salvage-*.diff
 .ruff_cache/
-nohup.out
+/nohup.out
