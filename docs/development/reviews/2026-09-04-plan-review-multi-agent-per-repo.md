@@ -92,10 +92,18 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 | Pass 3 | definedness · context files · budget recheck | method: citation | 3 | 3 | 3 | … |
 | Pass 4 | dangling ticket IDs · roll-up set equality | method: gate | 3 | 3 | 3 | … |
 | Pass 5 | full mechanical sweep + anchor re-resolution | **method: re-derivation** | 0 | 0 | 0 | d4d10ce3 → d4d10ce3 ✓ |
-| Pass 6 | **author-blind native pass (live repo tools)** | method: re-derivation | 34 | 34 | pending | — |
+| Pass 6 | **author-blind #1** (live repo tools) | method: re-derivation | 34 | 34 | 21 | … |
+| Pass 7 | **author-blind #2** — the six tickets pass 6's closures created | method: re-derivation | 10 | 10 | 10 | … |
+| Pass 8 | **author-blind #3** — the closure delta of pass 7 | method: re-derivation | 7 | 7 | 7 | … |
+| Pass 9 | **author-blind #4** — the r11 re-convergence + a re-read of both earlier passes | method: re-derivation | 24 | 24 | 24 | … |
+| Pass 10 | flip pre-flight: `check_convergence`'s predicates run against a scratch copy flipped to CONVERGED | method: gate | 1 | 1 | 1 | 00612f7a → 81e04ecb |
+| Pass 11 | **author-blind #5** — the confirming pass over pass 9's closures | method: re-derivation | — | — | — | (in flight) |
 
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
+Every author-blind pass since has found defects in the previous pass's closure work: 34 → 10 → 7 → 24. The plan's
+own spine now carries this same ledger, because `check_convergence.py:507` requires it and because the history is
+the most useful thing in the artifact.
 
 ## Closure — how each HIGH was resolved
 
@@ -257,5 +265,14 @@ rollout-wait edit had no gate at all, so two of its three edits would have gone 
 Set is spine + 33 tickets. `check_plan_tickets --plan-dir` exit 0 with zero WARN; `final_gate.py --check --json`
 **success, 55 passed, 0 failed**.
 
-NEXT: the plan is ready for its CONVERGED flip. Five author-blind passes have now run over it; the last two found
-24 defects between them, two of which were in the spec and one of which was damage I caused.
+## Pass 10 — the flip pre-flight, which found its own blocker
+
+Rather than attempt the flip and see, I copied the set to a scratch directory, flipped the copy to CONVERGED, and
+ran `check_convergence`'s own predicates against it. It refuses a CONVERGED claim whose spine carries no
+`method: re-derivation` Pass-Ledger row (`check_convergence.py:507`) — and this spine had **no Pass Ledger at
+all**. The artifact had one; the plan did not. The flip would have failed after the loop rather than during it.
+Written and re-simulated clean at 81e04ecb.
+
+NEXT: **pass 11, the confirming author-blind pass, is in flight** — the flip waits for it. It is not ready before
+then, and the earlier version of this line said otherwise, which was wrong: pass 10 had not yet run and pass 9's
+closures have never been independently reviewed.
