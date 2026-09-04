@@ -282,7 +282,7 @@ sdkmanager --install "ndk;27.1.12297006" "cmake;3.22.1"
 
 - **OTA updates**: Expo Updates for JS-only patches. Reserve full rebuilds (EAS or local) for native module changes. Channel strategy must match your build profiles.
 - **CI/CD**: on the store path, trigger EAS via GitHub Actions on tag push. No manual production builds. On the sideload path, `./gradlew assembleRelease` from a clean checkout is sufficient — commit the APK output path to `.gitignore`, not the artifact.
-- For backend Docker deployments (FastAPI on VPS), use `python:<version>-slim-bookworm`. Never use `alpine` (musl libc compilation failures, missing pre-built wheels).
+- For backend Docker deployments (FastAPI on VPS), use `python:<version>-slim-<debian_codename>` (both machine-owned — `.windsurf/rules/versions.yaml`). Never use `alpine` (musl libc compilation failures, missing pre-built wheels).
 
 ---
 

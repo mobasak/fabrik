@@ -27,8 +27,10 @@ Last content verification: 2026-08-18
 - **Model host / fallback → Replicate.**
 
 ## Subcategories
+
+⚠️ **A vendor NAMED here is not a vendor we can CALL.** These lists say what exists in each lane; `docs/reference/ai-media-generation-provider-map.md` says what is reachable with keys the fleet holds, and the two drift apart silently — a name here with no key is a dead end that reads like a recommendation. Check the reach map before designing around any vendor below.
 - **Image Generation:** Recraft (v4.1), FLUX (BFL), Replicate (host/fallback), Midjourney, DALL·E, Stable Diffusion
-- **Video Generation:** Runway, Pika, Synthesia
+- **Video Generation:** see `docs/reference/ai-media-generation-provider-map.md` § VIDEO — generation for what is actually REACHABLE with keys we hold (Seedance, Veo, Sora, Kling, Hailuo, Wan, PixVerse, Vidu, Grok, Luma, Pika via WaveSpeed + fal + Gemini/OpenAI). **Runway and Synthesia are add-key — neither is callable today**, and Pika is reachable only through an aggregator. This line previously named exactly those three and nothing else, so the pack's entire video guidance pointed at three dead ends while omitting eleven live routes (iterative_image_editor, `01M1KN5NAXBJW7PD7A01F2NPB4`).
 - **3D / mesh generation:** see `25-3d-generation.md` — zero-edit asset pipeline (Meshy / Tripo / Rodin / TRELLIS 2)
 - **Object/Scene Recognition:** YOLOv8, Detectron2, Google Vision API
 - **OCR (text from images):** Tesseract, AWS Textract

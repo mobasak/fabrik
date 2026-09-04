@@ -187,8 +187,15 @@ card in `docs/RESILIENCE.md`; that card LINKS the profile and never copies its n
 ⚠️ **Not gate-enforced yet, deliberately — and measured 2026-09-02: 0 of the 6 hub vendor docs in
 `docs/reference/apis/` carry a profile.** This is a new obligation; per the FIX directive a detector
 ships after its fire rate is measured, not before. Until then the profile's teeth are the
-`Profile:` line in every `docs/RESILIENCE.md` §2b card (the scaffold template carries the slot; an
-empty one is a visible gap, not an absent one) plus this pack at plan time — and that zero is the
+`Profile:` line on the dependency's card in `docs/RESILIENCE.md` — **§2b where the doc has one,
+otherwise the project's equivalent per-dependency row or section** (the scaffold template does carry
+the slot, verified at `templates/scaffold/docs/RESILIENCE_TEMPLATE.md:63` § 2b Detail Card Per
+Dependency, whose first field is `Profile`; but a project scaffolded before it, or one whose
+RESILIENCE.md was hand-rolled, has no §2b — trade-intelligence carries `§2a` plus named
+per-dependency sections, and following this clause literally would have meant inventing a section
+that clashes with the doc's own structure, 01M1NTZJGJG88EE94VWHM3Z1PH). An empty slot is a visible
+gap, not an absent one; a profile pointer riding the project's OWN per-dependency structure
+satisfies this, and the deviation belongs in the file rather than unsaid. Plus this pack at plan time — and that zero is the
 number to move at each vendor's next touch, not a reason to lower the bar.
 
 ---
@@ -260,8 +267,8 @@ number to move at each vendor's next touch, not a reason to lower the bar.
 ## Doc Sync
 
 A new external dependency owes three things: **its Capability Profile** (§ The Capability Profile — all twelve
-fields, `UNKNOWN — <what you tried>` where genuinely unknown; the §2b card's `Profile:` line links
-it), a pointer from wherever the repo
+fields, `UNKNOWN — <what you tried>` where genuinely unknown; the dependency's RESILIENCE card links
+it via its `Profile:` line — §2b where the doc has one, else the project's equivalent), a pointer from wherever the repo
 indexes its integrations, and its key in `.env.example` + `docs/CONFIGURATION.md` (the Doc Sync
 Matrix pairs those two — naming only `.env.example` reds the gate).
 
