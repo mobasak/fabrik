@@ -121,7 +121,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | ⬜ | |
 | T12a | Retire mega 00 + 02 → _retired/ (their text now lives in /fabrik-vision and /fabrik-epics) | T06a, T06b, T07a, T07b | ⛓️ | ⬜ | |
 | T12b | Retire mega 03 + 04 → _retired/ and relocate the 05 tombstone; the mega dir keeps only the schema + checklist | T06b, T06c, T07a, T07b | ⛓️ | ⬜ | |
-| T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T09 | ⛓️ | ⬜ | |
+| T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T02, T09 | ⛓️ | ⬜ | |
 | T14b | References — agents-fabrik.md, the north-star, command-corpus-check.md: zero references to the retired chains outside archives and ledgers | T09 | ⛓️ | ⬜ | |
 | T14c | The fabrik CLI's orchestrator hint names the assembled commands, not a docs/traycer path that does not exist | T09 | ⛓️ | ⬜ | |
 | T14d | review_rubric's dead checklist path, and the ~/.traycer install step | T09, T11 | ⛓️ | ⬜ | |
@@ -177,7 +177,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 ## Behavior Contract
 
 - **Given** the manifest, **When** `worktreeinclude_text()` renders, **Then** it lists every `gitignore_dest_paths()` entry plus `.env` and `.mcp.json`, and never `.claude/settings.local.json` (scripts/fabrik_synced_manifest.py:181)
-- **Given** `templates/governance/.worktreeinclude` differs from `worktreeinclude_text()`, **When** the test runs, **Then** it fails naming the regeneration command (scripts/fabrik_synced_manifest.py:229)
+- **Given** `templates/governance/.worktreeinclude` differs from `worktreeinclude_text()`, **When** the test runs, **Then** it fails naming the regeneration command; and `GOVERNANCE_TEMPLATES` contains the `(templates/governance/.worktreeinclude, .worktreeinclude)` pair, without which no project ever receives it (scripts/fabrik_synced_manifest.py:93)
 - **Given** `gitignore_block_text()`, **When** rendered, **Then** it contains the line `.claude/worktrees/` (scripts/fabrik_synced_manifest.py:229)
 - **Given** a project directory, **When** the sync runs without `--dry-run`, **Then** `git -C <project> config rerere.enabled` prints `true` and `push.autoSetupRemote` prints `true`, and a second run changes nothing (scripts/sync_enforcement_to_projects.py:660)
 - **Given** a project with a linked worktree under `.claude/worktrees/`, **When** the sync lands, **Then** the manifest's gitignored set is re-copied into that worktree and the run prints the worktree count (scripts/sync_enforcement_to_projects.py:840)
@@ -186,6 +186,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** `CLAUDE_AGENT=alpha` and a charter at `docs/reference/agents/alpha.md`, **When** the hook runs, **Then** the charter is printed (.claude/hooks/agent_role.py:25)
 - **Given** `CLAUDE_AGENT=alpha` and no charter file, **When** the hook runs, **Then** it prints nothing and exits 0 (.claude/hooks/agent_role.py:26)
 - **Given** `CLAUDE_AGENT=Alpha_1` or a 33-character name, **When** the hook runs, **Then** it prints nothing and exits 0 (.claude/hooks/agent_role.py:20)
+- **Given** the two governance contracts after this ticket, **When** their `Agent-Name` rows are read, **Then** neither states the old three-value enum as the permitted set (.claude/hooks/agent_role.py:19)
 - **Given** a symlinked charter escaping `docs/reference/agents/`, **When** the hook runs, **Then** it is refused exactly as today (.claude/hooks/agent_role.py:32)
 - **Given** five epics in two phases, **When** `--assign alpha,beta,gamma` runs, **Then** phase 1's epics get alpha, beta, gamma in `epic_n` order and phase 2 continues the rotation, written into each file's frontmatter (scripts/epic_order.py:127)
 - **Given** the same epics, **When** `--assign` runs twice, **Then** the second run changes no byte (scripts/epic_order.py:53)
@@ -206,9 +207,10 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** a subagent worktree merges back, **When** the merge target is resolved, **Then** it is `git branch --show-current`, never `master` by name (commands/_sources/fabrik-execute-plan.md:92)
 - **Given** a fixture spine with `Epic: docs/development/epics/1-x.md` whose `owned_paths` is `["src/a/**"]` and a ticket touching `src/b/x.py`, **When** `check_plan_tickets --plan-dir` runs, **Then** it ERRORs naming the ticket, the path and the epic (scripts/enforcement/check_plan_tickets.py:1067)
 - **Given** the same spine with the ticket touching `src/a/x.py`, **When** the check runs, **Then** no epic-containment finding is raised (scripts/enforcement/check_plan_tickets.py:1067)
+- **Given** a spine whose File Scope names `src/c/**` while its epic owns only `src/a/**`, **When** the check runs, **Then** it ERRORs on the spine entry, not merely on the tickets (scripts/enforcement/check_plan_tickets.py:1067)
 - **Given** a spine with no `Epic:` line, **When** the check runs, **Then** its output is byte-identical to today's (scripts/enforcement/check_plan_tickets.py:1067)
 - **Given** `FABRIK_PLAN_LOCK_DIR` pointing at a temp dir holding a stale `active` lock, **When** `check_plan_lock_release.py` runs, **Then** it reports the leaked lock; with the dir empty it reports PASS (scripts/enforcement/check_plan_lock_release.py:396)
-- **Given** a project without `docs/development/epics/`, **When** `final_gate.py --check --json` runs, **Then** the epic_order check appears as skipped, never as passed (scripts/final_gate.py:772)
+- **Given** a project without `docs/development/epics/`, **When** `final_gate.py --check --json` runs, **Then** the epic_order result row carries an explicit `(N/A — no docs/development/epics/)` skip label, matching the shipped convention at `:929` rather than silently reading as an ordinary pass (scripts/final_gate.py:929)
 - **Given** a project WITH the dir and one integrity finding, **When** the gate runs, **Then** that check reports failure and the finding text reaches the JSON (scripts/final_gate.py:929)
 - **Given** the dir present and integrity clean, **When** the gate runs, **Then** the check passes and the run's overall status is unchanged (scripts/final_gate.py:772)
 - **Given** a live plan lock in the NEW directory, **When** the Stop hook evaluates whether a run is in flight, **Then** it arms exactly as it does today for a lock at the old path (.claude/hooks/final_gate_stop.py:864)
@@ -232,7 +234,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** the review converges, **When** the close prints NEXT, **Then** it names `/fabrik-spec <epic file>` per window with the exact launch form per agent (docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md:141)
 - **Given** the source, **When** `check_traycer_chain.py` scans it, **Then** it reports 0 findings (scripts/enforcement/check_traycer_chain.py:89)
 - **Given** the three new sources exist, **When** the assembler renders to a temp dir, **Then** `fabrik-vision.md`, `fabrik-epics.md` and `fabrik-epics-review.md` and their `SKILL.md` wrappers are emitted with the run-record, close-feedback and NEXT fragments, and no `fab-*` wrapper is emitted (commands/assemble_commands.py:720)
-- **Given** the assembler module, **When** imported, **Then** it exposes no `ORCH_SOURCES`, `TRAYCER_SKILLS`, `_render_orch_wrapper` or `_emit_orch_wrappers` name (commands/assemble_commands.py:101)
+- **Given** the assembler module, **When** imported, **Then** it exposes no `ORCH_SOURCES`, `TRAYCER_SKILLS`, `_render_orch_wrapper` or `_emit_orch_wrappers` name, and `grep -c 'ORCH_SOURCES' commands/assemble_commands.py` prints 0 — no surviving reference to raise `NameError` at render time (commands/assemble_commands.py:877)
 - **Given** an installed `fab-mega-00-trigger/SKILL.md` carrying the generator banner, **When** the render runs against a temp skills dir seeded with it, **Then** the prune removes it (commands/assemble_commands.py:809)
 - **Given** the NEXT map, **When** `_emit_skill` renders `fabrik-epics-review`, **Then** the skill description's NEXT names `/fabrik-spec docs/development/epics/<its epic>.md` per window (commands/assemble_commands.py:288)
 - **Given** the prompt "decompose this vision into epics", **When** `first_regex_match` runs, **Then** it returns the stem `epics`, and `resolve_target` maps that to `fabrik-epics` (.claude/hooks/skill_router.py:108)
@@ -244,7 +246,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** the test module, **When** grepped for `_traycer-skills` or `_orch_corpus`, **Then** the count is 0 (tests/test_check_command_corpus.py:1)
 - **Given** a fixture repo containing `fabrik-epics-review.md` with no close-feedback line, **When** the suite runs, **Then** a test asserts the same finding fires as for any source (tests/test_check_command_corpus.py:1)
 - **Given** the retirement commit, **When** `git ls-files docs/orchestrator/_traycer-skills scripts/traycer_mirror.py` runs, **Then** it prints nothing (scripts/traycer_mirror.py:86)
-- **Given** the re-pointed `DIRS`, **When** `check_traycer_chain.py` runs, **Then** it scans exactly the three sources and exits 0 (scripts/enforcement/check_traycer_chain.py:89)
+- **Given** the re-pointed `DIRS`, **When** `check_traycer_chain.py` runs, **Then** it scans the three sources via a glob and exits 0; and in a project directory that has no `commands/_sources/`, it prints "PASS - 0 files" and exits 0 rather than raising (scripts/enforcement/check_traycer_chain.py:89)
 - **Given** the rules packs, **When** `git grep -l 'docs/traycer/kilo_selected_agents.md'` runs, **Then** every referenced file still exists at its path (docs/orchestrator/traycer-command-wiring.md:1)
 - **Given** the render from T07a has run in the main checkout, **When** `ls ~/.claude/skills | grep -c '^fab-'` runs, **Then** it prints 0 (commands/assemble_commands.py:809)
 - **Given** the move commit, **When** `git ls-files docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md` runs, **Then** it prints nothing and `docs/orchestrator/_retired/epic-to-ticket-workflow/00-trigger-fabrik.RETIRED.md` exists byte-identical to the moved text plus its tombstone header (docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md:1)
@@ -274,7 +276,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - **Given** a report whose hash was not computed, **When** the check emits its remedy line, **Then** it names `/fabrik-epics-review`, a command that exists (scripts/enforcement/check_review_coverage.py:1314)
 - **Given** `/fabrik-epics-review` closes with `done` and no report artifact, **When** `command_run.py` validates the close, **Then** it refuses exactly as it does today for `fab-mega-04-validate` (scripts/command_run.py:1236)
 - **Given** the module after this ticket, **When** grepped for `fab-mega-04-validate`, **Then** the count is 0 in both the script and its test (tests/test_command_run.py:1575)
-- **Given** two plans with `**Owner:** alpha` / no owner and one epic with `owner: beta`, **When** `generate_plans_table()` runs, **Then** the rows carry `alpha`, `—`, `beta` in the Owner column with their Status values (scripts/docs_updater.py:876)
+- **Given** two plans with `**Owner:** alpha` / no owner and one epic with `owner: beta`, **When** `generate_plans_table()` runs, **Then** the rows carry `alpha`, `—`, `beta` in the Owner column, the header reads `| Epic/Plan | Owner | Status | Phase |`, and the two existing call sites in `tests/enforcement/test_plan_shape_gates.py` still pass (scripts/docs_updater.py:884)
 - **Given** `docs/development/PLANS.md` with a stale `AUTO-GENERATED:PLANS` block, **When** `docs_updater.py` runs, **Then** the block is regenerated in place and `--check` afterwards reports no PLANS finding (scripts/docs_updater.py:915)
 - **Given** the same file untouched, **When** `docs_updater.py --check` runs, **Then** it reports the PLANS block stale (scripts/docs_updater.py:920)
 - **Given** the new reference doc, **When** `check_doc_links.py` and the INDEX row check run, **Then** both pass and the doc names the four artifacts, the launch form and the lock path exactly as T01/T04 implement them (scripts/docs_updater.py:640)
@@ -380,6 +382,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 - tests/enforcement/test_phase_tests_gate.py
 - tests/enforcement/test_plan_lock_release.py
 - tests/enforcement/test_plan_lock_release_dir.py
+- tests/enforcement/test_plan_shape_gates.py
 - tests/enforcement/test_plan_tickets_epic_scope.py
 - tests/test_agent_role_hook.py
 - tests/test_assemble_orch_retired.py
