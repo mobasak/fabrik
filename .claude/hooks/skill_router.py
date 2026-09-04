@@ -146,6 +146,7 @@ STEM_SKILLS: dict[str, str] = {
     "release": "fabrik-release",
     "deploy-plan": "fabrik-deploy-plan",
     "deploy-plan-review": "fabrik-deploy-plan-review",
+    "deploy-checklist": "fabrik-deploy-checklist",
     "deploy": "fabrik-deploy",
     "deploy-verify": "fabrik-deploy-verify",
     "conformance": "fabrik-conformance-review",
@@ -583,6 +584,21 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "release",
+    ),
+    # Sits BEFORE deploy-verify and the deploy-execution rule: "deploy checklist" carries the word
+    # "deploy", and this must win it. No clash either way — deploy-verify's regex needs BOTH
+    # "deploy" and "verify", and the execution rule needs "deploy it/this/now" or run/execute + a
+    # deploy PLAN, neither of which any phrase here matches.
+    (
+        re.compile(
+            r"\bdeploy(ment)?\s+checklist\b"
+            r"|\bparity\s+contract\b"
+            r"|\bwhat\s+must\s+prod(uction)?\s+(contain|have)\b"
+            r"|\bdeploy\s+kontrol\s+listesi\w*"
+            r"|\bprod'?da\s+ne\s+olmal[ıi]",
+            re.I,
+        ),
+        "deploy-checklist",
     ),
     (
         re.compile(

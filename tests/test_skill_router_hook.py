@@ -46,6 +46,14 @@ _spec.loader.exec_module(hook)
         ("bunu yayınla", "release"),
         ("please deploy and verify the service", "deploy-verify"),
         ("dağıtım doğrula", "deploy-verify"),
+        # /fabrik-deploy-checklist had NO stem at all, so its own trigger phrases routed nowhere —
+        # found by the independent wiring pass fleet asked for (01M1HT8B89ZV6XWC1RD0G1YT95); their
+        # self-check covered render, corpus, description length and NEXT, none of which look at the
+        # router. It sits BEFORE deploy-verify and deploy-execution because it carries "deploy".
+        ("author the deploy checklist", "deploy-checklist"),
+        ("freeze the parity contract", "deploy-checklist"),
+        ("what must prod contain", "deploy-checklist"),
+        ("deploy kontrol listesini yaz", "deploy-checklist"),
         ("catch this project up", "catchup"),
         ("bu proje güncel mi", "catchup"),
         ("let's retire this old service", "retire"),
@@ -261,6 +269,7 @@ def test_resolve_target_all_stem_skills_have_a_mapping() -> None:
         "review",
         "docs",
         "release",
+        "deploy-checklist",
         "deploy-verify",
         "catchup",
         "retire",
