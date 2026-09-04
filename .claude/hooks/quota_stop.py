@@ -68,7 +68,12 @@ _ALLOWED_BASH = re.compile(
     r"|(cat|head|tail|grep|rg|ls|wc|md5sum|readlink|date|echo|pwd|find|stat)\b"
     r"|sed\s+-n\b(?!.*\s-i\b))"
 )
-_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n")
+# A lone `&` is bash's BACKGROUND separator — `git status & evil` runs both, and the whole-line
+# hardening listed `&&` but never the single form: proven by execution (a held session's
+# `git status & touch marker` was allowed and the marker appeared — review 2026-09-05, pass 13).
+# `(?<![0-9>])&(?!&)`: not an fd-duplication (`2>&1`, `>&2`) and not the `&&` the first branch
+# already catches.
+_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<![0-9>])&(?!&)")
 # `(?!>)` after the optional second `>` and `>` in the lookbehind: without them `>>?` BACKTRACKED
 # on `>> /dev/null` — the two-char match failed the /dev/null exemption, so the engine matched a
 # single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names
@@ -77,8 +82,12 @@ _FILE_REDIRECT = re.compile(
     # The exemption is the DEVICE, not a prefix: `/dev/null` must be followed by whitespace,
     # end of line or a shell operator — `>/dev/nullx`, `>/dev/null/../x` and `>/dev/null.txt`
     # all matched the bare prefix and were allowed (review 2026-09-05, pass 12, executed).
-    r"(?<![0-9>])>>?(?!>)(?!\s*/dev/null(?![^\s;&|)]))(?!&)"
-    r"|(?<!>)\d>>?(?!>)(?!\s*/dev/null(?![^\s;&|)]))(?!&\d)"
+    # `>&` is an fd DUPLICATION only when a digit or `-` follows (`2>&1`, `>&2`, `>&-`); `>&word`
+    # is bash's "redirect stdout+stderr to FILE word" — proven by execution: `git log >&x` was
+    # allowed and created `x` (review 2026-09-05, pass 12, native finder). The fd must be the
+    # WHOLE token: `>&1x` opens a file named `1x`.
+    r"(?<![0-9>])>>?(?!>)(?!\s*/dev/null(?![^\s;&|)]))(?!&(?:\d+|-)(?![\w.]))"
+    r"|(?<!>)\d>>?(?!>)(?!\s*/dev/null(?![^\s;&|)]))(?!&(?:\d+|-)(?![\w.]))"
 )
 
 

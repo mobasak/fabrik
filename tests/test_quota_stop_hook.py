@@ -142,6 +142,12 @@ def test_chained_or_redirected_bash_is_held_whole():
     # the exemption is the DEVICE, never a prefix: these name OTHER paths (pass 12, executed)
     for cmd in ("git log >/dev/nullx", "git log > /dev/null/../x", "git log >>/dev/null.txt"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    # `>&word` is a FILE redirect (stdout+stderr), not an fd duplication: `git log >&x` was
+    # allowed and bash created `x` (pass 12, native finder, executed). Digits and `-` stay exempt.
+    for cmd in ("git log >&x", "git status >&1x", "cat a 2>&err.log"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in ("git push 2>&1", "git status >&2", "git log 2>&-"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
 def test_shell_punctuation_inside_a_quoted_argument_is_data_not_an_operator():
@@ -201,6 +207,20 @@ def test_an_escaped_quote_outside_quotes_cannot_open_a_span_that_hides_an_operat
     # and a top-level escaped operator stays refused (bash would not run it, but we never
     # need one to stop cleanly — fail closed, as before)
     assert hook.decide("Bash", r"git status \; rm -rf x", stamp_exists=True, tick_age_s=1.0)[0] == "deny"
+
+
+def test_a_lone_ampersand_is_a_command_separator_and_is_held():
+    """`git status & evil` runs BOTH — a lone `&` backgrounds the first command and starts the
+    second. The whole-line hardening listed `&&` and never the single form, so a held session
+    could run anything behind an allowed command. Proven by execution: decide() said allow and
+    `bash -c "git status & touch marker"` created the marker (review 2026-09-05, pass 13). The
+    fd-duplication forms the checkpoint needs (`2>&1`, `>&2`) stay allowed."""
+    for cmd in ("git status & evil", "git status 2>&1 & evil", "git status &", "git log >/dev/null&"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in ("git push 2>&1", "git status >&2", "git log >/dev/null 2>&1"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+    # the masker keeps a QUOTED ampersand as data
+    assert hook.decide("Bash", 'git commit -q -m "a & b" -- x.py', stamp_exists=True, tick_age_s=1.0)[0] == "allow"
 
 
 def test_the_masker_never_invents_or_hides_an_operator():
