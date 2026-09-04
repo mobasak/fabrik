@@ -1544,6 +1544,7 @@ Obsolete or completed docs for {name}.
     # The final commit is deferred to create_project() so it captures all files in one
     # clean, complete snapshot.
     subprocess.run(["git", "init", "-q"], cwd=project_dir, capture_output=True)
+    _configure_git_repo(project_dir)
 
     # Create and switch to project-specific branch (mobasak/<project-name>)
     # Only create branch if no commits exist yet (defensive check for spec compliance)
@@ -6007,6 +6008,46 @@ def _layer_preplan_into_project(project_dir: Path, preplan: object) -> None:
         "preplan layering: copied to %s + reference injected into 4 guardrails",
         dest.relative_to(project_dir),
     )
+
+
+def _configure_git_repo(project_dir: Path) -> None:
+    """Seed the two git config keys a fabrik repo's workflow assumes, LOCAL to *project_dir*.
+
+    The scaffolder ran `git init` and set nothing (mail 01M1NX7FS39E8999W2R6VSE5XD, intel → fleet:
+    `grep 'git config\\|rerere\\|autoSetupRemote'` returned zero lines), and neither key is set
+    globally on this box or in any existing project — so every repo it makes starts without them:
+
+    * ``push.autoSetupRemote`` — the scaffolder's own `git checkout -b mobasak/<name>` leaves a
+      branch with no upstream, so the project's FIRST push fails on "no upstream" until someone
+      types ``--set-upstream``. Under the approved multi-agent model (D-113) every worktree branch
+      hits the same wall on its first push.
+    * ``rerere.enabled`` — a merge conflict resolved once is replayed by hand on every subsequent
+      merge without it, which is exactly the cost the three-window merge flow cannot afford.
+
+    SEEDS, never enforces: a key the project has already answered is left alone, so an operator who
+    turned one off keeps their answer. LOCAL only — a ``--global`` write here would reach the hub
+    and both other agents' checkouts. Best-effort like the `git init` above it: a scaffold that
+    otherwise succeeded must not die because a config write failed.
+
+    Scope is what scaffold OWNS — a repo it is creating. The same keys on the ~46 EXISTING projects
+    belong to the sync path, which is the multi-agent build plan's job (Owner: infra, D-114).
+    """
+    for key, value in (("push.autoSetupRemote", "true"), ("rerere.enabled", "true")):
+        try:
+            already = subprocess.run(
+                ["git", "config", "--local", "--get", key],
+                cwd=project_dir,
+                capture_output=True,
+            )
+            if already.returncode == 0:
+                continue  # the project has answered this one — never overwrite it
+            subprocess.run(
+                ["git", "config", "--local", key, value],
+                cwd=project_dir,
+                capture_output=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return  # no git, no repo, unwritable — never fail a scaffold over config
 
 
 def _ensure_dockerignore(project_dir: Path) -> Path | None:

@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a scaffolded repo now comes out of `git init` able to push its own branch and remember a conflict resolution (2026-09-04)
+
+- Mail 01M1NX7FS39E8999W2R6VSE5XD (intel to fleet): `grep -c 'git config\|rerere\|autoSetupRemote' src/fabrik/scaffold.py`
+  returned **0**. Re-derived one step further than the report: neither key is set globally on this box
+  (`git config --global --get` → rc 1 for both) nor in any existing project (`/opt/seo`, `/opt/youtube`,
+  `/opt/transdoc` — all unset). Nothing on this box set them anywhere.
+- `push.autoSetupRemote` — the scaffolder's own `git checkout -b mobasak/<name>` leaves a branch with no
+  upstream, so every new project's FIRST push failed on "no upstream" until someone typed `--set-upstream`.
+  Under the approved multi-agent model (D-113) every worktree branch hits the same wall.
+- `rerere.enabled` — without it a conflict resolved once is resolved again by hand on every replay, which is
+  the cost the three-window merge flow cannot afford.
+- `_configure_git_repo(project_dir)` runs immediately after `git init -q` in `_scaffold_shared`. It SEEDS and
+  never enforces (a key the project already answered is left alone), writes `--local` only (a `--global` write
+  from a scaffolder would reach the hub and both other agents' checkouts), and is best-effort like the
+  `git init` above it — no scaffold dies on a config write.
+- NOT done, deliberately: the ~46 existing projects. That is the sync path, which is the multi-agent build
+  plan's scope and infra's execution (D-114); setting them now would be acting inside another agent's
+  approved plan. Said so in the reply.
+- The report's second gap — a `GOVERNANCE_TEMPLATES` leg for `templates/governance/.worktreeinclude` — is NOT
+  fixable today and was returned as a plan ticket: that template does not exist, so the leg would point the
+  sync at a missing file across ~46 repos to distribute an artifact of a plan that has not converged.
+- 6 tests; the one that matters runs the real `_scaffold_shared` and reads the resulting repo's config rather
+  than grepping the source for the call — proven red by neutering the call site, restored, green.
+
 ### Fixed — the fleet freeze had a root cause nobody had measured: the refresh-ping budget starved the last account in the alphabet (2026-09-04)
 
 - The 2026-09-04 incident, end to end: at 20:55 UTC the new URGENT drain tier fired correctly (one message,
