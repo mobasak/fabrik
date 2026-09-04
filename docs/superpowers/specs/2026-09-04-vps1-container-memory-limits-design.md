@@ -5,6 +5,15 @@
 **Author:** fleet (hub session 1970a0ff)
 **Stage:** 1-design · CONVERGED 2026-09-05 by `/fabrik-spec-review` (7 rounds, md5 `1a9b9cb5` stable) · next: operator approval, then `/fabrik-plan-after-chat`
 
+> **AMENDMENT 1 (2026-09-05, operator decision — D-121).** The operator removed the `ocoron-com`
+> WordPress stack (*"remove ocoron containers. we dont have any site to deploy yet"* / *"also it wont
+> be wordpress"*). Containers and the stack network are gone; **all four volumes and
+> `/opt/ocoron-com/compose.yaml` are preserved**, so the removal is reversible with `up -d`. The
+> denominator therefore moved **15 of 37 → 10 of 32**, five ceiling rows are struck, and the total
+> falls from 4,288 MiB to **2,752 MiB**. Open unknown 4 is RESOLVED by that decision. Every other
+> conclusion — the in-place mechanism, the redis-main COW ceiling, the reversibility correction, the
+> Part C check — is unaffected, because none of them depended on which containers were on the list.
+
 ---
 
 ## Intake Inventory
@@ -63,10 +72,9 @@ human or the daily pipeline already looks.
 | Class | Members | What a ceiling means |
 |---|---|---|
 | Self-bounding cache | `redis-main` | Already caps itself at `maxmemory 256M` / `allkeys-lru`; a cgroup ceiling is a second net, never the primary |
-| Stateless ingress | `traefik`, `ocoron-com-nginx-1` | Must fail fast and restart clean; a ceiling is pure blast-radius containment |
-| Page-cache heavy | `loki`, `promtail`, `ocoron-com-db-1` | The cgroup charges file cache, so a ceiling sized on RSS alone will OOM on cache |
+| Stateless ingress | `traefik` | Must fail fast and restart clean; a ceiling is pure blast-radius containment |
+| Page-cache heavy | `loki`, `promtail` | The cgroup charges file cache, so a ceiling sized on RSS alone will OOM on cache |
 | Observability | `grafana`, `alertmanager`, `cadvisor`, the three exporters | Small, stable, and the *last* thing that should take the host down |
-| Application | `ocoron-com-wordpress-1`, `ocoron-com-redis-1`, `ocoron-com-backup-1` | Ordinary sizing from measured peak |
 
 ---
 
@@ -83,13 +91,14 @@ detected rather than discovered during an outage.
 > `deployer_ssh._validate_compose()` — `fabrik apply` refuses any compose service without a memory
 > limit (prevents OOM on the shared VPS). The compose must carry the declaration explicitly.
 
-It is enforced at one entrance. **Fifteen of thirty-seven containers came in through another** —
+It is enforced at one entrance. **Ten of thirty-two containers came in through another** (fifteen of thirty-seven before Amendment 1) —
 hand-composed infra and the `ocoron-com` stack — so the validator never saw them. Measured live
 2026-09-04 (`docker inspect -f '{{.HostConfig.Memory}}'` == 0):
 
 `traefik` · `redis-main` · `loki` · `grafana` · `alertmanager` · `promtail` · `cadvisor` ·
-`node-exporter` · `redis-exporter` · `postgres-exporter` · `ocoron-com-nginx-1` ·
-`ocoron-com-wordpress-1` · `ocoron-com-db-1` · `ocoron-com-redis-1` · `ocoron-com-backup-1`
+`node-exporter` · `redis-exporter` · `postgres-exporter`
+
+(The five `ocoron-com-*` containers were also on this list until Amendment 1 removed the stack.)
 
 **The concrete pain.** `traefik` is the fleet's ingress. Unbounded, a memory spike there is not a
 traefik incident — it is a host-level OOM kill that the kernel resolves by shooting whichever process
@@ -185,7 +194,7 @@ container sat waiting to be started. Today the distinction is invisible — `doc
 `docker ps -aq` both return 37, there are no stopped containers — which is exactly why it would have
 been easy to encode the narrower query and never notice.
 
-**Fire rate, measured before shipping** (FIX DIRECTIVE 5): **15 of 37 today, 0 of 37 after Part A.**
+**Fire rate, measured before shipping** (FIX DIRECTIVE 5): **10 of 32 today, 0 of 32 after Part A** (15 of 37 before Amendment 1).
 It fires only on a genuine regression — a new container arriving off the apply path. That is signal,
 not wallpaper. Had it existed, it would have caught all fifteen the day each appeared.
 
@@ -199,27 +208,19 @@ observed peak with 25–50% margin for stable services, and never from idle star
 | `cadvisor` | 323.9 MiB | 512M | Largest of the fifteen; ~58% margin |
 | `promtail` | 135.1 MiB | 256M | Page-cache heavy (tails logs) |
 | `loki` | 131.0 MiB | 512M | Page-cache heavy; ingest bursts |
-| `ocoron-com-wordpress-1` | 113.5 MiB | 512M | PHP-FPM pools grow under traffic |
 | `grafana` | 86.9 MiB | 256M | Dashboard rendering spikes |
-| `ocoron-com-db-1` | 67.6 MiB | 512M | MySQL: buffer pool + page cache charged to the cgroup |
 | `traefik` | 52.7 MiB | 256M | Ingress — generous, because failing it fails everything |
 | `alertmanager` | 33.5 MiB | 128M | Small, stable |
 | `postgres-exporter` | 17.3 MiB | 64M | Scrape-only |
 | `node-exporter` | 16.5 MiB | 64M | Scrape-only |
 | `redis-exporter` | 12.4 MiB | 64M | Scrape-only |
-| `ocoron-com-backup-1` | 5.4 MiB | 512M | ⚠️ IDLE-derived — see the caveat below |
 | `redis-main` | 5.2 MiB | 640M | **See below** — it forks |
-| `ocoron-com-nginx-1` | 4.8 MiB | 128M | Static proxy |
-| `ocoron-com-redis-1` | 3.3 MiB | 256M | Site-local cache |
 
-⚠️ **`ocoron-com-backup-1` is the weakest row in this table and is marked as such.** Its 5.4 MiB is an
-IDLE measurement — the container sits dormant between backup runs, and a backup run does compression
-and dump buffering whose footprint I have not observed. 512M is a deliberate over-allocation to cover
-an unmeasured peak, not a derived ceiling. **Resolution before Part B freezes it:** observe one real
-backup run, or read its Prometheus history. Part A can carry 512M safely because the failure mode of a
-too-HIGH ceiling is merely a weaker bound, never a kill.
+(The IDLE-derived caveat that stood here applied to `ocoron-com-backup-1`, struck by Amendment 1. No
+remaining row is sized from a dormant measurement — every one of the ten is a continuously-running
+service measured in steady state.)
 
-Total ceilings: **4,288 MiB = 4.19 GiB, 36% of the 11.63 GiB host** (15 rows, re-derived not re-cited — the draft said ~4.4 GiB). Existing limits already total ~19 GiB — limits are
+Total ceilings: **2,752 MiB = 2.69 GiB, 23% of the 11.63 GiB host** (10 rows, re-derived after Amendment 1; it was 4,288 MiB over 15 rows). Existing limits already total ~19 GiB — limits are
 ceilings, not reservations, so overcommit is normal and unchanged by this work.
 
 **`redis-main` is the one that could have gone wrong, and the first draft of this spec got it wrong.**
@@ -358,7 +359,7 @@ the rare design with no `specs/services/` footprint at all.
    would make the 640M ceiling the binding constraint rather than a safety net — so the two decisions
    are coupled and the policy change must not land without re-deriving this ceiling. **Resolution:**
    the policy question stays on its own backlog row; whoever takes it re-reads this table first.
-4. **Whether `ocoron-com-*` is in fleet scope at all.** It may be a site stack outside the fabrik
-   deploy model. **Resolution:** operator confirmation. If out of scope, the fifteen becomes ten and
-   Part B narrows accordingly; Part A still applies, since an unbounded container threatens the host
-   regardless of who owns it.
+4. **~~Whether `ocoron-com-*` is in fleet scope at all.~~ RESOLVED 2026-09-05 (D-121):** the operator
+   removed the stack rather than scoping it. The fifteen did become ten, exactly as this unknown
+   predicted. Its volumes and compose file are preserved, so if a site ever returns there it re-enters
+   through `fabrik apply` or is re-measured then.
