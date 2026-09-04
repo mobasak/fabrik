@@ -1849,6 +1849,12 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
         if warn_only and went_red:
             # The contract changed under us: a check declared toothless just grew teeth.
             detail += " — its `warn_only` declaration in CANARIES is now STALE, drop it"
+        if not cinst.ok:
+            # The narrative above is composed from (went_red, reported), which are both False when
+            # the canary could not RUN — so a broken instrument rendered the accusation "the check
+            # asserts nothing" on a check nobody measured. `finding()` already collapses the verdict
+            # to UNKNOWN; the DETAIL has to stop making the claim too (S-1).
+            detail = f"not measured — {cinst.fault}"
         findings.append(
             finding(
                 proof="vacuity",

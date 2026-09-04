@@ -1794,6 +1794,15 @@ def test_a_canary_whose_external_tool_is_absent_is_unknown_never_dead(
     )
     assert not inst.ok and "not on PATH" in inst.fault and "jscpd" in inst.fault, inst
     assert went_red is False and reported is False
+    # and the ROW must stop accusing the check: (went_red, reported) are both False when the canary
+    # could not RUN, so the GREEN narrative rendered "the check asserts nothing" about a check
+    # nobody measured — UNKNOWN with a defect claim in its detail is still a defect claim (S-1)
+    report = la.audit(REPO_ROOT, REPO_ROOT / ".fabrik" / "liveness-registry.json", {"vacuity"})
+    row = next(f for f in report.proofs["vacuity"]["findings"] if f["id"] == "check_duplicates")
+    assert row["verdict"] == "UNKNOWN", row
+    assert row["detail"].startswith("not measured — "), row["detail"]
+    assert "asserts nothing" not in row["detail"], row["detail"]
+    assert "jscpd" in row["instrument_fault"], row
     # a canary that declares nothing is untouched by the guard
     monkeypatch.setattr(la.shutil, "which", lambda _tool: None)
     for name, canary in la.CANARIES.items():
