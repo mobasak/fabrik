@@ -24,3 +24,4 @@ Docs: CHANGELOG.md · INDEX.md (new test) — orchestrator-applied
 ## Context Files
 - docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md
 - scripts/enforcement/check_sync_trigger_coverage.py
+- scripts/fabrik_synced_manifest.py

@@ -23,3 +23,4 @@ Docs: INDEX.md (moved files) · docs/README.md · CHANGELOG.md — orchestrator-
 - **Given** the tree after the move, **When** `python3 scripts/enforcement/check_doc_links.py` runs, **Then** no link into the moved paths is reported broken from a non-archived, non-ledger doc (scripts/enforcement/check_traycer_chain.py:28)
 
 ## Context Files
+- docs/orchestrator/mega-epic-breakdown/_retired/05-dispatch-epic-tickets-fabrik.RETIRED.md
