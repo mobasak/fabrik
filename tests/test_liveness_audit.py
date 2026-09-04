@@ -1805,8 +1805,10 @@ def test_a_canary_whose_external_tool_is_absent_is_unknown_never_dead(
     assert "jscpd" in row["instrument_fault"], row
     # a canary that declares nothing is untouched by the guard
     monkeypatch.setattr(la.shutil, "which", lambda _tool: None)
-    for name, canary in la.CANARIES.items():
-        if not canary.get("requires"):
-            inst2, _, _ = la.run_canary(name, canary, REPO_ROOT)
-            assert "not on PATH" not in inst2.fault, (name, inst2.fault)
-            break
+    undeclared = [n for n, c in la.CANARIES.items() if not c.get("requires")]
+    assert len(undeclared) >= 1, (
+        f"the guard must be a no-op for a canary that declares nothing, and {len(la.CANARIES)} of "
+        f"{len(la.CANARIES)} now declare — this loop would have asserted NOTHING (pool-scoped)"
+    )
+    inst2, _, _ = la.run_canary(undeclared[0], la.CANARIES[undeclared[0]], REPO_ROOT)
+    assert "not on PATH" not in inst2.fault, (undeclared[0], inst2.fault)
