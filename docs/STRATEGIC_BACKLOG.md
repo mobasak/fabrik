@@ -1081,7 +1081,19 @@ or scaffold a metrics module; the flag is spec-canonical, so whichever is chosen
 SYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus
 has `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.
 
-## [fleet] `redis-main` and `traefik` run with NO memory limit on vps1 — the Fabrik invariant is unenforced off the apply path (2026-09-03, owner: fleet + operator)
+## [fleet] 15 of 37 containers run with NO memory limit on vps1 — the Fabrik invariant is unenforced off the apply path (2026-09-03, owner: fleet + operator)
+
+**CORRECTED 2026-09-04 (fleet), and SUPERSEDED by a spec:** this row said "redis-main and traefik".
+A live sweep of every container measured **15 of 37** with `HostConfig.Memory == 0` — also loki,
+grafana, alertmanager, promtail, cadvisor, the three exporters, and all five `ocoron-com-*`. A 7x-low
+count in a backlog row is a number that gets quoted. Also corrected: this row assumes setting the
+limit "restarts both containers, so it is an operator window, and traefik restarting drops every
+route briefly" — **that is wrong.** `docker update --memory` mutates the live cgroup in place, proven
+by execution (same container id, same StartedAt, Running=true, `/sys/fs/cgroup/memory.max` updated).
+No restart, no window, no dropped routes for the in-place path. Design:
+`docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md`. The eviction-policy half
+of this row (protecting pause keys) is NOT covered by that spec and remains open here.
+
 
 Mail 01M1GQEJ14Z8TSH7KC4RVYDH0H, probed by infra 2026-09-02: `docker inspect --format {{.HostConfig.Memory}}`
 returns 0 for redis-main and traefik; postgres-main 2048 MiB, meilisearch 512 MiB, zitadel 1024 MiB. Both
@@ -1092,6 +1104,24 @@ policy evicts only keys with a TTL; the pause flags must outlive pressure) — t
 so it is an operator window, and traefik restarting drops every route briefly; (b) the class fix: a periodic
 `docker inspect` sweep over ALL containers so "every service has a limit" becomes checkable rather than
 assumed.
+
+## [fleet] 28 of 37 vps1 containers have NO CPU limit, and two bounded containers sit near their ceiling (2026-09-04, owner: fleet)
+
+Measured live 2026-09-04 while specifying the memory-limit fix. `core/30-ops.md:186` mandates
+`deploy.resources.limits.memory` **and `cpus`** together; the checklist treats them as one row. The
+memory half is being closed by
+`docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md`; the CPU half is not.
+`docker inspect -f '{{.HostConfig.NanoCpus}}'` returns 0 for **28 of 37** containers. Deliberately
+scoped OUT of that spec: an unbounded CPU degrades neighbours, while an unbounded memory ceiling
+lets one container trigger a host-level OOM kill that takes an arbitrary subset of all 37 down —
+different severity, different urgency. Whoever picks this up should reuse that spec's Part C check,
+which already enumerates every defined container and would only need a second predicate.
+
+**Watch item from the same sweep (bounded, but close):** `trytond-worker` at 315.5 MiB of its 512 MiB
+limit (61.6%) and `glitchtip-web` at 242.7 MiB of 512 MiB (47.4%). The netdata guidance treats
+sustained usage above 80% of the limit as the warning threshold, so neither is urgent — but these are
+the two containers whose ceilings are most likely to be genuinely too LOW, which is the opposite
+failure from the one the memory spec addresses and would show up as an OOM kill, not a host stall.
 
 ## [fleet] `fabrik apply` provisions a second flywheel database nothing reads (2026-09-03, owner: fleet)
 
