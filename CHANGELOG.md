@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 11 of the review: the quota hold refused `>> /dev/null`, a form its own exemption names (2026-09-05)
+
+The closing finders certified the whole surface (435 tests executed; every figure, fixture and index blob re-derived) and found one thing just outside the diff, on the same hook: `_FILE_REDIRECT`'s `>>?` backtracked on `git status >> /dev/null` — the two-character match failed the `/dev/null` exemption, so the engine matched a single `>` whose lookahead saw `> /dev/null` and refused it; `2>>/dev/null` likewise. Pre-existing and fail-closed (it only over-refused), unchanged by this review's commits, but on this beat and two lines from fixed: a `(?!>)` after the optional second `>` and `>` in the lookbehind, graded with both exempt forms and three append-to-file forms that must still refuse, red on revert. Hygiene at close: 40 of 40 paths index-aligned, 16 of 16 CHANGELOG headings exactly once, 20 of 20 synced copies hash-identical across five projects, 16 of 16 trailers parse.
+
 ### Fixed — the vps1 memory ceilings are now DECLARED in compose, so a redeploy can no longer unbind them (2026-09-05)
 
 Part B of the memory-limits design (D-119/D-122/D-124), on the operator's word. Part A's `docker update`

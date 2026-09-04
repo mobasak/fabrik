@@ -133,6 +133,12 @@ def test_chained_or_redirected_bash_is_held_whole():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     for cmd in ("git push 2>&1", "git status 2>/dev/null", "git diff --stat HEAD -- a.py"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+    # the DOUBLED redirect to /dev/null is exempt too: `>>?` backtracked to a single `>` whose
+    # lookahead saw `> /dev/null` and refused it (review 2026-09-05, closing pass, executed)
+    for cmd in ("git status >> /dev/null", "git status 2>>/dev/null"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+    for cmd in ("git log >> notes.txt", "git log >>notes.txt", "cat a 2>>err.log"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
 
 
 def test_shell_punctuation_inside_a_quoted_argument_is_data_not_an_operator():

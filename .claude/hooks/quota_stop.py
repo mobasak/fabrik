@@ -69,7 +69,13 @@ _ALLOWED_BASH = re.compile(
     r"|sed\s+-n\b(?!.*\s-i\b))"
 )
 _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n")
-_FILE_REDIRECT = re.compile(r"(?<![0-9])>>?(?!\s*/dev/null)(?!&)|\d>>?(?!\s*/dev/null)(?!&\d)")
+# `(?!>)` after the optional second `>` and `>` in the lookbehind: without them `>>?` BACKTRACKED
+# on `>> /dev/null` — the two-char match failed the /dev/null exemption, so the engine matched a
+# single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names
+# (review 2026-09-05, closing pass, found by execution; fail-closed, so it only over-refused).
+_FILE_REDIRECT = re.compile(
+    r"(?<![0-9>])>>?(?!>)(?!\s*/dev/null)(?!&)|(?<!>)\d>>?(?!>)(?!\s*/dev/null)(?!&\d)"
+)
 
 
 def _mask_quoted(command: str) -> str:
