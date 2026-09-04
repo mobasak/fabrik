@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped may no longer close on a self-sweep (D-118) (2026-09-04)
+
+The light review command's every exit condition was self-certifiable: step 5 closed on "a pass that raises zero new candidates", with no clause about independent recall, and the run-record banner stamps TERMINAL VERDICT on exactly that. Acting on fabrik-lib's finding 01M1ME3Y58P6ATSPX087QRVAZ4, the closing pass now owes ONE independent reader that actually returned, and the close's evidence must name it and what it returned. The floor is one reader — a read-only pool fan-out over the diff, or a single native reviewer — not the heavy command's breadth; the review-file omission that is the real lightness is untouched.
+
 ### Fixed — the WSL startup pipeline ran before the network was up, and burned 60s waiting for a retired tool (2026-09-04)
 
 - Operator restarted WSL and asked what was broken. Boot was 20:41:29; the startup pipeline began at

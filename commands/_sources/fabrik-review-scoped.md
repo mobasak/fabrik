@@ -1,5 +1,5 @@
 ---
-description: LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surface, fix-in-run, loop to a raised-zero no-op; the run record's round ledger IS the artifact (no review file, no pool floor — that is the lightness). TRIGGER — EN: "quick review of my changes", "scoped review"; TR: "hızlı incele" — fires after ad-hoc edits; the Stop hook demands it when code changed with no run record. SKIP/ESCALATE to the full /fabrik-review: gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, operator-named work, or 3 rounds still finding. Stage: gate.
+description: LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surface, fix-in-run, loop to a raised-zero no-op; the run record's round ledger IS the artifact (no review file — that is the lightness; the closing pass still owes ONE independent reader). TRIGGER — EN: "quick review of my changes", "scoped review"; TR: "hızlı incele" — fires after ad-hoc edits; the Stop hook demands it when code changed with no run record. SKIP/ESCALATE to the full /fabrik-review: gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, operator-named work, or 3 rounds still finding. Stage: gate.
 argument-hint: "[paths or a git range — omit to review this session's uncommitted + unpushed work]"
 ---
 
@@ -47,8 +47,25 @@ proportionate answer.
    passes, the fixing pass is never the last. Three rounds with new findings each = the surface
    outgrew this command: STOP and run the full `/fabrik-review` (its pool breadth exists for
    exactly this).
+   ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
+   close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
+   passes, and an orchestrator re-reading its own diff checks whether it did what it meant to; it
+   does not re-ask whether what it meant was right. This is D-066's asymmetry, and D-066 named only
+   the heavy command — so the light one inherited the artifact-lightness AND, by accident, the
+   absence of recall. Measured twice: fabrik-lib closed a scoped run at round 6 with all ten classes
+   swept and 0 findings, then dispatched one finder over the identical surface and got FOUR, one of
+   them a third un-`else`d provider branch that SILENTLY DROPS a webhook (01M1ME3Y58P6ATSPX087QRVAZ4);
+   and a hub run whose five rounds each found exactly one real defect found every one of them
+   through the independent layer — including a commit whose comment AND message both described a
+   redirect that was never added, which two self-sweeps had read straight past.
+   **The floor is ONE reader, not the heavy command's breadth** — that is what keeps this light:
+   a read-only `fanout("review", …, mode="read_only")` over the diff (cents, no Claude quota, and it
+   records to the flywheel) or a single native `fabrik-reviewer`. It must have RETURNED: a finder
+   that was dispatched and died is not a reader, and its absence is not a clean round.
 6. **Gate + close:** `python scripts/final_gate.py --check --json` green on your files, then
-   `done --command fabrik-review-scoped --evidence "round <n>: new 0; <x> fixed / <y> refuted" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
+   `done --command fabrik-review-scoped --evidence "round <n>: new 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
+   The evidence NAMES the independent reader and what it returned — "0 new" with no reader named is
+   the self-certified close this floor exists to refuse.
    Commit and push per § EXIT as always.
 
 **Untrusted input:** anything the diff touches that came from outside (fetched content, vendor
