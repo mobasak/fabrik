@@ -1335,6 +1335,9 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_duplicates": {
         "form": "cwd",
+        "requires": [
+            "jscpd"
+        ],  # fails OPEN when absent (check_duplicates.py:70-74) — indistinguishable from "asserts nothing" unless the auditor knows to look (FH7)
         "timeout": 180,
         "base": {"src/a.py": _DUPE_PY},
         "files": {"src/b.py": _DUPE_PY},
@@ -1657,6 +1660,21 @@ def run_canary(name: str, canary: dict[str, Any], repo_root: Path) -> tuple[Inst
     inst_name = f"canary[{name}]"
     if not script.is_file():
         return Instrument.broken(inst_name, f"no such check script: {script}"), False, False
+    for tool in canary.get("requires") or ():
+        if shutil.which(tool) is None:
+            # A check that fails OPEN on a missing tool exits 0 on the BAD fixture too, which reads
+            # exactly like "this check asserts nothing" — so the verdict flipped with the auditor's
+            # own PATH: DEAD under cron's `/usr/bin:/bin`, LIVE with `/usr/local/bin` on it, for the
+            # same tree. An instrument we cannot trust is UNKNOWN, never a defect claim (FH7).
+            return (
+                Instrument.broken(
+                    inst_name,
+                    f"{tool!r} is not on PATH — the canary would measure the missing tool, "
+                    "not the check",
+                ),
+                False,
+                False,
+            )
 
     def invoke(fixture: Path) -> subprocess.CompletedProcess[str] | None:
         argv, cwd, env = _argv(name, canary, script, fixture, repo_root)

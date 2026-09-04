@@ -138,6 +138,10 @@ if [ ! -f "$LOCK_FILE" ]; then
     fi
     # Run full pipeline in background (chained to ensure order)
     # Project sync → Cascade backup check → Health summary → Kilo agents → Extensions
+    # `>/dev/null 2>&1`: every line inside carries its own redirect to $LOG_FILE, so nohup had
+    # nothing left to save — it still printed `nohup: appending output to 'nohup.out'` to the
+    # operator's terminal and minted the file in whatever cwd the login shell sat in (the D5/FC6
+    # stray-nohup.out class, at the one site the redirect sweep missed; FH7)
     nohup bash -c "
         echo '' >> $LOG_FILE
         echo '=== Fabrik Daily Pipeline — '\$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE

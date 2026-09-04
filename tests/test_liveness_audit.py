@@ -1777,3 +1777,27 @@ def test_a_cron_entry_with_no_command_yields_an_empty_needle_not_a_wildcard():
     assert la._cron_command("0 6 * * * /opt/fabrik/x.sh --flag") == "/opt/fabrik/x.sh --flag"
     # the contract the callers rely on: a blank needle is falsy, so every `if needle:` guard refuses it
     assert not la._cron_command("@daily") and bool(la._cron_command("@daily /x"))
+
+
+def test_a_canary_whose_external_tool_is_absent_is_unknown_never_dead(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`check_duplicates` fails OPEN on a missing `jscpd` (it exits 0 with a WARNING), which the
+    harness cannot tell apart from "this check asserts nothing" — so the vacuity verdict flipped
+    with the AUDITOR's own PATH: DEAD under cron's `/usr/bin:/bin`, LIVE with `/usr/local/bin` on
+    it, for the same tree. The crontab sets no PATH, so installing the audit's own PROPOSED_CRON
+    would have made the weekly report claim a healthy BLOCKING gate can never go red (FH7)."""
+    assert la.CANARIES["check_duplicates"].get("requires") == ["jscpd"]
+    monkeypatch.setattr(la.shutil, "which", lambda _tool: None)
+    inst, went_red, reported = la.run_canary(
+        "check_duplicates", la.CANARIES["check_duplicates"], REPO_ROOT
+    )
+    assert not inst.ok and "not on PATH" in inst.fault and "jscpd" in inst.fault, inst
+    assert went_red is False and reported is False
+    # a canary that declares nothing is untouched by the guard
+    monkeypatch.setattr(la.shutil, "which", lambda _tool: None)
+    for name, canary in la.CANARIES.items():
+        if not canary.get("requires"):
+            inst2, _, _ = la.run_canary(name, canary, REPO_ROOT)
+            assert "not on PATH" not in inst2.fault, (name, inst2.fault)
+            break
