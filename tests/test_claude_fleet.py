@@ -3044,13 +3044,19 @@ def test_next_session_relief_skips_stale_past_resets_and_returns_none_when_nothi
 
 
 def test_urgent_drain_message_carries_the_operator_wording_and_the_resume_instant():
+    """The operator's wording and the concrete resume instant. UPDATED 2026-09-05: the signature now
+    takes the TRIGGER REASON rather than a bare percentage, because the message used to hardcode
+    "5-hour session window" and print whatever number it was handed — so a weekly wall reported the
+    session figure. The invariants pinned here are unchanged; only the caller's contract moved."""
     now = 1_800_000_000
-    msg = cr._urgent_drain_message("act@x", 91.0, (float(now), "soon@x", "session"))
+    reason = "its 5-hour session window is 91% CONSUMED"
+    msg = cr._urgent_drain_message("act@x", reason, (float(now), "soon@x", "session"))
     assert "URGENT" in msg and "STOP YOUR WORK ASAP" in msg and "GRACEFULLY" in msg
-    assert "1 MINUTE AFTER soon@x's session window resets" in msg
+    assert reason in msg, "the notice must say WHICH window triggered it, in its own words"
+    assert "soon@x's session window resets" in msg
     assert f"epoch {now + 60}" in msg  # resume = reset + 60 s, stated as a number the agent can sleep on
     assert f"sleep $(( {now + 60} - $(date +%s) ))" in msg
-    none = cr._urgent_drain_message("act@x", 91.0, None)
+    none = cr._urgent_drain_message("act@x", reason, None)
     assert "STOP YOUR WORK ASAP" in none and "no resume time can be given" in none
 
 
@@ -3309,10 +3315,14 @@ def test_the_urgent_message_does_not_promise_a_switch_it_cannot_guarantee(tmp_pa
     """The wording that shipped said "the rotation will have switched to that account by the
     time you wake". It had not, 10h later. A message that asserts a future state the machinery
     does not control is a false claim broadcast to every repo."""
-    msg = cr._urgent_drain_message("act@x", 90.0, (FLEET_NOW + 1800.0, "sib@x", "session"))
+    msg = cr._urgent_drain_message(
+        "act@x", "its 5-hour session window is 90% CONSUMED", (FLEET_NOW + 1800.0, "sib@x", "session")
+    )
     assert "will have switched" not in msg
     assert "EXPECTED, not promised" in msg
-    assert "another message like this one follows" in msg
+    assert "another message like this one will arrive" in msg, (
+        "the relay must still be named — it is the actual wake mechanism (01M1P86NZ2)"
+    )
 
 
 def test_a_fresh_token_whose_live_probe_fails_still_earns_its_refresh_ping(tmp_path, monkeypatch):
@@ -3379,3 +3389,70 @@ def test_ping_slots_and_promised_resume_hold_at_their_edges(tmp_path, monkeypatc
         stamp.write_text(content)
         assert cr._promised_resume(stamp) is None, f"{content!r} is not a promise"
     assert cr._promised_resume(tmp_path / "state" / "absent") is None
+
+
+# ── The drain notice must name the window that actually TRIGGERED it ──────────────────────────
+#
+# fabrik-lib finding 01M1P86NZ2DEDGKJ62CS3K346A, and a second defect found while reading it. The
+# notice sent 2026-09-04T12:59Z said the active account was "at 10% of its 5-hour session window"
+# and ordered an immediate graceful stop — a number that argues against its own instruction. Cause:
+# the message hardcodes "5-hour session window" and is handed `session_pct` no matter which tier
+# fired, so a WEEKLY wall reports the SESSION number. The unit was ambiguous too ("at 90%" one day,
+# "at 10%" the next, both ordering a stop).
+
+
+def test_a_weekly_wall_names_the_weekly_window_not_the_session():
+    """The reported defect: walled on weekly, but the notice talked about the 5-hour window."""
+    row = {
+        "email": "ob@ocoron.com",
+        "five_hour": {"utilization": 10.0},
+        "seven_day": {"utilization": 100.0},
+        "weekly_cap": None,
+    }
+    reason = cr._drain_trigger_reason(row, session_pct=10.0, walled=True)
+    msg = cr._urgent_drain_message("ob@ocoron.com", reason, None)
+
+    assert "weekly" in msg.lower()
+    assert "10%" not in msg, "the SESSION number must not be quoted when the WEEKLY window walled"
+    assert "100%" in msg
+
+
+def test_an_operator_cap_says_so_rather_than_claiming_the_window_is_full():
+    """ob@ sat at weekly 80% against a caps.json cap of 80 — walled by OUR reserve, not by Anthropic.
+    Reporting that as a full window would send agents hunting a limit that is not there."""
+    row = {
+        "email": "ob@ocoron.com",
+        "five_hour": {"utilization": 12.0},
+        "seven_day": {"utilization": 81.0},
+        "weekly_cap": 80,
+    }
+    reason = cr._drain_trigger_reason(row, session_pct=12.0, walled=True)
+
+    assert "cap" in reason.lower() and "81%" in reason
+    assert "caps.json" in reason
+
+
+def test_a_session_drain_names_the_session_window_and_its_unit():
+    row = {"email": "ob@ocoron.com", "five_hour": {"utilization": 94.0}, "seven_day": {"utilization": 40.0}, "weekly_cap": None}
+    reason = cr._drain_trigger_reason(row, session_pct=94.0, walled=False)
+    msg = cr._urgent_drain_message("ob@ocoron.com", reason, None)
+
+    assert "5-hour session" in msg and "94%" in msg
+    assert "CONSUMED" in msg, "name the unit — '90%' and '10%' both ordered a stop on consecutive days"
+
+
+def test_the_self_scheduled_sleep_is_a_courtesy_and_the_relay_is_the_mechanism():
+    """fabrik-lib followed the old wording exactly, armed the sleep, and resumed 15.5h LATE — only
+    when the next notice arrived. A background `sleep` is session-scoped: it dies with the very stop
+    it is timing. An agent that reads self-scheduling as coverage believes it is protected while
+    nothing is running."""
+    relief = (1788530459.0, "can@ocoron.com", "session")
+    msg = cr._urgent_drain_message("ob@ocoron.com", "its 5-hour session window is 94% CONSUMED", relief)
+
+    low = msg.lower()
+    assert "follow-up notice" in low, "the relay must be named as the mechanism"
+    relay_at, sleep_at = low.index("follow-up notice"), low.index("sleep")
+    assert relay_at < sleep_at, "the relay must LEAD; the timer is secondary"
+    assert "courtesy" in low
+    assert "session-scoped" in low or "dies with" in low, "say WHY the timer cannot be relied on"
+    assert "1788530519" in msg, "the concrete resume epoch (reset + 60s) must still be there"

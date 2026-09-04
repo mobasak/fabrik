@@ -4034,12 +4034,39 @@ def _next_session_relief(
     return None
 
 
-def _urgent_drain_message(active_email: str, session_pct: float, relief: tuple[float, str, str] | None) -> str:
+def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) -> str:
+    """WHICH window actually triggered this notice, with its number and its UNIT.
+
+    The notice used to hardcode "its 5-hour session window" and print whatever `session_pct` held,
+    so a WEEKLY wall reported the SESSION number: the 2026-09-04T12:59Z notice said the account was
+    "at 10% of its 5-hour session window" and ordered an immediate graceful stop — a number arguing
+    against its own instruction (fabrik-lib 01M1P86NZ2DEDGKJ62CS3K346A raised the ambiguity; the
+    wrong-window half was found reading it). "CONSUMED" is explicit because "at 90%" and "at 10%"
+    ordered a stop on consecutive days and read in opposite directions.
+    """
+    wk = row.get("seven_day") if isinstance(row.get("seven_day"), dict) else {}
+    wu = wk.get("utilization") if isinstance(wk, dict) else None
+    cap = row.get("weekly_cap")
+    if walled:
+        if isinstance(wu, (int, float)):
+            if cap is not None and float(wu) < 100.0:
+                return (
+                    f"its weekly window is {float(wu):.0f}% CONSUMED, at or over the "
+                    f"{float(cap):.0f}% reserve we set for it in caps.json"
+                )
+            return f"its weekly window is {float(wu):.0f}% CONSUMED (walled)"
+        return "it is walled with no readable weekly figure"
+    if session_pct is not None:
+        return f"its 5-hour session window is {float(session_pct):.0f}% CONSUMED"
+    return "it has no readable quota figure"
+
+
+def _urgent_drain_message(active_email: str, reason: str, relief: tuple[float, str, str] | None) -> str:
     """The operator's wording, with the concrete time the repos must hook themselves to."""
     head = (
-        f"URGENT — fleet quota: the active account {active_email} is at {session_pct:.0f}% of its "
-        "5-hour session window and NO other account is available to switch to (every sibling is "
-        "session-exhausted, weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
+        f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
+        "and NO other account is available to switch to (every sibling is session-exhausted, "
+        "weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
         "commit-and-push checkpoint now, then stop."
     )
     if relief is None:
@@ -4059,12 +4086,15 @@ def _urgent_drain_message(active_email: str, session_pct: float, relief: tuple[f
     local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
     utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return head + (
-        f" HOOK YOURSELF TO RESUME 1 MINUTE AFTER {email}'s {window} window resets: resume at "
-        f"{local} (UTC {utc}, epoch {resume}). Schedule the wake now — e.g. "
-        f"`sleep $(( {resume} - $(date +%s) ))` in a Monitor / wake hook — and do not poll "
-        "before then. Relief is EXPECTED, not promised: the rotation switches to that account "
-        "only if it really has headroom when the window turns. If it does not, another message "
-        "like this one follows, carrying the next time to try — so wake, check, and resume."
+        f" NEXT WINDOW: {email}'s {window} window resets at {local} (UTC {utc}); the earliest "
+        f"sensible resume is one minute later, epoch {resume}."
+        " ⚠️ A FOLLOW-UP NOTICE IS THE MECHANISM — another message like this one will arrive"
+        " carrying the next time to try, and that is what wakes you. A self-scheduled timer is a"
+        " COURTESY, not coverage: a background `sleep` is session-scoped and dies with the very"
+        " stop it is timing (measured — a repo armed one for 21:31Z and resumed 15.5h late, only"
+        f" when the next notice landed). If you want one anyway: `sleep $(( {resume} -"
+        " $(date +%s) ))`. Relief is EXPECTED, not promised: the rotation switches to that account"
+        " only if it really has headroom when the window turns."
     )
 
 
@@ -4140,7 +4170,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         default=0.0,
     )
     relief = _next_session_relief(accounts, str(row["email"]), now)
-    msg = _urgent_drain_message(str(row["email"]), session_pct if session_pct is not None else hot, relief)
+    msg = _urgent_drain_message(
+        str(row["email"]), _drain_trigger_reason(row, session_pct, walled), relief
+    )
     _tick_telegram(msg)
     repos = _mailbox_repos()  # a fleet-wide wall concerns every project → broadcast
     if repos:

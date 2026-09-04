@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota drain notice named the wrong window, and told agents to arm a timer that cannot fire (2026-09-05)
+
+- fabrik-lib finding 01M1P86NZ2DEDGKJ62CS3K346A, plus a second defect found while reading it.
+- **Wrong window.** `_urgent_drain_message` hardcoded "its 5-hour session window" and printed whatever
+  number the caller handed it, so a WEEKLY wall reported the SESSION figure. The 2026-09-04T12:59Z
+  notice read *"at 10% of its 5-hour session window"* while ordering an immediate graceful stop — a
+  number arguing against its own instruction. New `_drain_trigger_reason` names the window that
+  actually triggered, says **CONSUMED** explicitly (the same notice said "90%" one day and "10%" the
+  next, both ordering a stop), and distinguishes a real weekly wall from our own `caps.json` reserve.
+- **A timer that cannot fire.** The notice led with *"Schedule the wake now — `sleep …`"*. A background
+  `sleep` is session-scoped: it dies with the very stop it is timing. fabrik-lib followed the
+  instruction exactly, armed it for 21:31Z, and resumed **15.5 hours late** — only when the next notice
+  arrived. **The relay is the mechanism**; the notice now leads with that and demotes the timer to a
+  stated courtesy, with the reason it cannot be relied on.
+- 4 new tests, all watched red first; the two older tests that pinned the previous wording were updated
+  rather than deleted — their invariants (operator wording, the resume instant, no promised switch) are
+  unchanged. Suites 233 passed; twin `scripts/aro-wake/claude_rotate.py` byte-identical.
+
 ### Fixed — the grounding fragments taught four ways to be confidently wrong (2026-09-05)
 
 Four filings from iterative_image_editor, all measured in live command runs, all landing on shared fragments so the fix reaches every command that includes them. (1) `fabrik-researcher`'s fetch-routing rule declared ALL non-HTML content (`.json`/`.xml`/PDF) unreachable and told researchers to return `NEEDS-RAW-FETCH`; only the **exa** arm has that limit — `WebFetch` renders `application/json` fine, verified here against `registry.npmjs.org` (exact field values returned) and by the reporter against fal's OpenAPI, where obeying the rule would have suppressed the evidence that overturned a spec's central verdict. (2) A **fourth** failure shape is now named: a summariser answering ABSENCE is not evidence of absence — measured, `WebFetch` reported an endpoint missing from two JS-rendered pages that exa then extracted verbatim, and `WebSearch` (never previously mentioned in this block) asserted in prose a sentence that appeared on none of the URLs it returned. An absence verdict now requires a raw fetch or a second arm; exa's missing pagination and the both-arms archive.org block are named as the silent bounds they are, along with vendor catalogues that split one answer across two URLs. (3) `grounding-code.md` now requires citing the **EMIT** site, not the build site — a 3-line read of a dict construction "corrected" a FROZEN data contract with a key that a `pop` removed before the atomic write. (4) `subagents-core.md` now requires **pinning the artifact** before dispatching an author-blind pass — snapshot to a scratch path, carry the md5 in the brief, have the finder state the hash it read; two runs measured finders watching their subject mutate mid-review (one reclassified four findings as superseded; another was briefed on 8 tickets and graded 9).
