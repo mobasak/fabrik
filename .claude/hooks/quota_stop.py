@@ -73,7 +73,10 @@ _ALLOWED_BASH = re.compile(
 # `git status & touch marker` was allowed and the marker appeared — review 2026-09-05, pass 13).
 # `(?<![0-9>])&(?!&)`: not an fd-duplication (`2>&1`, `>&2`) and not the `&&` the first branch
 # already catches.
-_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<![0-9>])&(?!&)")
+# `<(` / `>(` is PROCESS SUBSTITUTION — bash runs the inner command: `git status <(touch m)` was
+# allowed and the marker appeared (review 2026-09-05, pass 14, executed). No operator on the
+# list, no quote to mask; the paren after `<`/`>` is the tell.
+_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<![0-9>])&(?!&)|[<>]\(")
 # `(?!>)` after the optional second `>` and `>` in the lookbehind: without them `>>?` BACKTRACKED
 # on `>> /dev/null` — the two-char match failed the /dev/null exemption, so the engine matched a
 # single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names

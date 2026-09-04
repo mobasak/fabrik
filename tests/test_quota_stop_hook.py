@@ -223,6 +223,26 @@ def test_a_lone_ampersand_is_a_command_separator_and_is_held():
     assert hook.decide("Bash", 'git commit -q -m "a & b" -- x.py', stamp_exists=True, tick_age_s=1.0)[0] == "allow"
 
 
+def test_a_quoted_dev_null_target_is_a_known_fail_closed_limit():
+    """The masker blanks a QUOTED redirect target, so `>'/dev/null'` cannot be recognised as the
+    exempt device and is refused although it writes nothing. Accepted, not fixed: 0 of the hub's
+    606 `> /dev/null` idioms quote the target (measured 2026-09-05, pass 13 finder), and the only
+    honest fixes would re-open the quoted-argument class. Pinned so the limit is known, not found
+    again."""
+    for cmd in ("git log >'/dev/null'", 'git log >"/dev/null"'):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+
+
+def test_process_substitution_runs_a_command_and_is_held():
+    """`<(cmd)` / `>(cmd)` make bash RUN the inner command with no listed operator and nothing to
+    mask: `git status <(touch marker)` was allowed and the marker appeared (review 2026-09-05,
+    pass 14, executed)."""
+    for cmd in ("git status <(touch m)", "cat >(touch m)", "git diff <(cat a) <(cat b)"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    # a quoted `<(` is data
+    assert hook.decide("Bash", 'git log --grep="<(x)"', stamp_exists=True, tick_age_s=1.0)[0] == "allow"
+
+
 def test_the_masker_never_invents_or_hides_an_operator():
     assert hook._mask_quoted("git status") == "git status"
     assert hook._mask_quoted("cat a; rm b") == "cat a; rm b"  # nothing quoted, nothing masked

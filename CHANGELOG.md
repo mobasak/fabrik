@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 14 of the review: process substitution ran a command through the quota hold (2026-09-05)
+
+`git status <(touch marker)` was ALLOWED and the marker appeared — bash's `<(cmd)` / `>(cmd)` run the inner command with no operator on the veto list and nothing for the masker to blank. `_UNSAFE_SHELL` now vetoes `<(` and `>(`; a quoted `<(` stays data. Fourth pre-existing hole in the same hold found this session, every one by executing a candidate with a side-effect marker rather than reading the regex — the class is that a whole-line scan can only refuse what it was told to look for. Also measured and recorded as in-design, not chased: a tool's OWN write flag (`git log --output=m`) is not shell syntax — the hold is default-deny on commands, and `git commit` writes by design. Graded, red on revert; 20 hook tests.
+
 ### Fixed — pass 13 of the review: two more ways past the quota hold, both proven with a file on disk (2026-09-05)
 
 Both pre-existing in the original whole-line hardening, both found by executing rather than reading, both on the hook this review had already hardened twice. A lone `&` is bash's BACKGROUND separator — `git status & touch marker` was ALLOWED and the marker appeared, because `_UNSAFE_SHELL` listed `&&` and never the single form; now `&` not preceded by a digit or `>` is an operator, so `2>&1` and `>&2` stay allowed while `git status & evil` is held. And `>&word` is bash's redirect-both-streams-to-FILE — `git log >&x` was allowed and created `x`, because `(?!&)` exempted every `>&` as an fd duplication; the exemption now requires the whole token to be digits or `-` (`2>&1`, `>&12`, `2>&-`), so `>&x` and `>&1x` — which opens a file named `1x` — are held. Graded in both directions, red on revert; 19 hook tests.
