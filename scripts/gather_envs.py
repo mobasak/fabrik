@@ -702,8 +702,8 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
             lines.append("")
             continue
         lines.append(
-            line.lstrip("\ufeff")
-        )  # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key (EY4/EZ7)
+            re.sub(r"^[\s\ufeff]*", lambda m: m.group(0).replace("\ufeff", ""), line)
+        )  # a BOM at the file start (utf-8-sig) OR mid-file (a concatenated fragment) never eats a key (EY4/EZ7); anywhere in the MARGIN, never inside a value — `  \ufeffFOO_API_KEY` survived `lstrip` and was dropped silently (FF1)
     # python-dotenv's OWN parser and OWN interpolation grammar, resolved in stream order against
     # the values already read — exactly `resolve_variables(override=True)` with an EMPTY
     # environ: what a deployed app loads when its environment lacks the name. A home-grown
@@ -732,13 +732,18 @@ def parse_env(path: Path) -> list[tuple[str, str]]:
             None
             if value is None
             else value
-            if len(value) > 64_000
-            and "}"
-            not in value  # dotenv's `${` regex is O(n²) on an unclosed brace; a 314 KB line would outlive the chain's step budget (FE5)
+            if len(value)
+            > 8_000  # dotenv's `${` regex is O(n²) on an unclosed brace SUFFIX; a 314 KB line would outlive the chain's step budget (FE5). 8 000, not 64 000: measured 5 000 → 0.95 s, 10 000 → 3.5 s, 20 000 → 13.9 s, 40 000 → 51 s — a 40 KB value sat under the old threshold at 14 s per file (B66-C12). Length ALONE: the `"}" not in value` conjunct was defeated by one `}` anywhere — 47 s per 80 KB (FF1). Mirror cost: a >64 KB value with a legitimate `${VAR}` is stored verbatim, uninterpolated
             else "".join(atom.resolve(resolved) for atom in parse_variables(value))
         )
     for key, value in resolved.items():
-        if value is None or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+        if value is None:
+            continue
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+            print(
+                f"WARNING: {path}: {key!r} is not a usable KEY name — line skipped",
+                file=sys.stderr,
+            )  # dotenv ACCEPTS `A-B=1` / `1KEY=x`; this filter dropped them with no line — the inventory under-counted silently (FF1)
             continue
         out.append((key, value))
     return out
@@ -1088,6 +1093,11 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
             note.append(
                 "used by: " + ", ".join(_svc_token(p) for p in sorted(rec["projects"]))
             )  # AU6
+            if "\n" in value or "\r" in value:
+                value = value.replace("\r", "\\r").replace("\n", "\\n")
+                note.append(
+                    "multi-line value, newlines escaped"
+                )  # a PEM in a project .env rendered as 3 physical lines that the file's own reader (`registry_sync.parse`) now REFUSES — one PEM failed the whole daily sync closed (FF1)
             lines.append(f"{primary}={value}   # " + " · ".join(note))
 
     by_cat: dict[str, list[str]] = defaultdict(list)
@@ -1155,7 +1165,9 @@ def refuse_emptied_catalog() -> None:
         for ln in (
             raw.replace("\ufeff", "").strip() for raw in read_existing_body(OUTPUT).splitlines()
         )
-        if ln.lower().startswith("#svc ")
+        if re.match(
+            r"#svc\s", ln, re.I
+        )  # `\s`, like the other two readers: a TAB after `#svc` made the guard count 0 and fail OPEN (FF1)
         and not re.match(
             r"#svc name=\S+ category=\?(?: |$)", ln, re.I
         )  # the STRIPPED line, case-insensitive, like registry_sync.parse: an indented header made the emptied-catalog guard fail OPEN (FE5)  # the FIELD at its position, never the literal in a capability (CM6/CP3)

@@ -720,6 +720,26 @@ def test_env_derived_unknown_adopts_the_catalogued_vendor_its_host_names(tmp_pat
     assert "#svc name=resend category=email" in body and "NEEDS-TRIAGE" not in body
 
 
+def _drop_module_leaks(mods_before: set[str], path_before: list[str]) -> None:
+    """Whatever a test added to `sys.modules` under `alerting` and to `sys.path` is dropped: the
+    classifier's alert import left `alerting` bound and `<repo>/libs` inserted for every later
+    test (B65-8, FF1)."""
+    for k in [
+        k
+        for k in sys.modules
+        if (k == "alerting" or k.startswith("alerting.")) and k not in mods_before
+    ]:
+        del sys.modules[k]
+    sys.path[:] = path_before
+
+
+@pytest.fixture(autouse=True)
+def _no_alerting_leak():
+    before, path = set(sys.modules), list(sys.path)
+    yield
+    _drop_module_leaks(before, path)
+
+
 def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], results):
     cat = tmp_path / "catalog.json"
     cat.write_text("{}", encoding="utf-8")
@@ -3637,12 +3657,15 @@ def test_the_classifier_fixture_never_delivers_an_alert(tmp_path, monkeypatch):
     .env — a real Telegram alert per suite run until the fixture disabled it (B-1, FD6)."""
     _classify_env(tmp_path, monkeypatch, "", [], [])
     assert os.environ.get("ALERT_ENABLED") == "0" and os.environ.get("FABRIK_NO_AUTOLOAD") == "1"
-    sys.path.insert(0, str(Path(cs.REPO) / "libs")) if str(
-        Path(cs.REPO) / "libs"
-    ) not in sys.path else None
+    monkeypatch.syspath_prepend(str(Path(cs.REPO) / "libs"))
     import alerting
 
     assert alerting._is_enabled() is False
+    assert not any(
+        k in os.environ for k in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_FULL_BOT_TOKEN", "ALERT_VPS_HOST")
+    ), (
+        "the hub's .env reached the test process — `_is_enabled() is False` alone is vacuous under ALERT_ENABLED=0 (B66-C8)"
+    )
 
 
 def test_the_classifiers_new_providers_alert_says_when_it_was_not_delivered(
@@ -3799,11 +3822,16 @@ def test_the_triage_reader_and_the_header_count_read_stripped_lines(tmp_path, mo
         and not re.match(r"#svc name=\S+ category=\?(?: |$)", ln, re.I)
     )
     assert known == 1  # the indented, categorised beta counts; the `?` alpha does not
-    src = Path(ge.__file__).read_text(encoding="utf-8")
-    assert (
-        'raw.replace("\\ufeff", "").strip() for raw in read_existing_body(OUTPUT).splitlines()'
-        in src
-    )
+    # the REAL guard, executed — the first grader re-implemented the expression and pinned a source
+    # substring: green on the regression, red on a reformat (E66-C7, FF1)
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
+        ge.refuse_emptied_catalog()
+    envs.write_text(body.replace("  #svc name=beta", "  #svc\tname=beta"), encoding="utf-8")
+    with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
+        ge.refuse_emptied_catalog()  # a TAB after `#svc` made the guard count 0 and fail OPEN (E66-C10)
 
 
 def test_a_suppressed_new_entry_prefix_is_said_and_only_the_winning_pass_speaks(
@@ -3851,6 +3879,26 @@ def test_a_suppressed_new_entry_prefix_is_said_and_only_the_winning_pass_speaks(
         out.count("widget: prefix WIDGET is routed by another entry already — no prefix minted")
         == 1
     ), out
+    # the operator-keep line (site 744) — converted in FE5, ungraded until B66-C3
+    cat, _ = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(
+        json.dumps(
+            {
+                "widget": {
+                    "category": "?",
+                    "cost": "?",
+                    "capability": "?",
+                    "url": "https://operator.example",
+                    "status": "?",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cs, "fanout", fanout_that_hand_edits)
+    assert cs.main() == 0
+    out = capsys.readouterr().out
+    assert out.count("widget: kept the operator's url") == 1, out
 
 
 def test_a_null_match_token_and_an_empty_merged_match_key(tmp_path, monkeypatch):
@@ -3905,6 +3953,20 @@ def test_a_null_match_token_and_an_empty_merged_match_key(tmp_path, monkeypatch)
     assert cs.main() == 0
     after = json.loads(cat.read_text(encoding="utf-8"))
     assert "merged_match" not in after["existing"], after["existing"]
+    # a JSON `null` on the target it declines: the scalar-normalisation branch wrote `[]` BEFORE the
+    # mint decision (E66-C9, FF1)
+    data = json.loads(cat.read_text(encoding="utf-8"))
+    data["existing"]["merged_match"] = None
+    data.pop("widget", None)
+    cat.write_text(json.dumps(data), encoding="utf-8")
+    _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    cat.write_text(json.dumps(data), encoding="utf-8")
+    assert cs.main() == 0
+    after = json.loads(cat.read_text(encoding="utf-8"))
+    assert after["existing"].get("merged_match") is None, after["existing"]
+    assert cs._curated_tokens({"match": ["_", "__", "HF_"]}) == {
+        "HF"
+    }  # an all-`_` prefix claims nothing here too (E66-C11)
 
 
 def test_a_pathological_unclosed_brace_value_is_stored_verbatim_in_bounded_time(tmp_path):
@@ -3914,8 +3976,196 @@ def test_a_pathological_unclosed_brace_value_is_stored_verbatim_in_bounded_time(
 
     f = tmp_path / ".env"
     big = "${" * 40_000
-    f.write_text(f"BIG={big}\nSMALL=${{A:-x}}\n", encoding="utf-8")
+    braced = (
+        "}" + "${" * 40_000
+    )  # one `}` anywhere defeated the FE5 conjunct: 47 s per 80 KB (E66-C1)
+    under = "${" * 20_000  # 40 000 chars: under the OLD 64 000 threshold, 13.9 s each (B66-C12)
+    at = "${A:-x}" + "y" * (8_000 - 7)  # exactly the threshold: still interpolated
+    f.write_text(
+        f"BIG={big}\nBRACED={braced}\nUNDER={under}\nAT={at}\nSMALL=${{A:-x}}\n", encoding="utf-8"
+    )
     t0 = time.monotonic()
     got = dict(ge.parse_env(f))
-    assert time.monotonic() - t0 < 5, "quadratic interpolation ran"
-    assert got["BIG"] == big and got["SMALL"] == "x"
+    assert time.monotonic() - t0 < 2, "quadratic interpolation ran"
+    assert got["BIG"] == big and got["BRACED"] == braced and got["SMALL"] == "x"
+    assert got["UNDER"] == under and got["AT"] == "x" + "y" * (8_000 - 7)
+
+
+def test_the_suite_drops_the_alerting_import_and_the_path_it_added():
+    """`test_the_run_prints_and_persists_its_pool_cost` left `alerting` in `sys.modules` and
+    `<repo>/libs` on `sys.path` for every later test (B65-8, FF1)."""
+    libs = str(Path(cs.REPO) / "libs")
+    before, path = set(sys.modules), list(sys.path)
+    sys.path.insert(0, libs)
+    import alerting  # noqa: F401
+
+    assert "alerting" in sys.modules
+    _drop_module_leaks(before, path)
+    assert "alerting" not in sys.modules or "alerting" in before
+    assert sys.path == path
+
+
+def test_the_classifier_inserts_libs_once_per_process(tmp_path, monkeypatch, capsys):
+    """The alert import's `sys.path.insert` was unguarded — one duplicate per lap, 26 over one
+    test session (FD6); ungraded until B65-6 (FF1)."""
+    libs = str(Path(cs.REPO) / "libs")
+    while libs in sys.path:
+        sys.path.remove(libs)
+    sys.path.insert(0, libs)  # an earlier lap already inserted it
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    assert cs.main() == 0
+    assert sys.path.count(libs) == 1, sys.path[:5]
+
+
+def test_a_merge_no_source_can_hold_says_the_paid_batch_is_lost(tmp_path, monkeypatch, capsys):
+    """Both merge sources refused by `parse_catalog`: nothing is written, the previous catalog
+    stands, and the operator is told the paid batch is LOST and re-billed later — the FD8 text
+    had no grader (B65-6, FF1)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [
+        _Res(
+            json.dumps(
+                {
+                    "name": "widget",
+                    "category": "ai-llm",
+                    "cost": "paid",
+                    "capability": "x",
+                    "url": "https://w.example",
+                    "status": "active",
+                }
+            )
+        )
+    ]
+    cat, _state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], res)
+    real = ge.parse_catalog
+
+    def refusing(catalog, where):
+        if "widget" in catalog:  # every MERGED catalog — the pre-dispatch reads carry no widget
+            raise ge.CatalogError(f"{where}: refused by the grader")
+        return real(catalog, where)
+
+    monkeypatch.setattr(ge, "parse_catalog", refusing)
+    assert cs.main() == 1
+    err = capsys.readouterr().err
+    assert "the merged catalog is NOT written; the previous one stands" in err, err
+    assert "The paid batch is LOST and the cursor has moved" in err, err
+    assert "widget" not in json.loads(cat.read_text(encoding="utf-8"))
+
+
+def test_the_triage_reader_survives_an_uppercase_name_and_ends_a_block_on_a_commented_header(
+    tmp_path,
+):
+    """FE5 made the `#svc name=` gate case-insensitive and left the extraction case-sensitive: `#svc
+    NAME=foo` raised IndexError out of main(); a `## #svc` / bare `#svc` line did not end the block, so
+    the NEXT provider's names and URL hints went to the paid pool as the previous one's; `#═` with
+    the space dropped and `## ═` commented twice are headers (R66-C3/C4, E66-C2/C3/C8, FF1)."""
+    body = (
+        "#═ NEEDS-TRIAGE ═\n"
+        '#svc NAME=alpha category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "ALPHA_API_KEY=x\n"
+        '## #svc name=beta category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "BETA_API_KEY=y\n"
+        "BETA_API_URL=https://b.example\n"
+        '#svc name=gamma category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "GAMMA_API_KEY=z\n"
+        "#svc junk\n"
+        "JUNK_API_KEY=j\n"
+        "## ═══ ai-llm ═══\n"
+        '#svc name=delta category=ai-llm cost=paid capability="c" url=https://d.example status=active used_by=web\n'
+        "DELTA_API_KEY=d\n"
+    )
+    envs = tmp_path / "all-envs.env"
+    envs.write_text(body, encoding="utf-8")
+    flagged = cs.flagged_providers(envs)
+    assert list(flagged) == ["alpha", "gamma"], flagged
+    assert flagged["alpha"] == {"names": ["ALPHA_API_KEY"], "urls": []}, flagged["alpha"]
+    assert flagged["gamma"] == {"names": ["GAMMA_API_KEY"], "urls": []}, flagged["gamma"]
+
+
+def test_a_name_the_catalog_cannot_hold_is_refused_before_the_spend(tmp_path, monkeypatch, capsys):
+    """`#svc name=Widget` was dispatched, paid for, then refused by `parse_catalog`'s key rules — and
+    the pass-1 WARNING blamed a mid-dispatch hand-edit that never happened; `_foo` wrote an inert
+    entry and claimed success (E66-C6, FF1)."""
+    for bad in ("Widget", "_widget"):
+        text = (
+            "# ═ NEEDS-TRIAGE ═\n"
+            f'#svc name={bad} category=? cost=? capability="?" url=? status=? used_by=web\n'
+            "WIDGET_API_KEY=x\n"
+        )
+        cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+        calls = []
+        monkeypatch.setattr(cs, "fanout", lambda *a, _c=calls, **k: _c.append(a) or ([], ""))
+        assert cs.main() == 1
+        err = capsys.readouterr().err
+        assert "names provider(s) the catalog cannot hold" in err and bad in err, err
+        assert calls == [] and not (state / "c.json").exists()  # nothing dispatched, cursor unmoved
+        assert json.loads(cat.read_text(encoding="utf-8")) == {}
+
+
+def test_the_error_budget_line_is_spoken_by_the_winning_pass_only(tmp_path, monkeypatch, capsys):
+    """The one in-loop print FE5 left unbuffered: the discarded pass announced a tombstone it never
+    applied, twice per run (E66-C5, FF1)."""
+    text = (
+        "# ═ NEEDS-TRIAGE ═\n"
+        '#svc name=widget category=? cost=? capability="?" url=? status=? used_by=web\n'
+        "WIDGET_API_KEY=x\n"
+    )
+    res = [_Res("", error="transport down", status="error")]
+    cat, state = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], res
+    )
+    (state / "e.json").write_text(json.dumps({"widget": cs.ERROR_BUDGET - 1}), encoding="utf-8")
+
+    def fanout_that_hand_edits(*a, **k):
+        data = json.loads(cat.read_text(encoding="utf-8"))
+        data["Bad Key"] = {
+            "category": "ai-llm",
+            "cost": "paid",
+            "capability": "x",
+            "url": "https://o.example",
+        }
+        cat.write_text(json.dumps(data), encoding="utf-8")
+        return list(res), ""
+
+    monkeypatch.setattr(cs, "fanout", fanout_that_hand_edits)
+    assert cs.main() == 0
+    out = capsys.readouterr().out
+    assert out.count("error budget exhausted") == 1, out
+
+
+def test_parse_env_keeps_a_margin_bom_key_and_says_an_unusable_key_name(tmp_path, capsys):
+    """`  \\ufeffFOO_API_KEY=…` survived `lstrip` and was dropped silently; `A-B_API_KEY=v` and
+    `1FOO_API_KEY=v` are bindings dotenv accepts and this filter dropped with no line (E66-C4, FF1)."""
+    f = tmp_path / ".env"
+    f.write_text(
+        "  \ufeffFOO_API_KEY=one\nA-B_API_KEY=two\n1FOO_API_KEY=three\nKEEP=in\ufeffside\n",
+        encoding="utf-8",
+    )
+    got = dict(ge.parse_env(f))
+    err = capsys.readouterr().err
+    assert got == {"FOO_API_KEY": "one", "KEEP": "in\ufeffside"}, got
+    assert "'A-B_API_KEY' is not a usable KEY name — line skipped" in err, err
+    assert "'1FOO_API_KEY' is not a usable KEY name — line skipped" in err, err

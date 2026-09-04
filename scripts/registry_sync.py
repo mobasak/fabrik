@@ -187,12 +187,12 @@ def parse(path: Path) -> list[dict]:
     bad: list[str] = []
     seen: set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
-        s = line.replace(
-            "\ufeff", ""
-        ).strip()  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); EVERY BOM, anywhere in the margin — a mixed `\ufeff \ufeff` survived two strips (FD7/FE5)
+        s = re.sub(
+            r"^[\s\ufeff]+|[\s\ufeff]+$", "", line
+        )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); EVERY BOM, anywhere in the MARGIN — a mixed `\ufeff \ufeff` survived two strips (FD7/FE5); the margin ONLY: the whole-line replace mutated a value and stored a digest of a secret that does not exist (FF1)
         if re.match(
-            r"#\s*═", s
-        ):  # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5)
+            r"#[#\s]*═", s
+        ):  # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5); `## ═══` commented twice is a header too, like `## #svc` — 315 internal-config names folded under the provider above it otherwise (FF1)
             cur = None  # a header ends the current provider block (incl. internal-config)
             continue
         if re.match(
@@ -239,7 +239,12 @@ def parse(path: Path) -> list[dict]:
             key, rest = kv.group(1), kv.group(2)
             # "   # " (3-space-hash-SPACE) is gather_envs' exact note delimiter; splitting on it
             # (not "   #") avoids truncating a value that merely contains "   #".
-            value = rest.split("   # ", 1)[0].strip()
+            value = rest.split("   # ", 1)[0]
+            if value.endswith("   #"):
+                value = value[
+                    :-4
+                ]  # an EMPTY note (`   # ` with the space stripped by the margin rule) is no value (FF1)
+            value = value.strip()
             aliases: list[str] = []
             per_key_used: list[str] = []
             if "   # " in rest:
@@ -253,8 +258,8 @@ def parse(path: Path) -> list[dict]:
             cur["keys"].append((key, value, aliases, per_key_used))
     if bad:
         raise ValueError(
-            f"{len(bad)} unparseable #svc line(s) in {path} — fail closed (AP2): {bad[:5]}"
-        )
+            f"{len(bad)} unreadable line(s) (a #svc header, a duplicate name, or a KEY=value line) in {path} — fail closed (AP2/FE5): {bad[:5]}"
+        )  # the message named every refusal an "unparseable #svc line" — a KV line sent the operator to the wrong construct (FF1)
     return provs
 
 
@@ -395,7 +400,9 @@ def sync_registry(
                         (sid, digests),
                     )
                     stats["keys_pruned"] += cur.rowcount
-                    keys_allowed = max(5, preexisting_keys // 5)
+                    keys_allowed = max(
+                        5, preexisting_keys // 5, len(provs)
+                    )  # CUMULATIVE over the lap (a systemic parse failure prunes a few keys from EVERY provider — a per-DELETE bound never fires), floored at one rotation per provider: six honest rotations on a 20-key registry were refused as corruption (FF1)
                     if stats["keys_pruned"] > keys_allowed and os.getenv(
                         "REGISTRY_PRUNE_FORCE", ""
                     ).strip().lower() not in ("1", "true", "yes"):
@@ -518,6 +525,11 @@ def main() -> int:
         f"(pruned {stats['pruned']} services, {stats['keys_pruned']} stale keys)"
     )
     if stats["provenance_unknown"]:
+        if stats.get("credit_phase_failed"):
+            print(
+                "registry_sync: the credit phase ALSO failed (exit 2 masks 3) — see the credit diagnosis above",
+                file=sys.stderr,
+            )  # exit 2 wins; the operator was never told the credit phase died too (FF1)
         return 2  # a degraded registry must not read LIVE: the chain's _step alerts and skips the dashboard (BM2)
     if stats.get("credit_phase_failed"):
         return 3  # registry WRITTEN, credit phase failed: a WARNING alone was never alerted — the chain pages on 3 and still renders the dashboard (FD7)

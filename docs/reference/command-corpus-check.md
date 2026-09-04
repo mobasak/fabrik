@@ -240,7 +240,7 @@ It surfaced only because the operator asked, in passing, which command was calli
 **What does NOT count, deliberately.** A bare cross-reference asserts nothing: successor pointers, `SKIP:`
 routes and "see also" name other commands constantly. Measured across the live corpus (33 sources; `_CHAIN_RE` over `_unfenced` text, resolving, non-self —
 re-derived with the shipped module in pass 65): **498** such mentions, **35.9%** (179) with no
-back-reference, 92 unique (source, name) pairs. Grading those would put 179 findings on the board the
+back-reference, over 188 unique (source, name) pairs of which 92 have no back-reference (the first sentence read as if 92 were the pair total, F66-5). Grading those would put 179 findings on the board the
 day it landed and teach every reader to skip this check's output — so the predicate reads only the claim
 forms, of which the corpus makes **3** (all in `fabrik-generate-tests.md`). Small denominator, zero
 noise, and it caught the one that was false.
@@ -270,7 +270,7 @@ emitter and none to an unexercised one):
 
 ```console
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
-✓ selftest: 17 canaries over 8 of the eight predicates (12 of 19 problem emitters in this file executed) fire on bad input and stay silent on good input
+✓ selftest: 17 canaries over 8 of the eight predicates (12 of 18 problem emitters in this file executed) fire on bad input and stay silent on good input
 ```
 
 In a PROJECT (the script is synced fleet-wide, the vendored `libs/subagents/web_tools.py` is
@@ -285,7 +285,7 @@ skipped …` line, exit 0 — instead of six `VACUOUS` lines and exit 1:
 ```
 $ python3 scripts/enforcement/check_command_corpus.py --selftest
 N/A: 6 web-tool canaries skipped — no vendored libs/subagents/web_tools.py under this repo (a project); predicate 1 runs in the hub
-✓ selftest: 11 canaries over 7 of the eight predicates (11 of 19 problem emitters in this file executed) fire on bad input and stay silent on good input (N/A: web-tool names)
+✓ selftest: 11 canaries over 7 of the eight predicates (11 of 18 problem emitters in this file executed) fire on bad input and stay silent on good input (N/A: web-tool names)
 ```
 
 It was also proven **discriminating on the real defect**: reverting the `web_tools` fix in

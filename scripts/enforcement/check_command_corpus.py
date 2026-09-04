@@ -48,7 +48,8 @@ WHAT IT PROVES (all eight are mechanically decidable — no judgement, no networ
    ``## Where this auto-fires (N call sites)`` section) actually names it back. Found live:
    ``/fabrik-generate-tests`` advertised ``/fabrik-review`` as a caller while that file carried
    zero references to it — and the false name was concealing a COPY of its whole pipeline.
-   Bare cross-references are deliberately NOT graded (460 of them live, 17.8% one-directional).
+   Bare cross-references are deliberately NOT graded (498 of them live across 33 sources, 35.9%
+   one-directional — re-derived round 65; the 460 / 17.8% here survived the fix that said it corrected it, F66-1).
 
 BLOCKING. Each of the eight is a true/false fact about the tree with no tolerance
 band, and every one of them was found VIOLATED in a corpus that looked healthy.
@@ -61,8 +62,10 @@ that cannot fail is not a check.
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import importlib.util
+import io
 import marshal
 import os
 import re
@@ -166,7 +169,9 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
     SyntaxError with no filename, an unreadable one a PermissionError inside the import
     machinery, a directory a ModuleNotFoundError in the importer). Known: the
     ``libs.subagents`` package import is cached in ``sys.modules``, so a second repo in the
-    same process reuses the first's names — one repo per process (0 of 48 callers; DU4).
+    same process reuses the first's names — one repo per process (0 of 48 callers; DU4). Known: a
+    THREAD the import spawns writes after the fds are restored — outside the probe's window, so it
+    can lead the verdict; no lean fix at the probe (FF1, measured 0 of 33 sources spawn one).
     """
     target = repo / "libs" / "subagents" / "web_tools.py"
     try:
@@ -209,7 +214,11 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         # a false block under its own name (FC1). Everything acquired here is released by the
         # `finally` below in the order it was acquired — an EMFILE on `os.dup` was a traceback
         # out of a BLOCKING gate with the recorder left on `sys.meta_path` (FC1).
-        for stream in (sys.stdout, sys.stderr):
+        for stream in (
+            *streams,
+            sys.__stdout__,
+            sys.__stderr__,
+        ):  # the ORIGINALS too, BEFORE the fds move: a caller's pending block-buffered bytes (a redirected `sys.stdout` — every in-process test) were flushed into the sink by the finally and blamed on the module as an N-byte leak (FF1)
             with contextlib.suppress(Exception):
                 stream.flush()
         sink = tempfile.TemporaryFile()  # noqa: SIM115 - closed in the finally below, after the fds are restored
@@ -253,21 +262,35 @@ def _live_web_tool_names(repo: Path = REPO) -> frozenset[str] | None:
         ):  # the ORIGINALS too: a `sys.__stdout__` write made before a rebind stayed pending and led the verdict on the restored fd, unmeasured (FE2)
             with contextlib.suppress(Exception):
                 stream.flush()
+        restored: list[object] = []
         for cur, orig in zip((sys.stdout, sys.stderr), streams, strict=True):
-            # a module that RE-WRAPS the original buffer (`sys.stdout = io.TextIOWrapper(sys.stdout.buffer, …)`,
-            # the pre-`reconfigure()` UTF-8 idiom) holds the only reference to its wrapper: dropping it on
-            # the binding restore let the wrapper's finalizer CLOSE the shared buffer — the gate's own
-            # verdict print then raised `I/O operation on closed file`, exit 1 with no output (FE2)
-            if cur is not orig and getattr(cur, "buffer", None) is getattr(orig, "buffer", None):
-                with contextlib.suppress(Exception):
-                    cur.detach()
+            # a module that RE-WRAPS a stream (`io.TextIOWrapper(sys.stdout.buffer, …)`, the pre-`reconfigure()`
+            # idiom; `open(sys.stdout.fileno(), "w", …)`, which OWNS fd 1) holds the only reference to its
+            # wrapper: dropping it on the binding restore let the finalizer CLOSE the shared buffer or fd 1
+            # — no verdict, exit 1 (FE2). FE2 detached the shared-buffer case; the fd-owning case still
+            # closed fd 1, and a module that KEPT its wrapper got a dead stream. PARKED instead: nothing
+            # the module made is ever finalized during the run (FF1)
+            if cur is not orig and cur is not None:
+                _ORPHANED_STREAMS.append(cur)
+            if isinstance(orig, io.TextIOWrapper) and orig.buffer is None:
+                # the module DETACHED the original (`io.TextIOWrapper(sys.stdout.detach(), …)`, the other
+                # half of the idiom): the original is unusable, the module's wrapper is the only live
+                # stream over that buffer — restoring the original raised `underlying buffer has been
+                # detached` on the verdict print, and a detached stderr failed the exit-time flush: a
+                # green verdict with exit 120 (FF1)
+                restored.append(cur)
+                ADVISORIES.append(
+                    "web-tool names: a module detached the process's stdout/stderr at import — its own wrapper is now the binding (FF1)"
+                )
+            else:
+                restored.append(orig)
         for fd, orig in enumerate(saved, 1):
             with contextlib.suppress(OSError):
                 os.dup2(orig, fd)
             with contextlib.suppress(OSError):
                 os.close(orig)
         sys.stdout, sys.stderr = (
-            streams  # the bindings, not a wrapper: the module's stream-API use during the import stays untouched (FD3)
+            restored  # the bindings, not a wrapper: the module's stream-API use during the import stays untouched (FD3)
         )
         if sink is not None:
             with contextlib.suppress(OSError):
@@ -798,6 +821,12 @@ def _fence_step(line: str, fence_char: str, fence_len: int) -> tuple[str, int, b
     if not fence:
         return fence_char, fence_len, False
     run, rest = fence.group(1), fence.group(2).strip()
+    if run[0] == "`" and "`" in rest:
+        return (
+            fence_char,
+            fence_len,
+            False,
+        )  # CommonMark 4.5: a backtick fence's info string may not hold a backtick — the line is text (FF1)
     if not fence_char:
         return run[0], len(run), True
     if run[0] == fence_char and len(run) >= fence_len and not rest:
@@ -805,19 +834,66 @@ def _fence_step(line: str, fence_char: str, fence_len: int) -> tuple[str, int, b
     return fence_char, fence_len, False
 
 
-def _cut_shell_comment(seg: str) -> str:
-    """The command up to a trailing shell comment: a `#` starts one only OUTSIDE quotes and after
-    whitespace — `--evidence "PR #42 merged"` was cut before its `--feedback` (FE2)."""
-    quote = ""
-    for i, ch in enumerate(seg):
+def _cut_shell_comment(seg: str, quote: str = "") -> tuple[str, str]:
+    """(the command up to a trailing shell comment, the quote state at its end): a `#` starts one
+    only OUTSIDE quotes and at column 0 or after whitespace — `--evidence "PR #42 merged"` was cut
+    before its `--feedback` (FE2); a `\\` outside single quotes escapes the next character (`\\"`,
+    `\\#`, the `'\\''` apostrophe idiom fired a BLOCKING false positive); a column-0 `#` on a
+    continuation line was not a comment; a quoted argument spanning a continuation lost its quote
+    state at the line break — the caller threads it back in (FF1)."""
+    i = 0
+    while i < len(seg):
+        ch = seg[i]
+        if ch == "\\" and quote != "'":
+            i += 2
+            continue
         if quote:
             if ch == quote:
                 quote = ""
         elif ch in "\"'":
             quote = ch
-        elif ch == "#" and i > 0 and seg[i - 1] in " \t":
-            return seg[:i]
-    return seg
+        elif ch == "#" and (i == 0 or seg[i - 1] in " \t"):
+            return seg[:i], quote
+        i += 1
+    return seg, quote
+
+
+def _blank_html_comments(body: str) -> str:
+    """`<!-- … -->` blanked OUTSIDE fences, newlines kept so line numbers hold. The claim side kept
+    a commented-out claim (a BLOCKING fire on a note), and the honour side unfenced BEFORE it
+    stripped comments, so a fence line inside a comment swallowed the caller's real reference;
+    a `<!--` inside a fence is content (FF1)."""
+
+    def strip(line: str) -> tuple[str, bool]:
+        while True:
+            start = line.find("<!--")
+            if start < 0:
+                return line, False
+            end = line.find("-->", start + 4)
+            if end < 0:
+                return line[:start], True
+            line = line[:start] + line[end + 3 :]
+
+    out: list[str] = []
+    fence_char, fence_len = "", 0
+    in_comment = False
+    for line in body.splitlines():
+        if in_comment:
+            end = line.find("-->")
+            if end < 0:
+                out.append("")
+                continue
+            in_comment = False
+            line, in_comment = strip(line[end + 3 :])
+            out.append(line)
+            continue
+        fence_char, fence_len, is_fence = _fence_step(line, fence_char, fence_len)
+        if fence_char or is_fence:
+            out.append(line)
+            continue
+        line, in_comment = strip(line)
+        out.append(line)
+    return "\n".join(out)
 
 
 def _unfenced(body: str) -> str:
@@ -840,6 +916,7 @@ def _claimed_callers(body: str) -> dict[str, int]:
     into being ignored.
     """
     out: dict[str, int] = {}
+    body = _blank_html_comments(body)  # a commented-out claim is a note, never a claim (FF1)
     in_callsites = False
     fence_char, fence_len = (
         "",
@@ -847,20 +924,10 @@ def _claimed_callers(body: str) -> dict[str, int]:
     )  # CommonMark: a fence closes only on a same-char run at least as long — `~~~` and a 4-backtick fence holding a 3-backtick one both fabricated claims under a bare ``` toggle (FC1)
     head_level = 0
     for lineno, line in enumerate(body.splitlines(), 1):
-        fence = re.match(r"(`{3,}|~{3,})(.*)$", line.lstrip())
-        if fence:
-            run, rest = fence.group(1), fence.group(2).strip()
-            if not fence_char:
-                fence_char, fence_len = run[0], len(run)
-                continue
-            if run[0] == fence_char and len(run) >= fence_len and not rest:
-                fence_char, fence_len = (
-                    "",
-                    0,
-                )  # a closer carries NO info string — ```bash inside an open fence is content (FD4)
-                continue
-        in_fence = bool(fence_char)
-        if in_fence:
+        fence_char, fence_len, is_fence = _fence_step(
+            line, fence_char, fence_len
+        )  # the ONE tracker — FE2 claimed single-sourcing while this side kept an inline copy (FF1)
+        if is_fence or fence_char:
             continue  # fenced text is illustration for BOTH claim forms — the call-sites harvest ran before this guard and took a fenced bullet as a claim (FB7/FC1)
         indent = len(line) - len(line.lstrip(" "))
         line = (
@@ -1188,10 +1255,11 @@ def audit(
                     )[
                         0
                     ]  # the span closes on this line — what follows is prose, not the command (FC1); a backtick in an ARGUMENT of a fenced or plain-prose close is the command's own text, never a cut (FD4)
+                q7 = ""
                 if fenced:
-                    seg = _cut_shell_comment(
+                    seg, q7 = _cut_shell_comment(
                         seg
-                    )  # a trailing shell COMMENT is not the command (FD4)
+                    )  # a trailing shell COMMENT is not the command (FD4); the quote state carries into the continuation (FF1)
                 in_span = open_before and "`" not in line[m7.start() : stop]
                 window = [seg]
                 cont = seg.rstrip().endswith("\\")
@@ -1209,7 +1277,9 @@ def audit(
                         )  # up to the span's closer — the prose after it is not the command
                         closed = True
                         break
-                    window.append(_cut_shell_comment(nxt) if fenced else nxt)
+                    if fenced:
+                        nxt, q7 = _cut_shell_comment(nxt, q7)
+                    window.append(nxt)
                     cont = nxt.rstrip().endswith("\\")
                 if not closed:
                     window = [
@@ -1248,9 +1318,9 @@ def audit(
             caller_body = _read(sources / f"{caller}.md")
             if caller_body is None:
                 continue
-            caller_body = re.sub(
-                r"<!--.*?-->", "", _unfenced(caller_body), flags=re.S
-            )  # a name inside a fenced example or an HTML comment honours nothing, as the claim side already treats fences (FD4/FE2)
+            caller_body = _unfenced(
+                _blank_html_comments(caller_body)
+            )  # a name inside a fenced example or an HTML comment honours nothing (FD4/FE2); comments first, so a fence line inside a comment opens nothing (FF1)
             if (
                 path.stem not in set(_CHAIN_RE.findall(caller_body))
             ):  # `/fabrik-review-scoped` CONTAINS `/fabrik-review`: a substring honoured a false claim through a prefix sibling — 9 such pairs live (FC1)
@@ -1343,15 +1413,23 @@ def _selftest() -> int:
 
 
 _SELFTEST_HIT: set[int] = set()
+_ORPHANED_STREAMS: list[
+    object
+] = []  # a module's own stream wrappers, parked so no finalizer closes a shared buffer or fd (FF1)
 
 
 def _emitter_lines() -> frozenset[int]:
-    """Every `problems.append(` line of this file except the counting literal's own."""
-    src = Path(__file__).read_text(encoding="utf-8", errors="replace").splitlines()
+    """Every `problems.append(…)` CALL in this file, by AST — a text match counted this function's
+    own docstring as an emitter (19 for 18) and the grader compared to the same function (FF1)."""
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8", errors="replace"))
     return frozenset(
-        i + 1
-        for i, ln in enumerate(src)
-        if "problems.append(" in ln and "_emitter_lines" not in ln and 'ln and "' not in ln
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "append"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "problems"
     )
 
 

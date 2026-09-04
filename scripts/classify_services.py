@@ -79,17 +79,28 @@ def flagged_providers(path: Path) -> dict[str, dict]:
             "\ufeff", ""
         ).strip()  # the STRIPPED line, like registry_sync.parse: an indented section header was read past and a categorised provider handed to PAID triage every lap (FE5)
         if (
-            re.match(r"#\s*═", line) and "NEEDS-TRIAGE" in line
-        ):  # the HEADER only — never a value (AU11)
+            re.match(r"#[#\s]*═", line) and "NEEDS-TRIAGE" in line
+        ):  # the HEADER only — never a value (AU11); `## ═` commented twice is a header too, like registry_sync (FF1)
             in_triage = True
             continue
         if not in_triage:
             continue
-        if re.match(r"#\s*═", line):  # next section header -> triage block ended
+        if re.match(r"#[#\s]*═", line):  # next section header -> triage block ended
             break
         if line.lower().startswith("#svc name="):
-            cur = line.split("name=", 1)[1].split(" ", 1)[0]
+            cur = re.split(
+                r"name=", line, maxsplit=1, flags=re.I
+            )[
+                1
+            ].split(
+                " ", 1
+            )[
+                0
+            ]  # the extraction is as case-insensitive as the gate: `#svc NAME=` raised IndexError out of main() (FF1)
             provs[cur] = {"names": [], "urls": []}
+            continue
+        if re.match(r"#[#\s]*#svc\b", line, re.I) or re.match(r"#svc(\s|$)", line, re.I):
+            cur = None  # a commented-out or unreadable #svc header ENDS the block, as in registry_sync (FD7/FE5): its keys and URL hints were handed to the paid pool as the PREVIOUS provider's (FF1)
             continue
         m = KEY_RE.match(line)
         if cur and m:
@@ -272,11 +283,14 @@ def _curated_tokens(meta: dict) -> set[str]:
     for field in ("match", "merged_match"):
         raw = meta.get(field) or []
         out |= {
-            str(x).upper().rstrip("_")
+            t
             for x in (raw if isinstance(raw, list) else [raw])
             if x is not None
             and str(x)
             != ""  # `parse_catalog`'s own predicate: a JSON `null` minted the phantom token NONE here and nowhere else (FE5)
+            if (
+                t := str(x).upper().rstrip("_")
+            )  # an all-`_` prefix routes nothing and claims nothing (BW6) — here too (FF1)
         }
     return out
 
@@ -467,6 +481,15 @@ def main() -> int:
         )
 
     names = list(provs)
+    bad_names = [
+        p for p in names if gather_envs._svc_token(p) != p or p != p.lower() or p.startswith("_")
+    ]
+    if bad_names:  # the OTHER input is validated before the spend too: a `#svc name=Widget` was dispatched, paid for, then refused by the catalog's own key rules — and the pass-1 WARNING blamed a mid-dispatch hand-edit that never happened; a `_foo` wrote an inert entry and claimed success (FF1)
+        print(
+            f"ERROR: {ALL_ENVS} names provider(s) the catalog cannot hold (lowercase, one token, no leading `_`): {bad_names[:5]} — nothing dispatched, nothing written, cursor unmoved",
+            file=sys.stderr,
+        )
+        return 1
     print(f"Classifying {len(names)} uncatalogued providers via the pool: {', '.join(names)}\n")
     # read + parse the catalog BEFORE spending: an unreadable file after the dispatch lost the
     # whole paid batch (the cursor had already moved — BH2)
@@ -599,12 +622,10 @@ def main() -> int:
             }
         )  # a non-dict value is metadata too (AY8)
         merged_into: dict[str, str] = {}
-        by_lower = {
-            k.lower(): k for k in catalog
-        }  # a hand-curated `OpenAI` key is legal; the lowered answer must still find it (EW5)
         for prov, v in list(identified.items()):
-            target = str(v.get("name") or "").strip().lower()
-            target = by_lower.get(target, target)
+            target = (
+                str(v.get("name") or "").strip().lower()
+            )  # catalog keys are lowercase by `validate_catalog_keys` (EY4) — the EW5 case-map was an identity and its comment a false claim (FF1)
             if (
                 target
                 and target != prov
@@ -625,14 +646,17 @@ def main() -> int:
                 # identity that the registry and dashboard would show as a second vendor
                 entry = catalog[target]
                 if code_only_provider(provs.get(prov, {})):
-                    hosts = entry.setdefault("hosts", [])
+                    hosts = entry.get("hosts", [])
                     if not isinstance(
                         hosts, list
                     ):  # a hand-edited scalar (AF14); `null` is empty, not "None" (BH5)
-                        hosts = entry["hosts"] = [] if hosts is None else [str(hosts)]
+                        hosts = [] if hosts is None else [str(hosts)]
                     for u in provs.get(prov, {}).get("urls", []):
                         h = _host(u)  # BB5
                         if h and h not in hosts:
+                            entry["hosts"] = (
+                                hosts  # written only when a host is APPENDED — `setdefault` minted `hosts: []` on every code-only merge with no usable url (FF1)
+                            )
                             hosts.append(h)
                 else:
                     # a MODEL-merged prefix lives in `merged_match`, never in the curated `match`:
@@ -640,8 +664,8 @@ def main() -> int:
                     match = entry.get("merged_match", [])
                     if not isinstance(
                         match, list
-                    ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5)
-                        match = entry["merged_match"] = [] if match is None else [str(match)]
+                    ):  # a hand-edited scalar (AF14's sibling, BE3); `null` is empty (BH5) — normalised into a LOCAL: the assignment here minted `merged_match: []` before the mint decision (FF1)
+                        match = [] if match is None else [str(match)]
                     token = prov.upper().rstrip("_")
                     tombstone = prov in catalog and tombstone_of(catalog, prov)  # ONE rule (CD1)
                     curated_anywhere = {
@@ -759,7 +783,7 @@ def main() -> int:
                 if args.tombstone_unresolved
                 else "eligible for tombstone (--tombstone-unresolved not set)"
             )
-            print(
+            pass_lines.append(  # buffered like the other in-loop lines: the discarded pass narrated a tombstone it never applied (FF1)
                 f"error budget exhausted ({ERROR_BUDGET} runs): {verb} {sorted(exhausted)}"
                 " (an entry the catalog already carries is left as it is)"
             )

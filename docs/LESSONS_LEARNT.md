@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 153: a proof tally assembled from "OK at least once" across re-runs is not a proof, and a byte-length-preserving mutation is invisible to a stale `.pyc` (2026-09-04)
+
+**What happened:** the round-65 ledger said `proofs65: 56 of 56 red-on-revert`. The shipped harness gives 45 of 46 on the committed tree — twice. The 56 was a UNION of "OK at least once" over seven logs of partial re-runs. The one row that failed sequentially (FE3b) replaces an 81-char line with another 81-char line, in the same wall-clock second as the previous row's restore: CPython validates a `.pyc` by `(mtime-seconds, size)`, both unchanged, so the mutated source never ran and the grader "passed" on stale bytecode. Under `PYTHONDONTWRITEBYTECODE=1` the same run is 46 of 46. The grader was never at fault; the number in the ledger was not re-runnable as written.
+
+**Lesson:** a proof tally is ONE sequential run of the shipped harness, reported with the environment that makes it reproducible — never a union across re-runs, which hides exactly the row that needs looking at. And any harness that mutates source and re-imports it in the same second must disable bytecode caching (`PYTHONDONTWRITEBYTECODE=1`) or bump the mtime; a length-preserving mutation is the shape that slips through.
+
+**Guard:** `proofs66.py` sets `PYTHONDONTWRITEBYTECODE=1`, takes the interpreter from the tree it is handed, validates every anchor in a `CHECK=1` pass before the 15-minute run, and the ledger cell quotes its single log. The `\1` trap (Lesson 152's sibling) fired again this round: a `lambda m: rep` replacement never expands a backreference — the harness helper now refuses a replacement containing `\\\1`.
+
 # Lesson 152: a package that shares its NAME with the one it re-exports is a circular import under the only name its callers use — and a grader that loads it under another name proves nothing (2026-09-04)
 
 **What happened.** Round 63 replaced the vendored `scripts/kilo-benchmarks/alerting/` with a shim: `from alerting import *` after inserting `libs/` on `sys.path`. Every caller imports it as `alerting` from `scripts/kilo-benchmarks`, so `sys.modules["alerting"]` already held the half-initialised shim when its own `from alerting import *` ran — `ImportError: cannot import name '_is_enabled' from partially initialized module 'alerting'`. The freshness checker's `except ImportError` turned the pipeline's stale-heartbeat CRITICAL into a silent no-op on both entry points, from 0fc1c0d1 until round 64. The grader shipped green because it loaded the shim as `kb_alerting_shim` via `spec_from_file_location` — a name no consumer uses, which is precisely the condition that avoids the defect.

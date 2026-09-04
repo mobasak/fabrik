@@ -204,8 +204,11 @@ python scripts/sysadmin/liveness_audit.py --strict          # exit 1 on any DEAD
 
 **It exits 0 by default and never raises.** The one non-zero exit CODE outside `--strict` (two causes): a report the box itself cannot STORE (`ENOSPC`/`EIO` on the cron's own `>> log`) exits 1 without raising, the stamp still landing wherever stderr works; a reader that leaves (`| head`) is its choice, exit 0 (review 2026-09-03, DI1); a CLOSED stdout (`>&-`) is an undeliverable report too (exit 1, and the stamp then reads `report UNDELIVERED` — a different marker from the registry's, so the surface ages to DEAD instead of certifying a report that went nowhere), and a closed stderr (`2>&-`) skips the stamp rather than letting it fall into the JSON (DI2/DK2). This is a REPORT, not a gate: a monitoring layer that blocks
 work gets disabled, and then it monitors nothing. `--strict` is the opt-in CI mode; UNKNOWN never fails
-it (an instrument fault is not a defect), but a **crashed proof** does — a silently skipped proof is how
-a monitor learns to say all-clear.
+it (a box instrument fault — an unreadable crontab — is not a defect, and neither is a declared-unprobeable
+channel such as `evidence: none` or a volatile path), but a proof the audit could not RUN does — a sweep
+that raised, a registry it could not use, a ROW it could not probe (a blank needle, a string `evidence`) —
+a silently skipped proof is how a monitor learns to say all-clear. Round 65 counted every UNKNOWN that
+carried a fault and `--strict` went red on 24 of 135 findings of a healthy box; round 66 narrowed it.
 
 Read-only against the box: it never writes to `~/.claude-fleet`, the crontab, `claude-sound.sh`, or any
 credential file. Its only writes are to its own temp fixtures.

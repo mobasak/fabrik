@@ -23,7 +23,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+if (
+    str(Path(__file__).resolve().parent) not in sys.path
+):  # once — the chain suite loads this module 17 times (B65-7, FF1)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import registry_db  # noqa: E402
 
@@ -37,8 +40,8 @@ def credit_cell(
     A fetch that fails inserts no snapshot, so the dashboard kept rendering the last balance
     forever — a revoked key and a healthy one were the same cell (FB9)."""
     if (
-        bal is None or not math.isfinite(bal)
-    ):  # NaN AND Infinity: NUMERIC accepts both and a backfilled row bypasses the fetchers' guard (FD7/FE1)
+        bal is None or not math.isfinite(bal) or bal < 0
+    ):  # NaN AND Infinity: NUMERIC accepts both and a backfilled row bypasses the fetchers' guard (FD7/FE1); a NEGATIVE too — `_finite` refuses one at fetch time, a backfilled row rendered `-5 usd` (FF1)
         return ""  # the column is nullable — defensive: `load()` filters NULLs today (FC4)
     text = f"{bal:g} {unit or ''}".strip()
     if fetched is None:

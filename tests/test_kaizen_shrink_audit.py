@@ -17,6 +17,7 @@ sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
 
 from kaizen_shrink_audit import (  # noqa: E402
     Sources,
+    _registry_surface_map,
     audit,
     collect_applicability,
     collect_check_activity,
@@ -91,7 +92,7 @@ def test_transcript_invocations_counts_both_channels(tmp_path: Path):
                     ]
                 },
             },
-            b'\xff\xfe invalid utf8 garbage line',
+            b"\xff\xfe invalid utf8 garbage line",
         ],
     )
     sig = collect_invocations(tmp_path / "projects")
@@ -181,7 +182,12 @@ def test_check_activity_counts_and_empty_root_is_unmeasurable(tmp_path: Path):
     _write_transcript(
         proj,
         "s.jsonl",
-        [{"type": "user", "message": {"content": "gate ran check_changelog twice: check_changelog"}}],
+        [
+            {
+                "type": "user",
+                "message": {"content": "gate ran check_changelog twice: check_changelog"},
+            }
+        ],
     )
     sig = collect_check_activity(tmp_path / "projects", ["check_changelog", "check_never"])
     assert sig.measurable
@@ -334,9 +340,9 @@ def test_audit_flags_shared_mention_keys(tmp_path: Path):
     )
     rows, _ = audit(src)
     collided = [
-        r for r in rows
-        if r["cls"] in ("hook", "core-script")
-        and "shared with" in (r["evidence_note"] or "")
+        r
+        for r in rows
+        if r["cls"] in ("hook", "core-script") and "shared with" in (r["evidence_note"] or "")
     ]
     assert collided, "a mention-key collision must be named in evidence_note"
 
@@ -346,10 +352,17 @@ def test_audit_flags_shared_mention_keys(tmp_path: Path):
 
 def _row(**kw) -> dict:
     base = {
-        "artifact": "x", "cls": "command", "invocations": None, "last_seen": None,
-        "applicability_structural": None, "applicability_recent": None,
-        "liveness": None, "mentions": None, "evidence_note": "",
-        "immune": None, "verdict": None,
+        "artifact": "x",
+        "cls": "command",
+        "invocations": None,
+        "last_seen": None,
+        "applicability_structural": None,
+        "applicability_recent": None,
+        "liveness": None,
+        "mentions": None,
+        "evidence_note": "",
+        "immune": None,
+        "verdict": None,
     }
     base.update(kw)
     return base
@@ -372,10 +385,16 @@ def test_zero_usage_immune_artifact_is_never_candidate():
     'unused' precisely because it works — zero usage must NOT make it a candidate."""
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact="fabrik-decommission", cls="command",
-             invocations={"typed": 0, "skill": 0}, mentions={"ledgers": 0, "run_records": 0}),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(
+                artifact="fabrik-decommission",
+                cls="command",
+                invocations={"typed": 0, "skill": 0},
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+        ]
+    )
     r = rows[0]
     assert r["verdict"] == "keep"
     assert r["immune"] is True
@@ -385,11 +404,17 @@ def test_zero_usage_immune_artifact_is_never_candidate():
 def test_rule_pack_zero_usage_is_unknown_never_candidate():
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact=".windsurf/rules/core/10-x.md", cls="rule-pack",
-             applicability_structural=0, applicability_recent=0,
-             evidence_note="applicability-only — activation unknown until M1"),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(
+                artifact=".windsurf/rules/core/10-x.md",
+                cls="rule-pack",
+                applicability_structural=0,
+                applicability_recent=0,
+                evidence_note="applicability-only — activation unknown until M1",
+            ),
+        ]
+    )
     assert rows[0]["verdict"] == "unknown"
     assert "applicability-only — activation unknown until M1" in rows[0]["evidence_note"]
 
@@ -397,12 +422,22 @@ def test_rule_pack_zero_usage_is_unknown_never_candidate():
 def test_zero_on_every_measurable_signal_and_not_immune_is_candidate():
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact="fabrik-nonesuch", cls="command",
-             invocations={"typed": 0, "skill": 0}, mentions={"ledgers": 0, "run_records": 0}),
-        _row(artifact="fabrik-busy", cls="command",
-             invocations={"typed": 3, "skill": 1}, mentions={"ledgers": 0, "run_records": 0}),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(
+                artifact="fabrik-nonesuch",
+                cls="command",
+                invocations={"typed": 0, "skill": 0},
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+            _row(
+                artifact="fabrik-busy",
+                cls="command",
+                invocations={"typed": 3, "skill": 1},
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+        ]
+    )
     assert rows[0]["verdict"] == "candidate"
     assert rows[1]["verdict"] == "keep"
 
@@ -412,9 +447,11 @@ def test_all_class_signals_unmeasurable_routes_unknown_never_candidate():
     ALL unmeasurable routes to unknown — absence of measurement is not absence of use."""
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact="fabrik-dark", cls="command", invocations=None, mentions=None),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(artifact="fabrik-dark", cls="command", invocations=None, mentions=None),
+        ]
+    )
     assert rows[0]["verdict"] == "unknown"
     assert "unmeasurable" in rows[0]["evidence_note"]
 
@@ -425,12 +462,18 @@ def test_verdict_tokens_are_the_exact_enum():
     evidence_note."""
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact="final_gate.py", cls="core-script"),
-        _row(artifact="x.md", cls="rule-pack"),
-        _row(artifact="fabrik-nonesuch", cls="command",
-             invocations={"typed": 0, "skill": 0}, mentions={"ledgers": 0, "run_records": 0}),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(artifact="final_gate.py", cls="core-script"),
+            _row(artifact="x.md", cls="rule-pack"),
+            _row(
+                artifact="fabrik-nonesuch",
+                cls="command",
+                invocations={"typed": 0, "skill": 0},
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+        ]
+    )
     for r in rows:
         assert r["verdict"] in ("candidate", "keep", "unknown"), r["verdict"]
 
@@ -438,13 +481,23 @@ def test_verdict_tokens_are_the_exact_enum():
 def test_liveness_live_is_usage_evidence_dead_is_measured_zero():
     from kaizen_shrink_audit import assign_verdicts
 
-    live, dead, unk = assign_verdicts([
-        _row(artifact="a.py", cls="hook", liveness="LIVE",
-             mentions={"ledgers": 0, "run_records": 0}),
-        _row(artifact="b.py", cls="hook", liveness="DEAD",
-             mentions={"ledgers": 0, "run_records": 0}),
-        _row(artifact="c.py", cls="hook", liveness=None, mentions=None),
-    ])
+    live, dead, unk = assign_verdicts(
+        [
+            _row(
+                artifact="a.py",
+                cls="hook",
+                liveness="LIVE",
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+            _row(
+                artifact="b.py",
+                cls="hook",
+                liveness="DEAD",
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+            _row(artifact="c.py", cls="hook", liveness=None, mentions=None),
+        ]
+    )
     assert live["verdict"] == "keep"
     assert dead["verdict"] == "candidate"
     assert unk["verdict"] == "unknown"
@@ -480,14 +533,10 @@ def test_cron_liveness_joins_via_registry_cron_match(tmp_path: Path):
     fabrik_dir = src.repo / ".fabrik"
     fabrik_dir.mkdir(exist_ok=True)
     (fabrik_dir / "liveness-registry.json").write_text(
-        json.dumps(
-            {"surfaces": [{"id": "probe-cron", "cron_match": "probe_cron.py"}]}
-        )
+        json.dumps({"surfaces": [{"id": "probe-cron", "cron_match": "probe_cron.py"}]})
     )
     src.liveness_json.write_text(
-        json.dumps(
-            {"proofs": {"h": {"findings": [{"id": "probe-cron", "verdict": "LIVE"}]}}}
-        )
+        json.dumps({"proofs": {"h": {"findings": [{"id": "probe-cron", "verdict": "LIVE"}]}}})
     )
     rows = assign_verdicts(audit(src)[0])
     cron = next(r for r in rows if r["cls"] == "cron")
@@ -500,10 +549,15 @@ def test_immune_lookup_matches_relative_cron_forms():
     candidate — its immune entry is the absolute path, the census key was relative."""
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact="scripts/sysadmin/liveness_audit.py", cls="cron",
-             mentions={"ledgers": 0, "run_records": 0}),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(
+                artifact="scripts/sysadmin/liveness_audit.py",
+                cls="cron",
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+        ]
+    )
     assert rows[0]["immune"] is True
     assert rows[0]["verdict"] == "keep"
 
@@ -566,10 +620,15 @@ def test_immune_lookup_reaches_the_stem_of_a_pathed_check(tmp_path: Path):
     a cron — the lookup must reach the stem (`check_mutation`) from the path form."""
     from kaizen_shrink_audit import assign_verdicts
 
-    rows = assign_verdicts([
-        _row(artifact="scripts/enforcement/check_mutation.py", cls="cron",
-             mentions={"ledgers": 0, "run_records": 0}),
-    ])
+    rows = assign_verdicts(
+        [
+            _row(
+                artifact="scripts/enforcement/check_mutation.py",
+                cls="cron",
+                mentions={"ledgers": 0, "run_records": 0},
+            ),
+        ]
+    )
     assert rows[0]["immune"] is True
     assert rows[0]["verdict"] == "keep"
 
@@ -584,10 +643,17 @@ def test_hook_liveness_joins_via_registry_command_contains(tmp_path: Path):
     fabrik_dir = src.repo / ".fabrik"
     fabrik_dir.mkdir(exist_ok=True)
     (fabrik_dir / "liveness-registry.json").write_text(
-        json.dumps({"surfaces": [
-            {"id": "probe-hook", "kind": "hook",
-             "evidence": {"type": "hook", "command_contains": "stop_probe.py"}},
-        ]})
+        json.dumps(
+            {
+                "surfaces": [
+                    {
+                        "id": "probe-hook",
+                        "kind": "hook",
+                        "evidence": {"type": "hook", "command_contains": "stop_probe.py"},
+                    },
+                ]
+            }
+        )
     )
     src.liveness_json.write_text(
         json.dumps({"proofs": {"h": {"findings": [{"id": "probe-hook", "verdict": "LIVE"}]}}})
@@ -604,7 +670,8 @@ def test_transcript_walk_includes_subagent_session_files(tmp_path: Path):
     proj = tmp_path / "projects" / "-opt-probe"
     sub = proj / "session-uuid" / "subagents"
     _write_transcript(
-        sub, "agent-x.jsonl",
+        sub,
+        "agent-x.jsonl",
         [{"type": "user", "message": {"content": "<command-name>/fabrik-probe</command-name>"}}],
     )
     sig = collect_invocations(tmp_path / "projects")
@@ -642,8 +709,15 @@ def test_enumerate_notes_every_unenumerable_class(tmp_path: Path):
     (tmp_path / "bare").mkdir()
     census, notes = enumerate_artifacts(src)
     assert census == {}
-    for cls in ("command", "fragment", "rule-pack", "gate-check", "hook",
-                "scaffold-type", "core-script"):
+    for cls in (
+        "command",
+        "fragment",
+        "rule-pack",
+        "gate-check",
+        "hook",
+        "scaffold-type",
+        "core-script",
+    ):
         assert any(cls in n for n in notes), f"missing-class note owed for {cls}: {notes}"
 
 
@@ -686,17 +760,33 @@ def test_typed_channel_ignores_tool_result_echoes(tmp_path: Path):
     not count as invocations, or every audited candidate flips to keep next run."""
     proj = tmp_path / "projects" / "-opt-probe"
     _write_transcript(
-        proj, "s.jsonl",
+        proj,
+        "s.jsonl",
         [
             {"type": "user", "message": {"content": "<command-name>/fabrik-real</command-name>"}},
-            {"type": "user", "message": {"content": [
-                {"type": "tool_result", "tool_use_id": "t1",
-                 "content": "grep hit: <command-name>/fabrik-echoed</command-name>"},
-            ]}},
-            {"type": "assistant", "message": {"content": [
-                {"type": "text",
-                 "text": "the report lists <command-name>/fabrik-echoed</command-name>"},
-            ]}},
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "t1",
+                            "content": "grep hit: <command-name>/fabrik-echoed</command-name>",
+                        },
+                    ]
+                },
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "the report lists <command-name>/fabrik-echoed</command-name>",
+                        },
+                    ]
+                },
+            },
         ],
     )
     sig = collect_invocations(tmp_path / "projects")
@@ -713,12 +803,20 @@ def test_applicability_recent_counts_only_still_tracked_files(tmp_path: Path):
     doomed = repo / "src" / "doomed.py"
     doomed.write_text("x = 2\n")
     subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=False)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                    "commit", "-qm", "add"], cwd=repo, capture_output=True, check=False)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "add"],
+        cwd=repo,
+        capture_output=True,
+        check=False,
+    )
     doomed.unlink()
     subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, check=False)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                    "commit", "-qm", "rm"], cwd=repo, capture_output=True, check=False)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "rm"],
+        cwd=repo,
+        capture_output=True,
+        check=False,
+    )
     sig = collect_applicability(repo, since_days=60)
     row = sig.data[".windsurf/rules/core/10-probe.md"]
     assert row["structural"] == 1
@@ -732,9 +830,7 @@ def test_core_script_liveness_joins_via_registry(tmp_path: Path):
     from kaizen_shrink_audit import assign_verdicts, audit
 
     src = _mk_sources_tree(tmp_path)
-    (src.repo / "scripts" / "fabrik_synced_manifest.py").write_text(
-        'CORE_SCRIPTS = ["mail.py"]\n'
-    )
+    (src.repo / "scripts" / "fabrik_synced_manifest.py").write_text('CORE_SCRIPTS = ["mail.py"]\n')
     fabrik_dir = src.repo / ".fabrik"
     fabrik_dir.mkdir(exist_ok=True)
     (fabrik_dir / "liveness-registry.json").write_text(
@@ -757,14 +853,22 @@ def test_sidechain_user_rows_are_not_typed_invocations(tmp_path: Path):
     proj = tmp_path / "projects" / "-opt-probe"
     sub = proj / "session" / "subagents"
     _write_transcript(
-        sub, "agent-x.jsonl",
-        [{"type": "user", "isSidechain": True,
-          "message": {"content": "review the row <command-name>/fabrik-briefed</command-name>"}}],
+        sub,
+        "agent-x.jsonl",
+        [
+            {
+                "type": "user",
+                "isSidechain": True,
+                "message": {
+                    "content": "review the row <command-name>/fabrik-briefed</command-name>"
+                },
+            }
+        ],
     )
     _write_transcript(
-        proj, "main.jsonl",
-        [{"type": "user",
-          "message": {"content": "<command-name>/fabrik-genuine</command-name>"}}],
+        proj,
+        "main.jsonl",
+        [{"type": "user", "message": {"content": "<command-name>/fabrik-genuine</command-name>"}}],
     )
     sig = collect_invocations(tmp_path / "projects")
     assert sig.data.get("fabrik-genuine", {}).get("typed") == 1
@@ -846,6 +950,36 @@ def test_audit_composes_rows_with_immune_and_verdict_none(tmp_path: Path):
         assert r["immune"] is None and r["verdict"] is None, "judgment is Phase B's"
     # census covers every class the fixture provides — nothing silently dropped
     assert {r["cls"] for r in rows} == {
-        "command", "fragment", "rule-pack", "gate-check", "hook",
-        "scaffold-type", "core-script", "cron",
+        "command",
+        "fragment",
+        "rule-pack",
+        "gate-check",
+        "hook",
+        "scaffold-type",
+        "core-script",
+        "cron",
     }
+
+
+def test_a_blank_needle_never_kills_the_surface_census(tmp_path: Path):
+    """`match.split()[0]` on `" "` raised IndexError out of the unguarded census — the FE3 needle rule
+    lived in liveness_audit only; this is the OTHER reader (G66-C4, FF1)."""
+    (tmp_path / ".fabrik").mkdir()
+    (tmp_path / ".fabrik" / "liveness-registry.json").write_text(
+        json.dumps(
+            {
+                "surfaces": [
+                    {"id": "blank", "cron_match": " "},
+                    {
+                        "id": "null-then-hook",
+                        "cron_match": None,
+                        "evidence": {"command_contains": "  hook.sh  "},
+                    },
+                    {"id": "str-ev", "cron_match": "", "evidence": "not-a-mapping"},
+                    {"id": "good", "cron_match": "/opt/fabrik/x/good.py --flag"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert _registry_surface_map(tmp_path) == {"hook.sh": ["null-then-hook"], "good.py": ["good"]}

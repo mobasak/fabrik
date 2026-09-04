@@ -184,9 +184,7 @@ def collect_invocations(transcripts_root: Path) -> Signal:
                     hits += [(m, "typed") for m in _typed_names(line)]
                     hits += [(s, "skill") for s in _skill_names(line)]
                     for name, channel in hits:
-                        row = counts.setdefault(
-                            name, {"typed": 0, "skill": 0, "last_seen": mday}
-                        )
+                        row = counts.setdefault(name, {"typed": 0, "skill": 0, "last_seen": mday})
                         row[channel] += 1
                         row["last_seen"] = max(row["last_seen"], mday)
         except OSError:
@@ -195,9 +193,7 @@ def collect_invocations(transcripts_root: Path) -> Signal:
     if not files_read:
         # files exist but none could be READ — a measurable empty universe here would
         # be a fabricated zero (the honesty rule), not a clean count
-        return Signal.unavailable(
-            f"{len(files)} transcript file(s) present but none readable"
-        )
+        return Signal.unavailable(f"{len(files)} transcript file(s) present but none readable")
     return Signal(counts)
 
 
@@ -216,9 +212,7 @@ def collect_check_activity(transcripts_root: Path, check_names: list[str]) -> Si
     # per-name Python loop over the 8 GB corpus costs ~10 min per pass; this is one
     # C-level pass.
     ordered = sorted(check_names, key=len, reverse=True)
-    big = re.compile(
-        r"(?<![\w-])(?:" + "|".join(re.escape(n) for n in ordered) + r")(?![\w-])"
-    )
+    big = re.compile(r"(?<![\w-])(?:" + "|".join(re.escape(n) for n in ordered) + r")(?![\w-])")
     for f in files:
         try:
             with f.open(errors="replace") as fh:
@@ -407,9 +401,11 @@ def _registry_surface_map(repo: Path) -> dict[str, list[str]]:
         if not isinstance(sid, str):
             continue
         match = s.get("cron_match")
-        if not (isinstance(match, str) and match):
-            match = (s.get("evidence") or {}).get("command_contains")
-        if isinstance(match, str) and match:
+        if not (isinstance(match, str) and match.strip()):
+            ev = s.get("evidence")
+            match = ev.get("command_contains") if isinstance(ev, dict) else None
+        match = match.strip() if isinstance(match, str) else ""
+        if match:  # a `" "` needle raised IndexError out of `.split()[0]` and killed the whole census — the FE3 needle rule, in the other reader (FF1)
             out.setdefault(Path(match.split()[0]).name, []).append(sid)
     return out
 
@@ -441,9 +437,7 @@ def collect_mentions(sources: Sources, names: list[str]) -> Signal:
     # substring count credited `fabrik-deploy` with 9 of `fabrik-deploy-plan*`'s
     # mentions — a keep verdict resting on other commands' names (closing review)
     ordered = sorted(names, key=len, reverse=True)
-    big = re.compile(
-        r"(?<![\w-])(?:" + "|".join(re.escape(n) for n in ordered) + r")(?![\w-])"
-    )
+    big = re.compile(r"(?<![\w-])(?:" + "|".join(re.escape(n) for n in ordered) + r")(?![\w-])")
     for f in ledgers:
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
@@ -456,9 +450,7 @@ def collect_mentions(sources: Sources, names: list[str]) -> Signal:
     if rr.is_dir():
         for f in sorted(rr.glob("*.json")):
             try:
-                cmd = json.loads(f.read_text(encoding="utf-8", errors="replace")).get(
-                    "command", ""
-                )
+                cmd = json.loads(f.read_text(encoding="utf-8", errors="replace")).get("command", "")
             except (OSError, ValueError):
                 continue
             for n in names:
@@ -700,9 +692,7 @@ def audit(sources: Sources | None = None) -> tuple[list[dict], list[str]]:
                     # core-script included per its own legend row (verification round:
                     # mail.py's DEAD digest surface never reached the operator)
                     sids = registry_surfaces.get(key, [])
-                    row["liveness"] = _best_verdict(
-                        [live.data[s] for s in sids if s in live.data]
-                    )
+                    row["liveness"] = _best_verdict([live.data[s] for s in sids if s in live.data])
             else:
                 note_parts.append(_note_for(live, "liveness"))
             if men.measurable:
@@ -760,9 +750,7 @@ def _append_note(row: dict, note: str) -> None:
     justifications themselves contain '; ' (58 of 68 immune rows), which defeated a
     split-on-separator guard, while a bare substring guard swallowed distinct shorter
     notes (both hit in review rounds)."""
-    notes = row.setdefault(
-        "_notes", [row["evidence_note"]] if row.get("evidence_note") else []
-    )
+    notes = row.setdefault("_notes", [row["evidence_note"]] if row.get("evidence_note") else [])
     if note in notes:
         return
     notes.append(note)
@@ -913,10 +901,7 @@ def render_report(rows: list[dict], census_notes: list[str], out: Path) -> str:
         f"- [ ] `{r['artifact']}` ({r['cls']}) — {r['evidence_note'] or 'zero on all measured signals'}"
         for r in sorted(cands, key=lambda x: (x["cls"], x["artifact"]))
     ] or ["- (none — no artifact met the candidate bar)"]
-    zero_immune = [
-        r for r in rows
-        if r["immune"] and not any(s for s in _usage_signals(r) if s)
-    ]
+    zero_immune = [r for r in rows if r["immune"] and not any(s for s in _usage_signals(r) if s)]
     if zero_immune:
         lines += [
             "",
@@ -984,9 +969,7 @@ def selftest() -> int:
         # applicability — good tiny repo counts, bad (no git) is unmeasurable
         repo = tmp / "repo"
         (repo / ".windsurf" / "rules").mkdir(parents=True)
-        (repo / ".windsurf" / "rules" / "p.md").write_text(
-            '---\nglobs: ["**/*.py"]\n---\nbody\n'
-        )
+        (repo / ".windsurf" / "rules" / "p.md").write_text('---\nglobs: ["**/*.py"]\n---\nbody\n')
         (repo / "a.py").write_text("x = 1\n")
         for cmd in (
             ["git", "init", "-q"],
@@ -1078,7 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
         render_report(rows, notes, out)
         print(f"report: {out}")
         print(f"census rows: {census_total} (all rendered)")
-        for cls in sorted({r['cls'] for r in rows}):
+        for cls in sorted({r["cls"] for r in rows}):
             n = sum(1 for r in rows if r["cls"] == cls)
             c = sum(1 for r in rows if r["cls"] == cls and r["verdict"] == "candidate")
             print(f"  {cls}: {n} rows, {c} candidate(s)")

@@ -155,6 +155,9 @@ def test_alerting_is_enabled_once_dotenv_is_loaded(monkeypatch):
     the assertion to THIS box's .env, so the test reds for environmental reasons once Phase B
     copies tests/ into the engine repo. Inject just the one key instead.
     """
+    monkeypatch.delenv(
+        "ALERT_ENABLED", raising=False
+    )  # the root conftest MUTES every test process; the one test that asserts "armed" un-mutes itself (M-C10, FF1)
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token-not-a-real-secret")
     import alerting
 
@@ -256,8 +259,9 @@ def test_every_daily_refresh_alert_can_actually_deliver():
         for ln in _logical_lines(src.read_text()):
             if ln.lstrip().startswith("#"):
                 continue  # a comment mentioning send_alert is not a site
-            if "send_alert" in ln or "pipeline_alert.sh" in ln:
-                sites.append(ln)
+            n = ln.count("send_alert") + ln.count("pipeline_alert.sh")
+            if n:  # per CALL, not per line: a line carrying two alerts counted once, so a whole alert was deletable (B65-3, FF1)
+                sites.extend([ln] * n)
     # An inequality with slack is not a guard: at >= 6 with 8 real sites, BOTH autocommit
     # alerts could be deleted and this still passed. Pin the exact count so removing any site
     # reds — and update it deliberately when a site is added.
@@ -267,8 +271,11 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # 12 -> 16 (round 64, FD6): the pin was already red at 15 before round 63 (the 126/127
     # cannot-start alerts in both callers and the hook's unwritable-log alert landed without
     # bumping it — G-C5); round 63 added the killed-chain alert in daily_refresh.sh (16).
-    assert len(sites) == 16, (
-        f"expected exactly 16 alert sites across the three entry points, found {len(sites)}. "
+    # 16 -> 18 (round 66, FF1): counted per CALL (the hook's KILLED alert shared a line with its
+    # 126/127 sibling — 17 real sites were pinned at 16), and the hook's heartbeat-write failure now
+    # alerts like daily_refresh's (18).
+    assert len(sites) == 18, (
+        f"expected exactly 18 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:
@@ -426,7 +433,8 @@ def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(sc
             and ('>> "$LOG_FILE"' in ln or ">> $LOG_FILE" in ln or '>>"$LOG_FILE"' in ln)
             # the probe itself is the thing being asserted, not a violation of it
             and ': >>"$LOG_FILE"' not in ln
-            and ': 2>/dev/null >>"$LOG_FILE"' not in ln  # stderr-first is the same probe (redirections apply left to right; FD6)
+            and ': 2>/dev/null >>"$LOG_FILE"'
+            not in ln  # stderr-first is the same probe (redirections apply left to right; FD6)
         ),
         None,
     )
@@ -437,7 +445,9 @@ def test_every_pipeline_entry_point_probes_the_log_before_redirecting_into_it(sc
     # that appends to its argument and is then invoked on $LOG_FILE. Both prove appendability;
     # pinning only the inline spelling would fail a legitimate refactor into a helper.
     inline = ': >>"$LOG_FILE"' in head or ': 2>/dev/null >>"$LOG_FILE"' in head
-    via_helper = (': >>"$1"' in head or ': 2>/dev/null >>"$1"' in head) and '_log_usable "$LOG_FILE"' in head
+    via_helper = (
+        ': >>"$1"' in head or ': 2>/dev/null >>"$1"' in head
+    ) and '_log_usable "$LOG_FILE"' in head
     assert inline or via_helper, (
         f"{script} redirects to $LOG_FILE at line {first_redirect + 1} without ever proving the "
         f"file is appendable. `mkdir -p` is not that proof — it returns 0 on an existing "
@@ -479,7 +489,8 @@ def _extract_log_guard(path):
     # explicitly blesses — made this grab the rotation loop's `if`, lift the `for … do` with no
     # `done`, and fail both tests with a confidently wrong diagnosis.
     if_idx = next(
-        i for i in range(start, len(lines))
+        i
+        for i in range(start, len(lines))
         if lines[i].lstrip().startswith("if ") and "$LOG_FILE" in lines[i]
     )
     indent = lines[if_idx][: len(lines[if_idx]) - len(lines[if_idx].lstrip())]
@@ -487,8 +498,7 @@ def _extract_log_guard(path):
     # is the same `fi`, and an exact-string match raises StopIteration and crashes the test
     # rather than measuring anything.
     end = next(
-        i for i in range(if_idx + 1, len(lines))
-        if lines[i].split("#")[0].rstrip() == f"{indent}fi"
+        i for i in range(if_idx + 1, len(lines)) if lines[i].split("#")[0].rstrip() == f"{indent}fi"
     )
     return "\n".join(lines[start : end + 1])
 

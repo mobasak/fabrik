@@ -10,6 +10,7 @@ from all-envs.env by the caller; it is never sent anywhere but the vendor's own 
 
 from __future__ import annotations
 
+import http.client
 import json
 import math
 import sys
@@ -77,7 +78,14 @@ def _get_json(url: str, headers: dict[str, str]) -> dict | None:
             if exc.code not in RETRYABLE_STATUS or attempt == RETRIES:
                 return None
             time.sleep(_retry_after(exc.headers.get("Retry-After"), attempt))
-        except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ValueError,
+            OSError,
+            http.client.HTTPException,
+            RecursionError,
+        ):  # a truncated chunked body (`IncompleteRead`) and a 100 000-deep JSON escaped the "never raises" contract (FF1)
             if attempt == RETRIES:
                 return None
     return None

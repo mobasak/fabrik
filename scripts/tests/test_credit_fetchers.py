@@ -9,6 +9,7 @@ fabrik_services PG with a throwaway service it deletes; skips if the DB is unrea
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from pathlib import Path
 
@@ -59,6 +60,10 @@ def test_fetch_balance_unknown_provider_is_none():
 def test_declare_subscription_persists(monkeypatch):
     """Given a synced service, When declare() runs, Then a subscriptions row persists with the
     renewal date + account email."""
+    if os.environ.get("REGISTRY_WRITE_TESTS") != "1":
+        pytest.skip(
+            "writes a row to the LIVE registry and a SIGKILL skips its finally — opt in with REGISTRY_WRITE_TESTS=1 (B66-C14)"
+        )
     rdb = importlib.import_module("registry_db")
     try:
         rdb.connect().close()
@@ -325,3 +330,39 @@ def test_a_flag_a_string_and_an_overflowing_int_are_not_measurements(monkeypatch
         assert cf.fetch_deepl("k:fx") is None, (
             body
         )  # a negative count inflated the remainder; an overage is a negative remainder — neither is a balance (FE1)
+
+
+def test_a_truncated_chunked_body_and_a_bottomless_json_are_no_snapshot_not_a_raise():
+    """`http.client.IncompleteRead` and a `RecursionError` from a 100 000-deep JSON escaped
+    `_get_json`'s "never raises" contract — held only by `fetch_balance`'s blanket catch (K66-5, FF1)."""
+    import http.client
+    import io
+
+    class _Resp(io.BytesIO):
+        def read(self, amt=-1):
+            raise http.client.IncompleteRead(b"")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Opener:
+        def __init__(self, resp):
+            self.resp, self.opens = resp, 0
+
+        def open(self, req, timeout=None):
+            self.opens += 1
+            return self.resp
+
+    orig = cf._OPENER
+    try:
+        cf._OPENER = _Opener(_Resp(b""))
+        assert cf._get_json("https://x.example", {}) is None
+        cf._OPENER = _Opener(io.BytesIO(b"[" * 100_000))
+        cf._OPENER.resp.__enter__ = lambda s=cf._OPENER.resp: s
+        cf._OPENER.resp.__exit__ = lambda *a: False
+        assert cf._get_json("https://x.example", {}) is None
+    finally:
+        cf._OPENER = orig

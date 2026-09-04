@@ -174,9 +174,9 @@ fi
   # `$?` inside `if ! cmd; then` is the NEGATION's status (always 0) — the round-60 branch was dead (EY7/EZ2)
   if [ "$_rc" -ne 0 ]; then
     case "$_rc" in 126|127)  # bash could not START the chain (missing / unreadable): none of its own alerts ever ran
-      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
-      12[4-9]|1[3-9][0-9]|2[0-5][0-9])  # the chain PROCESS died on a SIGNAL (>128: SIGHUP/INT/QUIT/ABRT/KILL/SEGV/PIPE/TERM …) — the chain's own exits are only 0/1; five enumerated codes missed SIGQUIT/ABRT/SEGV/PIPE (FE6)
-      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain was KILLED' "exit $_rc (signal $((_rc > 128 ? _rc - 128 : 0))) took the chain process; its own step alerts never ran. Log: $LOG_FILE" || true ;;
+      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain did NOT start' "bash exited $_rc — scripts/external_services_chain.sh missing or unreadable, or its cd to FABRIK_ROOT failed (the log says: cannot cd to); nothing inside the chain ran, so its own step alerts never fired. Log: $LOG_FILE" || true ;;
+      129|1[3-8][0-9]|19[0-2])  # the chain PROCESS died on a SIGNAL (128+N, N in 1..64 — 124/125/128 and 193-255 are plain exits and read "signal 0/127" before, FF1; SIGHUP/INT/QUIT/ABRT/KILL/SEGV/PIPE/TERM …) — the chain's own exits are only 0/1; five enumerated codes missed SIGQUIT/ABRT/SEGV/PIPE (FE6)
+      bash "$KB/pipeline_alert.sh" 'daily_refresh.sh: external-services chain was KILLED' "exit $_rc (signal $((_rc - 128))) took the chain process; its own step alerts never ran. Log: $LOG_FILE" || true ;;
     esac
     echo "[daily_refresh] external-services chain failed (exit $_rc; a step failure is alerted by the chain, a 126/127 or a kill by this caller, non-fatal)"
   fi
@@ -501,7 +501,9 @@ fi
     # keep the newest 5 direct-vendor audit files
     ls -1t "$KB"/cache/direct_vendor_audit_* 2>/dev/null | tail -n +6 | xargs -r rm -f
     # cap the rotated logs at the newest 3 (the hook rotates .2 ← .1 ← log, so three can exist — FC6)
-    ls -1t "$KB"/cache/update.log.* 2>/dev/null | tail -n +4 | xargs -r rm -f
+    # FILES only, never a `*.notalog.*` directory's contents (`ls -1t dir` listed the squatter's files, never the squatter — FF1); the squatters themselves go after a week
+    find "$KB/cache" -maxdepth 1 -type f -name 'update.log.*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | tail -n +4 | cut -d' ' -f2- | xargs -r rm -f
+    find "$KB/cache" -maxdepth 1 -name 'update.log.*.notalog.*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
     # drop stray pytest caches + __pycache__ under kilo-benchmarks (regenerated on demand)
     find "$KB" -type d \( -name .pytest_cache -o -name __pycache__ \) -exec rm -rf {} + 2>/dev/null || true
     # remove stale daily lockfiles from /tmp (keep today's UTC)

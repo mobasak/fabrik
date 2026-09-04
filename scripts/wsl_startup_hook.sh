@@ -59,8 +59,11 @@ for logfile in "$LOG_FILE" "$ENV_WATCHER_LOG"; do
         # aside first: `mv -T dir file` fails and the promotion chain stranded the live log in
         # `.1.new` (overwritten on the NEXT rotation) or overwrote `.1` with nothing promoted (FE4)
         for _g in "${logfile}.1.new" "${logfile}.1" "${logfile}.2"; do
-            if [ -e "$_g" ] && [ ! -f "$_g" ]; then mv -T "$_g" "$_g.notalog.$(date +%s)" 2>/dev/null; fi
+            if [ -e "$_g" ] && [ ! -f "$_g" ]; then mv -T "$_g" "$_g.notalog.$(date +%s%N)" 2>/dev/null; fi
         done
+        # a REGULAR `.1.new` is the live log a previous rotation stranded (its promotion failed):
+        # finish THAT rotation first — the plain `mv -T` overwrote it, a generation lost with no line (FF1)
+        [ -f "${logfile}.1.new" ] && { [ -e "${logfile}.1" ] && mv -T "${logfile}.1" "${logfile}.2" 2>/dev/null; mv -T "${logfile}.1.new" "${logfile}.1" 2>/dev/null; }
         if mv -T "$logfile" "${logfile}.1.new" 2>/dev/null; then
             [ -e "${logfile}.1" ] && mv -T "${logfile}.1" "${logfile}.2" 2>/dev/null
             mv -T "${logfile}.1.new" "${logfile}.1" 2>/dev/null || echo "[wsl_startup_hook] log rotation stranded ${logfile}.1.new" >&2
@@ -217,7 +220,10 @@ if [ ! -f "$LOCK_FILE" ]; then
         # \" — the values are expanded by THIS shell into the inner script's text, so they are quoted for the INNER shell (FB10)
         _rc=0; env LOG_FILE=\"$LOG_FILE\" FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/external_services_chain.sh\" >> \"$LOG_FILE\" 2>&1 || _rc=\$?
         if [ \$_rc -ne 0 ]; then
-            case \$_rc in 126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable; nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;; 12[4-9]|1[3-9][0-9]|2[0-5][0-9]) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - signal \$((_rc > 128 ? _rc - 128 : 0)) took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;; esac
+            case \$_rc in
+                126|127) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain did NOT start' 'bash exited '\$_rc' - scripts/external_services_chain.sh missing or unreadable, or its cd to FABRIK_ROOT failed (the log says: cannot cd to); nothing inside the chain ran, so its own step alerts never fired.' >> \"$LOG_FILE\" 2>&1 || true ;;
+                129|1[3-8][0-9]|19[0-2]) env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: external-services chain was KILLED' 'exit '\$_rc' - signal '\$((_rc - 128))' took the chain process; its own step alerts never ran.' >> \"$LOG_FILE\" 2>&1 || true ;;
+            esac
             echo '[wsl_startup_hook] external-services chain failed (exit '\$_rc'; a step failure is alerted by the chain, a 126/127 or a kill by this caller, non-fatal)' >> \"$LOG_FILE\"
         fi
         # Auto-commit the pipeline's OWN regenerated tracked docs (added 2026-08-14).
@@ -238,7 +244,7 @@ if [ ! -f "$LOCK_FILE" ]; then
         # reviewable output at all, so stamping it green would hide a blind run behind a
         # healthy freshness check. See daily_refresh.sh for the same guard.
         [ \"$LOG_FILE\" = /dev/null ] || date -u '+%Y-%m-%dT%H:%M:%S+00:00' > $FABRIK_ROOT/scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt 2>/dev/null \
-            || echo '[wsl_startup_hook] heartbeat write FAILED — next boot will alert as stale' >> $LOG_FILE
+            || { echo '[wsl_startup_hook] heartbeat write FAILED — next boot will alert as stale' >> \"$LOG_FILE\"; env FABRIK_ROOT=\"$FABRIK_ROOT\" bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: heartbeat timestamp write FAILED' 'Could not write scripts/kilo-benchmarks/cache/daily_refresh_last_success.txt at boot; the next freshness check alerts as STALE.' >> \"$LOG_FILE\" 2>&1 || true; }  # daily_refresh alerts this failure; the boot path only logged it (M-C8, FF1)
         echo '=== Pipeline complete — '\$(date '+%Y-%m-%d %H:%M:%S')' ===' >> $LOG_FILE  # \$ — expanded by the INNER shell at completion: the outer shell froze both stamps at source time, so every daily log reported a 0-second pipeline (FD6)
     " &
 fi

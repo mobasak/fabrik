@@ -20,7 +20,8 @@ import socketserver
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+if str(Path(__file__).resolve().parent) not in sys.path:  # once (B65-7, FF1)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gen_dashboard  # noqa: E402 - reuse CSS + the live DB query (load)
 
@@ -128,9 +129,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     file=sys.stderr,
                 )
             finally:
-                self.send_error(
-                    500, "registry query failed"
-                )  # even when str(exc) itself raises (FE1)
+                try:
+                    self.send_error(
+                        500, "registry query failed"
+                    )  # even when str(exc) itself raises (FE1)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # the client left before the 500 (a closed tab during the refresh) — the FE1 guard covered `_send` only; this path printed a 17-frame stdlib traceback per aborted request (FF1)
             return
         try:
             self._send(body, ctype)
@@ -159,7 +163,9 @@ def _port(value: str) -> int:
 
 
 class Server(socketserver.ThreadingTCPServer):
-    """One stalled client no longer blocks every other client (a 0.0.0.0 bind; FE1)."""
+    """One stalled client no longer blocks every other client (a 0.0.0.0 bind; FE1). IPv4 only:
+    `DASHBOARD_HOST=::1` cannot bind (the server family is AF_INET) — say so rather than grow a
+    second family (FF1)."""
 
     allow_reuse_address = True
     daemon_threads = True

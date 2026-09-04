@@ -378,11 +378,14 @@ def test_weekly_catchup_runs_the_coroner_daily(tmp_path: Path) -> None:
     stamp touched on success, fresh stamp is a quiet no-op."""
     for sub in ("locks", "events", "runs"):
         (tmp_path / sub).mkdir()
-    env = dict(
-        os.environ,
+    env = {  # MINIMAL, never the parent environment (the B-2/B-10 class, FD6/FD8); the interpreter is the tree's own `.venv`, not a pinned live path (B65-9, FF1)
+        k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
+    }
+    env.update(
         HOME=str(tmp_path),
         FABRIK_ROOT=str(REPO_ROOT),
-        FABRIK_PY="/opt/fabrik/.venv/bin/python",
+        FABRIK_NO_AUTOLOAD="1",
+        ALERT_ENABLED="0",
         CLAUDE_SOUND_LOCKDIR=str(tmp_path / "locks"),
         KAIZEN_EVENTS_DIR=str(tmp_path / "events"),
         COMMAND_RUN_DIR=str(tmp_path / "runs"),
@@ -775,6 +778,9 @@ def test_strict_is_opt_in_and_fails_only_on_dead(tmp_path: Path) -> None:
         box=box,
     )
     assert unknown_only.failures() == 0, "UNKNOWN must never fail --strict; only DEAD does"
+    assert unknown_only.crashed() == 0, (
+        "`--strict` is failures() OR crashed(): a declared-unprobeable channel (`evidence: none`) is not a crashed proof — FE3 counted it and this grader asserted only half the contract (R66-C1/C2, FF1)"
+    )
 
 
 def test_mail_escalate_is_registered_with_the_precedent_fields():
@@ -1285,8 +1291,14 @@ def test_strict_bites_on_a_registry_the_proof_could_not_use(tmp_path: Path) -> N
     log = tmp_path / "d.log"
     log.write_text("ran\n")
     dup = _registry(tmp_path, [_cron_surface("dup", type="log", path=str(log))] * 2)
-    empty = _registry(
-        tmp_path, []
+    empty = (
+        tmp_path / "empty.json"
+    )  # its OWN file: `_registry()` always writes registry.json, so the empty fixture overwrote `dup` and the duplicate-id case ran the empty registry twice (B65-2, FF1)
+    empty.write_text(
+        json.dumps(
+            {"version": 1, "ownership": {"cron_owned_substrings": ["/opt/fabrik"]}, "surfaces": []}
+        ),
+        encoding="utf-8",
     )  # the "green no-op on an empty registry" case FC2 named and never graded (M12, FD5)
     for registry in (dup, tmp_path / "missing.json", empty):
         rc = la.main(
@@ -1505,14 +1517,10 @@ def test_the_unregistered_sweep_uses_stripped_needles_and_its_fault_bites_strict
         "0 7 * * * /opt/fabrik/scripts/mail.py digest",
         "0 2 * * * /opt/other/nobody_watches.sh",
     ]
-    box = (
-        FakeBox(
-            tmp_path,
-            cron=cron,
-            hooks=["bash /opt/fabrik/.claude/hooks/a.sh", "bash /opt/fabrik/.claude/hooks/b.sh"],
-        )
-        if "hooks" in FakeBox.__init__.__code__.co_varnames
-        else FakeBox(tmp_path, cron=cron)
+    box = FakeBox(  # the dead else-arm silently halved the fixture on a rename (B66-C10)
+        tmp_path,
+        cron=cron,
+        hooks=["bash /opt/fabrik/.claude/hooks/a.sh", "bash /opt/fabrik/.claude/hooks/b.sh"],
     )
     surfaces = [
         {**_cron_surface("blank", type="log", path=str(log)), "cron_match": " "},
@@ -1550,7 +1558,9 @@ def test_the_unregistered_sweep_uses_stripped_needles_and_its_fault_bites_strict
         "strev"
     ]
     report = la.audit(tmp_path, raw, {"heartbeat"}, box=box)
-    assert report.crashed() >= 4, [
+    assert (
+        report.crashed() == 4
+    ), [  # exact: `>=` could not see a fifth surface silently dropped (B66-C11)
         f["id"] for f in out["findings"]
     ]  # every unprobed row is a skipped proof under --strict
     # the sweep's own failure is a --strict failure too, in the real shape
@@ -1569,6 +1579,7 @@ def test_the_unregistered_sweep_uses_stripped_needles_and_its_fault_bites_strict
             "foreign_count",
             "instrument_fault",
             "owned",
+            "sweep_raised",  # the RAISE marked apart from a box instrument fault (FF1)
             "total",
         ], out2["unregistered"]
         rep2 = types.SimpleNamespace(proofs={"heartbeat": out2})
@@ -1590,3 +1601,56 @@ def test_a_finite_but_huge_max_age_names_its_reason(tmp_path: Path) -> None:
     )
     f = la.proof_heartbeat(box, reg, "")["findings"][0]
     assert f["verdict"] == "UNKNOWN" and "below 2**53" in f["instrument_fault"], f
+
+
+def test_strict_ignores_declared_and_box_faults_but_bites_a_raise_and_a_row_fault(
+    tmp_path: Path,
+) -> None:
+    """FE3's `crashed()` counted every UNKNOWN carrying a fault: `evidence: none`, a volatile path, an
+    unreadable crontab — 24 of 135 findings on a healthy box, `--strict` permanently red. Only what
+    the audit could not RUN counts: a sweep that raised (once, not per block), a registry/proof
+    finding, a ROW fault (`<id>:registry`). And `unit`/`expect` go through the needle rule (FF1)."""
+    surfaces = [
+        {"id": "none-ch", "kind": "cron", "cron_match": "other.sh", "evidence": {"type": "none"}},
+        {"id": "blank-unit", "kind": "systemd", "evidence": {"type": "unit", "unit": " "}},
+        {
+            "id": "null-expect",
+            "kind": "systemd",
+            "evidence": {"type": "unit", "unit": "cron.service", "expect": None},
+        },
+    ]
+    registry = _registry(tmp_path, surfaces)
+    box = FakeBox(tmp_path, cron=["0 * * * * /opt/fabrik/other.sh"])
+    report = la.audit(tmp_path, registry, {"heartbeat"}, box=box)
+    by_id = {f["id"]: f for f in report.proofs["heartbeat"]["findings"]}
+    assert by_id["none-ch"]["verdict"] == "UNKNOWN"
+    assert by_id["blank-unit"]["verdict"] == "UNKNOWN" and by_id["blank-unit"][
+        "instrument"
+    ].endswith(":registry")
+    assert (
+        by_id["null-expect"]["verdict"] != "DEAD"
+        or "expected None" not in by_id["null-expect"]["detail"]
+    )
+    assert report.failures() == 0
+    assert report.crashed() == 1, (
+        report.crashed(),
+        by_id,
+    )  # exactly the blank-unit ROW fault; none-ch is declared, not crashed
+    # an unreadable crontab is a BOX instrument fault: UNKNOWN, never a crash
+    unreadable = la.audit(
+        tmp_path, _registry(tmp_path, surfaces[:1]), {"heartbeat"}, box=FakeBox(tmp_path, cron=None)
+    )
+    assert unreadable.crashed() == 0, unreadable.proofs["heartbeat"]["unregistered"]
+    assert (
+        unreadable.proofs["heartbeat"]["unregistered"]["cron"]["total"] == 0
+    )  # the same shape on every producer
+    # a sweep that RAISES counts once, not once per block it is carried into
+    reg = json.loads(registry.read_text(encoding="utf-8"))
+    reg["ownership"] = "not-a-mapping"
+    registry.write_text(json.dumps(reg), encoding="utf-8")
+    raised = la.audit(tmp_path, registry, {"heartbeat"}, box=box)
+    unreg = raised.proofs["heartbeat"]["unregistered"]
+    if unreg["cron"].get("sweep_raised"):
+        assert raised.crashed() == 2, raised.crashed()  # the blank-unit row + ONE sweep raise
+        text = "\n".join(la.render(raised)) if hasattr(la, "render") else ""
+        assert all(len(line) < 600 for line in text.splitlines())

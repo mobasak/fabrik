@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1896,18 +1898,20 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         "print(json.dumps(out))\n",
         encoding="utf-8",
     )
-    nopermdir_unreadable = not os.access(
-        tmp_path / "nopermdir" / "libs" / "subagents", os.R_OK
-    )  # measured BEFORE the mode is restored below
-    nopermsib_unreadable = not os.access(
-        tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py", os.R_OK
-    )
     # the unreadable fixtures are armed LAST: 500 lines of fixture construction sat between the
     # chmod(0) and the finally that restores it — a raise in between left pytest's tmp dir
-    # undeletable (L64-3/9, FD8)
+    # undeletable (L64-3/9, FD8) — and MEASURED after arming: the FD8 move measured the modes
+    # before they were applied, so all three "unreadable" branches below were dead (B65-1, FF1)
     (tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py").chmod(0)
     (tmp_path / "nopermdir" / "libs" / "subagents").chmod(0)
     (tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py").chmod(0)
+    noperm_unreadable = not os.access(
+        tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py", os.R_OK
+    )
+    nopermdir_unreadable = not os.access(tmp_path / "nopermdir" / "libs" / "subagents", os.R_OK)
+    nopermsib_unreadable = not os.access(
+        tmp_path / "nopermsib" / "libs" / "subagents" / "tools.py", os.R_OK
+    )
     try:
         r = subprocess.run(
             [sys.executable, str(driver)], capture_output=True, text=True, timeout=120
@@ -2041,9 +2045,7 @@ def test_a_present_but_unusable_web_tools_module_is_a_hub_problem_and_an_absent_
         for p in out["nulbytes"]["problems"]
     ), out["nulbytes"]
     assert out["nulbytes"]["skipped"] == [], out["nulbytes"]
-    if not os.access(
-        tmp_path / "noperm" / "libs" / "subagents" / "web_tools.py", os.R_OK
-    ):  # root reads anything — the shape is unreachable there
+    if noperm_unreadable:  # root reads anything — the shape is unreachable there
         assert any(
             "web_tools.py is present but unusable (PermissionError" in p
             for p in out["noperm"]["problems"]
@@ -3190,18 +3192,22 @@ def test_a_caller_naming_the_claimant_only_inside_a_fence_honours_nothing(corpus
     assert any("claims caller /fabrik-real" in p for p in problems), problems
 
 
-def test_the_selftest_counts_distinct_signatures_over_the_real_emitter_count(capsys, monkeypatch):
-    """The first line printed "17 of 18": canaries counted as emitters, and the counter counted
-    its own `problems.append(` literal (FD4)."""
-    import check_command_corpus as ccc
+def _ast_emitters(ccc) -> int:
+    """The grader's OWN count of `problems.append(…)` calls — never the function under test (FF1)."""
+    import ast
 
-    monkeypatch.setattr(ccc, "AGENTS_SRC", ccc.REPO / "commands" / "_agents")
-    assert ccc._selftest() == 0
-    line = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("✓ selftest")][-1]
-    m = re.search(r"\((\d+) of (\d+) problem emitters in this file executed\)", line)
-    assert m, line
-    covered, emitters = int(m.group(1)), int(m.group(2))
-    assert emitters == len(ccc._emitter_lines()) and 0 < covered <= emitters, line
+    tree = ast.parse(Path(ccc.__file__).read_text(encoding="utf-8"))
+    return len(
+        {
+            n.lineno
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "append"
+            and isinstance(n.func.value, ast.Name)
+            and n.func.value.id == "problems"
+        }
+    )
 
 
 def test_safe_str_keeps_only_printable_text():
@@ -3341,8 +3347,6 @@ def test_a_quoted_hash_a_nested_fence_and_a_caller_comment(corpus, tmp_path):
         "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence '3 of 5 # files' --feedback f\n```\n",
     ):
         assert not any("--feedback" in p for p in corpus(body)), corpus(body)
-    body = "```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e   # refuses without --feedback\n```\n"
-    assert any("--feedback" in p for p in corpus(body)), corpus(body)
     # a nested fence: the outer ```` holds an inner ``` — the inner closer does not close the outer,
     # so the close after it is still fenced and its comment is still cut
     body = "````markdown\n```bash\npython3 scripts/command_run.py done --command fabrik-probe --evidence e   # documents --feedback\n```\n````\n"
@@ -3375,7 +3379,9 @@ def test_the_selftest_counts_the_emitter_lines_it_executed(capsys):
     m = re.search(r"\((\d+) of (\d+) problem emitters in this file executed\)", line)
     assert m, line
     covered, emitters = int(m.group(1)), int(m.group(2))
-    assert emitters == len(ccc._emitter_lines()) and covered == len(hit & ccc._emitter_lines()), (
+    assert emitters == len(ccc._emitter_lines()) == _ast_emitters(ccc) and covered == len(
+        hit & ccc._emitter_lines()
+    ), (
         line,
         sorted(hit & ccc._emitter_lines()),
     )
@@ -3399,3 +3405,146 @@ def test_a_yaml_name_with_a_space_before_the_colon(tmp_path):
         traycer_skills=tmp_path / "no-orch",
         agents=agents,
     )
+
+
+def test_the_probe_flushes_the_callers_pending_stdout_before_it_captures(tmp_path):
+    """The FE2 finally flushed `sys.__stdout__` INTO the sink: an in-process caller's block-buffered
+    bytes (every test runs under a redirected `sys.stdout`) vanished and were blamed on the module
+    as an N-byte leak (FF1)."""
+    hub = _probe_hub(tmp_path, 'WEB_TOOL_NAMES = frozenset({"web_search"})\n')
+    driver = tmp_path / "driver.py"
+    driver.write_text(
+        "import contextlib, io, json, sys\n"
+        f"sys.path.insert(0, {str(REPO / 'scripts' / 'enforcement')!r})\n"
+        "import check_command_corpus as c\n"
+        "print('HEADER-BEFORE-PROBE')\n"
+        "with contextlib.redirect_stdout(io.StringIO()):\n"
+        f"    names = c._live_web_tool_names(__import__('pathlib').Path({str(hub)!r}))\n"
+        "print('AFTER-PROBE', json.dumps(sorted(names)), json.dumps(c.ADVISORIES))\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, str(driver)], capture_output=True, text=True, timeout=60
+    )  # a PIPE: block-buffered, so the header is pending when the probe moves the fds
+    assert proc.returncode == 0, proc.stderr
+    assert "HEADER-BEFORE-PROBE" in proc.stdout, proc.stdout
+    assert 'AFTER-PROBE ["web_search"] []' in proc.stdout, proc.stdout
+
+
+def test_the_cli_survives_a_detached_original_and_a_wrapper_that_owns_the_fd(tmp_path):
+    """`io.TextIOWrapper(sys.stdout.detach())` restored a DETACHED wrapper (the verdict print raised,
+    exit 120, nothing printed); `open(sys.stdout.fileno(), "w")` closed fd 1 when its wrapper was
+    finalized; a detached stderr failed the exit-time flush — a green verdict with exit 120 (FF1)."""
+    idioms = {
+        "detach_rewrap": 'import io, sys\nsys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8")\n',
+        "codecs_writer": 'import codecs, sys\nsys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())\n',
+        "fdopen_rewrap": 'import sys\nsys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)\n',
+        "stderr_detach": 'import io, sys\nsys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding="utf-8")\n',
+        "keep_wrapper_atexit": 'import atexit, io, sys\nW = sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")\natexit.register(lambda: W.write("bye\\n"))\n',
+        "healthy": "",
+    }
+    script = REPO / "scripts" / "enforcement" / "check_command_corpus.py"
+    for name, body in idioms.items():
+        root = tmp_path / name
+        (root / "scripts" / "enforcement").mkdir(parents=True)
+        shutil.copy(script, root / "scripts" / "enforcement" / "check_command_corpus.py")
+        (root / "libs" / "subagents").mkdir(parents=True)
+        (root / "libs" / "__init__.py").write_text("")
+        (root / "libs" / "subagents" / "__init__.py").write_text("")
+        (root / "libs" / "subagents" / "web_tools.py").write_text(
+            body + 'WEB_TOOL_NAMES = frozenset({"web_search"})\n'
+        )
+        (root / "CLAUDE.md").write_text(
+            "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>\n"
+        )
+        (root / "commands" / "_sources").mkdir(parents=True)
+        (root / "commands" / "_fragments").mkdir()
+        (root / "commands" / "assemble_commands.py").write_text("")
+        (root / "commands" / "_sources" / "fabrik-a.md").write_text("{{include:run-record}}\n")
+        proc = subprocess.run(
+            [sys.executable, "scripts/enforcement/check_command_corpus.py"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert "command corpus:" in proc.stdout, (name, proc.stdout, proc.stderr)
+        assert proc.returncode in (0, 1), (name, proc.returncode, proc.stderr)
+        assert "Traceback" not in proc.stderr and "Bad file descriptor" not in proc.stderr, (
+            name,
+            proc.stderr,
+        )
+        assert "Exception ignored" not in proc.stderr, (name, proc.stderr)
+        if name == "healthy":
+            assert proc.returncode == (0 if not proc.stdout.startswith("✗") else 1)
+
+
+def test_shell_escapes_a_column_zero_comment_a_carried_quote_and_a_backticked_info_string(
+    corpus,
+):
+    """`'it'\\''s # done'` and `"a \\" # b"` fired BLOCKING false positives (no escape handling); a
+    column-0 `#` on a continuation line satisfied the window; a quoted argument spanning a
+    continuation reset its quote state per line; a backtick inside a backtick-fence info string
+    opened a fence (FF1)."""
+    import check_command_corpus as ccc
+
+    close = "python3 scripts/command_run.py done --command fabrik-probe"
+    for body in (
+        f"```bash\n{close} --evidence 'it'\\''s # done' --feedback f\n```\n",
+        f'```bash\n{close} \\\n  --evidence "PR #42 merged" --feedback "none"\n```\n',  # the CONTINUATION window's quoted `#` — single-line closes went through `finditer`, this path had no grader (B66-C2)
+        f'```bash\n{close} --evidence "a \\" # b" --feedback f\n```\n',
+        f'```bash\n{close} --evidence "multi \\\nline # text" --feedback f\n```\n',
+        f"```bash\n{close} --evidence a\\#b --feedback f\n```\n",
+    ):
+        assert not any("--feedback" in p for p in corpus(body)), (body, corpus(body))
+    for body in (
+        f"```bash\n{close} --evidence e \\\n# --feedback is required\n```\n",
+        f"```bash\n{close} --evidence e \\\n  # --feedback is required\n```\n",
+        f"```a`b\n`{close} --evidence e` says --feedback\n",
+    ):
+        assert any("--feedback" in p for p in corpus(body)), (body, corpus(body))
+    assert ccc._cut_shell_comment("a \\# b # c") == ("a \\# b ", "")
+    assert ccc._cut_shell_comment('x "open # not', "") == ('x "open # not', '"')
+    assert ccc._cut_shell_comment('still # not" now # cut', '"') == ('still # not" now ', "")
+    assert ccc._fence_step("```a`b", "", 0) == ("", 0, False)
+
+
+def test_a_commented_claim_is_a_note_and_a_fence_inside_a_comment_opens_nothing(corpus, tmp_path):
+    """The claim side stripped fences but not HTML comments (a commented-out note fired a BLOCKING
+    claim); the honour side unfenced BEFORE it stripped comments, so `<!--\n```\n-->` in the caller
+    swallowed its real reference (FF1)."""
+    import check_command_corpus as ccc
+
+    assert ccc._claimed_callers("<!-- auto-called by /fabrik-real -->\n") == {}
+    assert ccc._claimed_callers("<!--\nauto-called by /fabrik-real\n-->\n") == {}
+    assert ccc._claimed_callers("<!-- ``` -->\nauto-called by /fabrik-real.\n") == {
+        "fabrik-real": 2
+    }
+    assert not any("claims caller" in p for p in corpus("<!-- auto-called by /fabrik-real -->\n"))
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\n<!--\n```\n-->\nI invoke /fabrik-probe here.\n"
+    )
+    problems = corpus("description: auto-called by /fabrik-real reactively.\n")
+    assert not any("claims caller /fabrik-real" in p for p in problems), problems
+    (tmp_path / "_sources" / "fabrik-real.md").write_text(
+        "{{include:run-record}}\n```\n<!-- x\n```\ncall /fabrik-probe\n-->\n"
+    )
+    problems = corpus("description: auto-called by /fabrik-real reactively.\n")
+    assert not any("claims caller /fabrik-real" in p for p in problems), (
+        "a `<!--` inside a fence is content: the fenced block ends at its closer and the call after it is honoured"
+    )
+    assert (
+        ccc._blank_html_comments("a <!-- b\nc --> d\n```\n<!-- e\n```\nf")
+        == "a \n d\n```\n<!-- e\n```\nf"
+    )
+
+
+def test_the_three_fence_readers_share_the_one_tracker():
+    """FE2 claimed `_fence_step` is the ONE CommonMark tracker for the claim side, the honour side
+    and predicate 7 while `_claimed_callers` kept an inline copy (G66-C8, F66-3, FF1)."""
+    import check_command_corpus as ccc
+
+    src = Path(ccc.__file__).read_text(encoding="utf-8")
+    assert src.count("_fence_step(") >= 4, src.count("_fence_step(")  # the def + three call sites
+    assert src.count('re.match(r"(`{3,}|~{3,})(.*)$"') == 1  # inside _fence_step only
+    assert ccc._claimed_callers("````\n```\nauto-called by /fabrik-x\n````\n") == {}

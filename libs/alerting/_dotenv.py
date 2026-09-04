@@ -28,6 +28,7 @@ from pathlib import Path
 # The ONLY keys autoloaded — exactly what subagents reads (transport, flywheel, web/MCP tools,
 # selection doc, live pricing). NOT a general dotenv loader: we never import unrelated secrets.
 DOTENV_KEYS: tuple[str, ...] = (
+    "ALERT_APPRISE_CONTAINER",
     "ALERT_APPRISE_URL",
     "ALERT_ENABLED",
     "ALERT_MIN_INTERVAL",
@@ -151,14 +152,10 @@ def load_env(repo: str, *, keys: tuple[str, ...] = DOTENV_KEYS) -> list[str]:
     project with no per-repo edit, while a project can still override it in its own `.env`. Returns
     the keys it set. Never raises."""
     loaded: list[str] = []
-    proj = _find_dotenv(
-        repo
-    )  # project .env — more specific → applied FIRST (wins over the shared)
+    proj = _find_dotenv(repo)  # project .env — more specific → applied FIRST (wins over the shared)
     if proj is not None:
         _apply_env_file(proj, keys, loaded)
-    shared = (
-        _shared_env_path()
-    )  # fleet-wide fallback — fills anything the project didn't set
+    shared = _shared_env_path()  # fleet-wide fallback — fills anything the project didn't set
     if shared is not None and shared.is_file():
         _apply_env_file(shared, keys, loaded)
     return loaded

@@ -38,14 +38,6 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 
-# load_dotenv before importing alerting so TELEGRAM_BOT_TOKEN is in env.
-try:
-    from dotenv import load_dotenv  # type: ignore[import-not-found]
-
-    load_dotenv(SCRIPT_DIR.parents[1] / ".env", override=False)
-except ImportError:
-    pass
-
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 _LIBS = (
@@ -54,10 +46,21 @@ _LIBS = (
 sys.path[:] = [p for p in sys.path if p != str(_LIBS)]
 sys.path.insert(
     0, str(_LIBS)
-)  # FIRST, unconditionally: a libs entry already LATER on sys.path left SCRIPT_DIR ahead of it — the resolution order D-112 exists to prevent (FE7)
+)  # FIRST, unconditionally: a libs entry already LATER on sys.path left SCRIPT_DIR ahead of it — the resolution order D-112 exists to prevent (FE7); and BEFORE the dotenv import, so the stdlib fallback below resolves (FF1)
 os.environ.setdefault(
     "FABRIK_NO_AUTOLOAD", "1"
-)  # the ONLY .env this checker reads is the hub's (above): the boot hook runs it from /opt/session-recall, where the package's cwd autoload read THAT repo's .env (FE6)
+)  # the ONLY .env this checker reads is the hub's (below): the boot hook runs it from /opt/session-recall, where the package's cwd autoload read THAT repo's .env (FE6)
+# load_dotenv before importing alerting so TELEGRAM_BOT_TOKEN is in env.
+try:
+    from dotenv import load_dotenv  # type: ignore[import-not-found]
+
+    load_dotenv(SCRIPT_DIR.parents[1] / ".env", override=False)
+except ImportError:
+    from alerting._dotenv import (
+        load_env as _load_env,  # the package's stdlib loader: a venv without python-dotenv loaded nothing here and blamed missing tokens — the helper and the chain fell back since FE6, this file did not (M-C2, FF1)
+    )
+
+    _load_env(str(SCRIPT_DIR.parents[1]))
 
 TIMESTAMP_FILE_DEFAULT = SCRIPT_DIR / "cache" / "daily_refresh_last_success.txt"
 MAX_AGE_HOURS_DEFAULT = 36
@@ -79,13 +82,12 @@ def _now_utc() -> datetime:
 
 
 def _read_timestamp(path: Path) -> datetime | None:
-    """Return the timestamp from the file (UTC-aware), or None if missing."""
+    """Return the timestamp from the file (UTC-aware), or None if missing. An OSError (an
+    unreadable file, or an unreadable PARENT — `exists()` raises EACCES) PROPAGATES: it read as
+    first_run, a silent no-op, and the parent case crashed both legs (M-C3, FF1)."""
     if not path.exists():
         return None
-    try:
-        text = path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
+    text = path.read_text(encoding="utf-8").strip()
     if not text:
         return None
     try:
@@ -106,13 +108,22 @@ def check(
     """Pure function: returns the check result without firing the alert.
 
     Result dict:
-      status: "fresh" | "stale" | "first_run"
+      status: "fresh" | "stale" | "first_run" | "unreadable"
       age_hours: float (None if first_run)
       timestamp: ISO string (None if first_run)
       threshold_hours: int
     """
     now = now or _now_utc()
-    ts = _read_timestamp(timestamp_file)
+    try:
+        ts = _read_timestamp(timestamp_file)
+    except OSError as exc:
+        return {
+            "status": "unreadable",
+            "age_hours": None,
+            "timestamp": None,
+            "threshold_hours": max_age_hours,
+            "error": f"{type(exc).__name__}: {exc}",
+        }  # its own alerted status — never first_run, never a crash (M-C3, FF1)
     if ts is None:
         return {
             "status": "first_run",
@@ -141,8 +152,11 @@ def check_selection_doc(
     status: "fresh" | "stale" | "stub" | "missing" | "undated" | "future"
     """
     now = now or _now_utc()
-    if not doc.exists():
-        return {"status": "missing", "age_days": None, "threshold_days": max_age_days}
+    try:
+        if not doc.exists():
+            return {"status": "missing", "age_days": None, "threshold_days": max_age_days}
+    except OSError:  # an unreadable PARENT raises out of exists() (EACCES) — a traceback, no typed status (M-C3, FF1)
+        return {"status": "unreadable", "age_days": None, "threshold_days": max_age_days}
     try:
         text = doc.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -263,8 +277,8 @@ def maybe_alert_selection_doc(result: dict[str, object]) -> bool:
 
 
 def maybe_alert(result: dict[str, object]) -> bool:
-    """Fire an alert if the result is stale. Returns True if alert was sent."""
-    if result["status"] != "stale":
+    """Fire an alert if the result is stale or unreadable. Returns True if alert was sent."""
+    if result["status"] not in ("stale", "unreadable"):
         return False
     try:
         from alerting import send_alert  # type: ignore[import-not-found]
@@ -281,11 +295,19 @@ def maybe_alert(result: dict[str, object]) -> bool:
     # daily_refresh.sh continues with its other steps. Logging the failure
     # to stderr means the operator still sees it in the daily refresh log.
     title = "kilo-benchmarks daily refresh is stale"
+    if result["status"] == "unreadable":
+        title = "kilo-benchmarks daily refresh heartbeat is unreadable"
     try:
         sent = bool(
             send_alert(
                 title=title,
                 body=(
+                    f"the heartbeat file cannot be read ({result['error']}) — a lost permission "
+                    f"bit on the file or its directory; the pipeline may be fine or dead, nobody "
+                    f"can tell until it is readable again."
+                )
+                if result["status"] == "unreadable"
+                else (
                     f"daily_refresh.sh last completed successfully at "
                     f"{result['timestamp']} UTC "
                     f"({result['age_hours']:.1f} hours ago — threshold "
@@ -335,6 +357,8 @@ def main() -> int:
             print(f"[heartbeat] FIRST RUN (no prior timestamp at {args.timestamp_file})")
         elif result["status"] == "fresh":
             print(f"[heartbeat] FRESH ({result['age_hours']:.1f}h since last success)")
+        elif result["status"] == "unreadable":
+            print(f"[heartbeat] UNREADABLE ({result['error']})")
         else:
             print(
                 f"[heartbeat] STALE ({result['age_hours']:.1f}h "

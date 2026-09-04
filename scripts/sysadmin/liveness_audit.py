@@ -57,7 +57,7 @@ Usage:
     python scripts/sysadmin/liveness_audit.py                  # human table
     python scripts/sysadmin/liveness_audit.py --json           # machine report
     python scripts/sysadmin/liveness_audit.py --proof heartbeat
-    python scripts/sysadmin/liveness_audit.py --strict         # exit 1 on any DEAD/INERT/STALE
+    python scripts/sysadmin/liveness_audit.py --strict         # exit 1 on any DEAD, or a proof the audit could not run
 """
 
 from __future__ import annotations
@@ -665,9 +665,20 @@ def _unregistered_guarded(
         return _unregistered(box, registry, cron_inst, cron_lines)
     except Exception as exc:  # noqa: BLE001 - a string `ownership` or an int needle raised out of the sweep
         fault = f"{exc.__class__.__name__}: {exc}"[:200]
-        return {  # the REAL shape, so a `--json` consumer keyed on `cron.owned` sees no schema change under fault (FE3)
-            "cron": {"instrument_fault": fault, "owned": [], "foreign_count": None, "total": 0},
-            "hooks": {"instrument_fault": fault, "unregistered": [], "total": 0},
+        return {  # the REAL shape, so a `--json` consumer keyed on `cron.owned` sees no schema change under fault (FE3); `sweep_raised` marks the RAISE apart from a box instrument fault (FF1)
+            "cron": {
+                "instrument_fault": fault,
+                "owned": [],
+                "foreign_count": None,
+                "total": 0,
+                "sweep_raised": True,
+            },
+            "hooks": {
+                "instrument_fault": fault,
+                "unregistered": [],
+                "total": 0,
+                "sweep_raised": True,
+            },
         }
 
 
@@ -751,8 +762,14 @@ def _heartbeat_one(
         return make(inst, Verdict.DEAD, f"port {port} is not listening", "not-listening")
 
     if etype == "unit":
-        unit = str(evidence.get("unit", ""))
-        expect = str(evidence.get("expect", "enabled"))
+        unit = _needle(evidence.get("unit")) or ""
+        if not unit:
+            return make(
+                Instrument.broken(f"{sid}:registry", "unit is empty or not a string"),
+                Verdict.UNKNOWN,
+                "the registry row could not be probed",
+            )  # `" "`/`null` read as a DEAD "  is not-found" — the needle rule stopped at cron/hook/marker/path (FF1)
+        expect = _needle(evidence.get("expect")) or "enabled"
         inst, state = box.unit_state(unit)
         if not inst.ok or state is None:
             return make(inst, Verdict.UNKNOWN, f"cannot read the state of {unit}")
@@ -902,7 +919,12 @@ def _unregistered(
     out: dict[str, Any] = {}
 
     if not cron_inst.ok:
-        out["cron"] = {"instrument_fault": cron_inst.fault, "owned": [], "foreign_count": None}
+        out["cron"] = {
+            "instrument_fault": cron_inst.fault,
+            "owned": [],
+            "foreign_count": None,
+            "total": 0,
+        }  # the same shape on every producer — FE3 gave `total` to the rare guarded fallback only (FF1)
     else:
         owned, foreign = [], 0
         for line in cron_lines:
@@ -920,7 +942,7 @@ def _unregistered(
 
     hook_inst, commands = box.hooks()
     if not hook_inst.ok:
-        out["hooks"] = {"instrument_fault": hook_inst.fault, "unregistered": []}
+        out["hooks"] = {"instrument_fault": hook_inst.fault, "unregistered": [], "total": 0}
     else:
         needles = [
             m
@@ -2146,25 +2168,30 @@ class Report:
         )
 
     def crashed(self) -> int:
-        """Proofs that raised. They report UNKNOWN (they proved nothing), but `--strict`
-        must still bite: a silently skipped proof is how a monitor learns to say all-clear."""
-        sweep_faults = sum(
-            1
+        """What the audit could not RUN — never what it ran and could not decide. Counted: a sweep that
+        RAISED (its fault is carried into both blocks; distinct faults, so one exception counts once),
+        a `proof`/`registry`-kind finding (a registry the proof could not use — a duplicate id, an
+        empty or a missing file, FC2), and a ROW the proof could not probe (a blank needle, a string
+        `evidence` — a `<id>:registry` fault, FE3). NOT counted: a box instrument fault (an unreadable
+        crontab — "an instrument fault is not a defect") and a declared-unprobeable channel
+        (`evidence: none`, a volatile path) — FE3 counted those and `--strict` went permanently red on
+        a healthy box: 24 of 135 live findings, 16 of them the vacuity proof's own "no canary
+        authored" (FF1)."""
+        sweep_faults = {
+            part["instrument_fault"]
             for block in self.proofs.values()
             for part in (block.get("unregistered") or {}).values()
-            if isinstance(part, dict) and part.get("instrument_fault")
-        )  # the unregistered sweep's own failure was contained by FD5 and INVISIBLE to `--strict` (FE3)
-        return (
-            sweep_faults
-            + sum(
-                1
-                for block in self.proofs.values()
-                for f in block.get("findings", [])
-                if f["kind"] in ("proof", "registry")
-                or (
-                    f["verdict"] == "UNKNOWN" and f["instrument_fault"]
-                )  # a row the proof could not probe (a blank needle, a string `evidence`) is a skipped proof too — `--strict` was green on it (FE3)
-                # a registry the proof could not use is a skipped proof: `--strict` was a green no-op on a duplicate id, an empty or a missing registry (FC2)
+            if isinstance(part, dict) and part.get("instrument_fault") and part.get("sweep_raised")
+        }
+        return len(sweep_faults) + sum(
+            1
+            for block in self.proofs.values()
+            for f in block.get("findings", [])
+            if f["kind"] in ("proof", "registry")
+            or (
+                f["verdict"] == "UNKNOWN"
+                and f["instrument_fault"]
+                and str(f.get("instrument", "")).endswith(":registry")
             )
         )
 
@@ -2234,7 +2261,9 @@ def render(report: Report) -> str:
             unreg = block.get("unregistered") or {}
             cron = unreg.get("cron") or {}
             if cron.get("instrument_fault"):
-                out.append(f"  UNREGISTERED cron: UNKNOWN [instrument: {cron['instrument_fault']}]")
+                out.append(
+                    f"  UNREGISTERED cron: UNKNOWN [instrument: {str(cron['instrument_fault'])[:200]}]"
+                )  # bounded like every other render site: a `_memo` fault printed 4 044 chars (FF1)
             else:
                 out.append(
                     f"  UNREGISTERED owned cron lines: {len(cron.get('owned', []))}"
@@ -2245,7 +2274,7 @@ def render(report: Report) -> str:
             hooks = unreg.get("hooks") or {}
             if hooks.get("instrument_fault"):
                 out.append(
-                    f"  UNREGISTERED hooks: UNKNOWN [instrument: {hooks['instrument_fault']}]"
+                    f"  UNREGISTERED hooks: UNKNOWN [instrument: {str(hooks['instrument_fault'])[:200]}]"
                 )
             else:
                 out.append(f"  UNREGISTERED hook commands: {len(hooks.get('unregistered', []))}")
@@ -2279,7 +2308,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--json", action="store_true", help="machine-readable report on stdout")
     p.add_argument(
-        "--strict", action="store_true", help="exit 1 when anything is DEAD (opt-in CI mode)"
+        "--strict",
+        action="store_true",
+        help="exit 1 when anything is DEAD or a proof could not run — a crashed sweep, an unusable registry or row (opt-in CI mode)",
     )
     p.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     p.add_argument(

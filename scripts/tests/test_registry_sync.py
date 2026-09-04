@@ -653,7 +653,7 @@ def test_parse_fails_closed_on_an_unreadable_svc_line(tmp_path):
         "CHARLIE_API_KEY=cccc\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="unparseable #svc"):
+    with pytest.raises(ValueError, match="unreadable line"):
         rs.parse(f)
 
 
@@ -1302,3 +1302,111 @@ def test_the_key_prune_is_bounded_like_the_service_prune(monkeypatch, tmp_path, 
     rc = rs.main()
     err = capsys.readouterr().err
     assert rc == 1 and "bounded prune: refusing to delete" in err and "api_keys" in err, (rc, err)
+
+
+def test_the_key_prune_bound_is_a_lap_wide_floor_of_one_rotation_per_provider(
+    monkeypatch, tmp_path, capsys
+):
+    """The FE5 bound compared a CUMULATIVE counter against `max(5, keys // 5)`: six honest one-key
+    rotations on a 20-key registry were refused as corruption and every upsert rolled back; the
+    grader returned 500 for BOTH counts so the denominator was never exercised (R66-C5/C13, FF1)."""
+    from unittest import mock
+
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        "".join(_svc(f"test_zzz_rot{i}") + f"ROT{i}_API_KEY=k{i}\n" for i in range(6)),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rs, "ALL_ENVS", f)
+    monkeypatch.setattr(sys, "argv", ["registry_sync.py"])
+    monkeypatch.delenv("REGISTRY_PRUNE_FORCE", raising=False)
+
+    def run(rowcount, keys=20, force=None):
+        conn = mock.MagicMock()
+        conn.__enter__.return_value = conn
+        cur = mock.MagicMock()
+        cur.__enter__.return_value = cur
+        cur.fetchall.return_value = []
+        last = [""]
+        cur.execute.side_effect = lambda sql, *a: last.__setitem__(0, sql)
+        cur.fetchone.side_effect = (
+            lambda: (  # DISTINCT counts per table, so the wrong denominator reds
+                (500,)
+                if "FROM services" in last[0]
+                else (keys,)
+                if "FROM api_keys" in last[0]
+                else (1,)
+            )
+        )
+        cur.rowcount = rowcount
+        conn.cursor.return_value = cur
+        monkeypatch.setattr(rs.registry_db, "connect", lambda: conn)
+        if force is None:
+            monkeypatch.delenv("REGISTRY_PRUNE_FORCE", raising=False)
+        else:
+            monkeypatch.setenv("REGISTRY_PRUNE_FORCE", force)
+        rc = rs.main()
+        return rc, capsys.readouterr().err
+
+    rc, err = run(
+        1
+    )  # six providers × one rotated key = 6 > 5, but one per provider is a lap of rotations
+    assert rc == 0 and "bounded prune" not in err, (rc, err)
+    rc, err = run(50)  # 50 of 20 at the FIRST provider: corruption, refused inside the loop
+    assert rc == 1 and "refusing to delete 50/20 api_keys (> 6 allowed)" in err, (rc, err)
+    rc, err = run(50, force="1")
+    assert rc == 0, (rc, err)  # the override is honoured on GUARD 2 too
+
+
+def test_a_double_commented_header_ends_a_block_and_the_margin_rule_never_touches_a_value(tmp_path):
+    """`## ═══ internal-config ═══` was not a header: 315 config names folded under the provider above
+    it. `line.replace("\\ufeff", "")` was whole-line: a BOM INSIDE a value was cut and the stored
+    digest was of a secret that does not exist. An empty note left `   #` in the value. The refusal
+    message called a KEY=value line an "unparseable #svc line" (R66-C4/C7/C8/C12, FF1)."""
+    f = tmp_path / "all-envs.env"
+    f.write_text(
+        _svc("test_zzz_a")
+        + "A_API_KEY=ab\ufeffcd   # used by: p\n"
+        + "B_API_KEY=abc   # \n"
+        + "## ═══ internal-config ═══\n"
+        + "NOT_A_PROVIDER_KEY=1\n",
+        encoding="utf-8",
+    )
+    provs = rs.parse(f)
+    assert [p["meta"]["name"] for p in provs] == ["test_zzz_a"]
+    keys = {k: v for k, v, *_ in provs[0]["keys"]}
+    assert keys == {"A_API_KEY": "ab\ufeffcd", "B_API_KEY": "abc"}, keys
+    f.write_text(_svc("test_zzz_b") + "A-DASH-KEY = 1\n", encoding="utf-8")
+    with pytest.raises(
+        ValueError,
+        match=r"unreadable line\(s\) \(a #svc header, a duplicate name, or a KEY=value line\)",
+    ):
+        rs.parse(f)
+
+
+def test_a_multi_line_value_the_generator_writes_is_read_back_by_its_own_reader(
+    tmp_path, monkeypatch
+):
+    """gather rendered a PEM (`\\n` resolved by dotenv) as three physical lines; `registry_sync.parse`
+    refused the two continuation lines and the whole daily sync failed closed on one project `.env`
+    (R66-C6, FF1). The generator escapes the newlines and says so in the note."""
+    sys.path.insert(0, str(Path(rs.__file__).resolve().parent))
+    try:
+        import gather_envs as ge
+    finally:
+        sys.path.pop(0)
+    cat = tmp_path / "catalog.json"
+    cat.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(ge, "CATALOG_PATH", cat)
+    env = tmp_path / "web" / ".env"
+    env.parent.mkdir()
+    env.write_text(
+        'PEMCO_PRIVATE_KEY="-----BEGIN KEY-----\nabc\n-----END KEY-----"\n', encoding="utf-8"
+    )
+    body, _stats = ge.consolidate([env])
+    assert "multi-line value, newlines escaped" in body, body
+    f = tmp_path / "all-envs.env"
+    f.write_text(body, encoding="utf-8")
+    provs = rs.parse(f)
+    keys = {k: v for p in provs for k, v, *_ in p["keys"]}
+    assert keys["PEMCO_PRIVATE_KEY"] == "-----BEGIN KEY-----\\nabc\\n-----END KEY-----", keys
