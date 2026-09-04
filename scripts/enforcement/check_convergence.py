@@ -885,8 +885,9 @@ def _check_review(root: Path, path: Path) -> list[str]:
             "(concurrent lanes: embed the FAILING gate and declare, on ONE line, `GATE-SCOPE: out-of-surface "
             "— <check>; findings naming this surface: 0 of <N>; measured by: <command>` — N is the "
             "failing check's TOTAL findings and must be >= 1 (a failing gate with 0 findings is a "
-            "contradiction); the value stays on that line, unwrapped — a block fence on the NEXT "
-            "lines is not read as the value, and a hard-wrapped declaration is not a declaration)"
+            "contradiction); the value stays on that line, unwrapped, as plain text, a backtick span or an "
+            "inline fence — a block fence on the NEXT lines is not read as the value, and a "
+            "hard-wrapped declaration is not a declaration)"
         )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")

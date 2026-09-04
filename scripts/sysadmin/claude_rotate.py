@@ -1133,9 +1133,9 @@ def _oauth_get(
     auth, NEVER retried — retrying a dead/wrong token only burns the budget. Both knobs are
     env-tunable (``OAUTH_GET_TIMEOUT_S`` / ``OAUTH_GET_ATTEMPTS``).
 
-    ⚠️ ``attempts`` is PER HOST. The worst case is ``len(_OAUTH_HOSTS) * attempts`` calls, so the
-    8s default bounds ONE CALL at ~32.6s (2 hosts × (8 + 0.3 + 8)), not ~16s. That is NOT inside
-    the caller's budget on its own. ``--status --json`` — run by ``quota_dashboard.py`` under a
+    ⚠️ ``attempts`` is PER HOST. The worst case is ``len(_OAUTH_HOSTS) * attempts`` calls per
+    ``_oauth_get`` — the figure lives in the backlog row named below, not here. One call is NOT
+    inside the caller's budget on its own. ``--status --json`` — run by ``quota_dashboard.py`` under a
     60s ``subprocess`` cap — takes the FLEET path whenever fleet dirs exist (this box: yes), and
     ``_fleet_account_rows`` makes an unconditional ``usage`` call plus an hourly ``profile`` call
     per FRESH account: the ``_FLEET_TOKEN_FRESH_S`` gate only skips STALE tokens. THE INVARIANT:
