@@ -3,8 +3,11 @@
 Surface: 2b6258df68b8f75f8f1814eb85e0b81fe5497431
 Plan set: `docs/development/plans/2026-09-03-plan-1-multi-agent-per-repo/` (spine + 26 tickets), Status **DRAFT**
 Reviewer: intel (`/fabrik-plan-review`), passes 1–5; the author-blind layer was one native Opus pass with live repo tools.
-Verdict: **NOT CONVERGED.** Seven HIGH findings survive verification, three of them fail-open defects that the plan
-would ship into fleet-synced enforcement. The set stays DRAFT until they are closed.
+Verdict at first write: **NOT CONVERGED** — seven HIGH findings, three of them fail-open defects the plan would have shipped into
+fleet-synced enforcement.
+**Verdict now: all seven are CLOSED in the set** (2026-09-04, same session, after the operator ruled that infra is
+unreachable and asked me to resolve my own part). The plan grew from 26 to 32 tickets: five of the closures needed new
+tickets, and three of those were split again purely by read budget. See § Closure below.
 
 ## Why the author-blind layer was a single native pass
 
@@ -94,4 +97,18 @@ $ python scripts/review_rubric.py --changed $(the 95 File Scope entries)
 Pass 5 was edit-free and md5-stable — but pass 6, the author-blind layer, raised 34. **An edit-free own-pass is
 method-stability, not truth**, which is precisely why this command forbids the author's own re-read from counting.
 
-NEXT: close the seven HIGH findings, then re-converge. The plan stays `Status: DRAFT`.
+## Closure — how each HIGH was resolved
+
+| # | Closed by | What changed |
+|---|---|---|
+| H1 | **T05c + T05d + T05e** (new) | The lock move now carries its consumers. T05c takes the fleet-synced Stop hook (`final_gate_stop.py:864`) — the one whose silent disarm made this the severest finding; T05d takes `check_plan_tickets`' own-lock metadata exemption (`:320`, `:1038`), which T05a edits the file for but never touched; T05e takes cert-coverage, the manifest's salvage-diff gitignore leg (`:258`) and the four test files. Split three ways because the combined read set measured 623,472 B against a 262,144 budget. Each ends with a `git grep` gate proving zero code consumers remain on the old path. |
+| H2 | T06a, T06b, T06c | Each now states the four explicit `{{include:…}}` lines the source must carry, and says why: `assemble_commands.py:774` auto-appends `close-feedback` and nothing else, which is why 30 of 33 existing sources carry `{{include:run-record}}` themselves. |
+| H3 | T07b | Scope now names `STEM_SKILLS` (`skill_router.py:108`) alongside `KEYWORD_STEMS`, and all three contract rows assert the real return value — `first_regex_match` yields a STEM, `resolve_target` maps it to the skill name. Adding one dict without the other yields `None` and a router that never fires. |
+| H4 | § Global Constraints | "Merge-time render only" is rewritten as a hard ordering constraint: EVERY source-touching ticket renders before committing, not just T07a — because `command-corpus-check` refuses any `commands/` commit whose sources are ahead of the installed corpus, so one un-rendered merge would block every other session's commit under those paths until someone rendered. |
+| H5 | T14b + **T14d, T14e, T14f** (new) | The three functional survivors are now owned: `review_rubric.py:103`'s dead checklist path (T14d, with the previously unmapped `~/.traycer` README retirement), `check_review_coverage.py:581,1314`'s dead command key (T14e), `command_run.py:1236`'s report obligation (T14f). T14b keeps the prose sweep and its gate now lists every DECLARED deferral as an explicit pathspec, so a reader sees what was deferred instead of inferring it from a passing check. |
+| H6 | T13 | Refs are `refs/wip/wt-<name>-<UTC-ts>` (the existing prune parses the time out of the ref NAME, so a bare `wt-beta` would never expire), the prune glob is widened, and the inner loop is pinned ABOVE `:40`'s clean-tree `continue` — below it, T13's own test case would never run. |
+| H7 | T04b + spine § Self-audit | T04b now makes `**Owner:**` mandatory at creation, emitted from `CLAUDE_AGENT` by `/fabrik-plan-after-chat`. The Self-audit's false credit to "T04" is withdrawn and named as withdrawn. |
+
+Two MED claims were also withdrawn rather than defended: the Self-audit's four-way settings-JSON identity (T14a's line (d) and T15's doc never restated it), and the silent contradiction of the spec's "hub `.claude/settings.json` untouched" — now a declared, argued supersede in § What we already agreed.
+
+NEXT: the closing re-derivation pass, then the CONVERGED flip. The remaining MED/LOW items ride § Residual unknowns.
