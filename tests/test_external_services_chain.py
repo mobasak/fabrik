@@ -2453,6 +2453,10 @@ def test_a_negative_backfilled_balance_and_an_infinite_price_render_empty(monkey
     assert rows[0]["price"] == "", rows[0]
     answers["FROM subscriptions"] = [("apify", Decimal("12.50"), "usd", None)]
     assert "12.5" in gd.load()[0]["price"]
+    answers["FROM subscriptions"] = [("apify", Decimal("0"), "usd", None)]
+    assert gd.load()[0]["price"] == "0 usd", (
+        "a free plan declared for its renewal date is a PRICE, not a NULL — `price >= 0` survived every grader (K68-4, FH1)"
+    )
     from datetime import date
 
     answers["FROM subscriptions"] = [
@@ -2688,3 +2692,42 @@ def test_a_client_that_resets_before_its_request_is_read_leaves_no_traceback(mon
         t.join(5)
     err = capfd.readouterr().err
     assert "Traceback" not in err and "Exception occurred" not in err, err
+
+
+def test_a_handler_bug_still_reaches_handle_error(monkeypatch):
+    """`handle()` guards the READ side against a client that resets (K67-1). It must catch socket
+    errors ONLY: an `except Exception: pass` there would swallow a real handler bug — the stdlib's
+    own `handle_error` is what makes one visible (K68-6/K68-8, FH1)."""
+    import contextlib
+    import http.client
+    import importlib.util
+    import threading
+
+    spec = importlib.util.spec_from_file_location(
+        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
+    )
+    ds = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ds)
+    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
+    monkeypatch.setattr(
+        ds.Handler, "handle_one_request", lambda self: (_ for _ in ()).throw(TypeError("bug"))
+    )
+    seen = []
+    monkeypatch.setattr(ds.Server, "handle_error", lambda self, req, addr: seen.append("handled"))
+    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.handle_request, daemon=True)
+    t.start()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/")
+        with contextlib.suppress(Exception):
+            conn.getresponse()
+        conn.close()
+    finally:
+        t.join(10)
+        srv.server_close()
+        sys.modules.pop("dashboard_server", None)
+    assert seen == ["handled"], (
+        "a handler BUG must reach handle_error — a blanket `except Exception` in handle() hides it"
+    )

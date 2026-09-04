@@ -332,6 +332,32 @@ def test_a_flag_a_string_and_an_overflowing_int_are_not_measurements(monkeypatch
         )  # a negative count inflated the remainder; an overage is a negative remainder — neither is a balance (FE1)
 
 
+def test_a_429_is_retried_and_a_final_failure_is_said(monkeypatch, capsys):
+    """`RETRYABLE_STATUS` was graded on 401 and 503 only — dropping 429, the rate-limit status the
+    whole backoff exists for, survived every grader; and every final failure but the body cap was
+    SILENT, so a revoked key and an outage both read as one missing row with the cause nowhere
+    (K68-5 / K68-1, FH1)."""
+    import urllib.error
+
+    seen = []
+
+    class _Opener:
+        def open(self, req, timeout=None):
+            seen.append(req.full_url)
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many", {"Retry-After": "0"}, None)
+
+    orig = cf._OPENER
+    monkeypatch.setattr(cf.time, "sleep", lambda _s: None)
+    try:
+        cf._OPENER = _Opener()
+        assert cf._get_json("https://x.example/429", {}) is None
+        assert len(seen) == cf.RETRIES + 1, seen  # retried, never final on the first answer
+    finally:
+        cf._OPENER = orig
+    err = capsys.readouterr().err
+    assert "HTTP 429" in err and "no snapshot" in err and "x.example" in err, err
+
+
 def test_a_truncated_chunked_body_and_a_bottomless_json_are_no_snapshot_not_a_raise():
     """`http.client.IncompleteRead` and a `RecursionError` from a 100 000-deep JSON escaped
     `_get_json`'s "never raises" contract — held only by `fetch_balance`'s blanket catch (K66-5, FF1)."""
