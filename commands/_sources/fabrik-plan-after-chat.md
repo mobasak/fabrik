@@ -366,7 +366,11 @@ simulation is split anyway. Splits are by YOU the author (the script validates, 
 Touches along responsibility seams, re-derive Depends from Interfaces (b depends on a iff b consumes
 a's Produces), rename to the `T05a-`/`T05b-` shape, update Board + Merge Order, re-run the gate to
 **exit 0 with zero WARN lines** (the exit code alone ignores the advisory caps — and the emit gate
-is the only place they surface on any GATE path, per Phase 5). A single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
+is the only place they surface on any GATE path, per Phase 5). ⚠️ **Record its SUMMARY line as the
+sizing evidence, not "exit 0"**: the run ends with `graded N ticket(s), M Touches path(s), K
+Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A bare exit 0 is
+byte-identical to a run that graded nothing, so citing it is the un-denominated claim the
+bounded-search rule forbids. A single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
 operator — the only non-self-service sizing case.
 
 **Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;

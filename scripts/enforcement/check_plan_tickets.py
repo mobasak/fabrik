@@ -735,12 +735,25 @@ def _staleness(plan_dir: Path, spine_text: str, tickets: dict[str, Ticket]) -> l
     return results
 
 
-def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
-    """Dir-level plan-set validation. context ∈ {'cli','gate','flip'} (severity)."""
+def check_plan_dir(
+    plan_dir: Path, context: str = "cli", external_root: Path | None = None
+) -> list[CheckResult]:
+    """Dir-level plan-set validation. context ∈ {'cli','gate','flip'} (severity).
+
+    `external_root` is the repo the set's Touches/Context-Files paths resolve against when the
+    set is NOT under `docs/development/plans/` — a scratch copy, checked with `--allow-external`.
+    Without it this function returned `[]` for any such dir, so the flag its own error message
+    recommends ("checking a scratch copy? pass --allow-external") turned off EVERY check here,
+    not merely the containment one. Measured 2026-09-05 on a copy of the live 33-ticket set with
+    its spine DELETED: exit 0, zero bytes of output, where the same set in place ERRORs. Intel
+    reported the read-budget half (01M1Q1FNBKYW4BM1F2H5Q8HWV0); the early return is the whole of it.
+    """
     plan_dir = plan_dir.resolve()
     if _is_archived(plan_dir):
         return []
-    if not PLAN_DIR_NAME_RE.match(plan_dir.name) or not _is_plans_layout(plan_dir):
+    if not PLAN_DIR_NAME_RE.match(plan_dir.name):
+        return []
+    if external_root is None and not _is_plans_layout(plan_dir):
         return []
     results: list[CheckResult] = []
     spine = plan_dir / f"{plan_dir.name}.md"
@@ -1327,7 +1340,10 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
             )
 
     # --- Sizing ---------------------------------------------------------------------
-    root = _repo_root(plan_dir)
+    # A scratch copy has no plans-layout above it, so `_repo_root` is None and the whole READ
+    # budget below silently measured 0 bytes. The caller's --project-root is the honest answer:
+    # a copied ticket's Touches paths still name the REAL repo's files.
+    root = external_root if external_root is not None else _repo_root(plan_dir)
     sev = _sizing_severity(context, spine_status)
     for t in tickets.values():
         # Context-Files glob WARN binds EVERY ticket (Integration included —
@@ -1452,6 +1468,35 @@ def check_plan_dir(plan_dir: Path, context: str = "cli") -> list[CheckResult]:
 
     # --- Board staleness (execution window) --------------------------------------------
     results.extend(_staleness(plan_dir, spine_scan, tickets))
+
+    # --- What was graded, and against what -------------------------------------------
+    # A clean run used to print ZERO BYTES and exit 0, so "the gate graded 33 tickets and found
+    # nothing" was byte-identical to "the gate resolved the wrong directory and did nothing" —
+    # and two commands instruct agents to CITE that silence as sizing evidence, which is the
+    # un-denominated claim CLAUDE.md § bounded search forbids (intel, 01M1PYS0Y7AZ9W2WS8PPYHT0WK
+    # #3 and 01M1KYMG27FMEQXA89A2A4B2ZD #1, after ~20 runs needing `echo $?` to read).
+    # PASS rows carry no exit weight and the Tier-2 gate discards stdout on exit 0, so this is
+    # visible exactly where it is needed: a pasted --plan-dir result in a convergence artifact.
+    # Scoped to the explicit-`--plan-dir` author path ("cli"), which is where the silence is read
+    # as evidence. The gate and per-file adapter paths are unchanged: they run over EVERY plan dir
+    # in the tree, so a row each would be noise, and final_gate discards their stdout on exit 0.
+    if context == "cli":
+        _budget = (
+            f"READ budget measured against {root}"
+            if root is not None
+            else "READ budget NOT MEASURED — no repo root resolvable (pass --project-root)"
+        )
+        results.append(
+            _err(
+                f"graded {len(tickets)} ticket(s), "
+                f"{sum(len(t.touches) for t in tickets.values())} Touches path(s), "
+                f"{sum(len(t.context_files) for t in tickets.values())} Context-Files entry(ies); "
+                f"{_budget}; "
+                f"{len([r for r in results if r.severity is not Severity.PASS])} finding(s)",
+                plan_dir,
+                severity=Severity.PASS,
+            )
+        )
 
     # --- Gate-context DRAFT downgrade (ALL findings, structural included) ---------------
     # DRAFT/PLANNED (or absent-status) = someone's mid-AUTHORING set on shared
@@ -1630,9 +1675,14 @@ def main() -> int:
             return 1
         dirs = [target]
         lock_only: set[Path] = set()
+        # An external set's paths resolve against --project-root (default: cwd), so the READ
+        # budget and every other check actually run on a scratch copy instead of being skipped
+        # wholesale by the plans-layout guard.
+        external_root = root if not _is_plans_layout(target) else None
     else:
         _SEEN_DIRS.clear()  # in-process reuse safety (one logical run per main())
         dirs, lock_only = _discover_dirs(root)
+        external_root = None  # discovery only ever yields in-layout dirs
     if not dirs:
         print("no plan directories in scope")
         return 0
@@ -1643,7 +1693,7 @@ def main() -> int:
     run_context = "cli" if args.plan_dir else "gate"
     all_results: list[CheckResult] = []
     for d in dirs:
-        found = check_plan_dir(d, context=run_context)
+        found = check_plan_dir(d, context=run_context, external_root=external_root)
         if d in lock_only:
             found = [
                 CheckResult(

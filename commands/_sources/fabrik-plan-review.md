@@ -41,7 +41,12 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft:
   if that in-process run itself crashes, the flip degrades to the native convergence checks alone — so
   the precondition command above is the guarantee YOU own; never lean on the flip re-run to catch what
-  you skipped). Findings the checker raises are review findings: fix them in the set,
+  you skipped). ⚠️ **Cite its SUMMARY line, never the exit code** — a `--plan-dir` run ends with
+  `✓ [plan_tickets] <dir>: graded N ticket(s), M Touches path(s), K Context-Files entry(ies); READ
+  budget measured against <root>; 0 finding(s)`. Exit 0 alone is byte-identical to a run that
+  resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids;
+  the summary is what a convergence artifact can EMBED as proof. Findings the checker raises are
+  review findings: fix them in the set,
   don't route around the gate.
 - **Breadth advisory (mechanical, at the same moment):** `python scripts/enforcement/check_ticket_breadth.py
   --plan-dir <dir>` (from the repo root) — run it with the precondition above, BEFORE the `CONVERGED`

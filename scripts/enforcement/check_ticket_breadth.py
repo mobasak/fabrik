@@ -475,10 +475,20 @@ def render(results: list[Breadth]) -> list[str]:
     flagged = [b for b in results if not b.parse_note and b.flagged]
     if not flagged:
         return lines
-    lines.append(
-        f"⚠ TICKET BREADTH — {len(flagged)} ticket(s) score ≥ {BREADTH_THRESHOLD} "
-        "independent risk classes (advisory)"
+    graded = [b for b in results if not b.parse_note]
+    unparsed = len(results) - len(graded)
+    # The count AND its population, at BOTH ends. This block used to open with the numerator
+    # alone and close with per-ticket detail, so `check_ticket_breadth.py | tail -60` showed
+    # findings with no denominator — the exact bound CLAUDE.md's denominator-honesty rule warns
+    # about, built into the output ORDER. It already produced a wrong number in a real review
+    # artifact: a reviewer read "16 of 24" off a tailed run when the figure was 20 of 33
+    # (intel, 01M1PYS0Y7AZ9W2WS8PPYHT0WK #1, corrected at e6f284e6).
+    headline = (
+        f"TICKET BREADTH — {len(flagged)} of {len(graded)} ticket(s) graded score "
+        f"≥ {BREADTH_THRESHOLD} independent risk classes (advisory)"
+        + (f"; {unparsed} unparseable, NOT graded" if unparsed else "")
     )
+    lines.append(f"⚠ {headline}")
     for b in sorted(flagged, key=lambda x: (-x.score, x.tid)):
         low = max(1, round(b.score * ROUNDS_RATIO_LOW))
         high = max(low, round(b.score * ROUNDS_RATIO_HIGH))
@@ -496,6 +506,7 @@ def render(results: list[Breadth]) -> list[str]:
         "  Advisory only — the threshold is provisional (docs/reference/ticket-breadth.md). "
         "Narrowing is the operator's call."
     )
+    lines.append(f"⚠ {headline}")  # repeated LAST so a tailed read carries its own denominator
     return lines
 
 

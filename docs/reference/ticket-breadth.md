@@ -219,6 +219,14 @@ python scripts/enforcement/check_ticket_breadth.py --range A..B      # plan sets
 python scripts/enforcement/check_ticket_breadth.py --strict          # exit 1 when flagged
 ```
 
+The advisory opens **and closes** with the same headline —
+`⚠ TICKET BREADTH — N of M ticket(s) graded score ≥ 5 …` — so a `| tail` of a long run still
+carries its own denominator. It used to print the count only at the TOP, above the per-ticket
+blocks, which put a bound in the output ORDER: a reviewer read "16 of 24" off a tailed run of the
+33-ticket multi-agent-per-repo set when the figure was 20 of 33 (intel,
+`01M1PYS0Y7AZ9W2WS8PPYHT0WK`). The headline also never named the population at all — only the
+flagged count.
+
 Bare (no args) it discovers plan sets changed in the working tree — which is how
 `scripts/final_gate.py` runs it, as the Tier-2 advisory check
 `Ticket Breadth (advisory, plan sets)`.

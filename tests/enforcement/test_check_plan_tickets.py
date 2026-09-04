@@ -174,6 +174,76 @@ def test_valid_plan_set_is_clean(tmp_path: Path) -> None:
     assert _errors(cpt.check_plan_dir(plan_dir)) == []
 
 
+def test_an_external_scratch_copy_is_still_checked_not_silently_skipped(tmp_path: Path) -> None:
+    """`--allow-external` turned OFF every check here, not just the containment one.
+
+    `check_plan_dir` returned `[]` for any dir outside `docs/development/plans/`, which is
+    exactly the case the flag exists to permit — and the flag is what the tool's own error
+    message recommends ("checking a scratch copy? pass --allow-external"). So the documented way
+    to verify a plan set without mutating the tree was a PASS that asserted nothing. Intel
+    reported the READ-budget half (01M1Q1FNBKYW4BM1F2H5Q8HWV0); measured 2026-09-05, a scratch
+    copy of the live 33-ticket set with its SPINE DELETED also exited 0 with zero output.
+    """
+    real = _build(tmp_path)
+    scratch = tmp_path / "scratch" / DIRNAME
+    scratch.mkdir(parents=True)
+    for f in real.iterdir():
+        (scratch / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # without a root the layout guard swallows the dir whole — the old behaviour
+    assert cpt.check_plan_dir(scratch) == []
+
+    # a missing spine is a hard ERROR in place; it must be one on a scratch copy too
+    (scratch / f"{DIRNAME}.md").unlink()
+    external = cpt.check_plan_dir(scratch, external_root=tmp_path)
+    assert any("no same-stem spine" in m for m in _errors(external)), external
+
+
+def test_the_read_budget_measures_a_scratch_copy_against_the_given_root(tmp_path: Path) -> None:
+    """`_repo_root` is None for a scratch copy, so `per_entry` stayed empty and `0 > BUDGET` was
+    False: no skip line, no warning, exit 0, however over budget the tickets were."""
+    real = _build(tmp_path)
+    big = tmp_path / "src" / "app" / "schema.py"
+    big.parent.mkdir(parents=True, exist_ok=True)
+    big.write_text("x" * (cpt.READ_BUDGET_BYTES + 1), encoding="utf-8")
+    scratch = tmp_path / "scratch" / DIRNAME
+    scratch.mkdir(parents=True)
+    for f in real.iterdir():
+        (scratch / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+
+    assert not any("READ budget" in m for m in _errors(cpt.check_plan_dir(scratch)))
+    caught = cpt.check_plan_dir(scratch, external_root=tmp_path)
+    assert any("READ budget" in m for m in _errors(caught)), caught
+
+
+def test_a_clean_run_says_what_it_graded_and_against_what(tmp_path: Path) -> None:
+    """A green run printed ZERO BYTES, so "graded 33 tickets, found nothing" and "resolved the
+    wrong directory and did nothing" were byte-identical — while two commands instruct agents to
+    CITE that silence as sizing evidence (intel 01M1PYS0Y7AZ9W2WS8PPYHT0WK #3, 01M1KYMG27... #1).
+    The summary is a PASS row: no exit weight, and the Tier-2 gate drops stdout on exit 0."""
+    plan_dir = _build(tmp_path)
+    results = cpt.check_plan_dir(plan_dir)
+    summary = [r for r in results if r.severity is cpt.Severity.PASS]
+    assert len(summary) == 1, results
+    msg = summary[0].message
+    assert "graded 3 ticket(s)" in msg, msg
+    assert "Touches path(s)" in msg and "Context-Files entry(ies)" in msg, msg
+    assert "0 finding(s)" in msg, msg
+    assert str(tmp_path) in msg, msg  # names the root the budget was measured against
+
+    # and it counts REAL findings, never itself
+    big = tmp_path / "src" / "app" / "schema.py"
+    big.parent.mkdir(parents=True, exist_ok=True)
+    big.write_text("x" * (cpt.READ_BUDGET_BYTES + 1), encoding="utf-8")
+    dirty = [r for r in cpt.check_plan_dir(plan_dir) if r.severity is cpt.Severity.PASS][0]
+    assert "0 finding(s)" not in dirty.message, dirty.message
+
+    # NOTE deliberately NOT asserted here: the "READ budget NOT MEASURED" arm of that summary is
+    # unreachable today — `_repo_root` is None only outside the plans layout, and that case now
+    # either carries an external_root or returns [] at the guard. It is a formatting guard against
+    # a future caller, not a check; a test pinning it would pass without exercising anything.
+
+
 # --- BC 7: shared paths -----------------------------------------------------------
 
 

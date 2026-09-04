@@ -119,6 +119,27 @@ def test_broad_ticket_warns_with_components_named(tmp_path: Path) -> None:
     assert "prompt to LOOK, not a verdict" in out
 
 
+def test_a_tailed_read_still_carries_the_denominator(tmp_path: Path) -> None:
+    """The advisory printed its count FIRST and its payload after, so `... | tail -60` showed
+    findings with no denominator — the bound CLAUDE.md's denominator-honesty rule warns about,
+    built into the output ORDER. It cost a real number: a reviewer read "16 of 24" off a tailed
+    run of the 33-ticket multi-agent-per-repo set when the figure was 20 of 33 (intel,
+    01M1PYS0Y7AZ9W2WS8PPYHT0WK #1, corrected at e6f284e6). The headline also never named the
+    POPULATION at all — only how many were flagged.
+    """
+    d = _plan_set(tmp_path)
+    (d / "T01-broad.md").write_text(BROAD, encoding="utf-8")
+    (d / "T02b-narrow.md").write_text(NARROW, encoding="utf-8")
+    out = _run("--plan-dir", str(d), "--project-root", str(tmp_path)).stdout
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+
+    headline = "TICKET BREADTH — 1 of 2 ticket(s) graded"
+    assert headline in lines[0], lines[0]  # numerator AND population, at the top
+    assert headline in lines[-1], lines[-1]  # and again at the bottom, for a tailed read
+    # a one-line tail — the harshest bound — must still be self-describing
+    assert "of 2 ticket(s) graded" in lines[-1]
+
+
 def test_broad_ticket_score_matches_measured_anchor(tmp_path: Path) -> None:
     """T01's real shape scores 5 (1 non-test area + 4 behaviours); it cost 8
     rounds. Its `tests/` entry is a companion surface and must NOT add an area —
