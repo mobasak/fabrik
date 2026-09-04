@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Date:** 2026-09-04
 **Author:** fleet (hub session 1970a0ff)
-**Stage:** 1-design · CONVERGED 2026-09-05 by `/fabrik-spec-review` (7 rounds, md5 `1a9b9cb5` stable) · next: operator approval, then `/fabrik-plan-after-chat`
+**Stage:** 1-design · CONVERGED 2026-09-05 by `/fabrik-spec-review` (7 rounds, md5 `1a9b9cb5` stable) · **PART A EXECUTED 2026-09-05** on the operator's authorisation (D-122) — 0 of 32 unbounded, no recreates · next: Part B (compose persistence, per stack at its next deploy)
 
 > **AMENDMENT 1 (2026-09-05, operator decision — D-121).** The operator removed the `ocoron-com`
 > WordPress stack (*"remove ocoron containers. we dont have any site to deploy yet"* / *"also it wont
@@ -13,6 +13,25 @@
 > falls from 4,288 MiB to **2,752 MiB**. Open unknown 4 is RESOLVED by that decision. Every other
 > conclusion — the in-place mechanism, the redis-main COW ceiling, the reversibility correction, the
 > Part C check — is unaffected, because none of them depended on which containers were on the list.
+
+
+> **PART A EXECUTED — 2026-09-05 (D-122).** The operator authorised the write to live production. All ten
+> ceilings are applied in place: **0 of 32 containers unbounded**, every kernel cgroup verified carrying its
+> value, `oom_kill 0` on all ten, and a 32-row before/after snapshot of (name, container id, `StartedAt`,
+> status) diffed IDENTICAL — the operator's binding constraint answered by execution, not argument. The
+> mechanism was re-proven first on vps1's own Docker 29.0.2 (scratch container `5641c16f67d7`, same id and
+> `StartedAt`, `memory.max=268435456`, `memory.swap.max=0`), closing the honest gap named in
+> § Does this delete anything?
+>
+> **One conclusion of this spec was WRONG and is corrected by the execution.** The § fabrik-lib verdict table
+> said the applier was *"BUILD (trivial) — no module wraps Docker container mutation"*. It already existed:
+> `scripts/vps_apply_limits.sh`, naming all ten containers, unrun since 2026-05-30. The spec asked whether
+> fabrik-lib had the capability and never asked whether the hub already did. Re-running it unmodified would
+> have failed on `promtail` (128m target vs a 134.4 MiB working set), silently lowered `prometheus` from
+> 1.5 GiB to 1g, and mutated the `coolify` network — renamed one day after that script was last touched.
+> It was rewritten in place, not duplicated. **The generalisable lesson: a "BUILD" verdict owes a search of
+> the hub's own corpus, not only of fabrik-lib** — the vendor→enhance→build question has three candidates,
+> and the spec only looked at two.
 
 ---
 

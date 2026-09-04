@@ -1,131 +1,148 @@
 #!/usr/bin/env bash
-# vps_apply_limits.sh — apply Docker memory limits to all VPS containers
-# Run after VPS reboot or after any redeploy of infra services that doesn't
-# pick up the `deploy.resources.limits.memory` block.
+# AFTER-EDIT: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md | docs/STRATEGIC_BACKLOG.md
+# vps_apply_limits.sh — assert Docker MEMORY ceilings on vps1 containers that did
+# not arrive through `fabrik apply`, and report every container that has none.
 #
-# Historical context (F5, 2026-05-16): under the legacy Coolify-API deployer,
-# Coolify v4.0.0-beta.459 stored `limits_memory` in its application config
-# but did NOT translate that into the compose `deploy.resources.limits.memory`
-# block it wrote to disk. Docker therefore saw no limit (`HostConfig.Memory: 0`
-# = unlimited). F5 (2026-05-16) committed explicit `deploy.resources.limits`
-# blocks to every service's compose; the scaffolder's canonical compose
-# (_write_canonical_compose) emits the deploy block by default so NEW
-# deployments are already correct. The SSH+Compose deployer (active path)
-# ships the rendered compose verbatim, so the historical Coolify gap no
-# longer applies — this script remains as a defense-in-depth live enforcer
-# for any container that somehow ends up without limits (manual `docker run`,
-# legacy state, etc.). The main loop becomes a noop when all containers
-# already have `HostConfig.Memory` set.
+# WHY THIS EXISTS
+#   `deploy.resources.limits.memory` is a Fabrik invariant enforced by
+#   deployer_ssh._validate_compose() and auto-emitted by the scaffolder — but only
+#   for containers that pass through `fabrik apply`. The hand-composed monitoring
+#   and ingress stack never does, so it is unguarded. Measured 2026-09-04:
+#   10 of 32 containers on vps1 ran with HostConfig.Memory == 0.
 #
-# Run pattern: `ssh vps "bash -s" < /opt/fabrik/scripts/vps_apply_limits.sh`
+# THE CEILINGS ARE NOT FREEHAND. Every value below is derived and reviewed in
+#   docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md
+#   (CONVERGED, 7 review rounds). Change a number THERE first, then here.
+#
+# SAFETY RULES, each learned from a defect in the version this replaces
+#   (last touched 2026-05-30, never run since; every hazard below was live in it):
+#   * NEVER LOWERS. A target at or below the live ceiling is a no-op, not a call.
+#     The old script would have cut prometheus from 1.5GiB to 1g.
+#   * DRY RUN BY DEFAULT. Mutating requires an explicit --apply.
+#   * MEMORY ONLY. The old script passed --cpus for loki/glitchtip, which are
+#     live-unlimited today — proof those calls never landed. CPU ceilings are a
+#     separate, out-of-scope decision (STRATEGIC_BACKLOG, 2026-09-04 row).
+#   * NO NETWORK MUTATION. The old script disconnected/reconnected containers on
+#     the `coolify` network, renamed to `fabrik` on 2026-05-31; the three UUID
+#     container prefixes it targeted no longer exist and all three services now
+#     carry stable names. Dead code that mutates networking is not defense.
+#   * IDEMPOTENT under an intermittent link (spec C5): it reads each live limit
+#     and issues a call only where one is actually needed, so a dropped SSH
+#     connection costs a re-run, never a partial or doubled application.
+#
+# USAGE (runs ON the VPS; pipe it in — it depends on nothing from the hub)
+#   ssh vps 'bash -s'            < scripts/vps_apply_limits.sh   # dry run (default)
+#   ssh vps 'bash -s -- --apply' < scripts/vps_apply_limits.sh   # mutate
+#   ssh vps 'bash -s -- --check' < scripts/vps_apply_limits.sh   # exit 1 if any
+#                                                                # container is unbounded
 
-set -e
+set -uo pipefail
 
-apply() {
-  local pattern=$1 mem=$2 cpu=${3:-}
-  local cont
-  cont=$(sudo docker ps --format '{{.Names}}' | grep "^${pattern}" | head -1)
-  if [ -z "$cont" ]; then
-    echo "  NOT FOUND: $pattern"
-    return
+MODE=report
+case "${1:-}" in
+  --apply) MODE=apply ;;
+  --check) MODE=check ;;
+  --dry-run|"") MODE=report ;;
+  *) echo "unknown argument: $1" >&2; exit 64 ;;
+esac
+
+D="sudo docker"
+
+# ── The ceiling table ──────────────────────────────────────────────────────────
+# container            MiB    measured 2026-09-04 (docker stats, steady state)
+CEILINGS="
+cadvisor              512    # 244.7 MiB — largest of the ten
+loki                  512    # 131.6 MiB — page-cache heavy, ingest bursts
+promtail              256    # 134.4 MiB — page-cache heavy (tails logs)
+grafana               256    # 86.6 MiB  — dashboard rendering spikes
+traefik               256    # 52.8 MiB  — ingress; generous, failing it fails all
+alertmanager          128    # 33.1 MiB  — small, stable
+postgres-exporter      64    # 17.6 MiB  — scrape-only
+node-exporter          64    # 16.3 MiB  — scrape-only
+redis-exporter         64    # 13.8 MiB  — scrape-only
+redis-main            640    # 5.2 MiB   — it FORKS; see below
+"
+# redis-main is the one a careless ceiling would kill. It self-caps at
+# maxmemory 256M/allkeys-lru, but has appendonly yes AND save points, so BGSAVE
+# and AOF rewrite fork. The kernel enforces RSS while Redis tracks logical
+# used_memory: a fork over a full 256M dataset can approach twice that resident
+# under worst-case copy-on-write. 640 = 256 data + 256 COW + 128 fragmentation.
+# A ceiling at maxmemory+128 would turn graceful LRU eviction into a hard kill.
+
+managed=""
+applied=0; raised=0; ok=0; missing=0; failed=0
+
+echo "=== vps memory ceilings — mode: $MODE ==="
+
+while read -r name mib _rest; do
+  [ -z "${name:-}" ] && continue
+  managed="$managed $name"
+  target=$(( mib * 1024 * 1024 ))
+
+  if ! $D inspect "$name" >/dev/null 2>&1; then
+    printf '  MISSING   %-20s (no such container)\n' "$name"
+    missing=$(( missing + 1 )); continue
   fi
-  local update_args="--memory $mem --memory-swap $mem"
-  [ -n "$cpu" ] && update_args="$update_args --cpus $cpu"
-  sudo docker update $update_args "$cont" > /dev/null 2>&1 \
-    && echo "  ✅ $pattern → mem=${mem}${cpu:+ cpu=${cpu}}" \
-    || echo "  ❌ $pattern → failed"
-}
 
-echo "=== VPS resource limits ==="
+  live=$($D inspect -f '{{.HostConfig.Memory}}' "$name")
 
-# Observability
-apply alertmanager-   256m
-apply apprise-        1g     # bumped 2026-05-20: 615MB steady-state plateau, 768m was too tight (80%)
-apply cadvisor-       512m
-apply gatus-          256m
-apply grafana-        512m
-apply loki-           512m  0.5
-apply netdata-        1g    # bumped 2026-05-16: live at 751/768m (97%), ContainerHighMemory alert firing
-apply node-exporter-  128m
-apply promtail-       128m
-apply prometheus      1g     1.0
-apply redis-exporter      64m   # T3-01 follow-up 2026-05-15: previously unlimited
-apply postgres-exporter   64m   # T3-01 follow-up 2026-05-15: previously unlimited
-apply pushgateway         64m   # T-infra 2026-05-27: was missing (unlimited)
-
-# Auth & ops
-apply authelia-       512m
-apply backrest-       512m
-apply glitchtip-web-  512m  0.5   # 2026-05-27: CPU cap for Django event-flood protection
-apply glitchtip-work  512m  0.5   # 2026-05-27: Celery worker CPU cap
-
-# Data
-apply postgres-main-  2g
-apply redis-main      512m
-
-# Automation
-apply n8n-            2g     1.0
-
-# Network
-apply traefik         256m
-
-# Coolify control plane (host-internal — small footprint)
-apply coolify-sentinel    64m   # T3-01 follow-up 2026-05-15: previously unlimited
-
-# WordPress stack
-apply ocoron-com-db-1         1g
-apply ocoron-com-wordpress-1  512m
-apply ocoron-com-nginx-1      256m
-apply ocoron-com-redis-1      256m
-apply ocoron-com-backup-1     128m  # T3-01 follow-up 2026-05-15: previously unlimited
-
-# Fabrik microservices — active services only.
-# Destroyed services (captcha, emailgateway, file-api, file-worker,
-# fabrik-proxy, translator) removed 2026-05-19.
-apply image-broker-        512m  # spec: resources.limits.memory=512M
-apply site-provisioner-    512m  # spec: resources.memory=512M
-
-echo "=== Done ==="
-
-# Auto-update VPS docs after limits applied
-echo "📝 Updating VPS docs..."
-cd /opt/fabrik && python3 scripts/update_vps_docs.py 2>&1 | tail -5
-
-# ── Stable Docker network aliases (Gatus DNS fix) ──────────────────────────
-# Coolify single-image Applications generate UUID container names with no stable
-# DNS alias. These `network connect --alias` calls add a stable name that Gatus
-# and inter-service callers can rely on across redeploys.
-# Run automatically on every VPS reboot via this script.
-echo "Applying stable Docker network aliases..."
-
-apply_alias() {
-  local container=$1
-  local alias=$2
-  # Check container is running
-  if ! sudo docker inspect "$container" &>/dev/null; then
-    echo "  SKIP $alias: container $container not found"
-    return
+  if [ "$live" -ge "$target" ] && [ "$live" -ne 0 ]; then
+    printf '  OK        %-20s %s MiB already ≥ target %s MiB — no call\n' \
+      "$name" "$(( live / 1024 / 1024 ))" "$mib"
+    ok=$(( ok + 1 )); continue
   fi
-  # Disconnect then reconnect with alias (idempotent)
-  sudo docker network disconnect coolify "$container" 2>/dev/null || true
-  sudo docker network connect --alias "$alias" --alias "$container" coolify "$container" 2>/dev/null \
-    && echo "  ✅ $alias → $container" \
-    || echo "  ⚠️  $alias: connect failed (may already be connected)"
-}
 
-# Container names include timestamps that change on recreate.
-# Use dynamic lookup by UUID prefix so this survives redeploys.
-for pair in \
-  "vckgs8c00o40o884k48cgow8:browserless" \
-  "e04k4sco44ow04ccc0o0k00k:gotenberg" \
-  "bs0wo48k4gwo440gcowscoc8:meilisearch" \
-  "glitchtip-web-:glitchtip-web"; do
-  prefix="${pair%%:*}"
-  alias="${pair##*:}"
-  container=$(sudo docker ps --format '{{.Names}}' | grep "^${prefix}" | head -1)
-  if [ -n "$container" ]; then
-    apply_alias "$container" "$alias"
+  verb=SET; [ "$live" -ne 0 ] && verb=RAISE
+  if [ "$MODE" != apply ]; then
+    printf '  would %-5s %-20s %s MiB → %s MiB\n' "$verb" "$name" \
+      "$(( live / 1024 / 1024 ))" "$mib"
+    continue
+  fi
+
+  # --memory-swap equal to --memory: left unset, the total memory+swap allowance
+  # silently becomes TWICE the ceiling.
+  if $D update --memory "${mib}m" --memory-swap "${mib}m" "$name" >/dev/null 2>&1; then
+    now=$($D inspect -f '{{.HostConfig.Memory}}' "$name")
+    if [ "$now" -eq "$target" ]; then
+      printf '  %-9s %-20s %s MiB → %s MiB  ✅\n' "$verb" "$name" \
+        "$(( live / 1024 / 1024 ))" "$mib"
+      [ "$verb" = SET ] && applied=$(( applied + 1 )) || raised=$(( raised + 1 ))
+    else
+      printf '  MISMATCH  %-20s command exited 0 but limit is %s, not %s ❌\n' \
+        "$name" "$now" "$target"
+      failed=$(( failed + 1 ))
+    fi
   else
-    echo "  SKIP $alias: no container matching ^${prefix}"
+    printf '  FAILED    %-9s %-20s (a decrease below current usage is refused) ❌\n' \
+      "$verb" "$name"
+    failed=$(( failed + 1 ))
   fi
+done <<< "$(echo "$CEILINGS" | sed 's/#.*//' | grep -v '^[[:space:]]*$')"
+
+# ── Every DEFINED container with no ceiling — `-a`, not just running ───────────
+# A stopped-but-defined container keeps HostConfig.Memory across a restart, so a
+# check reading only the running set reports green while an unbounded container
+# waits to start. Today both counts are 32, which is exactly why the narrower
+# query would have been easy to write and never notice.
+echo
+echo "--- unbounded containers (HostConfig.Memory == 0, all defined) ---"
+unbounded=0
+for id in $($D ps -aq); do
+  [ "$($D inspect -f '{{.HostConfig.Memory}}' "$id")" = "0" ] || continue
+  n=$($D inspect -f '{{.Name}}' "$id"); n="${n#/}"
+  case " $managed " in
+    *" $n "*) tag="MANAGED-BUT-STILL-ZERO" ;;
+    *)        tag="UNMANAGED (arrived off the apply path)" ;;
+  esac
+  printf '  ⚠️  %-24s %s\n' "$n" "$tag"
+  unbounded=$(( unbounded + 1 ))
 done
+[ "$unbounded" -eq 0 ] && echo "  none — every defined container has a memory ceiling"
+
+total=$($D ps -aq | wc -l)
+echo
+echo "=== $unbounded of $total containers unbounded · set=$applied raised=$raised ok=$ok missing=$missing failed=$failed ==="
+
+[ "$failed" -gt 0 ] && exit 1
+[ "$MODE" = check ] && [ "$unbounded" -gt 0 ] && exit 1
+exit 0
