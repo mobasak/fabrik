@@ -82,7 +82,7 @@ def flagged_providers(path: Path) -> dict[str, dict]:
             "\ufeff", ""
         ).strip()  # the STRIPPED line, like registry_sync.parse: an indented section header was read past and a categorised provider handed to PAID triage every lap (FE5)
         _is_svc = bool(
-            re.match(r"#[#\s]*#?svc\b", line, re.I)
+            re.match(r"#(?:[#\s]*#)?svc\b", line, re.I)
         )  # a `#svc` line is never a header, whatever its capability holds (R68-C1, FH1)
         if (
             re.match(r"#.*═", line) and not _is_svc and "NEEDS-TRIAGE" in line

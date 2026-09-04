@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1707,11 +1706,10 @@ def test_an_unknown_proof_name_is_refused_never_an_empty_all_clear(tmp_path: Pat
 def test_a_script_under_kilo_benchmarks_is_a_search_root(tmp_path: Path) -> None:
     """`_find_script` had no `scripts/kilo-benchmarks` root: two FALSE `DEAD/stale-doc` findings on
     the live box for scripts that exist (R67-4, FG1)."""
-    src = Path(la.__file__).read_text(encoding="utf-8")
-    roots = src[
-        src.index("def _find_script") : src.index("def ", src.index("def _find_script") + 10)
-    ]
-    assert 'REPO_ROOT / "scripts" / "kilo-benchmarks"' in re.sub(r"\s+", " ", roots), roots
+    roots = la._script_roots(
+        FakeBox(tmp_path, cron=[])
+    )  # EXECUTED, never a source pin: the pin broke on a pure refactor while the behaviour was intact (P69-1, FH5)
+    assert any(str(r).endswith("scripts/kilo-benchmarks") for r in roots), roots
     assert la._find_script(FakeBox(tmp_path, cron=[]), "daily_refresh.sh"), (
         "the live tree's daily_refresh.sh is found through the new root"
     )

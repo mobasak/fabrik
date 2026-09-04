@@ -187,7 +187,7 @@ def parse(path: Path) -> list[dict]:
         s = re.sub(
             r"^[\s\ufeff]+|[\s\ufeff]+$", "", line
         )  # a hand-edit's leading space/tab or a mid-file BOM is not a second provider (FC3); EVERY BOM, anywhere in the MARGIN — a mixed `\ufeff \ufeff` survived two strips (FD7/FE5); the margin ONLY: the whole-line replace mutated a value and stored a digest of a secret that does not exist (FF1)
-        if re.match(r"#.*═", s) and not re.match(r"#[#\s]*#?svc\b", s, re.I):
+        if re.match(r"#.*═", s) and not re.match(r"#(?:[#\s]*#)?svc\b", s, re.I):
             # section header — on the STRIPPED line, like the #svc header (FD7); `#═══` with the space dropped by a hand-edit is a header too (FE5); `## ═══` commented twice is a header too, like `## #svc` — 315 internal-config names folded under the provider above it otherwise (FF1)
             cur = None  # a header ends the current provider block (incl. internal-config)  # a `#svc` line is NEVER a header, whatever its free-text capability holds: `#.*═` swallowed a provider whose capability carried `═` and dropped it with no `bad` entry — then the prune deleted its keys and credit history (R68-C1, FH1)
             continue

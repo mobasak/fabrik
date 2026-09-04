@@ -1954,14 +1954,11 @@ def extract_claims(path: Path, rel: str) -> list[Claim]:
     return claims
 
 
-_SCRIPT_ROOT_COUNT = (
-    10  # the length of `_find_script`'s root list — the DEAD detail states its bound (R68-C3)
-)
-
-
-def _find_script(box: Box, basename: str) -> str:
-    """Bounded lookup for a script by basename. Never a whole-disk walk."""
-    roots = [
+def _script_roots(box: Box) -> list[Path]:
+    """The bounded root list — ONE definition, so the count a NEGATIVE states cannot drift from the
+    list it searched (round 68 stated it from a hand-kept constant, and `len(<int>)` raised a
+    TypeError out of the DEAD path; the constant was already stale by one root — P69-1, FH5)."""
+    return [
         box.home / ".claude" / "bin",
         box.home / ".claude" / "hooks",
         box.home
@@ -1977,6 +1974,11 @@ def _find_script(box: Box, basename: str) -> str:
         / "kilo-benchmarks",  # two FALSE `DEAD/stale-doc` findings on the live box: the daily pipeline's scripts live here and no root named it — a NEGATIVE asserted from a bounded search that never said its bound (R67-4, FG1)
         REPO_ROOT,
     ]
+
+
+def _find_script(box: Box, basename: str) -> str:
+    """Bounded lookup for a script by basename. Never a whole-disk walk."""
+    roots = _script_roots(box)
     for root in roots:
         candidate = root / basename
         try:
@@ -2114,7 +2116,7 @@ def verify_claim(box: Box, claim: Claim, cron_inst: Instrument, cron_lines: list
             inst,
             Verdict.DEAD,
             f"doc names {claim.payload}; no hook runs it and it is not under any of the "
-            f"{len(roots) if (roots := _SCRIPT_ROOT_COUNT) else 0} searched roots",  # a bounded search returns "not found in N", never "does not exist" (R68-C3, FH1)
+            f"{len(_script_roots(box))} searched roots",  # a bounded search returns "not found in N", never "does not exist" (R68-C3, FH1)
             "stale-doc",
         )
 
