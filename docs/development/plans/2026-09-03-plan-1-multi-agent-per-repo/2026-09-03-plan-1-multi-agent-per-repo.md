@@ -293,6 +293,8 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 
 ## File Scope (owned paths)
 
+⚠️ **Sibling-plan overlap, checked 2026-09-04 and currently harmless — named here because the contract requires a shared path to be declared, not discovered at dispatch.** The only other plan set in the active directory, `2026-08-15-plan-1-login-once-credentials`, shares exactly two paths with this scope: `docs/workstation/hooks-index.md` (its T04, my T02a) and `scripts/fabrik_synced_manifest.py` (its T02b, my T01a/T01b). That plan is `Status: EXECUTED` with six of seven tickets ✅, and `.fabrik/plan-locks/` holds **0 active locks** of 60 files, so nothing is contended today and `/fabrik-execute-plan`'s overlap scan will not refuse this plan. If that set is ever re-opened, these two paths are the serialization point: the pairs above cannot run concurrently. (Its one 🔴 ticket is why it has not been archived out of the active directory; that disposition is its owner's, not this plan's, and is reported rather than acted on.)
+
 - .claude/hooks/agent_role.py
 - .claude/hooks/skill_router.py
 - .claude/settings.json
