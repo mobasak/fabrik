@@ -74,7 +74,11 @@ _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n")
 # single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names
 # (review 2026-09-05, closing pass, found by execution; fail-closed, so it only over-refused).
 _FILE_REDIRECT = re.compile(
-    r"(?<![0-9>])>>?(?!>)(?!\s*/dev/null)(?!&)|(?<!>)\d>>?(?!>)(?!\s*/dev/null)(?!&\d)"
+    # The exemption is the DEVICE, not a prefix: `/dev/null` must be followed by whitespace,
+    # end of line or a shell operator — `>/dev/nullx`, `>/dev/null/../x` and `>/dev/null.txt`
+    # all matched the bare prefix and were allowed (review 2026-09-05, pass 12, executed).
+    r"(?<![0-9>])>>?(?!>)(?!\s*/dev/null(?![^\s;&|)]))(?!&)"
+    r"|(?<!>)\d>>?(?!>)(?!\s*/dev/null(?![^\s;&|)]))(?!&\d)"
 )
 
 

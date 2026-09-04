@@ -139,6 +139,9 @@ def test_chained_or_redirected_bash_is_held_whole():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
     for cmd in ("git log >> notes.txt", "git log >>notes.txt", "cat a 2>>err.log"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    # the exemption is the DEVICE, never a prefix: these name OTHER paths (pass 12, executed)
+    for cmd in ("git log >/dev/nullx", "git log > /dev/null/../x", "git log >>/dev/null.txt"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
 
 
 def test_shell_punctuation_inside_a_quoted_argument_is_data_not_an_operator():

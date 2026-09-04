@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 12 of the review: the quota hold's `/dev/null` exemption was a prefix match (2026-09-05)
+
+Probing the pass-11 regex myself before its finder returned: `git log >/dev/nullx`, `> /dev/null/../x` and `>>/dev/null.txt` were ALLOWED — the exemption matched the bare prefix `/dev/null` and everything after it rode along. Pre-existing (the old lookahead had the same shape) and harmless on this box as non-root (`/dev` is root-owned, `null/..` is not a directory), but a hold that exists to stop work must not exempt a path because it starts with the device's name. The exemption now requires `/dev/null` to be followed by whitespace, end of line or a shell operator; graded with the three prefix forms (deny) alongside every exempt form (allow), red on revert.
+
 ### Fixed — pass 11 of the review: the quota hold refused `>> /dev/null`, a form its own exemption names (2026-09-05)
 
 The closing finders certified the whole surface (435 tests executed; every figure, fixture and index blob re-derived) and found one thing just outside the diff, on the same hook: `_FILE_REDIRECT`'s `>>?` backtracked on `git status >> /dev/null` — the two-character match failed the `/dev/null` exemption, so the engine matched a single `>` whose lookahead saw `> /dev/null` and refused it; `2>>/dev/null` likewise. Pre-existing and fail-closed (it only over-refused), unchanged by this review's commits, but on this beat and two lines from fixed: a `(?!>)` after the optional second `>` and `>` in the lookbehind, graded with both exempt forms and three append-to-file forms that must still refuse, red on revert. Hygiene at close: 40 of 40 paths index-aligned, 16 of 16 CHANGELOG headings exactly once, 20 of 20 synced copies hash-identical across five projects, 16 of 16 trailers parse.
