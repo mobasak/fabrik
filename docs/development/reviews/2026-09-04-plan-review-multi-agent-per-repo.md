@@ -139,4 +139,32 @@ gate blind to the docstring mentions.
 
 Set is now spine + 33 tickets. Emit gate exit 0 / zero WARN after every edit; closing pass edit-free.
 
-NEXT: the plan is ready for its CONVERGED flip. The remaining LOW items ride § Residual unknowns.
+## Third author-blind pass — and the verdict that stops the loop
+
+The delta from pass 2's closures got its own pass: **7 HIGH + 7 MED**. Non-lock findings are closed (T14b's gate
+was a zero-count that can NEVER pass, because after the tombstone moves the banned tokens live inside the PATHS
+`INDEX.md` is required to list — it is now an allowlist; the spine's fan-out line dispatched T14d and T14g
+alongside T11, which both Depend on; T06a/b/c's chain gate scanned four `docs/` roots and never the new sources,
+so it passed without reading them; T03 now owns two `mega-epic-breakdown/` files whose stale references nobody held).
+
+**The lock family is a different matter, and the pattern across three passes is the finding.** Each round closed
+the previous round's defect and the next pass disproved the fix:
+
+| Round | The fix | What the next pass proved |
+|---|---|---|
+| 1 | Move the path in 3 files | 50 consumers, not 3 — including a fleet-synced Stop hook |
+| 2 | Own the hook and the other consumers | The hook only sees repo-relative `authored`; the re-key arms nothing |
+| 3 | Stat the lock directly, re-derive session scope from its `plan` field | `root` is cwd so the repo basename is underivable there; and the `plan` field has 4 shapes across 60 live locks, 4 of them holding no path |
+
+That is not plan quality any more. **The spec's § Live locks relocation fights four in-repo invariants** — the Stop
+hook's `authored` contract, `check_plan_tickets`' deliberate refusal of `~`/absolute tokens (`:314` says so in
+words), `check_certification_coverage`'s tuple-joined-onto-root addressing, and a repo-relative gitignore leg that
+can only be deleted. It is recorded as a **BLOCKING spec re-freeze item** in the spine's § Residual unknowns, with
+a derived recommendation: drop the relocation, because `epic_order.py --check` already proves per-phase
+`owned_paths` disjointness before dispatch, so the lock's cross-agent role is largely redundant under this very
+design and its surviving job — resume after a crash — is per-tree and works in-repo today.
+
+**Verdict: the plan does not converge, and should not.** Everything outside the lock family is closed and
+gate-green at 33 tickets. Five tickets wait on one spec decision that is cheaper to make than to keep patching.
+
+NEXT: re-open the spec on § Live locks (`/fabrik-spec-review`), then re-converge this plan against the outcome.

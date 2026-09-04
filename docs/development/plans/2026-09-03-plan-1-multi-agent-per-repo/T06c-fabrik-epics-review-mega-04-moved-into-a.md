@@ -9,7 +9,7 @@ Depends: T03
 Parallel: ⛓️
 Complexity: native
 Gate: python3 commands/assemble_commands.py --check
-Gate: python3 scripts/enforcement/check_traycer_chain.py
+Gate: python3 -c "import sys; sys.path.insert(0,'scripts/enforcement'); import check_traycer_chain as c; h=c.scan('commands/_sources/fabrik-epics-review.md'); print('\n'.join(h)); sys.exit(1 if h else 0)"   # the bare check scans only its four docs/ roots until T09 — a plain invocation passes without ever reading this file
 Docs: CHANGELOG.md · INDEX.md (new source) — orchestrator-applied
 
 ## Touches
