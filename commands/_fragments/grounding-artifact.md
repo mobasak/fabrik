@@ -11,6 +11,14 @@ This command almost always runs against a project with **existing code, a live D
   A `path:line` proves the example exists; it can never prove "only". (trade-intelligence 2026-08-29:
   "the only beats are X and Y" sat in an Evidence table through TWO converged passes; there were
   seven, all findable by one grep the evidence never ran.)
+- ⚠️ **Verify against the layer the claim is ASSERTED AGAINST, not the layer that is convenient to
+  open.** Two independent instances in one day, different surfaces, one shape: a claim about a
+  WRITTEN artifact grounded on the dict BUILD site while a `pop` before the write removed the key
+  (`01M1KN0H6JR...`), and a claim about a TOOL's behaviour grounded on the MODULE it calls — the
+  registry and the raise were both real, but the tool wrapped them per-item and emitted an error
+  row, so a defect reported as HIDDEN was self-surfacing and had a kept test pinning it
+  (`01M1KZ28H3H...`, retracted by its own author). Both read as thorough because something real WAS
+  checked. Name the layer your claim binds to, then open THAT one.
 - **A constraint INHERITED from the brief, the session, or a prior report is a CLAIM to re-verify,
   never a datum** — it arrives pre-trusted, which is exactly why it escapes. (Same run: a "standing
   inherited gate red" named two files that no longer existed — worse than stale, it pre-licensed
