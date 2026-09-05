@@ -1304,3 +1304,37 @@ baked into the image. Backfill wants: an enumeration of affected repos (Dockerfi
 absent), the file added per repo, and a decision on the delivery path — the governance sync does not carry
 project-local build files today, so it is either a one-off scripted pass or a new synced-manifest entry.
 Mail 01M1M9CYEHA55DQP03081X09HS (infra, pass 61).
+
+## [fleet] The fleet GlitchTip default (D-126, `event_level=ERROR`) ships an EAGERLY-built log message verbatim (2026-09-05, owner: fleet + operator)
+
+The vendored scrubber `templates/scaffold/python/glitchtip_init.py` diverges from its origin on one line:
+upstream uses `LoggingIntegration(event_level=None)` — a log record NEVER becomes an event — while the fleet
+default keeps `logging.ERROR` so errors are visible in GlitchTip. The comment beside that line claimed the
+resulting channel was "closed" by `_ALLOWED_LOGENTRY_KEYS == {"message"}`. It is NARROWED, not closed, and
+the comment has been corrected in place (2b656cfd + follow-up).
+
+The residual, measured rather than reasoned — `_scrub_event({"logentry": {"message": "auth failed for
+token=BEARER_TOKEN_ABC123"}})` returns that string UNCHANGED:
+
+    logger.error("token=%s", tok)   -> logentry.message "token=%s"    SAFE (params dropped)
+    logger.error(f"token={tok}")    -> logentry.message "token=abc"   SHIPS
+
+`.format()` and `+` concatenation behave like the f-string. The template is still passed through
+`_redact_userinfo_in_text`, so a URL-shaped credential IS caught (`postgres://u:pw@h` -> `postgres://[redacted]@h`);
+a BARE token has no shape to key on. Upstream has no such residual because the event is never created.
+
+This is not a defect in the vendor — it is the price of D-126, and it was previously undocumented, which is
+the part that mattered: the next reader was told the channel was closed. Open questions for the operator,
+none of them mine to decide unilaterally since D-126 is a ledger decision: (a) does the fleet accept the
+residual and rely on the convention that scaffolded services log with %-style placeholders, (b) should the
+scaffold ship a lint rule that flags an f-string/`.format()` argument to `logger.error`/`.exception` (measure
+the fire rate first — FIX DIRECTIVE 5), or (c) should D-126 be revisited toward upstream's `event_level=None`
+with errors surfaced through the Starlette/FastAPI integrations instead, which still report unhandled
+exceptions. Note that exception VALUES carry bare secrets on BOTH sides of this choice
+(`{"exception": {"values": [{"value": "bad key sk-live-DEADBEEF"}]}}` survives scrubbing), so (c) narrows
+this channel without closing the class for an UNCAUGHT exception — but it DOES close it for a caught one,
+which is the sharper half: `logger.error(..., exc_info=True)` on a caught exception creates an event ONLY
+under `event_level=ERROR`, and `exception.values[].value` is allowlisted and never text-redacted. Two pool
+readers found that half independently of me; a third finding of theirs — that `transaction_style="endpoint"`
+could expose path parameters — is REFUTED at `sentry_sdk/integrations/starlette.py:853-856`, where `endpoint`
+resolves to `transaction_from_function(endpoint)`, the handler's qualified name, carrying no request data.

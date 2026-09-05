@@ -1167,12 +1167,39 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             # FLEET DEFAULT (D-126), and it DEPENDS ON THE ALLOWLIST ABOVE. Upstream uses
             # event_level=None, closing the log channel by never creating an event at all.
             # ERROR keeps the event — the fleet wants error records visible in GlitchTip —
-            # so that channel is OPEN here and is closed instead by
+            # so that channel is OPEN here and is narrowed — NOT closed — by
             # `_ALLOWED_LOGENTRY_KEYS == {"message"}`, which keeps the message TEMPLATE and
             # drops `params`/`formatted`. Verified: `logger.error("otp=%s", secret)` yields
             # one event whose logentry is {'message': 'otp=%s'} with the secret absent.
             # ⚠️ Widening `_ALLOWED_LOGENTRY_KEYS` therefore turns THIS line into a leak,
             # while upstream's event_level=None would not. The two are coupled.
+            #
+            # ⚠️⚠️ THE RESIDUAL, stated because an earlier version of this comment said
+            # "closed" and a reader would have believed it. The narrowing works only for
+            # DEFERRED interpolation. A message built EAGERLY puts the secret in the
+            # template itself, which is the field we keep:
+            #     logger.error("token=%s", tok)   -> logentry.message "token=%s"   SAFE
+            #     logger.error(f"token={tok}")    -> logentry.message "token=abc"  SHIPS
+            # `.format()` and `+` concatenation behave like the f-string. The template is
+            # still run through `_redact_userinfo_in_text`, so a URL-shaped credential is
+            # caught (`postgres://u:pw@h` -> `postgres://[redacted]@h`) — but a BARE token
+            # has no shape to key on and survives. Measured, not reasoned:
+            # `_scrub_event` on `{"logentry": {"message": "auth failed for
+            # token=BEARER_TOKEN_ABC123"}}` returns that string unchanged.
+            # A SECOND residual, same root: `logger.error(..., exc_info=True)` on a CAUGHT
+            # exception builds `exception.values[].value` from the exception's own message,
+            # and that field is allowlisted and NOT run through the text redactor —
+            # `{"exception": {"values": [{"value": "bad key sk-live-DEADBEEF"}]}}` survives
+            # scrubbing intact. For an UNCAUGHT exception this is a wash (the ASGI
+            # integration reports it either way), but a caught-and-logged one becomes an
+            # event ONLY under this line. So `raise ValueError(f"bad token {tok}")` caught
+            # and logged is a leak here and is not one upstream.
+            #
+            # Upstream's event_level=None has neither residual, because the record never
+            # becomes an event at all. So this is a REAL cost of the fleet default, not a
+            # wash — it is accepted here because errors must be visible in GlitchTip, and it
+            # is why scaffolded services log with %-style placeholders and keep secrets out
+            # of exception messages.
             # `sentry_logs_level=None` is kept EXACTLY as upstream: that third handler goes
             # out through `before_send_log`, which this module does not register, so
             # `_scrub_event` has zero reach into it. Raising it is not ours to do.

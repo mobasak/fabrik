@@ -294,6 +294,38 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
         f"leaf-shape rule did not null a container in a scalar-valued key: {scrubbed.get('event_id')!r}"
     )
 
+    # METRICS. `enable_metrics` is a documented NO-OP in sentry-sdk 2.68.1 — the client logs
+    # "has no effect" and then builds the MetricsBatcher unconditionally — so the ONLY lever is
+    # the hook, which drops a metric by returning None. Asserting the kwarg was passed is the
+    # exact shape that let this channel sit open upstream for a full round while its guard was
+    # green ("the test asserted the kwarg had been handed to init and never that anything
+    # happened"), so CALL the function instead.
+    assert module._drop_metric(object(), {}) is None, (
+        "_drop_metric must return None for every metric — anything else re-opens the channel"
+    )
+
+    # SESSIONS have no before_send hook of any kind, so a hook-shaped inventory is structurally
+    # blind to them and the flag IS the whole lever. This is the one place an option assertion is
+    # the strongest available check rather than the weakest — recorded so it is not later
+    # "upgraded" into a behavioural one that does not exist.
+    init_calls = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "init"
+    ]
+    assert len(init_calls) == 1, f"expected one sentry_sdk.init call, found {len(init_calls)}"
+    init_kwargs = {k.arg: ast.unparse(k.value) for k in init_calls[0].keywords}
+    assert init_kwargs.get("auto_session_tracking") == "False", (
+        "auto_session_tracking must be False — session envelopes bypass every before_send hook; "
+        f"got {init_kwargs.get('auto_session_tracking')!r}"
+    )
+    assert init_kwargs.get("before_send_metric") == "_drop_metric", (
+        f"before_send_metric must be wired to _drop_metric; got {init_kwargs.get('before_send_metric')!r}"
+    )
+    assert "enable_metrics" not in init_kwargs, (
+        "enable_metrics is a documented no-op (client.py logs 'has no effect' and builds the "
+        "MetricsBatcher regardless) — passing it reads as a closed channel to the next reader"
+    )
+
 
 # ── T02: the emitter COPIES the vendored module instead of carrying an inline literal ──────────
 
