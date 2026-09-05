@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run.py: the done-requires-report set re-keyed from the deleted `fab-mega-04-validate` to `/fabrik-epics-review` (2026-09-05)
+- **What:** the mega-validation slot of the `done`-requires-report set in `scripts/command_run.py` named a command the assembler retired (T07a), so `/fabrik-epics-review` — which persists `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` by contract — owed no report; the key is now the live name, refusal semantics unchanged. Adjacent: 12 test sites hardcoded the hub's absolute script path and drove MASTER's copy under worktree isolation; they now resolve the tree's own script (`_SCRIPT`). `tests/test_command_run.py`: 110 passed.
+- **Where:** `scripts/command_run.py`, `tests/test_command_run.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14f).
+
 ### Added — per-model Claude subscription spend, in the quota dashboard (2026-09-05)
 
 The flat `amortized_per_mtok` prices an Opus token and a Haiku token identically, so it could say

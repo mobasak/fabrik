@@ -491,7 +491,7 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
         check=True,
         timeout=15,
     )
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -567,7 +567,7 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
         subprocess.run(["git", "init", "-q"], cwd=r, check=True, timeout=15)
     (repo_b / "docs/development/reviews").mkdir(parents=True)
     (repo_b / "docs/development/reviews/old-review.md").write_text("# unrelated dirt\n")
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -636,7 +636,7 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
     past = _t.time() - 3600
     os.utime(old, (past, past))
     _t.sleep(1.1)  # run-binding is second-granular: the pre-run commit must be < started_at
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -689,7 +689,7 @@ def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
     stale.write_text("# stale but present\n")
     past = _t.time() - 3600
     os.utime(stale, (past, past))
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -733,7 +733,7 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=dirty, check=True, timeout=15)
     (dirty / "docs/development/reviews").mkdir(parents=True)
     (dirty / "docs/development/reviews/x-review.md").write_text("# unrelated\n")
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -773,7 +773,7 @@ def test_blocked_works_on_a_rootless_record(tmp_path):
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"))
     norepo = tmp_path / "norepo"
     norepo.mkdir()
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -1565,14 +1565,19 @@ def _artifact_repo(tmp_path, name="repo"):
 
 def test_cert_and_mega_done_also_require_their_reports(tmp_path):
     """Round-135 HIGH: the artifact guard covered only fabrik-review/repo-review — a
-    fabrik-user-test/service-test/fab-mega-04-validate done closed with NO report ever
-    written, the round-29 hole three commands over. Audit cmd 27/31 (2026-08-29) found it a
-    FOURTH time: /fabrik-conformance-review's ledger is its deliverable by contract ("that
-    FILE is the deliverable, not this chat") yet its done was ungated."""
+    fabrik-user-test/service-test/mega-validation done closed with NO report ever written,
+    the round-29 hole three commands over. Audit cmd 27/31 (2026-08-29) found it a FOURTH
+    time: /fabrik-conformance-review's ledger is its deliverable by contract ("that FILE is
+    the deliverable, not this chat") yet its done was ungated. T14f (multi-agent-per-repo):
+    the mega-validation slot was keyed on a command T07a deleted, so its successor
+    /fabrik-epics-review — which persists
+    docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md — owed no
+    report at all; the obligation is re-keyed on the live name, and the positive half uses
+    that real filename shape so the re-key cannot pass by refusing everything."""
     import subprocess
 
-    script = "/opt/fabrik/scripts/command_run.py"
-    for cmd in ("fabrik-user-test", "fab-mega-04-validate", "fabrik-conformance-review"):
+    script = str(_SCRIPT)
+    for cmd in ("fabrik-user-test", "fabrik-epics-review", "fabrik-conformance-review"):
         # a fresh repo per command: the 2s mtime grace otherwise lets the previous
         # command's report satisfy the next run in a fast-running test
         env, repo = _artifact_repo(tmp_path, name=cmd)
@@ -1604,7 +1609,12 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
         assert r.returncode == 1, f"{cmd}: done closed with no report ({r.stdout})"
         assert "persisted report" in r.stdout
         (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
-        rep = repo / f"docs/development/reviews/2026-08-21-{cmd}-x.md"
+        report_name = (
+            "2026-09-05-mega-vision-x-validation-review.md"
+            if cmd == "fabrik-epics-review"
+            else f"2026-08-21-{cmd}-x.md"
+        )
+        rep = repo / "docs/development/reviews" / report_name
         rep.write_text("# r\ndone and closed\n")
         r2 = subprocess.run(
             [sys.executable, script, "done", "--command", cmd, "--evidence", "report written", "--feedback", "none — harness setup"],
@@ -1624,7 +1634,7 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
     import subprocess
 
     env, repo = _artifact_repo(tmp_path)
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [
             sys.executable,
@@ -1676,7 +1686,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     gate and the candidates, across the run window's commits."""
     import subprocess
 
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
 
     def _commit(repo, env, *paths, msg="x"):
         subprocess.run(["git", "add", *paths], cwd=repo, check=True, timeout=15)
@@ -1799,7 +1809,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     -n 50 bound. One walk now: %at, -m, the run's own time window, no symlinks."""
     import subprocess
 
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
 
     def _commit(repo, *paths, msg="x", env_extra=None):
         import os as _os
@@ -1979,7 +1989,7 @@ def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
     zero review content anywhere. Existence now gates the gate."""
     import subprocess
 
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     env, repo = _artifact_repo(tmp_path, name="adddel")
     subprocess.run(
         [
@@ -2713,7 +2723,7 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
     import time
 
     env, repo = _artifact_repo(tmp_path)
-    script = "/opt/fabrik/scripts/command_run.py"
+    script = str(_SCRIPT)
     subprocess.run(
         [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
         cwd=repo, env=env, check=True, timeout=15,

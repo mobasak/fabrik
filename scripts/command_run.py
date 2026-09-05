@@ -1233,7 +1233,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # three commands over
         "fabrik-user-test",
         "fabrik-service-test",
-        "fab-mega-04-validate",
+        # T14f (multi-agent-per-repo): the mega-validation slot was keyed on a command T07a
+        # deleted, so its successor /fabrik-epics-review — which persists
+        # docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md by
+        # contract — owed no report at all; the obligation moved silently from enforced to
+        # absent. Same refusal semantics, live name.
+        "fabrik-epics-review",
         # audit cmd 27/31: the same hole a FOURTH time — its ledger is the deliverable
         # by contract ("that FILE is the deliverable, not this chat"), yet done was ungated
         "fabrik-conformance-review",
