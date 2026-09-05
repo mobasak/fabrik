@@ -1338,3 +1338,30 @@ under `event_level=ERROR`, and `exception.values[].value` is allowlisted and nev
 readers found that half independently of me; a third finding of theirs — that `transaction_style="endpoint"`
 could expose path parameters — is REFUTED at `sentry_sdk/integrations/starlette.py:853-856`, where `endpoint`
 resolves to `transaction_from_function(endpoint)`, the handler's qualified name, carrying no request data.
+
+## Make subagents routing policy re-vendor-proof (intel, opened 2026-09-05)
+
+**Why now:** D-134's routing deny — an operator-ordered cost control — was silently reverted THREE
+times in one afternoon, twice after being committed and pushed, because `libs/subagents/` is a
+VENDORED tree that a re-vendor restores to fabrik-lib's canonical copy. The reversion leaves no trace
+in git history (no commit touches the path), so the control was simply off again and nobody was told.
+D-136 records the mechanism.
+
+**The problem in one line:** hub-local policy is currently expressed as an edit inside a file whose
+contract is to be byte-identical to another repo's copy.
+
+**Options, none costed yet:**
+1. Move the denylist OUT of the vendored tree — a hub-owned config (e.g. `.fabrik/routing-policy.json`)
+   that `pick_models` reads, so the vendored module carries the MECHANISM and the hub carries the
+   POLICY. Survives any re-vendor by construction; costs one new read path in a hot function.
+2. Upstream the denylist to `/opt/fabrik-lib/subagents` so the canonical copy carries it — correct if
+   the policy is fleet-wide, wrong if it is ever hub-specific, and it puts a cost decision in another
+   repo's release cycle.
+3. Guard the re-vendor: refuse to copy when the destination's HEAD content is newer than the source.
+   Narrower — it protects every vendored file, not just this policy — but does not answer where policy
+   belongs.
+
+**Bar for closing:** a routing deny survives a deliberate re-vendor, proven by executing one.
+
+⚠️ Until this is closed, treat `ROUTING_DENYLIST` as fragile: after any re-vendor, verify with
+`pick_models("review", n=10)` that both denied models are absent.

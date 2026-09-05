@@ -145,7 +145,11 @@ what makes an in-flight command visible and un-abandonable.
   is an unfiled finding. Route it by BEAT (charters: `docs/reference/agents/`), never by convenience:
   **infra** — `commands/_sources/`, `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`,
   the box mesh, fabrik-mail · **fleet** — `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding,
-  `docs/PROJECT_CATALOG.md` · **intel** — models, benchmarks, the flywheel, author-blind review.
+  `docs/PROJECT_CATALOG.md` · **intel** — models, benchmarks, the flywheel, author-blind review, and
+  **`libs/subagents/` — the whole subagents module: routing, fan-out, the pool, and what it SPENDS**
+  (operator ruling 2026-09-05: *"you are the owner not infra"*; D-135). Pool-usage mail from any repo
+  is addressed to **intel**, not infra — that misrouting is what let four fan-out findings sit unworked
+  while the pool burned ~$16 in 28 hours.
   Send with `python scripts/mail.py send --to fabrik --to-agent <role> --kind finding` carrying
   the D-035 message contract — 5W1H + factual WHY + SYSTEMIC, reasoning modes where applicable
   (`docs/reference/fabrik-mail.md` § The message contract; send warns on gaps); genuinely unsure ⇒ `--broadcast --ack no`. In-beat findings
