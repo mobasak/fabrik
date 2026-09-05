@@ -367,6 +367,75 @@ def test_the_scripts_anchor_is_absolute_or_bare_and_ext_diff_chmod_are_held():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
+def test_git_verbs_take_only_their_checkpoint_flags():
+    """Every DANGEROUS-flag list was wrong the next pass; the convergence sweep (P19-A, 93
+    candidates, 23 confirmed on disk) then proved the bare verbs admit CLAUDE.md's own HARD STOPS:
+    `push --force`/`-f`/`+ref`/`--delete`/`:ref`, `commit --amend`/`-a`, `add -A`,
+    `reset … --hard` trailing a `HEAD\\b` match, `--textconv`, a planted `/x/scripts/command_run.py`,
+    `date -s`. The flag set is now POSITIVE per verb — what a checkpoint or a read needs — and an
+    unlisted flag holds, git's own abbreviations included (fail-closed, named)."""
+    for cmd in (
+        "git push --force",
+        "git push -f origin master",
+        "git push origin +master",
+        "git push --delete origin wip",
+        "git push -d origin wip",
+        "git push origin :wip",
+        "git push --mirror",
+        "git commit --amend -m x",
+        "git commit -a -m x",
+        "git commit -am x",
+        "git commit --all -m x",
+        "git commit --no-verify -m x",
+        "git add -A",
+        "git add --all",
+        "git add -u",
+        "git add -p f",
+        "git reset HEAD^",
+        "git reset -q HEAD~1",
+        "git reset -q HEAD --hard",
+        "git reset HEAD",
+        "git show --textconv HEAD:f",
+        "git log --ext-diff -p -1",
+        "git log --onel",  # git's abbreviation of --oneline: refused, fail-closed
+        "python3 /x/scripts/command_run.py line",
+        "python3 /tmp/evil/scripts/mail.py send",
+        "date -s 2020-01-01",
+        "date",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        "git add f.py docs/x.md",
+        "git add -v -- f.py",
+        "git commit -m 'checkpoint: held'",
+        "git commit -q -F /opt/fabrik/msg.txt",
+        "git commit -m 'note: --force is refused' -- f.py",
+        "git push",
+        "git push origin master",
+        "git push -u origin master",
+        "git push origin HEAD:refs/heads/master",
+        "git fetch",
+        "git fetch --prune origin",
+        "git status --short --branch",
+        "git status -sb",
+        "git diff --cached --stat",
+        "git diff --name-only HEAD~1 -- f.py",
+        "git log -n1 --oneline",
+        "git log -5 --format=%h",
+        "git log -p -1",
+        "git show --stat HEAD",
+        "git show HEAD:f.py",
+        "git rev-parse --abbrev-ref HEAD",
+        "git rev-parse --show-toplevel",
+        "git reset -q HEAD -- a.py",
+        "git reset HEAD -- a.py",
+        "python3 /opt/fabrik/scripts/command_run.py line",
+        "python /opt/some-project/scripts/mail.py list",
+        "python3 scripts/thread_anchor.py list",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
     """`(?<![0-9>])&` excused an `&` after a digit, for which bash has no legitimate form — the
     fd-duplication `2>&1` puts its `&` after `>`. `git status 1& touch m` and `git log 2>&1& touch m`

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 20 of the review: the quota hold's git verbs take only their checkpoint flags — a POSITIVE set replaces five passes of dangerous-flag lists (2026-09-05)
+
+The convergence sweep (93 candidates, 23 confirmed on disk) found the root under passes 14–19: the
+allow-list admits git VERBS with no flag scope, so `git push --force`/`-f`/`+ref`/`--delete`/`:ref`,
+`commit --amend`/`-a`, `add -A`, `reset -q HEAD --hard`/`HEAD^`/`HEAD~1`, `show --textconv` and a
+planted `/x/scripts/command_run.py` all ran under a hold whose purpose is to lose no work — a shared
+branch was deleted and a sibling's pushed commit replaced on a bare remote, a sibling's commit was
+absorbed by an amend, an edit was destroyed by a reset. Every list of dangerous flags had been wrong
+the next pass, so the set is now POSITIVE per verb (`_GIT_VERB_FLAGS`: what a checkpoint or a read
+needs); an unlisted flag holds — git's own abbreviations included, fail-closed and named; short
+clusters are letter-checked; a push refspec may not start with `+` or `:`; `git reset` only as
+`[-q] HEAD -- <paths>`; the scripts anchor is bare `scripts/` or `/opt/<repo>/scripts/`; `date` is
+off the list (`date -s`). A `$VAR` that pre-dates the hold can still carry a flag — an environment
+precondition, named, not closed. Grader: 27 deny + 27 allow forms, red on revert.
+
 ### Fixed — pass 19 of the review: ANSI-C quoting, end-of-options, a traversal anchor, `--ext-diff` and `--chmod` at the quota hold (2026-09-05)
 
 `$'--output=m'`, `$'\\x2d\\x2doutput=m'`, `$"--output=m"` and `$'--upl=./p'` wrote a file or ran a

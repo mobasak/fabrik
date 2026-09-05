@@ -65,7 +65,9 @@ _ALLOWED_BASH = re.compile(
     # `git rev-parse --abbrev-ref HEAD` / `git status` answer the read. `fetch`/`push` stay —
     # the hold ORDERS a push — but their own program-running flags are vetoed below.
     r"^\s*(git\s+(add|commit|push|status|diff|log|fetch|show|rev-parse)\b"
-    r"|git\s+reset\s+(-q\s+)?HEAD\b"  # index realign only — never --hard/--merge/--keep
+    # index realign ONLY, the exact form — `HEAD\b` alone admitted `HEAD^`, `HEAD~1` and a trailing
+    # `--hard` (pass 20, executed: a commit rewound, an edit destroyed); after `--` git reads paths
+    r"|git\s+reset\s+(-q\s+)?HEAD\s+--\s+\S"
     # Anchored to the `scripts/` directory the manifest syncs them to: `\S*command_run\.py`
     # matched ANY path ending in the basename, so a planted `x/command_run.py` ran under
     # `allow` (pass 17, executed). Relative (`scripts/…`) and absolute (`/opt/fabrik/scripts/…`)
@@ -73,7 +75,9 @@ _ALLOWED_BASH = re.compile(
     # …and the prefix is ABSOLUTE or absent: `(?:\S*/)?` admitted `../scripts/command_run.py`
     # and `x/scripts/mail.py`, a look-alike reached by traversal (pass 19, executed). A held
     # session in a subdirectory uses the absolute path.
-    r"|python3?\s+(?:/\S*/)?scripts/(command_run|mail|thread_anchor)\.py\b"
+    # …and an absolute prefix is a fleet repo under /opt (every synced repo lives there): `/\S*/`
+    # admitted any planted `/x/scripts/command_run.py` (pass 20, executed)
+    r"|python3?\s+(?:/opt/[\w.-]+/)?scripts/(command_run|mail|thread_anchor)\.py\b"
     # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
     # held session locating files uses `ls -R` or `grep -rl`; enumerating find's
@@ -85,7 +89,9 @@ _ALLOWED_BASH = re.compile(
     # (`e cmd`); both proven on disk under `allow`. `cat -n` / `grep -n` cover a held read.
     # `rg` is OFF the list (pass 17): `rg --pre <program>` runs the program on every file it
     # reads — proven on disk under `allow`. `grep` has no exec path and covers every held read.
-    r"|(cat|head|tail|grep|ls|wc|md5sum|readlink|date|echo|pwd|stat)\b)"
+    # `date` is off too: `date -s` sets the clock (root-gated here, not everywhere) — the very
+    # clock the tick-staleness check reads. No checkpoint needs it.
+    r"|(cat|head|tail|grep|ls|wc|md5sum|readlink|echo|pwd|stat)\b)"
 )
 # A lone `&` is bash's BACKGROUND separator — `git status & evil` runs both, and the whole-line
 # hardening listed `&&` but never the single form: proven by execution (a held session's
@@ -104,45 +110,155 @@ _ALLOWED_BASH = re.compile(
 # the quote char survives masking, so `\$['"]` at top level is the tell (inside double quotes the
 # inner quote is masked, so a commit message containing `$'` stays data).
 _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|\$['\"]|`|\n|(?<!>)&(?!&)|[<>]\(")
-# git's OWN flags are not shell syntax, so neither veto above can see them, and the allow-list
-# matches the leading verb: `git log --output=<any path>` wrote a file at an arbitrary path
-# (pass 14, executed); `git fetch --upload-pack=<program> .` and `git push --receive-pack=<program>
-# <local remote>` RAN the program (pass 17, executed). Read as ARGV on the RAW line, not on the
-# masked one: a flag inside quotes is still a flag to git — `git log "--output=m"` wrote (pass 18,
-# executed) — and git accepts any unambiguous PREFIX of a long option (`--upl=`, `--receive=` ran
-# the program), so a token is held when it is a prefix of a vetoed option, not only its full
-# spelling; `--exec=` is push's documented synonym for `--receive-pack`. An unparseable line
-# (unbalanced quote) is held. The earlier whole-line `\s-o\s` refused the allow-listed `grep -o`
-# while no allowed git verb even accepts `-o` (`git log -o d` is "ambiguous argument").
-# `--ext-diff` re-runs a diff.external set BEFORE the hold (repo-local or global config) on every
-# allowed `git log`/`show`/`diff`; `--chmod` makes `git add` change a staged mode — both executed
-# under `allow` (pass 19). Neither is needed to checkpoint.
-_GIT_OWN_FLAG_OPTS = (
-    "--output",
-    "--output-directory",
-    "--upload-pack",
-    "--receive-pack",
-    "--exec",
-    "--ext-diff",
-    "--chmod",
+# git VERBS carry no flag scope of their own, and every flag list of DANGEROUS ones was wrong the
+# next pass: `--output` (pass 14), `--upload-pack`/`--receive-pack` (17), quoted and abbreviated
+# forms (18), `--ext-diff`/`--chmod` (19), and then the convergence sweep (P19-A, 93 candidates,
+# 23 confirmed on disk): `push --force`/`-f`/`+ref`/`--delete`/`:ref`, `commit --amend`/`-a`,
+# `add -A`, `--textconv` — each a HARD STOP of CLAUDE.md, each admitted by a bare verb word.
+# So the set is POSITIVE: per verb, the flags a checkpoint or a read needs; anything else holds.
+# Read as ARGV on the RAW line (a quoted flag is still a flag; `$'…'` is vetoed upstream), a
+# bare `--` ends options, a `-abc` cluster must be all-listed letters (trailing digits allowed —
+# `-n1`, `-U3`, `-5`), a long option is matched by its full name only (git's own abbreviations
+# are refused — fail-closed), and a push REFSPEC may not start with `+` (force) or `:` (delete).
+# The cost is named: an unlisted READ flag is refused with the same message.
+_GIT_READ_LONG = frozenset(
+    [
+        "--cached",
+        "--staged",
+        "--stat",
+        "--numstat",
+        "--shortstat",
+        "--name-only",
+        "--name-status",
+        "--summary",
+        "--patch",
+        "--no-patch",
+        "--word-diff",
+        "--color",
+        "--no-color",
+        "--unified",
+        "--function-context",
+        "--ignore-all-space",
+        "--ignore-space-change",
+        "--ignore-blank-lines",
+        "--find-renames",
+        "--no-renames",
+        "--quiet",
+        "--exit-code",
+        "--relative",
+        "--diff-filter",
+        "--no-prefix",
+        "--check",
+        "--abbrev",
+        "--compact-summary",
+        "--text",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--oneline",
+        "--format",
+        "--pretty",
+        "--graph",
+        "--decorate",
+        "--no-decorate",
+        "--abbrev-commit",
+        "--date",
+        "--author",
+        "--committer",
+        "--grep",
+        "--since",
+        "--after",
+        "--until",
+        "--before",
+        "--max-count",
+        "--skip",
+        "--reverse",
+        "--topo-order",
+        "--date-order",
+        "--first-parent",
+        "--no-merges",
+        "--merges",
+        "--follow",
+        "--all",
+        "--branches",
+        "--tags",
+        "--remotes",
+        "--not",
+        "--relative-date",
+        "--show-signature",
+        "--no-show-signature",
+        "--expand-tabs",
+        "--parents",
+        "--children",
+        "--left-right",
+        "--cherry",
+        "--pickaxe-regex",
+        "--pickaxe-all",
+        "--diff-merges",
+        "--no-diff-merges",
+        "--cc",
+        "--combined",
+        "--exclude",
+        "--glob",
+    ]
 )
+_GIT_VERB_FLAGS: dict[str, tuple[frozenset[str] | None, str]] = {
+    "add": (frozenset({"--verbose", "--dry-run"}), "vn"),
+    "commit": (frozenset({"--message", "--file", "--quiet", "--verbose", "--only"}), "mFqvo"),
+    "push": (frozenset({"--set-upstream", "--quiet", "--verbose", "--porcelain"}), "uqv"),
+    "fetch": (frozenset({"--quiet", "--verbose", "--tags", "--prune"}), "qvtp"),
+    "status": (
+        frozenset(
+            [
+                "--short",
+                "--porcelain",
+                "--branch",
+                "--long",
+                "--verbose",
+                "--untracked-files",
+                "--ignored",
+                "--show-stash",
+                "--ahead-behind",
+                "--no-ahead-behind",
+                "--column",
+                "--no-column",
+                "--renames",
+                "--no-renames",
+                "--find-renames",
+            ]
+        ),
+        "sbvu",
+    ),
+    "diff": (_GIT_READ_LONG, "pUuwbWMCRzqSGaDlOr"),
+    "log": (_GIT_READ_LONG, "pUuwbWMCRzqSGaDlOrnLgiEFPmc"),
+    "show": (_GIT_READ_LONG, "pUuwbWMCRzqSGaDlOrnLgiEFPmc"),
+    "rev-parse": (None, ""),  # pure read; every flag is a query
+}
 
 
-def _git_own_flag(command: str) -> bool:
+def _git_flags_forbidden(command: str) -> bool:
+    """True when a git line carries any flag outside its verb's checkpoint/read set."""
     try:
         argv = shlex.split(command, posix=True)
     except ValueError:
         return True  # unbalanced quote: cannot know the argv — fail closed
-    if not argv or argv[0] != "git":
+    if len(argv) < 2 or argv[0] != "git":
         return False
-    for tok in argv[1:]:
+    verb = argv[1]
+    if verb not in _GIT_VERB_FLAGS:
+        return False  # the allow-list regex has already decided the verb (reset has its own form)
+    long_ok, short_ok = _GIT_VERB_FLAGS[verb]
+    for tok in argv[2:]:
         if tok == "--":
             return False  # end of options: what follows is a pathspec/refspec, never a flag
-        if not tok.startswith("--"):
-            continue
-        name = tok.split("=", 1)[0]
-        if len(name) > 2 and any(opt.startswith(name) for opt in _GIT_OWN_FLAG_OPTS):
-            return True
+        if tok.startswith("--"):
+            if long_ok is not None and tok.split("=", 1)[0] not in long_ok:
+                return True
+        elif tok.startswith("-") and len(tok) > 1:
+            letters = tok[1:].rstrip("0123456789")
+            if any(ch not in short_ok for ch in letters):
+                return True
+        elif verb == "push" and tok[:1] in ("+", ":"):
+            return True  # a forced (`+ref`) or deleting (`:ref`) refspec
     return False
 
 
@@ -276,7 +392,7 @@ def decide(
             command is not None
             and not _UNSAFE_SHELL.search(masked)
             and not _FILE_REDIRECT.search(masked)
-            and not _git_own_flag(command)
+            and not _git_flags_forbidden(command)
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""
