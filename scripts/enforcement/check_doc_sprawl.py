@@ -92,7 +92,8 @@ ALLOWED_PATTERNS = [
     # Review artifacts: docs/development/reviews/<name>-review.md
     # Paired with the convergence-evidence gate (check_convergence.py) — a code
     # review embeds its final_gate proof here as part of the review workflow.
-    re.compile(r"^docs/development/reviews/.+-review\.md$"),
+    # …and a long review's rotated finding tables, `<stem>-review-archive.md` (/fabrik-review § Reporting)
+    re.compile(r"^docs/development/reviews/.+-review(?:-archive)?\.md$"),
     # Archive at ANY depth: docs/archive/**/*.md (but not docs/archive.md itself)
     # Allows: docs/archive/foo.md, docs/archive/2026/03/foo.md
     # Blocks: docs/archive.md
@@ -150,9 +151,17 @@ ALLOWED_PATTERNS = [
 # segment — `docs/build/NOTES.md` and `docs/guides/dist/legit.md` were silently un-adjudicated,
 # a fail-OPEN amnesty inside a default-deny policy. Only unambiguous third-party/tooling roots
 # remain; this also matches check_structure's own skip set rather than diverging from it.
-_VENDOR_SEGMENTS = frozenset({
-    "node_modules", "site-packages", ".venv", "venv", ".tox", ".pnpm-store", "__pycache__",
-})
+_VENDOR_SEGMENTS = frozenset(
+    {
+        "node_modules",
+        "site-packages",
+        ".venv",
+        "venv",
+        ".tox",
+        ".pnpm-store",
+        "__pycache__",
+    }
+)
 
 
 def _is_vendor(path_str: str) -> bool:
@@ -370,12 +379,22 @@ def scan_repo(repo_root: Path) -> list[str]:
     # what a change touched, so `git add` made the scan blind to exactly the files under test.
     for args in (
         ["-c", "core.quotePath=false", "ls-files", "--others", "--exclude-standard", "-z", "*.md"],
-        ["-c", "core.quotePath=false", "diff", "--cached", "--name-only", "--diff-filter=A",
-         "-z", "--", "*.md"],
+        [
+            "-c",
+            "core.quotePath=false",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=A",
+            "-z",
+            "--",
+            "*.md",
+        ],
     ):
         try:
-            out = subprocess.run(["git", *args], cwd=repo_root,
-                                 capture_output=True, text=True, check=False)
+            out = subprocess.run(
+                ["git", *args], cwd=repo_root, capture_output=True, text=True, check=False
+            )
             if out.returncode == 0:
                 rels.extend(x for x in out.stdout.split("\0") if x)
         except Exception:

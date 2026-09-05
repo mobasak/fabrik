@@ -121,5 +121,19 @@ def test_the_legacy_ci_text_fallback_keeps_the_prefix_gate(tmp_path: Path):
 
 def test_the_enclosing_condition_mirror_matches_the_real_source():
     src = (REPO / "scripts" / "final_gate.py").read_text(encoding="utf-8")
-    assert '_armed = (PROJECT_ROOT / ".fabrik" / "run-pytest").exists()' in src
-    assert "            _armed\n            or not changed\n" in src
+    # the WHOLE condition is pinned: a mirror that re-implements the prefix check would not see
+    # a change to `_has_path_prefix` or a fourth prefix (review of 3833fb16, pool pass 1)
+    assert (
+        '    _armed = (PROJECT_ROOT / ".fabrik" / "run-pytest").exists()\n'
+        "    if (\n"
+        '        (PROJECT_ROOT / "tests").is_dir()\n'
+        "        and _ci_runs_pytest()\n"
+        "        and (\n"
+        "            _armed\n"
+        "            or not changed\n"
+        '            or _has_path_prefix(changed, "src/")\n'
+        '            or _has_path_prefix(changed, "tests/")\n'
+        '            or _has_path_prefix(changed, "scripts/")\n'
+        "        )\n"
+        "    ):\n"
+    ) in src

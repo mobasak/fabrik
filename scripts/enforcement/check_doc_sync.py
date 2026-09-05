@@ -135,9 +135,19 @@ def _schema_doc_for(path: str) -> str:
 
 
 _ORM_MARKERS = re.compile(
-    r"__tablename__|declarative_base|DeclarativeBase|mapped_column|\bColumn\(|\bTable\(|"
-    r"models\.Model\b|\bSQLModel\b|peewee|tortoise|django\.db",
+    r"__tablename__|__table__|declarative_base|DeclarativeBase|mapped_column|\bColumn\(|\bTable\(|"
+    r"\bregistry\(|\.mapped\b|models\.Model\b|\bSQLModel\b|db\.Entity\b|peewee|tortoise|django\.db",
 )
+
+
+def _staged_text(path: str) -> str | None:
+    """The INDEX copy of ``path`` (`git show :path`), or None when the index has none
+    (an intent-to-add, an unstaged file) — `_blob` is CHANGELOG-only by construction."""
+    try:
+        r = subprocess.run(["git", "show", f":{path}"], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
 
 
 def _is_orm_model(f: str) -> bool:
@@ -145,16 +155,21 @@ def _is_orm_model(f: str) -> bool:
 
     The filename alone fired on a pure-Pydantic `models.py` (one `min_length` change) and demanded
     `db/schema.sql` — a BLOCKING false positive that cost a real improvement (site-provisioner
-    01M1QS9527Y8K0P9VPE9XF5MYB, 2026-09-05). A directory hit (`models/`) or an unreadable file keeps
-    the old verdict: fail closed toward the schema demand.
+    01M1QS9527Y8K0P9VPE9XF5MYB, 2026-09-05). The content graded is the STAGED blob (`:path`) — the
+    gate grades the index, and a working-tree read would judge an edit made after staging (review
+    of 3833fb16, pass 1); the working tree is the fallback for an intent-to-add. A directory hit
+    (`models/`), a non-.py name (case-insensitive, like the filename regex) or an unreadable /
+    deleted file keeps the old verdict: fail closed toward the schema demand.
     """
     p = Path(f)
-    if p.is_dir() or p.suffix != ".py":
+    if p.is_dir() or p.suffix.lower() != ".py":
         return True
-    try:
-        text = p.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return True
+    text = _staged_text(f)
+    if text is None:
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return True
     return bool(_ORM_MARKERS.search(text))
 
 

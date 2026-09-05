@@ -463,6 +463,61 @@ def test_a_pydantic_only_models_py_does_not_demand_the_schema_dump(repo: Path) -
     assert "schema.sql" not in (r.stdout + r.stderr)
 
 
+def test_a_registry_mapped_models_py_is_an_orm_model_too(repo: Path) -> None:
+    """SQLAlchemy's imperative/registry style has no `__tablename__`: `@mapper_registry.mapped` +
+    `__table__ = Table(...)` in another module. The first marker set missed it (review of 3833fb16,
+    own pass 1, executed) — a schema change with no schema demand."""
+    _write(repo, "db/schema.sql", "-- schema\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    _write(
+        repo,
+        "app/models.py",
+        "from sqlalchemy.orm import registry\nfrom .tables import site_table\n\nmapper_registry = registry()\n\n"
+        "@mapper_registry.mapped\nclass Site:\n    __table__ = site_table\n",
+    )
+    _stage(repo, "app/models.py")
+    r = _run(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "schema.sql" in (r.stdout + r.stderr)
+
+
+def test_the_probe_grades_the_staged_blob_not_the_working_tree(repo: Path) -> None:
+    """Stage a Pydantic-only models.py, then edit the working tree into an ORM model WITHOUT
+    staging: the gate grades the index, so no schema demand (review of 3833fb16, pool pass 1)."""
+    _write(repo, "db/schema.sql", "-- schema\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    _write(repo, "CHANGELOG.md", CHANGELOG_OK)
+    _write(
+        repo,
+        "api/models.py",
+        "from pydantic import BaseModel\n\nclass Site(BaseModel):\n    name: str\n",
+    )
+    _stage(repo, "CHANGELOG.md", "api/models.py")
+    _write(
+        repo,
+        "api/models.py",
+        "from sqlalchemy import Column\n\nclass Site(Base):\n    __tablename__ = 's'\n",
+    )
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_pony_entity_and_an_upper_case_suffix_keep_the_demand(repo: Path) -> None:
+    _write(repo, "db/schema.sql", "-- schema\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    _write(
+        repo,
+        "app/models.py",
+        "from pony.orm import Database\ndb = Database()\n\nclass Site(db.Entity):\n    pass\n",
+    )
+    _stage(repo, "app/models.py")
+    r = _run(repo)
+    assert r.returncode == 1 and "schema.sql" in (r.stdout + r.stderr), r.stdout + r.stderr
+
+
 def test_an_orm_models_py_still_demands_the_schema_dump(repo: Path) -> None:
     _write(repo, "CHANGELOG.md", CHANGELOG_OK)
     _write(repo, "db/schema.sql", "-- schema\n")

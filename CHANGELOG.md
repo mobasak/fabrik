@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review of 3833fb16, pass 1: the `models.py` probe grades the STAGED blob, knows registry-mapped and Pony models, ignores suffix case; the archive file is allowlisted; the gate mirror pins the whole condition (2026-09-05)
+
+`_is_orm_model` read the working tree while the gate grades the index — a Pydantic file staged and
+then edited to an ORM model unstaged flipped the verdict; it now reads `git show :path` (the CHANGELOG-
+only `_blob` helper was the wrong tool, caught by the grader). SQLAlchemy's registry style
+(`__table__`, `registry(`, `.mapped`) and Pony's `db.Entity` are ORM markers; `models.PY` no longer
+bypasses the probe on suffix case. `check_structure.py`'s new-.md allowlist admits
+`…-review-archive.md` beside `…-review.md`. `test_pytest_marker.py` pins the gate's whole 12-line
+condition, not two lines — proven: the gate at its parent reds the pin. Each with a grader red on revert.
+
 ### Fixed — four peer-reported defects in synced machinery: the armed pytest leg, the `models.py` schema trigger, the D-035 dash header, and a review ledger that outgrows the Read tool (2026-09-05)
 
 - `final_gate.py`: the armed-pytest leg (`.fabrik/run-pytest`) was ANDed with the `src/|tests/|scripts/`
