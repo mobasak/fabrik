@@ -15,6 +15,16 @@ The lock is what lets several scoped plan runs share one project without collidi
 a run resumable after a crash. `/fabrik-execute-plan` step 7 scans for an overlapping `active` lock
 before starting; an overlap is a hard `BLOCKED`.
 
+**Locks are per WORKING TREE, not per repo** (multi-agent-per-repo, D-117). `.fabrik/plan-locks/`
+is in-repo, so a linked worktree (`claude --worktree <agent>`) carries its own copy of the directory:
+step 7's overlap scan sees only the tree it runs in, and a sibling agent's lock in another worktree
+is invisible here. That is safe by construction — each agent commits to its own branch and only the
+merge owner writes the base branch, so overlapping work surfaces as an ordinary git conflict at
+merge, never as lost work — and it is exactly the visibility an agent's own resume needs. Cross-tree
+visibility is the spec's residual R7 (an additive READ of the trees `git worktree list` enumerates)
+and is **unbuilt**; never synthesise it by writing a lock outside the tree you are in. The model is
+`docs/reference/multi-agent-operating-model.md`.
+
 **The protocol has three readers and zero writers.** Nothing in `scripts/` or `.claude/hooks/`
 creates or releases a lock — it is written by an agent following a paragraph, and released by an
 agent following another paragraph at the tail of a long run:
@@ -23,7 +33,7 @@ agent following another paragraph at the tail of a long run:
 |---|---|
 | `scripts/enforcement/check_plan_tickets.py:561`, `:1470` | `baseline_commit`; which plan dirs are in play |
 | `scripts/enforcement/check_phase_tests.py:36`, `:44-46` | active locks with a baseline, to scope phase tests |
-| `.claude/hooks/final_gate_stop.py:785` | whether an authored lock is `active` (Stop-hook arming) |
+| `.claude/hooks/final_gate_stop.py::_midrun_marker` | whether an authored lock is `active` (Stop-hook arming) |
 
 Every one of them reads. So a missed release is **silent** — until days later, when an unrelated
 agent hits `BLOCKED: scope overlap` at step 7 on paths it does not own and cannot free. Two measured

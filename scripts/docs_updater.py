@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/development/PLANS.md
 """
 Fabrik Documentation Updater
 
@@ -675,15 +676,28 @@ def detect_new_modules() -> list[Path]:
     return mods
 
 
+_BLOCK_MACHINERY_PREFIX = "<!-- AUTO-GENERATED:"  # START/END markers + the writer's stamp line
+
+
+def _block_body_norm(body: str) -> str:
+    """The comparable form of a block body, applied to BOTH sides of the idempotency
+    compare: only the block MACHINERY is dropped — the START/END markers and the
+    `<!-- AUTO-GENERATED:<NAME> v1 | <stamp> -->` line the writer adds — so a
+    timestamp alone never reads as a change. Every other line stays, comments included:
+    the PLANS block's `<!-- Phase: … -->` header DEFINES its columns, and rewording it
+    must read stale everywhere (dropping all `<!--` lines silently froze the old
+    definition in every repo — acceptance round 1)."""
+    return "\n".join(
+        line for line in body.split("\n") if not line.startswith(_BLOCK_MACHINERY_PREFIX)
+    ).strip()
+
+
 def extract_block_body(text: str, block_re: re.Pattern[str]) -> str | None:
     """Extract current body from bounded block (excluding stamp line)."""
     match = block_re.search(text)
     if not match:
         return None
-    content = match.group(0)
-    lines = content.split("\n")
-    body_lines = [line for line in lines if not line.startswith("<!--")]
-    return "\n".join(body_lines).strip()
+    return _block_body_norm(match.group(0))
 
 
 def replace_block(
@@ -691,7 +705,7 @@ def replace_block(
 ) -> tuple[str, bool]:
     """Replace block only if body changed; do not update stamp otherwise."""
     current_body = extract_block_body(text, block_re)
-    if current_body == new_body.strip():
+    if current_body == _block_body_norm(new_body):
         return text, False  # No change needed — idempotent
 
     stamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
@@ -798,6 +812,49 @@ def generate_docs_structure_tree() -> str:
     return f"```text\n{tree_str}\n```"
 
 
+def _strip_quoted(content: str) -> str:
+    """Plan text with its QUOTED spans removed — the scan surface for header lines
+    (`Status:`, `Owner:`). Fenced blocks go first (line-anchored + inline — never a
+    bare ```.*?```, which swallows across an unpaired backtick), then blockquoted
+    lines: a `> Status: DRAFT` grammar example above the real line must not win
+    first-match (fail-open: misreported status + a defeated COMPLETE check). Same
+    consumer-side strip as check_plan_tickets/check_plan_quality; the blockquote
+    regex keeps `>` for cross-module byte-parity (Lesson 103)."""
+    scan = re.sub(
+        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
+        "",
+        content,
+        flags=re.M | re.S,
+    )
+    return re.sub(r"^[ \t]*>.*$", "", scan, flags=re.M)
+
+
+_OWNER_LINE_RE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Owner\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
+    re.I | re.M,
+)
+NO_OWNER = "—"  # an untagged row — the tail sweep (spec § Personas, agent-1) fills it
+# The owner NAME is the line's leading token; live hub plans append prose
+# (`infra (build) — spec by fleet, …`) that must not become a table cell.
+_OWNER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]*")
+
+
+def parse_plan_owner(plan_path: Path) -> str:
+    """The plan's `**Owner:**` line (a monolith plan) or `Owner:` header (a spine) —
+    same line grammar as `Status:` (bold or plain, colon mandatory, quoted spans
+    ignored); first match wins, and only its leading name token is returned.
+    Absent → `NO_OWNER`."""
+    try:
+        content = plan_path.read_text(encoding="utf-8")
+    except Exception:
+        return NO_OWNER
+    m = _OWNER_LINE_RE.search(_strip_quoted(content))
+    if not m:
+        return NO_OWNER
+    name = _OWNER_NAME_RE.search(m.group(1).strip().strip("*"))
+    return name.group(0) if name else NO_OWNER
+
+
 def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     """Extract status and checkbox counts from a plan file.
 
@@ -817,18 +874,7 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     # Fences are quotes for the STATUS search only — checkbox counting stays on
     # RAW content (DONE-WHEN lists inside fences are live house style in this
     # repo's archived plans; uncounting them would fail-open the COMPLETE check).
-    status_scan = re.sub(
-        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-        "",
-        content,
-        flags=re.M | re.S,
-    )  # line-anchored + inline — never bare ```.*?``` (unpaired-backtick swallowing)
-    # Blockquoted lines are quoted content for status DETERMINATION too — a
-    # `> Status: DRAFT` grammar example above the real line must not win
-    # first-match (fail-open: misreported status + a defeated COMPLETE check).
-    # Same consumer-side strip as check_plan_tickets/check_plan_quality; the
-    # regex below keeps `>` for cross-module byte-parity (Lesson 103).
-    status_scan = re.sub(r"^[ \t]*>.*$", "", status_scan, flags=re.M)
+    status_scan = _strip_quoted(content)
     status_match = re.search(
         r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
         status_scan,
@@ -873,52 +919,165 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     return status, checked, total
 
 
+_PLANS_TABLE_HEADER = "| Epic/Plan | Owner | Status | Phase |"
+_PLANS_TABLE_RULE = "|---|---|---|---|"
+# The Phase column has two DEFINED sources, stated in the block itself so the column is
+# never ambiguous (multi-agent-per-repo spec § Ownership surfaces names the header only).
+_PLANS_PHASE_NOTE = (
+    "<!-- Phase: epic rows = the epic's position in scripts/epic_order.py phased_order() "
+    "(1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); "
+    "plan rows = Board progress, checked/total task boxes (`-` = no boxes). "
+    "Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, "
+    "or an epic's frontmatter `owner`; `—` = untagged (agent-1's tail sweep fills it). "
+    "Regenerate: python scripts/docs_updater.py --sync -->"
+)
+_EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-SCHEMA.md `status`
+
+
+def _epics_dir() -> Path:
+    """`docs/development/epics/`, resolved as PLANS_DIR's sibling so a test that
+    monkeypatches PLANS_DIR into a scratch tree never reads the real epics."""
+    return PLANS_DIR.parent / "epics"
+
+
+# A pipe is LIVE when preceded by an EVEN number of backslashes (zero included) — markdown
+# escaping is by parity: in `a\\|b` the `\\` is an escaped backslash and the pipe delimits.
+_UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)((?:\\\\)*)\|")
+
+
+def _cell(value: str) -> str:
+    """A table cell: a LIVE `|` is escaped so a value can never split the row (an epic
+    `owner: "a | b"` or a `Status:` carrying a pipe made 5 cells of 4). Parity-correct
+    and idempotent on every shape: `a|b` → `a\\|b`; `a\\|b` unchanged (already
+    escaped — escaping again would yield a literal backslash before a live delimiter);
+    `a\\\\|b` → `a\\\\\\|b`; `a\\\\\\|b` unchanged (rounds 2–3)."""
+    return _UNESCAPED_PIPE_RE.sub(r"\1\\|", value)
+
+
+def _epic_placeholder(epics_dir: Path, reason: str) -> list[str]:
+    """ONE visible placeholder row when the epics cannot be listed — never a crash,
+    never silence (this script is fleet-synced; the parser is not)."""
+    n = len(list(epics_dir.glob("*.md")))
+    return [f"| ({n} epic file(s) not listed — {_cell(reason)}) | - | - | - |"]
+
+
+def _epic_rows() -> list[str]:
+    """One table row per epic file under docs/development/epics/, read through
+    scripts/epic_order.py (the frontmatter parser + the phased order are ITS truth,
+    never a second parser here). An epic without frontmatter or `epic_n` renders
+    `-` for Phase; a dependency cycle renders `cycle` on every epic row."""
+    epics_dir = _epics_dir()
+    if not epics_dir.is_dir():
+        return []
+    try:
+        from epic_order import load_epics, phased_order
+    except ImportError:  # imported as scripts.docs_updater (tests) — scripts/ not on sys.path
+        try:
+            from scripts.epic_order import load_epics, phased_order  # type: ignore[no-redef]
+        except ImportError:
+            # scripts/epic_order.py is hub-only; a project with an epics dir must still --sync.
+            return _epic_placeholder(
+                epics_dir, "scripts/epic_order.py is not available in this repo"
+            )
+
+    try:
+        epics = load_epics(str(epics_dir))
+    except (UnicodeDecodeError, OSError) as exc:
+        # load_epics opens every *.md as UTF-8 with no guard; one undecodable or unreadable
+        # file must not abort --check/--sync for the whole repo.
+        return _epic_placeholder(
+            epics_dir, f"one is not decodable/readable — {type(exc).__name__}: {exc}"
+        )
+    phase_of: dict[int, str] = {}
+    try:
+        for i, phase in enumerate(phased_order(epics), 1):
+            for n in phase:
+                phase_of[n] = str(i)
+    except ValueError:  # a dependency cycle — epic_order.py --check names it
+        phase_of = {}
+        cycle = True
+    else:
+        cycle = False
+
+    rows: list[str] = []
+    for e in epics:
+        name = Path(e["_path"]).name
+        rel = f"epics/{name}"
+        if e.get("_no_frontmatter"):
+            rows.append(f"| [{name}]({rel}) | {NO_OWNER} | - | - |")
+            continue
+        owner = str(e.get("owner") or "").strip() or NO_OWNER
+        status = _EPIC_STATUS.get(str(e.get("status", "")).strip(), str(e.get("status", "-")))
+        n = e.get("epic_n")
+        phase = "cycle" if cycle else phase_of.get(n, "-") if n is not None else "-"
+        rows.append(f"| [{name}]({rel}) | {_cell(owner)} | {_cell(status)} | {_cell(phase)} |")
+    return rows
+
+
 def generate_plans_table() -> str:
-    """Generate markdown table of all plan files with real status.
-
-    NOTE: no live caller today (sync_plans_index is Traycer-skipped) — kept as a
-    tested utility for a PLANS.md revival; the LIVE consumer of parse_plan_status
-    is validate_plan_consistency (the --check path)."""
-    if not PLANS_DIR.exists():
-        return (
-            "| Plan | Date | Status | Progress |"
-            "\n|------|------|--------|----------|"
-            "\n| (none) | - | - | - |"
-        )
-
-    # Top-level monolith plans + spine+ticket plan SETS (a dated plan directory is
-    # one plan unit, represented by its same-stem spine; ticket files are never
-    # listed). Directories are filtered to the dated prefix BEFORE any date parse —
-    # `archived/` (or any non-dated dir) must never reach `name[:10]`.
-    plans = [(p.name, f"plans/{p.name}", p) for p in sorted(PLANS_DIR.glob("*.md"))]
-    plans += [
-        (f"{d.name}.md", f"plans/{d.name}/{d.name}.md", d / f"{d.name}.md")
-        for d in sorted(PLANS_DIR.iterdir())
-        if d.is_dir() and _PLAN_DIR_NAME_RE.match(d.name) and (d / f"{d.name}.md").is_file()
-    ]
-    if not plans:
-        return (
-            "| Plan | Date | Status | Progress |"
-            "\n|------|------|--------|----------|"
-            "\n| (none) | - | - | - |"
-        )
-
-    lines = ["| Plan | Date | Status | Progress |", "|------|------|--------|----------|"]
-    for name, rel, p in sorted(plans):
-        date = name[:10] if len(name) > 10 else "-"
-        status, checked, total = parse_plan_status(p)
-        progress = f"{checked}/{total}" if total > 0 else "-"
-        lines.append(f"| [{name}]({rel}) | {date} | {status} | {progress} |")
-    return "\n".join(lines)
+    """The `AUTO-GENERATED:PLANS` block body for docs/development/PLANS.md: every
+    epic (docs/development/epics/) and every plan unit (docs/development/plans/ —
+    monolith files + spine+ticket plan SETS, represented by their same-stem spine;
+    ticket files are never listed) with Owner, Status and Phase. Consumed by
+    `sync_plans_index` (--sync) and `validate_plans_indexed` (--check)."""
+    empty = (
+        f"{_PLANS_PHASE_NOTE}\n{_PLANS_TABLE_HEADER}\n{_PLANS_TABLE_RULE}\n| (none) | - | - | - |"
+    )
+    rows = _epic_rows()
+    if PLANS_DIR.exists():
+        # Directories are filtered to the dated prefix — `archived/` (or any
+        # non-dated dir) is never a plan unit.
+        plans = [(p.name, f"plans/{p.name}", p) for p in sorted(PLANS_DIR.glob("*.md"))]
+        plans += [
+            (f"{d.name}.md", f"plans/{d.name}/{d.name}.md", d / f"{d.name}.md")
+            for d in sorted(PLANS_DIR.iterdir())
+            if d.is_dir() and _PLAN_DIR_NAME_RE.match(d.name) and (d / f"{d.name}.md").is_file()
+        ]
+        for name, rel, p in sorted(plans):
+            status, checked, total = parse_plan_status(p)
+            phase = f"{checked}/{total}" if total > 0 else "-"
+            rows.append(
+                f"| [{name}]({rel}) | {_cell(parse_plan_owner(p))} | {_cell(status)} | {phase} |"
+            )
+    if not rows:
+        return empty
+    return "\n".join([_PLANS_PHASE_NOTE, _PLANS_TABLE_HEADER, _PLANS_TABLE_RULE, *rows])
 
 
-def sync_plans_index() -> tuple[bool, str]:
-    """PLANS.md sync is obsolete (Traycer owns plans/indexing)."""
-    return False, "Skipped (Traycer-managed)"
+def sync_plans_index(dry_run: bool = False) -> tuple[bool, str]:
+    """Regenerate the `AUTO-GENERATED:PLANS` block in docs/development/PLANS.md in
+    place — the same Tier-0 mechanism as INDEX.md's STRUCTURE block (`replace_block`,
+    idempotent, stamp bumped only on a real change). Opt-in by the markers: a repo
+    without PLANS.md, or without the block, is left alone (this script is fleet-synced).
+    Returns (changed, message)."""
+    if not PLANS_INDEX.exists():
+        return False, "docs/development/PLANS.md not present — skipped"
+    content = PLANS_INDEX.read_text(encoding="utf-8")
+    if not PLANS_BLOCK_RE.search(content):
+        return False, "docs/development/PLANS.md has no AUTO-GENERATED:PLANS markers — skipped"
+    new_content, changed = replace_block(content, generate_plans_table(), PLANS_BLOCK_RE, "PLANS")
+    if not changed:
+        return False, "docs/development/PLANS.md (PLANS block) up to date"
+    if dry_run:
+        return True, "Would update: docs/development/PLANS.md (PLANS block)"
+    PLANS_INDEX.write_text(new_content, encoding="utf-8")
+    return True, "Updated: docs/development/PLANS.md (PLANS block)"
 
 
 def validate_plans_indexed() -> list[str]:
-    """Indexing is Traycer-managed; do not enforce PLANS.md coverage."""
+    """--check: a finding when the PLANS block no longer matches what
+    `generate_plans_table()` would emit (never mutates). Missing file or missing
+    markers = opted out, not a finding — the mirror of `sync_plans_index`."""
+    if not PLANS_INDEX.exists():
+        return []
+    current = extract_block_body(PLANS_INDEX.read_text(encoding="utf-8"), PLANS_BLOCK_RE)
+    if current is None:
+        return []
+    if current != _block_body_norm(generate_plans_table()):
+        return [
+            "docs/development/PLANS.md AUTO-GENERATED:PLANS block is stale — "
+            "run: python scripts/docs_updater.py --sync"
+        ]
     return []
 
 
@@ -1201,8 +1360,9 @@ def validate_docs() -> tuple[bool, list[str]]:
     """Check for drift. Returns (valid, issues)."""
     issues: list[str] = []
 
-    # Check plan status/checkbox consistency (plans indexing is Traycer-managed)
+    # Check plan status/checkbox consistency + the PLANS.md block's freshness
     issues.extend(validate_plan_consistency())
+    issues.extend(validate_plans_indexed())
 
     # Check for missing module docs
     missing_modules = detect_new_modules()
@@ -1214,8 +1374,6 @@ def validate_docs() -> tuple[bool, list[str]]:
         readme = README_PATH.read_text()
         if "<!-- AUTO-GENERATED:STRUCTURE:START -->" not in readme:
             issues.append("INDEX.md missing STRUCTURE auto-block markers")
-
-    # PLANS.md auto-block check removed (Traycer-managed)
 
     # NEW: Stub completeness check
     issues.extend(check_stub_completeness())
@@ -1246,7 +1404,10 @@ def run_sync(dry_run: bool = False) -> None:
                 README_PATH.write_text(new_content)
                 print("Updated: docs/INDEX.md (STRUCTURE block)")
 
-    # PLANS.md sync intentionally skipped (Traycer-managed)
+    # Sync the PLANS block in docs/development/PLANS.md (opt-in by its markers)
+    plans_changed, plans_msg = sync_plans_index(dry_run=dry_run)
+    if plans_changed:
+        print(plans_msg)
 
     # Create missing module stubs
     missing = detect_new_modules()
