@@ -1,10 +1,12 @@
+<!-- ⛔ RETIRED 2026-09-06 — the Traycer command wiring is no longer a contract.
+     Its twin is the corpus commands `/fabrik-vision` · `/fabrik-epics` · `/fabrik-epics-review` (commands/_sources/ — spec § Chain consolidation (b): "Retire the Traycer layer. The cockpit and driver the chain hands off to were never built (R8); `traycer_mirror.py` is a no-op without `TRAYCER_EPIC_ID`; the wrappers are doorbells."). Kept for history only. Do NOT wire it back. -->
 # Traycer Command Wiring — how the factory's artifacts + autonomous execution run inside Traycer
 
 **What this is:** the setup/wiring contract for running the mega-epic-breakdown and epic-to-ticket-workflow
 chains *inside Traycer*, so that every command produces a **Traycer card** (artifact) the cockpit renders, and
 the whole idea → epics → tickets → execution flow is driven from the Traycer desktop app.
 
-**Where this doc lives:** `docs/orchestrator/traycer-command-wiring.md` — moved here from `docs/infrastructure/`
+**Where this doc lives:** `docs/orchestrator/_retired/traycer/traycer-command-wiring.RETIRED.md` — moved here from `docs/infrastructure/`
 (commit `32b1b57c`), so it sits beside the command set it describes. `docs/infrastructure/` holds VPS/observability
 runbooks and contains **no command files**.
 
@@ -21,7 +23,7 @@ twins were archived (north-star D2, 2026-07-18).
 |---|---|---|
 | **Command files** (`-fabrik`) | `docs/orchestrator/mega-epic-breakdown/**` · `docs/orchestrator/epic-to-ticket-workflow/**` | The runnable workflow definitions Claude executes. Git-tracked = source of truth. |
 | **Skill wrappers** (`SKILL.md`) | `docs/orchestrator/_traycer-skills/**` → installed into **two** skill dirs (see § The doorbell model) | Register the commands under a slash name so they appear in a menu. 13 lines each, **no logic** — a pointer at the canonical `-fabrik` file. |
-| **Projection + schema** | `scripts/traycer_mirror.py` · `scripts/epic_order.py` · `docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md` | Turn a disk artifact into a Traycer **card**; order/validate the epic set. |
+| **Projection + schema** | `traycer_mirror.py` (deleted 2026-09-06, T09) · `scripts/epic_order.py` · `docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md` | Turn a disk artifact into a Traycer **card**; order/validate the epic set. |
 
 **Golden rule (D8):** **DISK is the source of truth; the Traycer store is a projection.** A command writes its
 artifact to a git-tracked disk path, then *mirrors* it into the Traycer store. Never make the Traycer store the

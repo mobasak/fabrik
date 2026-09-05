@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — the Traycer Refactoring Workflow is no longer a workflow here.
+     Its twin is the `/fabrik-*` pipeline (CLAUDE.md § Pipeline — spec § Chain consolidation (b): "Retire the Traycer layer. The cockpit and driver the chain hands off to were never built (R8); `traycer_mirror.py` is a no-op without `TRAYCER_EPIC_ID`; the wrappers are doorbells."). Kept for history only. Do NOT wire it back. -->
 # Traycer Refactoring Workflow (Detailed Reference)
 
 **Last Updated:** 2026-07-20
@@ -540,7 +542,7 @@ Each ticket should include:
 ## See Also
 
 - [Traycer Integration Guide](README.md)
-- [Traycer Agile Workflow](traycer-agile-workflow.md)
-- [Traycer YOLO Workflow](../archive/traycer-yolo-workflow.md) (archived — Kilo-era fast path)
-- [Mandatory Workflow](../../agents-fabrik.md#workflow-mandatory--three-tiers-by-scale) — See "Workflow (mandatory) — three tiers by scale" section
-- [AGENTS.md](../../AGENTS.md)
+- [Traycer Agile Workflow](traycer-agile-workflow.RETIRED.md)
+- [Traycer YOLO Workflow](../../../archive/traycer-yolo-workflow.md) (archived — Kilo-era fast path)
+- [Mandatory Workflow](../../../../agents-fabrik.md#workflow-mandatory--three-tiers-by-scale) — See "Workflow (mandatory) — three tiers by scale" section
+- [AGENTS.md](../../../../AGENTS.md)

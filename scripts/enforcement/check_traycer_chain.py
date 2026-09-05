@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/orchestrator/** docs/traycer/** | none
-"""Semantic detectors for the Traycer command chain.
+# AFTER-EDIT: none
+"""Semantic detectors for the mega chain's corpus sources (formerly the Traycer chain).
 
 Three defect classes that hand-grepping failed to eliminate four separate times.
 Each failure was in *what got scanned*, not in how carefully it was read:
@@ -25,14 +25,12 @@ import glob
 import re
 import sys
 
-# The `-fabrik` files (our runnable chain) moved to docs/orchestrator/ (2026-07-17);
-# the `-command`/`-workflow-command` Traycer twins stayed in docs/traycer/. Scan BOTH
-# roots so the A/B/C detectors keep guarding the -fabrik files they exist for.
+# The chain docs are retired (2026-09-06, spec § Chain consolidation); their text lives in the
+# three corpus sources these GLOB PATTERNS expand to. Never an explicit file list: the script is
+# fleet-synced and no project has commands/_sources/ — absence must yield 0 files, not a raise.
 DIRS = (
-    "docs/orchestrator/mega-epic-breakdown",
-    "docs/orchestrator/epic-to-ticket-workflow",
-    "docs/traycer/mega-epic-breakdown",
-    "docs/traycer/epic-to-ticket-workflow",
+    "commands/_sources/fabrik-vision*.md",
+    "commands/_sources/fabrik-epics*.md",
 )
 
 BRANCH = re.compile(r"retrofit|optional|delta-feature|always runs \*{0,2}tier 3", re.I)
@@ -86,7 +84,7 @@ def scan(path):
 
 
 def main():
-    files = sorted(f for directory in DIRS for f in glob.glob(f"{directory}/*.md"))
+    files = sorted(f for pattern in DIRS for f in glob.glob(pattern))
     violations = [msg for path in files for msg in scan(path)]
     for msg in violations:
         print(msg)
