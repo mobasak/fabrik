@@ -5904,6 +5904,35 @@ took a full 5 rounds (not 1) to reach a real fixed point here (confirmed only wh
 clean on both the native and pool layer). A single "fix the bug and move on" pass would have shipped 4
 more of the same defect.
 
+## Lesson 84 — A guard that only fires on the path you were looking at is not a guard (2026-09-05)
+
+**What happened.** Phase C of the windowed-cost-sidecar plan wired a daily rebuild into
+`daily_refresh.sh` before the step that renders its output, added an enforcement checker for that
+ordering, committed, and reported it done. Three author-blind finders then found that the pipeline has
+**two** entry points — the 06:00 cron and the boot hook — which share one daily lock, so whichever
+wins makes the other skip entirely. The rebuild existed on one of them. The checker was hardcoded to
+that same one and so was structurally unable to see the gap. And nothing ran the checker at all: it
+was registered in no gate, no hook and no test, while the commit message said it "holds that
+ordering".
+
+**Why it matters.** Each of the three is the same shape at a different altitude: *the guard covers the
+instance you had in mind, not the class.* The repo had already recorded this exact asymmetry three
+times — `wsl_startup_hook.sh:216-232` names two prior instances and the fix for both was "mirror the
+step into the other entry point". Mine was the fourth, and the coupling header on the file I edited
+(`# AFTER-EDIT: daily_refresh.sh, wsl_startup_hook.sh`) named the file I did not open.
+
+**How to apply.** Before claiming an ordering, a cadence or an invariant is enforced, answer two
+questions with a command rather than from memory: *which paths reach this behaviour* (grep the
+consumers, not the producer — and read the AFTER-EDIT header of every file you touch), and *what
+executes the check* (`grep` the checker's own filename across gates, hooks and tests; if the only
+hits are prose, it is inert). A checker committed without a runner is documentation with an exit
+code. The grader for the second question is cheap and worth writing: `test_the_gate_is_actually_
+wired_to_something` asserts the hook is still registered, and it costs one line.
+
+**Related.** The same review found the mirror of this at the data layer: a fail-soft `try` that the
+new call sat one line below, so a context line could abort the document it annotated. Fail-soft, like
+enforcement, only covers what is actually inside it.
+
 ## Lesson 83 — A benchmark's model ALIAS is part of the measurement; "opus" measured opus-4.8 for weeks
 
 **Context:** the 2026-08-04 hard-review benchmark reported `claude-code/opus` at 4.44 (8/10 recall),

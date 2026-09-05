@@ -1,76 +1,151 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/kilo-benchmarks/daily_refresh.sh (the file this asserts the shape of)
-"""Assert the cost-sidecar rebuild runs BEFORE the ranking regen in `daily_refresh.sh`.
+# AFTER-EDIT: scripts/kilo-benchmarks/daily_refresh.sh, scripts/wsl_startup_hook.sh (the two entry points this asserts the shape of) | tests/test_refresh_before_ranker.py
+"""Assert the cost-sidecar rebuild runs BEFORE the ranking regen — in BOTH pipeline entry points.
 
-Wired the other way round, `rank_task_subagents.py` renders yesterday's ② rate into
-`TASK_SUBAGENT_SELECTION.md` for a full cycle — the doc `pick_models` reads would carry a figure the
-same run is about to replace. Phase C of `docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md`.
+`rank_task_subagents.py` renders the amortized rate from `claude_p_cost.json` into
+`TASK_SUBAGENT_SELECTION.md`, the doc `pick_models` reads fleet-wide. A rebuild wired AFTER it
+publishes the previous day's figure for a full cycle. Phase C of
+`docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md`.
 
-⚠️ This body is specified VERBATIM in that plan, and the shape matters more than it looks. An earlier
-revision used a compound shell gate that was broken three ways at once, each failure silent:
+⚠️ TWO ENTRY POINTS, NOT ONE — and wiring only one is a documented repeat offence here.
+`daily_refresh.sh` (cron, 06:00) and `wsl_startup_hook.sh` (boot) BOTH run the ranker and BOTH take
+the same daily lock `/tmp/.fabrik_daily_<UTC>`, so whichever wins makes the other skip entirely.
+`wsl_startup_hook.sh:216-232` records two earlier instances of exactly this asymmetry; the Phase-C
+commit `5fd58526` shipped a third by wiring the refresh into the cron path alone, and an author-blind
+finder caught it by re-measuring the race (2026-08-31..2026-09-05: 5 cron-wins, 1 boot-win — and the
+boot win, 2026-09-04, ranked with no refresh). Both paths are checked here so the next one cannot.
 
-  * it anchored on `grep -n rank_task_subagents | head -1`, which resolves to a stale COMMENT rather
-    than the `_step` invocation — the ordering it checked was between a comment and a step;
-  * its regex demanded a literal space after `.py`, so the file's own quoted-path convention
-    (`"$KB/rank_task_subagents.py"`) never matched and CORRECT wiring redded the gate;
-  * with the anchor absent, `xargs` ran nothing and exited 0 — VACUOUSLY GREEN on a deleted step,
-    which is the one state a gate like this exists to catch.
+WHAT IS MATCHED, and why it is not shell-aware. A line counts as an invocation when its logical line
+(continuations joined) names the SCRIPT PATH — `claude_p_cost.py` plus the `--refresh` flag for the
+rebuild, `rank_task_subagents.py` for the ranker — outside a comment and outside a here-doc body.
 
-Hence: match only lines whose first non-space token is `_step`, require BOTH to be present, and
-compare their positions. Proven on five cases before being written into the plan (and re-proven
-against the live file at execution): red with no refresh step · green on correct quoted-path wiring ·
-red when wired after the ranker · red when the ranker step is deleted · red when the token appears
-only in a comment.
+Three deliberate choices, each bought by a defect an author-blind pass demonstrated on the previous
+revision of this file:
 
-Exit 0 = correctly ordered. Exit 1 = missing or out of order. Exit 2 = the shell script is absent.
+  * THE FLAG IS REQUIRED. Matching the bare substring `claude_p_cost` let a step that merely READS
+    the sidecar satisfy the gate — a false green on the exact condition it exists to prevent, since
+    without `--refresh` the module falls through to stdin and writes nothing.
+  * THE `.py` IS REQUIRED, and the `_step` prefix is NOT. Anchoring on `lstrip().startswith("_step")`
+    both false-RED the boot path (which invokes the interpreter directly, with no `_step` at all) and
+    false-RED a legitimately line-wrapped step; anchoring on the bare name let a step LABEL
+    (`_step "verify_rank_task_subagents_inputs"`) win `next()` and report a nonsense ordering.
+  * QUOTES ARE NOT TRACKED, on purpose. `wsl_startup_hook.sh:162` opens `nohup bash -c "` and its
+    ENTIRE pipeline body — every line this gate must read — lives inside that double-quoted string.
+    A quote-aware matcher would therefore skip the whole boot path and report green on an empty
+    reading. The residual is honest and stated rather than papered over: a line sitting inside some
+    OTHER quoted string can still be counted. Here-docs ARE skipped (unambiguous, and cheap).
+
+Exit 0 = every present entry point is correctly ordered. Exit 1 = missing or out of order in at
+least one. Exit 2 = neither entry point exists (wrong repo, or run from the wrong directory).
 """
 
+from __future__ import annotations
+
 import pathlib
+import re
 import sys
 
-_TARGET = pathlib.Path("scripts/kilo-benchmarks/daily_refresh.sh")
+# Anchored on THIS file, never on the caller's cwd: the previous revision resolved a relative path
+# and so exit-2'd from any directory but the repo root — or, on a box carrying subagent worktrees,
+# silently checked a DIFFERENT copy of the script.
+_REPO = pathlib.Path(__file__).resolve().parent.parent.parent
+
+_ENTRY_POINTS = (
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "scripts/wsl_startup_hook.sh",
+)
+
+_HEREDOC = re.compile(r"<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?")
+
+
+def _logical_lines(text: str) -> list[tuple[int, str]]:
+    """(1-based start line, joined text) for each executable logical line.
+
+    Continuations are joined so a wrapped command is one line; comment lines and here-doc BODIES are
+    dropped. Quotes are deliberately not tracked — see the module docstring.
+    """
+    out: list[tuple[int, str]] = []
+    delim: str | None = None
+    buf: list[str] = []
+    start = 0
+    for n, raw in enumerate(text.splitlines(), 1):
+        if delim is not None:  # inside a here-doc body
+            if raw.strip() == delim:
+                delim = None
+            continue
+        stripped = raw.strip()
+        if not buf and stripped.startswith("#"):
+            continue
+        if not buf:
+            start = n
+        if raw.rstrip().endswith("\\"):
+            buf.append(raw.rstrip()[:-1])
+            continue
+        buf.append(raw)
+        joined = " ".join(buf)
+        buf = []
+        # a here-doc opened on this logical line swallows the following lines
+        m = _HEREDOC.search(joined)
+        if m:
+            delim = m.group(1)
+        out.append((start, joined))
+    if buf:  # a trailing continuation with no terminator
+        out.append((start, " ".join(buf)))
+    return out
+
+
+def _site(lines: list[tuple[int, str]], *tokens: str) -> int | None:
+    """First logical line containing EVERY token; its 1-based physical start line."""
+    return next((n for n, text in lines if all(t in text for t in tokens)), None)
+
+
+def _check(rel: str) -> tuple[bool, str]:
+    """(ok, message) for one entry point. A file that does not exist is not this gate's business."""
+    path = _REPO / rel
+    lines = _logical_lines(path.read_text(encoding="utf-8"))
+    refresh = _site(lines, "claude_p_cost.py", "--refresh")
+    ranker = _site(lines, "rank_task_subagents.py")
+    if ranker is None:
+        return False, (
+            f"{rel}: no invocation of rank_task_subagents.py — the ranking is never regenerated "
+            "here, so pick_models reads whatever the selection doc last happened to contain"
+        )
+    if refresh is None:
+        return False, (
+            f"{rel}: runs rank_task_subagents.py at line {ranker} but never invokes "
+            "`claude_p_cost.py --refresh` — this entry point ranks from a sidecar it did not "
+            "rebuild. Both entry points share the daily lock, so the one missing the rebuild "
+            "silently becomes the whole day's pipeline whenever it wins the race."
+        )
+    if refresh == ranker:
+        return False, (
+            f"{rel}: both run on one logical line at {refresh}, so their order cannot be read "
+            "statically — split them into separate invocations"
+        )
+    if refresh > ranker:
+        return False, (
+            f"{rel}: the rebuild is at line {refresh}, rank_task_subagents.py at {ranker} — the "
+            "rebuild must come FIRST, or the ranking renders the previous day's rate for a cycle"
+        )
+    return True, f"{rel}: rebuild at {refresh} precedes the ranking at {ranker}"
 
 
 def main() -> int:
-    if not _TARGET.exists():
-        print(f"{_TARGET}: not found — run from the repo root", file=sys.stderr)
+    present = [rel for rel in _ENTRY_POINTS if (_REPO / rel).is_file()]
+    if not present:
+        print(
+            f"none of the pipeline entry points exist under {_REPO} "
+            f"({', '.join(_ENTRY_POINTS)}) — wrong repo?",
+            file=sys.stderr,
+        )
         return 2
-    lines = _TARGET.read_text(encoding="utf-8").splitlines()
-
-    def step(tok: str) -> int | None:
-        """Line number of the first real `_step` invocation naming `tok`; never a comment."""
-        return next(
-            (
-                i
-                for i, line in enumerate(lines, 1)
-                if line.lstrip().startswith("_step") and tok in line
-            ),
-            None,
-        )
-
-    refresh, ranker = step("claude_p_cost"), step("rank_task_subagents")
-    if refresh is None:
-        print(
-            "daily_refresh.sh has no `_step` invoking claude_p_cost --refresh: the cost sidecar is "
-            "never rebuilt, so ② fossilises and the selection doc renders a stale rate as current",
-            file=sys.stderr,
-        )
-        return 1
-    if ranker is None:
-        print(
-            "daily_refresh.sh has no `_step` invoking rank_task_subagents: the ranking is never "
-            "regenerated, so `pick_models` reads whatever the doc last happened to contain",
-            file=sys.stderr,
-        )
-        return 1
-    if refresh >= ranker:
-        print(
-            f"ordering: claude_p_cost refresh is at line {refresh}, rank_task_subagents at {ranker} — "
-            "the rebuild must come FIRST or the ranking renders the previous day's rate for a cycle",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
+    failures = []
+    for rel in present:
+        ok, msg = _check(rel)
+        (print(msg) if ok else failures.append(msg))
+    for msg in failures:
+        print(msg, file=sys.stderr)
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

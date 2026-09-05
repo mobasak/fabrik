@@ -118,6 +118,18 @@ repos:
       # live (a phase review failing four blocking rules entered history ungated; the advisory
       # sweep checks a narrower class set and never saw it). Staged paths get the full battery
       # here, where the author is present and the artifact is theirs — never a retroactive scan.
+      # The Phase-C ordering gate. HUB-LOCAL by placement: this config is not in the sync
+      # manifest, so the hook does not ship to the ~46 project repos (where neither entry point
+      # exists). Scoped to the two shell files it reasons about, so it costs nothing on any other
+      # commit. It exists BECAUSE the first revision of that checker was registered nowhere at all
+      # and fired exactly once, by hand, while its commit message claimed it "holds that ordering".
+      - id: refresh-before-ranker
+        name: The cost sidecar is rebuilt BEFORE the ranking that renders it
+        entry: python3 scripts/enforcement/_check_refresh_before_ranker.py
+        language: system
+        pass_filenames: false
+        files: '^(scripts/kilo-benchmarks/daily_refresh\.sh|scripts/wsl_startup_hook\.sh)$'
+
       - id: review-coverage-staged
         name: Staged review artifacts pass the coverage grammar
         entry: python3 scripts/enforcement/check_review_coverage.py

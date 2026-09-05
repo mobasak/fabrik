@@ -234,6 +234,17 @@ if [ ! -f "$LOCK_FILE" ]; then
         # real fault (unreachable DSN, broken driver), never an empty outbox.
         $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/flush_subagent_outboxes.py >> $LOG_FILE 2>&1 \
             || { echo '[wsl_startup_hook] flush_subagent_outboxes FAILED — stranded runs are unflushed and the ranker below is reading an incomplete ledger' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: flush_subagent_outboxes exited non-zero' 'The flywheel WRITE path is broken on this host. flush_subagent_outboxes.py returns 0 on every internal path including an empty outbox, so a non-zero exit is the interpreter or an import failing, never nothing-to-flush. The ranker runs immediately after and will publish TASK_SUBAGENT_SELECTION.md from a ledger missing every stranded run. Check the venv and the SUBAGENT_RUNS_DSN reachability.' >> \"$LOG_FILE\" 2>&1; }
+        # FOURTH instance of the asymmetry class the block above names — mine, 2026-09-05. The cost
+        # sidecar rebuild was wired into daily_refresh.sh ONLY, and these two entry points share the
+        # daily lock, so on every boot-wins day the ranker below rendered ② from an UN-refreshed
+        # sidecar. Measured across the retained log window (2026-08-31..2026-09-05): 5 cron-wins,
+        # 1 boot-win — the boot win was 2026-09-04, and it ranked without a refresh. MUST stay above
+        # the ranker: it renders ② into TASK_SUBAGENT_SELECTION.md, so a rebuild after it publishes
+        # yesterday's rate for a full cycle. Non-fatal, because a cost figure is context and never a
+        # reason to red the boot pipeline — but it ALERTS like its siblings rather than echoing into
+        # a log this file's own comments say nobody tails.
+        $VENV_PYTHON $FABRIK_ROOT/scripts/claude_p_cost.py --refresh >> $LOG_FILE 2>&1 \
+            || { echo '[wsl_startup_hook] claude_p_cost --refresh FAILED — the ranker below renders a rate this run did not rebuild' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: claude_p_cost --refresh exited non-zero' 'The cost sidecar was not rebuilt, so TASK_SUBAGENT_SELECTION.md publishes the previous rate and marks it STALE past 24h. Exit 3 is the DELIBERATE refusal: the window was unmeasurable (usage-history unreadable — an account rotation or a moved home) and the producer declined to overwrite a measured rate with the research anchor, which would be a ~12x error published as current. Any other non-zero is the interpreter or an import. Check ~/.claude/.claude-manager/usage-history.json.' >> \"$LOG_FILE\" 2>&1; }
         $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/rank_task_subagents.py >> $LOG_FILE 2>&1 \
             || { echo '[wsl_startup_hook] rank_task_subagents FAILED — previous selection doc KEPT, not overwritten' >> $LOG_FILE; env FABRIK_ROOT=$FABRIK_ROOT bash \"$FABRIK_ROOT/scripts/kilo-benchmarks/pipeline_alert.sh\" 'wsl_startup_hook: rank_task_subagents exited non-zero' 'The flywheel read is likely BROKEN (state=error). The previous TASK_SUBAGENT_SELECTION.md was deliberately KEPT rather than overwritten with the failure stub, so the fleet is on yesterday-good, not poisoned. Check the postgres/sudo path on this host.' >> \"$LOG_FILE\" 2>&1; }
         ORACLE_REQUIRE_LOCAL_ARTIFACTS=1 $VENV_PYTHON $FABRIK_ROOT/scripts/kilo-benchmarks/tests/capture_golden.py --verify >> $LOG_FILE 2>&1 \

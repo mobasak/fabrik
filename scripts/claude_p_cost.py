@@ -315,6 +315,24 @@ def _live_usage_window() -> dict:
     }
 
 
+class UnmeasurableWindowError(RuntimeError):
+    """`refresh()` could not measure a window and refused to overwrite a MEASURED rate.
+
+    Raised only when BOTH hold: this run fell back to the research anchor (no usage history, no
+    readable account set), AND the file on disk already carries a rate derived from a real window.
+    Phase C put this function on a 06:00 cron whose output is auto-committed and PUSHED, which turned
+    a harmless fallback into a fleet-wide hazard: with `~/.claude` usage history unreadable — an
+    account rotation, a moved home, a cleared file — the anchor (0.093/Mtok) went over a measured
+    0.00748 with a FRESH `built_at`, a 12.4x jump published as current. Phase B's staleness marker is
+    structurally blind to it: that marker makes an OLD stamp loud, and this failure mints a new one.
+
+    So the refusal is the honest answer. The last measured rate stands, untouched; the caller exits
+    non-zero so the cron step is seen to fail; and the file ages into Phase B's STALE marking, which
+    is exactly what "we could not measure today" should look like to a reader. A fresh box with
+    nothing to preserve still bootstraps from the anchor — there the anchor IS the best answer.
+    """
+
+
 def refresh() -> dict:
     """Rebuild `claude_p_cost.json` from live ~/.claude usage, with the window ② came from.
 
@@ -342,6 +360,24 @@ def refresh() -> dict:
     except (TypeError, ValueError):
         quota = 0.0  # a non-numeric ③ must not crash the producer off its cron
     w = _live_usage_window()
+    # THE REFUSAL (see UnmeasurableWindowError). `window_start is None` IS the anchor branch — the same
+    # sentinel the reader in rank_task_subagents keys its "no window" rendering on, so the two agree
+    # by reading one field rather than by re-deriving the condition twice.
+    # ⚠️ `is not None` was WRONG here, and wrong in the direction that cannot self-heal: it treated
+    # `""`, `0` and a junk object as "a measured rate worth protecting", so a sidecar carrying any
+    # of those would refuse EVERY subsequent refresh and the box could never recover on its own.
+    # The test is now the same one the READER applies (`rank_task_subagents._bound`): a measured
+    # window bound is a non-empty single-line string. Producer and consumer agreeing on one
+    # definition is the point — two definitions of "has a window" is how the halves drift apart.
+    prev_bound = prev.get("window_start")
+    prev_measured = isinstance(prev_bound, str) and bool(prev_bound.strip())
+    if w["window_start"] is None and prev_measured:
+        raise UnmeasurableWindowError(
+            f"refusing to overwrite a measured rate ({prev.get('amortized_per_mtok')!r} over "
+            f"{prev.get('window_start')}..{prev.get('window_end')}) with the research anchor "
+            f"({w['amortized_per_mtok']!r}): this run could not measure a window. The previous "
+            "sidecar is left untouched and will read as STALE once it passes 24h."
+        )
     data = dict(prev)  # carry forward EVERY key this function did not author
     # A carried map must not inherit the fresh window's authority: `window_start`/`window_end` and
     # `built_at` describe ② only. Measured 2026-09-05: the carried split is 79.6% off a live recompute
@@ -404,7 +440,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default="opus", help="fable|opus|sonnet|haiku (default: opus)")
     args = ap.parse_args(argv)
     if args.refresh:
-        print(json.dumps(refresh(), indent=2))
+        try:
+            print(json.dumps(refresh(), indent=2))
+        except UnmeasurableWindowError as e:
+            # exit 3, distinct from the exit 2 a malformed stdin payload uses: this is not bad input,
+            # it is a deliberate no-write, and the cron step's `||` branch must be able to say so.
+            print(f"error: {e}", file=sys.stderr)
+            return 3
         return 0
     raw = sys.stdin.read().strip()
     if not raw:

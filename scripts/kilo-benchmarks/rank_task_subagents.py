@@ -705,8 +705,28 @@ def _sidecar_window(d: dict) -> str:
         # the key IS there, the reader simply cannot read it.
         age = f" ⚠️ **built_at is of type {type(built).__name__}, not a timestamp** — treat this rate as undated"
 
-    if not (start and end):
+    if start is None and end is None:
         return f"(⚠️ **no window** — this is the research ANCHOR, not a measured rate{age})"
+    if not (start and end):
+        # HALF a window is not the anchor. The earlier `not (start and end)` sent this case to the
+        # anchor branch, which told the reader "this is the research ANCHOR, not a measured rate"
+        # about a sidecar plainly carrying a derived bound — a false statement, and one no test
+        # caught because every anchor fixture nulled BOTH bounds (found by mutation, `and`→`or`
+        # survived the whole suite).
+        return f"(⚠️ **partial window** — start={start!r} end={end!r}, one bound is missing{age})"
+
+    def _bound(v: object) -> str | None:
+        """A single-line date-ish string, or None.
+
+        The DENOMINATORS were rigorously validated while the BOUNDS — the headline of the whole
+        feature — were interpolated raw, so a list rendered as `over ['2026-08-07']→…` and, worse, a
+        newline inside the value split the single-line italic markdown block this string sits in,
+        corrupting the very doc `pick_models` parses. Symmetry with `_count` is the fix.
+        """
+        if not isinstance(v, str):
+            return None
+        v = v.strip()
+        return v if v and "\n" not in v and "\r" not in v else None
 
     def _count(v: object) -> int | None:
         """A positive whole number, or None. ⚠️ `isinstance(True, int)` is True in Python, so a bool
@@ -717,8 +737,15 @@ def _sidecar_window(d: dict) -> str:
             return None  # int(nan) raises ValueError, int(inf) raises OverflowError
         return int(v) if v == int(v) and v > 0 else None
 
+    start, end = _bound(start), _bound(end)
+    if not (start and end):
+        return f"(⚠️ **window bounds unreadable** — not single-line date strings{age})"
     tokens, accounts = _count(tokens), _count(accounts)
     denom = ""
+    # accounts is rendered on its own when tokens is missing or unusable. Nesting it under `if
+    # tokens:` silently discarded a REAL account count whenever the token count was null, zero or
+    # nonsense — found by mutation; the test that should have seen it only asserted "token" was
+    # absent from the output and never noticed `accounts` had vanished with it.
     if tokens:
         # a volume that rounds to 0.0B tells the reader nothing — show the raw count instead
         denom = (
@@ -728,6 +755,8 @@ def _sidecar_window(d: dict) -> str:
         )
         if accounts:
             denom += f" over {accounts} account" + ("s" if accounts != 1 else "")
+    elif accounts:
+        denom = f", over {accounts} account" + ("s" if accounts != 1 else "")
     return f"(over {start}→{end}{denom}{age})"
 
 
@@ -750,7 +779,19 @@ def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
         quota = float(d.get("quota_draw_pct", 0.0) or 0.0)
     except (OSError, ValueError, TypeError, AttributeError):
         return []  # MISSING stays fail-soft: a checkout without a sidecar renders no line at all
-    window = _sidecar_window(d)
+    try:
+        window = _sidecar_window(d)
+    except Exception:  # noqa: BLE001
+        # ⚠️ BARE, and deliberately so. This call sat OUTSIDE the fail-soft block above until an
+        # author-blind mutation pass found `"tokens": <a 401-digit int>` raising OverflowError out of
+        # `_claude_p_preamble` — JSON permits arbitrary-precision integers, `_count` accepts them
+        # exactly, and `tokens / 1e9` then overflows. The consequence was the fossil this whole plan
+        # exists to end: daily_refresh.sh runs the generator as `_step … || echo (non-fatal)`, so the
+        # raise aborted the ENTIRE ranking regen and TASK_SUBAGENT_SELECTION.md silently kept
+        # yesterday's copy. A CONTEXT LINE must never be able to kill the document it annotates, and
+        # enumerating the exception types is what failed here — the surprise was a type nobody listed.
+        window = " (⚠️ **window unreadable** — the sidecar's window fields could not be rendered)"
+
     col_note = (
         " `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole "
         "measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate)."

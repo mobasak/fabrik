@@ -351,3 +351,98 @@ def test_the_target_is_only_ever_reached_by_an_atomic_rename(rig):
     assert replaced[-1][0] != str(rig), "source and destination are the same path"
     assert json.loads(rig.read_text(encoding="utf-8"))["tokens"] > 0
     assert not list(rig.parent.glob("*.tmp")), "a temp file survived the write"
+
+
+# ── the unmeasurable-window refusal (Phase C review, consequence finder #1) ──────────────────
+#
+# Phase C put `refresh()` on a 06:00 cron whose output is auto-committed and PUSHED. That turned a
+# pre-existing fallback into a fleet-wide hazard: with `~/.claude` usage history unreadable — an
+# account rotation, a moved home, a cleared file — `_live_usage_window()` correctly falls back to the
+# research ANCHOR, and `refresh()` then wrote 0.093 over a MEASURED 0.00748 with a fresh `built_at`.
+# Measured before the fix: a 12.4x jump, published as current. Phase B's staleness marker cannot see
+# it — that marker makes an OLD stamp loud, and this failure produces a BRAND NEW one.
+#
+# The honest behaviour is to refuse: keep the last measured rate, exit non-zero so the cron's
+# `|| echo` fires, and let the untouched file age into Phase B's STALE marking — which is exactly
+# what "we could not measure today" should look like to a reader.
+
+
+def _anchor_only(monkeypatch, tmp_path, prev: dict | None):
+    """Point the module at an unmeasurable window and a given previous file."""
+    out = tmp_path / "claude_p_cost.json"
+    if prev is not None:
+        out.write_text(json.dumps(prev), encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_P_COST", str(out))
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "nope" / "usage-history.json")
+    return cpc, out
+
+
+def test_an_unmeasurable_window_never_overwrites_a_measured_rate(monkeypatch, tmp_path):
+    measured = {
+        "amortized_per_mtok": 0.00748203970053095,
+        "window_start": "2026-08-07",
+        "window_end": "2026-09-05",
+        "accounts": 4,
+        "spend_usd": 800.0,
+        "tokens": 108307393124,
+        "built_at": "2026-09-05T11:36:20+03:00",
+    }
+    mod, out = _anchor_only(monkeypatch, tmp_path, measured)
+    with pytest.raises(mod.UnmeasurableWindowError):
+        mod.refresh()
+    # the file is byte-for-byte what it was: the rate did NOT move, and neither did built_at
+    assert json.loads(out.read_text(encoding="utf-8")) == measured
+
+
+def test_the_refusal_exits_non_zero_so_the_cron_step_is_seen_to_fail(monkeypatch, tmp_path):
+    mod, _ = _anchor_only(
+        monkeypatch, tmp_path, {"amortized_per_mtok": 0.00748, "window_start": "2026-08-07"}
+    )
+    assert mod.main(["--refresh"]) != 0
+
+
+def test_a_fresh_box_with_no_previous_file_still_bootstraps_from_the_anchor(monkeypatch, tmp_path):
+    """The refusal must not brick a new box: with nothing to preserve, the anchor IS the answer."""
+    mod, out = _anchor_only(monkeypatch, tmp_path, None)
+    data = mod.refresh()
+    assert data["amortized_per_mtok"] == mod._ANCHOR_USD_PER_TOKEN * 1_000_000.0
+    assert data["window_start"] is None
+    assert out.exists()
+
+
+def test_a_previous_file_that_was_itself_anchor_derived_is_not_worth_preserving(
+    monkeypatch, tmp_path
+):
+    """Only a MEASURED rate is protected. An anchor-over-anchor rewrite loses nothing."""
+    mod, out = _anchor_only(
+        monkeypatch,
+        tmp_path,
+        {
+            "amortized_per_mtok": 0.093,
+            "window_start": None,
+            "built_at": "2026-01-01T00:00:00+00:00",
+        },
+    )
+    data = mod.refresh()
+    assert data["window_start"] is None
+    assert json.loads(out.read_text(encoding="utf-8"))["built_at"] != "2026-01-01T00:00:00+00:00"
+
+
+@pytest.mark.parametrize("junk", ["", "   ", 0, {"a": 1}, ["2026-08-07"], True])
+def test_a_junk_window_bound_is_not_a_measured_rate_and_never_locks_the_producer(
+    monkeypatch, tmp_path, junk
+):
+    """The refusal's own failure mode, found sweeping it after it was written.
+
+    `prev.get("window_start") is not None` protected `""`, `0` and any object — so a sidecar
+    carrying junk there refused EVERY refresh from then on and the box could never recover without a
+    human deleting the file. A guard that cannot self-heal is worse than the overwrite it prevents.
+    The condition now matches the reader's (`rank_task_subagents._bound`): a non-empty single-line
+    string. One definition of "has a window", shared by producer and consumer.
+    """
+    mod, out = _anchor_only(
+        monkeypatch, tmp_path, {"amortized_per_mtok": 0.00748, "window_start": junk}
+    )
+    data = mod.refresh()  # must NOT raise: there is no measured window to protect
+    assert data["amortized_per_mtok"] == mod._ANCHOR_USD_PER_TOKEN * 1_000_000.0
+    assert json.loads(out.read_text(encoding="utf-8"))["window_start"] is None

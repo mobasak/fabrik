@@ -30,7 +30,7 @@ grepping the three header shapes across the real stage list: **7 of 13 static pa
 11 ai-render packs** carry a date and are guarded. The 6 undated static paths —
 `docs/CAPABILITIES.md`, `capabilities.json`, `docs/traycer/kilo_selected_agents.md`,
 `KILO_MODEL_CAPABILITIES.md`, `KILO_AGENT_SELECTION_GUIDE.md`, `claude_p_cost.json`
-— and the 4 undated packs fail open by construction. ⚠️ The static count is GRADED, not asserted: it first read "7 of 13" because it
+— and the 4 undated packs fail open by construction. ⚠️ The static count is GRADED, not asserted: it first read a count one too high because it
 counted a `scripts/service_catalog.json` line a sibling held uncommitted in the worktree and never
 landed — a denominator read off a shared tree instead of off HEAD. The wiring test
 `test_the_docstring_denominator_matches_the_real_stage_list` re-derives both numbers from the

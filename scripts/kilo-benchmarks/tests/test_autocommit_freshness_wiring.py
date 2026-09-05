@@ -21,7 +21,10 @@ GUARD = SCRIPTS / "guard_selection_freshness.py"
 
 def _run(script: str, repo: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["bash", "-c", script], capture_output=True, text=True, cwd=str(repo),
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
     )
 
 
@@ -73,17 +76,15 @@ def _shipped_guard_block() -> str:
 def _wiring(paths_literal: str, guard_cmd: str | None = None) -> str:
     """Harness preamble + the SHIPPED block + a reporting tail."""
     block = _shipped_guard_block()
-    if guard_cmd is not None:  # only for the crash-path test, which must break the helper on purpose
-        block = block.replace(
-            'python3 "$SELF_DIR/guard_selection_freshness.py"', guard_cmd
-        )
+    if (
+        guard_cmd is not None
+    ):  # only for the crash-path test, which must break the helper on purpose
+        block = block.replace('python3 "$SELF_DIR/guard_selection_freshness.py"', guard_cmd)
     return (
         "set -u\n"
         'FABRIK_ROOT="$PWD"\n'
         f'SELF_DIR="{SCRIPTS}"\n'
-        f"PATHS=({paths_literal})\n"
-        + block
-        + '\necho "FINAL_COUNT=${#PATHS[@]}"\n'
+        f"PATHS=({paths_literal})\n" + block + '\necho "FINAL_COUNT=${#PATHS[@]}"\n'
     )
 
 
@@ -129,7 +130,10 @@ def test_guard_reads_the_repo_it_is_told_to_not_a_hardcoded_root(tmp_path):
     r, rel = _repo(tmp_path, committed_date="2026-08-29", worktree_date="2026-08-19")
     p = subprocess.run(
         [sys.executable, str(GUARD), rel],
-        capture_output=True, text=True, cwd=str(r), env={"PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        cwd=str(r),
+        env={"PATH": "/usr/bin:/bin"},
     )
     assert rel not in p.stdout.split(), "with CWD as the root the regression must be caught"
     assert "DROP" in p.stderr
@@ -138,7 +142,7 @@ def test_guard_reads_the_repo_it_is_told_to_not_a_hardcoded_root(tmp_path):
 def test_the_docstring_denominator_matches_the_real_stage_list():
     """The guard's coverage claim is DERIVED here, never trusted as written.
 
-    It first read "7 of 13 static paths" because the count was taken off the shared WORKTREE,
+    It first read a count one too high because it was taken off the shared WORKTREE,
     where a sibling held an uncommitted `scripts/service_catalog.json` line that never landed.
     A denominator asserted in prose is a denominator that drifts the moment the stage list moves —
     so re-derive both halves from the script itself and fail loudly on any divergence.
@@ -154,7 +158,8 @@ def test_the_docstring_denominator_matches_the_real_stage_list():
     block = re.search(r"^PATHS=\(\n(.*?)^\)$", sh, re.S | re.M)
     assert block, "the static PATHS=( … ) array must be findable — the derivation depends on it"
     paths = [
-        ln.strip() for ln in block.group(1).splitlines()
+        ln.strip()
+        for ln in block.group(1).splitlines()
         if ln.strip() and not ln.strip().startswith("#")
     ]
 
@@ -227,7 +232,9 @@ rm -f "$_AI_OUT"
 echo "FINAL=${#PATHS[@]}"
 """
     p = _run(wiring, tmp_path)
-    assert "AI_RENDER_FAILED" in p.stderr, "a crashing helper must be ANNOUNCED: " + p.stdout + p.stderr
+    assert "AI_RENDER_FAILED" in p.stderr, (
+        "a crashing helper must be ANNOUNCED: " + p.stdout + p.stderr
+    )
     assert "FINAL=1" in p.stdout, "the crash must not silently wipe or grow PATHS"
 
 
@@ -261,4 +268,33 @@ def test_the_ai_render_denominator_is_graded_too(tmp_path):
     assert undated, "the docstring must state how many packs fail open"
     assert int(undated.group(1)) == len(packs) - dated, (
         f"docstring claims {undated.group(1)} undated packs; the real set has {len(packs) - dated}"
+    )
+
+
+def test_the_regenerated_cost_sidecar_is_actually_in_the_stage_list():
+    """The INVARIANT, not the prose about it.
+
+    `test_the_docstring_denominator_matches_the_real_stage_list` reds when the sidecar path is
+    dropped — but only because the count stops matching the docstring. An author-blind pass ran the
+    COORDINATED mutant (drop the path AND tidy the docstring back to `7 of 12` / `5 undated`) and the
+    whole suite stayed green: the defect could be reintroduced by anyone who keeps the prose neat.
+    A doc-consistency test is not a grader for the behavior the doc describes.
+
+    The behavior: `claude_p_cost.py --refresh` restamps `built_at` on EVERY run and Phase C put it on
+    a 06:00 cron, so a tracked file goes dirty daily on a tree three sessions share unless the
+    pipeline commits its own output.
+    """
+    import re
+
+    sh = (SCRIPTS / "autocommit_pipeline_outputs.sh").read_text(encoding="utf-8")
+    block = re.search(r"^PATHS=\(\n(.*?)^\)$", sh, re.S | re.M)
+    assert block, "the static PATHS=( … ) array must be findable"
+    entries = {
+        ln.strip()
+        for ln in block.group(1).splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    }
+    assert "scripts/kilo-benchmarks/claude_p_cost.json" in entries, (
+        "the cost sidecar is not in the auto-commit stage list — the daily rebuild will leave a "
+        "TRACKED file dirty every morning on a tree three sessions share"
     )

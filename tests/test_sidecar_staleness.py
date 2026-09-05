@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -216,7 +217,11 @@ def test_a_future_built_at_is_called_out_rather_than_read_as_fresh():
     """
     out = rts._sidecar_window(_derived(built_at=_stamp(-3)))
     assert "FUTURE" in out
-    assert "3.0 days" in out
+    # NOT `"3.0 days" in out`: that is a SUBSTRING of "-3.0 days", so flipping the sign in the
+    # f-string rendered "in the FUTURE by -3.0 days" and passed. Third instance in this file of
+    # "the assertion is adjacent to the behaviour" — anchor on the space that precedes the number.
+    assert "by 3.0 days" in out
+    assert "-3.0" not in out
     assert "STALE" not in out
 
 
@@ -252,3 +257,119 @@ def test_a_float_token_count_from_json_still_renders():
     """JSON numbers arrive as floats; dropping the denominator for that alone would lose real data."""
     out = rts._sidecar_window(_derived(tokens=1.5e11))
     assert "150.0B tokens" in out
+
+
+# ── graders the Phase-C author-blind mutation pass proved were missing ────────────────────────
+#
+# 23 mutations, 9 survivors. Every one below reds a mutation that previously passed the whole suite.
+
+
+def test_the_staleness_threshold_is_pinned_to_the_literal_cadence():
+    """`_SIDECAR_STALE_AFTER_HOURS = 48 | 12 | 1` each survived the entire suite.
+
+    Every existing test read the constant back (`h = rts._SIDECAR_STALE_AFTER_HOURS`, then probed
+    `h ± 0.01`) so the assertions moved WITH the mutation — a relative test cannot pin an absolute.
+    The value is not arbitrary: it is the cron cadence `0 6 * * *` that Phase C wired, so it is
+    pinned here against a literal, and a deliberate change to the cadence must change this line too.
+    """
+    assert rts._SIDECAR_STALE_AFTER_HOURS == 24
+
+
+def test_the_anchor_branch_carries_the_age_marker_too(tmp_path):
+    """Dropping `{age}` from the ANCHOR return survived, though the DERIVED return was guarded.
+
+    This is the highest-traffic case there is: a PRE-Phase-A sidecar has `built_at` and no window
+    keys, so a months-old rate lands on exactly this branch — the originating incident. Every anchor
+    test used a FRESH stamp, so the branch that most needs the STALE marker was the one never
+    checked with an old one.
+    """
+    out = rts._sidecar_window({"built_at": _stamp(26), "window_start": None, "window_end": None})
+    assert "research ANCHOR" in out
+    assert "STALE" in out and "26.0 days ago" in out
+
+
+def test_a_half_populated_window_is_not_reported_as_the_anchor():
+    """`and` -> `or` survived. With one bound set, the old code claimed "this is the research
+    ANCHOR, not a measured rate" about a sidecar that plainly carries a derived bound."""
+    out = rts._sidecar_window(
+        {"built_at": _stamp(1 / 24), "window_start": "2026-08-07", "window_end": None}
+    )
+    assert "research ANCHOR" not in out
+    assert "partial window" in out
+
+
+@pytest.mark.parametrize(
+    "bound", [["2026-08-07"], {"a": 1}, 20260807, "2026-08-07\nHEADING", "2026-08-07\r\n#", "  "]
+)
+def test_a_window_bound_that_is_not_a_single_line_string_is_refused(bound):
+    """The bounds took raw `str()` while the denominators were rigorously validated.
+
+    The newline case is the real break, not a curiosity: this string is interpolated into a
+    single-line italic markdown block, so an embedded newline splits the emphasis run and corrupts
+    TASK_SUBAGENT_SELECTION.md — the document `pick_models` parses.
+    """
+    out = rts._sidecar_window(
+        {"built_at": _stamp(1 / 24), "window_start": bound, "window_end": "2026-09-05"}
+    )
+    assert "unreadable" in out or "partial window" in out
+    assert "\n" not in out and "\r" not in out
+    assert "HEADING" not in out
+
+
+def test_a_fractional_token_count_is_still_refused():
+    """`v == int(v)` dropped from `_count` survived: `tokens=1.5` then rendered ", 1 token" —
+    verbatim the "fabricated denominator that reads perfectly" an earlier round named."""
+    out = rts._sidecar_window(
+        {
+            "built_at": _stamp(1 / 24),
+            "window_start": "2026-08-07",
+            "window_end": "2026-09-05",
+            "tokens": 1.5,
+        }
+    )
+    assert "token" not in out
+
+
+def test_a_real_account_count_survives_an_unusable_token_count():
+    """Nesting `if accounts:` under `if tokens:` silently discarded a VALID denominator whenever the
+    token count was null, zero or nonsense. The test that should have caught it only asserted that
+    "token" was absent, and never noticed `accounts` had gone with it."""
+    for bad in (None, 0, "lots", float("nan")):
+        out = rts._sidecar_window(
+            {
+                "built_at": _stamp(1 / 24),
+                "window_start": "2026-08-07",
+                "window_end": "2026-09-05",
+                "tokens": bad,
+                "accounts": 4,
+            }
+        )
+        assert "4 accounts" in out, f"accounts vanished with tokens={bad!r}"
+        assert "token" not in out.replace("tokens", "")
+
+
+def test_the_context_line_can_never_kill_the_document_it_annotates(tmp_path, monkeypatch):
+    """THE HIGH FINDING. `_sidecar_window` was called one line BELOW the fail-soft `except`, so any
+    exception it raised escaped `_claude_p_preamble` — and the ranking regen runs as
+    `_step … || echo (non-fatal)`, so the raise aborted the whole doc and left YESTERDAY'S copy
+    standing. A 401-digit `tokens` does it: JSON allows arbitrary-precision ints, `_count` accepts
+    them exactly, and `tokens / 1e9` raises OverflowError, which no `except` clause listed.
+    """
+    sidecar = tmp_path / "claude_p_cost.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "amortized_per_mtok": 0.0074,
+                "quota_draw_pct": 0.0,
+                "built_at": _stamp(1 / 24),
+                "window_start": "2026-08-07",
+                "window_end": "2026-09-05",
+                "tokens": int("1" + "0" * 400),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rts, "__file__", str(tmp_path / "rank_task_subagents.py"))
+    lines = rts._claude_p_preamble()  # must not raise
+    assert lines, "the preamble should still render — only the window clause degrades"
+    assert "window unreadable" in "\n".join(lines)

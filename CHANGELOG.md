@@ -43,7 +43,8 @@ exists for `libs/health_probe/` and every future vendored dir.
 
 `scripts/kilo-benchmarks/claude_p_cost.json` was a point estimate with no period: four keys, a
 `built_at` 26 days old, and nothing on any schedule that rebuilt it. Every consumer read a fossil as
-current, and the fossil was 17.1% low. Three phases of
+current. Rebuilt, the rate moves 0.006310 -> 0.007482 per Mtok: the fossil sat 15.7% below the
+measured figure. Three phases of
 `docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md`:
 
 - **A** — `claude_p_cost.refresh()` now authors the rate *and the window it came from*
