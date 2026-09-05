@@ -252,3 +252,71 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     assert scrubbed.get("event_id") is None, (
         f"leaf-shape rule did not null a container in a scalar-valued key: {scrubbed.get('event_id')!r}"
     )
+
+
+# ── T02: the emitter COPIES the vendored module instead of carrying an inline literal ──────────
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("project_type", ["python-api", "python-api-gpu", "saas-skeleton"])
+def test_scaffold_emits_the_vendored_module_byte_for_byte(tmp_path, project_type):
+    """All three reaching types must get the TEMPLATE, not a copy that drifted from it.
+
+    The census was re-derived by scaffolding each of the 12 types and looking for the emitted
+    file: python-api, python-api-gpu and saas-skeleton reach this emitter; node-api has the JS
+    module; the other seven emit no Sentry init at all.
+
+    Byte-equality is the assertion because the failure this guards is DRIFT — an inline literal
+    that stops matching the reviewed module is exactly what T02 removed.
+    """
+    from fabrik.scaffold import TEMPLATE_DIR
+
+    name = f"gt-emit-{project_type}"
+    create_project(
+        name=name,
+        project_type=project_type,
+        description="vendored glitchtip emitter",
+        base=tmp_path,
+        generate_spec=False,
+    )
+    emitted = next(
+        p for p in (tmp_path / name).rglob("glitchtip_init.py") if ".venv" not in str(p)
+    )
+    package_name = emitted.parent.name
+
+    expected = (
+        (TEMPLATE_DIR / "python" / "glitchtip_init.py")
+        .read_text()
+        .replace("{pkg}", package_name)
+        .replace("{name}", name)
+    )
+    assert emitted.read_text() == expected, (
+        f"{project_type}: emitted glitchtip_init.py is not the substituted template — it has drifted"
+    )
+    body = emitted.read_text()
+    assert "{pkg}" not in body and "{name}" not in body, "a substitution token survived into the project"
+    # The other ~40 braces are the module's own dict/set literals, regexes and f-strings; they must
+    # survive untouched, which is why the emitter uses str.replace and never .format().
+    assert "_ALLOWED_EVENT_KEYS" in body and "before_send_transaction=_scrub_event" in body
+
+
+@requires_fabrik_env
+def test_scaffold_raises_when_the_vendored_template_is_missing(tmp_path, monkeypatch):
+    """No silent skip. A missing template must FAIL the scaffold, because a project that quietly
+    comes out without its scrubber is precisely the bug this plan exists to prevent — and it is
+    the failure mode the neighbouring `pause_state.py` `.exists()` guard hides."""
+    import fabrik.scaffold as scaffold_mod
+
+    monkeypatch.setattr(scaffold_mod, "TEMPLATE_DIR", tmp_path / "no-such-template-dir")
+
+    with pytest.raises(Exception) as excinfo:
+        create_project(
+            name="gt-missing-template",
+            project_type="python-api",
+            description="missing template",
+            base=tmp_path,
+            generate_spec=False,
+        )
+    assert "glitchtip_init.py" in str(excinfo.value) or isinstance(excinfo.value, (FileNotFoundError, OSError)), (
+        f"scaffold failed for an unrelated reason: {excinfo.value!r}"
+    )

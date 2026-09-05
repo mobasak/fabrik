@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the FastAPI scaffold now COPIES the vendored scrubber instead of carrying an inline literal (2026-09-05)
+
+T02 of plan `2026-09-05-plan-2-glitchtip-deny-by-default`, the integration ticket. `_scaffold_fastapi_backend`
+no longer embeds a 3,130-character `glitchtip_init.py` literal; it copies
+`templates/scaffold/python/glitchtip_init.py` and substitutes exactly two tokens by `str.replace` — never
+`.format()`, because the module carries ~40 other braces (dict/set literals, regexes, two f-strings) that
+`.format()` would corrupt.
+
+The copy is **unconditional**: no `.exists()` guard, unlike the neighbouring `pause_state.py`. A missing
+template is a scaffold error, not a silent skip — a project that quietly comes out without its scrubber is
+the exact bug this plan exists to prevent.
+
+Guards: all three reaching types (`python-api`, `python-api-gpu`, `saas-skeleton`) are scaffolded into a
+tmpdir and their emitted module asserted BYTE-EQUAL to the substituted template, because the failure this
+prevents is drift between an inline copy and the reviewed one; neither token survives into a project; and a
+missing template raises rather than skipping. The byte-equality assertion discriminates decisively — what
+the old emitter produced was 2,830 characters against the template's 41,799. Full scaffold suite green (72
+tests).
+
 ### Changed — rule 55 § Error Reporting now mandates the SHAPE, and corrects two claims it had been making (2026-09-05)
 
 T04 of plan `2026-09-05-plan-2-glitchtip-deny-by-default`. The section's mandate was "two init flags are

@@ -1672,69 +1672,24 @@ def metrics_app():
 '''
     )
 
-    # glitchtip_init.py — GlitchTip / Sentry SDK initialization (no-op if GLITCHTIP_DSN unset)
-    # Errors auto-report to GlitchTip when DSN is set in environment.
-    # Wire by importing this module BEFORE creating FastAPI app in main.py.
-    (package_dir / "glitchtip_init.py").write_text('''"""GlitchTip / Sentry SDK initialization.
-
-If SENTRY_DSN (preferred, fabrik standard) or GLITCHTIP_DSN is set, errors and traces auto-report to GlitchTip.
-If unset, init is a no-op (zero overhead, zero exceptions).
-
-Import this module BEFORE FastAPI app creation in main.py:
-    from {pkg}.glitchtip_init import init_glitchtip
-    init_glitchtip()  # call once at module load
-    app = FastAPI(...)
-
-Provision a project + DSN: scripts/provision_glitchtip_project.sh <service-name>
-Push DSN to Coolify env on deploy.
-"""
-import os
-
-
-def init_glitchtip() -> bool:
-    """Initialize Sentry SDK pointed at GlitchTip.
-
-    Returns True if init ran (DSN was set), False if no-op.
-    Safe to call multiple times — Sentry SDK handles re-init internally.
-    """
-    dsn = (os.environ.get("SENTRY_DSN") or os.environ.get("GLITCHTIP_DSN") or "").strip()
-    if not dsn:
-        return False
-
-    try:
-        import sentry_sdk
-        from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.starlette import StarletteIntegration
-    except ImportError:
-        # sentry-sdk not installed; no-op rather than crash
-        return False
-
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=os.environ.get("ENVIRONMENT", "production"),
-        release=os.environ.get("GIT_SHA") or os.environ.get("COOLIFY_DEPLOYMENT_UUID"),
-        # Lean defaults — keep volume manageable on shared GlitchTip
-        traces_sample_rate=float(os.environ.get("GLITCHTIP_TRACES_SAMPLE_RATE", "0.05")),
-        profiles_sample_rate=float(os.environ.get("GLITCHTIP_PROFILES_SAMPLE_RATE", "0.0")),
-        send_default_pii=False,
-        # SECURITY (55-observability.md § Error Reporting): send_default_pii=False + the SDK's default
-        # header filter/EventScrubber already redact auth HEADERS + cookies, but they close NEITHER the
-        # frame-locals NOR the request-body channel. include_local_variables strips frame LOCALS (SDK
-        # default True → a logger.error/exception in a function holding Settings ships the JWT secret +
-        # DB DSN via its repr); max_request_body_size strips the request BODY (attached regardless of
-        # send_default_pii → every auth/webhook/token route leaks its payload on any handled error).
-        # Both remove the data STRUCTURALLY — a before_send name-denylist is not a substitute (it misses
-        # reprs and unlisted names). NOTE: these flags do NOT sanitize free-text log/exception CONTENT —
-        # never interpolate a secret into a log message or exception string (that ships verbatim).
-        include_local_variables=False,
-        max_request_body_size="never",
-        integrations=[
-            FastApiIntegration(transaction_style="endpoint"),
-            StarletteIntegration(transaction_style="endpoint"),
-        ],
+    # glitchtip_init.py — the VENDORED deny-by-default scrubber (plan 2026-09-05-plan-2, T01/T02).
+    # Replaces an inline literal that set two flags. Those two closed the DSN in frame locals and
+    # the password in the request body; the hub's own guard then measured four channels still open
+    # behind them (breadcrumb outbound URL, custom request header, log interpolation, URL query).
+    # The template is the shape: per-key allowlists + leaf-shape nulling, on before_send AND
+    # before_send_transaction (the SDK skips before_send entirely for transaction events).
+    #
+    # UNCONDITIONAL — deliberately no `.exists()` guard. A missing template is a scaffold ERROR,
+    # not a silent skip; the `pause_state.py` guard a few lines below hides exactly that failure
+    # mode, and a project that silently scaffolds WITHOUT its scrubber is the bug this plan exists
+    # to prevent.
+    #
+    # `str.replace`, never `.format()`: the module carries ~40 other braces (dict/set literals,
+    # regexes, two f-strings) that `.format()` would corrupt. Exactly two tokens are substituted.
+    glitchtip_src = TEMPLATE_DIR / "python" / "glitchtip_init.py"
+    (package_dir / "glitchtip_init.py").write_text(
+        glitchtip_src.read_text().replace("{pkg}", package_name).replace("{name}", name)
     )
-    return True
-''')
 
     # logger.py — structlog JSON logger with PII redaction, UTC timestamps, LOG_LEVEL from env
     (package_dir / "logger.py").write_text(_logger_py_content(name, package_name))
