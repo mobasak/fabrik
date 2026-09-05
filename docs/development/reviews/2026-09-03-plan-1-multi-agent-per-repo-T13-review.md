@@ -60,5 +60,9 @@ Round 4 verdict: 7 raised → 5 routed (1 H, 3 M, 1 L) + 1 routed out (pre-exist
 
 ## Round 5 — over `9c35928f..2ae4d5f6` (74,601 B; the round-4 fixup 81fadb02 + 2ae4d5f6: `_wip_record_live_id` records EVERY enumerated worktree so the reaper's delete scope equals its knowledge; the enumeration witness; the `repo_is_worktree` guard graded by a sidecar WITH a nested worktree (the guard now decides WHICH iteration reaps — owner, not sidecar); a plain repo logs nothing from the reaper; the trappable-exit wording; the reaper comment corrected; a self-caught vacuous first test fixed before reporting; 34 passed)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 5.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — CLEAN (4/4 rows; DO-NOTs — main-tree semantics and KEEP_DAYS unchanged; the reaper fails closed on an empty/absent live set, mktemp failures skip; 25 new test functions; `realpath -m` with fallback).
+- gemini — CLEAN (rows 1–4 to their tests; `_wip_record_live_id` store-wide enumeration guarded by `test_sibling_nested_worktree_survives_store_wide_live_tracking`; the witness at :317-321/:330; the scope guard at :317; the lazy trap over all four temp files; quoting; collision ids).
+- qwen — CLEAN (rows to lines and tests; the isolated-index invariant; temp-file traps; locked worktrees, collisions, the reaper edges).
+Native finder (opus): PENDING — appended when it returns.
 

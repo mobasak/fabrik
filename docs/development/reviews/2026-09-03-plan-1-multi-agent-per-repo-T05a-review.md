@@ -42,5 +42,9 @@ Round 2 verdict: 7 raised → 6 routed now (1 M, 5 L) + 1 sequenced behind T03a;
 
 ## Round 3 — over `2f982a5f..1e2ae413` (56,018 B; the round-2 fixup 1e2ae413: `_F` accepts `>` so a blockquoted header parses and fails closed; `_dup_keys` consumed; the inline carve-out replaced by `_carved_out` (M6 re-killed); the `reach` comment; `[seq]` documented + refused on the epic side only — measured 9 of 2,146 live Touches/File-Scope tokens are Next.js `[id]` routes kept literal, 0 of 45 live owned_paths carry a bracket; two headers → ERROR; a NameError in the untested unusable-path arm caught by ruff, fixed and covered; item (2) the re-port HELD for T03a's next commit; 404 passed + 1 skipped; live set byte-identical at the same HEAD; the `>`-tolerant regex still matches 1 of 508 live plan files)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3 (the round-2 owed items required).
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — CLEAN (2 files; 5 contract rows mapped to tests; DO-NOTs; every failure path fail-CLOSED incl. the `>` blockquote; the 17-fixture parity; the frontier matcher; the six mutants; `_carved_out` identity with the old inline block) — names the classes it cannot execute (the ≥30-pair table, the whole-box sweep, ruff/mypy/headers, suite counts): owned by the native finder.
+- gemini — CLEAN (the blockquote prefix, `_dup_keys` consumed, the `raw_headers[0]` NameError fix, the `reach` comment, `[seq]` epic-side only with Next.js `[id]` literal, byte-for-byte port, stdlib only; the `Agent-Task: T05A` extra finding adjudicated as the staleness checker reacting to the coder's own commits — orchestrator-owned Board flip).
+- qwen — CLEAN (7 rows to distinct red-fail tests; 6 mutants; the timed frontier test; the parity + hub sync test; the slash-less resolution; the unreachable arm; `[seq]` refusal).
+Native finder (opus): PENDING — appended when it returns.
 

@@ -106,5 +106,9 @@ Round 7 verdict: 5 raised → 4 routed (3 M, 1 L) + 1 routed to T03b; pool 3/3 C
 
 ## Round 8 — over `716ce944..2bd530fe` (the round-7 fixup 2bd530fe: one `_find_fences` helper for reader and writer, fence = `rstrip() == "---"` for both; the 11-form `_LINE_TERMINATORS`; the property mutation guard (`re.compile(` once, no pattern names the fields) proven against both named mutants — a second regex under a new name → "found 3"; fence-by-prefix and strip-vs-rstrip → the behavioural fence fixtures red; the 1b/1c fixtures strengthened after an honest non-reproduction with the first drafts; the `\x0c` fixture red on round 7 (`owner: betaowned_paths: []`) and green after; 64 passed; hub A/B md5-identical) — the second CLOSING round
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 8.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — CLEAN (6/6 contract rows to tests that fail on the old code; DO-NOTs; 4 Touches; `_find_fences`/`_classify_fm_line` unified; 13 fence tests incl. `----`, indented, trailing text, trailing spaces, CRLF, form-feed; duplicate owner, malformed block, empty-dir refusal).
+- gemini — CLEAN (the three fence shapes through both `--check` and `--assign` named to their tests; the `\x0c`/U+2028 fixture; no-closing-fence → `_find_fences` None handled by both `load_epics` and `_write_owner`; `--- ` is a fence for both; CRLF fences; the single-compiled-regex guard).
+- qwen — CLEAN (64 executed; all 11 terminators; hub md5 identity; 0 of 12 retired references remain).
+Native finder (opus): PENDING — appended when it returns.
 
