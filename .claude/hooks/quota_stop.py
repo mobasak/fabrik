@@ -331,6 +331,12 @@ def _commit_lacks_the_template_shape(argv: list[str]) -> bool:
 
 def _positional_forbidden(verb: str, tok: str) -> bool:
     """A refspec that forces or names a destination, or a pathspec that sweeps instead of naming."""
+    if verb in ("push", "fetch", "add", "commit", "reset") and ("$" in tok or "`" in tok):
+        # an expansion INSIDE a positional token cannot be evaluated here and bash will: `git add
+        # "./$FILES"` with `FILES='.'` normalised to `$FILES`, passed every literal check, and
+        # staged a sibling's untracked file — add, commit and reset alike (pass 26, P25-A,
+        # executed). A path or ref never legitimately carries `$` or a backtick; held outright.
+        return True
     if verb == "push":
         return tok[:1] in (
             "+",
@@ -428,7 +434,11 @@ def _mask_quoted(command: str) -> str:
             out.append(ch)  # a quoted newline is still a refused multi-line command
             i += 1
         elif quote == '"' and ch == "\\" and i + 1 < n:
-            out.extend(("x", "x"))  # an escaped $ ` " or \ is a literal, not an expansion
+            # an escaped $ ` " or \ is a literal, not an expansion — but an escaped NEWLINE is a
+            # line continuation bash REMOVES, so `"\<nl>$F"` reached git as `"$F"` while the masked
+            # pair hid both the newline veto and the span-opening `$` (pass 26, pool finder,
+            # executed): the newline stays visible and the multi-line veto holds.
+            out.extend(("x", "\n" if command[i + 1] == "\n" else "x"))
             i += 2
         elif quote == '"' and (
             ch == "`"

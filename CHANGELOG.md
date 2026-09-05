@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 26 of the review: an escaped newline stays visible to the quota hold, and a `$` anywhere in a pathspec or refspec is held (2026-09-05)
+
+Two mirrors of earlier fixes. The masker's escape branch masked a backslash-newline inside double
+quotes as two `x`s, so the multi-line veto never saw it and a `$` after the pair was no longer
+span-opening — bash removes the continuation and hands git `"$F"`; the newline now stays visible.
+And `git add "./$FILES"` with `FILES='.'`: the `$` is not span-opening so the masker hid it, the
+pass-22 `normpath` collapsed `./$FILES` to `$FILES`, every literal check passed, bash expanded it to
+`./.` — add, commit and reset each swept a sibling's work. A positional token containing `$` or a
+backtick anywhere is now held outright: the checker cannot evaluate it and bash will; a `$` inside
+quoted MESSAGE text stays data. Graders red on revert; 30 hook tests.
+
 ### Fixed — pass 25 of the review: a `$` that OPENS a word is held at the quota hold — a quoted whole-word expansion can be a flag (2026-09-05)
 
 Pass 24 claimed a quoted expansion "is one word and cannot become a flag". False for the whole-word

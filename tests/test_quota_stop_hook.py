@@ -543,6 +543,11 @@ def test_a_quoted_expansion_that_is_a_whole_word_can_be_a_flag_and_is_held():
         'git commit -m x -- "$@"',
         "git push $@",
         "git push origin $*",
+        'git add "./$FILES"',  # `$` inside a positional token: normpath hid it, bash expanded it (P25-A)
+        'git commit -m x -- "a/../$FILES"',
+        'git reset -q HEAD -- ".//$FILES"',
+        'git push origin "x$F"',
+        'git commit -m x -- "f`id`.py"',
         'cat "$F"',  # whole-word expansion on a read tool: refused too, fail-closed
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
@@ -556,6 +561,15 @@ def test_a_quoted_expansion_that_is_a_whole_word_can_be_a_flag_and_is_held():
     assert "$" in hook._mask_quoted('git push "$F"')  # span-opening `$` stays visible
     assert "$" not in hook._mask_quoted('echo "fix $X"')  # `$` inside text is data
     assert "`" in hook._mask_quoted('echo "a `id` b"')  # a backtick inside double quotes still runs
+    # an escaped newline inside double quotes is a continuation bash REMOVES: `"\\<nl>$F"` reached
+    # git as `"$F"` while the masked pair hid the newline veto (pass 26, executed) — it stays visible
+    assert "\n" in hook._mask_quoted('git push origin "\\\n$F"')
+    assert (
+        hook.decide(
+            "Bash", 'git push origin "\\\n$F" HEAD:master', stamp_exists=True, tick_age_s=1.0
+        )[0]
+        == "deny"
+    )
 
 
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
