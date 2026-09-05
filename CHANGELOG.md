@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — check_command_corpus: the orchestrator-wrapper audit path is gone (2026-09-06)
+- **What:** with the Traycer layer retired (spec § Chain consolidation) the corpus check no longer reads `docs/orchestrator/_traycer-skills/`: `TRAYCER_SKILLS`, `_orch_corpus()`, the `traycer_skills` parameter, the "wrapper tree missing in the hub" problem, the orchestrator-only `templates/` script fallback and the selftest's wrapper half are deleted. A hub without the wrapper tree is the normal state; `/fabrik-vision`, `/fabrik-epics`, `/fabrik-epics-review` are audited by the existing per-source predicates. Audited files 97 → 63 (exactly `docs/orchestrator/**`); selftest 15 canaries over 8 predicates (was 17). Its test file is red until T08b (next in Merge Order) drops the wrapper fixtures — declared.
+- **Where:** `scripts/enforcement/check_command_corpus.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T08a).
+
 ### Added — the account-rotation guarantee is now a test, not a claim (2026-09-06)
 
 Operator: *"be 100% sure it will rotate when the quota hits to the next account, if no account

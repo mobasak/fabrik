@@ -86,13 +86,6 @@ SOURCES = REPO / "commands" / "_sources"
 FRAGMENTS = REPO / "commands" / "_fragments"
 ASSEMBLER = REPO / "commands" / "assemble_commands.py"
 CLAUDE_MD = REPO / "CLAUDE.md"
-# The orchestrator-workflow wrappers (Traycer chains). Their canonical BODIES live under
-# docs/orchestrator/**, outside commands/_sources — which is exactly how the whole set escaped
-# this audit until 2026-08-16 (zero of the four mega wrappers opened a run record, none of the
-# docs was among the audited files, and a dead scripts/ reference sat in three of them).
-# Hub-only, like the corpus itself: absent in projects → the section is silently N/A.
-TRAYCER_SKILLS = REPO / "docs" / "orchestrator" / "_traycer-skills"
-_ORCH_DOC_RE = re.compile(r"^`/opt/fabrik/(docs/orchestrator/[^`]+\.md)`", re.M)
 
 # A chain reference is a bare /command token. The lookbehind rejects anything
 # where the slash is part of a longer path (``/opt/fabrik-lib``, ``docs/x/fabrik-mail.md``)
@@ -998,70 +991,6 @@ def _corpus_files(sources: Path, fragments: Path, assembler: Path) -> list[Path]
     return files
 
 
-def _orch_corpus(traycer_skills: Path, repo: Path) -> tuple[list[Path], list[Path], list[str]]:
-    """The orchestrator corpus: every tracked wrapper's canonical doc, plus wrapper problems.
-
-    The mapping is read from the WRAPPERS (each names its doc in a stable generated line), not
-    duplicated here — a copy of the assembler's ORCH_SOURCES table would drift, and importing
-    the assembler would drag its dependencies into every project this check is synced to.
-
-    EVERY wrapper must open a run record — no banner condition. The first version required it
-    only of GENERATED wrappers, which meant deleting the banner line exempted a wrapper from the
-    one thing this predicate exists to prove (reproduced 2026-08-18). Since the same change
-    brought the whole set (mega + ettw) under generation, the honest rule has no carve-out; a
-    genuinely new hand-written wrapper fails until it is added to ORCH_SOURCES, which is the fix.
-    """
-    docs: list[Path] = []
-    wrappers: list[Path] = []
-    problems: list[str] = []
-    for wrapper in sorted(traycer_skills.glob("*/SKILL.md")):
-        name = wrapper.parent.name
-        body = _read(
-            wrapper
-        )  # the assembler REGENERATES these: a sibling's render is the glob-then-read race (FB7)
-        if body is None:
-            continue
-        wrappers.append(
-            wrapper
-        )  # the WRAPPER is corpus too: 34 of predicate 7's 47 close sites lived here, counted in the coverage denominator and audited by no predicate (FC1)
-        m = _ORCH_DOC_RE.search(body)
-        if m is None:
-            problems.append(
-                f"docs/orchestrator/_traycer-skills/{name}: wrapper names no canonical doc "
-                "(`/opt/fabrik/docs/orchestrator/...`) — nothing to audit, which is not the same "
-                "as nothing wrong"
-            )
-            continue
-        # Resolve + containment: the captured path is repo-relative but `[^`]+` admits `..`;
-        # without this a wrapper could aim the audit at (and "validate") a file outside
-        # docs/orchestrator entirely.
-        doc = (repo / m.group(1)).resolve()
-        try:
-            doc.relative_to((repo / "docs" / "orchestrator").resolve())
-        except ValueError:
-            problems.append(
-                f"docs/orchestrator/_traycer-skills/{name}: canonical-doc path escapes "
-                f"docs/orchestrator/ ({m.group(1)}) — refusing to audit it"
-            )
-            continue
-        if not doc.exists():
-            problems.append(
-                f"docs/orchestrator/_traycer-skills/{name}: canonical doc {m.group(1)} does not "
-                "exist — the wrapper points agents at nothing"
-            )
-            continue
-        docs.append(doc)
-        if not _RUN_START_RE.search(
-            _blank_html_comments(body)
-        ):  # fence-aware, like predicate 8: a `<!--` inside a fence paired with a later `-->` and blanked the real start (A67-2, FG1)
-            problems.append(
-                f"docs/orchestrator/_traycer-skills/{name}: wrapper declares no run record — "
-                "every orchestrator command must; add it to assemble_commands.py's ORCH_SOURCES "
-                "and re-render (hand-editing the wrapper is the drift the render check catches)"
-            )
-    return docs, wrappers, problems
-
-
 #: Agent definitions — `commands/_agents/*.md`, rendered to `~/.claude/agents/`. Predicate 6.
 AGENTS_SRC = SOURCES.parent / "_agents"
 
@@ -1071,7 +1000,6 @@ def audit(
     fragments: Path = FRAGMENTS,
     assembler: Path = ASSEMBLER,
     repo: Path = REPO,
-    traycer_skills: Path | None = None,
     agents: Path | None = None,
 ) -> list[str]:
     """Return one problem string per real defect; empty means the corpus is sound."""
@@ -1102,38 +1030,6 @@ def audit(
                 )
             ]
         return []
-
-    # ⚠️ The orchestrator section runs ONLY behind the hub gate above — i.e. after a non-empty
-    # command corpus proved this is the hub (or a hub-shaped fixture). The first version appended
-    # orch docs BEFORE that branch, which was reproduced doing two bad things at once in a
-    # project-shaped tree that happened to carry `_traycer-skills/`: (a) `files` became non-empty
-    # with an EMPTY `known_commands`, so every /fabrik-* chain ref in the orch docs "failed" (28
-    # bogus problems, masking the accurate no-corpus message); (b) execution then reached
-    # `_live_web_tool_names()`, whose `from libs.subagents...` import does not exist in projects —
-    # an unhandled ModuleNotFoundError in a BLOCKING gate check, fleet-wide.
-    orch_docs: list[Path] = []
-    orch_wrappers: list[Path] = []
-    if traycer_skills is None:
-        # Derive from `repo`, never the module constant: the selftest audits a FIXTURE repo, and
-        # a real-tree default leaked the live orchestrator docs into it — every /fabrik-* chain
-        # ref then "failed" against the fixture's two-command _sources. Same class as the
-        # temp-dir relative_to hazard above: a path that ignores the parameter poisons any
-        # caller that isn't the default one.
-        traycer_skills = repo / "docs" / "orchestrator" / "_traycer-skills"
-    if traycer_skills.is_dir():
-        orch_docs, orch_wrappers, orch_problems = _orch_corpus(traycer_skills, repo)
-        files = files + orch_docs + orch_wrappers
-        problems.extend(orch_problems)
-    elif assembler.exists():
-        # The hub without its tracked wrapper tree is a defect, not an N/A: ORCH commands are
-        # invokable box-wide, and an absent tracked tree means nothing pins what they load.
-        problems.append(
-            _scrub(
-                f"{traycer_skills}: orchestrator wrapper tree missing in the hub — "
-                "run `python3 commands/assemble_commands.py` to (re)generate it",
-                repo,
-            )
-        )
 
     valid_tools = _live_web_tool_names(repo)
     if valid_tools is None and assembler.exists():
@@ -1176,7 +1072,6 @@ def audit(
             )
     known_commands = {p.stem for p in sources.glob("*.md")}
     canonical_model = _canonical_trailer_model(repo)
-    orch_doc_set = set(orch_docs) | set(orch_wrappers)
 
     # 5. RUN RECORD — CLAUDE.md makes opening one the first act of any /fabrik-* invocation,
     # and the Stop hook's fifth cause reads it. It was wired into 3 of 27 commands, so for the
@@ -1229,19 +1124,11 @@ def audit(
                 if cmd not in known_commands:
                     problems.append(f"{rel}:{lineno}: /{cmd} does not exist in commands/_sources/")
             for script in _SCRIPT_RE.findall(line):
-                # Two resolution contexts, deliberately distinct. A hub COMMAND source speaks to
-                # agents whose cwd is a repo carrying the synced scripts/ tree — hub-rooted
-                # existence is the right test, and loosening it would mask a genuinely deleted
-                # hub script that happens to share a name with a template file. An ORCHESTRATOR
-                # doc speaks to agents working IN a project, where scaffolding delivers scripts
-                # from templates/ (e.g. `scripts/validate_i18n.py` from templates/i18n-kit/ —
-                # hub-rooting alone called that live reference dead 5 times across three mega
-                # docs). Template matches must be FILES: a directory named like a script is not
-                # a runnable delivery.
-                ok = (repo / script).exists()
-                if not ok and path in orch_doc_set:
-                    ok = any(c.is_file() for c in (repo / "templates").glob(f"**/{script}"))
-                if not ok:
+                # A hub COMMAND source speaks to agents whose cwd is a repo carrying the synced
+                # scripts/ tree — hub-rooted existence is the right test, and loosening it would
+                # mask a genuinely deleted hub script that happens to share a name with a
+                # template file.
+                if not (repo / script).exists():
                     problems.append(f"{rel}:{lineno}: {script} does not exist")
             if canonical_model:
                 for model in _TRAILER_RE.findall(line):
@@ -1586,16 +1473,13 @@ def _selftest_body(failures: list[str], hit: set[int], tempfile) -> int:  # noqa
         bad_agents = root / "_bad_agents"
         bad_agents.mkdir()
         (bad_agents / "mismatch.md").write_text("---\nname: something-else\ndescription: d\n---\n")
-        agent_probs = audit(
-            src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch", agents=bad_agents
-        )
+        agent_probs = audit(src, frag, root / "absent.py", REPO, agents=bad_agents)
         if not any("declares `name:" in p for p in agent_probs):
             failures.append(
                 "VACUOUS: the agent-definition predicate did not fire on known-bad input"
             )
         # the OTHER emitters — 9 of 17 `problems.append` sites had no canary, and the printed line
-        # read as complete coverage (FC1): the two remaining agent-definition shapes, and the two
-        # orchestrator-wrapper shapes (a wrapper naming no live doc, a wrapper without a run record)
+        # read as complete coverage (FC1): the two remaining agent-definition shapes
         extra = 0
         for fname, body, sig in (
             ("nofront.md", "name: nofront\ndescription: d\n", "no frontmatter"),
@@ -1604,47 +1488,10 @@ def _selftest_body(failures: list[str], hit: set[int], tempfile) -> int:  # noqa
             d = root / f"_agents_{fname[:-3]}"
             d.mkdir()
             (d / fname).write_text(body)
-            probs = audit(
-                src, frag, root / "absent.py", REPO, traycer_skills=root / "no-orch", agents=d
-            )
+            probs = audit(src, frag, root / "absent.py", REPO, agents=d)
             extra += 1
             if not any(sig in p for p in probs):
                 failures.append(f"VACUOUS: the agent-definition predicate did not fire on {sig!r}")
-        orch_root = root / "orch-repo"
-        (orch_root / "docs" / "orchestrator").mkdir(parents=True)
-        (orch_root / "docs" / "orchestrator" / "real.md").write_text("a canonical doc\n")
-        wrappers = orch_root / "docs" / "orchestrator" / "_traycer-skills"
-        for wname, body, _sig in (
-            (
-                "fab-nodoc",
-                "`/opt/fabrik/docs/orchestrator/nope.md`\npython3 scripts/command_run.py start --command x\n",
-                "canonical doc docs/orchestrator/nope.md does not exist",
-            ),
-            (
-                "fab-norecord",
-                "`/opt/fabrik/docs/orchestrator/real.md`\n",
-                "wrapper declares no run record",
-            ),
-        ):
-            (wrappers / wname).mkdir(parents=True)
-            (wrappers / wname / "SKILL.md").write_text(body)
-        probs = audit(
-            src,
-            frag,
-            root / "absent.py",
-            orch_root,
-            traycer_skills=wrappers,
-            agents=root / "no-agents",
-        )
-        for _, _, sig in (
-            ("", "", "canonical doc docs/orchestrator/nope.md does not exist"),
-            ("", "", "wrapper declares no run record"),
-        ):
-            extra += 1
-            if not any(sig in p for p in probs):
-                failures.append(
-                    f"VACUOUS: the orchestrator-wrapper predicate did not fire on {sig!r}"
-                )
         for label, (bad, signature) in cases.items():
             probe = src / "fabrik-probe.md"
             probe.write_text(bad)
@@ -1653,7 +1500,6 @@ def _selftest_body(failures: list[str], hit: set[int], tempfile) -> int:  # noqa
                 frag,
                 root / "absent.py",
                 REPO,
-                traycer_skills=root / "no-orch",
                 agents=root
                 / "no-agents",  # never the LIVE _agents/: a real defect there read as "FALSE POSITIVE on known-good input" (FB7)
             )
@@ -1696,7 +1542,6 @@ def _selftest_body(failures: list[str], hit: set[int], tempfile) -> int:  # noqa
             frag,
             root / "absent.py",
             REPO,
-            traycer_skills=root / "no-orch",
             agents=root / "no-agents",
         )
         if noise:
@@ -1749,7 +1594,7 @@ def main(argv: list[str] | None = None) -> int:
     # See docs/reference/enforcement-battery-audit.md.
     audited = len(
         AUDITED
-    )  # what the predicates OPENED (corpus + orchestrator docs + wrappers + agent defs), never the collected list alone — 55 printed against 93 read (DS2)
+    )  # what the predicates OPENED (corpus + agent defs), never the collected list alone — 55 printed against 93 read (DS2)
     if not args.quiet:
         print(
             "✓ command corpus: web-tool names, chain targets, script paths, trailer models,"
