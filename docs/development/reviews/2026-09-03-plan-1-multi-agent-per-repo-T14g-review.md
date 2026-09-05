@@ -1,0 +1,13 @@
+# Acceptance review — T14g (plan set 2026-09-03-plan-1-multi-agent-per-repo)
+
+**Status:** IN-PROGRESS
+
+**Surface:** the coder's worktree branch diff against the dispatch base 46f6c2a9 — see the round sections below (one file per ticket, rounds APPENDED).
+
+## Round 1 — over `46f6c2a9..d22433a1` (the five Touches, 15/17: `/fabrik-conformance-review`'s description SKIP item (a seventh site the ticket did not list) and body — "one epic vs its decisions-lock" no longer routes to `/fab-ettw-08-…`; it is this command's own sweep scoped to that epic's pair with `/fabrik-review` on the diffs; `/fabrik-flows` owns the journey discipline at every scale (the ettw Core Flows alternative dropped); `/fabrik-workflow-review`'s ettw row deleted and its stale-upstream fix re-routed to `/fabrik-spec-review` re-opened on the changed spec; `/fabrik-spec`'s scale up-route names `/fabrik-vision` (and keeps a single epic in the corpus via the plan set + the epic-file intake) with the hub/Traycer caveat deleted; the checklist cite reworded to the `.RETIRED.md` basename under `_retired/` so the zero-references gate is satisfiable while the pointer still resolves; watched-fail: the grep gate 5 files / 6 lines before → 0 after; `--check` zero render errors, the five expected HAND-EDITED drift rows; check_command_corpus green over 63 files; chain targets `/fabrik-vision`, `/fabrik-spec-review`, `/fabrik-review` resolve)
+Finders: the orchestrator's own execution + the coder's own report (which surfaced the residue below) — round 1; the pool joins on round 2 over the fixed diff.
+### Orchestrator execution (in the worktree)
+- `assemble_commands.py --check` → rendered 36 commands + 36 skills + 4 agents, 0 render errors / unresolved placeholders, the five HAND-EDITED rows (the merge-time render); `check_command_corpus.py` → all sound across 63 files; the grep gate → 0 files; the checklist pointer resolves (`test -f` on the tombstone).
+- **[M] residue in a Touches file — `commands/_sources/fabrik-workflow-review.md` still describes the ettw types in four lines after the row deletion** (`:2` the description "ettw 00, 02–06 … not 07/09 — dedicated 08/10"; `:26` and `:49` the `project="ettw-review"` flywheel label; `:59` "ettw `00` and `02`–`06`"): the description advertises `type` values the Phase-0 table no longer has — two sources of truth in one file. Not matched by the gate's tokens; the file is in Touches. FIXUP.
+### Verdict
+**1 finding (M) → FIXUP round 1 routed to the coder.** Ledger: routing truth per site · gate satisfiability vs pointer resolution · render cleanliness · residual ettw prose in the Touches files.
