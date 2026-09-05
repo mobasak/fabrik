@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase A (hub side) of session-history retention: the archiver (2026-09-06)
+
+`scripts/sysadmin/archive_transcripts.py` compresses MAIN transcripts to zstd, records each in a
+manifest keyed **`(project_slug, session_id, sha256)`**, and ships the archive by rsync to the VPS
+where Backrest carries it to Backblaze B2. Plan `2026-09-06-plan-1-session-history-retention`
+(CONVERGED, D-144), Phase A. **It deletes nothing** — pruning is Phase C, blocked behind a proven
+restore.
+
+Two design points that the graders exist to hold:
+
+**The manifest is written AFTER the transport succeeds, never before.** A manifest row is what
+Phase C will one day accept as permission to delete a local file, so it must never exist for bytes
+that did not land remotely. rsync failure ⇒ non-zero exit and zero rows.
+
+**`--delete` and `--remove-source-files` are banned, and the ban is checked through the AST rather
+than by grepping the file.** Either flag turns rsync into a mirror that would delete the ARCHIVE
+when the local side is pruned. The module docstring deliberately names both flags to explain the
+ban — so a grep-based guard would fail on its own documentation, and would tempt someone to delete
+the explanation to go green. The test reads the actual rsync argument list instead, and also
+forbids `-z` (the payload is already zstd).
+
+Six graders, all mutation-proven with precise discrimination: dropping `project_slug` from the row
+fails the collision test (the fixture holds the SAME session id under two project slugs — the case
+a two-part key could not see); adding `--delete` fails only the ban test; writing the manifest
+before the transport fails the ordering test; ignoring the per-file ceiling fails only the ceiling
+test. One test needed sharpening first: the ceiling case originally used a bound that both fixtures
+exceeded, which could not distinguish a selective ceiling from an archiver refusing everything — it
+now uses a bound BETWEEN the two sizes.
+
 ### Added — Phase 0 of session-history retention: measure before capping (2026-09-06)
 
 `scripts/sysadmin/sample_transcript_growth.sh` records one TSV row per day — date, MAIN bytes, file
