@@ -90,6 +90,7 @@ Ledger: D-126 (minted in this change)
 - **Given** the header paragraph (`:256-260`), **When** read, **Then** it no longer says the header channel is closed by the SDK alone; it names the seven-name limit and the allowlist.
 - **Given** the back-fill sentence, **When** read, **Then** it names the template path and the vendoring step, and no longer says "as of 2026-08-28 … add them".
 - **Given** the 7 types with no Sentry init, **When** the section is read from one of their repos, **Then** one sentence says the section does not apply to them.
+- **Given** the per-platform blocks, **When** read, **Then** the Python list is exactly `python-api`, `python-api-gpu`, `saas-skeleton` and the Node list exactly `node-api` — `file-worker` and `file-api` no longer appear (review pass 9 caught the old lists past the ticket's first range).
 
 ## Context Ledger
 
@@ -116,7 +117,7 @@ Ledger: D-126 (minted in this change)
 
 ### Phase A — grounding (the emitters, the census, the sizing)
 
-- `src/fabrik/scaffold.py:1678` (the inline `glitchtip_init.py` literal), `:1712` (`sentry_sdk.init(`), `:1729-1730` (the two flags), `:1744` (`pause_src = TEMPLATE_DIR / "python" / "pause_state.py"` — the copy pattern), `:244` (`TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"`), `:2125` (the sentry-sdk pin); `tests/test_scaffold_glitchtip_security.py:31-53`; `.windsurf/rules/core/55-observability.md:232-275`.
+- `src/fabrik/scaffold.py:1678` (the inline `glitchtip_init.py` literal), `:1712` (`sentry_sdk.init(`), `:1729-1730` (the two flags), `:1744` (`pause_src = TEMPLATE_DIR / "python" / "pause_state.py"` — the copy pattern), `:244` (`TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"`), `:2125` (the sentry-sdk pin); `tests/test_scaffold_glitchtip_security.py:31-53`; `.windsurf/rules/core/55-observability.md:232-334`.
 
 ```
 $ python3 - (ast: enclosing functions + callers)
