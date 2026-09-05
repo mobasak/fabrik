@@ -32,3 +32,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] :205 rotted anchor `scaffold.py:186` (`I18N_ENABLED_TYPES` :258) → FIXUP (6). [L] the compliance matrix lost 7 of 8 pack citations and the bootstrap script names → FIXUP (7). [L] :1120-1127 a clause restated twice → FIXUP (8). [L] Path A/B specified twice in one section → FIXUP (9).
 Round 2 verdict: 11 raised → 9 fix classes routed (5 M, 4 L), 2 routed outside the file (T07a's brief; infra). Not the no-op round.
 
+## Round 3 — over the FINAL head `b95ff60f` (1,201 lines; description 648; the round-2 fixup: nine items, the PARAMS comment gone — its dict delivered in the report for T07a)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+### Adjudication (pool layer)
+- deepseek — CLEAN (includes; retired names 0; no anchors; the gate; dossier handling; the Kilo marker; the I18N symbol; pack citations + bootstrap names; Path A/B once; no HTML comment; no duplicated clause).
+- gemini — CLEAN (12 restorations; includes; retired names; traycer-chain; the gate on both paths; the corpus chain).
+- qwen — CLEAN (4 rows; fragments; forbidden strings; round-2 fixes intact).
+Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+

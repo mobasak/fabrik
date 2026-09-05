@@ -109,7 +109,7 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02a-review.md"
     },
     "T03a": {
-      "state": "fixup-round-5",
+      "state": "review-round-6",
       "attempt": 2,
       "runtime": "native sonnet worktree (pool attempt 1 rejected: gate red with no captured output, 198-line checklist deletion, 53-line script deletion \u2014 D6 re-dispatch)",
       "started_at": "2026-09-05T12:16:12",
@@ -118,7 +118,7 @@
         "cost_usd": 0.0283,
         "disposition": "rejected \u2014 SIZING/DISPATCH DEFECT logged"
       },
-      "branch_head": "c7aab28c"
+      "branch_head": "ddd03663"
     },
     "T01b": {
       "state": "fixup-round-3",
@@ -139,11 +139,11 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02b-review.md"
     },
     "T13": {
-      "state": "fixup-round-2",
+      "state": "review-round-3",
       "branch": "worktree-agent-aca08762aa41073a1",
       "coder": "native sonnet worktree (plan said pool for `complex`; D6 record: the pool write-mode coder returned an unverified diff on T03a, so native is used for every coding ticket)",
       "dispatched_at": "2026-09-05T13:13:13",
-      "branch_head": "666343d8",
+      "branch_head": "901fcb4b",
       "round": 1
     },
     "T04a": {
@@ -166,11 +166,11 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T04b-review.md"
     },
     "T06a": {
-      "state": "review-round-2",
+      "state": "review-round-3",
       "branch": "worktree-agent-afe8783e4de220f3f",
       "coder": "native sonnet worktree",
       "dispatched_at": "2026-09-05T13:36:12",
-      "branch_head": "0888b880",
+      "branch_head": "b95ff60f",
       "round": 1
     },
     "T06b": {
@@ -181,6 +181,11 @@
       "branch_head": "08ade773",
       "round": 1,
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T06b-review.md"
+    },
+    "T05a": {
+      "state": "dispatched",
+      "coder": "native opus worktree (Execution Discipline: opus for T05a)",
+      "dispatched_at": "2026-09-05T14:41:18"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"
