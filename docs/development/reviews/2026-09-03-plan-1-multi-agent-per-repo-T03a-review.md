@@ -79,3 +79,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] EPIC-ARTIFACT-SCHEMA.md :47 / checklist 84a still say the frontmatter is "flat (scalars + inline lists)" while the parser now handles block lists (8 tests); the script's AFTER-EDIT header names that doc → FIXUP (state the accepted grammar).
 - Refuted candidate: the cycle traceback on the default/`--json` paths — T03b's by its Scope (the deferral comment at :429-433 is accurate).
 Round 5 verdict: pool 1 [H] (top-level comment stripping, confirmed by the orchestrator's probe) + native 3 → FIXUP routed (one batch); the closing round follows. Not the no-op round.
+
+## Round 6 — over `716ce944..ddd03663` (91,317 B; the round-5/6 fixup: comment stripping on every value with the schema's own block as a live fixture, the tail terminator, `_LIST_KEYS` + malformed-value findings, the docstring, the grammar sentence; 51 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 6.
+### Adjudication (pool layer)
+- gemini — CLEAN (4 files, 51 tests; round-robin, idempotency with mtime, integrity refusal, the owners gate, the 12 retired references, CRLF/mixed, the block-vs-scalar findings; rounds 1–5 resolved).
+- qwen — CLEAN in substance (its items restate the passing contracts).
+- deepseek — 2 raised, 2 REFUTED by execution: "the test expects exactly one `traycer` mention but the file has zero" — the suite is green at 51 and the 84d line carries `$TRAYCER_EPIC_ID` (one case-insensitive hit, as rounds 3–5 measured); "a manual trace suggests the mid-body insertion drops the following field" — the placement test on that exact shape passes and the round-5 native finder proved 67 shapes idempotent.
+Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+
