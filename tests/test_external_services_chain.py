@@ -1540,9 +1540,9 @@ def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
     start = text.index('nohup bash -c "')
     outer = text[start : text.index('\n    " >/dev/null 2>&1 &', start)]
     calls = [ln for ln in outer.splitlines() if "pipeline_alert.sh" in ln]
-    assert len(calls) == 6 and all(ln.count("pipeline_alert.sh") == 1 for ln in calls), (
+    assert len(calls) == 7 and all(ln.count("pipeline_alert.sh") == 1 for ln in calls), (
         calls
-    )  # exact, ONE call per physical line: the three sibling calls, the did-NOT-start and KILLED alerts (two on one line counted once — a lost redirect on the second was invisible, B65-4), the heartbeat-write alert (M-C8) — `>=` accepted a deleted site (B-9, FD8)
+    )  # exact, ONE call per physical line: the three sibling calls, the did-NOT-start and KILLED alerts (two on one line counted once — a lost redirect on the second was invisible, B65-4), the heartbeat-write alert (M-C8), and the cost-sidecar refresh alert (2026-09-05, Phase C) — `>=` accepted a deleted site (B-9, FD8)
     for ln in calls:
         assert '>> \\"$LOG_FILE\\" 2>&1' in ln, ln
 

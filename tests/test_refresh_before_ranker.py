@@ -2,8 +2,12 @@
 
 `scripts/enforcement/_check_refresh_before_ranker.py` asserts that BOTH pipeline entry points rebuild
 the cost sidecar before they regenerate the subagent ranking. Its first revision was demonstrably
-bypassable in five ways, each found by an author-blind pass and each reproduced below as a test — a
-gate that can be fooled is worse than none, because it reports a guarantee that is not there.
+bypassable, and every bypass an author-blind pass demonstrated is reproduced below as a test — a gate
+that can be fooled is worse than none, because it reports a guarantee that is not there.
+
+⚠️ No count in this sentence, on purpose: it said "five ways" while labelling six findings, because a
+sixth (the trailing comment) was found by a later pass and the number was not re-derived. Count the
+test functions instead — they are the enumeration.
 
 ⚠️ The gate is only as good as its runner: it is wired into `.pre-commit-config.yaml` scoped to the
 two shell files, and `test_the_gate_is_actually_wired_to_something` holds that. The first revision
@@ -134,9 +138,10 @@ def test_both_on_one_logical_line_is_refused_rather_than_mis_reported(tmp_path):
 
 
 def test_the_boot_entry_point_is_checked_too_not_just_the_cron(tmp_path, monkeypatch):
-    """THE FINDING THAT MOTIVATED THE REWRITE. Both entry points take the same daily lock, so the
-    one missing the rebuild becomes the whole day's pipeline whenever it wins the race. The first
-    revision hardcoded a single target and was structurally unable to see this."""
+    """THE FINDING THAT MOTIVATED THE REWRITE: the rebuild was wired into one of TWO entry points
+    that both run the ranker, and the first revision of the gate hardcoded that same single target,
+    so it was structurally unable to see the gap. (The shared daily lock does NOT make them
+    alternatives — /tmp is cleared at boot, so both ran on 2026-09-04.)"""
     assert "scripts/wsl_startup_hook.sh" in gate._ENTRY_POINTS
     (tmp_path / "scripts" / "kilo-benchmarks").mkdir(parents=True)
     (tmp_path / "scripts" / "kilo-benchmarks" / "daily_refresh.sh").write_text(
@@ -160,3 +165,58 @@ def test_the_gate_is_actually_wired_to_something():
     assert "_check_refresh_before_ranker.py" in config, (
         "the ordering gate is not referenced by .pre-commit-config.yaml — nothing runs it"
     )
+    # ⚠️ A SUBSTRING CHECK ON THE FILENAME IS NOT ENOUGH, which mutation proved: narrowing the hook's
+    # `files:` to match NOTHING, or dropping the boot hook from it, BOTH survived the whole suite —
+    # A-7 ("registered nowhere at all") returning one layer down, where the hook exists but reaches
+    # nothing. Grade the SCOPE by running the real regex against the paths it must cover.
+    import re as _re
+
+    import yaml  # noqa: PLC0415
+
+    hooks = [
+        h
+        for repo in yaml.safe_load(config)["repos"]
+        for h in repo.get("hooks", [])
+        if h.get("id") == "refresh-before-ranker"
+    ]
+    assert len(hooks) == 1, f"expected exactly one refresh-before-ranker hook, found {len(hooks)}"
+    pattern = _re.compile(hooks[0]["files"])
+    for rel in gate._ENTRY_POINTS:
+        assert pattern.search(rel), (
+            f"the hook's files: regex does not match {rel} — that entry point can be edited without "
+            "the ordering ever being checked"
+        )
+    assert not pattern.search("README.md"), "the hook's files: regex is too broad"
+
+
+def test_the_first_matching_invocation_is_the_one_that_counts(tmp_path):
+    """`_site` takes the FIRST match, and nothing pinned that: swapping it to last-match survived the
+    whole suite. It matters when an entry point invokes the ranker twice — the verdict must be
+    decided by the EARLIEST ranking run, since that is the one that would publish a stale rate."""
+    ok, msg = _run(tmp_path, f"#!/bin/bash\n{_RANKER}\n{_REFRESH}\n{_RANKER}\n")
+    assert not ok, "a ranker invocation BEFORE the rebuild must red, even if a later one follows it"
+    assert "must come FIRST" in msg
+
+
+def test_a_trailing_comment_is_not_an_invocation(tmp_path):
+    """False GREEN found by the closing pass: only whole-line comments were dropped, so
+    `_step "noop" … # TODO: wire claude_p_cost.py --refresh here` satisfied the gate while nothing
+    rebuilt — against a docstring claiming matches are counted "outside a comment". Both entry points
+    are unusually comment-dense (362 and 187 whole-line comments), so this was not exotic."""
+    decoy = (
+        '  _step "noop" "$VENV_PY" "$KB/other.py"   # TODO: wire claude_p_cost.py --refresh here'
+    )
+    ok, msg = _run(tmp_path, f"#!/bin/bash\n{decoy}\n{_RANKER}\n")
+    assert not ok
+    assert "never invokes" in msg
+
+
+def test_a_hash_inside_quotes_is_data_not_a_comment(tmp_path):
+    """The mirror of the fix above: stripping at ANY `#` would truncate a real command. A `#` inside
+    quotes is a URL fragment or a colour literal, and the invocation carrying it must still count."""
+    step = (
+        '  _step "refresh" "$VENV_PY" "$FABRIK_ROOT/scripts/claude_p_cost.py" --refresh '
+        '--note "see http://x/y#anchor"'
+    )
+    ok, msg = _run(tmp_path, f"#!/bin/bash\n{step}\n{_RANKER}\n")
+    assert ok, msg

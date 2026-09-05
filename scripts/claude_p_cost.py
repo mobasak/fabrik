@@ -370,7 +370,17 @@ def refresh() -> dict:
     # window bound is a non-empty single-line string. Producer and consumer agreeing on one
     # definition is the point — two definitions of "has a window" is how the halves drift apart.
     prev_bound = prev.get("window_start")
-    prev_measured = isinstance(prev_bound, str) and bool(prev_bound.strip())
+    prev_measured = (
+        isinstance(prev_bound, str)
+        and bool(prev_bound.strip())
+        # the newline clause is NOT decoration: without it the producer and the reader disagreed on
+        # exactly the shape the reader rejects, so a bound like "2026-08-07\nHEADING" was "measured"
+        # to the producer (refuse, protect it) and "unreadable" to the reader — and that sidecar
+        # then refused EVERY refresh and could not self-heal, which is the precise failure the
+        # refusal's own test was written to prevent. Claiming parity is not the same as having it.
+        and "\n" not in prev_bound
+        and "\r" not in prev_bound
+    )
     if w["window_start"] is None and prev_measured:
         raise UnmeasurableWindowError(
             f"refusing to overwrite a measured rate ({prev.get('amortized_per_mtok')!r} over "

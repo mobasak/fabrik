@@ -238,7 +238,10 @@ if [ ! -f "$LOCK_FILE" ]; then
         # sidecar rebuild was wired into daily_refresh.sh ONLY, and these two entry points share the
         # daily lock, so on every boot-wins day the ranker below rendered ② from an UN-refreshed
         # sidecar. Measured across the retained log window (2026-08-31..2026-09-05): 5 cron-wins,
-        # 1 boot-win — the boot win was 2026-09-04, and it ranked without a refresh. MUST stay above
+        # 1 boot-win. ⚠️ NOT a race, though the block above says so and I repeated it: /tmp is
+        # cleared at boot, so the lock never survives a reboot and BOTH ran on 2026-09-04 (cron
+        # complete 03:08 UTC, this pipeline 17:49 UTC, zero skip lines). The boot path runs on every
+        # boot, which makes this step more necessary, not less. MUST stay above
         # the ranker: it renders ② into TASK_SUBAGENT_SELECTION.md, so a rebuild after it publishes
         # yesterday's rate for a full cycle. Non-fatal, because a cost figure is context and never a
         # reason to red the boot pipeline — but it ALERTS like its siblings rather than echoing into

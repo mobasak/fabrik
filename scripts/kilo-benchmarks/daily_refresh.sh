@@ -33,7 +33,7 @@
 # Logs: stdout (12-Factor XI). Redirect at the invocation layer if you want a file.
 set -u
 FABRIK_ROOT="/opt/fabrik"
-export FABRIK_ROOT  # the seven alert-helper calls below inherit it — unexported, the helper fell back to its own default (identical today, silently divergent the day either moves; FD6)
+export FABRIK_ROOT  # EVERY alert-helper call below inherits it — deliberately not a count, which is the FD6 rule this line itself broke on 2026-09-05 when the cost-sidecar site made "seven" eight. Unexported, the helper fell back to its own default (identical today, silently divergent the day either moves)
 LOG_FILE="$FABRIK_ROOT/scripts/kilo-benchmarks/cache/update.log"
 VENV_PY="$FABRIK_ROOT/.venv/bin/python"
 KB="$FABRIK_ROOT/scripts/kilo-benchmarks"

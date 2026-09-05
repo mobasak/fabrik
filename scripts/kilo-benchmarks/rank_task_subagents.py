@@ -659,27 +659,18 @@ _CLAUDE_P_RETEST_NOTICE = [
 _SIDECAR_STALE_AFTER_HOURS = 24  # the rebuild cadence: `0 6 * * *` in daily_refresh.sh
 
 
-def _sidecar_window(d: dict) -> str:
-    """The provenance clause for ② — the window it came from, and LOUDLY if that build is stale.
+def _age_marker(built: object) -> str:
+    """The freshness clause for a `built_at`, alone — fresh, STALE, FUTURE, unparseable, absent,
+    or present-but-not-a-timestamp.
 
-    A rate with no date is typographically identical whether it was built this morning or 26 days ago;
-    that is exactly how `claude_p_cost.json` sat at a 17%-low figure while every reader rendered it as
-    current. Three states, deliberately distinguishable:
-
-      * DERIVED and fresh   → the window bounds and denominators, stated plainly
-      * DERIVED and STALE   → the same, prefixed ⚠️ STALE with the age, because a cron that stopped
-                              firing is silent by construction and nothing else here would say so
-      * ANCHOR fallback     → no window at all; the rate is a research constant, and saying "over
-                              2026-08-07→09-05" beside it would assert a derivation that never happened
-
-    A MISSING sidecar never reaches this function — `_claude_p_preamble` returns `[]` first, which is
-    the fail-soft path a project checkout depends on and which must not be confused with staleness.
+    Extracted because a return path shipped WITHOUT it: the OverflowError fallback rendered
+    "window unreadable" with no age, so a sidecar that was BOTH stale and carried an overflowing
+    `tokens` lost the one signal saying the rate is a fossil. That is the third time in this file a
+    new return path quietly dropped the marker — `test_the_anchor_branch_carries_the_age_marker_too`
+    exists for the second. Deriving it in ONE place makes the omission impossible rather than
+    merely tested-for, which is the only fix that closes a class instead of an instance.
     """
     import datetime
-
-    start, end = d.get("window_start"), d.get("window_end")
-    tokens, accounts = d.get("tokens"), d.get("accounts")
-    built = d.get("built_at")
 
     age = ""
     if isinstance(built, str) and built.strip():
@@ -704,6 +695,31 @@ def _sidecar_window(d: dict) -> str:
         # present but not a string (an epoch int, a nested object): "no built_at" would be false —
         # the key IS there, the reader simply cannot read it.
         age = f" ⚠️ **built_at is of type {type(built).__name__}, not a timestamp** — treat this rate as undated"
+    return age
+
+
+def _sidecar_window(d: dict) -> str:
+    """The provenance clause for ② — the window it came from, and LOUDLY if that build is stale.
+
+    A rate with no date is typographically identical whether it was built this morning or 26 days ago;
+    that is exactly how `claude_p_cost.json` sat at a 17%-low figure while every reader rendered it as
+    current. Three states, deliberately distinguishable:
+
+      * DERIVED and fresh   → the window bounds and denominators, stated plainly
+      * DERIVED and STALE   → the same, prefixed ⚠️ STALE with the age, because a cron that stopped
+                              firing is silent by construction and nothing else here would say so
+      * ANCHOR fallback     → no window at all; the rate is a research constant, and saying "over
+                              2026-08-07→09-05" beside it would assert a derivation that never happened
+
+    A MISSING sidecar never reaches this function — `_claude_p_preamble` returns `[]` first, which is
+    the fail-soft path a project checkout depends on and which must not be confused with staleness.
+    """
+
+    start, end = d.get("window_start"), d.get("window_end")
+    tokens, accounts = d.get("tokens"), d.get("accounts")
+    built = d.get("built_at")
+
+    age = _age_marker(built)
 
     if start is None and end is None:
         return f"(⚠️ **no window** — this is the research ANCHOR, not a measured rate{age})"
@@ -735,7 +751,17 @@ def _sidecar_window(d: dict) -> str:
             return None
         if v != v or v in (float("inf"), float("-inf")):
             return None  # int(nan) raises ValueError, int(inf) raises OverflowError
-        return int(v) if v == int(v) and v > 0 else None
+        if v != int(v) or v <= 0:
+            return None
+        # ⚠️ A count too large to convert to float is not a count. JSON permits arbitrary-precision
+        # integers, `v == int(v)` is exact for bigints, and the render path (`tokens / 1e9`) then
+        # raised OverflowError out of a doc generator. The `except` in `_claude_p_preamble` is the
+        # NET; this is the root — refuse the value here and the reader still gets its window.
+        try:
+            float(v)
+        except (OverflowError, ValueError):
+            return None
+        return int(v)
 
     start, end = _bound(start), _bound(end)
     if not (start and end):
@@ -790,7 +816,13 @@ def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
         # raise aborted the ENTIRE ranking regen and TASK_SUBAGENT_SELECTION.md silently kept
         # yesterday's copy. A CONTEXT LINE must never be able to kill the document it annotates, and
         # enumerating the exception types is what failed here — the surprise was a type nobody listed.
-        window = " (⚠️ **window unreadable** — the sidecar's window fields could not be rendered)"
+        # ⚠️ CARRIES {age}, like every other return in `_sidecar_window`. The first version of this
+        # fallback did not, which silently voided Phase B on the exact payload the branch was added
+        # for: a sidecar that is BOTH stale AND carries an overflowing `tokens` lost its STALE
+        # marker entirely. `test_the_anchor_branch_carries_the_age_marker_too` exists because that
+        # same omission survived on the anchor return — and the fix for the OverflowError
+        # reintroduced it one branch over. No leading space either: every sibling starts at `(`.
+        window = f"(⚠️ **window unreadable** — the window fields could not be rendered{_age_marker(d.get('built_at'))})"
 
     col_note = (
         " `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole "

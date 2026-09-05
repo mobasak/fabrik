@@ -299,7 +299,19 @@ def test_a_half_populated_window_is_not_reported_as_the_anchor():
 
 
 @pytest.mark.parametrize(
-    "bound", [["2026-08-07"], {"a": 1}, 20260807, "2026-08-07\nHEADING", "2026-08-07\r\n#", "  "]
+    # ⚠️ `"2026-08-07\rX"` is NOT redundant with the `\r\n` case: that one is killed by the `\n`
+    # clause alone, so a lone interior CR is the only input the `"\r"` clause actually owns — and
+    # deleting that clause survived the suite until this case existed.
+    "bound",
+    [
+        ["2026-08-07"],
+        {"a": 1},
+        20260807,
+        "2026-08-07\nHEADING",
+        "2026-08-07\r\n#",
+        "2026-08-07\rX",
+        "  ",
+    ],
 )
 def test_a_window_bound_that_is_not_a_single_line_string_is_refused(bound):
     """The bounds took raw `str()` while the denominators were rigorously validated.
@@ -348,28 +360,44 @@ def test_a_real_account_count_survives_an_unusable_token_count():
         assert "token" not in out.replace("tokens", "")
 
 
+def test_an_unrenderable_token_count_is_refused_at_the_validator_not_caught_downstream(
+    tmp_path, monkeypatch
+):
+    """The 401-digit `tokens` that started this: JSON permits arbitrary-precision integers, `_count`
+    accepted them exactly, and `tokens / 1e9` raised OverflowError out of a doc generator.
+
+    The FIRST fix wrapped the call site. That is a net, not a root: `_count` is the denominator
+    validator and a number it cannot render is not a valid denominator. Refused there, the reader
+    still gets its window and its STALE marker — it simply omits the count it cannot state.
+    """
+    out = rts._sidecar_window(
+        _derived(built_at=_stamp(26), tokens=int("1" + "0" * 400), accounts=4)
+    )
+    assert "token" not in out.replace("tokens", "")  # the count is omitted, not fabricated
+    assert "STALE" in out and "26.0 days ago" in out  # and the freshness signal survives
+    assert "4 accounts" in out  # as does the denominator that IS renderable
+
+
 def test_the_context_line_can_never_kill_the_document_it_annotates(tmp_path, monkeypatch):
-    """THE HIGH FINDING. `_sidecar_window` was called one line BELOW the fail-soft `except`, so any
-    exception it raised escaped `_claude_p_preamble` — and the ranking regen runs as
-    `_step … || echo (non-fatal)`, so the raise aborted the whole doc and left YESTERDAY'S copy
-    standing. A 401-digit `tokens` does it: JSON allows arbitrary-precision ints, `_count` accepts
-    them exactly, and `tokens / 1e9` raises OverflowError, which no `except` clause listed.
+    """THE HIGH FINDING, kept as a net even though the root is now closed.
+
+    `_sidecar_window` was called one line BELOW the fail-soft `except`, so anything it raised escaped
+    `_claude_p_preamble` — and the ranking regen runs as `_step … || echo (non-fatal)`, so the raise
+    aborted the whole doc and left YESTERDAY'S copy standing. The specific payload that did it is now
+    refused at the validator above, so this test forces the general case instead: whatever
+    `_sidecar_window` does, the preamble still returns.
     """
     sidecar = tmp_path / "claude_p_cost.json"
     sidecar.write_text(
-        json.dumps(
-            {
-                "amortized_per_mtok": 0.0074,
-                "quota_draw_pct": 0.0,
-                "built_at": _stamp(1 / 24),
-                "window_start": "2026-08-07",
-                "window_end": "2026-09-05",
-                "tokens": int("1" + "0" * 400),
-            }
-        ),
+        json.dumps({"amortized_per_mtok": 0.0074, "quota_draw_pct": 0.0, "built_at": _stamp(0)}),
         encoding="utf-8",
     )
     monkeypatch.setattr(rts, "__file__", str(tmp_path / "rank_task_subagents.py"))
+
+    def _explode(_d):
+        raise RuntimeError("a future edit raises something nobody enumerated")
+
+    monkeypatch.setattr(rts, "_sidecar_window", _explode)
     lines = rts._claude_p_preamble()  # must not raise
     assert lines, "the preamble should still render — only the window clause degrades"
     assert "window unreadable" in "\n".join(lines)

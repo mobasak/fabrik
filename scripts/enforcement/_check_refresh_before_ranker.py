@@ -8,12 +8,18 @@ publishes the previous day's figure for a full cycle. Phase C of
 `docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md`.
 
 ⚠️ TWO ENTRY POINTS, NOT ONE — and wiring only one is a documented repeat offence here.
-`daily_refresh.sh` (cron, 06:00) and `wsl_startup_hook.sh` (boot) BOTH run the ranker and BOTH take
-the same daily lock `/tmp/.fabrik_daily_<UTC>`, so whichever wins makes the other skip entirely.
-`wsl_startup_hook.sh:216-232` records two earlier instances of exactly this asymmetry; the Phase-C
-commit `5fd58526` shipped a third by wiring the refresh into the cron path alone, and an author-blind
-finder caught it by re-measuring the race (2026-08-31..2026-09-05: 5 cron-wins, 1 boot-win — and the
-boot win, 2026-09-04, ranked with no refresh). Both paths are checked here so the next one cannot.
+`daily_refresh.sh` (cron, 06:00) and `wsl_startup_hook.sh` (boot) BOTH run the ranker, so a step
+wired into one of them is absent from the other's pipeline. `wsl_startup_hook.sh:216-232` records two
+earlier instances of exactly this asymmetry; the Phase-C commit `5fd58526` shipped a third by wiring
+the refresh into the cron path alone.
+
+⚠️ THE MECHANISM IS NOT A RACE, and the first version of this docstring said it was — inheriting the
+belief from `:216-218` and propagating it into five new surfaces before a finder disproved it. The
+shared daily lock `/tmp/.fabrik_daily_<UTC>` only makes the two exclusive WITHIN one uptime: `/tmp` is
+cleared at boot (`/usr/lib/tmpfiles.d/tmp.conf`), so a reboot drops the lock and both run. Measured
+2026-09-04 — the cron completed 03:08 UTC and the boot pipeline 17:49 UTC the SAME day, with zero
+"already ran today" lines in any retained log. That makes wiring both paths MORE necessary, not less:
+the boot path runs on every boot, not only on days the cron loses.
 
 WHAT IS MATCHED, and why it is not shell-aware. A line counts as an invocation when its logical line
 (continuations joined) names the SCRIPT PATH — `claude_p_cost.py` plus the `--refresh` flag for the
@@ -58,6 +64,29 @@ _ENTRY_POINTS = (
 _HEREDOC = re.compile(r"<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?")
 
 
+def _strip_trailing_comment(raw: str) -> str:
+    """Drop a trailing `# …` comment, respecting quotes.
+
+    Quote state is tracked HERE and nowhere else, and the distinction matters: the module refuses to
+    track quotes for MATCHING (the boot hook's whole body lives inside one `bash -c "…"`, so a
+    quote-aware matcher would see nothing), but a `#` inside quotes is data — a URL fragment, a colour
+    literal — and cutting there would truncate a real command. Tracking it for this one purpose is
+    local and cannot blind the matcher, because the enclosing string's own quote opens before any
+    line this function sees.
+    """
+    out, quote = [], ""
+    for i, c in enumerate(raw):
+        if quote:
+            if c == quote and raw[i - 1 : i] != "\\":
+                quote = ""
+        elif c in "\"'":
+            quote = c
+        elif c == "#" and (not out or out[-1].isspace()):
+            break
+        out.append(c)
+    return "".join(out)
+
+
 def _logical_lines(text: str) -> list[tuple[int, str]]:
     """(1-based start line, joined text) for each executable logical line.
 
@@ -73,8 +102,14 @@ def _logical_lines(text: str) -> list[tuple[int, str]]:
             if raw.strip() == delim:
                 delim = None
             continue
+        # TRAILING comments too, not just whole-line ones: `_step "noop" … # TODO: wire
+        # claude_p_cost.py --refresh here` false-GREENED the gate while nothing rebuilt, and both
+        # entry points are unusually comment-dense (362 and 187 whole-line comments). Split on an
+        # unquoted `#` only — a `#` inside quotes is data (URL fragments, colour literals), and
+        # stripping it would truncate real commands.
+        raw = _strip_trailing_comment(raw)
         stripped = raw.strip()
-        if not buf and stripped.startswith("#"):
+        if not buf and not stripped:
             continue
         if not buf:
             start = n
@@ -114,8 +149,9 @@ def _check(rel: str) -> tuple[bool, str]:
         return False, (
             f"{rel}: runs rank_task_subagents.py at line {ranker} but never invokes "
             "`claude_p_cost.py --refresh` — this entry point ranks from a sidecar it did not "
-            "rebuild. Both entry points share the daily lock, so the one missing the rebuild "
-            "silently becomes the whole day's pipeline whenever it wins the race."
+            "rebuild. Both entry points run the ranker independently — the shared daily lock only "
+            "makes them exclusive within one uptime, since /tmp is cleared at boot — so this "
+            "path ranks from a stale sidecar every time it runs."
         )
     if refresh == ranker:
         return False, (

@@ -274,8 +274,13 @@ def test_every_daily_refresh_alert_can_actually_deliver():
     # 16 -> 18 (round 66, FF1): counted per CALL (the hook's KILLED alert shared a line with its
     # 126/127 sibling — 17 real sites were pinned at 16), and the hook's heartbeat-write failure now
     # alerts like daily_refresh's (18).
-    assert len(sites) == 18, (
-        f"expected exactly 18 alert sites across the three entry points, found {len(sites)}. "
+    # 18 -> 20 (2026-09-05, intel): the Phase-C cost-sidecar rebuild alerts on failure in BOTH
+    # entry points, like every other consequential step there. Found by an author-blind finder AFTER
+    # the change was committed — which is the FD6 class this file exists to catch, landing again: a
+    # pinned count in a module the author's own test sweep never reached, because that sweep grepped
+    # for changed MODULE names and this test keys on the shell files instead.
+    assert len(sites) == 20, (
+        f"expected exactly 20 alert sites across the three entry points, found {len(sites)}. "
         f"If you ADDED one, bump this number; if it DROPPED, an alert was deleted."
     )
     for ln in sites:

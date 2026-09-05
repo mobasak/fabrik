@@ -57,8 +57,9 @@ measured figure. Three phases of
   24h as **STALE**, so the fail-soft readers can no longer make a fossil and a fresh rate look
   identical.
 - **C** — BOTH pipeline entry points rebuild it before the ranking regen they feed: `daily_refresh.sh`
-  (cron 06:00) and `wsl_startup_hook.sh` (boot), which share one daily lock, so wiring only the cron
-  left the boot path ranking from a sidecar it had not rebuilt. A `refresh-before-ranker` pre-commit
+  (cron 06:00) and `wsl_startup_hook.sh` (boot). They both run the ranker, so wiring only the cron
+  left the boot path ranking from a sidecar it had not rebuilt — and the daily lock they share does
+  not make them alternatives, since `/tmp` is cleared at boot and both ran on 2026-09-04. A `refresh-before-ranker` pre-commit
   hook, scoped to those two files, holds the ordering in both. The regenerated sidecar joins the
   pipeline's auto-commit stage list: `refresh()` restamps `built_at` every run, so without that the
   cron would leave a tracked file dirty daily on a tree three sessions share.
