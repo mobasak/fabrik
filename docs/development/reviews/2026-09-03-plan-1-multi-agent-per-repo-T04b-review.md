@@ -33,3 +33,23 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] both surfaces assert an emit-time containment gate in `check_plan_tickets` that T05a builds (0 `epic` hits on master) — plan-intended forward reference; RECORDED for T05a's merge, no fixup.
 Round 2 verdict: 5 raised → 4 fix classes routed (1 H, 2 M, 1 L), 1 recorded; pool 2 CLEAN + gemini's nit carried into (4). Not the no-op round.
 
+## Round 3 — over the FINAL head `537f75fe` (27,883 B; the round-2 fixup: § Finish's three positions with position (b) merging itself back in the main checkout, § Inter-Phase Parallelism under the two-level rule, the OWED clause narrowed, BASE as three positions)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+### Adjudication (pool layer)
+- gemini — CLEAN (10 checks by line across both files: seeding + header, Owner, lock directory, containment refusal, BASE propagation, two levels, parallelism, the three Finish positions, merge→verify→cleanup, the OWED clause).
+- qwen — CLEAN (8 checks; "step 5's lock release works post-cleanup because the lock is in-repo").
+- deepseek — 2 raised: "position (b)'s lock lives in the removed worktree, so step 5 cannot release it" — the lock file is TRACKED in this plan (`git ls-files .fabrik/plan-locks` lists it; not ignored), so it travels with the merge into `$MAIN` — carried to the native finder, which was briefed on exactly this check; "the Branch-model note still enumerates two positions" — checked by grep on the branch (below).
+### Native finder (opus) — round-2 fixes: (1)(2)(3) FIXED with lines quoted; (4) NOT fixed at :154 (the Branch-model note). 8 raised:
+- [H] position (b)'s "merges BASE back in the MAIN checkout ITSELF" promises the operation the harness refuses unconditionally from an isolated session (spec D12 :99, :115, R4 :331 "resolved by design: impossible; the merge owner lives in main"); the spec's mechanism `ExitWorktree` (:54/:247/:268) has 0 hits in the file → FIXUP (1): push BASE → ExitWorktree → merge in main → verify → remove → push; OWED only when headless.
+- [H] "the plan file and its lock travel with the merge" — nothing commits the lock (9 `plan-locks` hits, none staged); `git worktree remove` refuses a tree with an uncommitted lock (proven in a scratch repo) → FIXUP (2): the lock is committed in every phase commit.
+- [M] "cd $MAIN" is itself a blocked redirect (:115) → dropped in (1). [M] steps 5–7 have no home on the OWED path → FIXUP (4). [M] :153-154 two-position note (deepseek's pool item CONFIRMED) → FIXUP (5), the orchestrator's merge-time fixup withdrawn. [M] :1054 cites § EXIT, which defers plan runs to this § Finish → FIXUP (6). [M] "merge owner" defined twice → FIXUP (7). [M] three present-tense claims about gates that do not exist yet (T05a's containment check, T15's PLANS table) → FIXUP (8): phrase as the contract the sibling enforcement keys on.
+- Mechanical: `--check` drifts exactly the two files (the third, fabrik-spec.md, is master's T04a); corpus check green; 0 lock references deleted; Part B/C clean; the D-loop pseudocode and prose agree on refuse → 🔴 → blocked-end.
+Round 3 verdict: 8 raised → 8 routed (2 H, 6 M). Not the no-op round.
+
+## Round 4 — over the FINAL head `ab29fc63` (30,597 B; the round-3 fixup: position (b) leaves isolation via `ExitWorktree` (keep) then merges in the main checkout; the lock committed with every phase commit; the OWED path homed; three positions everywhere; "merge owner" reserved; the § EXIT citation dropped; forward references phrased as the contract)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 4.
+### Adjudication (pool layer)
+- deepseek — CLEAN (4 rows; no fail-open; no `git -C`/`cd "$MAIN"`/literal master; the twelve terms consistent).
+- gemini — CLEAN (rounds 1–3 classes; the merge-then-remove order satisfies git's own refusal; Owner/Epic interfaces).
+- qwen — CLEAN (4 rows by line; the lock committed beside the plan file :904-913; refusal :414-415/:462-480; BASE everywhere).
+Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.

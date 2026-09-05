@@ -11,3 +11,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - deepseek — the drops judged non-substantive (Guardrails + Phase 7 absorb the Does-NOT and Acceptance lists); 1 raised: "the source does not say HOW the phase is obtained (`scripts/epic_order.py --json`) nor how the owner is set" — qwen reads the opposite ("tied to epic_order via dispatch order; Phase 6 cites the script"); carried to the native finder to settle by quotation.
 - gemini — 4 raised: the 02/03 Acceptance Criteria's "DAG / no circular dependencies / no orphaned features" checks have no inline counterpart in Phase 3's self-audit — carried (a live-rule loss if true); the disk-vs-Traycer justification — the coder's declared drop, moot with Traycer retired (no live rule); "`owner` should sit at the END per the master schema" — REFUTED by ordering: T03a (Merge Order 5, before this ticket) moves `owner` right after `owned_paths` in the schema, and the coder was told to follow T03a's placement; a fourth (truncated).
 Native finder (opus): PENDING — appended when it returns.
+
+## Round 2 — over the FINAL head `fb1c819d` (699 lines; the round-1 restoration: 14 items, description 672 chars)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 2.
+### Adjudication (pool layer)
+- deepseek — CLEAN (4 rows; four includes on their own lines; 15 names; owner after owned_paths; Entry point; retired terms 0; every restoration quoted).
+- gemini — CLEAN (12 restorations located by line: Scaffold grounding :690, arithmetic :421, includes :16…, Entry point :652, DAG audit :124, lifecycle + Retrofit :70).
+- qwen — CLEAN (16 restoration claims verified; includes :20/:65/:658/:697; Part B/C).
+Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
