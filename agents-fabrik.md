@@ -61,7 +61,7 @@ validation (`09-11`).
 epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as
 its INFRA-CHECK input).
 
-**Existing project continuation:** enter at `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md`
+**Existing project continuation:** enter at `/fabrik-vision` (EXISTING mode — the mega-chain doc it replaced is tombstoned at `docs/orchestrator/_retired/mega-epic-breakdown/00-trigger-mega-epic-fabrik.RETIRED.md`)
 and declare **EXISTING mode** at Step 0 (project snapshot + Compliance Detection + delta scoping; output =
 Vision Summary + `Locked Decisions` + `Compliance Report`; `02` emits **Retrofit epics** for `fix-now` rows).
 

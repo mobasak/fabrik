@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — mega 00 + 02 retired into docs/orchestrator/_retired/ with tombstone headers (2026-09-06)
+- **What:** `00-trigger-mega-epic-fabrik.md` and `02-epic-decomposition-fabrik.md` are a pure `git mv` (history preserved through `--follow`) into `docs/orchestrator/_retired/mega-epic-breakdown/*.RETIRED.md`, each prefixed with a two-line tombstone naming the corpus twin that replaced it — 00 → `/fabrik-vision`, 02 → `/fabrik-epics` (spec § Chain consolidation (c)). No content rewrite beyond the header. Referrers repaired in the same change: `agents-fabrik.md` (the existing-project front door now names `/fabrik-vision`), `docs/infrastructure/vps-complete-inventory.md` (the historical 02 cite), and the moved 00's own `../../infrastructure/` link (now three levels deep).
+- **Where:** `docs/orchestrator/_retired/mega-epic-breakdown/`, `agents-fabrik.md`, `docs/infrastructure/vps-complete-inventory.md`, `INDEX.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T12a).
+
 ### Changed — Retire ettw 00–05 into docs/orchestrator/_retired/ (2026-09-05)
 - **What:** the first seven epic-to-ticket-workflow docs (00-trigger, 01-decisions-lock, 01R-decisions-review, 02-core-flows, 03-tech-plan, 04-deploy-plan, 05-ticket-outline) moved by `git mv` to `docs/orchestrator/_retired/epic-to-ticket-workflow/<stem>.RETIRED.md`, each with a two-line tombstone header naming its corpus twin per the multi-agent-per-repo spec § Chain consolidation (a): 00 → `/fabrik-spec`'s epic-file intake · 01/01R → `/fabrik-spec` + `/fabrik-spec-review` · 02 → `/fabrik-flows` + review · 03 → `/fabrik-data-contract` + `/fabrik-plan-after-chat` · 04 → `/fabrik-deploy-checklist` + the deploy triad · 05 → `/fabrik-plan-after-chat` + `/fabrik-plan-review`. History preserved (`git log --follow`); no content change beyond the header.
 - **Where:** `docs/orchestrator/_retired/epic-to-ticket-workflow/`, `INDEX.md`, `docs/README.md`, `docs/workstation/kaizen-shrink-audit.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T10).

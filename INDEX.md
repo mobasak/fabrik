@@ -376,7 +376,7 @@ docs/
 │   │   └── fab-mega-04-validate
 │   │       └── SKILL.md
 │   ├── _retired
-│   │   └── epic-to-ticket-workflow
+│   │   ├── epic-to-ticket-workflow
 │   │       ├── 00-trigger-fabrik.RETIRED.md
 │   │       ├── 01-decisions-lock-fabrik.RETIRED.md
 │   │       ├── 01R-decisions-review-fabrik.RETIRED.md
@@ -384,6 +384,9 @@ docs/
 │   │       ├── 03-tech-plan-fabrik.RETIRED.md
 │   │       ├── 04-deploy-plan-fabrik.RETIRED.md
 │   │       └── 05-ticket-outline-fabrik.RETIRED.md
+│   │   └── mega-epic-breakdown
+│   │       ├── 00-trigger-mega-epic-fabrik.RETIRED.md
+│   │       └── 02-epic-decomposition-fabrik.RETIRED.md
 │   ├── epic-to-ticket-workflow
 │   │   ├── 06-ticket-breakdown-fabrik.md
 │   │   ├── 07-execute-fabrik.md
@@ -393,8 +396,6 @@ docs/
 │   │   ├── 11-deploy-fabrik.md
 │   │   └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
 │   ├── mega-epic-breakdown
-│   │   ├── 00-trigger-mega-epic-fabrik.md
-│   │   ├── 02-epic-decomposition-fabrik.md
 │   │   ├── 03-expand-epic-files-fabrik.md
 │   │   ├── 04-cross-epic-validation-fabrik.md
 │   │   ├── EPIC-ARTIFACT-SCHEMA.md

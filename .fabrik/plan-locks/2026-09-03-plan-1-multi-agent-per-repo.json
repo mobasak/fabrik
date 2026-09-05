@@ -300,12 +300,16 @@
       "head": "ece53dcb"
     },
     "T12a": {
-      "state": "review-round-1",
+      "state": "merged",
       "agent": "acea1317d545227e6",
       "branch": "worktree-agent-acea1317d545227e6",
       "base": "b1f7e675",
       "head": "d9fd0b2e",
-      "updated": "2026-09-05T20:52:55+00:00"
+      "updated": "2026-09-05T20:52:55+00:00",
+      "branch_head": "d9fd0b2e",
+      "merged_at": "2026-09-06T00:05:03",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T12a-review.md",
+      "rename_commit": "501dc5d0"
     },
     "T10": {
       "state": "merged",
