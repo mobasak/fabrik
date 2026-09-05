@@ -54,5 +54,7 @@ def test_hub_fallback_imports_the_engine_from_a_foreign_repo(tmp_path: Path):
     # worktree (`.claude/worktrees/agent-*`) ROOT is not /opt/fabrik while the synced driver
     # still hard-codes HUB_LIBS there — asserting ROOT failed a correct tree (native closing
     # reader, 2026-09-05).
-    hub_libs = re.search(r'^HUB_LIBS = Path\("([^"]+)"\)', driver_src, re.M).group(1)
+    m = re.search(r'^HUB_LIBS = Path\("([^"]+)"\)', driver_src, re.M)
+    assert m, "the driver no longer declares HUB_LIBS as a literal Path — update this grader with it"
+    hub_libs = m.group(1)
     assert "engine: hub" in r.stdout and f"{hub_libs}/deep_research/" in r.stdout, r.stdout
