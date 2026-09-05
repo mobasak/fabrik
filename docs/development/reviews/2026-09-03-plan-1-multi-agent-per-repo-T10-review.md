@@ -1,6 +1,6 @@
 # Acceptance review — T10 (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base b1f7e675 — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -8,4 +8,7 @@
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a seven-file rename; stated) — round 1.
 ### Orchestrator execution (in the worktree)
 - `git show --numstat -M` → 7 rows; gate 1 (7 / 7) ok; gate 2 ok; bodies identical 7 of 7; the header's first line follows the 05 tombstone pattern.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0084)
+- All three CLEAN: seven rename rows 2/0, the twin mappings match spec § (a) file by file, the first-line shape matches the 05 tombstone, no `](../` relative link in any of the seven (0 of 7 — orchestrator re-grepped: 0), nothing outside the Touches.
+### Verdict
+**0 findings — no-op round.** Ledger: rename purity · header twins · tombstone shape · relative-link rot · referrer census — all swept. **Status: CONVERGED** at `fd403139`; merge owner: the rename commit stays pure (gate 2), then a second commit carries INDEX/README/CHANGELOG and the unowned referrer `docs/workstation/kaizen-shrink-audit.md:304`; `agents-fabrik-core.md:18`, `agents-fabrik.md:68`, the north-star and the two command sources are T14b's / T14g's.

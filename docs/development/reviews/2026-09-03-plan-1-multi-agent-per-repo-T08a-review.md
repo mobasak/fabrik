@@ -8,4 +8,6 @@
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 (an enforcement gate) — round 1.
 ### Orchestrator execution (in the worktree)
 - the check → `✓ … all sound across 63 file(s) read`; the importlib gate exit 0; `--selftest` → 15 canaries over 8 predicates; grep 0; `ruff check` clean; `pytest tests/test_check_command_corpus.py` → 69 failed, 55 passed (T08b's expected reds).
-Pool + native: PENDING — appended when they return.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0133)
+- All three CLEAN: every deleted symbol gone, no remaining `docs/orchestrator` reference but the three history comments, the `templates/` fallback reachable only via `path in orch_doc_set` (dead once no orch doc is in `files`), the audited denominator 63 before/after, the three new sources under the per-source predicates, no fail-open for command sources, one file touched.
+Native: PENDING — appended when it returns.
