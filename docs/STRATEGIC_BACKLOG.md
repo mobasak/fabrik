@@ -1085,6 +1085,34 @@ or scaffold a metrics module; the flag is spec-canonical, so whichever is chosen
 SYSTEMIC (sender's, adopted): nothing on the box watches upstream component lifecycles. The rules corpus
 has `CLAIMS.yaml`; the running fleet needs the same shape — see the capability-claims row above.
 
+## [fleet] Every hub edit to a VPS-EXECUTED script has been inert since 2026-08-30 — the sync is manual and nobody is obliged to run it (2026-09-05, owner: fleet)
+
+Found by asking, during a combined review, whether a check I had just shipped actually RUNS where it must
+run. It did not. `proactive-check.sh` executes on vps1 from `/opt/fabrik/scripts/sysadmin/` via
+`/etc/cron.d/vps-sysadmin` (`*/15`), and **that tree is not a git repo** — files arrive only through
+`scripts/sync-vps-sysadmin.sh`, run by hand. Measured 2026-09-05: the deployed `proactive-check.sh` was
+dated **2026-08-30** and contained none of the day's changes; across `scripts/sysadmin/` the newest mtime
+was the same date, with several files back to July. So anything ANY agent changed in a VPS-executed script
+in the last six days has not been running — silently, because the hub copy looks correct and the gate is
+green against the hub copy.
+
+**Two live consequences already measured, both filed with this row rather than assumed:** a recurrence
+check shipped that night executed nowhere at all until deployed by hand, and `detect_reversals.py` failed
+every five minutes for ~5.5 days (1,597 logged failures in the current rotation) — that second one is
+FIXED, its root being a non-executable file mode in the HUB copy that `rsync -a` faithfully reproduced.
+
+**Why the obvious fix was NOT taken:** running `sync-vps-sysadmin.sh` pushes `scripts/sysadmin/`,
+`scripts/audit/`, `docs/infrastructure/` and `specs/services/` wholesale, so invoking it while sibling
+sessions have in-flight hub state would deploy their unfinished work to production. A blanket sync is the
+wrong instrument on a shared tree with concurrent writers, which is exactly why it keeps not being run.
+
+**Candidates, none built:** (a) make the deploy per-file and idempotent so it is safe to run at any moment;
+(b) a staleness CHECK rather than a push — compare hub vs VPS md5 for the cron-invoked set and warn, which
+is cheap, read-only, safe under concurrency, and would have caught this on day one; (c) put `/opt/fabrik`
+on the VPS under git and pull a tag. (b) is the smallest honest step and does not require deciding (a) or
+(c) first. Measure nothing before building (b) — a divergence check over 8 cron targets cannot be
+wallpaper. Blocked by: an operator call on whether the box should pull instead of being pushed to.
+
 ## [fleet] `fabrik-zitadel`'s Prometheus target has been DOWN (404) — a registered scrape job that has never worked (2026-09-05, owner: fleet)
 
 Found while validating a different finding: `fabrik-zitadel` scrapes
