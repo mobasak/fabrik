@@ -40,6 +40,7 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 | `agents-fabrik-core.md` | High-frequency platform core, @import-ed by every project's synced `CLAUDE.md` |
 | `AGENTS-compact.md` | Compact reference |
 | `CLAUDE.md` | Per-project Claude agent configuration — sourced from `templates/governance/CLAUDE.md` (`GOVERNANCE_TEMPLATES`), NOT from the hub's own `/opt/fabrik/CLAUDE.md`, which is the hub agents' contract and never distributed |
+| `.worktreeinclude` | Worktree-copy manifest for Claude Code linked worktrees — sourced from `templates/governance/.worktreeinclude` (`GOVERNANCE_TEMPLATES`), rendered by `fabrik_synced_manifest.worktreeinclude_text()` from the same `gitignore_dest_paths()` the `.gitignore` block comes from, plus `.env` and `.mcp.json`, minus `.claude/settings.local.json` (plan 2026-09-03-plan-1-multi-agent-per-repo, T01a) |
 | `opencode.json` | Kilo CLI configuration |
 | `.windsurfrules` | Cascade compact agent contract |
 | `.windsurf/rules/` | Cascade rule files (recursive, orphan-pruned) |

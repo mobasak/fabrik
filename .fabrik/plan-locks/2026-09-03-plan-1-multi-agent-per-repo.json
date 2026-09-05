@@ -89,6 +89,32 @@
   "status": "active",
   "baseline_commit": "50977a1e5215e431bb02f41053d1ba59a449bb25",
   "baseline_gate": "final_gate.py --lean --json -> status: success, 32 passed / 0 failed, 0 red checks (captured at 50977a1e before D1; the --check tier's two reds \u2014 Convergence Evidence + Coverage Checklist \u2014 are a SIBLING's staged review artifact 2026-09-05-windowed-cost-sidecar-phase-A-review.md, not this plan's)",
-  "tickets": {},
+  "tickets": {
+    "T01a": {
+      "state": "merged",
+      "runtime": "native sonnet worktree",
+      "started_at": "2026-09-05T12:11:09",
+      "branch": "worktree-agent-af643f6f129c9b58d",
+      "branch_head": "c1291b37",
+      "merged_at": "2026-09-05T12:54:48",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T01a-review.md"
+    },
+    "T02a": {
+      "state": "dispatched",
+      "runtime": "native sonnet worktree",
+      "started_at": "2026-09-05T12:11:09"
+    },
+    "T03a": {
+      "state": "dispatched",
+      "attempt": 2,
+      "runtime": "native sonnet worktree (pool attempt 1 rejected: gate red with no captured output, 198-line checklist deletion, 53-line script deletion \u2014 D6 re-dispatch)",
+      "started_at": "2026-09-05T12:16:12",
+      "attempt1": {
+        "runtime": "pool write openai/gpt-5.6-luna",
+        "cost_usd": 0.0283,
+        "disposition": "rejected \u2014 SIZING/DISPATCH DEFECT logged"
+      }
+    }
+  },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"
 }

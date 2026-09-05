@@ -97,7 +97,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | the manifest declares the worktree artifacts | — | ⚡ | ⬜ | |
+| T01a | the manifest declares the worktree artifacts | — | ⚡ | ✅ | branch head c1291b37; merged 2026-09-05 |
 | T01b | the sync emits the worktree artifacts into every project | T01a | ⛓️ | ⬜ | |
 | T02a | agent_role accepts any project-local name, charter optional | — | ⚡ | ⬜ | |
 | T02b | the Agent-Name enum in both governance contracts | T02a | ⛓️ | ⬜ | |

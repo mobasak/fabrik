@@ -168,3 +168,86 @@ def test_vendored_subagents_gitignored_and_pycache_excluded(
     vendored = [d for d in dests if "libs/subagents" in d]
     assert any(d.endswith("libs/subagents/agent.py") for d in vendored)
     assert not any("__pycache__" in d or d.endswith(".pyc") for d in vendored), vendored
+
+
+# --------------------------------------------------------------------------- #
+# T01a — the manifest declares the worktree artifacts (design spec § Lifecycle #
+# / § Environment inside a worktree)                                          #
+# --------------------------------------------------------------------------- #
+
+
+def test_worktreeinclude_text_covers_every_gitignore_dest_paths_entry() -> None:
+    """worktreeinclude_text() must list every gitignore_dest_paths() entry — the two
+    functions are generated from the same manifest so they can never list a different
+    set (design spec: "generated from the same gitignore_dest_paths() the .gitignore
+    block comes from"). Checked as LINE membership, not substring: a substring check
+    over the whole text is shadowed by 3 of 54 real entries — an entry that is a
+    substring of ANOTHER rendered line still reads as "found" (".windsurf/" sits inside
+    ".windsurf/hooks.json"; "scripts/rund"/"scripts/runc" inside longer "scripts/run*"
+    names), so dropping the real entry leaves a substring check green (proven by
+    mutation review: dropping ".windsurf/" from the render left it green)."""
+    rendered_lines = m.worktreeinclude_text().splitlines()
+    flattened = {p for paths in m.gitignore_dest_paths().values() for p in paths}
+    missing = sorted(p for p in flattened if p not in rendered_lines)
+    assert not missing, f"worktreeinclude_text() is missing gitignore_dest_paths() entries: {missing}"
+
+
+def test_worktreeinclude_text_adds_env_and_mcp_json() -> None:
+    """A worktree needs .env and .mcp.json to run (design spec: "plus .env and
+    .mcp.json") — neither is tracked, so without this a fresh worktree has no config."""
+    rendered = m.worktreeinclude_text()
+    assert ".env" in rendered.splitlines()
+    assert ".mcp.json" in rendered.splitlines()
+
+
+def test_worktreeinclude_text_excludes_settings_local() -> None:
+    """Approvals stay in the main checkout — worktrees doc § "What worktrees share"
+    (design spec: "minus .claude/settings.local.json")."""
+    rendered = m.worktreeinclude_text()
+    assert ".claude/settings.local.json" not in rendered.splitlines()
+
+
+def test_worktreeinclude_exclusion_is_live_not_vacuous(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The .claude/settings.local.json guard above must actually FIRE, not merely match a path
+    that never occurs — gitignore_dest_paths() does not carry that path today (it is a hardcoded
+    line only in gitignore_block_text()'s separate "Local state" list), so the sibling test
+    passes whether or not the filter exists (proven by mutation review: deleting the filter
+    line left it green). Force the path into the exact source worktreeinclude_text() reads and
+    prove the render still drops it, while an unrelated entry survives."""
+
+    def fake_dest_paths() -> dict[str, list[str]]:
+        return {"Fixture group": [".claude/settings.local.json", "some/other/tracked/file.py"]}
+
+    monkeypatch.setattr(m, "gitignore_dest_paths", fake_dest_paths)
+    rendered_lines = m.worktreeinclude_text().splitlines()
+    assert ".claude/settings.local.json" not in rendered_lines
+    assert "some/other/tracked/file.py" in rendered_lines
+
+
+def test_worktreeinclude_template_matches_generated_text() -> None:
+    """The tracked templates/governance/.worktreeinclude must equal worktreeinclude_text()
+    byte-for-byte, so the two can never drift (ticket T01a)."""
+    repo_root = Path(__file__).resolve().parents[1]
+    template = repo_root / "templates" / "governance" / ".worktreeinclude"
+    assert template.exists(), f"missing tracked template: {template}"
+    on_disk = template.read_text()
+    generated = m.worktreeinclude_text()
+    assert on_disk == generated, (
+        "templates/governance/.worktreeinclude is stale — regenerate with: "
+        "python3 scripts/fabrik_synced_manifest.py --worktreeinclude "
+        "> templates/governance/.worktreeinclude"
+    )
+
+
+def test_worktreeinclude_registered_in_governance_templates() -> None:
+    """Naming only gitignore_dest_paths() is not enough — GOVERNANCE_TEMPLATES is the
+    (src, dest) list that actually carries a template into a project (module docstring
+    warning at gitignore_dest_paths(): "every new leg must be fed in here explicitly")."""
+    assert ("templates/governance/.worktreeinclude", ".worktreeinclude") in m.GOVERNANCE_TEMPLATES
+
+
+def test_gitignore_block_contains_worktrees_dir() -> None:
+    """.claude/worktrees/ must be gitignored fleet-wide — absent today (only in the
+    hub's own .git/info/exclude), needed so a linked worktree's own metadata dir is
+    never tracked (design spec § Lifecycle: "Adoption")."""
+    assert ".claude/worktrees/" in m.gitignore_block_text().splitlines()

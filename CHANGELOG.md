@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — worktree adoption artifacts: the manifest declares `.worktreeinclude` (2026-09-05)
+
+T01a of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `scripts/fabrik_synced_manifest.py`
+gains `worktreeinclude_text()`, rendered from the same `gitignore_dest_paths()` the `.gitignore` block
+comes from plus `.env` and `.mcp.json`, minus `.claude/settings.local.json`; the rendered text is the
+new TRACKED `templates/governance/.worktreeinclude`, registered in `GOVERNANCE_TEMPLATES` so the sync
+carries it into every project; `gitignore_block_text()` gains `.claude/worktrees/`. A test pins the
+tracked file to the generated text. Graders: `tests/test_synced_manifest.py` (+6, seen red first).
+
+
 ### Fixed — the owed /fabrik-review found a false census I had synced to ~46 repos (2026-09-05)
 
 The plan's Execution Discipline mandates `/fabrik-review` per ticket; I ran native in-line passes at each
