@@ -69,12 +69,14 @@ Ledger: D-126 (minted in this change)
 - **Given** the hub `.venv` after `pip install -e .[dev]`, **When** `python -c "import sentry_sdk, structlog"` runs, **Then** both import and the sentry-sdk version is printed (the first step of this ticket; every later gate depends on it).
 - **Given** the template file, **When** parsed with `ast`, **Then** it defines `init_glitchtip` and `_scrub_event`, the string `before_send_transaction=_scrub_event` appears once (`/opt/site-provisioner/api/glitchtip_init.py:606` is the reference line — pass 2 corrected 604), and the tokens `{pkg}` and `{name}` each appear exactly once.
 - **Given** the template, **When** its `LoggingIntegration(` call is read, **Then** it carries `event_level=logging.ERROR` and `level=None` — the fleet default, not site-provisioner's `event_level=None` (D-126).
+- **Given** the template's `integrations=[...]`, **When** read, **Then** both integrations carry `transaction_style="endpoint"` (the scaffold's naming, kept).
 - **Given** `_ALLOWED_LOGENTRY_KEYS`, **When** read, **Then** it is exactly `{"message"}` (the interpolation channel closed; `params`/`formatted` never pass).
 - **Given** an event whose allowlisted key holds an unexpected container, **When** `_scrub_event` runs, **Then** that key is nulled (leaf-shape) — imported and executed in the test, not read.
 - **Given** a `python-api` scaffold into `tmp_path`, **When** `src/<pkg>/glitchtip_init.py` is read, **Then** it equals the template with `{pkg}`/`{name}` substituted and contains neither token (other braces are the module's own).
 - **Given** `python-api-gpu` and `saas-skeleton` scaffolds, **When** the same file is read, **Then** the same holds (3 of 3 reaching types).
 - **Given** the template file is absent, **When** the scaffold runs, **Then** it raises (no silent skip) — proven by monkeypatching `TEMPLATE_DIR`.
 - **Given** the existing scaffold suite (`tests/test_scaffold.py`), **When** run, **Then** it is green — nothing else in `_scaffold_fastapi_backend` changed.
+- **Given** T03's tests in the same file (merged earlier), **When** this ticket merges, **Then** they are byte-identical — this ticket only APPENDS.
 - **Given** the merge, **When** the back-fill notices are sent, **Then** one mail id per repo carrying a `glitchtip_init.py` is recorded in this ticket's review artifact, the count re-measured with its denominator, and `mail.py` prints no D-035 advisory.
 - **Given** the emitted module with a capturing transport, **When** a route raises with the six secrets in play, **Then** the serialized ERROR event contains none of them (substring search over the whole event).
 - **Given** `traces_sample_rate=1.0`, **When** the request completes, **Then** the captured TRANSACTION event contains none of them either (`before_send_transaction` is registered; `client.py:917-922` skips `before_send` for transactions).
