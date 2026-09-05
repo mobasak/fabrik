@@ -28,5 +28,8 @@ Round 2 verdict: 5 raised → 5 routed (1 H, 3 M, 1 L) — finding 1 is a class 
 
 ## Round 3 — over `6a5c5990..bf2859af` (the round-2 fixup bf2859af, 20/10: 2a states the bound of the PASS — the two predicates, the overlap-without-subsumption class named with its example — and lens C's "marked or not" restored in both places; 2b names `--assign`'s actual grade; the route list gains the frontmatter-graph bullet; the fixup fan-out carries `mode="write"` with one epic file per unit; the `Critical path:` row illustrative and the template's example aligned to the producer's form; the four gates re-run; 539 lines; 676)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — deepseek errored on a DNS failure (the second network blip today); two of three returned, the floor met
+- gemini — CLEAN (41/41 rows; the H1/filename pins vs `check_review_coverage.py`; the Step 1.5 sequence; the `fanout("docs", units, …, mode="write")` signature).
+- qwen — CLEAN (5 rows; the refusal grade — non-owner-class findings incl. an empty dir; `mode="write"` vs `agent.py`; the four includes; "no unqualified disjointness assertions remain"; the launch forms; `_is_mega_report` keys).
+Native finder (opus): PENDING — appended when it returns.
 

@@ -75,5 +75,9 @@ Round 5 verdict: 3 raised → 3 routed (2 M, 1 L) — graders and one fail-direc
 
 ## Round 6 — over `2f982a5f..e71b89fc` (the round-5 fixup e71b89fc, 47/14 + 89/12: the two fail-closed tests assert their specific messages with a real absolute-header traversal fixture — B4 and N11 die; four tolerance-arm graders — N4/B3/B5/B10 die; `_unusable_owned` refuses absolute/`~`/`..`/`\`/`//`/`.`/`[seq]` entries naming the entry and the reason (six shapes red-first through the CLI); 424 passed across six suites, 58 + 0 skipped; both harnesses 6/6 dead; 131,466 fuzz pairs clean; 45/45 live shapes, 0 unusable)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 6.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — CLEAN (5 rows; the six unusable shapes refused; the four tolerance arms covered; mutants killed; two files).
+- gemini — CLEAN (`_unusable_owned` per shape with the "is unusable" message naming entry + reason incl. the json-escaped backslash; the specific fail-closed assertions killing N11 and B4; the four tolerance graders N4/B3/B5/B10; the matcher tests).
+- qwen — CLEAN (44 scenarios: 5 behaviours + 17 tolerance/robustness + 20 fixtures + parity + byte-identity).
+Native finder (opus): PENDING — appended when it returns.
 
