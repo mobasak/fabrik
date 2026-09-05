@@ -82,5 +82,9 @@ Round 6 verdict: 5 raised → 5 routed (2 M, 3 L) — graders and log hygiene; t
 
 ## Round 7 — over `9c35928f..ddadd86f` (the round-6 fixup 68a50d40 + ddadd86f: both guards graded by mutation (the parent-dir-unreadable guard; the `/tmp/wip-wt-*` trap — with a self-caught flake from the live cron's identical prefix fixed by snapshot-and-diff); the double-line log fixed; the denominator counts only admin dirs carrying `gitdir` while an unreadable child is conservatively counted (a self-caught regression of the compensating-miscount class); the witness mechanism dropped as unreachable once the completeness gate runs first; 40 passed over 20+ runs)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 7.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — 1 raised: the doc outside the Touches — UPHELD on the letter, ORCHESTRATOR-DIRECTED (round 5, the Doc Sync Matrix floor; declared in the coder's commit body; T16 records the mis-pointer); otherwise CLEAN (27 test functions; the four hunks).
+- gemini — CLEAN (each of the five round-6 items to its test; the witness absent from script and trap; the flake fix's residual risk stated — the test's own unique names + local origins bound it).
+- qwen — CLEAN (the four rows; the reaper fail-closed on incomplete enumeration; the witness gone; the grep-c fix; main-tree semantics untouched except log text).
+Native finder (opus): PENDING — appended when it returns.
 

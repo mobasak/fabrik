@@ -17,5 +17,9 @@ Round 1 verdict: 7 raised → 7 routed (4 M, 3 L); pool 3/3 CLEAN (qwen's `--exp
 
 ## Round 2 — over `6a5c5990..8bcdbbaa` (the round-1 fixup 8bcdbbaa, 34/19: the seven passages rewritten — Phase 2a for the post-T03b `--check`, the epic-proposal spec in the acting set feeding `--expected-count`, the OR routing, empty-vs-missing `--epics-dir`, the `## BLOCKED:` template slot proven through the real mega gate on both report states, the owner-body clause dropped, the review-twin sentence restored; the four gates re-run; 529 lines / 46,730 B; description 676) — the CLOSING round
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 2.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — CLEAN (5 rows; 2 DO-NOTs; 1 Touch; the four includes and no other `{{`; 0 HTML comments; 676 chars; present tense; the gates; the OR routing; empty/missing `--epics-dir`; the `## BLOCKED:` slot; the owner-body clause dropped; the review-twin sentence restored; the acting set with the epic-proposal spec).
+- gemini — CLEAN (the seven passages by hunk; the launch forms; the includes).
+- qwen — CLEAN (13 checks by hunk over all 528 lines).
+Native finder (opus): PENDING — appended when it returns.
 
