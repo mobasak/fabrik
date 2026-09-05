@@ -374,7 +374,8 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
     is installed.
 
     ⚠️ IT IS NOT A BETTER RECORD OF THE PAST — it is a better record of the PRESENT, and those are
-    different claims. Measured across all 112 overlapping days (2026-09-06): the transcripts hold a
+    different claims. Measured on the 111 days BOTH sources hold (2026-09-06; 112 days compared, the
+    union): the transcripts hold a
     MEDIAN 0.54x the extension's tokens per day, 186.8B against 298.1B in total, and the ratio climbs
     toward today — 0.7-0.9 over the last fortnight, 1.00 on 2026-09-02 where both sources were
     healthy. That gradient is the signature of TRANSCRIPT PRUNING: session files age out, so the
@@ -556,7 +557,7 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # is written whether or not any extension is.
     #
     # ⚠️ IT NEVER OVERWRITES A RECORDED DAY, and the measurement says so louder than caution would:
-    # across the 112 overlapping days the transcripts hold a MEDIAN 0.54x the extension's tokens
+    # across the 111 days BOTH sources hold the transcripts have a MEDIAN 0.54x the extension's tokens
     # (186.8B against 298.1B in total), because session files are PRUNED as they age. Re-deriving
     # history from them would not enrich the past, it would DELETE about 111B tokens of it. So a day
     # is written from transcripts only when NO extension record exists for it, or when the day was

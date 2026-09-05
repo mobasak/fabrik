@@ -211,3 +211,9 @@ mutants/
 /.fabrik/plan-locks/*-salvage-*.diff
 .ruff_cache/
 /nohup.out
+
+# The usage store's lock file — `claude_p_cost.merge_usage_store` flocks this to serialise the whole
+# read-modify-write, because the 06:00 cron and a hand-run `--refresh` are two processes that would
+# otherwise lose each other's updates. Pure runtime state: zero bytes, recreated on every merge, and
+# meaningless to any other checkout.
+/scripts/claude_usage_daily.json.lock

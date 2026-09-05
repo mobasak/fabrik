@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the collector's review: 160M tokens the dedup dropped, a UTC day boundary, and a store that could erode (2026-09-06)
+
+`/fabrik-review-scoped` on d81d9db1 (shipped as ce0e70fd). Five defects in the change, one in its
+paperwork.
+
+**The dedup was banking partial sightings.** Measured on the real tree, not reasoned about:
+1,240,230 usage records collapse to 554,811 keys — 55% are repeats — and **153,400 of those repeats
+disagree on their totals** (largest gap 1,008,284 tokens), because a message is re-serialised as its
+usage accrues. First-wins kept the partial and discarded the complete one: **159,866,901 tokens lost**
+across the tree. Max-wins now takes the largest sighting, booked to the day the call was FIRST seen,
+so a message re-serialised after local midnight cannot move spend between days.
+
+**Days were bucketed in UTC.** Transcripts stamp UTC, the box runs +03:00, and 14.2% of usage records
+fall in UTC 21:00–23:59 — already tomorrow locally. Every other date on that page is local, so
+roughly a seventh of each evening was filed under the previous day's calendar cell. The conversion
+costs 1.1s per walk against ~50s of I/O, measured before adopting it.
+
+**A stored day could shrink.** A transcript-sourced day is re-read every run so today can keep
+growing, and that same re-read erodes it once the day's session files are pruned — silently writing a
+smaller number over a total once measured in full. Usage cannot un-happen: the larger value stands.
+
+**The read-modify-write was unguarded.** `os.replace` prevents a torn file and does nothing about a
+lost update: two processes read 112 days, each adds a different one, and the second write erases the
+first. The 06:00 cron and a hand-run `--refresh` are exactly that pair, and one was run while the
+cron was armed. An `flock` now covers read to rename, failing open so a missing `fcntl` never blocks
+a merge.
+
+**The two guards interact**, which is what `_COLLECTOR_VERSION` is for: never-shrinks would otherwise
+freeze days computed under the old bucketing forever. A counting-rule change re-derives
+transcript-sourced days once — and only those, since an extension-sourced day cannot be re-derived
+from anything. Verified on the live store: 112 → 113 days, only 2026-09-05 (+1.25B, the recovered
+partials) and 2026-09-06 (new) changed, and the extension-sourced total is byte-identical at
+298,137,451,242 tokens.
+
+Two were process, not code. The "more complete than the extension" claim was **still in the shipped
+docstring** — the edit that fixed it raised before writing, and the commit message asserted the
+correction anyway. And three test names in d81d9db1 violated N802: the file was formatted but never
+`ruff check`ed, because it was untracked when the gate ran and the gate's own advisory said so.
+
+19 tests, up from 10, four proven red on revert. `_discrepancy` now publishes `_discrepancy_days`
+(111) — a 7-row sample with no denominator reads as the whole comparison.
+
+⚠️ ce0e70fd carries **no Agent Provenance Trailers**. The fleet quota veto rejected every multi-line
+commit body as a control-operator match and `Write` was held too, so `-F <file>` was unavailable —
+the trailers were refused by the hold, not omitted by choice. Filed for infra; `--amend` on a shared
+tree is not the remedy.
+
 ### Added — Phase A (hub side) of session-history retention: the archiver (2026-09-06)
 
 `scripts/sysadmin/archive_transcripts.py` compresses MAIN transcripts to zstd, records each in a
@@ -84,7 +131,7 @@ into new files — and counts subagent sidechain tokens, because they bill to th
 It rides the existing `--refresh` on the 06:00 cron; no new script, no new wiring.
 
 **It fills forward and never rewrites, and the measurement is what settles that.** Compared across
-all 112 overlapping days, the transcripts hold a **median 0.54x** the extension's tokens per day
+the 111 days BOTH sources hold, the transcripts have a **median 0.54x** the extension's tokens per day
 (186.8B against 298.1B in total), and the ratio climbs toward the present — 0.7-0.9 over the last
 fortnight, 1.00 on 2026-09-02 where both sources were healthy. That gradient is transcript PRUNING:
 session files age out, so the further back the walk reaches the less it finds. Re-deriving history

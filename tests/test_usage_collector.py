@@ -7,7 +7,7 @@ assistant message carries its own `usage` block — and they are written whether
 is installed.
 
 THE ASYMMETRY THIS SUITE PINS. The transcripts are a better record of the PRESENT and a WORSE one of
-the past: measured across all 112 overlapping days they hold a median 0.54x the extension's tokens
+the past: measured on the 111 days BOTH sources hold they have a median 0.54x the extension's tokens
 (186.8B vs 298.1B), because session files are pruned as they age. So the merge fills days the
 extension never recorded and NEVER rewrites one it did — re-deriving history from transcripts would
 delete ~111B tokens of it. The overlap is published as `_discrepancy` instead, and the corollary is

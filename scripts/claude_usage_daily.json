@@ -553,14 +553,19 @@
       "claude-haiku-4-5-20251001": 382156
     },
     "2026-09-05": {
-      "claude-opus-5": 8497496287,
-      "claude-fable-5-1": 1162815108,
-      "claude-sonnet-5": 1737023358,
+      "claude-opus-5": 9480673656,
+      "claude-fable-5-1": 1239223161,
+      "claude-sonnet-5": 1925308744,
       "claude-sonnet-4-6": 12055644
+    },
+    "2026-09-06": {
+      "claude-opus-5": 817811608,
+      "claude-fable-5-1": 117894462,
+      "claude-sonnet-5": 126261776
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-09-06T00:38:08+03:00",
+  "merged_at": "2026-09-06T01:12:49+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -673,37 +678,40 @@
     "2026-09-02": "extension",
     "2026-09-03": "extension",
     "2026-09-04": "extension",
-    "2026-09-05": "transcripts"
+    "2026-09-05": "transcripts",
+    "2026-09-06": "transcripts"
   },
   "_discrepancy": {
     "2026-08-29": {
       "extension": 9114327083,
-      "transcripts": 5556134207
+      "transcripts": 6187509632
     },
     "2026-08-30": {
       "extension": 5690264053,
-      "transcripts": 3123868085
+      "transcripts": 3800792328
     },
     "2026-08-31": {
       "extension": 5722954580,
-      "transcripts": 3543713344
+      "transcripts": 3766502582
     },
     "2026-09-01": {
       "extension": 1589061808,
-      "transcripts": 1774871581
+      "transcripts": 1969742245
     },
     "2026-09-02": {
       "extension": 9047971726,
-      "transcripts": 9049989613
+      "transcripts": 7295720039
     },
     "2026-09-03": {
       "extension": 7905971878,
-      "transcripts": 6040904695
+      "transcripts": 7790999793
     },
     "2026-09-04": {
       "extension": 1164249864,
-      "transcripts": 4038430897
+      "transcripts": 2240261408
     }
   },
-  "transcript_source": "/home/ozgur/.claude/projects"
+  "transcript_source": "/home/ozgur/.claude/projects",
+  "_discrepancy_days": 111,
+  "collector_version": 2
 }
