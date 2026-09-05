@@ -81,12 +81,13 @@ Ledger: D-126 (minted in this change)
 - **Given** the emitted module with a capturing transport, **When** a route raises with the six secrets in play, **Then** the serialized ERROR event contains none of them (substring search over the whole event).
 - **Given** `traces_sample_rate=1.0`, **When** the request completes, **Then** the captured TRANSACTION event contains none of them either (`before_send_transaction` is registered; `client.py:917-922` skips `before_send` for transactions).
 - **Given** a `logger.error("otp=%s", secret)`, **When** captured, **Then** `logentry == {"message": "otp=%s"}` — the template, never the interpolation; and no breadcrumb carries it.
-- **Given** the current inline literal (the two-flag init at `src/fabrik/scaffold.py:1678-1735`), **When** the same assertions run against it, **Then** they are RED — recorded in the ticket's review artifact as the watched fail.
+- **Given** the current inline literal extracted to `/tmp/old_glitchtip_init.py`, **When** `GLITCHTIP_GUARD_MODULE=/tmp/old_glitchtip_init.py python -m pytest … -k captured_event` runs, **Then** it is RED — the failing assertion names recorded in the ticket's review artifact as the watched fail.
 - **Given** the Node emitter, **When** the existing two Node assertions run, **Then** they still pass (unchanged surface).
 - **Given** the hub `.venv` (T01 installed the dev extras), **When** the guard imports the template module, **Then** `init_glitchtip()` returns True and `sentry_sdk.VERSION` is printed — a False (the ImportError path) fails the test.
 - **Given** T01's template tests in the same file, **When** T03 merges, **Then** they are byte-identical (the diff touches only the two replaced tests and the additions).
 - **Given** the rewritten section, **When** read, **Then** the words "deny-by-default", "leaf", "before_send_transaction", "max_breadcrumbs=0" and "include_source_context=False" each appear, and "Two init flags are MANDATORY" is reframed as the floor.
 - **Given** the Node paragraph (`.windsurf/rules/core/55-observability.md:246-254`), **When** diffed, **Then** it is byte-identical (the asymmetry correction of 2026-08-28 is not touched).
+- **Given** the header paragraph (`:256-260`), **When** read, **Then** it no longer says the header channel is closed by the SDK alone; it names the seven-name limit and the allowlist.
 - **Given** the back-fill sentence, **When** read, **Then** it names the template path and the vendoring step, and no longer says "as of 2026-08-28 … add them".
 - **Given** the 7 types with no Sentry init, **When** the section is read from one of their repos, **Then** one sentence says the section does not apply to them.
 

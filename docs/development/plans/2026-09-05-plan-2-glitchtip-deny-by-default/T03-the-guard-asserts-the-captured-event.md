@@ -13,7 +13,7 @@ print(len(m.group(1)), 'chars')
 PY
 ```
 
-(the literal opens MID-LINE at `src/fabrik/scaffold.py:1678` and closes at `:1737`, so a line-range `sed` drops the docstring opener and the last two lines — proven: the regex extract is 2,830 chars and parses; the range extract did not) — and seen RED — recorded in the ticket's review artifact; that red is the proof this guard tests something.
+(the literal opens MID-LINE at `src/fabrik/scaffold.py:1678` and closes at `:1737`, so a line-range `sed` drops the docstring opener and the last two lines — proven: the regex extract is 2,830 chars and parses; the range extract did not). HOW the assertions are pointed at it: the guard loads its module from the path in `GLITCHTIP_GUARD_MODULE` (default: the substituted template in `tmp_path`), so the watched fail is `GLITCHTIP_GUARD_MODULE=/tmp/old_glitchtip_init.py python -m pytest tests/test_scaffold_glitchtip_security.py -q -k captured_event` — expected RED on the locals/body/URL/logentry/breadcrumb assertions (the old init has no scrubber); the failing assertion names are pasted into this ticket's review artifact as the watched-fail record — and seen RED — recorded in the ticket's review artifact; that red is the proof this guard tests something.
 
 Owner: infra
 Depends: T01
@@ -31,7 +31,7 @@ Docs: CHANGELOG.md — orchestrator-applied
 - **Given** the emitted module with a capturing transport, **When** a route raises with the six secrets in play, **Then** the serialized ERROR event contains none of them (substring search over the whole event).
 - **Given** `traces_sample_rate=1.0`, **When** the request completes, **Then** the captured TRANSACTION event contains none of them either (`before_send_transaction` is registered; `client.py:917-922` skips `before_send` for transactions).
 - **Given** a `logger.error("otp=%s", secret)`, **When** captured, **Then** `logentry == {"message": "otp=%s"}` — the template, never the interpolation; and no breadcrumb carries it.
-- **Given** the current inline literal (the two-flag init at `src/fabrik/scaffold.py:1678-1735`), **When** the same assertions run against it, **Then** they are RED — recorded in the ticket's review artifact as the watched fail.
+- **Given** the current inline literal extracted to `/tmp/old_glitchtip_init.py`, **When** `GLITCHTIP_GUARD_MODULE=/tmp/old_glitchtip_init.py python -m pytest … -k captured_event` runs, **Then** it is RED — the failing assertion names recorded in the ticket's review artifact as the watched fail.
 - **Given** the Node emitter, **When** the existing two Node assertions run, **Then** they still pass (unchanged surface).
 - **Given** the hub `.venv` (T01 installed the dev extras), **When** the guard imports the template module, **Then** `init_glitchtip()` returns True and `sentry_sdk.VERSION` is printed — a False (the ImportError path) fails the test.
 - **Given** T01's template tests in the same file, **When** T03 merges, **Then** they are byte-identical (the diff touches only the two replaced tests and the additions).
