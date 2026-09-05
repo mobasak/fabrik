@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review of 3833fb16, pass 3: the D-035 header qualifier is lazy, so a colon inside dashed content is content (2026-09-05)
+
+`WHY — see: x` was reported as a missing section: the greedy qualifier `[^:\\n`]{0,120}` ran past the
+` — ` and took the `:` inside the content as the separator, leaving one character as the section.
+The qualifier is lazy now — the earliest separator wins — for both the per-key header and the
+section-bounding `any_header`. Grader red on revert; the full fresh sweep (pool 5 of 5 + execution
+over add/modify/rename/delete/intent-to-add and a staged archive) found nothing else.
+
 ### Fixed — review of 3833fb16, pass 2: an empty index blob (`git add -N`) sends the `models.py` probe to the working tree; suffix case asserted (2026-09-05)
 
 `git show :path` returns the EMPTY blob with rc 0 for an intent-to-add entry, and the pass-1 staged

@@ -179,5 +179,8 @@ def test_a_header_ending_in_a_spaced_dash_is_a_header():
     assert m._structure_gaps("finding", dashed) == []
     en = dashed.replace(" — ", " – ")
     assert m._structure_gaps("finding", en) == []
+    # the EARLIEST separator wins: a colon inside dashed content is content (review pass 3)
+    colon_inside = dashed.replace("WHY — content for WHY", "WHY — see: the measured cause")
+    assert m._structure_gaps("finding", colon_inside) == []
     glued = "\n".join(f"{k}-content" for k in m._STRUCTURE_KEYS)
     assert set(m._structure_gaps("finding", glued)) == set(m._STRUCTURE_KEYS)
