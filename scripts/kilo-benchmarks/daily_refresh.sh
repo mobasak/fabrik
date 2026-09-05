@@ -155,6 +155,16 @@ fi
   _step "flush_subagent_outboxes" "$VENV_PY" "$KB/flush_subagent_outboxes.py" \
     || echo "[daily_refresh] outbox flush errored (non-fatal, fail-open by design)"
 
+  # C2 — rebuild the cost sidecar BEFORE the ranking regen below, which renders ② into
+  # TASK_SUBAGENT_SELECTION.md. Wired AFTER it, the doc carries yesterday's rate for a full cycle.
+  # C3 — non-fatal by design: a cost sidecar is context, never a reason to red the daily refresh. But
+  # the failure must be VISIBLE, because a silent one recreates the fossil this whole plan exists to
+  # end — `claude_p_cost.json` sat 26 days stale at a rate 17% low precisely because nothing rebuilt it
+  # and nothing said so. Phase B's reader now marks a sidecar older than 24h as STALE, so a run that
+  # stops firing surfaces in the selection doc within a day even if this line is missed.
+  _step "claude_p_cost_refresh" "$VENV_PY" "$FABRIK_ROOT/scripts/claude_p_cost.py" --refresh \
+    || echo "[daily_refresh] cost sidecar refresh FAILED (non-fatal) — ② renders STALE until it runs"
+
   # A5 — regenerate the subagent ranking. ⚠️ This step DID NOT EXIST until 2026-09-02, which is a
   # larger finding than the step: `rank_task_subagents.py` appeared exactly once in this file's 493
   # lines, inside a COMMENT, so the ranking that drives `pick_models` FLEET-WIDE was regenerated only

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the cost sidecar has a window, says when it is stale, and rebuilds itself (2026-09-05)
+
+`scripts/kilo-benchmarks/claude_p_cost.json` was a point estimate with no period: four keys, a
+`built_at` 26 days old, and nothing on any schedule that rebuilt it. Every consumer read a fossil as
+current, and the fossil was 17.1% low. Three phases of
+`docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md`:
+
+- **A** — `claude_p_cost.refresh()` now authors the rate *and the window it came from*
+  (`window_start`, `window_end`, `accounts`, `spend_usd`, `tokens`), and CARRIES FORWARD every key it
+  did not author. It previously full-overwrote the file with three keys, destroying
+  `amortized_per_mtok_by_family` on every run — a live data-loss bug, now guarded by a round-trip
+  test. Fable 5.1's 2.5% cache-read rate is expressible per-model rather than per-family, because a
+  family-level override would have mispriced the 76.3% of fable-tier tokens that are Fable 5.
+- **B** — `rank_task_subagents.py` renders the window beside the rate and marks a sidecar older than
+  24h as **STALE**, so the fail-soft readers can no longer make a fossil and a fresh rate look
+  identical.
+- **C** — `daily_refresh.sh` (06:00) rebuilds it, ordered *before* the ranking regen it feeds, and
+  `scripts/enforcement/_check_refresh_before_ranker.py` holds that order. The regenerated sidecar
+  joins the pipeline's auto-commit stage list: `refresh()` restamps `built_at` every run, so without
+  that the cron would leave a tracked file dirty daily on a tree three sessions share.
+
 ### Fixed — the sync's safety-floor failure named the wrong CAUSE, sending the operator where the fix cannot be (2026-09-05)
 
 Routed to fleet by infra as `01M1RFZE951JMZDA4BY07HT0Q5`: the governance sync exits 1 on `/opt/proxy`

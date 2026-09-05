@@ -104,6 +104,13 @@ PATHS=(
   docs/CAPABILITIES.md
   capabilities.json
   docs/traycer/kilo_selected_agents.md
+  # Added with the Phase-C cadence (2026-09-05, intel): daily_refresh.sh now rebuilds this sidecar
+  # before the ranker, and `refresh()` restamps `built_at` on EVERY run — so without this line the
+  # cron dirties a TRACKED file at 06:00 daily and nothing ever commits it, on a tree three
+  # sessions share. Measured, not assumed: one --refresh run leaves `1 1` in --numstat. Undated
+  # (JSON, no `Last refresh:` header), so the freshness guard fails open on it exactly as it does
+  # for capabilities.json — the denominator paragraph in guard_selection_freshness.py counts it.
+  scripts/kilo-benchmarks/claude_p_cost.json
 )
 
 # Phase-D commit-half restoration (2026-08-30, intel — routed via 01M17CKG): the ai-model-catalog

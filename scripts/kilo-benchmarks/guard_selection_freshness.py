@@ -26,11 +26,11 @@ sibling ``stage_ai_rule_renders.py``; a genuine crash exits non-zero so the call
 
 ⚠️ COVERAGE IS PARTIAL, AND THE DENOMINATOR IS COUNTED, NOT ESTIMATED (review 2026-09-02,
 findings 5 + 8 — the first statement of this paragraph got BOTH halves wrong). Measured by
-grepping the three header shapes across the real stage list: **7 of 12 static paths** and **7 of
-11 ai-render packs** carry a date and are guarded. The 5 undated static paths —
+grepping the three header shapes across the real stage list: **7 of 13 static paths** and **7 of
+11 ai-render packs** carry a date and are guarded. The 6 undated static paths —
 `docs/CAPABILITIES.md`, `capabilities.json`, `docs/traycer/kilo_selected_agents.md`,
-`KILO_MODEL_CAPABILITIES.md`, `KILO_AGENT_SELECTION_GUIDE.md` — and the 4 undated packs fail open
-by construction. ⚠️ The static count is GRADED, not asserted: it first read "7 of 13" because it
+`KILO_MODEL_CAPABILITIES.md`, `KILO_AGENT_SELECTION_GUIDE.md`, `claude_p_cost.json`
+— and the 4 undated packs fail open by construction. ⚠️ The static count is GRADED, not asserted: it first read "7 of 13" because it
 counted a `scripts/service_catalog.json` line a sibling held uncommitted in the worktree and never
 landed — a denominator read off a shared tree instead of off HEAD. The wiring test
 `test_the_docstring_denominator_matches_the_real_stage_list` re-derives both numbers from the
@@ -130,12 +130,18 @@ def head_text(rel: str, repo: Path | None = None) -> str | None:
             # output. Reproduced 2026-09-02: a single 0xA0 in the COMMITTED copy let a stale doc
             # through — the 2026-08-29 incident reproducing with the fix installed. The worktree side
             # (`is_regression`) already used utf-8-sig/ignore; this side was asymmetric.
-            capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=30,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=30,
         )
     except Exception as exc:  # noqa: BLE001 — fail-open is the contract; SILENCE was the defect
         # A publisher that fails open INVISIBLY is how the incident lasted four days. Keep the
         # fail-open, lose the silence.
-        print(f"[freshness-guard] {rel}: HEAD lookup failed ({exc!r}) — keeping it", file=sys.stderr)
+        print(
+            f"[freshness-guard] {rel}: HEAD lookup failed ({exc!r}) — keeping it", file=sys.stderr
+        )
         return None
     return p.stdout if p.returncode == 0 else None
 

@@ -45,7 +45,7 @@
   (daily 04:00/04:05) + financials (weekly), fabrik audits (`audit_all_registrars` hourly,
   `audit_authelia_gates` weekly via the wake-proof `weekly_catchup.sh` hourly stamp-check at :07),
   `ci_fix_dispatcher` (hourly :40), `sync-claude-accounts-to-fleet`
-  (every 6 h), `daily_refresh.sh` (06:00 — since 2026-09-02 it also runs `flush_subagent_outboxes` then `rank_task_subagents`; the ranking regen had NEVER been scheduled, so the doc that drives `pick_models` fleet-wide only refreshed when a human ran it) + `kilo_model_sync` (11:59), DR (`dr_env_backup` 03:30 + Sun 04:00
+  (every 6 h), `daily_refresh.sh` (06:00 — since 2026-09-02 it also runs `flush_subagent_outboxes` then `rank_task_subagents`; the ranking regen had NEVER been scheduled, so the doc that drives `pick_models` fleet-wide only refreshed when a human ran it — and since 2026-09-05 `claude_p_cost.py --refresh` runs FIRST of the three, because the ranker renders its rate and a rebuild wired after it would publish yesterday's figure for a full cycle; that sidecar had sat 26 days stale at a rate 17% low) + `kilo_model_sync` (11:59), DR (`dr_env_backup` 03:30 + Sun 04:00
   recovery test), `cache-prune.sh` (Sun 03:00), calendar-orchestration (Sun 02:00), site-provisioner
   watchlist/drop-feed/dns-recheck, trade-intelligence GTIP refresh (05:30), headless-Claude session prune (05:17),
   Claude account rotation (`claude_rotate --tick` every 5 min; `--keepalive` Mon 06:20), quota dashboard
