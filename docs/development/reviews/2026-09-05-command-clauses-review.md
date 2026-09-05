@@ -136,10 +136,10 @@ Adjudicated by execution (AST on the gate's Sizing loop, grep over the command, 
 
 | Row | Verdict | Evidence |
 |---|---|---|
-| FLOOR core/35-security-auth | CLEAN | no auth or secret surface — two markdown command sources |
-| FLOOR core/25-data-postgres | CLEAN | no data surface |
-| FLOOR core/30-ops | CLEAN | no deploy surface |
-| FLOOR 12-FACTOR | CLEAN | no configuration surface |
+| FLOOR core/35-security-auth | CLEAN | hunted `commands/_sources/fabrik-plan-after-chat.md` and `commands/_sources/fabrik-review-scoped.md` for auth/secret/credential vocabulary — 0 hits in the changed hunks; two markdown command sources, no code |
+| FLOOR core/25-data-postgres | CLEAN | hunted the same two files for DB/DSN/migration vocabulary — 0 hits in the changed hunks |
+| FLOOR core/30-ops | CLEAN | hunted the same two files for compose/port/memory-limit vocabulary — 0 hits in the changed hunks |
+| FLOOR 12-FACTOR | CLEAN | hunted `commands/_sources/fabrik-plan-after-chat.md` and `commands/_sources/fabrik-review-scoped.md` for env/config/localhost vocabulary — 0 hits in the changed hunks |
 | MATCHED core/40-documentation | FIXED | every sentence describing the Integration ticket now agrees with the gate (exempt from the READ budget, the citation floor AND both row caps — `if t.integration: continue` heads the Sizing loop 1356–1465, proven by AST after a wrong "correction" of mine); its Touches definition admits an indivisible over-budget file or capability bundle (the hub's glitchtip plan owned `scaffold.py` that way); the isolation-simulation "split anyway" rule carves the bundle out; "the only non-self-service sizing case" → one of two; the `## Touches is literally the artifact` sentence admits the bundle |
 | standing: fail-open/fail-closed | REFUTED | "two indivisible bundles deadlock the plan" — the second is a named BLOCKING unknown and the recourse is now stated beside it: two plan sets, one capability each |
 | standing: cost/quota accounting | CLEAN | pool: 3 trios + earlier singles, every unit recorded; native readers ×4 across the scoped and full runs |
