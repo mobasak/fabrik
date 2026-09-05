@@ -93,5 +93,9 @@ Round 6 verdict: 7 raised → 7 routed (1 H, 4 M, 2 L); pool 2 CLEAN + deepseek'
 
 ## Round 7 — over `5fd58526..48b463fe` (5 files; the round-6 fixup as an untrailered checkpoint 9200310a under the quota hold + the trailered 48b463fe naming it: the prune requires the hash proof; the refresh-path backup relocated; the atomic ledger write; the doc fence split; per-item OSError isolation in both loops; the manifest header; the `Would patch .gitignore` preview — live: 45 of 45 on the first sweep; five fixtures moved to real hashes; 50 + 40 green; every grader red on 89b4252b)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 7.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — `status=error`, 0 chars (the zero-output unit class iterative_image_editor filed 01M1R…; the floor of one returned reader is met by the other two; not relaunched — the native layer is the authoritative sweep this round).
+- gemini — CLEAN (the hash-match prune :2287; the atomic write :2130; backups under `.fabrik/backups/worktrees/` on both paths :2167/:2263; per-item isolation :2334; the two fleet-wide writes disclosed under dry-run :1704/:2407; the summary line survives the wrapper's `tail -3`; the settings block).
+- qwen — CLEAN (4 rows to tests; DO-NOTs; the 67-test suite covering the 20+ historical defect scenarios incl. the round-6 prune regression and the atomic write).
+Native finder (opus): PENDING — appended when it returns.
 

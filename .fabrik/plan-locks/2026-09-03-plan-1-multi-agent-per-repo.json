@@ -208,12 +208,12 @@
       "head": "e9b84dc7"
     },
     "T05b": {
-      "state": "fixup-round-1",
+      "state": "review-round-2",
       "agent": "a12d480b915acc0ef",
       "branch": "worktree-agent-a12d480b915acc0ef",
-      "updated": "2026-09-05T15:48:55+00:00",
+      "updated": "2026-09-05T15:51:10+00:00",
       "base": "28de4900",
-      "head": "fdb373a9"
+      "head": "3836b8e7"
     },
     "T06c": {
       "state": "review-round-1",
