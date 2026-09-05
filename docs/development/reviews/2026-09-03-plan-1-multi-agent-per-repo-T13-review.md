@@ -71,5 +71,9 @@ Round 5 verdict: 5 raised → 5 routed (4 M, 1 L); pool 3/3 CLEAN missed the tru
 
 ## Round 6 — over `9c35928f..3d9c5b2c` (89,056 B; 3 files — `docs/workstation/wip-backup-safety-net.md` declared as the third; the round-5 fixup: the enumeration captured with git's exit status and a completeness check (real-git chmod-000 fixture → "enumeration incomplete: 1 of 2", ref survives; the exit-128 shim → "worktree list exited non-zero"), the push-queue mktemp failure logged and the guard testing `!= /dev/null`, the doc's worktree namespace + recovery + expiry + SIGKILL sweep, the header's two exact prefixes, `$repo_real` in main-tree log text; a first exit-128 fixture that passed on the baseline for the wrong reason (dated ref not aged) self-caught and fixed; 37 passed)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 6.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — the first launch died at `model_start` on the same network blip as T05a's; relaunched
+- deepseek — 2 raised: "the doc is outside the Touches" — UPHELD on the letter, ORCHESTRATOR-DIRECTED (round 5 routed the wip-net doc into T13 under the Doc Sync Matrix floor because the ticket's Docs row pointed at T15, which does not own it; declared in the coder's commit body; T16 records the mis-pointer); "row 2's 'main snapshot byte-identical to a run without the worktree' has no test asserting the main snapshot" — a coverage claim put to the native finder (round 5 proved base-vs-branch identical trees/commits/refs on the main-tree path by execution; whether a TEST pins it is the question).
+- gemini — CLEAN (the completeness guard :343-360 incl. the absent-vs-unreadable admin dir; the capture + `wt_enum_ok`; the push-queue guard `!= /dev/null` with one line; all five temp files in the top-level trap; the doc's namespace, recovery and sweep note; the two new fail-closed tests named).
+- qwen — CLEAN (rows 1–4 by line and test; 22 new tests; the five-temp-file SIGTERM cleanup; symlinked roots; store-wide live tracking).
+Native finder (opus): PENDING — appended when it returns.
 
