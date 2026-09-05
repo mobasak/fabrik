@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the quota drain broadcast now names WHEN the next account is available, +2 minutes (2026-09-05)
+
+Operator rule this session: when every account is walled and the fleet is told to stop, the message
+must say when the next account becomes available, with a date and time, and the resume instant is
+the reset **+2 minutes** (was +1).
+
+Two defects fixed alongside the number. The message computed its only timestamp from `reset + lead`
+and then described it as when the window *"resets"* — so the one instant a stopped repo acts on
+disagreed with its own label, by exactly the lead. It now states BOTH, each labelled:
+`NEXT ACCOUNT AVAILABLE: <acct> — its <window> window resets at <T> … RESUME AT <T+2m>, epoch <N>`.
+
+And the lead was three independent `+ 60` literals — the message text, the wall-latch stamp's
+CONTENT (which `_promised_resume` compares against `now` to re-arm when a promise comes due), and
+the ledger's `resume_epoch`. Changing one and not the others would have made the fleet re-arm at a
+different instant than the one it promised, with nothing to catch it. All three now read
+`_drain_resume_lead_s()` (`ROTATE_DRAIN_RESUME_LEAD_S`, default 120), and a mirror-guard test pins
+that they cannot drift: it sets the lead to a non-default 300 and asserts the message and the
+stamp `_promised_resume` reads agree. Both tests seen RED on the reverted file; 82 pass.
+
+No new auto-switch mechanism was built, deliberately. The tick already flips to a sibling with
+headroom (`*/5` cron; it flipped can@ → sarp@ today), and the one recorded failure — 10h41m walled
+on 2026-09-04 — had a named root cause since fixed: `_ping_slots` starved the last-sorted account
+of refresh pings, so `_validated_pick` (which refuses any reading older than 60m) could not see the
+one account that had headroom. Serving the stalest reading first cannot starve. Building a second
+switcher on top would have been duplicate machinery over a fixed defect.
+
 ### Added — the prompt router routes to /fabrik-vision, /fabrik-epics and /fabrik-epics-review (2026-09-05)
 - **What:** `.claude/hooks/skill_router.py` (fleet-synced) gains the three stems in `STEM_SKILLS` + `KEYWORD_STEMS`, placed above `spec`/`plan` and below `spec-review`/`conformance`; intent collocations only — over 10,599 real operator prompts the verdict changes on one; TR forms included, the existential `vizyon … var` deliberately not. 76 new tests incl. a 55-row routing snapshot against the base router; `tests/test_skill_router_hook.py`: 245 passed.
 - **Where:** `.claude/hooks/skill_router.py`, `tests/test_skill_router_hook.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T07b).

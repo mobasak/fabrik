@@ -1446,3 +1446,46 @@ def test_a_trip_flip_is_never_held_by_the_dwell(monkeypatch, tmp_path):
     cr._fleet_flip_leg([], [_ob(10.0, 80.0)], threshold=98.0)            # the weekly cap (80)
     assert [c["slug"] for c in calls] == ["sarp", "sarp"]
     assert all(c.get("ignore_dwell") is True for c in calls), calls
+
+
+def test_drain_message_names_reset_and_resume_two_minutes_apart(monkeypatch):
+    """Operator rule 2026-09-05: the stop-everything broadcast must tell every repo WHEN the
+    next account becomes available, with a date and time, resuming +2 minutes after the reset.
+
+    Two distinct instants, each labelled for what it is. The message this replaces computed its
+    only timestamp from reset+lead and then called it the moment the window "resets", so the
+    number a stopped repo acted on contradicted its own label."""
+    monkeypatch.delenv("ROTATE_DRAIN_RESUME_LEAD_S", raising=False)
+    reset = 1788612000.0                       # a fixed reset instant
+    msg = cr._urgent_drain_message("live@test", "session 90% consumed",
+                                   (reset, "next@test", "5-hour"))
+    assert cr._drain_resume_lead_s() == 120, "operator rule is +2 minutes, not +1"
+    assert f"epoch {int(reset) + 120}" in msg, msg
+    assert "NEXT ACCOUNT AVAILABLE: next@test" in msg
+    assert "2 minutes after the reset" in msg
+    # the RESET instant must appear too, and must NOT be the resume instant
+    from datetime import UTC, datetime
+    reset_utc = datetime.fromtimestamp(reset, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    resume_utc = datetime.fromtimestamp(reset + 120, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert reset_utc in msg and resume_utc in msg, "both instants must be stated"
+    assert reset_utc != resume_utc
+
+
+def test_promised_resume_and_message_cannot_drift_apart(monkeypatch, tmp_path):
+    """THE MIRROR GUARD. The resume instant lives in three places — the message text, the latch
+    stamp's CONTENT (which `_promised_resume` compares against `now` to decide the fleet has
+    been left waiting on a promise that came due), and the ledger's `resume_epoch`. They were
+    three independent `+ 60` literals. If they disagree, the fleet is told one time and re-armed
+    at another, and no existing test would notice."""
+    monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "300")   # deliberately not the default
+    reset = 1788612000.0
+    lead = cr._drain_resume_lead_s()
+    assert lead == 300, "the lead must be a single overridable source, not a literal"
+    msg = cr._urgent_drain_message("live@test", "walled", (reset, "next@test", "5-hour"))
+    assert f"epoch {int(reset) + lead}" in msg, "message ignored the single source"
+    # the stamp the latch writes must promise the SAME instant the message named
+    stamp = tmp_path / "wall.stamp"
+    stamp.write_text(str(int(reset) + lead), encoding="utf-8")
+    import os as _os
+    _os.utime(stamp, (reset - 1, reset - 1))                  # written before the promise
+    assert cr._promised_resume(stamp) == float(int(reset) + lead)

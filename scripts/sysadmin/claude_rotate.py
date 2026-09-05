@@ -3785,7 +3785,9 @@ def _touch_refresh_stamp(email: str) -> None:
         pass  # a lost stamp costs one extra ping next tick, never the status itself
 
 
-_TICK_BURN_MAX_AGE_S = 900.0  # three tick intervals: an older memory says nothing about the next 5 min
+_TICK_BURN_MAX_AGE_S = (
+    900.0  # three tick intervals: an older memory says nothing about the next 5 min
+)
 
 
 def _tick_burn(email: str, row: dict, now: float) -> dict[str, float]:
@@ -3931,7 +3933,9 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # cap-only trip; the hottest window when the ordinary threshold fired (legacy shape kept).
     cap_only = cap_trip and not ordinary_trip
     at_pct = utils["seven_day"] if cap_only else hot
-    projected = " (projected — reading + burn since the last tick)" if max(burn.values()) > 0 else ""
+    projected = (
+        " (projected — reading + burn since the last tick)" if max(burn.values()) > 0 else ""
+    )
     at_desc = (
         f"at weekly {utils['seven_day']:.0f}% ≥ cap {cap} (operator reserve, caps.json){projected}"
         if cap_only
@@ -4082,7 +4086,26 @@ def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) ->
     return "it has no readable quota figure"
 
 
-def _urgent_drain_message(active_email: str, reason: str, relief: tuple[float, str, str] | None) -> str:
+def _drain_resume_lead_s() -> int:
+    """Seconds AFTER a window reset that the drain message names as the resume instant.
+
+    **120 (operator rule 2026-09-05: "we must inform them when will be the next account
+    available with date and time +2 minute").** It was 60, and one minute is thin: a reset is
+    the instant the window *rolls*, not the instant a fresh reading proves it rolled, and the
+    tick that must observe the new headroom runs every 5 minutes. Two minutes buys a margin
+    without making anyone wait meaningfully longer.
+
+    ⚠️ THIS VALUE IS READ IN THREE PLACES and they must agree: the message text, the latch
+    stamp's CONTENT (which `_promised_resume` compares against `now` to re-arm), and the
+    ledger's `resume_epoch`. They were three separate `+ 60` literals; a change to one and not
+    the others would make the fleet re-arm at a different instant than the one it promised, and
+    nothing would have caught it. ``ROTATE_DRAIN_RESUME_LEAD_S`` overrides."""
+    return int(_env_float("ROTATE_DRAIN_RESUME_LEAD_S", 120.0))
+
+
+def _urgent_drain_message(
+    active_email: str, reason: str, relief: tuple[float, str, str] | None
+) -> str:
     """The operator's wording, with the concrete time the repos must hook themselves to."""
     head = (
         f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
@@ -4103,12 +4126,20 @@ def _urgent_drain_message(active_email: str, reason: str, relief: tuple[float, s
             f"operator or re-check the quota board ({board}) before resuming."
         )
     epoch, email, window = relief
-    resume = int(epoch) + 60
+    lead = _drain_resume_lead_s()
+    resume = int(epoch) + lead
+    # BOTH instants, labelled for what they are. The old message computed these strings from
+    # `resume` and then described them as when the window "resets" — off by the lead, so the
+    # one number a stopped repo acts on disagreed with its own label.
+    reset_local = datetime.fromtimestamp(epoch).strftime("%a %d %b %H:%M %Z").strip()
+    reset_utc = datetime.fromtimestamp(epoch, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
     utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return head + (
-        f" NEXT WINDOW: {email}'s {window} window resets at {local} (UTC {utc}); the earliest "
-        f"sensible resume is one minute later, epoch {resume}."
+        f" NEXT ACCOUNT AVAILABLE: {email} — its {window} window resets at {reset_local}"
+        f" (UTC {reset_utc}). RESUME AT {local} (UTC {utc}), epoch {resume} —"
+        f" {lead // 60} minutes after the reset, so the window is genuinely open rather than"
+        " merely due."
         " ⚠️ A FOLLOW-UP NOTICE IS THE MECHANISM — another message like this one will arrive"
         " carrying the next time to try, and that is what wakes you. A self-scheduled timer is a"
         " COURTESY, not coverage: a background `sleep` is session-scoped and dies with the very"
@@ -4201,7 +4232,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     try:
         # CONTENT = the resume epoch this message promised, so the latch can re-arm when the
         # promise comes due (see _promised_resume). "0" when no relief time could be given.
-        stamp.write_text(str(int(relief[0]) + 60 if relief else 0), encoding="utf-8")
+        stamp.write_text(
+            str(int(relief[0]) + _drain_resume_lead_s() if relief else 0), encoding="utf-8"
+        )
         os.utime(stamp, (now, now))
     except OSError:
         pass
@@ -4212,7 +4245,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             "account": row["email"],
             "at_pct": hot,
             "tier": "walled" if walled else "urgent-90",
-            "resume_epoch": (int(relief[0]) + 60) if relief else None,
+            "resume_epoch": (int(relief[0]) + _drain_resume_lead_s()) if relief else None,
         }
     )
     print(
