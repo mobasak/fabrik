@@ -78,7 +78,9 @@ def _cache_for(ratios: dict, model_id: str) -> dict:
     m = _model_key(str(model_id))
     best: str | None = None
     for prefix in ratios.get("_model_cache") or {}:
-        rest = m[len(prefix) :] if m.startswith(prefix.lower()) else None
+        # BOTH sides through `_model_key` — mirrors `claude_p_cost._cache_multipliers`.
+        key = _model_key(prefix)
+        rest = m[len(key) :] if m.startswith(key) else None
         # SEGMENT boundary, not a bare prefix: `claude-fable-5-1` must not swallow a future
         # `claude-fable-5-10`, which would hand a different model Fable 5.1's 2.5% rate — a 4x
         # UNDERprice, the exact mirror of the bug the override closed. A real suffix always begins

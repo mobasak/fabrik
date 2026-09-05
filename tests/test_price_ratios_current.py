@@ -227,11 +227,41 @@ def test_both_producers_use_the_same_window_length() -> None:
         accounts.mkdir()
         (accounts / "a").mkdir()
 
-        # derive_cost: the rate is spend / tokens, so an over-wide window makes the rate collapse
-        rate = dc.amortized_rate(usage_history_path=hist, accounts_dir=accounts)
+        approx = __import__("pytest").approx
         expected_tokens = 2 * inside
+
+        # (a) derive_cost.amortized_rate — the rate is spend / tokens, so an over-wide window collapses it
+        rate = dc.amortized_rate(usage_history_path=hist, accounts_dir=accounts)
         expected = dc._SUBSCRIPTION_USD_PER_ACCOUNT / expected_tokens
-        assert rate == __import__("pytest").approx(expected, rel=1e-9), (
-            f"derive_cost counted {dc._SUBSCRIPTION_USD_PER_ACCOUNT / rate:.0f} tokens, expected "
+        assert rate == approx(expected, rel=1e-9), (
+            f"amortized_rate counted {dc._SUBSCRIPTION_USD_PER_ACCOUNT / rate:.0f} tokens, expected "
             f"{expected_tokens} — its window spans a different number of dates than claude_p_cost's"
         )
+
+        # (b) derive_cost.amortized_by_family — the SECOND site, and the one that produces the sidecar's
+        # family split. Round 5 changed both lines and graded only (a); reverting THIS one to the 31-date
+        # window left 43 of 43 tests green, which is how the same bug survived a round in the first place.
+        fam = dc.amortized_by_family(usage_history_path=hist, accounts_dir=accounts)
+        assert set(fam) == {"opus"}, fam
+        # value/raw for a single priced family collapses to the effective rate x discount, and the
+        # discount's denominator is the window's api-equiv value — an extra day changes it measurably.
+        wide_history = dict(history["days"])
+        narrow = {"days": {k: v for k, v in wide_history.items() if k != day(cpc._MONTHLY_DAYS)}}
+        hist_narrow = tdp / "narrow.json"
+        hist_narrow.write_text(_json.dumps(narrow), encoding="utf-8")
+        fam_narrow = dc.amortized_by_family(usage_history_path=hist_narrow, accounts_dir=accounts)
+        assert fam["opus"] == approx(fam_narrow["opus"], rel=1e-9), (
+            "amortized_by_family counted the out-of-window day: dropping it changed the result, so its "
+            "cutoff spans a different number of dates than claude_p_cost's"
+        )
+
+        # (c) claude_p_cost's own window, so the test's name is true of BOTH producers
+        import os as _os
+
+        monkey_out = tdp / "sidecar.json"
+        _os.environ["CLAUDE_P_COST"] = str(monkey_out)
+        try:
+            cpc._USAGE_HISTORY, cpc._MANAGER_ACCOUNTS = hist, accounts
+            assert cpc._live_usage_window()["tokens"] == expected_tokens
+        finally:
+            _os.environ.pop("CLAUDE_P_COST", None)

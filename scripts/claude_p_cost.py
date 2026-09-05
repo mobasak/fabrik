@@ -10,8 +10,7 @@ WHY a standalone copy (not `import derive_cost`): `derive_cost.py` is engine-int
 and relocated with the AI-model-catalog extraction; this file is the FLEET consumer copy that stays.
 Different lifecycles → vendor-the-math, don't import (fabrik "vendor, don't import" pattern). ⚠️ It is NOT
 in `fabrik_synced_manifest.py` and exists in 1 of 57 `/opt` dirs by `ls -1d /opt/*/` — 59 if hidden dirs are counted; the denominator depends on the method, the stable fact is that only the hub carries it — the hub's own. An earlier version of
-this header claimed it "is synced to every project"; it never was. The two numbers agree with
-`derive_cost` by construction (same formulas below).
+this header claimed it "is synced to every project"; it never was.
 
 DATA FILES (resolved in order: env override → co-located with this script → hub kilo-benchmarks):
   • prices     — `claude_price_ratios.json` (per-model in/out list price + cache multipliers). MANUAL,
@@ -133,7 +132,12 @@ def _cache_multipliers(ratios: dict, model: str) -> dict:
     m = _model_key(model)
     best: str | None = None
     for prefix in ratios.get("_model_cache") or {}:
-        rest = m[len(prefix) :] if m.startswith(prefix.lower()) else None
+        # BOTH sides through `_model_key`: folding only the query left a table key written in the
+        # natural marketing form (`claude-fable-5.1`) matching nothing at all — not even the
+        # byte-identical query — and silently returning the 0.1 default. The file's own header calls
+        # it MANUAL, so the next hand-added row is exactly where that would have bitten.
+        key = _model_key(prefix)
+        rest = m[len(key) :] if m.startswith(key) else None
         # SEGMENT boundary, not a bare prefix: `claude-fable-5-1` must not swallow a future
         # `claude-fable-5-10`, which would hand a different model Fable 5.1's 2.5% rate — a 4x
         # UNDERprice, the exact mirror of the bug the override closed. A real suffix always begins
