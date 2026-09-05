@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the fleet GlitchTip default has a residual, and the comment beside it said "closed" (2026-09-05)
+
+Review of the re-vendor found the defect in my own prose, not in the vendored code.
+`templates/scaffold/python/glitchtip_init.py` diverges from upstream on one line — the fleet keeps
+`LoggingIntegration(event_level=logging.ERROR)` (D-126) where upstream uses `None` — and the comment claimed
+the resulting log channel was "closed" by `_ALLOWED_LOGENTRY_KEYS == {"message"}`. It is NARROWED. Two
+residuals, both measured against the real `_scrub_event` rather than argued:
+
+- an EAGERLY built message puts the secret in the template, which is the field the allowlist keeps:
+  `logger.error("token=%s", tok)` is safe, `logger.error(f"token={tok}")` ships `token=abc` verbatim
+  (`.format()` and `+` behave like the f-string). A URL-shaped credential is still caught by the text
+  redactor; a bare token has no shape to key on.
+- `logger.error(..., exc_info=True)` on a CAUGHT exception creates an event only under this line, and
+  `exception.values[].value` is allowlisted and never text-redacted.
+
+Both are the price of D-126, not defects in the vendor, and flipping a ledger decision is not a review's
+job — so the comment now states the residual precisely and `docs/STRATEGIC_BACKLOG.md` carries the three
+options (accept the %-style convention · lint eager f-strings into `logger.error` after measuring the fire
+rate · revisit D-126) for the operator.
+
+Also from that review: `before_send_metric` and `auto_session_tracking` arrived with the vendor bump
+carrying no hub grader. They have one now, and it is behavioural where a behaviour exists — `_drop_metric`
+is CALLED and must return None, rather than asserting the kwarg was passed, which is the exact shape that
+let this channel sit open upstream for a full round behind a green test. All four new assertions were seen
+red by mutation (drop the hook · flip the flag · make `_drop_metric` return its input · reintroduce the
+inert `enable_metrics`), each firing its own message, with the template restored byte-identical after.
+
+One finding from the independent readers is REFUTED and recorded as such: `transaction_style="endpoint"`
+does not expose path parameters — `sentry_sdk/integrations/starlette.py:853-856` resolves it to
+`transaction_from_function(endpoint)`, the handler's qualified name, which carries no request data.
+
+### Changed — review routing denies its two worst-value workers (2026-09-05)
+
+An OpenRouter audit after ~$16 went in 28 hours found `review` is **92.9% of all pool spend** ($8.82
+of $9.41, 809 of 847 runs across all 15 repo ledgers) — and that the flywheel's own review table
+(n=12,764 live runs) ranks the two models taking most of it as the two *worst*:
+
+| model | avg_quality | avg_cost | n |
+|---|---|---|---|
+| `deepseek/deepseek-v3.2-exp` | 2.96 | $0.0040 | 2092 |
+| `google/gemini-3-flash-preview` | 2.73 | $0.0097 | 2282 |
+| `deepseek/deepseek-v4-flash` | 2.66 | $0.0036 | 1454 |
+| `qwen/qwen3-max` | **2.65** | **$0.0223** | 1495 |
+
+`qwen/qwen3-max` alone took 213 dispatches and $4.65 — 49% of all pool spend — for the lowest quality
+score of the four. Both are now denied for `review` via `ROUTING_DENYLIST` in
+`libs/subagents/select.py`, applied inside `pick_models` and vendored to 46 of 48 fleet copies.
+Quality goes **up**; projected saving $5.37 of $9.41 (57%). Scoped to `review` only — gemini-3-flash
+stays rank 3 for `code`, where its A+ LiveCodeBench pass@1 of 1.000 earns its price. D-134.
+
+⚠️ The deny had to live in `pick_models`: the vendored `_TABLE` is ignored wherever the synced
+ranking doc exists, and that doc is regenerated daily at 06:00, so neither is a durable deny site.
+
 ### Fixed — re-vendored the GlitchTip scrubber: an absent "@" was leaking the credential (2026-09-05)
 
 `templates/scaffold/python/glitchtip_init.py` re-vendored from site-provisioner `7f96834` → `6715c29`,
