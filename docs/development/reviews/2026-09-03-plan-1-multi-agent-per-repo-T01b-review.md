@@ -91,3 +91,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] `scripts/fabrik_synced_manifest.py` has no `# AFTER-EDIT:` header (pre-existing; touched here) → FIXUP (6). [L] the `/.fabrik/backups/` line re-patches the TRACKED `.gitignore` of all 45 projects on the next real run (45 dirty trees; not flagged by `check_synced_unmodified` — `.gitignore` is not in synced.lock) and the default dry-run names it only under `--verbose` → FIXUP (7): a `Would patch .gitignore` preview line, per the round-4 precedent.
 Round 6 verdict: 7 raised → 7 routed (1 H, 4 M, 2 L); pool 2 CLEAN + deepseek's DO-NOT letter upheld as an orchestrator-directed deviation; gemini's mkstemp [M] REFUTED by reading (`os.fdopen(fd, "w")` writes fixed ASCII patterns to a scratch file; the real seed uses utf-8). Not the no-op round.
 
+## Round 7 — over `5fd58526..48b463fe` (5 files; the round-6 fixup as an untrailered checkpoint 9200310a under the quota hold + the trailered 48b463fe naming it: the prune requires the hash proof; the refresh-path backup relocated; the atomic ledger write; the doc fence split; per-item OSError isolation in both loops; the manifest header; the `Would patch .gitignore` preview — live: 45 of 45 on the first sweep; five fixtures moved to real hashes; 50 + 40 green; every grader red on 89b4252b)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 7.
+Pool + native: PENDING — appended when they return.
+

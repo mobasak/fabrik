@@ -64,5 +64,9 @@ Round 4 verdict: 4 raised → 4 routed (1 M, 3 L); none changes the gate's behav
 
 ## Round 5 — over `2f982a5f..ed2ee6f4` (the round-4 fixup ed2ee6f4, 50/16 + 56/3: the star branch first — the fuzz widened to `*` on the string side proves the class, 1,394 → 0 over 131,466 pairs; the dead references corrected; the fire-rate comment bounded at four populations; mixed bullet+quote prefixes widened fail-closed (the coder's stated call); the held items executed — 45/45 live shapes with a shape-aware probe, and the un-normalised epic entry REPRODUCED and fixed with a glob-safe `_norm_glob` (not `_norm_path`, which would eat `**/x/**`); 414 passed across six suites, 48 + 0 skipped in the epic-scope file — the parity test now runs green against merged T03a)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 5.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer)
+- deepseek — CLEAN (5 rows to tests; the 9 mutant classes incl. the star-order fix; the 20-fixture parity; the staleness quoting; `_carved_out` identical; every fail-open path closed; two files; the counts consistent with the diff's annotations — the fuzz not runnable there, the star fix tested directly).
+- gemini — CLEAN (`_norm_glob` preserves `**/x/**` while stripping `./` and edge quotes; the star branch first; the prefix repeating and mixing while bullets keep `\s+`; parser parity incl. the fence fix; no exponential path left; File-Scope link enforced; a local port, no import).
+- qwen — CLEAN (23 cases; 45/45 shapes; normalisation admits quoted/backticked/`./`/`/./` but not `../` or absolute; the prefix; `_seg_matches` order; parity; 1/173 non-archived unaffected).
+Native finder (opus): PENDING — appended when it returns.
 
