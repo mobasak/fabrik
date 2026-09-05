@@ -397,6 +397,34 @@
       "merged_at": "2026-09-06T01:50:40",
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T09-review.md",
       "rename_commit": "3ee1558d"
+    },
+    "T14a": {
+      "state": "dispatched",
+      "agent": "a811b022571f9956a",
+      "branch": "worktree-agent-a811b022571f9956a",
+      "base": "3a4b5e77",
+      "updated": "2026-09-05T22:53:11+00:00"
+    },
+    "T14b": {
+      "state": "dispatched",
+      "agent": "a0dd76dae519b8954",
+      "branch": "worktree-agent-a0dd76dae519b8954",
+      "base": "3a4b5e77",
+      "updated": "2026-09-05T22:53:11+00:00"
+    },
+    "T14c": {
+      "state": "dispatched",
+      "agent": "acf8cba76af330d79",
+      "branch": "worktree-agent-acf8cba76af330d79",
+      "base": "3a4b5e77",
+      "updated": "2026-09-05T22:53:11+00:00"
+    },
+    "T14d": {
+      "state": "dispatched",
+      "agent": "a48eaf91f29bda121",
+      "branch": "worktree-agent-a48eaf91f29bda121",
+      "base": "3a4b5e77",
+      "updated": "2026-09-05T22:53:11+00:00"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"
