@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_review_coverage names /fabrik-epics-review, not the deleted fab-mega-04-validate (2026-09-05)
+
+T14e of plan `2026-09-03-plan-1-multi-agent-per-repo`. `scripts/enforcement/check_review_coverage.py` (fleet-synced)
+named `fab-mega-04-validate` in two PROSE sites — the mega-grammar section comment and the operator-facing remedy
+"Re-run … against the current set" emitted when a mega report's Surface hash does not match the live epic set. Both
+now name `/fabrik-epics-review`, the command that emits the report. Routing was never keyed on the command name
+(`MEGA_REPORT_H1` OR the reserved `…-mega-<slug>-validation-review.md` filename, via `_is_mega_report`) and is
+unchanged; two red-first tests in `tests/test_check_review_coverage_rederivation.py` pin the predicate and the
+deleted name's absence, and drive the real check on a hash-mismatched fixture to assert the remedy text
+(8 tests across the two rederivation suites).
+
 ### Fixed — cert-coverage cites `_midrun_marker` by symbol, not a rotted `final_gate_stop.py` line (2026-09-05)
 
 T14h of plan `2026-09-03-plan-1-multi-agent-per-repo`. `scripts/enforcement/check_certification_coverage.py`

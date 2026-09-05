@@ -124,7 +124,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T14b | References — agents-fabrik.md, the north-star, command-corpus-check.md: zero references to the retired chains outside archives and ledgers | T09 | ⛓️ | ⬜ | |
 | T14c | The fabrik CLI's orchestrator hint names the assembled commands, not a docs/traycer path that does not exist | T09 | ⛓️ | ⬜ | |
 | T14d | review_rubric's dead checklist path, and the ~/.traycer install step | T09, T11 | ⛓️ | ⬜ | |
-| T14e | check_review_coverage stops keying on a deleted command | T07a, T06c | ⛓️ | 🔵 | |
+| T14e | check_review_coverage stops keying on a deleted command | T07a, T06c | ⛓️ | ✅ | branch head 190c8290; merged 2026-09-05 |
 | T14f | command_run stops owing a report to a deleted command | T07a, T06c | ⛓️ | 🔵 | |
 | T14g | the command corpus stops routing to deleted chain steps | T04a, T07a, T11 | ⛓️ | ⬜ | |
 | T14h | the cert-coverage anchors, a non-relocation fix rescued from a deleted ticket | — | ⚡ | ✅ | branch head 5c8fa999; merged 2026-09-05 |

@@ -256,11 +256,14 @@
       "updated": "2026-09-05T17:56:15+00:00"
     },
     "T14e": {
-      "state": "dispatched",
+      "state": "merged",
       "agent": "a1847cb8baeba83c6",
       "branch": "worktree-agent-a1847cb8baeba83c6",
       "base": "a6518d1e",
-      "updated": "2026-09-05T17:58:27+00:00"
+      "updated": "2026-09-05T17:58:27+00:00",
+      "branch_head": "190c8290",
+      "merged_at": "2026-09-05T21:10:35",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14e-review.md"
     },
     "T14f": {
       "state": "dispatched",

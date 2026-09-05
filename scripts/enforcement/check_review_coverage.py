@@ -604,7 +604,7 @@ def check_file(p: Path) -> list[str]:
 # name silently skipped BOTH the blocking and committed cert checks (fail-open by rename).
 CERT_REPORT = re.compile(r"-(user|service)-test-.*\.md$", re.I)
 
-# --- Mega cross-epic validation reports (fab-mega-04-validate) ---------------------------------
+# --- Mega cross-epic validation reports (/fabrik-epics-review) ---------------------------------
 # Third grammar. Until 2026-08-16 mega-04's report went ONLY to Telegram, so its exit was read by
 # no gate at all. The first version of this grammar was itself reviewed (2026-08-18) and lost —
 # every rule below carries the scar of a reproduced defeat:
@@ -1337,7 +1337,7 @@ def check_mega_validation(
                 f"the epic set on disk hashes to {live_hash[:12]}… but the report anchors "
                 f"{surface.group(1).lower()[:12]}… — the set changed after validation (your own "
                 "follow-up, or a sibling session's edit — this tree runs several agents), or the "
-                "hash was not computed. Re-run fab-mega-04-validate against the current set, or "
+                "hash was not computed. Re-run /fabrik-epics-review against the current set, or "
                 "mark the report `Status: IN-PROGRESS` (first 10 lines) until you do"
             )
     leftover = [p for p in _MEGA_PLACEHOLDERS if p in body]
