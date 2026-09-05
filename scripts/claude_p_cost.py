@@ -14,8 +14,12 @@ import" pattern). The two numbers agree with `derive_cost` by construction (same
 DATA FILES (resolved in order: env override → co-located with this script → hub kilo-benchmarks):
   • prices     — `claude_price_ratios.json` (per-model in/out list price + cache multipliers). MANUAL,
                  grounded from platform.claude.com/docs/en/about-claude/pricing.
-  • amortized  — `claude_p_cost.json`  {amortized_per_mtok, quota_draw_pct, built_at}. Rebuilt by
-                 `--refresh` (hub/operator box only — needs ~/.claude usage history).
+  • amortized  — `claude_p_cost.json`, NINE keys: the rate `amortized_per_mtok` and the window it was
+                 derived from — `window_start`, `window_end`, `accounts`, `spend_usd`, `tokens` — plus
+                 `built_at`, `quota_draw_pct`, and `amortized_per_mtok_by_family` (carried forward, not
+                 recomputed; owned by `derive_cost.amortized_by_family`). The five window keys are
+                 `null` when the rate fell back to the research anchor, which came from no window.
+                 Rebuilt by `--refresh` (hub/operator box only — needs ~/.claude usage history).
 
 USAGE
   # measure one call (project or hub): pipe the CLI's JSON in, name the model
@@ -43,7 +47,12 @@ _MONTHLY_DAYS = 30
 _USAGE_HISTORY = Path.home() / ".claude" / ".claude-manager" / "usage-history.json"
 _STATUSLINE = Path.home() / ".claude" / ".claude-manager" / "statusline.json"
 _MANAGER_ACCOUNTS = Path.home() / ".claude" / "manager-accounts"
-_USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+_USAGE_KEYS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
 
 
 def _find(name: str, env: str) -> Path:
@@ -75,18 +84,35 @@ def _norm_model(model: str) -> str:
     return m  # unknown → let api_equiv raise a clear KeyError
 
 
+def _cache_multipliers(ratios: dict, model: str) -> dict:
+    """Cache multipliers for one model: the global `_cache` default, overridden per exact model id.
+
+    Cache reads bill at 10% of base input on every model EXCEPT Claude Fable 5.1 (2.5%). A FAMILY key
+    cannot hold both, because `claude-code/fable` covers `claude-fable-5` AND `claude-fable-5-1` and
+    both run live here — so the exception is keyed on the full id in `_model_cache` and the family
+    keeps the 0.1 default. A bare tier alias ("fable") is ambiguous and therefore gets the default.
+    """
+    c = dict(ratios.get("_cache") or {})
+    override = (ratios.get("_model_cache") or {}).get(model.lower().strip())
+    if isinstance(override, dict):
+        c.update(override)
+    return c
+
+
 def api_equiv(usage: dict, model: str) -> float:
     """① Cache-aware Anthropic-list-price USD for one call's raw per-type tokens."""
     r = json.loads(_prices_path().read_text(encoding="utf-8"))
     key = _norm_model(model)
     if key not in r:
         raise KeyError(f"no price ratios for model {model!r} (looked up {key!r})")
-    p_in, p_out, c = r[key]["in"], r[key]["out"], r["_cache"]
+    p_in, p_out, c = r[key]["in"], r[key]["out"], _cache_multipliers(r, model)
     inp = usage.get("input_tokens", 0) or 0
     out = usage.get("output_tokens", 0) or 0
     cr = usage.get("cache_read_input_tokens", 0) or 0
     cc = usage.get("cache_creation_input_tokens", 0) or 0
-    return (inp * p_in + out * p_out + cr * p_in * c["read"] + cc * p_in * c["write_5m"]) / 1_000_000.0
+    return (
+        inp * p_in + out * p_out + cr * p_in * c["read"] + cc * p_in * c["write_5m"]
+    ) / 1_000_000.0
 
 
 def cached_amortized_per_mtok() -> float:
@@ -107,7 +133,8 @@ def real_usd(usage: dict) -> float:
 
 def measure(claude_json: dict, model: str) -> dict:
     """Take a full `claude -p --output-format json` object (or its bare `usage` block) → ①+② + tokens."""
-    usage = claude_json.get("usage") if isinstance(claude_json.get("usage"), dict) else claude_json
+    nested = claude_json.get("usage")
+    usage: dict = nested if isinstance(nested, dict) else claude_json
     tokens = {k: int(usage.get(k, 0) or 0) for k in _USAGE_KEYS}
     tokens["total"] = sum(tokens.values())
     return {
@@ -116,23 +143,35 @@ def measure(claude_json: dict, model: str) -> dict:
         "api_equiv_usd": round(api_equiv(usage, model), 6),  # ①
         "real_usd": round(real_usd(usage), 6),  # ②
         "amortized_per_mtok": round(cached_amortized_per_mtok(), 6),
-        "cli_total_cost_usd": claude_json.get("total_cost_usd"),  # Claude Code's own ① figure, if present
+        "cli_total_cost_usd": claude_json.get(
+            "total_cost_usd"
+        ),  # Claude Code's own ① figure, if present
     }
 
 
 # ─── producer side (hub / operator box only — needs ~/.claude) ───────────────────────────────
-def _live_amortized_per_mtok() -> float:
-    """Recompute ② from live usage history: (subscription $ × live accounts) ÷ last-30d global tokens."""
+def _live_usage_window() -> dict:
+    """② and the WINDOW it was derived from: (subscription $ × live accounts) ÷ last-30d global tokens.
+
+    Returns `amortized_per_mtok` plus the five things a reader needs to judge it — `window_start`,
+    `window_end`, `accounts`, `spend_usd`, `tokens`. A rate with no window is indistinguishable from
+    a fossil, which is the whole reason this returns a dict instead of a float.
+
+    ⚠️ On an empty/unreadable usage history the rate falls back to `_ANCHOR_USD_PER_TOKEN`, a
+    research constant that was derived from NO window — every denominator is then `None`, never a
+    plausible-looking zero. Publishing bounds beside the anchor would assert a derivation that never
+    happened.
+    """
     try:
         n = sum(1 for p in _MANAGER_ACCOUNTS.iterdir() if p.is_dir() and not p.name.startswith("."))
     except OSError:
         n = 1
     n = max(1, n)
+    today = datetime.date.today().isoformat()
+    cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
     try:
         d = json.loads(_USAGE_HISTORY.read_text(encoding="utf-8"))
         days = d.get("days") or {}
-        today = datetime.date.today().isoformat()
-        cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
 
         def _iso(s: object) -> bool:
             try:
@@ -145,33 +184,83 @@ def _live_amortized_per_mtok() -> float:
         for k in days:
             if _iso(k) and cutoff <= k <= today:
                 for m in (days[k].get("byModel") or {}).values():
-                    total += sum(int(m.get(x, 0) or 0) for x in ("input", "output", "cacheRead", "cacheCreation"))
+                    total += sum(
+                        int(m.get(x, 0) or 0)
+                        for x in ("input", "output", "cacheRead", "cacheCreation")
+                    )
     except (OSError, ValueError, TypeError, AttributeError):
         total = 0
-    rate = _ANCHOR_USD_PER_TOKEN if total <= 0 else (_SUBSCRIPTION_USD_PER_ACCOUNT * n) / total
-    return rate * 1_000_000.0
+    if total <= 0:
+        return {
+            "amortized_per_mtok": _ANCHOR_USD_PER_TOKEN * 1_000_000.0,
+            "window_start": None,
+            "window_end": None,
+            "accounts": None,
+            "spend_usd": None,
+            "tokens": None,
+        }
+    spend = _SUBSCRIPTION_USD_PER_ACCOUNT * n
+    return {
+        "amortized_per_mtok": spend / total * 1_000_000.0,
+        "window_start": cutoff,
+        "window_end": today,
+        "accounts": n,
+        "spend_usd": spend,
+        "tokens": total,
+    }
+
+
+def _live_amortized_per_mtok() -> float:
+    """② alone, for callers that want the bare rate. The window lives in `_live_usage_window()`."""
+    return float(_live_usage_window()["amortized_per_mtok"])
 
 
 def refresh() -> dict:
-    """Rebuild `claude_p_cost.json` from live ~/.claude usage. Preserves ③ quota_draw_pct if present."""
+    """Rebuild `claude_p_cost.json` from live ~/.claude usage, with the window ② came from.
+
+    Carries forward, never recomputes: ③ `quota_draw_pct`, and `amortized_per_mtok_by_family` — which
+    this function used to DESTROY on every run by writing three keys over the file with a full
+    `write_text`. The per-family split is owned by `derive_cost.amortized_by_family()`; this module
+    deliberately does not import that one (see the header), so it preserves the map rather than
+    re-deriving it.
+
+    No `rate` key: `amortized_per_mtok` already IS the rate, and renaming it would break every reader
+    for cosmetics. The window keys sit BESIDE the existing ones — additive, so no reader is forced to
+    change in the same release.
+    """
     path = _cost_path()
     prev = {}
     try:
         prev = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
-    data = {
-        "amortized_per_mtok": _live_amortized_per_mtok(),
-        "quota_draw_pct": float(prev.get("quota_draw_pct", 0.0) or 0.0),
-        "built_at": datetime.datetime.now().isoformat(timespec="seconds"),
-    }
+    w = _live_usage_window()
+    data = {"amortized_per_mtok": w["amortized_per_mtok"]}
+    by_family = prev.get("amortized_per_mtok_by_family")
+    if isinstance(by_family, dict):
+        data["amortized_per_mtok_by_family"] = by_family
+    data.update(
+        {
+            "quota_draw_pct": float(prev.get("quota_draw_pct", 0.0) or 0.0),
+            "window_start": w["window_start"],
+            "window_end": w["window_end"],
+            "accounts": w["accounts"],
+            "spend_usd": w["spend_usd"],
+            "tokens": w["tokens"],
+            "built_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        }
+    )
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return data
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Per-call claude -p cost (① api-equivalent + ② real).")
-    ap.add_argument("--refresh", action="store_true", help="rebuild claude_p_cost.json from ~/.claude (hub only)")
+    ap.add_argument(
+        "--refresh",
+        action="store_true",
+        help="rebuild claude_p_cost.json from ~/.claude (hub only)",
+    )
     ap.add_argument("--model", default="opus", help="fable|opus|sonnet|haiku (default: opus)")
     args = ap.parse_args(argv)
     if args.refresh:

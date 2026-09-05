@@ -1,5 +1,5 @@
 {
-  "amortized_per_mtok": 0.006310425076381708,
+  "amortized_per_mtok": 0.007386384040137393,
   "amortized_per_mtok_by_family": {
     "opus": 0.005489476973706957,
     "haiku": 0.008287347458697648,
@@ -7,5 +7,10 @@
     "sonnet": 0.0031955059617919837
   },
   "quota_draw_pct": 0.0,
-  "built_at": "2026-08-10T07:17:23"
+  "window_start": "2026-08-06",
+  "window_end": "2026-09-05",
+  "accounts": 4,
+  "spend_usd": 800.0,
+  "tokens": 108307393124,
+  "built_at": "2026-09-05T10:43:53"
 }

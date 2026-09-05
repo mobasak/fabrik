@@ -166,7 +166,14 @@ def amortized_by_family(
     discount = (subscription $ × accounts) ÷ Σ family api-equiv $. `<synthetic>` and
     unpriced model rows are excluded from BOTH numerator and denominator. Fail-soft: no
     priced usage in the window → {} (callers treat as unavailable, mirroring the anchor
-    fallback of amortized_rate)."""
+    fallback of amortized_rate).
+
+    ⚠️ PER-FAMILY no-traffic case: a family with priced VALUE but zero RAW tokens in the
+    window is omitted from the returned map entirely (the `raw.get(fam, 0) > 0` guard below,
+    which exists because it is the divisor). So an absent family key means "no measured
+    traffic this window", never "rate zero" — a reader that defaults a missing key to 0.0
+    prices that family free. The whole-map empty case ({}) is the different, documented one
+    above."""
     r = _load_ratios(ratios_path)
     c = r["_cache"]
     ad = Path(accounts_dir or _MANAGER_ACCOUNTS)
@@ -246,7 +253,14 @@ def write_cost_sidecar(
     *,
     when: datetime.datetime | None = None,
 ) -> dict:
-    """Write the ②/③ sidecar the ranker preamble reads: ② amortized $/M + ③ weekly-quota-draw %."""
+    """Write the ②/③ sidecar the ranker preamble reads: ② amortized $/M + ③ weekly-quota-draw %.
+
+    ⚠️ ORPHANED IN THIS REPO — zero call sites (`git grep write_cost_sidecar` finds only this def).
+    Its callers left with the catalog-engine excision (`73bde59a`) and now live in `/opt/ai-model-catalog/`,
+    whose copy resolves `_COST_SIDECAR` relative to ITS OWN directory and never writes the hub's file.
+    The hub's sidecar is written by `scripts/claude_p_cost.py::refresh()` — change THAT one. Editing the
+    catalog repo from here is a cross-repo HARD STOP; this note exists so the next reader does not spend
+    a plan revision on the wrong producer, as one did on 2026-09-05."""
     built = (when or datetime.datetime.now()).isoformat(timespec="seconds")
     data = {
         "amortized_per_mtok": amortized_rate() * 1_000_000.0,

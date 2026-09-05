@@ -1,6 +1,6 @@
 # Plan — the windowed cost sidecar: `claude_p_cost.json` gains its window, its denominators, and a cadence
 
-Status: CONVERGED (2026-09-05 — 4 author-blind passes, findings 10 → 12 → 7 → 4, all closed; ruling D-125)
+Status: IN-PROGRESS (execution opened 2026-09-05; converged over 4 author-blind passes, findings 10 → 12 → 7 → 4, all closed; ruling D-125)
 Owner: intel
 Shape: monolith (3 phases; read set 145,448 B across the 8 existing of 10 File Scope paths (`tests/test_derive_cost_sidecar.py` and `scripts/enforcement/_check_refresh_before_ranker.py` are created by the plan), against `READ_BUDGET_BYTES` = 262144 — no split trigger)
 Final Gate Instruction: `python scripts/final_gate.py --json`

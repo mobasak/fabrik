@@ -45,6 +45,19 @@ def test_api_equiv_is_cache_aware():
     assert write_only == pytest.approx(5.0 * 1.25, abs=1e-6)  # $6.25
 
 
+def test_api_equiv_applies_the_per_model_cache_rate():
+    """Cache reads are 10% of base input on every model EXCEPT Fable 5.1, which is 2.5%.
+
+    The `claude-code/fable` family key covers both `claude-fable-5` (10%) and `claude-fable-5-1`
+    (2.5%), so the exception is keyed on the full model id. An ambiguous bare alias gets the default.
+    """
+    u = _usage(cr=1_000_000)  # 1M cache-read, fable input = $10/M
+    assert cpc.api_equiv(u, "claude-fable-5-1") == pytest.approx(0.25, abs=1e-6)  # 10 × 0.025
+    assert cpc.api_equiv(u, "claude-fable-5") == pytest.approx(1.0, abs=1e-6)  # 10 × 0.1
+    assert cpc.api_equiv(u, "fable") == pytest.approx(1.0, abs=1e-6)  # ambiguous alias → default
+    assert cpc.api_equiv(u, "claude-opus-5") == pytest.approx(0.5, abs=1e-6)  # 5 × 0.1, untouched
+
+
 def test_norm_model_accepts_three_forms():
     for form in ("opus", "claude-code/opus", "claude-opus-5", "OPUS"):
         assert cpc._norm_model(form) == "claude-code/opus"
