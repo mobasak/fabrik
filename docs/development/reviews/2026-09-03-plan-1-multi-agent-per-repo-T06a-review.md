@@ -38,5 +38,9 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - deepseek — CLEAN (includes; retired names 0; no anchors; the gate; dossier handling; the Kilo marker; the I18N symbol; pack citations + bootstrap names; Path A/B once; no HTML comment; no duplicated clause).
 - gemini — CLEAN (12 restorations; includes; retired names; traycer-chain; the gate on both paths; the corpus chain).
 - qwen — CLEAN (4 rows; fragments; forbidden strings; round-2 fixes intact).
-Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+### Native finder (opus) — all 9 round-2 items VERIFIED (render probe: only the banner precedes the H1; the gate cross-reference resolves to :287; the Kilo ground lands on vscode-configuration.md:21; `I18N_ENABLED_TYPES` :258 with its 5 keys; the bootstrap names on disk; the single-epic clause once; Path A/B once); the 12 restorations spot-checked and grounded; includes :25/:161/:1173/:1201; traycer-chain 0; retired names 0; Part B/C clean; `_phase_count` 6; every cross-reference resolves; registry enumerations correct (10 registrars / 7 flag-driven, 12 constraints 7+5, 7 pre-flight, 20 numbered); composed description 717 + NEXT → 307 chars headroom. 3 raised:
+- [M] :774 the Cost-budget row lost `core/cost-budget.md` — the old row's citation was paren-less, so round 2's `(per \`` count matched 8 = 8 while the 9th stayed stripped → FIXUP (1).
+- [L] :43-45 the acting-set bullet mandates the dossier read unconditionally against the gate's exemptions at :295-296 → FIXUP (2). [L] :72 "(no frontmatter at all)" is false (frontmatter, no `globs:`) → FIXUP (3).
+- Refuted candidates: the "LLM-gateway row above" reference (a row exists at :742); the shape-flag table listing 8 of 13 fields (scoped by its `Fires` column).
+Round 3 verdict: 3 (1 M, 2 L) → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
 
