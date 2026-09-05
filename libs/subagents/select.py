@@ -280,9 +280,7 @@ def load_task_ranking(
             try:
                 refreshed: date | None = date.fromisoformat(stamp.group(1))
             except ValueError:
-                refreshed = (
-                    None  # unparseable date → ignore the gate, don't fail on a quirk
-                )
+                refreshed = None  # unparseable date → ignore the gate, don't fail on a quirk
             if refreshed is not None and (date.today() - refreshed).days > max_age_days:
                 return {}
     valid = set(TASK_KINDS)
@@ -293,9 +291,7 @@ def load_task_ranking(
     in_fence = False
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.startswith(
-            "```"
-        ):  # a ``` toggles a code fence — never parse fenced rows
+        if stripped.startswith("```"):  # a ``` toggles a code fence — never parse fenced rows
             in_fence = not in_fence
             continue
         if in_fence:
@@ -382,8 +378,7 @@ def load_task_ranking(
             continue
         ranked[kind] = sorted(
             models,
-            key=lambda m: (kind_scores[m] or 0.0)
-            * (_UNGROUNDED_PENALTY if m in bad else 1.0),
+            key=lambda m: (kind_scores[m] or 0.0) * (_UNGROUNDED_PENALTY if m in bad else 1.0),
             reverse=True,
         )
     return ranked
@@ -506,6 +501,42 @@ def provider_max_price(model: str) -> dict[str, float] | None:
     return {"completion": p} if p is not None else None
 
 
+#: Reviewers denied on MEASURED live evidence, not on price alone. The flywheel's own `review` table
+#: (n_total=12,764 real runs) ranks the four-model review roster, and these two lose on BOTH axes:
+#:
+#:     model                          avg_quality   avg_cost      n
+#:     deepseek/deepseek-v3.2-exp        2.96       $0.0040    2092   <- best quality
+#:     google/gemini-3-flash-preview     2.73       $0.0097    2282   <- DENIED
+#:     deepseek/deepseek-v4-flash        2.66       $0.0036    1454   <- cheapest
+#:     qwen/qwen3-max                    2.65       $0.0223    1495   <- DENIED, worst AND dearest
+#:
+#: Not a cost-for-quality trade: the two survivors are the two BEST reviewers on live data. Measured
+#: over the 28h window that burned ~$16 — qwen3-max alone took 213 runs and $4.65, 49% of all pool
+#: spend, for the lowest quality score of the four. Projected saving: $5.37 of $9.41 (57%).
+_DENY_REVIEW: frozenset[str] = frozenset(
+    {
+        "qwen/qwen3-max",
+        "google/gemini-3-flash-preview",
+    }
+)
+
+#: Models routing must never return, per task type. A FLOOR, applied inside :func:`pick_models`, so
+#: it holds no matter which source the ranking came from.
+#:
+#: ⚠️ THIS IS THE ONLY PLACE A DENY CAN LIVE. The two obvious edits both fail silently: the vendored
+#: :data:`_TABLE` is ignored on any box carrying the synced doc (``_synced_ranking()`` wins), and the
+#: doc itself is REGENERATED every morning at 06:00 by ``rank_task_subagents.py``, so a deny written
+#: there survives less than a day. ``pick_models`` is the chokepoint every dispatch passes through.
+#:
+#: Scoped to ``review`` deliberately, not global (operator directive 2026-09-05, cost). Review is
+#: 92.9% of pool spend, so denying it there captures essentially the whole saving; gemini-3-flash is
+#: rank 3 for ``code`` with an A+ LiveCodeBench pass@1 of 1.000, and a blanket deny would buy almost
+#: nothing while costing quality. Widen this only with the same kind of per-task-type evidence.
+ROUTING_DENYLIST: dict[str, frozenset[str]] = {
+    "review": _DENY_REVIEW,
+}
+
+
 def pick_models(
     task_type: str,
     n: int = 1,
@@ -549,17 +580,13 @@ def pick_models(
     Returns: the chosen model ids (possibly empty if every candidate was filtered out).
     """
     if task_type not in _TABLE:
-        raise ValueError(
-            f"unknown task_type {task_type!r}; expected one of {TASK_KINDS}"
-        )
+        raise ValueError(f"unknown task_type {task_type!r}; expected one of {TASK_KINDS}")
     if n <= 0:  # a non-positive count is empty — never a Python negative-slice surprise
         return []
     # Empirical synced order if it covers this task type, else the vendored seed.
     table = ranking if ranking is not None else _synced_ranking()
-    excluded = set(exclude)
-    ranked = [
-        m for m in (table.get(task_type) or _TABLE[task_type]) if m not in excluded
-    ]
+    excluded = set(exclude) | ROUTING_DENYLIST.get(task_type, frozenset())
+    ranked = [m for m in (table.get(task_type) or _TABLE[task_type]) if m not in excluded]
     # PRICE CAP REMOVED (operator decision 2026-07-19). The former always-on ≤$1.5/Mtok fleet cap is
     # gone: the pool is curated cheap+high-quality, and per-run task cost — especially for review/spec
     # fan-outs — is pennies regardless of $/Mtok (the hub's TASK_SUBAGENT_SELECTION.md ranks all models
