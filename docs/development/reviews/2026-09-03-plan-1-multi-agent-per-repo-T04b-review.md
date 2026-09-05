@@ -65,5 +65,8 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - deepseek — CLEAN (4 rows; no fail-open: unreadable epic → BLOCKED, no ExitWorktree → OWED, dirty main → DEFER).
 - gemini — CLEAN (4 of 4 rows; 2 of 2 files; 0 DO-NOT violations; glob-aware containment :425/:608).
 - qwen — CLEAN on every class; its one residual ("nowhere does the diff implement the seeding logic in code") — REFUTED: the surface is a COMMAND source (prose the agent executes), not a script; the instruction IS the implementation.
-Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+### Native finder (opus) — all 5 round-4 items VERIFIED against the loaded `EnterWorktree`/`ExitWorktree` contracts and a live `git worktree remove` probe (refuses untracked; removes after commit; unmerged commits do not block it); § Finish (a)/(b)/(c) ≡ the diagram ≡ step 8; 9 lock references intact; the salvage `.diff` is gitignored so it cannot block removal; corpus check green; Part B/C clean; the four rows traceable. 2 raised:
+- [M] plan-after-chat :232 "no check in this list reads them" is false for the `Epic:` half in either state (the containment check T05a builds lives inside `check_plan_tickets.py`, one of the list's named enforcers) → FIXUP (1): the checks do not VALIDATE the two lines' presence or shape.
+- [L] execute-plan :482's BLOCKED example lacks the `searched:`/`missing:` clauses :182 mandates (the sibling passage has them) → FIXUP (2).
+Round 5 verdict: 2 (1 M, 1 L) → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
 
