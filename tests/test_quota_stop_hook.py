@@ -596,10 +596,12 @@ def test_the_masker_never_invents_or_hides_an_operator():
     assert ";" not in hook._mask_quoted('echo "it\'s a; b"')
     # the three branches the review's pool finder named as untested (pass 1, P4):
     assert hook._mask_quoted("echo 'a") == "echo 'a"  # single-quote imbalance → untouched
-    # since pass 24 a plain `"$VAR"` is data (one word — it cannot become a flag); `"$("` stays visible
-    assert "$" not in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted(
+    # pass 25: a `$` that OPENS the span stays visible (`"$VAR"` is a whole word — it can be a
+    # flag); a `$` inside text is data; the `;` is masked either way
+    assert "$" in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted(
         'echo "$VAR;x"'
     )
+    assert "$" not in hook._mask_quoted('echo "v=$VAR;x"')
     assert "$(" in hook._mask_quoted('echo "$(whoami)"')
     assert (
         hook._mask_quoted('echo "a\\nb;c"') == 'echo "xxxxxx"'
