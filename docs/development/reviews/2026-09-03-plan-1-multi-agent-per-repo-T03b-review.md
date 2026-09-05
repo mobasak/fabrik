@@ -28,5 +28,9 @@ Round 2 verdict: 3 raised → 3 routed (1 H, 1 M, 1 L); pool three-deepseek clea
 
 ## Round 3 — over `6a5c5990..8374af73` (the round-2 fixup 8374af73, 27/12 + 43/2: the quantifier `all(any(…))` with both mirrors — the wrong test row flipped, `_owns_migrations` kept loose (its regression seen red under the strict predicate alone, then green); the docstring re-cites 0 false-fires / 265 fires / 4,000 pairs, 515/4,000 = 12.9% overlap-without-subsumption, 6 corpus-bounded misses, the one direction; whitespace-only entries own nothing; 74 + 64 green)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — again a three-deepseek draw (v4-flash ×2 + v3.2-exp)
+- deepseek v4-flash (1) — CLEAN (5 rows; the edge cases; the quantifier revision; the loose migration reading; `--assign`/docs immutable; two files).
+- deepseek v3.2-exp — CLEAN (rows 1–5 each with its test; the additional requirements).
+- deepseek v4-flash (2) — 1 raised: a bare `owned_paths:` (no value) parses to `None`, survives the `str(p).strip()` filter as `'None'` or crashes `_pattern_segs` — rounds 1 and 2 EXECUTED that shape (the hand-rolled `_parse_frontmatter` yields `''`, filtered to no paths) so this is likely refuted; handed to the native finder to execute the bare / `~` / `null` / `""` / absent / empty-block shapes explicitly.
+Native finder (opus): PENDING — appended when it returns.
 
