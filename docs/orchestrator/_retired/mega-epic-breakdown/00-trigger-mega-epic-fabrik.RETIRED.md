@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — 00-trigger-mega-epic is no longer a command.
+     Its text now lives in `/fabrik-vision` (commands/_sources/fabrik-vision.md — spec § Chain consolidation (c): "`/fabrik-vision` (mega 00)"). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — ENTRYPOINT (our own, tool-capable)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in Zed) — never pasted into a planner GUI.
      Unlike the Traycer twin (the `-command` files live in Traycer's server-side "My Workflow" store, not this repo), this
