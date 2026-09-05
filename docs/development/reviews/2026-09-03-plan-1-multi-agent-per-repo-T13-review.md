@@ -93,5 +93,9 @@ Round 7 verdict: 6 raised → 6 routed (1 H, 4 M, 1 L); pool 3/3 CLEAN missed th
 
 ## Round 8 — over `9c35928f..8a77ed0c` (the round-7 fixup 8a77ed0c, 35/10 + 196/50: `grep -qxF --` (a `@beta` worktree survives; the other grep audited); the live-ids file re-checked before the loop and grep rc≥2 aborts with one "vanished" line (shim red on the baseline); the worktree subshell's trap graded by waiting on its own index file (mutation 5/5 after a self-caught wait-condition bug); the signalled test holds the cron's flock and never deletes foreign `/tmp/wip-wt-*` files; the guard test re-grounded to "no line names the sidecar" (reproduces under mutation); the witness comments reworded; 42 passed over 25+ runs incl. one 220 s run diagnosed as genuine flock contention with the production cron)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 8.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — a three-deepseek draw
+- deepseek v4-flash (1) — 3 raised: the doc outside the Touches — UPHELD on the letter, ORCHESTRATOR-DIRECTED (rounds 5–7); the signalled test holds `/tmp/wip-backup.lock` with `fcntl.flock(LOCK_EX)` and NO timeout — a colliding cron run blocks the suite indefinitely (the coder measured one 220 s run as genuine contention) → put to the native finder to state the bound and the fix (`flock` with a bounded wait or a skip); a row-2 "main snapshot byte-identical" coverage claim (subsumed by the round-5 base-vs-branch proof).
+- deepseek v3.2-exp — CLEAN (4/4 rows; the five round-7 fixes located with their tests; 39 new tests).
+- deepseek v4-flash (2) — the doc outside the Touches only (adjudicated above).
+Native finder (opus): PENDING — appended when it returns.
 

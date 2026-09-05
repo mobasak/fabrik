@@ -112,3 +112,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] the corrupt-ledger WARN is on a line the wrapper's `tail -3` discards and absent from `Results:` → FIXUP (5). [L] the manifest DO-NOT — adjudicated orchestrator-directed (rounds 4/6/8); (3) moves the worktree coverage into the script → FIXUP (6): state it.
 Round 8 verdict: 6 raised → 6 routed (4 M, 2 L); every round-7 fix reproduced green; pool 1 CLEAN + the letter items adjudicated. Not the no-op round.
 
+## Round 9 — over `5fd58526..93d00357` (5 files; the round-8 fixup 93d00357: the manifest header without its prose tail (verified against `_coupled_tokens`); the floor leg gated on `_is_git_repo`; the ledger seeded into the shared `info/exclude` floor with a per-pattern append replacing the marker early-return, mirrored in the dry-run helper; the stamp grader; the corrupt-ledger WARN in `Results:`; the manifest lines kept and stated; five graders red on 0e96a2e0; 62 + 40 green; live: `Would seed` 41 of 45, `Would patch` 45 of 45, 107 gaps / 0 edits — the +6 diffed line by line as fleet drift)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 9.
+Pool + native: PENDING — appended when they return.
+
