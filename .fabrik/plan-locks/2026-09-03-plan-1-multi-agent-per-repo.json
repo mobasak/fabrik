@@ -364,9 +364,9 @@
       "rename_commit": "27fa93ca"
     },
     "T08b": {
-      "state": "review-round-1",
+      "state": "fixup-round-1",
       "base": "0d5a4685",
-      "updated": "2026-09-05T21:24:23+00:00",
+      "updated": "2026-09-05T21:31:42+00:00",
       "agent": "af0f1ad25d9b13852",
       "branch": "worktree-agent-af0f1ad25d9b13852",
       "head": "f65e3f3b"

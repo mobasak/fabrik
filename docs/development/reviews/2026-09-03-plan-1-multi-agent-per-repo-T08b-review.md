@@ -8,4 +8,7 @@
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a test-only ticket whose shape T08a's native finder measured in advance; stated) — round 1.
 ### Orchestrator execution (in the worktree)
 - `pytest tests/test_check_command_corpus.py -q` → 119 passed; `--collect-only` → 119 collected; `--selftest` → 15 canaries over 8 predicates, exit 0; the grep → 0; `ruff check` clean, `ruff format --check` 1 file already formatted; the new parametrized test present (1 definition).
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0166)
+- Two CLEAN (every kwarg site incl. the driver string; the 8 deletions each wrapper-only except the fallback matrix whose twin is `test_template_shipped_scripts_resolve`; the canary numbers −2 in each tree shape; the renamed test's two assertions kept; no noqa/skip/xfail — the `PLC0415` noqa is pre-existing context). One raised: the new parametrized test asserts only that SOME `--feedback` problem naming the file exists and its clean leg is a bare record — a check that special-cased the three names would still pass it, the opposite of what it claims to prove — UPHELD [L] (fix: compare the finding text with an ordinary source's, and prove the `--feedback` close clean for both).
+### Verdict
+**1 finding (L) → FIXUP round 1 routed to the coder.** Ledger: kwarg strip · deletions vs surviving twins · expectation numbers · the no-special-case proof (strengthen) · hygiene.
