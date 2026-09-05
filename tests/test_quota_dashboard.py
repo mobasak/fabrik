@@ -734,10 +734,17 @@ def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, m
 
     monkeypatch.setattr(qd, "generate", slow_generate)
     stop = qd._start_probe_loop()
-    time.sleep(0.8)
+    # 1.6s, not 0.8s. The counts are what discriminate, and small counts flake: at 0.8s this asserted
+    # >=4 against an expected 5 — a 20% margin that a loaded box (three pool dispatches running
+    # alongside it, 2026-09-05) eats through thread-scheduling jitter alone, then reds a correct
+    # implementation. Doubling the window doubles both predictions and widens the gap in absolute
+    # terms: period 0.15 -> ~10 probes; pause-after-probe (0.15 + 0.1 per cycle) -> ~6. A floor of 7
+    # sits 30% under the correct model and still above the wrong one, so the test discriminates
+    # HARDER than it did while flaking less.
+    time.sleep(1.6)
     stop.set()
     probes = [c for c in _calls(stub) if c[:2] == ["--status", "--json"]]
-    assert len(probes) >= 4, probes  # period 0.15 → ~5 in 0.8s; pause-after-probe would give ~3
+    assert len(probes) >= 7, probes
 
 
 # ── Commands tab (operator ask 2026-09-03; seen RED first) ─────────────────────────────────────
@@ -768,7 +775,12 @@ def test_commands_table_covers_every_fabrik_source_in_pipeline_order(tmp_path, m
     cmds = qd._load_commands()
     assert [c["name"] for c in sorted(cmds, key=lambda c: c["name"])] == sources
     names = [c["name"] for c in cmds]
-    assert names[0] == "fabrik-rivals" and names.index("fabrik-spec") < names.index(
+    # The table opens on the MULTI-EPIC front door (/fabrik-vision → epics → epics-review), then the
+    # per-epic chain from /fabrik-rivals. This assertion read `names[0] == "fabrik-rivals"` until
+    # b1f7e675 added those three sources with no PIPELINE_ORDER slot; the order below is the
+    # placement, not merely the count.
+    assert names[:3] == ["fabrik-vision", "fabrik-epics", "fabrik-epics-review"]
+    assert names[3] == "fabrik-rivals" and names.index("fabrik-spec") < names.index(
         "fabrik-plan-review"
     )
     assert names.index("fabrik-deploy") < names.index("fabrik-deploy-verify")
@@ -849,7 +861,16 @@ def test_page_has_an_external_services_tab_with_a_lazy_iframe_and_freshness(tmp_
 
     # the phrase SHAPE is pinned: reusing `_fmt_age` once produced "regenerated cached 10h ago ago"
     assert _re.search(r"regenerated \d+\.\d h ago by the daily chain", html)
-    assert '"#external"' in html  # the hash keeps the tab across the 20s reload
+    # The hash keeps the tab across the 20s reload. Pinned on the MECHANISM, not on the literal
+    # `"#external"` an earlier implementation happened to contain: the restore became GENERIC on
+    # 2026-09-05 (any pane restorable by its own hash, because naming tabs literally meant every tab
+    # added later fell through to quota on every auto-reload). The old assertion went red against a
+    # strictly better behaviour. These two fail if the restore is deleted or narrowed back to a
+    # hardcoded list.
+    assert 'location.pathname : "#" + name' in html, "choosing a tab must write its hash"
+    assert 'document.getElementById("pane-" + want)' in html, (
+        "and any existing pane restores from it"
+    )
     monkeypatch.setattr(qd, "EXT_SERVICES_HTML", tmp_path / "missing.html")
     absent = qd.render(_payload(), time.time())
     assert (
@@ -891,7 +912,9 @@ def test_a_blind_probe_triggers_the_tick_from_the_last_good_reading_at_the_drain
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
     qd, stub = _tick_env(tmp_path, monkeypatch, session=86.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
     qd.generate()
-    assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None  # 86: below the flip line (95) AND the drain tier (90), sighted
+    assert (
+        qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
+    )  # 86: below the flip line (95) AND the drain tier (90), sighted
 
     def dead(*a, **kw):
         raise subprocess.TimeoutExpired(cmd="rotate", timeout=60)
@@ -1095,9 +1118,11 @@ def test_the_panel_reaches_the_page_and_goes_critical_when_the_pool_is_dry(tmp_p
     assert "crit" in dry
     assert "402" in dry, "say WHAT the operator will see, not just that a number is low"
 
-    html = qd.render(_payload(), time.time(), credits={"granted": 1.0, "used": 0.0,
-                                                       "remaining": 1.0, "age_s": 0.0,
-                                                       "stale": False})
+    html = qd.render(
+        _payload(),
+        time.time(),
+        credits={"granted": 1.0, "used": 0.0, "remaining": 1.0, "age_s": 0.0, "stale": False},
+    )
     assert "OpenRouter" in html, "the panel must actually be placed in the page"
 
 
@@ -1193,3 +1218,104 @@ def test_the_pool_banner_shows_on_the_external_services_tab_too(tmp_path, monkey
     quota = html[html.index('<section id="pane-quota"') : html.index('<section id="pane-commands"')]
     assert "OpenRouter pool" in quota, "and it stays on the quota tab — it IS a quota"
     assert html.count("OpenRouter pool") == 2, "exactly the two panes, not a third copy"
+
+
+def _sidecar(tmp_path, monkeypatch, unweighted: dict):
+    """A minimal but VALID cost sidecar — `_spend_panel` renders nothing at all without tiers,
+    spend and base rate, so a rig that omits them would prove the panel silent for the wrong reason."""
+    qd = _load(tmp_path, monkeypatch)
+    path = tmp_path / "claude_p_cost.json"
+    path.write_text(
+        json.dumps(
+            {
+                "built_at": "2026-09-05T00:00:00+03:00",
+                "per_model_spend": {
+                    "window_start": "2026-08-07",
+                    "window_end": "2026-09-05",
+                    "spend_usd": 800.0,
+                    "base_rate_per_mtok": 0.007,
+                    "tiers": {
+                        "opus": {
+                            "weight": 5.0,
+                            "tokens": 1_000_000,
+                            "share": 1.0,
+                            "rate_per_mtok": 0.035,
+                            "cost_usd": 800.0,
+                            "models": ["claude-opus-5"],
+                        }
+                    },
+                    "models": {"claude-opus-5": 1_000_000},
+                    "daily": [
+                        {
+                            "date": "2026-09-05",
+                            "tokens": 1_000_000,
+                            "cost_usd": 800.0,
+                            "by_tier": {"opus": 1_000_000},
+                        }
+                    ],
+                    "monthly_spend": {"2026-09": 800.0},
+                    "unweighted": unweighted,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qd, "_COST_SIDECAR", path)
+    return qd
+
+
+def test_tokens_no_tier_claimed_are_named_on_the_page(tmp_path, monkeypatch):
+    """`_tier_of` matches the four tier NAMES inside a model id, so a Claude model named outside that
+    vocabulary (Mythos is already one, in Anthropic's own cache-pricing footnote) contributes to no
+    tier, no cost and no calendar cell. The producer has always published those tokens under
+    `unweighted`; the page never showed it, so the omission was invisible by construction — and it
+    got sharper once empty months stopped being drawn, because such a month no longer appears at
+    all rather than appearing blank."""
+    qd = _sidecar(tmp_path, monkeypatch, {"claude-mythos-5-1": 4_200_000_000})
+
+    panel = qd._spend_panel()
+
+    assert "4,200,000,000 tokens are NOT in any total on this page" in panel
+    assert "claude-mythos-5-1" in panel, "name the model, or nobody can act on the warning"
+
+
+def test_no_unclassified_tokens_means_no_warning(tmp_path, monkeypatch):
+    """A warning that shows when nothing is wrong is wallpaper, and wallpaper is how a real one gets
+    read past."""
+    qd = _sidecar(tmp_path, monkeypatch, {})
+
+    panel = qd._spend_panel()
+
+    assert "NOT in any total" not in panel
+    assert "Daily token consumption" in panel, (
+        "the panel still rendered — the assertion above is real"
+    )
+
+
+def test_the_warning_survives_the_blank_panel_path(tmp_path, monkeypatch):
+    """All-unrecognised is precisely the state that empties `tiers`, and an empty `tiers` is the
+    early return that renders nothing at all. So the one case where the whole panel goes silent is
+    the one case where the reader most needs to be told why — the warning is computed before that
+    return, not beside the table."""
+    qd = _sidecar(tmp_path, monkeypatch, {"claude-mythos-5-1": 9_000_000})
+    blank = json.loads(qd._COST_SIDECAR.read_text(encoding="utf-8"))
+    blank["per_model_spend"]["tiers"] = {}
+    blank["per_model_spend"]["spend_usd"] = None
+    blank["per_model_spend"]["base_rate_per_mtok"] = None
+    qd._COST_SIDECAR.write_text(json.dumps(blank), encoding="utf-8")
+
+    panel = qd._spend_panel()
+
+    assert "9,000,000 tokens are NOT in any total on this page" in panel
+    assert "<table>" not in panel, "no zeroed table — only the explanation"
+
+
+def test_an_unreadable_sidecar_still_renders_nothing(tmp_path, monkeypatch):
+    """The fail-soft contract is unchanged for every other cause: no file, bad JSON, old format."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_COST_SIDECAR", tmp_path / "does-not-exist.json")
+    assert qd._spend_panel() == ""
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(qd, "_COST_SIDECAR", bad)
+    assert qd._spend_panel() == ""

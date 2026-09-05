@@ -474,6 +474,35 @@ def _switch_cell(slug: str, is_active: bool) -> str:
 _RESERVE_PCT = float(os.getenv("QUOTA_RESERVE_PCT", "80"))
 
 
+def _unclassified_warning(p: dict) -> str:
+    """Tokens no tier claimed, said OUT LOUD — everything else on this panel silently excludes them.
+
+    `claude_p_cost._tier_of` matches the four tier NAMES inside a model id. A Claude model named
+    outside that vocabulary — Mythos is already one, in Anthropic's own cache-pricing footnote —
+    classifies as nothing: its tokens leave the tier table, the cost split AND the calendar with no
+    visible trace. The producer has always published them under `unweighted`; this view never
+    rendered it, so the omission was invisible by construction. The gap sharpened the moment empty
+    months stopped being drawn (D-140): such a month used to appear as a row of blank cells a reader
+    might question, and now it does not appear at all.
+
+    Returns "" when nothing is unclassified — a warning that shows when nothing is wrong is
+    wallpaper, and wallpaper is how the real one gets read past.
+    """
+    unc = p.get("unweighted")
+    if not isinstance(unc, dict):
+        return ""
+    tok = sum(int(v) for v in unc.values() if isinstance(v, (int, float)))
+    if not tok:
+        return ""
+    return (
+        "<p class='intro' style='color:var(--crit)'>&#9888; <b>"
+        f"{tok:,} tokens are NOT in any total on this page</b> &mdash; no tier matched "
+        f"{escape(', '.join(sorted(unc)))}. Add the tier to <code>_TIER_WEIGHT</code> in "
+        "<code>scripts/claude_p_cost.py</code>; until then that spend is unallocated and those days "
+        "are missing from the calendar.</p>"
+    )
+
+
 def _spend_panel() -> str:
     """The Usage tab: tier-weighted subscription spend + a daily token calendar.
 
@@ -487,15 +516,22 @@ def _spend_panel() -> str:
     members you cannot see is unverifiable.
 
     Reads the sidecar, never recomputes (`--refresh` runs on the 06:00 cron). A missing or
-    old-format sidecar renders NOTHING rather than a zeroed table that would read as "$0 spent".
+    old-format sidecar renders NOTHING rather than a zeroed table that would read as "$0 spent" —
+    with ONE exception: `_unclassified_warning` survives that path, because tokens no tier claims are
+    exactly what empties `tiers`, and going silent there hides the reason for the silence.
     """
     try:
         d = json.loads(_COST_SIDECAR.read_text(encoding="utf-8"))
         p = d.get("per_model_spend") or {}
         tiers, daily = p.get("tiers") or {}, p.get("daily") or []
         spend, base = p.get("spend_usd"), p.get("base_rate_per_mtok")
+        unclassified = _unclassified_warning(p)
         if not tiers or not spend or not base:
-            return ""
+            # The warning SURVIVES the blank-panel path, and that is the whole point of computing it
+            # here rather than beside the table. Tokens no tier claims are exactly what empties
+            # `tiers` — so the one state where every token is unrecognised is the one state where
+            # the panel would otherwise go silent, taking the explanation with it.
+            return unclassified
     except (OSError, ValueError, TypeError, AttributeError):
         return ""
 
@@ -595,7 +631,7 @@ def _spend_panel() -> str:
         f"1:2:5:10. Rebuilt by the 06:00 cron; last built {escape(str(built))}.</p>"
         "<table><thead><tr><th>Tier</th><th>Weight</th><th>Tokens</th><th>Share</th>"
         "<th>$/MTok</th><th>Cost</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>{cal}"
+        f"<tbody>{''.join(rows)}</tbody></table>{unclassified}{cal}"
     )
 
 
@@ -730,6 +766,12 @@ def _ext_services_intro() -> str:
 
 
 PIPELINE_ORDER: tuple[str, ...] = (
+    # 0-vision — the MULTI-EPIC front door (agents-fabrik-core § Front door, tier 3). A vision
+    # becomes epics; each epic then enters the per-epic chain below at /fabrik-spec. Feature-scale
+    # work skips this block entirely and starts at /fabrik-rivals.
+    "fabrik-vision",
+    "fabrik-epics",
+    "fabrik-epics-review",
     # 1-design
     "fabrik-rivals",
     "fabrik-spec",
@@ -911,9 +953,10 @@ def render(
     rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
     gov_html = _governor_panel(payload)
     credits_html = _pool_credits_panel(credits)
-    # Fail-soft by contract: `_spend_panel` returns "" on a missing/old-format sidecar, so the Quota
-    # tab degrades to what it showed before rather than rendering a zeroed table that would read as
-    # "we spent nothing this month".
+    # Fail-soft by contract: `_spend_panel` returns "" on a missing/old-format sidecar, so the Usage
+    # tab stays empty rather than rendering a zeroed table that would read as "we spent nothing this
+    # month" — except when the sidecar reports tokens no tier claimed, which is returned even on that
+    # path so the pane explains its own emptiness.
     spend_html = _spend_panel()
     cmd_rows = _load_commands()
     cmd_html = _commands_table(cmd_rows)

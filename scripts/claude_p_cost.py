@@ -242,21 +242,33 @@ def measure(claude_json: dict, model: str) -> dict:
 #: arithmetic: the fee is the fee, and it changed when the account count did.
 #:
 #: ⚠️ A SCHEDULE, NOT A CONSTANT, because the previous flat $800 silently rewrote history — it priced
-#: May, June and July at a fee that was not paid until August, overstating three months by 33%. Any
-#: month not listed uses :data:`_CURRENT_MONTHLY_SPEND`, so a new month needs no edit until the fee
-#: changes again; when it does, add the row and every past month keeps its own truth.
+#: May, June and July at a fee that was not paid until August, overstating three months by 33%.
+#:
+#: ⚠️ EXCEPTIONS ONLY. **$800/month is the STANDING default** (operator, 2026-09-05: "from now on if i
+#: dont state otherwise we will pay 800"), so a month is listed here ONLY where the fee differed.
+#: Every unlisted month — including every future one — prices at :data:`_CURRENT_MONTHLY_SPEND` with
+#: no edit. When the fee changes again, pin the months at the OLD fee here before changing the
+#: default, and every past month keeps its own truth. A row equal to the default is not a fact; it
+#: teaches the next reader that months must be listed to be priced, which is the opposite of the
+#: contract — `tests/test_spend_calendar_months.py` refuses one.
 _MONTHLY_SPEND: dict[str, float] = {
     "2026-05": 600.0,
     "2026-06": 600.0,
     "2026-07": 600.0,
-    "2026-08": 800.0,
-    "2026-09": 800.0,
 }
 _CURRENT_MONTHLY_SPEND = _env_float("CLAUDE_MONTHLY_SPEND_USD", 800.0)
 
 
 def _spend_for_month(ym: str) -> float:
-    """The fee paid for `YYYY-MM`; the current rate for any month not in the schedule."""
+    """The fee paid for `YYYY-MM`; the current rate for any month not in the schedule.
+
+    ⚠️ **Changing `_CURRENT_MONTHLY_SPEND` RETROACTIVELY REPRICES every unlisted past month**, because
+    an unlisted month has no fee of its own — it borrows today's. So the order is fixed: PIN the
+    months that were paid at the old fee into `_MONTHLY_SPEND` first, in the same change that moves
+    the default. Deliberately not mechanised (FIX DIRECTIVE 5): the fee has changed once in five
+    months, by the operator, and a detector for a twice-a-year manual step is wallpaper. Raised by an
+    author-blind finder 2026-09-05 and adjudicated as a documented order-of-operations, not a guard.
+    """
     return _MONTHLY_SPEND.get(ym, _CURRENT_MONTHLY_SPEND)
 
 
@@ -510,10 +522,21 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
         wt = sum(w for kk, w in wtok_by_day.items() if d_start.isoformat() <= kk <= k)
         fee = _prorated_spend(d_start, d_end)
         day_rate[k] = (fee / wt * 1_000_000.0) if wt > 0 else 0.0
+    # ⚠️ The zero-fill is asymmetric ON PURPOSE (operator, 2026-09-05: "remove the months which does
+    # not have data"). WITHIN a month every date gets a cell, so a quiet day stays visible and the
+    # grid keeps lining up with its weekdays. ACROSS months a block holding no classifiable day is
+    # dropped entirely — it would render all-empty either way, it carries no information, and a long
+    # gap paints a wall of them: one phantom row dated nine months before the real history once
+    # produced THIRTEEN blank blocks. Keyed on `cal_tier`, so "has data" means what the calendar can
+    # actually SHOW (tiered tokens); a day of purely unrecognised models surfaces in `unweighted`.
+    live_months = {k[:7] for k in cal_tier}
     daily = []
     d = cal_start
     while d <= today_d:
         k = d.isoformat()
+        if k[:7] not in live_months:
+            d += datetime.timedelta(days=1)
+            continue
         by = cal_tier.get(k, {})
         rate = day_rate.get(k, base)
         cost = sum(t / 1_000_000.0 * rate * _TIER_WEIGHT[ti] for ti, t in by.items())
