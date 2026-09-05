@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the account-rotation guarantee is now a test, not a claim (2026-09-06)
+
+Operator: *"be 100% sure it will rotate when the quota hits to the next account, if no account
+available, it should wait and switch when there is an account available."*
+
+The honest finding is that **no existing test covered it.** Every flip test drives
+`_fleet_flip_leg` through `_flip_leg_harness`, which STUBS `_validated_pick` — so the suite
+asserted the flip TRIGGER (when the active account is at the wall) and never the CANDIDATE
+SELECTION (whether there is anywhere to go). The exact question being asked was untested.
+
+Three tests now drive the REAL picker (`_validated_pick` → `_pick_flip_target`) with live-source
+rows, so nothing about availability is faked: (1) active at the wall + a sibling with headroom →
+the pointer moves to that sibling, chosen by the picker rather than handed to it; (2) active at
+the wall + EVERY sibling walled → NO flip, and `_validated_pick` returns None — installing a
+walled successor would kill every session box-wide; (3) all walled, then one sibling's window
+turns → the very next tick flips to it with no operator action. (3) is the half that failed in
+production for 10h41m on 2026-09-04.
+
+Proven non-vacuous by mutation, with the right discrimination: a picker mutated to never find a
+successor fails (1) and (3) while (2) correctly still passes; a picker mutated to ignore the
+walled state fails (2) and (3). Production code was restored byte-identical after each.
+
+No production change — the behaviour was already correct; it was the evidence that was missing.
+
+### Fixed — the dashboard test suite was red on master, and unclassified tokens were invisible (2026-09-05)
+
+Found by running `tests/test_quota_dashboard.py` during the scoped review of the calendar change — two
+of its 58 tests had been failing on committed code, one of them since my own push hours earlier.
+
+**Mine (e4e34188).** Making the tab restore generic deleted the literal `"#external"` from the page,
+and a test pinned that literal as its proof that the hash keeps the tab across the 20s reload. The
+behaviour was strictly better and the assertion still went red — I changed a rendered string and ran
+only the cost suites. The assertion now pins the MECHANISM (choosing a tab writes its hash; any
+existing pane restores from it), proven red by deleting the restore.
+
+**The corpus's (b1f7e675).** `/fabrik-vision`, `/fabrik-epics` and `/fabrik-epics-review` were added
+to `commands/_sources/` with no slot in `PIPELINE_ORDER`, and that test refuses a source without one —
+exactly as designed. They now open the table as a `0-vision` block (the multi-epic front door; a
+vision becomes epics, each epic enters the per-epic chain at `/fabrik-spec`), which is a placement
+judgement infra owns and can override.
+
+**A fail-silent, not a red test.** `_tier_of` classifies on the four tier names inside a model id, so
+a Claude model named outside that vocabulary — Mythos is already one, in Anthropic's own cache-pricing
+footnote — lands in no tier: its tokens leave the table, the cost split and the calendar with no
+visible trace. The producer always published them under `unweighted` and the page never rendered it.
+It does now, in red, naming the model, and it survives the blank-panel path — because all-unrecognised
+is precisely the state that empties `tiers` and would otherwise take the explanation down with it.
+
+**A flake.** The probe-cadence test counted probes in a 0.8s window and asserted >=4 against an
+expected 5; a 20% margin that thread-scheduling jitter ate while three pool dispatches ran alongside
+it. The window is 1.6s and the floor 7 against an expected 10 — a wider margin AND a bigger gap to the
+6 that the wrong implementation would produce, so it discriminates harder while flaking less.
+
 ### Changed — mega 00 + 02 retired into docs/orchestrator/_retired/ with tombstone headers (2026-09-06)
 - **What:** `00-trigger-mega-epic-fabrik.md` and `02-epic-decomposition-fabrik.md` are a pure `git mv` (history preserved through `--follow`) into `docs/orchestrator/_retired/mega-epic-breakdown/*.RETIRED.md`, each prefixed with a two-line tombstone naming the corpus twin that replaced it — 00 → `/fabrik-vision`, 02 → `/fabrik-epics` (spec § Chain consolidation (c)). No content rewrite beyond the header. Referrers repaired in the same change: `agents-fabrik.md` (the existing-project front door now names `/fabrik-vision`), `docs/infrastructure/vps-complete-inventory.md` (the historical 02 cite), and the moved 00's own `../../infrastructure/` link (now three levels deep).
 - **Where:** `docs/orchestrator/_retired/mega-epic-breakdown/`, `agents-fabrik.md`, `docs/infrastructure/vps-complete-inventory.md`, `INDEX.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T12a).
@@ -11,6 +64,28 @@ All notable changes to this project will be documented in this file.
 ### Changed — Retire ettw 00–05 into docs/orchestrator/_retired/ (2026-09-05)
 - **What:** the first seven epic-to-ticket-workflow docs (00-trigger, 01-decisions-lock, 01R-decisions-review, 02-core-flows, 03-tech-plan, 04-deploy-plan, 05-ticket-outline) moved by `git mv` to `docs/orchestrator/_retired/epic-to-ticket-workflow/<stem>.RETIRED.md`, each with a two-line tombstone header naming its corpus twin per the multi-agent-per-repo spec § Chain consolidation (a): 00 → `/fabrik-spec`'s epic-file intake · 01/01R → `/fabrik-spec` + `/fabrik-spec-review` · 02 → `/fabrik-flows` + review · 03 → `/fabrik-data-contract` + `/fabrik-plan-after-chat` · 04 → `/fabrik-deploy-checklist` + the deploy triad · 05 → `/fabrik-plan-after-chat` + `/fabrik-plan-review`. History preserved (`git log --follow`); no content change beyond the header.
 - **Where:** `docs/orchestrator/_retired/epic-to-ticket-workflow/`, `INDEX.md`, `docs/README.md`, `docs/workstation/kaizen-shrink-audit.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T10).
+
+### Changed — $800 is the standing subscription fee, and empty months leave the spend calendar (2026-09-05)
+
+Two operator directives on the Usage tab, both narrowing what the view is allowed to assert.
+
+**The fee schedule now carries only EXCEPTIONS.** `$800/month` is the standing default ("from now on
+if i dont state otherwise we will pay 800"), so `_MONTHLY_SPEND` keeps just the three $600 months
+(May–July 2026) and the redundant $800 rows for August and September are gone. Those months price
+from the default instead, and the output is identical — $777.81 and $155.88, both still labelled
+`fee $800/mo` — which is the evidence the trim changed presentation, not arithmetic. A new month now
+needs no edit at all; a fee CHANGE means pinning the old months before moving the default.
+
+**A month with no recorded day is dropped from the calendar** ("remove the months which does not have
+data"). The zero-fill is deliberately asymmetric now: within a live month every date still gets a
+cell, so a quiet day stays visible and the grid keeps its weekday alignment — but a block with no
+data at all carries no information, and a gap in the history paints a wall of them. This is not
+hypothetical: a single phantom row dated nine months before the real history once produced thirteen
+blank blocks.
+
+`tests/test_spend_calendar_months.py` (7 tests) pins both halves of the asymmetry, refuses a schedule
+row equal to the default, and isolates BOTH usage paths so the suite can never write to the live
+store — which is how that phantom row got there.
 
 ### Changed — the quota drain broadcast now names WHEN the next account is available, +2 minutes (2026-09-05)
 

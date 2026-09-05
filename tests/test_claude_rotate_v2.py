@@ -1523,3 +1523,59 @@ def test_resume_lead_is_floored_and_rendered_honestly(monkeypatch):
     monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "90")
     msg = cr._urgent_drain_message("a@x", "walled", (1788612000.0, "b@x", "5-hour"))
     assert "90 seconds after the reset" in msg, msg
+
+
+# ── OPERATOR GUARANTEE (2026-09-06): "be 100% sure it will rotate when the quota hits to the
+# next account, if no account available, it should wait and switch when there is an account
+# available." Every pre-existing flip test uses _flip_leg_harness, which STUBS _validated_pick —
+# so they assert the flip TRIGGER and never the CANDIDATE SELECTION. These three drive the REAL
+# picker (_validated_pick -> _pick_flip_target) with live-source rows, so nothing about "is there
+# an account to go to" is faked. ────────────────────────────────────────────────────────────────
+
+def _real_pick_harness(monkeypatch, tmp_path):
+    """Like _flip_leg_harness but WITHOUT stubbing _validated_pick — the whole point."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    flips: list[str] = []
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    return flips
+
+
+def _sib(slug, session, weekly=10.0, *, s_reset=NOW + 3000.0, cap=80):
+    return {"email": f"{slug}@test", "slugs": [slug], "source": "live", "weekly_cap": cap,
+            "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
+            "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 200000.0}}
+
+
+def test_guarantee_1_rotates_to_the_next_account_when_quota_hits(monkeypatch, tmp_path):
+    """Active at the wall, a sibling with headroom -> the pointer MOVES to that sibling.
+    The successor is chosen by the real picker, not handed to it."""
+    flips = _real_pick_harness(monkeypatch, tmp_path)
+    cr._fleet_flip_leg([], [_ob(99.0, 40.0), _sib("sarp", 12.0)], threshold=95.0)
+    assert flips == ["sarp"], f"must rotate to the account with headroom; got {flips}"
+
+
+def test_guarantee_2_waits_when_no_account_is_available(monkeypatch, tmp_path, capsys):
+    """Active at the wall and EVERY sibling walled too -> no flip, and no crash. This is the
+    'wait' half: installing a walled successor would kill every session box-wide."""
+    flips = _real_pick_harness(monkeypatch, tmp_path)
+    walled = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 100.0), _sib("mob", 97.0)]
+    cr._fleet_flip_leg([], walled, threshold=95.0)
+    assert flips == [], f"must NOT install a walled successor; got {flips}"
+    assert cr._validated_pick(walled, {"ob@test"}) is None, "no candidate may be offered"
+
+
+def test_guarantee_3_switches_as_soon_as_an_account_becomes_available(monkeypatch, tmp_path):
+    """The half that FAILED in production for 10h41m on 2026-09-04. All walled -> wait; then one
+    sibling's window turns and its reading shows headroom -> the very next tick MUST flip to it,
+    with no operator action. Same account objects, only the reading changes."""
+    flips = _real_pick_harness(monkeypatch, tmp_path)
+    walled = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 100.0)]
+    cr._fleet_flip_leg([], walled, threshold=95.0)
+    assert flips == [], "precondition: nothing available yet"
+    # can@'s 5-hour window resets: same account, fresh live reading with headroom
+    relieved = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 4.0, s_reset=NOW + 18000.0)]
+    cr._fleet_flip_leg([], relieved, threshold=95.0)
+    assert flips == ["can"], f"must switch the instant an account frees up; got {flips}"
