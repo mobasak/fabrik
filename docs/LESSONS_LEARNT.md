@@ -6119,3 +6119,38 @@ they pass, and assert on THAT.
 2. **Mutation is the only instrument that finds a suite passing for the wrong reason.** The first version of the
    producer suite let FIVE mutations through (window bounds hardcoded to 2020, `_MONTHLY_DAYS` collapsed to 1,
    `built_at` frozen, and two more). No amount of reading shows that; twelve minutes of mutation does.
+
+## `ruff format <dir>` on a shared tree reflows your siblings' files, and the damage lands later (2026-09-05)
+
+**Near-miss.** I ran `ruff format tests/ scripts/claude_p_cost.py` meaning to format my own three test
+files. It reflowed **106 files** — 3068 insertions, 1169 deletions, pure formatting, all of it sitting
+uncommitted in a tree two other sessions were working in. I did not notice; a peer session did, because
+two of those files were paths its plan was about to merge coder work into.
+
+**Why it is dangerous rather than merely untidy.** Formatting churn is invisible in review and harmless
+on its own, so it sits there. The damage arrives at the NEXT commit: `git commit -- <paths>` reads the
+WORKING TREE, so whoever commits one of those paths next silently ships my reflow — and if a sibling has
+merged their own hunks into that file in the meantime, my later commit of it drops their work with no
+conflict and no warning. The reflow is the carrier, not the wound.
+
+**The rule.** Scope every formatter to the files you actually touched — `ruff format <file> <file>`,
+never a directory, never `.`, on a shared tree. A directory argument is the same class as `git add -A`,
+which the contract already bans for exactly this reason; the formatter case is not named there and it
+should be.
+
+**How to clean it up without destroying anything** (the part worth copying):
+```
+# For each dirty file, is it PURE formatting — i.e. content-free beyond HEAD?
+ruff_format(git show HEAD:<file>) == <working tree file>   →  safe to `git checkout -- <file>`
+                                  ≠  →  it carries someone's real content; LEAVE IT
+```
+That comparison is the whole safety argument. It separated 105 revertible files from 1 that held 55 lines
+of a sibling's live WIP. Back the bytes up before reverting anyway, and re-run the comparison afterwards.
+
+⚠️ **HEAD moves while you work.** The one file I excluded became pure-reflow-of-HEAD a few minutes later,
+when its owner committed their content — so it turned into mine after all. Re-derive the pure/impure
+verdict against the CURRENT HEAD before each decision, not once at the start.
+
+**Prefer reverting to committing.** Committing 105 files of formatting you did not author, under your
+name, is the bundling-files-you-did-not-author defect; `git checkout --` on a proven-pure file restores
+HEAD exactly and costs nobody anything.
