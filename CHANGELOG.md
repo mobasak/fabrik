@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — re-vendored the GlitchTip scrubber: an absent "@" was leaking the credential (2026-09-05)
+
+`templates/scaffold/python/glitchtip_init.py` re-vendored from site-provisioner `7f96834` → `6715c29`,
+five commits it had moved in the interim (+302/−50 upstream lines on that file). The load-bearing one:
+every credential guard in the module keyed on a literal `@`, and `authority.rsplit("@", 1)[-1]` is a
+NO-OP without one — so a truncated or mistyped DSN of the form `scheme://user:secret` arrived as the
+"host" and was re-emitted. Upstream measured 240 of 480 probes leaking on that shape and 0 of 240 on the
+`@`-bearing one; their 26,880-case fuzz corpus could not see it because every case was built from a
+template containing an `@`. Proven live in the hub's own shipped template by red-on-revert: the guard
+fails `secrets reached the wire through: ['dsn_no_at']` on the old pin and is green on the new one.
+
+The reporting mail (`01M1RQF0SV7SRQJSG6NFEZG8NE`) cites `1eb7de6`, which the upstream author's own NEXT
+commit `6715c29` corrects as over-redacting, quadratic and ungraded — so the vendor takes the current
+committed revision, not the sha the message names. Two channels closed with it: `before_send_metric`
+(the `enable_metrics` option is a documented no-op — `client.py:656-659` warns and builds the
+MetricsBatcher unconditionally at :661-664) and `auto_session_tracking=False` (sessions have no
+`before_send` hook at all, so a hook-shaped inventory is structurally blind to them). The retraction in
+that mail does not apply to the hub: this copy never passed `enable_metrics`, verified on the emitted
+module rather than assumed.
+
+`tests/test_scaffold_glitchtip_security.py` grows the corpus it was blind to (`dsn_no_at`), carried in
+the log TEMPLATE — the one `logentry` field the allowlist deliberately keeps, and the only route to the
+free-text redactor. The import allowlist widens to admit `ipaddress`, deliberately: it adjudicates the
+bracketed-IPv6 case for the "does this authority provably PARSE" test that replaced the `@` heuristic.
+9 tests green; byte-parity with upstream re-proven by reversing all five scaffold adaptations.
+
 ### Added — epic assignment: `epic_order.py --assign` + owner-set integrity check (2026-09-05)
 
 T03a of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `scripts/epic_order.py` gains a third job

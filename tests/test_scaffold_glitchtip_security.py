@@ -30,6 +30,15 @@ requires_fabrik_env = pytest.mark.skipif(
 
 SECRETS = {
     "dsn": "postgres://svc:PGPASSWORD_LEAK@postgres-main:5432/db",
+    # An absent "@" is not an absent credential. Every other DSN in this corpus carries one,
+    # so the whole corpus was blind BY CONSTRUCTION to a truncated or mistyped DSN — the
+    # redactors keyed on a literal "@" and `rsplit("@", 1)[-1]` is a NO-OP without one, so
+    # the credential arrives as the "host" and is re-emitted verbatim. site-provisioner
+    # measured 240 of 480 probes leaking on this shape and 0 of 240 on the "@"-bearing one
+    # (01M1RQF0SV7SRQJSG6NFEZG8NE); their own 26,880-case fuzz corpus could not see it for
+    # exactly this reason. Carried here because a guard whose inputs all share one shape
+    # proves only that the shape it never tries is untested.
+    "dsn_no_at": "postgres://svc:NOATPASSWORD_LEAK",
     "jwt": "JWTSECRET_LEAK",
     "password": "BODYPASSWORD_LEAK",
     "header": "SIGNINGSECRET_LEAK",
@@ -117,6 +126,10 @@ def test_python_glitchtip_captured_event_and_transaction_carry_no_secret(tmp_pat
         body = await request.json()  # noqa: F841
         signing = request.headers.get("X-Signing-Secret")  # noqa: F841
         logging.getLogger("guard").error("otp=%s", SECRETS["otp"])
+        # The @-less credential travels in the TEMPLATE, which is the one logentry field the
+        # allowlist deliberately KEEPS — so it is reachable only through the free-text
+        # redactor, which is precisely where the "@"-keyed regex used to miss it.
+        logging.getLogger("guard").error("connecting to " + SECRETS["dsn_no_at"])
         try:  # a breadcrumb carrying an outbound URL with a live-looking key
             httpx.get(f"http://127.0.0.1:1/probe?apikey={SECRETS['apikey']}", timeout=0.05)
         except Exception:  # noqa: BLE001  (connection refused is the point; the breadcrumb is recorded first)
@@ -256,7 +269,13 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
             top |= {a.name.split(".")[0] for a in node.names}
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             top.add(node.module.split(".")[0])
-    assert top <= {"os", "re", "logging", "sentry_sdk", "structlog"}, f"unexpected top-level imports: {top}"
+    # `ipaddress` arrived with the @-less credential fix: the authority is accepted only if it
+    # provably PARSES, and a ":" survives solely as a numeric port or inside a bracketed IPv6
+    # literal — which is what `ipaddress.IPv6Address` adjudicates. Widened deliberately, with
+    # the reason recorded, rather than relaxed to make a red guard green.
+    assert top <= {"ipaddress", "os", "re", "logging", "sentry_sdk", "structlog"}, (
+        f"unexpected top-level imports: {top}"
+    )
 
     # EXECUTE it.
     spec = importlib.util.spec_from_file_location("vendored_glitchtip_init_under_test", path)

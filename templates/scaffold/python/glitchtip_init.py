@@ -10,21 +10,26 @@ Import this module BEFORE FastAPI app creation in main.py:
 
 VENDORED — do not edit here expecting it to stick upstream.
   origin:   site-provisioner  api/glitchtip_init.py
-  revision: 7f96834
+  revision: 6715c29
 Copied under the fabrik-lib law (vendor, never import across repos). It is a COPY: to
 pull a later upstream fix, re-vendor and move the revision above, so a reader can always
 diff this file against the sha it claims to be.
 
-⚠️ THIS SURFACE MOVES. The first vendor pinned 4f5c158 and was six commits stale within
-two hours — and the gap was not cosmetic: one commit fixed a redaction that missed 68.8%
-of the shape it was built for, another closed a logging channel `_scrub_event` cannot
-reach at all. Re-vendor by VERIFYING the upstream revision at that moment
-(`git -C /opt/site-provisioner log -1 --format=%h -- api/glitchtip_init.py`), never by
-trusting a sha written in a ticket.
+⚠️ THIS SURFACE MOVES, AND THE MOVES ARE SECURITY-BEARING. Vendor #1 pinned 4f5c158 and
+was six commits stale within two hours; by the fourth re-vendor the file had moved
+fourteen times in two days. Not one of those moves was cosmetic — a redaction that missed
+68.8% of its own shape, a channel `_scrub_event` cannot reach, a character before the
+scheme that leaked 100% of the time, and a credential guard keyed on a literal "@" that
+let 240 of 480 probes through when the DSN had no "@" in it. TWICE the upstream author's
+NEXT commit corrected the fix they had just mailed us. So: re-vendor by VERIFYING the
+revision at that moment (`git -C /opt/site-provisioner log -1 --format=%h --
+api/glitchtip_init.py`), never by trusting a sha written in a ticket OR IN A MAIL — and
+prefer the current committed revision over the one a message cites.
 
 Scaffold adaptations, all deliberate and each graded by
 tests/test_scaffold_glitchtip_security.py:
-  * ``server_name`` defaults to the service name, not the reference's hardcoded one;
+  * ``server_name`` keeps upstream's ``SERVICE_NAME`` env read; only the fallback differs
+    (the scaffolded service name, not the origin repo's own);
   * ``LoggingIntegration(event_level=logging.ERROR)`` is the FLEET default (D-126) — the
     reference uses ``event_level=None``, which suits a service that never wants a log
     record to become an event. ``level`` and ``sentry_logs_level`` stay None, exactly as
@@ -36,6 +41,7 @@ Apart from those, this file is byte-identical to the origin at the revision abov
 COMMENTS added here. When re-vendoring, diff with comments in mind: the executable bytes
 are the contract, not the prose.
 """
+import ipaddress
 import logging
 import os
 import re
@@ -218,6 +224,58 @@ def _keep(mapping: dict, allowed: frozenset) -> dict:
     }
 
 
+def _is_bare_authority(host: str) -> bool:
+    """True only if `host` is a host with, at most, a NUMERIC port.
+
+    ⚠️ THE POINT: an absent `@` does NOT mean an absent credential. A truncated or
+    mistyped DSN leaves `https://admin:hunter2` — no `@` anywhere — and by SHAPE that is
+    indistinguishable from a legitimate `host:port`. Every credential guard here keyed on
+    `@`, so the `rsplit("@", 1)[-1]` below was a NO-OP on that shape and returned the whole
+    credential as the "host", which then shipped verbatim.
+
+    This is not a sixth heuristic. `api/google_search_console_client.py` hit the identical
+    class and fixed it there, in prose naming it exactly — "An absent '@' does NOT mean an
+    absent credential ... the previous version keyed on '@' alone". That fix was applied at
+    the LOCATION and never carried across, so the two modules in this one repo disagreed on
+    the identical string: GSC redacted `https://admin:hunter2`, this module shipped it.
+
+    The test is deliberately NOT "does this look dangerous" — a denylist, and this module
+    has been bitten by those repeatedly. It is "does this provably parse as an authority",
+    and everything else fails closed.
+
+    STATED LIMIT, identical to the sibling's and for the same reason: this is a PORT
+    validator, not a credential detector. `user:1234` passes, because by the RFC grammar
+    that IS host `user` port `1234`, indistinguishable from `example.com:8080`.
+    """
+    if host.startswith("["):
+        # Bracketed IPv6 literal (`[::1]`, `[::1]:6379`) — the inner colons are address
+        # separators, not a port, so the numeric rule must not be applied to them.
+        #
+        # ⚠️ The brackets must not become an ESCAPE HATCH, which is what the first version
+        # of this branch was: it checked only that a `]` existed and the tail was empty or
+        # `:digits`, so `[admin:hunter2]` and `[admin:hunter2]:5432` were "authorities" and
+        # `_safe_origin` returned them VERBATIM. The commit that introduced it claimed to
+        # have adopted the sibling module's convention; the sibling actually validates that
+        # the literal parses as IPv6, and this did not — so the two modules still disagreed
+        # on a credential-shaped string, which is the exact sentence that commit used to
+        # describe the bug it was fixing. Parse it for real.
+        closing = host.rfind("]")
+        if closing == -1:
+            return False
+        tail = host[closing + 1 :]
+        if tail and not (tail.startswith(":") and tail[1:].isdigit()):
+            return False
+        try:
+            ipaddress.IPv6Address(host[1:closing])
+        except ValueError:
+            return False
+        return True
+    if ":" not in host:
+        return True
+    name, _, port = host.rpartition(":")
+    return bool(name) and port.isdigit() and ":" not in name
+
+
 def _safe_origin(description: str) -> str | None:
     """Return "VERB scheme://host" if the description parses as one, else None.
 
@@ -262,6 +320,11 @@ def _safe_origin(description: str) -> str | None:
     # Userinfo rides in the authority; the previous cut kept "user:pass@host".
     host = authority.rsplit("@", 1)[-1]
     if not host:
+        return None
+    # ⚠️ Keying on "@" was the bug, not the fix. With no "@" the rsplit above is a no-op, so
+    # `admin:hunter2` arrives here as the "host". Validate that what survived provably IS an
+    # authority; anything else is credential material and the description is dropped.
+    if not _is_bare_authority(host):
         return None
     # Drop an unrecognised verb rather than the whole description: the origin is still
     # useful for triage, and an unnamed verb is exactly where a secret would hide.
@@ -365,7 +428,17 @@ def _reduce_origin(value):
     if not isinstance(value, str):
         return _scalar_or_none(value)
     if not _LOOKS_LIKE_URL_RE.match(value):
-        return value            # an instrumentation identifier: carries no user data
+        # ⚠️ The gate is POSITIONAL — `^\s*(?:\S+\s+)?scheme://` matches only when the URL
+        # is the first or second whitespace token. A value like
+        # "auto.db.sqlalchemy connecting to <dsn>" therefore failed the gate and returned
+        # VERBATIM. `transaction` had this same hole and closed it with the free-text
+        # redaction; `origin` did not inherit the fix, so the identical string was redacted
+        # in one field and shipped whole in the other.
+        #
+        # Reducing it to an origin would destroy a legitimate identifier, so the free-text
+        # redaction is applied instead: the identifier survives, a credential inside it
+        # does not.
+        return _redact_userinfo_in_text(value)
     return _safe_origin(value)  # a URL: origin only, or dropped if it will not parse
 
 
@@ -392,41 +465,42 @@ def _reduce_origin(value):
 # DSN from the `word:word@word` that ordinary log lines are full of. The separator may be
 # damaged (`://`, `:/`, `//`) because that is the failure being redacted.
 #
-# The userinfo class permits `? # ' "` and excludes only whitespace, `/` and `@`. That
-# matters: a password containing `#` or a quote leaked 100% under every previous design,
-# because the class was copied from the well-formed-URL case where those are delimiters.
-# `/` stays excluded so `https://host/path@ref` keeps its path — and a `/` inside a DSN
-# password is not RFC 3986-valid unencoded, which is a stated residual below, not a claim
-# that it cannot happen.
-# TWO sub-rules, differing only in how much corroboration a damaged separator needs.
+# ⚠️ THE ORDINALS BELOW ARE LOAD-BEARING AND WERE INVERTED FOR SEVERAL ROUNDS. When the
+# alternation order was reversed to fix the `user@server` tail leak, the code moved and this
+# prose did not, so every "first/second alternative" sentence pointed at the other rule and
+# a sentence describing the userinfo class matched NEITHER class. Read the pattern, not this
+# paragraph, if they ever disagree again.
 #
-# An INTACT `://` is unambiguous enough on its own: `scheme://anything@` is a URL with
-# userinfo, so no colon is required inside it (this is the rule that catches the bare-token
-# `https://<token>@host` form).
+# FIRST alternative — `(scheme(?::/{1,2}|//))([^\s/:]*+:[^\s]*)@`
+#   Separator: `://`, `:/` or `//` — damaged OR intact.
+#   Userinfo:  REQUIRES a colon. The head `[^\s/:]*+` excludes whitespace, `/` and `:` and is
+#              POSSESSIVE, which gives the colon exactly one split point; without that the
+#              engine retried every split inside a single match attempt and the pattern was
+#              quadratic (15.6s at 60 KB) even though start positions were already pruned.
+#              The tail `[^\s]*` excludes ONLY whitespace, so it permits `/`, `?`, `#` and
+#              `@` — that is deliberate and it is what makes the match run to the LAST `@`.
+#              A password containing `@` (the canonical Azure `user@server` login) otherwise
+#              shipped its tail BEHIND a `[redacted]@` marker, which reads as a successful
+#              redaction and is strictly worse than not matching at all.
+#   Why it may require a colon and still be safe on a damaged separator: `src//main@HEAD`
+#   and `C:/temp@1` have exactly the damaged shape and are an ordinary path and a Windows
+#   path. Neither has a colon in the userinfo position; every `user:pass` DSN does. That one
+#   distinction is what lets the damaged case be covered without destroying paths.
 #
-# A DAMAGED separator (`//` or `:/`) is NOT unambiguous — `src//main@HEAD` and `C:/temp@1`
-# have exactly that shape and are an ordinary path and a Windows path. So it additionally
-# requires a COLON inside the userinfo, which every `user:pass` DSN has and neither of those
-# does. That single distinction is what lets the damaged-separator case be covered at all
-# without destroying paths; an earlier design that treated both separators alike damaged
-# both of those strings.
-# ⚠️ Two properties below are load-bearing and both were got wrong once.
+# SECOND alternative — `(scheme://)([^\s/?#]+)@`
+#   Separator: INTACT `://` only.
+#   Userinfo:  NO colon required — this is the only rule that catches a bare-token
+#              `https://<token>@host`. It excludes `?` and `#` per RFC 3986, where they START
+#              the query and fragment and so cannot appear inside userinfo; that exclusion is
+#              what keeps `https://h?a=1@2` intact. It also excludes `/`.
 #
-# (An earlier revision used a token-boundary lookbehind here; see the note above for
-# why it was replaced by a length bound.)
-# This lookbehind is deliberately NOT the one an earlier round removed. That one forbade a
-# scheme preceded by `: = ,` and so blocked `jdbc:postgresql://…` and `KEY:<dsn>` — real
-# shapes. This one forbids only another SCHEME character before the scheme, which prunes
-# mid-run starts while leaving every one of those shapes matchable.
+# ORDER MATTERS because both can match at one position and Python's `|` takes the first.
+# The colon-requiring, runs-to-the-last-`@` rule must lead.
 #
-# THE `?#` SPLIT between the two alternatives is RFC 3986, not a heuristic. In a well-formed
-# URL `?` and `#` START the query and fragment, so they cannot be inside userinfo — excluding
-# them from the first alternative keeps `https://h?a=1@2` intact.
-#
-# The second alternative accepts `://` as well as the damaged separators, and permits `?#`,
-# BECAUSE IT REQUIRES A COLON in the userinfo. That catches a `user:pass` password containing
-# `#` behind an intact separator, and the colon is what keeps the permissiveness safe:
-# `https://h?a=1@2` has no colon in that position, so it stays intact.
+# The scheme run is `[a-zA-Z][a-zA-Z0-9+.\-]{0,31}` — LENGTH-BOUNDED, not boundary-anchored
+# and not possessive. An earlier revision used a `(?<![A-Za-z0-9+.\-])` lookbehind to prune
+# mid-run starts; it also blocked `psql -dpostgresql://…` and 12 other real prefixes, so the
+# length bound replaced it. No lookbehind survives in this module.
 #
 # ⚠️ STATED RESIDUAL, because an earlier version of this comment claimed the gap was closed
 # and it is not: a BARE-TOKEN userinfo (no colon) containing `?` or `#` falls between both
@@ -435,7 +509,8 @@ def _reduce_origin(value):
 # it varies the alphabet only in the `user:{secret}` form and covers the bare-token shape
 # only with an alphanumeric secret; the two dimensions are never crossed.
 #
-# It is left open on measurement, not convenience. Permitting `?#` in the first alternative
+# It is left open on measurement, not convenience. Permitting `?#` in the SECOND (bare-token)
+# alternative — the first already permits them in its tail —
 # closes all four leak shapes and over-redacts 5 of 8 real query strings — `https://h?a=1@2`,
 # `https://h#f@g`, `http://h?x@y` — because `scheme://host?query@x` and
 # `scheme://token#x@host` are STRUCTURALLY IDENTICAL. A regex cannot separate them, and a
@@ -443,13 +518,21 @@ def _reduce_origin(value):
 # refuted. Tokens are overwhelmingly `[A-Za-z0-9_-]`, so the residual is narrow; it is
 # asserted in the test rather than described only here.
 #
-# POSSESSIVE `*+` on the scheme run. Without it this is QUADRATIC, not linear: on one long
-# unbroken `[A-Za-z0-9+.\-]` run the engine starts a match at every character and backtracks
-# the whole run each time — 2.7s at 32 KB, 15.6s at 60 KB, synchronously inside
-# `before_send`. An earlier comment here claimed "requiring the scheme is what makes this
-# linear"; requiring it is necessary and NOT sufficient, and the measurement that "proved"
-# linearity used `"a:"*n`, where the colons break the runs. `*+` refuses to give back the
-# run, so a start position with no separator after it fails immediately.
+# POSSESSIVE `*+`, and it is NOT on the scheme run — a claim this comment and decision row
+# D-019 both made, and both were wrong. It sits on the FIRST alternative's userinfo head,
+# `[^\s/:]*+`, where it gives the required colon exactly one split point instead of retrying
+# every split inside a single match attempt.
+#
+# The two quadratic blowups here are DIFFERENT and each needed its own fix, which is why one
+# fix kept looking like it had not worked. Across START POSITIONS: on one long unbroken
+# `[A-Za-z0-9+.\-]` run the engine begins a match at every character — 2.7s at 32 KB, 15.6s
+# at 60 KB, synchronously inside `before_send`; that one is closed by the 32-char LENGTH
+# BOUND on the scheme run (below), not by a possessive quantifier, which was measured and
+# did not help. Inside a SINGLE match attempt: the userinfo head splitting at each candidate
+# colon; that one is closed by the possessive. An earlier comment claimed "requiring the
+# scheme is what makes this linear" — necessary, not sufficient — and the measurement that
+# "proved" linearity used `"a:"*n`, where the colons break the runs and neither blowup can
+# appear. Wrong shape, confident number.
 #
 # GREEDY userinfo INCLUDING `@`, which makes this match to the LAST `@` rather than the
 # first. A password containing `@` otherwise ships its tail — and ships it BEHIND a
@@ -473,16 +556,128 @@ def _reduce_origin(value):
 # without needing a boundary at all. A registered URI scheme is at most 30-odd characters;
 # 32 is generous and the bound is what makes the cost predictable.
 _URL_USERINFO_RE = re.compile(
-    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}://)([^\s/?#]+)@"
+    # ⚠️ ORDER MATTERS, and having it the other way round was a HIGH leak. Both alternatives
+    # can match at the same position and Python's `|` takes the FIRST that does. With the
+    # `?#`-excluding rule leading, a DSN whose USERNAME itself contains an `@` — the
+    # canonical Azure Postgres `user@server` login form — matched only the part before that
+    # first `@`, emitted `[redacted]@`, and shipped the rest of the credential behind a
+    # marker that reads as a successful redaction. A rule that can match MORE of a credential
+    # must be tried before one that matches less. (Described rather than written out: the
+    # secrets check reads a literal DSN here as a real credential, correctly — it cannot
+    # tell one from the other.)
+    #
+    # ⚠️ ORDERING IS NOT THE WHOLE FIX, stated here because the paragraph above otherwise
+    # reads as one. It closes the cases where a DIFFERENT alternative can match more — `?`
+    # and `#` inside the password, both completely. It cannot close `/` or whitespace,
+    # because NO alternative crosses those characters. The `/` case is closed separately, by
+    # permitting `/` in the colon-requiring alternative's TAIL only — safe because that
+    # alternative also requires a colon, so `https://h/a@b` (no colon before the `@`) still
+    # does not match.
+    #
+    # WHITESPACE stays a residual, and deliberately: the tail is greedy to the last `@`, so
+    # permitting whitespace would let a match starting in a DSN run past the space and
+    # swallow whatever follows — an ordinary log line that mentions a DSN and then an email
+    # address would lose the email too. That is a far worse over-redaction than the leak it
+    # closes, and a space in a DSN password is not RFC 3986-valid unencoded. Asserted in the
+    # tests. (Described rather than written out: the secrets check reads a literal DSN in a
+    # comment as a real credential, correctly — it cannot tell one from the other.)
+    #
+    # `[^\s/:]*+` — colon-free AND possessive — gives the userinfo exactly ONE split point.
+    # Written as `[^\s/]*:[^\s/]*` the two unbounded greedy runs can be divided many ways,
+    # and on a colon-dense run with no `@` to terminate the match the engine tries all of
+    # them: 7.6s on a 32 KB value, synchronously inside `before_send`. Bounding the scheme
+    # did not help — that blowup is across start positions, this one is inside a SINGLE
+    # match attempt, and the first fix only closed one of the two.
+    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}(?::/{1,2}|//))([^\s/:]*+:[^\s]*)@"
     r"|"
-    # ⚠️ `[^\s/:]*+` — colon-free AND possessive — so the userinfo has exactly ONE split
-    # point. Written as `[^\s/]*:[^\s/]*` the two unbounded greedy runs can be divided many
-    # ways, and on a colon-dense run with no `@` to terminate the match the engine tries all
-    # of them: 7.6s on a 32 KB value, synchronously inside `before_send`. Bounding the scheme
-    # did not help, because this blowup is inside a SINGLE match attempt rather than across
-    # start positions — the two are different quadratics and the first fix only closed one.
-    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}(?::/{1,2}|//))([^\s/:]*+:[^\s/]*)@"
+    # The colon-less fallback: the only rule that catches a bare-token userinfo
+    # (`https://<token>@host`). It excludes `?#` per RFC 3986, which keeps
+    # `https://h?a=1@2` intact.
+    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}://)([^\s/?#]+)@"
 )
+
+
+# The `@`-LESS half. `_URL_USERINFO_RE` requires a literal `@` in both alternatives, so a
+# truncated or mistyped DSN — `postgresql://user:S3cretPw`, no `@` anywhere — walked past it
+# untouched. That is the same class `_is_bare_authority` closes for the span/header/origin/
+# transaction paths; this is the free-text path, and it needs its own pass because the
+# credential is embedded in a sentence rather than being the whole value.
+#
+# ⚠️ THIS RULE SHIPPED BROKEN ONCE AND ALL THREE DEFECTS ARE WORTH KEEPING NAMED, because a
+# reviewer found every one of them within a round and each was avoidable by a measurement the
+# author simply did not take.
+#
+#   1. OVER-REDACTION, 7 of 48 realistic log lines. The authority class swallowed TRAILING
+#      PUNCTUATION, so `Uvicorn running on http://127.0.0.1:8000.` — trailing full stop —
+#      failed the authority test and took the delimiter with it, yielding
+#      `http://[redacted]`. Same for a quote, brace, comma, semicolon or colon, which is
+#      most structured log output: `{"url": "redis://redis-main:6379"}` came out with its
+#      JSON truncated. 14.6% over-redaction — against the 16.3% for which this very module
+#      RECORDS having rejected an earlier design as too destructive.
+#      The shipped grader could not see it: all 12 of its entries terminated the URL with a
+#      space or a `/`. That is exactly the corpus blindness this file's own docstring
+#      accuses the 26,880-case fuzz corpus of — committed in the same file, the same day.
+#      Fixed by trimming trailing punctuation BEFORE the authority test and restoring it
+#      after, so a delimiter is never part of the decision nor collateral in the result.
+#
+#   2. QUADRATIC — the third time in this file. The old `(?![^\s/?#]*@)` lookahead rescanned
+#      forward for every backtracked length of the authority run: 197 SECONDS on a 120 KB
+#      value, synchronously inside `before_send`. It was masked (anything that made it
+#      backtrack also matched the rule above, which replaced the region first) and so latent
+#      rather than live — but one reordering away from live, shipped with no complexity
+#      measurement, in a file that documents two prior quadratics. The lookahead existed
+#      ONLY to avoid re-redacting the `[redacted]@` this module itself emits, and a direct
+#      sentinel test does that in constant time.
+#
+#   3. INCOMPLETE. It required an INTACT `://` while the rule above deliberately accepts the
+#      damaged `:/` and `//` — for the SAME driver, a URL that fails to parse precisely
+#      because its separator is damaged. So `postgresql:/app:S3cretPw` leaked: damaged
+#      separator crossed with absent `@`, a cell no corpus covered. It now takes the same
+#      separators as the rule it partners.
+#   4. The authority CLASS also has to exclude the characters that separate one URL from
+#      the next, or a comma-joined pair is read as a single authority:
+#      `http://a.example:80,http://b.example:80` matched the run `a.example:80,http:` — not
+#      an authority — and redacted across the boundary. Quotes and brackets are excluded for
+#      the same reason; `,` is technically an RFC 3986 sub-delim, but in log prose it is a
+#      separator every time.
+_TRAILING_AUTHORITY_RE = re.compile(
+    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}(?::/{1,2}|//))([^\s/?#@,\"'<>{}|\\^`]+)"
+)
+
+# Characters that routinely ABUT a URL in log output and can never end an authority. Trimmed
+# before the test and restored after it.
+_AUTHORITY_TRAILING_PUNCT = "\"'`.,;:!?)]}>"
+
+
+def _redact_trailing_authority(m: "re.Match") -> str:
+    """Drop an authority that does not provably parse as one; keep every real host."""
+    scheme, authority = m.group(1), m.group(2)
+    # The sentinel test, replacing a lookahead that was quadratic (see 2. above). Pass 1 runs
+    # first and emits `[redacted]@`; this declines to re-redact that output.
+    #
+    # HONESTY ABOUT ITS CURRENT STATUS: it is DEFENCE IN DEPTH, not a load-bearing guard, and
+    # the difference is worth stating because the version of this comment that shipped first
+    # claimed the latter. Mutation says so: deleting this branch changes the output on 0 of
+    # 4,539 probed inputs — including `scheme://[redacted]@host/path`, the exact shape it
+    # exists for — and leaves the whole suite green. The pass-2 match simply does not reach a
+    # redaction on pass-1 output in the current design. It is kept because the reasoning that
+    # made it necessary under the LOOKAHEAD design is one edit away from applying again, and
+    # because a constant-time guard against re-redacting our own marker costs nothing. It is
+    # NOT kept because a test proves it fires — no test does, and none is contorted to.
+    if authority.startswith("[redacted]"):
+        return m.group(0)
+    core = authority.rstrip(_AUTHORITY_TRAILING_PUNCT)
+    # A bracketed literal's own closing `]` is in the punctuation set, so trimming ate it and
+    # `[admin:hunter2]` was rebuilt as `[redacted]]`. Safe (the credential was gone) but
+    # wrong-looking, and a redaction that emits visible garbage teaches readers to distrust
+    # it. Put the bracket back before deciding; `[::1]:6379.` still trims only the full stop.
+    if authority.startswith("[") and "]" not in core:
+        closing = authority.find("]")
+        if closing != -1:
+            core = authority[: closing + 1]
+    if not core or _is_bare_authority(core):
+        return m.group(0)
+    return f"{scheme}[redacted]{authority[len(core):]}"
 
 
 def _redact_userinfo_match(m: "re.Match") -> str:
@@ -521,7 +716,12 @@ def _redact_userinfo_in_text(value):
     """
     if not isinstance(value, str):
         return value
-    return _URL_USERINFO_RE.sub(_redact_userinfo_match, value)
+    # TWO passes, and both are needed: the first handles a userinfo terminated by `@`, the
+    # second the `@`-less shape a truncated DSN leaves behind. Keying on `@` alone was the
+    # gap, and it was invisible for 43 rounds because this function's 26,880-case corpus
+    # builds every entry from a template with a literal `@` in it.
+    value = _URL_USERINFO_RE.sub(_redact_userinfo_match, value)
+    return _TRAILING_AUTHORITY_RE.sub(_redact_trailing_authority, value)
 
 
 def _reduce_logentry(logentry: dict) -> dict:
@@ -826,7 +1026,8 @@ def init_glitchtip() -> bool:
         return False
 
     # Everything below is wrapped: a malformed GLITCHTIP_TRACES_SAMPLE_RATE ("0,05") or a
-    # copy-pasted bad DSN otherwise raises out of api/main.py:2 — the FIRST statement of
+    # copy-pasted bad DSN otherwise raises out of the module-level `init_glitchtip()` call in
+    # api/main.py — effectively the first executable statement of
     # the app — and takes the WHOLE SERVICE down. Losing monitoring is bad; losing the
     # service because monitoring was misconfigured is strictly worse, and it is the same
     # reasoning that made the ImportError path log-and-continue rather than fail silently.
@@ -840,6 +1041,34 @@ def init_glitchtip() -> bool:
         )
         return False
     return True
+
+
+def _drop_log(log, hint):
+    """Drop every structured-log envelope. `_scrub_event` has no reach into this channel.
+
+    ⚠️ `enable_logs` does NOT close this channel, and the comment beside the
+    `LoggingIntegration` kwarg said it did for a full round. That option is read at
+    `integrations/logging.py:409-410`, i.e. at HANDLER-INSTALL time — it gates the stdlib
+    logging BRIDGE. The channel itself is `Scope._capture_log` (`scope.py:1483-1497`), which
+    has no `enable_logs` check at all; contrast its sibling `_capture_span` at :1515-1524,
+    which explicitly gates on `has_span_streaming_enabled`. So a direct `sentry_sdk.logger.*`
+    call emits a `log` envelope item carrying the interpolated parameter values —
+    `sentry.message.parameter.*` — with `_scrub_event` never invoked.
+
+    Reproduced with `enable_logs == False` and no `_experiments`: the full DSN, password
+    included, on the wire. The stdlib path was already closed and stayed closed; this is the
+    direct API, which no round had exercised.
+    """
+    return None
+
+
+def _drop_metric(metric, hint):
+    """Drop every metric envelope. `_scrub_event` has no reach into this channel.
+
+    A hook, not a config flag, because the config flag is a documented NO-OP — see the
+    comment at the `before_send_metric` kwarg below.
+    """
+    return None
 
 
 def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingIntegration, dsn):
@@ -877,6 +1106,34 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
         # Default is socket.gethostname(), which publishes the dev machine's or
         # container's hostname on every event. The service name is what we actually want.
         server_name=os.environ.get("SERVICE_NAME", "{name}"),
+        # ⚠️ sentry-sdk 2.68.1 has FIVE `before_send*` hooks and `enable_metrics` is NOT one
+        # of them — it is a documented NO-OP, and shipping it here was an inert fix that read
+        # as a closed channel for a full round. `client.py:656-659` logs "The enable_metrics
+        # option has no effect and will be removed in the next major" and then
+        # `client.py:661-664` constructs the `MetricsBatcher` UNCONDITIONALLY, outside that
+        # `if`. Contrast `span_batcher` at :666-671, which genuinely is gated. So the option
+        # disabled nothing; a runtime probe still shipped a DSN inside a metric attribute
+        # with `_scrub_event` never invoked, while the test asserted only that the kwarg had
+        # been passed — a proxy where the real check was executable and cheap.
+        #
+        # The lever that works is the HOOK: `client.py:1259-1268` drops a metric when
+        # `before_send_metric` returns None. Dropping rather than scrubbing, because nothing
+        # in this repo emits metrics deliberately and the scrubber has no reach here anyway —
+        # the same disposition as `max_breadcrumbs=0`.
+        before_send_metric=_drop_metric,
+        # The SEVENTH channel. `enable_logs` gates the stdlib BRIDGE, not the log
+        # channel — `Scope._capture_log` has no such check — so a direct
+        # `sentry_sdk.logger.*` call shipped the interpolated values with the scrubber
+        # never invoked. Registering the hook is what closes it; see `_drop_log`.
+        before_send_log=_drop_log,
+        # Sessions are a SIXTH channel and they have no `before_send_*` hook at all, so a
+        # hook-shaped inventory cannot see them. `auto_session_tracking` defaults True
+        # (`consts.py:1333`). Today the ASGI integration pins `session_mode="request"`
+        # (`integrations/asgi.py:229`), which aggregates and drops user info, so the payload
+        # is release/environment/counts — LOW severity. It is closed anyway, on the same
+        # standard this module applies everywhere else: not resting on someone else's
+        # default for a channel the scrubber cannot reach.
+        auto_session_tracking=False,
         before_send=_scrub_event,
         # The SDK SKIPS before_send for transaction events, so it must be registered
         # separately or every sampled transaction ships unscrubbed.
