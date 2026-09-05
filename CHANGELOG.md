@@ -89,7 +89,7 @@ and the pytest-sentinel clause in both CLAUDE.md files; `scripts/dr_env_backup.s
 pathspec; `libs/deep_research/__init__.py` returns to canonical self-imports so `/fabrik-rivals`' hub
 fallback imports the engine from any project. Rulings D-127…D-130. Graders:
 `tests/test_check_review_coverage_blocked.py`, `tests/test_dr_env_backup.py`,
-`tests/test_deep_research_vendor_unforked.py`, `tests/test_review_rubric_edges.py` (+5).
+`tests/test_deep_research_vendor_unforked.py`, `tests/test_review_rubric_edges.py` (+5 — committed at 7bf7c165, having been left out of af986ad3's path list).
 
 ### Added — the scaffold's GlitchTip scrubber is now a vendored deny-by-default module, not an inline flag list (2026-09-05)
 

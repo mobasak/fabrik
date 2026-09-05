@@ -1,6 +1,6 @@
 # Review — mail-queue two follow-ups: the deep_research un-fork, the sentinel clause, the grader fix (2026-09-05)
 
-**Status:** CONVERGED (2026-09-05 — 4 passes, 11 fixed / 10 refuted, closing round 0/0/0 with three independent readers returned; re-opened once for a late reader)
+**Status:** CONVERGED (2026-09-05 — 6 passes, 12 fixed / 10 refuted, closing round 0/0/0 with three independent readers returned; re-opened twice — once for a late reader, once because Pass 3's chain committed past a failed edit script)
 
 **Surface:** commits 83b841ab, 7ab1ab45, 4ddcb6ad on master (this session's), plus the 17-line CHANGELOG entry that rode into fleet's 5ab9550d through the working-tree pathspec class. Siblings' interleaved commits (5ab9550d otherwise, 7aa4d7a4, b38bc674, 0af2ece9, d78e57c8) are out of scope. Operator directive this turn: every mail-handling change gets the FULL review; these three had scoped passes only.
 
@@ -208,9 +208,11 @@ two closing readers (pass 2). Verdicts: CLEAN · FIXED (closed in this review's 
 | Pass 2 | the closing pass over the FINAL diff (tail fixes included): a native author-blind CODE reader RETURNED `CLEAN` with executed proofs (red on the old bytes; 3 of 3 files byte-identical to canonical; `ruff check .` honours the exclusion, no hub gate passes the path explicitly, mypy already excludes templates/); the pool DOCS reader RETURNED 2 candidates, both an artefact of the partition (it saw only the CHANGELOG hunk of 5ab9550d and reported fleet's T03 test "missing" — 5ab9550d carries it, 145 lines); the first closing batch's second unit hung in `alive_waiting` and was killed + re-dispatched; my fresh re-read of the tail: nothing | **method: re-derivation** | 2 | 0 | 0 |
 
 | Pass 3 | RE-OPENED: the native DOCS reader returned AFTER the close with 7 findings, 7 confirmed by re-derivation and FIXED — the five rubric graders in tests/test_review_rubric_edges.py were NEVER COMMITTED (outside af986ad3's path list; 44 lines dirty in the tree — committed here), T01's `_reduce_metadata`/`server_name` cites were 060c096 numbers (:396/:598/:709 at 7b83573), the spine's "(59 tests)" and T03's 69,210 B matched no revision (75 / 91,359 B at the pin), the sentinel example cited wef's D-102 after their D-111 armed the sentinel at 431s, the spine's commit list and docstring sentence lagged | **method: re-derivation** | 7 | 7 | 7 |
-| Pass 4 | fresh re-sweep after the Pass 3 fixes: rubric suite 24 passed, check_plan_tickets green, every corrected number re-read from its source | **method: re-derivation** | 0 | 0 | 0 |
+| Pass 4 | re-sweep after Pass 3 — RECORDED WRONGLY at the time: Pass 3's edit script aborted on its second anchor and the chain was not gated on it, so only the graders, one T01 cite and the artifact rows landed in 7bf7c165 while the row above and the commit message claimed all seven | method: citation | 0 | 0 | 0 |
+| Pass 5 | the six missing corrections applied under a script that stops the chain on any failed anchor, each proven by grep before staging (T01 :709; spine 75 tests, docstring sentence, commit list; T03 91,359 B; the D-111 example in CLAUDE.md, the template and the backlog; the CHANGELOG credit); rubric suite 24 passed; check_plan_tickets green | **method: re-derivation** | 1 | 1 | 1 |
+| Pass 6 | fresh re-sweep: every Pass 5 correction re-read from HEAD's tree, `git show --stat` compared to the claimed path list BEFORE the commit | **method: re-derivation** | 0 | 0 | 0 |
 
-Totals: 21 candidates, 11 FIXED (all in the tail commit), 10 REFUTED with the disproving line or measurement, 0 open. Pass 3's lesson: a review's 'graders in place' claim is checked against `git show --stat`, never against the tree. Pool: 4 dispatches, 3 returned, 1 hung and was replaced by a native reader — the fourth deepseek-v4-flash hang today, added to intel's thread.
+Totals: 22 candidates, 12 FIXED (one of them this review's own over-claim) (all in the tail commit), 10 REFUTED with the disproving line or measurement, 0 open. Pass 3's lesson: a review's 'graders in place' claim is checked against `git show --stat`, never against the tree. Pool: 4 dispatches, 3 returned, 1 hung and was replaced by a native reader — the fourth deepseek-v4-flash hang today, added to intel's thread.
 
 ## Phase 1 — Scope + arm
 

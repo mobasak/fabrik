@@ -83,7 +83,7 @@ pathspecs and pushed. Deviations and findings, recorded rather than smoothed ove
 ## Global Constraints
 
 - Deny-by-default + leaf-shape is the shape; no ticket adds a denylist (a finding that wants one is a BLOCKED spec contradiction, not a fix).
-- The vendored module is COPIED (fabrik-lib law); its origin and revision are recorded in its docstring (`site-provisioner api/glitchtip_init.py @ 7b83573` — re-pinned from `060c096` → `8e2f436` (D-127) → `7b83573` (D-130) on 2026-09-05 as items 13–14 landed graded and then corrected: `_reduce_origin`, `_redact_userinfo_in_text` now redacting the REACHABLE field with damaged separators accepted — the mechanism is a URL-PARSE failure, their D-016).
+- The vendored module is COPIED (fabrik-lib law); its origin and revision are recorded in its docstring (`site-provisioner api/glitchtip_init.py` — the docstring records the sha T01 COPIED: `4f5c158` at execution (b38bc674); the plan's floor moved `060c096` → `8e2f436` (D-127) → `7b83573` (D-130) on 2026-09-05 as items 13–14 landed graded and were corrected) → `7b83573` (D-130) on 2026-09-05 as items 13–14 landed graded and then corrected: `_reduce_origin`, `_redact_userinfo_in_text` now redacting the REACHABLE field with damaged separators accepted — the mechanism is a URL-PARSE failure, their D-016).
 - `sentry-sdk[fastapi]>=2.18.0` stays the pin the scaffold emits (`src/fabrik/scaffold.py:2125`). The hub `.venv` has NEITHER `sentry_sdk` NOR `structlog` (measured); T01 — first in Merge Order — AUTHORISES adding both to `pyproject.toml` `[project.optional-dependencies] dev` (the deps-file HARD STOP is lifted by this ticket, for these two lines only) and the guard RECORDS the installed version in its output.
 - Synced surfaces: `.windsurf/rules/core/55-observability.md` distributes to 45 repos on commit; `templates/scaffold/**` and `src/fabrik/scaffold.py` are hub-only.
 - Every ticket: watched-fail-first graders; `/fabrik-review` at each phase boundary (execute-plan's own contract); explicit pathspecs; no `git add -A`.
@@ -162,7 +162,7 @@ $ wc -c src/fabrik/scaffold.py
 
 ### Phase B — the reference module and its guard
 
-- `/opt/site-provisioner/api/glitchtip_init.py:33-138` + `:304-307` (the allowlists, at 7b83573), `:168` (`_keep`), `:350` (`_redact_userinfo_in_text`), `:382` (`_reduce_logentry`), `:483` (`_scrub_event`), `:634-727` (`init_glitchtip` / `_init_sdk`: `before_send=_scrub_event`, `before_send_transaction=_scrub_event`, `include_source_context=False`, `LoggingIntegration(event_level=None, level=None)`); `/opt/site-provisioner/tests/test_glitchtip_init.py` (59 tests).
+- `/opt/site-provisioner/api/glitchtip_init.py:33-138` + `:304-307` (the allowlists, at 7b83573), `:168` (`_keep`), `:350` (`_redact_userinfo_in_text`), `:382` (`_reduce_logentry`), `:483` (`_scrub_event`), `:634-727` (`init_glitchtip` / `_init_sdk`: `before_send=_scrub_event`, `before_send_transaction=_scrub_event`, `include_source_context=False`, `LoggingIntegration(event_level=None, level=None)`); `/opt/site-provisioner/tests/test_glitchtip_init.py` (75 `def test_` at `7b83573`; the count moves with the pin).
 
 ```
 $ grep -c "def test_" /opt/site-provisioner/tests/test_glitchtip_init.py
@@ -454,4 +454,4 @@ RE-SWEPT every round — no round re-scoped.
 | Pass 13 | RE-OPENED again on site-provisioner 01M1R78S (item 14 CORRECTED: the DSN reaches the field through a URL-PARSE failure, 1 of 6 shapes, not a connection failure — their D-016): the pin moved `8e2f436` → `7b83573` (4 module/test commits: the reachable field redacted, damaged separators accepted, termination pinned); re-derived on the blob: `ast` parses, 75 `def test_`, `before_send_transaction` ×2, every cite re-resolved; D-130 minted; one finding, closed in the set | **method: re-derivation** | 1 | 0 | 1 |
 
 Round totals: 38 raised over passes 1–10, 12 and 13, 38 closed in the set, 0 open; pass 11 raised 0 — the
-no-op round — and passes 12–13 (the re-opens) each closed their single finding in the same change. Plan-dir commits carrying the rounds, newest first: ff667c97 5a1a6d4d 72f96a6e 504abbcd 091a220c cd93ff2f 42864624 c3de9601 dacae798 d7fed38b 6620467d .
+no-op round — and passes 12–13 (the re-opens) each closed their single finding in the same change. Plan-dir commits carrying the rounds, newest first: 7bf7c165 a79fcabf 83b841ab af986ad3 8d98bc10 ff667c97 5a1a6d4d 72f96a6e 504abbcd 091a220c cd93ff2f 42864624 c3de9601 dacae798 d7fed38b 6620467d . (fleet's execution commits — b38bc674, 5ab9550d, 0af2ece9, 9f2c6dcf — carry the Board, not the rounds)
