@@ -37,7 +37,7 @@ def _mk_pack(root: Path, rel: str, globs: list[str], mandates: list[str]) -> Non
 
 
 def _mk_tree(root: Path) -> None:
-    """Minimal rules tree: the 3 floor packs + one glob pack, + both checklists."""
+    """Minimal rules tree: the 3 floor packs + one glob pack, + the mega checklist."""
     for floor_rel, mandate in [
         ("core/35-security-auth.md", "- Auth MUST use Pattern A (`fastapi-user-auth`)."),
         (
@@ -57,15 +57,9 @@ def _mk_tree(root: Path) -> None:
         ["- Files of type zzz MUST be frobnicated.", "- ⚠️ never defrobnicate in prod."],
     )
     mega = root / "docs" / "orchestrator" / "mega-epic-breakdown"
-    ettw = root / "docs" / "orchestrator" / "epic-to-ticket-workflow"
     mega.mkdir(parents=True)
-    ettw.mkdir(parents=True)
     (mega / "EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md").write_text(
         "# Mega checklist\n\n1. Does it respect the mega lifecycle?\n2. Is the vision persisted?\n",
-        encoding="utf-8",
-    )
-    (ettw / "EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md").write_text(
-        "# Ettw checklist\n\n1. Does it reference the 4-stage lifecycle?\n2. Is INFRA-CHECK emitted?\n",
         encoding="utf-8",
     )
 
@@ -149,8 +143,13 @@ def test_missing_floor_pack_emits_marker_no_crash(tmp_path):
 
 
 def test_missing_checklist_emits_marker_no_crash(tmp_path):
-    """--workflow with the checklist file absent → '(checklist missing' marker, no crash."""
+    """--workflow with the checklist file absent → '(checklist missing' marker, no crash;
+    with the file present the marker is absent and the items are injected."""
     _mk_tree(tmp_path)
+    rr = _load()
+    present = rr.build_rubric(["src/thing.zzz"], workflow="mega", root=tmp_path)
+    assert "checklist missing" not in present
+    assert "mega lifecycle" in present
     # Delete the mega checklist
     checklist = (
         tmp_path
@@ -161,15 +160,11 @@ def test_missing_checklist_emits_marker_no_crash(tmp_path):
     )
     checklist.unlink()
 
-    rr = _load()
     out = rr.build_rubric(["src/thing.zzz"], workflow="mega", root=tmp_path)
 
     assert out
     assert "checklist missing" in out
-    # The other workflow (ettw) checklist is still present
-    out2 = rr.build_rubric(["src/thing.zzz"], workflow="ettw", root=tmp_path)
-    assert "checklist missing" not in out2
-    assert "4-stage lifecycle" in out2
+    assert "mega lifecycle" not in out
 
 
 # ── Test 4: CLI exit codes ─────────────────────────────────────────────────────────
@@ -200,6 +195,19 @@ def test_cli_changed_project_root_exits_zero_and_prints_rubric(tmp_path):
     assert "core/99-zzz-test.md" in result.stdout  # matched pack for x.zzz
     assert "MUST be frobnicated" in result.stdout
     assert "12-FACTOR" in result.stdout
+
+
+def test_cli_help_offers_only_the_mega_workflow():
+    """`--help` advertises `--workflow {mega}` — the one surviving checklist — and nothing
+    that resolves to a retired path."""
+    result = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "review_rubric.py"), "--help"],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--workflow {mega}" in result.stdout, result.stdout
 
 
 def test_cli_workflow_bogus_exits_nonzero(tmp_path):

@@ -929,7 +929,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 ## Kilo Agent System
 
-**Location:** `scripts/` + `docs/reference/kilo/` + `~/.traycer/cli-agents/`
+**Location:** `scripts/` + `docs/reference/kilo/` (the `~/.traycer/cli-agents/` install step is retired — T09/T14d, 2026-09-06)
 **Purpose:** AI code review and code generation via Kilo CLI
 
 ### Documentation Hub
@@ -1004,7 +1004,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 ### Active Agents
 
-- `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh`
+- (retired 2026-09-06) the `~/.traycer/cli-agents/<TIER><NN>-<model>-<role>-<effort>-i<IN>-o<OUT>.sh` wrappers — the Traycer layer is gone; the selected agents live in `docs/traycer/kilo_selected_agents.md` only
 - Tiers: P=Prime, S=Strong, B=Balanced, E=Economy
 - See `docs/reference/kilo/` for complete documentation
 

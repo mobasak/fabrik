@@ -80,6 +80,7 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 │  Deploy Pipeline │  18. SSH + Docker Compose orchestration (saga pattern)
 │  (Orchestrator)  │  19. DNS + SSL + Health checks
 └──────────────────┘  20. Automatic rollback on failure
+```
 
 ---
 
@@ -108,72 +109,78 @@ Fabrik is a **development methodology as code**—not just infrastructure automa
 
 ```
 ┌─────────────────────┐
-│   Traycer IDE Ext   │  • Epic Mode: 8-command Agile workflow
-│   (WSL ~/.traycer)  │  • Phases: Multi-step context preservation
-└──────────┬──────────┘  • Plan/Review/Spec modes
+│  Claude Code        │  • Three named sessions per repo (CLAUDE_AGENT=<name>)
+│  (3 sessions/repo)  │  • agent-1 in the main checkout; agents 2..N each in an
+└──────────┬──────────┘    isolated `claude --worktree <agent>` tree
            │
-           │ CLI agents (~/.traycer/cli-agents/)
+           │ /fabrik-* command corpus (commands/_sources/, rendered box-wide)
            ▼
 ┌─────────────────────┐
-│  Coding Agents      │  • Windsurf Cascade (Gemini 3.1 Pro High Thinking)
-│  (Gemini/Sonnet)    │  • Kilo CLI (Claude Opus 4.8, GPT-5.1 Codex, Gemini 3.1 Pro)
-└──────────┬──────────┘  • Auto-invoked Fabrik skills (10+ conventions)
+│  Planning chain     │  • Once per repo: /fabrik-vision → /fabrik-epics → /fabrik-epics-review
+│  (per repo, then    │  • Per epic: /fabrik-spec <epic> → /fabrik-spec-review → /fabrik-flows →
+│   per epic)         │    /fabrik-data-contract → /fabrik-plan-after-chat → /fabrik-plan-review
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Build              │  • /fabrik-execute-plan: phases under .fabrik/plan-locks/, subagent
+│  (per agent branch) │    worktrees, /fabrik-review at every phase boundary
+└──────────┬──────────┘  • Rule packs (.windsurf/rules/) injected by scripts/review_rubric.py
            │
            ▼
 ┌─────────────────────┐
 │  Final Gate         │  • Phase 1: Auto-fix (whitespace, EOF, ruff-format, ruff --fix)
 │  (Deterministic)    │  • Phase 2: Static (ruff, mypy, bandit, semgrep, vulture)
-└──────────┬──────────┘  • Phase 3: Consistency (25 checks, 2,230 lines)
+└──────────┬──────────┘  • Phase 3: Consistency (scripts/enforcement/ checks)
            │
            ▼
 ┌─────────────────────┐
-│  Kilo Review        │  • Diff-scoped review (not full codebase)
-│  (AI Reasoning)     │  • Categories: SPEC, SECURITY, CONFIG, EDGE, DOCS
-└──────────┬──────────┘  • Iterative fix loop (max 5 iterations)
+│  Merge + tail       │  • agent-1 merges finished branches in epic_order phase order
+│  (agent-1)          │  • /fabrik-features → /fabrik-conformance-review → certification →
+└──────────┬──────────┘    /fabrik-deploy-checklist → /fabrik-release → Gate 2 (human)
            │
            ▼
 ┌─────────────────────┐
-│  Traycer Verifier   │  • Validates against original spec
-│  (Spec Compliance)  │  • Returns findings to fix
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  Deployment         │  • Saga orchestration (15 states)
-│  Orchestrator       │  • Automatic rollback on failure
+│  Deployment         │  • Hub runs `fabrik apply specs/services/<id>.yaml`
+│  Orchestrator       │  • Saga orchestration, automatic rollback on failure
 └─────────────────────┘  • Health verification
+```
 
 ---
 
 ## Key Features
 
-### 1. Traycer-Driven Development (IDE Extension)
+### 1. Corpus-Driven Development (Claude Code, start to finish)
 
-**Traycer runs as a Windsurf IDE extension**, connecting to WSL via `~/.traycer/cli-agents/`.
+**Claude Code is the development agent from idea to release — no IDE extension, no external
+orchestrator.** Every stage is a `/fabrik-*` command from the corpus (`commands/_sources/`, rendered
+box-wide): each command opens a run record, chains to the NEXT command, and closes under the Stop hook.
 
-**Three workflow modes:**
+**Three named sessions per repo:**
 
-| Mode | Use Case | Workflow |
-|------|----------|----------|
-| **Plan** | Single-PR task | Generate detailed implementation plan → Execute → Verify |
-| **Phases** | Multi-step project | Break into phases → Context preservation → Execute sequentially |
-| **Epic** | Feature with specs | 8-command Agile workflow: `/trigger_workflow` → `/epic-brief` → `/core-flows` → `/prd-validation` → `/tech-plan` → `/architecture-validation` → `/ticket-breakdown` → `/implementation-validation` |
+| Session | Launch | Holds |
+|---------|--------|-------|
+| **agent-1** (merge owner) | `CLAUDE_AGENT=alpha claude -n alpha-<repo>` in the main checkout | the vision → epics chain, epic assignment, merges in `epic_order` phase order, the certification tail |
+| **agents 2..N** | `CLAUDE_AGENT=beta claude --worktree beta -n beta-<repo>` → `.claude/worktrees/beta` on branch `worktree-beta` | the corpus chain on their owned epics; commits + pushes on their own branch only |
 
-**Context Preservation:**
-- SQLite database at `~/.traycer/app-assets/app-assets.db` stores ALL task history
-- File mappings, decisions, rationale carried forward across phases
-- No re-analyzing architecture when executing later phases
+The hub's own three sessions are `infra`, `fleet`, `intel` (charters: `docs/reference/agents/`).
+A worktree session cannot stage a file it does not have — one session's uncommitted hunks can never
+land in another's commit, by construction rather than discipline.
 
-**YOLO Mode (Full Automation):**
-```
-Regular YOLO (Phases):  Fixed config → All phases run automatically
-Smart YOLO (Epic):      Orchestrator evolves Epic based on learnings
-```
+**The chain — once per repo, then per epic, then the tail:**
+- **Per repo (agent-1):** *(market-facing)* `/fabrik-rivals <market>` → `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` (assigns an owner to every epic).
+- **Per epic (the owning window):** `/fabrik-spec docs/development/epics/<epic>.md` → `/fabrik-spec-review` → `/fabrik-features` → `/fabrik-flows` → `/fabrik-flows-review` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`.
+- **Tail (agent-1, after the last merge):** `/fabrik-features` REFRESH → `/fabrik-conformance-review` → `/fabrik-user-test` | `/fabrik-service-test` → `/fabrik-deploy-checklist` → `/fabrik-release` → Gate 2 (human approval) → hub `fabrik apply`.
+
+**Context preservation:**
+- Decisions are rows in `docs/DECISIONS.md` (immutable; superseded by a new row) — queried before any "did we decide" hunt
+- Ownership and status live in the artifacts: `owner:`/`status:` in epic frontmatter, `**Owner:**`/`Status:` on specs and plans
+- Every `/fabrik-*` run keeps a run record (`scripts/command_run.py`) that the Stop hook reads
+- Past sessions are searchable (`session-recall`); nothing is re-derived from memory
 
 **Integration with Fabrik:**
-- Uses CLI agents in `~/.traycer/cli-agents/` for Kilo CLI execution
-- Uses custom templates at `~/.traycer/prompt-templates/`
-- Integrates 8-step workflow into handoffs
+- Rule packs in `.windsurf/rules/` activate by glob; `scripts/review_rubric.py` injects the matched mandates into every review finder
+- `scripts/final_gate.py --json` is the completion gate; every AI commit carries Agent Provenance Trailers
 
 ---
 
@@ -439,11 +446,11 @@ Create production-ready services instantly:
 
 ### For AI-Assisted Development (Recommended)
 
-**Install Traycer** (Windsurf IDE extension):
-1. Install Windsurf IDE
-2. Install Traycer extension from marketplace
-3. Configure CLI agents: `~/.traycer/cli-agents/Factory AI.sh` → point to `/opt/fabrik`
-4. Create Epic: `/trigger_workflow` in Traycer
+**Open the repo in Claude Code** — nothing to install beyond the CLI, no agent configuration:
+1. Window 1 (merge owner, main checkout): `cd /opt/<repo> && CLAUDE_AGENT=alpha claude -n alpha-<repo>`
+2. Windows 2..N (isolated worktrees): `CLAUDE_AGENT=beta claude --worktree beta -n beta-<repo>` (then `gamma`, …)
+3. In window 1: `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` (run `/fabrik-rivals <market>` first on a market-facing product)
+4. In each window: `/fabrik-spec docs/development/epics/<your epic>.md`, then follow every command's `NEXT:` line through to `/fabrik-execute-plan`
 
 ### Manual Installation
 

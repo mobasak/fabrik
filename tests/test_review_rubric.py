@@ -38,7 +38,7 @@ def _mk_pack(root: Path, rel: str, globs: list[str], mandates: list[str]) -> Non
 
 
 def _mk_tree(root: Path) -> None:
-    """Minimal rules tree: the 3 floor packs + one glob pack, + both checklists."""
+    """Minimal rules tree: the 3 floor packs + one glob pack, + the mega checklist."""
     for floor_rel, mandate in [
         ("core/35-security-auth.md", "- Auth MUST use Pattern A (`fastapi-user-auth`)."),
         (
@@ -58,15 +58,9 @@ def _mk_tree(root: Path) -> None:
         ["- Files of type zzz MUST be frobnicated.", "- ⚠️ never defrobnicate in prod."],
     )
     mega = root / "docs" / "orchestrator" / "mega-epic-breakdown"
-    ettw = root / "docs" / "orchestrator" / "epic-to-ticket-workflow"
     mega.mkdir(parents=True)
-    ettw.mkdir(parents=True)
     (mega / "EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md").write_text(
         "# Mega checklist\n\n1. Does it respect the mega lifecycle?\n2. Is the vision persisted?\n",
-        encoding="utf-8",
-    )
-    (ettw / "EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md").write_text(
-        "# Ettw checklist\n\n1. Does it reference the 4-stage lifecycle?\n2. Is INFRA-CHECK emitted?\n",
         encoding="utf-8",
     )
 
@@ -132,18 +126,23 @@ def test_frontmatter_never_scanned_for_mandates(tmp_path):
 
 
 def test_workflow_flag_gates_checklist(tmp_path):
-    """(c) `--workflow ettw` ADDITIONALLY emits the ettw checklist items; without
+    """(c) `--workflow mega` ADDITIONALLY emits the mega checklist items; without
     `--workflow`, NO checklist content is emitted (packs only)."""
     _mk_tree(tmp_path)
     rr = _load()
     bare = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
-    # real leak-guards: neither checklist's content nor the section header may appear bare
+    # real leak-guards: neither the checklist's content nor the section header may appear bare
     assert "WORKFLOW CHECKLIST" not in bare
-    assert "4-stage lifecycle" not in bare  # ettw item
     assert "mega lifecycle" not in bare  # mega item
-    ettw = rr.build_rubric(["src/thing.zzz"], workflow="ettw", root=tmp_path)
-    assert "4-stage lifecycle" in ettw
-    assert "INFRA-CHECK" in ettw
     mega = rr.build_rubric(["src/thing.zzz"], workflow="mega", root=tmp_path)
+    assert "WORKFLOW CHECKLIST (mega)" in mega
     assert "mega lifecycle" in mega
-    assert "4-stage lifecycle" not in mega  # each workflow gets ITS OWN checklist only
+    assert "vision persisted" in mega
+
+
+def test_mega_is_the_only_workflow_checklist():
+    """The retired epic-chain checklist is gone: `mega` is the ONLY key, so `--workflow`
+    offers nothing that resolves to a retired path (choices=sorted(CHECKLISTS))."""
+    rr = _load()
+    assert sorted(rr.CHECKLISTS) == ["mega"]
+    assert rr.CHECKLISTS["mega"].parts[:2] == ("docs", "orchestrator")

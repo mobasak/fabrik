@@ -123,7 +123,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T02a, T02b, T09 | ⛓️ | ✅ | branch head e5d4470a; merged 2026-09-06 |
 | T14b | References — agents-fabrik.md, the north-star, command-corpus-check.md: zero references to the retired chains outside archives and ledgers | T09 | ⛓️ | 🔵 | |
 | T14c | The fabrik CLI's orchestrator hint names the assembled commands, not a docs/traycer path that does not exist | T09 | ⛓️ | ✅ | branch head f00dc5b1; merged 2026-09-06 |
-| T14d | review_rubric's dead checklist path, and the ~/.traycer install step | T09, T11 | ⛓️ | 🔵 | |
+| T14d | review_rubric's dead checklist path, and the ~/.traycer install step | T09, T11 | ⛓️ | ✅ | branch head 75d5179a; merged 2026-09-06 |
 | T14e | check_review_coverage stops keying on a deleted command | T07a, T06c | ⛓️ | ✅ | branch head 190c8290; merged 2026-09-05 |
 | T14f | command_run stops owing a report to a deleted command | T07a, T06c | ⛓️ | ✅ | branch head 1e72fed7; merged 2026-09-05 |
 | T14g | the command corpus stops routing to deleted chain steps | T04a, T07a, T11 | ⛓️ | ✅ | branch head bc22a0ce; merged 2026-09-06 |

@@ -3,7 +3,7 @@
 """Armed-review rubric extractor — turns Tier-3 reviews from "reviewer reads the packs"
 into "the matched rule rubric is INJECTED into every finder prompt" (spec G5/G6; plan-2 WS-B).
 
-    python scripts/review_rubric.py --changed <path> [<path> …] [--workflow {mega,ettw}]
+    python scripts/review_rubric.py --changed <path> [<path> …] [--workflow mega]
 
 Emits, on stdout, the rubric a review dispatcher pastes into each finder's prompt:
 
@@ -14,8 +14,7 @@ Emits, on stdout, the rubric a review dispatcher pastes into each finder's promp
   · MATCHED (per changed path): every pack whose frontmatter glob matches a changed path —
     mandate lines only (lines carrying MUST / ⚠️ / never / BANNED / HARD STOP).
   · WORKFLOW CHECKLIST (only with --workflow): the command-authoring QA items — `mega` reads
-    EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md, `ettw` reads
-    EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md. Item = a numbered line ("N. …") — the
+    EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md. Item = a numbered line ("N. …") — the
     checklists' own format. NEVER emitted without --workflow: they are command-file QA,
     not a code rubric.
   · promote-to-check_* (byproduct): injected mandates that look deterministically greppable
@@ -119,9 +118,6 @@ _JOIN_MARK = " … (wrapped further — read the pack)"
 CHECKLISTS = {
     "mega": Path(
         "docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md"
-    ),
-    "ettw": Path(
-        "docs/orchestrator/epic-to-ticket-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md"
     ),
 }
 

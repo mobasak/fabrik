@@ -1,0 +1,14 @@
+# Acceptance review — T14d (plan set 2026-09-03-plan-1-multi-agent-per-repo)
+
+**Status:** CONVERGED
+
+**Surface:** the coder's worktree branch diff against the dispatch base 3a4b5e77 (master after the T09 merge) — see the round sections below (one file per ticket, rounds APPENDED).
+
+## Round 1 — over `3a4b5e77..75d5179a` (scripts/review_rubric.py 2/6 — the `ettw` key dropped from `CHECKLISTS`, `--workflow` offers only `mega`, the docstring no longer names the retired workflow; the MIRROR named and measured — a project invoking `--workflow ettw` now gets argparse's rejection instead of the soft missing-checklist line: 0 callers in 2,815 tracked files; both rubric test fixtures stop building the retired path (the fixture lines, not just the assertions), behaviours kept on the mega shape, two graders added and proven red-on-revert (backup-holds / reverted-lacks / restored asserted); README.md 50/43 — the AI-integration diagram, "Traycer-Driven Development" and Quick Start's "For AI-Assisted Development" rewritten as present-tense rules for the corpus-driven flow, 0 `~/.traycer` refs; a never-closed code fence at README:31 found by replaying the checker's `_iter_refs` (it had cancelled with another unclosed fence at :109, hiding README's fenced refs) and closed at its cause; 24 → 26 passed; both grep conjuncts empty; check_doc_links back to its 8-error baseline with 0 in README. Residual reported for a separate ticket: 21 `traycer` + 48 `kilo` prose mentions in README outside the gate and five fenced refs to absent Kilo scripts)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a key removal with its mirror measured + a README rewrite; stated) — round 1.
+### Orchestrator execution (in the worktree)
+- `pytest tests/test_review_rubric.py tests/test_review_rubric_edges.py -q` → 26 passed; grep conjunct A → 0 lines, conjunct B → 0; `--help` → `--workflow {mega}`; `ruff check` clean; README fences even; `check_doc_links` README lines 0.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0153)
+- Two CLEAN (both rows implemented; fence parity 0 unclosed after the fix; the two graders non-vacuous; no fleet regression — the mirror measured). One questioned the README sessions table's launch forms against the spec — REFUTED by execution: `grep -n 'claude --worktree\|claude -n' README.md` → :163 `CLAUDE_AGENT=alpha claude -n alpha-<repo>` (agent 1, main checkout), :164 and :451 `CLAUDE_AGENT=beta claude --worktree beta -n beta-<repo>` — the spec's forms verbatim, prefix included.
+### Verdict
+**0 findings — no-op round.** **Status: CONVERGED** at `75d5179a`; merge with the fleet sync (`scripts/review_rubric.py` is a governance-sync trigger); the merge owner retargets INDEX's two `~/.traycer` rows and adds the CHANGELOG entry.
