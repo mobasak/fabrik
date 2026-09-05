@@ -102,15 +102,15 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T02a | agent_role accepts any project-local name, charter optional | — | ⚡ | ✅ | branch head a11d6fd9; merged 2026-09-05 |
 | T02b | the Agent-Name enum in both governance contracts | T02a | ⛓️ | ✅ | branch head 268025c8; merged 2026-09-05 |
 | T03a | epic assignment: --assign, the owner field, and the checklist rows | — | ⚡ | ✅ | branch head 81b4bc36; merged 2026-09-05 |
-| T03b | the disjointness check becomes a real one | T03a | ⛓️ | ⬜ | |
+| T03b | the disjointness check becomes a real one | T03a | ⛓️ | 🔵 | |
 | T13 | The wip-net snapshots linked worktrees (spec residual R2) | — | ⚡ | ⬜ | |
 | T04a | epic-file intake for /fabrik-spec | — | ⚡ | ✅ | branch head 899c7092; merged 2026-09-05 |
 | T04b | owned_paths into the plan's locks (the locks STAY in-repo, per spec r11) | — | ⚡ | ✅ | branch head eae893fe; merged 2026-09-05 |
 | T05a | epic containment in check_plan_tickets (both levels) | T04b | ⛓️ | ⬜ | |
-| T05b | epic_order --check as an optional Tier-2 gate check | T03a | ⛓️ | ⬜ | |
+| T05b | epic_order --check as an optional Tier-2 gate check | T03a | ⛓️ | 🔵 | |
 | T06a | /fabrik-vision — mega 00 moved into a corpus source, with the rivals pre-step | — | ⚡ | ⬜ | |
 | T06b | /fabrik-epics — mega 02 + 03 moved into one corpus source; epics in a phase run concurrently | — | ⚡ | ⬜ | |
-| T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03a | ⛓️ | ⬜ | |
+| T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03a | ⛓️ | 🔵 | |
 | T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | ⬜ | |
 | T07b | router: three new stems for the assembled commands | T07a | ⛓️ | ⬜ | |
 | T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07a, T07b | ⛓️ | ⬜ | |
