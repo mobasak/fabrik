@@ -226,6 +226,13 @@
       "updated": "2026-09-05T17:00:01+00:00",
       "base": "28de4900",
       "head": "5554d167"
+    },
+    "T07a": {
+      "state": "dispatched",
+      "agent": "afbc78986d40f0649",
+      "branch": "worktree-agent-afbc78986d40f0649",
+      "base": "73ee240d",
+      "updated": "2026-09-05T17:01:15+00:00"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

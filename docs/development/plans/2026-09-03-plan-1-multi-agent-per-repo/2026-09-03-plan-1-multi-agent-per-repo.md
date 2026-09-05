@@ -111,7 +111,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T06a | /fabrik-vision — mega 00 moved into a corpus source, with the rivals pre-step | — | ⚡ | ⬜ | |
 | T06b | /fabrik-epics — mega 02 + 03 moved into one corpus source; epics in a phase run concurrently | — | ⚡ | ⬜ | |
 | T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03a | ⛓️ | 🔵 | |
-| T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | ⬜ | |
+| T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | 🔵 | |
 | T07b | router: three new stems for the assembled commands | T07a | ⛓️ | ⬜ | |
 | T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07a, T07b | ⛓️ | ⬜ | |
 | T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | ⬜ | |
