@@ -191,14 +191,14 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T06b-review.md"
     },
     "T05a": {
-      "state": "fixup-round-6",
+      "state": "review-round-7",
       "coder": "native opus worktree (Execution Discipline: opus for T05a)",
       "dispatched_at": "2026-09-05T14:41:18",
       "branch": "worktree-agent-aa202dd80ecd23540",
       "branch_head": "6a065def",
       "round": 1,
-      "updated": "2026-09-05T16:55:51+00:00",
-      "head": "e71b89fc"
+      "updated": "2026-09-05T17:11:29+00:00",
+      "head": "9d668a93"
     },
     "T03b": {
       "state": "review-round-4",
