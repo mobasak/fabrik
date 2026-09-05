@@ -109,6 +109,12 @@ HAIKU_TIMEOUT = 8
 STEM_SKILLS: dict[str, str] = {
     "spec": "fabrik-spec",
     "spec-review": "fabrik-spec-review",
+    # The multi-epic front door (T07b, 2026-09-05): the three assembled mega commands render
+    # box-wide, so their stems are fleet-correct. Both maps, or nothing routes — a stem here
+    # with no KEYWORD_STEMS row never matches; a row there with no entry here resolves to None.
+    "vision": "fabrik-vision",
+    "epics": "fabrik-epics",
+    "epics-review": "fabrik-epics-review",
     "plan": "fabrik-plan-after-chat",
     "review-scoped": "fabrik-review-scoped",
     "rules-review": "fabrik-rules-review",
@@ -341,6 +347,58 @@ KEYWORD_STEMS: list[tuple[re.Pattern[str], str]] = [
             re.I,
         ),
         "conformance",
+    ),
+    # The three assembled mega commands (T07b). ABOVE `spec` and `plan` — first match wins, and a
+    # multi-epic prompt ("write the product vision", "decompose this vision into epics") otherwise
+    # lands in the single-feature producer — but BELOW `spec-review` and `conformance`: placed above
+    # them (acceptance round 1) the block stole "…for a multi-epic project run
+    # /fabrik-conformance-review…" from `conformance`, a measured routing change on a prompt ABOUT
+    # conformance. The order among the three is NOT load-bearing: the three patterns are disjoint on
+    # every probed input (all 6 orderings give identical verdicts on the positives, the 55-row
+    # snapshot and the corpus) — only their position above `spec`/`plan` is.
+    #
+    # MEASURED, not reasoned (2026-09-05, 9,849 real prompts from this box's transcripts): a bare
+    # `mega epic` / `cross-epic` / `into epics` / `<verb> … epic files` fired on 96 of them — almost
+    # all chatter ABOUT the Traycer `mega-epic-breakdown` folder ("05-cross-epic-validation-command",
+    # "create mega epic files", "split it into epics" as description). Every row below is therefore
+    # an intent COLLOCATION: the verb sits directly on its object (`decompose this vision into
+    # epics`, `write the epic files`, `validate the epics`, `multi-epic idea`), never a bare noun —
+    # so no `epics? review` row ("the epic review process" is prose) and no TR existential
+    # `vizyon … var` ("vizyon dokümanı var" = "there is a vision doc"). The singular Traycer-artifact
+    # phrase "review the epic or ticket breakdown" still reaches /fabrik-workflow-review, and "this
+    # epic is blocked" / "an epic failure" stay silent.
+    (
+        re.compile(
+            r"\b(validate|verify|assign|review|converge|harden|audit)\s+(the|these|our|all(\s+the)?|my)\s+epics\b"
+            r"|\b(run|do|start)\b[^.]{0,20}\bcross[- ]epic\s+(validation|review|check)\b"
+            r"|\bare\s+the\s+epics\b[^.]{0,20}\bready\b"
+            r"|\bepikler[ıi]?\b[^.]{0,20}\b(do[ğg]rula\w*|yap[ıi]ma\s+haz[ıi]r|ata\w*)",
+            re.I,
+        ),
+        "epics-review",
+    ),
+    (
+        re.compile(
+            r"\b(this|the|that|our|my)\s+(vision(\s+summary)?|initiative|project|idea)\b"
+            r"[^.]{0,25}\binto\s+epics\b"
+            r"|\b(write|create|draft|generate|author|produce)\s+(the|each|one|all(\s+the)?)?\s*epic\s+files?\b"
+            r"|\bepiklere\s+(ay[ıi]r|b[öo]l)\w*",
+            re.I,
+        ),
+        "epics",
+    ),
+    (
+        re.compile(
+            r"\b(multi|mega)[- ]epic\s+(idea|initiative|project|vision)\b"
+            r"|\b(write|draft|create|start|let'?s|time to|scope)\b[^.]{0,30}"
+            r"\b(product\s+vision|vision\s+summary)\b"
+            r"|\b(i\s+have|i'?ve\s+got)\s+a\s+(big|huge)\s+(idea|initiative|vision)\b"
+            r"|\bscope\s+(this|the)\s+(whole\s+|entire\s+)?initiative\b"
+            r"|\b[çc]ok\s+epikli\b"
+            r"|\bb[üu]y[üu]k\s+(bir\s+)?vizyon\w*",
+            re.I,
+        ),
+        "vision",
     ),
     (
         re.compile(
@@ -780,7 +838,9 @@ _CLASSIFY_INSTRUCTIONS = (
 
 def _haiku_prompt(prompt: str, roster: list[tuple[str, str | None]]) -> str:
     lines = [f"- {name} (Stage: {stage or 'unknown'})" for name, stage in roster]
-    return f"{_CLASSIFY_INSTRUCTIONS}\n\nSkills:\n" + "\n".join(lines) + f"\n\nUser prompt: {prompt!r}"
+    return (
+        f"{_CLASSIFY_INSTRUCTIONS}\n\nSkills:\n" + "\n".join(lines) + f"\n\nUser prompt: {prompt!r}"
+    )
 
 
 def haiku_classify(
@@ -875,7 +935,9 @@ def haiku_classify(
         except Exception:
             pass  # process (group) already gone, or we lack permission — either way, give up cleanly
         try:
-            proc.communicate(timeout=2)  # reap only; output is discarded, this call already timed out
+            proc.communicate(
+                timeout=2
+            )  # reap only; output is discarded, this call already timed out
         except Exception:
             pass
         return None

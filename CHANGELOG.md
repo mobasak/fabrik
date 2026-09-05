@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the prompt router routes to /fabrik-vision, /fabrik-epics and /fabrik-epics-review (2026-09-05)
+- **What:** `.claude/hooks/skill_router.py` (fleet-synced) gains the three stems in `STEM_SKILLS` + `KEYWORD_STEMS`, placed above `spec`/`plan` and below `spec-review`/`conformance`; intent collocations only — over 10,599 real operator prompts the verdict changes on one; TR forms included, the existential `vizyon … var` deliberately not. 76 new tests incl. a 55-row routing snapshot against the base router; `tests/test_skill_router_hook.py`: 245 passed.
+- **Where:** `.claude/hooks/skill_router.py`, `tests/test_skill_router_hook.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T07b).
+
 ### Fixed — command_run.py: the done-requires-report set re-keyed from the deleted `fab-mega-04-validate` to `/fabrik-epics-review` (2026-09-05)
 - **What:** the mega-validation slot of the `done`-requires-report set in `scripts/command_run.py` named a command the assembler retired (T07a), so `/fabrik-epics-review` — which persists `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` by contract — owed no report; the key is now the live name, refusal semantics unchanged. Adjacent: 12 test sites hardcoded the hub's absolute script path and drove MASTER's copy under worktree isolation; they now resolve the tree's own script (`_SCRIPT`). `tests/test_command_run.py`: 110 passed.
 - **Where:** `scripts/command_run.py`, `tests/test_command_run.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14f).

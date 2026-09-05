@@ -39,7 +39,10 @@ _spec.loader.exec_module(hook)
         ("can you review this code", "review"),
         ("bu kodu incele", "review"),
         ("update the docs for this", "docs"),
-        ("döküman güncelle", "docs"),  # both "döküman" and "güncelle" present — docs is checked first
+        (
+            "döküman güncelle",
+            "docs",
+        ),  # both "döküman" and "güncelle" present — docs is checked first
         ("run the certification test suite", "test"),
         ("bunun için sertifika testi", "test"),
         ("time to release this", "release"),
@@ -212,7 +215,9 @@ def test_first_regex_match_turkish_anchor_positives_round4(prompt: str, expected
         ("do an e2e run of the signup journey", "test"),
     ],
 )
-def test_first_regex_match_dormant_stem_anchor_positives_round4(prompt: str, expected_stem: str) -> None:
+def test_first_regex_match_dormant_stem_anchor_positives_round4(
+    prompt: str, expected_stem: str
+) -> None:
     assert hook.first_regex_match(prompt) == expected_stem
 
 
@@ -258,9 +263,7 @@ def test_resolve_target_test_stem_missing_project_yaml_returns_none() -> None:
     # from the old (wrong) assumption that a missing project.yaml should
     # still default to fabrik-user-test.
     roster = {"fabrik-user-test", "fabrik-service-test"}
-    assert (
-        hook.resolve_target("test", roster, project_type=None, project_yaml_exists=False) is None
-    )
+    assert hook.resolve_target("test", roster, project_type=None, project_yaml_exists=False) is None
 
 
 def test_resolve_target_all_stem_skills_have_a_mapping() -> None:
@@ -325,7 +328,9 @@ def test_skill_stage_parses_hyphenated_numeric_stage(tmp_path: Path) -> None:
     skills = tmp_path / "skills"
     d = skills / "fabrik-spec"
     d.mkdir(parents=True)
-    (d / "SKILL.md").write_text('---\ndescription: "Turn an idea into a spec. Stage: 1-design."\n---\n')
+    (d / "SKILL.md").write_text(
+        '---\ndescription: "Turn an idea into a spec. Stage: 1-design."\n---\n'
+    )
     assert hook._skill_stage(skills, "fabrik-spec") == "1-design"
 
 
@@ -564,7 +569,9 @@ def fake_home(tmp_path: Path) -> Path:
 def _write_skill(home: Path, name: str, stage: str = "4-build") -> None:
     d = home / ".claude" / "skills" / name
     d.mkdir(parents=True)
-    (d / "SKILL.md").write_text(f'---\nname: {name}\ndescription: "does things. Stage: {stage}."\n---\n')
+    (d / "SKILL.md").write_text(
+        f'---\nname: {name}\ndescription: "does things. Stage: {stage}."\n---\n'
+    )
 
 
 # F4-residual (round 3): the safe default PATH base for `_run_router` — a
@@ -612,7 +619,9 @@ def _run_router(
 
 def test_explicit_slash_command_stays_silent(fake_project: Path, fake_home: Path) -> None:
     _write_skill(fake_home, "fabrik-review")
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "/fabrik-review"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "/fabrik-review"}
+    )
     assert out == ""
 
 
@@ -620,18 +629,24 @@ def test_non_fabrik_cwd_stays_silent(tmp_path: Path, fake_home: Path) -> None:
     not_a_project = tmp_path / "not-fabrik"
     not_a_project.mkdir()
     _write_skill(fake_home, "fabrik-review")
-    out = _run_router(not_a_project, fake_home, {"cwd": str(not_a_project), "prompt": "please review this"})
+    out = _run_router(
+        not_a_project, fake_home, {"cwd": str(not_a_project), "prompt": "please review this"}
+    )
     assert out == ""
 
 
 def test_empty_roster_stays_silent(fake_project: Path, fake_home: Path) -> None:
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "please review this"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "please review this"}
+    )
     assert out == ""
 
 
 def test_regex_match_injects_directive(fake_project: Path, fake_home: Path) -> None:
     _write_skill(fake_home, "fabrik-review", stage="4-build")
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "can you review this diff"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "can you review this diff"}
+    )
     assert out
     payload = json.loads(out)
     ctx = payload["hookSpecificOutput"]["additionalContext"]
@@ -641,7 +656,9 @@ def test_regex_match_injects_directive(fake_project: Path, fake_home: Path) -> N
 
 def test_turkish_regex_match_injects_directive(fake_project: Path, fake_home: Path) -> None:
     _write_skill(fake_home, "fabrik-review", stage="4-build")
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "bu kodu incele lütfen"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "bu kodu incele lütfen"}
+    )
     assert out
     payload = json.loads(out)
     assert "/fabrik-review" in payload["hookSpecificOutput"]["additionalContext"]
@@ -653,7 +670,9 @@ def test_test_stem_stays_silent_without_project_yaml(fake_project: Path, fake_ho
     # prompt must NOT route to fabrik-user-test just because the default
     # "unknown type" behavior used to apply to a missing file too.
     _write_skill(fake_home, "fabrik-user-test", stage="5-certify")
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "certify this end to end"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "certify this end to end"}
+    )
     assert out == ""
 
 
@@ -663,47 +682,63 @@ def test_test_stem_routes_when_project_yaml_present_with_unknown_type(
     # Present-but-unknown project type keeps the UI-bearing default.
     (fake_project / "project.yaml").write_text("name: demo\ntype: some-future-type\n")
     _write_skill(fake_home, "fabrik-user-test", stage="5-certify")
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "certify this end to end"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "certify this end to end"}
+    )
     assert out
     payload = json.loads(out)
     assert "/fabrik-user-test" in payload["hookSpecificOutput"]["additionalContext"]
 
 
-def test_upstream_stem_autoenrolls_on_future_roster_positive(fake_project: Path, fake_home: Path) -> None:
+def test_upstream_stem_autoenrolls_on_future_roster_positive(
+    fake_project: Path, fake_home: Path
+) -> None:
     # round-4 fixup NEW-2, "both directions": a FAKE roster with
     # fabrik-upstream present (the auto-enrollment scenario — the skill
     # hasn't landed live yet, but the anchor is armed) fires on genuine
     # propose/file/send-upstream intent.
     _write_skill(fake_home, "fabrik-upstream", stage="utility")
-    out = _run_router(fake_project, fake_home, {"cwd": str(fake_project), "prompt": "let's propose this upstream"})
+    out = _run_router(
+        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "let's propose this upstream"}
+    )
     assert out
     payload = json.loads(out)
     assert "/fabrik-upstream" in payload["hookSpecificOutput"]["additionalContext"]
 
 
-def test_upstream_stem_autoenrolls_on_future_roster_negative(fake_project: Path, fake_home: Path) -> None:
+def test_upstream_stem_autoenrolls_on_future_roster_negative(
+    fake_project: Path, fake_home: Path
+) -> None:
     # Same FAKE roster, but a bare/receiving mention of "upstream" must stay
     # silent even though the target skill now exists.
     _write_skill(fake_home, "fabrik-upstream", stage="utility")
     out = _run_router(
-        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "the upstream nginx returned a 502"}
+        fake_project,
+        fake_home,
+        {"cwd": str(fake_project), "prompt": "the upstream nginx returned a 502"},
     )
     assert out == ""
 
 
-def test_retire_stem_autoenrolls_on_future_roster_positive(fake_project: Path, fake_home: Path) -> None:
+def test_retire_stem_autoenrolls_on_future_roster_positive(
+    fake_project: Path, fake_home: Path
+) -> None:
     # round-4 fixup NEW-2, "both directions": a FAKE roster with
     # fabrik-decommission present fires on genuine service-retirement intent.
     _write_skill(fake_home, "fabrik-decommission", stage="utility")
     out = _run_router(
-        fake_project, fake_home, {"cwd": str(fake_project), "prompt": "let's retire this old service"}
+        fake_project,
+        fake_home,
+        {"cwd": str(fake_project), "prompt": "let's retire this old service"},
     )
     assert out
     payload = json.loads(out)
     assert "/fabrik-decommission" in payload["hookSpecificOutput"]["additionalContext"]
 
 
-def test_retire_stem_autoenrolls_on_future_roster_negative(fake_project: Path, fake_home: Path) -> None:
+def test_retire_stem_autoenrolls_on_future_roster_negative(
+    fake_project: Path, fake_home: Path
+) -> None:
     # Same FAKE roster, but a non-service object (endpoint) must stay silent
     # even though the target skill now exists.
     _write_skill(fake_home, "fabrik-decommission", stage="utility")
@@ -802,7 +837,9 @@ def _write_fake_claude(bin_dir: Path, response: str) -> None:
     script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def test_haiku_tier_fires_only_on_regex_miss_and_injects(fake_project: Path, fake_home: Path, tmp_path: Path) -> None:
+def test_haiku_tier_fires_only_on_regex_miss_and_injects(
+    fake_project: Path, fake_home: Path, tmp_path: Path
+) -> None:
     # Round-3 dispatcher ruling: Tier 2 is opt-in — must set FABRIK_ROUTER_HAIKU=1.
     _write_skill(fake_home, "fabrik-catchup", stage="utility")
     bin_dir = tmp_path / "bin"
@@ -845,7 +882,9 @@ def test_tier2_disabled_by_default_regex_miss_never_spawns_subprocess(
         extra_env={"FABRIK_ROUTER_HAIKU": None},  # force-absent, regardless of the host's own env
     )
     assert out == ""
-    assert not sentinel.exists(), "Tier 2 must never spawn a subprocess when FABRIK_ROUTER_HAIKU is unset"
+    assert not sentinel.exists(), (
+        "Tier 2 must never spawn a subprocess when FABRIK_ROUTER_HAIKU is unset"
+    )
 
 
 def test_haiku_tier_roster_excludes_pipeline_only_skills(
@@ -871,7 +910,9 @@ def test_haiku_tier_roster_excludes_pipeline_only_skills(
     assert out == ""
 
 
-def test_haiku_tier_none_response_stays_silent(fake_project: Path, fake_home: Path, tmp_path: Path) -> None:
+def test_haiku_tier_none_response_stays_silent(
+    fake_project: Path, fake_home: Path, tmp_path: Path
+) -> None:
     _write_skill(fake_home, "fabrik-catchup", stage="utility")
     bin_dir = tmp_path / "bin"
     _write_fake_claude(bin_dir, "NONE")
@@ -885,7 +926,9 @@ def test_haiku_tier_none_response_stays_silent(fake_project: Path, fake_home: Pa
     assert out == ""
 
 
-def test_regex_hit_never_shells_out_to_haiku(fake_project: Path, fake_home: Path, tmp_path: Path) -> None:
+def test_regex_hit_never_shells_out_to_haiku(
+    fake_project: Path, fake_home: Path, tmp_path: Path
+) -> None:
     # A fake `claude` that always errors would fail the test if Tier 2 fired —
     # proves the regex tier short-circuits Tier 2 on a hit. F7: also write a
     # sentinel file so this can't pass by accident (e.g. a revert that still
@@ -908,14 +951,18 @@ def test_regex_hit_never_shells_out_to_haiku(fake_project: Path, fake_home: Path
         fake_home,
         {"cwd": str(fake_project), "prompt": "review this"},
         extra_path=bin_dir,
-        extra_env={"FABRIK_ROUTER_HAIKU": "1"},  # opt-in ON — proves the Tier-1 short-circuit, not the gate
+        extra_env={
+            "FABRIK_ROUTER_HAIKU": "1"
+        },  # opt-in ON — proves the Tier-1 short-circuit, not the gate
     )
     assert not sentinel.exists(), "Tier 2 (Haiku) must never fire on a resolved Tier-1 regex hit"
     payload = json.loads(out)
     assert "/fabrik-review" in payload["hookSpecificOutput"]["additionalContext"]
 
 
-def test_hook_never_exits_nonzero_even_on_internal_error(fake_project: Path, fake_home: Path) -> None:
+def test_hook_never_exits_nonzero_even_on_internal_error(
+    fake_project: Path, fake_home: Path
+) -> None:
     # cwd that doesn't even exist as a Path -> resolve() still succeeds on most
     # platforms, but final_gate.py check will just be False -> silent, exit 0.
     env = {**os.environ, "HOME": str(fake_home)}
@@ -1253,3 +1300,180 @@ def test_git_upstream_chatter_does_not_route() -> None:
     assert hook.first_regex_match("the upstream branch diverged") is None
     assert hook.first_regex_match("pull from upstream") is None
     assert hook.first_regex_match("merge upstream changes into master") is None
+
+
+# --- T07b: the three assembled mega commands need stems, or the router never fires for them -----
+# /fabrik-vision, /fabrik-epics and /fabrik-epics-review render box-wide (T07a), and `grep -c
+# 'fabrik-epics-review' skill_router.py` was 0: a multi-epic prompt fell into `spec` or `plan`
+# (first match wins), and the assembled chain was unreachable by bare prose. Two maps must agree —
+# a KEYWORD_STEMS row with no STEM_SKILLS entry resolves to None and routes NOWHERE, silently.
+
+
+@pytest.mark.parametrize(
+    ("prompt", "stem"),
+    [
+        # /fabrik-epics — decompose the confirmed vision, write the epic files
+        ("decompose this vision into epics", "epics"),
+        ("write the epic files", "epics"),
+        ("break this initiative down into epics", "epics"),
+        ("vizyonu epiklere ayır", "epics"),
+        # /fabrik-vision — the multi-epic front door, NOT the single-feature spec
+        ("write the product vision for a multi-epic project", "vision"),
+        ("I have a big multi-epic idea", "vision"),
+        ("scope this whole initiative", "vision"),
+        ("draft the vision summary", "vision"),
+        ("büyük bir vizyonum var", "vision"),
+        ("çok epikli bir girişim", "vision"),
+        # /fabrik-epics-review — validate + assign the cut epic set
+        ("assign the epics to the three windows", "epics-review"),
+        ("validate the epics", "epics-review"),
+        ("are the epics ready to build", "epics-review"),
+        ("run the cross-epic validation", "epics-review"),
+        ("review the epics", "epics-review"),
+        ("epikleri doğrula", "epics-review"),
+        ("epikler yapıma hazır mı", "epics-review"),
+    ],
+)
+def test_mega_command_phrases_route_to_their_own_stem(prompt: str, stem: str) -> None:
+    assert hook.first_regex_match(prompt) == stem
+
+
+def test_mega_stems_resolve_to_the_assembled_skills() -> None:
+    """STEM_SKILLS is the half that actually routes: `resolve_target` does STEM_SKILLS.get(stem)."""
+    roster = {"fabrik-vision", "fabrik-epics", "fabrik-epics-review", "fabrik-spec"}
+    assert hook.resolve_target("epics", roster, project_type=None) == "fabrik-epics"
+    assert hook.resolve_target("vision", roster, project_type=None) == "fabrik-vision"
+    assert hook.resolve_target("epics-review", roster, project_type=None) == "fabrik-epics-review"
+
+
+def test_mega_stems_sit_below_conformance_and_above_spec_and_plan() -> None:
+    """First match wins: below `spec`/`plan` a multi-epic prompt is swallowed by the single-feature
+    producer; ABOVE `conformance` the block stole "…for a multi-epic project run
+    /fabrik-conformance-review…" (acceptance round 1, measured on the real corpus). The order among
+    the three is not load-bearing — their patterns are disjoint on every probed input — so this
+    pins only the shipped order as a snapshot, not a rationale."""
+    order = [st for _, st in hook.KEYWORD_STEMS]
+    for stem in ("vision", "epics", "epics-review"):
+        assert order.index(stem) < order.index("spec"), f"{stem} must precede `spec`"
+        assert order.index(stem) < order.index("plan"), f"{stem} must precede `plan`"
+        assert order.index("conformance") < order.index(stem), f"{stem} must FOLLOW `conformance`"
+        assert order.index("spec-review") < order.index(stem), f"{stem} must FOLLOW `spec-review`"
+    # shipped-order snapshot only (disjoint patterns): epics-review, epics, vision
+    assert order.index("epics-review") < order.index("epics") < order.index("vision")
+
+
+def test_mega_stem_patterns_are_pairwise_disjoint_on_their_own_positives() -> None:
+    """The reason the intra-three order is not load-bearing, asserted rather than claimed."""
+    pats = {st: pat for pat, st in hook.KEYWORD_STEMS if st in ("epics-review", "epics", "vision")}
+    for prompt in (
+        "vizyonu epiklere ayır",
+        "assign the epics to the three windows",
+        "review the epics",
+        "decompose this vision into epics",
+        "write the epic files",
+        "write the product vision for a multi-epic project",
+        "I have a big multi-epic idea",
+        "epikleri doğrula",
+    ):
+        hits = [st for st, pat in pats.items() if pat.search(prompt)]
+        assert len(hits) == 1, f"{prompt!r} matched {hits}"
+
+
+def test_mega_stems_do_not_steal_their_neighbours() -> None:
+    """Precision first: the Traycer-artifact review keeps its singular `epic`, the single-feature
+    producers keep theirs, and ordinary epic/vision prose stays silent."""
+    assert hook.first_regex_match("review the epic or ticket breakdown") == "workflow-review"
+    assert hook.first_regex_match("converge this workflow artifact") == "workflow-review"
+    assert hook.first_regex_match("let's write a spec for this") == "spec"
+    assert hook.first_regex_match("I have an idea for a new feature, let's spec it") == "spec"
+    assert hook.first_regex_match("make a plan for this feature") == "plan"
+    assert hook.first_regex_match("review this diff") == "review"
+    assert hook.first_regex_match("that was an epic failure") is None
+    assert hook.first_regex_match("this epic is blocked on T03") is None
+    assert hook.first_regex_match("the epics dir has four files") is None
+    assert hook.first_regex_match("the vision doc is stale") is None
+    assert hook.first_regex_match("bu epik bitti") is None
+    # acceptance round 1: the TR existential "vizyon … var" ("there is a vision doc") is prose, the
+    # bare `epic review` collocation is prose, and "there's a big idea" is not "I have a big idea"
+    assert hook.first_regex_match("vizyon dokümanı var") is None
+    assert hook.first_regex_match("vizyon sorunu var") is None
+    assert hook.first_regex_match("vizyon belgesi var") is None
+    assert hook.first_regex_match("the epic review process") == "workflow-review"
+    assert hook.first_regex_match("mega epic review checklist") == "workflow-review"
+    assert hook.first_regex_match("epics review meeting notes") is None
+    assert hook.first_regex_match("there's a big idea in this paper") is None
+    assert (
+        hook.first_regex_match(
+            "for a multi-epic project run /fabrik-conformance-review before step 2"
+        )
+        == "conformance"
+    )
+
+
+# Behavior Contract row 4 — routing UNCHANGED for every prompt that matches none of the three.
+# Frozen against the router at a6518d1e (HEAD before T07b) by running first_regex_match over the
+# existing corpus; the values are the BEFORE, the assertion is the AFTER.
+_T07B_ROUTING_SNAPSHOT: list[tuple[str, str | None]] = [
+    ("let's write a design spec for this", "spec"),
+    ("yeni bir özellik için tasarım yapalım", "spec"),
+    ("make a plan for this feature", "plan"),
+    ("bunun için bir planlama yapalım", "plan"),
+    ("can you review this code", "review"),
+    ("bu kodu incele", "review"),
+    ("update the docs for this", "docs"),
+    ("döküman güncelle", "docs"),
+    ("run the certification test suite", "test"),
+    ("bunun için sertifika testi", "test"),
+    ("time to release this", "release"),
+    ("bunu yayınla", "release"),
+    ("please deploy and verify the service", "deploy-verify"),
+    ("dağıtım doğrula", "deploy-verify"),
+    ("author the deploy checklist", "deploy-checklist"),
+    ("freeze the parity contract", "deploy-checklist"),
+    ("verify the deploy checklist", "deploy-verify"),
+    ("catch this project up", "catchup"),
+    ("bu proje güncel mi", "catchup"),
+    ("let's retire this old service", "retire"),
+    ("bu servisi kaldır", "retire"),
+    ("plan the migration", "plan"),
+    ("plan this feature out", "plan"),
+    ("I'd like a review of the diff", "review"),
+    ("cut a release", "release"),
+    ("ship it", "release"),
+    ("documentation needs updating", "docs"),
+    ("test this end to end", "test"),
+    ("propose this upstream", "upstream"),
+    ("upstream this fix", "upstream"),
+    ("was everything we specced actually built?", "conformance"),
+    ("audit every spec and plan against the code", "conformance"),
+    ("review this spec", "spec-review"),
+    ("is this spec solid", "spec-review"),
+    ("review the deployment plan", "deploy-plan-review"),
+    ("plan the deployment", "deploy-plan"),
+    ("review this UI", "design-review"),
+    ("review the epic or ticket breakdown", "workflow-review"),
+    ("epic/ticket taslağını incele", "workflow-review"),
+    ("review/harden this UI design contract", "ui-design-review"),
+    ("design the screens for this", "ui-design"),
+    ("who are our competitors", "rivals"),
+    ("audit the whole repo", "repo-review"),
+    ("check rules-pack compliance", "rules-review"),
+    ("quick review of my changes", "review-scoped"),
+    ("freeze the data contract", "data-contract"),
+    ("refresh the features list", "features"),
+    ("bu dokümanı koda göre güncelle", "doc-converge"),
+    ("akış sözleşmesini gözden geçir", "flows-review"),
+    ("bu planı gözden geçir", "plan-review"),
+    ("fix this failing test in tests/…", None),
+    ("plan B: just restart the container", None),
+    ("the design of this function is wrong, refactor it", None),
+    ("the upstream nginx returned a 502", None),
+    ("what's the weather like today", None),
+]
+
+
+@pytest.mark.parametrize(("prompt", "expected"), _T07B_ROUTING_SNAPSHOT)
+def test_t07b_routing_unchanged_for_prompts_outside_the_three_stems(
+    prompt: str, expected: str | None
+) -> None:
+    assert hook.first_regex_match(prompt) == expected

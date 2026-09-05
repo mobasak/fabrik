@@ -1,6 +1,6 @@
 # Acceptance review — T07b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base a6518d1e (master after the joint T06/T07a merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -21,4 +21,8 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (the fixups were prescribed verbatim from round 1's executed findings; stated) — round 2.
 ### Native layer (orchestrator execution in the worktree)
 - `pytest tests/test_skill_router_hook.py -q` → 245 passed; `grep -c fabrik-epics-review` → 1; `ruff check` clean, `ruff format --check` 2 files already formatted; `check_trigger_routing.py` → 149 advertised, 108 reach their own command, 41 route nowhere, 0 mis-routed; the order read from the loaded module: `{'spec-review': 4, 'conformance': 5, 'epics-review': 6, 'epics': 7, 'vision': 8, 'spec': 9, 'plan': 12}`; probes through `first_regex_match`: "for a multi-epic project run /fabrik-conformance-review before step 2" → conformance; "vizyon dokümanı var" / "vizyon sorunu var" → None; "büyük bir vizyonum var" → vision; "the epic review process" → workflow-review; "review the epics" → epics-review; "there's a big idea in this paper" → None; "I have a big idea" → vision; the three contract prompts → epics / epics-review / vision; "the epics dir has four files" / "an epic failure" → None.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0060)
+- All three CLEAN: the placement below `conformance`/`spec-review` and above `spec`/`plan` read from the indices; the TR existential row absent; the disjointness test's 8 positives include a Turkish one; the snapshot assertion's message honest ("snapshot, not a rationale"); every rewritten comment sentence true against the code; "review the epics" → epics-review, "the epic review process" → workflow-review; the 55-row snapshot 55/55; edits within the two Touches; no format churn beyond ruff.
+- The orchestrator's corpus-harness run (the coder's `probe.py` against 5bda5c6f): item 1 → conformance; the three TR false positives → None; "the epic review process" / "mega epic review checklist" → workflow-review, "epics review meeting notes" → None, "review the epics" → epics-review; "there's a big idea in this paper" → None, "I have a big idea" / "I have a big multi-epic idea" → vision; 11/11 declared EN+TR phrases OK.
+### Verdict
+**0 findings — no-op round.** Ledger: placement/ordering · TR rows · rationale truthfulness · bare-noun collocations · fleet safety · format churn · gates — all swept, all clean. **Status: CONVERGED** at `5bda5c6f`; merge owner applies the CHANGELOG delta and the fleet sync (`.claude/hooks/` is a governance-sync trigger surface).
