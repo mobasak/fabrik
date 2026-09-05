@@ -36,3 +36,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - qwen — CLEAN; the info/exclude seeding judged safe for 45 repos because `.env`/`.mcp.json` are already in the synced `.gitignore` block (a repo-wide safety net, not a behaviour change).
 - deepseek — 1 raised: `_project_worktree_dirs` returns ALL linked worktrees, not only those under `.claude/worktrees/`, contradicting its docstring — the round-1 native finder proved the opposite by probe on b79c918b ("worktree outside `.claude/worktrees/` → skipped via `relative_to`"); whether the fixup changed that is carried to the native finder (a docstring-vs-code check).
 Native finder (opus): PENDING — appended when it returns.
+
+## Round 3 — over `5fd58526..6d3c7698` (65,943 B; the round-2 fixup: eight classes, 23 passed — a real prune contract, one NOTE per tracked secret, measured docstrings, four mutant-killing tests, the tally in the `Results:` line, `__pycache__` skipped, the exclude seeded before the early return, durable settings pins)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+### Adjudication (pool layer)
+- gemini — CLEAN over 17 checks; 2 L: the per-project summary line excludes worktree files while the final `Results:` includes them → carried into the fixup (3); a tuple/iteration micro-cost → no finding.
+- deepseek — 2 raised, both CONFIRMED by reading the predicate: (1) [H] condition (b) reads the worktree's lock, which is the MAIN checkout's lock copied in — it names paths the worktree never received (secret-skipped, force-skipped, failed copies), so an agent's untracked edit to a later-retired path is deleted; the round-2 guarantee is defeated → FIXUP (1): a per-worktree ledger of what the resync itself wrote; (2) [M] the worktree copy path drops every non-COPY/BACKUP result — a no-force WARN on a locally modified file vanishes → FIXUP (2).
+- qwen — 2 raised: a file untracked-but-ignored via a local rule still warned — the floor runs `git check-ignore` first (an ignored file never reaches the tracked/untracked classification) → carried to the native finder to confirm by probe; the tally under `--dry-run` (truncated) — `main()` clears it and only real runs increment — carried.
+Native finder (opus): PENDING — appended when it returns.
+

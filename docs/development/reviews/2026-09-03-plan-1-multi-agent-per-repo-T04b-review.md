@@ -52,4 +52,9 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - deepseek — CLEAN (4 rows; no fail-open; no `git -C`/`cd "$MAIN"`/literal master; the twelve terms consistent).
 - gemini — CLEAN (rounds 1–3 classes; the merge-then-remove order satisfies git's own refusal; Owner/Epic interfaces).
 - qwen — CLEAN (4 rows by line; the lock committed beside the plan file :904-913; refusal :414-415/:462-480; BASE everywhere).
-Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+### Native finder (opus) — all 8 round-3 items CONFIRMED FIXED (the `git worktree remove` refusal proven in a scratch repo; locks tracked, not ignored; the `action: "remove"` claim true to the tool contract; 5 "merge owner" occurrences all the main-checkout role; corpus check green; 0 lock lines deleted; Part B/C clean). 5 raised:
+- [M] :1096 "ExitWorktree … refuses a tree carrying uncommitted work" is false for the `keep` action the same step mandates (only `remove` refuses) → FIXUP (1).
+- [M] :122-123 names `isolation:"worktree"` — the Agent tool's dispatch parameter — as how THIS run isolates itself; `ExitWorktree` operates only on trees entered via `EnterWorktree` (0 hits in either file) → position (b)'s primary path is unreachable as written → FIXUP (2): `EnterWorktree` is the entry.
+- [M] plan-after-chat :231-232 lists the `**Owner:**`/`Epic:` header lines under "gate-enforced grammar" — no enforcement script reads either today → FIXUP (3). [M] :637-639 asserts a live PLANS.md regeneration (generator retired 2026-07-20; T15 revives it) → FIXUP (4).
+- [M] :1103-1105 the position-(b) merge in the main checkout has no clean-tree precondition and no conflict disposition, unlike the Merge Protocol (:914-923) — on a tree three sessions share, dirty is the expected state → FIXUP (5).
+Round 4 verdict: 5 M → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
