@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the scaffold's GlitchTip guard now asserts the CAPTURED EVENT, and the watched fail proved the shipped scaffold leaks four secrets (2026-09-05)
+
+T03 of plan `2026-09-05-plan-2-glitchtip-deny-by-default`. `test_python_glitchtip_init_strips_locals_and_body`
+is replaced by name: it asserted that two flag STRINGS appeared in emitted text, which is a denylist
+assertion about source code. The replacement raises inside a real FastAPI request with six secrets in play
+(a Settings-like local holding a DSN and a JWT secret, a JSON body password, an `X-Signing-Secret` header,
+a URL query token, `logger.error("otp=%s", secret)`, and an outbound `httpx` call with `?apikey=`), swaps
+the transport's `capture_envelope`, and substring-searches everything that would hit the wire — never a
+field list. Rule 55: verify on the captured event, never the init kwarg.
+
+**The watched fail is the finding.** Pointed at the inline literal the scaffold ships TODAY (extracted by
+command, 2,830 chars, exactly as the ticket predicted), the same assertions go red with:
+
+    AssertionError: secrets reached the wire through: ['apikey', 'header', 'otp', 'query']
+
+The two flags previously prescribed close `dsn` (frame locals) and `password` (request body) and leave
+four channels open — the breadcrumb outbound URL, the request header, the log interpolation and the URL
+query. That is site-provisioner's report reproduced by the hub's own guard rather than accepted from a
+mail, and it is why the fix had to be a shape rather than more flags.
+
+The guard also asserts a TRANSACTION event was captured with `traces_sample_rate=1.0` and is equally
+clean, because sentry-sdk skips `before_send` entirely for transactions; that `logentry` carries only the
+message template, never the interpolated `params`/`formatted`; and that no breadcrumb survived. It fails
+loudly if `init_glitchtip()` returns False, so a missing SDK can never pass it silently. It loads the
+TEMPLATE directly with the two tokens substituted in-test, so it does not wait for the emitter (T02, last),
+and honours `GLITCHTIP_GUARD_MODULE` — which is how the watched fail was aimed at the old module without
+editing the test.
+
+### Fixed — mail-queue two: the rubric joins wrapped bullets, the coverage check knows both BLOCKED exits, the vendored deep_research un-forked (2026-09-05)
+
+Six mail-driven machinery fixes reviewed to a no-op (`docs/development/reviews/2026-09-05-mail-queue-two-review.md`,
+af986ad3) plus one more (83b841ab): `scripts/review_rubric.py::_mandate_lines` joins a bullet's wrapped
+continuation lines (headings, fences and `1.` items end a bullet; six lines then a marker) and the
+`# promote-to-check_*` tail lists whole backtick literals instead of re-printing ~20 FLOOR mandates;
+`scripts/enforcement/check_review_coverage.py::_blocked_sections` accepts `/fabrik-review`'s loop-level
+`## BLOCKED: NON-CONVERGENCE` exit (named foundation error) and its exit-round message offers that
+disposition; `check_plan_tickets.py`'s READ-budget hint names the `Integration: true` exemption; three
+command clauses (one-oversized-file escape, promote-tail elision, worktree-excluded greps); three synced
+governance sentences (service next to its data; own database ≠ own server; requirements.txt-only runner)
+and the pytest-sentinel clause in both CLAUDE.md files; `scripts/dr_env_backup.sh` single-sources its
+pathspec; `libs/deep_research/__init__.py` returns to canonical self-imports so `/fabrik-rivals`' hub
+fallback imports the engine from any project. Rulings D-127…D-130. Graders:
+`tests/test_check_review_coverage_blocked.py`, `tests/test_dr_env_backup.py`,
+`tests/test_deep_research_vendor_unforked.py`, `tests/test_review_rubric_edges.py` (+5).
+
 ### Added — the scaffold's GlitchTip scrubber is now a vendored deny-by-default module, not an inline flag list (2026-09-05)
 
 T01 of plan `2026-09-05-plan-2-glitchtip-deny-by-default` (infra-authored, CONVERGED over 13 author-blind

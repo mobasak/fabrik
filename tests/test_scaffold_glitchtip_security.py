@@ -16,6 +16,7 @@ Grounded API note (Sentry docs, verified 2026-08-28):
 """
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -27,18 +28,140 @@ requires_fabrik_env = pytest.mark.skipif(
 )
 
 
-@requires_fabrik_env
-def test_python_glitchtip_init_strips_locals_and_body(tmp_path):
-    create_project(
-        name="gt-py-sec",
-        project_type="saas-skeleton",
-        description="glitchtip security regression",
-        base=tmp_path,
-        generate_spec=False,
+SECRETS = {
+    "dsn": "postgres://svc:PGPASSWORD_LEAK@postgres-main:5432/db",
+    "jwt": "JWTSECRET_LEAK",
+    "password": "BODYPASSWORD_LEAK",
+    "header": "SIGNINGSECRET_LEAK",
+    "query": "URLTOKEN_LEAK",
+    "otp": "OTPINTERPOLATED_LEAK",
+    "apikey": "BREADCRUMBAPIKEY_LEAK",
+}
+
+
+def _load_guard_module(tmp_path):
+    """Load the module under guard: the substituted TEMPLATE by default, or whatever
+    GLITCHTIP_GUARD_MODULE points at — which is how the watched-fail is aimed at the OLD
+    inline literal without editing the test. T02 (the emitter) merges LAST, so this guard
+    must not wait for it: it substitutes the template's two tokens itself."""
+    import importlib.util
+
+    override = os.environ.get("GLITCHTIP_GUARD_MODULE")
+    if override:
+        path = Path(override)
+    else:
+        template = Path(__file__).resolve().parents[1] / "templates" / "scaffold" / "python" / "glitchtip_init.py"
+        src = template.read_text().replace("{pkg}", "guarded_pkg").replace("{name}", "guarded-svc")
+        path = tmp_path / "glitchtip_init_under_guard.py"
+        path.write_text(src)
+
+    spec = importlib.util.spec_from_file_location("glitchtip_init_under_guard", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _serialize(envelopes):
+    """What would actually hit the wire. The reference tests' own method: capture_envelope
+    receives an Envelope, so walk its items and dump each payload. Substring-search THAT —
+    never a field list, because a field list is the denylist this whole plan replaces."""
+    import json
+
+    return "\n".join(
+        json.dumps(item.payload.json, default=repr)
+        for envelope in envelopes
+        for item in envelope.items
+        if getattr(item.payload, "json", None) is not None
     )
-    init = (tmp_path / "gt-py-sec" / "server" / "src" / "gt_py_sec" / "glitchtip_init.py").read_text()
-    assert "include_local_variables=False" in init, "frame-locals channel not closed (JWT/DSN leak)"
-    assert 'max_request_body_size="never"' in init, "request-body channel not closed (payload leak)"
+
+
+def test_python_glitchtip_captured_event_and_transaction_carry_no_secret(tmp_path, monkeypatch):
+    """Rule 55: verify on the CAPTURED EVENT, never the init kwarg.
+
+    The test this replaces asserted two flag STRINGS were present in emitted text. That is a
+    denylist assertion about source code, and site-provisioner measured ~10 channels still open
+    behind exactly those two flags. This one raises inside a real request with six secrets in
+    play and searches everything the transport would ship.
+
+    The TRANSACTION half is not decoration: sentry-sdk skips `before_send` entirely for
+    transaction events (`client.py`, `event.get("type") != "transaction"`), so a scrubber
+    registered only there leaves every sampled transaction unscrubbed.
+    """
+    import logging
+
+    import httpx
+    import sentry_sdk
+    from fastapi import FastAPI, Request
+    from starlette.testclient import TestClient
+
+    monkeypatch.setenv("SENTRY_DSN", "https://publickey@glitchtip.invalid/42")
+    # Without this, transactions sample at 0.05 and the transaction assertions are vacuous.
+    monkeypatch.setenv("GLITCHTIP_TRACES_SAMPLE_RATE", "1.0")
+    monkeypatch.setenv("SERVICE_NAME", "guarded-svc")
+
+    module = _load_guard_module(tmp_path)
+    assert module.init_glitchtip() is True, (
+        "init_glitchtip() returned False — the module took its ImportError/no-DSN path, so "
+        "nothing below is actually being scrubbed. A missing SDK must FAIL this guard, never pass it."
+    )
+    print(f"sentry_sdk.VERSION = {sentry_sdk.VERSION}")
+
+    envelopes = []
+    monkeypatch.setattr(sentry_sdk.get_client().transport, "capture_envelope", envelopes.append)
+
+    app = FastAPI()
+
+    @app.post("/boom")
+    async def boom(request: Request):  # noqa: ANN201
+        settings_repr = f"Settings(database_url='{SECRETS['dsn']}', jwt_secret='{SECRETS['jwt']}')"  # noqa: F841
+        body = await request.json()  # noqa: F841
+        signing = request.headers.get("X-Signing-Secret")  # noqa: F841
+        logging.getLogger("guard").error("otp=%s", SECRETS["otp"])
+        try:  # a breadcrumb carrying an outbound URL with a live-looking key
+            httpx.get(f"http://127.0.0.1:1/probe?apikey={SECRETS['apikey']}", timeout=0.05)
+        except Exception:  # noqa: BLE001  (connection refused is the point; the breadcrumb is recorded first)
+            pass
+        raise RuntimeError("boom")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        client.post(
+            f"/boom?token={SECRETS['query']}",
+            json={"password": SECRETS["password"]},
+            headers={"X-Signing-Secret": SECRETS["header"]},
+        )
+    sentry_sdk.get_client().flush(timeout=2)
+
+    wire = _serialize(envelopes)
+    assert wire, "nothing was captured — the transport swap or the raise did not work"
+
+    leaked = sorted(name for name, value in SECRETS.items() if value in wire)
+    assert not leaked, f"secrets reached the wire through: {leaked}"
+
+    payloads = []
+    for envelope in envelopes:
+        for item in envelope.items:
+            data = getattr(item.payload, "json", None)
+            if isinstance(data, dict):
+                payloads.append(data)
+
+    errors = [d for d in payloads if d.get("type") != "transaction" and "exception" in d]
+    transactions = [d for d in payloads if d.get("type") == "transaction"]
+    assert errors, "no ERROR event captured"
+    assert transactions, (
+        "no TRANSACTION event captured — with traces_sample_rate=1.0 one is expected, and it is "
+        "the event before_send never sees"
+    )
+
+    for event in errors:
+        logentry = event.get("logentry")
+        if logentry is not None:
+            assert set(logentry) <= {"message"}, (
+                f"logentry carries more than the template: {sorted(logentry)} — params/formatted "
+                "hold the INTERPOLATED text"
+            )
+        crumbs = event.get("breadcrumbs") or {}
+        values = crumbs.get("values", crumbs) if isinstance(crumbs, dict) else crumbs
+        assert not values, f"breadcrumbs survived: {values!r}"
 
 
 def test_node_glitchtip_init_strips_locals_without_bogus_body_flag(tmp_path):
