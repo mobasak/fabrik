@@ -22,9 +22,11 @@ an outbound URL's `apikey`, a custom request header (the SDK's own scrubber know
 `X-Signing-Secret` is not one), a `logger.error` interpolation, and a URL query token. Reported by
 site-provisioner and reproduced here rather than believed.
 
-**Reaches three scaffold types** — `python-api`, `python-api-gpu`, `saas-skeleton` (census re-derived by
-scaffolding each type and looking for the emitted file). `node-api` has the JS module; the other seven
-types emit no Sentry init at all, and `chrome-extension` has its own isolated `BrowserClient`.
+**Reaches five scaffold types** — `python-api`, `python-api-gpu`, `saas-skeleton`, plus
+`office-extension` and `static-site` via their `server/` FastAPI backend (census derived by scaffolding
+all twelve types; an earlier count of three came from scaffolding only six of them). `node-api` has the
+JS module; the other five emit no Sentry init at all, and `chrome-extension` has its own isolated
+`BrowserClient`.
 
 **The guard is the feature's proof, not its documentation.** `tests/test_scaffold_glitchtip_security.py`
 swaps the transport's `capture_envelope`, raises inside a real FastAPI request with six secrets in play,

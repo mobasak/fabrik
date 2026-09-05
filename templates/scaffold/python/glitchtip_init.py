@@ -23,6 +23,10 @@ tests/test_scaffold_glitchtip_security.py:
     log record to become an event;
   * both integrations keep ``transaction_style="endpoint"``, the scaffold's existing
     transaction NAMING — dropping it would silently rename every transaction.
+
+Apart from those, this file is byte-identical to the origin at the revision above, plus
+COMMENTS added here (the coupling note beside ``LoggingIntegration``). When re-vendoring,
+diff with comments in mind: the executable bytes are the contract, not the prose.
 """
 import logging
 import os
@@ -751,6 +755,15 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             # level=None stops them becoming breadcrumbs. Unhandled errors are still
             # reported via the Starlette/FastAPI integrations, and explicit
             # sentry_sdk.capture_exception() still works.
+            # FLEET DEFAULT (D-126), and it DEPENDS ON THE ALLOWLIST ABOVE. The reference uses
+            # event_level=None, which closes the log channel by never creating an event at all.
+            # ERROR keeps the event — the fleet wants error records visible in GlitchTip — so the
+            # log channel is open and is closed instead by `_ALLOWED_LOGENTRY_KEYS == {"message"}`,
+            # which keeps the message TEMPLATE and drops `params`/`formatted` (the interpolated
+            # text). Verified: `logger.error("otp=%s", secret)` produces one event whose logentry is
+            # {'message': 'otp=%s'} with the secret absent.
+            # ⚠️ Widening `_ALLOWED_LOGENTRY_KEYS` therefore turns THIS line into a leak, while the
+            # reference's event_level=None would not. The two are coupled; change them together.
             LoggingIntegration(event_level=logging.ERROR, level=None),
         ],
     )

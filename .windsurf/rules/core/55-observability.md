@@ -249,6 +249,14 @@ scrubber registered only there leaves every sampled transaction unscrubbed. Alon
 `max_breadcrumbs=0`, and the fleet logging default `LoggingIntegration(event_level=logging.ERROR,
 level=None)` (D-126).
 
+⚠️ **That last one is COUPLED to the allowlist and the two must move together.** The upstream reference
+uses `event_level=None`, which closes the log channel by never creating an event. The fleet keeps ERROR
+records as events — we want them in GlitchTip — so the channel is open, and what closes it is
+`_ALLOWED_LOGENTRY_KEYS == {"message"}`: the message TEMPLATE survives, `params` and `formatted` (the
+interpolated text) do not. Verified: `logger.error("otp=%s", secret)` yields one event with
+`logentry == {'message': 'otp=%s'}` and no secret. Widening that allowlist turns the fleet default into a
+leak where the upstream default would not.
+
 **Why the shape and not more flags — measured, not argued.** The two flags below were once the whole
 mandate. Pointing the hub's own guard at the init the scaffold shipped under that mandate:
 
@@ -317,10 +325,13 @@ channels above open.** Nothing back-fills it. Vendor `templates/scaffold/python/
 the hub over your own `src/{package}/glitchtip_init.py`, keeping your `{pkg}` import line and your
 service name, then prove it with the captured-event guard rather than by reading the diff.
 
-**Which projects this section applies to** — census re-derived 2026-09-05 by scaffolding each type and
-looking for the emitted file, not by reading the dispatch:
+**Which projects this section applies to** — census derived 2026-09-05 by scaffolding **all twelve**
+scaffoldable types into a tmpdir and looking for the emitted file. ⚠️ An earlier version of this list said
+three Python types; that came from scaffolding only six of the twelve and is corrected here. `static-site`
+and `office-extension` each scaffold a `server/` FastAPI backend, so they get the module too:
 
-**Python projects** (`python-api`, `python-api-gpu`, `saas-skeleton`):
+**Python projects** (`python-api`, `python-api-gpu`, `saas-skeleton`, `office-extension`, `static-site` —
+the last two via their `server/` backend):
 
 - Module: `src/{package}/glitchtip_init.py` — `init_glitchtip()` with `FastApiIntegration`
 - Wired in `main.py` BEFORE `app = FastAPI(...)` (the SDK must instrument the framework before app construction)
@@ -332,9 +343,10 @@ looking for the emitted file, not by reading the dispatch:
 - Wired via `import './glitchtip_init.js'` at the top of `src/index.js`, BEFORE other imports
 - Dependency: `@sentry/node` (in `package.json`)
 
-**The other seven scaffold types emit NO Sentry init at all** — `desktop-app`, `docusaurus`,
-`file-api`, `file-worker`, `mobile-app`, `office-extension`, `static-site`. This section does not apply
-to them, and adding a hand-rolled init to one is the custom-init the top of this section forbids.
+**The other five scaffold types emit NO Sentry init at all** — `desktop-app`, `docusaurus`,
+`file-api`, `file-worker`, `mobile-app`. This section does not apply to them, and adding a hand-rolled
+init to one is the custom-init the top of this section forbids. (5 Python + 1 Node + 1 browser + 5 none
+= the 12 scaffoldable types; `wordpress` is the 13th and is refused.)
 `chrome-extension` is the exception that is not an exception: it has its own isolated `BrowserClient`,
 covered by `chrome-ext/70-chrome-ext.md`. (`wordpress` is refused by the scaffolder.)
 

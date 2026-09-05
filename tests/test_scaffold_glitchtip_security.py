@@ -258,7 +258,13 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
 
 
 @requires_fabrik_env
-@pytest.mark.parametrize("project_type", ["python-api", "python-api-gpu", "saas-skeleton"])
+# FIVE types, not three. The first census scaffolded only SIX of the twelve and called it "each
+# type" — office-extension and static-site each scaffold a `server/` FastAPI backend and get the
+# module too, so leaving them out left two emitting types ungraded.
+@pytest.mark.parametrize(
+    "project_type",
+    ["python-api", "python-api-gpu", "saas-skeleton", "office-extension", "static-site"],
+)
 def test_scaffold_emits_the_vendored_module_byte_for_byte(tmp_path, project_type):
     """All three reaching types must get the TEMPLATE, not a copy that drifted from it.
 

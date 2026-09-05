@@ -51,9 +51,14 @@ pathspecs and pushed. Deviations and findings, recorded rather than smoothed ove
 - **T04's "seven header names" did not survive verification.** sentry-sdk 2.68.1's scrubber matches 37
   names (`DEFAULT_DENYLIST` 33 + `DEFAULT_PII_DENYLIST` 4). The load-bearing half held —
   `X-Signing-Secret` matches none of them — so the synced pack shipped the measured 37, not the seven.
-- **The per-platform census was re-derived by SCAFFOLDING each of the 12 types**, not by reading the
-  dispatch: Python reaches `python-api`/`python-api-gpu`/`saas-skeleton`, Node only `node-api`, seven types
-  emit nothing, `chrome-extension` has its own BrowserClient.
+- **The per-platform census was WRONG in the first pass and is corrected.** T04 shipped
+  `python-api`/`python-api-gpu`/`saas-skeleton`, which is what the ticket said — but that came from
+  scaffolding only SIX of the twelve types while describing it as "each type". The owed `/fabrik-review`
+  (skipped at the boundaries, run afterwards) scaffolded all twelve and found `office-extension` and
+  `static-site` also emit the module via their `server/` FastAPI backend. Python reaches FIVE types; five
+  emit nothing; `node-api` has the JS module; `chrome-extension` has its own BrowserClient. Corrected in
+  the synced pack and FEATURES. **The lesson is the method, not the number: a census that skips half its
+  population is a bounded search, and calling it "each type" is the denominator defect.**
 - **T03's watched fail is this plan's most valuable artifact:**
   `secrets reached the wire through: ['apikey', 'header', 'otp', 'query']` against the init the scaffold
   was shipping — site-provisioner's report reproduced by our own guard rather than believed.

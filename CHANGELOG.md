@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the owed /fabrik-review found a false census I had synced to ~46 repos (2026-09-05)
+
+The plan's Execution Discipline mandates `/fabrik-review` per ticket; I ran native in-line passes at each
+boundary and did not invoke the command. The operator caught the omission. Running it found four things
+the in-line passes missed, one of them fleet-wide:
+
+**The per-platform census in `55-observability.md` was WRONG.** It said the Python scrubber reaches three
+scaffold types. It reaches **five** — `office-extension` and `static-site` each scaffold a `server/`
+FastAPI backend and get the module too. The error was method, not arithmetic: I scaffolded SIX of the
+twelve types and described the result as "scaffolding each type". A second, independent derivation (tracing
+the dispatch instead) disagreed with the first, which is what surfaced it. Both the pack and
+`docs/FEATURES.md` are corrected, and the "other seven emit nothing" line is now "other five"
+(5 Python + 1 Node + 1 browser + 5 none = 12).
+
+**The D-126 logging default is COUPLED to the logentry allowlist, and nothing said so.** The upstream
+reference uses `event_level=None`, closing the log channel by never creating an event; the fleet keeps
+ERROR records as events, so the channel is open and is closed instead by
+`_ALLOWED_LOGENTRY_KEYS == {"message"}`. Verified by execution: `logger.error("otp=%s", secret)` produces
+one event whose `logentry` is `{'message': 'otp=%s'}` with the secret absent. Widening that allowlist
+would turn the fleet default into a leak where the upstream default would not — now stated in both the
+template and the pack.
+
+**Every published figure was re-derived, and two were reported in the wrong UNIT.** `wc -c` counts bytes
+while Python's `len()` counts characters, and this module is full of em-dashes: the vendored template is
+42,878 characters / 43,032 bytes. The earlier entries' "2,830 chars" (the old inline literal) is correct
+as characters; "the template's 41,799" was the substituted length at that moment and has since grown with
+added comments. The brace count is now exact rather than approximate — 47 total, of which exactly 2 are
+substitution tokens, so 45 are the module's own. The back-fill census re-derived unchanged at 11 of 43.
+
+Two boundaries recorded rather than papered over: the guard's substring search covers JSON envelope
+payloads only (attachments/profiles are skipped — unreachable in this configuration, but the guard should
+not be over-trusted), and it proves absence of an exact string, so a truncating scrubber could in principle
+leak a prefix. Still owed and blocked: the emitter test parametrizes over three types and should cover
+five — that file is inside a sibling's in-flight repo-wide format sweep, so the fix waits rather than
+fragmenting their change.
+
 ### Fixed — the cost sidecar publishes the window its rate came from, and `refresh()` stops destroying a key (2026-09-05)
 
 Phase A of plan `2026-09-05-plan-1-windowed-cost-sidecar` (ruling D-125). `scripts/kilo-benchmarks/claude_p_cost.json`

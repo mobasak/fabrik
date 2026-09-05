@@ -1684,8 +1684,9 @@ def metrics_app():
     # mode, and a project that silently scaffolds WITHOUT its scrubber is the bug this plan exists
     # to prevent.
     #
-    # `str.replace`, never `.format()`: the module carries ~40 other braces (dict/set literals,
-    # regexes, two f-strings) that `.format()` would corrupt. Exactly two tokens are substituted.
+    # `str.replace`, never `.format()`: the module carries 45 OTHER braces (dict/set literals,
+    # regexes, two f-strings) that `.format()` would corrupt — measured, `t.count("{")` = 47 of
+    # which exactly 2 are the substitution tokens. Re-measure if you re-vendor.
     glitchtip_src = TEMPLATE_DIR / "python" / "glitchtip_init.py"
     (package_dir / "glitchtip_init.py").write_text(
         glitchtip_src.read_text().replace("{pkg}", package_name).replace("{name}", name)
