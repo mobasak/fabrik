@@ -6093,3 +6093,29 @@ visible" — and the claim that made pass 24 wrong ("a quoted expansion cannot b
 negative asserted without a counter-search. When a guard is a list of the bad, expect the next
 finder to extend the list; when it is a list of the good, expect the next finder to find a false
 deny — and prefer the second failure mode on a hold whose purpose is to lose no work.
+
+## A fix that reaches no caller is the same defect wearing a commit message (2026-09-05)
+
+**Symptom.** Phase A of the windowed cost-sidecar plan shipped a per-model cache-read override so Claude
+Fable 5.1's 2.5% rate would stop being a documented blind spot. The override matched the model id by exact
+equality. Every caller in the repo passes a bare tier alias (`--model fable`, `rivals_run.CLAUDE_P_MODELS`),
+so `api_equiv(1M cache-read, "fable")` returned exactly what it returned before — and the `_comment` sentence
+that had documented the blind spot was deleted in the same change. **Net effect of the fix: the blind spot
+went from documented to undocumented.**
+
+**Why it is worth writing down.** The plan's own § Self-audit records that its FIRST revision had this exact
+defect — *"A3 as written was a no-op: it added data no code reads"* — and the author of that sentence
+reproduced it one phase later, in the step it was written about. Knowing a failure mode is not the same as
+being immune to it; the only thing that caught it was an author-blind finder enumerating the caller graph.
+
+**The check that would have caught it in one minute.** Before claiming a fix APPLIES, enumerate the callers
+and run the fix through the vocabulary they actually pass — not the vocabulary the test passes. The new test
+had used `"claude-fable-5-1"`, which is the one form no caller uses. `git grep` the call sites, read what
+they pass, and assert on THAT.
+
+**Two sibling lessons from the same review.**
+1. **A test's NAME is a claim and it rots like any other.** `test_built_at_is_a_fresh_utc_stamp` kept its name
+   after the stamp stopped being UTC — caught in the final round, five lines from the change that falsified it.
+2. **Mutation is the only instrument that finds a suite passing for the wrong reason.** The first version of the
+   producer suite let FIVE mutations through (window bounds hardcoded to 2020, `_MONTHLY_DAYS` collapsed to 1,
+   `built_at` frozen, and two more). No amount of reading shows that; twelve minutes of mutation does.

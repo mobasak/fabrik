@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the cost sidecar publishes the window its rate came from, and `refresh()` stops destroying a key (2026-09-05)
+
+Phase A of plan `2026-09-05-plan-1-windowed-cost-sidecar` (ruling D-125). `scripts/kilo-benchmarks/claude_p_cost.json`
+was a point estimate with no window: a reader could not tell a fresh rate from a fossil, and it was one —
+$0.006310/M stamped 2026-08-10 against a live recompute of $0.007386/M. `refresh()` now emits `window_start`,
+`window_end`, `accounts`, `spend_usd` and `tokens` beside the rate, `null` when the rate fell back to the
+research anchor (which came from no window) or when the account count cannot be measured — a floor that prices
+as one account must never be published as the fact that there is one.
+
+Three live bugs fixed on the way, none of them in the plan. `refresh()` wrote three keys with a full
+`write_text` and **destroyed `amortized_per_mtok_by_family` on every run** — a key it never authored and that
+nothing in this repo can regenerate; it now carries forward every key it did not author, and writes through
+`tempfile.mkstemp` + `os.replace` so a torn write cannot take the map with it. The window spanned THIRTY-ONE
+inclusive dates against ONE month of subscription spend, understating the rate ~1.3% (now `0.00748204`). And
+`derive_cost.amortized_by_family` priced every fable-tier cache read at the global 10% while producing the
+per-family split, so the split itself carried a 4x error on Claude Fable 5.1.
+
+`claude_price_ratios.json` gains `_model_cache`, per-model-id cache-read exceptions resolved by longest
+prefix over a normalised key, so Fable 5.1's 2.5% rate is EXPRESSIBLE rather than a documented blind spot —
+while `claude-fable-5` keeps 10%, which matters because 76.3% of this box's live fable-tier tokens run on it.
+A bare tier alias stays at the default and remains an upper bound: it names a tier running both models.
+
+Reviewed over SIX rounds — 51 candidates, 43 fixed, 8 refuted with proof, 1 routed to another beat — by six
+native Opus finders and 20 pool units ($0.8029). The review's findings are the substance of this change, and
+most of them are the author's own claims rather than the code: A3 as first shipped was an override **no live
+caller could reach** (every caller passes a bare tier alias) while the `_comment` documenting the blind spot
+had been deleted, so the fix moved it from documented to undocumented; the Phase-A commit message asserted a
+plan error that does not exist, retracted in the plan's § Execution notes; the 31-date window was corrected in
+one of two producers and survived three more rounds; and two successive provenance stamps invented a build
+date the producer cannot know, now a flag (`amortized_per_mtok_by_family_carried`) stating only what it does
+know. `built_at` is offset-aware on the same clock as the window bounds — a UTC stamp beside LOCAL bounds put
+the build a day behind its own data for three hours nightly.
+
+Guards: `tests/test_claude_p_cost_refresh.py` (new, renamed from a file named after the wrong module), plus
+the two existing suites — 43 tests, every one of the round-5 fixes proven red on revert (8 of 8), and the
+suite itself rewritten after mutation showed the first version let five separate mutations through.
+
 ### Changed — the FastAPI scaffold now COPIES the vendored scrubber instead of carrying an inline literal (2026-09-05)
 
 T02 of plan `2026-09-05-plan-2-glitchtip-deny-by-default`, the integration ticket. `_scaffold_fastapi_backend`
