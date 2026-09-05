@@ -95,37 +95,89 @@ set below.
 claim requires comparing content. No transcript in the subagent or main tier is deleted until the
 same byte-level and message-set verification has been run over it.
 
+## ⚠️ THE CORRECTION THAT CHANGES THE ARCHITECTURE — session-recall is a MIRROR, not an archive
+
+The first draft of this spec proposed "raw 90 days, text forever in session-recall". **That is
+impossible as written**, and the reason is in session-recall's own code.
+
+`ingest/reindex.py:296` — `_reclaim_orphans()`, *"Delete index_state + sessions for files no longer
+on disk (finding #19)"* — deletes a session's indexed turns when its JSONL disappears. Deliberate:
+the index is defined as a mirror of what is on disk, not a store of record. So a retention policy
+that prunes a transcript would have the next index run delete its text behind it.
+
+**A LIVE HAZARD, independent of this spec.** The reclaim runs only under `--full`
+(`reindex.py:480`, *"Only on --full (a bounded, deliberate sweep)"*), which is why the 2,938
+pre-August sessions still exist: nobody has run it since their files vanished. Measured — **all
+2,938 still carry an `index_state` row, so every one is reclaim-eligible.** One
+`python -m ingest.reindex --full`, a documented maintenance command, silently finishes what the
+2026-09-03 disk cleanup started. That is today's risk, not a future one, and it wants a mail to
+`/opt/session-recall` regardless of whether this spec is ever built (cross-repo: not ours to patch).
+
+**Consequence:** the durable tier must be the TRANSCRIPTS, compressed and off-box. The index is a
+convenience layer that follows whatever is on disk.
+
 ## Approaches
 
-### A — Scheduled index + off-box index backup, then bounded raw retention (RECOMMENDED)
+### A — Cold archive as the store of record, index as a mirror (RECOMMENDED)
 
-Order matters and is the point:
+Four tiers, and the order is a safety property, not a preference:
 
-1. **Make indexing scheduled.** A cron running the incremental indexer (candidate: every 15 min)
-   so index freshness never depends on someone searching. Non-destructive, and it is the
-   prerequisite for everything else.
-2. **Back up the index off-box.** `pg_dump` of `session_recall`, compressed, into the existing
-   fabrik DR path or the VPS Backrest plan. The index is text-only and small relative to raw; this
-   is the copy that already carries 2,938 otherwise-lost sessions. Non-destructive.
-3. **Only then, bound raw retention.** MAIN 90 days (the operator's stated need), SUBAGENT 7 days
-   (the operator: *"i dont need history of subagents"*). Deletion is the one irreversible step and
-   it goes last, behind a proven-restorable backup.
+| Tier | What | Retention | Cleared by |
+|---|---|---|---|
+| Cold archive | zstd'd MAIN transcripts, off-box | **forever** | never |
+| Hot | `~/.claude/projects/*.jsonl` MAIN | 90 days | prune, archive-gated |
+| Hot | session-recall PG (mirrors hot) | follows hot | itself |
+| Disposable | subagent transcripts (2.71 GB) | 7 days | prune, **no archive** |
+| Disposable | pool receipts `/opt/*/.tmp/subagents/` (648 MB) | 14 days + rotate `ledger.jsonl` | prune, no archive |
+| Disposable | `tool-results/` (0.33 GB) | with parent session | prune |
+| Keep | `fabrik_analytics` (12 MB, 15,435 rows) | forever | `pg_dump` to the archive |
 
-Cost: one cron, one dump, ~1.2 GB compressed for the 90-day main window at the measured 4.45x.
-Nothing is deleted on day one — every main transcript is already inside 90 days.
+**THE INVARIANT THAT MAKES REPEAT IMPOSSIBLE: the pruner refuses to delete any transcript whose
+sha256 is not already in the archive manifest.** Not "archive first, then prune" as a sequence —
+the delete is *conditional on* the cold copy existing. If archiving fails, nothing is deleted and
+the store simply grows with a warning. Loss stops being policy-dependent and becomes structurally
+impossible.
 
-### B — Compress-in-place, delete nothing
+Supporting guards: a `--full` wrapper that refuses unless the archive covers every orphan it would
+reclaim; a `README` marker in `~/.claude/projects/` stating the path is data, not cache (aimed at
+the failure that actually happened — a human freeing disk space); and a sample restore verified per
+run, because an archive nobody has restored is a hope.
 
-zstd every transcript older than N days, leave it on disk. 8.21 GB → ~1.8 GB. Simple, fully
-reversible, no policy argument. But it does not survive a dead SSD or another manual cleanup, and
-the cleanup is the *measured* failure mode. Rejected as the whole answer; viable as a tier inside A.
+**Subagents are a hard cliff and that is accepted.** They are NOT indexed — measured: 10,075
+sessions in the index, **0** with an `agent-` id, and `reindex.py:479` globs `*/*.jsonl`, which
+never descends into `<session>/subagents/`. So unlike main transcripts, deleting one is absolute:
+no text fallback, no `search_chats` hit. The operator accepted this explicitly (*"i dont need
+history of subagents"*); it is recorded here so the cost is chosen rather than discovered.
 
-### C — Mirror raw JSONL to the VPS fleet
+**Pool receipts get 14 days, not 7, because they are READ.** `ledger.py:372` reads receipts back and
+`pg_ledger.py:654` uses them to reconcile without touching the INSERT-only `subagent_runs` table;
+`scripts/kilo-benchmarks/flush_subagent_outboxes.py` consumes them too. That is a real function, but
+it concerns recent unflushed runs, not months. The 124 MB `fabrik/.tmp/subagents/ledger.jsonl` is
+pure accumulation and should rotate.
 
-Symmetric DR, matches the fleet rule. Rejected as the primary: the VPS is shared and
-disk-constrained, September's rate could push ~90 GB at it, and the raw fidelity being preserved is
-worth less than the index it would sit beside. Reconsider only if § Open unknown 1 resolves toward
-raw-fidelity being a hard requirement.
+### B — Compress in place, delete nothing
+
+zstd everything older than N days, leave it on disk: 8.21 GB → ~1.8 GB. Fully reversible, no policy
+argument, no destination decision. **Rejected as the whole answer**: it survives neither a dead SSD
+nor another manual cleanup, and the cleanup is the *measured* failure mode. Retained as a tier
+inside A (the archive is compressed by definition).
+
+### C — Mirror raw, uncompressed JSONL to the fleet
+
+Rejected: at September's rate this pushes ~90 GB at a shared, disk-constrained host to preserve
+fidelity that 4.45–6.08x compression preserves for a fifth of the space.
+
+## Where the cold archive lives — the three destinations, costed
+
+| Destination | Capacity / cost, measured | Verdict |
+|---|---|---|
+| **The existing DR store** (`/opt/fabrik-dr-store`, GitHub) | **20 MB today** (12 MB of it `.git`). Adding ~1.2 GB per 90 days is a **60x** step change into a git repo rsync'd and pushed daily | **REJECTED** — and not on cost. `dr_claude_backup.sh:24` excludes `projects/` for exactly this reason; the mechanism is wrong (pack growth, daily churn), not the price |
+| **vps1 + Backrest** | `df`: 108 GB total, 49 GB used, **59 GB free**. `backrest` container **Up 5 days**; its own data is 13 MB. Marginal cost **$0** | **RECOMMENDED** — off-box, existing machinery, no new dependency or credential, and years of headroom at ~1.2 GB/90d |
+| **Cloudflare R2** | **$0.015/GB-month standard, 10 GB-month free tier, zero egress** (developers.cloudflare.com/r2/pricing, fetched 2026-09-06; page updated 2026-05-28). Our ~1.2 GB archive sits **inside the free tier**; even 50 GB is $0.75/mo | **ESCALATION, not primary** — genuinely off-fleet, so it survives losing vps1 too. Costs a new credential and a new dependency for a failure mode the operator has not named |
+
+**Recommendation: vps1 + Backrest, with R2 named as the one-step escalation** if off-fleet
+redundancy is later wanted. R2's zero-egress matters for a restore tier — pulling the archive back
+costs nothing — so it is the right *second* copy, not the right first one.
 
 ## What a restore actually yields — stated because a backup nobody restored is a hope
 
@@ -134,10 +186,20 @@ raw-fidelity being a hard requirement.
   resumable and **not** a real transcript. Writing index content back into `projects/` would be a
   reconstruction wearing the costume of a real session; this design forbids it.
 
-The operator's stated need ("my chat windows history ... in session-recall") is satisfied by the
-second. That is what makes A affordable: raw fidelity is the 90-day tier, text fidelity is forever.
+⚠️ **Corrected:** an earlier draft said "raw fidelity is the 90-day tier, text fidelity is forever".
+The second half is false — the index reclaims orphans, so its text is only as durable as the file
+it mirrors. Forever belongs to the COLD ARCHIVE, and a restore from it yields the first row, not the
+second: a real transcript, resumable, not a reconstruction.
+
+**Measured, not asserted** (2026-09-06, on a 70.7 MB main transcript): zstd -12 → 11.6 MB
+(**6.08x**), 1.5 s to compress, **0.08 s to restore**, and the restored file is **byte-identical**
+with a matching sha256. That round trip is what the word "lossless" is doing in this document.
 
 ## Open unknowns
+
+0. **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
+   $0), with Cloudflare R2 ($0 at our size, zero egress) as the named escalation. See the costing
+   table above.
 
 1. **Is September's rate the new normal?** 0.61 GB/mo → 4.89 GB/5d is the difference between a
    2 GB and a 90 GB window. Resolution: re-measure MAIN bytes/day over the next 14 days before
@@ -165,8 +227,14 @@ second. That is what makes A affordable: raw fidelity is the 90-day tier, text f
 | I9 | The 696 MB single transcript / size skew | IN | Open unknown 1 — the size cap exists because of it |
 | I10 | Where to store off-box: VPS/Backrest vs object storage vs DR repo | IN | Approaches A/B/C; C rejected with reasons |
 | I11 | SubagentStop completion sound (earlier this session) | OUT-OF-SCOPE | Unrelated surface; awaiting operator go, tracked in that thread |
+| I12 | "we should only keep what we need, we cant allow our wsl to be filled like this" | IN | Approach A's tier table — 12 GB → ~5 GB and capped |
+| I13 | "we also call pool agents, where is their history? how much disk space" | IN | Approach A — 648 MB in `/opt/*/.tmp/subagents/` + a 12 MB local `fabrik_analytics`; both were absent from the first draft |
+| I14 | "how will we reach subagents history? inside claude folder?" | IN | § Approach A — `~/.claude/projects/<slug>/<session-id>/subagents/agent-<id>.jsonl`, and NOT indexed (0 of 10,075) |
+| I15 | "what is cold archive zstd'd?" | IN | § What a restore actually yields — measured 6.08x round trip, byte-identical |
+| I16 | "we have lost all our chat history for some repos, it must not repeat. be sure." | IN | The archive-gated prune invariant + the `--full` hazard, both in Approach A |
+| I17 | The `--full` orphan-reclaim trap (found this run) | IN | § THE CORRECTION — a live hazard today; owed a mail to /opt/session-recall (cross-repo, not ours to patch) |
 
-Intake: 11 items — 10 IN, 1 OUT-OF-SCOPE, 0 ASK.
+Intake: 17 items — 16 IN, 1 OUT-OF-SCOPE, 0 ASK.
 
 ## Evidence
 
