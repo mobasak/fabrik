@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the scaffold's GlitchTip scrubber is now a vendored deny-by-default module, not an inline flag list (2026-09-05)
+
+T01 of plan `2026-09-05-plan-2-glitchtip-deny-by-default` (infra-authored, CONVERGED over 13 author-blind
+rounds; operator released it this turn). `templates/scaffold/python/glitchtip_init.py` is vendored from
+site-provisioner `api/glitchtip_init.py` at revision `4f5c158`, recorded in its docstring so a later reader
+can diff the file against the sha it claims to be. The revision was VERIFIED at execution time rather than
+taken from the ticket, per T01's own instruction — the written pin said `7b83573`, one commit behind, and
+that file moved three times in the fifteen minutes before the copy.
+
+Why a rewrite rather than another flag: the two flags the hub previously prescribed
+(`include_local_variables=False`, `max_request_body_size="never"`) are themselves a denylist, and
+site-provisioner measured ~10 channels still open behind them — breadcrumbs carrying outbound request URLs
+(a live API key in a query param), span descriptions, `logentry.params`, scope `extra`, source context. The
+module inverts to an allowlist and adds LEAF-SHAPE enforcement, which is the rule that catches a channel
+nobody enumerated. The load-bearing fact, confirmed here against sentry-sdk 2.68.1 `client.py` rather than
+accepted from the report: `before_send` is skipped entirely for transaction events
+(`event.get("type") != "transaction"`), so a scrubber registered only there never runs on a transaction —
+both hooks are now registered and asserted.
+
+Three deliberate scaffold adaptations, each graded: `server_name` defaults to the service name; the fleet
+logging default is `event_level=logging.ERROR` (D-126) where the reference uses `None`; and both
+integrations keep `transaction_style="endpoint"`, without which every transaction would silently be
+renamed. The guard executes the module and exercises the leaf-shape rule rather than grepping it, and is
+proven red on revert. `sentry-sdk[fastapi]` and `structlog` are added to the dev extras, authorised by the
+ticket, because the guard imports what it asserts.
+
 ### Fixed — review of 3833fb16, pass 3: the D-035 header qualifier is lazy, so a colon inside dashed content is content (2026-09-05)
 
 `WHY — see: x` was reported as a missing section: the greedy qualifier `[^:\\n`]{0,120}` ran past the

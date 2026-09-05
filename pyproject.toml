@@ -40,6 +40,11 @@ dev = [
     "pre-commit>=3.0.0",
     "hypothesis>=6.100.0",
     "mutmut>=3.6.0",  # diff-scoped ADVISORY mutation testing (Behavior Contract substance-mechanical layer)
+    # Authorised by plan 2026-09-05-plan-2-glitchtip-deny-by-default T01: the vendored
+    # scaffold scrubber (templates/scaffold/python/glitchtip_init.py) is IMPORTED and
+    # EXECUTED by its guards, so the hub venv must carry what it imports.
+    "sentry-sdk[fastapi]>=2.18.0",
+    "structlog>=24",
 ]
 
 [project.scripts]
