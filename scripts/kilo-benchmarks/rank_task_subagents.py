@@ -688,7 +688,12 @@ def _sidecar_window(d: dict) -> str:
             if stamped.tzinfo is None:
                 stamped = stamped.astimezone()
             hours = (datetime.datetime.now().astimezone() - stamped).total_seconds() / 3600.0
-            if hours > _SIDECAR_STALE_AFTER_HOURS:
+            if hours < 0:
+                # A future stamp is at least as suspicious as an old one — clock skew, or a
+                # hand-edited file. Silently passing it as "fresh" is the same blindness in reverse:
+                # a negative age is always below any threshold.
+                age = f" ⚠️ **built_at is in the FUTURE** by {-hours / 24:.1f} days — clock skew or a hand-edited file"
+            elif hours > _SIDECAR_STALE_AFTER_HOURS:
                 age = f" ⚠️ **STALE — built {hours / 24:.1f} days ago**, the {_SIDECAR_STALE_AFTER_HOURS}h rebuild has not run"
         except ValueError:
             age = " ⚠️ **built_at unparseable** — treat this rate as undated"
@@ -697,15 +702,24 @@ def _sidecar_window(d: dict) -> str:
 
     if not (start and end):
         return f"(⚠️ **no window** — this is the research ANCHOR, not a measured rate{age})"
+
+    def _count(v: object) -> int | None:
+        """A positive whole number, or None. ⚠️ `isinstance(True, int)` is True in Python, so a bool
+        passes a naive int check and renders as `over True account`. JSON also yields floats."""
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        return int(v) if v == int(v) and v > 0 else None
+
+    tokens, accounts = _count(tokens), _count(accounts)
     denom = ""
-    if isinstance(tokens, int) and tokens > 0:
+    if tokens:
         # a volume that rounds to 0.0B tells the reader nothing — show the raw count instead
         denom = (
             f", {tokens / 1e9:.1f}B tokens"
             if tokens >= 5e7
             else f", {tokens:,} token" + ("s" if tokens != 1 else "")
         )
-        if isinstance(accounts, int) and accounts > 0:
+        if accounts:
             denom += f" over {accounts} account" + ("s" if accounts != 1 else "")
     return f"(over {start}→{end}{denom}{age})"
 

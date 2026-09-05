@@ -141,3 +141,49 @@ def test_the_rendered_preamble_actually_carries_the_window(monkeypatch, tmp_path
     assert "2026-08-07→2026-09-05" in rendered, "the rendered line carries no window"
     assert "STALE" in rendered, "a 26-day-old rate renders without its staleness marker"
     assert "106.9B tokens over 4 accounts" in rendered
+
+
+def test_a_future_built_at_is_called_out_rather_than_read_as_fresh():
+    """A negative age is below every threshold, so clock skew would render as freshly built.
+
+    Silently passing a future stamp is the same blindness this phase exists to end, in reverse: the
+    reader would see no warning at all on a file whose date is nonsense.
+    """
+    out = rts._sidecar_window(_derived(built_at=_stamp(-3)))
+    assert "FUTURE" in out
+    assert "3.0 days" in out
+    assert "STALE" not in out
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("accounts", True),  # isinstance(True, int) is True in Python — a bool passes a naive check
+        ("tokens", True),
+        ("tokens", -5),
+        ("accounts", -2),
+        ("tokens", "lots"),
+        ("accounts", None),
+    ],
+)
+def test_a_nonsensical_count_is_omitted_never_rendered_raw(field, value):
+    """A nonsensical count must be OMITTED, not coerced into a plausible-looking one.
+
+    Asserting merely that `True` does not appear in the text is too weak: without the bool guard,
+    `int(True)` is 1, so `accounts=True` renders "over 1 account" — a fabricated denominator that
+    reads perfectly. The assertion has to be that the field is ABSENT.
+    """
+    out = rts._sidecar_window(_derived(**{field: value}))
+    assert "True" not in out
+    assert "-5" not in out and "-2" not in out and "lots" not in out
+    assert "2026-08-07→2026-09-05" in out  # the window itself still renders
+    if field == "accounts":
+        assert "account" not in out, f"a bogus account count was rendered anyway: {out}"
+    else:
+        assert "token" not in out, f"a bogus token count was rendered anyway: {out}"
+
+
+def test_a_float_token_count_from_json_still_renders():
+    """JSON numbers arrive as floats; dropping the denominator for that alone would lose real data."""
+    out = rts._sidecar_window(_derived(tokens=1.5e11))
+    assert "150.0B tokens" in out
