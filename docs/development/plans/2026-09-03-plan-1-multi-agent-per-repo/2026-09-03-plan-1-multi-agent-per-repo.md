@@ -1,6 +1,6 @@
 # Multi-agent per repo — N named sessions, one worktree each, one merge owner (build plan)
 
-Status: CONVERGED (2026-09-05 — 12 author-blind rounds plus a bounded confirmation of the closing commit; ruling D-123)
+Status: IN-PROGRESS (2026-09-05 — /fabrik-execute-plan dispatcher entered by infra; was CONVERGED 2026-09-05 — 12 author-blind rounds plus a bounded confirmation of the closing commit; ruling D-123)
 **Owner:** infra (operator ruling 2026-09-03 — "approve + infra builds"; intel authored this plan while infra is saturated; no clock on execution)
 Spec: `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md` — **CONVERGED r13** (r11 at fae8e820; r12 editorial in 4637416b; r13 editorial this round — the spine pinned r11 for two revisions, caught by the confirming pass); r10 was approved 2026-09-04, and r11 re-froze § Live locks (D-117), withdrawing the lock relocation this plan had five tickets for
 Shape: spine + 33 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
