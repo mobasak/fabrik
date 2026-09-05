@@ -40,17 +40,17 @@ CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>
 
 T01a **declares** them in `scripts/fabrik_synced_manifest.py` (merged); T01b's
 `scripts/sync_enforcement_to_projects.py` **emits** them into every synced project, beside the
-`.gitignore` patch it already performs (T01b is in acceptance, not yet merged — rows 2 and 4 and the
+`.gitignore` patch it already performs (T01b merged 2026-09-06 — rows 2 and 4 and the
 mid-epic loop below land with it). Nothing is hand-edited in a project.
 
 | # | Artifact | Source of truth |
 |---|---|---|
 | 1 | `.worktreeinclude` — the gitignored governance/enforcement/vendored set (+ `.env`, `.mcp.json`; − `.claude/settings.local.json`), copied into a worktree at creation | `worktreeinclude_text()` in `fabrik_synced_manifest.py`, rendered to `templates/governance/.worktreeinclude` (a `GOVERNANCE_TEMPLATES` pair) — on master |
-| 2 | `.claude/settings.json` block `{"worktree": {"baseRef": "head", "symlinkDirectories": [".venv"]}}` — branch from local HEAD (repos carry unpushed master); one shared venv, 0 s | the hub's `.claude/settings.json`, the synced source (`AGENT_HOOK_FILES`) — ships with T01b (not yet merged) |
+| 2 | `.claude/settings.json` block `{"worktree": {"baseRef": "head", "symlinkDirectories": [".venv"]}}` — branch from local HEAD (repos carry unpushed master); one shared venv, 0 s | the hub's `.claude/settings.json`, the synced source (`AGENT_HOOK_FILES`) — on master (T01b, merged 2026-09-06) |
 | 3 | `.gitignore` line `.claude/worktrees/` — Claude Code's per-worktree state dir, never tracked | `gitignore_block_text()`, the "Local state" group — on master |
-| 4 | `git config --local push.autoSetupRemote true` + `rerere.enabled true` | `src/fabrik/scaffold.py` seeds NEW repos (on master); the sync's seeding for the ~46 existing repos ships with T01b (not yet merged) |
+| 4 | `git config --local push.autoSetupRemote true` + `rerere.enabled true` | `src/fabrik/scaffold.py` seeds NEW repos (on master); the sync's seeding for the ~46 existing repos on master (T01b, merged 2026-09-06) |
 
-- **Mid-epic syncs** — ships with T01b (not yet merged): `.worktreeinclude` copies at CREATION only,
+- **Mid-epic syncs** — on master (T01b, merged 2026-09-06): `.worktreeinclude` copies at CREATION only,
   so the sync's re-copy loop walks every `git worktree list --porcelain` entry under
   `.claude/worktrees/` and refreshes the set (residual R3). A secrets floor in the shared
   `info/exclude` keeps `.env`/`.mcp.json` ignored in every worktree before anything is copied.

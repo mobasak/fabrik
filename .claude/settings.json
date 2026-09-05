@@ -133,5 +133,11 @@
         ]
       }
     ]
+  },
+  "worktree": {
+    "baseRef": "head",
+    "symlinkDirectories": [
+      ".venv"
+    ]
   }
 }

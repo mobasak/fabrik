@@ -1,6 +1,6 @@
 # Acceptance review — T01b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch (worktree-agent-ae36d1bbd7a83c091, head b79c918b) against its merge base 7b71c336 — 3 files (`scripts/sync_enforcement_to_projects.py` +152, `tests/test_sync_worktree_adoption.py` +169 new, `.claude/settings.json` +4). Coder: native Sonnet worktree; 6 passed; both R1 probes recorded (plain `.worktreeinclude` and the 5-`#`-header variant both copy the gitignored file — comment lines are inert, the T01a-routed finding is CLOSED); fire rate measured by one `--dry-run`: 3 of 45 projects carry linked worktrees (seo 28, trade-intelligence 23, web-ecommerce-factory 31 = 82), so the R3 loop ships (FIX DIRECTIVE 5).
 
@@ -158,4 +158,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (prose + two graders, prescribed verbatim; stated) — round 13.
 ### Orchestrator execution (in the worktree)
 - `pytest tests/test_sync_worktree_adoption.py -q` → 68 passed; the five neighbour suites → 58 passed; `ruff check` clean, `ruff format --check` 2 files already formatted; the doc's step-2 paragraph names all five tuple members (missing: none — executed); the exclude comment mentions the tempfile; the settings grader references `5fd58526`.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0429)
+- Two CLEAN (the doc grader anchored to the step-2 paragraph and failing loud on a missing paragraph; the settings grader's `git show 5fd58526:` valid in every clone of this repo — the hub's runners are never shallow). One: the manifest / workflow-doc Touches letter (adjudicated orchestrator-directed since round 4 — not re-litigated) and the shallow-clone worry (REFUTED as above). The orchestrator's own first probe reported `.mcp.json` missing from the doc's list — the probe's regex mis-parsed a two-dot pattern; the grader's executed set-equality (68 passed) is the truth.
+### Verdict
+**0 findings — no-op round.** Ledger (thirteen rounds): the reader/writer fence · the hash-vs-ledger copy decision · prune authorisation · secrets classification and the `info/exclude` floor (now five patterns, one source of truth, dated upgrade addenda) · the ledger tempfile reap (age-guarded, dry-run-graded, ignored) · dry-run/real parity · the tally · the settings block's additivity · doc truthfulness — all swept, all clean. **Status: CONVERGED** at `1c7123d1`; merge with the fleet sync (`sync_enforcement_to_projects.py` and `.claude/settings.json` are trigger surfaces); the merge owner flips T15's "ships with T01b (not yet merged)" labels and adds the INDEX row for the new test file.

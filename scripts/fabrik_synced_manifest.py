@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: scripts/sync_enforcement_to_projects.py
 """Single source of truth for files Fabrik centrally distributes to every /opt project.
+
+Coupling note (round 8, class 1): the header above used to carry a prose tail —
+"scripts/sync_enforcement_to_projects.py, the projects' generated .gitignore block" — and
+`check_script_headers._coupled_tokens` treats ANY token containing a `.` as a file, so
+".gitignore" inside that prose was parsed as a second coupled path never actually present in
+this repo (there is no top-level `.gitignore` to stage). Every future edit to this file WARNed
+"lists coupled file(s) not updated in this change: .gitignore" — unfixable, since staging the
+literal string ".gitignore" is not a real coupling. The header now names only the one real
+coupled file; this paragraph carries the "why", where prose can't be misparsed as a token.
 
 ⚠️  FABRIK-MANAGED. These files are pushed from /opt/fabrik to every project by
 `sync_enforcement_to_projects.py`. Editing a copy *inside a project* is futile —
@@ -261,11 +271,24 @@ def gitignore_block_text() -> str:
     lines += [
         "# Local state (never committed, never synced)",
         ".fabrik/synced.lock",
+        # The per-worktree ledger `resync_worktree_artifacts` reads and writes
+        # (`_WORKTREE_LEDGER_REL`) — the record the whole prune/copy safety design
+        # rests on. Missing here, it showed as `?? .fabrik/` (untracked, UNIGNORED)
+        # in every live worktree (round 7, class 1) — a plain `git clean -fd` would
+        # delete it, returning every synced path in that worktree to the permanent
+        # ledger-gap state with no history left to prove anything.
+        ".fabrik/worktree-synced.lock",
         ".claude/settings.local.json",
         ".fabrik/plan-locks/*-salvage-*.diff",
         # Linked-worktree metadata (multi-agent-per-repo adoption, design spec § Lifecycle
         # "Adoption") — Claude Code's own per-worktree state directory, never tracked.
         ".claude/worktrees/",
+        # `sync_enforcement_to_projects.py`'s `_backup_worktree_file` (renamed round 6,
+        # class 6) writes a pruned worktree file's backup here, OUTSIDE the worktree
+        # tree it came from — but the directory itself lands inside the MAIN checkout
+        # and was untracked-but-unignored (`git check-ignore` NOT IGNORED in 3 of 3
+        # sampled projects, round 5, class 4) until this line.
+        "/.fabrik/backups/",
         "",
     ]
     lines += [_GI_BAR, GITIGNORE_BLOCK_END, _GI_BAR]

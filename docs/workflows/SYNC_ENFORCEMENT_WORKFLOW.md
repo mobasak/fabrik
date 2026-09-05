@@ -1,6 +1,6 @@
 # Sync Enforcement Workflow (Fabrik → Projects)
 
-**Last Updated:** 2026-07-20
+**Last Updated:** 2026-09-05
 **Status:** PRODUCTION
 **Script:** `scripts/sync_enforcement_to_projects.py`
 **Source of truth (the synced list):** `scripts/fabrik_synced_manifest.py`
@@ -144,7 +144,12 @@ python scripts/sync_enforcement_to_projects.py -v
 
 ## Sync Logic
 
-### Decision Flow
+### Decision Flow (main checkout only — `sync_single_file`)
+
+This flow governs every file the sync writes into a project's **main checkout**. It does **not**
+govern what the sync writes into a project's linked **worktrees** — see
+[§ Worktree Re-sync](#worktree-re-sync-multi-agent-per-repo) below, whose decision flow is
+deliberately different (and where `--force` means something else entirely).
 
 ```text
 For each file:
@@ -163,6 +168,134 @@ For each file:
 4. **Dry Run** — Preview changes without writing
 5. **Permission Check** — Skips projects without write access
 6. **Symlink Replacement** — Replaces file and directory symlinks with real copies (workspace isolation)
+
+**The `.gitignore` "Fabrik-synced" block is patched outside the file-by-file loop above** — every
+project's tracked `.gitignore` is re-derived from `fabrik_synced_manifest.gitignore_block_text()`
+(`patched_gitignore()`), and the marked block is replaced whenever it drifts from that canonical
+text (the project's own, non-block rules are left untouched). ⚠️ **This is a one-off ~45-repo
+dirty-tree event on first adoption of a new sync-managed path or a `.gitignore` block reword** —
+every tracked `.gitignore` in every synced project picks up the new block on its next real run,
+which is a real `git status` change the operator will see fleet-wide, not a bug in one project.
+Round 7, class 3: a real (non-`--dry-run`) run used to make this write completely silently — no
+per-project line, and nothing in the run's own `Results:` summary; only `--dry-run`'s preview
+(`Would patch <project>'s .gitignore …`) said anything, and even that line lives among per-project
+output the production wrapper's `tail -3` (`scripts/governance_sync_postcommit.sh:82`) discards.
+Both paths now print their own line (`Patched …` / `Would patch …`) **and** roll the count into
+the final `Results:` line — `gitignore patched: N` (real) or `gitignore would be patched: N`
+(`--dry-run`) — the one line that survives truncation.
+
+## Worktree Re-sync (multi-agent-per-repo)
+
+Added across `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md`'s T01b — hardened
+across the T01b acceptance rounds, 2026-09-05 — every sync run also does the following, **per
+project**, after the main-checkout legs above. The three steps do NOT share one timing rule — each
+is anchored below to where it actually runs (`sync_scripts_to_project`, in call order):
+
+1. **Git-config seeding** (`seed_git_workflow_config`, called first, ~:1599 — BEFORE both steps 2
+   and 3) — `push.autoSetupRemote` then `rerere.enabled` (same order and semantics as
+   `src/fabrik/scaffold.py`'s `_configure_git_repo`, which seeds fresh repos; this seeds the ~46
+   EXISTING ones), local scope, idempotent — a key the project already answered is never
+   overwritten. Invoked on every run including `--dry-run` (it just prints `Would set …` and
+   writes nothing under `--dry-run` — see the CLI table above).
+2. **Shared floor** (`_seed_worktree_secrets_exclude`, called from inside step 3, first thing) —
+   seeds `$(git rev-parse --git-common-dir)/info/exclude` with `_WORKTREE_FLOOR_PATTERNS`:
+   `.env`, `.mcp.json`, (round 8) `.fabrik/worktree-synced.lock` — the per-worktree ledger step 3
+   itself depends on — (round 10) `.fabrik/synced.lock` — the main checkout's lock step 3 copies
+   into every worktree — and (round 11) `.fabrik/.ledger-tmp-*` — the reap's own in-flight
+   tempfile, which the round-10 age guard deliberately leaves on disk for up to an hour so a
+   concurrent writer's still-live tempfile is never deleted out from under it. Each needs this
+   exact mechanism for the same reason the secrets do: a linked worktree evaluates its OWN branch's
+   tracked `.gitignore`, and one seeded before the pattern's own ignore-fix landed never has it
+   (reproduced live for the lock: a
+   worktree cut from a branch with no `.gitignore` at all showed `?? .fabrik/`, unignored, after
+   receiving it). This is a repo-wide file every worktree shares, so one write protects the main
+   checkout AND every worktree present or future, regardless of which branch each has checked out.
+   `--dry-run` never writes this — it prints one line per GIT project STILL MISSING a pattern (41 of
+   45 on the 2026-09-05 sweep; a non-git `/opt` dir — round 8, class 2's `_is_git_repo` gate — and a
+   repo already fully seeded both print nothing), naming the actual pattern list, and not only on a
+   repo's first-ever seed: a repo already marker-seeded BEFORE a later pattern existed is missing it
+   too, and one more (real or previewed) run appends the gap as a DATED ADDENDUM AT THE END OF THE
+   FILE — outside the marker block entirely, after the END line and after any of the repo's own
+   rules that already follow it, so it always wins ordering — rather than re-seeding the whole block
+   (round 8, class 3 — the marker's mere presence is checked pattern-by-pattern, never treated alone
+   as "done forever"). It runs after the lock only incidentally (it lives inside step 3's own
+   function, which does — see below); nothing about the shared floor itself depends on the lock's
+   content.
+3. **Worktree artifact re-copy** (`resync_worktree_artifacts`, called AFTER the main checkout's own
+   `.fabrik/synced.lock` is (re)written — this is the one step that actually needs that ordering,
+   since it copies the freshly-written lock into every worktree in the same pass) —
+   `.worktreeinclude` (see the table above) only fires at Claude Code's own worktree-**creation**
+   moment, so a sync landing mid-epic otherwise updates the main checkout alone. This step
+   re-copies the same gitignored set `.worktreeinclude` was built from — plus the just-written
+   `.fabrik/synced.lock` — into every worktree the project currently has under
+   `.claude/worktrees/`.
+
+### Worktree copy decision (per file, per worktree — `_copy_into_worktree_safely`)
+
+**Never the main-checkout flow above, and never mtime.** A worktree's destination file is live,
+agent-editable content — `--force` here does **not** mean "overwrite regardless"; it plays no role
+in this decision at all. The gate is a hash comparison against **this worktree's own** ledger
+(`.fabrik/worktree-synced.lock`, written by this function after its own copy loop — never the
+copied `.fabrik/synced.lock`, which lists what the *main checkout* manages, not what *this
+worktree* actually received):
+
+```text
+For each file, in each worktree:
+├── Destination doesn't exist? → COPY (nothing to clobber)
+├── destination or source unreadable (OSError — chmod 000, or the path became a
+│     directory)? → WARN ("unreadable — left in place")
+├── hash(dest) == hash(source)? → SKIP (already in sync; --force changes nothing here either)
+├── hash(dest) == the worktree's OWN ledger record for this path?
+│     → COPY (provably unmodified since a prior resync wrote it — safe to refresh)
+├── no ledger record at all for this path (or a legacy list-shaped ledger's
+│     unverified "" sentinel — round 7, class 6)?
+│     → WARN ("no ledger record (first sync, or a prior record was lost) — left in
+│     place") — a LEDGER GAP, not necessarily an edit (round 5: 5 of 5 hash-sampled
+│     live instances of this exact case were stale copies from an older branch, never
+│     an agent edit; round 7: this is the ONLY state the first fleet run under this
+│     mechanism produces — 101 of 101 live warnings, since no worktree has a ledger
+│     yet)
+└── a ledger record IS present but its hash matches neither source nor destination
+      → WARN ("differs from the ledger record — edit preserved") — a genuine,
+      provable drift from what the sync last wrote: the agent's own edit
+```
+
+**Bootstrapping a worktree stuck in the ledger-gap state** (the branch above, and the only one the
+first-ever resync of any worktree can take — there is no ledger yet to prove anything either way):
+this function will never overwrite it on its own — that decision does not change. An operator who
+has confirmed the worktree's copy carries no real edit clears the gap by hand: copy the MAIN
+CHECKOUT's current file over the worktree's copy at the same relative path
+(`cp <project>/<path> <worktree>/<path>`) and run the sync once — that resync's SKIP/COPY branch
+(hash now matches the fresh source) records a fresh ledger row, and the file converges normally on
+every run after.
+
+Why mtime is excluded entirely (round 4, class 1): a governance commit refreshes the hub file,
+`shutil.copy2` propagates that fresh mtime into the project's main checkout when the leg above
+re-syncs it, and the production wrapper (`scripts/governance_sync_postcommit.sh`) runs `--force`
+immediately after — so an agent's own edit, however recent, is almost always *older* than the
+just-refreshed source. Measured live: 106 of 19,256 worktree file pairs were `exists_differ_older`
+and 0 were mtime-protected; a probe with an edit stamped 30 minutes old against a hub copy stamped
+"now" silently lost the edit, identically with or without `--force`. Mtime is never consulted for
+this decision now, on either path.
+
+**Orphan pruning** inside a worktree's directory-shaped patterns removes a file (or a now-empty
+directory) only when THIS worktree's own ledger names it **and its CURRENT on-disk hash still
+equals that recorded row** **and** it is not tracked by that worktree's own git — never a file
+merely absent from the main checkout's current copy, never on the strength of the copied main
+lock, and (round 6 correction) never on a ledger row's mere PRESENCE alone: a row surviving from
+*before* a genuine edit (rows are merged forward across runs, never dropped just because a run
+didn't re-confirm them) is not proof the file is still what the sync wrote — a hash mismatch there
+gets the SAME "differs from the ledger record" WARN the copy side gives, never a deletion. A pruned
+file is backed up first under `--backup`, but **outside** the worktree
+(`<project>/.fabrik/backups/worktrees/<name>/…`), never beside the file inside the live tree.
+**Mirror worth stating plainly:** a file the agent deliberately deletes from a synced directory is
+recreated on the next resync — there is no ledger entry recording a delete, only ever "last known
+good content" — which is the intentional mirror of the copy rule above (governed content always
+converges back to the hub's version), not a bug.
+
+The real (or, under `--dry-run`, would-be) per-project file/warning/orphan totals are folded into
+the sync's final `Results:` summary line, since the production wrapper truncates everything else
+this step prints to its last few lines.
 
 ---
 
@@ -253,3 +386,6 @@ python scripts/docs_updater.py --dry-run
 
 - [Final Gate Workflow](FINAL_GATE_WORKFLOW.md) — The synced enforcement scripts
 - [Fabrik Scaffold Workflow](FABRIK_SCAFFOLD_WORKFLOW.md) — Project creation
+- [`docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md`](../superpowers/specs/2026-09-03-multi-agent-per-repo-design.md)
+  § Lifecycle — the design this doc's [§ Worktree Re-sync](#worktree-re-sync-multi-agent-per-repo)
+  section implements
