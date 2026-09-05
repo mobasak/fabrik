@@ -265,3 +265,75 @@ def test_both_producers_use_the_same_window_length() -> None:
             assert cpc._live_usage_window()["tokens"] == expected_tokens
         finally:
             _os.environ.pop("CLAUDE_P_COST", None)
+
+
+def test_amortized_by_family_applies_the_per_model_override_at_its_call_site() -> None:
+    """The helper being correct is not the same as the producer USING it.
+
+    `test_both_producers_price_a_cache_read_identically` exercises `_cache_for` directly; reverting
+    `amortized_by_family`'s `c = _cache_for(r, model)` back to `c = r["_cache"]` left 43 of 43 tests
+    green, so the fix that makes the FAMILY SPLIT honour Fable 5.1's 2.5% rate had no grader at all.
+    The split is the one number the plan's residual measures as adrift, and the mutation moves every
+    family by 4.5-9%. This fixes on the call site, using a fixture where the two paths must differ.
+    """
+    import datetime
+    import json as _json
+    import pathlib as _pl
+    import sys as _sys
+    import tempfile
+
+    import pytest as _pytest
+
+    root = _pl.Path(__file__).resolve().parents[1]
+    _sys.path.insert(0, str(root / "scripts" / "kilo-benchmarks"))
+    import derive_cost as dc
+
+    def day(offset: int) -> str:
+        return (datetime.date.today() - datetime.timedelta(days=offset)).isoformat()
+
+    # cache-read-dominated fable traffic: the ONLY term the override touches
+    history = {
+        "days": {
+            day(1): {
+                "byModel": {
+                    "claude-fable-5-1": {
+                        "input": 10,
+                        "output": 10,
+                        "cacheRead": 10_000_000,
+                        "cacheCreation": 0,
+                    },
+                    "claude-opus-5": {
+                        "input": 1_000,
+                        "output": 1_000,
+                        "cacheRead": 1_000,
+                        "cacheCreation": 0,
+                    },
+                }
+            }
+        }
+    }
+    with tempfile.TemporaryDirectory() as td:
+        tdp = _pl.Path(td)
+        hist = tdp / "usage-history.json"
+        hist.write_text(_json.dumps(history), encoding="utf-8")
+        accounts = tdp / "accounts"
+        accounts.mkdir()
+        (accounts / "a").mkdir()
+
+        with_override = dc.amortized_by_family(usage_history_path=hist, accounts_dir=accounts)
+
+        # the same computation with the override stripped from the ratios file
+        ratios = _json.loads(RATIOS.read_text())
+        assert "_model_cache" in ratios, "the override is gone — a different test owns that"
+        ratios.pop("_model_cache")
+        stripped = tdp / "ratios_no_override.json"
+        stripped.write_text(_json.dumps(ratios), encoding="utf-8")
+        without = dc.amortized_by_family(
+            usage_history_path=hist, accounts_dir=accounts, ratios_path=stripped
+        )
+
+    assert set(with_override) == set(without) == {"fable", "opus"}
+    assert with_override["fable"] != _pytest.approx(without["fable"], rel=1e-6), (
+        "amortized_by_family produced the same fable rate with and without `_model_cache` — it is "
+        "reading the global `_cache` default instead of the per-model override"
+    )

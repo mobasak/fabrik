@@ -134,3 +134,47 @@ def test_measure_accepts_bare_usage_block():
     out = cpc.measure(_usage(1_000_000, 0), "haiku")  # no top-level usage key → treat obj as usage
     assert out["tokens"]["input_tokens"] == 1_000_000
     assert out["api_equiv_usd"] == pytest.approx(1.0, abs=1e-6)  # 1M in × $1/M haiku
+
+
+def test_measure_rejects_a_payload_that_is_not_an_object():
+    """The module's own documented entry point died with a bare AttributeError on a JSON list.
+
+    `refresh()` was hardened against exactly this shape on the sidecar it READS; `measure()` — reached
+    by `claude -p … --output-format json | python scripts/claude_p_cost.py` — was not, so an error
+    envelope or a stream-style message list produced a traceback instead of `main()`'s documented
+    exit 2.
+    """
+    for payload in ([1, 2, 3], "hello", 5, None, True):
+        with pytest.raises(TypeError, match="expected a JSON object"):
+            cpc.measure(payload, "opus")
+
+
+def test_a_malformed_price_knob_does_not_kill_the_module_at_import():
+    """`CLAUDE_MAX_PRICE_USD=abc` used to raise ValueError at IMPORT, before refresh() could run.
+
+    Phase C puts `--refresh` on a 06:00 cron, where an import-time raise means the rate silently
+    fossilises — the failure this whole plan exists to end. `derive_cost` has guarded this knob all
+    along with `_env_float`; the vendored twin called bare `float()`.
+    """
+    import importlib.util
+    import os
+
+    # The defect is at MODULE SCOPE, so the guard has to be exercised by an IMPORT — asserting on
+    # `_env_float` alone passes even when the constant is still built with a bare `float()`.
+    previous = os.environ.get("CLAUDE_MAX_PRICE_USD")
+    os.environ["CLAUDE_MAX_PRICE_USD"] = "not-a-number"
+    try:
+        spec = importlib.util.spec_from_file_location("cpc_bad_knob", _MOD)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # must NOT raise
+        assert module._SUBSCRIPTION_USD_PER_ACCOUNT == 200.0
+        os.environ["CLAUDE_MAX_PRICE_USD"] = "12.5"
+        spec2 = importlib.util.spec_from_file_location("cpc_good_knob", _MOD)
+        module2 = importlib.util.module_from_spec(spec2)
+        spec2.loader.exec_module(module2)
+        assert module2._SUBSCRIPTION_USD_PER_ACCOUNT == 12.5  # a VALID override still applies
+    finally:
+        if previous is None:
+            os.environ.pop("CLAUDE_MAX_PRICE_USD", None)
+        else:
+            os.environ["CLAUDE_MAX_PRICE_USD"] = previous

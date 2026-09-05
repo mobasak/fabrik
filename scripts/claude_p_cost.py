@@ -47,9 +47,24 @@ import sys
 import tempfile
 from pathlib import Path
 
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float env knob, falling back on anything unparseable. Mirrors `derive_cost._env_float`.
+
+    A malformed operator override must NOT crash the module at IMPORT — `python claude_p_cost.py
+    --refresh` would then die before `refresh()` runs, and Phase C puts that on a 06:00 cron where an
+    import-time raise means the rate silently fossilises. `derive_cost` has guarded this knob all
+    along; its vendored twin called bare `float()` and did not.
+    """
+    try:
+        return float(os.environ.get(name) or default)
+    except (TypeError, ValueError):
+        return default
+
+
 _HERE = Path(__file__).resolve().parent
 # Env overrides let a project point at its synced copies without editing code (see _find).
-_SUBSCRIPTION_USD_PER_ACCOUNT = float(os.getenv("CLAUDE_MAX_PRICE_USD", "200") or 200)
+_SUBSCRIPTION_USD_PER_ACCOUNT = _env_float("CLAUDE_MAX_PRICE_USD", 200.0)
 _ANCHOR_USD_PER_TOKEN = 9.3e-8  # $0.093/M research fallback when usage history is empty
 _MONTHLY_DAYS = 30
 _USAGE_HISTORY = Path.home() / ".claude" / ".claude-manager" / "usage-history.json"
@@ -185,7 +200,18 @@ def real_usd(usage: dict) -> float:
 
 
 def measure(claude_json: dict, model: str) -> dict:
-    """Take a full `claude -p --output-format json` object (or its bare `usage` block) → ①+② + tokens."""
+    """Take a full `claude -p --output-format json` object (or its bare `usage` block) → ①+② + tokens.
+
+    Raises `TypeError` on a payload that is valid JSON but not an object — an error envelope, a
+    stream-style message LIST, a truncated response. `refresh()` was hardened against exactly that
+    shape on the sidecar it reads; this is the module's OWN documented primary invocation
+    (`claude -p … | python scripts/claude_p_cost.py`) and it was still dying with a bare
+    `AttributeError`, bypassing `main()`'s stated `exit 2` contract for unusable stdin.
+    """
+    if not isinstance(claude_json, dict):
+        raise TypeError(
+            f"expected a JSON object from `claude -p --output-format json`, got {type(claude_json).__name__}"
+        )
     nested = claude_json.get("usage")
     usage: dict = nested if isinstance(nested, dict) else claude_json
     tokens = {k: int(usage.get(k, 0) or 0) for k in _USAGE_KEYS}
@@ -381,7 +407,12 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as e:
         print(f"error: stdin is not valid JSON ({e})", file=sys.stderr)
         return 2
-    print(json.dumps(measure(obj, args.model), indent=2))
+    try:
+        measured = measure(obj, args.model)
+    except TypeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    print(json.dumps(measured, indent=2))
     return 0
 
 
