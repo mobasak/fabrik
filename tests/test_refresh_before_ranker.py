@@ -63,7 +63,12 @@ def test_a_step_that_only_reads_the_sidecar_does_not_count_as_a_rebuild(tmp_path
     """A-1, CRITICAL. Matching the bare substring `claude_p_cost` let a READER satisfy the gate —
     a false green on the exact condition it exists to prevent, since without `--refresh` the module
     falls through to stdin and writes nothing at all."""
-    reader = '  _step "cost_report" "$VENV_PY" "$KB/print_costs.py" "$KB/claude_p_cost.json"'
+    # ⚠️ The FIRST version of this test used `"$KB/claude_p_cost.json"` as the reader's argument —
+    # which contains no `.py`, so it was graded by the SCRIPT-PATH rule and said nothing at all about
+    # `--refresh`. Mutation caught it: dropping the `--refresh` term from `_site` left this test
+    # green. The line below invokes the module ITSELF without the flag, which is the real false-green
+    # (`main()` then falls through to `sys.stdin.read()` and returns 2 having written nothing).
+    reader = '  _step "cost_report" "$VENV_PY" "$FABRIK_ROOT/scripts/claude_p_cost.py" --model opus'
     ok, msg = _run(tmp_path, f"#!/bin/bash\n{reader}\n{_RANKER}\n")
     assert not ok
     assert "never invokes" in msg
@@ -72,9 +77,13 @@ def test_a_step_that_only_reads_the_sidecar_does_not_count_as_a_rebuild(tmp_path
 def test_a_line_continuation_does_not_hide_the_invocation(tmp_path):
     """A-4, FALSE RED. Anchoring on `startswith('_step')` per PHYSICAL line reddened a step wrapped
     exactly the way the rest of the file wraps its commands."""
+    # ⚠️ The tokens must straddle the continuation, or the test proves nothing: the first version
+    # put `claude_p_cost.py` and `--refresh` BOTH on the second physical line, so it matched with or
+    # without joining and a mutation disabling the joiner survived. Here the script path is on line
+    # one and the flag on line two — only a joined logical line carries both.
     wrapped = (
-        '  _step "claude_p_cost_refresh" "$VENV_PY" \\\n'
-        '    "$FABRIK_ROOT/scripts/claude_p_cost.py" --refresh'
+        '  _step "claude_p_cost_refresh" "$VENV_PY" "$FABRIK_ROOT/scripts/claude_p_cost.py" \\\n'
+        "    --refresh"
     )
     ok, msg = _run(tmp_path, f"#!/bin/bash\n{wrapped}\n{_RANKER}\n")
     assert ok, msg

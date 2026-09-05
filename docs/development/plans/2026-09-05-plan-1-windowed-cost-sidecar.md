@@ -1,6 +1,6 @@
 # Plan — the windowed cost sidecar: `claude_p_cost.json` gains its window, its denominators, and a cadence
 
-Status: IN-PROGRESS (execution opened 2026-09-05; converged over 4 author-blind passes, findings 10 → 12 → 7 → 4, all closed; ruling D-125)
+Status: EXECUTED (2026-09-05 — all three phases shipped and reviewed to a quiet round: A `a43f3013`/`8b7d2adb`, B `30a7bb90`/`dde84206`/`807b5de0`, C `5fd58526`/`6dca810d`. Plan-time convergence took 4 author-blind passes, 10 → 12 → 7 → 4; execution-time review took 5 more across two phase artifacts and found strictly worse defects than planning did — an unattended writer that published the research anchor over a measured rate at 12.4x, a rebuild wired into one of the pipeline's TWO entry points, and an ordering gate that ran nowhere while its commit message claimed it held the ordering. Rulings D-125, D-132, D-133; reviews `docs/development/reviews/2026-09-05-windowed-cost-sidecar-phase-{A,B,C}-review.md`)
 Owner: intel
 Shape: monolith (3 phases; read set 145,448 B across the 8 existing of 10 File Scope paths (`tests/test_claude_p_cost_refresh.py` and `scripts/enforcement/_check_refresh_before_ranker.py` are created by the plan), against `READ_BUDGET_BYTES` = 262144 — no split trigger)
 Final Gate Instruction: `python scripts/final_gate.py --json`

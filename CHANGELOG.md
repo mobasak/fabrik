@@ -56,10 +56,18 @@ measured figure. Three phases of
 - **B** — `rank_task_subagents.py` renders the window beside the rate and marks a sidecar older than
   24h as **STALE**, so the fail-soft readers can no longer make a fossil and a fresh rate look
   identical.
-- **C** — `daily_refresh.sh` (06:00) rebuilds it, ordered *before* the ranking regen it feeds, and
-  `scripts/enforcement/_check_refresh_before_ranker.py` holds that order. The regenerated sidecar
-  joins the pipeline's auto-commit stage list: `refresh()` restamps `built_at` every run, so without
-  that the cron would leave a tracked file dirty daily on a tree three sessions share.
+- **C** — BOTH pipeline entry points rebuild it before the ranking regen they feed: `daily_refresh.sh`
+  (cron 06:00) and `wsl_startup_hook.sh` (boot), which share one daily lock, so wiring only the cron
+  left the boot path ranking from a sidecar it had not rebuilt. A `refresh-before-ranker` pre-commit
+  hook, scoped to those two files, holds the ordering in both. The regenerated sidecar joins the
+  pipeline's auto-commit stage list: `refresh()` restamps `built_at` every run, so without that the
+  cron would leave a tracked file dirty daily on a tree three sessions share.
+- **C, and the reason the cadence needed a guard of its own** — an unattended writer must never publish
+  a number it could not measure. With `~/.claude` usage history unreadable, `refresh()` used to write
+  the research anchor (0.093/Mtok) over a measured 0.00748 — a 12.4x error — under a *fresh*
+  `built_at`, which the staleness marker above is blind to by construction. It now raises
+  `UnmeasurableWindowError` and writes nothing, so the last measured rate stands and ages into STALE.
+  Reviews: `docs/development/reviews/2026-09-05-windowed-cost-sidecar-phase-{B,C}-review.md`.
 
 ### Fixed — the sync's safety-floor failure named the wrong CAUSE, sending the operator where the fix cannot be (2026-09-05)
 
