@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the rotation tick was reset-BLIND: it measured freshness on the wrong axis (2026-09-06)
+
+Operator, after a hand-rotation at 99%: *"are you sure rotation worked? i have manually rotated"* —
+and *"ob was about to reset at 1:20 to 100%, 13% is irrelevant here"*. Both corrections were right,
+and the ledger settles it: the 22:19:11 `mob -> ob` flip is `via: "switch"` with `at_pct: null`, the
+manual signature (`claude_rotate.py:2958`). The tick's three flips that day (18:10, 19:58, 21:20)
+were `via: "tick"`, so rotation was working — it was blind, not broken.
+
+**The defect.** `_ping_slots` measured reading freshness in CLOCK AGE only. At 22:19 the fleet was
+fully walled and `ob@` was **48 seconds** from a full 5-hour reset, but its cached reading — taken
+minutes earlier, therefore "fresh" under the 60-minute rule — still said 87% used. It was skipped
+from refresh as fresh, then refused by `_validated_pick` as over the 85% successor bar. The tick
+printed "NO successor has headroom" while a full window was seconds away, and a human flipped the
+pointer.
+
+A reading is obsolete the moment the window it describes rolls over, however recently it was taken.
+`_reading_predates_a_reset()` is exactly that: `ts < resets_at_epoch <= now`, checked per window
+because either can roll independently. Such a reading now wins a refresh slot AND outranks merely-old
+ones — ranking by age alone would sort it LAST, since it is the youngest.
+
+⚠️ **The second half is what makes the first non-inert, and it would have been easy to ship without.**
+`_refresh_ping_due` uses the SAME 60-minute interval as the age gate, so any reading young enough to
+be called fresh has necessarily been pinged inside the hour — every account the fix newly admits
+would have been vetoed one line later. An obsolete reading therefore bypasses the per-account
+cooldown too. Bounded: a window rolls once per 5 hours, so this fires at most once per account per
+window, never a ping storm.
+
+Six graders, all mutation-proven, and the mutations mattered: reverting EITHER half of the fix turns
+the end-to-end stall test red. A sixth test had to be added because the rank-priority line was
+untested — with a single candidate, ranking cannot be observed, so it needs more stale accounts than
+the refresh budget before "obsolete outranks old" means anything.
+
+Not claimed: this does not prove the tick would have flipped at 22:20. The operator switched 48
+seconds before the reset, so what the next tick would have done is unknowable. What IS fixed is the
+mechanism that made the account invisible.
+
 ### Changed — the Traycer layer retired (2026-09-06)
 - **What:** spec § Chain consolidation (b). `docs/orchestrator/_traycer-skills/` (17 tracked wrappers) and `scripts/traycer_mirror.py` (a no-op without `TRAYCER_EPIC_ID`) deleted; `docs/orchestrator/traycer-command-wiring.md`, `docs/traycer/traycer-agile-workflow.md`, `docs/traycer/traycer-refactoring-workflow.md` moved to `docs/orchestrator/_retired/traycer/<name>.RETIRED.md` with the tombstone header and their own links re-based. `scripts/enforcement/check_traycer_chain.py` (fleet-synced) re-points `DIRS` at `commands/_sources/fabrik-vision*.md` + `fabrik-epics*.md` as glob patterns — a project with no `commands/_sources/` prints `PASS - 0 files` and exits 0; the three detectors unchanged (2 files → 3); its header shrunk under the capability catalog's 4000-char window. Kept: `docs/traycer/README.md`, `kilo_selected_agents.md`, `fabrik-workflow.md` (11 pre-existing dependents). Referrers re-pointed, the catalog regenerated, the backlog item closed.
 - **Where:** `docs/orchestrator/_retired/traycer/`, `scripts/enforcement/check_traycer_chain.py`, `INDEX.md`, `docs/README.md`, `docs/traycer/README.md`, `docs/traycer/fabrik-workflow.md`, `scripts/docs_updater.py`, `docs/CAPABILITIES.md`, `docs/STRATEGIC_BACKLOG.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T09).

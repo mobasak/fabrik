@@ -1579,3 +1579,98 @@ def test_guarantee_3_switches_as_soon_as_an_account_becomes_available(monkeypatc
     relieved = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 4.0, s_reset=NOW + 18000.0)]
     cr._fleet_flip_leg([], relieved, threshold=95.0)
     assert flips == ["can"], f"must switch the instant an account frees up; got {flips}"
+
+
+# ── RESET-BLINDNESS (operator, 2026-09-06) ────────────────────────────────────────────────
+# Measured stall: at 22:19 the fleet was fully walled, ob@ was 48 SECONDS from a full 5-hour
+# reset, and its cached reading — minutes old, therefore "fresh" by the 60-minute rule — still
+# said 87% used. _ping_slots skipped it as fresh; _validated_pick refused it as over the 85%
+# successor bar; the tick printed "NO successor has headroom"; the operator flipped by hand
+# (ledger: via "switch", at_pct null). Freshness was measured on the wrong axis.
+
+def _cache_row(ts, five_h_reset, util=87.0):
+    return {"ts": ts, "five_hour": {"utilization": util, "resets_at_epoch": five_h_reset},
+            "seven_day": {"utilization": 40.0, "resets_at_epoch": ts + 500000.0}}
+
+
+def test_reading_taken_before_a_passed_reset_is_obsolete():
+    """The core predicate: ts < resets_at_epoch <= now. Chronological age is irrelevant."""
+    now = NOW
+    # taken 5 minutes ago, but the window rolled 1 minute ago -> obsolete despite being fresh
+    assert cr._reading_predates_a_reset(_cache_row(now - 300, now - 60), now) is True
+    # taken 5 minutes ago, window rolls in an hour -> still describes its own window
+    assert cr._reading_predates_a_reset(_cache_row(now - 300, now + 3600), now) is False
+    # taken AFTER the reset -> already describes the new window
+    assert cr._reading_predates_a_reset(_cache_row(now - 60, now - 300), now) is False
+
+
+def test_obsolete_predicate_covers_the_weekly_window_too():
+    """Either window can roll independently; a weekly reset invalidates a reading as surely
+    as a 5-hour one."""
+    now = NOW
+    row = {"ts": now - 300, "five_hour": {"utilization": 50.0, "resets_at_epoch": now + 3600},
+           "seven_day": {"utilization": 90.0, "resets_at_epoch": now - 30}}
+    assert cr._reading_predates_a_reset(row, now) is True
+
+
+def test_malformed_cache_row_never_forces_a_ping():
+    """Fail direction: an unparseable row falls through to the ordinary age rule rather than
+    forcing a ping storm on every tick."""
+    now = NOW
+    for bad in (None, {}, "nope", {"ts": "x"}, {"ts": now, "five_hour": "no"},
+                {"ts": now, "five_hour": {"resets_at_epoch": None}}):
+        assert cr._reading_predates_a_reset(bad, now) is False, bad
+
+
+def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(monkeypatch, tmp_path):
+    """END-TO-END on the real stall. Four accounts, all with CHRONOLOGICALLY FRESH readings so
+    the old age gate skipped every one of them. One (ob) has just crossed its 5-hour reset, so
+    its 87% reading is semantically dead. It must win a refresh slot — and it must do so even
+    though its per-account cooldown says it was pinged minutes ago, because the cooldown uses
+    the SAME 60-minute interval and would otherwise veto exactly the account this fix admits."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    now = NOW
+    emails = ["can@test", "mob@test", "ob@test", "sarp@test"]
+    groups = {e: [{"mtime": now - 10}] for e in emails}
+    cache = {e: _cache_row(now - 300, now + 3600) for e in emails}   # all fresh, none rolled
+    cache["ob@test"] = _cache_row(now - 300, now - 48)               # rolled 48s ago
+    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them
+    monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)
+    slots = cr._ping_slots(groups, cache, now)
+    assert slots == {"ob@test"}, (
+        f"the just-reset account must get the refresh slot, and only it; got {slots}"
+    )
+
+
+def test_no_ping_storm_when_nothing_has_rolled(monkeypatch, tmp_path):
+    """The mirror of the test above: with every reading fresh AND every window still current,
+    the cooldown bypass must not fire for anyone."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    now = NOW
+    emails = ["can@test", "ob@test"]
+    groups = {e: [{"mtime": now - 10}] for e in emails}
+    cache = {e: _cache_row(now - 300, now + 3600) for e in emails}
+    monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)
+    assert cr._ping_slots(groups, cache, now) == set()
+
+
+def test_an_obsolete_reading_outranks_merely_old_ones_for_a_scarce_slot(monkeypatch, tmp_path):
+    """The RANK half, which the single-candidate stall test cannot reach. With more stale
+    accounts than the refresh budget, a reading whose window has ROLLED must outrank readings
+    that are merely old — it is the one that may be sitting on a full window while the fleet
+    reports no successor. Ranking by age alone would sort it LAST, because it is the youngest."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("ROTATE_REFRESH_MAX_PER_RUN", "1")   # one slot, many claimants
+    now = NOW
+    groups = {e: [{"mtime": now - 10}] for e in
+              ["old1@test", "old2@test", "old3@test", "rolled@test"]}
+    cache = {
+        "old1@test": _cache_row(now - 40000, now + 3600),   # ancient, window still current
+        "old2@test": _cache_row(now - 30000, now + 3600),
+        "old3@test": _cache_row(now - 20000, now + 3600),
+        "rolled@test": _cache_row(now - 300, now - 48),     # YOUNGEST, but its window rolled
+    }
+    monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: True)
+    assert cr._ping_slots(groups, cache, now) == {"rolled@test"}, (
+        "the rolled-window account must win the scarce slot over merely-old readings"
+    )

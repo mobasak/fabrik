@@ -3715,6 +3715,40 @@ def _fleet_refresh_stamp(email: str) -> Path:
         return Path(tempfile.gettempdir()) / f"claude-fleet-refresh-{safe}"
 
 
+def _reading_predates_a_reset(row: object, now: float) -> bool:
+    """True when this cached reading was taken BEFORE a window reset that has since happened.
+
+    **The reset-blindness fix (operator, 2026-09-06).** Freshness was measured only in clock
+    age, and that is the wrong axis at the one moment it matters. Measured live: at 22:19 the
+    fleet was fully walled, `ob@` was 48 SECONDS from a full 5-hour reset, and its cached
+    reading — taken minutes earlier and therefore "fresh" by the 60-minute rule — still said
+    87% used. `_ping_slots` skipped it as fresh, `_validated_pick` refused it as over the 85%
+    successor bar, the tick printed "NO successor has headroom", and the operator flipped the
+    pointer BY HAND at 22:19:11 (ledger: `via: "switch"`, `at_pct: null`). Three earlier flips
+    that day were `via: "tick"`, so rotation was working — it was blind, not broken.
+
+    A reading is obsolete the instant the window it describes rolls over, however recently it
+    was taken. `ts < resets_at_epoch <= now` is exactly that condition, and it is checked per
+    window because either can roll independently.
+
+    Returns False on anything unparseable — a missing or malformed cache row falls through to
+    the ordinary age rule rather than forcing a ping storm.
+    """
+    if not isinstance(row, dict):
+        return False
+    ts = row.get("ts")
+    if not isinstance(ts, (int, float)):
+        return False
+    for key in ("five_hour", "seven_day"):
+        w = row.get(key)
+        if not isinstance(w, dict):
+            continue
+        reset = w.get("resets_at_epoch")
+        if isinstance(reset, (int, float)) and ts < reset <= now:
+            return True
+    return False
+
+
 def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[str]:
     """Which accounts spend this run's stale-reading refresh pings — the OLDEST reading first.
 
@@ -3754,12 +3788,23 @@ def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[s
             if isinstance(c, dict) and isinstance(c.get("ts"), (int, float))
             else None
         )
-        if age is not None and age < max_age:
-            continue  # the reading is still inside the freshness window
-        if not _refresh_ping_due(email, now):
+        obsolete = _reading_predates_a_reset(c, now)
+        if age is not None and age < max_age and not obsolete:
+            continue  # the reading is still inside the freshness window AND still describes
+            # the window it was taken in — see _reading_predates_a_reset for why both matter
+        # ⚠️ AN OBSOLETE READING BYPASSES THE PER-ACCOUNT COOLDOWN, and without this the fix
+        # above is INERT. `_refresh_ping_due` uses the SAME 60-minute interval as the age gate,
+        # so a reading young enough to be called fresh has necessarily been pinged inside the
+        # hour — meaning every account this fix newly admits would be vetoed one line later.
+        # Bypassing is bounded: a window rolls once per 5 hours, so this can fire at most once
+        # per account per window, never a ping storm.
+        if not obsolete and not _refresh_ping_due(email, now):
             continue  # this account's own stamp budget says not yet
-        # No cached reading at all is the STALEST state there is — it outranks any age.
-        ranked.append((float("inf") if age is None else age, email))
+        # No cached reading at all is the STALEST state there is — it outranks any age. So does
+        # a reading the clock calls fresh while the window it measured has already rolled: that
+        # account may be sitting on a FULL window while the fleet reports no successor, which is
+        # the exact 2026-09-06 stall this ranking exists to end.
+        ranked.append((float("inf") if (age is None or obsolete) else age, email))
     ranked.sort(key=lambda r: (-r[0], r[1]))  # oldest first; email breaks ties deterministically
     return {email for _, email in ranked[:budget]}
 
