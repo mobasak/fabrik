@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — re-vendored the scrubber AGAIN (third time today): the previous pin carried a redaction that leaked 100% of the time (2026-09-05)
+
+site-provisioner's module moved three more commits after the last re-vendor, including `fd752ad` — "the
+character BEFORE the scheme leaked 100% of the time". Re-vendored at `7f96834`; byte-identity to upstream
+re-proven after reversing the adaptations, 9 guard tests green. Marker parity with the origin confirmed on
+all five markers they published (`_redact_userinfo_in_text`, `_reduce_origin`, `before_send_transaction`,
+`rsplit`, `_SCHEME_START`).
+
+Also handled: site-provisioner correctly DECLINED the back-fill notice I sent them. Their table was right —
+the hub template IS their file at an older commit, so "vendor the hub template over yours" is inverted for
+the origin repo. The notice carried a site-provisioner-specific note saying exactly that, which made the
+mail self-contradictory rather than merely wrong. My authoring defect: one body sent to eleven recipients,
+one of whom is the source.
+
+And their separate hazard — the module's `server_name` default hardcodes their repo name, so a verbatim
+vendor would file every service's events under site-provisioner — is closed and proven by execution rather
+than assertion: a scaffolded project emits `server_name=os.environ.get("SERVICE_NAME", "attrib-probe")`,
+with zero occurrences of their repo name in the emitted code body and zero unsubstituted tokens.
+
+**The pattern is now a backlog row rather than a fourth chase.** Three re-vendors in one day, each
+triggered by a mail from the origin and never by anything on this side. A vendored file faithful to a
+SUPERSEDED revision passes every test we have — staleness is invisible by construction, and the same hole
+exists for `libs/health_probe/` and every future vendored dir.
+
 ### Added — the cost sidecar has a window, says when it is stale, and rebuilds itself (2026-09-05)
 
 `scripts/kilo-benchmarks/claude_p_cost.json` was a point estimate with no period: four keys, a

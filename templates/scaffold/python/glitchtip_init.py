@@ -10,7 +10,7 @@ Import this module BEFORE FastAPI app creation in main.py:
 
 VENDORED — do not edit here expecting it to stick upstream.
   origin:   site-provisioner  api/glitchtip_init.py
-  revision: 13d3243
+  revision: 7f96834
 Copied under the fabrik-lib law (vendor, never import across repos). It is a COPY: to
 pull a later upstream fix, re-vendor and move the revision above, so a reader can always
 diff this file against the sha it claims to be.
@@ -232,12 +232,18 @@ def _safe_origin(description: str) -> str | None:
     a verb and a scheme+host with any userinfo removed. Anything else returns None.
     The span reducer then DROPS the description (keeping `op`,
     so the trace shape survives); `_reduce_header_value` instead keeps the header key with
-    a `None` value; the `transaction` reduction nulls the field. SIX call sites, THREE
-    dispositions — the transaction reduction calls it from both of its branches, which is
-    why the two numbers differ and why naming only one of them keeps going wrong. This
-    sentence has now been wrong three times: "one caller" when a second appeared, "two"
-    when a third did, and "three callers" once the call sites became four while the
-    dispositions stayed three. Both counts are stated, and both are grep-checkable.
+    a `None` value; the `transaction` reduction nulls the field. THREE dispositions.
+
+    ⚠️ The CALL-SITE COUNT is deliberately not stated any more. That number has been wrong
+    four separate times in this one sentence — "one caller", then "two", then "three", then
+    "six" — each time corrected by a reviewer rather than by the author, and each correction
+    introduced the next wrong value. A count that cannot survive four attempts is not a fact
+    worth carrying in prose; the dispositions are the part that means anything, and the
+    sites are one `ast` query away for anyone who needs them.
+
+    (The transaction reduction calls it from both of its branches, which is why a call-site
+    count and a disposition count were ever different numbers — and why naming either one
+    kept going wrong.)
     """
     parts = description.strip().split(" ", 1)
     verb, target = (parts[0], parts[1]) if len(parts) == 2 else ("", parts[0])
@@ -406,13 +412,8 @@ def _reduce_origin(value):
 # both of those strings.
 # ⚠️ Two properties below are load-bearing and both were got wrong once.
 #
-# THE LOOKBEHIND is what makes this linear, and that is the single most-corrected sentence
-# in this module. Requiring a scheme is NECESSARY AND NOT SUFFICIENT: without a boundary the
-# engine starts a match at every character of one long `[A-Za-z0-9+.\-]` run and scans the
-# rest of it each time — quadratic, 2.7s at 32 KB and 15.6s at 60 KB, synchronously inside
-# `before_send`. The possessive `*+` stops backtracking WITHIN a run but not the retry at
-# every start position, so it alone does not fix it either (measured: still quadratic).
-#
+# (An earlier revision used a token-boundary lookbehind here; see the note above for
+# why it was replaced by a length bound.)
 # This lookbehind is deliberately NOT the one an earlier round removed. That one forbade a
 # scheme preceded by `: = ,` and so blocked `jdbc:postgresql://…` and `KEY:<dsn>` — real
 # shapes. This one forbids only another SCHEME character before the scheme, which prunes
@@ -423,10 +424,24 @@ def _reduce_origin(value):
 # them from the first alternative keeps `https://h?a=1@2` intact.
 #
 # The second alternative accepts `://` as well as the damaged separators, and permits `?#`,
-# BECAUSE IT REQUIRES A COLON in the userinfo. That combination is what catches a password
-# containing `#` behind an intact separator — a shape that falls between the two rules
-# otherwise, and one that leaked 100% under an earlier design. The colon is what keeps the
-# permissiveness safe: `https://h?a=1@2` has no colon in that position, so it stays intact.
+# BECAUSE IT REQUIRES A COLON in the userinfo. That catches a `user:pass` password containing
+# `#` behind an intact separator, and the colon is what keeps the permissiveness safe:
+# `https://h?a=1@2` has no colon in that position, so it stays intact.
+#
+# ⚠️ STATED RESIDUAL, because an earlier version of this comment claimed the gap was closed
+# and it is not: a BARE-TOKEN userinfo (no colon) containing `?` or `#` falls between both
+# alternatives and is NOT redacted — `https://gh#p_<token>@host` ships whole. The claim was
+# true for `user:pass` and false for a bare token, and the corpus could not show it because
+# it varies the alphabet only in the `user:{secret}` form and covers the bare-token shape
+# only with an alphanumeric secret; the two dimensions are never crossed.
+#
+# It is left open on measurement, not convenience. Permitting `?#` in the first alternative
+# closes all four leak shapes and over-redacts 5 of 8 real query strings — `https://h?a=1@2`,
+# `https://h#f@g`, `http://h?x@y` — because `scheme://host?query@x` and
+# `scheme://token#x@host` are STRUCTURALLY IDENTICAL. A regex cannot separate them, and a
+# third heuristic invented to try is how the previous five iterations of this rule were each
+# refuted. Tokens are overwhelmingly `[A-Za-z0-9_-]`, so the residual is narrow; it is
+# asserted in the test rather than described only here.
 #
 # POSSESSIVE `*+` on the scheme run. Without it this is QUADRATIC, not linear: on one long
 # unbroken `[A-Za-z0-9+.\-]` run the engine starts a match at every character and backtracks
@@ -442,11 +457,31 @@ def _reduce_origin(value):
 # the documented `/` residual, where the string is left visibly untouched. `_safe_origin`
 # has always used `rsplit("@", 1)[-1]` for exactly this reason, with a test named for it;
 # the convention simply was not carried across to this function.
-_SCHEME_START = r"(?<![A-Za-z0-9+.\-])"     # the scheme cannot begin mid-token
+# The scheme run is LENGTH-BOUNDED rather than boundary-anchored, and that single change
+# does two jobs a lookbehind could not.
+#
+# It removes a LEAK. A lookbehind that forbids a scheme-class character before the scheme
+# also forbids the whole run it belongs to, so `psql -dpostgresql://user:pw@h/db` — valid
+# psql syntax, and exactly what a `CalledProcessError` message quotes — matched NOTHING and
+# shipped the DSN intact. So did any elided message beginning `...`. Measured: 13 of 95
+# printable characters (`+-.` and the digits) blocked the match entirely, and the failure
+# was fail-OPEN, emitting the credential whole rather than behind a `[redacted]@` marker.
+# No round could see it because every corpus prefix ended in a space, quote, `=` or `:`.
+#
+# It also removes the QUADRATIC behaviour the lookbehind was there for. Bounding the run to
+# 32 characters caps the work at each start position, so the scan is linear in input length
+# without needing a boundary at all. A registered URI scheme is at most 30-odd characters;
+# 32 is generous and the bound is what makes the cost predictable.
 _URL_USERINFO_RE = re.compile(
-    _SCHEME_START + r"([a-zA-Z][a-zA-Z0-9+.\-]*+://)([^\s/?#]+)@"
+    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}://)([^\s/?#]+)@"
     r"|"
-    + _SCHEME_START + r"([a-zA-Z][a-zA-Z0-9+.\-]*+(?::/{1,2}|//))([^\s/]*:[^\s/]*)@"
+    # ⚠️ `[^\s/:]*+` — colon-free AND possessive — so the userinfo has exactly ONE split
+    # point. Written as `[^\s/]*:[^\s/]*` the two unbounded greedy runs can be divided many
+    # ways, and on a colon-dense run with no `@` to terminate the match the engine tries all
+    # of them: 7.6s on a 32 KB value, synchronously inside `before_send`. Bounding the scheme
+    # did not help, because this blowup is inside a SINGLE match attempt rather than across
+    # start positions — the two are different quadratics and the first fix only closed one.
+    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}(?::/{1,2}|//))([^\s/:]*+:[^\s/]*)@"
 )
 
 

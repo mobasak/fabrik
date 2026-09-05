@@ -1138,6 +1138,32 @@ way site-provisioner's was probed, then either correct `monitoring.metrics_path`
 target. Blocked by: nothing — this is a small, self-contained fix, it simply was not mine to make inside
 another finding's scope.
 
+## [fleet] A VENDORED file has no staleness detector — the glitchtip scrubber moved 9 times in one day and every gap was silent (2026-09-05, owner: fleet)
+
+`templates/scaffold/python/glitchtip_init.py` is vendored from site-provisioner under the fabrik-lib
+law (copy, never import). It was vendored three times TODAY — `4f5c158` → `13d3243` → `7f96834` — and
+each re-vendor was triggered by a MAIL from the origin repo, never by anything on this side noticing.
+Between the first two pins sat a redaction that "missed 68.8% of the shape it was built for" and a
+logging channel `_scrub_event` cannot reach; between the second and third sat one that "leaked 100% of
+the time". The hub shipped each of those to every new Python scaffold until a human wrote to us.
+
+**The gap is structural, not attentional.** Nothing compares the vendored copy to its origin. The
+docstring records the revision it claims to be, and the guard proves the file is internally consistent
+and functionally correct — but a copy that is faithful to a SUPERSEDED revision passes every test we
+have. Staleness is invisible by construction.
+
+**Candidate, deliberately not built inside the ticket that found it:** an advisory check that reads the
+`revision:` line from a vendored file's docstring, asks the origin repo how many commits that path has
+moved since, and reports the count. Cheap (`git -C <origin> rev-list --count <rev>..HEAD -- <path>`),
+read-only, and it cannot be wallpaper — it fires only when a vendored file is genuinely behind. Open
+questions worth settling before building: where the origin/path pair is declared (the docstring already
+carries both — parse it, or add a manifest?), whether it warns or fails, and whether it belongs in
+`final_gate` (runs everywhere, needs the origin repo present) or in the daily pipeline (runs once,
+where the origin repos definitely are). The daily pipeline looks right for exactly that reason.
+
+**Scope note:** this is the general vendoring class, not one file. `libs/health_probe/` and every future
+`VENDORED_DIRS` entry has the same hole. Blocked by: an operator call on warn-vs-fail and where it runs.
+
 ## [fleet] An ABSENT `shape:` flag is byte-identical to a deliberate `false`, so "code exposes X, spec never mentions X" is silent by construction (2026-09-05, owner: fleet)
 
 Raised by site-provisioner (`01M1Q7RJ5ZWAP7BGFQE1EWJC6Z`) and validated here: their `/metrics` endpoint
