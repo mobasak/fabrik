@@ -1,10 +1,10 @@
 # Acceptance review — T06a (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 4 rounds; round 4: pool 3/3 clean after adjudication + orchestrator re-read, found: 0, fixed: 0; merge rides T07a's joint commit with T06b/T06c; PARAMS dict for T07a in `$S/params_fabrik-vision.py`)
 
 **Surface:** the coder's worktree branch (worktree-agent-afe8783e4de220f3f, head 049e04dc) against its merge base 1abbc7dd — ONE new file `commands/_sources/fabrik-vision.md` (1,135 lines) moved from `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md` (962 lines; untouched). Coder: native Sonnet worktree. Gates: `check_traycer_chain.scan` → 0; retired-name grep → 0; `--check` exits 2 on the questionbar/subagents-core placeholders (EXPECTED until the assembler's `PARAMS["fabrik-vision"]` exists — T07a's file); `check_command_corpus` 30 refs: 28 to the sibling sources T06b/T06c, 2 the `validate_i18n.py` false-positive class (the checker's templates/ fallback is wired for orch docs only — infra beat, recorded).
 
-**Merge disposition (orchestrator, recorded for T16 + a ledger row):** the three T06 sources render and pass the corpus check only together and only with the assembler's `PARAMS` entries — each is accepted on its own review, then all three merge in ONE D5 commit with the `PARAMS` entries added as the orchestrator's D2 mechanical fixup (T07a keeps the NEXT map and the rest).
+**Merge disposition (orchestrator, recorded for T16 + a ledger row; REVISED after round 1):** the three T06 sources render and pass the corpus check only together and only with the assembler's `PARAMS` entries, which are per-command SEMANTIC text (questionbar + subagents-core keys), not a mechanical copy — so each T06 ticket is accepted on its own review, and T07a's coder works in a worktree that merges the three accepted T06 branches, writes the `PARAMS` dicts (the T06 coders hand theirs in their reports — `$S/params_fabrik-vision.py`) and the NEXT map, and gets `--check` + the corpus check green; the D5 merge of T07a carries all four tickets in one commit.
 
 ## Round 1
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 1.
@@ -43,4 +43,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] :43-45 the acting-set bullet mandates the dossier read unconditionally against the gate's exemptions at :295-296 → FIXUP (2). [L] :72 "(no frontmatter at all)" is false (frontmatter, no `globs:`) → FIXUP (3).
 - Refuted candidates: the "LLM-gateway row above" reference (a row exists at :742); the shape-flag table listing 8 of 13 fields (scoped by its `Fires` column).
 Round 3 verdict: 3 (1 M, 2 L) → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
+
+## Round 4 — over the FINAL head `bcb92386` (95,467 B; the round-3 fixup: three sentences, 7/7, the finder's prescriptions verbatim)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: orchestrator re-read of bcb92386 (the cited row, the qualified acting-set bullet, the corrected parenthetical; no rule changed) — round 4.
+### Adjudication
+- gemini — CLEAN (the 9 cited rows; the acting-set exemption; the ocoron parenthetical; includes; no HTML comment; retired names; traycer-chain 0; Part B/C; 0 [C] anchors per the gate).
+- qwen — CLEAN (4 rows implemented and testable; DO-NOTs; prior rounds resolved).
+- deepseek — 3 raised, 3 not findings: two `file:NN` anchors (`vscode-configuration.md:21`, `cost-budget.md:28`) — the ticket's Gate is `check_traycer_chain.scan` and it reports 0; that its [C] detector cannot see this spelling is the recorded infra gap (routed), and both anchors are grounded citations the corpus's Part B mandates, not chain-rot; `project="mega-trigger"` in the Phase 3 fanout/`set_quality` — the old doc's own flywheel bucket for the mega chain, carried verbatim (a rename is T07a's PARAMS/NEXT territory if ever); a truncated "EXISTING mode reads live env files" item — inherited verbatim from 00's EXISTING-mode inputs, unchanged by this move.
+Round 4 verdict: found 0, fixed 0 — the no-op round. Class ledger: substance-lost (12 restorations) · orientation · question-bar duplicate · rivals wiring + citations · gate placement · watchdog cap · technology decisions · shape rows · stage-1 dispositions · compliance rows · hollow-citation guards · verb swap · description cap · PARAMS-comment · cross-references · Kilo marker · pack citations · acting-set qualifier — all swept clean.
 
