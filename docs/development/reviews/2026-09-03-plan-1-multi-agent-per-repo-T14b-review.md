@@ -1,6 +1,6 @@
 # Acceptance review — T14b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base 3a4b5e77 (master after the T09 merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -22,4 +22,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (eight prescribed replacements, each grounded by the coder; stated) — round 2.
 ### Orchestrator execution (in the worktree)
 - the scoped grep → 0 files; `--check` → 0 render errors; the corpus check green; `epics/<n>-<slug>` → 0 in all three docs; `Step 0` → 0; the predicate-7 sentence reads the 59/4 split; the `:116` row reads HISTORY / ❌ No.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0114)
+- Two walk all eight items to their lines (present, grounded, grammar and cell counts intact). The third raised two claims — D-Zed "not marked HISTORY" and "Phase 0 only twice" — both REFUTED by execution in the worktree: the north-star carries "Built after the corpus chain is finalized … (the analog of the retired Traycer front-end)"; `grep -c 'Phase 0'` → 3 in agents-fabrik.md, 1 in the north-star, and `Step 0` → 0 across the three docs.
+### Verdict
+**0 findings — no-op round.** **Status: CONVERGED** at `af2998ef`; merge with the main-checkout render (five consumers of the fragment) and the fleet sync (`agents-fabrik*.md` are triggers); the merge owner's delta: `scripts/epic_order.py`'s docstring lines naming the retired mega docs (round-1 native item 11).

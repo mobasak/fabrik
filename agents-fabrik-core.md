@@ -15,9 +15,11 @@ facts needed in most turns (spec 2026-07-18 § Constraints: @import criterion = 
 - **Two dev envs, one code:** WSL dev (`.venv`, PG on localhost via env) ↔ VPS Docker (`postgres-main`,
   compose) — same code runs unmodified; host names are env-layer, never code logic.
 - **Front door (three tiers):** feature-scale → `/fabrik-spec` pipeline · epic →
-  `docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik` · multi-epic vision →
-  `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik` (EXISTING mode for existing projects). Test:
-  needs tickets + dispatched agents ⇒ epic/vision; one operator-carried plan ⇒ feature-scale.
+  `/fabrik-spec docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (the epic-file intake; a brief too big for one plan
+  up-routes to `/fabrik-vision`) · multi-epic vision → `/fabrik-vision` → `/fabrik-epics` →
+  `/fabrik-epics-review` (EXISTING mode for existing projects), then one window per agent runs
+  `/fabrik-spec <its epic>`. Test: needs tickets + dispatched agents ⇒ epic/vision; one operator-carried
+  plan ⇒ feature-scale.
 - **Discipline delivery (north-star § Enforcement Model):** plan-time `python scripts/select_rules.py`
   (ACTIVE packs); review-time `python scripts/review_rubric.py --changed <paths>` (injected rubric +
   mandatory-core floor); completion `python scripts/final_gate.py --json`.

@@ -1,13 +1,14 @@
 # Autonomous Factory — The North Star
 
-**Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-07-18
+**Status:** LIVING — **never archive** · **Owner:** operator · **Created:** 2026-07-12 · **Last updated:** 2026-09-06
 
-> **This is the ultimate goal. Everything else in `docs/traycer/ or docs/orchestrator` exist to reach it.**
+> **This is the ultimate goal. Everything else in `commands/_sources/` and `docs/orchestrator/` exists to reach it.**
 >
-> The two workflow chains in this folder — `mega-epic-breakdown/` (vision → epics) and
-> `epic-to-ticket-workflow/` (epic → tickets → code) — are **being evaluated and hardened against the
-> requirements below**. When a command file here is reviewed, converged, twinned or rewritten, the
-> question it must answer is: *does this move us toward the requirements on this page?*
+> The planning chain — `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` (vision → epics) and,
+> per epic, `/fabrik-spec <epic file>` → … → `/fabrik-execute-plan` (epic → plan → code), all assembled from
+> `commands/_sources/` — is **evaluated and hardened against the requirements below**. When a command source
+> is reviewed, converged or rewritten, the question it must answer is: *does this move us toward the
+> requirements on this page?*
 >
 > **Do not archive this file.** It is not a finished spec — it is the target the work is aimed at.
 
@@ -24,30 +25,30 @@ and doc-update autonomously; **two human gates** (plan in, deploy out).
 
 **The engine + tools — ONE tool-capable engine throughout.**
 
-- **Traycer (desktop app)** — the planning/orchestration **layer**: the chat surface, the epic/ticket/spec **artifact store**, and the GUI. Traycer is **not an AI**; it is a harness that needs one connected to do anything.
-- **Claude Max = the connected engine** (Claude Code + `claude -p`) — powers Traycer **and** is the orchestrator during coding. Because Claude Code drives Traycer, **the Traycer path has FULL tools** — shell, MCP, web, subagents. *(This very file is being edited by that engine, running inside Traycer.)* Claude Max brings its own native subagents (**haiku · sonnet · opus · fable**), Opus rationed to judgment / high-risk (R5).
+- **Claude Code (one window per agent)** — the planning/orchestration **layer** and the cockpit: the chat surface and the artifact store (epic files under `docs/development/epics/`, specs and plan sets in the repo — no external store). Agent-1 runs in the main checkout as merge owner; agents 2..N launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` (`docs/reference/multi-agent-operating-model.md`).
+- **Claude Max = the engine** (Claude Code + `claude -p`) — plans, orchestrates and codes with **FULL tools** — shell, MCP, web, subagents. Claude Max brings its own native subagents (**haiku · sonnet · opus · fable**), Opus rationed to judgment / high-risk (R5).
 - **`fabrik-lib/subagents` — the OpenRouter accompaniment.** Access to *all* OpenRouter models for any task (spec / plan / code / review / doc-review), used to **accompany** Claude Code, never replace it: (a) **different eyes** — diverse-family recall a single engine misses; (b) **cost control** — Claude Max is finite, so push cheap-but-capable models where they suffice, `set_quality`-scored to the flywheel (R4 / R9 / R23). This is the single lever for "more coverage without burning the subscription."
 
-**Procurement discipline — best-in-class at the lowest viable cost.** For every capability a project needs, the order is **free / open-source → cheapest capable paid → build only if nothing fits.** Prefer existing libraries, packages, templates, toolsets, premade solutions, APIs, scrapers, automation tools — **vendor / integrate / use, don't rebuild** (R11 / R19). The `fabrik-lib` vendor→enhance→build ladder is the *internal-module* case of this rule; `00-trigger`'s 6-check research challenge (expensive-where-free-exists · complex-where-simple-exists · build-where-consume-exists · high-maintenance-where-set-and-forget-exists · incompatible · duplicate) is the *external* case.
+**Procurement discipline — best-in-class at the lowest viable cost.** For every capability a project needs, the order is **free / open-source → cheapest capable paid → build only if nothing fits.** Prefer existing libraries, packages, templates, toolsets, premade solutions, APIs, scrapers, automation tools — **vendor / integrate / use, don't rebuild** (R11 / R19). The `fabrik-lib` vendor→enhance→build ladder is the *internal-module* case of this rule; `/fabrik-vision`'s 6-check research challenge (expensive-where-free-exists · complex-where-simple-exists · build-where-consume-exists · high-maintenance-where-set-and-forget-exists · incompatible · duplicate) is the *external* case.
 
-**What I already have — check BEFORE proposing anything new.** The provisioned external services are catalogued in **`scripts/service_catalog.json`** — secret-free metadata, one entry per service with `category · cost · capability · url · status · used_by`. **90 services, all catalogued (0 triage)** span AI/LLM · search · scrape · captcha · proxy · domains · email · storage · research-data · media · infra. `scripts/gather_envs.py` renders the catalog into `secrets/all-envs.env` (the actual credentials) as `#svc`-annotated sections. **Planning MUST consult the catalog and never propose a new paid service for a capability already owned** — prefer an already-provisioned `cost=free|freemium` provider (procurement discipline made checkable); `used_by` shows which projects already wired it. `00-trigger`'s External-Services grounding + the 6-check read the catalog. ⚠️ **Secrets safety:** planning reads the **secret-free catalog**, never the credential values in `all-envs.env`; a value is never inlined into a plan, ticket, or doc.
+**What I already have — check BEFORE proposing anything new.** The provisioned external services are catalogued in **`scripts/service_catalog.json`** — secret-free metadata, one entry per service with `category · cost · capability · url · status · used_by`. **90 services, all catalogued (0 triage)** span AI/LLM · search · scrape · captcha · proxy · domains · email · storage · research-data · media · infra. `scripts/gather_envs.py` renders the catalog into `secrets/all-envs.env` (the actual credentials) as `#svc`-annotated sections. **Planning MUST consult the catalog and never propose a new paid service for a capability already owned** — prefer an already-provisioned `cost=free|freemium` provider (procurement discipline made checkable); `used_by` shows which projects already wired it. `/fabrik-vision`'s External-Services grounding + the 6-check read the catalog. ⚠️ **Secrets safety:** planning reads the **secret-free catalog**, never the credential values in `all-envs.env`; a value is never inlined into a plan, ticket, or doc.
 
 **Interaction model.** The owner works **entirely through the chat window — never hand-edits a file.** Reworking a decomposition, turning epics into tickets, correcting scope — all **conversational**. Consequence for every command: it must be **fully driveable from chat** and must **persist its own artifacts** (the owner will not open a file to save them — persist-on-confirm, D6).
 
 **The loop (idea → deploy) — two human gates (R14).**
 ```
-idea ─▶ [full/large vision] mega-epic-breakdown ─▶ N epic files (each often 20+ tickets)
+idea ─▶ [full/large vision] /fabrik-vision ─▶ /fabrik-epics ─▶ N epic files (each often 20+ tickets)
                                         │  ⟨GATE 1: owner confirms the decomposition, in chat⟩
-      rework each epic CONVERSATIONALLY ◀┘  (no hand-editing — chat only)
+      rework each epic CONVERSATIONALLY ◀┘  (no hand-editing — chat only) ─▶ /fabrik-epics-review (converge + assign owners)
                                         │
-      per epic ─▶ epic-to-ticket-workflow ─▶ tickets ─▶ execute (coder + reviewer subagents, converged)
+      per epic, one agent window ─▶ /fabrik-spec <epic> ─▶ … ─▶ /fabrik-plan-after-chat ─▶ /fabrik-execute-plan (coder + reviewer subagents, converged)
                                         │  ⟨GATE 2: operator approval → the deploy triad; hub owns execution⟩
                                      review ─▶ deploy
 ```
 
-**Which workflow — three tiers.** Feature-scale (one operator-carried plan) → the `/fabrik-spec` pipeline. Epic → `epic-to-ticket-workflow` directly. Full / large vision → `mega-epic-breakdown` (vision → epics). Existing project → mega `00` in **EXISTING mode**. Test: needs tickets + dispatched agents ⇒ epic/vision; one operator-carried plan ⇒ feature-scale.
+**Which workflow — three tiers.** Feature-scale (one operator-carried plan) → the `/fabrik-spec` pipeline. Epic → `/fabrik-spec docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (the epic-file intake). Full / large vision → `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` (vision → epics → owners), then one window per epic. Existing project → `/fabrik-vision` in **EXISTING mode**. Test: needs tickets + dispatched agents ⇒ epic/vision; one operator-carried plan ⇒ feature-scale.
 
-**One command set.** The runnable chain is the tool-capable **`-fabrik`** files under `docs/orchestrator/**`. The old `docs/traycer/{mega-epic-breakdown,epic-to-ticket-workflow}/` **`-command` twins were a tool-less mirror** premised on a now-false "Traycer can't use tools" assumption — **archived 2026-07-18** (D2 corrected). No two-set lockstep tax.
+**One command set.** The runnable chain is the assembled corpus in `commands/_sources/` — rendered by `assemble_commands.py`, run-recorded, gate-graded. The retired chain docs (the ettw chain, the mega chain docs, the Traycer layer) are tombstones under `docs/orchestrator/_retired/` (`*.RETIRED.md`) — never a second runnable copy. No two-set lockstep tax.
 
 ---
 
@@ -70,9 +71,9 @@ probability, it does not prove it. Standing direction: **drain Tier 3 into Tier 
 expressible as a deterministic grep migrates to a `check_*` gate (`review_rubric.py` emits promote
 candidates as a byproduct), so the ladder gets sounder over time.
 
-## The two-workflow factory (end-to-end) — added 2026-07-16 · front door widened to THREE tiers 2026-07-18
+## The factory (end-to-end) — three tiers by scale
 
-The two orchestrator chains (mega + ettw) run the **same end-to-end pipeline** and differ only in **who orchestrates**; since 2026-07-18 the front door is **three-tiered by scale** (step 1) — the feature-scale `/fabrik-spec` pipeline is the third entry, not a chain of its own.
+The three tiers run the **same end-to-end pipeline** on the same corpus commands and differ only in **who orchestrates** and how many windows: feature-scale is one operator session; the epic tier is one agent window on one epic file; the vision tier is `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` fanning out to one window per epic.
 
 **The pipeline (idea → deploy) — every step converged to a no-op by its paired review before the next starts (R7/CC1, extended across the whole factory):**
 
@@ -80,22 +81,25 @@ The two orchestrator chains (mega + ettw) run the **same end-to-end pipeline** a
    session carries) → `/fabrik-spec` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` →
    `/fabrik-plan-after-chat` → execute — each grounded against the applicable `.windsurf/rules` packs and
    converged by its paired `-review`. **Epic** (needs a ticket store + dispatched agents) →
-   `epic-to-ticket-workflow/00-trigger-fabrik` directly. **Multi-epic vision** →
-   `mega-epic-breakdown/00-trigger-mega-epic-fabrik` (spec-grade intake — its Required sections carry everything
-   `/fabrik-spec` produces; its Scale Assessment down-routes). The distinguishing test, once: *does it need
-   tickets and dispatched agents, or is it one plan an operator session can carry?* Routing is symmetric —
-   `/fabrik-spec` up-routes and ettw-00 mirrors (shipped 2026-07-18), so no entry point is "wrong." (Existing project → mega-00 in **EXISTING mode** — see § Which workflow.) ⚠️ A feature-scale entry **completes at its `execute`** — steps 2–5 below are the epic/vision tiers' path, not a continuation of feature-scale work.
-2. **Epic decomposition** — on the operator's agreement, `mega-epic-breakdown/` splits the vision into independent epics (`00-trigger` → `02-epic-decomposition` → `03-expand-epic-files` → `04-cross-epic-validation` → `05-dispatch-epic-tickets`).
-3. **Scaffold** — create the scaffold project (`fabrik scaffold`, one of the 11 types) if it doesn't exist; if it does, **review it and bring it to 100 % compatible** with the agreed spec/`shape:`.
-4. **Per-epic → tickets** — each epic runs the `epic-to-ticket-workflow/` (`00-trigger` → `01-decisions-lock` … `10-cross-artifact-validation` → `11-deploy`).
-5. **Per-ticket execution** — each ticket is executed by subagents (`claude -p` and the `libs/subagents` pool), coder + reviewer, converged per ticket.
+   `/fabrik-spec docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` directly (the epic-file intake). **Multi-epic vision** →
+   `/fabrik-vision` (spec-grade intake — its Required sections carry everything `/fabrik-spec` produces; its
+   Scale Assessment classifies, and a single feature-scale idea is sent back to `/fabrik-spec`). The
+   distinguishing test, once: *does it need tickets and dispatched agents, or is it one plan an operator
+   session can carry?* Routing is symmetric — `/fabrik-spec` up-routes and `/fabrik-vision` routes back, so no
+   entry point is "wrong." (Existing project → `/fabrik-vision` in **EXISTING mode** — see § Which workflow.)
+   ⚠️ A feature-scale entry **completes at its `execute`** — steps 2–5 below are the epic/vision tiers' path,
+   not a continuation of feature-scale work.
+2. **Epic decomposition** — on the operator's agreement, `/fabrik-epics` splits the vision into independent epics and writes one self-sufficient file per epic under `docs/development/epics/`; `/fabrik-epics-review` converges the set (`epic_order.py --check` → `--assign <names>` → `--check --owners`) and names every window's launch.
+3. **Scaffold** — create the scaffold project (`fabrik scaffold`, one of the registered `SCAFFOLD_TYPES`) if it doesn't exist; if it does, **review it and bring it to 100 % compatible** with the agreed spec/`shape:`.
+4. **Per-epic → plan** — each agent window (agents 2..N launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`; agent-1 runs in the main checkout) runs `/fabrik-spec <its epic>` → `/fabrik-spec-review` → `/fabrik-features` → `/fabrik-flows` (+ review) → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` (+ review) → `/fabrik-plan-after-chat` → `/fabrik-plan-review`; the plan's File Scope inherits the epic's `owned_paths`.
+5. **Per-ticket execution** — `/fabrik-execute-plan` dispatches each ticket to subagents (`claude -p` and the `libs/subagents` pool), coder + reviewer, converged per ticket; every command commits + pushes the agent's branch, and agent-1 merges in `epic_order` phase order, then runs the tail from `5-certify`.
 
-**One tool-capable engine — the front-end is interchangeable (D2 corrected 2026-07-18):**
+**One tool-capable engine — the front-end is interchangeable:**
 
-The engine is **Claude Max behind Traycer** (see § Owner Working Model) and it runs the single tool-capable **`-fabrik`** command set. What can change is only the *front-end shell*:
+The engine is **Claude Max** (see § Owner Working Model) and it runs the single assembled corpus. What can change is only the *front-end shell*:
 
-- **Traycer desktop (current)** — the planning/ticket GUI + artifact store, powered by Claude Code with **full tools**. This replaced the old "tool-less Traycer / `-command` twins" model — that assumption was false, and the `docs/traycer/**` `-command` mirror is **retired**.
-- **Zed extension (future, D-Zed)** — the Fabrik analog of Traycer, Claude/Opus over ACP using `spawn_agent` / `wait_for_peer_replies` to drive coder/reviewer threads. Built later; **same pipeline, same `-fabrik` commands, different shell** — not a second command set.
+- **Claude Code windows (current)** — one per agent: the main checkout plus `--worktree` siblings, with **full tools**; the repo is the artifact store, so no separate planning GUI exists.
+- **Zed extension (future, D-Zed)** — Claude/Opus over ACP using `spawn_agent` / `wait_for_peer_replies` to drive coder/reviewer threads. Built later; **same pipeline, same corpus commands, different shell** — not a second command set.
 
 ---
 
@@ -176,9 +180,9 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
 ## Decisions
 
 - **D-Enforce (2026-07-18):** the reliability ladder is the factory's compliance model — see § Enforcement Model + spec 2026-07-18-fabrik-factory-architecture-design.
-- **D1 / D6 — updated 2026-07-18.** Current cockpit + planning surface = the **Traycer desktop app** (tool-capable, Claude-Max-powered — Traycer is now its own desktop app, no longer a VS Code extension). Planned future **alternative** front-end = a **Zed/ACP extension** (D-Zed) driving the *same* `-fabrik` chain — Rust/GPUI, not Electron, satisfying **R15** ("no Electron fleet-of-windows"). **One workflow, interchangeable front-end** — not two "managed" workflows.
-- **D2 — CORRECTED 2026-07-18: ONE tool-capable command set; Traycer is NOT tool-less.** The earlier "two workflows — tool-less Traycer (`-command`) vs tool-capable Fabrik (`-fabrik`)" split rested on a false premise. **Traycer's desktop app is powered by Claude Max (Claude Code), so it has full tools** (shell / MCP / web / subagents) — this file is edited by exactly that engine, running inside Traycer. So there is **one runnable, tool-capable chain: the `-fabrik` files in `docs/orchestrator/**`** (the single source of truth). The `docs/traycer/{mega-epic-breakdown,epic-to-ticket-workflow}/` `-command` twins (a tool-less mirror) were **archived 2026-07-18** — no lockstep tax. The *front-end* stays interchangeable (Traycer desktop today; a Zed/ACP extension later, D-Zed), but both drive the same `-fabrik` commands. See § Owner Working Model.
-  → **Status:** ettw `00`–`11` built + converged (2026-07-16); **mega `00`/`02`/`03` brought to the enforcement bar, `04` is the convergence twin, `05` retired (2026-07-18)**. Shared review skill = `/fabrik-workflow-review` (folder-neutral; a duplicate `/fabrik-mega-review` was rejected per CC1's "one lean template"). Design history: `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
+- **D1 / D6 — updated 2026-07-18 (HISTORY — superseded by D-102, 2026-09-03: the Traycer layer is retired; the cockpit is Claude Code, one window per agent).** At the time: cockpit + planning surface = the Traycer desktop app (tool-capable, Claude-Max-powered). Planned future **alternative** front-end = a **Zed/ACP extension** (D-Zed) driving the *same* command set — Rust/GPUI, not Electron, satisfying **R15** ("no Electron fleet-of-windows"). **One workflow, interchangeable front-end** — not two "managed" workflows.
+- **D2 — CORRECTED 2026-07-18 (HISTORY — the single chain it established is now the assembled corpus, D-102; its docs are tombstones under `docs/orchestrator/_retired/`): ONE tool-capable command set; Traycer was NOT tool-less.** The earlier "two workflows — tool-less Traycer (`-command`) vs tool-capable Fabrik (`-fabrik`)" split rested on a false premise: Traycer's desktop app was powered by Claude Max (Claude Code), so it had full tools (shell / MCP / web / subagents). So there was **one runnable, tool-capable chain — the `-fabrik` files then under `docs/orchestrator/**`**. The `docs/traycer/` `-command` twins (a tool-less mirror) were **archived 2026-07-18** — no lockstep tax. The *front-end* stays interchangeable (D-Zed later), driving the same commands. See § Owner Working Model.
+  → **Status (2026-07-18, history):** ettw `00`–`11` built + converged (2026-07-16); **mega `00`/`02`/`03` brought to the enforcement bar, `04` is the convergence twin, `05` retired (2026-07-18)**. Shared review skill = `/fabrik-workflow-review` (folder-neutral; a duplicate `/fabrik-mega-review` was rejected per CC1's "one lean template"). Design history: `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 - **D3** — Driver = vendor `fabrik-lib/job-queue` + two `process_fn` handlers (producer = `claude -p`
   worktree worker; converger = in-code `fanout` review loop) + a transitions table + Telegram digest +
   a thin `fabrik factory` CLI.
@@ -186,28 +190,28 @@ nothing tracked whether they stayed true. Recorded now, with their real state.
   (scope = the WHOLE driver, not a harness fragment; **Opus 4.8 default orchestrator / Fable 5 opt-in** —
   Fable is $10/$50, 2× Opus, metered since 07-07, so subscription-Opus is the default per R13; **episodic
   memory wired to the orchestrator** — Opus + each `claude -p` producer inherit the user-scoped plugin and
-  search history before re-deriving). Build pending — after the epic-to-ticket-workflow command review.
+  search history before re-deriving). Build pending — Cargo order #4; the chain it drives is the assembled corpus (D-102), not the retired docs.
 - **D4** — The converger is executed **by the driver, in code** — not by asking an agent to loop (R8).
   → the spec above splits this correctly: `fanout` (single dispatch) is VENDOR; the **converge-to-no-op loop
   around it is BUILD** — the R8/D4 core the driver exists to provide.
 - **D5** — Capacity from `job-queue/autoscale.py` (real cgroup numbers); fleet later via `postgres-main`.
-- **D-Zed — RECONSIDERED 2026-07-16 (reversed).** Zed was dropped for "no in-window multi-thread view"; that reason is now **stale**. Grounded live 2026-07-16 (`zed.dev/acp`, `zed.dev/docs/ai/external-agents`, `github.com/zed-industries/zed` discussions #48304 + #55122): Zed shipped a **Threads Sidebar** (v0.233.5) with **parallel agent threads** + cross-thread **ACP coordinator primitives** (`create_thread`, `spawn_agent` — awaits its child, `post_to_thread`, `wait_for_peer_replies` — *"required for external-ACP coordinators"*), and **Claude Agent (Claude Code) runs on ACP in Zed** today. ⚠️ **Shipped vs. proposed:** the Threads Sidebar (v0.233.5), parallel agent threads, `create_thread`, and `spawn_agent` (which awaits its child) have **shipped**; the cross-thread coordinator tools an external-ACP orchestrator also needs (`post_to_thread`, `wait_for_peer_replies` — the latter *"required for external-ACP coordinators"*) are **proposed / in flight** (discussion #55122), so the extension may need to layer them. Decision: the **Fabrik-managed orchestration front-end = a Zed extension speaking ACP** (the analog of Traycer-in-VS-Code), driving the coder/reviewer subagent threads. **Built after both folders' commands are finalized**; its engine — reuse the D3 `job-queue` backend vs. ACP-native `spawn_agent` orchestration — is settled at extension-build time.
+- **D-Zed — RECONSIDERED 2026-07-16 (reversed).** Zed was dropped for "no in-window multi-thread view"; that reason is now **stale**. Grounded live 2026-07-16 (`zed.dev/acp`, `zed.dev/docs/ai/external-agents`, `github.com/zed-industries/zed` discussions #48304 + #55122): Zed shipped a **Threads Sidebar** (v0.233.5) with **parallel agent threads** + cross-thread **ACP coordinator primitives** (`create_thread`, `spawn_agent` — awaits its child, `post_to_thread`, `wait_for_peer_replies` — *"required for external-ACP coordinators"*), and **Claude Agent (Claude Code) runs on ACP in Zed** today. ⚠️ **Shipped vs. proposed:** the Threads Sidebar (v0.233.5), parallel agent threads, `create_thread`, and `spawn_agent` (which awaits its child) have **shipped**; the cross-thread coordinator tools an external-ACP orchestrator also needs (`post_to_thread`, `wait_for_peer_replies` — the latter *"required for external-ACP coordinators"*) are **proposed / in flight** (discussion #55122), so the extension may need to layer them. Decision: the **Fabrik-managed orchestration front-end = a Zed extension speaking ACP** (the analog of the retired Traycer front-end), driving the coder/reviewer subagent threads. **Built after the corpus chain is finalized**; its engine — reuse the D3 `job-queue` backend vs. ACP-native `spawn_agent` orchestration — is settled at extension-build time.
 - **Vibe Kanban** — ✅ **RETIRED 2026-07-14** (operator: "retire it and stop its service in wsl").
   `systemctl stop` + `disable` on `vibe-kanban.service`; port 57300 free, 0 processes. Unit file and
   `~/.vibe-kanban/` binary remain on disk but inert. *(For the record: it is an off-the-shelf board that
   runs coding agents in git worktrees — genuinely adjacent to D3's driver — but it knows nothing about
   `/fabrik-*`, the Tier-2 gate, or the rule packs, so it would run agents OUTSIDE the quality system.)*
 - **Gate 2** — Telegram digest → review branches in VS Code Source Control diff → merge → the operator's go, then the deploy triad executes (`/fabrik-deploy` calls `fabrik apply`; the operator's dispatch IS the manual act).
-- **Epic ticket store (2026-07-14)** — our orchestrator has **no native ticket store** (Traycer does), so
-  `03-expand-epic-files-fabrik` **writes one file per epic** to
+- **Epic ticket store (2026-07-14)** — the repo IS the ticket store (there is no external one), so
+  `/fabrik-epics` **writes one file per epic** to
   `docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` (allowlisted in `CLAUDE.md`; matched by
   `check_doc_sprawl.py`). A breakdown that lives only in a context window dies with it.
 
 ---
 
-## Command-chain build plan — the epic-to-ticket `-fabrik` twins (2026-07-15)
+## Command-chain build plan (HISTORY — 2026-07-15; the ettw chain these decisions built is retired under D-102 and tombstoned in `docs/orchestrator/_retired/`; CC1 and CC2 live on as corpus discipline, CC3–CC7 are kept for the record)
 
-The `epic-to-ticket-workflow/` twins are built on the decisions below (operator session 2026-07-15). They serve **R7** (converge-to-no-op), **R8** (control flow forced, not hoped-for), **R23** (subagent parallelism), and an explicit **anti-bloat / anti-content-poisoning** discipline.
+The ettw twins (now tombstones) were built on the decisions below (operator session 2026-07-15). They served **R7** (converge-to-no-op), **R8** (control flow forced, not hoped-for), **R23** (subagent parallelism), and an explicit **anti-bloat / anti-content-poisoning** discipline — the same bar the corpus commands are held to.
 
 - **CC1 — Doer → review pairing.** Every doer command gets a **separate** review command that forces convergence to a no-op (the `/fabrik-spec` → `/fabrik-spec-review` pattern). A fresh-context review invocation converges better than a loop embedded in the doer's own blind-spot-sharing context. Review commands share **one lean template** (convergence contract + finder fan-out + checklist + gate), specialized per artifact — thin files, not ten more heavy ones.
 - **CC2 — Citation discipline: "self-sufficient at point of use."** Every reference is classified **PROVENANCE** (decision already inline → tag `[canonical: file §X]`, never opened) / **HOLLOW** (unactionable without opening → inline the minimal decision, then tag) / **DEPTH-POINTER** (optional detail → mark `(deeper, optional: …)`). Enforced by a **`Reads:` budget header** (a closed, **section-scoped** read-set) at the top of every twin + checklist **item 132**. Kills bloat AND content-poisoning **structurally** — the runtime agent acts from inline decisions and never ingests a referenced doc's other (stale / contradictory / adversarial) content.
@@ -217,7 +221,7 @@ The `epic-to-ticket-workflow/` twins are built on the decisions below (operator 
 - **CC6 — Per-command build pipeline (serial; one command fully before the next):** reconcile the Traycer source to a no-op (`/fabrik-docs-review`) + hollow-citation sweep → fix per the design critique + citation discipline + add the `Reads:` header → checklist-eval to **0 FAIL** (against `EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` — by path; never a hard-coded count) → build the tool-capable twin (embedded convergence terminal phase, fan-out on ground/validate, live-research on vendor-touch, disk-reads for epic files) → north-star check (R2/R3/R7/R8/R23) → gate + commit (explicit paths).
 - **CC7 — Template first:** `01-decisions-lock-fabrik` + its `01R-decisions-review-fabrik` twin are built first as the reference pair; the operator reviews the pattern before it is replicated across `02`–`11`.
 
-Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-07-16, each to an md5-stable no-op via its paired review — commits through `1fd7d432`; `11-deploy` is the human gate, converged by a grounding+consistency pass). The shared review skill was **extended folder-neutral + renamed → `/fabrik-workflow-review`** (it now serves BOTH folders via a type-conditional yardstick; a duplicate `/fabrik-mega-review` was rejected per CC1). Remaining: the **`mega` parity** — `04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity. Tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
+Status (2026-07-16, history): **the ettw chain was COMPLETE — `00`–`11` built + converged** (2026-07-16, each to an md5-stable no-op via its paired review — commits through `1fd7d432`; `11-deploy` is the human gate, converged by a grounding+consistency pass). The shared review skill was **extended folder-neutral + renamed → `/fabrik-workflow-review`** (it now serves BOTH folders via a type-conditional yardstick; a duplicate `/fabrik-mega-review` was rejected per CC1). Remaining: the **`mega` parity** — `04` rebuilt to the review discipline; `00`/`02`/`03`/`05` brought to parity. Tracked in `docs/superpowers/{specs,plans}/2026-07-16-traycer-fabrik-twins-*`.
 
 ---
 
@@ -260,7 +264,7 @@ Status: **the ettw chain is COMPLETE — `00`–`11` built + converged** (2026-0
   converge to a no-op; a driver would *run* that loop. The CONVERGED driver spec designs exactly this (the
   converge-to-no-op loop around vendored `fanout` = the BUILD core). **Prose is not enforcement** — and that is the lesson the rest of
   this repo keeps re-learning.
-- **Fabrik-managed twins + Zed extension** — the ettw chain (`00`–`11`), the folder-neutral `/fabrik-workflow-review` skill, **and now the `mega` parity are DONE** (2026-07-18: `00`/`02`/`03` brought to the enforcement bar, `04` is the convergence twin, `05` retired, and — **D2 corrected** — the tool-less `-command` twins were **archived** since Traycer-desktop is Claude-Max-powered and tool-capable; there is now **ONE tool-capable `-fabrik` command set**). What remains here is only building the **Zed-ACP orchestration extension** (D-Zed) as the alternative front-end — Traycer-desktop is the current cockpit.
-- **Enforcement architecture (the reliability ladder) — ✅ EXECUTED 2026-07-19** (merge `5a5184a2`; all 4 phases review-looped to no-ops; fleet-synced to 46 projects). The keystone that makes autonomy *trustworthy*: mechanical gates (Tier 1) · self-sufficient compiled commands (Tier 2) · armed adversarial review — `scripts/review_rubric.py` injects the matched rule rubric + the mandatory-core floor into every finder (Tier 3, live in `/fabrik-review` + mega-`04` + ettw-`08`/`10`), with the honest bound that Tier 3 raises compliance *probability*, not certainty (**L1**) — which is *why the two human gates stay*. Spec (`docs/superpowers/specs/archived/2026-07-18-fabrik-factory-architecture-design.md`) + plan (**archived**: `docs/development/plans/archived/2026-07-18-plan-2-fabrik-factory-enforcement-architecture.md`). Standing direction: *drain Tier 3 into Tier 1* — every grep-able mandate migrates to a `check_*` gate over time, so the ladder gets sounder. Directly serves **R7/R8** (converge-to-no-op; prose→enforcement).
+- **Chain consolidation — ✅ EXECUTED 2026-09 (D-102):** the mega chain is assembled as `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` in `commands/_sources/` (run-record, close-feedback, NEXT and question-bar fragments by construction); the ettw chain and the Traycer layer are retired — tombstones under `docs/orchestrator/_retired/` — and every epic runs the corpus chain in its own agent window. What remains here is only building the **Zed-ACP orchestration extension** (D-Zed) as an alternative front-end — Claude Code windows are the current cockpit.
+- **Enforcement architecture (the reliability ladder) — ✅ EXECUTED 2026-07-19** (merge `5a5184a2`; all 4 phases review-looped to no-ops; fleet-synced to 46 projects). The keystone that makes autonomy *trustworthy*: mechanical gates (Tier 1) · self-sufficient compiled commands (Tier 2) · armed adversarial review — `scripts/review_rubric.py` injects the matched rule rubric + the mandatory-core floor into every finder (Tier 3, live in `/fabrik-review` + `/fabrik-epics-review`), with the honest bound that Tier 3 raises compliance *probability*, not certainty (**L1**) — which is *why the two human gates stay*. Spec (`docs/superpowers/specs/archived/2026-07-18-fabrik-factory-architecture-design.md`) + plan (**archived**: `docs/development/plans/archived/2026-07-18-plan-2-fabrik-factory-enforcement-architecture.md`). Standing direction: *drain Tier 3 into Tier 1* — every grep-able mandate migrates to a `check_*` gate over time, so the ladder gets sounder. Directly serves **R7/R8** (converge-to-no-op; prose→enforcement).
 - Phase-4 capacity measurement (real per-worker numbers).
 - Vibe Kanban parked service — leave or remove.

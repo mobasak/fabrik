@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md
 """epic_order.py — deterministic epic integrity + phased-ordering over the epic
-artifacts written by mega-epic-breakdown/03-expand-epic-files-fabrik.
+artifacts written by /fabrik-epics (the retired mega chain's 03 step, tombstoned under docs/orchestrator/_retired/).
 
-This is the CODE that replaces 05-dispatch's two prose jobs (north-star R8/D4:
+This is the CODE that replaces the retired mega 05-dispatch step's two prose jobs (north-star R8/D4:
 control flow in code, not prose):
   1. Ticket-set integrity  (was 05 Step 1)  -> --check
   2. Phased execution order (was 05 Step 2)  -> default / --json

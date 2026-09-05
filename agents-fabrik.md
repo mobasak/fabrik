@@ -3,7 +3,7 @@
 > One canonical agents doc (spec 2026-07-18 § AGENTS.md resolution, option b). `AGENTS.md` is a stub
 > pointing here; the high-frequency core is `agents-fabrik-core.md`, `@import`-ed into `CLAUDE.md`.
 
-**Read by:** Traycer (ticket planning — Claude-Max-powered, tool-capable) **and any agent planning or
+**Read by:** the planning chain (`/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review`, then `/fabrik-spec <epic>` per agent window) **and any agent planning or
 making non-trivial changes directly** (Claude Code — Max OAuth — plus the OpenRouter subagent pool; Windsurf Cascade + Kilo CLI RETIRED 2026-07-19). This is the canonical infra +
 codebase map — ground every plan in it, don't guess.
 **Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
@@ -15,8 +15,8 @@ codebase map — ground every plan in it, don't guess.
 | --- | --------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **CLI**               | `fabrik` (50+ subcommands)                                                                   | scaffold, apply (single deploy entry — `deploy` removed/folded in), redeploy, destroy, verify, audit, dev, review, logs, domain, seo, ai                                                                                |
 | 2   | **Scaffolding**       | `scaffold.py`                                                                                | Creates projects with governance + infra wiring (12 types)                                                                                                                                                             |
-| 3   | **Planning**          | mega-epic-breakdown (4 active commands: 00-trigger, 02, 03, 04 — 05 retired; dispatch is code + GUI)                                          | Large vision → epics → tickets → dispatch. `00-trigger` is a single entry point serving both new and existing projects via owner-declared mode (Step 0).                                                                |
-| 4   | **Planning**          | epic-to-ticket-workflow (00-11)                                                                          | Single-epic planning + execution. Also the execution engine per epic after mega-epic dispatch.                                                                                                                          |
+| 3   | **Planning**          | `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` (the multi-epic chain — three sources in `commands/_sources/`) | Vision → epics → a converged, owner-assigned epic set (`epic_order.py --check` → `--assign <names>` → `--check --owners` inside the review). `/fabrik-vision` is the single entry for NEW and EXISTING projects (mode declared at Phase 0); the review names every window's `/fabrik-spec` launch. |
+| 4   | **Planning**          | `/fabrik-spec docs/development/epics/<epic>.md` → … → `/fabrik-execute-plan` (the per-epic corpus chain) | One epic per agent window (agents 2..N launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`; agent-1 runs in the main checkout): the epic-file intake seeds `/fabrik-spec`; `owned_paths` flows epic → spine File Scope → plan-lock; every command commits + pushes the agent's branch; agent-1 merges in `epic_order` phase order. |
 | 5   | **Governance**        | `AGENTS.md` / `CLAUDE.md` / `.windsurfrules` / `AGENTS-compact.md` / `opencode.json`        | Agent bootstraps (5 files)                                                                                                                                                                                             |
 | 6   | **Rules**             | `.windsurf/rules/**/*.md`                                                                    | all packs (per-dir counts drift — count them live)                                                                                                              |
 | 7   | **Enforcement**       | `final_gate.py` + the checks in `enforcement/` (count live)                                               | Task completion + structural validation                                                                                                                                                                                |
@@ -43,30 +43,35 @@ codebase map — ground every plan in it, don't guess.
 ## Workflow (mandatory) — three tiers by scale
 
 **Front door — the distinguishing test, once:** *does it need tickets and dispatched agents, or is it one
-plan an operator session can carry?* Routing is symmetric (`/fabrik-spec` up-routes; ettw-00 mirrors) — no
-entry point is "wrong."
+plan an operator session can carry?* Routing is symmetric (`/fabrik-spec` up-routes to `/fabrik-vision`;
+`/fabrik-vision` sends a single feature-scale idea back to `/fabrik-spec`) — no entry point is "wrong."
 
 **Feature-scale** (one operator-carried plan): `/fabrik-spec` → /fabrik-spec-review → *(early)*
 `/fabrik-features` (planned inventory) → `/fabrik-flows` → /fabrik-flows-review → `/fabrik-data-contract` → *(GUI)*
 `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-execute-plan` — completes at execute.
 
-**Single-epic:** `docs/orchestrator/epic-to-ticket-workflow/` (the `-fabrik` files — the ONE runnable chain;
-the tool-less twins were archived 2026-07-18, north-star D2) — `00-trigger` → `01-epic-brief` →
-`02-core-flows` → `03-tech-plan` → `04-deploy-plan` → `05-ticket-outline` → implementation (`06-07-08`) →
-validation (`09-11`).
+**Single epic:** `/fabrik-spec docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md` — the epic-file intake seeds the Intake
+Inventory from the epic's Scope, Success Criteria and Metadata and inherits the Vision's fabrik-lib verdict +
+rejected alternatives (the ladder re-runs only for capabilities the Vision never adjudicated), then the feature-scale chain above runs to
+`/fabrik-execute-plan`. The plan's `File Scope` inherits the epic's `owned_paths`; `check_plan_tickets`
+enforces ticket Touches ⊆ spine File Scope ⊆ epic `owned_paths`.
 
-**Multi-epic (large vision):** `docs/orchestrator/mega-epic-breakdown/` (the `-fabrik` files) —
-`00-trigger` (spec-grade vision intake + scale assessment) → `02-epic-decomposition` →
-`03-expand-epic-files` → `04-cross-epic-validation`; dispatch is code + GUI (`05` retired). Each dispatched
-epic then runs `epic-to-ticket-workflow` in consume mode (00-trigger reads the epic ticket's Metadata as
-its INFRA-CHECK input).
+**Multi-epic (large vision):** *(market-facing: `/fabrik-rivals <market>` once, first)* `/fabrik-vision`
+(spec-grade intake + Scale Assessment) → `/fabrik-epics` (decompose + write one self-sufficient epic file per
+epic under `docs/development/epics/`) → `/fabrik-epics-review` (converge the set — `epic_order.py --check` →
+`--assign <names>` → `--check --owners` — and name every window's launch). Then one window per agent:
+agent-1 (the merge owner) stays in the main checkout; agents 2..N launch
+`CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` and each runs `/fabrik-spec <its epic>`.
+Agent-1 merges finished branches in `epic_order` phase order and runs the tail from `5-certify`.
+Operating model: `docs/reference/multi-agent-operating-model.md`.
 
-**Existing project continuation:** enter at `/fabrik-vision` (EXISTING mode — the mega-chain doc it replaced is tombstoned at `docs/orchestrator/_retired/mega-epic-breakdown/00-trigger-mega-epic-fabrik.RETIRED.md`)
-and declare **EXISTING mode** at Step 0 (project snapshot + Compliance Detection + delta scoping; output =
-Vision Summary + `Locked Decisions` + `Compliance Report`; `02` emits **Retrofit epics** for `fix-now` rows).
+**Existing project continuation:** enter at `/fabrik-vision` and declare **EXISTING mode** at Phase 0
+(project snapshot + Compliance Detection + delta scoping; output = Vision Summary + `Locked Decisions` +
+`Compliance Report`; `/fabrik-epics` emits **Retrofit epics** for `fix-now` rows).
 
-**Scale decision:** mega-`00`'s Scale Assessment routes single-epic → `epic-to-ticket-workflow/00-trigger-fabrik`
-directly; multi-epic → `02-epic-decomposition`.
+**Scale decision:** `/fabrik-vision`'s Scale Assessment classifies (single epic / ~N epics — informational;
+`/fabrik-epics` decides the actual cut); a single feature-scale idea belongs in `/fabrik-spec`, whose scale
+up-route mirrors it.
 
 **Pre-research drop point:** `docs/development/plans/00-research.md` (the owner drops external research from ChatGPT/Claude/Gemini here before planning).
 
@@ -78,13 +83,13 @@ Full lifecycle from vision to running service — what is automated vs what requ
 
 **Phase 1 — Planning (our agents, mostly automated):**
 1. Owner drops research file in `docs/development/plans/` or `docs/preplans/`.
-2. Our agents run `mega-epic-breakdown` or `epic-to-ticket-workflow` to produce epic tickets.
-3. Owner confirms decomposition and dispatches epic tickets. **Human gate: epic confirmation.**
+2. `/fabrik-vision` → `/fabrik-epics` write the epic files (`docs/development/epics/`); `/fabrik-epics-review` converges the set and assigns an owner per epic.
+3. Owner confirms the decomposition in chat and each named agent opens its window. **Human gate: epic confirmation (Gate 1).**
 
 **Phase 2 — Implementation (coding agents: Claude Code + the OpenRouter subagent pool):**
-4. Each epic ticket runs `epic-to-ticket-workflow` (00-trigger consume mode → 01-epic-brief → ... → 09-11).
-5. Coding agent implements, passes `scripts/final_gate.py`, stages changes.
-6. Owner reviews gate output and commits + pushes. **Human gate: commit/push decision.**
+4. Each agent runs the corpus chain on its epic, in its own worktree: `/fabrik-spec <epic file>` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`.
+5. Coding agent implements, passes `scripts/final_gate.py`, commits + pushes its own branch at task end (§ EXIT).
+6. The merge owner (agent-1) rebases and merges finished branches into `master` in `epic_order` phase order; the operator's go on the deploy is Gate 2.
 
 **Phase 3 — Deploy (WSL → VPS, semi-automated):**
 7. `fabrik apply <spec>` — runs in WSL, SSHes to VPS, writes compose.yaml + .env, runs `docker compose up -d --wait`, then provisions infra registrars. First deploy time is dominated by the image build (git source: `git clone` + `docker compose build`); redeploys reuse cached layers.
@@ -105,9 +110,10 @@ Our planning agents ground against this file. Agent-execution contracts, rule pa
 | File / Path | Owner | Planner May Edit? |
 |---|---|---|
 | `agents-fabrik.md` | the planning agent (this file — planner context) | ✅ Yes |
-| `docs/orchestrator/epic-to-ticket-workflow/**` + `docs/orchestrator/mega-epic-breakdown/**` | the runnable `-fabrik` chain (workflow definitions) | ✅ Yes |
-| `docs/traycer/{epic-to-ticket-workflow,mega-epic-breakdown}/**` | ARCHIVED tool-less twins (north-star D2) — reference only, NOT kept in lockstep | ❌ No |
-| `docs/traycer/fabrik-workflow.md` | Reference copy (do not diverge from workflow definitions) | ✅ Yes |
+| `commands/_sources/fabrik-vision.md` · `fabrik-epics.md` · `fabrik-epics-review.md` | the multi-epic planning chain (rendered by `assemble_commands.py`; edit the SOURCE, never a rendered copy) | ✅ Yes |
+| `docs/orchestrator/mega-epic-breakdown/{EPIC-ARTIFACT-SCHEMA.md,EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md}` | the epic-file schema + the checklist the chain is graded against | ✅ Yes |
+| `docs/orchestrator/_retired/**` | tombstones of the retired chains (`*.RETIRED.md`) — reference only, never edited | ❌ No |
+| `docs/traycer/fabrik-workflow.md` | HISTORY — the retired Traycer layer's workflow prompt (D-102); reference only | ❌ No |
 | `CLAUDE.md` | Claude Code bootstrap | ❌ No |
 | `.windsurfrules` | Windsurf Cascade bootstrap | ❌ No |
 | `AGENTS-compact.md` | Kilo CLI bootstrap (via `opencode.json`) | ❌ No |
@@ -390,7 +396,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 - `fabrik preplan new <slug>` — create `docs/preplans/<YYYY-MM-DD>-<slug>.md` from `templates/preplan/preplan.md.j2`. 9 sections: Idea / Project type / Shape preview / External deps / Domain / Success criteria / Out of scope / Open questions / Notes (VPS1 inventory reminders).
 - Refine the markdown with Opus / ChatGPT / Claude.
 - `fabrik scaffold <name> --from-preplan docs/preplans/<file>` — ingests the preplan: pre-fills `--type`, copies the preplan into `<project>/docs/preplan.md`, and **layers a `Preplan:` reference line into all 4 AI guardrail files** (`AGENTS.md`, `CLAUDE.md`, `AGENTS-compact.md`, `.windsurfrules`) so every downstream agent reads the same intent.
-- Traycer's Step 2.5 in `docs/traycer/fabrik-workflow.md` is the planning-side companion: when a fresh project is detected, look for a preplan in `docs/preplans/` BEFORE asking the user to declare anything from scratch.
+- (HISTORY — Traycer is retired, D-102; the pre-plan read now lives in `/fabrik-vision`'s research discovery over `docs/preplans/`.) Traycer's Step 2.5 in `docs/traycer/fabrik-workflow.md` was the planning-side companion: when a fresh project is detected, look for a preplan in `docs/preplans/` BEFORE asking the user to declare anything from scratch.
 
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
 
@@ -487,5 +493,5 @@ Our agents plan against these rules but do NOT inline them into tickets — the 
 | Markdown AI Rules | `docs/reference/MD/markdown-cheatsheet.md` | AI-friendly markdown writing conventions |
 | GPU Workers Guide | `.windsurf/rules/core/76-gpu-workers.md` | GPU cloud decisions — when to self-host vs managed API, provider selection |
 | Lessons Learnt | `docs/LESSONS_LEARNT.md` | Past incidents, decisions, anti-patterns |
-| epic-to-ticket-workflow | `docs/orchestrator/epic-to-ticket-workflow/` (`-fabrik` files; `docs/traycer/` twins are ARCHIVED reference) | Single-epic planning + execution (00-11); also the per-epic execution engine in mega-epic runs |
-| mega-epic-breakdown | `docs/orchestrator/mega-epic-breakdown/` (`-fabrik` files; `docs/traycer/` twins are ARCHIVED reference) | Large vision → epics → tickets → dispatch (4 active commands — 05 retired); `00-trigger` is the single entry serving both new and existing projects (owner declares mode at Step 0) |
+| Multi-epic chain | `commands/_sources/fabrik-vision.md` · `fabrik-epics.md` · `fabrik-epics-review.md` (+ `docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md`) | Vision → epics → a converged, owner-assigned epic set; `/fabrik-vision` is the single entry for NEW and EXISTING projects (mode declared at Phase 0) |
+| Per-epic chain | `/fabrik-spec docs/development/epics/<epic>.md` → … → `/fabrik-execute-plan` (`commands/_sources/`) | One epic per agent window; launch recipe, ownership surfaces and merge protocol in `docs/reference/multi-agent-operating-model.md` |

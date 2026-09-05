@@ -44,42 +44,23 @@ and each has its own section below.
 BLOCKING, because each is true/false with no tolerance band — and each was found violated
 in a corpus that looked healthy.
 
-## The orchestrator corpus (added 2026-08-16)
+## What it reads — the denominator
 
-The Traycer workflow commands (`fab-mega-*`, `fab-ettw-*`) keep their canonical bodies under
-`docs/orchestrator/**` — outside `commands/_sources/` — which is exactly how the whole set
-escaped this audit: none of their docs was among the audited files, zero of the four mega
-wrappers opened a run record, and a dead `scripts/` reference sat in three mega docs, all while
-the check reported "all sound".
+The audit walks `commands/_sources/*.md`, `commands/_fragments/*.md`, `commands/assemble_commands.py`
+and `commands/_agents/*.md` — nothing outside `commands/`. Its closing line counts the files the
+predicates actually OPENED; a file it could not read is listed by name, never silently skipped:
 
-The audit now also walks `docs/orchestrator/_traycer-skills/*/SKILL.md` (hub-only; silently N/A
-in projects) and, per wrapper:
+```console
+$ python3 scripts/enforcement/check_command_corpus.py
+✓ command corpus: web-tool names, chain targets, script paths, trailer models, run records, agent definitions, advertised closes, caller claims — all sound across 63 file(s) read
+```
 
-- resolves the canonical doc the wrapper names and runs predicates 1–4 over it;
-- requires a wrapper that **names no doc**, or names a **missing** one, to fail — a wrapper
-  aiming agents at nothing is the founding failure shape;
-- requires `command_run.py start` in **every** wrapper — no banner condition. The first
-  version required it only of GENERATED wrappers, which meant deleting the banner line
-  exempted a wrapper from the one thing the predicate proves (reproduced 2026-08-18). The
-  whole set (4 mega + 13 ettw) is generated from `ORCH_SOURCES` now, so the honest rule has
-  no carve-out; a new hand-written wrapper fails until added to the table, which is the fix.
-- refuses a wrapper whose doc pointer escapes `docs/orchestrator/` (path traversal via `..`),
-  and — in the hub (assembler present) — flags a missing `_traycer-skills/` tree instead of
-  going silently N/A.
-
-Scripts referenced by the **orchestrator docs** resolve against the hub root **or**
-`templates/**` (files only — a directory named like a script is not a delivery): those docs
-tell agents working *in a project* to run scripts the scaffold delivers (e.g.
-`scripts/validate_i18n.py` from `templates/i18n-kit/`), and hub-rooting alone called five live
-references dead. The fallback is **scoped to orchestrator docs** — a hub COMMAND source's
-`scripts/` reference stays hub-rooted, or a genuinely deleted hub script whose name survives
-in a scaffold template would read as alive.
-
-The section runs only **behind the hub gate** (a non-empty command corpus): the first version
-audited orchestrator docs before that branch, so a project-shaped tree carrying
-`_traycer-skills/` reached the `libs.subagents` import and crashed a BLOCKING gate with a
-ModuleNotFoundError, plus 28 bogus chain-ref failures against an empty command set —
-reproduced 2026-08-18, fixed the same day.
+63 today = 36 sources + 22 fragments + the assembler + 4 agent definitions (re-derive with `ls | wc -l`
+when you need the number; it is a measurement, not a floor). The multi-epic chain — `fabrik-vision.md`,
+`fabrik-epics.md`, `fabrik-epics-review.md` — is three ordinary sources audited by the same eight
+predicates with no special case, and a `scripts/` path any source names resolves against the hub root
+only. The predicates run only **behind the hub gate** (a non-empty command corpus): in a project
+`audit()` returns before them.
 
 **The hub/project split for the web-tool module (2026-09-03, review rows DU1 → DY1 → EA1):**
 `_live_web_tool_names` never lets an import failure escape as a traceback; what the failure
@@ -179,7 +160,7 @@ only on an ODD trailing run of backslashes.
 
 ## Predicate 6 — agent definitions (added 2026-08-27)
 
-The four subagent definitions lived ONLY in `~/.claude/agents/`: hand-authored, box-local, absent from git, owned by no generator, and outside this audit. So the check vouched for 31 commands and 31 skills while the agents those commands **dispatch** were unreviewable — the same shape as the orchestrator-corpus blind spot above, one layer down.
+The four subagent definitions lived ONLY in `~/.claude/agents/`: hand-authored, box-local, absent from git, owned by no generator, and outside this audit. So the check vouched for 31 commands and 31 skills while the agents those commands **dispatch** were unreviewable — a generated artifact living outside its generator's audit.
 
 They are now generated from `commands/_agents/*.md` by `assemble_commands.py` (with `--check` drift detection and banner-scoped orphan pruning), and predicate 6 requires of each: frontmatter present, a `name:` that MATCHES the filename (a mismatch registers an agent nobody can dispatch by either), and a `description:` (the dispatcher selects on it, so an agent without one is invisible to model-native routing).
 
@@ -193,18 +174,18 @@ the flag instructs a command the tool then refuses, leaving the record `running`
 holding the turn open. That is the worst shape a fail-closed change can take: the machinery tells you
 the way out, and the way out does not work.
 
-Measured the day the refusal landed: **36 such sites** — `commands/_fragments/run-record.md`, the 17
-orchestrator wrappers GENERATED from it, and the Stop hook's own remedy. The hand fix reached 2 of
-them; only a mechanical sweep found the rest, which is precisely why this is a predicate and not a
-review note.
+Measured the day the refusal landed (2026-08-28): **36 such sites** — `commands/_fragments/run-record.md`,
+the 17 Traycer wrappers then generated from it (a layer retired since, D-102), and the Stop hook's own
+remedy. The hand fix reached 2 of them; only a mechanical sweep found the rest, which is precisely why
+this is a predicate and not a review note.
 
 The window is the close's OWN text: it starts at the close command and is cut at the span's
 closing backtick on the same line (prose or a neighbouring table cell after it never counts); an
 inline-code span left open on the close line runs to the line that closes it (cut there), a `\`
 continuation runs while lines end in `\` (up to twelve lines), and it stops at the next close
-command. Predicate 7 audits the 17 generated orchestrator wrappers too — they carry 34 of the
-corpus's 47 close sites and were read into the coverage denominator but audited by no predicate
-until pass 63. The first version used a flat
+command. Every file in the corpus set (59: sources + fragments + assembler) is graded by predicate 7; the 4 agent definitions are graded by predicate 6 — a rule learnt the hard way: the 17
+generated wrappers (retired since) carried 34 of the corpus's then 47 close sites and had been read into
+the coverage denominator but graded by no predicate until pass 63. The first version used a flat
 4-line window, which admitted the PROSE that documents the flag ("`--feedback` is REQUIRED")
 and a neighbouring close's flag — 21 of 47 live close sites, the run-record fragment first,
 passed with their own flag deleted (pass 62). A single-line window would flag every
