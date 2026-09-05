@@ -82,29 +82,17 @@ post-commit sync. A defect here is a defect everywhere, which is why (f) is a fi
 
 | Pass 1 | method: citation | found: 13 | new: 13 | fixed: 0 | finders: pool P1–P5 (deepseek-v4-flash ×2, gemini-3-flash, qwen3-max, deepseek-v3.2-exp — dispatched 5, returned 5, $0.026, all scored) + native N1 (quota_stop, 20 probes + 5 bash cross-checks) + N2 (plan_tickets + convergence, 53 tool uses) + orchestrator (C8, C9 corpus walk, C11, C12, C15 AFTER-EDIT walk) — 46 candidates raised (33 pool + 6 N1 + 4 N2 + 3 orchestrator), 13 adjudicated real, 33 REFUTED by execution or surrounding text |
 | Pass 2 | method: citation | found: 0 | new: 0 | fixed: 13 | finders: orchestrator scoped re-check of every fix + its callers (398 tests across the four suites; each script fix proven red on revert against HEAD with the backup asserted before and after) — the SCOPED middle pass, never the exit |
-
 | Pass 3 | method: re-derivation | found: 6 | new: 6 | fixed: 6 | finders: pool R1–R5 (fresh briefs, re-derivation method — dispatched 5, returned 5, $0.034, all scored) + native R-N2 (enforcement, 39 tool uses, fixtures executed) + native R-N1b (hooks, 20 tool uses; R-N1 stopped after 11 min with no return and re-dispatched — dispatched 8 total, returned 7, 1 stopped) + orchestrator re-derivation (surface hash, twins `cmp`, D-062 3, bookworm 0, breadth 20 of 33 counted from blocks, 33 tickets on disk, router corpus 45 pairs / 0 real mismatches, 433 tests) — 6 NEW real (2 regressions in pass-2 fixes: same-line `measured by:`, resolved-root NOTE; 3 minor pack/doc; 1 false safety claim in a docstring I wrote), ~20 re-raises cited to their pass-1 rows, the rest refuted by execution |
-
 | Pass 4 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: pool (5 fresh briefs over the pass-3 diff — dispatched 5, returned 5, $0.039, all scored; every candidate a re-raise or refuted: 0 new) + native P4-A (enforcement regressions' fixes: 19 tool uses, 10+ regex probes, 9 CLI runs — 1 new) + native P4-B (rotation docstring + pack/doc edits: 26 tool uses, call graph re-derived — 3 new, one of them correcting MY pass-3 attribution) + orchestrator (post-297cf150 surface `59ebaa72…`, twins `cmp`, router 46/0, masker probes 7/7, corpus check OK) |
-
 | Pass 5 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: pool (5 fresh briefs over the pass-4 diff — dispatched 5, returned 4 + 1 partial, 1 DIED (`status=error`, 0 chars; its router/rotation partition re-covered by the orchestrator's executed 46-prompt corpus walk and by P5-B), $0.035, all 5 scored) + native P5-A (fence-token semantics, 13 tool uses, 3 fixture reproductions — 1 new, 1 in-design) + native P5-B (rotation trio, 15 tool uses, every claim mapped to a line — 2 new, both wording of MY pass-4 paragraph) + orchestrator (surface `82e413ad…` at 37348dda, twins `cmp`, the 13-file grep resolved to 1 artifact + 12 stale worktree copies, `eleven` resolved to the historical note) — pool candidates: 2 grep-checked and REFUTED (no remnant two-provider sentence; :16 no longer names PayTR as the exclusion reason), the rest re-raises cited to their rows |
-
 | Pass 6 | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: pool (5 fresh briefs over the pass-5 diff — dispatched 5, returned 2, DIED 3 (all deepseek, `status=error` 0 chars; the death rate across six dispatches 0·0·0·0·1·3 of 5 filed to intel as `01M1QA45VGBPRV3K4J81GPFV8W`); the dead partitions (router/rotation, tests, fragments) re-covered by P6-A, the orchestrator's executed twins/corpus/fleet-count checks, and the fact that pass 5 changed no test or fragment) + native P6-A (rotation paragraph, 27 tool uses — 3 new, 1 HIGH) + native P6-B (GATE-SCOPE contract, 15 tool uses, 5 fixtures executed — 1 new doc-drift) + orchestrator (surface `e442639a…` at 2a791065, twins `cmp`, corpus check OK, 4 fleet accounts counted). ⚠️ The run-record printed its oscillation advisory at this round (findings 13·0·6·4·3·4): passes 3–6's residue is almost entirely ONE item — the rotation budget paragraph, rewritten five times by restating a number — plus fix-of-fix regressions; pass 6 closes that item by stating the invariant instead of a sixth number, which is the re-sweep-not-re-scope the advisory asks for |
-
 | Pass 7 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: pool (5 fresh briefs over the pass-6 diff — dispatched 5, returned 5, $0.038, all scored; every candidate a re-raise cited to its row, incl. the shape-1-vs-3 "contradiction" REFUTED once more: exa cannot read JSON at all, so WebFetch-first for JSON does not contradict exa-for-exact-quotes) + native P7-A (invariant paragraph, 16 tool uses — 1 CONFIRMED arithmetic, 1 informational) + native P7-B (GATE-SCOPE four-source agreement, 9 tool uses — 2 completeness gaps) + orchestrator (surface `6bd45231…` at ab4e0ec1, twins `cmp`, corpus check OK, 3 GATE-SCOPE sources, retired phrases 0 outside the docstring's own history quote) |
-
 | Pass 8 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: pool (5 fresh briefs over the pass-7 diff — dispatched 5, returned 5, $0.040, all scored; one executable candidate, "review the parity contract" stealing from review, REFUTED by execution — `review` precedes `deploy-checklist`; the rest re-raises) + native P8-A (single-copy figures, 14 tool uses — 1 leftover derived figure) + native P8-B (grammar vs 7 fixtures, 24 tool uses — 1 hint-parity gap, and INDEPENDENTLY the shared-index hazard) + orchestrator (surface `4b2d6713…` at 16420f99, twins `cmp`, corpus OK, governance sync run for the private-index commit that bypassed the post-commit hook: 45 projects). ⚠️ PROCESS FINDING, mine: the two private-index commits (passes 6–7) never realigned the SHARED index, so it held pre-pass-6/7 blobs for eight of my paths — a bare commit by any session would have reverted them silently (CLAUDE.md § EXIT names exactly this); measured blob-by-blob, realigned with `git reset -q HEAD -- <8 paths>`. And fleet's 31af158b had swept my uncommitted pass-7 CHANGELOG hunk (nothing lost), so my private-index commit re-added it — HEAD carried the entry twice; deduplicated in this pass's commit |
-
 | Pass 9 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: pool (5 fresh briefs over the pass-8 diff — dispatched 5, returned 5, $0.040, all scored; every candidate a re-raise; the iyzico-V3 signature formula claim is OUTSIDE this diff and ungrounded — recorded as a residual to ground live when `core/85` is next touched, not asserted) + native P9-A (docstring + hint, 19 tool uses — 0 new) + native P9-B (commit hygiene, 16 tool uses, git plumbing only — 2 CONFIRMED process findings + 1 REFUTED) + orchestrator (surface `ad289975…` at bde9b72b, twins `cmp`, 0 stale index entries among my 9 paths at dispatch, corpus OK, 79 tests). The two process findings, both the shared-tree class: (a) my pass-4 commit 37348dda swept fleet's in-progress vps1 memory-limits CHANGELOG paragraph under my trailer — nothing lost, their 31af158b finalized it; fleet told (`01M1QBW5H9MYE4NRV8M0QY3ZXP`); (b) the shared index held a stale `docs/DECISIONS.md` blob (= my pass-3 commit's) one commit behind intel's bf3c7e02 — measured, `git reset -q HEAD -- docs/DECISIONS.md` (index-only), intel told (`01M1QBW5KJ4E7KT7WJ26A6AK3V`). REFUTED: "the governance sync never ran after the private-index commits" — it was run by hand after both (`sync_enforcement_to_projects.py --force` → 45 projects, 0 failed, twice), which no commit message records. Two further staged entries (LESSONS_LEARNT, the plan spine) are not mine and were left alone. Neither finding changed a tracked file, so the surface at bde9b72b is unchanged into pass 10 |
-
 | Pass 10 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: pool (5 fresh briefs — dispatched 5, returned 1, DIED 4 across THREE families (gemini, qwen, deepseek ×2) — provider-wide, filed to intel as `01M1QC3FKAV7HFDM8KN94GQQEA`; the one survivor a re-raise refuted by execution in pass 8) + native P10-A (C2+C7 closing re-derivation, 24 tool uses, 11 fixtures executed — C2: ZERO mismatches across every figure and trigger word, the first fully clean certification of that paragraph; C7: 2 re-raises CITED to standing rows — the empty inline fence is the module's declared evidence-presence ceiling, adjudicated pass 5; blockquote/table placement executed clean in pass 3) + native P10-B (hygiene over all ~38 paths of the 16 commits, blast-radius sample of 3 files × 3 projects all hash-identical to HEAD, 16 trailers parse — 2 CONFIRMED stale index entries, `docs/LESSONS_LEARNT.md` and the multi-agent plan spine, both worktree==HEAD, index one sibling-commit behind) + orchestrator (0 stale among my 14 paths at dispatch, twins `cmp`, corpus OK, 589 tests, closing gate `status: success`). The 2 findings are the pass-9 class (a sibling committing outside the shared index leaves it stale) on two further paths — measured, reset index-only. SCOPE RULING for the remaining passes: stale-index entries caused by SIBLINGS' commits are a standing environmental row (filed to intel), cited not counted on re-raise; only staleness of MY paths counts against this review's surface |
-
 | Pass 11 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: pool (5 fresh briefs — dispatched 5, returned 5, $0.040, all scored; the pool RECOVERED after the 4-of-5 death in pass 10; every candidate a re-raise or list-order-by-design) + native P11-A (whole-surface re-derivation, 29 tool uses: 15 masker probes, the full router corpus via pytest, the plan-set scratch/spine cycle, breadth head/tail counted from blocks and disk, two convergence fixtures, twins `cmp`, 17 docstring tokens classified, 435 tests — 1 CONFIRMED adjacent finding: `_FILE_REDIRECT` refused `>> /dev/null` and `2>>/dev/null`) + native P11-B (hygiene: 40 of 40 paths index-aligned, 16 of 16 headings once, 20 of 20 synced copies identical across five projects, 16 of 16 trailers — 0 findings, 0 environment) + orchestrator (0 stale among 14 paths, 0 staged entries anywhere, twins `cmp`, corpus OK). The one finding is OUTSIDE the diff (the regex predates this review) but on the same hook and this beat; fixed at minimum size with a grader, red on revert |
-
 | Pass 12 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: pool (5 fresh briefs over the pass-11 diff — dispatched 5, returned 5, all scored; 0 new) + native P12-A (redirect regex, 26 probes with real `bash -c` effects — 1 CONFIRMED: `>&word` writes a file and was allowed) + orchestrator (10-probe table on the new regex — 1 CONFIRMED: the `/dev/null` exemption was a prefix match, `>/dev/nullx` / `>/dev/null/../x` / `>>/dev/null.txt` allowed). Both fixed with graders, red on revert; 0 stale index entries; synced copies match in 3 projects |
-
 | Pass 13 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: pool (5 fresh briefs over the pass-12 diff — dispatched 5, returned 5, all scored; 0 new — every candidate a re-raise or list-order-by-design) + orchestrator (7 edge probes on the refined exemption; the `&` probe led to a marker-proven bypass: a lone `&` is bash's background separator and was never vetoed — fixed) + the late-arriving P12-A verdict (26 probes with bash effects — `>&word` writes a file; fixed in the same commit, with the `>&1x` whole-token slip caught by its own assertion). P13-A returned after the commit (26 probes + bash effects): its two CONFIRMED items were the two already fixed in 2e03f0f8; its third — a QUOTED `/dev/null` target is refused because the masker blanks it — REFUTED as a defect by denominator (0 of the hub's 606 `> /dev/null` idioms quote the target) and pinned as a known fail-closed limit; its MACHINERY note is taken: a brief that pins a SHA while the worktree carries WIP should say "extract that blob", not "load the hook" |
-
 | Pass 14 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: pool (dispatched 5 over the pass-13 diff — result pending at this row's writing, recorded in pass 15's row) + native P14-A (final veto pair, 22 candidates, 5 bash-proven — 2 CONFIRMED: `find -delete`, `git log --output=`; process substitution seen fixed mid-flight) + orchestrator (marker-proven `<(touch m)` — fixed in 392c0959; `--output` first mis-adjudicated as in-design, overturned by P14-A's proof). All three fixed with graders, red on revert |
 | Pass 15 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: pool 12 (returned 5, all scored; 24 candidates: 23 re-raises or refuted by execution — `deploy` stem exists at router:151, `<scratchpad>` is the corpus convention (4 of 4 uses), D-120's `fabrik-lib D-080` is prose and the dup-check keys on the ID cell, RevenueCat is scoped out at 85:18, "parity contract" is the checklist's own vocabulary — and ONE executable candidate, deepseek-v4-flash's quoted `sed -i`, CONFIRMED and WIDENED to sed's whole write surface: six forms proven on disk, fixed in pass 16's commit) + pool 14 (dispatched 5, returned 3, DIED 2 — gemini + qwen, `status=error` 0 chars — all scored; 2 test-quality candidates refuted by execution: the subprocess test passes from `/tmp` (1 passed), the "vacuous" first assertion is the pinned no-root baseline) + orchestrator (pass-15 commit 49aa18e6 via the private index, 22 hook tests, red on revert; rounds 12–14 recorded to the run record late — the record had stood at round 11 while the artifact carried 14 rows) |
 | Pass 16 | method: re-derivation | found: 10 | new: 10 | fixed: 10 | finders: pool 16 (dispatched 5 over the pass-15/16 diff, returned 5, $0.036, all scored — partition 1 named the exec-flag class (`rg --pre`, `--upload-pack`/`--receive-pack`) and the `grep -o` false positive; partition 2 raised five lookbehind claims of which TWO proved on disk (digit-`&`) and three were refuted by execution or already held; partitions 3–5 CLEAN or denominator notes on controls) + native P16-A (allow-list tools' own write/exec paths, 21 tool uses, 17 candidates: 9 CONFIRMED on disk, 1 false positive, 7 refuted) + orchestrator (re-proved every claim before the fix; `git fetch --exec` refuted as non-existent). One class fix (pass 17's commit), two graders, red on revert |
@@ -285,19 +273,43 @@ Re-measured at the close (`python scripts/final_gate.py --check --json`, HEAD df
 }
 ```
 
-## Verdict (per reviewed commit)
+## Verdict (per Phase — the review's Phases are the nine reviewed commits, in scope order)
 
-| sha | verdict |
-|---|---|
-| `7af1fec1` quota_stop masking | HELD after 18 further fixes on the same surface (passes 11–28): the masking design was right; the hold around it was porous in six classes, all now closed with graders — see C5 |
-| `4567e606` plan-set gates | HELD; pass-2/3 fixes (external root threaded into staleness, PASS summary denominators) — C2/C7 |
-| `0dd638f6` PayTR provider set (D-120) | HELD; blast-radius claims re-read for all 12 scaffold types — C10; the `88` BIN line predicated on both rails |
-| `214d9e49` three rule packs | HELD; version-literal residue closed — C7 |
-| `e5df1eed` grounding fragments | HELD; four fetch-failure shapes stand; `<scratchpad>` is the corpus convention — C15 |
-| `5abab982` check_convergence out-of-surface | HELD; GATE-SCOPE grammar closed by contract (one line, N≥1, three value forms, fence-strip precedent) — C2 |
-| `f35c6b64` oauth retry bound + twin | HELD; twins byte-identical, single-copy figures in the STRATEGIC_BACKLOG row — C9 |
-| `c7a825ee` skill_router stem | HELD; `deploy-checklist` after `deploy-verify`, corpus walked — C8 |
-| `f4e67cfe` lessons | HELD |
+### Phase 1 — `7af1fec1` quota_stop masking
+
+HELD after 18 further fixes on the same surface (passes 11–28): the masking design was right; the hold around it was porous in six classes, all now closed with graders — see C5
+
+### Phase 2 — `4567e606` plan-set gates
+
+HELD; pass-2/3 fixes (external root threaded into staleness, PASS summary denominators) — C2/C7
+
+### Phase 3 — `0dd638f6` PayTR provider set (D-120)
+
+HELD; blast-radius claims re-read for all 12 scaffold types — C10; the `88` BIN line predicated on both rails
+
+### Phase 4 — `214d9e49` three rule packs
+
+HELD; version-literal residue closed — C7
+
+### Phase 5 — `e5df1eed` grounding fragments
+
+HELD; four fetch-failure shapes stand; `<scratchpad>` is the corpus convention — C15
+
+### Phase 6 — `5abab982` check_convergence out-of-surface
+
+HELD; GATE-SCOPE grammar closed by contract (one line, N≥1, three value forms, fence-strip precedent) — C2
+
+### Phase 7 — `f35c6b64` oauth retry bound + twin
+
+HELD; twins byte-identical, single-copy figures in the STRATEGIC_BACKLOG row — C9
+
+### Phase 8 — `c7a825ee` skill_router stem
+
+HELD; `deploy-checklist` after `deploy-verify`, corpus walked — C8
+
+### Phase 9 — `f4e67cfe` lessons
+
+HELD
 
 ## Self-audit
 
