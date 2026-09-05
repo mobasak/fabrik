@@ -14,7 +14,7 @@ Ledger: D-126 (minted in this change)
 - **The fleet default for the stdlib-logging channel — DECIDED here, D-126 (reversible: a re-emit):** the proposal's open question ("how many scaffolded services log through stdlib `logging` rather than structlog") is MEASURED: 11 repos on the box carry a `glitchtip_init.py`; stdlib `logging` appears in ≥1 tracked file in **10 of 11**, structlog in 11 of 11; with the STRICTER denominator the review demanded — a stdlib-only file that CALLS `logger.error/exception/critical` — it is **6 of 11** (brand-identiy-creator 6 files, seo 21, transdoc 7, web-ecommerce-factory 5, site-provisioner 1, tryton-crm 1; § Evidence, Phase A). Same verdict either way: a majority loses ERROR signal. Closing the channel entirely (site-provisioner's own D-007) would silence `logger.error` events fleet-wide. Verdict: log EVENTS are KEPT (`LoggingIntegration(event_level=logging.ERROR, level=None)`), BREADCRUMBS are OFF (`level=None` + `max_breadcrumbs=0`), and `logentry` is reduced to the raw template (`_ALLOWED_LOGENTRY_KEYS = {"message"}` — `params`/`formatted` dropped, the interpolation channel closed). The vendored module already implements exactly this shape for `logentry`; only the `LoggingIntegration` kwargs differ from site-provisioner's (theirs: `event_level=None`).
 - **Which emitters are in scope (measured by `ast`, § Evidence Phase A):** the Python init is written by `_scaffold_fastapi_backend` (`src/fabrik/scaffold.py:1567-1868`), reached by `python-api`, `python-api-gpu` (via `_scaffold_python_api:1929`) and `saas-skeleton` (`_scaffold_saas_backend:3276`) — 3 of the 12 scaffoldable types. `node-api` (`_scaffold_node_api:3613`) and `chrome-extension` (`_scaffold_chrome_extension:4462/4480/4733`, an isolated BrowserClient) have their own inits: the Node/browser `beforeSend` equivalent is a RESIDUAL follow-up, not this plan (the channels were reproduced against the Python SDK only). The other 7 types emit no Sentry init.
 - **The guard asserts the CAPTURED EVENT, never the kwarg (rule 55 § "Verify on the CAPTURED EVENT"; the original mail's instruction, which is what surfaced all of this):** `tests/test_scaffold_glitchtip_security.py` today asserts two flag strings in the emitted text (`:40-41`, 2 tests) — which is why the gap was invisible to the hub's own enforcement.
-- **Already-deployed services are NOT re-emitted by this plan.** The back-fill is a notice to the 11 repos naming the vendoring step (T05); the rule-pack sentence "a project scaffolded BEFORE that date still has the old init" (`.windsurf/rules/core/55-observability.md:~273`) is rewritten to point at the module.
+- **Already-deployed services are NOT re-emitted by this plan.** The back-fill is a notice to the 11 repos naming the vendoring step (T02's merge notice); the rule-pack sentence "a project scaffolded BEFORE that date still has the old init" (`.windsurf/rules/core/55-observability.md:~273`) is rewritten to point at the module.
 - **Rejected:** (a) extending the flag list (the sender's whole argument); (b) importing fabrik-lib's `observability/` across repos (vendor law); (c) a hub-side `before_send` name-denylist (rule 55: "the thing that already failed"); (d) closing log events entirely as the FLEET default (10 of 11 would lose ERROR signal — site-provisioner's per-repo choice stands for them).
 
 ## Intake Inventory
@@ -60,13 +60,14 @@ Ledger: D-126 (minted in this change)
 
 - Deny-by-default + leaf-shape is the shape; no ticket adds a denylist (a finding that wants one is a BLOCKED spec contradiction, not a fix).
 - The vendored module is COPIED (fabrik-lib law); its origin and revision are recorded in its docstring (`site-provisioner api/glitchtip_init.py @ 060c096`).
-- `sentry-sdk[fastapi]>=2.18.0` stays the pin the scaffold emits (`src/fabrik/scaffold.py:2125`). The hub `.venv` has NEITHER `sentry_sdk` NOR `structlog` (measured); T03 AUTHORISES adding both to `pyproject.toml` `[project.optional-dependencies] dev` (the deps-file HARD STOP is lifted by this ticket, for these two lines only) and the guard RECORDS the installed version in its output.
+- `sentry-sdk[fastapi]>=2.18.0` stays the pin the scaffold emits (`src/fabrik/scaffold.py:2125`). The hub `.venv` has NEITHER `sentry_sdk` NOR `structlog` (measured); T01 — first in Merge Order — AUTHORISES adding both to `pyproject.toml` `[project.optional-dependencies] dev` (the deps-file HARD STOP is lifted by this ticket, for these two lines only) and the guard RECORDS the installed version in its output.
 - Synced surfaces: `.windsurf/rules/core/55-observability.md` distributes to 45 repos on commit; `templates/scaffold/**` and `src/fabrik/scaffold.py` are hub-only.
 - Every ticket: watched-fail-first graders; `/fabrik-review` at each phase boundary (execute-plan's own contract); explicit pathspecs; no `git add -A`.
 
 ## Behavior Contract
 
-- **Given** the template file, **When** parsed with `ast`, **Then** it defines `init_glitchtip` and `_scrub_event`, the string `before_send_transaction=_scrub_event` appears once (`/opt/site-provisioner/api/glitchtip_init.py:604` is the reference line), and the tokens `{pkg}` and `{name}` each appear exactly once.
+- **Given** the hub `.venv` after `pip install -e .[dev]`, **When** `python -c "import sentry_sdk, structlog"` runs, **Then** both import and the sentry-sdk version is printed (the first step of this ticket; every later gate depends on it).
+- **Given** the template file, **When** parsed with `ast`, **Then** it defines `init_glitchtip` and `_scrub_event`, the string `before_send_transaction=_scrub_event` appears once (`/opt/site-provisioner/api/glitchtip_init.py:606` is the reference line — pass 2 corrected 604), and the tokens `{pkg}` and `{name}` each appear exactly once.
 - **Given** the template, **When** its `LoggingIntegration(` call is read, **Then** it carries `event_level=logging.ERROR` and `level=None` — the fleet default, not site-provisioner's `event_level=None` (D-126).
 - **Given** `_ALLOWED_LOGENTRY_KEYS`, **When** read, **Then** it is exactly `{"message"}` (the interpolation channel closed; `params`/`formatted` never pass).
 - **Given** an event whose allowlisted key holds an unexpected container, **When** `_scrub_event` runs, **Then** that key is nulled (leaf-shape) — imported and executed in the test, not read.
@@ -80,7 +81,7 @@ Ledger: D-126 (minted in this change)
 - **Given** a `logger.error("otp=%s", secret)`, **When** captured, **Then** `logentry == {"message": "otp=%s"}` — the template, never the interpolation; and no breadcrumb carries it.
 - **Given** the current inline literal (the two-flag init at `src/fabrik/scaffold.py:1678-1735`), **When** the same assertions run against it, **Then** they are RED — recorded in the ticket's review artifact as the watched fail.
 - **Given** the Node emitter, **When** the existing two Node assertions run, **Then** they still pass (unchanged surface).
-- **Given** the hub `.venv` after `pip install -e .[dev]`, **When** the guard imports the template module, **Then** `init_glitchtip()` returns True and `sentry_sdk.VERSION` is printed — a False (the ImportError path) fails the test.
+- **Given** the hub `.venv` (T01 installed the dev extras), **When** the guard imports the template module, **Then** `init_glitchtip()` returns True and `sentry_sdk.VERSION` is printed — a False (the ImportError path) fails the test.
 - **Given** T01's template tests in the same file, **When** T03 merges, **Then** they are byte-identical (the diff touches only the two replaced tests and the additions).
 - **Given** the rewritten section, **When** read, **Then** the words "deny-by-default", "leaf", "before_send_transaction", "max_breadcrumbs=0" and "include_source_context=False" each appear, and "Two init flags are MANDATORY" is reframed as the floor.
 - **Given** the Node paragraph (`.windsurf/rules/core/55-observability.md:246-254`), **When** diffed, **Then** it is byte-identical (the asymmetry correction of 2026-08-28 is not touched).
@@ -91,7 +92,7 @@ Ledger: D-126 (minted in this change)
 
 | Source | Read | Bound into |
 |---|---|---|
-| `python scripts/select_rules.py` — 26 ACTIVE | core/10-python, core/45-testing-strategy, core/55-observability, core/40-documentation, core/35-security-auth, core/62-using-subagents (+ the 20 others named by the run) | T01–T05 gates; § Global Constraints |
+| `python scripts/select_rules.py` — 26 ACTIVE | core/10-python, core/45-testing-strategy, core/55-observability, core/40-documentation, core/35-security-auth, core/62-using-subagents (+ the 20 others named by the run) | T01–T04 gates; § Global Constraints |
 | `agents-fabrik.md` § Scaffold Types (`:384`), GlitchTip row (`:196`) | 12 scaffoldable types; GlitchTip at errors.vps1 | § What we already agreed (emitters in scope) |
 | `fabrik-lib/README.md:57` `observability/` | logging + Sentry init, NO scrubber | vendor from site-provisioner instead |
 | `docs/DECISIONS.md` (`decisions.py glitchtip`: hub 0 rows; site-provisioner D-007/D-009/D-010) | their per-repo choices, not fleet rulings | D-126 minted here |
@@ -124,7 +125,7 @@ repos where stdlib logging appears in ≥1 file: 10 of 11 | structlog in ≥1 fi
 $ python3 - (stricter: a stdlib-only file calling error/exception/critical)
 repos: 11 | repos with ≥1 STDLIB-ONLY file calling error/exception/critical: 6 → [('brand-identiy-creator', 6), ('seo', 21), ('site-provisioner', 1), ('transdoc', 7), ('tryton-crm', 1), ('web-ecommerce-factory', 5)]
 $ .venv/bin/python -c "import sentry_sdk"
-ModuleNotFoundError: No module named 'sentry_sdk'   (structlog likewise — T03 authorises the dev extras)
+ModuleNotFoundError: No module named 'sentry_sdk'   (structlog likewise — T01 authorises the dev extras as its first step)
 $ find <scope> -type f -exec cat {} + | wc -c
 445243
 $ wc -c src/fabrik/scaffold.py
@@ -146,15 +147,15 @@ $ grep -rn "before_send\|scrub" /opt/fabrik-lib/observability/*.py | wc -l
 
 - Grounding passes: every claim above is a `path:line` I read this session or a fenced output I ran; the channel list is the sender's, reproduced by them — this plan does not re-count it (the shape is what is acted on).
 - Completeness (a) — a consumer of the plan's output exists in File Scope: the guard test consumes the emitted module; `_scaffold_fastapi_backend` consumes the template file; the rule pack is read by every project.
-- Completeness (b) — every ticket's Touches path is in File Scope (T01: template + the test; T02: scaffold.py + the test; T03: the test; T04: rule 55); governance surfaces are orchestrator-applied and listed as such.
+- Completeness (b) — every ticket's Touches path is in File Scope (T01: template + the test + pyproject.toml; T02: scaffold.py + the test; T03: the test; T04: rule 55); governance surfaces are orchestrator-applied and listed as such.
 - Sizing: per-ticket READ sets measured in-repo (T01 59,803; T03 62,638; T04 57,494 — Touches + Context Files, `wc -c`, with the not-yet-created template counted at 0) PLUS the out-of-repo reads the gate counts as 0 and the tickets name with their bytes (module 33,955; its tests 69,210; the proposal 15,111); T02's Touches is `src/fabrik/scaffold.py` alone at 280,969 > 262,144 — `Integration: true`, last in Merge Order, with the reason stated in the ticket (a one-function edit inside a 281 KB file).
 - Fire rate of the new structure: the guard runs on every hub gate; the emitted module runs in every new python-api/saas-skeleton service with a DSN set.
 
 ## Residual unknowns
 
 - **Resolved:** the logging-channel default (D-126); which types emit the init (3 Python, 1 Node, 1 browser); whether fabrik-lib holds a scrubber (no).
-- **Open — Node/browser parity:** `node-api`'s `Sentry.init` (`scaffold.py:3613`) and `chrome-extension`'s BrowserClient have no `beforeSend` shape; owner fleet; probe: reproduce the URL-in-breadcrumb and logentry channels against `@sentry/node`, then a sibling plan. Named in T05's notice.
-- **Open — the 11 deployed services:** they back-fill by vendoring the module themselves; T05's notice names the step; nothing here re-emits them. Owner: each repo, on fleet's notice.
+- **Open — Node/browser parity:** `node-api`'s `Sentry.init` (`scaffold.py:3613`) and `chrome-extension`'s BrowserClient have no `beforeSend` shape; owner fleet; probe: reproduce the URL-in-breadcrumb and logentry channels against `@sentry/node`, then a sibling plan. Named in the back-fill notices T02 sends at its merge.
+- **Open — the 11 deployed services:** they back-fill by vendoring the module themselves; the back-fill notices T02 sends at its merge names the step; nothing here re-emits them. Owner: each repo, on fleet's notice.
 
 ## Execution Discipline
 

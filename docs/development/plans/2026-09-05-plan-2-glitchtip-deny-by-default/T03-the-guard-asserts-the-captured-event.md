@@ -5,7 +5,7 @@ REPLACE ONLY the two flag-string tests (`tests/test_scaffold_glitchtip_security.
 
 Owner: infra
 Depends: T01
-Deps: this ticket AUTHORISES adding `sentry-sdk[fastapi]>=2.18.0` and `structlog>=24` to `pyproject.toml` `[project.optional-dependencies] dev` (`pyproject.toml:35-38`) and re-installing the hub `.venv` (`pip install -e .[dev]`) — measured: neither is importable in the hub `.venv` today, so the module cannot be imported by any hub test without them.
+Deps: none of its own — T01 (merged first) authorised `sentry-sdk[fastapi]` + `structlog` in the hub dev extras; this ticket's gate assumes `pip install -e .[dev]` has run.
 Parallel: —
 Complexity: native
 Gate: python -m pytest tests/test_scaffold_glitchtip_security.py -q
@@ -14,7 +14,6 @@ Docs: CHANGELOG.md — orchestrator-applied
 
 ## Touches
 - tests/test_scaffold_glitchtip_security.py — PRIMARY PATH
-- pyproject.toml — the two dev-extra lines only
 
 ## Behavior Contract
 - **Given** the emitted module with a capturing transport, **When** a route raises with the six secrets in play, **Then** the serialized ERROR event contains none of them (substring search over the whole event).
@@ -22,7 +21,7 @@ Docs: CHANGELOG.md — orchestrator-applied
 - **Given** a `logger.error("otp=%s", secret)`, **When** captured, **Then** `logentry == {"message": "otp=%s"}` — the template, never the interpolation; and no breadcrumb carries it.
 - **Given** the current inline literal (the two-flag init at `src/fabrik/scaffold.py:1678-1735`), **When** the same assertions run against it, **Then** they are RED — recorded in the ticket's review artifact as the watched fail.
 - **Given** the Node emitter, **When** the existing two Node assertions run, **Then** they still pass (unchanged surface).
-- **Given** the hub `.venv` after `pip install -e .[dev]`, **When** the guard imports the template module, **Then** `init_glitchtip()` returns True and `sentry_sdk.VERSION` is printed — a False (the ImportError path) fails the test.
+- **Given** the hub `.venv` (T01 installed the dev extras), **When** the guard imports the template module, **Then** `init_glitchtip()` returns True and `sentry_sdk.VERSION` is printed — a False (the ImportError path) fails the test.
 - **Given** T01's template tests in the same file, **When** T03 merges, **Then** they are byte-identical (the diff touches only the two replaced tests and the additions).
 
 ## Context Files
