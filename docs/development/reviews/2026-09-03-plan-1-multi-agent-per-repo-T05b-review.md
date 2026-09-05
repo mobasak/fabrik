@@ -1,6 +1,6 @@
 # Acceptance review — T05b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 2 rounds; round 2: pool 3/3 CLEAN + orchestrator re-read, found: 0, fixed: 0)
 
 **Surface:** the coder's worktree branch diff against the dispatch base 6a5c5990 — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -20,5 +20,9 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 ### Native layer (orchestrator re-read of fdb373a9..3836b8e7, executed)
 - The diff is exactly the three sentences: `:205` now reads "**35 checks total** (36 where `scripts/epic_order.py` exists)" with the parenthetical restored to one clause ("the `if tier == 2:` block — incl. …; 17 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below"); `:413` reads "…in `scripts/enforcement/`, with one exception: the hub-conditional `scripts/epic_order.py --check` row"; the dangling form has 0 occurrences; `check_doc_links.py` names the file in 0 errors (the coder's run); `git diff --stat` 2/2 on the one doc; the pre-existing `tier 2 → 38` and the 15-entry list left as instructed.
 - The merge-time orchestrator fixup (`fixup_T05b.py`) is written and dry-run on a copy: it inserts `fg.EPIC_ORDER_NA` as the first member of `produced = set(fg.WARN_ONLY_CHECKS) | {` at :255 of `tests/test_final_gate_advisory_display.py`; the result parses.
-Pool: PENDING — appended when it returns.
+### Adjudication (pool layer)
+- deepseek — CLEAN (5 rows; the guards; the N/A row under `skipped_checks`; the failure text in the JSON; the legacy frontmatter; 4 files; the 2 doc lines).
+- gemini — CLEAN (the two-stage guard :1124-1135; the marker :328 per the bandit precedent; the tier pin test).
+- qwen — CLEAN (5 rows; the two blockers; the skip labelling; failure propagation; Tier-2-only).
+Round 2 verdict: found 0, fixed 0 — the no-op round. Class ledger: fleet-absent script → no row · absent dir → labelled skip under `skipped_checks` · marker name-scoped · Tier-2-only · failure text in the JSON · the legacy epic on schema, body untouched · the doc's counts and claims · the unclaimed skip-row pin (orchestrator fixup at merge) — all swept clean.
 

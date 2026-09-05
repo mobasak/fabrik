@@ -200,12 +200,12 @@
       "head": "ed2ee6f4"
     },
     "T03b": {
-      "state": "fixup-round-1",
+      "state": "review-round-2",
       "agent": "af547d783fc28e78b",
       "branch": "worktree-agent-af547d783fc28e78b",
-      "updated": "2026-09-05T15:48:55+00:00",
+      "updated": "2026-09-05T15:54:26+00:00",
       "base": "28de4900",
-      "head": "e9b84dc7"
+      "head": "291f79fc"
     },
     "T05b": {
       "state": "review-round-2",
@@ -216,10 +216,10 @@
       "head": "3836b8e7"
     },
     "T06c": {
-      "state": "review-round-1",
+      "state": "fixup-round-1",
       "agent": "a4825ba268f0b6cc8",
       "branch": "worktree-agent-a4825ba268f0b6cc8",
-      "updated": "2026-09-05T15:13:48+00:00",
+      "updated": "2026-09-05T15:54:26+00:00",
       "base": "28de4900",
       "head": "007d55ae"
     }
