@@ -486,6 +486,11 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "git add docs/../docs/x.md",
         "git add docs/.",  # the directory form, normalised: named as by design
         "git commit -F msg.txt -- f.py",
+        "git commit -m 'fix: globs *.py? and [x]' -- f.py",  # the MESSAGE is not a pathspec
+        "git commit -m . -- f.py",
+        "git commit -m ':tada: done' -- f.py",
+        "git commit --message 'a: b' -- f.py",
+        "git log --oneline --",  # a bare `--` is skipped by the checker
         "git commit -qm x -- f.py",
         "git log --oneline -- .",  # a READ verb takes any pathspec
         "git fetch origin",
@@ -497,6 +502,29 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
     assert "git commit -m <msg> -- <paths>" in hook._reason("Bash")
+
+
+def test_an_unquoted_variable_word_splits_and_is_held_but_a_quoted_one_is_data():
+    """`git push $PV` with `PV='origin --force'` exported before the hold made a forced update on a
+    remote, and `git commit -m $MSG -- f` with a `--amend` inside amended a pushed commit (P23-A,
+    executed): the checker's argv has one opaque token where bash, word-splitting the unquoted
+    expansion, has two. An unquoted `$NAME`/`${NAME}` is a veto; the quoted form expands to one
+    word and cannot become a flag, so it stays data."""
+    for cmd in (
+        "git push $PV",
+        "git commit -m $MSG -- f.py",
+        "git log ${OPTS}",
+        "git status $X",
+        "cat $F",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        'git commit -m "fix: $X was wrong" -- f.py',
+        'git commit -m "costs $5" -- f.py',
+        "git commit -m 'literal $HOME' -- f.py",
+        'cat "$F"',
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
@@ -537,9 +565,11 @@ def test_the_masker_never_invents_or_hides_an_operator():
     assert ";" not in hook._mask_quoted('echo "it\'s a; b"')
     # the three branches the review's pool finder named as untested (pass 1, P4):
     assert hook._mask_quoted("echo 'a") == "echo 'a"  # single-quote imbalance → untouched
-    assert "$" in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted(
+    # since pass 24 a plain `"$VAR"` is data (one word — it cannot become a flag); `"$("` stays visible
+    assert "$" not in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted(
         'echo "$VAR;x"'
     )
+    assert "$(" in hook._mask_quoted('echo "$(whoami)"')
     assert (
         hook._mask_quoted('echo "a\\nb;c"') == 'echo "xxxxxx"'
     )  # a non-special escape masks both (6 chars)

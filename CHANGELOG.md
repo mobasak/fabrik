@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 24 of the review: an unquoted `$NAME` is held at the quota hold (it word-splits into flags), a quoted one is data, and a commit message is not a pathspec (2026-09-05)
+
+`git push $PV` with `PV='origin --force'` exported before the hold made a forced update on a remote,
+and `git commit -m $MSG -- f` with a `--amend` inside amended a pushed commit: the checker's argv has
+one opaque token where bash, word-splitting the unquoted expansion, has two — every flag veto in the
+file was reachable through a variable set before the hold. An unquoted `$NAME`/`${NAME}` is now a
+veto on the masked line; the masker masks `$` inside double quotes unless it opens `$(`, because a
+quoted expansion is one word and cannot become a flag — `git commit -m "fix $X" -- f` stays allowed.
+And the pathspec rule no longer runs on the message value: `git commit -m 'fix *.py?' -- f` had
+been refused as a glob sweep (a flag-shaped message such as `-m --amend` stays refused, fail-closed).
+Two graders, red on revert; 29 hook tests.
+
 ### Fixed — pass 23 of the review: the quota hold checks every flag wherever it sits — a value-taking flag can eat `--` — and the fleet's commit templates gain `-m` (2026-09-05)
 
 `git commit -m -- --amend`: `-m` consumes `--` as its message, so the checker's end-of-options saw a

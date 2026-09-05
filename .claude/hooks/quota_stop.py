@@ -112,7 +112,11 @@ _ALLOWED_BASH = re.compile(
 # token so no `--` is seen. Neither form has a place in a checkpoint command; on the masked line
 # the quote char survives masking, so `\$['"]` at top level is the tell (inside double quotes the
 # inner quote is masked, so a commit message containing `$'` stays data).
-_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|\$['\"]|`|\n|(?<!>)&(?!&)|[<>]\(")
+# An UNQUOTED `$NAME`/`${NAME}` word-splits at run time: `git push $PV` with `PV='origin --force'`
+# set before the hold made a FORCED UPDATE on a remote, and `git commit -m $MSG` with a `--amend`
+# inside amended a pushed commit (pass 24, P23-A, executed) — the argv the checker reads has one
+# opaque token where bash has two. Quoted, it is one word and stays data (masked above).
+_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|\$['\"]|\$[\w{]|`|\n|(?<!>)&(?!&)|[<>]\(")
 # git VERBS carry no flag scope of their own, and every flag list of DANGEROUS ones was wrong the
 # next pass: `--output` (pass 14), `--upload-pack`/`--receive-pack` (17), quoted and abbreviated
 # forms (18), `--ext-diff`/`--chmod` (19), and then the convergence sweep (P19-A, 93 candidates,
@@ -274,18 +278,25 @@ def _git_flags_forbidden(command: str) -> bool:
     # and git read `--amend` as the flag it is — an amend fired on a pushed commit (pass 23,
     # P22-A, executed). Enumerating which flags take values is one more list to be wrong about;
     # a real file named `--hard` after `--` is refused instead, fail-closed.
+    message_value_next = False
     for tok in argv[2:]:
+        is_message_value, message_value_next = message_value_next, False
         if tok == "--":
             continue
         if tok.startswith("--"):
             if long_ok is not None and tok.split("=", 1)[0] not in long_ok:
                 return True
+            message_value_next = tok in ("--message", "--file")
         elif tok.startswith("-") and len(tok) > 1:
             if short_ok is not None and any(
                 ch not in short_ok for ch in tok[1:].rstrip("0123456789")
             ):
                 return True
-        elif _positional_forbidden(verb, tok):
+            message_value_next = verb == "commit" and tok[-1] in "mF"
+        elif not is_message_value and _positional_forbidden(verb, tok):
+            # the token after `-m`/`-F` is the MESSAGE, never a pathspec: `git commit -m 'fix *.py?'
+            # -- f` was refused as a glob sweep (pass 24, pool finder). A flag-shaped message
+            # (`-m --amend`) is still refused above — fail-closed, and git would read it the same way.
             return True
     return False
 
@@ -369,7 +380,7 @@ def _mask_quoted(command: str) -> str:
     Every existing tooth survives, because masking only removes characters the SHELL would not
     have acted on either:
       - single-quoted spans are masked whole - the shell expands nothing inside them;
-      - double-quoted spans KEEP `$` and a backtick, which the shell still expands there, so
+      - double-quoted spans KEEP `$(` and a backtick, which the shell still runs there, so
         `git status "$(rm -rf x)"` is still refused;
       - a backslash escape inside double quotes masks BOTH characters, since an escaped dollar
         or backtick is a literal rather than an expansion;
@@ -412,14 +423,16 @@ def _mask_quoted(command: str) -> str:
         elif quote == '"' and ch == "\\" and i + 1 < n:
             out.extend(("x", "x"))  # an escaped $ ` " or \ is a literal, not an expansion
             i += 2
-        elif quote == '"' and ch in "$`":
-            # the shell expands these INSIDE double quotes - keep them visible. The `(` of a
+        elif quote == '"' and (ch == "`" or (ch == "$" and i + 1 < n and command[i + 1] == "(")):
+            # the shell RUNS these inside double quotes - keep them visible. The `(` of a
             # substitution rides along, because _UNSAFE_SHELL keys on the PAIR `$(`: masking the
             # paren alone let a double-quoted command substitution through, which this fix's own
-            # test caught before it shipped.
+            # test caught before it shipped. A plain `"$VAR"` is masked like any quoted data: it
+            # expands to ONE word and cannot become a flag (pass 24) - only the UNQUOTED form
+            # word-splits, and that one is vetoed on the masked line.
             out.append(ch)
             i += 1
-            if ch == "$" and i < n and command[i] == "(":
+            if ch == "$":
                 out.append("(")
                 i += 1
         else:
