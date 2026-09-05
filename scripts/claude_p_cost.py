@@ -68,7 +68,6 @@ _SUBSCRIPTION_USD_PER_ACCOUNT = _env_float("CLAUDE_MAX_PRICE_USD", 200.0)
 _ANCHOR_USD_PER_TOKEN = 9.3e-8  # $0.093/M research fallback when usage history is empty
 _MONTHLY_DAYS = 30
 _USAGE_HISTORY = Path.home() / ".claude" / ".claude-manager" / "usage-history.json"
-_STATUSLINE = Path.home() / ".claude" / ".claude-manager" / "statusline.json"
 _MANAGER_ACCOUNTS = Path.home() / ".claude" / "manager-accounts"
 _USAGE_KEYS = (
     "input_tokens",
