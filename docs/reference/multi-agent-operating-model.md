@@ -125,7 +125,7 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 | Probe | Question | Result |
 |---|---|---|
 | R1 | does `.worktreeinclude` fire on `EnterWorktree`? | **No** (T01b, scratch repo): only tracked files were carried — `--worktree` is the only launch form |
-| R2 | does the wip-net snapshot linked worktrees? | **Ships with T13 (in acceptance, not yet merged)**: `wip_backup.sh` snapshots each dirty worktree to `refs/wip/wt-<name>-<ts>`; on master today it walks the main trees only |
+| R2 | does the wip-net snapshot linked worktrees? | **On master (T13, merged 2026-09-06)**: `wip_backup.sh` snapshots each dirty worktree to `refs/wip/wt-<name>-<ts>`; on master today it walks the main trees only |
 | R3 | fire rate + cost of the mid-epic re-copy loop | **Measured** (T01b): 3 of 45 synced projects carried worktrees (82 in all); zero cost where there are none |
 | R6 | nested subagent worktrees from an isolated session | **Written as a once-per-repo step** in `/fabrik-execute-plan` step 8; default if blocked: subagents on branches inside the agent's worktree |
 | R7 | may worktree A read B's `.fabrik/plan-locks/`? | **Unprobed, unbuilt**; default: per-tree visibility (sufficient — § Locks above) |

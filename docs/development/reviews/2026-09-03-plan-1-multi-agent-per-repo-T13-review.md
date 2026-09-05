@@ -1,6 +1,6 @@
 # Acceptance review — T13 (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch (worktree-agent-aca08762aa41073a1, head 507df6ac) against its merge base 9c35928f — `scripts/wip_backup.sh` +79/−2, `tests/test_wip_backup.py` +118. Coder: native Sonnet worktree (the plan's Execution Discipline said pool for `complex`; the D6 record from T03a's rejected pool attempt made native the coding lane for every ticket); 9 passed (5 + 4); rows 1, 3, 4 red-first; row 2 honestly flagged green-on-both; shellcheck absent on the box, `bash -n` clean.
 
@@ -162,4 +162,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a 16-line test extension prescribed verbatim; stated) — round 13, the closing round.
 ### Orchestrator execution (in the worktree)
 - `bash -n` ok; 52 passed; `ruff check` clean; `ruff format --check` 1 file already formatted; the worktree-leg assertion string present in the test.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0307)
+- All three CLEAN: the worktree fixture wired like the stalled-push test; the two assertion strings match the script's literal echoes; the main-tree line still asserted by its own text; the 16 added lines only.
+### Verdict
+**0 findings — no-op round.** Ledger (thirteen rounds): main-leg protection under worktree failure · push bounding at both legs in both directions, every line graded · tmp-file isolation from the live cron · env-var validation (timeout, absolute path) · the trap graders · the refusal counts · ref selection · wid metachars · doc sync · format · grader hygiene — all swept, all clean. **Status: CONVERGED** at `c7562fdb`; merge (no governance-sync trigger); the merge owner flips T15's R2 label, adds the CHANGELOG entry and mints the two decision rows this ticket owes.

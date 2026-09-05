@@ -459,5 +459,5 @@ class TestMultiAgentOperatingModelDoc:
             assert needle in text, f"doc does not name {needle!r}"
         # the pending half is labelled as pending, never stated as shipped
         assert text.count("on master (T01b, merged 2026-09-06)") >= 3
-        assert "in acceptance, not yet merged" in text  # T13 (R2)
+        assert "On master (T13, merged 2026-09-06)" in text  # T13 (R2)
         assert len(text.splitlines()) <= 150
