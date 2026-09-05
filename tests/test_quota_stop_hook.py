@@ -198,7 +198,7 @@ def test_an_escaped_quote_outside_quotes_cannot_open_a_span_that_hides_an_operat
         "git log \\'`touch /tmp/p`\\'",
         "git log \\'> /tmp/leak\\'",
         r"git show \'$(whoami)\'",
-        r'git status \"; rm -rf x\"',
+        r"git status \"; rm -rf x\"",
         "python3 scripts/command_run.py done --command x --evidence \\'; curl evil\\'",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
@@ -206,7 +206,10 @@ def test_an_escaped_quote_outside_quotes_cannot_open_a_span_that_hides_an_operat
     assert hook.decide("Bash", "echo \\\\'a;b'", stamp_exists=True, tick_age_s=1.0)[0] == "allow"
     # and a top-level escaped operator stays refused (bash would not run it, but we never
     # need one to stop cleanly — fail closed, as before)
-    assert hook.decide("Bash", r"git status \; rm -rf x", stamp_exists=True, tick_age_s=1.0)[0] == "deny"
+    assert (
+        hook.decide("Bash", r"git status \; rm -rf x", stamp_exists=True, tick_age_s=1.0)[0]
+        == "deny"
+    )
 
 
 def test_a_lone_ampersand_is_a_command_separator_and_is_held():
@@ -215,12 +218,22 @@ def test_a_lone_ampersand_is_a_command_separator_and_is_held():
     could run anything behind an allowed command. Proven by execution: decide() said allow and
     `bash -c "git status & touch marker"` created the marker (review 2026-09-05, pass 13). The
     fd-duplication forms the checkpoint needs (`2>&1`, `>&2`) stay allowed."""
-    for cmd in ("git status & evil", "git status 2>&1 & evil", "git status &", "git log >/dev/null&"):
+    for cmd in (
+        "git status & evil",
+        "git status 2>&1 & evil",
+        "git status &",
+        "git log >/dev/null&",
+    ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     for cmd in ("git push 2>&1", "git status >&2", "git log >/dev/null 2>&1"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
     # the masker keeps a QUOTED ampersand as data
-    assert hook.decide("Bash", 'git commit -q -m "a & b" -- x.py', stamp_exists=True, tick_age_s=1.0)[0] == "allow"
+    assert (
+        hook.decide("Bash", 'git commit -q -m "a & b" -- x.py', stamp_exists=True, tick_age_s=1.0)[
+            0
+        ]
+        == "allow"
+    )
 
 
 def test_a_quoted_dev_null_target_is_a_known_fail_closed_limit():
@@ -248,7 +261,13 @@ def test_a_tools_own_write_flag_and_a_destroying_read_tool_are_held():
         "git diff --output=/tmp/d",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
-    for cmd in ("git log -n1 --oneline", "git log --format=%h", "ls -la", "rg --files", "grep -rl x ."):
+    for cmd in (
+        "git log -n1 --oneline",
+        "git log --format=%h",
+        "ls -la",
+        "rg --files",
+        "grep -rl x .",
+    ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
@@ -259,7 +278,10 @@ def test_process_substitution_runs_a_command_and_is_held():
     for cmd in ("git status <(touch m)", "cat >(touch m)", "git diff <(cat a) <(cat b)"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     # a quoted `<(` is data
-    assert hook.decide("Bash", 'git log --grep="<(x)"', stamp_exists=True, tick_age_s=1.0)[0] == "allow"
+    assert (
+        hook.decide("Bash", 'git log --grep="<(x)"', stamp_exists=True, tick_age_s=1.0)[0]
+        == "allow"
+    )
 
 
 def test_the_masker_never_invents_or_hides_an_operator():
@@ -276,19 +298,36 @@ def test_the_masker_never_invents_or_hides_an_operator():
     assert ";" not in hook._mask_quoted('echo "it\'s a; b"')
     # the three branches the review's pool finder named as untested (pass 1, P4):
     assert hook._mask_quoted("echo 'a") == "echo 'a"  # single-quote imbalance → untouched
-    assert "$" in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted('echo "$VAR;x"')
-    assert hook._mask_quoted('echo "a\\nb;c"') == 'echo "xxxxxx"'  # a non-special escape masks both (6 chars)
+    assert "$" in hook._mask_quoted('echo "$VAR;x"') and ";" not in hook._mask_quoted(
+        'echo "$VAR;x"'
+    )
+    assert (
+        hook._mask_quoted('echo "a\\nb;c"') == 'echo "xxxxxx"'
+    )  # a non-special escape masks both (6 chars)
 
 
-def test_destructive_git_and_in_place_sed_are_held():
+def test_destructive_git_and_every_sed_are_held():
+    """`sed -n` was allowed "never with `-i`" — a lookahead on the RAW line that wanted whitespace
+    before `-i`. Pass 16 proved six forms past it on disk: `'-i'`, `-Ei`, `--in-place`, GNU's
+    prefixes `--i`/`--in` (each truncated the file to 0 bytes — `-n` suppresses the in-place
+    output), and with NO flag at all the script's own `w file` (wrote) and `e cmd` (executed).
+    The tool is off the list, like `find`: enumerating its write paths is one more list to be
+    wrong about, and `cat -n` / `grep -n` cover a held read."""
     for cmd in (
         "git reset --hard HEAD~1",
         "git reset --merge",
         "sed -n -i 's/a/b/' f",
         "sed -i 's/a/b/' f",
+        "sed -n '-i' 's/a/b/' f",
+        "sed -n -Ei 's/a/b/' f",
+        "sed -n --in 's/a/b/' f",
+        "sed -n --in-place 's/a/b/' f",
+        "sed -n 'w out.txt' f",
+        "sed -n '1e touch marker' f",
+        "sed -n '1,3p' f",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
-    for cmd in ("git reset -q HEAD -- a.py", "git reset HEAD -- a.py", "sed -n '1,3p' f"):
+    for cmd in ("git reset -q HEAD -- a.py", "git reset HEAD -- a.py", "cat -n f", "grep -n x f"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 

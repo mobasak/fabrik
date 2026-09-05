@@ -69,8 +69,12 @@ _ALLOWED_BASH = re.compile(
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
     # held session locating files uses `ls`, `rg --files` or `grep -rl`; enumerating find's
     # action flags (-delete/-exec/-ok/-fprint…) would be one more list to be wrong about.
-    r"|(cat|head|tail|grep|rg|ls|wc|md5sum|readlink|date|echo|pwd|stat)\b"
-    r"|sed\s+-n\b(?!.*\s-i\b))"
+    # `sed` is OFF the list too (pass 16): the `-n … never with -i` lookahead read the RAW line
+    # and wanted whitespace before `-i`, so `'-i'`, `-Ei`, `--in-place` and GNU's prefixes
+    # (`--i`, `--in`) all passed — and each TRUNCATED the file to 0 bytes (`-n` suppresses the
+    # in-place output). With no flag at all, sed's own script writes (`w file`) and executes
+    # (`e cmd`); both proven on disk under `allow`. `cat -n` / `grep -n` cover a held read.
+    r"|(cat|head|tail|grep|rg|ls|wc|md5sum|readlink|date|echo|pwd|stat)\b)"
 )
 # A lone `&` is bash's BACKGROUND separator — `git status & evil` runs both, and the whole-line
 # hardening listed `&&` but never the single form: proven by execution (a held session's

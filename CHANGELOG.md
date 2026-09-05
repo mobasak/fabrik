@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 16 of the review: `sed` off the quota hold's allow-list — six write paths through its own flags and script (2026-09-05)
+
+`sed -n` was allowed "never with `-i`" through a lookahead on the RAW line that wanted whitespace
+before `-i`. Six forms passed and were proven on disk under `allow`: `'-i'`, `-Ei`, `--in-place` and
+GNU's unambiguous prefixes `--i`/`--in` each TRUNCATED the target to 0 bytes (`-n` suppresses the
+in-place output), and with no flag at all sed's own script commands wrote (`w file`) and executed
+(`1e cmd`). Same class as pass 15's `find -delete`: a tool's own write path, invisible to every
+shell-syntax veto — so the tool is off the list rather than its flags enumerated; `cat -n`/`grep -n`
+cover a held read. Grader lists all six plus the former allow, red on revert; `hooks-index.md`
+updated. Raised as a quoting variant by a pass-12 pool finder, widened by execution.
+
 ### Fixed — pass 15 of the review: two writes with no shell operator at all — `find -delete` and `git log --output` (2026-09-05)
 
 Both proven on disk by the pass-14 finder and re-proven before fixing: `find . -name victim.txt -delete` destroyed a file through the hold's allow-list, and `git log --output=<any path>` wrote a file at an arbitrary path — a tool's own flags, invisible to every shell-syntax veto. The pass-14 entry had recorded `--output` as in-design; that was wrong, and this entry supersedes it: a write to any path is the edit the hold exists to forbid. `find` is off the allow-list entirely (`ls`, `rg --files`, `grep -rl` remain for a held session; enumerating find's action flags would be one more list to be wrong about); git's `--output[=…]`, `--output-directory` and a bare `-o <path>` are vetoed. Graded in both directions, red on revert; 22 hook tests.
