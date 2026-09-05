@@ -114,7 +114,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | ✅ | branch head b5bad49c; merged 2026-09-05 |
 | T07b | router: three new stems for the assembled commands | T07a | ⛓️ | ✅ | branch head 5bda5c6f; merged 2026-09-05 |
 | T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07a, T07b | ⛓️ | ✅ | branch head a994e02d; merged 2026-09-06 |
-| T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | 🔵 | |
+| T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | ✅ | branch head 070373b0; merged 2026-09-06 |
 | T09 | Retire the Traycer layer — wrapper tree, traycer_mirror.py, the wiring doc, the Traycer workflow docs; re-point check_traycer_chain | T07a, T07b, T08a, T08b | ⛓️ | ⬜ | |
 | T10 | Retire ettw 00–05 → _retired/ (the first half of the 13-doc chain) | T07a, T07b | ⛓️ | ✅ | branch head fd403139; merged 2026-09-06 (d9d34878) |
 | T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | ✅ | branch head 8249cf9d; merged 2026-09-06 (5c50c40e) |

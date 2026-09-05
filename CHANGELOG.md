@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the corpus check's tests lose the wrapper fixtures (2026-09-06)
+- **What:** `tests/test_check_command_corpus.py` drops the `traycer_skills=` kwarg at its 26 call sites, the seven orchestrator-wrapper tests, the orch-scoped `templates/**` fallback matrix (its hub-side assertion lives in `test_template_shipped_scripts_resolve`), the `_orch_fixture` helper and two subprocess fixtures' wrapper-tree mkdirs; the audited-denominator expectation holds corpus + agent definitions only; the three selftest canary counts drop by exactly the two wrapper canaries (17→15, 10→8, 11→9); adds a parametrized test proving `/fabrik-epics`, `/fabrik-epics-review` and `/fabrik-vision` are audited like any source by finding-text identity against an ordinary `fabrik-probe.md`, with a `--feedback` clean leg for both. 119 passed / 119 collected — master's suite is green again after the declared T08a interim.
+- **Where:** `tests/test_check_command_corpus.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T08b).
+
 ### Fixed — the Usage tab called the 30-day window slice "the real subscription" (2026-09-06)
 
 The header read *"priced against the real subscription of $778.49"*, and the operator asked the right

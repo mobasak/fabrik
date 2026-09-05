@@ -1,6 +1,6 @@
 # Acceptance review — T08b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base 0d5a4685 (master after the T08a merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -12,3 +12,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - Two CLEAN (every kwarg site incl. the driver string; the 8 deletions each wrapper-only except the fallback matrix whose twin is `test_template_shipped_scripts_resolve`; the canary numbers −2 in each tree shape; the renamed test's two assertions kept; no noqa/skip/xfail — the `PLC0415` noqa is pre-existing context). One raised: the new parametrized test asserts only that SOME `--feedback` problem naming the file exists and its clean leg is a bare record — a check that special-cased the three names would still pass it, the opposite of what it claims to prove — UPHELD [L] (fix: compare the finding text with an ordinary source's, and prove the `--feedback` close clean for both).
 ### Verdict
 **1 finding (L) → FIXUP round 1 routed to the coder.** Ledger: kwarg strip · deletions vs surviving twins · expectation numbers · the no-special-case proof (strengthen) · hygiene.
+
+## Round 2 — over `0d5a4685..070373b0` (the round-1 fixup f65e3f3b..070373b0: tests 26/12 — the no-special-case test builds the same fixture twice per param, once under the mega name and once as `fabrik-probe.md`, normalises the source path to `<file>` and asserts the finding lists IDENTICAL (the real text: `<file>:2: advertises a close with no --feedback — the tool REFUSES it …` for both), plus the positive leg: `--feedback 'none — probe'` → [] for both; red on a mirror check that special-cases the names with its own `--feedback`-containing message (3 failed — the old presence-only assertion would have passed it), green on the control; 119 passed; selftest 0; grep 0; ruff/format; one file)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed test-strength item; stated) — round 2.
+### Orchestrator execution (in the worktree)
+- `pytest tests/test_check_command_corpus.py -q` → 119 passed; `--selftest` → 15 canaries, exit 0; the grep 0; `ruff check` clean, `ruff format --check` 1 file already formatted; `assert mega == plain` and the `fabrik-probe.md` twin present.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0078)
+- All three CLEAN: the identity assertion with the normalised path, the positive `--feedback` leg for both fixtures, the canary numbers, the grep, hygiene.
+### Verdict
+**0 findings — no-op round.** Ledger: kwarg strip · deletions vs surviving twins · expectation numbers · the no-special-case proof (identity, not presence) · hygiene — all swept. **Status: CONVERGED** at `070373b0`; merge (tests/ is not a governance-sync trigger); the CHANGELOG entry is the merge owner's; T09 is dispatched from the merged master.
