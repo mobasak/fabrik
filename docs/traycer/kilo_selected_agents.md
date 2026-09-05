@@ -1,6 +1,6 @@
 # Kilo Agents Master Table
 
-**Last Updated:** 2026-08-19T05:31:56.608868
+**Last Updated:** 2026-09-05T05:01:32.058404
 **Source:** [openlm.ai/chatbot-arena](https://openlm.ai/chatbot-arena/) | [tbench.ai](https://www.tbench.ai/leaderboard/terminal-bench/2.0)
 
 ## Top 60 Agents Ranked by Chatbot Arena Elo
@@ -83,3 +83,4 @@
 - **2026-08-16:** Auto-updated from benchmarks
 - **2026-08-18:** Auto-updated from benchmarks
 - **2026-08-19:** Auto-updated from benchmarks
+- **2026-09-05:** Auto-updated from benchmarks

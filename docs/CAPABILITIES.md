@@ -116,7 +116,6 @@
 - [scripts/enforcement/_check_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
 - [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): Verify WSL-to-Windows Android SDK communication.
 - [scripts/enforcement/check_certification_coverage.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_certification_coverage.py | scripts/final_gate.py | docs/reference/certification-denominator.md | commands/_sources/fabrik-us
-- [scripts/enforcement/check_command_corpus.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_command_corpus.py, docs/reference/command-corpus-check.md, scripts/final_gate.py | none
 - [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): Enforce configuration documentation pattern.
 - [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
 - [scripts/enforcement/check_decisions_unique.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -161,7 +160,7 @@
 - [scripts/health_summary.py](../INDEX.md) (owner: infra): Scan /opt/* project directories and report health status.
 - [scripts/inject_deploy_resources.py](../INDEX.md) (owner: infra): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
 - [scripts/kilo-benchmarks/build_task_baselines.py](../INDEX.md) (owner: intel): AFTER-EDIT: rank_task_subagents.py (retained) engine/rank_coding_subagents.py (ai-model-catalog) libs/subagents/select.py
-- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](../INDEX.md) (owner: intel): Heartbeat check for daily_refresh.sh — fires an alert when stale.
+- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](../INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/daily_refresh.sh, scripts/wsl_startup_hook.sh, tests/test_external_services_chain.py | none
 - [scripts/kilo-benchmarks/flush_subagent_outboxes.py](../INDEX.md) (owner: intel): AFTER-EDIT: autocommit_pipeline_outputs.sh (none) | daily_refresh.sh (wires this) | tests/test_flush_subagent_outboxes.py
 - [scripts/kilo-benchmarks/reclassify_cap_rows.py](../INDEX.md) (owner: intel): AFTER-EDIT: tests/test_reclassify_cap_rows.py | rank_task_subagents.py (reads the status it writes)
 - [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
@@ -201,6 +200,7 @@
 - [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): Traycer Report Writer
 - [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
+- [scripts/vps_apply_limits.sh](../INDEX.md) (owner: fleet): AFTER-EDIT: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md | docs/STRATEGIC_BACKLOG.md
 - [scripts/vps_sync.py](../INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
 
 ## lib-module
@@ -325,7 +325,7 @@
 - [core/67-file-api.md](../.windsurf/rules/core/67-file-api.md) (owner: infra): File-handling discipline (2026) — S3-compatible storage routing (B2/R2 default; Supabase Storage legacy), undici handler, adaptive retry, presigned URL contract
 - [core/75-workers-jobs.md](../.windsurf/rules/core/75-workers-jobs.md) (owner: infra): Workers & jobs discipline — PG queue, retry/backoff, dead-letter, idempotency, pause-state, orphan sweep, beat tasks
 - [core/76-gpu-workers.md](../.windsurf/rules/core/76-gpu-workers.md) (owner: infra): GPU worker discipline — decision framework for API vs self-host, provider/engine/quantization selection, two-faced architecture, lifecycle automation, fault tol
-- [core/85-payments-billing.md](../.windsurf/rules/core/85-payments-billing.md) (owner: infra): Payments & billing discipline — Paddle Billing v2 (MoR), iyzico (Turkish domestic), webhook idempotency, entitlement modeling, subscription lifecycle
+- [core/85-payments-billing.md](../.windsurf/rules/core/85-payments-billing.md) (owner: infra): Payments & billing discipline — Paddle Billing v2 (MoR, international), PayTR (Turkish domestic) with iyzico as its fallback, webhook idempotency, entitlement m
 - [core/86-email-templates.md](../.windsurf/rules/core/86-email-templates.md) (owner: infra): Email & template creation — MJML+Jinja2 pipeline, Resend ESP, push/in-app, deliverability, cross-cutting across SaaS/mobile/WordPress
 - [core/90-bootstrap-scripts.md](../.windsurf/rules/core/90-bootstrap-scripts.md) (owner: infra): Bootstrap script discipline — SSH user transition, fail2ban trap, idempotency, quote escaping
 - [core/app-audit-log.md](../.windsurf/rules/core/app-audit-log.md) (owner: infra): Tamper-evident audit log for sensitive operations — canonical action vocabulary, hash-chain verification, retention policy
