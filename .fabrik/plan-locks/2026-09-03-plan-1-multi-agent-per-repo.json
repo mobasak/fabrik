@@ -412,12 +412,12 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14a-review.md"
     },
     "T14b": {
-      "state": "fixup-round-1",
+      "state": "review-round-2",
       "agent": "a0dd76dae519b8954",
       "branch": "worktree-agent-a0dd76dae519b8954",
       "base": "3a4b5e77",
-      "updated": "2026-09-05T23:29:14+00:00",
-      "head": "cb65dafa"
+      "updated": "2026-09-05T23:33:58+00:00",
+      "head": "af2998ef"
     },
     "T14c": {
       "state": "merged",
