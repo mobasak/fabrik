@@ -237,6 +237,49 @@ def measure(claude_json: dict, model: str) -> dict:
 
 
 # ─── producer side (hub / operator box only — needs ~/.claude) ───────────────────────────────
+#: What the Claude subscription ACTUALLY COST, per calendar month (operator, 2026-09-05: "may june
+#: july we paid 600$ august and september we are paying 800$"). Authoritative over any per-account
+#: arithmetic: the fee is the fee, and it changed when the account count did.
+#:
+#: ⚠️ A SCHEDULE, NOT A CONSTANT, because the previous flat $800 silently rewrote history — it priced
+#: May, June and July at a fee that was not paid until August, overstating three months by 33%. Any
+#: month not listed uses :data:`_CURRENT_MONTHLY_SPEND`, so a new month needs no edit until the fee
+#: changes again; when it does, add the row and every past month keeps its own truth.
+_MONTHLY_SPEND: dict[str, float] = {
+    "2026-05": 600.0,
+    "2026-06": 600.0,
+    "2026-07": 600.0,
+    "2026-08": 800.0,
+    "2026-09": 800.0,
+}
+_CURRENT_MONTHLY_SPEND = _env_float("CLAUDE_MONTHLY_SPEND_USD", 800.0)
+
+
+def _spend_for_month(ym: str) -> float:
+    """The fee paid for `YYYY-MM`; the current rate for any month not in the schedule."""
+    return _MONTHLY_SPEND.get(ym, _CURRENT_MONTHLY_SPEND)
+
+
+def _days_in_month(ym: str) -> int:
+    y, m = int(ym[:4]), int(ym[5:7])
+    nxt = datetime.date(y + (m == 12), (m % 12) + 1, 1)
+    return (nxt - datetime.date(y, m, 1)).days
+
+
+def _prorated_spend(start: datetime.date, end: datetime.date) -> float:
+    """Fee for an arbitrary INCLUSIVE date span, pro-rated across the months it crosses.
+
+    The 30-day rolling window straddles two months, so charging it one month's whole fee is wrong in
+    both directions depending on where the window sits. Each day carries its own month's daily rate.
+    """
+    total, d = 0.0, start
+    while d <= end:
+        ym = d.strftime("%Y-%m")
+        total += _spend_for_month(ym) / _days_in_month(ym)
+        d += datetime.timedelta(days=1)
+    return total
+
+
 #: Relative price weight per Claude tier — an OPERATOR ASSUMPTION, recorded 2026-09-05, not a
 #: measurement. Stated as: "haiku price is 1x, sonnet 2x, opus 5x, fable 10x. ok save this as
 #: assumption." It matches the live Anthropic list prices exactly ($1/$2/$5/$10 per input MTok, so
@@ -254,6 +297,80 @@ def _tier_of(model_id: str) -> str | None:
         if tier in m:
             return tier
     return None
+
+
+def _usage_store_path() -> Path:
+    """Our OWN daily usage store — the thing that outlives the Claude Manager extension."""
+    return _find("claude_usage_daily.json", "CLAUDE_USAGE_DAILY")
+
+
+def merge_usage_store() -> dict:
+    """Upsert every day of `usage-history.json` into our own store, and return the merged store.
+
+    WHY A SECOND STORE AT ALL. `~/.claude/.claude-manager/usage-history.json` is the EXTENSION'S
+    output. The operator intends to remove that extension, and the moment it goes the file stops
+    being written — so a view that reads it directly goes stale silently and 111 days of recorded
+    history become unreadable the day the extension is uninstalled. This store is ours: once a day
+    has been merged it is kept, whatever happens upstream.
+
+    MERGE-FORWARD, NOT COPY. Days are upserted by date, so the FIRST run is the backfill (all 111
+    days the extension has recorded, 2026-05-13 onward) and every later run simply adds the new ones.
+    That means there is no separate one-shot script to remember to run, and re-running is harmless —
+    which is the property a backfill most needs, because a backfill that can only be run once
+    correctly is a backfill nobody dares re-run.
+
+    ⚠️ A day already in the store is REFRESHED from the source while the source still has it, not
+    skipped: the extension writes a day's totals as the day progresses, so an early merge would
+    otherwise freeze a partial day forever. Once the source drops a day (or the extension goes), the
+    stored copy simply stands — last known good, never silently zeroed.
+
+    Stores RAW per-model tokens, not tiered totals: the tier weights are an assumption that may be
+    re-derived, and a store that has already collapsed models into tiers cannot be re-weighted.
+    """
+    path = _usage_store_path()
+    try:
+        store = json.loads(path.read_text(encoding="utf-8"))
+        days: dict = store.get("days") or {}
+    except (OSError, ValueError, TypeError, AttributeError):
+        store, days = {}, {}
+    added = kept = 0
+    try:
+        src = (json.loads(_USAGE_HISTORY.read_text(encoding="utf-8")).get("days")) or {}
+    except (OSError, ValueError, TypeError, AttributeError):
+        src = {}
+    for k, day in src.items():
+        try:
+            datetime.date.fromisoformat(k)
+        except (ValueError, TypeError):
+            continue
+        by = {}
+        for mid, m in (day.get("byModel") or {}).items():
+            tok = sum(
+                int(m.get(x, 0) or 0) for x in ("input", "output", "cacheRead", "cacheCreation")
+            )
+            if tok > 0:
+                by[mid] = tok
+        if not by:
+            continue
+        if k not in days:
+            added += 1
+        days[k] = by
+    kept = len(days)
+    store["days"] = dict(sorted(days.items()))
+    store["source"] = str(_USAGE_HISTORY)
+    store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+    # ATOMIC — three sessions and a cron share this box; a torn write here loses history that the
+    # upstream file may no longer be able to replace.
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(store, indent=2) + "\n")
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    store["_added"], store["_total_days"] = added, kept
+    return store
 
 
 def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
@@ -290,26 +407,27 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
         )
     except OSError:
         counted = None
-    n = max(1, counted or 0)
-    spend = _SUBSCRIPTION_USD_PER_ACCOUNT * n
+    # `counted` is now REPORTING ONLY: the fee comes from the schedule, not from multiplying an
+    # account count by a per-seat price. The two used to be the same number by coincidence (4 x $200)
+    # and stopped being so the moment the fee changed independently of the seat count.
+    # PRO-RATED across the months the window crosses — see `_prorated_spend`. The old
+    # `_SUBSCRIPTION_USD_PER_ACCOUNT * accounts` assumed one flat fee for all time and so priced
+    # May-July at a rate that was not paid until August.
+    spend = _prorated_spend(cutoff_d, today_d)
 
     tier_tok: dict[str, int] = {}
     model_tok: dict[str, int] = {}
     unweighted: dict[str, int] = {}
     per_day: dict[str, dict[str, int]] = {}
     try:
-        days = (json.loads(_USAGE_HISTORY.read_text(encoding="utf-8")).get("days")) or {}
-        for k, day in days.items():
-            try:
-                datetime.date.fromisoformat(k)
-            except (ValueError, TypeError):
-                continue
+        # OUR store, merged forward from the extension's file (see `merge_usage_store`). Reading the
+        # store rather than the extension's file is what keeps this working once that is removed.
+        days = (merge_usage_store().get("days")) or {}
+        for k, by_model in days.items():
             if not (cutoff <= k <= today):
                 continue
-            for mid, m in (day.get("byModel") or {}).items():
-                tok = sum(
-                    int(m.get(x, 0) or 0) for x in ("input", "output", "cacheRead", "cacheCreation")
-                )
+            for mid, raw in by_model.items():
+                tok = int(raw or 0)
                 if tok <= 0:
                     continue
                 tier = _tier_of(mid)
@@ -352,12 +470,53 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
         }
     # Zero-filled so the calendar has a cell for EVERY date: a missing key would silently shorten
     # the axis and make a quiet day indistinguishable from a day the history never recorded.
+    # ⚠️ TWO DIFFERENT WINDOWS, deliberately. The SPEND split above is 30 days because the
+    # subscription is billed monthly — a rate computed over 111 days against one month's fee would be
+    # nonsense. The CALENDAR below spans ALL recorded history (backfilled from the extension,
+    # 2026-05-13 onward) because "what did we consume, and when" is a different question from "what
+    # did this month cost", and truncating it to the billing window throws away the only
+    # month-over-month comparison we have. Daily cost is therefore priced at the CURRENT base rate —
+    # it answers "what would this day cost at today's rate", not "what was billed that month".
+    cal_tier: dict[str, dict[str, int]] = {}
+    for k, by_model in (days or {}).items():
+        for mid, raw in by_model.items():
+            t, tok = _tier_of(mid), int(raw or 0)
+            if t and tok > 0:
+                cal_tier.setdefault(k, {})[t] = cal_tier.setdefault(k, {}).get(t, 0) + tok
+    cal_start = datetime.date.fromisoformat(min(cal_tier)) if cal_tier else cutoff_d
+    # Each MONTH gets its own base rate from its OWN fee and its OWN tokens, so a month block sums to
+    # what that month actually cost — May-July at $600, August onward at $800. A single global rate
+    # would restate history at today's price, which is the defect this schedule exists to end.
+    # ROLLING, not calendar-month bucketed (operator, 2026-09-05: "rolling"). Each day D is priced
+    # by the 30-day window ENDING on D: the fee pro-rated across the months that window crosses,
+    # over the weighted tokens actually run in it. So a day in June is priced by June-era usage at
+    # the $600 fee, and a day in September by September usage at $800 — historically faithful
+    # without inventing month boundaries.
+    #
+    # WHY THIS BEAT CALENDAR BUCKETS. Month buckets forced a coverage fudge: September is 5 days
+    # lived of 30 and May's history starts on the 13th, so charging each its whole fee made their
+    # cells 5-6x darker than a complete month — an artefact of the bucket, not of usage. A trailing
+    # window has no boundaries to be partial against, so that entire correction disappears.
+    #
+    # EARLY DAYS: the window is clamped to the first day we hold, and the fee is pro-rated over the
+    # SAME clamped span — so a short window is not charged a full 30 days of subscription.
+    wtok_by_day = {
+        k: sum(tok * _TIER_WEIGHT[ti] for ti, tok in by.items()) for k, by in cal_tier.items()
+    }
+    day_rate: dict[str, float] = {}
+    for k in cal_tier:
+        d_end = datetime.date.fromisoformat(k)
+        d_start = max(cal_start, d_end - datetime.timedelta(days=_MONTHLY_DAYS - 1))
+        wt = sum(w for kk, w in wtok_by_day.items() if d_start.isoformat() <= kk <= k)
+        fee = _prorated_spend(d_start, d_end)
+        day_rate[k] = (fee / wt * 1_000_000.0) if wt > 0 else 0.0
     daily = []
-    d = cutoff_d
+    d = cal_start
     while d <= today_d:
         k = d.isoformat()
-        by = per_day.get(k, {})
-        cost = sum(t / 1_000_000.0 * base * _TIER_WEIGHT[ti] for ti, t in by.items())
+        by = cal_tier.get(k, {})
+        rate = day_rate.get(k, base)
+        cost = sum(t / 1_000_000.0 * rate * _TIER_WEIGHT[ti] for ti, t in by.items())
         daily.append(
             {
                 "date": k,
@@ -376,6 +535,7 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
         "tiers": tiers,
         "models": model_tok,
         "daily": daily,
+        "monthly_spend": {ym: _spend_for_month(ym) for ym in sorted({k[:7] for k in cal_tier})},
         "unweighted": unweighted,
     }
 

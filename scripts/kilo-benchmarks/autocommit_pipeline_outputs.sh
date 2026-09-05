@@ -111,6 +111,11 @@ PATHS=(
   # (JSON, no `Last refresh:` header), so the freshness guard fails open on it exactly as it does
   # for capabilities.json — the denominator paragraph in guard_selection_freshness.py counts it.
   scripts/kilo-benchmarks/claude_p_cost.json
+  # The daily usage STORE (added 2026-09-05). Same reasoning as the sidecar above: the 06:00
+  # refresh merges new days into it, so without this line the cron dirties a TRACKED file every
+  # morning on a tree three sessions share. It also matters more than the sidecar — this file is
+  # the ONLY durable copy of daily usage once the Claude Manager extension is removed.
+  scripts/claude_usage_daily.json
 )
 
 # Phase-D commit-half restoration (2026-08-30, intel — routed via 01M17CKG): the ai-model-catalog

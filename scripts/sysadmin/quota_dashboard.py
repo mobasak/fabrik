@@ -501,9 +501,8 @@ def _spend_panel() -> str:
 
     rows = []
     for tier, v in sorted(tiers.items(), key=lambda kv: -(kv[1].get("cost_usd") or 0)):
-        ids = ", ".join(v.get("models") or []) or "-"
         rows.append(
-            f"<tr><td><b>{escape(tier)}</b><br><span class='muted'>{escape(ids)}</span></td>"
+            f"<tr><td><b>{escape(tier)}</b></td>"
             f"<td class='num'>{v.get('weight', 0):.0f}&times;</td>"
             f"<td class='num'>{v.get('tokens', 0):,}</td>"
             f"<td class='num'>{(v.get('share') or 0) * 100:.1f}%</td>"
@@ -519,29 +518,69 @@ def _spend_panel() -> str:
         else f"<span style='color:var(--crit)'>DOES NOT reconcile: ${total:,.2f} vs ${spend:,.2f}</span>"
     )
 
-    # Intensity scales to the window's PEAK day, not an absolute count: an absolute scale makes every
-    # cell the same shade the moment fleet volume shifts, which is how a heatmap stops informing.
-    # `title=` gives native hover detail -- no JS, no tooltip library -- which is the Claude Manager
-    # behaviour being replaced.
+    # ── the calendar: one block per MONTH, newest first ──────────────────────────────────────────
+    # Grouped by whatever months the data contains, so a NEW MONTH APPEARS ON ITS OWN — nothing here
+    # enumerates months, and none has to be added when the year turns.
+    #
+    # Intensity scales to the PEAK day across all history, not an absolute token count: an absolute
+    # scale makes every cell the same shade the moment fleet volume shifts, which is how a heatmap
+    # stops carrying information. `title=` gives native hover detail — no JS, no tooltip library —
+    # which is the Claude Manager behaviour being replaced.
+    import calendar as _cal
+    import datetime as _dt
+
     peak = max((x.get("tokens") or 0) for x in daily) if daily else 0
-    cells = []
+    by_month: dict[str, list] = {}
     for x in daily:
-        t = x.get("tokens") or 0
-        lvl = 0 if not t or not peak else min(4, int(t / peak * 4) + 1)
-        by = x.get("by_tier") or {}
-        detail = " | ".join(f"{k} {v / 1e9:.2f}B" for k, v in by.items() if v) or "no usage"
-        tip = f"{x.get('date', '')}\n{t:,} tokens - ${x.get('cost_usd', 0):,.2f}\n{detail}"
-        cells.append(
-            f"<div class='cal-cell lvl{lvl}' title='{escape(tip)}'>"
-            f"<span>{escape((x.get('date') or '')[-2:])}</span></div>"
+        by_month.setdefault((x.get("date") or "")[:7], []).append(x)
+
+    blocks = []
+    for ym in sorted(by_month, reverse=True):  # newest month at the top, going back
+        entries = sorted(by_month[ym], key=lambda e: e.get("date") or "")
+        m_tok = sum(e.get("tokens") or 0 for e in entries)
+        m_cost = sum(e.get("cost_usd") or 0 for e in entries)
+        first = _dt.date.fromisoformat(entries[0]["date"])
+        # Lead the grid with blanks so the 1st lands under its real weekday — a month grid that does
+        # not line up with the week is a bar chart wearing a calendar's clothes.
+        pad = "".join("<div class='cal-pad'></div>" for _ in range(first.weekday()))
+        cells = []
+        for e in entries:
+            t = e.get("tokens") or 0
+            lvl = 0 if not t or not peak else min(4, int(t / peak * 4) + 1)
+            by = e.get("by_tier") or {}
+            detail = " | ".join(f"{k} {v / 1e9:.2f}B" for k, v in by.items() if v) or "no usage"
+            tip = f"{e.get('date', '')}\n{t:,} tokens - ${e.get('cost_usd', 0):,.2f}\n{detail}"
+            day_n = _dt.date.fromisoformat(e["date"]).day
+            cells.append(
+                f"<div class='cal-cell lvl{lvl}' title='{escape(tip)}'><span>{day_n}</span></div>"
+            )
+        label = f"{_cal.month_name[first.month]} {first.year}"
+        # A partial month is MARKED, not silently smaller: September is in progress and May's history
+        # starts on the 13th, so both are allocated fee x coverage. Without the marker the reader
+        # cannot tell a cheap month from an incomplete one.
+        # The fee that applied in this month, shown for context. It is NOT what the block totals to:
+        # days are priced on a ROLLING 30-day window, so a month sums to what its days consumed at
+        # the rate prevailing around them, not to that month's invoice.
+        fee = (p.get("monthly_spend") or {}).get(ym)
+        part = f" &middot; <span class='muted'>fee ${fee:,.0f}/mo</span>" if fee else ""
+        blocks.append(
+            f"<div class='cal-month'><div class='cal-head'><b>{escape(label)}</b>"
+            f"<span class='muted'>{m_tok / 1e9:,.1f}B tokens &middot; ${m_cost:,.2f}{part}</span></div>"
+            f"<div class='cal-dow'>"
+            + "".join(f"<i>{d}</i>" for d in ("M", "T", "W", "T", "F", "S", "S"))
+            + f"</div><div class='cal'>{pad}{''.join(cells)}</div></div>"
         )
     legend = "".join(f"<i class='cal-cell lvl{i}'></i>" for i in range(5))
     cal = (
         "<h2>Daily token consumption</h2>"
-        f"<p class='intro'>Every day in the window, shaded against the peak day ({peak:,} tokens). "
-        "<b>Hover a day</b> for its exact tokens, allocated cost and per-tier split.</p>"
-        f"<div class='cal'>{''.join(cells)}</div>"
-        f"<p class='intro' style='margin-top:8px'>less {legend} more</p>"
+        f"<p class='intro'>Every recorded day, newest month first, shaded against the busiest day "
+        f"({peak:,} tokens). <b>Hover a day</b> for its exact tokens, allocated cost and per-tier "
+        "split. Every day is priced on a <b>rolling 30-day window ending that day</b> — the fee "
+        "pro-rated across the months it crosses, over the tokens actually run in it — so a month "
+        "block totals what its days consumed at the rate prevailing around them, not that month's "
+        "invoice.</p>"
+        f"<div class='cal-months'>{''.join(blocks)}</div>"
+        f"<p class='intro' style='margin-top:10px'>less {legend} more</p>"
     )
     win = f"{p.get('window_start')} to {p.get('window_end')}"
     built = d.get("built_at") or "-"
@@ -949,7 +988,18 @@ def render(
  #pane-usage h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
    color:var(--sub); margin:22px 0 8px; }}
  #pane-usage .muted {{ color:var(--sub); font-size:12px; }}
- .cal {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(34px,1fr)); gap:5px; }}
+ .cal {{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }}
+ .cal-months {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }}
+ @media (max-width:1100px) {{ .cal-months {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} }}
+ @media (max-width:620px) {{ .cal-months {{ grid-template-columns:1fr; }} }}
+ .cal-month {{ background:var(--card); border:1px solid var(--line); border-radius:12px;
+   padding:14px 16px; }}
+ .cal-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+   margin-bottom:10px; }}
+ .cal-head b {{ font-size:14px; }}
+ .cal-dow {{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-bottom:5px; }}
+ .cal-dow i {{ font-style:normal; font-size:10px; color:var(--sub); text-align:center; }}
+ .cal-pad {{ aspect-ratio:1; }}
  .cal-cell {{ aspect-ratio:1; border-radius:7px; border:1px solid var(--line);
    background:var(--card); display:flex; align-items:flex-end; justify-content:flex-end;
    padding:3px 4px; cursor:default; }}
@@ -1018,7 +1068,11 @@ every session bound to the pointer follows it — no restart.</footer>
     if (history.replaceState) {{ history.replaceState(null, "", name === "quota" ? location.pathname : "#" + name); }}
     showTab(name);
   }}); }});
-  showTab(location.hash === "#commands" ? "commands" : (location.hash === "#external" ? "external" : "quota"));
+  // GENERIC restore. This used to name "commands" and "external" literally, so every tab added
+  // later fell through to quota on the {REFRESH_S}s auto-reload — the page would silently jump
+  // off whatever you were reading. Any pane that exists is now restorable by its own hash.
+  var want = (location.hash || "").replace("#", "");
+  showTab(want && document.getElementById("pane-" + want) ? want : "quota");
   var conn = document.getElementById("conn");
   setInterval(function () {{
     fetch("/health", {{cache: "no-store"}})

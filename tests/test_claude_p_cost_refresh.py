@@ -70,6 +70,9 @@ def rig(tmp_path, monkeypatch):
     monkeypatch.setattr(cpc, "_MANAGER_ACCOUNTS", accounts)
     monkeypatch.setattr(cpc, "_SUBSCRIPTION_USD_PER_ACCOUNT", _SUBSCRIPTION)
     monkeypatch.setenv("CLAUDE_P_COST", str(out))
+    # Isolate the daily usage STORE as well: `refresh()` merges into it, so without this the suite
+    # writes /opt/fabrik/scripts/claude_usage_daily.json — a test that mutates the real history.
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(tmp_path / "claude_usage_daily.json"))
     return out
 
 
@@ -320,7 +323,12 @@ def test_concurrent_producers_do_not_share_a_temp_file(rig):
         cpc.refresh()
     finally:
         cpc.tempfile.mkstemp = real_mkstemp
-    assert len(seen) == 2 and seen[0] != seen[1], f"temp names collided: {seen}"
+    # ⚠️ FILTERED to the sidecar's own temps. `refresh()` also writes the daily usage STORE
+    # (`merge_usage_store`), so an unfiltered count sees four names and fails on a file this test is
+    # not about. The filter is the fix, not a looser assertion: the invariant under test is that two
+    # concurrent refreshes never pick the same temp name for the SIDECAR.
+    mine = [n for n in seen if "claude_p_cost.json." in n]
+    assert len(mine) == 2 and mine[0] != mine[1], f"temp names collided: {mine}"
 
 
 def test_the_target_is_only_ever_reached_by_an_atomic_rename(rig):
@@ -373,6 +381,7 @@ def _anchor_only(monkeypatch, tmp_path, prev: dict | None):
     if prev is not None:
         out.write_text(json.dumps(prev), encoding="utf-8")
     monkeypatch.setenv("CLAUDE_P_COST", str(out))
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(tmp_path / "claude_usage_daily.json"))
     monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "nope" / "usage-history.json")
     return cpc, out
 
