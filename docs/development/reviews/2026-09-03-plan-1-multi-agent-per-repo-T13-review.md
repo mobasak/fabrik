@@ -58,3 +58,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] the header's "every exit path" trap claim overstates — SIGKILL leaves 3 temp files (SIGTERM 0) → FIXUP (5, wording + the `/tmp/wip-*` sweep). [L] the `:351` mktemp `2>/dev/null` + guard is a deviation beyond the mandated widening — verified benign (`GIT_INDEX_FILE=""` does not fall back to the real index) → acknowledged in the commit body.
 Round 4 verdict: 7 raised → 5 routed (1 H, 3 M, 1 L) + 1 routed out (pre-existing) + 1 acknowledged; pool: deepseek's cost item RESOLVED by the witness fixup rather than restated. Not the no-op round.
 
+## Round 5 — over `9c35928f..2ae4d5f6` (74,601 B; the round-4 fixup 81fadb02 + 2ae4d5f6: `_wip_record_live_id` records EVERY enumerated worktree so the reaper's delete scope equals its knowledge; the enumeration witness; the `repo_is_worktree` guard graded by a sidecar WITH a nested worktree (the guard now decides WHICH iteration reaps — owner, not sidecar); a plain repo logs nothing from the reaper; the trappable-exit wording; the reaper comment corrected; a self-caught vacuous first test fixed before reporting; 34 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 5.
+Pool + native: PENDING — appended when they return.
+

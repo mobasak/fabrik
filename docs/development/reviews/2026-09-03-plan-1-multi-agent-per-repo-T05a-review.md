@@ -40,3 +40,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Owed (not executed — the hold): the ≥30-pair frontier-vs-reference table + 4/8/12 timings; the fleet blast-radius sweep at base vs branch (the "1 line fleet-wide" count unconfirmed); ruff/format/mypy/headers/suite counts; the live set's `Agent-Task: T05A` vs Board-row ERROR. Round 3 re-sweeps these.
 Round 2 verdict: 7 raised → 6 routed now (1 M, 5 L) + 1 sequenced behind T03a; pool 3/3 CLEAN missed the blockquote fail-open — the native layer found it by reading the prefix. Not the no-op round.
 
+## Round 3 — over `2f982a5f..1e2ae413` (56,018 B; the round-2 fixup 1e2ae413: `_F` accepts `>` so a blockquoted header parses and fails closed; `_dup_keys` consumed; the inline carve-out replaced by `_carved_out` (M6 re-killed); the `reach` comment; `[seq]` documented + refused on the epic side only — measured 9 of 2,146 live Touches/File-Scope tokens are Next.js `[id]` routes kept literal, 0 of 45 live owned_paths carry a bracket; two headers → ERROR; a NameError in the untested unusable-path arm caught by ruff, fixed and covered; item (2) the re-port HELD for T03a's next commit; 404 passed + 1 skipped; live set byte-identical at the same HEAD; the `>`-tolerant regex still matches 1 of 508 live plan files)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3 (the round-2 owed items required).
+Pool + native: PENDING — appended when they return.
+
