@@ -620,10 +620,51 @@ def _spend_panel() -> str:
     )
     win = f"{p.get('window_start')} to {p.get('window_end')}"
     built = d.get("built_at") or "-"
+    # WHY THE HEADLINE IS NOT THE MONTHLY FEE. The window is a ROLLING 30 days, so it straddles two
+    # months whose daily rates differ — a $800 fee is $25.81/day across a 31-day August and
+    # $26.67/day across a 30-day September. The sum over 30 such days is therefore never exactly the
+    # monthly fee, and reading "$778.49" as the subscription price is the obvious misreading (the
+    # operator made it on sight, 2026-09-06, which is the evidence this sentence needed writing).
+    # Fail-soft: an unparseable window or a month whose fee the sidecar does not carry drops the
+    # breakdown and keeps the number.
+    fee_now, win_days, fee_note = 0.0, 0, ""
+    try:
+        ws = _dt.date.fromisoformat(str(p.get("window_start")))
+        we = _dt.date.fromisoformat(str(p.get("window_end")))
+        fees = p.get("monthly_spend") or {}
+        win_days = (we - ws).days + 1
+        per_month: dict[str, int] = {}
+        for n in range(win_days):
+            per_month[(ws + _dt.timedelta(days=n)).strftime("%Y-%m")] = (
+                per_month.get((ws + _dt.timedelta(days=n)).strftime("%Y-%m"), 0) + 1
+            )
+        fee_now = float(fees.get(we.strftime("%Y-%m")) or 0.0)
+        parts = []
+        for ym, n in sorted(per_month.items()):
+            fee = fees.get(ym)
+            if fee is None:
+                parts = []
+                break
+            y, m = int(ym[:4]), int(ym[5:7])
+            dim = (_dt.date(y + (m == 12), (m % 12) + 1, 1) - _dt.date(y, m, 1)).days
+            parts.append(
+                f"{n} {_cal.month_name[m]} day{'s' if n != 1 else ''} at ${fee:,.0f}/{dim}"
+            )
+        fee_note = escape(" + ".join(parts))
+    except (ValueError, TypeError, AttributeError):
+        fee_now, win_days, fee_note = 0.0, 0, ""
+    priced = (
+        f"priced against <b>${spend:,.2f}</b> &mdash; what the <b>${fee_now:,.0f}/month</b> "
+        f"subscription costs over THESE {win_days} days ({fee_note}), since a rolling window is "
+        "not a calendar month"
+        if (fee_now and win_days and fee_note)
+        # never assert a breakdown we could not derive
+        else f"priced against <b>${spend:,.2f}</b> for that window"
+    )
     return (
         "<h2>Claude subscription &mdash; spend by tier</h2>"
         f"<p class='intro'>All Claude Code / <code>claude -p</code> usage over <b>{escape(win)}</b> "
-        f"({tok:,} tokens), priced against the real subscription of <b>${spend:,.2f}</b> using "
+        f"({tok:,} tokens), {priced} &mdash; using "
         f"<b>haiku 1&times; &middot; sonnet 2&times; &middot; opus 5&times; &middot; fable "
         f"10&times;</b>. Base ${base:.6f}/MTok at weight 1. &Sigma; {recon}. "
         "&#9888; An <b>allocation, not an invoice</b> &mdash; the subscription is a flat fee with no "

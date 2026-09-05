@@ -1319,3 +1319,31 @@ def test_an_unreadable_sidecar_still_renders_nothing(tmp_path, monkeypatch):
     bad.write_text("{not json", encoding="utf-8")
     monkeypatch.setattr(qd, "_COST_SIDECAR", bad)
     assert qd._spend_panel() == ""
+
+
+def test_the_headline_says_the_monthly_fee_not_just_the_window_slice(tmp_path, monkeypatch):
+    """The operator read "$778.49" as the subscription price and asked why it was not $800 — which
+    is the right question, because the sentence called it "the real subscription of $778.49". A
+    rolling 30-day window straddles two months whose DAILY rates differ ($800/31 in August,
+    $800/30 in September), so its sum is never the monthly fee. The header now states the fee, the
+    day count and the split that produced the number."""
+    qd = _sidecar(tmp_path, monkeypatch, {})
+    doc = json.loads(qd._COST_SIDECAR.read_text(encoding="utf-8"))
+    doc["per_model_spend"]["monthly_spend"] = {"2026-08": 800.0, "2026-09": 800.0}
+    qd._COST_SIDECAR.write_text(json.dumps(doc), encoding="utf-8")
+
+    panel = qd._spend_panel()
+
+    assert "$800/month" in panel, "the FEE must be on the page, not only the window slice"
+    assert "25 August days at $800/31" in panel and "5 September days at $800/30" in panel
+    assert "not a calendar month" in panel
+
+
+def test_an_underivable_fee_breakdown_is_omitted_not_guessed(tmp_path, monkeypatch):
+    """The window's own months are what the breakdown needs. If the sidecar does not carry a fee for
+    one of them, the number still stands and the explanation is simply absent — an invented split
+    would be worse than none."""
+    qd = _sidecar(tmp_path, monkeypatch, {})  # monthly_spend has 2026-09 only; the window spans 08
+    panel = qd._spend_panel()
+    assert "priced against <b>$800.00</b> for that window" in panel
+    assert "August days at" not in panel and "$800/month" not in panel

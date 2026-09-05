@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Usage tab called the 30-day window slice "the real subscription" (2026-09-06)
+
+The header read *"priced against the real subscription of $778.49"*, and the operator asked the right
+question on sight: the subscription is $800. $778.49 is what $800/month costs over THESE 30 days — a
+rolling window straddles two months whose daily rates differ ($800/31 in August, $800/30 in
+September), so its sum is never the monthly fee. The sentence now states the fee, the day count and
+the split that produced the number: "what the $800/month subscription costs over THESE 30 days (25
+August days at $800/31 + 5 September days at $800/30), since a rolling window is not a calendar
+month". Underivable — a sidecar carrying no fee for one of the window's months — omits the breakdown
+and keeps the number, rather than inventing a split.
+
 ### Changed — mega 03 + 04 retired into docs/orchestrator/_retired/; the 05 tombstone relocated (2026-09-06)
 - **What:** `03-expand-epic-files-fabrik.md` and `04-cross-epic-validation-fabrik.md` are a pure `git mv` (history preserved through `--follow`) into `docs/orchestrator/_retired/mega-epic-breakdown/*.RETIRED.md`, each prefixed with a two-line tombstone naming the corpus twin that replaced it — 03 → `/fabrik-epics`, 04 → `/fabrik-epics-review` (spec § Chain consolidation (c)). The pre-existing `05-dispatch-epic-tickets-fabrik.RETIRED.md` moves byte-identical from `mega-epic-breakdown/_retired/` into the same root, so one `_retired/` tree holds every tombstone; `docs/orchestrator/mega-epic-breakdown/` now keeps only `EPIC-ARTIFACT-SCHEMA.md` and `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md`. No content rewrite beyond the two headers. Referrers repaired in the same change: `INDEX.md` (the old `mega-epic-breakdown/_retired` node removed) and `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md:7` (the 05 tombstone's relative path).
 - **Where:** `docs/orchestrator/_retired/mega-epic-breakdown/`, `INDEX.md`, `docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T12b).
