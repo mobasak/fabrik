@@ -94,7 +94,13 @@ _ALLOWED_BASH = re.compile(
 # `<(` / `>(` is PROCESS SUBSTITUTION — bash runs the inner command: `git status <(touch m)` was
 # allowed and the marker appeared (review 2026-09-05, pass 14, executed). No operator on the
 # list, no quote to mask; the paren after `<`/`>` is the tell.
-_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<!>)&(?!&)|[<>]\(")
+# `$'…'` (ANSI-C) and `$"…"` (locale) QUOTING: bash decodes the span into a plain word — `$'--output=m'`
+# and even `$'\x2d\x2doutput=m'` reached git as `--output=m` and wrote (pass 19, executed, raised
+# by a pool finder) — while shlex, which the git-flag veto reads, keeps the `$` glued to the
+# token so no `--` is seen. Neither form has a place in a checkpoint command; on the masked line
+# the quote char survives masking, so `\$['"]` at top level is the tell (inside double quotes the
+# inner quote is masked, so a commit message containing `$'` stays data).
+_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|\$['\"]|`|\n|(?<!>)&(?!&)|[<>]\(")
 # git's OWN flags are not shell syntax, so neither veto above can see them, and the allow-list
 # matches the leading verb: `git log --output=<any path>` wrote a file at an arbitrary path
 # (pass 14, executed); `git fetch --upload-pack=<program> .` and `git push --receive-pack=<program>
@@ -116,6 +122,8 @@ def _git_own_flag(command: str) -> bool:
     if not argv or argv[0] != "git":
         return False
     for tok in argv[1:]:
+        if tok == "--":
+            return False  # end of options: what follows is a pathspec/refspec, never a flag
         if not tok.startswith("--"):
             continue
         name = tok.split("=", 1)[0]

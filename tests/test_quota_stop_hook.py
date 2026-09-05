@@ -320,6 +320,29 @@ def test_a_quoted_or_abbreviated_git_flag_is_still_a_flag():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
+def test_ansi_c_and_locale_quoting_are_held_and_end_of_options_is_honoured():
+    """`$'--output=m'`, `$'\\x2d\\x2doutput=m'`, `$"--output=m"` and `$'--upl=./p'` all wrote or ran
+    under `allow` (pass 19, executed — a pool finder's claim): bash decodes the span to a plain
+    word while shlex keeps the `$` glued to the token, so the argv veto saw no `--`. The quote
+    char survives masking, so `$` followed by a quote is a veto on the masked line; inside double
+    quotes the inner quote is masked and a message containing `$'` stays data. And a bare `--`
+    ends options: `git log -- --output=m` is a pathspec (proven: no file), not a flag."""
+    for cmd in (
+        "git log -1 $'--output=m'",
+        "git log -1 $'\\x2d\\x2doutput=m'",
+        'git log -1 $"--output=m"',
+        "git fetch $'--upl=./pre.sh' .",
+        "git status $'x'",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        "git log -1 -- --output=m",
+        'git commit -m "cost $\'s fine"',
+        "git commit -m 'a $\"b'",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
     """`(?<![0-9>])&` excused an `&` after a digit, for which bash has no legitimate form — the
     fd-duplication `2>&1` puts its `&` after `>`. `git status 1& touch m` and `git log 2>&1& touch m`

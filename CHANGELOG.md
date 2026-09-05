@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 19 of the review: ANSI-C quoting, end-of-options, a traversal anchor, `--ext-diff` and `--chmod` at the quota hold (2026-09-05)
+
+`$'--output=m'`, `$'\\x2d\\x2doutput=m'`, `$"--output=m"` and `$'--upl=./p'` wrote a file or ran a
+program under `allow`: bash decodes ANSI-C and locale quoting to a plain word while shlex keeps
+the `$` glued to the token, so the argv veto never saw a `--`. `$` followed by a quote is now a veto
+on the masked line (the quote char survives masking; inside double quotes it does not, so a commit
+message containing `$'` stays data). A bare `--` ends options — `git log -- --output=m` is a
+pathspec and was a false deny. The scripts anchor admitted `../scripts/command_run.py` (a look-alike
+by traversal ran); the prefix is now absolute or absent. `--ext-diff` re-ran a pre-set
+`diff.external` and `git add --chmod=+x` flipped a staged mode; both join the vetoed prefixes.
+Every claim executed before the fix; three graders red on revert; 26 hook tests.
+
 ### Fixed — pass 18 of the review: the quota hold's git-flag veto reads ARGV, not the masked line — quoted and abbreviated flags were still flags (2026-09-05)
 
 The pass-17 veto for git's own file-output and program-running flags searched the quote-MASKED
