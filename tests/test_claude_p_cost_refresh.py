@@ -221,6 +221,81 @@ def test_a_truncated_sidecar_is_replaced_rather_than_crashing(rig):
     assert data["window_end"] == datetime.date.today().isoformat()
 
 
+def test_a_carried_split_is_stamped_even_when_its_origin_is_unknown(rig):
+    """`null` says "carried, origin unknown"; ABSENCE says "computed this window" — which would be a lie.
+
+    The first version stamped only when the previous file had a truthy `built_at`, so a split carried
+    from a file without one slipped back in unstamped — through the exact gap this key closes.
+    """
+    rig.write_text(json.dumps({"amortized_per_mtok_by_family": {"opus": 0.0054}}), encoding="utf-8")
+    data = cpc.refresh()
+    assert "amortized_per_mtok_by_family_built_at" in data
+    assert data["amortized_per_mtok_by_family_built_at"] is None
+
+
+def test_built_at_is_never_behind_the_window_it_describes(rig, monkeypatch):
+    """ONE clock. A UTC stamp beside LOCAL bounds puts the build a day behind its own data.
+
+    The clock is FROZEN into the danger band on purpose. Asserting this against the real clock is
+    green for the wrong reason for 21 hours a day — it only reds between 21:00 and 24:00 UTC on a
+    UTC+03:00 box, which is precisely the wall-clock time bomb this suite exists to refuse.
+    """
+    tz = datetime.timezone(datetime.timedelta(hours=3))
+    frozen_local = datetime.datetime(2026, 9, 6, 1, 0, 0, tzinfo=tz)  # == 2026-09-05T22:00Z
+
+    class _FrozenDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz_=None):
+            return frozen_local.astimezone(tz_) if tz_ else frozen_local.replace(tzinfo=None)
+
+    class _FrozenDate(datetime.date):
+        @classmethod
+        def today(cls):
+            return datetime.date(2026, 9, 6)
+
+    # Aliases captured OUTSIDE the class body: inside it, `datetime = ...` shadows the module for
+    # every following line, so `datetime.timedelta` would resolve against the class being defined.
+    _timedelta, _timezone, _utc = datetime.timedelta, datetime.timezone, datetime.UTC
+
+    class _FrozenModule:
+        datetime = _FrozenDateTime
+        date = _FrozenDate
+        timedelta = _timedelta
+        timezone = _timezone
+        UTC = _utc
+
+    monkeypatch.setattr(cpc, "datetime", _FrozenModule)
+    data = cpc.refresh()
+    built = datetime.datetime.fromisoformat(data["built_at"])
+    assert built.tzinfo is not None, "a naive stamp has no clock at all"
+    assert built.date() >= datetime.date.fromisoformat(data["window_end"]), (
+        f"built_at {data['built_at']} predates window_end {data['window_end']} — two clocks"
+    )
+
+
+def test_concurrent_producers_do_not_share_a_temp_file(rig):
+    """A predictable `<name>.tmp` lets two refreshes interleave into one file before either replaces it.
+
+    Three agent sessions and a cron share this box. Proven by fingerprinting the temp path the writer
+    chooses: two calls must never pick the same name.
+    """
+    seen = []
+    real_mkstemp = cpc.tempfile.mkstemp
+
+    def spy(*a, **kw):
+        fd, name = real_mkstemp(*a, **kw)
+        seen.append(name)
+        return fd, name
+
+    cpc.tempfile.mkstemp = spy
+    try:
+        cpc.refresh()
+        cpc.refresh()
+    finally:
+        cpc.tempfile.mkstemp = real_mkstemp
+    assert len(seen) == 2 and seen[0] != seen[1], f"temp names collided: {seen}"
+
+
 def test_the_write_is_atomic_and_leaves_no_debris(rig):
     """A torn write would lose the family split permanently — nothing here can regenerate it."""
     cpc.refresh()

@@ -42,6 +42,7 @@ import datetime
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -210,9 +211,10 @@ def _live_usage_window() -> dict:
     measured = counted if (counted or 0) > 0 else None
     # INCLUSIVE bounds spanning exactly `_MONTHLY_DAYS` dates. `today - _MONTHLY_DAYS` spans THIRTY-ONE,
     # which divided ONE month of subscription $ by 31 days of tokens and understated the rate ~1.3%.
-    # LOCAL calendar dates, deliberately: they are compared against `usage-history.json`'s own day keys,
-    # which the CLI writes in local time. `built_at` is UTC-aware; these are a different clock on purpose
-    # and must not be merged. A consumer computing staleness reads `built_at`, never these.
+    # LOCAL calendar dates: they are compared against `usage-history.json`'s own day keys, which the CLI
+    # writes in local time. `built_at` is stamped on the SAME clock (aware-local, never naive) — a UTC
+    # stamp beside local bounds lets the build time fall a day BEHIND the window it describes, which on
+    # this UTC+03:00 box happens for three hours every night.
     today = datetime.date.today().isoformat()
     cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS - 1)).isoformat()
     try:
@@ -287,8 +289,11 @@ def refresh() -> dict:
     # A carried map must not inherit the fresh window's authority: stamp it with the `built_at` of the
     # file it came from, so `window_start`/`window_end` are never read as vouching for it. Measured
     # 2026-09-05: the carried split was up to 88% off a live recompute under a same-day window.
-    if "amortized_per_mtok_by_family" in prev and prev.get("built_at"):
-        data.setdefault("amortized_per_mtok_by_family_built_at", prev["built_at"])
+    if "amortized_per_mtok_by_family" in prev:
+        # ALWAYS stamp a carried split. Omitting the stamp when the previous file had no `built_at`
+        # would let an unstamped fossil back in through exactly the gap this key exists to close;
+        # `null` says "carried, origin unknown", which absence cannot say.
+        data.setdefault("amortized_per_mtok_by_family_built_at", prev.get("built_at") or None)
     data.update(
         {
             "amortized_per_mtok": w["amortized_per_mtok"],
@@ -298,15 +303,22 @@ def refresh() -> dict:
             "accounts": w["accounts"],
             "spend_usd": w["spend_usd"],
             "tokens": w["tokens"],
-            "built_at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
+            "built_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         }
     )
     # ATOMIC: this file is now the SOLE store of `amortized_per_mtok_by_family`, which nothing in
     # this repo can regenerate (`derive_cost.amortized_by_family` is reachable only from the orphaned
     # `write_cost_sidecar`). A torn write would lose it permanently, and Phase C puts this on a cron.
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    # Unique temp per invocation: three agent sessions and a cron share this box, and a shared
+    # `<name>.tmp` lets two producers interleave their writes into one file before either replaces it.
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)  # never leave debris behind a failed write
+        raise
     return data
 
 
