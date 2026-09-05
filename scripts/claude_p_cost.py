@@ -542,11 +542,28 @@ def _merge_usage_store_locked(path: Path) -> dict:
         store = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(store, dict):
             raise TypeError("store is not an object")
-        # `days` must be a MAPPING or the merge below raises on `.items()` / `days[k]`. A corrupt or
-        # hand-edited store must degrade to "no history yet", never crash the daily refresh — the
-        # store is written atomically, so the shapes that reach here are external damage, and a
-        # producer that dies on them stops recording usage until someone notices.
-        days: dict = store.get("days") if isinstance(store.get("days"), dict) else {}
+        # `days` must be a MAPPING OF MAPPINGS or the merge below raises — on `.items()` for the
+        # outer, and on `days[k].values()` / `dict(days[k])` for a day whose value is a scalar. A
+        # corrupt or hand-edited store must degrade to "no history yet", never crash the daily
+        # refresh: the store is written atomically, so shapes that reach here are external damage,
+        # and a producer that dies on them stops recording usage until somebody notices. Sanitising
+        # HERE rather than guarding each use is the point — one place holds the invariant, and every
+        # reader below can then assume it. An unusable day is dropped; keeping a scalar would only
+        # move the crash downstream.
+        raw = store.get("days")
+        days: dict = (
+            {
+                k: {
+                    m: t
+                    for m, t in v.items()
+                    if isinstance(t, (int, float)) and not isinstance(t, bool)
+                }
+                for k, v in raw.items()
+                if isinstance(v, dict)
+            }
+            if isinstance(raw, dict)
+            else {}
+        )
     except (OSError, ValueError, TypeError, AttributeError):
         store, days = {}, {}
     src_by: dict = (
@@ -573,7 +590,14 @@ def _merge_usage_store_locked(path: Path) -> dict:
             continue
         if k not in days:
             added += 1
-        days[k] = by
+            days[k] = by
+        else:
+            # PER-MODEL max here too, for the same reason as the transcript branch below: the source
+            # is re-read every run so a partial day keeps growing, and that same re-read shrinks the
+            # day if the upstream file is ever truncated, reset or restored from an older copy. One
+            # invariant for the whole store — a stored day never shrinks, whatever wrote it.
+            for mid, tok in by.items():
+                days[k][mid] = max(int(days[k].get(mid, 0)), int(tok))
         src_by[k] = "extension"
 
     # ── the transcripts: FILL-FORWARD ONLY, never a rewrite of recorded history ──────────────────
@@ -652,7 +676,10 @@ def _merge_usage_store_locked(path: Path) -> dict:
     store["transcript_source"] = str(_transcript_root())
     store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     # ATOMIC — three sessions and a cron share this box; a torn write here loses history that the
-    # upstream file may no longer be able to replace.
+    # upstream file may no longer be able to replace. ⚠️ A write failure here is DELIBERATELY LOUD:
+    # an unwritable store path (a mis-set `CLAUDE_USAGE_DAILY`, a missing parent directory, a full
+    # disk) means usage has stopped being recorded, which is the exact failure this whole collector
+    # exists to prevent. Swallowing it would hide the outage behind a green cron.
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

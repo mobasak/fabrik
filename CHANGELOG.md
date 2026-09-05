@@ -79,6 +79,27 @@ D-145 carries the correction with the counting rules.
 `_COLLECTOR_VERSION` is 3 — the earliest-sighting rule is a counting-rule change, and its own policy
 says a counting-rule change re-derives the transcript days once.
 
+And one more from the final sweep, the same class one level deeper: a day whose VALUE is a scalar
+rather than a mapping still crashed the merge — `sum(days[k].values())` in the `_discrepancy` build
+and `dict(days[k])` in the per-model merge both raise on an int. `days` is now sanitised once at
+load, dropping entries that are not mappings, so the invariant is held in one place instead of being
+guarded at each use. An unusable day is dropped; keeping a scalar would only move the crash
+downstream.
+
+A fourth round, from five author-blind readers that all returned this time, pushed the same class one
+step further and found its MIRROR. The sanitiser now also drops non-numeric token values (`int("abc")`
+inside the per-model merge would have ended the daily run, and a bool is not a token count). And the
+EXTENSION path shrinks a day exactly the way the transcript path used to: that source is re-read every
+run so a partial day keeps growing, and the same re-read shrinks it if the upstream file is ever
+truncated, reset or restored from an older copy. Both paths are per-model monotonic now — one
+invariant for the whole store, whatever wrote the day.
+
+Two of their findings were refuted by execution rather than argument: a claimed token loss when three
+sightings of one call arrive across three days, and a claimed orphan when a booking moves off a day.
+All 36 permutations of three sightings produce the maximum on the earliest day, and an unrelated
+message booked to the vacated day survives. A write failure stays deliberately loud — an unwritable
+store means usage has stopped being recorded, and swallowing that hides an outage behind a green cron.
+
 22 tests, seven proven red on revert.
 
 ### Fixed — the collector's review: 160M tokens the dedup dropped, a UTC day boundary, and a store that could erode (2026-09-06)

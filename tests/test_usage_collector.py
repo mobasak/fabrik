@@ -484,6 +484,9 @@ def test_a_corrupt_store_degrades_instead_of_killing_the_daily_refresh(tmp_path,
         {"days": {"2026-01-01": {"claude-opus-5": 5}}, "collector_version": "two"},
         {"days": {"2026-01-01": {"claude-opus-5": 5}}, "collector_version": {"a": 1}},
         {"days": ["not-a-mapping"]},
+        # a day whose VALUE is a scalar — this one reached `sum(days[k].values())` in the
+        # `_discrepancy` build and `dict(days[k])` in the per-model merge, and raised on both
+        {"days": {"2026-09-05": 7}, "source_by_day": {"2026-09-05": "extension"}},
         ["not-an-object"],
         {},
     ):
@@ -536,3 +539,59 @@ def test_the_result_does_not_depend_on_which_file_is_read_first(tmp_path, monkey
     b = cpc.collect_from_transcripts(_tree(tmp_path / "y", {"a.jsonl": [late], "z.jsonl": [early]}))
     assert a == b, "path order must not change the answer"
     assert a == {"2026-09-05": {"claude-opus-5": 900}}, "booked where the call started"
+
+
+def test_a_non_numeric_token_value_is_dropped_not_raised(tmp_path, monkeypatch):
+    """`int("abc")` inside the per-model merge would end the daily run. The sanitiser keeps the
+    invariant in ONE place: a day is a mapping of model to NUMBER, and anything else never reaches
+    the arithmetic."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-05": {"claude-opus-5": "abc", "claude-haiku-4-5": 50, "x": True}},
+        {"2026-09-05": "transcripts"},
+    )
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 900)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    day = cpc.merge_usage_store()["days"]["2026-09-05"]
+
+    assert day == {"claude-opus-5": 900, "claude-haiku-4-5": 50}
+    assert "x" not in day, "a bool is not a token count"
+
+
+def test_an_extension_day_never_shrinks_either(tmp_path, monkeypatch):
+    """The mirror of the transcript rule, found by an author-blind reader. The extension file is
+    re-read every run so a partial day keeps growing — and the same re-read shrinks the day if that
+    file is ever truncated, reset, or restored from an older copy. One invariant for the whole
+    store, whatever wrote the day."""
+    _store(
+        tmp_path, monkeypatch, {"2026-09-04": {"claude-opus-5": 900}}, {"2026-09-04": "extension"}
+    )
+    history = tmp_path / "usage-history.json"
+    history.write_text(
+        json.dumps({"days": {"2026-09-04": {"byModel": {"claude-opus-5": {"output": 100}}}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    assert cpc.merge_usage_store()["days"]["2026-09-04"] == {"claude-opus-5": 900}
+
+
+def test_an_extension_day_still_grows(tmp_path, monkeypatch):
+    """The half that must keep working — today is partial all day in the upstream file too."""
+    _store(
+        tmp_path, monkeypatch, {"2026-09-04": {"claude-opus-5": 100}}, {"2026-09-04": "extension"}
+    )
+    history = tmp_path / "usage-history.json"
+    history.write_text(
+        json.dumps({"days": {"2026-09-04": {"byModel": {"claude-opus-5": {"output": 900}}}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    assert cpc.merge_usage_store()["days"]["2026-09-04"] == {"claude-opus-5": 900}
