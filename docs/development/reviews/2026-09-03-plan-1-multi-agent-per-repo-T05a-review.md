@@ -6,4 +6,19 @@
 
 ## Round 1
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 1.
-Pool layer: PENDING. Native finder (opus): PENDING.
+### Adjudication (pool layer)
+- gemini — CLEAN (separator-awareness; the two-depth subtree probe distinguishes `src/**` from `src/*`; the parser's parity with T03a's incl. comment stripping and list-key restriction; fail-closed paths; the byte-identical baseline; `_carved_out`).
+- qwen — CLEAN (7/7 classes; `src/**/x.py` matches `src/x.py` — `**` matches zero segments; `**` alone → `.*\Z`; trailing `/` stripped then probed; the parser compared line-by-line with T03a's branch; six fail-closed conditions; a second `Epic:` line acceptable at ≤1 fleet-wide).
+- deepseek — 2+ raised (18,790 chars): "`(?:[^/]+/)*` requires at least one segment, so `src/**/config/**` rejects `src/config/settings.py`" — REFUTED by execution against the branch's own `_glob_covers` (a `*`-quantified group matches zero repetitions; probe output recorded below); "`**` alone compiles to `\Z`" — REFUTED (`**` alone → covers `src/a/x.py`: True). Its remaining items restate the passing rows.
+Orchestrator probe on the branch's `_glob_covers` (executed in its worktree):
+```
+'src/**/config/**'                       covers 'src/config/settings.py'                  -> True
+'src/**/config/**'                       covers 'src/a/b/config/x.py'                     -> True
+'**'                                     covers 'src/a/x.py'                              -> True
+'src/a/*'                                covers 'src/a/b/deep.py'                         -> False
+'src/a/**'                               covers 'src/a/x.py'                              -> True
+'libs/**/product_entitlements_bridge/**' covers 'libs/x/product_entitlements_bridge/y.py' -> True
+'docs/**'                                covers 'docs/x/'                                 -> True
+'docs/*'                                 covers 'docs/x/'                                 -> False
+```
+Native finder (opus): PENDING — appended when it returns.
