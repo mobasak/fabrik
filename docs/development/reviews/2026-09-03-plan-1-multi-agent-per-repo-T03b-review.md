@@ -36,3 +36,10 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] `_pattern_segs` normalises `./` but not a bare `.`, so `owned_paths: ["."]` survives as a literal segment and the epic owns NOTHING — a missed overlap (`.` vs `src/app/**` → `[]` while `./`, `/`, `//`, `**` all fire) — outside the five BC rows, 0 instances in the hub's epics, the narrow normalisation the only defensible repair (a "matches nothing" warning would fire on the design's primary case) → FIXUP (1).
 Round 3 verdict: 1 raised → 1 routed (L); pool three-deepseek clean with its bare-key claim refuted by execution. Not the no-op round.
 
+## Round 4 — over `6a5c5990..29bd52ca` (the round-3 fixup 29bd52ca, 2/0 + 16/0, prescribed verbatim) — the CLOSING round
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own re-read of the verbatim-prescribed fixup — round 4.
+### Native layer (orchestrator re-read of 8374af73..29bd52ca, executed)
+- The diff is exactly the two lines (`if p == ".": p = ""` before the `./` branch) plus four graders (the `.`/`./`/`/` root entries each overlapping `src/app/**` in one phase — `.` red on HEAD; an interior `a/./b` still literal).
+- Executed in the worktree: `_forms('.') == _forms('./') == [[], ['**']]`; `a/./b` matches itself and not `a/b`; 78 + 64 = 142 passed; `ruff check` clean; `re.compile(` once.
+Pool: PENDING — appended when it returns.
+

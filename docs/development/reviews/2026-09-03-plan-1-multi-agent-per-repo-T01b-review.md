@@ -104,5 +104,8 @@ Round 7 verdict: 12 raised → 11 routed (4 M, 7 L) + 1 refuted; every round-6 f
 
 ## Round 8 — over `5fd58526..0e96a2e0` (5 files; the round-7 fixup 0e96a2e0: the ledger gitignored via the manifest; the prune unlinks before it reports/pops; the real run names the gitignore patch and `Results:` carries `gitignore patched: N` (live: 45 of 45 would be patched); the bootstrap in the operator doc; the OSError branch in the flow; `if not recorded_hash` on the copy side; the renamed helper in the manifest docstring; a corrupt ledger WARNs once; `ledger_owns_dir` without the file-row-as-dir arm; a zombie-row reap pass; microsecond backup stamps; seven new graders each red on 48b463fe; 57 + 40 green)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 8.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — a three-deepseek draw
+- deepseek v4-flash (1) and (2) — the Touches/DO-NOT letter (the manifest and the workflow doc) — UPHELD on the letter as in rounds 4 and 6: both are ORCHESTRATOR-DIRECTED (the manifest under round 5's item 4 and round 7's item 1, T01a merged before; the doc under the script's own `# AFTER-EDIT:` header and the Doc Sync Matrix floor); recorded in the merge body. One coverage nit: `test_hub_settings_json_worktree_block_is_present_and_well_formed` asserts `hooks`/`permissions` present and non-empty, not byte-identical to base (the round-7 native finder verified the settings diff purely additive by execution) → put to the native finder; a pin against the base blob is cheap if it upholds.
+- deepseek v3.2-exp — CLEAN (every round-7 item located by line; the 13 corner cases; the `Results:` line surviving `tail -3`).
+Native finder (opus): PENDING — appended when it returns.
 
