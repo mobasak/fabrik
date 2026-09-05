@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 27 of the review: a short-flag cluster's value is what FOLLOWS its first `m`/`F`, so `-mF .` no longer exempts the pathspec (2026-09-05)
+
+`git commit -mF . -- f.py`: git reads `-mF` as `-m` with the attached message "F", so the `.` that
+follows is a pathspec; the quota hold's cluster rule keyed on the cluster's LAST letter and exempted
+it as the message value — a sibling's staged file was committed under `allow`. Only a cluster that
+ends at its first `m`/`F` now takes the next token as the value. Named, not fixed (measured): four
+hang forms on the read tools (`wc -c /dev/zero`, `cat /dev/urandom`, `tail -f`, a bare `cat`) — an
+availability class bounded by the Bash tool's own timeout, with no legitimate use in the exit
+template. Grader red on revert; 30 hook tests.
+
 ### Fixed — pass 26 of the review: an escaped newline stays visible to the quota hold, and a `$` anywhere in a pathspec or refspec is held (2026-09-05)
 
 Two mirrors of earlier fixes. The masker's escape branch masked a backslash-newline inside double

@@ -295,7 +295,14 @@ def _git_flags_forbidden(command: str) -> bool:
                 ch not in short_ok for ch in tok[1:].rstrip("0123456789")
             ):
                 return True
-            message_value_next = verb == "commit" and tok[-1] in "mF"
+            # git attaches whatever FOLLOWS the first value-taking letter as that letter's value:
+            # `-mF` is `-m` with message "F", and the NEXT token is a pathspec — keying on the
+            # LAST letter exempted `.` after `-mF` and a sibling's staged file was committed
+            # (pass 27, P26-A, executed). Only a cluster that ENDS at its first m/F takes the
+            # next token as the value.
+            cluster = tok[1:].rstrip("0123456789")
+            first = min((cluster.find(ch) for ch in "mF" if ch in cluster), default=-1)
+            message_value_next = verb == "commit" and first != -1 and first == len(cluster) - 1
         elif not is_message_value and _positional_forbidden(verb, tok):
             # the token after `-m`/`-F` is the MESSAGE, never a pathspec: `git commit -m 'fix *.py?'
             # -- f` was refused as a glob sweep (pass 24, pool finder). A flag-shaped message

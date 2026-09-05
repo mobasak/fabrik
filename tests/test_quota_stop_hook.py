@@ -462,6 +462,9 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "git add ':(top)f'",
         "git commit -m x -- .",
         "git commit -m x .",
+        "git commit -mF . -- f.py",  # `-mF` = message "F"; the `.` is a pathspec, not the value (P26-A)
+        "git commit -Fm . -- f.py",
+        "git commit -mq . -- f.py",
         "git reset -q HEAD -- .",
         "git reset HEAD -- ..",
         "git add ./../",
