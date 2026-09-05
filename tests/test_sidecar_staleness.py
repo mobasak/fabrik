@@ -60,11 +60,76 @@ def test_a_stale_rate_is_loud_and_says_how_old():
     assert str(rts._SIDECAR_STALE_AFTER_HOURS) in out
 
 
-def test_the_staleness_boundary_is_the_rebuild_cadence():
-    """Just inside the window is silent; just outside is loud. Off-by-one here is the whole signal."""
-    hours = rts._SIDECAR_STALE_AFTER_HOURS
-    assert "STALE" not in rts._sidecar_window(_derived(built_at=_stamp((hours - 1) / 24)))
-    assert "STALE" in rts._sidecar_window(_derived(built_at=_stamp((hours + 1) / 24)))
+def _at(hours_old: float, monkeypatch) -> str:
+    """Render with the clock FROZEN, so the boundary is exact rather than wall-clock-fuzzy.
+
+    Probing `_stamp(1 day)` against a live `now()` measures 24h-plus-however-long-the-test-took, which
+    silently lands on the far side of the boundary and makes `>` indistinguishable from `>=`.
+    """
+    frozen = datetime.datetime(2026, 9, 5, 12, 0, 0, tzinfo=datetime.UTC)
+    built = frozen - datetime.timedelta(hours=hours_old)
+
+    class _FrozenDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # AWARE even when tz is None: the code calls `.now().astimezone()`, and `.astimezone()`
+            # on a NAIVE value re-interprets it as local, shifting the instant by the UTC offset —
+            # which silently moved the boundary by 3 hours on this box and made the test lie.
+            return frozen.astimezone(tz) if tz else frozen.astimezone()
+
+    _timedelta, _timezone = datetime.timedelta, datetime.timezone
+
+    class _FrozenModule:
+        datetime = _FrozenDateTime
+        timedelta = _timedelta
+        timezone = _timezone
+
+    monkeypatch.setitem(sys.modules, "datetime", _FrozenModule)
+    try:
+        return rts._sidecar_window(_derived(built_at=built.isoformat(timespec="seconds")))
+    finally:
+        monkeypatch.undo()
+
+
+def test_the_staleness_boundary_is_exactly_the_rebuild_cadence(monkeypatch):
+    """The comparison is STRICTLY greater: at exactly the cadence the rebuild is due, not overdue.
+
+    The previous version of this test probed ±1 hour and never the boundary itself, so `>` vs `>=` —
+    the canonical off-by-one on this line — survived as a silent mutation while the docstring claimed
+    "off-by-one here is the whole signal". It does now, because the clock is frozen.
+    """
+    h = rts._SIDECAR_STALE_AFTER_HOURS
+    assert "STALE" not in _at(h - 0.01, monkeypatch), "just inside the cadence must be quiet"
+    assert "STALE" not in _at(h, monkeypatch), "AT the cadence the rebuild is due, not yet overdue"
+    assert "STALE" in _at(h + 0.01, monkeypatch), "just past the cadence must be loud"
+
+
+def test_small_counts_and_singulars_render_correctly():
+    """The small-count branch and both pluralisation ternaries had ZERO coverage.
+
+    Every fixture used 106.9B tokens and 4 accounts, so `tokens < 5e7`, `tokens == 1` and
+    `accounts == 1` were never exercised — three independent mutations survived the whole suite.
+    """
+    assert "1 token over 1 account)" in rts._sidecar_window(_derived(tokens=1, accounts=1))
+    assert "2 tokens over 2 accounts)" in rts._sidecar_window(_derived(tokens=2, accounts=2))
+    assert "49,999,999 tokens" in rts._sidecar_window(_derived(tokens=49_999_999))  # just under 5e7
+    assert "0.1B tokens" in rts._sidecar_window(_derived(tokens=50_000_000))  # at the switch
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_a_non_finite_count_does_not_crash_the_renderer(value):
+    """`int(nan)` raises ValueError and `int(inf)` raises OverflowError — both inside a doc renderer."""
+    out = rts._sidecar_window(_derived(tokens=value))
+    assert "2026-08-07→2026-09-05" in out
+    assert "inf" not in out and "nan" not in out
+
+
+def test_a_present_but_unreadable_built_at_is_not_called_absent():
+    """ "no built_at" is false when the key is there — it is there and the reader cannot read it."""
+    for value in (1757000000, {"a": 1}, [1, 2]):
+        out = rts._sidecar_window(_derived(built_at=value))
+        assert "not a timestamp" in out
+        assert "carries no date at all" not in out
 
 
 def test_the_anchor_fallback_never_claims_a_window():

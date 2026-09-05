@@ -693,12 +693,17 @@ def _sidecar_window(d: dict) -> str:
                 # hand-edited file. Silently passing it as "fresh" is the same blindness in reverse:
                 # a negative age is always below any threshold.
                 age = f" ⚠️ **built_at is in the FUTURE** by {-hours / 24:.1f} days — clock skew or a hand-edited file"
+            # STRICTLY greater: at exactly the cadence the rebuild is due, not yet overdue.
             elif hours > _SIDECAR_STALE_AFTER_HOURS:
                 age = f" ⚠️ **STALE — built {hours / 24:.1f} days ago**, the {_SIDECAR_STALE_AFTER_HOURS}h rebuild has not run"
         except ValueError:
             age = " ⚠️ **built_at unparseable** — treat this rate as undated"
-    else:
+    elif built is None or (isinstance(built, str) and not built.strip()):
         age = " ⚠️ **no `built_at`** — this rate carries no date at all"
+    else:
+        # present but not a string (an epoch int, a nested object): "no built_at" would be false —
+        # the key IS there, the reader simply cannot read it.
+        age = f" ⚠️ **built_at is of type {type(built).__name__}, not a timestamp** — treat this rate as undated"
 
     if not (start and end):
         return f"(⚠️ **no window** — this is the research ANCHOR, not a measured rate{age})"
@@ -708,6 +713,8 @@ def _sidecar_window(d: dict) -> str:
         passes a naive int check and renders as `over True account`. JSON also yields floats."""
         if isinstance(v, bool) or not isinstance(v, (int, float)):
             return None
+        if v != v or v in (float("inf"), float("-inf")):
+            return None  # int(nan) raises ValueError, int(inf) raises OverflowError
         return int(v) if v == int(v) and v > 0 else None
 
     tokens, accounts = _count(tokens), _count(accounts)
