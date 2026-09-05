@@ -19,3 +19,25 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - qwen — CLEAN on placement, prune parse, malformed-ref `continue`, missing-dir log, locked skip (the last now overridden by decision (1)).
 - deepseek — 1 raised: "the scope guard is built from the trailing-slash loop variable, so the pattern is `repo//.claude/worktrees/*` and no worktree is ever snapshotted" — REFUTED by execution: the suite's dirty-worktree test creates the ref (9 passed on the worktree; the native finder proved the ref's tree content by `cat-file`), so the guard matches; the textual-prefix fragility it points at is the native finder's finding (5), fixed by normalising both sides.
 Round 1 verdict: 10 raised → 9 fix classes routed (2 H, 5 M, 2 L), 1 recorded/routed; pool 0 beyond the native set (1 refuted). Not the no-op round.
+
+## Round 2 — over `9c35928f..666343d8` (23,819 B; the round-1 fixup: nine classes, 18 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 2.
+### Adjudication (pool layer)
+- gemini — CLEAN (realpath normalisation; the tree-dedup; sanitisation + captured update-ref errors; the rolling ref pushed; the prune's explicit digit classes).
+- qwen — 4 raised: the sanitised-name COLLISION (`a b`/`a-b` → one rolling ref) — CONFIRMED (also deepseek's) → FIXUP; one push per worktree per run — measured by the native finder: the dedup gate precedes the push, so only changed worktrees push (a one-off 23 × ~1.9 s first run) → folded into the fixup as a single batched push per repo; the `{8}` prune pattern — NOT a defect (explicit digit classes); the dangling-ref dedup — self-heals (the native finder proved it) → made explicit in the fixup.
+- deepseek — the collision (same).
+### Native finder (opus) — all 9 round-1 fixes FIXED by execution; the main-tree path byte-identical (39 lines) except the mandated widening; 13 of 13 T13 tests red against the base script. 5 raised + 1 out of scope:
+- [M] the basename collision (sanitisation AND identical basenames under different parents — `.claude/worktrees/beta` vs `.tmp/subagents/beta` → one ref, the first worktree's WIP unrecoverable, both log "snapshotted"; 0 duplicates among 112 live worktrees today) → FIXUP (1: `<name>-<8 hex of sha1(realpath)>`).
+- [M] four failure paths drop a dirty worktree with NO log line (unborn HEAD; one chmod-000 FILE loses the readable files too) → FIXUP (2). [M] the rolling ref is IMMORTAL for a removed worktree (locally and on origin; 17 live vs 30 ever-created hub worktrees) → FIXUP (3: a reaper). [L] `mktemp` failure leaks stderr and drops the worktree silently → FIXUP (4). [L] the isolated-index invariant unguarded on the worktree path → FIXUP (5: a test).
+- [L] out of scope, pre-existing: `/opt/fabrik-lib{,-account,-review}` are one repo visited three times by the outer loop, each overwriting the shared autobackup → recorded for the backlog.
+- Incident: a leaked `/tmp/wip-index-rn-kit-sandbox.*` found mid-review — the coder's runs were all under a scratch ROOT; the leak was the box's PRODUCTION cron (master's unfixed script, PID observed holding the lock) — evidence FOR the class, fixed by the trap in the fixup.
+Round 2 verdict: 5 native + 3 pool → FIXUP routed (one batch, landed at 6feccf4e + 901fcb4b, 28 passed). Not the no-op round.
+
+## Round 3 — over `9c35928f..901fcb4b` (55,086 B; 28 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+### Adjudication (pool layer)
+- gemini — CLEAN (the reaper spares an unmounted-but-listed worktree via `wt_live_file` :77; the push file's lifetime under the trap; `--ignore-errors` captured as a "partial add" warning; realpath on both sides; quoting; `bash -n`).
+- qwen — CLEAN (17 new tests; all failure paths log once; id8 collision prevention; batched push; traps).
+- deepseek — 1 raised: when `mktemp` for `wt_live_file` fails the script falls back to `/dev/null`, so the reaper sees no worktree as live and could delete every rolling ref → carried to the native finder (its brief covers the reaper's false-orphan path; the quoted guard `[ "$wt_live_file" != "/dev/null" ] &&` suggests the reaper is skipped in that case — to be settled by execution).
+Native finder (opus): PENDING — appended when it returns.
+
