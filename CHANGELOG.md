@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — agent_role hook accepts any `[a-z0-9-]{1,32}` agent name, charter optional (2026-09-05)
+
+T02a of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `.claude/hooks/agent_role.py` no
+longer binds the hub's `("infra", "fleet", "intel")` tuple: any name matching `[a-z0-9-]{1,32}` is
+accepted, the charter at `docs/reference/agents/<name>.md` is injected when present and silently
+skipped when absent (a project with no charters injects nothing), the file must open with the charter marker `# Agent charter` (a non-charter file under
+`docs/reference/agents/` — the hub's kaizen logs — is a silent no-op, found by the acceptance
+review's native finder), the name is `fullmatch`ed, and the realpath containment and 32 KB cut
+are unchanged. `docs/workstation/hooks-index.md` row updated. Graders:
+`tests/test_agent_role_hook.py` (32 passed; the positive-injection and the marker-guard cases seen red first).
+
+
 ### Fixed — RE-VENDORED the scaffold scrubber: the pin was six commits stale within two hours, and the gap was not cosmetic (2026-09-05)
 
 site-provisioner filed `01M1R92QCCZDWAADG8RMT426ZS` (ack required) telling us to move the pin, and infra
