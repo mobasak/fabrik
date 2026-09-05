@@ -256,12 +256,13 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-07-20T18:12 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-06T02:51 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
 ├── CAPABILITIES.md
 ├── CONFIGURATION.md                # Environment variables and settings
+├── DECISIONS.md
 ├── DEPLOYMENT_ARCHITECTURE.md
 ├── FEATURES.md                     # Feature list
 ├── LESSONS_LEARNT.md
@@ -275,16 +276,327 @@ docs/
 ├── development                     # Active development plans and specs
 │   ├── PLANS.md                    # Development plans index
 │   ├── capability-defects.md
+│   ├── certifications
 │   ├── epics
-│   │   └── 2026-07-14-epic-1-fleet-ci-deploy-debt.md
+│   │   ├── 2026-07-14-epic-1-fleet-ci-deploy-debt.md
+│   │   ├── 2026-08-27-epic-1-zitadel-umbrella-idp.md
+│   │   └── 2026-08-27-epic-2-cross-saas-sso-integration.md
 │   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
+│   │   ├── 2026-06-20-scaffold-deployment-test.md
+│   │   ├── 2026-06-23-transdoc-converged.md
+│   │   ├── 2026-06-29-plan-empire-operating-model.md
 │   │   ├── 2026-06-29-plan-watchdog-deploy-side.md
-│   │   ├── 2026-07-20-plan-1-docs-truth-convergence.md
-│   │   ├── 2026-07-20-plan-2-claude-p-first-class-scoring.md
-│   │   ├── 2026-08-15-plan-1-login-once-credentials    # spine + T01-T05 tickets (EXECUTED)
+│   │   ├── 2026-06-30-plan-fabrik-deploy-readiness-gaps.md
+│   │   ├── 2026-07-06-plan-1-universal-watchdog.md
+│   │   ├── 2026-07-12-plan-1-wavespeed-integration.md
+│   │   ├── 2026-08-10-plan-1-quota-health.md
+│   │   ├── 2026-08-11-plan-1-knowledge-ratchet.md
+│   │   ├── 2026-08-11-plan-2-stalled-midstream-resume.md
+│   │   ├── 2026-08-11-plan-deploy-tryton-crm.md
+│   │   ├── 2026-08-14-plan-1-doc-sprawl-non-vacuous.md
+│   │   ├── 2026-08-15-plan-1-login-once-credentials
+│   │   │   ├── 2026-08-15-plan-1-login-once-credentials.md
+│   │   │   ├── T01-disarm-old-world.md
+│   │   │   ├── T02a-fleet-dir-scaffolder.md
+│   │   │   ├── T02b-fleet-gitignore.md
+│   │   │   ├── T03-fleet-status-keepalive.md
+│   │   │   ├── T04-rotation-runbook-docs.md
+│   │   │   └── T05-integration-receipt.md
+│   │   ├── 2026-08-22-plan-1-fabrik-mail-loop-safety.md
+│   │   ├── 2026-08-25-plan-2-payments-ingest-role.md
+│   │   ├── 2026-08-27-plan-1-certification-denominator.md
+│   │   ├── 2026-08-31-plan-deploy-tryton-crm.md
+│   │   ├── 2026-09-03-plan-1-multi-agent-per-repo
+│   │   │   ├── 2026-09-03-plan-1-multi-agent-per-repo.md
+│   │   │   ├── T01a-the-manifest-declares-the-worktree-artif.md
+│   │   │   ├── T01b-the-sync-emits-them-into-every-project.md
+│   │   │   ├── T02a-agent-role-accepts-any-project-local-na.md
+│   │   │   ├── T02b-the-agent-name-enum-in-both-governance.md
+│   │   │   ├── T03a-epic-assignment-owner-field-and-the-che.md
+│   │   │   ├── T03b-the-disjointness-check-becomes-a-real-o.md
+│   │   │   ├── T04a-epic-file-intake-for-fabrik-spec.md
+│   │   │   ├── T04b-owned-paths-into-the-plan-s-locks.md
+│   │   │   ├── T05a-epic-containment-in-check-plan-tickets.md
+│   │   │   ├── T05b-epic-order-check-as-an-optional-tier-2.md
+│   │   │   ├── T06a-fabrik-vision-mega-00-moved-into-a-corpu.md
+│   │   │   ├── T06b-fabrik-epics-mega-02-03-moved-into-one-c.md
+│   │   │   ├── T06c-fabrik-epics-review-mega-04-moved-into-a.md
+│   │   │   ├── T07a-assembler-render-the-three-sources-delet.md
+│   │   │   ├── T07b-router-three-new-stems-for-the-assemble.md
+│   │   │   ├── T08a-check-command-corpus-drop-the-orchestra.md
+│   │   │   ├── T08b-the-corpus-check-s-tests-lose-the-wrappe.md
+│   │   │   ├── T09-retire-the-traycer-layer-wrapper-tree-tr.md
+│   │   │   ├── T10-retire-ettw-00-05-retired-the-first-half.md
+│   │   │   ├── T11-retire-ettw-06-11-its-checklist-retired.md
+│   │   │   ├── T12a-retire-mega-00-02-retired-their-text-now.md
+│   │   │   ├── T12b-retire-mega-03-04-retired-and-relocate-t.md
+│   │   │   ├── T13-the-wip-net-snapshots-linked-worktrees-s.md
+│   │   │   ├── T14a-governance-texts-the-template-s-line-d-t.md
+│   │   │   ├── T14b-references-agents-fabrik-md-the-north-st.md
+│   │   │   ├── T14c-the-fabrik-cli-s-orchestrator-hint-names.md
+│   │   │   ├── T14d-review-rubric-s-dead-checklist-path-and.md
+│   │   │   ├── T14e-check-review-coverage-stops-keying-on-a.md
+│   │   │   ├── T14f-command-run-stops-owing-a-report-to-a-d.md
+│   │   │   ├── T14g-the-command-corpus-stops-routing-to-del.md
+│   │   │   ├── T14h-the-cert-coverage-anchors-a-non-relocat.md
+│   │   │   ├── T15-plans-md-regeneration-with-an-owner-colu.md
+│   │   │   └── T16-integration-whole-plan-gate-doc-receipt.md
+│   │   ├── 2026-09-05-plan-1-windowed-cost-sidecar.md
+│   │   ├── 2026-09-05-plan-2-glitchtip-deny-by-default
+│   │   │   ├── 2026-09-05-plan-2-glitchtip-deny-by-default.md
+│   │   │   ├── T01-vendor-the-scrubber-into-the-template-tree.md
+│   │   │   ├── T02-the-fastapi-emitter-copies-the-module.md
+│   │   │   ├── T03-the-guard-asserts-the-captured-event.md
+│   │   │   └── T04-rule-55-states-the-shape.md
+│   │   ├── 2026-09-06-plan-1-session-history-retention.md
 │   │   └── archived
 │   └── reviews
-│       ├── 2026-08-15-plan-1-login-once-credentials-review.md   # + its -T01/-T02a/-T02b/-T03/-T04 per-ticket ledgers
+│       ├── 2026-07-21-claude-p-scoring-review.md
+│       ├── 2026-07-23-hard-review-corpus-review.md
+│       ├── 2026-07-24-db-guard-undeclared-imports-review.md
+│       ├── 2026-07-26-catalog-autofreshen-review.md
+│       ├── 2026-07-26-plan-1-ai-model-catalog-extraction-review.md
+│       ├── 2026-08-02-ai-model-catalog-extraction-plan-review.md
+│       ├── 2026-08-02-fabrik-user-test-first-run-feedback.md
+│       ├── 2026-08-03-session-command-changes-review.md
+│       ├── 2026-08-03-uses-claude-cli-dispatch-review.md
+│       ├── 2026-08-04-plan-1-spine-ticket-plans-review.md
+│       ├── 2026-08-07-orchestrator-work-review.md
+│       ├── 2026-08-07-plan-1-autotrigger-and-commands-review.md
+│       ├── 2026-08-07-plan-2-superpowers-adoptions-review.md
+│       ├── 2026-08-07-post-plan2-work-review.md
+│       ├── 2026-08-08-plan-1-claude-md-hub-split-review.md
+│       ├── 2026-08-09-auto-continuation-review.md
+│       ├── 2026-08-09-claude-sound-decider-review.md
+│       ├── 2026-08-09-day-review.md
+│       ├── 2026-08-09-plan-1-routine-push-review.md
+│       ├── 2026-08-09-plan-2-resume-mesh-review.md
+│       ├── 2026-08-09-session-work-review.md
+│       ├── 2026-08-09-versioning-and-rescue-review.md
+│       ├── 2026-08-10-finder-shape-ab.md
+│       ├── 2026-08-10-hub-governance-gates-review.md
+│       ├── 2026-08-10-plan-1-deploy-command-triad-review.md
+│       ├── 2026-08-10-plan-1-quota-health-review.md
+│       ├── 2026-08-10-plan-2-review-loop-overhaul-review.md
+│       ├── 2026-08-10-tryton-crm-deploy-readiness-review.md
+│       ├── 2026-08-11-plan-2-stalled-midstream-resume-review.md
+│       ├── 2026-08-11-plan-3-fabrik-mail-review.md
+│       ├── 2026-08-12-plan-2-agent-roles-wiring-review.md
+│       ├── 2026-08-12-plan-3-connection-failure-resume-review.md
+│       ├── 2026-08-13-plan-1-standby-survivable-sweep-review.md
+│       ├── 2026-08-13-plan-2-quota-rotation-v2-review.md
+│       ├── 2026-08-14-plan-1-doc-sprawl-non-vacuous-review.md
+│       ├── 2026-08-15-account-caps-review.md
+│       ├── 2026-08-15-plan-1-login-once-credentials-T01-review.md
+│       ├── 2026-08-15-plan-1-login-once-credentials-T02a-review.md
+│       ├── 2026-08-15-plan-1-login-once-credentials-T02b-review.md
+│       ├── 2026-08-15-plan-1-login-once-credentials-T03-review.md
+│       ├── 2026-08-15-plan-1-login-once-credentials-T04-review.md
+│       ├── 2026-08-15-plan-1-login-once-credentials-review.md
+│       ├── 2026-08-15-pointer-rotation-review.md
+│       ├── 2026-08-16-command-run-record-review.md
+│       ├── 2026-08-17-plan-1-kaizen-m0-shrink-audit-review.md
+│       ├── 2026-08-18-mega-enforcement-e2bf0f6e-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T01-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T02-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T03-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T04-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T05-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T06-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T07-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T08-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-T09-review.md
+│       ├── 2026-08-19-plan-1-kaizen-m1-event-stream-review.md
+│       ├── 2026-08-22-plan-1-fabrik-mail-loop-safety-review.md
+│       ├── 2026-08-25-plan-1-inert-rule-packs-T01-review.md
+│       ├── 2026-08-25-plan-1-inert-rule-packs-T02-review.md
+│       ├── 2026-08-25-plan-1-inert-rule-packs-T03-review.md
+│       ├── 2026-08-25-plan-1-inert-rule-packs-T04-review.md
+│       ├── 2026-08-25-plan-1-inert-rule-packs-review.md
+│       ├── 2026-08-25-plan-1-mail-dispatcher-review.md
+│       ├── 2026-08-25-plan-2-payments-ingest-role-review.md
+│       ├── 2026-08-26-plan-1-mail-dispatcher-phase-1-review.md
+│       ├── 2026-08-26-plan-1-mail-dispatcher-phase-2-review.md
+│       ├── 2026-08-26-plan-1-plan-lock-release-check-phase-A-review.md
+│       ├── 2026-08-26-plan-1-plan-lock-release-check-phase-B-review.md
+│       ├── 2026-08-26-plan-1-plan-lock-release-check-review.md
+│       ├── 2026-08-26-rotate-active-wall-advisory-review.md
+│       ├── 2026-08-26-session-plan-lock-release-surface-review.md
+│       ├── 2026-08-27-certification-denominator-phase-3-review.md
+│       ├── 2026-08-27-certification-plan-review.md
+│       ├── 2026-08-27-certification-shipped-review.md
+│       ├── 2026-08-27-command-evaluation-checklist-review.md
+│       ├── 2026-08-27-fabrik-rivals-surface-review.md
+│       ├── 2026-08-27-mega-umbrella-sso-validation-review.md
+│       ├── 2026-08-27-rivals-audit-fixes-review.md
+│       ├── 2026-08-27-session-infra-work-review.md
+│       ├── 2026-08-28-db-before-boot-review.md
+│       ├── 2026-08-28-feedback-duty-enforcement-review.md
+│       ├── 2026-08-28-glitchtip-emitter-secret-leak-review.md
+│       ├── 2026-08-28-intel-collection-flywheel-review.md
+│       ├── 2026-08-28-intel-dsn-advisory-review.md
+│       ├── 2026-08-28-intel-mail-batch-review.md
+│       ├── 2026-08-28-mail-handling-audit-2-review.md
+│       ├── 2026-08-28-mail-handling-review.md
+│       ├── 2026-08-28-plan-1-canary-grounding-phase-A-review.md
+│       ├── 2026-08-28-plan-1-canary-grounding-phase-B-review.md
+│       ├── 2026-08-28-plan-1-canary-grounding-phase-C-review.md
+│       ├── 2026-08-28-plan-1-canary-grounding-review.md
+│       ├── 2026-08-28-plan-1-provider-death-enforcement-review.md
+│       ├── 2026-08-28-plan-deploy-zitadel-review.md
+│       ├── 2026-08-28-provider-death-execution-review.md
+│       ├── 2026-08-28-session-mail-handling-audit-review.md
+│       ├── 2026-08-28-ticket-handling-post-vps-review.md
+│       ├── 2026-08-29-ci-cutover-review.md
+│       ├── 2026-08-29-cmd25-repo-review-audit-review.md
+│       ├── 2026-08-29-cmd27-conformance-review-audit-review.md
+│       ├── 2026-08-29-corpus-predicate-8-review.md
+│       ├── 2026-08-29-intel-key-wiring-review.md
+│       ├── 2026-08-29-last-2h-governance-review.md
+│       ├── 2026-08-29-plan-1-cross-saas-sso-bridge-review.md
+│       ├── 2026-08-29-plan-1-vps-quota-governance-phase-A-review.md
+│       ├── 2026-08-29-plan-1-vps-quota-governance-phase-B-review.md
+│       ├── 2026-08-29-plan-1-vps-quota-governance-phase-C-review.md
+│       ├── 2026-08-29-plan-1-vps-quota-governance-review.md
+│       ├── 2026-08-29-todays-work-review.md
+│       ├── 2026-08-30-1c-floor-batch-review.md
+│       ├── 2026-08-30-commit-moment-review-grading-review.md
+│       ├── 2026-08-30-decision-ledger-phase-A-review.md
+│       ├── 2026-08-30-decision-ledger-phase-B-review.md
+│       ├── 2026-08-30-decision-ledger-phase-C-review.md
+│       ├── 2026-08-30-decision-ledger-plan-review.md
+│       ├── 2026-08-30-decision-ledger-postship-review.md
+│       ├── 2026-08-30-docusaurus-governance-doc-exclude-review.md
+│       ├── 2026-08-30-intel-spontaneous-surface-review.md
+│       ├── 2026-08-30-interrogative-floor-review.md
+│       ├── 2026-08-30-mail-sweep-batch-review.md
+│       ├── 2026-08-30-manifesto-binding-review.md
+│       ├── 2026-08-30-mcp-fixfirst-orient-review.md
+│       ├── 2026-08-30-mesh-nohup-mandate-review.md
+│       ├── 2026-08-30-orient-ledger-first-review.md
+│       ├── 2026-08-30-plan-3-mcp-split-review.md
+│       ├── 2026-08-30-plan-3-phase-A-review.md
+│       ├── 2026-08-30-plan-3-phase-B-review.md
+│       ├── 2026-08-30-plan-3-phase-C-review.md
+│       ├── 2026-08-30-post-mcp-work-review.md
+│       ├── 2026-08-30-rule-grounding-phase-a-review.md
+│       ├── 2026-08-30-rule-grounding-phase-b-review.md
+│       ├── 2026-08-30-sysadmin-way-of-working-audit-review.md
+│       ├── 2026-08-30-todays-work-review.md
+│       ├── 2026-08-31-mail-fixes-review.md
+│       ├── 2026-08-31-manifesto-corpus-fresh-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T01-fragments-baseline-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T02-design-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T03-fabrik-catchup-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T04-fabrik-conformance-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T05-fabrik-data-contract-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T06-fabrik-decommission-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T07-fabrik-deploy-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T08-fabrik-deploy-plan-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T09-fabrik-deploy-plan-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T10-fabrik-deploy-verify-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T11-fabrik-doc-converge-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T12-fabrik-docs-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T13-fabrik-execute-plan-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T14-fabrik-features-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T15-fabrik-flows-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T16-fabrik-flows-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T17-fabrik-generate-tests-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T18-fabrik-plan-after-chat-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T19-fabrik-plan-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T20-fabrik-release-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T21-fabrik-repo-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T22-fabrik-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T23-fabrik-review-scoped-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T24-fabrik-rivals-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T25-fabrik-rules-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T26-fabrik-service-test-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T27-fabrik-spec-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T28-fabrik-spec-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T29-fabrik-ui-design-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T30-fabrik-ui-design-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T31-fabrik-upstream-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T32-fabrik-user-test-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-T33-fabrik-workflow-review-review.md
+│       ├── 2026-08-31-plan-1-manifesto-command-pass-review.md
+│       ├── 2026-08-31-tryton-crm-deploy-command-defects-review.md
+│       ├── 2026-08-31-tryton-crm-machinery-retrospective-review.md
+│       ├── 2026-09-01-d059-feedback-line-review.md
+│       ├── 2026-09-01-dup-id-gate-review.md
+│       ├── 2026-09-01-enforcement-fp-fixes-review.md
+│       ├── 2026-09-01-mail-handling-enforcement-review.md
+│       ├── 2026-09-01-mail-handlings-review.md
+│       ├── 2026-09-01-plan-1-deployment-verification-phase-A-review.md
+│       ├── 2026-09-01-plan-1-deployment-verification-phase-B-review.md
+│       ├── 2026-09-01-plan-1-deployment-verification-phase-C-review.md
+│       ├── 2026-09-01-plan-1-deployment-verification-review.md
+│       ├── 2026-09-01-review-triage-review.md
+│       ├── 2026-09-01-tryton-crm-deploy-verify-review.md
+│       ├── 2026-09-02-command-run-done-gate-review.md
+│       ├── 2026-09-02-deploy-checklist-single-source-and-site-model-review.md
+│       ├── 2026-09-02-deployment-verification-shipped-surface-review.md
+│       ├── 2026-09-02-external-services-chain-review.md
+│       ├── 2026-09-02-flywheel-phase-A-review.md
+│       ├── 2026-09-02-freshness-guard-round2-review.md
+│       ├── 2026-09-02-mcp-watch-session-start-review.md
+│       ├── 2026-09-02-quota-stop-hook-review.md
+│       ├── 2026-09-02-selection-freshness-guard-review.md
+│       ├── 2026-09-03-deploy-checklist-after-certification-review.md
+│       ├── 2026-09-03-deploy-triad-frozen-contract-precondition-review.md
+│       ├── 2026-09-03-infra-mailbox-drain-review.md
+│       ├── 2026-09-03-infra-mailbox-second-pass-review.md
+│       ├── 2026-09-03-mailbox-drain-fleet-review.md
+│       ├── 2026-09-03-orchestrator-chains-corpus-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T01a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T01b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T02a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T02b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T03a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T03b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T04a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T04b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T05a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T05b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T06a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T06b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T06c-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T07a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T07b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T08a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T08b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T09-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T10-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T11-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T12a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T12b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T13-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14a-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14b-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14c-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14d-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14e-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14f-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14g-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14h-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-T15-review.md
+│       ├── 2026-09-03-resume-mesh-standing-watch-review.md
+│       ├── 2026-09-03-rotation-95-urgent-drain-review.md
+│       ├── 2026-09-03-rotation-dwell-exempt-trip-review.md
+│       ├── 2026-09-03-rotation-projected-trip-review.md
+│       ├── 2026-09-03-watchdog-default-reconciliation-review.md
+│       ├── 2026-09-04-plan-review-multi-agent-per-repo.md
+│       ├── 2026-09-05-command-clauses-review.md
+│       ├── 2026-09-05-glitchtip-deny-by-default-execution-review.md
+│       ├── 2026-09-05-mail-queue-fixes-review.md
+│       ├── 2026-09-05-mail-queue-two-followups-review.md
+│       ├── 2026-09-05-mail-queue-two-review.md
+│       ├── 2026-09-05-peer-defects-4-review.md
+│       ├── 2026-09-05-vps1-memory-ceilings-combined-review.md
+│       ├── 2026-09-05-vps1-memory-ceilings-review.md
+│       ├── 2026-09-05-windowed-cost-sidecar-phase-A-review.md
+│       ├── 2026-09-05-windowed-cost-sidecar-phase-B-review.md
+│       ├── 2026-09-05-windowed-cost-sidecar-phase-C-review.md
+│       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
 │       ├── docs-truth-root-review.md
@@ -307,6 +619,12 @@ docs/
 │   ├── grafana-provisioning-setup.md
 │   ├── probe-reports
 │   │   ├── README.md               # Folder index / charter
+│   │   ├── fleet-doc-audit-2026-08-07.md
+│   │   ├── fleet-doc-audit-2026-08-10.md
+│   │   ├── fleet-doc-audit-2026-08-19.md
+│   │   ├── fleet-doc-audit-2026-08-26.md
+│   │   ├── fleet-doc-audit-2026-09-02.md
+│   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
 │   │   ├── infra-probe-2026-05-31T23-07Z.yaml
@@ -315,7 +633,8 @@ docs/
 │   │   ├── infra-probe-2026-06-01T21-59Z.yaml
 │   │   ├── infra-probe-2026-06-01T22-50Z.yaml
 │   │   ├── infra-probe-2026-06-06T22-39Z.yaml
-│   │   └── infra-probe-2026-06-07T20-20Z.yaml
+│   │   ├── infra-probe-2026-06-07T20-20Z.yaml
+│   │   └── infra-probe-2026-08-03T18-37Z.yaml
 │   ├── prometheus-app-metrics-setup.md
 │   ├── promtail-noise-filter-setup.md
 │   ├── vps-ai-sysadmin.md
@@ -342,26 +661,26 @@ docs/
 │   ├── 00-autonomous-factory-north-star.md
 │   ├── _retired
 │   │   ├── epic-to-ticket-workflow
-│   │       ├── 00-trigger-fabrik.RETIRED.md
-│   │       ├── 01-decisions-lock-fabrik.RETIRED.md
-│   │       ├── 01R-decisions-review-fabrik.RETIRED.md
-│   │       ├── 02-core-flows-fabrik.RETIRED.md
-│   │       ├── 03-tech-plan-fabrik.RETIRED.md
-│   │       ├── 04-deploy-plan-fabrik.RETIRED.md
-│   │       ├── 05-ticket-outline-fabrik.RETIRED.md
-│   │       ├── 06-ticket-breakdown-fabrik.RETIRED.md
-│   │       ├── 07-execute-fabrik.RETIRED.md
-│   │       ├── 08-implementation-validation-fabrik.RETIRED.md
-│   │       ├── 09-revise-requirements-fabrik.RETIRED.md
-│   │       ├── 10-cross-artifact-validation-fabrik.RETIRED.md
-│   │       ├── 11-deploy-fabrik.RETIRED.md
-│   │       └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.RETIRED.md
-│   │   └── mega-epic-breakdown
-│   │       ├── 00-trigger-mega-epic-fabrik.RETIRED.md
-│   │       ├── 02-epic-decomposition-fabrik.RETIRED.md
-│   │       ├── 03-expand-epic-files-fabrik.RETIRED.md
-│   │       ├── 04-cross-epic-validation-fabrik.RETIRED.md
-│   │       └── 05-dispatch-epic-tickets-fabrik.RETIRED.md
+│   │   │   ├── 00-trigger-fabrik.RETIRED.md
+│   │   │   ├── 01-decisions-lock-fabrik.RETIRED.md
+│   │   │   ├── 01R-decisions-review-fabrik.RETIRED.md
+│   │   │   ├── 02-core-flows-fabrik.RETIRED.md
+│   │   │   ├── 03-tech-plan-fabrik.RETIRED.md
+│   │   │   ├── 04-deploy-plan-fabrik.RETIRED.md
+│   │   │   ├── 05-ticket-outline-fabrik.RETIRED.md
+│   │   │   ├── 06-ticket-breakdown-fabrik.RETIRED.md
+│   │   │   ├── 07-execute-fabrik.RETIRED.md
+│   │   │   ├── 08-implementation-validation-fabrik.RETIRED.md
+│   │   │   ├── 09-revise-requirements-fabrik.RETIRED.md
+│   │   │   ├── 10-cross-artifact-validation-fabrik.RETIRED.md
+│   │   │   ├── 11-deploy-fabrik.RETIRED.md
+│   │   │   └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.RETIRED.md
+│   │   ├── mega-epic-breakdown
+│   │   │   ├── 00-trigger-mega-epic-fabrik.RETIRED.md
+│   │   │   ├── 02-epic-decomposition-fabrik.RETIRED.md
+│   │   │   ├── 03-expand-epic-files-fabrik.RETIRED.md
+│   │   │   ├── 04-cross-epic-validation-fabrik.RETIRED.md
+│   │   │   └── 05-dispatch-epic-tickets-fabrik.RETIRED.md
 │   │   └── traycer
 │   │       ├── traycer-agile-workflow.RETIRED.md
 │   │       ├── traycer-command-wiring.RETIRED.md
@@ -371,7 +690,7 @@ docs/
 │   │   └── EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md
 │   ├── orchestrator-cockpit-decisions.md
 │   ├── orchestrator-cockpit-feature-set.md
-│   ├── orchestrator-cockpit-requirements.md
+│   └── orchestrator-cockpit-requirements.md
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── preplans
 │   └── README.md                   # Folder index / charter
@@ -380,8 +699,15 @@ docs/
 │   ├── MD
 │   │   ├── ai-prompt-templates.md
 │   │   └── markdown-cheatsheet.md
+│   ├── agents
+│   │   ├── fleet.md
+│   │   ├── infra.md
+│   │   ├── intel.md
+│   │   ├── kaizen-log-fleet.md
+│   │   └── kaizen-log-infra.md
+│   ├── ai-media-generation-provider-map.md
 │   ├── apis
-│   │   ├── EXTERNAL_SYSTEMS.md     # The fleet index: every external system, its reach path (API/MCP/CLI/self-hosted), users, 12-field Capability Profile + 58 posture
+│   │   ├── EXTERNAL_SYSTEMS.md     # External service dependencies
 │   │   ├── glitchtip-api.md
 │   │   ├── modal-api.md
 │   │   ├── openrouter-api.md
@@ -389,12 +715,18 @@ docs/
 │   │   ├── runpod-hf-models.md
 │   │   └── vast-api.md
 │   ├── architecture.md             # System architecture overview
+│   ├── canary-grounding.md
+│   ├── certification-denominator.md
+│   ├── command-corpus-check.md
+│   ├── command-evaluation-checklist.md
+│   ├── command-run-protocol.md
 │   ├── convergence-prompts.md
-│   ├── decision-ledger.md          # The decision-ledger operational reference (query/append/seed rules)
-│   ├── multi-agent-operating-model.md # The multi-agent-per-repo operating model (N sessions, one worktree each, one merge owner)
-- [operating-manifesto.md](docs/reference/operating-manifesto.md) — the ADOPTED decision manifesto (D-043): 6 phases with checkable gates, 5 invariants (budget, default-action, tripwires, anti-renegotiation, WIP limit), bound to the decision ledger + Gatus/Alertmanager
-- [rules-currency-pass.md](docs/reference/rules-currency-pass.md) — the standard every `.windsurf/rules` pack is evaluated against: the 10-row per-file done bar (manifesto lens · multi-engine live research · docs/infrastructure grounding · author-blind Fable-5 second opinion · class sweep · zero literals · claims registered · D-065 fleet-AI lens), the three version-literal dispositions, and the CLAIMS-based evidence test with its two known limits
+│   ├── decision-ledger.md
+│   ├── deployment-verification.md
+│   ├── enforcement-battery-audit.md
+│   ├── external-services-registry.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
+│   ├── fabrik-mail.md
 │   ├── fabrik-vultr.md
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json
@@ -420,8 +752,13 @@ docs/
 │   │   ├── deployment-orchestrator.md
 │   │   ├── drivers.md              # Fabrik driver API (DNS, Cloudflare, GPU providers, etc.)
 │   │   └── templates.md            # Available deployment templates
+│   ├── multi-agent-operating-model.md
+│   ├── nvidia-build.md
+│   ├── operating-manifesto.md
+│   ├── plan-lock-lifecycle.md
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
-│   ├── product-adoption-forces.md  # Why people adopt — 32 citable AF-forces (spec WHY + channels)
+│   ├── product-adoption-forces.md
+│   ├── receipts-2026-08-07-autotrigger.md
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
 │   │   ├── 2026-07-22-claude-code-gui-lightweight-editor-research.md
@@ -444,18 +781,26 @@ docs/
 │   │   ├── mobile-gui-research.md
 │   │   ├── research-prompt-preamble-for-agent-rules.md
 │   │   └── saas-alternative-gui.md
+│   ├── rivals-command.md
+│   ├── rule-pack-reachability.md
+│   ├── rules-currency-pass.md
 │   ├── service-contracts
 │   │   └── site-provisioner.md
+│   ├── sync-excluded-repo-audit.md
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── terminal-bench-runner.md
+│   ├── thread-anchors.md
+│   ├── ticket-breadth.md
+│   ├── umbrella-sso-integration.md
 │   ├── vps-all-container-envs.txt
 │   ├── vps-env-exited-apps.txt
 │   ├── vps-env-site-provisioner.txt
-│   └── windsurf                    # Windsurf IDE optimization
-│       ├── actively-used-windsurf-extensions.md
-│       ├── overview.md
-│       ├── recommended-extensions.md
-│       └── windsurf_features.md
+│   ├── windsurf                    # Windsurf IDE optimization
+│   │   ├── actively-used-windsurf-extensions.md
+│   │   ├── overview.md
+│   │   ├── recommended-extensions.md
+│   │   └── windsurf_features.md
+│   └── zitadel.md
 ├── superpowers
 │   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
 │   │   └── archived
@@ -463,6 +808,32 @@ docs/
 │       ├── 2026-07-15-autonomous-factory-driver-design.md
 │       ├── 2026-07-19-task-subagent-scoring-benchmark-design.md
 │       ├── 2026-07-20-claude-p-first-class-scoring-design.md
+│       ├── 2026-07-25-session-recall-design.md
+│       ├── 2026-07-26-catalog-extraction-design.md
+│       ├── 2026-08-09-stopfailure-resume-mesh-design.md
+│       ├── 2026-08-10-quota-health-design.md
+│       ├── 2026-08-11-fabrik-mail-design.md
+│       ├── 2026-08-12-hub-agent-roles-design.md
+│       ├── 2026-08-13-quota-rotation-v2-design.md
+│       ├── 2026-08-14-doc-sprawl-activation-design.md
+│       ├── 2026-08-15-ci-health-probe-design.md
+│       ├── 2026-08-15-fabrik-mail-loop-safety-design.md
+│       ├── 2026-08-15-login-once-credentials-design.md
+│       ├── 2026-08-16-kaizen-closed-loop-v2-design.md
+│       ├── 2026-08-23-payments-ingest-role-design.md
+│       ├── 2026-08-25-fabrik-mail-dispatcher-design.md
+│       ├── 2026-08-25-plan-lock-release-check-design.md
+│       ├── 2026-08-27-umbrella-sso-epic-proposal.md
+│       ├── 2026-08-27-umbrella-sso-infrastructure-decisions.md
+│       ├── 2026-08-27-umbrella-sso-vision.md
+│       ├── 2026-08-28-provider-death-resilience-design.md
+│       ├── 2026-08-28-refuses-ungrounded-axis-design.md
+│       ├── 2026-08-29-vps-claude-quota-governance-design.md
+│       ├── 2026-08-30-decision-ledger-v2-design.md
+│       ├── 2026-09-01-deployment-verification-contract-design.md
+│       ├── 2026-09-03-multi-agent-per-repo-design.md
+│       ├── 2026-09-04-vps1-container-memory-limits-design.md
+│       ├── 2026-09-05-session-history-retention-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -484,29 +855,28 @@ docs/
 ├── workstation
 │   ├── MCP_HTTP_TRANSPORT.md
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
-│   ├── agent-command-routing-and-gates.md # How agents pick commands from bare prose (4-layer stack), gauntlet fix-vs-route dispositions, and the autonomous-vs-ask human gates
-│   ├── claude-config-backup-restore.md # DR mirror of Claude config to the private git store + restore runbook
-│   ├── claude-configuration-inventory.md # Every Claude config path on this box: function + current state + sizes
-│   ├── cleanup-automation.md       # WSL+Windows cleanup system reference (one cleaner per OS + manual compaction)
-│   ├── cleanup-maintenance-backlog.md # Remaining dev-box cleanup items after the 2026-07-25 sweep
-│   ├── ci-health-probe.md          # Hourly probe: detects CI that NEVER RAN (zero-step job = billing refusal/invalid workflow) + Actions minutes vs plan allowance (WARN 80%); one Telegram per event; also fixed ci_fix_dispatcher dispatching at unfixable runs
-│   ├── claude-account-rotation.md # The 4-account Claude Max quota pool: --status telemetry, the */5 perishable-first tick, graceful drain, when a manual /login is actually needed, onboarding + safety invariants
-│   ├── quota-dashboard.md         # localhost:5051 account-quota board (remaining session/weekly per account, caps, resets, warnings); on-view regeneration bounds probe volume; self-healing via --ensure cron
-│   ├── vps-claude-quota-governance.md # Single-key ob@ VPS quota governance: the governor (route/capped, multi-window + cap_walled reserve, fail-safe, single-flight), the completion-only container broker (tool-disable fail-closed), the incident marshaller (bundle→inline→read-only-pool→operator-gated), the claude-run.sh gate + shed-skip consumers, the retired keepalive ping
-│   ├── fabrik-mail.md             # fabrik-mail box view: store /opt/fabrik-mail, components (mail.py + hook + digest), the 2-layer model, sync-exclusion, observe/troubleshoot (protocol is docs/reference/fabrik-mail.md)
-│   ├── hooks-index.md              # Every hook on the box in one page (4 layers) — freshness gate-enforced by check_hooks_index.py
-│   ├── kaizen.md                   # The kaizen loop: the wake-proof DAILY measurement (kaizen_collect_v2/kaizen_outcomes/kaizen_coroner via weekly_catchup.sh hourly stamp check — no agent, no quota; kaizen_metrics.py retired) vs the agent's ≤90-min ANALYSIS pass; which metric cells are real vs `—` and why; ISO-week idempotence; the fabrik-mail hand-off
-│   ├── kaizen-event-stream.md      # The M1 typed event stream: per-sid JSONL at ~/.claude/state/events/, the envelope + per-event schema (session_start, stop_pass/stop_block, run_open/phase/round/run_close, gate_run, rule_activation), fail-open emitter contract, sid honesty (sid_source), exposure denominators
-│   ├── kaizen-shrink-audit.md      # The M0 census report (kaizen_shrink_audit.py --report + kaizen_immune_list.py): per-artifact usage evidence over all governance classes, verdicts candidate/keep/unknown, the immune registry, and the ## Operator ruling section — the shrink question answered with evidence; ruled candidates archive-move to scripts/archived/ (revivable), synced copies pruned via RETIRED_CORE_SCRIPTS
-│   ├── mcp-roster.md               # Every MCP server on the box: function, real consumers per scaffold type, measured per-window cost, the 5-file config topology + rotation law, and the pending per-project split — KEEP-CURRENT contract: any roster change updates this doc same-change
-│   ├── liveness.md                 # The liveness layer (liveness_audit.py): three proofs — heartbeat (did the cron fire?), vacuity canary (can the gate check fail?), doc-claim binding (is the doc true?) — and the LIVE/DEAD/UNKNOWN three-state rule that stops absence-of-evidence being reported as evidence-of-absence
-│   ├── external-services-registry.md  # The daily external-services chain (scripts/external_services_chain.sh: gather_envs → classify → gather_envs → registry_sync → gen_dashboard, run by daily_refresh.sh AND wsl_startup_hook.sh): two inputs (env keys + the code call-site scan), the cost bound, the gated liveness heartbeat, and why the registry sat frozen for 46 days
-│   ├── wip-backup-safety-net.md    # The */15 WIP snapshot cron: isolated-index tree snapshots to refs/wip + off-box push; recovery runbook
-│   ├── session-recall.md           # session-recall tool: what it does, feature list, file map (code in /opt/session-recall)
-│   ├── spine-ticket-plans-usage.md # Operator guide: the spine+ticket plan architecture — shape decision, set review, dispatcher execution, migration of old plans
-│   ├── vscode-configuration.md     # VS Code final config: extensions kept/removed, AI surface, perf settings
+│   ├── agent-command-routing-and-gates.md
+│   ├── ci-health-probe.md
+│   ├── claude-account-rotation.md
+│   ├── claude-config-backup-restore.md
+│   ├── claude-configuration-inventory.md
+│   ├── cleanup-automation.md
+│   ├── cleanup-maintenance-backlog.md
+│   ├── fabrik-mail.md
+│   ├── hooks-index.md
+│   ├── kaizen-event-stream.md
+│   ├── kaizen-shrink-audit.md
+│   ├── kaizen.md
+│   ├── liveness.md
+│   ├── mcp-roster.md
+│   ├── quota-dashboard.md
+│   ├── session-recall.md
+│   ├── spine-ticket-plans-usage.md
+│   ├── vps-claude-quota-governance.md
+│   ├── vscode-configuration.md
+│   ├── wip-backup-safety-net.md
 │   ├── wsl-shell-mcp-setup.md
-│   └── wsl-startup-inventory.md    # What runs on WSL boot: systemd services, cron, timers, per-shell chain
+│   └── wsl-startup-inventory.md
 └── zed
     └── zed-acp-side-by-side-analysis.md
 ```

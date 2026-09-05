@@ -1,6 +1,6 @@
 # Multi-agent per repo — N named sessions, one worktree each, one merge owner (build plan)
 
-Status: IN-PROGRESS (2026-09-05 — /fabrik-execute-plan dispatcher entered by infra; was CONVERGED 2026-09-05 — 12 author-blind rounds plus a bounded confirmation of the closing commit; ruling D-123)
+Status: EXECUTED (2026-09-06 — all 33 tickets merged on converged reviews by infra's /fabrik-execute-plan dispatcher; receipt docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-review.md; was IN-PROGRESS from 2026-09-05, CONVERGED at bf3c7e02 / D-123)
 **Owner:** infra (operator ruling 2026-09-03 — "approve + infra builds"; intel authored this plan while infra is saturated; no clock on execution)
 Spec: `docs/superpowers/specs/2026-09-03-multi-agent-per-repo-design.md` — **CONVERGED r13** (r11 at fae8e820; r12 editorial in 4637416b; r13 editorial this round — the spine pinned r11 for two revisions, caught by the confirming pass); r10 was approved 2026-09-04, and r11 re-froze § Live locks (D-117), withdrawing the lock relocation this plan had five tickets for
 Shape: spine + 33 tickets (the per-ticket read budget forced the split — see § Self-audit § Sizing)
@@ -129,7 +129,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T14g | the command corpus stops routing to deleted chain steps | T04a, T07a, T11 | ⛓️ | ✅ | branch head bc22a0ce; merged 2026-09-06 |
 | T14h | the cert-coverage anchors, a non-relocation fix rescued from a deleted ticket | — | ⚡ | ✅ | branch head 5c8fa999; merged 2026-09-05 |
 | T15 | PLANS.md regeneration with an Owner column, and the dedicated reference doc | T03a | ⛓️ | ✅ | branch head 735b3f0a; merged 2026-09-06 |
-| T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01a, T01b, T02a, T02b, T03a, T03b, T13, T04a, T04b, T05a, T05b, T06a, T06b, T06c, T07a, T07b, T08a, T08b, T09, T10, T11, T12a, T12b, T14a, T14b, T14c, T14d, T14e, T14f, T14g, T14h, T15 | ⛓️ | ⬜ | |
+| T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01a, T01b, T02a, T02b, T03a, T03b, T13, T04a, T04b, T05a, T05b, T06a, T06b, T06c, T07a, T07b, T08a, T08b, T09, T10, T11, T12a, T12b, T14a, T14b, T14c, T14d, T14e, T14f, T14g, T14h, T15 | ⛓️ | ✅ | native (the orchestrator); receipt docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-review.md; 2026-09-06 |
 
 ## Merge Order
 

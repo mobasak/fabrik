@@ -443,7 +443,16 @@
       "branch_head": "75d5179a",
       "merged_at": "2026-09-06T02:16:11",
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14d-review.md"
+    },
+    "T16": {
+      "state": "merged",
+      "agent": "orchestrator",
+      "receipt": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-review.md",
+      "merged_at": "2026-09-05T23:54:42+00:00"
     }
   },
-  "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"
+  "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)",
+  "state": "released",
+  "released_at": "2026-09-05T23:54:42+00:00",
+  "released_by": "infra"
 }

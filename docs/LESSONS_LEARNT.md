@@ -6220,3 +6220,13 @@ verdict against the CURRENT HEAD before each decision, not once at the start.
 **Prefer reverting to committing.** Committing 105 files of formatting you did not author, under your
 name, is the bundling-files-you-did-not-author defect; `git checkout --` on a proven-pure file restores
 HEAD exactly and costs nobody anything.
+
+## 2026-09-06 — multi-agent-per-repo: three shapes that survived converged rounds until a stronger method caught them
+
+**Context:** 33-ticket plan set executed in dispatcher mode with pool + native acceptance rounds (T16 receipt in docs/development/reviews/).
+**Problem / Root cause / Solution — three classes, each caught late:**
+1. `set -e; got=$(git grep -l …); test -z "$got"` — git grep exits 1 on an EMPTY result, so the gate aborts before `test -z` and is red exactly when the surface is clean (two ticket gate lines, one of them the plan's terminal gate). **Solution:** `|| true` on the grep; a gate that cannot pass on the clean surface is a gate nobody ran on a clean surface — run every gate line once on a known-clean fixture when writing it.
+2. `if ! cmd; then rc=$?; fi` reads the NEGATED status (always 0), so an exit-124 branch was dead at two sites while the commit body claimed it landed — the coder's own manual run "proved" it because the claim was never graded. **Solution:** `rc=0; cmd || rc=$?`; and a claim of a distinct log line needs a grader that asserts the STRING, not a presence-of-any-line.
+3. A merge script that stages a diff-listed file from the cached apply silently drops fixup hunks applied to the same file in the working tree (announced in a commit body, absent from the commit). **Solution:** re-stage every fixup path from the working tree after the cached apply; assert the committed numstat against the expected one before pushing.
+**Integration:** the fixed merge tooling lives in this run's scratch (merge_ticket.sh / merge_move.sh / merge_mixed.sh) and the three shapes are recorded here; the execute-plan source should carry the first two as gate-authoring rules (routed to infra's list).
+**Triggered by:** T14b round 1 (native finder), T13 rounds 10–11 (native finder), T14a's merge (post-merge status check).
