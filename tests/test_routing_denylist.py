@@ -75,10 +75,22 @@ def test_the_deny_is_scoped_to_review_and_does_not_leak_into_code():
     there takes essentially the whole saving, while gemini-3-flash is rank 3 for `code` with an A+
     LiveCodeBench pass@1 of 1.000. A blanket deny would buy ~nothing and cost quality."""
     assert "google/gemini-3-flash-preview" in pick_models("code", n=10)
-    assert set(ROUTING_DENYLIST) == {"review"}, (
-        "the denylist grew beyond review — widen it only with per-task-type evidence, and update "
-        "this test's reasoning when you do"
+    assert ROUTING_DENYLIST["code"] == frozenset({"deepseek/deepseek-v4-pro"}), (
+        "the cost deny leaked out of review — widen it only with per-task-type evidence. Only the "
+        "always-deny (a worker that does not work) is expected outside review."
     )
+
+
+@pytest.mark.parametrize("kind", ["review", "code", "docs", "research", "plan", "spec"])
+def test_a_worker_that_does_not_work_is_denied_everywhere(kind):
+    """`deepseek/deepseek-v4-pro`: 83 dispatches across 9 repos since 2026-08-20, 67 of them errors
+    (81%), 65 recording no cost at all, 4.09 MB of prompt shipped for a 17% success rate.
+
+    Reported by iterative_image_editor from 3 dispatches; the fleet ledgers show the other 80. It was
+    rank 1 for `docs`, i.e. the FIRST choice for that task type while failing four times in five.
+    This is not a cost tradeoff — re-admit it only after a measured run says it works.
+    """
+    assert "deepseek/deepseek-v4-pro" not in pick_models(kind, n=25)
 
 
 def test_the_survivors_are_the_two_cheapest_reviewers_on_live_data():

@@ -532,8 +532,22 @@ _DENY_REVIEW: frozenset[str] = frozenset(
 #: 92.9% of pool spend, so denying it there captures essentially the whole saving; gemini-3-flash is
 #: rank 3 for ``code`` with an A+ LiveCodeBench pass@1 of 1.000, and a blanket deny would buy almost
 #: nothing while costing quality. Widen this only with the same kind of per-task-type evidence.
+#: Denied for EVERY task type — a worker that does not work, not a cost judgement.
+#:
+#: `deepseek/deepseek-v4-pro` was reported by iterative_image_editor as returning
+#: `status=error, 0 chars, cost=null` on 3 of 3 dispatches. Confirmed and much wider on the fleet
+#: ledgers (all 15 repos, since 2026-08-20):
+#:
+#:     83 dispatches · 67 error (81%) · 14 done (17%) · 2 capped
+#:     65 of 83 recorded NO cost · 4.09 MB of prompt shipped · 9 repos affected
+#:
+#: It is rank 1 for `docs` in the vendored table below, so it was the FIRST choice for that task type
+#: while failing four times out of five. An 81% failure rate is not a tradeoff to weigh; re-admit it
+#: only after a measured run says it works.
+_DENY_ALWAYS: frozenset[str] = frozenset({"deepseek/deepseek-v4-pro"})
+
 ROUTING_DENYLIST: dict[str, frozenset[str]] = {
-    "review": _DENY_REVIEW,
+    kind: (_DENY_REVIEW if kind == "review" else frozenset()) | _DENY_ALWAYS for kind in TASK_KINDS
 }
 
 
