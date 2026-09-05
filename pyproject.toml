@@ -106,3 +106,10 @@ markers = [
 
 [tool.hypothesis]
 database = ".hypothesis"
+
+[tool.ruff.lint.per-file-ignores]
+# The vendored GlitchTip scrubber (fabrik-lib law: COPY, never fork — byte-parity with
+# site-provisioner api/glitchtip_init.py is the T01 grader) passes the sentry-sdk integration
+# CLASSES as arguments named after them; N803 wants lowercase. The bytes stay, the rule yields
+# for this one file (lint ratchet 0 -> 3 at b38bc674, 2026-09-05).
+"templates/scaffold/python/glitchtip_init.py" = ["N803"]

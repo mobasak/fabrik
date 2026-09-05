@@ -36,13 +36,23 @@ def test_hub_fallback_imports_the_engine_from_a_foreign_repo(tmp_path: Path):
     (tmp_path / "libs" / "something_of_theirs").mkdir(parents=True)
     (tmp_path / "scripts").mkdir()
     shutil.copy(ROOT / "scripts" / "rivals_run.py", tmp_path / "scripts" / "rivals_run.py")
+    driver_src = (tmp_path / "scripts" / "rivals_run.py").read_text(encoding="utf-8")
     code = (
         "import sys; sys.path.insert(0, r'%s'); import rivals_run as rr; "
         "print('engine:', rr._resolve_engine()); import deep_research; "
         "print('imported from:', deep_research.__file__)" % (tmp_path / "scripts")
     )
     r = subprocess.run(
-        [sys.executable, "-I", "-c", code], cwd=tmp_path, capture_output=True, text=True, timeout=120
+        [sys.executable, "-I", "-c", code],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert r.returncode == 0, r.stderr[-800:]
-    assert "engine: hub" in r.stdout and str(ROOT / "libs" / "deep_research") in r.stdout, r.stdout
+    # The hub path comes from the DRIVER's own constant, not from this checkout's ROOT: in a
+    # worktree (`.claude/worktrees/agent-*`) ROOT is not /opt/fabrik while the synced driver
+    # still hard-codes HUB_LIBS there — asserting ROOT failed a correct tree (native closing
+    # reader, 2026-09-05).
+    hub_libs = re.search(r'^HUB_LIBS = Path\("([^"]+)"\)', driver_src, re.M).group(1)
+    assert "engine: hub" in r.stdout and f"{hub_libs}/deep_research/" in r.stdout, r.stdout
