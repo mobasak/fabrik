@@ -1,7 +1,7 @@
 # T02 — The FastAPI emitter copies the module instead of the inline literal (integration, last)
 
 ## Scope
-In `_scaffold_fastapi_backend` (`src/fabrik/scaffold.py:1567-1868`) replace the inline `glitchtip_init.py` literal (`:1675-1735`) with a copy of `templates/scaffold/python/glitchtip_init.py` — the `pause_state.py` pattern at `:1744-1747` — substituting the `{pkg}`/`{name}` placeholders; the copy is UNCONDITIONAL (no `.exists()` guard: a missing template is a scaffold error, not a silent skip — the `pause_state` guard hides exactly that). The emitted file path (`src/<package>/glitchtip_init.py`, listed at `:1572`) and the app's call site (`:1793-1800`) are unchanged. The requirements pin `sentry-sdk[fastapi]>=2.18.0` (`:2125`) is unchanged. All three reaching types (`python-api`, `python-api-gpu`, `saas-skeleton`) get the module by construction — verified by scaffolding each into `tmp_path` in the gate.
+In `_scaffold_fastapi_backend` (`src/fabrik/scaffold.py:1567-1868`) replace the inline `glitchtip_init.py` literal (`:1675-1735`) with a copy of `templates/scaffold/python/glitchtip_init.py` — the `pause_state.py` pattern at `:1744-1747` — substituting the `{pkg}`/`{name}` placeholders by `str.replace` on those exact tokens — NEVER `.format()`: the module carries 40 `{` in dict/set literals, regexes and 2 f-strings (measured), any of which `.format()` would corrupt; the copy is UNCONDITIONAL (no `.exists()` guard: a missing template is a scaffold error, not a silent skip — the `pause_state` guard hides exactly that). The emitted file path (`src/<package>/glitchtip_init.py`, listed at `:1572`) and the app's call site (`:1793-1800`) are unchanged. The requirements pin `sentry-sdk[fastapi]>=2.18.0` (`:2125`) is unchanged. All three reaching types (`python-api`, `python-api-gpu`, `saas-skeleton`) get the module by construction — verified by scaffolding each into `tmp_path` in the gate.
 
 Owner: fleet (scaffolding beat)
 Depends: T03, T04
@@ -19,7 +19,7 @@ Docs: CHANGELOG.md · INDEX.md — orchestrator-applied. AT MERGE (fleet): the b
 - tests/test_scaffold_glitchtip_security.py — one test per reaching type: the emitted module is byte-equal to the template after substitution
 
 ## Behavior Contract
-- **Given** a `python-api` scaffold into `tmp_path`, **When** `src/<pkg>/glitchtip_init.py` is read, **Then** it equals the template with `{pkg}`/`{name}` substituted and contains no `{` placeholder.
+- **Given** a `python-api` scaffold into `tmp_path`, **When** `src/<pkg>/glitchtip_init.py` is read, **Then** it equals the template with `{pkg}`/`{name}` substituted and contains neither token (other braces are the module's own).
 - **Given** `python-api-gpu` and `saas-skeleton` scaffolds, **When** the same file is read, **Then** the same holds (3 of 3 reaching types).
 - **Given** the template file is absent, **When** the scaffold runs, **Then** it raises (no silent skip) — proven by monkeypatching `TEMPLATE_DIR`.
 - **Given** the existing scaffold suite (`tests/test_scaffold.py`), **When** run, **Then** it is green — nothing else in `_scaffold_fastapi_backend` changed.
