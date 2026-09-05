@@ -77,7 +77,9 @@ _ALLOWED_BASH = re.compile(
     # session in a subdirectory uses the absolute path.
     # …and an absolute prefix is a fleet repo under /opt (every synced repo lives there): `/\S*/`
     # admitted any planted `/x/scripts/command_run.py` (pass 20, executed)
-    r"|python3?\s+(?:/opt/[\w.-]+/)?scripts/(command_run|mail|thread_anchor)\.py\b"
+    # `python3.12` is a python; a repo segment may not be `..` (`/opt/../scripts/x.py` escaped
+    # the anchor) and `.py` must END the token (`command_run.py.bak` ran) — pass 21, executed
+    r"|python3?(?:\.\d+)?\s+(?:/opt/[\w-][\w.-]*/)?scripts/(command_run|mail|thread_anchor)\.py(?=\s|$)"
     # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
     # held session locating files uses `ls -R` or `grep -rl`; enumerating find's
@@ -201,11 +203,14 @@ _GIT_READ_LONG = frozenset(
         "--glob",
     ]
 )
-_GIT_VERB_FLAGS: dict[str, tuple[frozenset[str] | None, str]] = {
+_GIT_VERB_FLAGS: dict[str, tuple[frozenset[str] | None, str | None]] = {
     "add": (frozenset({"--verbose", "--dry-run"}), "vn"),
     "commit": (frozenset({"--message", "--file", "--quiet", "--verbose", "--only"}), "mFqvo"),
     "push": (frozenset({"--set-upstream", "--quiet", "--verbose", "--porcelain"}), "uqv"),
-    "fetch": (frozenset({"--quiet", "--verbose", "--tags", "--prune"}), "qvtp"),
+    "fetch": (
+        frozenset({"--quiet", "--verbose", "--tags"}),
+        "qvt",
+    ),  # no --prune: a checkpoint never deletes refs
     "status": (
         frozenset(
             [
@@ -231,12 +236,23 @@ _GIT_VERB_FLAGS: dict[str, tuple[frozenset[str] | None, str]] = {
     "diff": (_GIT_READ_LONG, "pUuwbWMCRzqSGaDlOr"),
     "log": (_GIT_READ_LONG, "pUuwbWMCRzqSGaDlOrnLgiEFPmc"),
     "show": (_GIT_READ_LONG, "pUuwbWMCRzqSGaDlOrnLgiEFPmc"),
-    "rev-parse": (None, ""),  # pure read; every flag is a query
+    "rev-parse": (None, None),  # pure read; every flag, long or short, is a query
+    "reset": (frozenset(), "q"),  # the allow regex fixes the form; listed so the PATHSPEC rule runs
 }
 
 
 def _git_flags_forbidden(command: str) -> bool:
-    """True when a git line carries any flag outside its verb's checkpoint/read set."""
+    """True when a git line carries any flag outside its verb's checkpoint/read set — or, for
+    the verbs that WRITE the index/refs, a pathspec or refspec that sweeps instead of naming.
+
+    `git add .`, `git commit -m x -- .` and `git reset -q HEAD -- .` each swept a SIBLING's work on
+    disk under `allow` (pass 21, P20-A): the flag set never looked at the positional argument, and
+    `.` is the HARD STOP CLAUDE.md names in one breath with `-A`. A pathspec to add/commit/reset
+    may not be `.`/`..`, a glob, or git's `:(magic)` form (a directory path still names a scope;
+    named, not held). A fetch/push refspec may not start with `+` (force) or contain `:` (an
+    explicit destination — `git fetch origin +x:x` force-moved a local branch), before OR after
+    `--` — `--` ends options, not refspecs (`git push origin -- +master` was a force push).
+    """
     try:
         argv = shlex.split(command, posix=True)
     except ValueError:
@@ -245,20 +261,42 @@ def _git_flags_forbidden(command: str) -> bool:
         return False
     verb = argv[1]
     if verb not in _GIT_VERB_FLAGS:
-        return False  # the allow-list regex has already decided the verb (reset has its own form)
+        return False  # not a verb the allow-list regex admits
     long_ok, short_ok = _GIT_VERB_FLAGS[verb]
+    options_open = True
     for tok in argv[2:]:
-        if tok == "--":
-            return False  # end of options: what follows is a pathspec/refspec, never a flag
-        if tok.startswith("--"):
+        if options_open and tok == "--":
+            options_open = False
+            continue
+        if options_open and tok.startswith("--"):
             if long_ok is not None and tok.split("=", 1)[0] not in long_ok:
                 return True
-        elif tok.startswith("-") and len(tok) > 1:
-            letters = tok[1:].rstrip("0123456789")
-            if any(ch not in short_ok for ch in letters):
+        elif options_open and tok.startswith("-") and len(tok) > 1:
+            if short_ok is not None and any(
+                ch not in short_ok for ch in tok[1:].rstrip("0123456789")
+            ):
                 return True
-        elif verb == "push" and tok[:1] in ("+", ":"):
-            return True  # a forced (`+ref`) or deleting (`:ref`) refspec
+        elif _positional_forbidden(verb, tok):
+            return True
+    return False
+
+
+def _positional_forbidden(verb: str, tok: str) -> bool:
+    """A refspec that forces or names a destination, or a pathspec that sweeps instead of naming."""
+    if verb == "push":
+        return tok[:1] in (
+            "+",
+            ":",
+        )  # `+ref` forces; `:ref` (empty source) deletes — `a:b` is a plain push
+    if verb == "fetch":
+        return tok.startswith("+") or ":" in tok  # `src:dst` writes a LOCAL ref; `+` forces it
+    if verb in ("add", "commit", "reset"):
+        return (
+            tok in (".", "..", "./", "../")
+            or tok.endswith(("/.", "/.."))
+            or any(ch in tok for ch in "*?[")
+            or tok.startswith(":")
+        )
     return False
 
 
@@ -406,7 +444,7 @@ def _reason(tool: str) -> str:
     return (
         f"FLEET QUOTA EXHAUSTED — no account left to rotate to (the tick's fleet-exhausted stamp is "
         f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "
-        "(`git commit -- <paths>`), `git push`, close your run record (`command_run.py done|blocked`), "
+        "(`git commit -m <msg> -- <paths>`), `git push`, close your run record (`command_run.py done|blocked`), "
         "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py and "
         "thread_anchor.py stay allowed. The hold lifts by itself when the tick sees relief (a reset "
         "or a new account); a session that ended is restarted by the operator."

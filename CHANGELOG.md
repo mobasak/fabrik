@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 21 of the review: the quota hold's positive set now scopes the PATHSPEC and the REFSPEC, not only the flags (2026-09-05)
+
+`git add .`, `git commit -m x -- .` and `git reset -q HEAD -- .` each swept a sibling's work on disk
+under `allow` — the pass-20 positive set looked at flags and never at the positional argument, and
+`.` is the HARD STOP CLAUDE.md names beside `-A`. A pathspec to add/commit/reset may not be `.`/`..`,
+a glob or `:(magic)`; a fetch/push refspec may not start with `+` or contain `:` — `git fetch origin
++x:x` force-moved a local branch, and `--` ended only options so `git push origin -- +master` was a
+force push; `fetch --prune` is out (a checkpoint never deletes refs). Also closed: `command_run.py.bak`
+passed `\\.py\\b`, `/opt/../scripts/x.py` passed the repo segment, `rev-parse -q` and `python3.12` were
+false denies, and the deny message's own template `git commit -- <paths>` fails headless — it now
+says `-m <msg>`. Named, not held: a directory pathspec still sweeps that directory. Grader red on
+revert; 28 hook tests.
+
 ### Fixed — pass 20 of the review: the quota hold's git verbs take only their checkpoint flags — a POSITIVE set replaces five passes of dangerous-flag lists (2026-09-05)
 
 The convergence sweep (93 candidates, 23 confirmed on disk) found the root under passes 14–19: the

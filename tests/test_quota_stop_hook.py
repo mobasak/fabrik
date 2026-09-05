@@ -314,7 +314,7 @@ def test_a_quoted_or_abbreviated_git_flag_is_still_a_flag():
         'git commit -m "note: see --output=x in the docs"',
         "git commit -m 'flags: --upload-pack is vetoed'",
         "git push --set-upstream origin master",
-        "git fetch --prune",
+        "git fetch --tags",
         "git log -1 --oneline",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
@@ -415,7 +415,6 @@ def test_git_verbs_take_only_their_checkpoint_flags():
         "git push -u origin master",
         "git push origin HEAD:refs/heads/master",
         "git fetch",
-        "git fetch --prune origin",
         "git status --short --branch",
         "git status -sb",
         "git diff --cached --stat",
@@ -434,6 +433,49 @@ def test_git_verbs_take_only_their_checkpoint_flags():
         "python3 scripts/thread_anchor.py list",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
+def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_message():
+    """The positive flag set never looked at the POSITIONAL argument: `git add .`, `git commit -m x
+    -- .` and `git reset -q HEAD -- .` each swept a sibling's work on disk (pass 21, P20-A);
+    `git fetch origin +x:x` force-moved a local branch and `git push origin -- +master` was a
+    force push after `--` (pool 20). Also: `command_run.py.bak` and `/opt/../scripts/x.py` passed
+    the anchor; `rev-parse -q` and `python3.12` were false denies; the deny message's own
+    template lacked `-m` and fails headless."""
+    for cmd in (
+        "git add .",
+        "git add -- .",
+        "git add docs/.",
+        "git add '*.py'",
+        "git add ':(top)f'",
+        "git commit -m x -- .",
+        "git commit -m x .",
+        "git reset -q HEAD -- .",
+        "git reset HEAD -- ..",
+        "git fetch origin +master:master",
+        "git fetch origin master:master",
+        "git push origin -- +master",
+        "git push origin -- :wip",
+        "git fetch --prune",
+        "git fetch -p",
+        "python3 /opt/repo/scripts/command_run.py.bak line",
+        "python3 /opt/../scripts/mail.py list",
+        "python3 /opt/.hidden/scripts/mail.py list",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        "git add f.py docs/plans/2026-09-05-plan-x/",
+        "git commit -m x -- f.py docs/x.md",
+        "git reset -q HEAD -- f.py docs/",
+        "git fetch origin",
+        "git push origin HEAD",
+        "git rev-parse -q --verify HEAD",
+        "git rev-parse --abbrev-ref HEAD",
+        "python3.12 scripts/command_run.py line",
+        "python3 /opt/my.repo-2/scripts/mail.py list",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+    assert "git commit -m <msg> -- <paths>" in hook._reason("Bash")
 
 
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
