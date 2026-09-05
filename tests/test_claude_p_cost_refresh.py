@@ -111,8 +111,15 @@ def test_days_outside_the_window_are_not_counted(rig, tmp_path, monkeypatch):
     )
 
 
-def test_built_at_is_a_fresh_utc_stamp(rig):
-    """Kills the frozen-stamp mutant: `built_at > '2000-01-01'` proved nothing."""
+def test_built_at_is_a_fresh_offset_aware_stamp(rig):
+    """Kills the frozen-stamp mutant: `built_at > '2000-01-01'` proved nothing.
+
+    OFFSET-AWARE, not UTC: round 3 moved the stamp onto the same clock as the window bounds so it can
+    never predate its own data, which means the offset is the box's, not `+00:00`. Awareness is what
+    the rule pack's mandate is actually about — naive is the defect class — and it is what makes the
+    comparison below sound. (This test was still named `..._utc_stamp` after that change; the final
+    round caught the mirror.)
+    """
     before = datetime.datetime.now(datetime.UTC)
     data = cpc.refresh()
     stamped = datetime.datetime.fromisoformat(data["built_at"])
