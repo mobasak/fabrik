@@ -16,7 +16,7 @@ Docs: CHANGELOG.md · INDEX.md (new tracked file) — orchestrator-applied
 ## Touches
 - templates/scaffold/python/glitchtip_init.py — PRIMARY PATH (new)
 - pyproject.toml — the two dev-extra lines only
-- tests/test_scaffold_glitchtip_security.py — one test: the template parses, exposes `init_glitchtip`, registers both hooks, carries the fleet logging default
+- tests/test_scaffold_glitchtip_security.py — APPENDS one test (the existing two tests — `test_python_glitchtip_init_strips_locals_and_body` and `test_node_glitchtip_init_strips_locals_without_bogus_body_flag` — stay byte-identical; T03 replaces the Python one BY NAME later): the template parses, exposes `init_glitchtip`, registers both hooks, carries the fleet logging default
 
 ## Behavior Contract
 - **Given** the hub `.venv` after `pip install -e .[dev]`, **When** `python -c "import sentry_sdk, structlog"` runs, **Then** both import and the sentry-sdk version is printed (the first step of this ticket; every later gate depends on it).
