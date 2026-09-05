@@ -54,3 +54,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] the dir prune `rmdir`s any empty dir unreported → FIXUP (5). [L] the prune's `unlink` ignores `--backup` → FIXUP (6). [L] "orphan(s) removed" past tense under dry-run → FIXUP (7). [L] the copied main lock as "proof of authorship" (also deepseek's pool item) and [M] the discarded WARN → the coder's in-flight ledger + WARN surfacing (corroborated).
 Round 3 verdict: 9 raised → 7 new fix classes + 2 corroborating the in-flight fixup; pool 2 confirmed, 1 refuted, 1 carried. Not the no-op round.
 
+## Round 4 — over `5fd58526..08cf1ae2` (98,232 B; the round-3 fixup: a per-worktree ledger as the only prune authority, the WARN surfaced, `.claude` pruned from the vendored-copy walk, `--force` gated per file by the ledger hash, dry-run tally + post-seed preview, gated dir prune, backup on prune, wording; 33 passed + 40 neighbours)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 4.
+### Adjudication (pool layer)
+- deepseek — CLEAN (4 rows; DO-NOTs; the ledger's first run; the agent-deleted path re-copied; the force gate; the excludesFile overlay cleaned; `--dry-run` writes neither ledger nor seed; no fail-open).
+- gemini — CLEAN (ledger first run :276; ledger-only pruning :448; the stale-hash force gate :348; dry-run ledger isolation :246).
+- qwen — 4 raised, all "missing test" claims (seeding on a zero-worktree full run; the first-run ledger; the stale-ledger overwrite; dry-run writing the ledger) — carried to the native finder, whose brief probes each by execution rather than by test presence.
+Native finder (opus): PENDING — appended when it returns.
+
