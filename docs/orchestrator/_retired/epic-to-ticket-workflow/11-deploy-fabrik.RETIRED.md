@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw 11-deploy is no longer a command.
+     Replaced by `/fabrik-release` → the deploy triad (`/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → `/fabrik-deploy`) (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — DEPLOY (our own, tool-capable twin of 11-deploy-fabrik).
      Run by our orchestrator agent (Opus 4.8, via the driver) — never pasted into a planner GUI.
      ⚠️ THIS IS THE DEPLOY-OUT **HUMAN GATE** — R14's second gate `[canonical: north star § Requirements —

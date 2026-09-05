@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw 08-implementation-validation is no longer a command.
+     Replaced by `/fabrik-review` + `/fabrik-conformance-review` (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — IMPLEMENTATION VALIDATION (our own, tool-capable twin of
      08-implementation-validation-fabrik). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the
      driver) — never pasted into a planner GUI.

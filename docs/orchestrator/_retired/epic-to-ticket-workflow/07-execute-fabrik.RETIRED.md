@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw 07-execute is no longer a command.
+     Replaced by `/fabrik-execute-plan` (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — EXECUTE (our own, tool-capable twin of 07-execute-fabrik)
      Run DIRECTLY by our orchestrator agent (Opus 4.8, via the driver) — never pasted into a planner GUI.
      THIS IS THE AUTONOMOUS EXECUTION LOOP. Opus orchestrates; it dispatches coder + reviewer agents,

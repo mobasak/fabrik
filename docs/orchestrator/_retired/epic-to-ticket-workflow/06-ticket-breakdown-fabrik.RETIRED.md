@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw 06-ticket-breakdown is no longer a command.
+     Replaced by `/fabrik-plan-after-chat` + `/fabrik-plan-review` (the spine + ticket plan set, gated by `check_plan_tickets`, dispatched under plan-locks) (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET BREAKDOWN (our own, tool-capable twin of 06-ticket-breakdown-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the confirmed outline + Tech/Deploy/Core-Flows + the LOCKED Decisions Lock from disk and writes complete

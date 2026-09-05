@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw 09-revise-requirements is no longer a command.
+     Replaced by `/fabrik-spec-review` re-opened on the changed spec (the corpus's re-freeze; its Status flips DRAFT and the chain re-runs from the changed artifact) (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — REVISE REQUIREMENTS (our own, tool-capable twin of
      09-revise-requirements-fabrik). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the driver) —
      never pasted into a planner GUI.

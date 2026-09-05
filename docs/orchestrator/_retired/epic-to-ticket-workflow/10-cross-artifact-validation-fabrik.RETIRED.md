@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw 10-cross-artifact-validation is no longer a command.
+     Replaced by `/fabrik-review` + `/fabrik-conformance-review` (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — CROSS-ARTIFACT VALIDATION (our own, tool-capable twin of
      10-cross-artifact-validation-fabrik). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the
      driver) — never pasted into a planner GUI.

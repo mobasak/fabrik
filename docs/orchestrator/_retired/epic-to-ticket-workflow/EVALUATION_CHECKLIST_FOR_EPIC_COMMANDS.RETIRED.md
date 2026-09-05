@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — ettw EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS is no longer a checklist (the ettw chain it graded is retired).
+     Replaced by `docs/reference/command-evaluation-checklist.md` (the corpus checklist; spec § Chain consolidation (a) retires ettw's 13 docs + checklist). Kept for history only. Do NOT wire it back as a yardstick. -->
 <!-- ⚠️ TRAYCER WORKFLOW SOURCE FILE
      Traycer does NOT read this file directly.
      After editing, copy-paste the content into Traycer workflow GUI.
