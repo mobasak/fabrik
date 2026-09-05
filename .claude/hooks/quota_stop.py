@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -97,15 +98,32 @@ _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<!>)&(?!&)|[<>]\(")
 # git's OWN flags are not shell syntax, so neither veto above can see them, and the allow-list
 # matches the leading verb: `git log --output=<any path>` wrote a file at an arbitrary path
 # (pass 14, executed); `git fetch --upload-pack=<program> .` and `git push --receive-pack=<program>
-# <local remote>` RAN the program (pass 17, executed). Scoped to git lines — the earlier
-# whole-line `\s-o\s` refused the allow-listed `grep -o` while no allowed git verb even accepts
-# `-o` (`git log -o d` is "ambiguous argument"; format-patch is not on the list).
-_GIT_OWN_FLAGS = re.compile(
-    # the `\b` sits on the alternatives that END in a word — after `--output=` comes a path
-    # character, and `=`/`/` share no boundary (the grader caught the first draft: `--output=/tmp/x`
-    # was allowed)
-    r"^\s*git\b.*?\s--(?:output(?:[=\s]|-directory\b)|upload-pack\b|receive-pack\b)"
-)
+# <local remote>` RAN the program (pass 17, executed). Read as ARGV on the RAW line, not on the
+# masked one: a flag inside quotes is still a flag to git — `git log "--output=m"` wrote (pass 18,
+# executed) — and git accepts any unambiguous PREFIX of a long option (`--upl=`, `--receive=` ran
+# the program), so a token is held when it is a prefix of a vetoed option, not only its full
+# spelling; `--exec=` is push's documented synonym for `--receive-pack`. An unparseable line
+# (unbalanced quote) is held. The earlier whole-line `\s-o\s` refused the allow-listed `grep -o`
+# while no allowed git verb even accepts `-o` (`git log -o d` is "ambiguous argument").
+_GIT_OWN_FLAG_OPTS = ("--output", "--output-directory", "--upload-pack", "--receive-pack", "--exec")
+
+
+def _git_own_flag(command: str) -> bool:
+    try:
+        argv = shlex.split(command, posix=True)
+    except ValueError:
+        return True  # unbalanced quote: cannot know the argv — fail closed
+    if not argv or argv[0] != "git":
+        return False
+    for tok in argv[1:]:
+        if not tok.startswith("--"):
+            continue
+        name = tok.split("=", 1)[0]
+        if len(name) > 2 and any(opt.startswith(name) for opt in _GIT_OWN_FLAG_OPTS):
+            return True
+    return False
+
+
 # `(?!>)` after the optional second `>` and `>` in the lookbehind: without them `>>?` BACKTRACKED
 # on `>> /dev/null` — the two-char match failed the /dev/null exemption, so the engine matched a
 # single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names
@@ -236,7 +254,7 @@ def decide(
             command is not None
             and not _UNSAFE_SHELL.search(masked)
             and not _FILE_REDIRECT.search(masked)
-            and not _GIT_OWN_FLAGS.search(masked)
+            and not _git_own_flag(command)
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""

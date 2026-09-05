@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 18 of the review: the quota hold's git-flag veto reads ARGV, not the masked line — quoted and abbreviated flags were still flags (2026-09-05)
+
+The pass-17 veto for git's own file-output and program-running flags searched the quote-MASKED
+line, so `git log "--output=m"` and `git fetch "--upload-pack=./p" .` vanished from its view while
+git received them whole (proven on disk). And git accepts any unambiguous prefix of a long option:
+`--upl=./p` and `--receive=./p` ran the program too. The veto now `shlex.split`s the RAW line and
+holds any `--` token that is a prefix of `--output`, `--output-directory`, `--upload-pack`,
+`--receive-pack` or `--exec` (push's documented synonym); an unparseable line is held; a flag spelled
+inside a commit message is data. Three readings, three lines: the allow-list reads raw, the shell
+operators read masked, the tool flags read argv. Grader red on revert; 24 hook tests.
+
 ### Fixed — pass 17 of the review: the quota hold's allow-list closed against tools' own exec paths, a digit-excused `&`, and a `grep -o` false positive (2026-09-05)
 
 The pass-16 finders re-ran the "tool's own write path" class over everything still allowed and

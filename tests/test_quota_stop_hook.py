@@ -291,6 +291,35 @@ def test_a_tools_own_write_flag_and_a_destroying_read_tool_are_held():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
+def test_a_quoted_or_abbreviated_git_flag_is_still_a_flag():
+    """The flag veto read the MASKED line, so a flag inside quotes vanished from its view while
+    git still received it: `git log "--output=m"` and `git fetch "--upload-pack=./p" .` wrote / ran
+    under `allow` (pass 18, executed). And git accepts any unambiguous prefix of a long option:
+    `--upl=./p` and `--receive=./p` ran the program too. The veto now reads ARGV on the raw line
+    and holds a token that is a prefix of a vetoed option; an unparseable line is held. A flag
+    spelled inside a commit MESSAGE is data — a token that does not start with `--`."""
+    for cmd in (
+        'git log -1 "--output=m"',
+        "git log -1 '--output' m",
+        'git fetch "--upload-pack=./pre.sh" .',
+        "git fetch --upl=./pre.sh .",
+        "git fetch --upload ./pre.sh origin",
+        "git push --receive=./pre.sh ../bare.git HEAD",
+        "git push --exec=./pre.sh ../bare.git HEAD",
+        "git log --out=m",
+        'git log "unbalanced --output=m',
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        'git commit -m "note: see --output=x in the docs"',
+        "git commit -m 'flags: --upload-pack is vetoed'",
+        "git push --set-upstream origin master",
+        "git fetch --prune",
+        "git log -1 --oneline",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
     """`(?<![0-9>])&` excused an `&` after a digit, for which bash has no legitimate form — the
     fd-duplication `2>&1` puts its `&` after `>`. `git status 1& touch m` and `git log 2>&1& touch m`
