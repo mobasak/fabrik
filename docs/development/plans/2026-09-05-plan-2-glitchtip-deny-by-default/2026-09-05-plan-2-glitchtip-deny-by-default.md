@@ -36,10 +36,34 @@ Ledger: D-126 (minted in this change)
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | Vendor the scrubber into the scaffold template tree | — | ⚡ | ⬜ | |
-| T03 | The guard asserts the captured event through a swapped transport | T01 | ⚡ | ⬜ | |
-| T04 | Rule 55 § Error Reporting states the shape | T01 | ⚡ | ⬜ | |
-| T02 | The FastAPI emitter copies the module (integration, last; the back-fill notices at merge) | T03, T04 | — | ⬜ | |
+| T01 | Vendor the scrubber into the scaffold template tree | — | ⚡ | ✅ | `b38bc674` |
+| T03 | The guard asserts the captured event through a swapped transport | T01 | ⚡ | ✅ | `5ab9550d` |
+| T04 | Rule 55 § Error Reporting states the shape | T01 | ⚡ | ✅ | `0af2ece9` |
+| T02 | The FastAPI emitter copies the module (integration, last; the back-fill notices at merge) | T03, T04 | — | ✅ | `ad038829` |
+
+**EXECUTED 2026-09-05** by fleet in one session (the operator released the whole set; this spine's own
+Execution Discipline permits one session to run it). Merge order followed: T01 → T03 → T04 → T02. Every
+ticket's Gate lines green, a native in-line adversarial pass at each boundary, each committed with explicit
+pathspecs and pushed. Deviations and findings, recorded rather than smoothed over:
+
+- **T01's written pin was one commit stale** (`7b83573`; the file was at `4f5c158`). Followed T01's own
+  "VERIFY the revision first" instruction and vendored the current committed revision, recording that sha.
+- **T04's "seven header names" did not survive verification.** sentry-sdk 2.68.1's scrubber matches 37
+  names (`DEFAULT_DENYLIST` 33 + `DEFAULT_PII_DENYLIST` 4). The load-bearing half held —
+  `X-Signing-Secret` matches none of them — so the synced pack shipped the measured 37, not the seven.
+- **The per-platform census was re-derived by SCAFFOLDING each of the 12 types**, not by reading the
+  dispatch: Python reaches `python-api`/`python-api-gpu`/`saas-skeleton`, Node only `node-api`, seven types
+  emit nothing, `chrome-extension` has its own BrowserClient.
+- **T03's watched fail is this plan's most valuable artifact:**
+  `secrets reached the wire through: ['apikey', 'header', 'otp', 'query']` against the init the scaffold
+  was shipping — site-provisioner's report reproduced by our own guard rather than believed.
+- **T02's back-fill notices: 11 sent, of 43 `/opt` git repos** (census re-measured at merge; hub and
+  `templates/` excluded, per the ticket's command). No D-035 advisory on any.
+- **Residue reported, not fixed:** `requires_fabrik_env` was left unused by T03's replacement and is used
+  again by T02's tests; the Node test still calls `create_project` without it, which T03 forbade touching.
+- **One collision, mine:** the T03 commit swept infra's uncommitted CHANGELOG entry (`git commit -- <path>`
+  reads the working tree). Nothing lost, no amend; the later commits added a heading-count check that
+  caught the same window before T02.
 
 ## Merge Order
 
