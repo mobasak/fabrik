@@ -4099,8 +4099,24 @@ def _drain_resume_lead_s() -> int:
     stamp's CONTENT (which `_promised_resume` compares against `now` to re-arm), and the
     ledger's `resume_epoch`. They were three separate `+ 60` literals; a change to one and not
     the others would make the fleet re-arm at a different instant than the one it promised, and
-    nothing would have caught it. ``ROTATE_DRAIN_RESUME_LEAD_S`` overrides."""
-    return int(_env_float("ROTATE_DRAIN_RESUME_LEAD_S", 120.0))
+    nothing would have caught it. ``ROTATE_DRAIN_RESUME_LEAD_S`` overrides.
+
+    FLOORED AT 60. An override of `0` names the reset instant itself — the moment the window is
+    due, not the moment a reading proves it open — and a NEGATIVE one names a resume BEFORE the
+    reset, which is worse than no message at all: the fleet would wake into the same wall and
+    the latch would re-arm immediately. `_env_float` already absorbs garbage into the default;
+    the floor is for a value that parses and is still nonsense."""
+    return max(60, int(_env_float("ROTATE_DRAIN_RESUME_LEAD_S", 120.0)))
+
+
+def _humanize_lead(seconds: int) -> str:
+    """The lead as prose. Whole minutes read as minutes; anything else keeps its seconds
+    rather than truncating — `90 // 60` is `1`, and rendering 90s as "1 minutes" both misstates
+    the wait and understates it, which is the wrong direction for a resume instant."""
+    if seconds % 60 == 0:
+        m = seconds // 60
+        return f"{m} minute" if m == 1 else f"{m} minutes"
+    return f"{seconds} seconds"
 
 
 def _urgent_drain_message(
@@ -4138,7 +4154,7 @@ def _urgent_drain_message(
     return head + (
         f" NEXT ACCOUNT AVAILABLE: {email} — its {window} window resets at {reset_local}"
         f" (UTC {reset_utc}). RESUME AT {local} (UTC {utc}), epoch {resume} —"
-        f" {lead // 60} minutes after the reset, so the window is genuinely open rather than"
+        f" {_humanize_lead(lead)} after the reset, so the window is genuinely open rather than"
         " merely due."
         " ⚠️ A FOLLOW-UP NOTICE IS THE MECHANISM — another message like this one will arrive"
         " carrying the next time to try, and that is what wakes you. A self-scheduled timer is a"

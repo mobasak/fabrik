@@ -20,8 +20,20 @@ CONTENT (which `_promised_resume` compares against `now` to re-arm when a promis
 the ledger's `resume_epoch`. Changing one and not the others would have made the fleet re-arm at a
 different instant than the one it promised, with nothing to catch it. All three now read
 `_drain_resume_lead_s()` (`ROTATE_DRAIN_RESUME_LEAD_S`, default 120), and a mirror-guard test pins
-that they cannot drift: it sets the lead to a non-default 300 and asserts the message and the
-stamp `_promised_resume` reads agree. Both tests seen RED on the reverted file; 82 pass.
+that they cannot drift: it reads the SOURCE and pins that all three sites delegate, refusing any
+re-introduced `+ 60` literal. (The first draft of that guard wrote the stamp itself and asserted
+the message matched it — agreement on a value the test chose, which is vacuous; the review
+caught it.) The lead is FLOORED at 60: an override of `0` names the reset instant itself and a
+negative one named a resume BEFORE the reset, so the fleet would wake into the same wall. And
+`90 // 60` is `1`, so a 90s lead rendered as "1 minutes" — wrong, and understating the wait;
+`_humanize_lead` now keeps seconds unless the lead is whole minutes. Tests seen RED on the
+reverted file; 83 pass.
+
+⚠️ The same review caught a worse one: `claude_rotate.py`'s own header declares it *vendored
+BYTE-IDENTICAL* into `scripts/sysadmin/` and `scripts/aro-wake/`, and the first commit changed
+only one. aro-wake is live — a push trigger for the host sysadmin, rsync'd to all three hosts —
+so it would have broadcast `+60` while sysadmin broadcast `+120`: the exact drift the change
+exists to prevent, one level up. Twin restored byte-identical.
 
 No new auto-switch mechanism was built, deliberately. The tick already flips to a sibling with
 headroom (`*/5` cron; it flipped can@ → sarp@ today), and the one recorded failure — 10h41m walled

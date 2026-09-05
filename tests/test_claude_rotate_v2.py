@@ -1473,19 +1473,47 @@ def test_drain_message_names_reset_and_resume_two_minutes_apart(monkeypatch):
 
 def test_promised_resume_and_message_cannot_drift_apart(monkeypatch, tmp_path):
     """THE MIRROR GUARD. The resume instant lives in three places — the message text, the latch
-    stamp's CONTENT (which `_promised_resume` compares against `now` to decide the fleet has
-    been left waiting on a promise that came due), and the ledger's `resume_epoch`. They were
-    three independent `+ 60` literals. If they disagree, the fleet is told one time and re-armed
-    at another, and no existing test would notice."""
-    monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "300")   # deliberately not the default
-    reset = 1788612000.0
+    stamp's CONTENT (which `_promised_resume` compares against `now` to decide the fleet was left
+    waiting on a promise that came due), and the ledger's `resume_epoch`. They were three
+    independent `+ 60` literals.
+
+    An earlier draft of this test wrote the stamp ITSELF and then asserted the message agreed with
+    it — which proves the two agree on a value the TEST chose, not that production reads one
+    source. It was vacuous. This reads the SOURCE and pins that every site delegates."""
+    import re
+    src = (REPO / "scripts" / "sysadmin" / "claude_rotate.py").read_text(encoding="utf-8")
+    # no site may reconstruct the lead from a literal again
+    assert not re.search(r"int\(epoch\)\s*\+\s*60\b", src), "message re-introduced a literal lead"
+    assert not re.search(r"relief\[0\]\)\s*\+\s*60\b", src), "stamp/ledger re-introduced a literal lead"
+    # all three consumers delegate to the one function
+    assert src.count("_drain_resume_lead_s()") >= 3, (
+        f"expected the 3 call sites to delegate; found {src.count('_drain_resume_lead_s()')}")
+    # and the value the message names really does follow the single source
+    monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "300")
     lead = cr._drain_resume_lead_s()
-    assert lead == 300, "the lead must be a single overridable source, not a literal"
-    msg = cr._urgent_drain_message("live@test", "walled", (reset, "next@test", "5-hour"))
-    assert f"epoch {int(reset) + lead}" in msg, "message ignored the single source"
-    # the stamp the latch writes must promise the SAME instant the message named
+    assert lead == 300
+    msg = cr._urgent_drain_message("live@test", "walled", (1788612000.0, "next@test", "5-hour"))
+    assert f"epoch {1788612000 + lead}" in msg
     stamp = tmp_path / "wall.stamp"
-    stamp.write_text(str(int(reset) + lead), encoding="utf-8")
+    stamp.write_text(str(1788612000 + lead), encoding="utf-8")
     import os as _os
-    _os.utime(stamp, (reset - 1, reset - 1))                  # written before the promise
-    assert cr._promised_resume(stamp) == float(int(reset) + lead)
+    _os.utime(stamp, (1788611999, 1788611999))
+    assert cr._promised_resume(stamp) == float(1788612000 + lead)
+
+
+def test_resume_lead_is_floored_and_rendered_honestly(monkeypatch):
+    """A lead that parses but is nonsense must not ship. `0` names the reset instant itself (due,
+    not proven open) and a NEGATIVE lead names a resume BEFORE the reset — the fleet would wake
+    into the same wall. And `90 // 60` is `1`, so the old rendering called 90 seconds
+    "1 minutes": wrong, and wrong in the understating direction for a resume instant."""
+    for bad in ("0", "-60", "-1"):
+        monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", bad)
+        assert cr._drain_resume_lead_s() == 60, f"{bad} must be floored to 60, not honoured"
+    monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "abc")
+    assert cr._drain_resume_lead_s() == 120, "garbage falls back to the default"
+    assert cr._humanize_lead(120) == "2 minutes"
+    assert cr._humanize_lead(60) == "1 minute", "singular, not '1 minutes'"
+    assert cr._humanize_lead(90) == "90 seconds", "must not truncate 90s to '1 minutes'"
+    monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "90")
+    msg = cr._urgent_drain_message("a@x", "walled", (1788612000.0, "b@x", "5-hour"))
+    assert "90 seconds after the reset" in msg, msg
