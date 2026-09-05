@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — RE-VENDORED the scaffold scrubber: the pin was six commits stale within two hours, and the gap was not cosmetic (2026-09-05)
+
+site-provisioner filed `01M1R92QCCZDWAADG8RMT426ZS` (ack required) telling us to move the pin, and infra
+relayed that the module had moved again since. Measured: `4f5c158..HEAD` on their
+`api/glitchtip_init.py` is **six commits, 137 insertions / 26 deletions**. Re-vendored at `13d3243`,
+byte-identity to upstream re-proven after reversing the adaptations.
+
+**What the stale copy was missing, in their words:** a redaction that "missed 68.8% of the shape it was
+built for" (they measured it by mutating a DSN one edit at a time — 474 secret-quoting failure messages,
+326 of which survived redaction at the old pin), a redaction that was "wrong in both directions" and is
+now rebuilt on a scheme anchor, and one more that "READ as successful".
+
+**The one that changed OUR configuration, not just theirs:** `LoggingIntegration` installs a THIRD
+handler in sentry-sdk 2.68.1 — `_sentry_logs_handler`, defaulting to INFO — which emits `log` envelope
+items carrying `sentry.message.parameter.0`, the interpolated log parameter, through `before_send_log`.
+This module registers no such hook, so **`_scrub_event` has zero reach into that channel**: the whole
+deny-by-default apparatus does not see it. It is latent (gated behind `enable_logs`, default False) but
+that is exactly the "empty today only because of SDK CONFIG" standard the module refuses elsewhere, so
+`sentry_logs_level=None` disables it outright. That matters more for the fleet than for the origin,
+because our D-126 default deliberately KEEPS error log records as events.
+
+The fleet adaptation is now `LoggingIntegration(event_level=logging.ERROR, level=None,
+sentry_logs_level=None)` — ERROR events for the fleet, the other two channels closed exactly as upstream.
+
+**The guard caught the reflow and was itself wrong.** It pinned the literal single-line
+`LoggingIntegration(...)` string and went red when upstream reflowed to three lines — a real change, but
+the assertion named the FORMATTING rather than the contract. It now reads the call's keywords off the AST
+and additionally pins `sentry_logs_level=None`, red on revert. 9 tests green.
+
+The template docstring now carries the re-vendor rule explicitly: verify the upstream revision at the
+moment you copy, never trust a sha written in a ticket — this surface moved six times in two hours.
+
 ### Added — worktree adoption artifacts: the manifest declares `.worktreeinclude` (2026-09-05)
 
 T01a of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `scripts/fabrik_synced_manifest.py`

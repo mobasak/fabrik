@@ -10,23 +10,31 @@ Import this module BEFORE FastAPI app creation in main.py:
 
 VENDORED — do not edit here expecting it to stick upstream.
   origin:   site-provisioner  api/glitchtip_init.py
-  revision: 4f5c158
+  revision: 13d3243
 Copied under the fabrik-lib law (vendor, never import across repos). It is a COPY: to
 pull a later upstream fix, re-vendor and move the revision above, so a reader can always
 diff this file against the sha it claims to be.
 
+⚠️ THIS SURFACE MOVES. The first vendor pinned 4f5c158 and was six commits stale within
+two hours — and the gap was not cosmetic: one commit fixed a redaction that missed 68.8%
+of the shape it was built for, another closed a logging channel `_scrub_event` cannot
+reach at all. Re-vendor by VERIFYING the upstream revision at that moment
+(`git -C /opt/site-provisioner log -1 --format=%h -- api/glitchtip_init.py`), never by
+trusting a sha written in a ticket.
+
 Scaffold adaptations, all deliberate and each graded by
 tests/test_scaffold_glitchtip_security.py:
   * ``server_name`` defaults to the service name, not the reference's hardcoded one;
-  * ``LoggingIntegration(event_level=logging.ERROR)`` is the FLEET default (D-126) —
-    the reference uses ``event_level=None``, which suits a service that never wants a
-    log record to become an event;
+  * ``LoggingIntegration(event_level=logging.ERROR)`` is the FLEET default (D-126) — the
+    reference uses ``event_level=None``, which suits a service that never wants a log
+    record to become an event. ``level`` and ``sentry_logs_level`` stay None, exactly as
+    upstream: see the coupling note beside the call;
   * both integrations keep ``transaction_style="endpoint"``, the scaffold's existing
     transaction NAMING — dropping it would silently rename every transaction.
 
 Apart from those, this file is byte-identical to the origin at the revision above, plus
-COMMENTS added here (the coupling note beside ``LoggingIntegration``). When re-vendoring,
-diff with comments in mind: the executable bytes are the contract, not the prose.
+COMMENTS added here. When re-vendoring, diff with comments in mind: the executable bytes
+are the contract, not the prose.
 """
 import logging
 import os
@@ -224,7 +232,7 @@ def _safe_origin(description: str) -> str | None:
     a verb and a scheme+host with any userinfo removed. Anything else returns None.
     The span reducer then DROPS the description (keeping `op`,
     so the trace shape survives); `_reduce_header_value` instead keeps the header key with
-    a `None` value; the `transaction` reduction nulls the field. FOUR call sites, THREE
+    a `None` value; the `transaction` reduction nulls the field. SIX call sites, THREE
     dispositions — the transaction reduction calls it from both of its branches, which is
     why the two numbers differ and why naming only one of them keeps going wrong. This
     sentence has now been wrong three times: "one caller" when a second appeared, "two"
@@ -355,29 +363,98 @@ def _reduce_origin(value):
     return _safe_origin(value)  # a URL: origin only, or dropped if it will not parse
 
 
-# A URL with userinfo, anywhere inside a free-text string. Not anchored to the START of the
-# value — the target is a DSN quoted INSIDE a longer message — but each MATCH is anchored to
-# a token boundary by the lookbehind below. (An earlier version of this comment said
-# "deliberately NOT anchored" full stop, three lines above a pattern that is; the two kinds
-# of anchoring were being conflated.)
+# Credentials inside a free-text string.
 #
-# The separator is `://` in a well-formed URL, but the message that actually quotes a DSN is
-# a URL-PARSE FAILURE — and a URL fails to parse precisely because that separator is damaged.
-# Measured against this service's real stack: a refused connection, a DNS failure and an auth
-# failure quote no DSN at all; the shape that quotes one is SQLAlchemy's
-# `Could not parse SQLAlchemy URL from string '<the whole DSN>'`, where the DSN is malformed.
-# So requiring `://` would have missed the only case that reaches this field.
+# ONE rule, anchored on a scheme. Three earlier designs are recorded here because each was
+# refuted by measurement and the reasons are the whole content of this comment:
 #
-# `(?::/{1,2}|//)` accepts exactly the three observed forms — `://`, `:/`, `//` — and no
-# other. A BARE single `/` is excluded on purpose: allowing it made `h/a@b` and
-# `path/to/file@v1` match, which destroys ordinary paths. (An earlier version of this comment
-# described the separator as `:?/{1,2}`, which was the pattern one revision ago and does
-# permit a bare `/` — the comment outlived the code it described by a single commit.)
-_USERINFO_IN_TEXT_RE = re.compile(
-    r"(?<![^\s'\"(<\[=,;])"                   # scheme starts a token (or follows key=, a comma…)
-    r"([a-zA-Z][a-zA-Z0-9+.\-]*(?::/{1,2}|//))"  # scheme + `://`, `:/` or `//` — never a bare `/`
-    r"([^\s/?#@'\"]+)@"                       # the userinfo
+#   1. `scheme://userinfo@`, separator-keyed. Missed 68.8% of the shape it existed for: the
+#      message that quotes a DSN is a URL-PARSE failure, so the separator is damaged.
+#   2. The same, plus a token-boundary lookbehind. The lookbehind refused any scheme preceded
+#      by `:` — the JDBC and `KEY:` shapes — and measurement showed it prevented no
+#      over-redaction the other rules did not already prevent.
+#   3. A scheme-LESS `something:something@` rule. This was the worst of the three and it
+#      looked like the best: it caught the scheme-stripped DSN, and it destroyed ordinary log
+#      content that merely contains `word:word@word` — `mailto:`, `From:` headers,
+#      `12:30:45@web01`, `nginx:1.25@sha256:…`, `ns:default@cluster-a`, and Windows
+#      `C:\Users\me@domain`. Over-redaction went UP against the pattern it replaced (13 of
+#      80 vs 6). It was also QUADRATIC — with no scheme to prune start positions the engine
+#      retries at every character: 7.4s on a 60 KB value, reachable because
+#      `max_value_length` is unset so field values reach `before_send` untruncated.
+#
+# So the scheme is required. It is what makes this linear, and it is what distinguishes a
+# DSN from the `word:word@word` that ordinary log lines are full of. The separator may be
+# damaged (`://`, `:/`, `//`) because that is the failure being redacted.
+#
+# The userinfo class permits `? # ' "` and excludes only whitespace, `/` and `@`. That
+# matters: a password containing `#` or a quote leaked 100% under every previous design,
+# because the class was copied from the well-formed-URL case where those are delimiters.
+# `/` stays excluded so `https://host/path@ref` keeps its path — and a `/` inside a DSN
+# password is not RFC 3986-valid unencoded, which is a stated residual below, not a claim
+# that it cannot happen.
+# TWO sub-rules, differing only in how much corroboration a damaged separator needs.
+#
+# An INTACT `://` is unambiguous enough on its own: `scheme://anything@` is a URL with
+# userinfo, so no colon is required inside it (this is the rule that catches the bare-token
+# `https://<token>@host` form).
+#
+# A DAMAGED separator (`//` or `:/`) is NOT unambiguous — `src//main@HEAD` and `C:/temp@1`
+# have exactly that shape and are an ordinary path and a Windows path. So it additionally
+# requires a COLON inside the userinfo, which every `user:pass` DSN has and neither of those
+# does. That single distinction is what lets the damaged-separator case be covered at all
+# without destroying paths; an earlier design that treated both separators alike damaged
+# both of those strings.
+# ⚠️ Two properties below are load-bearing and both were got wrong once.
+#
+# THE LOOKBEHIND is what makes this linear, and that is the single most-corrected sentence
+# in this module. Requiring a scheme is NECESSARY AND NOT SUFFICIENT: without a boundary the
+# engine starts a match at every character of one long `[A-Za-z0-9+.\-]` run and scans the
+# rest of it each time — quadratic, 2.7s at 32 KB and 15.6s at 60 KB, synchronously inside
+# `before_send`. The possessive `*+` stops backtracking WITHIN a run but not the retry at
+# every start position, so it alone does not fix it either (measured: still quadratic).
+#
+# This lookbehind is deliberately NOT the one an earlier round removed. That one forbade a
+# scheme preceded by `: = ,` and so blocked `jdbc:postgresql://…` and `KEY:<dsn>` — real
+# shapes. This one forbids only another SCHEME character before the scheme, which prunes
+# mid-run starts while leaving every one of those shapes matchable.
+#
+# THE `?#` SPLIT between the two alternatives is RFC 3986, not a heuristic. In a well-formed
+# URL `?` and `#` START the query and fragment, so they cannot be inside userinfo — excluding
+# them from the first alternative keeps `https://h?a=1@2` intact.
+#
+# The second alternative accepts `://` as well as the damaged separators, and permits `?#`,
+# BECAUSE IT REQUIRES A COLON in the userinfo. That combination is what catches a password
+# containing `#` behind an intact separator — a shape that falls between the two rules
+# otherwise, and one that leaked 100% under an earlier design. The colon is what keeps the
+# permissiveness safe: `https://h?a=1@2` has no colon in that position, so it stays intact.
+#
+# POSSESSIVE `*+` on the scheme run. Without it this is QUADRATIC, not linear: on one long
+# unbroken `[A-Za-z0-9+.\-]` run the engine starts a match at every character and backtracks
+# the whole run each time — 2.7s at 32 KB, 15.6s at 60 KB, synchronously inside
+# `before_send`. An earlier comment here claimed "requiring the scheme is what makes this
+# linear"; requiring it is necessary and NOT sufficient, and the measurement that "proved"
+# linearity used `"a:"*n`, where the colons break the runs. `*+` refuses to give back the
+# run, so a start position with no separator after it fails immediately.
+#
+# GREEDY userinfo INCLUDING `@`, which makes this match to the LAST `@` rather than the
+# first. A password containing `@` otherwise ships its tail — and ships it BEHIND a
+# `[redacted]@` marker, so the output reads as a successful redaction. That is worse than
+# the documented `/` residual, where the string is left visibly untouched. `_safe_origin`
+# has always used `rsplit("@", 1)[-1]` for exactly this reason, with a test named for it;
+# the convention simply was not carried across to this function.
+_SCHEME_START = r"(?<![A-Za-z0-9+.\-])"     # the scheme cannot begin mid-token
+_URL_USERINFO_RE = re.compile(
+    _SCHEME_START + r"([a-zA-Z][a-zA-Z0-9+.\-]*+://)([^\s/?#]+)@"
+    r"|"
+    + _SCHEME_START + r"([a-zA-Z][a-zA-Z0-9+.\-]*+(?::/{1,2}|//))([^\s/]*:[^\s/]*)@"
 )
+
+
+def _redact_userinfo_match(m: "re.Match") -> str:
+    """Rebuild the matched prefix, dropping whichever alternative's userinfo matched."""
+    if m.group(1) is not None:
+        return f"{m.group(1)}[redacted]@"
+    return f"{m.group(3)}[redacted]@"
 
 
 def _redact_userinfo_in_text(value):
@@ -409,7 +486,7 @@ def _redact_userinfo_in_text(value):
     """
     if not isinstance(value, str):
         return value
-    return _USERINFO_IN_TEXT_RE.sub(r"\1[redacted]@", value)
+    return _URL_USERINFO_RE.sub(_redact_userinfo_match, value)
 
 
 def _reduce_logentry(logentry: dict) -> dict:
@@ -523,6 +600,21 @@ def _scrub_event(event: dict, hint: dict) -> dict:
     Note `extra` is absent from every allowlist — that alone closes scope extras and
     ArgvIntegration's `sys.argv`, without naming either.
     """
+    # A raise ANYWHERE in here costs the WHOLE event: sentry-sdk wraps the hook in
+    # `capture_internal_exceptions()`, so an exception is swallowed and the event dropped —
+    # a scrubber that crashes is a scrubber that silently blinds you on the error path.
+    #
+    # Measured before adding this: 0 raises across the hostile FIELD shapes the test builds
+    #  (23 top-level
+    # keys × 22 hostile values, plus nested variants) — the reachable surface is already
+    # total. This guard covers only a non-dict EVENT, which the SDK does not produce, so
+    # its measured fire rate is ZERO. It is two lines and it makes the function total
+    # rather than total-in-practice; that trade is worth it in a module now vendored into
+    # other services, where "the SDK never does that" is an assumption about someone
+    # else's caller.
+    if not isinstance(event, dict):
+        return {}
+
     event = _keep(event, _ALLOWED_EVENT_KEYS)
 
     # Every branch below DROPS a field whose shape is not what we expect, rather than
@@ -627,6 +719,16 @@ def _scrub_event(event: dict, hint: dict) -> dict:
             event["transaction"] = _safe_origin(transaction)
         elif _LOOKS_LIKE_URL_RE.match(transaction):
             event["transaction"] = _safe_origin(transaction)
+        else:
+            # `transaction` is the THIRD allowlist-kept field that can hold text a developer
+            # wrote, and its URL gate is positional: `^\s*(?:\S+\s+)?scheme://` matches only
+            # when the URL is the first or second whitespace token. A name like
+            # "celery task for postgresql://user:pw@host/db" passed through whole.
+            #
+            # Reducing it to an origin here would destroy legitimate names, so the same
+            # free-text redaction the message fields use is applied instead: the name
+            # survives, the credential does not.
+            event["transaction"] = _redact_userinfo_in_text(transaction)
 
     _reduce_metadata(event)
 
@@ -752,18 +854,38 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             # touches: logentry.params, logentry.formatted, extra-from-record, and the
             # breadcrumb trail (which keeps the INTERPOLATED message, with no safe
             # template to fall back to). event_level=None stops records becoming events;
-            # level=None stops them becoming breadcrumbs. Unhandled errors are still
-            # reported via the Starlette/FastAPI integrations, and explicit
-            # sentry_sdk.capture_exception() still works.
-            # FLEET DEFAULT (D-126), and it DEPENDS ON THE ALLOWLIST ABOVE. The reference uses
-            # event_level=None, which closes the log channel by never creating an event at all.
-            # ERROR keeps the event — the fleet wants error records visible in GlitchTip — so the
-            # log channel is open and is closed instead by `_ALLOWED_LOGENTRY_KEYS == {"message"}`,
-            # which keeps the message TEMPLATE and drops `params`/`formatted` (the interpolated
-            # text). Verified: `logger.error("otp=%s", secret)` produces one event whose logentry is
-            # {'message': 'otp=%s'} with the secret absent.
-            # ⚠️ Widening `_ALLOWED_LOGENTRY_KEYS` therefore turns THIS line into a leak, while the
-            # reference's event_level=None would not. The two are coupled; change them together.
-            LoggingIntegration(event_level=logging.ERROR, level=None),
+            # level=None stops them becoming breadcrumbs.
+            #
+            # ⚠️ THOSE TWO ARE NOT THE WHOLE CHANNEL, and an earlier version of this comment
+            # said "entirely" while enumerating only them. `LoggingIntegration` installs a
+            # THIRD handler in sentry-sdk 2.68.1 — `_sentry_logs_handler`, defaulting to INFO
+            # rather than None. It emits `log` envelope items carrying the interpolated body
+            # and `sentry.message.parameter.0` (which IS `logentry.params`, one of the four
+            # fields named above), and those items go out through `before_send_log` — a hook
+            # this module does not register. So `_scrub_event` has ZERO reach into that
+            # channel: the entire deny-by-default apparatus simply does not see it.
+            #
+            # It is gated behind the client option `enable_logs`, which defaults False and is
+            # set nowhere in this repo. That is exactly the standard this module refuses for
+            # itself elsewhere — "empty today only because of SDK CONFIG" — so the handler is
+            # disabled outright rather than left resting on someone else's default.
+            #
+            # Unhandled errors are still reported via the Starlette/FastAPI integrations, and
+            # explicit sentry_sdk.capture_exception() still works.
+            # FLEET DEFAULT (D-126), and it DEPENDS ON THE ALLOWLIST ABOVE. Upstream uses
+            # event_level=None, closing the log channel by never creating an event at all.
+            # ERROR keeps the event — the fleet wants error records visible in GlitchTip —
+            # so that channel is OPEN here and is closed instead by
+            # `_ALLOWED_LOGENTRY_KEYS == {"message"}`, which keeps the message TEMPLATE and
+            # drops `params`/`formatted`. Verified: `logger.error("otp=%s", secret)` yields
+            # one event whose logentry is {'message': 'otp=%s'} with the secret absent.
+            # ⚠️ Widening `_ALLOWED_LOGENTRY_KEYS` therefore turns THIS line into a leak,
+            # while upstream's event_level=None would not. The two are coupled.
+            # `sentry_logs_level=None` is kept EXACTLY as upstream: that third handler goes
+            # out through `before_send_log`, which this module does not register, so
+            # `_scrub_event` has zero reach into it. Raising it is not ours to do.
+            LoggingIntegration(
+                event_level=logging.ERROR, level=None, sentry_logs_level=None
+            ),
         ],
     )

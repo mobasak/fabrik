@@ -214,8 +214,30 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     )
 
     # The scaffold adaptations, each deliberate (see the module docstring).
-    assert "LoggingIntegration(event_level=logging.ERROR, level=None)" in src, (
-        "fleet logging default (D-126) missing — the reference uses event_level=None"
+    # Assert the CALL, not a literal spelling. This assertion used to pin the exact
+    # single-line string and went red the moment upstream reflowed it across three lines to
+    # add `sentry_logs_level` — a real change, but the test named the formatting rather than
+    # the contract. Read the keywords off the AST instead.
+    logging_calls = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and getattr(n.func, "id", getattr(n.func, "attr", None)) == "LoggingIntegration"
+    ]
+    assert len(logging_calls) == 1, f"expected one LoggingIntegration call, found {len(logging_calls)}"
+    kwargs = {k.arg: ast.unparse(k.value) for k in logging_calls[0].keywords}
+    assert kwargs.get("event_level") == "logging.ERROR", (
+        f"fleet logging default (D-126) missing — upstream uses event_level=None; got {kwargs.get('event_level')!r}"
+    )
+    assert kwargs.get("level") == "None", f"level must stay None (no breadcrumbs); got {kwargs.get('level')!r}"
+    # The THIRD handler. `_sentry_logs_handler` defaults to INFO and emits `log` envelope
+    # items carrying `sentry.message.parameter.0` — the interpolated log parameter — through
+    # `before_send_log`, a hook this module does not register. `_scrub_event` therefore has
+    # ZERO reach into that channel, so it is disabled outright rather than left resting on
+    # the `enable_logs` client default.
+    assert kwargs.get("sentry_logs_level") == "None", (
+        "sentry_logs_level must be None — that channel bypasses _scrub_event entirely; "
+        f"got {kwargs.get('sentry_logs_level')!r}"
     )
     for integration in ("FastApiIntegration", "StarletteIntegration"):
         assert f'{integration}(transaction_style="endpoint")' in src, (
