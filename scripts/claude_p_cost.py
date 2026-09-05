@@ -9,8 +9,9 @@ Two lenses, per model (fable/opus/sonnet/haiku), from a run's own `claude -p --o
 WHY a standalone copy (not `import derive_cost`): `derive_cost.py` is engine-internal (benchmark ranking)
 and relocated with the AI-model-catalog extraction; this file is the FLEET consumer copy that stays.
 Different lifecycles → vendor-the-math, don't import (fabrik "vendor, don't import" pattern). ⚠️ It is NOT
-in `fabrik_synced_manifest.py` and exists in 1 of 57 `/opt` dirs by `ls -1d /opt/*/` — 59 if hidden dirs are counted; the denominator depends on the method, the stable fact is that only the hub carries it — the hub's own. An earlier version of
-this header claimed it "is synced to every project"; it never was.
+in `fabrik_synced_manifest.py`, and only the hub carries it — 1 of 57 `/opt` dirs by `ls -1d /opt/*/`,
+59 if hidden dirs are counted, so the denominator depends on the method while the fact does not. An
+earlier version of this header claimed it "is synced to every project"; it never was.
 
 DATA FILES (resolved in order: env override → co-located with this script → hub kilo-benchmarks):
   • prices     — `claude_price_ratios.json` (per-model in/out list price + cache multipliers). MANUAL,
@@ -63,7 +64,9 @@ def _env_float(name: str, default: float) -> float:
 
 
 _HERE = Path(__file__).resolve().parent
-# Env overrides let a project point at its synced copies without editing code (see _find).
+# Env overrides let a consumer point at its own copies without editing code (see _find).
+# Nothing is synced here (see the header) — the override exists for a checkout that keeps its data
+# somewhere else, not because copies are distributed.
 _SUBSCRIPTION_USD_PER_ACCOUNT = _env_float("CLAUDE_MAX_PRICE_USD", 200.0)
 _ANCHOR_USD_PER_TOKEN = 9.3e-8  # $0.093/M research fallback when usage history is empty
 _MONTHLY_DAYS = 30
@@ -78,7 +81,8 @@ _USAGE_KEYS = (
 
 
 def _find(name: str, env: str) -> Path:
-    """env override → next to this script (project-synced) → hub kilo-benchmarks (dev)."""
+    """env override → next to this script → hub kilo-benchmarks (dev). No sync is involved: the
+    co-located branch exists for a checkout that carries its own copy, not because one is distributed."""
     if os.getenv(env):
         return Path(os.environ[env])
     for cand in (_HERE / name, _HERE / "kilo-benchmarks" / name):
@@ -183,7 +187,12 @@ def api_equiv(usage: dict, model: str) -> float:
 
 
 def cached_amortized_per_mtok() -> float:
-    """② rate a PROJECT uses — the pre-computed fleet rate from the synced sidecar (fail-soft to anchor)."""
+    """② the pre-computed fleet rate a CONSUMER reads from the sidecar (fail-soft to the anchor).
+
+    Not "the rate a PROJECT uses from the synced sidecar": this module is in no sync manifest and the
+    sidecar exists in one `/opt` dir, so there is no project reading a synced copy. The header retracts
+    that claim; these three comments were its surviving mirrors, caught by the closing verification pass.
+    """
     try:
         d = json.loads(_cost_path().read_text(encoding="utf-8"))
         v = float(d.get("amortized_per_mtok", 0.0) or 0.0)
