@@ -61,7 +61,16 @@ proportionate answer.
    **The floor is ONE reader, not the heavy command's breadth** — that is what keeps this light:
    a read-only `fanout("review", …, mode="read_only")` over the diff (cents, no Claude quota, and it
    records to the flywheel) or a single native `fabrik-reviewer`. It must have RETURNED: a finder
-   that was dispatched and died is not a reader, and its absence is not a clean round.
+   that was dispatched and died is not a reader, and its absence is not a clean round. ⚠️ **The fan
+   width is the number of UNITS you pass, not the pool's model-draw size** — `fanout`'s second
+   argument is the unit list, and one diff naturally becomes one unit, so the natural call buys ONE
+   reader from ONE model family — and under the default quality draw that is the SAME family every
+   time (`pick_models` is deterministic), a systematic blind spot rather than bad luck. Pass the same finder brief three
+   times — `fanout("review", [brief] * 3, repo=…, mode="read_only")`, where `brief` is the prompt you
+   would have passed once — and adjudicate the union: measured on one diff, 1 unit found 0, 3
+   families found 0 / 5 / 0, and the 5 held a real fail-open that two self-sweeps had read past
+   (web-ecommerce-factory 01M1RAAX, 2026-09-05; the extra readers cost $0.02). The floor stays one
+   RETURNED reader; the width is what makes the one reader worth having.
 6. **Gate + close:** `python scripts/final_gate.py --check --json` green on your files, then
    `done --command fabrik-review-scoped --evidence "round <n>: new 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
    The evidence NAMES the independent reader and what it returned — "0 new" with no reader named is

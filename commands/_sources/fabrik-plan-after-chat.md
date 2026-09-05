@@ -339,7 +339,7 @@ files here or the budget under-counts) · `Docs:` (the Doc Sync Matrix rows this
 `path:line` citation (non-Integration tickets; the gate's `PROOF` regex recognizes only
 `.py .ts .tsx .js .sql .md .csv .yaml .yml .sh .json` — a ticket grounded solely in `Dockerfile:7`
 or `.jsx`/`.toml`/`.css`/`.rs` cites fails the floor, pair them with a `.md`/`.py` cite) · **NO `Status:` line**
-(ticket state lives ONLY in the spine Board) · **exactly ONE ticket per plan carries
+(ticket state lives ONLY in the spine Board) · **a registry-surfaced capability and the certification that exercises it are ONE ticket and ONE commit — each capability its own** (an MCP tool, an API route, a scaffold type — anything whose certification denominator is derived from a live registry — lands together with its journeys and denominator row, the FEATURES flip riding in that ticket's Deltas block since governance files are orchestrator-applied and a Touches entry for `docs/FEATURES.md` is refused by the emit gate; a plan may not split "register it" and "certify it" across tickets, because the split leaves a window where the live registry and the certified set disagree and every gate in between reads the stale one — from iterative_image_editor's D-001, generalised to the shape; 01M1R9PD, 2026-09-05) · **exactly ONE ticket per plan carries
 `Integration: true`** (mandatory — the gate ERRORs on zero or two; by CONVENTION single-ticket work
 stays a monolith — the gate does not enforce a minimum set size), LAST in Merge Order: a **FULL
 ticket** (every required field — `Complexity: native`, never a pool tier: the gate ERRORs a
