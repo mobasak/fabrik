@@ -2,6 +2,39 @@
 
 **Last Updated:** 2026-09-02
 
+## Scaffold error-reporting — a deny-by-default GlitchTip scrubber, not a flag list (2026-09-05)
+
+Every Python scaffold now vendors `templates/scaffold/python/glitchtip_init.py`: a DENY-BY-DEFAULT event
+scrubber where every event, request, header, span, context, frame and mechanism key is an explicit
+ALLOWLIST, plus a LEAF-SHAPE rule that nulls an allowlisted key holding an unexpected container — the
+part that closes a channel nobody enumerated. Registered as **both** `before_send` and
+`before_send_transaction`, because sentry-sdk skips `before_send` entirely for transaction events
+(`client.py`: `event.get("type") != "transaction"`), so a scrubber on one hook leaves every sampled
+transaction unscrubbed. Alongside it: `include_local_variables=False`, `max_request_body_size="never"`,
+`include_source_context=False`, `max_breadcrumbs=0`, and the fleet logging default
+`LoggingIntegration(event_level=logging.ERROR, level=None)` (D-126).
+
+**It replaces a two-flag mandate that measurably was not enough.** Pointing the guard at the init the
+scaffold shipped under the old mandate produces
+`secrets reached the wire through: ['apikey', 'header', 'otp', 'query']` — the two flags closed the DSN
+in frame locals and the password in the request body and left four channels open: a breadcrumb carrying
+an outbound URL's `apikey`, a custom request header (the SDK's own scrubber knows seven header names and
+`X-Signing-Secret` is not one), a `logger.error` interpolation, and a URL query token. Reported by
+site-provisioner and reproduced here rather than believed.
+
+**Reaches three scaffold types** — `python-api`, `python-api-gpu`, `saas-skeleton` (census re-derived by
+scaffolding each type and looking for the emitted file). `node-api` has the JS module; the other seven
+types emit no Sentry init at all, and `chrome-extension` has its own isolated `BrowserClient`.
+
+**The guard is the feature's proof, not its documentation.** `tests/test_scaffold_glitchtip_security.py`
+swaps the transport's `capture_envelope`, raises inside a real FastAPI request with six secrets in play,
+and substring-searches everything that would hit the wire — never a field list — asserting the
+TRANSACTION event as well as the error. `GLITCHTIP_GUARD_MODULE` aims the same assertions at any module,
+which is how the pre-fix leak above was measured. Vendored from site-provisioner at a revision recorded
+in the module docstring, verified at execution time rather than read from the plan. Nothing back-fills an
+existing project: vendor the template over your own copy and prove it with the guard.
+Mandate: `.windsurf/rules/core/55-observability.md` § Error Reporting.
+
 ## Grounding-integrity canary — the refuses-ungrounded flywheel axis (2026-08-29)
 
 Weekly missing-input canary probes (`scripts/sysadmin/canary_grounding.py`) measure, per pool

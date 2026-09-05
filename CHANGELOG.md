@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rule 55 § Error Reporting now mandates the SHAPE, and corrects two claims it had been making (2026-09-05)
+
+T04 of plan `2026-09-05-plan-2-glitchtip-deny-by-default`. The section's mandate was "two init flags are
+MANDATORY"; it is now the deny-by-default scrubber shape — allowlists per event/request/header/span/
+context/frame/mechanism key, leaf-shape nulling, registered on `before_send` AND
+`before_send_transaction`, with `include_source_context=False` and `max_breadcrumbs=0` alongside the two
+original flags, which stay as the explicit FLOOR: necessary, never sufficient. The section carries the
+measured evidence for why (`secrets reached the wire through: ['apikey', 'header', 'otp', 'query']`).
+
+**Two corrections to text that was wrong, made in place rather than quietly dropped.** It claimed "the
+HTTP-header channel is closed out of the box" because the SDK's `EventScrubber` scrubs by key — but that
+scrubber matches a FIXED list of 37 names in sentry-sdk 2.68.1 (33 + 4 PII), none of which is a
+fleet-invented `X-Signing-Secret` — verified against the SDK, since the plan's own figure of "seven" did not
+survive the check; the channel is closed by the vendored scrubber's header allowlist instead. And the residual is
+now stated exactly — free text a developer interpolates into a log message, exception or span name still
+ships — rather than the old framing under which four channels stayed open.
+
+The per-platform lists are corrected against a census re-derived by SCAFFOLDING each type: Python is
+`python-api`, `python-api-gpu`, `saas-skeleton` (not `file-worker`); Node is `node-api` (not `file-api`);
+the other seven types emit no Sentry init at all and are told so in one line. The back-fill sentence now
+names the template path and the vendoring step. The Node asymmetry paragraph from 2026-08-28 is
+byte-identical — verified, not assumed. Synced fleet-wide on commit.
+
 ### Changed — the scaffold's GlitchTip guard now asserts the CAPTURED EVENT, and the watched fail proved the shipped scaffold leaks four secrets (2026-09-05)
 
 T03 of plan `2026-09-05-plan-2-glitchtip-deny-by-default`. `test_python_glitchtip_init_strips_locals_and_body`

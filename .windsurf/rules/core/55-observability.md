@@ -234,9 +234,36 @@ PROCESSING_DURATION = Histogram("processing_duration_seconds", "Time to process 
 Every Fabrik project ships with a pre-scaffolded GlitchTip / Sentry SDK init module.
 DO NOT create custom Sentry init code or use a different DSN library.
 
-### ⚠️ Two init flags are MANDATORY, and `send_default_pii=False` covers NEITHER
+### ⚠️ The mandate is a SHAPE, not a flag list — and `send_default_pii=False` covers none of it
 
-Every `sentry_sdk.init` / `Sentry.init` in the fleet MUST set both:
+**The scaffold's `glitchtip_init.py` is a DENY-BY-DEFAULT event scrubber.** Every event, request,
+header, span, context, frame and mechanism key is an explicit ALLOWLIST — a field is kept because it
+is named, never dropped because someone remembered to remove it — and `_keep()` additionally enforces
+LEAF SHAPE: an allowlisted key holding an unexpected container is nulled. That last rule is what
+closes a channel nobody enumerated, which is the whole reason this is a shape rather than a list.
+
+It is registered as **`before_send` AND `before_send_transaction`**. Both, always: sentry-sdk skips
+`before_send` entirely for transaction events (`client.py`: `event.get("type") != "transaction"`), so a
+scrubber registered only there leaves every sampled transaction unscrubbed. Alongside it the init sets
+`include_local_variables=False`, `max_request_body_size="never"`, `include_source_context=False`,
+`max_breadcrumbs=0`, and the fleet logging default `LoggingIntegration(event_level=logging.ERROR,
+level=None)` (D-126).
+
+**Why the shape and not more flags — measured, not argued.** The two flags below were once the whole
+mandate. Pointing the hub's own guard at the init the scaffold shipped under that mandate:
+
+```
+AssertionError: secrets reached the wire through: ['apikey', 'header', 'otp', 'query']
+```
+
+The flags closed the DSN in frame locals and the password in the request body, and left four channels
+open — a breadcrumb carrying an outbound URL's `apikey`, a custom request header, a `logger.error`
+interpolation, and a URL query token. A flag list is a denylist one level up, and a denylist cannot see
+what it was not told about (site-provisioner, 2026-09-05, reproduced here).
+
+#### The two flags remain the FLOOR — necessary, never sufficient
+
+Every `sentry_sdk.init` / `Sentry.init` in the fleet MUST still set both:
 
 | Python | Node | Closes |
 |---|---|---|
@@ -254,10 +281,15 @@ content**. If a project wants it structural regardless of PII, the real control 
 **Never port an option name across SDKs by symmetry; check that SDK's own docs.**
 
 **Python's `EventScrubber()` is ON by default regardless of `send_default_pii`**, and its
-`DEFAULT_DENYLIST` (plus a small `DEFAULT_PII_DENYLIST`) already scrubs the `Authorization` header plus
-`api_key`/`token`/`secret` BY KEY. So the HTTP-header channel is closed out of the box — that is the
-one name-based path that works, precisely because Sentry ships and maintains the list rather than a
-project guessing at it.
+`DEFAULT_DENYLIST` (plus a small `DEFAULT_PII_DENYLIST`) scrubs the `Authorization` header plus
+`api_key`/`token`/`secret` BY KEY. ⚠️ **This section used to conclude "so the HTTP-header channel is
+closed out of the box". That was wrong and is corrected here.** The scrubber matches a FIXED list of
+NAMES — 37 in sentry-sdk 2.68.1 (`DEFAULT_DENYLIST` 33 + `DEFAULT_PII_DENYLIST` 4), of which about a
+dozen are header-shaped (`authorization`, `cookie`, `token`, `api_key`, `secret`, `x_csrftoken`, …) — so
+a header the fleet invents sails straight through it. Measured, not assumed: `X-Signing-Secret` matches
+nothing in that list. Sentry maintaining the list does not help when the name is ours. The header
+channel is closed by the vendored scrubber's header ALLOWLIST, not by the SDK: unknown header names are
+dropped because they were never named, which is exactly the inversion this section now mandates.
 
 **A `before_send` denylist is NOT an acceptable substitute — it is the thing that already failed.**
 Sentry scrubs BY VARIABLE NAME: a live probe filtered a local named `token`, missed one named
@@ -266,24 +298,45 @@ STRING, which name matching cannot look into (transdoc, 2026-08-28: a real one-t
 JWT secret reached GlitchTip from a scaffolded service). Both flags remove the data
 **structurally**; a denylist only removes the names somebody remembered.
 
+**What is left after the shape — stated exactly, because an overstatement here is how the last
+round of this section went wrong.** The scrubber removes STRUCTURE it was not told to keep. It cannot
+read meaning inside a string a developer built: free text interpolated into a log MESSAGE, an exception
+message, or a span name is the residual, and it ships. Never interpolate a secret into either. That is
+the honest boundary — not "only free-text remains after two flags", which was the claim that left four
+channels open.
+
 **Verify on the CAPTURED EVENT, never the init kwarg.** Swap the SDK transport in a test, make a
 real dependency raise, and assert on what the event actually contains — asserting the kwarg was
-passed proves you configured it, not that nothing leaks.
+passed proves you configured it, not that nothing leaks. The hub's own guard is the pattern to copy:
+`tests/test_scaffold_glitchtip_security.py` swaps `capture_envelope`, raises inside a real request with
+six secrets in play, and substring-searches everything the transport would ship — never a field list —
+asserting the TRANSACTION event as well as the error, since `before_send` never sees it.
 
-⚠️ The scaffold emits both flags as of 2026-08-28. **A project scaffolded BEFORE that date still
-has the old init** — grep your own `glitchtip_init.*` and add them; nothing back-fills it.
+⚠️ **A project scaffolded before 2026-09-05 has the OLD init — the two flags at best, and the four
+channels above open.** Nothing back-fills it. Vendor `templates/scaffold/python/glitchtip_init.py` from
+the hub over your own `src/{package}/glitchtip_init.py`, keeping your `{pkg}` import line and your
+service name, then prove it with the captured-event guard rather than by reading the diff.
 
-**Python projects** (`python-api`, `file-worker`):
+**Which projects this section applies to** — census re-derived 2026-09-05 by scaffolding each type and
+looking for the emitted file, not by reading the dispatch:
+
+**Python projects** (`python-api`, `python-api-gpu`, `saas-skeleton`):
 
 - Module: `src/{package}/glitchtip_init.py` — `init_glitchtip()` with `FastApiIntegration`
 - Wired in `main.py` BEFORE `app = FastAPI(...)` (the SDK must instrument the framework before app construction)
 - Dependency: `sentry-sdk[fastapi]>=2.18.0` (in `pyproject.toml`)
 
-**Node projects** (`node-api`, `file-api`):
+**Node projects** (`node-api`):
 
 - Module: `src/glitchtip_init.js` — `Sentry.init()` from `@sentry/node`
 - Wired via `import './glitchtip_init.js'` at the top of `src/index.js`, BEFORE other imports
 - Dependency: `@sentry/node` (in `package.json`)
+
+**The other seven scaffold types emit NO Sentry init at all** — `desktop-app`, `docusaurus`,
+`file-api`, `file-worker`, `mobile-app`, `office-extension`, `static-site`. This section does not apply
+to them, and adding a hand-rolled init to one is the custom-init the top of this section forbids.
+`chrome-extension` is the exception that is not an exception: it has its own isolated `BrowserClient`,
+covered by `chrome-ext/70-chrome-ext.md`. (`wordpress` is refused by the scaffolder.)
 
 **No-op semantics (BOTH platforms):**
 
