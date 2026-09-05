@@ -4113,10 +4113,15 @@ def _humanize_lead(seconds: int) -> str:
     """The lead as prose. Whole minutes read as minutes; anything else keeps its seconds
     rather than truncating — `90 // 60` is `1`, and rendering 90s as "1 minutes" both misstates
     the wait and understates it, which is the wrong direction for a resume instant."""
+    # Non-positive is unreachable from `_drain_resume_lead_s` (floored at 60) but the function
+    # is public to the module and `-60 % 60 == 0` renders "-1 minute" — a plausible-looking lie.
+    # Refuse rather than render (pool reader, 2026-09-05).
+    if seconds <= 0:
+        raise ValueError(f"resume lead must be positive, got {seconds}")
     if seconds % 60 == 0:
         m = seconds // 60
         return f"{m} minute" if m == 1 else f"{m} minutes"
-    return f"{seconds} seconds"
+    return f"{seconds} second" if seconds == 1 else f"{seconds} seconds"
 
 
 def _urgent_drain_message(

@@ -1483,8 +1483,10 @@ def test_promised_resume_and_message_cannot_drift_apart(monkeypatch, tmp_path):
     import re
     src = (REPO / "scripts" / "sysadmin" / "claude_rotate.py").read_text(encoding="utf-8")
     # no site may reconstruct the lead from a literal again
-    assert not re.search(r"int\(epoch\)\s*\+\s*60\b", src), "message re-introduced a literal lead"
-    assert not re.search(r"relief\[0\]\)\s*\+\s*60\b", src), "stamp/ledger re-introduced a literal lead"
+    # ANY numeric literal, not just 60 — a future `+ 120` would satisfy a 60-only guard while
+    # re-introducing exactly the drift this pins (pool reader, 2026-09-05).
+    assert not re.search(r"int\(epoch\)\s*\+\s*[0-9]", src), "message re-introduced a literal lead"
+    assert not re.search(r"relief\[0\]\)\s*\+\s*[0-9]", src), "stamp/ledger re-introduced a literal lead"
     # all three consumers delegate to the one function
     assert src.count("_drain_resume_lead_s()") >= 3, (
         f"expected the 3 call sites to delegate; found {src.count('_drain_resume_lead_s()')}")
@@ -1514,6 +1516,10 @@ def test_resume_lead_is_floored_and_rendered_honestly(monkeypatch):
     assert cr._humanize_lead(120) == "2 minutes"
     assert cr._humanize_lead(60) == "1 minute", "singular, not '1 minutes'"
     assert cr._humanize_lead(90) == "90 seconds", "must not truncate 90s to '1 minutes'"
+    assert cr._humanize_lead(1) == "1 second", "singular seconds too"
+    for bad in (0, -60, -1):
+        with pytest.raises(ValueError):
+            cr._humanize_lead(bad)   # -60 % 60 == 0 would otherwise render "-1 minute"
     monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "90")
     msg = cr._urgent_drain_message("a@x", "walled", (1788612000.0, "b@x", "5-hour"))
     assert "90 seconds after the reset" in msg, msg
