@@ -195,14 +195,14 @@
       "merged_under": "T07a"
     },
     "T05a": {
-      "state": "fixup-round-7",
+      "state": "review-round-8",
       "coder": "native opus worktree (Execution Discipline: opus for T05a)",
       "dispatched_at": "2026-09-05T14:41:18",
       "branch": "worktree-agent-aa202dd80ecd23540",
       "branch_head": "6a065def",
       "round": 1,
-      "updated": "2026-09-05T17:46:42+00:00",
-      "head": "9d668a93"
+      "updated": "2026-09-05T17:58:27+00:00",
+      "head": "d878138e"
     },
     "T03b": {
       "state": "merged",
@@ -254,6 +254,27 @@
       "branch": "worktree-agent-a0861a06f14bb9eb3",
       "base": "a6518d1e",
       "updated": "2026-09-05T17:56:15+00:00"
+    },
+    "T14e": {
+      "state": "dispatched",
+      "agent": "a1847cb8baeba83c6",
+      "branch": "worktree-agent-a1847cb8baeba83c6",
+      "base": "a6518d1e",
+      "updated": "2026-09-05T17:58:27+00:00"
+    },
+    "T14f": {
+      "state": "dispatched",
+      "agent": "ab5e13169981e3bc9",
+      "branch": "worktree-agent-ab5e13169981e3bc9",
+      "base": "a6518d1e",
+      "updated": "2026-09-05T17:58:27+00:00"
+    },
+    "T14h": {
+      "state": "dispatched",
+      "agent": "a8debe38e550458d6",
+      "branch": "worktree-agent-a8debe38e550458d6",
+      "base": "a6518d1e",
+      "updated": "2026-09-05T17:58:27+00:00"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

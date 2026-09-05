@@ -95,3 +95,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] the same set counts `X` and `X/` as two epics (other forms dedup) → FIXUP (2). [L] `:1378` `if str(o).strip()` drops a BLANK block-list item → the "carries no owned_paths" misreport the comment claims closed; the sole surviving mutant (V7c) → FIXUP (3): collapse only the scalar case.
 Round 7 verdict: 3 raised → 3 routed (1 M, 2 L) — one a regression from the prior round's own fix; pool three-deepseek clean. Not the no-op round.
 
+## Round 8 — over `2f982a5f..d878138e` (the round-7 fixup d878138e, 26/12 + 76/0: the two-header arm on non-empty tokens with the only-valueless spine still one ERROR (V6b dead); trailing-slash dedup (S2 dead); a blank scalar is no declaration and a blank block item is named as unusable while the four empty declarations still report correctly (V7c/V7d dead, parametrized); 441 across six suites, 75 + 0 skipped; a harness anchor-uniqueness assertion caught a stale anchor rather than reporting a false kill)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 8.
+Pool + native: PENDING — appended when they return.
+
