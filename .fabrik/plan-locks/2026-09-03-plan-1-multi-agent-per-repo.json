@@ -125,15 +125,15 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T03a-review.md"
     },
     "T01b": {
-      "state": "review-round-9",
+      "state": "review-round-10",
       "branch": "worktree-agent-ae36d1bbd7a83c091",
       "branch_head": "08cf1ae2",
       "coder": "native sonnet worktree",
       "dispatched_at": "2026-09-05T13:13:13",
       "round": 1,
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T01b-review.md",
-      "updated": "2026-09-05T17:34:39+00:00",
-      "head": "93d00357"
+      "updated": "2026-09-05T18:20:47+00:00",
+      "head": "6057202b"
     },
     "T02b": {
       "state": "merged",
