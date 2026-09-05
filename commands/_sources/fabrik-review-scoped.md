@@ -64,8 +64,10 @@ proportionate answer.
    that was dispatched and died is not a reader, and its absence is not a clean round. ⚠️ **The fan
    width is the number of UNITS you pass, not the pool's model-draw size** — `fanout`'s second
    argument is the unit list, and one diff naturally becomes one unit, so the natural call buys ONE
-   reader from ONE model family — and under the default quality draw that is the SAME family every
-   time (`pick_models` is deterministic), a systematic blind spot rather than bad luck. Pass the same finder brief three
+   reader from ONE model family — and under the default quality draw that is the SAME family for as
+   long as the ranking CONTENT stands (`pick_models` is deterministic; the doc is re-rendered daily
+   but changes only when the rankings do — or when it goes stale past 14 days and the vendored table
+   takes over), a systematic blind spot rather than bad luck. Pass the same finder brief three
    times — `fanout("review", [brief] * 3, repo=…, mode="read_only")`, where `brief` is the prompt you
    would have passed once — and adjudicate the union: measured on one diff, 1 unit found 0, 3
    families found 0 / 5 / 0, and the 5 held a real fail-open that two self-sweeps had read past

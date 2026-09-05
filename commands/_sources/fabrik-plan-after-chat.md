@@ -339,15 +339,14 @@ files here or the budget under-counts) · `Docs:` (the Doc Sync Matrix rows this
 `path:line` citation (non-Integration tickets; the gate's `PROOF` regex recognizes only
 `.py .ts .tsx .js .sql .md .csv .yaml .yml .sh .json` — a ticket grounded solely in `Dockerfile:7`
 or `.jsx`/`.toml`/`.css`/`.rs` cites fails the floor, pair them with a `.md`/`.py` cite) · **NO `Status:` line**
-(ticket state lives ONLY in the spine Board) · **a registry-surfaced capability and the certification that exercises it are ONE ticket and ONE commit — each capability its own** (an MCP tool, an API route, a scaffold type — anything whose certification denominator is derived from a live registry — lands together with its journeys and denominator row, the FEATURES flip riding in that ticket's Deltas block since governance files are orchestrator-applied and a Touches entry for `docs/FEATURES.md` is refused by the emit gate; a plan may not split "register it" and "certify it" across tickets, because the split leaves a window where the live registry and the certified set disagree and every gate in between reads the stale one — from iterative_image_editor's D-001, generalised to the shape; 01M1R9PD, 2026-09-05) · **exactly ONE ticket per plan carries
+(ticket state lives ONLY in the spine Board) · **a registry-surfaced capability and the certification that exercises it are ONE ticket and ONE commit — each capability in its own ticket; two capability tickets that share a file are a Depends-ordered SERIALIZATION point, exactly as the gate allows a Depends-connected or `Serialized:` pair to overlap (`check_plan_tickets.py:22-25`), never a reason to merge them — only two capabilities with ONE certification are one capability here** (an MCP tool, an API route, a scaffold type — anything whose certification denominator is derived from a live registry — lands together with its journeys and denominator row, the FEATURES flip riding in that ticket's Deltas block since governance files are orchestrator-applied and a Touches entry for `docs/FEATURES.md` is refused by the emit gate; a plan may not split "register it" and "certify it" across tickets, because the split leaves a window where the live registry and the certified set disagree and every gate in between reads the stale one; PRECEDENCE over the Sizing rule below: a bundle that exceeds the ≤8-behaviour cap, the READ budget or the isolation simulation is NOT split — it BECOMES the set's single `Integration: true` ticket, which is exempt from the READ budget, the citation floor and the row caps by design (the same hatch the gate's own READ-budget hint names for an indivisible file); only when that one slot is already taken by an unrelated bundle is the capability a named BLOCKING unknown, because two things that each cannot be split cannot share one ticket — and the recourse is stated with it: two plan SETS, one indivisible capability each, never a deadlock — from iterative_image_editor's D-001, generalised to the shape; 01M1R9PD, 2026-09-05) · **exactly ONE ticket per plan carries
 `Integration: true`** (mandatory — the gate ERRORs on zero or two; by CONVENTION single-ticket work
 stays a monolith — the gate does not enforce a minimum set size), LAST in Merge Order: a **FULL
 ticket** (every required field — `Complexity: native`, never a pool tier: the gate ERRORs a
 pool-tier Integration ticket (bolded labels now parse; only a MISSING line escapes this one check —
 self-verify); its G/W/T rows roll up
 into the spine like any other's) whose
-Touches = receipt artifacts only — exempt from the READ budget, the citation floor and the
-behavior/gate caps, but **still listed in the spine File Scope** (containment binds every ticket — except the
+Touches = receipt artifacts, plus any INDIVISIBLE over-budget file or capability bundle the set cannot split (the READ-budget hatch — the hub's glitchtip plan owned the 281 KB `scaffold.py` that way, minus the receipt entry its T02 should also have listed) — exempt from the READ budget, the citation floor and the ≤8-behaviour / ≤3-Gate caps (`check_plan_tickets.py`: the `if t.integration: continue` at :1388 skips the budget, the Gate-mask ERROR and both row caps that follow it in the Sizing loop, and the citation floor is its own `not t.integration` guard at :1345 — the Context-Files hygiene WARNs that precede :1388 still apply; verified by AST, not by reading the nearest block), but **still listed in the spine File Scope** (containment binds every ticket — except the
 plan's OWN receipt/metadata artifacts: spine-metadata-prefixed paths carrying the plan's stem are
 exempt, so spell receipt Touches literally, stem included — canonically
 `docs/development/reviews/<stem>-review.md` — the SET shape's review artifact is STEM-named, a
@@ -367,7 +366,7 @@ imports `scripts.` — it fails from any other cwd) as the emit gate (budgets,
 disjointness, DAG, roll-up equality, grounding — NOT field presence, see above) AND perform the **isolation simulation as authorial
 judgment** (read ONLY the ticket + its Context Files — could a cold agent code it with zero
 questions?). **The simulation is authoritative**: a ticket that passes the byte budget but fails the
-simulation is split anyway. Splits are by YOU the author (the script validates, never splits): divide
+simulation is split anyway — except a capability bundle under the one-ticket rule above, which becomes the Integration ticket instead of splitting. Splits are by YOU the author (the script validates, never splits): divide
 Touches along responsibility seams, re-derive Depends from Interfaces (b depends on a iff b consumes
 a's Produces), rename to the `T05a-`/`T05b-` shape, update Board + Merge Order, re-run the gate to
 **exit 0 with zero WARN lines** (the exit code alone ignores the advisory caps — and the emit gate
@@ -376,7 +375,7 @@ sizing evidence, not "exit 0"**: the run ends with `graded N ticket(s), M Touche
 Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A bare exit 0 is
 byte-identical to a run that graded nothing, so citing it is the un-denominated claim the
 bounded-search rule forbids. A single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
-operator — the only non-self-service sizing case.
+operator — one of the two non-self-service sizing cases (the other: the Integration slot already taken).
 
 **Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;
 `docs_updater`'s checkbox counters stay RAW, so never fence a DONE-WHEN checklist; copy the
@@ -407,7 +406,7 @@ Docs: <the Doc Sync Matrix rows this ticket owns>
 
 Plus the MANDATORY Integration ticket (same shape: `Complexity: native`, `Integration: true`,
 `Depends:` on the last work ticket; its `## Touches` is literally
-`- docs/development/reviews/<stem>-review.md` — the gate ERRORs a set without exactly one
+`- docs/development/reviews/<stem>-review.md` (plus the indivisible bundle when the hatch above is used) — the gate ERRORs a set without exactly one
 Integration ticket, and ERRORs dir-form or foreign-stem receipt paths).
 
 **Wired-consumer rule (BOTH shapes):** every ticket/phase that produces a new module, artifact, or
