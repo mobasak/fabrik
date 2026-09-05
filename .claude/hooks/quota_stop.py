@@ -70,7 +70,10 @@ _ALLOWED_BASH = re.compile(
     # matched ANY path ending in the basename, so a planted `x/command_run.py` ran under
     # `allow` (pass 17, executed). Relative (`scripts/…`) and absolute (`/opt/fabrik/scripts/…`)
     # both match; nothing else has ever needed to.
-    r"|python3?\s+(?:\S*/)?scripts/(command_run|mail|thread_anchor)\.py\b"
+    # …and the prefix is ABSOLUTE or absent: `(?:\S*/)?` admitted `../scripts/command_run.py`
+    # and `x/scripts/mail.py`, a look-alike reached by traversal (pass 19, executed). A held
+    # session in a subdirectory uses the absolute path.
+    r"|python3?\s+(?:/\S*/)?scripts/(command_run|mail|thread_anchor)\.py\b"
     # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
     # held session locating files uses `ls -R` or `grep -rl`; enumerating find's
@@ -111,7 +114,18 @@ _UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|\$['\"]|`|\n|(?<!>)&(?!&)|[<>]\("
 # spelling; `--exec=` is push's documented synonym for `--receive-pack`. An unparseable line
 # (unbalanced quote) is held. The earlier whole-line `\s-o\s` refused the allow-listed `grep -o`
 # while no allowed git verb even accepts `-o` (`git log -o d` is "ambiguous argument").
-_GIT_OWN_FLAG_OPTS = ("--output", "--output-directory", "--upload-pack", "--receive-pack", "--exec")
+# `--ext-diff` re-runs a diff.external set BEFORE the hold (repo-local or global config) on every
+# allowed `git log`/`show`/`diff`; `--chmod` makes `git add` change a staged mode — both executed
+# under `allow` (pass 19). Neither is needed to checkpoint.
+_GIT_OWN_FLAG_OPTS = (
+    "--output",
+    "--output-directory",
+    "--upload-pack",
+    "--receive-pack",
+    "--exec",
+    "--ext-diff",
+    "--chmod",
+)
 
 
 def _git_own_flag(command: str) -> bool:

@@ -343,6 +343,30 @@ def test_ansi_c_and_locale_quoting_are_held_and_end_of_options_is_honoured():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
+def test_the_scripts_anchor_is_absolute_or_bare_and_ext_diff_chmod_are_held():
+    """`(?:\\S*/)?scripts/…` admitted `../scripts/command_run.py` — a look-alike reached by
+    traversal ran under `allow` (pass 19, P18-A, executed). The prefix is now absolute or absent.
+    `--ext-diff` re-ran a pre-set diff.external and `git add --chmod=+x` changed a staged mode
+    under `allow`; both join the vetoed prefixes."""
+    for cmd in (
+        "python3 ../scripts/command_run.py line",
+        "python3 x/scripts/mail.py list",
+        "python3 ./scripts/thread_anchor.py list",
+        "git log --ext-diff -p -1",
+        "git show --ext-diff HEAD",
+        "git add --chmod=+x f",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        "python3 scripts/command_run.py line",
+        "python3 /opt/fabrik/scripts/command_run.py line",
+        "python /opt/some-project/scripts/mail.py list",
+        "git add f",
+        "git log -p -1",
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
     """`(?<![0-9>])&` excused an `&` after a digit, for which bash has no legitimate form — the
     fd-duplication `2>&1` puts its `&` after `>`. `git status 1& touch m` and `git log 2>&1& touch m`
