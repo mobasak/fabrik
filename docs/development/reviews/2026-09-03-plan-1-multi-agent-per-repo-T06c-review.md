@@ -26,3 +26,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] `:187` `--assign`'s refusal grade excludes the owner-membership class (`owners=None`; the pre-assignment set: `--check --owners` FAIL, `--assign` OK) and read literally contradicts :144-146 → FIXUP (2). [M] the route-by-cause list omits four `--check` classes (unknown depends_on target; parallel_with naming itself / unknown / contradicting phased_order) → FIXUP (3). [M] `:324` the fixup fan-out cites `fanout` without `mode="write"` (default read_only, `tools_enabled=False`) → FIXUP (4). [L] `:290` the `Critical path:` literal differs from T06b's template (`Epic 1 → Epic 3 → Epic 5`) → FIXUP (5).
 Round 2 verdict: 5 raised → 5 routed (1 H, 3 M, 1 L) — finding 1 is a class regression introduced by round 1's own rewrite; pool 3/3 CLEAN. Not the no-op round.
 
+## Round 3 — over `6a5c5990..bf2859af` (the round-2 fixup bf2859af, 20/10: 2a states the bound of the PASS — the two predicates, the overlap-without-subsumption class named with its example — and lens C's "marked or not" restored in both places; 2b names `--assign`'s actual grade; the route list gains the frontmatter-graph bullet; the fixup fan-out carries `mode="write"` with one epic file per unit; the `Critical path:` row illustrative and the template's example aligned to the producer's form; the four gates re-run; 539 lines; 676)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+Pool + native: PENDING — appended when they return.
+
