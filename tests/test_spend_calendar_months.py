@@ -38,7 +38,7 @@ def _day(offset: int) -> str:
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    """Isolate BOTH ends: our store goes to tmp, and the extension's file is made unreadable.
+    """Isolate every SOURCE: our store goes to tmp, and both upstream readers are aimed at nothing.
 
     `per_model_spend` calls `merge_usage_store`, which WRITES. A rig that leaves either path pointing
     at the real box mutates live history — that is exactly how the phantom row this suite guards
@@ -47,6 +47,10 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(tmp_path / "store.json"))
     monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "no-such-usage-history.json")
     monkeypatch.setattr(cpc, "_MANAGER_ACCOUNTS", tmp_path / "no-such-accounts")
+    # THIRD end, added 2026-09-06 with `collect_from_transcripts`: `merge_usage_store` now also
+    # walks ~/.claude/projects (8.8 GB on this box). An unpatched root makes every test here read
+    # the operator's real usage — slow (118s), and its result depends on what the box did today.
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-such-transcripts")
 
     def _write(days: dict[str, dict[str, int]]) -> None:
         (tmp_path / "store.json").write_text(json.dumps({"days": days}), encoding="utf-8")

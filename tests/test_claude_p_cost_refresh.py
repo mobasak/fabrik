@@ -67,6 +67,7 @@ def rig(tmp_path, monkeypatch):
 
     out = tmp_path / "claude_p_cost.json"
     monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
     monkeypatch.setattr(cpc, "_MANAGER_ACCOUNTS", accounts)
     monkeypatch.setattr(cpc, "_SUBSCRIPTION_USD_PER_ACCOUNT", _SUBSCRIPTION)
     monkeypatch.setenv("CLAUDE_P_COST", str(out))
@@ -108,6 +109,7 @@ def test_days_outside_the_window_are_not_counted(rig, tmp_path, monkeypatch):
         },
     )
     monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
     data = cpc.refresh()
     assert data["tokens"] == 2 * _IN_WINDOW, (
         f"expected only the two in-window days; got {data['tokens']} — a bound is wrong"
@@ -162,6 +164,7 @@ def test_window_is_null_when_the_rate_is_the_research_anchor(rig, tmp_path, monk
     history = tmp_path / "empty-history.json"
     history.write_text(json.dumps({"days": {}}), encoding="utf-8")
     monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
     data = cpc.refresh()
     assert data["amortized_per_mtok"] == pytest.approx(cpc._ANCHOR_USD_PER_TOKEN * 1_000_000.0)
     for key in _WINDOW_KEYS:
@@ -383,6 +386,7 @@ def _anchor_only(monkeypatch, tmp_path, prev: dict | None):
     monkeypatch.setenv("CLAUDE_P_COST", str(out))
     monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(tmp_path / "claude_usage_daily.json"))
     monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "nope" / "usage-history.json")
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
     return cpc, out
 
 

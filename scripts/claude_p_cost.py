@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.py
+# AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.py · tests/test_spend_calendar_months.py · tests/test_usage_collector.py
 """Per-call `claude -p` cost measurement for ANY project — self-contained, no engine import.
 
 Two lenses, per model (fable/opus/sonnet/haiku), from a run's own `claude -p --output-format json`:
@@ -72,6 +72,11 @@ _ANCHOR_USD_PER_TOKEN = 9.3e-8  # $0.093/M research fallback when usage history 
 _MONTHLY_DAYS = 30
 _USAGE_HISTORY = Path.home() / ".claude" / ".claude-manager" / "usage-history.json"
 _MANAGER_ACCOUNTS = Path.home() / ".claude" / "manager-accounts"
+#: Claude Code's OWN append-only transcripts — the PRIMARY source of token usage, and the one that
+#: survives the Claude Manager extension. Every assistant message carries `message.usage` (input,
+#: output, cache read, cache creation), `message.model` and a `timestamp`, plus `message.id` +
+#: `requestId` to deduplicate a message replayed across resumed/compacted session files.
+_TRANSCRIPT_ROOT = Path.home() / ".claude" / "projects"
 _USAGE_KEYS = (
     "input_tokens",
     "output_tokens",
@@ -316,6 +321,88 @@ def _usage_store_path() -> Path:
     return _find("claude_usage_daily.json", "CLAUDE_USAGE_DAILY")
 
 
+def _transcript_root() -> Path:
+    env = os.getenv("CLAUDE_TRANSCRIPTS")
+    return Path(env) if env else _TRANSCRIPT_ROOT
+
+
+def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, int]]:
+    """Per-day, per-model token totals read from Claude Code's OWN transcripts. Never raises.
+
+    WHY THIS EXISTS. The store was backfilled from `~/.claude/.claude-manager/usage-history.json`,
+    which the Claude Manager EXTENSION writes. That file stopped being written on 2026-09-04 17:31
+    while usage continued, so the store simply froze — the failure mode a derived observer always
+    has and a primary record does not. These transcripts ARE the primary record: Claude Code appends
+    every assistant message with its own `usage` block, and it does so whether or not any extension
+    is installed.
+
+    ⚠️ It is also MORE COMPLETE than the extension ever was, which is the uncomfortable half.
+    Measured on 2026-09-04: the transcripts hold 5,440 main-session assistant messages against the
+    extension's 1,541, and 588,503,854 `claude-sonnet-5` tokens that the extension's record for that
+    day does not mention AT ALL. So this is not a like-for-like replacement — see
+    :func:`merge_usage_store` for why history is nonetheless left alone.
+
+    DEDUPLICATION is on `(message.id, requestId)`, because a session that was resumed or compacted
+    replays earlier messages into a new file; every record measured carries both keys (0 of 13,113 on
+    the probe day lacked them), so the pair is a real key rather than a hopeful one.
+
+    SIDECHAIN (subagent) messages are COUNTED. They are billed to the same subscription, and the
+    question this store answers is what the subscription was spent on — not what the operator typed.
+
+    Cost of a full walk: ~50s over 14,090 files / 8.8 GB (measured 2026-09-06), which is why it runs
+    on the daily cron and not per page view.
+    """
+    root = root or _transcript_root()
+    out: dict[str, dict[str, int]] = {}
+    seen: set[tuple] = set()
+    try:
+        paths = sorted(root.rglob("*.jsonl"))
+    except OSError:
+        return {}
+    for path in paths:
+        try:
+            handle = path.open(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        with handle:
+            for line in handle:
+                # Cheap reject before the JSON parse: most transcript lines are user turns and tool
+                # results, and parsing 1.2M of them to discard them costs more than the walk itself.
+                if '"usage"' not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                msg = rec.get("message")
+                usage = msg.get("usage") if isinstance(msg, dict) else None
+                if not isinstance(usage, dict):
+                    continue
+                day = str(rec.get("timestamp") or "")[:10]
+                try:
+                    datetime.date.fromisoformat(day)
+                except (ValueError, TypeError):
+                    continue
+                key = (msg.get("id"), rec.get("requestId"))
+                if key != (None, None):
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                tok = 0
+                # the SAME four fields `measure()` already sums — one vocabulary for what a token is
+                for f in _USAGE_KEYS:
+                    v = usage.get(f)
+                    if isinstance(v, (int, float)):
+                        tok += int(v)
+                model = msg.get("model")
+                if tok <= 0 or not isinstance(model, str) or not model:
+                    continue
+                out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
+    return out
+
+
 def merge_usage_store() -> dict:
     """Upsert every day of `usage-history.json` into our own store, and return the merged store.
 
@@ -345,6 +432,9 @@ def merge_usage_store() -> dict:
         days: dict = store.get("days") or {}
     except (OSError, ValueError, TypeError, AttributeError):
         store, days = {}, {}
+    src_by: dict = (
+        store.get("source_by_day") if isinstance(store.get("source_by_day"), dict) else {}
+    )
     added = kept = 0
     try:
         src = (json.loads(_USAGE_HISTORY.read_text(encoding="utf-8")).get("days")) or {}
@@ -367,9 +457,44 @@ def merge_usage_store() -> dict:
         if k not in days:
             added += 1
         days[k] = by
+        src_by[k] = "extension"
+
+    # ── the transcripts: FILL-FORWARD ONLY, never a rewrite of recorded history ──────────────────
+    # The extension's file stopped on 2026-09-04 17:31 while usage carried on, so without this the
+    # store simply freezes. `collect_from_transcripts` reads Claude Code's own primary record, which
+    # is written whether or not any extension is.
+    #
+    # ⚠️ IT NEVER OVERWRITES A RECORDED DAY, and the measurement says so louder than caution would:
+    # across the 112 overlapping days the transcripts hold a MEDIAN 0.54x the extension's tokens
+    # (186.8B against 298.1B in total), because session files are PRUNED as they age. Re-deriving
+    # history from them would not enrich the past, it would DELETE about 111B tokens of it. So a day
+    # is written from transcripts only when NO extension record exists for it, or when the day was
+    # itself transcript-sourced (today's partial day must keep refreshing), and a day carrying no
+    # source marker reads as history — the fail direction that protects data. `_discrepancy`
+    # publishes the overlap so the two sources stay comparable on their own evidence.
+    tdays = collect_from_transcripts()
+    t_added = t_refreshed = 0
+    for k, by in tdays.items():
+        if not by:
+            continue
+        if k not in days:
+            days[k], src_by[k] = by, "transcripts"
+            t_added += 1
+        elif src_by.get(k) == "transcripts":
+            days[k] = by
+            t_refreshed += 1
+    overlap = sorted(k for k in tdays if src_by.get(k) == "extension")
+    disc = {
+        k: {"extension": sum(days[k].values()), "transcripts": sum(tdays[k].values())}
+        for k in overlap[-7:]
+    }
+
     kept = len(days)
     store["days"] = dict(sorted(days.items()))
+    store["source_by_day"] = dict(sorted(src_by.items()))
+    store["_discrepancy"] = disc
     store["source"] = str(_USAGE_HISTORY)
+    store["transcript_source"] = str(_transcript_root())
     store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     # ATOMIC — three sessions and a cron share this box; a torn write here loses history that the
     # upstream file may no longer be able to replace.
@@ -382,6 +507,7 @@ def merge_usage_store() -> dict:
         Path(tmp).unlink(missing_ok=True)
         raise
     store["_added"], store["_total_days"] = added, kept
+    store["_transcript_added"], store["_transcript_refreshed"] = t_added, t_refreshed
     return store
 
 

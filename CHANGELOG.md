@@ -8,6 +8,35 @@ All notable changes to this project will be documented in this file.
 - **What:** `tests/test_check_command_corpus.py` drops the `traycer_skills=` kwarg at its 26 call sites, the seven orchestrator-wrapper tests, the orch-scoped `templates/**` fallback matrix (its hub-side assertion lives in `test_template_shipped_scripts_resolve`), the `_orch_fixture` helper and two subprocess fixtures' wrapper-tree mkdirs; the audited-denominator expectation holds corpus + agent definitions only; the three selftest canary counts drop by exactly the two wrapper canaries (17→15, 10→8, 11→9); adds a parametrized test proving `/fabrik-epics`, `/fabrik-epics-review` and `/fabrik-vision` are audited like any source by finding-text identity against an ordinary `fabrik-probe.md`, with a `--feedback` clean leg for both. 119 passed / 119 collected — master's suite is green again after the declared T08a interim.
 - **Where:** `tests/test_check_command_corpus.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T08b).
 
+### Added — the usage store gets its own collector, reading Claude Code's transcripts (2026-09-06)
+
+The Claude Manager extension stopped writing `usage-history.json` at **2026-09-04 17:31** while usage
+carried on, so the store froze two days ago — the failure a derived observer always has. The
+collector reads the primary record instead: every assistant message in
+`~/.claude/projects/**/*.jsonl` carries its own `usage` block, written whether or not any extension
+is installed. `collect_from_transcripts()` walks the tree (~50s over 14,090 files / 8.8 GB),
+deduplicates on `(message.id, requestId)` — resumed and compacted sessions replay earlier messages
+into new files — and counts subagent sidechain tokens, because they bill to the same subscription.
+It rides the existing `--refresh` on the 06:00 cron; no new script, no new wiring.
+
+**It fills forward and never rewrites, and the measurement is what settles that.** Compared across
+all 112 overlapping days, the transcripts hold a **median 0.54x** the extension's tokens per day
+(186.8B against 298.1B in total), and the ratio climbs toward the present — 0.7-0.9 over the last
+fortnight, 1.00 on 2026-09-02 where both sources were healthy. That gradient is transcript PRUNING:
+session files age out, so the further back the walk reaches the less it finds. Re-deriving history
+from them would not enrich the past, it would delete about 111B tokens of it. The one day they hold
+more (2026-09-04, 3.47x) is the day the extension died at 17:31.
+
+So: `source_by_day` records which source wrote each day, a day with no marker reads as history, a
+transcript-sourced day keeps refreshing (today is partial all day), and `_discrepancy` publishes the
+overlap. The corollary is operational — the collector must run DAILY, because it can only capture a
+day while that day's transcripts still exist.
+
+10 tests, the history-preservation guard proven red by letting the transcripts overwrite. It also
+exposed a third live source the older rigs never isolated: `merge_usage_store` now walks 8.8 GB, and
+two suites were silently reading the operator's real usage (118s, box-dependent). Both now aim
+`_TRANSCRIPT_ROOT` at nothing — 103 tests in 0.67s.
+
 ### Fixed — the Usage tab called the 30-day window slice "the real subscription" (2026-09-06)
 
 The header read *"priced against the real subscription of $778.49"*, and the operator asked the right
