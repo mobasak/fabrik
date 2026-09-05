@@ -12,18 +12,19 @@ urgent unowned work.
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
 - **`libs/subagents/` — the subagents module itself, end to end** (operator ruling 2026-09-05:
-  *"you are the owner not infra"*; D-135). Routing (`select.py::pick_models`, `ROUTING_DENYLIST`),
-  fan-out (`agent.py::fanout`), the ledger/pool plumbing, and — the reason the ruling was needed —
+  *"you are the owner not infra"*; D-135). Routing BEHAVIOUR (which workers the fleet dispatches to),
+  fan-out, the ledger/pool plumbing, and — the reason the ruling was needed —
   **what it SPENDS**. Pool-usage mail from any repo is addressed to intel; four fan-out findings from
   web-ecommerce-factory and iterative_image_editor sat unworked under an infra address while the pool
   burned ~$16 in 28 hours, 92.9% of it on `review`.
-  ⚠️ **The module is VENDORED, and that constrains where policy can live.** The manifest calls
-  `libs/subagents` a "vendored fabrik-lib module" and the sync's own comment says the hub copy is
-  "kept byte-identical to canonical `/opt/fabrik-lib/subagents` by re-vendoring before a sync" — so a
-  hub-local policy edit INSIDE the vendored tree is reverted by the next re-vendor, with no commit in
-  history to show it (observed three times on 2026-09-05, each time silently switching a cost control
-  back off). Owning this beat means either coordinating the re-vendor or moving policy OUT of the
-  vendored surface; see the open item in `docs/STRATEGIC_BACKLOG.md`.
+  ⚠️ **THIS BEAT DOES NOT INCLUDE EDIT RIGHTS ON `libs/subagents` ITSELF.** The module is fabrik-lib's,
+  vendored into the hub and kept byte-identical to canonical by re-vendoring. Owning the beat means the
+  MAIL, the routing DECISIONS and the spend — not the code. Hub routing policy goes in
+  `scripts/kilo-benchmarks/rank_task_subagents.py::OPERATOR_DENY`, which generates the ranking doc
+  `pick_models` prefers over the vendored table; a change wanted INSIDE the module is a request to
+  fabrik-lib, not a patch. Learned the expensive way on 2026-09-05 (D-137): a deny was written into the
+  vendored file, force-synced to 46 copies, and correctly reverted three times by the re-vendor — which
+  was then mis-filed as a defect.
 - `scripts/kilo-benchmarks/` (model DB, benchmarks, selection docs, flywheel rosters) — **until
   the `/opt/ai-model-catalog` extraction completes**, when this beat transfers to that repo's
   agents and intel keeps only the hub consumer wiring (`pick_models` surfaces)

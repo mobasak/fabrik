@@ -1339,29 +1339,26 @@ readers found that half independently of me; a third finding of theirs — that 
 could expose path parameters — is REFUTED at `sentry_sdk/integrations/starlette.py:853-856`, where `endpoint`
 resolves to `transaction_from_function(endpoint)`, the handler's qualified name, carrying no request data.
 
-## Make subagents routing policy re-vendor-proof (intel, opened 2026-09-05)
+## Upstream the subagents routing denies to fabrik-lib (intel, opened 2026-09-05)
 
-**Why now:** D-134's routing deny — an operator-ordered cost control — was silently reverted THREE
-times in one afternoon, twice after being committed and pushed, because `libs/subagents/` is a
-VENDORED tree that a re-vendor restores to fabrik-lib's canonical copy. The reversion leaves no trace
-in git history (no commit touches the path), so the control was simply off again and nobody was told.
-D-136 records the mechanism.
+**Status:** hub side is DONE and correct; this item is the upstream half only.
 
-**The problem in one line:** hub-local policy is currently expressed as an edit inside a file whose
-contract is to be byte-identical to another repo's copy.
+The hub's operator denies now live in `scripts/kilo-benchmarks/rank_task_subagents.py::OPERATOR_DENY`,
+which generates the ranking doc `pick_models` prefers over its vendored table. That is the right
+surface: it is hub-owned, and `libs/subagents` is fabrik-lib's module which the hub must not edit
+(D-137 — an earlier attempt forked it, force-synced the fork to 46 copies, and was correctly reverted
+three times by the re-vendor).
 
-**Options, none costed yet:**
-1. Move the denylist OUT of the vendored tree — a hub-owned config (e.g. `.fabrik/routing-policy.json`)
-   that `pick_models` reads, so the vendored module carries the MECHANISM and the hub carries the
-   POLICY. Survives any re-vendor by construction; costs one new read path in a hot function.
-2. Upstream the denylist to `/opt/fabrik-lib/subagents` so the canonical copy carries it — correct if
-   the policy is fleet-wide, wrong if it is ever hub-specific, and it puts a cost decision in another
-   repo's release cycle.
-3. Guard the re-vendor: refuse to copy when the destination's HEAD content is newer than the source.
-   Narrower — it protects every vendored file, not just this policy — but does not answer where policy
-   belongs.
+**The residual, stated rather than hidden:** the deny suppresses models from the ranking DOC. A
+consumer with no synced doc falls back to `select.py::_TABLE`, which still lists them. Every fleet
+repo receives the doc via the sync, so this is the no-doc case only — closing it fully needs the
+upstream change.
 
-**Bar for closing:** a routing deny survives a deliberate re-vendor, proven by executing one.
+**What was asked of fabrik-lib** (mail `01M1S7QACGEP66JM891E9B4CCQ`): four root causes in their module
+— `FanoutBatch.__len__` returning 2 unconditionally (generating false "fanout dropped units" reports),
+the default price ceiling removed on a premise production has falsified, the review roster's two
+dearest models also being its two worst on 12,764 live runs, and `deepseek/deepseek-v4-pro` ranked
+first for `docs` while failing 81% of 83 dispatches.
 
-⚠️ Until this is closed, treat `ROUTING_DENYLIST` as fragile: after any re-vendor, verify with
-`pick_models("review", n=10)` that both denied models are absent.
+**Bar for closing:** fabrik-lib adopts the denies (or a value-preferring default) in canonical, at
+which point `OPERATOR_DENY` becomes redundant and is deleted.

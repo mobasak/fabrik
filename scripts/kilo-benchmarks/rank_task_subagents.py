@@ -77,6 +77,41 @@ SHRINKAGE_K = 10  # ~10 runs of prior weight — flips only when real data is th
 TIER_BASELINE = {1: 1.0, 2: 2.5, 3: 4.0}  # 0-5 scale; T2 baseline = QUALITY_GATE_MIN
 QUALITY_GATE_MIN = 2.5  # drop anything below the T2-tier baseline after shrinkage
 MIN_RUNS_TOP2 = 10  # slots #1-#2 require n≥10; lower-n rows sort below
+
+# ── Operator denies — HUB-OWNED routing policy, applied where the routing set is BUILT ────────────
+#
+# ⚠️ WHY HERE AND NOT IN `libs/subagents/select.py`. That module is VENDORED from fabrik-lib
+# (`fabrik_synced_manifest.VENDORED_DIRS`; the hub copy is contractually "kept byte-identical to
+# canonical /opt/fabrik-lib/subagents by re-vendoring before a sync"), so it is NOT the hub's to
+# edit — a deny placed there is both an unauthorised fork of another repo's module and reverted by
+# the next re-vendor. This generator IS hub-owned, and the doc it writes is what
+# `pick_models` PREFERS over the vendored table (`select.py::_synced_ranking`), so a model omitted
+# from the emitted routing section is not routed to. Same effect, correct surface.
+# Root causes were mailed to fabrik-lib for the canonical fix (01M1S7QACGEP66JM891E9B4CCQ); if they
+# adopt them upstream these entries become redundant, which is the intended end state.
+#
+# ⚠️ RESIDUAL, stated rather than hidden: this suppresses models from the RANKING DOC. A consumer
+# with no synced doc falls back to `select.py::_TABLE`, which still lists them. Every fleet repo
+# receives the doc via the sync, so the residual is the no-doc case only — and closing it fully
+# requires the upstream change, not a wider hub patch.
+#
+# review (D-134, operator cost directive 2026-09-05) — on the flywheel's own review table
+# (n_total=12,764 live runs) these two are the WORST on quality AND the dearest:
+#     deepseek/deepseek-v3.2-exp     2.96 quality  $0.0040   n=2092
+#     google/gemini-3-flash-preview  2.73          $0.0097   n=2282   DENIED
+#     deepseek/deepseek-v4-flash     2.66          $0.0036   n=1454
+#     qwen/qwen3-max                 2.65          $0.0223   n=1495   DENIED (49% of all pool spend)
+# Not a cost-for-quality trade — the survivors are the two best reviewers measured.
+OPERATOR_DENY: dict[str, frozenset[str]] = {
+    "review": frozenset({"qwen/qwen3-max", "google/gemini-3-flash-preview"}),
+}
+
+# Denied for EVERY task type — a worker that does not work, not a cost judgement.
+# `deepseek/deepseek-v4-pro`, all 15 fleet ledgers since 2026-08-20: 83 dispatches · 67 error (81%) ·
+# 14 done · 65 recording NO cost · 4.09 MB of prompt shipped · 9 repos. Reported independently by
+# iterative_image_editor (status=error, 0 chars, cost=null, 3 of 3). It ranked FIRST for `docs`.
+# Re-admit only after a measured run says it works.
+OPERATOR_DENY_ALWAYS: frozenset[str] = frozenset({"deepseek/deepseek-v4-pro"})
 # One discriminating corpus item ≈ 0.2 of score5 (1/22 of recall, ×5 through F1); rounded up to 0.25.
 # Reviewer candidates whose score5 falls in the same band are indistinguishable to the instrument and
 # are therefore ordered by COST. Widening this band trades measured quality for measured price —
@@ -1538,8 +1573,16 @@ def render(
     # eligible set ranked best-first; `review_gate` filters fleet review rows to only these ids.
     # Both empty when the benchmark hasn't run → review behaves as before (no gate).
     # claude-code/* excluded from the rank-led routing set (see code_benchmark above — spawn-native, not pool).
+    # The operator deny must be applied HERE as well as in the fleet-rows loop below: this is the
+    # BENCHMARK supplement, which injects eligible-but-unrun models as n=0 rows. Denying only the
+    # fleet path left qwen3-max and gemini-3-flash sitting at ranks 3-4 of the emitted review
+    # section — with n=0, so no amount of live evidence would ever have removed them.
     review_benchmark: list[str] = [
-        m for m in _review_benchmark_models() if not m.startswith("claude-code/")
+        m
+        for m in _review_benchmark_models()
+        if not m.startswith("claude-code/")
+        and m not in OPERATOR_DENY.get("review", ())
+        and m not in OPERATOR_DENY_ALWAYS
     ]
     review_gate: set[str] = set(review_benchmark)
     # measured metrics for the benchmark review rows, so the doc SHOWS score5/recall/$1k/precision
@@ -1606,6 +1649,8 @@ def render(
             tier = tiers.get(model)
             # Pass the model + task so a BENCHMARK prior (model_task_baseline) can override
             # the task-blind quality_tier where one exists. Today that is `ops` and `code`.
+            if model in OPERATOR_DENY.get(_tt, ()) or model in OPERATOR_DENY_ALWAYS:
+                continue  # operator deny — see OPERATOR_DENY; hub-owned, never a module edit
             shrunk_q = _shrunk_quality(n, avg_quality, tier, model, _tt, task_baselines)
             if shrunk_q < QUALITY_GATE_MIN:
                 continue  # quality gate — a bad model is never in the usable top slots
