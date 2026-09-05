@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `epic_order.py --check` proves owned_paths disjointness for real: phase-keyed, realised file sets ∪ glob subsumption, cycles as findings (2026-09-05)
+
+T03b of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-117 proved the old check false by execution).
+`check_integrity` compared `owned_paths` as sets of glob STRINGS and only for pairs that each named the
+other in `parallel_with`. Every same-PHASE pair (the output of `phased_order()` — what actually decides
+concurrency) is now tested for real overlap: the realised file sets (each glob expanded against
+`git ls-files --cached --others --exclude-standard` with a segment-wise, `/`-aware, regex-free matcher)
+intersect, OR one glob subsumes the other (`**`-aware — the predicate that fires before any file exists,
+since epics are authored ahead of the code). A wildcard-free entry (`src/app`, `alembic/versions`) reads
+as its subtree for both predicates and for migration ownership; subsumption requires every form of the
+inner entry to be covered (a glob covering only a directory's bare name — `docs/*` over `docs/reference`
+— is not an overlap; 0 false-fires across 265 fires in 4,000 pairs); `libs/**/a/**` vs `libs/**/b/**`
+stays silent (no prefix normalisation). Single-migration-owner is keyed on the phase the same way;
+`parallel_with` is checked for contradicting `phased_order()`, naming itself or an unknown epic; a
+`depends_on` cycle or unknown target is a named finding + rc 1 in every mode (was rc 0 under `--check`,
+a traceback under `--json`/default); an empty, absent or whitespace-only `owned_paths:` owns nothing,
+never the `['']` two parallel epics used to "share"; a bare `.` entry is the repo root (`./`, `/` and
+`**` already were). Grader: `tests/test_epic_order_disjointness.py` (142 tests, every contract row
+seen red on base; on-disk mutations — prefix subsumption, one-phase collapse, bare fnmatch, the naive
+`_forms` expansion, the OR quantifier — each red). Hub epics: no new finding; the two zitadel epics sit
+in phases 1 and 2, the fleet-CI epic beside epic 1.
+
 ### Added — `epic_order --check` as a hub-conditional Tier-2 gate row; the legacy fleet-CI epic brought to schema (2026-09-05)
 
 T05b of plan `2026-09-03-plan-1-multi-agent-per-repo` (audit R7). `scripts/final_gate.py` runs

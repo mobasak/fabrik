@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import argparse
 import glob
+import itertools
 import json
 import os
 import re
+import subprocess
 import sys
 
 MIGRATION_GLOBS = ("alembic/versions/**", "db/schema.sql")
@@ -309,17 +311,206 @@ def load_epics(epics_dir: str) -> list[dict]:
             "_malformed_keys": fm.get("_malformed_keys", []),
             "depends_on": _ints(fm.get("depends_on", [])),
             "parallel_with": _ints(fm.get("parallel_with", [])),
-            "owned_paths": fm.get("owned_paths", []) if isinstance(fm.get("owned_paths", []), list)
-                           else [fm.get("owned_paths")],
+            # An empty/absent `owned_paths:` (bare key, `""`, or `[]`) is NO
+            # paths — never the one-element list [''] the scalar branch used to
+            # produce, which two parallel epics then "shared" as a finding.
+            # A whitespace-only entry is dropped too: with no segments it
+            # would read as the whole repo (`_forms` -> [[], ['**']]). `/` and
+            # `./` survive as a DELIBERATE root-ownership entry.
+            "owned_paths": [p for p in (fm.get("owned_paths", []) if isinstance(
+                fm.get("owned_paths", []), list) else [fm.get("owned_paths")]) if str(p).strip()],
         })
     return epics
+
+
+def _seg_matches(seg: str, s: str) -> bool:
+    """Does ONE segment's wildcard pattern match this ONE segment of a path?
+
+    `*` = any run of non-`/` characters, `?` = exactly one non-`/` character,
+    every other character a LITERAL — no regex (parens, dots, `+`, brackets
+    are just characters: `app/(admin)/**` is a live epic shape). Iterative
+    two-pointer with a single backtrack point, O(len(seg) x len(s)), never
+    exponential — the `[^/]*`-per-`*` regex form backtracks catastrophically
+    on a non-match (74 s at 12 stars in one segment, measured for T05a).
+
+    `s` may itself be a PATTERN segment (the subsumption use): a `*` in `s`
+    is consumable only by a `*` in `seg` — the `*` branch is tried FIRST so
+    the pattern's star is never spent as a literal on the target's — and
+    `?` never matches a target `*` (one character vs. many)."""
+    i = j = 0
+    star = -1  # index in `seg` of the last `*` seen
+    mark = 0  # how far in `s` that `*` has consumed
+    while i < len(s):
+        if j < len(seg) and seg[j] == "*":
+            star, mark = j, i
+            j += 1
+        elif j < len(seg) and (seg[j] == s[i] or (seg[j] == "?" and s[i] not in "/*")):
+            i += 1
+            j += 1
+        elif star >= 0:
+            if s[mark] == "/":
+                return False
+            mark += 1
+            i, j = mark, star + 1
+        else:
+            return False
+    while j < len(seg) and seg[j] == "*":
+        j += 1
+    return j == len(seg)
+
+
+def _pattern_segs(pattern: str) -> list[str]:
+    """A glob's `/`-separated segments — a leading `./` and any trailing `/`
+    dropped, empty segments (`a//b`) collapsed."""
+    p = pattern.strip()
+    if p == ".":
+        p = ""  # the bare repo root — never a file literally named "."
+    if p.startswith("./"):
+        p = p[2:]
+    return [s for s in p.split("/") if s]
+
+
+def _match_segs(psegs: list[str], ssegs: list[str]) -> bool:
+    """Segment-wise match of a glob's segments against a path's — `/`-aware
+    by construction (`*`/`?` are only ever matched against ONE segment, so
+    `src/a/*` can never swallow `src/a/b/deep.py` the way a bare `fnmatch`
+    does). A whole-segment `**` spans any number of segments: zero included
+    in the MIDDLE (`libs/**/x/**` matches `libs/x/y.py`), at least one when
+    TRAILING (`src/a/**` matches `src/a/x.py`, never the bare `src/a`).
+
+    `reach` is the frontier of path-segment indices the pattern's prefix
+    can consume to — O(pattern segments x path segments), no backtracking
+    across segments. A target segment that is itself `**` (the subsumption
+    use, where `ssegs` come from another glob) is consumable ONLY by a
+    pattern `**`: `src/*/x` must not be read as covering `src/**/x`."""
+    m = len(ssegs)
+    reach = {0}
+    for i, seg in enumerate(psegs):
+        if seg == "**":
+            first = min(reach)
+            reach = set(range(first + 1 if i == len(psegs) - 1 else first, m + 1))
+        else:
+            reach = {j + 1 for j in reach
+                     if j < m and ssegs[j] != "**" and _seg_matches(seg, ssegs[j])}
+        if not reach:
+            return False
+    return m in reach
+
+
+def _forms(pattern: str) -> list[list[str]]:
+    """The segment lists one owned_paths entry stands for: itself, plus — for
+    a WILDCARD-FREE entry (`src/app`, `src/app/`, `alembic/versions`, `db`) —
+    its subtree `<entry>/**`. A bare directory entry OWNS everything beneath
+    it (the convention `check_plan_tickets` declares for the same field; a
+    trailing slash is insignificant, `_pattern_segs` drops it). Read only as
+    the literal file so named, `src/app` vs `src/app/**` in one phase over a
+    tree holding `src/app/models/m.py` was invisible to BOTH overlap
+    predicates and `_owns_migrations(['alembic/versions'])` was False. A glob
+    is only ever itself: expanding every pattern's subtree false-fires 200 of
+    495 hub-shaped pairs and lets `src/a/*` swallow `src/a/b/**`."""
+    segs = _pattern_segs(pattern)
+    if "*" in pattern or "?" in pattern:
+        return [segs]
+    return [segs, [*segs, "**"]]
+
+
+def _glob_matches(pattern: str, path: str) -> bool:
+    """Does the owned_paths entry `pattern` match this whole repo-relative file
+    path? A wildcard-free entry also matches every file beneath it (`_forms`)."""
+    ssegs = path.split("/")
+    return any(_match_segs(psegs, ssegs) for psegs in _forms(pattern))
+
+
+def _glob_subsumes(outer: str, inner: str) -> bool:
+    """Does every path `inner` could ever match also match `outer`? Glob-vs-glob,
+    `**`-aware — `src/app/**` subsumes `src/app/models/**` (and itself), while
+    `libs/**/a/**` and `libs/**/b/**` subsume neither way; a wildcard-free
+    entry is read as its subtree on either side (`_forms`): `src/app` subsumes
+    `src/app/**`, but NOT the reverse — the glob does not contain the bare
+    path `src/app` that the directory entry also stands for (overlap detection
+    is unharmed: `check_integrity` ORs both directions). Quantified as EVERY
+    form of `inner` covered by SOME form of `outer` — OR-ing over both sides'
+    forms accepted an outer that covers only the BARE form (`docs/*` over
+    `docs/reference`), a false-fire on epics whose realised sets are non-empty
+    and permanently disjoint. This is the half of the overlap test that
+    fires BEFORE any file exists: epics are authored ahead of the code, so two
+    root epics both owning `src/app/**` on a fresh repo realise to the empty
+    set and only this predicate can catch them.
+
+    NOT caught here, by design: OVERLAP WITHOUT SUBSUMPTION — two globs that
+    intersect while neither contains the other (`src/*/x.py` vs `src/a/*`
+    both own `src/a/x.py`; 12.9% of random hub-shaped pairs — 515 of 4,000 —
+    under THIS predicate with `_forms`, measured 2026-09-05 by the round-1
+    soundness script). That class is caught by the REALISED predicate only,
+    once a file under both exists — a glob-vs-glob intersection test would be
+    the third predicate. Sound in the direction that matters: 0 false-fires
+    across the 265 fires in those 4,000 pairs against a 3,021-path corpus (a
+    target segment with wildcards is only covered by an identical one or a
+    lone `*`; 6 corpus-bounded misses, the incompleteness side)."""
+    return all(any(_match_segs(o, i) for o in _forms(outer)) for i in _forms(inner))
+
+
+def _tracked_files(epics_dir: str) -> list[str]:
+    """Every repo-relative file git knows about from the repo that holds
+    `epics_dir` — tracked plus untracked-not-ignored (`--others
+    --exclude-standard`), so code a window has written but not yet staged
+    counts too. Not a git repo (or no git at all) => [] — the realised sets
+    are then empty and the pattern-level predicate carries the check alone."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", epics_dir, "ls-files", "-z", "--cached", "--others",
+             "--exclude-standard", "--full-name", "--", ":/"],
+            capture_output=True, check=False,
+        )
+    except OSError:
+        return []
+    if proc.returncode != 0:
+        return []
+    return [p.decode("utf-8", "surrogateescape") for p in proc.stdout.split(b"\0") if p]
+
+
+def _realise(patterns: list[str], tree: list[str]) -> set[str]:
+    """The set of files in `tree` that any of `patterns` matches."""
+    return {f for f in tree for p in patterns if _glob_matches(p, f)}
+
+
+def _owns_migrations(patterns: list[str]) -> bool:
+    """Does this owned_paths set reach a migration surface? Equality with a
+    MIGRATION_GLOB, or subsumption either way (`alembic/**` covers
+    `alembic/versions/**`; `alembic/versions/0001_x.py` sits under it) — and,
+    through `_forms`, a bare `alembic/versions` / `db` directory entry reads
+    as its subtree, so it owns migrations too. Deliberately LOOSER than
+    `_glob_subsumes` in the outward direction: ANY form of the entry reaching
+    the migration glob counts (`db/*` covers the bare `db/schema.sql` though
+    not `db/schema.sql/**`, and it plainly owns the file), where the strict
+    all-forms quantifier would say False."""
+    return any(any(_match_segs(o, _pattern_segs(g)) for o in _forms(p)) or _glob_subsumes(g, p)
+               for p in patterns for g in MIGRATION_GLOBS)
 
 
 def check_integrity(epics: list[dict], expected_count: int | None,
                      owners: set[str] | None = None,
                      epics_dir: str | None = None,
-                     require_epics: bool = False) -> list[str]:
+                     require_epics: bool = False,
+                     tree: list[str] | None = None) -> list[str]:
     """Returns a list of finding strings; empty == PASS. (Was 05 Step 1.)
+
+    Disjointness is keyed on the PHASE `phased_order()` assigns — that is
+    what decides which epics are dispatched together — never on the
+    author-declared `parallel_with` (which is instead checked for
+    CONTRADICTING the computed order). Two same-phase epics overlap when
+    the UNION of two predicates says so: their REALISED file sets (each
+    glob expanded against `tree` — `git ls-files` of the repo holding
+    `epics_dir` unless a `tree` is passed — with a `/`-aware matcher)
+    intersect, OR one glob SUBSUMES the other (`**`-aware, glob-vs-glob —
+    the predicate that fires before any file exists, since epics are
+    authored ahead of the code; a wildcard-free entry such as `src/app` is
+    read as its subtree by both predicates). An epic owning NO paths overlaps nothing
+    and is not itself a finding (`owned_paths: []` has always been clean;
+    the non-empty requirement is the dispatcher's contract, `62` § Parallelism).
+    The single-migration-owner rule is keyed on the phase the same way. A
+    `depends_on` cycle (or a `depends_on` naming an unknown epic) is a
+    finding here rather than a `ValueError` escaping `phased_order()`.
 
     `owners`, when given (non-None), adds one finding class: an epic whose
     `owner` is missing or outside the named set — the `--check --owners`
@@ -389,21 +580,59 @@ def check_integrity(epics: list[dict], expected_count: int | None,
         gaps = sorted(set(expect) - set(nums))
         if gaps:
             findings.append(f"non-contiguous epic numbers: missing {gaps} (deficit or mis-number).")
-    # parallel disjointness + single-migration-owner (was 02 gate 2/3 + 3/3; re-proved here)
+    # phase-keyed disjointness + single-migration-owner (was 02 gate 2/3 + 3/3; re-proved here)
     by_n = {e["epic_n"]: e for e in good if e["epic_n"] is not None}
-    for e in good:
+    dangling = False
+    for _n, e in sorted(by_n.items()):
+        missing = sorted(set(e["depends_on"]) - set(by_n))
+        if missing:
+            # phased_order() would report this as a "cycle" (an unknown dep
+            # is never placed, so its dependant is never ready) — name it.
+            dangling = True
+            findings.append(f"{e['_path']}: depends_on names unknown epic(s) {missing}.")
+    phases: list[list[int]] = []
+    if not dangling:
+        try:
+            phases = phased_order(good)
+        except ValueError as exc:
+            findings.append(f"{exc} — a depends_on cycle can never be phased; break it.")
+    phase_of = {n: k for k, phase in enumerate(phases, 1) for n in phase}
+    for n, e in sorted(by_n.items()):
         for other_n in e["parallel_with"]:
-            o = by_n.get(other_n)
-            if not o:
-                continue
-            shared = set(e["owned_paths"]) & set(o["owned_paths"])
+            if other_n == n:
+                # `phase_of[n] != phase_of[n]` is never true — a self-reference
+                # slipped through where every other malformed value is a finding.
+                findings.append(f"epic {n}: parallel_with names itself — an epic is not its "
+                                f"own co-phase peer.")
+            elif other_n not in by_n:
+                findings.append(f"epic {n}: parallel_with names unknown epic {other_n} — "
+                                f"contradicts phased_order().")
+            elif phases and phase_of[other_n] != phase_of[n]:
+                findings.append(f"epic {n}: parallel_with [{other_n}] contradicts phased_order() "
+                                f"— epic {n} is phase {phase_of[n]}, epic {other_n} is phase "
+                                f"{phase_of[other_n]}; they never run concurrently.")
+    tree_index: list[str] | None = tree
+    for k, phase in enumerate(phases, 1):
+        if len(phase) < 2:
+            continue
+        if tree_index is None:
+            tree_index = _tracked_files(epics_dir or ".")
+        realised = {n: _realise(by_n[n]["owned_paths"], tree_index) for n in phase}
+        for a, b in itertools.combinations(phase, 2):
+            pa, pb = by_n[a]["owned_paths"], by_n[b]["owned_paths"]
+            shared = sorted(realised[a] & realised[b])
             if shared:
-                findings.append(f"parallel epics {e['epic_n']} & {other_n} share owned_paths "
-                                f"{sorted(shared)} — concurrency-unsafe.")
-            e_mig = any(g in MIGRATION_GLOBS for g in e["owned_paths"])
-            o_mig = any(g in MIGRATION_GLOBS for g in o["owned_paths"])
-            if e_mig and o_mig:
-                findings.append(f"parallel epics {e['epic_n']} & {other_n} both own migrations "
+                findings.append(f"phase {k} epics {a} & {b} share owned_paths — {len(shared)} "
+                                f"realised file(s), e.g. {shared[:3]} — concurrency-unsafe.")
+            else:
+                sub = [(x, y) for x in pa for y in pb if _glob_subsumes(x, y) or _glob_subsumes(y, x)]
+                if sub:
+                    x, y = sub[0]
+                    findings.append(f"phase {k} epics {a} & {b} share owned_paths — glob {x!r} "
+                                    f"(epic {a}) and {y!r} (epic {b}) cover the same paths "
+                                    f"(no realised file in common yet) — concurrency-unsafe.")
+            if _owns_migrations(pa) and _owns_migrations(pb):
+                findings.append(f"phase {k} epics {a} & {b} both own migrations "
                                 f"— at most one may.")
     return findings
 

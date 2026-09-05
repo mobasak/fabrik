@@ -201,12 +201,15 @@
       "head": "9d668a93"
     },
     "T03b": {
-      "state": "review-round-4",
+      "state": "merged",
       "agent": "af547d783fc28e78b",
       "branch": "worktree-agent-af547d783fc28e78b",
       "updated": "2026-09-05T17:01:52+00:00",
       "base": "28de4900",
-      "head": "29bd52ca"
+      "head": "29bd52ca",
+      "branch_head": "29bd52ca",
+      "merged_at": "2026-09-05T20:14:08",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T03b-review.md"
     },
     "T05b": {
       "state": "merged",

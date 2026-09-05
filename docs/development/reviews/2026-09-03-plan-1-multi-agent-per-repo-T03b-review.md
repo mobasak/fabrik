@@ -1,6 +1,6 @@
 # Acceptance review — T03b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 4 rounds; round 4: pool clean + orchestrator re-read, found: 0, fixed: 0)
 
 **Surface:** the coder's worktree branch diff against the dispatch base (master after T03a's merge, 28de4900 lineage) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -41,5 +41,8 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 ### Native layer (orchestrator re-read of 8374af73..29bd52ca, executed)
 - The diff is exactly the two lines (`if p == ".": p = ""` before the `./` branch) plus four graders (the `.`/`./`/`/` root entries each overlapping `src/app/**` in one phase — `.` red on HEAD; an interior `a/./b` still literal).
 - Executed in the worktree: `_forms('.') == _forms('./') == [[], ['**']]`; `a/./b` matches itself and not `a/b`; 78 + 64 = 142 passed; `ruff check` clean; `re.compile(` once.
-Pool: PENDING — appended when it returns.
+### Adjudication (pool layer) — a three-deepseek draw
+- deepseek v3.2-exp — CLEAN (every ledger class named; two files; stdlib).
+- deepseek v4-flash (1) and (2) — the YAML-null claim (a bare or `null`/`~` `owned_paths` → `None` → `AttributeError`) — REFUTED for the third time, by round 3's execution with a type spy: the hand-rolled `_parse_frontmatter` has no YAML-null semantics, a bare key yields `''` (filtered to no paths), `~`/`null` survive as literal strings owning nothing, and only `str` ever reaches `_pattern_segs` across ten shapes.
+Round 4 verdict: found 0, fixed 0 — the no-op round. Class ledger: phase keying · realised ∪ subsumption · the subsumption quantifier · `_forms` and the root entries · migration ownership · the graph findings (cycle, dangling, `parallel_with` self/unknown/contradiction) · empty/absent/whitespace owned_paths · `--assign`/`--json` untouched · the property guard · soundness — all swept clean.
 
