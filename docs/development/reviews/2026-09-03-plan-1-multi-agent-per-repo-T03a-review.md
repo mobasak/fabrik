@@ -37,3 +37,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - gemini — 3 raised: "`--assign` silently skips a no-frontmatter epic" REFUTED (the native finder's probe: `ASSIGN: REFUSED (integrity failure)`, bytes unchanged); quoted `owner:` vs unquoted writer = class E; "by_n KeyError desync" speculative, no evidence, subsumed by the refusal above.
 - qwen — 0 defects (idempotency, no-frontmatter, spaces/quotes reasoned through; agrees with the native finder's evidence where they overlap).
 Round 2 verdict: 8 findings in 7 classes (A–H) → FIXUP routed to the T03a coder; 1 refuted; 1 evidence item. Not the no-op round.
+
+## Round 3 — over `716ce944..3fdba9ef` (55,709 B; the round-2 fixup 3fdba9ef: 26 passed, classes A–H + duplicate-`epic_n` test)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+### Adjudication (pool layer)
+- gemini — CLEAN (A validation at argparse before I/O; B `newline=""` + per-file terminator; G `m.end()` after `owned_paths:` incl. multi-line lists; F zero-epic finding; 12 doc lines rewritten).
+- deepseek — 2 raised: "`test_assign_integrity_failure_writes_nothing` writes only `e2.md`, so contiguity `min..max` passes and the test cannot red" — REFUTED by execution and by reading: the check is `expect = list(range(1, max(nums) + 1))` (`scripts/epic_order.py:127` on the branch), not `min..max`, and the test is green in the 26 (a scenario that produced no finding would fail its own `rc == 1` assertion); "mixed line endings are homogenised to the first style" — carried to the native finder (its brief probes a MIXED-ending file).
+- qwen — 3 raised: "trailing whitespace on the `owned_paths:` line defeats the regex and the fallback appends a dangling `\r`" — carried to the native finder (class G probe); "zero epics with `expected_count=None` passes silently" — REFUTED by reading: the finding condition is `owners is not None and not epics and expected_count != 0`, and `None != 0` is True, so the default DOES fire (the coder's `test_check_owners_on_empty_dir_is_not_a_vacuous_pass` asserts rc 1 with no `--expected-count`); the 84d wording remark ends "which is fine" — no finding.
+Native finder (opus): PENDING — appended when it returns.
