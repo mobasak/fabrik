@@ -42,4 +42,8 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - deepseek — CLEAN (4/4 rows; DO-NOTs; the fragment's 4 columns, 3 dispositions and close-out line; the fail-closed paths: missing Verdict → STOP, dangling `handled by Epic N` → ASK, `none —` → no row; no reference to a non-existent command).
 - gemini — CLEAN (rows located by line; 15 + 1 + 1 verified; the ASK bar honoured at :46-53; the dated argument-hint; the up-route exemption at :71-73).
 - qwen — CLEAN (4 rows → 4 behaviours; single file; DO-NOTs; dossier handling; incomplete-epic derivation constrained; Watchdog/LLM rows derived; up-route exemption scoped).
-Native finder (opus, round 3): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+### Native finder (opus, round 3) — all five round-2 items VERIFIED FIXED with the sentence quoted; re-derived: the 15 names byte-identical to 03:202-216; the 10 registrars from `_enabled(infra, "…")` in `infrastructure.py`; `WatchdogConfig` :410/:444/:453; `§ 1b-bis` :135; the Vision sibling path; every `-` line a pure insertion (63/3); Part B/C clean; the four rows traceable; `check_command_corpus` green. 3 raised:
+- [M] :62-65 a hard STOP is immediately followed by "The Duplicate-check bullet below still runs…" (after a STOP nothing still runs), and that sentence sits inside the ladder-skip sub-bullet where it does not belong → FIXUP (move to the intake bullet's top level).
+- [L] :58-59 "consumed upstream by the chain that produces the epic's Vision" asserts a consumption that does not exist today (0 rivals hits under docs/orchestrator/; spec § (g) schedules it for T06a) → FIXUP (drop the provenance clause).
+- [L] :35 "PLUS two DERIVED rows" vs :42-43 "15 + 1, +1 when an LLM is used" → FIXUP ("up to two").
+Round 3 verdict: 3 small findings (1 M, 2 L) → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
