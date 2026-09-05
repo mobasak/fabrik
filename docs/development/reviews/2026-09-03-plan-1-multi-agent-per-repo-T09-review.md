@@ -1,6 +1,6 @@
 # Acceptance review — T09 (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base 40673c55 (master after the T08b merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -22,4 +22,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (mechanical, prescribed verbatim; stated) — round 2.
 ### Orchestrator execution (in the worktree)
 - `check_traycer_chain.py` → PASS - 3 files; `if __name__` offset 3901; line 2 `# AFTER-EDIT: none`; `ruff check` clean; `check_doc_links` errors inside `_retired/traycer/` → 0; the three re-based targets exist (`docs/archive/traycer-yolo-workflow.md`, `agents-fabrik.md`, `AGENTS.md`).
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0146)
+- All three CLEAN: the re-based targets exist (the orchestrator executed `ls` on the three: 3 of 3), the compressed DIRS comment truthful, `# AFTER-EDIT: none` correct (the sources are inputs, not coupled outputs — all three agree), the four files only.
+### Verdict
+**0 findings — no-op round.** Ledger: fleet shapes · detectors · glob contract · deletions/consumers · tombstone links · catalog classification · referrers — all swept. **Status: CONVERGED** at `e4642031`; merge with the fleet sync (`scripts/enforcement/` is a trigger surface) in two commits (the code, then the merge-owner queue: INDEX tree + table rows, `docs/traycer/README.md:1110`, `docs/traycer/fabrik-workflow.md:1598`, the 03 mega tombstone's bare `scripts/traycer_mirror.py` cites, the two dead `docs_updater.py` description rows, `docs/README.md`'s `traycer/` row, the STRATEGIC_BACKLOG item, the CAPABILITIES regeneration, CHANGELOG); the check's registration in final_gate is T16's decision.
