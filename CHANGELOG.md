@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 17 of the review: the quota hold's allow-list closed against tools' own exec paths, a digit-excused `&`, and a `grep -o` false positive (2026-09-05)
+
+The pass-16 finders re-ran the "tool's own write path" class over everything still allowed and
+proved nine on disk: `rg --pre <program>` and `git fetch --upload-pack=` / `git push --receive-pack=`
+ran a program; `git branch -D` deleted a ref; the `\S*command_run\.py` regex matched a planted
+file by basename anywhere; and `(?<![0-9>])&` excused an `&` after a digit — a form bash never
+needs (`2>&1`'s `&` follows `>`) — so `git status 1& touch m` and `git log 2>&1& touch m` ran the
+second command. The pass-15 `-o` veto, read on the whole line, refused the allow-listed `grep -o`
+while no allowed git verb accepts `-o`. Fix, one class: `rg` and `git branch` off the list (`grep`,
+`ls -R`, `git rev-parse --abbrev-ref HEAD` cover the reads); the three scripts anchored to
+`scripts/`; `(?<!>)&`; and a git-scoped `_GIT_OWN_FLAGS` replacing `_GIT_FILE_OUTPUT` (`--output*`,
+`--upload-pack`, `--receive-pack`; no `-o`). Refuted by execution before touching anything:
+`git fetch --exec=` (no such option), `git log -o` (never writes), `2>&-x` (already held). Two
+graders, red on revert; `hooks-index.md` updated.
+
 ### Fixed — pass 16 of the review: `sed` off the quota hold's allow-list — six write paths through its own flags and script (2026-09-05)
 
 `sed -n` was allowed "never with `-i`" through a lookahead on the RAW line that wanted whitespace

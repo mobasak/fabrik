@@ -247,27 +247,58 @@ def test_a_quoted_dev_null_target_is_a_known_fail_closed_limit():
 
 
 def test_a_tools_own_write_flag_and_a_destroying_read_tool_are_held():
-    """Two writes with NO shell operator, both proven on disk (review 2026-09-05, pass 14):
-    `find . -name x -delete` destroyed a file through the allow-list, and `git log --output=<p>`
-    wrote a file at an arbitrary path. `find` is off the list entirely; git's `--output` forms
-    and a bare `-o <path>` are held. The checkpoint forms that read stay allowed."""
+    """Writes and executions with NO shell operator, every one proven on disk (review 2026-09-05,
+    passes 14–17): `find . -name x -delete` destroyed a file; `git log --output=<p>` wrote one;
+    `rg --pre <program>` and `git fetch --upload-pack=<program>` / `git push --receive-pack=<program>`
+    RAN a program; `git branch -D` deleted a ref; a planted `x/command_run.py` ran because the
+    allow regex matched the basename anywhere. `find`, `rg` and `git branch` are off the list;
+    git's file-output and program-running flags are vetoed on git lines only; the three scripts
+    must live under `scripts/`. The checkpoint forms that read stay allowed — including `grep -o`,
+    which the earlier whole-line `-o` veto wrongly refused."""
     for cmd in (
         "find . -name victim.txt -delete",
         "find . -delete",
         "find . -type f",  # even the read form — the tool is off the list, not its flags
+        "rg --pre ./pre.sh pattern f",
+        "rg --files",
+        "git branch -D wip",
+        "git branch --show-current",
         "git log -n1 --output=/tmp/x",
         "git log --output /tmp/x",
-        "git format-patch -o /tmp/patches HEAD~1",
         "git diff --output=/tmp/d",
+        "git fetch --upload-pack=./up.sh .",
+        "git fetch --upload-pack ./up.sh origin",
+        "git push --receive-pack=./rp.sh ../bare.git HEAD",
+        "python3 evil/command_run.py done --command x",
+        "python3 command_run.py line",
+        "python /tmp/mail.py send",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     for cmd in (
         "git log -n1 --oneline",
         "git log --format=%h",
+        "git rev-parse --abbrev-ref HEAD",
+        "git fetch origin",
+        "git push",
         "ls -la",
-        "rg --files",
+        "ls -R",
         "grep -rl x .",
+        "grep -o x f",
+        "python3 scripts/command_run.py line",
+        "python3 /opt/fabrik/scripts/mail.py list",
+        "python scripts/thread_anchor.py done --session s --match m",
     ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
+def test_a_lone_ampersand_after_a_digit_is_still_a_separator():
+    """`(?<![0-9>])&` excused an `&` after a digit, for which bash has no legitimate form — the
+    fd-duplication `2>&1` puts its `&` after `>`. `git status 1& touch m` and `git log 2>&1& touch m`
+    both backgrounded the first command and ran the second under `allow` (pass 17, executed —
+    raised by a pool finder, proven on disk). The duplication forms stay allowed."""
+    for cmd in ("git status 1& touch m", "git log 2>&1& touch m", "git log 2>&1 & touch m"):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in ("git log 2>&1", "git status >&2", "git log 2>/dev/null"):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 

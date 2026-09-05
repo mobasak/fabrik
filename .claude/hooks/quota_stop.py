@@ -60,36 +60,52 @@ _READ_MCP = re.compile(
 # control operator, a substitution or a file redirection is refused outright (review finding:
 # `git push && python3 evil.py` passed a first-segment match).
 _ALLOWED_BASH = re.compile(
-    r"^\s*(git\s+(add|commit|push|status|diff|log|fetch|show|rev-parse|branch)\b"
+    # `branch` is OFF the verb list (pass 17): `git branch -D x` deleted a ref under `allow`;
+    # `git rev-parse --abbrev-ref HEAD` / `git status` answer the read. `fetch`/`push` stay —
+    # the hold ORDERS a push — but their own program-running flags are vetoed below.
+    r"^\s*(git\s+(add|commit|push|status|diff|log|fetch|show|rev-parse)\b"
     r"|git\s+reset\s+(-q\s+)?HEAD\b"  # index realign only — never --hard/--merge/--keep
-    r"|python3?\s+\S*command_run\.py\b"
-    r"|python3?\s+\S*mail\.py\b"
-    r"|python3?\s+\S*thread_anchor\.py\b"
+    # Anchored to the `scripts/` directory the manifest syncs them to: `\S*command_run\.py`
+    # matched ANY path ending in the basename, so a planted `x/command_run.py` ran under
+    # `allow` (pass 17, executed). Relative (`scripts/…`) and absolute (`/opt/fabrik/scripts/…`)
+    # both match; nothing else has ever needed to.
+    r"|python3?\s+(?:\S*/)?scripts/(command_run|mail|thread_anchor)\.py\b"
     # `find` is OFF the list: `find . -name x -delete` destroys files with no shell operator to
     # veto — proven by execution, a held session deleted a file (review 2026-09-05, pass 14). A
-    # held session locating files uses `ls`, `rg --files` or `grep -rl`; enumerating find's
+    # held session locating files uses `ls -R` or `grep -rl`; enumerating find's
     # action flags (-delete/-exec/-ok/-fprint…) would be one more list to be wrong about.
     # `sed` is OFF the list too (pass 16): the `-n … never with -i` lookahead read the RAW line
     # and wanted whitespace before `-i`, so `'-i'`, `-Ei`, `--in-place` and GNU's prefixes
     # (`--i`, `--in`) all passed — and each TRUNCATED the file to 0 bytes (`-n` suppresses the
     # in-place output). With no flag at all, sed's own script writes (`w file`) and executes
     # (`e cmd`); both proven on disk under `allow`. `cat -n` / `grep -n` cover a held read.
-    r"|(cat|head|tail|grep|rg|ls|wc|md5sum|readlink|date|echo|pwd|stat)\b)"
+    # `rg` is OFF the list (pass 17): `rg --pre <program>` runs the program on every file it
+    # reads — proven on disk under `allow`. `grep` has no exec path and covers every held read.
+    r"|(cat|head|tail|grep|ls|wc|md5sum|readlink|date|echo|pwd|stat)\b)"
 )
 # A lone `&` is bash's BACKGROUND separator — `git status & evil` runs both, and the whole-line
 # hardening listed `&&` but never the single form: proven by execution (a held session's
 # `git status & touch marker` was allowed and the marker appeared — review 2026-09-05, pass 13).
-# `(?<![0-9>])&(?!&)`: not an fd-duplication (`2>&1`, `>&2`) and not the `&&` the first branch
-# already catches.
+# `(?<!>)&(?!&)`: not an fd-duplication (`2>&1`, `>&2` — the `&` there follows `>`) and not the
+# `&&` the first branch already catches. The lookbehind once also excused a DIGIT, for which no
+# legitimate form exists: `git status 1& touch m` and `git log 2>&1& touch m` both backgrounded
+# the first command and ran the second (pass 17, executed — a pool finder's claim, proven).
 # `<(` / `>(` is PROCESS SUBSTITUTION — bash runs the inner command: `git status <(touch m)` was
 # allowed and the marker appeared (review 2026-09-05, pass 14, executed). No operator on the
 # list, no quote to mask; the paren after `<`/`>` is the tell.
-_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<![0-9>])&(?!&)|[<>]\(")
-# git's OWN file-output flags are not shell syntax, so neither veto above can see them, and the
-# allow-list matches the leading `git log`: `git log --output=<any path>` wrote a file at an
-# arbitrary path (review 2026-09-05, pass 14, executed). `--output[=…]`, `--output-directory`
-# and a bare `-o <path>` (format-patch) are held; no checkpoint form needs them.
-_GIT_FILE_OUTPUT = re.compile(r"(?:^|\s)--output(?:[=\s]|-directory)|\s-o(?:\s|$)")
+_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|`|\n|(?<!>)&(?!&)|[<>]\(")
+# git's OWN flags are not shell syntax, so neither veto above can see them, and the allow-list
+# matches the leading verb: `git log --output=<any path>` wrote a file at an arbitrary path
+# (pass 14, executed); `git fetch --upload-pack=<program> .` and `git push --receive-pack=<program>
+# <local remote>` RAN the program (pass 17, executed). Scoped to git lines — the earlier
+# whole-line `\s-o\s` refused the allow-listed `grep -o` while no allowed git verb even accepts
+# `-o` (`git log -o d` is "ambiguous argument"; format-patch is not on the list).
+_GIT_OWN_FLAGS = re.compile(
+    # the `\b` sits on the alternatives that END in a word — after `--output=` comes a path
+    # character, and `=`/`/` share no boundary (the grader caught the first draft: `--output=/tmp/x`
+    # was allowed)
+    r"^\s*git\b.*?\s--(?:output(?:[=\s]|-directory\b)|upload-pack\b|receive-pack\b)"
+)
 # `(?!>)` after the optional second `>` and `>` in the lookbehind: without them `>>?` BACKTRACKED
 # on `>> /dev/null` — the two-char match failed the /dev/null exemption, so the engine matched a
 # single `>` whose lookahead saw `> /dev/null` and refused the very form the exemption names
@@ -220,7 +236,7 @@ def decide(
             command is not None
             and not _UNSAFE_SHELL.search(masked)
             and not _FILE_REDIRECT.search(masked)
-            and not _GIT_FILE_OUTPUT.search(masked)
+            and not _GIT_OWN_FLAGS.search(masked)
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""
