@@ -125,14 +125,14 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T03a-review.md"
     },
     "T01b": {
-      "state": "review-round-11",
+      "state": "fixup-round-11",
       "branch": "worktree-agent-ae36d1bbd7a83c091",
       "branch_head": "08cf1ae2",
       "coder": "native sonnet worktree",
       "dispatched_at": "2026-09-05T13:13:13",
       "round": 1,
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T01b-review.md",
-      "updated": "2026-09-05T20:52:55+00:00",
+      "updated": "2026-09-05T21:07:55+00:00",
       "head": "3a242852"
     },
     "T02b": {
@@ -145,14 +145,14 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02b-review.md"
     },
     "T13": {
-      "state": "fixup-round-9",
+      "state": "review-round-10",
       "branch": "worktree-agent-aca08762aa41073a1",
       "coder": "native sonnet worktree (plan said pool for `complex`; D6 record: the pool write-mode coder returned an unverified diff on T03a, so native is used for every coding ticket)",
       "dispatched_at": "2026-09-05T13:13:13",
       "branch_head": "866c593a",
       "round": 1,
-      "updated": "2026-09-05T18:55:43+00:00",
-      "head": "4922737b"
+      "updated": "2026-09-05T21:07:55+00:00",
+      "head": "9bf9e67a"
     },
     "T04a": {
       "state": "merged",
@@ -195,14 +195,14 @@
       "merged_under": "T07a"
     },
     "T05a": {
-      "state": "fixup-round-9",
+      "state": "review-round-10",
       "coder": "native opus worktree (Execution Discipline: opus for T05a)",
       "dispatched_at": "2026-09-05T14:41:18",
       "branch": "worktree-agent-aa202dd80ecd23540",
       "branch_head": "6a065def",
       "round": 1,
-      "updated": "2026-09-05T20:52:55+00:00",
-      "head": "ceda0adc"
+      "updated": "2026-09-05T21:07:55+00:00",
+      "head": "5549a1c4"
     },
     "T03b": {
       "state": "merged",
@@ -292,12 +292,12 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14h-review.md"
     },
     "T15": {
-      "state": "fixup-round-2",
+      "state": "review-round-3",
       "agent": "af90f113a2db134c8",
       "branch": "worktree-agent-af90f113a2db134c8",
       "base": "cb9716df",
-      "updated": "2026-09-05T21:01:46+00:00",
-      "head": "ece53dcb"
+      "updated": "2026-09-05T21:07:55+00:00",
+      "head": "24c7c935"
     },
     "T12a": {
       "state": "merged",
@@ -330,6 +330,18 @@
       "base": "b1f7e675",
       "head": "a994e02d",
       "updated": "2026-09-05T20:52:55+00:00"
+    },
+    "T11": {
+      "state": "dispatched",
+      "agent": "a737ba57513cb096c",
+      "branch": "worktree-agent-a737ba57513cb096c",
+      "updated": "2026-09-05T21:07:55+00:00"
+    },
+    "T12b": {
+      "state": "dispatched",
+      "agent": "ade47f95f1f90f5f5",
+      "branch": "worktree-agent-ade47f95f1f90f5f5",
+      "updated": "2026-09-05T21:07:55+00:00"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

@@ -20,3 +20,9 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - v3.2-exp CLEAN. v4-flash (1) and (2): `_cell()` double-escapes an already-escaped pipe (`a \| b` → `a \\| b`, a live delimiter again) — UPHELD [L]; "the old tests fail on the new header" — REFUTED by execution (89 passed); an `AttributeError` if `epic_order.py` exists without the names — REFUTED as out of contract (the hub's own T03a module; no fleet shape ships a stub); the "not yet merged" labels go stale when T01b/T13 merge — a PLANNED flip carried by the merge owner (recorded as an orchestrator delta at those merges).
 ### Verdict
 **1 finding (L) → FIXUP round 2 routed to the coder** (escape only unescaped pipes + grader). Ledger: doc truthfulness vs master · cell escaping · compare scope · fleet mirror · gates.
+
+## Round 3 — over `cb9716df..24c7c935` (the round-2 fixup ece53dcb..24c7c935: docs_updater.py 8/3, tests 9/1 — `_cell` escapes only UNESCAPED pipes (`(?<!\\)\|`, module-level compile), idempotent on `a \| b`; the pipes grader gains a hand-escaped epic owner, 7 rows pinned, 4 cells each, the doubled escape asserted absent — red first on the unconditional escape; 89 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed L item; stated) — round 3.
+### Orchestrator execution (in the worktree)
+- `pytest tests/test_docs_updater.py tests/enforcement/test_plan_shape_gates.py -q` → 89 passed; `ruff check` clean; `_cell("a | b")` → `a \| b`, `_cell("a \| b")` → `a \| b` (idempotent).
+Pool: PENDING — appended when it returns.
