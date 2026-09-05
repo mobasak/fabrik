@@ -109,7 +109,7 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02a-review.md"
     },
     "T03a": {
-      "state": "dispatched",
+      "state": "fixup-round-2",
       "attempt": 2,
       "runtime": "native sonnet worktree (pool attempt 1 rejected: gate red with no captured output, 198-line checklist deletion, 53-line script deletion \u2014 D6 re-dispatch)",
       "started_at": "2026-09-05T12:16:12",
@@ -117,7 +117,32 @@
         "runtime": "pool write openai/gpt-5.6-luna",
         "cost_usd": 0.0283,
         "disposition": "rejected \u2014 SIZING/DISPATCH DEFECT logged"
-      }
+      },
+      "branch_head": "6c55625c"
+    },
+    "T01b": {
+      "state": "review",
+      "branch": "worktree-agent-ae36d1bbd7a83c091",
+      "branch_head": "b79c918b",
+      "coder": "native sonnet worktree",
+      "dispatched_at": "2026-09-05T13:13:13",
+      "round": 1,
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T01b-review.md"
+    },
+    "T02b": {
+      "state": "merged",
+      "branch": "worktree-agent-a716a5baa6296043e",
+      "coder": "native sonnet worktree",
+      "dispatched_at": "2026-09-05T13:13:13",
+      "branch_head": "268025c8",
+      "merged_at": "2026-09-05T13:25:02",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02b-review.md"
+    },
+    "T13": {
+      "state": "dispatched",
+      "branch": "worktree-agent-aca08762aa41073a1",
+      "coder": "native sonnet worktree (plan said pool for `complex`; D6 record: the pool write-mode coder returned an unverified diff on T03a, so native is used for every coding ticket)",
+      "dispatched_at": "2026-09-05T13:13:13"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

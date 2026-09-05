@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub contract's `Agent-Name` row states the relaxed name rule (2026-09-05)
+
+T02b of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `CLAUDE.md` § Agent Provenance Trailers
+no longer lists `infra · fleet · intel` as the permitted `Agent-Name` set: any `[a-z0-9-]{1,32}` name is
+valid for any session with `CLAUDE_AGENT` set (hub windows keep the three role names as their practice),
+and the charter is injected only when `docs/reference/agents/<name>.md` opens with the `# Agent charter`
+marker, whole-line or whitespace-delimited — the rule `.claude/hooks/agent_role.py` enforces since T02a.
+`templates/governance/CLAUDE.md` is untouched (it carries no `Agent-Name` row). The fleet-synced twin row in
+`.windsurf/rules/core/40-documentation.md` is T14a's (routed), so the two disagree until T14a merges. The
+hook's inline comment about the row was refreshed at merge (orchestrator mechanical fixup, comment-only).
+
 ### Fixed — re-vendored the scrubber AGAIN (third time today): the previous pin carried a redaction that leaked 100% of the time (2026-09-05)
 
 site-provisioner's module moved three more commits after the last re-vendor, including `fd752ad` — "the

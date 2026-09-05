@@ -29,7 +29,7 @@ import sys
 # matching it is a CANDIDATE regardless of whether a charter file exists for it, and
 # regardless of whether that file is actually a charter (see _CHARTER_MARKER below).
 # docs/workstation/hooks-index.md documents the same pattern (AFTER-EDIT above);
-# CLAUDE.md's Agent-Name row names the hub's own three agents, not a gate.
+# CLAUDE.md's Agent-Name row states this same [a-z0-9-]{1,32} rule (the hub's three role names are its own practice, not a gate).
 _NAME_RE = re.compile(r"[a-z0-9-]{1,32}")
 _MAX_BYTES = 32_768  # a charter is ~2KB; anything bigger is cut LOUDLY below
 # A file in docs/reference/agents/ is a CHARTER only if its first line IS this marker

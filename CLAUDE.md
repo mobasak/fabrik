@@ -277,7 +277,7 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 | Trailer | Values | When |
 |---|---|---|
 | `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` = the CI dispatcher's commits — `scripts/ci_fix_dispatcher.py`) |
-| `Agent-Name` | `infra` · `fleet` · `intel` | hub sessions once the operator sets `CLAUDE_AGENT` (charters: `docs/reference/agents/`) |
+| `Agent-Name` | any `[a-z0-9-]{1,32}` name (hub sessions keep the three role names: `infra`, `fleet`, `intel`) | any session once the operator sets `CLAUDE_AGENT` (hub windows always; project repos when the operator names them); the charter at `docs/reference/agents/<name>.md` is injected only when its first line IS `# Agent charter` or begins with it followed by whitespace (`.claude/hooks/agent_role.py`) |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
 | `Agent-Context` | short description of what the agent did | every AI commit |
