@@ -104,7 +104,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T03a | epic assignment: --assign, the owner field, and the checklist rows | — | ⚡ | ⬜ | |
 | T03b | the disjointness check becomes a real one | T03a | ⛓️ | ⬜ | |
 | T13 | The wip-net snapshots linked worktrees (spec residual R2) | — | ⚡ | ⬜ | |
-| T04a | epic-file intake for /fabrik-spec | — | ⚡ | ⬜ | |
+| T04a | epic-file intake for /fabrik-spec | — | ⚡ | ✅ | branch head 899c7092; merged 2026-09-05 |
 | T04b | owned_paths into the plan's locks (the locks STAY in-repo, per spec r11) | — | ⚡ | ⬜ | |
 | T05a | epic containment in check_plan_tickets (both levels) | T04b | ⛓️ | ⬜ | |
 | T05b | epic_order --check as an optional Tier-2 gate check | T03a | ⛓️ | ⬜ | |

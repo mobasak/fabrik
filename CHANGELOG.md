@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-spec` takes an epic file as its intake (2026-09-05)
+
+T04a of plan `2026-09-03-plan-1-multi-agent-per-repo` (spec § Chain consolidation (d)).
+`commands/_sources/fabrik-spec.md` Phase 0 gains the epic-file intake: `/fabrik-spec
+docs/development/epics/<n>-<slug>.md` seeds the Intake Inventory with one row per `### Scope` item,
+`### Success Criteria` item and each of the 15 `### Metadata` fields, with `target_vps`, `Registrars`,
+the Watchdog decision and the LLM gateway as NAMED rows (the four that were INFRA-CHECK-only in the
+retired epic-to-ticket-workflow trigger); `Out of Scope` items become OUT rows sourced to the epic; the
+Vision's `## fabrik-lib Verdict` and `## Rejected Alternatives` are inherited verbatim and the fabrik-lib
+ladder is skipped for what they cover; the rivals-dossier reference is carried through. A chat brief
+runs exactly as before. Rendered box-wide at merge (render → `--check` → commit).
+
 ### Changed — the hub contract's `Agent-Name` row states the relaxed name rule (2026-09-05)
 
 T02b of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `CLAUDE.md` § Agent Provenance Trailers

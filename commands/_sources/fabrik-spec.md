@@ -1,6 +1,6 @@
 ---
 description: Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-practice/approach gate (leanest, pro-grade, low-maintenance, cited) + a fabrik-lib vendor→enhance→build verdict + 2–3 approaches + collaborative Q&A. TRIGGER — EN: "I have an idea for…", "let's design/spec/talk through this", "what's the best/leanest way to…"; TR: "yeni bir proje/özellik fikrim var", "bunu tasarlayalım/spec'leyelim", "bunun en sade yolu ne" — fires BEFORE any code/scaffold. SKIP: an existing spec's harden/re-verify (→ /fabrik-spec-review) or building an approved spec (→ /fabrik-plan-after-chat). Stage: 1-design.
-argument-hint: "[the idea / feature / problem — omit to spec the idea in the current conversation]"
+argument-hint: "[the idea / feature / problem, or a docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md path — omit to spec the idea in the current conversation]"
 ---
 
 Turn a rough idea into an **approved design spec** — *what* to build, *why*, and *which approach* (not the implementation; that's `/fabrik-plan-after-chat`'s job) — with a **HARD GATE**: no code, scaffold, or plan until that spec is written and you approve it.
@@ -10,8 +10,65 @@ Turn a rough idea into an **approved design spec** — *what* to build, *why*, a
 ## Phase 0 — Scope + decompose
 
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
+- **Epic-file intake (spec § Chain consolidation (d)):** when the argument is a file under
+  `docs/development/epics/` (an already-decomposed epic, not a from-scratch idea), this run's
+  `## Intake Inventory` (the chat-intake block above) gains rows anchored `path:line` into **that
+  file** — read it whole — **in addition to**, never instead of, the conversation rows the
+  chat-intake block above already mandates (its steps 1–2 stand unchanged: an operator who names a
+  constraint in chat before invoking `/fabrik-spec <epic file>` does not lose it). The
+  Duplicate-check bullet below still runs, scoped to the epic's own `### Scope`; the Scale up-route
+  bullet does not fire here — see its own exemption clause for a file under
+  `docs/development/epics/`:
+  - One row per `### Scope` **In:** item — disposition IN.
+  - One **OUT-OF-SCOPE** row per `### Scope` **Out:** item and per `### Out of Scope (Epic Level)`
+    item — Where: the named sibling epic when the item states one (`handled by Epic N`); when it
+    names none (a vision-level exclusion, e.g. `not in this product`), Where is this epic's own
+    line — the exclusion is the Vision's decision already made, not a deferral needing a further
+    destination. A `none —` sentinel line (`none — single-epic proposal` / `none — no overlap with
+    other epics`) yields NO row — it states there is nothing to enumerate, not an item. When
+    `handled by Epic N` names a file that does not exist on disk under `docs/development/epics/` —
+    disposition ASK, naming the dangling reference, never a Where pointing at nothing.
+  - One row per `### Success Criteria` item — disposition IN.
+  - One row per each of the 15 `### Metadata` fields — `Scaffold`, `Port`, `target_vps`, `Shape`,
+    `Concurrency`, `i18n`, `Responsive`, `Dark+Light`, `Rule Packs`, `HAS_USER_GUIDE`, `Registrars`,
+    `Universal categories`, `Abuse Detection`, `Email`, `FINANCIALS` — disposition IN, each field's
+    value recorded in Where; `target_vps`'s Where also notes the mesh-reachability caveat when
+    spoke-targeted, and `Registrars`'s Where also notes which of the 10 fire — gatus, authelia and
+    prometheus ALSO require `spec.domain`; `infra: {<name>: false}` force-disables any of them; the
+    flag alone fires nothing. PLUS up to two DERIVED rows, not counted in the 15: the **Watchdog**
+    decision — derived from the Metadata `Shape:` field's `watchdog.enabled`, disposition IN, Where
+    states which of `opt-out` (`enabled: false`) / `accept-defaults` (`enabled: true` with no
+    `daily_budget_usd` / `daily_invocations_cap` stated anywhere in the epic — read the LIVE
+    `WatchdogConfig` defaults, never a remembered cap) / `raise` (a stated budget or cap, with the
+    values — never collapse `raise` into `accept-defaults` silently) applies; and, ONLY when the
+    design uses an LLM, the **LLM gateway** choice — disposition IN, Where states OpenRouter-by-
+    default per § 1b-bis below, or the design's named contested vendor. Row count for this section:
+    15 + 1, +1 when an LLM is used — computable, never indeterminate.
+  - **Incomplete epic file — derive first, ASK only past the bar:** the chat-intake fragment's step
+    3 ("ASK has a bar") stands here too, not just its steps 1–2. A missing `### Metadata` field, or a
+    missing `### Scope` / `### Success Criteria` / `### Metadata` / `### Out of Scope (Epic Level)`
+    heading, is its own Intake Inventory row, one row per missing field/heading — but DERIVE it from
+    the project's frozen artifacts first (e.g. `Port` from `PORTS.md`, `Abuse Detection` /
+    `FINANCIALS` from the scaffold type) and cite the deciding row: disposition IN, the derivation in
+    Where. Only a genuinely under-determined field or heading is disposition ASK, arriving with a
+    RECOMMENDED disposition per the question bar — never a bare "field missing" with no attempted
+    derivation.
+  - **Skip Phase 1b's fabrik-lib ladder for every capability the Vision already adjudicated:**
+    inherit `## fabrik-lib Verdict` and `## Rejected Alternatives` **verbatim** from the Vision that
+    produced this epic — the sibling `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md` of the
+    Infrastructure Decisions spec cited in the epic's `### Infrastructure` section — into this spec's
+    own fabrik-lib verdict table and Rejected alternatives section; never re-derive a verdict the
+    Vision already reached. The rivals dossier lives at `docs/reference/rivals/<market>.md` (written
+    by `/fabrik-rivals`) — not in the Vision artifact, which carries no rivals section. On this
+    path: read that file directly if present and carry its reference through; if absent, note it as
+    absent — do not re-run `/fabrik-rivals` from here. **If the epic's `### Infrastructure` names no spec, the named
+    sibling `-vision.md` does not exist, or that Vision carries no `## fabrik-lib Verdict`
+    / `## Rejected Alternatives` section — the upstream gate did not run: STOP and say so, never
+    re-derive a verdict in its place.**
+  - Not an epic file (a chat brief, or no argument) → this bullet does not apply; the intake runs on
+    the conversation exactly as the chat-intake block above states.
 - **Decompose:** if the idea is really several *independently buildable* products, spec the first and note the rest for their own spec→plan→build cycle — don't fold them into one spec.
-- **Scale up-route (BLOCKING — mirror of mega-00's down-route):** this command is the **feature-scale front door** (one plan an operator session can carry: spec → data-contract → *(GUI)* ui-design → plan → execute). If the idea is an **epic** (needs a ticket store + dispatched agents) → route to `docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md`; if it is a **multi-epic vision** → STOP and route to `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md` (its Scale Assessment down-routes if it's really smaller). ⚠️ Those chains live in the **hub (`/opt/fabrik`)** — from a project (no `docs/orchestrator/`), don't hunt for the files: report the verdict and tell the operator to start the chain from the hub/Traycer workspace. State the routing verdict either way.
+- **Scale up-route (BLOCKING — mirror of mega-00's down-route):** this command is the **feature-scale front door** (one plan an operator session can carry: spec → data-contract → *(GUI)* ui-design → plan → execute). If the idea is an **epic** (needs a ticket store + dispatched agents) → route to `docs/orchestrator/epic-to-ticket-workflow/00-trigger-fabrik.md` — **unless the argument is already a file under `docs/development/epics/`: that epic is already decomposed, and the epic-file intake above consumes it here instead of routing it away**; if it is a **multi-epic vision** → STOP and route to `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md` (its Scale Assessment down-routes if it's really smaller). ⚠️ Those chains live in the **hub (`/opt/fabrik`)** — from a project (no `docs/orchestrator/`), don't hunt for the files: report the verdict and tell the operator to start the chain from the hub/Traycer workspace. State the routing verdict either way.
 - **Duplicate check (BLOCKING):** read `docs/BUSINESS_MODEL.md` § Project Portfolio + `agents-fabrik.md` § Fabrik Microservices. If an existing project or a deployed service already solves this, **STOP and say so** — do not design a second one. State the finding either way.
 - **Have we solved this BEFORE? (episodic memory — search, don't reinvent.)** The portfolio docs list what *shipped*, not what we **tried, rejected, or learned the hard way**. **Ledger FIRST:** grep `docs/DECISIONS.md` (+ `python3 /opt/fabrik/scripts/decisions.py <term>` fleet-wide) — a prior ruling, adoption, or rejected option is a structured row there, and structured beats lexical. THEN search past conversations with the **session-recall** MCP (`search_chats` for keywords, `recent_chats` for recency, `get_chat` to read one) for the capability, the vendor, and the failure mode. Report what you found, or state plainly that you searched and found nothing. ⚠️ **A hit is a LEAD, not a citation:** any external fact inside it (pricing, limits, versions, endpoints) is stale by construction and MUST be re-grounded live in Phase 1a. What history *is* authoritative for: a decision the owner already made, an approach already rejected **and why**, and a wall we already hit.
 - **EXISTING project? INHERIT, don't re-decide.** If the project already has code / users / data, its tech choices (auth, DB, frontend, billing) are **Locked Decisions** — locked *because* data exists, users are paying, or tokens are issued. Read them from the codebase (+ `docs/data-contract.md` / `docs/ui-design.md` if frozen) and design the **delta** against them. A spec that "improves" the auth of a live app with paying users is a **defect**, however good the new option is. Only genuinely NEW components get new decisions.
@@ -44,7 +101,10 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
 ### 1b — Internal capability: the fabrik-lib vendor→enhance→build ladder (+ shape-level infra)
 
 Read `/opt/fabrik-lib/README.md` (the module table). For **each capability** the design needs, decide via
-the ladder — **stop at the first that fits**, biased toward reuse-and-improve over reinvent:
+the ladder — **stop at the first that fits**, biased toward reuse-and-improve over reinvent — **except on
+the epic-file intake (Phase 0): skip this ladder entirely for every capability the inherited Vision
+`## fabrik-lib Verdict` already covers, and run it only for a capability genuinely new to this epic that
+the Vision never adjudicated.**
 
 1. **VENDOR as-is** — a fabrik-lib module already covers it → use it.
 2. **VENDOR + ENHANCE** — a module covers *most* of it → vendor it and extend at the seams (config, adapters,

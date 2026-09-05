@@ -1,6 +1,6 @@
 # Acceptance review — T04a (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 4 rounds; round 4: pool 3/3 clean after refutation + orchestrator re-read, found: 0, fixed: 0; 2 plan-text defects recorded for T16)
 
 **Surface:** the coder's worktree branch (worktree-agent-acebd2e7d801c89f7, head 56e9dd72) against its merge base c22bd91c — 1 file, `commands/_sources/fabrik-spec.md` +34/−2 (the epic-file intake bullet in Phase 0, a one-clause addendum in § 1b). Coder: native Sonnet worktree; Gate 1 red-before (0) → 2; `--check` reports only this file as DRIFT (expected from a worktree); `check_command_corpus` sound across 94 files. Brief defect found by the coder: the ticket's Context File `EPIC-ARTIFACT-SCHEMA.md` carries the 11-field machine frontmatter, not the 15-field `### Metadata` prose block — the names were grounded from `03-expand-epic-files-fabrik.md` § Metadata + a live epic + the ettw trigger (carried into T04b's brief).
 
@@ -47,3 +47,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] :58-59 "consumed upstream by the chain that produces the epic's Vision" asserts a consumption that does not exist today (0 rivals hits under docs/orchestrator/; spec § (g) schedules it for T06a) → FIXUP (drop the provenance clause).
 - [L] :35 "PLUS two DERIVED rows" vs :42-43 "15 + 1, +1 when an LLM is used" → FIXUP ("up to two").
 Round 3 verdict: 3 small findings (1 M, 2 L) → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
+
+## Round 4 — over the FINAL head `899c7092` (11,815 B; the round-3 fixup: 11/11, three sentence moves the native finder prescribed verbatim)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: orchestrator re-read of 899c7092 (every `+` line is the round-3 prescription; no rule changed) — round 4.
+### Adjudication
+- gemini — CLEAN (10 checks incl. the sentinel, mesh caveat, registrar co-condition, LLM defaulting; Phase 6 and the chat-only intake untouched).
+- qwen — CLEAN (12/12 classes; every gap → ASK or STOP; no fail-open).
+- deepseek — 5 raised, 5 REFUTED by reading: (1) "an undated epic filename matches the up-route exemption but not the intake" — the intake bullet keys on "a file under `docs/development/epics/`" (the directory), so any file there matches both; (2) "the rivals reference has no sink" — it is carried as an Intake Inventory row like every other epic-path item (the fragment's grammar), the round-3 native finder accepted the sentence; (3) "Out of Scope rows break the 15+1(+1) count" — that count is stated for the Metadata section only; (4) "`none — handled by Epic 99` hides a dangling reference" — the sentinel is the schema's two exact strings (03-expand :176/:191), a contrived line is not one of them; (5) "prometheus with no `spec.domain` and no `infra:` key is undetermined" — "the flag alone fires nothing" answers it.
+Round 4 verdict: found 0, fixed 0 — the no-op round. Class ledger: up-route · retired-name · Watchdog · ASK-bar · dispositions · OUT/sentinel/dangling · additive · inherit+STOP · Registrars · 15-names · argument-hint · row-count · STOP-scope · provenance — all swept clean.
