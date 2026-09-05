@@ -3,7 +3,7 @@
 `scripts/kilo-benchmarks/claude_price_ratios.json` feeds `derive_cost.api_equiv`, which is the axis
 `rank_task_subagents.py` sorts models on — so a stale price silently re-ranks the pool.
 
-Grounded 2026-09-04 against https://platform.claude.com/docs/en/about-claude/models/overview.md:
+Grounded 2026-09-05 (re-verified live) against https://platform.claude.com/docs/en/about-claude/models/overview.md:
   "Claude Sonnet 5 … $2 / input MTok, $10 / output MTok"  (no expiring introductory rate is noted)
   "prompt cache reads cost 10% of the base input price (2.5% on Claude Fable 5.1 and Claude Mythos 5.1)"
 
@@ -59,21 +59,26 @@ def test_the_fable_5_1_cache_read_exception_is_expressed_not_merely_documented()
     assert override["read"] == 0.025, (
         f"claude-fable-5-1 cache-read multiplier is {override['read']}, the live rate is 2.5% of base input"
     )
-    comment = r["_comment"]
-    assert "fable-5-1" in comment.lower() or "fable 5.1" in comment.lower(), (
-        "the Fable 5.1 cache-read exception is undocumented; a reader will assume 0.1x applies to it"
-    )
-    assert "0.25" in comment, "the real Fable 5.1 cache-read rate ($0.25/MTok) is not stated"
+    # No assertion on the `_comment` prose: it was the only defence while the rate was
+    # undocumentable, and it is wallpaper now the override is executable and asserted above.
+    # `"0.25" in comment` passes on "the 0.25 figure was withdrawn" and taxes every honest reword.
 
 
-def test_the_family_default_still_prices_fable_5() -> None:
-    """The override must not become the family rate: `claude-fable-5` bills cache reads at 10%.
+def test_no_override_sits_on_a_family_key() -> None:
+    """The 0.025 must never move onto a FAMILY key — that is the 4x underprice, not the fix.
 
     In the live 30-day window this box ran 76.3% of its fable-tier tokens on `claude-fable-5` and
-    23.7% on `claude-fable-5-1`. Moving 0.025 onto the family key would trade a 4x overprice on the
-    smaller share for a 4x UNDERprice on the larger one.
+    23.7% on `claude-fable-5-1`, so a family-level 0.025 would trade a 4x overprice on the smaller
+    share for a 4x UNDERprice on the larger one. The previous version of this test asserted only that
+    the string "claude-fable-5" was absent from `_model_cache` — which permitted exactly the
+    configuration it forbids in prose (`_model_cache["claude-code/fable"]`) and forbade a harmless one.
     """
-    r = _ratios()
-    assert "claude-fable-5" not in r.get("_model_cache", {}), (
-        "claude-fable-5 must fall through to the 0.1 default, not carry an override"
+    overrides = _ratios().get("_model_cache", {})
+    family_keys = [
+        k
+        for k in overrides
+        if k.startswith("claude-code/") or k in {"fable", "opus", "sonnet", "haiku"}
+    ]
+    assert not family_keys, (
+        f"cache overrides on family keys mis-price the whole tier: {family_keys}"
     )

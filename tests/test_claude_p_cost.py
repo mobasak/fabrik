@@ -54,8 +54,41 @@ def test_api_equiv_applies_the_per_model_cache_rate():
     u = _usage(cr=1_000_000)  # 1M cache-read, fable input = $10/M
     assert cpc.api_equiv(u, "claude-fable-5-1") == pytest.approx(0.25, abs=1e-6)  # 10 × 0.025
     assert cpc.api_equiv(u, "claude-fable-5") == pytest.approx(1.0, abs=1e-6)  # 10 × 0.1
-    assert cpc.api_equiv(u, "fable") == pytest.approx(1.0, abs=1e-6)  # ambiguous alias → default
     assert cpc.api_equiv(u, "claude-opus-5") == pytest.approx(0.5, abs=1e-6)  # 5 × 0.1, untouched
+
+
+def test_the_override_survives_every_id_form_the_fleet_actually_carries():
+    """Price lookup and cache lookup must share ONE key space.
+
+    They did not: `_norm_model` matched the family by substring while the override matched the raw
+    string exactly, so a vendor-qualified or dotted id got the right family PRICE and silently missed
+    its cache rate — correct on the small term, 4× wrong on the dominant one. These are the real
+    shapes: suffixed ids live in `usage-history.json`, `[1m]` is a live session id, and `anthropic/`
+    is how the pool names the same model.
+    """
+    u = _usage(cr=1_000_000)
+    for form in (
+        "claude-fable-5-1",
+        "anthropic/claude-fable-5-1",
+        "claude-fable-5.1",
+        "claude-fable-5-1[1m]",
+        "claude-fable-5-1-20260815",
+        "  CLAUDE-Fable-5-1  ",
+    ):
+        assert cpc.api_equiv(u, form) == pytest.approx(0.25, abs=1e-6), (
+            f"{form!r} missed its override"
+        )
+
+
+def test_a_bare_tier_alias_stays_at_the_default_because_it_is_ambiguous():
+    """`fable` names a tier running BOTH models, so it CANNOT resolve — the figure is an upper bound.
+
+    This is the standing limit, asserted so nobody "fixes" it by moving 0.025 onto the family: that
+    would 4× UNDERprice `claude-fable-5`, which is 76% of live fable-tier volume.
+    """
+    u = _usage(cr=1_000_000)
+    assert cpc.api_equiv(u, "fable") == pytest.approx(1.0, abs=1e-6)
+    assert cpc.api_equiv(u, "claude-code/fable") == pytest.approx(1.0, abs=1e-6)
 
 
 def test_norm_model_accepts_three_forms():

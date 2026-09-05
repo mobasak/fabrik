@@ -57,11 +57,35 @@ def _is_iso_date(s: object) -> bool:
         return False
 
 
+def _cache_for(ratios: dict, model_id: str) -> dict:
+    """`_cache` defaults with the longest-prefix `_model_cache` override for a real model id applied.
+
+    Mirrors `scripts/claude_p_cost.py::_cache_multipliers` — the two modules must price a cache read
+    identically or the ranking axis and the per-call meter disagree on the same tokens.
+    """
+    c = dict(ratios.get("_cache") or {})
+    m = str(model_id).lower().strip()
+    best: str | None = None
+    for prefix in ratios.get("_model_cache") or {}:
+        if m.startswith(prefix.lower()) and (best is None or len(prefix) > len(best)):
+            best = prefix
+    if best is not None:
+        override = (ratios.get("_model_cache") or {}).get(best)
+        if isinstance(override, dict):
+            c.update(override)
+    return c
+
+
 def api_equiv(usage: dict, model: str, ratios_path: str | Path | None = None) -> float:
     """① Cache-aware API-equivalent USD for one run's raw per-type tokens (the ranking axis).
 
     `usage` uses the CLI snake_case keys. The flat cache_creation count carries no 5m/1h split, so the
     write is priced at the ×1.25 (5-minute) default. Raises KeyError for an unpriced model.
+
+    ⚠️ FAMILY-KEYED BY CONSTRUCTION: `model` must be a `claude-code/<tier>` key, so a per-model
+    `_model_cache` override can never reach this function — a fable-tier figure from here is an UPPER
+    BOUND if the tier ran Fable 5.1 (2.5% cache reads, not 10%). `amortized_by_family` below has the
+    real model id and DOES apply the override. Closing this one needs a signature change, not a row.
     """
     r = _load_ratios(ratios_path)
     if model not in r:
@@ -175,7 +199,6 @@ def amortized_by_family(
     prices that family free. The whole-map empty case ({}) is the different, documented one
     above."""
     r = _load_ratios(ratios_path)
-    c = r["_cache"]
     ad = Path(accounts_dir or _MANAGER_ACCOUNTS)
     try:
         n_accounts = sum(1 for p in ad.iterdir() if p.is_dir() and not p.name.startswith("."))
@@ -195,6 +218,7 @@ def amortized_by_family(
                 if fam is None or f"claude-code/{fam}" not in r:
                     continue
                 p = r[f"claude-code/{fam}"]
+                c = _cache_for(r, model)  # the real model id is in hand HERE — use its own rate
                 inp = int(m.get("input", 0) or 0)
                 out = int(m.get("output", 0) or 0)
                 cr = int(m.get("cacheRead", 0) or 0)
@@ -255,12 +279,18 @@ def write_cost_sidecar(
 ) -> dict:
     """Write the ②/③ sidecar the ranker preamble reads: ② amortized $/M + ③ weekly-quota-draw %.
 
-    ⚠️ ORPHANED IN THIS REPO — zero call sites (`git grep write_cost_sidecar` finds only this def).
+    ⚠️ ORPHANED IN THIS REPO — zero CODE call sites. (`git grep write_cost_sidecar -- .` returns 12 hits
+    across 5 files; all but this `def` are prose — plans, reviews, the ledger, and a test docstring.)
     Its callers left with the catalog-engine excision (`73bde59a`) and now live in `/opt/ai-model-catalog/`,
     whose copy resolves `_COST_SIDECAR` relative to ITS OWN directory and never writes the hub's file.
     The hub's sidecar is written by `scripts/claude_p_cost.py::refresh()` — change THAT one. Editing the
     catalog repo from here is a cross-repo HARD STOP; this note exists so the next reader does not spend
-    a plan revision on the wrong producer, as one did on 2026-09-05."""
+    a plan revision on the wrong producer, as one did on 2026-09-05.
+
+    ⚠️ AND DO NOT RUN IT AGAINST THE HUB'S SIDECAR TO "REFRESH THE FAMILY SPLIT": it writes FOUR keys
+    with a full overwrite, so it silently annihilates `window_start`, `window_end`, `accounts`,
+    `spend_usd` and `tokens` while restamping `built_at` — the file then looks current and has lost the
+    window. That is the exact failure the windowed-sidecar plan was rewritten to avoid."""
     built = (when or datetime.datetime.now()).isoformat(timespec="seconds")
     data = {
         "amortized_per_mtok": amortized_rate() * 1_000_000.0,

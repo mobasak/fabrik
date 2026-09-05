@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: none
+# AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.py
 """Per-call `claude -p` cost measurement for ANY project — self-contained, no engine import.
 
 Two lenses, per model (fable/opus/sonnet/haiku), from a run's own `claude -p --output-format json`:
@@ -7,19 +7,24 @@ Two lenses, per model (fable/opus/sonnet/haiku), from a run's own `claude -p --o
   ② real       — real subscription-derived $: run tokens × the fleet's current amortized $/token.
 
 WHY a standalone copy (not `import derive_cost`): `derive_cost.py` is engine-internal (benchmark ranking)
-and relocates with the AI-model-catalog extraction; this file is FLEET consumer infra that stays and is
-synced to every project. Different lifecycles → vendor-the-math, don't import (fabrik "vendor, don't
-import" pattern). The two numbers agree with `derive_cost` by construction (same formulas below).
+and relocated with the AI-model-catalog extraction; this file is the FLEET consumer copy that stays.
+Different lifecycles → vendor-the-math, don't import (fabrik "vendor, don't import" pattern). ⚠️ It is NOT
+in `fabrik_synced_manifest.py` and exists in 1 of 57 `/opt` dirs — the hub's own. An earlier version of
+this header claimed it "is synced to every project"; it never was. The two numbers agree with
+`derive_cost` by construction (same formulas below).
 
 DATA FILES (resolved in order: env override → co-located with this script → hub kilo-benchmarks):
   • prices     — `claude_price_ratios.json` (per-model in/out list price + cache multipliers). MANUAL,
                  grounded from platform.claude.com/docs/en/about-claude/pricing.
-  • amortized  — `claude_p_cost.json`, NINE keys: the rate `amortized_per_mtok` and the window it was
-                 derived from — `window_start`, `window_end`, `accounts`, `spend_usd`, `tokens` — plus
-                 `built_at`, `quota_draw_pct`, and `amortized_per_mtok_by_family` (carried forward, not
-                 recomputed; owned by `derive_cost.amortized_by_family`). The five window keys are
-                 `null` when the rate fell back to the research anchor, which came from no window.
-                 Rebuilt by `--refresh` (hub/operator box only — needs ~/.claude usage history).
+  • amortized  — `claude_p_cost.json`. `--refresh` AUTHORS eight keys: the rate `amortized_per_mtok`,
+                 the window it came from (`window_start`, `window_end`, `accounts`, `spend_usd`,
+                 `tokens`), `quota_draw_pct` and `built_at`. It CARRIES FORWARD every other key the
+                 previous file had, so a box that has one also carries `amortized_per_mtok_by_family`
+                 (owned by `derive_cost.amortized_by_family`, never recomputed here) — nine in total.
+                 A fresh box with no previous file has eight; the family key is not guaranteed and a
+                 reader must `.get` it. Window keys are `null` when the rate fell back to the research
+                 anchor (no window) and `accounts`/`spend_usd` are `null` when the account count could
+                 not be measured. Rebuilt by `--refresh` (hub/operator box — needs ~/.claude history).
 
 USAGE
   # measure one call (project or hub): pipe the CLI's JSON in, name the model
@@ -84,18 +89,45 @@ def _norm_model(model: str) -> str:
     return m  # unknown → let api_equiv raise a clear KeyError
 
 
+def _model_key(model: str) -> str:
+    """Normalise a model string into the `_model_cache` key space: `anthropic/claude-fable-5.1` and
+    `claude-fable-5-1` land on the same key. Vendor prefix dropped, dots folded to dashes, lowercased.
+
+    Price lookup (`_norm_model`) and cache lookup used to run on DIFFERENT key spaces, so a
+    vendor-qualified or dotted id got the right family PRICE and silently missed its cache override —
+    correct on the small term, 4x wrong on the dominant one.
+    """
+    return model.lower().strip().rsplit("/", 1)[-1].replace(".", "-")
+
+
 def _cache_multipliers(ratios: dict, model: str) -> dict:
-    """Cache multipliers for one model: the global `_cache` default, overridden per exact model id.
+    """Cache multipliers for one model: the `_cache` default, overridden by LONGEST-PREFIX model id.
 
     Cache reads bill at 10% of base input on every model EXCEPT Claude Fable 5.1 (2.5%). A FAMILY key
     cannot hold both, because `claude-code/fable` covers `claude-fable-5` AND `claude-fable-5-1` and
-    both run live here — so the exception is keyed on the full id in `_model_cache` and the family
-    keeps the 0.1 default. A bare tier alias ("fable") is ambiguous and therefore gets the default.
+    both run live here — so the exception is keyed on the model id in `_model_cache`.
+
+    Longest-PREFIX, not exact equality (the pattern `kilo-benchmarks/audit_usage_cost.py::price_for`
+    already uses on the same vocabulary): live ids carry suffixes — `claude-haiku-4-5-20251001` in the
+    usage history, `claude-opus-5[1m]` as a session id — and an exact match silently returns the 0.1
+    default for every one of them, which is the 4× overprice wearing a fix.
+
+    ⚠️ STANDING LIMIT, not an oversight: a bare TIER ALIAS (`fable`, and `claude-code/fable`) is
+    genuinely ambiguous — it names a tier that runs both models — so it resolves to the 0.1 default and
+    a fable-tier figure computed from an alias remains an UPPER BOUND. Every caller in this repo passes
+    an alias today (`main()`'s `--model`, `rivals_run.CLAUDE_P_MODELS`), so closing that half needs the
+    callers to carry real model ids; a price row cannot do it.
     """
     c = dict(ratios.get("_cache") or {})
-    override = (ratios.get("_model_cache") or {}).get(model.lower().strip())
-    if isinstance(override, dict):
-        c.update(override)
+    m = _model_key(model)
+    best: str | None = None
+    for prefix in ratios.get("_model_cache") or {}:
+        if m.startswith(prefix.lower()) and (best is None or len(prefix) > len(best)):
+            best = prefix
+    if best is not None:
+        override = (ratios.get("_model_cache") or {}).get(best)
+        if isinstance(override, dict):
+            c.update(override)
     return c
 
 
@@ -161,14 +193,28 @@ def _live_usage_window() -> dict:
     research constant that was derived from NO window — every denominator is then `None`, never a
     plausible-looking zero. Publishing bounds beside the anchor would assert a derivation that never
     happened.
+
+    ⚠️ `accounts`/`spend_usd` are `None` for the same reason when the account directory is unreadable
+    or empty. The RATE still prices as one account (the historical `max(1, n)` floor, unchanged), but
+    publishing `accounts: 1` would state an unmeasured count as fact — the fabricated denominator this
+    reshape exists to end. Null there means "the rate rests on an assumed single account and cannot be
+    re-derived from these denominators".
     """
     try:
-        n = sum(1 for p in _MANAGER_ACCOUNTS.iterdir() if p.is_dir() and not p.name.startswith("."))
+        counted: int | None = sum(
+            1 for p in _MANAGER_ACCOUNTS.iterdir() if p.is_dir() and not p.name.startswith(".")
+        )
     except OSError:
-        n = 1
-    n = max(1, n)
+        counted = None  # unmeasurable — NOT the same as "one account"
+    n = max(1, counted or 0)  # the RATE floor, unchanged: an unknown count still prices as one
+    measured = counted if (counted or 0) > 0 else None
+    # INCLUSIVE bounds spanning exactly `_MONTHLY_DAYS` dates. `today - _MONTHLY_DAYS` spans THIRTY-ONE,
+    # which divided ONE month of subscription $ by 31 days of tokens and understated the rate ~1.3%.
+    # LOCAL calendar dates, deliberately: they are compared against `usage-history.json`'s own day keys,
+    # which the CLI writes in local time. `built_at` is UTC-aware; these are a different clock on purpose
+    # and must not be merged. A consumer computing staleness reads `built_at`, never these.
     today = datetime.date.today().isoformat()
-    cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
+    cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS - 1)).isoformat()
     try:
         d = json.loads(_USAGE_HISTORY.read_text(encoding="utf-8"))
         days = d.get("days") or {}
@@ -204,53 +250,63 @@ def _live_usage_window() -> dict:
         "amortized_per_mtok": spend / total * 1_000_000.0,
         "window_start": cutoff,
         "window_end": today,
-        "accounts": n,
-        "spend_usd": spend,
+        "accounts": measured,
+        "spend_usd": None if measured is None else _SUBSCRIPTION_USD_PER_ACCOUNT * measured,
         "tokens": total,
     }
-
-
-def _live_amortized_per_mtok() -> float:
-    """② alone, for callers that want the bare rate. The window lives in `_live_usage_window()`."""
-    return float(_live_usage_window()["amortized_per_mtok"])
 
 
 def refresh() -> dict:
     """Rebuild `claude_p_cost.json` from live ~/.claude usage, with the window ② came from.
 
-    Carries forward, never recomputes: ③ `quota_draw_pct`, and `amortized_per_mtok_by_family` — which
-    this function used to DESTROY on every run by writing three keys over the file with a full
-    `write_text`. The per-family split is owned by `derive_cost.amortized_by_family()`; this module
-    deliberately does not import that one (see the header), so it preserves the map rather than
-    re-deriving it.
+    CARRIES FORWARD EVERY KEY IT DID NOT AUTHOR (`data = dict(prev)`), rather than an allowlist of the
+    two it knows. This function used to DESTROY `amortized_per_mtok_by_family` on every run by writing
+    three keys over the file with a full `write_text`; an allowlist would have re-created that exact
+    bug for the next key some other producer adds. It re-derives ② and the window and nothing else —
+    the per-family split is owned by `derive_cost.amortized_by_family()`, which this module
+    deliberately does not import (see the header).
 
     No `rate` key: `amortized_per_mtok` already IS the rate, and renaming it would break every reader
     for cosmetics. The window keys sit BESIDE the existing ones — additive, so no reader is forced to
     change in the same release.
     """
     path = _cost_path()
-    prev = {}
+    prev: dict = {}
     try:
-        prev = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            prev = loaded  # valid JSON that is a list/str/number is NOT a sidecar
     except (OSError, ValueError):
         pass
+    try:
+        quota = float(prev.get("quota_draw_pct", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        quota = 0.0  # a non-numeric ③ must not crash the producer off its cron
     w = _live_usage_window()
-    data = {"amortized_per_mtok": w["amortized_per_mtok"]}
-    by_family = prev.get("amortized_per_mtok_by_family")
-    if isinstance(by_family, dict):
-        data["amortized_per_mtok_by_family"] = by_family
+    data = dict(prev)  # carry forward EVERY key this function did not author
+    # A carried map must not inherit the fresh window's authority: stamp it with the `built_at` of the
+    # file it came from, so `window_start`/`window_end` are never read as vouching for it. Measured
+    # 2026-09-05: the carried split was up to 88% off a live recompute under a same-day window.
+    if "amortized_per_mtok_by_family" in prev and prev.get("built_at"):
+        data.setdefault("amortized_per_mtok_by_family_built_at", prev["built_at"])
     data.update(
         {
-            "quota_draw_pct": float(prev.get("quota_draw_pct", 0.0) or 0.0),
+            "amortized_per_mtok": w["amortized_per_mtok"],
+            "quota_draw_pct": quota,
             "window_start": w["window_start"],
             "window_end": w["window_end"],
             "accounts": w["accounts"],
             "spend_usd": w["spend_usd"],
             "tokens": w["tokens"],
-            "built_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "built_at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
         }
     )
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    # ATOMIC: this file is now the SOLE store of `amortized_per_mtok_by_family`, which nothing in
+    # this repo can regenerate (`derive_cost.amortized_by_family` is reachable only from the orphaned
+    # `write_cost_sidecar`). A torn write would lose it permanently, and Phase C puts this on a cron.
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
     return data
 
 

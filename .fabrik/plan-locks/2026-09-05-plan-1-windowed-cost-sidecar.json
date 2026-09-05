@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md",
+  "owned_paths": [
+    "scripts/claude_p_cost.py",
+    "scripts/kilo-benchmarks/claude_p_cost.json",
+    "scripts/kilo-benchmarks/claude_price_ratios.json",
+    "scripts/kilo-benchmarks/rank_task_subagents.py",
+    "scripts/kilo-benchmarks/daily_refresh.sh",
+    "scripts/kilo-benchmarks/derive_cost.py",
+    "tests/test_claude_p_cost.py",
+    "tests/test_price_ratios_current.py",
+    "tests/test_claude_p_cost_refresh.py",
+    "scripts/enforcement/_check_refresh_before_ranker.py"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-05T10:34:15",
+  "status": "active",
+  "baseline_commit": "d78e57c886c201db9506440ba13b9e7df1acc3fc",
+  "baseline_gate": "final_gate.py --lean --json -> status: success, 0 red checks, skipped_checks: [] (captured before Phase A; ANY red at finish is this run's)"
+}
