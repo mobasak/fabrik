@@ -79,3 +79,7 @@ Native finder (opus): INTERRUPTED by the fleet-quota hold at 4 of 7 classes — 
 - [L] `<project>/.fabrik/backups/worktrees/` untracked, NOT IGNORED in 3 of 3 sampled projects (fires only under manual `--backup`; the wrapper passes `--force` only) → FIXUP (4, the manifest's gitignore block). [L] the doc preamble misplaces two of three steps (seeding at :1516 precedes the .gitignore patch :1522 and the lock :1614, and runs under dry-run) → FIXUP (5). [L] `force` is a dead parameter through two functions (documented "API symmetry") → FIXUP (6).
 Round 5 verdict: 6 raised → 6 routed (1 H, 2 M, 3 L); pool: 2 CLEAN, deepseek 1 refuted (my diff cut) + 2 upheld + 1 refuted by the native finder. Not the no-op round.
 
+## Round 6 — over `5fd58526..89b4252b` (5 files: the script +111/−28, its tests +204, the workflow doc, `scripts/fabrik_synced_manifest.py` +6 (`/.fabrik/backups/` in the gitignore block's "Local state" section), `.claude/settings.json` +6; the round-5 fixup: the ledger MERGED never rebuilt with the prune-loop OSError now WARN+counted and pruned paths popped; the WARN split by cause (live: 83 of 83 are ledger gaps, 0 "edit preserved"); the floor-write failure named at project and file level; the dead `force` dropped; the doc preamble corrected; 46 passed, 5 of 5 graders red on the round-4 revert, 40 neighbour tests green)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 6.
+Pool + native: PENDING — appended when they return.
+
