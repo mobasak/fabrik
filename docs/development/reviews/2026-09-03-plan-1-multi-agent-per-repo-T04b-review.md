@@ -58,3 +58,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] plan-after-chat :231-232 lists the `**Owner:**`/`Epic:` header lines under "gate-enforced grammar" — no enforcement script reads either today → FIXUP (3). [M] :637-639 asserts a live PLANS.md regeneration (generator retired 2026-07-20; T15 revives it) → FIXUP (4).
 - [M] :1103-1105 the position-(b) merge in the main checkout has no clean-tree precondition and no conflict disposition, unlike the Merge Protocol (:914-923) — on a tree three sessions share, dirty is the expected state → FIXUP (5).
 Round 4 verdict: 5 M → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
+
+## Round 5 — over the FINAL head `208c40de` (32,442 B; the round-4 fixup: EnterWorktree as the run's own isolation, the `keep` contract, the header lines as contract, the PLANS phrasing, the shared-tree merge precondition with DEFER/abort → OWED)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 5.
+### Adjudication (pool layer)
+- deepseek — CLEAN (4 rows; no fail-open: unreadable epic → BLOCKED, no ExitWorktree → OWED, dirty main → DEFER).
+- gemini — CLEAN (4 of 4 rows; 2 of 2 files; 0 DO-NOT violations; glob-aware containment :425/:608).
+- qwen — CLEAN on every class; its one residual ("nowhere does the diff implement the seeding logic in code") — REFUTED: the surface is a COMMAND source (prose the agent executes), not a script; the instruction IS the implementation.
+Native finder (opus): PENDING — appended when it returns; if CLEAN, this is the no-op round.
+
