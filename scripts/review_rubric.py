@@ -94,6 +94,27 @@ _MANDATE = re.compile(
 )
 _CHECK_ITEM = re.compile(r"^\s*\d+[a-z]?\.\s+\S")  # 84a.-style sub-items count too
 _GREPPABLE = re.compile(r"`[^`]+`")
+_LIST_ITEM = re.compile(r"\d+[.)]\s")  # `1. step` — a new item, never the previous bullet's tail
+_JOIN_CAP = 6  # continuation lines folded into one mandate before the marker takes over
+_LITERALS_CAP = 160  # promote-tail line budget — whole literals only, never a cut one
+
+
+def _literals(line: str) -> str:
+    r"""The backtick literals of one mandate, whole ones only, within _LITERALS_CAP.
+
+    A character slice after joining cut the last literal mid-token (`\`deploy.resources.lim`),
+    and a cut literal is un-greppable — the one property the tail exists for (gemini closing
+    reader, 2026-09-05). Drop whole literals past the budget instead.
+    """
+    kept: list[str] = []
+    for lit in _GREPPABLE.findall(line):
+        if sum(len(k) + 1 for k in kept) + len(lit) > _LITERALS_CAP:
+            break
+        kept.append(lit)
+    return " ".join(kept)
+
+
+_JOIN_MARK = " … (wrapped further — read the pack)"
 
 CHECKLISTS = {
     "mega": Path(
@@ -105,7 +126,9 @@ CHECKLISTS = {
 }
 
 
-_CONDITIONAL_HEADING = re.compile(r"(?<!non-)\b(legacy|migration-only|deprecated|retired)\b", re.IGNORECASE)
+_CONDITIONAL_HEADING = re.compile(
+    r"(?<!non-)\b(legacy|migration-only|deprecated|retired)\b", re.IGNORECASE
+)
 
 
 def _mandate_lines(body: str) -> list[str]:
@@ -120,6 +143,8 @@ def _mandate_lines(body: str) -> list[str]:
     out = []
     skipping = False
     skip_level = 0
+    pending: int | None = None  # index in `out` of a bullet still accepting wrapped lines
+    joined = 0
     in_fence = False
     fence_char = ""
     fence_len = 0
@@ -131,6 +156,7 @@ def _mandate_lines(body: str) -> list[str]:
             # early) and their MUST/BANNED lines are not mandates (live noise: the ❌-Banned
             # code samples were being injected verbatim)
             if s.startswith(("```", "~~~")):
+                pending = None  # a fenced example ends the bullet; text after it is new prose
                 in_fence = True
                 fence_char = s[0]
                 fence_len = len(s) - len(s.lstrip(fence_char))
@@ -144,6 +170,7 @@ def _mandate_lines(body: str) -> list[str]:
                 in_fence = False
             continue
         if s.startswith("#"):
+            pending = None  # a heading ends the bullet — its body is never the bullet's tail
             level = len(s) - len(s.lstrip("#"))
             if skipping and level <= skip_level:
                 skipping = False
@@ -156,8 +183,28 @@ def _mandate_lines(body: str) -> list[str]:
             continue
         if skipping:
             continue
+        if not s:
+            pending = None
+            continue
+        if pending is not None and not (
+            s.startswith(("-", "*", "|", "#", ">")) or _LIST_ITEM.match(s)
+        ):
+            # A wrapped bullet: packs hard-wrap at ~100 chars, so the mandate's CONDITION often
+            # sits on the next physical line ("never raw `os.getenv` **for an" — cut before
+            # "application setting"). A mandate cut before its condition cannot be hunted
+            # against as written (web-ecommerce-factory 01M1QEY5, 2026-09-05). Join up to
+            # _JOIN_CAP continuation lines; past the cap say so instead of cutting silently.
+            if joined < _JOIN_CAP:
+                out[pending] = out[pending] + " " + s
+                joined += 1
+            elif not out[pending].endswith(_JOIN_MARK):
+                out[pending] = out[pending] + _JOIN_MARK
+            continue
+        pending = None
         if s and _MANDATE.search(s):
             out.append(s if s.startswith(("-", "*", "|")) else f"- {s}")
+            pending = len(out) - 1
+            joined = 0
     if in_fence:
         # an unclosed fence would have silently swallowed every mandate after it — surface
         # the anomaly IN the rubric so the armed reviewer sees the gap instead of nothing
@@ -253,8 +300,11 @@ def build_rubric(changed: list[str], workflow: str | None, root: Path) -> str:
         uniq = list(dict.fromkeys(promote))
         out.append(
             f"\n# promote-to-check_*: {len(uniq)} injected mandate(s) look deterministically greppable"
+            " — their backtick literals, one line each (the full mandates are ABOVE, not repeated:"
+            " re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed —"
+            " web-ecommerce-factory 01M1QEY5, 2026-09-05)"
         )
-        out.extend(uniq[:20])
+        out.extend("- " + _literals(line) for line in uniq[:20])
     return "\n".join(out) + "\n"
 
 

@@ -90,7 +90,11 @@ if [ "$CHANGED" = "0" ]; then
 fi
 
 cd "$REPO"
-git add env/
-git commit -m "dr-env: ${TS}" >/dev/null
+DR_PATHS="env/"  # the ONE list both the add and the commit pathspec read (D-129)
+git add -- "$DR_PATHS"
+# PATHSPEC, never a bare commit: a bare `git commit` takes the WHOLE index (fleet 01M1QB46 —
+# update_vps_docs.py shipped a sibling's staged files that way, 5b9c420d). The store is a dedicated
+# repo today; the discipline is the same everywhere a script commits.
+git commit -m "dr-env: ${TS}" -- "$DR_PATHS" >/dev/null
 git push origin main >/dev/null 2>&1
 echo "$(date -u +%FT%TZ) OK: pushed ${TS}"

@@ -120,7 +120,11 @@ $ git archive <sha> | tar -x -C <scratchpad>/review-<sha>
 ```
 
 and brief the finder against that path. If a finder must read the live tree instead (a working-tree
-review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at. This is the
+review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
+to EXCLUDE the tree's stale copies: `.claude/worktrees/**` and `.tmp/**` (pool scratch) hold whole
+duplicate `src/` + `tests/` trees at DIFFERENT line numbers, so an unscoped repo-root grep returns
+anchors that resolve in a worktree and not in HEAD (`grep -rn --exclude-dir=.claude
+--exclude-dir=.tmp …`; web-ecommerce-factory 01M1QEY5, 2026-09-05: two finders lost a result set to it). This is the
 same class as the `Surface:` anchor rule — both are about the finder actually looking at the thing it
 was told to look at.
 

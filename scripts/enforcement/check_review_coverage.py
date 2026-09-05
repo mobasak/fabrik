@@ -51,6 +51,10 @@ COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")  # noqa: F841 — retir
 VERDICT = re.compile(r"\b(CLEAN|FIXED\s*\(?\d*\)?|REFUTED|ROUTED\s*\(?\d*\)?)\b")
 UNCHECKED = re.compile(r"\bUNCHECKED\b")
 BLOCKED_HEAD = re.compile(r"^#{2,4}\s*.*BLOCKED", re.M)
+# The loop-level exit's two anchors: the heading names NON-CONVERGENCE, the section names the
+# suspected FOUNDATION error (both mandated by /fabrik-review § the convergence loop).
+NONCONVERGENCE = re.compile(r"NON-?\s?CONVERGENCE", re.I)
+FOUNDATION = re.compile(r"\bfoundation\b", re.I)
 RECURRENCE = {
     "fail-open/fail-closed": re.compile(r"fail[- ]open", re.I),
     "cost/quota accounting": re.compile(r"\b(cost|quota|limit)\b", re.I),
@@ -364,7 +368,8 @@ def _in_progress(text: str) -> bool:
 
 
 def _blocked_sections(text: str) -> int:
-    """How many BLOCKED sections carry their own in-section 3-attempts evidence.
+    """How many BLOCKED sections carry their own in-section evidence — the per-finding
+    3-attempts phrase, or (loop-level exit) a NON-CONVERGENCE heading naming a foundation error.
 
     ⚠️ THE HONEST BOUNDARY (adjudicated round 21, ending three rounds of window tuning):
     BLOCKED evidence is DECLARATIVE, not provable. A forger who writes the attempts phrase
@@ -395,7 +400,19 @@ def _blocked_sections(text: str) -> int:
     for m in BLOCKED_HEAD.finditer(body):
         nxt = re.search(r"^#{1,4}\s", body[m.end() :], re.M)
         section = body[m.end() : m.end() + nxt.start()] if nxt else body[m.end() : m.end() + 600]
+        eol = body.find("\n", m.end())
+        heading_line = body[m.start() : eol if eol != -1 else len(body)]
         if attempts.search(section):
+            n += 1
+        elif NONCONVERGENCE.search(heading_line) and FOUNDATION.search(section):
+            # /fabrik-review's SECOND sanctioned exit — the LOOP-level stop ("3 consecutive
+            # rounds with non-decreasing, nonzero `new:` → `## BLOCKED: NON-CONVERGENCE` naming
+            # the suspected foundation error"). It has no single stuck finding and no 3
+            # attempts at one, so the per-finding phrase above is the wrong shape for it; the
+            # command mandates naming the foundation error, which is the checkable form. Before
+            # this branch an honest loop-stop graded as an unconverged review and the message
+            # offered three dispositions that were all wrong for it (web-ecommerce-factory
+            # 01M1QHAC, 2026-09-05).
             n += 1
     return n
 
@@ -1549,8 +1566,11 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
         if not quiet:
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round (found: {rows[-1]}) "
-                "— committing a review does not converge it. Finish the loop, BLOCKED-escalate the "
-                "stuck finding, or mark the report `Status: IN-PROGRESS`."
+                "— committing a review does not converge it. Finish the loop; BLOCKED-escalate the "
+                "stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself "
+                "failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: "
+                "NON-CONVERGENCE` naming the suspected foundation error; or mark the report "
+                "`Status: IN-PROGRESS`."
             )
     return out
 

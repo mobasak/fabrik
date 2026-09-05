@@ -292,6 +292,8 @@ The fleet is a **vps1 hub + vps2/vps3 spokes**. `fabrik apply` / `plan` / `redep
 
 Spokes are full deploy targets, not standby boxes — a spoke-targeted service runs its container on the spoke but **wires back to the shared vps1 data plane** over the WireGuard mesh. Those shared backing services always live on vps1 regardless of `target_vps`; only the app container moves. **The connection host differs by target — WireGuard routes IP packets but carries NO DNS, so the `*-main` Docker-DNS names SERVFAIL on a spoke:** a vps1 app reaches them by name (`postgres-main:5432`, `redis-main:6379`, `glitchtip-web:8000`) over the local `fabrik` bridge; a spoke app reaches them at vps1's **mesh IP** (`10.99.0.1:5432` / `:6379` / `:8000`, published mesh-only, same ports). The infra registrar picks the right host automatically from `target_vps` and injects it into `DATABASE_URL` / `REDIS_URL` / `SENTRY_DSN` — the app needs no special config. Source of truth: `docs/infrastructure/vps-urls.md` § Mesh URLs.
 
+**Place a service next to its data.** A spoke-hosted service reaches `postgres-main`/`redis-main` over the WireGuard mesh, and that hop is cross-Atlantic (Coventry ↔ LA) on EVERY query — a per-request chatty service pays it hundreds of times per page. So a DB-chatty service targets vps1; a spoke earns a service whose data traffic is light, batched or cached; a service PINNED to a spoke by hardware (GPU) batches or caches its data access — the data never moves off vps1. Measure before choosing (`ping 10.99.0.1` from the spoke, and the request's query count), never assume — the correctness rule ("container DNS, never localhost") says nothing about latency (web-ecommerce-factory 01M1Q8X9, 2026-09-05).
+
 ---
 
 ## Microservice URLs

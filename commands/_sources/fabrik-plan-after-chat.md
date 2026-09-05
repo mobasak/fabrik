@@ -200,7 +200,12 @@ into multiple misleading `total` lines and plain `wc -c` errors on `dir/` entrie
 `READ_BUDGET_BYTES` (262144 — the gate's PER-TICKET budget in
 `scripts/enforcement/check_plan_tickets.py`, reused here as the shape trigger; the byte test keeps a
 compact-but-heavy plan out of the monolith path). Smaller work keeps the single-file monolith below —
-both shapes are first-class, no forced migration of old plans.
+both shapes are first-class, no forced migration of old plans. **One file larger than the budget does
+NOT force the monolith:** the per-ticket budget exempts the set's single `Integration: true` ticket
+(`check_plan_tickets.py`, the `if t.integration: continue` before the per-entry sum), so an
+indivisible oversized file (a 436 KB `app.py`, a 281 KB `scaffold.py`) is OWNED by that ticket, last
+in Merge Order, and the SET shape stays available — splitting divides the ticket, never the file
+(youtube 01M1QBPW, 2026-09-05: two plans a week apart chose a monolith for want of this sentence).
 
 **The spine+ticket shape** (gate-enforced grammar — `check_plan_tickets.py` + `check_plan_quality.py`):
 `docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` holding the **same-stem spine**

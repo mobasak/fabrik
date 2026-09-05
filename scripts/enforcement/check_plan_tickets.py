@@ -1434,7 +1434,11 @@ def check_plan_dir(
                     t.path,
                     severity=sev,
                     hint="Split the ticket (author-split T##a/T##b) — a coder cannot hold "
-                    "this read set in one context",
+                    "this read set in one context. If ONE file alone exceeds the budget, "
+                    "splitting is futile (it divides the ticket, not the file): give that "
+                    "file to the set's single `Integration: true` ticket — exempt from this "
+                    "budget by design, last in Merge Order — and keep the SET shape "
+                    "(youtube 01M1QBPW, 2026-09-05: dashboard/app.py at 1.66x the budget)",
                 )
             )
         if len(t.behaviors) > MAX_BEHAVIORS:

@@ -45,7 +45,9 @@ The Behavior Contract goes beyond one-test-per-behavior for these high-risk doma
 
 - **Framework**: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`.
 - **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`) — **when the project has
-  a `pyproject.toml`/`uv.lock`**. ⚠️ **Gate this on the manifest, because this line is FLOOR-injected into
+  a `pyproject.toml`/`uv.lock`**. A `requirements.txt`-only project (no manifest) runs
+  `.venv/bin/python -m pytest tests/` — the manifest clause chooses the RUNNER, it never disarms the mandate to run
+  the suite (web-ecommerce-factory 01M1QEY5, 2026-09-05: the clause read as "does not apply here"). ⚠️ **Gate this on the manifest, because this line is FLOOR-injected into
   finder prompts and a vendored fabrik-lib MODULE has neither by design**: the module recipe ships
   `requirements.txt` (`fabrik-lib/README.md` § Creating a Reference Implementation), so `uv run` cannot
   resolve it and `python3 -m pytest` is the only thing that works. Telling a finder the sole working

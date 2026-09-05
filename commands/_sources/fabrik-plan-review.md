@@ -74,7 +74,10 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
 
 1. **Rubric.** Run `python scripts/review_rubric.py --changed <the plan's `## File Scope (owned paths)`
    entries>` and paste its **verbatim** output into the plan inside a fenced block. The File Scope IS the
-   changed-path set — glob matching works on it unmodified. An un-armed reviewer works from whatever
+   changed-path set — glob matching works on it unmodified. The whole output is the default; when a run
+   is long, ONLY the `# promote-to-check_*` tail may be elided, with the elision declared on the line
+   where it would sit — the header line, the FLOOR and the MATCHED sections stay verbatim (they are what
+   the checklist derives from and what `check_convergence.py` anchors on). An un-armed reviewer works from whatever
    occurs to them; a rubric names the classes this surface is *known* to fail.
 2. **Coverage Checklist.** Derive `## Coverage Checklist` from that rubric output (FLOOR + MATCHED rows)
    **plus the four standing recurrence classes** — *fail-open vs fail-closed on every gate/guard · cost/

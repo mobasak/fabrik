@@ -22,6 +22,8 @@ Apply when working on database models, migrations, schema changes, or query logi
 | Vector search | pgvector on `postgres-main` + `fabrik-lib/rag` — ⚠️ the extension is NOT currently installed there (probed 2026-09-01: `postgres:16-alpine`, `plpgsql` only); a project needing vectors REQUESTS the fleet infra change first, never assumes it | same `postgres-main` DSN |
 | Legacy Supabase project (not yet migrated) | **Supabase** | Supabase connection string from dashboard |
 
+**"Own database" means a DATABASE on `postgres-main`, never a database SERVER.** Per-project and per-tenant isolation is a separate database (its own name, its own role) on the shared container — isolation, quota and backup are all satisfied at that grain. A dedicated Postgres instance is a decision, not a default: it needs its own `docs/DECISIONS.md` row naming what the shared server cannot serve (web-ecommerce-factory 01M1Q8X9, 2026-09-05: "one DB per store" read naively as one server per customer).
+
 **Decision:** `postgres-main` for everything — it self-hosts DB, auth (`fastapi-user-auth`), pgvector, and RLS. Supabase is **retired as a default** (see `agents-fabrik.md § Supabase`); use it only for a legacy project that already runs on it, and plan its migration to `postgres-main` + Pattern A.
 
 ---
