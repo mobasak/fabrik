@@ -1193,6 +1193,16 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## Measure a moved doc's survival with a fence-aware census (2026-09-05)
+
+T06c moved a 286-line orchestrator doc into a corpus source and had to prove nothing was gutted (a
+sibling's first draft lost ~23% of substance). A naive `^#` split counted the fenced report template's own
+`#`/`##` lines as eight extra "sections" and read one step as 1,545 B instead of 4,119 B — the survival table
+was wrong in both directions. Mask fenced blocks (and HTML comments) BEFORE splitting on headings, then
+report bytes per section old → new with every drop named and justified; a section that shrank without a
+named reason is the finding. The same census, run by the author-blind finder, is what proved 41 of 41 table
+rows and every bold bullet carried over.
+
 ## Lesson — a gate needs BOTH halves: red today, AND green on the correct work (2026-09-05)
 
 Five consecutive review rounds each found a defect introduced by the previous round's own fix, all of them gates. The cause was one habit: **a whole `Gate:` line was REPLACED rather than edited**, composed from what I intended the gate to do rather than from what the line already did — so whatever the old line asserted beyond my current intent vanished silently, and no count-based check could see it because the line count never changed.

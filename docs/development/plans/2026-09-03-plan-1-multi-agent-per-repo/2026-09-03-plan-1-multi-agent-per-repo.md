@@ -108,10 +108,10 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T04b | owned_paths into the plan's locks (the locks STAY in-repo, per spec r11) | — | ⚡ | ✅ | branch head eae893fe; merged 2026-09-05 |
 | T05a | epic containment in check_plan_tickets (both levels) | T04b | ⛓️ | ⬜ | |
 | T05b | epic_order --check as an optional Tier-2 gate check | T03a | ⛓️ | ✅ | branch head 3836b8e7; merged 2026-09-05 |
-| T06a | /fabrik-vision — mega 00 moved into a corpus source, with the rivals pre-step | — | ⚡ | ⬜ | |
-| T06b | /fabrik-epics — mega 02 + 03 moved into one corpus source; epics in a phase run concurrently | — | ⚡ | ⬜ | |
-| T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03a | ⛓️ | 🔵 | |
-| T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | 🔵 | |
+| T06a | /fabrik-vision — mega 00 moved into a corpus source, with the rivals pre-step | — | ⚡ | ✅ | branch head bcb92386; merged jointly under T07a 2026-09-05 |
+| T06b | /fabrik-epics — mega 02 + 03 moved into one corpus source; epics in a phase run concurrently | — | ⚡ | ✅ | branch head 08ade773; merged jointly under T07a 2026-09-05 |
+| T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03a | ⛓️ | ✅ | branch head 5554d167; merged jointly under T07a 2026-09-05 |
+| T07a | assembler: render the three sources, delete the orchestrator-wrapper path | T06a, T06b, T06c | ⛓️ | ✅ | branch head b5bad49c; merged 2026-09-05 |
 | T07b | router: three new stems for the assembled commands | T07a | ⛓️ | ⬜ | |
 | T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07a, T07b | ⛓️ | ⬜ | |
 | T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | ⬜ | |

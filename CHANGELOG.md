@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-vision` corpus source: mega 00 moved, with the rivals-dossier pre-step (2026-09-05)
+
+T06a of plan `2026-09-03-plan-1-multi-agent-per-repo` (spec § Chain consolidation (g)). The canonical text
+of `docs/orchestrator/mega-epic-breakdown/00-trigger-mega-epic-fabrik.md` moves into
+`commands/_sources/fabrik-vision.md`, the assembler-renderable corpus source (every old section carried;
+the maintainer edit-gate comment and the Examples pointer are the only drops). NEW mode's Path A discovery
+gains the rivals pre-step: `docs/reference/rivals/<market>.md` (written by `/fabrik-rivals`) seeds the
+Full Feature Inventory with its MATCH rows and the Value Streams / problems-to-solve with its BEAT rows;
+a market-facing vision with no dossier STOPS and names `/fabrik-rivals <market>`; internal tools and
+Retrofit skip it. Every `/fab-mega-02-decompose` reference becomes `/fabrik-epics`, every
+`epic-to-ticket-workflow` reference becomes the corpus chain. The old doc is untouched (T12a). Rendered
+box-wide at the joint T06 merge.
+
+### Added — `/fabrik-epics` corpus source: mega 02 + 03 folded into one command, phase-concurrent epics (2026-09-05)
+
+T06b of plan `2026-09-03-plan-1-multi-agent-per-repo`. `commands/_sources/fabrik-epics.md` (641 lines)
+consolidates `02-epic-decomposition-fabrik.md` + `03-expand-epic-files-fabrik.md` (548 + 337): decompose
+the confirmed Vision Summary into epics, then — after the owner's one Checkpoint — write every epic as a
+ticket file in the same run. Rewrites: "one epic at a time, sequential" becomes epics in the same
+`epic_order` phase running concurrently, one per named agent; the 3–7 band stays a SIGNAL beside the
+operator's E = 3–20 range (D-107); the epic frontmatter gains `owner: ""` (filled by
+`/fabrik-epics-review`'s `--assign` step); the Entry Point names `/fabrik-spec <this file>`; every
+`traycer_mirror.py` step is deleted. The two source docs are untouched (T12a/T12b). Rendered box-wide at
+the joint T06 merge.
+
+### Added — `/fabrik-epics-review` corpus source: mega 04 moved; Step 1.5 runs epic_order.py --check → --assign → --check --owners (2026-09-05)
+
+T06c of plan `2026-09-03-plan-1-multi-agent-per-repo`. `commands/_sources/fabrik-epics-review.md` moves
+`docs/orchestrator/mega-epic-breakdown/04-cross-epic-validation-fabrik.md` into the corpus (every section
+carried — a fence-aware census, 41 of 41 rows; the only drops the empty wrapper heading and the Traycer
+launch forms) and inserts Step 1.5 after the integrity gate: `python3 /opt/fabrik/scripts/epic_order.py
+--check` → `--assign <the operator's names>` → `--check --owners <the same names>`, so the owner row can
+never fail on a first pass; a PASS proves every same-phase lane disjoint under the two predicates the check
+runs, and lens C still intersects the real paths itself over every same-phase pair. The report path
+`docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` and the H1
+`# Cross-Epic Validation Report` are carried verbatim (the routing keys `check_review_coverage.py` reads);
+the close names `/fabrik-spec docs/development/epics/<its epic>.md` per window with the per-agent launch
+form. The old doc is untouched (T12b).
+
+### Changed — assembler: the orchestrator-wrapper path retired; the mega chain renders as three corpus commands (2026-09-05)
+
+T07a of plan `2026-09-03-plan-1-multi-agent-per-repo`. `commands/assemble_commands.py` loses
+`ORCH_SOURCES` (17 `fab-*` wrappers), `TRAYCER_SKILLS`, `_orch_phase_count`, `_render_orch_wrapper`,
+`_emit_orch_wrappers` and every reference (the collision guard, the keep-set union, `check()`'s
+tracked-wrapper loops and orphan union); gains `PARAMS` + `NEXT` for `/fabrik-vision`, `/fabrik-epics` and
+`/fabrik-epics-review` (the last naming `/fabrik-spec docs/development/epics/<its epic>.md` per window with
+`CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`); `/fabrik-rivals`' NEXT forks to
+`/fabrik-vision` for multi-epic work, trimmed under the 1024-char composed-description cap. The corpus
+now renders 36 commands + 36 skills + 4 agents with no unresolved placeholder left and no `fab-*` wrapper; the installed
+`fab-*` skills leave via the banner-guarded prune on this render. Grader:
+`tests/test_assemble_orch_retired.py` (136 tests across the three assembler suites; the prune and cap
+rows mutation-proven).
+
 ### Fixed — `epic_order.py --check` proves owned_paths disjointness for real: phase-keyed, realised file sets ∪ glob subsumption, cycles as findings (2026-09-05)
 
 T03b of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-117 proved the old check false by execution).
