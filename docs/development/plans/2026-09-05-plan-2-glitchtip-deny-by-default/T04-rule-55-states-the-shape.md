@@ -7,7 +7,7 @@ Owner: infra
 Depends: T01
 Parallel: ⚡
 Complexity: native
-Gate: python scripts/enforcement/check_command_corpus.py 2>/dev/null; python scripts/final_gate.py --lean --json
+Gate: python scripts/enforcement/check_command_corpus.py && python scripts/final_gate.py --lean --json
 Gate: grep -c "before_send_transaction" .windsurf/rules/core/55-observability.md
 Docs: CHANGELOG.md · docs/FEATURES.md (the scaffold's GlitchTip row: the shape, the three reaching types, the guard) — orchestrator-applied
 

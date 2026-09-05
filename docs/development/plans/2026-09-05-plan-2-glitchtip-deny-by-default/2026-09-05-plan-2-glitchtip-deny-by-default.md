@@ -156,7 +156,7 @@ $ grep -rn "before_send\|scrub" /opt/fabrik-lib/observability/*.py | wc -l
 ## Residual unknowns
 
 - **Resolved:** the logging-channel default (D-126); which types emit the init (3 Python, 1 Node, 1 browser); whether fabrik-lib holds a scrubber (no).
-- **Open — Node/browser parity:** `node-api`'s `Sentry.init` (`src/fabrik/scaffold.py:3613`) and `chrome-extension`'s BrowserClient have no `beforeSend` shape; owner fleet; probe: reproduce the URL-in-breadcrumb and logentry channels against `@sentry/node`, then a sibling plan. Named in the back-fill notices T02 sends at its merge.
+- **Open — Node/browser parity:** `node-api`'s `Sentry.init` (`src/fabrik/scaffold.py:3613`) and `chrome-extension`'s BrowserClient have no `beforeSend` shape; owner fleet; probe: reproduce the URL-in-breadcrumb and logentry channels against `@sentry/node`, then a sibling plan. Not in the back-fill notices (every recipient is a Python init — T02); it lives here, for the sibling plan.
 - **Open — the 11 deployed services:** they back-fill by vendoring the module themselves; the back-fill notices T02 sends at its merge names the step; nothing here re-emits them. Owner: each repo, on fleet's notice.
 
 ## Execution Discipline
