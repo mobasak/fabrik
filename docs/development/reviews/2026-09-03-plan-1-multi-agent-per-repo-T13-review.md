@@ -46,3 +46,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] the partial-add line embeds git's multi-line stderr → FIXUP (3).
 Round 3 verdict: 4 raised → 3 fix classes routed (2 H, 1 L), 1 recorded; pool: deepseek's mktemp item CONFIRMED as trigger B. Not the no-op round.
 
+## Round 4 — over `9c35928f..866c593a` (65,647 B; the round-3 fixup 866c593a: the reaper fails CLOSED on an empty/unavailable live-ids set and never reaps from a gitdir-file "repo"; the guard covered; the partial-add line single-line; 31 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 4.
+### Adjudication (pool layer)
+- gemini — CLEAN (31 passed; the fail-closed reaper + the top-level-"repo" skip, the isolated-index invariant, push batching, collision ids, the widened scope; its three numbered items are confirmations — the accepted cost, the top-level worktree's own autobackup snapshot being correct under the shared ref-store, the lazily-quoted trap verified by `test_main_tree_temp_index_is_cleaned_up_on_signalled_interruption`).
+- qwen — CLEAN (4/4 contract rows implemented and tested; DO-NOTs; Touches; the worktree snapshot placed above the main-tree dirty check).
+- deepseek — 1 raised: a repo whose LAST linked worktree is removed keeps its orphan rolling ref pinned (the live-ids file is empty → reaper skipped) — this is the cost the round-3 fixup ACCEPTED by design (fail closed over greedy), stated in the script's own skip line; not a new class. Whether an enumeration that itself proves emptiness (`git worktree list` returning only the main tree, vs `mktemp` failing) may reap is put to the native finder.
+Native finder (opus): PENDING — appended when it returns.
+
