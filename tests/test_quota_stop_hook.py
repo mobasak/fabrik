@@ -508,8 +508,8 @@ def test_an_unquoted_variable_word_splits_and_is_held_but_a_quoted_one_is_data()
     """`git push $PV` with `PV='origin --force'` exported before the hold made a forced update on a
     remote, and `git commit -m $MSG -- f` with a `--amend` inside amended a pushed commit (P23-A,
     executed): the checker's argv has one opaque token where bash, word-splitting the unquoted
-    expansion, has two. An unquoted `$NAME`/`${NAME}` is a veto; the quoted form expands to one
-    word and cannot become a flag, so it stays data."""
+    expansion, has two. An unquoted `$NAME` is a veto. A `$` INSIDE quoted text stays data — that
+    word starts with text and can never be flag-shaped (the whole-word `"$F"` is the next test)."""
     for cmd in (
         "git push $PV",
         "git commit -m $MSG -- f.py",
@@ -522,9 +522,40 @@ def test_an_unquoted_variable_word_splits_and_is_held_but_a_quoted_one_is_data()
         'git commit -m "fix: $X was wrong" -- f.py',
         'git commit -m "costs $5" -- f.py',
         "git commit -m 'literal $HOME' -- f.py",
-        'cat "$F"',
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+
+
+def test_a_quoted_expansion_that_is_a_whole_word_can_be_a_flag_and_is_held():
+    """Pass 24 claimed a quoted expansion "cannot become a flag". False for the whole-word form:
+    `git push origin "$F" HEAD:master` with `F='--force'` made a forced update on a remote (twice),
+    `git add "$X"` with `X='-A'` staged a sibling's untracked file, `git commit -m x -- "$FILES"`
+    with `FILES='.'` swept a sibling's staged work (pass 25, own probe + P24-A, executed) — the
+    masker hid the `$`, shlex saw `$F`, git got the flag. So a `$` that OPENS a word is a veto —
+    unquoted in any form (`$@`, `$*` escaped the old class) or first inside a double-quoted span —
+    and the masker keeps exactly that `$` visible. `"fix $X"` stays data: it starts with text."""
+    for cmd in (
+        'git push origin "$F" HEAD:master',
+        'git push "$PV"',
+        'git add "$X"',
+        'git commit -m x -- "$FILES"',
+        'git commit -m x -- "${FILES}"',
+        'git commit -m x -- "$@"',
+        "git push $@",
+        "git push origin $*",
+        'cat "$F"',  # whole-word expansion on a read tool: refused too, fail-closed
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
+    for cmd in (
+        'git commit -m "fix: $X was wrong" -- f.py',
+        'git commit -m "costs $5 a month" -- f.py',
+        "git commit -m 'literal $HOME' -- f.py",
+        'git commit -m "a$B" -- f.py',
+    ):
+        assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
+    assert "$" in hook._mask_quoted('git push "$F"')  # span-opening `$` stays visible
+    assert "$" not in hook._mask_quoted('echo "fix $X"')  # `$` inside text is data
+    assert "`" in hook._mask_quoted('echo "a `id` b"')  # a backtick inside double quotes still runs
 
 
 def test_a_lone_ampersand_after_a_digit_is_still_a_separator():

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 25 of the review: a `$` that OPENS a word is held at the quota hold — a quoted whole-word expansion can be a flag (2026-09-05)
+
+Pass 24 claimed a quoted expansion "is one word and cannot become a flag". False for the whole-word
+form: `git push origin "$F" HEAD:master` with `F='--force'` made a forced update on a remote, `git add
+"$X"` with `X='-A'` staged a sibling's untracked file, `git commit -m x -- "$FILES"` with `FILES='.'`
+swept a sibling's staged work — the masker hid the `$`, shlex saw `$F`, git got the flag. And the
+unquoted veto `\\$[\\w{]` missed `$@`/`$*`. One rule now: any `$` the masker leaves visible is a veto —
+unquoted in any form, or opening a double-quoted span — and the masker keeps exactly those visible
+while masking a `$` inside quoted text (`"fix $X"`, `"costs $5"` stay allowed: they start with text).
+`cat "$F"` flips to refused, fail-closed. Two graders and three masker assertions, red on revert;
+30 hook tests.
+
 ### Fixed — pass 24 of the review: an unquoted `$NAME` is held at the quota hold (it word-splits into flags), a quoted one is data, and a commit message is not a pathspec (2026-09-05)
 
 `git push $PV` with `PV='origin --force'` exported before the hold made a forced update on a remote,

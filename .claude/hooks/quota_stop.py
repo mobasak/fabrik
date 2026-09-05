@@ -116,7 +116,10 @@ _ALLOWED_BASH = re.compile(
 # set before the hold made a FORCED UPDATE on a remote, and `git commit -m $MSG` with a `--amend`
 # inside amended a pushed commit (pass 24, P23-A, executed) — the argv the checker reads has one
 # opaque token where bash has two. Quoted, it is one word and stays data (masked above).
-_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$\(|\$['\"]|\$[\w{]|`|\n|(?<!>)&(?!&)|[<>]\(")
+# …and since pass 25 ANY `$` the masker leaves visible is a veto: an unquoted one in any form
+# (`$@`, `$*` and friends escaped `\$[\w{]`), or one that OPENS a double-quoted span (`"$F"` — a
+# whole word that can be a flag). A `$` inside quoted text is masked and never reaches this.
+_UNSAFE_SHELL = re.compile(r"&&|\|\||;|\||\$|`|\n|(?<!>)&(?!&)|[<>]\(")
 # git VERBS carry no flag scope of their own, and every flag list of DANGEROUS ones was wrong the
 # next pass: `--output` (pass 14), `--upload-pack`/`--receive-pack` (17), quoted and abbreviated
 # forms (18), `--ext-diff`/`--chmod` (19), and then the convergence sweep (P19-A, 93 candidates,
@@ -380,7 +383,8 @@ def _mask_quoted(command: str) -> str:
     Every existing tooth survives, because masking only removes characters the SHELL would not
     have acted on either:
       - single-quoted spans are masked whole - the shell expands nothing inside them;
-      - double-quoted spans KEEP `$(` and a backtick, which the shell still runs there, so
+      - double-quoted spans KEEP `$(`, a backtick and a `$` that OPENS the span (a whole-word
+        expansion can be a flag), which the shell still runs or substitutes there, so
         `git status "$(rm -rf x)"` is still refused;
       - a backslash escape inside double quotes masks BOTH characters, since an escaped dollar
         or backtick is a literal rather than an expansion;
@@ -393,9 +397,11 @@ def _mask_quoted(command: str) -> str:
     """
     out: list[str] = []
     quote: str | None = None
+    span_start = False  # True for the first character inside a double-quoted span
     i, n = 0, len(command)
     while i < n:
         ch = command[i]
+        at_span_start, span_start = span_start, False
         if quote is None:
             if ch == "\\" and i + 1 < n:
                 # OUTSIDE quotes a backslash makes the next character literal, whatever it is —
@@ -411,6 +417,7 @@ def _mask_quoted(command: str) -> str:
                 continue
             if ch in ("'", '"'):
                 quote = ch
+                span_start = True
             out.append(ch)
             i += 1
         elif ch == quote:
@@ -423,16 +430,22 @@ def _mask_quoted(command: str) -> str:
         elif quote == '"' and ch == "\\" and i + 1 < n:
             out.extend(("x", "x"))  # an escaped $ ` " or \ is a literal, not an expansion
             i += 2
-        elif quote == '"' and (ch == "`" or (ch == "$" and i + 1 < n and command[i + 1] == "(")):
-            # the shell RUNS these inside double quotes - keep them visible. The `(` of a
-            # substitution rides along, because _UNSAFE_SHELL keys on the PAIR `$(`: masking the
-            # paren alone let a double-quoted command substitution through, which this fix's own
-            # test caught before it shipped. A plain `"$VAR"` is masked like any quoted data: it
-            # expands to ONE word and cannot become a flag (pass 24) - only the UNQUOTED form
-            # word-splits, and that one is vetoed on the masked line.
+        elif quote == '"' and (
+            ch == "`"
+            or (ch == "$" and i + 1 < n and command[i + 1] == "(")
+            or (ch == "$" and at_span_start)
+        ):
+            # the shell RUNS `$(` and a backtick inside double quotes - keep them visible (the `(`
+            # rides along: _UNSAFE_SHELL keys on the PAIR). A `$` that OPENS the span is kept too:
+            # `"$F"` is one word, and one word can BE a flag - `git push origin "$F"` with
+            # `F='--force'` made a forced update on a remote (pass 25, executed, twice) while shlex
+            # saw `$F`; `git add "$X"` staged a sibling's file, `-- "$FILES"` swept one. A `$`
+            # inside text (`"fix $X"`) is masked: that word starts with text and can never be
+            # flag-shaped. (Pass 24 masked every quoted `$`; its claim that a quoted expansion
+            # "cannot become a flag" was false for the whole-word form.)
             out.append(ch)
             i += 1
-            if ch == "$":
+            if ch == "$" and i < n and command[i] == "(":
                 out.append("(")
                 i += 1
         else:
