@@ -316,13 +316,16 @@ def refresh() -> dict:
     # single cron tick the stamp claimed today for a map last computed weeks earlier. The lineage is not
     # recoverable from this file, and a value you cannot derive must not be invented — so the honest
     # statement is the one thing this function actually knows: it carried the map, it did not compute it.
-    for superseded in (
+    # EVERY provenance key this function has ever authored is dropped first, the CURRENT one included:
+    # otherwise a previous file carrying the flag but no split rides it forward through `dict(prev)`
+    # and the sidecar asserts a carried split that is not there — the same orphan class the loop
+    # exists to close, reintroduced by the fix for it.
+    for authored in (
         "amortized_per_mtok_by_family_built_at",
         "amortized_per_mtok_by_family_carried_from",
+        "amortized_per_mtok_by_family_carried",
     ):
-        data.pop(
-            superseded, None
-        )  # authored by THIS function in earlier revisions; not a foreign key
+        data.pop(authored, None)  # authored HERE in some revision; never a foreign key
     if "amortized_per_mtok_by_family" in prev:
         data["amortized_per_mtok_by_family_carried"] = True
     data.update(

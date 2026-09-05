@@ -214,6 +214,25 @@ def test_the_carried_flag_is_absent_when_there_is_no_split(rig):
     assert "amortized_per_mtok_by_family_carried" not in data
 
 
+def test_an_orphan_carried_flag_does_not_ride_forward(rig):
+    """The flag is a key this producer AUTHORS, so it must be re-derived, never carried.
+
+    `data = dict(prev)` carries every foreign key forward — correct — but the flag is not foreign. A
+    previous file with the flag and no split would otherwise produce a sidecar asserting a carried
+    split that is not there: the same orphan class the pop loop above exists to close, reintroduced by
+    the fix for it.
+    """
+    rig.write_text(
+        json.dumps({"amortized_per_mtok_by_family_carried": True, "quota_draw_pct": 1.0}),
+        encoding="utf-8",
+    )
+    data = cpc.refresh()
+    assert "amortized_per_mtok_by_family" not in data
+    assert "amortized_per_mtok_by_family_carried" not in data, (
+        "the flag outlived the split it describes"
+    )
+
+
 # ─── the producer must never crash off its cron ──────────────────────────────────────────────────
 @pytest.mark.parametrize(
     "payload",
