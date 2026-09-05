@@ -145,4 +145,6 @@ Native: PENDING — appended when it returns.
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 (a fleet-wide ignore glob + a dated header — native probe; the previous native found the header's self-refutation) — round 12.
 ### Orchestrator execution (in the worktree)
 - `pytest tests/test_sync_worktree_adoption.py -q` → 67 passed; `ruff check` clean; `ruff format --check` 2 files already formatted; the floor tuple at `:370`, the dated header at `:483`.
-Pool + native: PENDING — appended when they return.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0394)
+- v3.2-exp CLEAN (the four round-11 items verified). v4-flash (1) and (2): the manifest / workflow-doc Touches letter — adjudicated orchestrator-directed in rounds 4/6/8/9/11, not re-litigated; the settings.json grader asserts `hooks`/`permissions` present and non-empty, not byte-identical to the base — PLAUSIBLE [L] (round 10's native proved the additivity by execution against 5fd58526; a grader pinning it would make that durable) — adjudicated on the native's return.
+Native: PENDING — appended when it returns.

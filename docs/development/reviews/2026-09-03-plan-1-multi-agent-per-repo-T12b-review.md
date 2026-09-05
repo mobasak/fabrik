@@ -1,6 +1,6 @@
 # Acceptance review — T12b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base c700e1b2 (master after the T12a merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -8,4 +8,7 @@
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a three-file rename; stated) — round 1.
 ### Orchestrator execution (in the worktree)
 - gate 1 (0 / 5) ok; gate 2 ok; bodies identical for 03 and 04; `--name-status -M` → R099, R098, R100; the 04 header's first line follows the shape.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0036)
+- Two CLEAN (three pure renames, headers vs the spec quotes, 05 byte-identical R100, six Touches, no other file). One raised Behavior-Contract row 3 (check_doc_links clean after the move) as unimplemented by the diff — ADJUDICATED exactly as T12a: the ticket's own Docs line assigns the referrer repair to the merge owner and its ⚠️ note explains why the check cannot gate here; satisfied at MERGE. Its second item (the gate's count of 5 depends on the base holding 2) — REFUTED by the coder's pre-check and the orchestrator's execution (base c700e1b2 held 00 + 02; the gate passed).
+### Verdict
+**0 findings on the coder's diff — no-op round.** Ledger: rename purity · header twins · the 05 relocation · relative links · referrers. **Status: CONVERGED** at `7fe45479`; merge owner: rename commit pure, then INDEX (the old `mega-epic-breakdown/_retired` node removed, the three rows added under `_retired/mega-epic-breakdown`), CHANGELOG, and `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md:7`'s relative path in the second commit; the 03 tombstone's `scripts/traycer_mirror.py` cite is scrubbed at T09's merge.

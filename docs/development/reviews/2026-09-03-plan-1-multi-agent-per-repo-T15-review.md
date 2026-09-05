@@ -1,6 +1,6 @@
 # Acceptance review — T15 (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base cb9716df — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -34,4 +34,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed L item; stated) — round 4.
 ### Orchestrator execution (in the worktree)
 - `pytest tests/test_docs_updater.py tests/enforcement/test_plan_shape_gates.py -q` → 89 passed; `ruff check` clean; `_cell` on `a|b` → `a\|b`, `a\|b` unchanged, `a\\|b` → `a\\\|b`, `a\\\|b` unchanged — each idempotent (executed).
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0113)
+- All three CLEAN: the three edge shapes (a backslash run at the very start then a pipe; a pipe at the end; a trailing lone backslash) handled by the parity regex; the compile at module level; nothing else in the fixup.
+### Verdict
+**0 findings — no-op round.** Ledger (four rounds): doc truthfulness vs master (the "not yet merged" labels are flipped by the merge owner at the T01b/T13 merges) · cell escaping (parity, closed) · compare scope · undecodable epics · AFTER-EDIT header · fleet mirror · gates. **Status: CONVERGED** at `735b3f0a`; merge with the fleet sync (`scripts/docs_updater.py` is a governance-sync trigger); the merge owner's deltas: CHANGELOG, the INDEX row + tree line for the new doc, `docs/README.md`'s `reference/` parenthetical, `.windsurf/rules/core/40-documentation.md`'s Tier-0 sentence (Doc Sync floor; T14a's edit to that file is a different sentence).

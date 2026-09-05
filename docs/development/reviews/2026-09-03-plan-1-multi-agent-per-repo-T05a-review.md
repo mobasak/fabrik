@@ -1,6 +1,6 @@
 # Acceptance review — T05a (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch (worktree-agent-aa202dd80ecd23540, head 6a065def) against its merge base 2f982a5f — `scripts/enforcement/check_plan_tickets.py` +269/−1 (FLEET-SYNCED), `tests/enforcement/test_plan_tickets_epic_scope.py` +287 (new, 8 tests). Coder: native Opus worktree (Execution Discipline). Gates: 8 passed; 321 across the five plan-ticket suites; ruff + format clean; mypy 0 new. Red-first: 5 of 8 red on the first run, the 3 vacuously-green rows proven by on-disk mutation (`_glob_covers` → `_covered_by`; an always-printed line mutated). Byte-identical proof on the live 33-ticket set (md5 `249e63c3…` both sides). Grounding measured: 10 live epics parsed (9 with `owned_paths`; the schema-less 2026-07-14 epic fails closed); 15-shape predicate table 15/15; `EPIC_HEADER_RE` fires on 1 archived plan fleet-wide. Coder's declared residual: a second `Epic:` line silently uses the first (0 spines carry two today).
 
@@ -124,4 +124,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed item; the new regex probed below; stated) — round 10.
 ### Orchestrator execution (in the worktree)
 - `pytest tests/enforcement/test_plan_tickets_epic_scope.py -q` → 84 passed; the five suites → 397 passed; `ruff check` clean, `ruff format --check` 2 files already formatted. `EPIC_HEADER_RE` probed through `finditer(...).group("path")`: `Epic: docs/**/x.md` → whole; **`Epic: epics/*` → `epics/*`**, **`Epic: docs/x/**` → `docs/x/**`**, **`Epic: …1-x.md*` → `…1-x.md*`** (the glob guard now sees every trailing star); `**Epic: …**` / `*Epic: …*` / `**Epic:** …` / the live prose-tailed form → the bare path; the asymmetric `**Epic: …1-x.md*` → `…1-x.md*` (unpaired tail kept — refused loudly by the guard); `- **Epic:**` → `''`.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0149)
+- Two CLEAN (the empty-`em` backreference is a no-op under Python `re` — confirmed; every non-parse or unusable shape errors, never silent; the 22-form table; the 397). One raised `*Epic: p**` — the opener `*` peels ONE of the two trailing stars, so the token is `p*` and the guard's message names `p*` rather than `p**`. ADJUDICATED: not a fail-open (the token still carries a `*`, so the glob guard refuses loudly — the reader's "no such file" claim is wrong: the guard fires first); a message imprecision on an input that is both emphasised AND a glob; 0 of the live population (1 header on the box, unbolded, no glob). REJECTED per FIX DIRECTIVE 5.
+### Verdict
+**0 findings — no-op round.** Ledger (this ticket's classes across ten rounds): two-header arm ordering · message attribution · emphasis tolerance (paired peel) · trailing-glob characters · fixture denominators · blank owned_paths · glob subsumption · parity/base identity · fuzz — all swept, all clean. **Status: CONVERGED** at `5549a1c4`; merge with the fleet sync (`scripts/enforcement/` is a trigger surface); INDEX row for the new test file + CHANGELOG are the merge owner's.
