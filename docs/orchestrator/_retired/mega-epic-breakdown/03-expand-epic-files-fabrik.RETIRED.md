@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — 03-expand-epic-files is no longer a command.
+     Its text now lives in `/fabrik-epics` (commands/_sources/fabrik-epics.md — spec § Chain consolidation (c): "`/fabrik-epics` (mega 02 + 03 — decompose and write the epic files in one command)"). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK ORCHESTRATOR COMMAND — OUR OWN TWIN OF `03-expand-epic-files-command.md`
      Unlike the Traycer source, our orchestrator READS THIS FILE DIRECTLY — no GUI copy-paste.
      It is TOOL-CAPABLE: it can read the repo, run commands, and fetch live sources.

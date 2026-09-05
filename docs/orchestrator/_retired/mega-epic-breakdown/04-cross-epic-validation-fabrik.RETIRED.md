@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-06 — 04-cross-epic-validation is no longer a command.
+     Its text now lives in `/fabrik-epics-review` (commands/_sources/fabrik-epics-review.md — spec § Chain consolidation (c): "`/fabrik-epics-review` (mega 04 — already the review twin; Step 1.5 = `epic_order.py --check` → `--assign` → re-check)"). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — CROSS-EPIC VALIDATION (our own, tool-capable twin of
      04-cross-epic-validation-command). Run DIRECTLY by our orchestrator agent (Opus 4.8, via the driver) —
      never pasted into a planner GUI.
