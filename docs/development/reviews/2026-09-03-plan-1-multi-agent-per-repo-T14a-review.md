@@ -1,6 +1,6 @@
 # Acceptance review — T14a (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base 3a4b5e77 (master after the T09 merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -8,4 +8,7 @@
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (three one-line edits; stated) — round 1.
 ### Orchestrator execution (in the worktree)
 - the grep gate → 0 files; `never edit the main checkout` → 1; `rollout wait` → 0; `2.1.248` present; the template's numstat +1/−0. Residuals the coder reported: `40-documentation.md:6`'s frontmatter CONSUMER comment ("Traycer plans; the hub's epic-to-ticket workflow injects…", space-separated — outside the literal gate) and the template's :45 "all three fail silently" above a four-item block — adjudicated below on the pool's return.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0071)
+- All three CLEAN: line (d) conditional ("MORE THAN ONE AGENT?", "a project with a database") and true for every scaffold type; PROBE FIRST and the fallback kept in the hub edit; the 2.1.248 floor is the spec's (:170/:285/:309); the rule-40 template path exists; the residuals belong to the merge owner / T16.
+### Verdict
+**0 findings — no-op round.** **Status: CONVERGED** at `e5d4470a`; merge with the fleet sync (all three files are trigger surfaces). Merge-owner fixups in the same commit, stated: the template's and the hub's `:45` "all three fail silently if skipped" → "all four" (the block is four items now — the coder held the template diff at +1 as the ticket demanded), and `40-documentation.md:6`'s frontmatter CONSUMER comment ("Traycer plans; the hub's epic-to-ticket workflow injects…") reworded to the corpus.

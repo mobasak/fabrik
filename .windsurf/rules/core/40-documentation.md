@@ -90,7 +90,7 @@ When a ticket changes code, check which triggers fire and inject the correspondi
 | New enforcement script | Registered in `final_gate.py` at correct tier |
 | HAS_USER_GUIDE = true | `docs/user-guide/<feature>.md` exists |
 
-The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. The hub's epic-to-ticket workflow (`/opt/fabrik/docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md`) injects these rows per ticket.
+The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
 
 ---
 
@@ -146,7 +146,7 @@ Plan execution extends this with `orchestrator`/`subagent`/`review-fix` roles + 
 
 **Update when:** Ticket's Lessons Learnt field has a trigger condition and it fires. Common triggers: auth changes, password/secret rotation, deploy/infra workaround, new registrar interaction, external service integration, high-risk area.
 
-**Format:** See the hub's `docs/orchestrator/epic-to-ticket-workflow/06-ticket-breakdown-fabrik.md` § Step 8 for the canonical entry structure (Lesson N, Context, Problem, Root Cause, Solution, Integration, Triggered By).
+**Format:** the ticket's Lessons Learnt field comes from `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority); the entry structure is the scaffold's `/opt/fabrik/templates/scaffold/docs/LESSONS_LEARNT_TEMPLATE.md` (Context, Problem, Root Cause, Solution, Integration, Triggered By).
 
 **Enforced:** Gate-checked. Ticket field = `none` OR entry exists. Silence = failure.
 

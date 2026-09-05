@@ -120,7 +120,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | ✅ | branch head 8249cf9d; merged 2026-09-06 (5c50c40e) |
 | T12a | Retire mega 00 + 02 → _retired/ (their text now lives in /fabrik-vision and /fabrik-epics) | T06a, T06b, T07a, T07b | ⛓️ | ✅ | branch head d9fd0b2e; merged 2026-09-06 (501dc5d0) |
 | T12b | Retire mega 03 + 04 → _retired/ and relocate the 05 tombstone; the mega dir keeps only the schema + checklist | T06b, T06c, T07a, T07b | ⛓️ | ✅ | branch head 7fe45479; merged 2026-09-06 (27fa93ca) |
-| T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T02a, T02b, T09 | ⛓️ | 🔵 | |
+| T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T02a, T02b, T09 | ⛓️ | ✅ | branch head e5d4470a; merged 2026-09-06 |
 | T14b | References — agents-fabrik.md, the north-star, command-corpus-check.md: zero references to the retired chains outside archives and ledgers | T09 | ⛓️ | 🔵 | |
 | T14c | The fabrik CLI's orchestrator hint names the assembled commands, not a docs/traycer path that does not exist | T09 | ⛓️ | ✅ | branch head f00dc5b1; merged 2026-09-06 |
 | T14d | review_rubric's dead checklist path, and the ~/.traycer install step | T09, T11 | ⛓️ | 🔵 | |

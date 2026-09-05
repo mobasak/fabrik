@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — governance texts for multi-agent-per-repo: the template's worktree line (d), the hub's messaging availability rule, 40-documentation's ticket-format pointer (2026-09-06)
+- **What:** `templates/governance/CLAUDE.md` § Orient's session-start block gains one line (d) — agents 2..N launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` and never edit the main checkout, every heredoc is quoted, linked worktrees share the project's `DATABASE_URL` (a migration in one is live for all) — distributed to 47 repos. Hub `CLAUDE.md`: the native cross-session channel's "rollout wait" clause becomes the availability rule (on at ≥2.1.224 on Linux/WSL 2; floor 2.1.248 on third-party providers or with feature-flag fetching off); an OFF probe is a box defect to fix. `.windsurf/rules/core/40-documentation.md` no longer cites the retired `06-ticket-breakdown` doc: `/fabrik-plan-after-chat` is the ticket-format authority; its frontmatter consumer comment reworded likewise. Both Orient blocks now say "all four fail silently".
+- **Where:** `templates/governance/CLAUDE.md`, `CLAUDE.md`, `.windsurf/rules/core/40-documentation.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14a).
+
 ### Fixed — `fabrik create` pointed at a docs/traycer path that does not exist (2026-09-06)
 - **What:** the post-scaffold hint told the operator to paste `docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md` (absent from the box) and follow the retired per-epic Traycer flow; it now names the assembled chain `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` → per window `/fabrik-spec <epic file>`. The string lives in the pure helper `_orchestrator_hint(name)`, guarded by `tests/test_cli_orchestrator_hint.py` (2 passed; watched red on the old text).
 - **Where:** `src/fabrik/cli.py`, `tests/test_cli_orchestrator_hint.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14c).

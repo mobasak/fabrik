@@ -399,12 +399,15 @@
       "rename_commit": "3ee1558d"
     },
     "T14a": {
-      "state": "review-round-1",
+      "state": "merged",
       "agent": "a811b022571f9956a",
       "branch": "worktree-agent-a811b022571f9956a",
       "base": "3a4b5e77",
       "updated": "2026-09-05T23:06:23+00:00",
-      "head": "e5d4470a"
+      "head": "e5d4470a",
+      "branch_head": "e5d4470a",
+      "merged_at": "2026-09-06T02:12:30",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14a-review.md"
     },
     "T14b": {
       "state": "dispatched",
