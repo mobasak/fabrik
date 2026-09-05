@@ -97,5 +97,9 @@ Round 7 verdict: 3 raised → 3 routed (1 M, 2 L) — one a regression from the 
 
 ## Round 8 — over `2f982a5f..d878138e` (the round-7 fixup d878138e, 26/12 + 76/0: the two-header arm on non-empty tokens with the only-valueless spine still one ERROR (V6b dead); trailing-slash dedup (S2 dead); a blank scalar is no declaration and a blank block item is named as unusable while the four empty declarations still report correctly (V7c/V7d dead, parametrized); 441 across six suites, 75 + 0 skipped; a harness anchor-uniqueness assertion caught a stale anchor rather than reporting a false kill)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 8.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — a three-deepseek draw
+- deepseek v4-flash (1) — CLEAN (5 rows; DO-NOTs; the predicate; containment refusals; 7 predicate tests, 20 fixtures, 18 integration tests).
+- deepseek v3.2-exp — CLEAN (the round-8 ledger's every edge).
+- deepseek v4-flash (2) — 1 raised: "when the epic is missing or has no owned_paths the early return skips the File-Scope link — a spine could widen its lock past the epic" — REFUTED: each of those early returns EMITS an ERROR ("no such file under", "carries no owned_paths", "is unusable"), which reds the gate; containment cannot run without the epic's paths and says so — fail CLOSED, not open (the plan's own spine carries no lock-widening path that bypasses an ERROR). Put to the native finder for the record.
+Native finder (opus): PENDING — appended when it returns.
 
