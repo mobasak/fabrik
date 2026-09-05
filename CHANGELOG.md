@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — four peer-reported defects in synced machinery: the armed pytest leg, the `models.py` schema trigger, the D-035 dash header, and a review ledger that outgrows the Read tool (2026-09-05)
+
+- `final_gate.py`: the armed-pytest leg (`.fabrik/run-pytest`) was ANDed with the `src/|tests/|scripts/`
+  prefix gate, so a repo whose code lives under `api/` armed the sentinel and still ran no tests on an
+  `api/`-only diff — green, invisibly; its suite found 2 real failures when finally run. The sentinel is
+  the opt-in: any change runs the suite; the prefix gate stays only for the legacy CI-text fallback.
+  (site-provisioner `01M1QS9527Y8K0P9VPE9XF5MYB`)
+- `check_doc_sync.py`: a file NAMED `models.py` demanded `db/schema.sql` — a BLOCKING false positive on a
+  Pydantic-only module (one `min_length` change was reverted rather than fake a schema edit). A
+  `models.py` is a schema trigger only when its content defines an ORM model; `models/`, migrations
+  and alembic paths keep the old verdict. (same mail)
+- `mail.py`: the D-035 structure checker accepted `KEY:` only, so `SYSTEMIC — the class…` — the contract
+  met in substance — was reported missing. A spaced em/en dash is a separator; a glued hyphen is not.
+  (site-provisioner `01M1QWM094Z6S0ZYGPKTB4NPY0`)
+- `/fabrik-review` § Reporting + `check_review_coverage.py`: a 53-round review's artifact reached 417 KB
+  against the Read tool's 256 KB ceiling and every finder was reduced to `sed`/`grep`. Past 200 KB the
+  per-round finding tables older than the last three passes rotate into a sibling `…-review-archive.md`;
+  the checklist, Pass Ledger, verdicts, gate and residuals stay in the head, and the coverage check skips
+  `*-archive.md`. (web-ecommerce-factory `01M1QT171DPCGA43Q0739WGGNP`)
+
+Every fix carries a grader proven red on revert; corpus rendered from master.
+
 ### Fixed — pass 28 of the review: digits after `-m` are the message too, so `-m5 .` no longer exempts the pathspec (2026-09-05)
 
 The pass-27 cluster rule stripped trailing digits before asking whether the first `m`/`F` was the

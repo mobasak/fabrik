@@ -134,6 +134,30 @@ def _schema_doc_for(path: str) -> str:
     return "db/schema.sql"
 
 
+_ORM_MARKERS = re.compile(
+    r"__tablename__|declarative_base|DeclarativeBase|mapped_column|\bColumn\(|\bTable\(|"
+    r"models\.Model\b|\bSQLModel\b|peewee|tortoise|django\.db",
+)
+
+
+def _is_orm_model(f: str) -> bool:
+    """A file NAMED models.py is a schema trigger only when its CONTENT defines an ORM model.
+
+    The filename alone fired on a pure-Pydantic `models.py` (one `min_length` change) and demanded
+    `db/schema.sql` — a BLOCKING false positive that cost a real improvement (site-provisioner
+    01M1QS9527Y8K0P9VPE9XF5MYB, 2026-09-05). A directory hit (`models/`) or an unreadable file keeps
+    the old verdict: fail closed toward the schema demand.
+    """
+    p = Path(f)
+    if p.is_dir() or p.suffix != ".py":
+        return True
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return True
+    return bool(_ORM_MARKERS.search(text))
+
+
 def _is_significant_code(f: str) -> bool:
     if _skip(f):
         return False
@@ -388,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
         # case-insensitive to match check_doc_stubs._schema (which doc_reconcile's Tier-1 loop reuses)
         # — else a `Db/Migrations/x.sql` would reconcile the data-contract but not fire this ERROR gate.
         and (
-            re.search(r"(^|/)models?(\.py|/)", f, re.IGNORECASE)
+            (re.search(r"(^|/)models?(\.py|/)", f, re.IGNORECASE) and _is_orm_model(f))
             or "/migrations/" in f.lower()
             or "/alembic/" in f.lower()
         )

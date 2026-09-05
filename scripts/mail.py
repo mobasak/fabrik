@@ -668,6 +668,9 @@ def _structure_gaps(kind: str, body: str) -> list[str]:
     #   3. content was required INLINE after the colon, so a section whose body is a
     #      block on the following lines (a command, a list, a table) read as empty.
     # An empty section is still a gap: the look-ahead stops at the next header.
+    # A header may end in ` — ` (em/en dash, spaced) as well as `:` — `SYSTEMIC — the class…` is the
+    # contract met in substance; the colon-only form reported it missing (site-provisioner
+    # 01M1QWM094Z6S0ZYGPKTB4NPY0, 2026-09-05). A bare hyphen is NOT a separator (`WHY-not`).
     keys = "|".join(
         _STRUCTURE_KEYS
     )  # only the contract's own keys may be slash-combined (abc/WHO: never credits WHO)
@@ -676,14 +679,14 @@ def _structure_gaps(kind: str, body: str) -> list[str]:
         # `WHEN/WHO:` credits both keys (01M1H52X); a backtick before the colon means the colon
         # belongs to a `path:line`, not to the header (01M1J0KY: `WHERE — \`x.py:496\`:` passed).
         return _re.compile(
-            rf"(?i)^[*#\-]{{0,3}} ?(?:(?:{keys})/)*{k}\b(?:/(?:{keys}))*[^:\n`]{{0,120}}:(.*)$"
+            rf"(?i)^[*#\-]{{0,3}} ?(?:(?:{keys})/)*{k}\b(?:/(?:{keys}))*[^:\n`]{{0,120}}(?::|\s[—–]\s)(.*)$"
         )
 
     def substantive(s: str) -> bool:
         return len(_re.sub(r"\s", "", s)) >= 2
 
     any_header = _re.compile(
-        rf"(?i)^[*#\-]{{0,3}} ?(?:(?:{keys})/)*(?:{'|'.join(_STRUCTURE_KEYS)})\b(?:/(?:{keys}))*[^:\n`]{{0,120}}:"
+        rf"(?i)^[*#\-]{{0,3}} ?(?:(?:{keys})/)*(?:{'|'.join(_STRUCTURE_KEYS)})\b(?:/(?:{keys}))*[^:\n`]{{0,120}}(?::|\s[—–]\s)"
     )
 
     gaps = []

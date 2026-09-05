@@ -38,7 +38,10 @@ def _run_on(tmp_path: Path, text: str) -> subprocess.CompletedProcess:
     f.write_text(text, encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), str(f)],
-        cwd=REPO, capture_output=True, text=True, timeout=120,
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
 
 
@@ -54,3 +57,25 @@ def test_explicit_path_passes_a_clean_artifact(tmp_path):
     )
     r = _run_on(tmp_path, good)
     assert r.returncode == 0, f"rc={r.returncode} out={r.stdout!r} err={r.stderr!r}"
+
+
+def test_a_rotated_archive_md_is_not_a_review_artifact(tmp_path: Path):
+    """A long review rotates its older finding tables into `<stem>-archive.md` (/fabrik-review
+    § Reporting, web-ecommerce-factory 01M1QT171DPCGA43Q0739WGGNP: 417 KB against a 256 KB Read
+    ceiling). The archive carries counter rows and no checklist by design — read as a review it
+    would fail the checklist rule; `_changed_md` must skip it."""
+    import importlib.util
+
+    sp = importlib.util.spec_from_file_location("crc", SCRIPT)
+    crc = importlib.util.module_from_spec(sp)
+    sp.loader.exec_module(crc)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    (d / "2026-09-05-x-review-archive.md").write_text(
+        "# archive\n\n| Pass 1 | method: citation | found: 3 | new: 3 | fixed: 3 | finders: p |\n"
+    )
+    (d / "2026-09-05-x-review.md").write_text("# head\n\n## Coverage Checklist\n")
+    paths, _notes, untracked = crc._changed_md(tmp_path, "docs/development/reviews/")
+    names = sorted(p.name for p in [*paths, *untracked])  # untracked drafts ride the third slot
+    assert names == ["2026-09-05-x-review.md"], names

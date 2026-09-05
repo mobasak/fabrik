@@ -192,9 +192,12 @@ def test_backticked_placeholder_word_in_prose_is_not_unfinished_work(repo: Path)
     `todo`/`tbd`)" — and the bare-token scan read the inline-code `todo` as unfinished work,
     reddening the gate for every agent in the repo.
     """
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Fixed — scanner tuned (2026-08-10)\n"
-           "- placeholder family narrowed (`example`/`sample`/`dummy`/`todo`/`tbd`).\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed — scanner tuned (2026-08-10)\n"
+        "- placeholder family narrowed (`example`/`sample`/`dummy`/`todo`/`tbd`).\n",
+    )
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     r = _run(repo)
@@ -203,9 +206,12 @@ def test_backticked_placeholder_word_in_prose_is_not_unfinished_work(repo: Path)
 
 def test_bare_todo_in_the_changelog_still_fails(repo: Path) -> None:
     """The guard must keep catching a REAL unfinished-work marker outside code ticks."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Added — thing (2026-08-10)\n"
-           "- shipped the thing. TODO: write the docs.\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Added — thing (2026-08-10)\n"
+        "- shipped the thing. TODO: write the docs.\n",
+    )
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     assert _run(repo).returncode == 1
@@ -215,9 +221,12 @@ def test_an_unbalanced_backtick_cannot_swallow_a_real_todo(repo: Path) -> None:
     """Inline-span stripping pairs backticks left-to-right, so ONE stray tick earlier on the line
     swallows everything up to the next tick — including a plainly-written unfinished-work marker.
     A typo elsewhere must not disable the guard (native review finding, reproduced)."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
-           "- The `run flag is gone; TODO: document the `--force` path\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
+        "- The `run flag is gone; TODO: document the `--force` path\n",
+    )
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     r = _run(repo)
@@ -230,9 +239,12 @@ def test_a_quoted_task_marker_is_documentation_not_unfinished_work(repo: Path) -
     because the CHANGELOG paragraph describing the detector necessarily QUOTES the tokens it
     detects. A gate that cannot describe its own behaviour is broken. Inside balanced ticks is a
     quotation; the question this gate asks is only "is the entry itself a stub?"."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
-           "- left a `TODO: wire the OOM alert` in poll_worker\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed — thing (2026-08-10)\n"
+        "- left a `TODO: wire the OOM alert` in poll_worker\n",
+    )
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     assert _run(repo).returncode == 0
@@ -242,10 +254,13 @@ def test_the_gate_accepts_an_entry_describing_its_own_detector(repo: Path) -> No
     """The self-inflicted hub-RED (review finding): this exact prose blocked every agent in the
     repo, with a message claiming [Unreleased] was 'empty or has a placeholder' while it held
     thousands of real entries."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Fixed — doc-sync guard (2026-08-10)\n"
-           "- a stray tick swallowed `TODO: document the --force path`; the template tokens\n"
-           "  `<brief title>` / `<description>` were also read from the wrong body.\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Fixed — doc-sync guard (2026-08-10)\n"
+        "- a stray tick swallowed `TODO: document the --force path`; the template tokens\n"
+        "  `<brief title>` / `<description>` were also read from the wrong body.\n",
+    )
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     r = _run(repo)
@@ -255,10 +270,15 @@ def test_the_gate_accepts_an_entry_describing_its_own_detector(repo: Path) -> No
 def test_plural_and_comment_forms_inside_ticks_are_quotations(repo: Path) -> None:
     """Strip/detect asymmetry (review finding): the detector had `s?`, the strip did not, so
     `todos` was rejected — a plausible real entry in any of ~48 repos."""
-    for line in ("- scanner lists the `todos` it found",
-                 "- the linter now understands `# TODO` comments"):
-        _write(repo, "CHANGELOG.md",
-               f"# Changelog\n\n## [Unreleased]\n\n### Fixed — x (2026-08-10)\n{line}\n")
+    for line in (
+        "- scanner lists the `todos` it found",
+        "- the linter now understands `# TODO` comments",
+    ):
+        _write(
+            repo,
+            "CHANGELOG.md",
+            f"# Changelog\n\n## [Unreleased]\n\n### Fixed — x (2026-08-10)\n{line}\n",
+        )
         _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
         _stage(repo, "CHANGELOG.md", "src/app/handler.py")
         assert _run(repo).returncode == 0, line
@@ -266,9 +286,12 @@ def test_plural_and_comment_forms_inside_ticks_are_quotations(repo: Path) -> Non
 
 def test_an_actually_pasted_template_placeholder_is_still_rejected(repo: Path) -> None:
     """The real template is pasted WITHOUT ticks — that is the stub this gate exists to catch."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Added — <brief title> (2026-08-10)\n"
-           "- <description>\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Added — <brief title> (2026-08-10)\n"
+        "- <description>\n",
+    )
     _write(repo, "src/app/handler.py", "def f():\n    return 1\n")
     _stage(repo, "CHANGELOG.md", "src/app/handler.py")
     r = _run(repo)
@@ -279,11 +302,17 @@ def test_prose_fallback_does_not_fire_the_resilience_warning(repo):
     """2026-08-26 (web-ecommerce-factory upstream, measured 4/4 prose false-positives):
     the word "fallback" in a comment or operator-facing string is not a resilience
     pattern — a WARN whose only correct response is to ignore it trains scroll-past."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Added — classifier default (2026-08-26)\n- x\n")
-    _write(repo, "src/app/classify.py",
-           "def classify(x):\n    # the fallback class shown to a human in the scan report\n"
-           "    return 'fallback: unknown'\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Added — classifier default (2026-08-26)\n- x\n",
+    )
+    _write(
+        repo,
+        "src/app/classify.py",
+        "def classify(x):\n    # the fallback class shown to a human in the scan report\n"
+        "    return 'fallback: unknown'\n",
+    )
     _stage(repo, "CHANGELOG.md", "src/app/classify.py")
     r = _run(repo)
     assert "RESILIENCE" not in r.stdout, r.stdout
@@ -291,10 +320,16 @@ def test_prose_fallback_does_not_fire_the_resilience_warning(repo):
 
 def test_retry_still_fires_the_resilience_warning(repo):
     """The counter-direction: dropping \\bfallback\\b must not have taken retry with it."""
-    _write(repo, "CHANGELOG.md",
-           "# Changelog\n\n## [Unreleased]\n\n### Added — retrying client (2026-08-26)\n- x\n")
-    _write(repo, "src/app/client.py",
-           "def get(x):\n    for attempt in range(3):  # retry with backoff\n        pass\n")
+    _write(
+        repo,
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\n### Added — retrying client (2026-08-26)\n- x\n",
+    )
+    _write(
+        repo,
+        "src/app/client.py",
+        "def get(x):\n    for attempt in range(3):  # retry with backoff\n        pass\n",
+    )
     _stage(repo, "CHANGELOG.md", "src/app/client.py")
     r = _run(repo)
     assert "RESILIENCE" in r.stdout, r.stdout
@@ -366,7 +401,10 @@ def test_the_rule_fires_in_range_mode_too(repo: Path) -> None:
     _commit(repo, "phase")
     r = subprocess.run(
         [sys.executable, str(CHECK), "--range", "HEAD~1..HEAD"],
-        cwd=repo, capture_output=True, text=True, timeout=30,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert r.returncode == 1, r.stdout
     assert "[Unreleased] section was not" in r.stdout, r.stdout
@@ -385,7 +423,10 @@ def test_range_mode_accepts_a_touched_section(repo: Path) -> None:
     _commit(repo, "phase")
     r = subprocess.run(
         [sys.executable, str(CHECK), "--range", "HEAD~1..HEAD"],
-        cwd=repo, capture_output=True, text=True, timeout=30,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert "[Unreleased] section was not" not in r.stdout, r.stdout
 
@@ -399,3 +440,40 @@ def test_an_unreadable_baseline_fails_open(repo: Path) -> None:
     _stage(repo, "src/app/handler.py", "CHANGELOG.md")
     r = _run(repo)
     assert r.returncode == 0, r.stdout
+
+
+def test_a_pydantic_only_models_py_does_not_demand_the_schema_dump(repo: Path) -> None:
+    """The trigger matched the FILENAME: one `min_length` change in a Pydantic-only `models.py`
+    was blocked for a missing `db/schema.sql` (site-provisioner 01M1QS9527Y8K0P9VPE9XF5MYB,
+    2026-09-05). A `models.py` is a schema trigger only when its content defines an ORM model."""
+    _write(
+        repo, "db/schema.sql", "-- schema\n"
+    )  # TRACKED: the old trigger exempted repos without a dump
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    _write(repo, "CHANGELOG.md", CHANGELOG_OK)
+    _write(
+        repo,
+        "api/models.py",
+        "from pydantic import BaseModel\n\nclass Site(BaseModel):\n    name: str\n",
+    )
+    _stage(repo, "CHANGELOG.md", "api/models.py")
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "schema.sql" not in (r.stdout + r.stderr)
+
+
+def test_an_orm_models_py_still_demands_the_schema_dump(repo: Path) -> None:
+    _write(repo, "CHANGELOG.md", CHANGELOG_OK)
+    _write(repo, "db/schema.sql", "-- schema\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    _write(
+        repo,
+        "app/models.py",
+        "from sqlalchemy import Column, Integer\n\nclass Site(Base):\n    __tablename__ = 'site'\n    id = Column(Integer, primary_key=True)\n",
+    )
+    _stage(repo, "app/models.py")
+    r = _run(repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "schema.sql" in (r.stdout + r.stderr)

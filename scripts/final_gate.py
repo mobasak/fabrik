@@ -999,11 +999,19 @@ def run_static_checks(
                 continue
         return False
 
+    # The sentinel is the OPT-IN: a repo that armed `.fabrik/run-pytest` runs its suite on ANY
+    # change. The three-prefix gate below applied to the armed leg too, so a repo whose code
+    # lives under `api/` armed the gate on infra's instruction and still ran no tests on an
+    # `api/`-only diff — green, and invisible (site-provisioner 01M1QS9527Y8K0P9VPE9XF5MYB,
+    # 2026-09-05; its suite found 2 real failures when finally run). The prefix gate stays only
+    # for the legacy CI-text fallback, whose blast radius (29 unarmed repos) was measured above.
+    _armed = (PROJECT_ROOT / ".fabrik" / "run-pytest").exists()
     if (
         (PROJECT_ROOT / "tests").is_dir()
         and _ci_runs_pytest()
         and (
-            not changed
+            _armed
+            or not changed
             or _has_path_prefix(changed, "src/")
             or _has_path_prefix(changed, "tests/")
             or _has_path_prefix(changed, "scripts/")

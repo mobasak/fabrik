@@ -94,7 +94,15 @@ def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Pa
     untracked: list[Path] = []
     for line in out.splitlines():
         rel = line[3:].split(" -> ")[-1].strip().strip('"')
-        if not (rel.endswith(".md") and "archived/" not in rel and (root / rel).is_file()):
+        # `*-archive.md` is a long review's rotated finding tables (the head file keeps the checklist,
+        # the Pass Ledger and the exit proofs — /fabrik-review § Reporting, 2026-09-05); it carries no
+        # checklist by design and must not be read as a review artifact.
+        if not (
+            rel.endswith(".md")
+            and not rel.endswith("-archive.md")
+            and "archived/" not in rel
+            and (root / rel).is_file()
+        ):
             continue
         # Shared-master: '??' = untracked AND unstaged — a sibling session's (or a
         # not-yet-staged) in-flight draft. The checklist is enforced at the
@@ -332,7 +340,8 @@ _PATHISH = re.compile(r"[\w-]+[./][\w./-]+")
 # Twin of check_convergence._REDERIVATION_ROW — keep in lockstep (see the check below).
 # D-053 (amended): method-cell-anchored, same-line, any gap — lockstep with the twin.
 _REDERIVATION_ROW = re.compile(
-    r"\b(?:pass|round)\b[^\n]*\bmethod\W{0,4}\s*:?\s*\*{0,2}\s*re-?deriv", re.I)
+    r"\b(?:pass|round)\b[^\n]*\bmethod\W{0,4}\s*:?\s*\*{0,2}\s*re-?deriv", re.I
+)
 
 
 def _in_progress(text: str) -> bool:

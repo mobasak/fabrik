@@ -1,12 +1,14 @@
 # AFTER-EDIT: scripts/mail.py | none
 """D-035 — the inter-agent message contract: 5W1H + factual WHY + SYSTEMIC mandatory
 on substantive kinds (finding/request/upstream-feedback); advisory (warn, never refuse)."""
+
 import importlib.util
 import sys
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(
-    "fabrik_mail", Path(__file__).resolve().parent.parent / "scripts/mail.py")
+    "fabrik_mail", Path(__file__).resolve().parent.parent / "scripts/mail.py"
+)
 mail = importlib.util.module_from_spec(_spec)
 sys.modules["fabrik_mail"] = mail
 _spec.loader.exec_module(mail)
@@ -46,11 +48,18 @@ def test_empty_headers_and_quoted_blocks_do_not_satisfy():
     templates satisfied the checker — structure without content, or someone else's."""
     empty = "WHAT:\nWHERE:\nWHEN:\nWHO:\nWHY:\nHOW:\nSYSTEMIC:\n"
     assert len(mail._structure_gaps("finding", empty)) == 7
-    quoted = "\n".join(f"> {k}: real content here" for k in
-                       ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC"))
+    quoted = "\n".join(
+        f"> {k}: real content here"
+        for k in ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC")
+    )
     assert len(mail._structure_gaps("finding", quoted)) == 7
-    fenced = "```\n" + "\n".join(f"{k}: template" for k in
-                                 ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC")) + "\n```\n"
+    fenced = (
+        "```\n"
+        + "\n".join(
+            f"{k}: template" for k in ("WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC")
+        )
+        + "\n```\n"
+    )
     assert len(mail._structure_gaps("finding", fenced)) == 7
 
 
@@ -120,8 +129,10 @@ def test_header_whose_body_is_a_block_on_following_lines():
 
 def test_header_immediately_followed_by_another_header_is_still_empty():
     """The look-ahead must not paper over a genuinely empty section."""
-    body = ("Subject: x\nWHAT: the thing\nWHERE: f.py:1\nWHEN: today\nWHO: fleet\n"
-            "WHY:\nHOW: like so\nSYSTEMIC: the class\n")
+    body = (
+        "Subject: x\nWHAT: the thing\nWHERE: f.py:1\nWHEN: today\nWHO: fleet\n"
+        "WHY:\nHOW: like so\nSYSTEMIC: the class\n"
+    )
     assert mail._structure_gaps("finding", body) == ["WHY"]
 
 
@@ -131,18 +142,42 @@ def test_header_immediately_followed_by_another_header_is_still_empty():
 def test_slash_combined_header_credits_both_keys():
     """`WHEN/WHO: 2026-09-02, intel` is the form the corpus itself invites; the checker credited
     only the first key and warned 'missing: WHO' on a compliant finding (01M1H52X)."""
-    body = ("WHAT: a thing\nWHERE: f.py:1\nWHEN/WHO: 2026-09-02, intel (three sessions)\n"
-            "WHY: proven\nHOW: so\nSYSTEMIC: class\n")
+    body = (
+        "WHAT: a thing\nWHERE: f.py:1\nWHEN/WHO: 2026-09-02, intel (three sessions)\n"
+        "WHY: proven\nHOW: so\nSYSTEMIC: class\n"
+    )
     assert mail._structure_gaps("finding", body) == []
     # only the contract's own keys combine: an arbitrary prefix never credits the key (review, pass 1)
-    garbage = body.replace("WHEN/WHO:", "abc/WHO:").replace("WHERE: f.py:1", "WHERE: f.py:1\nWHEN: today")
+    garbage = body.replace("WHEN/WHO:", "abc/WHO:").replace(
+        "WHERE: f.py:1", "WHERE: f.py:1\nWHEN: today"
+    )
     assert mail._structure_gaps("finding", garbage) == ["WHO"]
 
 
-def test_a_path_colon_inside_an_em_dash_header_does_not_pass_the_section():
-    """`WHERE — \\`scripts/x.py:496\\`:` is NOT a `WHERE:` header; the old regex stopped at the
-    `:496` colon and captured the tail as content, passing one mis-formatted section while
-    flagging the six written identically (01M1J0KY)."""
-    body = ("WHAT — a\nWHERE — `scripts/sync_enforcement_to_projects.py:496`:\nWHEN — today\n"
-            "WHO — me\nWHY — proven\nHOW — so\nSYSTEMIC — class\n")
-    assert len(mail._structure_gaps("finding", body)) == 7
+def test_a_path_colon_never_credits_a_section_but_a_spaced_dash_does():
+    """01M1J0KY: `WHERE — \\`scripts/x.py:496\\`:` once passed because the regex stopped at the
+    `:496` colon and read the tail as content, while the six sections written identically were
+    flagged — the backtick-colon rule fixed that. Since 2026-09-05 the spaced dash itself is a
+    separator (site-provisioner 01M1QWM094Z6S0ZYGPKTB4NPY0), so this body now credits every
+    section EXCEPT `WHAT — a` (one character is not content); the colon inside the backticks
+    still credits nothing on its own."""
+    body = (
+        "WHAT — a\nWHERE — `scripts/sync_enforcement_to_projects.py:496`:\nWHEN — today\n"
+        "WHO — me\nWHY — proven\nHOW — so\nSYSTEMIC — class\n"
+    )
+    assert mail._structure_gaps("finding", body) == ["WHAT"]
+    colon_only = body.replace("WHERE — `", "WHERE `").replace("WHAT — a", "WHAT: a thing")
+    assert "WHERE" in mail._structure_gaps("finding", colon_only)
+
+
+def test_a_header_ending_in_a_spaced_dash_is_a_header():
+    """`SYSTEMIC — the class…` met the D-035 contract in substance and was reported missing
+    (site-provisioner 01M1QWM094Z6S0ZYGPKTB4NPY0, 2026-09-05): the checker wanted a colon. A
+    spaced em/en dash is a separator; a glued hyphen (`WHY-not`) is not."""
+    m = mail
+    dashed = "\n".join(f"{k} — content for {k}" for k in m._STRUCTURE_KEYS)
+    assert m._structure_gaps("finding", dashed) == []
+    en = dashed.replace(" — ", " – ")
+    assert m._structure_gaps("finding", en) == []
+    glued = "\n".join(f"{k}-content" for k in m._STRUCTURE_KEYS)
+    assert set(m._structure_gaps("finding", glued)) == set(m._STRUCTURE_KEYS)
