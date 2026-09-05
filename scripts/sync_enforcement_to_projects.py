@@ -194,7 +194,7 @@ def _is_git_repo(project_dir: Path) -> bool:
         return False
 
 
-def _uncovered_essentials(project_dir: Path) -> list[str]:
+def _uncovered_essentials(project_dir: Path) -> list[tuple[str, str]]:
     """Which floor patterns git does NOT ignore here — the names the failure message must carry."""
     missing: list[str] = []
     for pattern in _ESSENTIAL_PATTERNS:
@@ -206,9 +206,32 @@ def _uncovered_essentials(project_dir: Path) -> list[str]:
                 check=False,
             )
         except OSError:
-            return list(_ESSENTIAL_PATTERNS)
-        if proc.returncode != 0:
-            missing.append(pattern)
+            return [(pat, "no-rule") for pat in _ESSENTIAL_PATTERNS]
+        if proc.returncode == 0:
+            continue
+
+        # WHY the pattern is uncovered decides the REMEDY, and the two causes need opposite
+        # actions. `git check-ignore` consults the index: a TRACKED path is never reported as
+        # ignored, however correct the rule is. So a failure here means either
+        #   (a) no rule matches — a negation, a nested .gitignore, or a missing line; fix the
+        #       .gitignore; or
+        #   (b) a rule matches perfectly but the path is already COMMITTED — editing the
+        #       .gitignore can never fix it; the path must leave the index.
+        # `--no-index` evaluates the rules alone, which separates them. Measured 2026-09-05 on
+        # /opt/proxy: 1,341 tracked files under `.venv/` with a correct `.venv/` rule at line 6
+        # — this function reported it as uncovered and the caller told the operator to hunt for
+        # an overriding rule that does not exist.
+        try:
+            rule_only = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                ["git", "check-ignore", "-q", "--no-index", pattern],
+                cwd=project_dir,
+                capture_output=True,
+                check=False,
+            )
+        except OSError:
+            missing.append((pattern, "no-rule"))
+            continue
+        missing.append((pattern, "tracked" if rule_only.returncode == 0 else "no-rule"))
     return missing
 
 
@@ -696,14 +719,31 @@ def sync_scripts_to_project(
                         if _is_git_repo(project_dir) and not _git_covers_essentials(project_dir):
                             _SAFETY_FLOOR_FAILURES.append(project_dir.name)
                             missing = _uncovered_essentials(project_dir)
+                            tracked = [pat for pat, why in missing if why == "tracked"]
+                            unruled = [pat for pat, why in missing if why != "tracked"]
+                            names = ", ".join(pat for pat, _ in missing) or "a floor pattern"
                             print(
                                 f"  ❌ {project_dir.name}: SAFETY FLOOR FAILED — "
-                                f"{', '.join(missing) or 'a floor pattern'} is STILL not ignored "
-                                f"after repair (the message names the FAILING pattern — it used to "
-                                f"say `.env` whatever failed, 01M1H1V2). A project rule is overriding "
-                                f"it (look for a negation or a nested .gitignore). FIX THIS BY HAND: "
-                                f"a `git add -A` here can commit what the floor exists to hide."
+                                f"{names} is STILL not ignored after repair (the message names the "
+                                f"FAILING pattern — it used to say `.env` whatever failed, 01M1H1V2). "
+                                f"FIX THIS BY HAND: a `git add -A` here can commit what the floor "
+                                f"exists to hide."
                             )
+                            # The CAUSE decides the remedy, and naming the wrong one sends the
+                            # operator somewhere the fix cannot be (01M1RFZE, /opt/proxy).
+                            if tracked:
+                                print(
+                                    f"     ↳ ALREADY TRACKED: {', '.join(tracked)} — the ignore rule "
+                                    f"is CORRECT and matches; git never ignores a committed path. "
+                                    f"Editing .gitignore cannot fix this. Run: "
+                                    f"git -C {project_dir} rm -r --cached {' '.join(tracked)} "
+                                    f"&& git -C {project_dir} commit -m 'untrack ignored paths'"
+                                )
+                            if unruled:
+                                print(
+                                    f"     ↳ NO MATCHING RULE: {', '.join(unruled)} — a project rule "
+                                    f"is overriding it (look for a negation or a nested .gitignore)."
+                                )
                     file_results.append(
                         SyncResult("COPY", gitignore, gitignore, ".gitignore Fabrik-synced block")
                     )

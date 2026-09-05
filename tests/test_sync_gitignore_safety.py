@@ -238,3 +238,64 @@ def test_the_fabrik_block_alone_is_not_safe(sync, block):
     substitute for the project's ignore rules. If this ever starts passing, the block has silently
     taken on project-hygiene duties and this whole net needs rethinking."""
     assert not sync._covers_essentials(block)
+
+
+# ── The CAUSE of a floor failure decides the remedy, and the two are opposites ─────────────────
+# Found 2026-09-05 on /opt/proxy (routed as 01M1RFZE): the safety floor failed on `.venv/` and the
+# message told the operator "a project rule is overriding it (look for a negation or a nested
+# .gitignore)". There was no such rule — `.venv/` sat correctly at line 6 of the project's own
+# .gitignore. The real cause was 1,341 TRACKED files under `.venv/`, and `git check-ignore`
+# consults the index: a committed path is never reported as ignored, however right the rule is.
+#
+# Editing .gitignore could never have fixed it. Naming the wrong cause sends the operator to the
+# one place the fix is not.
+
+
+def _floor_repo(tmp_path: Path, name: str, gitignore: str, *, track: str | None = None) -> Path:
+    repo = tmp_path / name
+    (repo / "sub").mkdir(parents=True)
+    (repo / ".gitignore").write_text(gitignore)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    if track:
+        (repo / track).mkdir(parents=True, exist_ok=True)
+        (repo / track / "f.txt").write_text("x")
+        # -f because the path IS ignored — which is precisely how a venv gets committed by hand.
+        subprocess.run(["git", "add", "-f", track], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "track it"], cwd=repo, check=True)
+    return repo
+
+
+def test_uncovered_essential_reports_tracked_when_the_rule_is_right_but_the_path_is_committed(
+    sync, tmp_path
+):
+    """The /opt/proxy shape: a correct rule, defeated by the path already being in the index."""
+    repo = _floor_repo(tmp_path, "tracked", ".env\n.venv/\n__pycache__/\n", track=".venv")
+
+    result = sync._uncovered_essentials(repo)
+
+    assert result == [(".venv/", "tracked")], (
+        f"expected the cause to be reported as 'tracked', got {result!r} — if this says 'no-rule' "
+        "the operator is told to hunt for an overriding rule that does not exist, and editing "
+        ".gitignore can never fix a committed path"
+    )
+
+
+def test_uncovered_essential_reports_no_rule_when_a_negation_defeats_the_floor(sync, tmp_path):
+    """The other cause, which needs the opposite remedy: the .gitignore really is wrong."""
+    repo = _floor_repo(tmp_path, "negated", ".env\n.venv/\n!.venv/\n__pycache__/\n")
+
+    result = sync._uncovered_essentials(repo)
+
+    assert result == [(".venv/", "no-rule")], (
+        f"a negation must be reported as 'no-rule' (fix the .gitignore), got {result!r}"
+    )
+
+
+def test_a_healthy_project_reports_nothing_uncovered(sync, tmp_path):
+    """The floor must not cry wolf on a correct project — a detector that fires on a legitimate
+    pattern is wallpaper, and wallpaper is how enforcement dies."""
+    repo = _floor_repo(tmp_path, "healthy", ".env\n.venv/\n__pycache__/\n")
+
+    assert sync._uncovered_essentials(repo) == []

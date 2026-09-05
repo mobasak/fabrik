@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the sync's safety-floor failure named the wrong CAUSE, sending the operator where the fix cannot be (2026-09-05)
+
+Routed to fleet by infra as `01M1RFZE951JMZDA4BY07HT0Q5`: the governance sync exits 1 on `/opt/proxy`
+with "`.venv/` is STILL not ignored … A project rule is overriding it (look for a negation or a nested
+.gitignore). FIX THIS BY HAND."
+
+**There is no such rule.** `.venv/` sits correctly at line 6 of that project's own `.gitignore`, and
+`git check-ignore --no-index` confirms the rule matches. The real cause is **1,341 tracked files under
+`.venv/`** — a committed virtualenv. `git check-ignore` consults the index, and a committed path is never
+reported as ignored however right the rule is. Editing `.gitignore` could not have fixed it.
+
+`_uncovered_essentials` now returns `(pattern, cause)` and distinguishes the two by re-running with
+`--no-index`: **`tracked`** (the rule matches, the path is committed → `git rm -r --cached`) versus
+**`no-rule`** (a negation or nested ignore → fix the `.gitignore`). The failure message prints the remedy
+that actually applies to each. Graded three ways — the tracked shape, the negation shape, and a healthy
+project reporting nothing — red on revert (HEAD returns `['.venv/']`, the pattern with no cause).
+
+Two corrections to the relayed report, both checked rather than accepted: **`.env` is NOT committable in
+that project** — it is ignored at line 12 and has never been tracked (0 commits touching it), so no secret
+is exposed; and the only negation in the file is `!.env.example`, which is correct. The floor was right
+that something was wrong and wrong about what.
+
+`/opt/proxy` itself is untouched — a cross-repo mutation, and its fix (`git rm -r --cached .venv`) is the
+project's to make.
+
 ### Changed — agent_role hook accepts any `[a-z0-9-]{1,32}` agent name, charter optional (2026-09-05)
 
 T02a of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `.claude/hooks/agent_role.py` no
