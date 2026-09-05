@@ -17,5 +17,9 @@ Merge-owed: CHANGELOG + INDEX rows for T03b (orchestrator Deltas). Round 1 verdi
 
 ## Round 2 — over `6a5c5990..291f79fc` (the round-1 fixup 291f79fc, 48/12 + 63/0: `_forms(pattern)` — a wildcard-free entry stands for itself AND its subtree, ORed into both predicates so `_realise`/`_owns_migrations` inherit it; 14 red on e9b84dc7 → green; the naive expand-everything variant proven load-bearing by an on-disk mutation (4 red); the docstring names overlap-without-subsumption with the soundness figure; `parallel_with` naming itself is a finding; 66 + 64 green)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 2.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — the draw returned three deepseek-family units (v4-flash ×2 + v3.2-exp); noted for the flywheel
+- deepseek v4-flash (1) — "no defects"; its one edge: a wildcard-free FILE entry (`src/app.py`) also stands for `src/app.py/**`, so `_glob_matches("src/app.py", "src/app.py/models/m.py")` is True — harmless in practice (no real path has a file as a directory component) — put to the native finder for the false-finding question against a sibling; `.` → owns everything (correct for "the whole repo").
+- deepseek v3.2-exp — CLEAN (5 rows; `_forms`; the docstring; the self-reference finding; 64 + 66 green).
+- deepseek v4-flash (2) — CLEAN (rows; empty/absent owned_paths; the three `parallel_with` contradictions; separator-awareness; the subtree expansion; the perf test; 25 test functions).
+Native finder (opus): PENDING — appended when it returns.
 
