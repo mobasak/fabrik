@@ -51,3 +51,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] the :502 "9 of 2146" ratio not reproducible at any bound (8 of 1,007 in the gate's own scope; 0 classes at every bound) → FIXUP (2). [L] `>> Epic:` / `> > Epic:` / `>Epic:` still parse to nothing → fail-open in the direction round 2 closed (0 of 993 live) → FIXUP (3). [L, adjacent, pre-existing] `_staleness` prints the uppercased trailer key so the error string cannot be grepped in the spine → FIXUP (4).
 Round 3 verdict: 3 raised + 1 adjacent → 4 routed (1 M, 3 L); pool 3/3 CLEAN missed the intra-segment class. Not the no-op round.
 
+## Round 4 — over `2f982a5f..1238d8db` (69,644 B; the re-port 06d38837 — nine symbols byte-identical to T03a@2bd530fe under `# fmt: off`, three fence fixtures F18–F20 (two red on the old copy), the parity test symbol by symbol — and the round-3 fixup 1238d8db: `_seg_regex` replaced by the two-pointer `_seg_matches` (74 s → 0 ms; the red run 128 s; 64,266 fuzz pairs + the 58-pair table clean), the ratio bounded (8 of 1,007 across 15 live sets in 7 repos, 0 alternation sets), nested/space-less blockquotes parse fail-closed, `_staleness` quotes the trailer as written; 410 passed + 1 skipped; 6/6 mutants dead with M4′ re-anchored) — T03a merged to master at 28de4900 during this round, so the parity guard must now run and pass
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 4.
+Pool + native: PENDING — appended when they return.
+
