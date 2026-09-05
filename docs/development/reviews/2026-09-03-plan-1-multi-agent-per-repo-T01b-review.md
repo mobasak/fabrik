@@ -28,3 +28,11 @@ Coder claims verified: (a) seed semantics ✓ except key order; (b) resync edge 
 - the same with the tracked template's 5 `#` header lines above the entry → `"result":"worktree-probe-agent2\nSECRET_CARRIED_VALUE_67890"` — comment lines are inert (T01a-routed question CLOSED; no manifest/template change).
 
 Round 1 verdict: 12 raised → 10 fix classes routed to the coder (1 H, 3 M, 6 L), 1 refuted-as-delivered, 1 recorded for T16. Not the no-op round.
+
+## Round 2 — over `5fd58526..16b59ddd` (36,454 B; the round-1 fixup: master merged at 90d568a3, ten classes, 12 passed + 40 neighbours)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 2.
+### Adjudication (pool layer)
+- gemini — CLEAN over the 8 behaviours (config seeding, worktree discovery, secrets-exclude seeding via the git-common-dir, check-ignore verification, dir mirroring with pruning, `--backup/--force`, lock syncing after the lock write, settings durability).
+- qwen — CLEAN; the info/exclude seeding judged safe for 45 repos because `.env`/`.mcp.json` are already in the synced `.gitignore` block (a repo-wide safety net, not a behaviour change).
+- deepseek — 1 raised: `_project_worktree_dirs` returns ALL linked worktrees, not only those under `.claude/worktrees/`, contradicting its docstring — the round-1 native finder proved the opposite by probe on b79c918b ("worktree outside `.claude/worktrees/` → skipped via `relative_to`"); whether the fixup changed that is carried to the native finder (a docstring-vs-code check).
+Native finder (opus): PENDING — appended when it returns.

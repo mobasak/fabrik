@@ -53,3 +53,11 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] EVALUATION_CHECKLIST :176 item 93 still says "Traycer tickets", contradicting the rewritten item 81 and 84f → FIXUP (6).
 - [L] `--assign x --json` / `--assign a --check` silently discard the second flag → FIXUP (7).
 Round 3 verdict: 7 findings (2 M, 5 L) → FIXUP routed to the coder; pool: 2 refuted by reading, 2 carried items resolved by the native probes (one confirmed narrowly, one re-attributed). Not the no-op round.
+
+## Round 4 — over `716ce944..b0377293` (68,582 B; the round-3 fixup b0377293: 36 passed, seven classes red-first incl. a real block-list parser and `require_epics`)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 4.
+### Adjudication (pool layer)
+- gemini — CLEAN (6/6 rows, 3/3 DO-NOTs, 4/4 files; `require_epics`; the block parser "handles quoted items, skips comments/blank lines" — the last clause is WRONG, see below; local terminator :246-248; one-CR strip :255; usage errors :317; docs).
+- qwen — 2 raised: "the block parser keeps quotes and inline comments" — HALF right: quotes ARE stripped (`.strip("\"'")`), but an inline ` # comment` survives and then mis-strips the quote pair (`- "src/a/**"  # core` → `src/a/**"  # core`) → CONFIRMED by the orchestrator's read of :58-70 → FIXUP; "the disjointness finding now fires on non-parallel epics sharing a path" — it refuted itself mid-sentence (the check compares declared peers only; T03b re-keys it to phases).
+- deepseek — 15 checks then 2 raised: the block loop ends at the first blank or `#` line inside the block, silently TRUNCATING the list (the vacuous-pass shape the parser was added to close) → CONFIRMED by reading (the `while` condition requires an indented `- ` line) → same FIXUP class; the tail append "could add an extra blank line when `owned_paths:` is the last field" → [L] carried to the coder as a probe + test.
+Round 4 verdict (pool): 1 fix class (block-list robustness: inline comments, interior blank/comment lines, placement regex agreement) + 1 L probe → FIXUP routed before the native verdict, on the strength of the code read. Native finder (opus): PENDING — appended when it returns.
