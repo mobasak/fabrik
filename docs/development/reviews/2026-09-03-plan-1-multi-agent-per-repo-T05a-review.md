@@ -86,5 +86,9 @@ Round 6 verdict: 7 raised → 7 routed (1 M, 6 L) — graders and two messages; 
 
 ## Round 7 — over `2f982a5f..9d668a93` (the round-6 fixup 9d668a93, 18/2 + 93/15: seven graders each killing its named mutant — B4b via a `../` header naming an EXISTING outside file, U4b via three legitimate `..`-inside-a-segment entries, N10 via "no such file under", U8 via a per-shape reason table (the coder's first assert was satisfied by the message's tail and tightened), N4b via a backtick-wrapped quoted entry, V6 via `(\S*)` failing a valueless header closed (box-wide fire rate unchanged), V7 via `./` classified before the empty-drop; the paired-quote strip kept as a graded cheap tolerance; 434 passed across six suites, 68 + 0 skipped; all three harnesses dead)
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 7.
-Pool + native: PENDING — appended when they return.
+### Adjudication (pool layer) — a three-deepseek draw
+- deepseek v4-flash (1) — 1 raised: a hand-trace claiming the star-first branch "consumes" a literal `*` rather than matching it as a wildcard — the differential fuzz (304,348 pairs against an independent reference, 0 mismatches, incl. exhaustive `{a,b,*,?}^≤4` on both sides) settles the semantics; put to the native finder only for the record.
+- deepseek v3.2-exp — CLEAN (rows, DO-NOTs, Touches, the port, the predicate, fail-closed paths).
+- deepseek v4-flash (2) — CLEAN (the seven round-6 items located; the refusal reasons; the parity port; byte-identity vs base).
+Native finder (opus): PENDING — appended when it returns.
 
