@@ -145,13 +145,13 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02b-review.md"
     },
     "T13": {
-      "state": "review-round-9",
+      "state": "fixup-round-9",
       "branch": "worktree-agent-aca08762aa41073a1",
       "coder": "native sonnet worktree (plan said pool for `complex`; D6 record: the pool write-mode coder returned an unverified diff on T03a, so native is used for every coding ticket)",
       "dispatched_at": "2026-09-05T13:13:13",
       "branch_head": "866c593a",
       "round": 1,
-      "updated": "2026-09-05T18:25:50+00:00",
+      "updated": "2026-09-05T18:55:43+00:00",
       "head": "4922737b"
     },
     "T04a": {
@@ -249,12 +249,12 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T07a-review.md"
     },
     "T07b": {
-      "state": "fixup-round-1",
+      "state": "review-round-2",
       "agent": "a0861a06f14bb9eb3",
       "branch": "worktree-agent-a0861a06f14bb9eb3",
       "base": "a6518d1e",
-      "updated": "2026-09-05T18:34:40+00:00",
-      "head": "8b8d8661"
+      "updated": "2026-09-05T18:55:43+00:00",
+      "head": "5bda5c6f"
     },
     "T14e": {
       "state": "merged",
