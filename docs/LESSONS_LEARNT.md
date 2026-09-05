@@ -6067,3 +6067,29 @@ one path (`git add -N <file>`), or give the tool the path directly (`check_doc_s
 
 **Guard:** `git status --porcelain | grep '^ A'` before every scoped commit — an intent-to-add entry you did not
 make is a sibling's file, and it is reset, never staged.
+
+## A chain that reads its own success from a proxy commits past its own red (2026-09-05)
+
+Three slips in one review, one pattern. (1) An edit script died on a SyntaxError before any edit
+applied; the chain ran on, and a commit shipped whose message, CHANGELOG entry and artifact row
+named five fixes its code carried two of — I had read the green test line as proof the edit was
+in. (2) `pytest … | tail -1` hid the exit code from `set -e`, and a commit with one red test was
+pushed and synced fleet-wide before the next command noticed. (3) A push whose last line read
+"…and the repository exists." was skimmed as success. In each case the CHECK existed and ran; what
+I read was a proxy for it — a print that didn't fire, a truncated pipe, a tail line — and the
+proxy said nothing while the check said red.
+
+**Rule:** the proof of an edit is the edit's own print or a grep of its marker; the proof of a
+test run is its exit code carried to the chain (`pytest > log; tail log` — never `pytest | tail`);
+the proof of a push is the `old..new  branch -> branch` line, read, not the last line. A chain
+that cannot show which of these it read did not verify — it narrated. Sibling of the HARD STOP
+"report a thing WORKS from a PROXY when the real check is executable": this is the same defect
+one layer down, where the real check DID run and its result was thrown away by the plumbing.
+
+**Design lesson from the same run:** every list of DANGEROUS things was wrong the next pass
+(fourteen passes of flags, then quoting forms, then `$` shapes); the fixes that held were the
+POSITIVE ones — the flags a checkpoint needs, the exact template shape, "any `$` the masker leaves
+visible" — and the claim that made pass 24 wrong ("a quoted expansion cannot become a flag") was a
+negative asserted without a counter-search. When a guard is a list of the bad, expect the next
+finder to extend the list; when it is a list of the good, expect the next finder to find a false
+deny — and prefer the second failure mode on a hold whose purpose is to lose no work.

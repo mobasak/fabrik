@@ -1,6 +1,6 @@
 # Review — the mail-queue session's nine commits (hooks · enforcement · synced rules · fragments)
 
-Status: IN-PROGRESS — passes 1–13 recorded, pass 14 in flight; every pass since 11 has found one more pre-existing hole in the quota hold by execution, each fixed with a grader.
+Status: CONVERGED — 28 passes; the no-op round is pass 28 (a full fresh sweep: pool 5 of 5 on the pinned pass-27/28 diff + native P28-A on the pinned copy at df2ce0d2 — 615 cluster forms, the 26-form ledger, 7 last-hunt forms, `main()` wiring — every finder returned, 0 findings). The nine reviewed commits stand; the review itself shipped 28 fix commits (7af1fec1's quota hold was the surface that kept opening: passes 11–28 each proved a pre-existing hole BY EXECUTION and closed it with a red-on-revert grader — six classes: quoting/masking, shell operators, file redirection, tools' own write/exec paths, git verbs → a positive per-verb flag set, pathspec/refspec sweeps, and `$` expansion in three shapes). Closing HEAD df2ce0d2; every gate in this file was re-measured at the close.
 
 Surface: `8f0b9910957dd2ab26ccf4ff83aa9905194ea74b` + combined-diff md5 `8012bcaba5a597cb7b8eb0745d016ee5` (post pass-2; the pass-1 surface was `f4e67cfe…` / `e387e471…`)
 (the surface is a COMMIT SET, not the working tree — `git diff HEAD` is empty at a clean tree, so its
@@ -119,9 +119,189 @@ post-commit sync. A defect here is a defect everywhere, which is why (f) is a fi
 | Pass 25 | method: re-derivation | found: 2 | new: 2 | fixed: 2 | finders: pool 25 (dispatched 5 over the pass-24/25 diff, returned 5, $0.051, all scored; p1: escaped-newline hole CONFIRMED by execution; p2 CLEAN with counts (9 verbs, 78 long flags, 12 operators, 22 patterns); p3: a wrong denominator claim (`cat "$F"` was NOT pre-denied — `\\b` sits between `t` and the space) and a vacuous-control note; p4 CLEAN; p5: the deny message does not say variables are refused — named, not fixed: the message names the exact shape and a variable is not in it) + native P25-A (`$`-rule sweep on the pinned copy, 23 tool uses, ~30 probes: 1 class CONFIRMED on disk — `./$FILES` on add/commit/reset; `"x$F"` in flag/refspec positions named safe-by-coincidence (git's exact matching); 13 `$`-shapes refuted; P24-A's 4 denied; ledger 12 of 12) + orchestrator (the pass-25 chain's red-test slip named and fixed in 25b) |
 | Pass 26 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: pool 26 (dispatched 5 over the pass-25/26 diff, returned 5, $0.050, all scored: CLEAN 5 of 5 — p2 with counts 47/33/15/112, p3 confirmed all 5 new deny forms as NEW denials, p4 consistent) + native P26-A (full ledger on the pinned copy, 17 tool uses: 25 of 25 ledger forms denied; 15 new probes — 1 CONFIRMED sweep via `-mF`, 4 availability hangs (named, measured, not fixed), 1 plausible tty hang, 3 refuted by execution, 6 by-design) + orchestrator (cluster value semantics; the LESSONS_LEARNT entry for the run's three proxy slips written). One edit (pass 27's commit) |
 | Pass 27 | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: pool 27 (dispatched 5 over the pass-26/27 diff, returned 5, $0.058, all scored; p1: `-m5` digits CONFIRMED; p2 CLEAN with counts (11/2/14 allow-list, 8 verbs, 76 long flags, 46 letters); p3: missing allow-side assertion CONFIRMED (added); p4 CLEAN; p5: `-m"msg"` false deny named) + native P27-A (cluster rule on the pinned copy, 9 tool uses, 23 candidates: 4 CONFIRMED — one class, digits after m; 9 by-design; residuals #9/#11 named; ledger 26 of 26 denied — reconstructed from the code's own fix history, the finder flagged, not a byte-identical replay) + orchestrator (probed `-m5` on disk before either finder returned; the digit strip moved after the value rule). One edit (pass 28's commit) |
+| Pass 28 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: pool 28 (dispatched 5 over the pass-27/28 diff, returned 5, $0.040, all scored: 4 CLEAN with counts; p4's `-m5x`/`-m5F` claim REFUTED by execution — `rstrip` strips trailing digits only, both held) + native P28-A (cluster grammar exhaustively on the pinned copy, 11 tool uses: 615 forms tried, 26 allowed, 26 executed, 0 confirmed; ledger 26 of 26 denied; 7 last-hunt forms 0; `main()` stdin/JSON wiring verified; its own harness's false-baseline bug caught and fixed before reporting) + orchestrator (re-executed the one pool claim). THE NO-OP ROUND — a full fresh sweep, not a round scoped to the last fix; `command_run.py` printed the TERMINAL verdict |
 
-(Pass 14 raised 3, fixed; Pass 15 — a fresh sweep of the pass-14 fixes — follows.)
 
 ## Gate
 
-(re-measured in the closing pass, never inherited)
+Re-measured at the close (`python scripts/final_gate.py --check --json`, HEAD df2ce0d2), verbatim:
+
+```json
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 54,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "pytest"
+  ],
+  "advisory": [
+    {
+      "check": "pytest (NOT RUN)",
+      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 23 identical \u00b7 20 declared-design \u00b7 44 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_lint_ratchet.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_phase_tests.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_review_coverage.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it i\n\u2026 [truncated: ~35 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 35,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 24 CONVERGED spec(s) examined, 12 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 16 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 2 CONVERGED in-window plan(s) examined, 2 with findings (artifact-only; reading quality is the review's)\n  QUOTE-NOT-FOUND: 2026-09-03-plan-1-multi-agent-per-repo.md digest cites core/10-python.md which does not exist\n  ... 16 more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed\n  -> quote one mandate verbatim per MATCHED pack (file:line) in the Constraints Digest - the quote is the proof the pack was open; run review_rubric.py --changed <File Scope> for the MATCHED set",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 18 close(s) in 14d, 1 with NO verdict (verdict given or not; honesty not gradeable)\n  UNSTATED: fabrik-probe (probe-fb)\n  -> close with --feedback: what you filed and to whom, or 'none' plus the surfaces you exercised (commands/_fragments/close-feedback.md)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 138 advertised phrase(s) - 97 reach their own command, 41 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Retired-Tech Tripwire",
+      "output": "WARN: docs/CAPABILITIES.md:16: unmarked retired-tech mention: - [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.\nWARN: docs/CAPABILITIES.md:62: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:71: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CAPABILITIES.md:167: unmarked retired-tech mention: - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrap\nWARN: docs/CAPABILITIES.md:293: unmarked retired-tech mention: - [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selectio\nWARN: docs/CAPABILITIES.md:300: unmarked retired-tech mention: - [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) \u2014 generate or expla\nWARN: docs/CONFIGURATION.md:799: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:397: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve tr\n\u2026 [truncated: ~60 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ns for Windsurf Cascade\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:43: unmarked retired-tech mention: | `opencode.json` | Kilo CLI configuration |\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:69: unmarked retired-tech mention: | `kilo_code_review.py` | Kilo CLI review integration |\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:150: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 72 WARN(s) \u2014 advisory only, not blocking",
+      "truncated": true,
+      "omitted_lines": 60,
+      "rerun": "python scripts/enforcement/check_retired_terms.py"
+    },
+    {
+      "check": "Rule-pack reachability",
+      "output": "reachable: core/75-workers-jobs.md @ file-worker \u2014 via worker\n  reachable: core/app-audit-log.md @ saas-skeleton \u2014 via server/src/probe_saas_skeleton/auth.py\nExamined 2 pack(s) / 2 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK \u2014 every VERIFIABLE applies_to claim reaches at least one emitted path (2 of 2 examined pack(s) verified).",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": ".env.example Completeness",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Phase Tests (plan-window)",
+      "output": "PHASE-TESTS (advisory): OK \u2014 no active plan window shipping behavior without tests.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Ticket Breadth (plan sets)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 36,
+  "failures": [],
+  "warnings": [
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop, BLOCKED-escalate the stuck finding, or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T04-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-\n\u2026 [truncated: ~4 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ng-enforcement-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-05-mail-queue-fixes-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 0 changed review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 4,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 23 identical \u00b7 20 declared-design \u00b7 44 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_lint_ratchet.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_phase_tests.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_review_coverage.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it i\n\u2026 [truncated: ~35 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 35,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    }
+  ]
+}
+```
+
+## Verdict (per reviewed commit)
+
+| sha | verdict |
+|---|---|
+| `7af1fec1` quota_stop masking | HELD after 18 further fixes on the same surface (passes 11–28): the masking design was right; the hold around it was porous in six classes, all now closed with graders — see C5 |
+| `4567e606` plan-set gates | HELD; pass-2/3 fixes (external root threaded into staleness, PASS summary denominators) — C2/C7 |
+| `0dd638f6` PayTR provider set (D-120) | HELD; blast-radius claims re-read for all 12 scaffold types — C10; the `88` BIN line predicated on both rails |
+| `214d9e49` three rule packs | HELD; version-literal residue closed — C7 |
+| `e5df1eed` grounding fragments | HELD; four fetch-failure shapes stand; `<scratchpad>` is the corpus convention — C15 |
+| `5abab982` check_convergence out-of-surface | HELD; GATE-SCOPE grammar closed by contract (one line, N≥1, three value forms, fence-strip precedent) — C2 |
+| `f35c6b64` oauth retry bound + twin | HELD; twins byte-identical, single-copy figures in the STRATEGIC_BACKLOG row — C9 |
+| `c7a825ee` skill_router stem | HELD; `deploy-checklist` after `deploy-verify`, corpus walked — C8 |
+| `f4e67cfe` lessons | HELD |
+
+## Self-audit
+
+- Method: every finding in this file was proven by EXECUTION before a fix (a marker file, a moved ref, a staged sibling file), never by reading; every fix carries a grader proven red on revert with the backup asserted first.
+- Denominators: every count names its population (forms tried, finders returned/died, tests, files, lines).
+- What this review cannot claim: the hold is now closed against the classes named in C5; a class not yet named is not excluded — that is what the next review's finders are for. Named, not held: the four read-tool hang forms (availability, bounded by the tool timeout), `-m"msg"`, `-mx`, a real file named `-x`/`--x`, a directory pathspec, a named file a sibling also edited, a `$VAR` that pre-dates the hold used INSIDE a quoted message.
+- Own defects recorded in the ledger: the pass-19 edit script that died silently (96868261's false claim, repaired in cbad9ff2), the pass-25 chain that committed past a red test (9b83d75e, repaired in 90711d80), the pass-24 design claim falsified in pass 25 — lesson written to `docs/LESSONS_LEARNT.md`.
