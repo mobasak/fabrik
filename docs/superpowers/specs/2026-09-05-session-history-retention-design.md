@@ -1,6 +1,6 @@
 # Session-history retention + durability — design
 
-Status: DRAFT
+Status: CONVERGED
 Date: 2026-09-05
 Owner: fleet (box-local infrastructure / DR)
 Trigger: operator, this session — "now we must fix this properly", after 11 project dirs were
@@ -21,6 +21,15 @@ survivor is a local Postgres database with **zero backups**, and that database i
 dead SSD from taking three months of history with it.
 
 ## Measured baseline (all re-derived this run; commands in § Evidence)
+
+⚠️ **Every figure below is a SNAPSHOT, and this store grows while you read it.** Later sections
+quote later measurements of the same quantities and they will not match — that is growth, not
+error, and the document says so rather than silently reconciling: the index was **10,050 sessions
+at the first measurement, 10,075 an hour later, 10,177 at the closing review**; MAIN was 5,807
+files / 5.49 GB and re-derived at 5,915 / 5.53 GB; the pool ledgers were 648 MB and 445 MB three
+hours apart. Treat every number here as "at least this, at that moment", never as a fixed
+denominator. The one figure that must NOT drift is 2,938 reclaim-eligible pre-August sessions —
+re-derived unchanged at the closing review, because nothing has run `--full`.
 
 | Quantity | Value |
 |---|---|
@@ -128,15 +137,30 @@ Four tiers, and the order is a safety property, not a preference:
 | Hot | `~/.claude/projects/*.jsonl` MAIN | 90 days | prune, archive-gated |
 | Hot | session-recall PG (mirrors hot) | follows hot | itself |
 | Disposable | subagent transcripts (2.71 GB) | 7 days | prune, **no archive** |
-| Disposable | pool receipts `/opt/*/.tmp/subagents/` (648 MB) | 14 days + rotate `ledger.jsonl` | prune, no archive |
+| Disposable | pool receipts `/opt/*/.tmp/subagents/` (**volatile** — 648 MB, then 445 MB three hours later; live working state, not a store) | 14 days + rotate `ledger.jsonl` | prune, no archive |
 | Disposable | `tool-results/` (0.33 GB) | with parent session | prune |
 | Keep | `fabrik_analytics` (12 MB, 15,435 rows) | forever | `pg_dump` to the archive |
 
 **THE INVARIANT THAT MAKES REPEAT IMPOSSIBLE: the pruner refuses to delete any transcript whose
-sha256 is not already in the archive manifest.** Not "archive first, then prune" as a sequence —
-the delete is *conditional on* the cold copy existing. If archiving fails, nothing is deleted and
-the store simply grows with a warning. Loss stops being policy-dependent and becomes structurally
-impossible.
+CURRENT sha256 is not already in the archive manifest.** Not "archive first, then prune" as a
+sequence — the delete is *conditional on* the cold copy existing. If archiving fails, nothing is
+deleted and the store simply grows with a warning. Loss stops being policy-dependent and becomes
+structurally impossible.
+
+Three cases the word "current" is carrying, because an invariant that cannot answer them is a
+slogan:
+
+- **A file still being appended to.** Its sha changes on every write, so an archived sha goes stale
+  immediately. Excluded by construction: the age gate only offers files older than the window, and
+  a file being appended is by definition recent. The pruner still re-hashes at delete time rather
+  than trusting the sha it archived with.
+- **A file MUTATED IN PLACE.** This is not hypothetical here — it is exactly what produced the 15
+  `.bak` files, and 13 of them diverged from their live counterpart mid-stream. So the manifest is
+  keyed on **(session_id, sha256)** and a session may hold SEVERAL archived versions; the prune
+  requires the CURRENT sha to be present, not merely *some* sha for that session. Keying on
+  session_id alone would let a rewrite delete content no archive holds — the .bak defect, rebuilt.
+- **Archive destination unreachable at prune time** → nothing is deleted. Fail-CLOSED is the only
+  acceptable direction: the cost of not pruning is disk, the cost of pruning blind is history.
 
 Supporting guards: a `--full` wrapper that refuses unless the archive covers every orphan it would
 reclaim; a `README` marker in `~/.claude/projects/` stating the path is data, not cache (aimed at
@@ -149,11 +173,30 @@ never descends into `<session>/subagents/`. So unlike main transcripts, deleting
 no text fallback, no `search_chats` hit. The operator accepted this explicitly (*"i dont need
 history of subagents"*); it is recorded here so the cost is chosen rather than discovered.
 
-**Pool receipts get 14 days, not 7, because they are READ.** `ledger.py:372` reads receipts back and
-`pg_ledger.py:654` uses them to reconcile without touching the INSERT-only `subagent_runs` table;
-`scripts/kilo-benchmarks/flush_subagent_outboxes.py` consumes them too. That is a real function, but
-it concerns recent unflushed runs, not months. The 124 MB `fabrik/.tmp/subagents/ledger.jsonl` is
-pure accumulation and should rotate.
+**Pool receipts get 14 days, not 7, because they are READ — and the read is WIDER than the first
+draft claimed.** `ledger.py:372` calls `Ledger(...).read_all()` on BOTH the ledger and the receipts
+file: it reconciles the whole history, not a recent window. `pg_ledger.py:654` writes the receipt
+that makes that reconciliation possible without touching the INSERT-only `subagent_runs` table, and
+`scripts/kilo-benchmarks/flush_subagent_outboxes.py` consumes them. The first draft justified 14
+days with "it concerns recent unflushed runs" — that was an assumption, and the code says otherwise.
+
+Two consequences the number must own rather than hide:
+
+- `audit_unrecorded` will only ever see the retained window. An unrecorded run older than 14 days
+  stops being flagged. Judged acceptable: an unrecorded pool run from three weeks ago is not
+  actionable, and the flywheel row it should have written is already lost.
+- ⚠️ **`kaizen_collect.py:57` reads `.tmp/subagents/ledger.jsonl` for its daily `measure_subagents`
+  metric**, filtering by a single day's stamp (`:226`) — so the daily run is safe. But
+  `kaizen_backfill.py:137` backfills a RANGE derived from file mtimes, and for any day whose lines
+  have been rotated away it will report **zero runs rather than "unavailable"** — a silent
+  under-report, which is the failure mode `Metric.unavailable` exists to prevent. Rotation must
+  therefore keep a summary line per rotated day, or `measure_subagents` must distinguish
+  "rotated" from "no dispatches". This is a REQUIREMENT of the pool tier, not a footnote.
+
+⚠️ **Do not confuse the two stores that share the word "subagents".** `~/.claude/projects/<slug>/
+<session>/subagents/*.jsonl` are Claude subagent TRANSCRIPTS (2.71 GB, unindexed, 7-day cliff).
+`/opt/*/.tmp/subagents/` is the POOL ledger + receipts (648 MB, read by the code above, 14 days).
+Different producers, different consumers, different retention.
 
 ### B — Compress in place, delete nothing
 
@@ -167,17 +210,35 @@ inside A (the archive is compressed by definition).
 Rejected: at September's rate this pushes ~90 GB at a shared, disk-constrained host to preserve
 fidelity that 4.45–6.08x compression preserves for a fifth of the space.
 
-## Where the cold archive lives — the three destinations, costed
+## Where the cold archive lives — corrected after reading the fleet's actual backup topology
 
-| Destination | Capacity / cost, measured | Verdict |
+⚠️ **The first version of this table was wrong, and wrong in the same way as this document's two
+earlier retractions: it asserted a property of the fleet without reading the config.** It called
+vps1 "a single host" and offered Cloudflare R2 as the off-fleet escalation. Then I read
+`/opt/backrest/config/config.json`:
+
+**Backrest on vps1 has exactly ONE repo — `b2-vps1`, URI `s3://…` (Backblaze B2) — and NINE
+scheduled plans shipping to it** (`postgres-dumps`, `docker-volumes`, `opt-configs`, `host-state`,
+`postgres-my_proj`, `postgres-zitadel`, `zitadel-data`, `postgres-tryton`, `tryton-crm-data`). So
+"vps1 + Backrest" was never a single-host destination: **it is already off-site object storage**,
+already paid for, already credentialed, already scheduled. And `opt-configs` backs up **all of
+`/opt`**, so an archive placed under `/opt` on vps1 inherits an existing plan.
+
+| Destination | Measured | Verdict |
 |---|---|---|
-| **The existing DR store** (`/opt/fabrik-dr-store`, GitHub) | **20 MB today** (12 MB of it `.git`). Adding ~1.2 GB per 90 days is a **60x** step change into a git repo rsync'd and pushed daily | **REJECTED** — and not on cost. `dr_claude_backup.sh:24` excludes `projects/` for exactly this reason; the mechanism is wrong (pack growth, daily churn), not the price |
-| **vps1 + Backrest** | `df`: 108 GB total, 49 GB used, **59 GB free**. `backrest` container **Up 5 days**; its own data is 13 MB. Marginal cost **$0** | **RECOMMENDED** — off-box, existing machinery, no new dependency or credential, and years of headroom at ~1.2 GB/90d |
-| **Cloudflare R2** | **$0.015/GB-month standard, 10 GB-month free tier, zero egress** (developers.cloudflare.com/r2/pricing, fetched 2026-09-06; page updated 2026-05-28). Our ~1.2 GB archive sits **inside the free tier**; even 50 GB is $0.75/mo | **ESCALATION, not primary** — genuinely off-fleet, so it survives losing vps1 too. Costs a new credential and a new dependency for a failure mode the operator has not named |
+| **The existing DR store** (`/opt/fabrik-dr-store`, GitHub) | **20 MB today**, 12 MB of it `.git`. Adding ~1.2 GB/90d is a **60x** step into a git repo rsync'd and pushed daily | **REJECTED** — on mechanism, not price. `dr_claude_backup.sh:24` excludes `projects/` for exactly this reason |
+| **vps1 → Backrest → B2** | vps1 `df`: 108 GB total, **59 GB free**; `backrest` container **Up 5 days**; repo `b2-vps1` is `s3://` (Backblaze B2) with 9 scheduled plans; `opt-configs` already covers `/opt`. Marginal cost **$0** — B2 storage for ~1.2 GB is noise against the fleet's existing usage | **RECOMMENDED** — off-BOX and off-SITE in one hop, existing scheduler, existing credential, existing restore runbook |
+| **Cloudflare R2** | $0.015/GB-month standard, **10 GB-month free**, zero egress (developers.cloudflare.com/r2/pricing, fetched 2026-09-06; page updated 2026-05-28). Our archive is free at that size | **NOT NEEDED** — the reason it was proposed (off-fleet durability) is already supplied by B2. Adding it would mean a second object store and a second credential for redundancy against B2 itself, which nobody has asked for. Recorded so it is not re-proposed |
 
-**Recommendation: vps1 + Backrest, with R2 named as the one-step escalation** if off-fleet
-redundancy is later wanted. R2's zero-egress matters for a restore tier — pulling the archive back
-costs nothing — so it is the right *second* copy, not the right first one.
+**Open sub-question, deliberately not answered here:** whether the archive rides the existing
+`opt-configs` plan (simplest — put it under `/opt`, nothing new to configure) or gets its own plan
+with its own retention. `opt-configs` currently backs up a mostly-static `/opt`; adding a
+monotonically growing archive to it changes that plan's shape and its restic snapshot churn. That
+is a Backrest-configuration decision for the build, and it is the ONE place where "simplest" and
+"correct" may diverge.
+
+**The transport is still unbuilt and is the real work:** getting `.zst` files from the WSL box to
+vps1 at all. Backrest backs up what is already ON vps1; nothing today copies transcripts there.
 
 ## What a restore actually yields — stated because a backup nobody restored is a hope
 
@@ -197,7 +258,22 @@ with a matching sha256. That round trip is what the word "lossless" is doing in 
 
 ## Open unknowns
 
-0. **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
+0a. **RESOLVED — the 90-day window carries a SIZE CAP as policy, not a note.** Open unknown 1 says
+   the window costs between ~2 GB and ~90 GB depending on whether September's rate holds. It is not
+   honest to recommend a day-count while that is open, so the policy is **90 days OR a measured
+   ceiling, whichever binds first**, with the ceiling evicting oldest-archived-first. This also
+   contains the skew: 50% of all bytes live in the top 14 files and the largest single transcript
+   is 696.5 MB, so one runaway session must not be able to define the tier. The ceiling's VALUE is
+   still open (re-measure MAIN bytes/day over 14 days first); its EXISTENCE is not.
+
+0b. **RESOLVED — the window counts on mtime, and the error direction is deliberate.** A resumed old
+   session refreshes its mtime and therefore outlives a window it "should" have left. That is the
+   KEEP direction, which is the correct bias for a document written because history was lost.
+   Counting on the index's `started_at` would be more faithful to "how far back" but circular — the
+   index is a mirror this spec has just demoted, so the policy must not depend on it to decide what
+   to delete.
+
+0c. **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
    $0), with Cloudflare R2 ($0 at our size, zero egress) as the named escalation. See the costing
    table above.
 
@@ -264,8 +340,31 @@ crontab | grep -iE "recall|index"  -> only /opt/youtube rag_* jobs; NO indexer c
 grep -rn session_recall scripts/dr_*.sh -> no match; no pg_dump in crontab
 ```
 
+## The build order, and what must not ship without a grader
+
+Nothing in this document is executable yet, which is the honest status: it is a design, and every
+number in it is a measurement rather than a test. Three gates, in order, and the order is the
+safety property:
+
+1. **Transport + archive** (non-destructive): copy `.zst` transcripts to vps1 and let Backrest ship
+   them to `b2-vps1`. Deletes nothing. Safe to build and run for weeks before anything prunes.
+2. **A PROVEN RESTORE** before any pruner exists — pull one archived transcript back from B2 and
+   diff it byte-for-byte against its live original. The round trip is already measured locally
+   (6.08x, 0.08 s, byte-identical, sha256 match); what is unproven is the same trip *through
+   Backrest and B2*, which is the leg that matters.
+3. **The pruner, and only behind its grader.** ⚠️ **The archive-gated invariant MUST ship with a
+   test that has been SEEN RED** — a transcript absent from the manifest, offered to the pruner,
+   and observed NOT deleted; plus the mutated-in-place case, since that is the shape that produced
+   the `.bak` divergence and the one a naive session-id-keyed manifest would get wrong. A pruner
+   whose safety rule is untested is the `.bak` mistake with a policy document attached: this run
+   already produced one "provably lossless" claim that the bytes refuted.
+
+Also owed, independent of this build: `/opt/session-recall` was mailed about the `--full`
+orphan-reclaim trap (01M1SPW1KKNXKKKM8MSVT6RHQ9, ack required). That hazard is live today and does
+not wait on this spec.
+
 ## Next
 
-`/fabrik-spec-review` to converge this DRAFT before anything is built. Steps 1 and 2 of Approach A
-are non-destructive and may be implemented ahead of the review at the operator's word; **step 3
-(deletion) must not ship before a restore has been proven from the backup.**
+`/fabrik-plan-after-chat` to turn this CONVERGED design into a phased plan. Gate 1 (transport +
+archive) is non-destructive and may be built at the operator's word; **no deletion ships before
+gate 2's restore is proven and gate 3's grader is red-then-green.**
