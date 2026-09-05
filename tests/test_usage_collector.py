@@ -465,3 +465,74 @@ def test_an_up_to_date_store_is_not_re_derived(tmp_path, monkeypatch):
     monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
 
     assert cpc.merge_usage_store()["days"]["2026-09-05"] == {"claude-opus-5": 999}
+
+
+def test_a_corrupt_store_degrades_instead_of_killing_the_daily_refresh(tmp_path, monkeypatch):
+    """External damage — a hand edit, a half-restored backup — must not stop the producer. Measured
+    before guarding: `collector_version: "two"` raised ValueError, a dict raised TypeError, and a
+    `days` list raised AttributeError, each of which would end the 06:00 refresh and silently stop
+    recording usage until somebody noticed."""
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 500)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "no-extension.json")
+    p = tmp_path / "store.json"
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(p))
+
+    for corrupt in (
+        {"days": {"2026-01-01": {"claude-opus-5": 5}}, "collector_version": "two"},
+        {"days": {"2026-01-01": {"claude-opus-5": 5}}, "collector_version": {"a": 1}},
+        {"days": ["not-a-mapping"]},
+        ["not-an-object"],
+        {},
+    ):
+        p.write_text(json.dumps(corrupt), encoding="utf-8")
+        store = cpc.merge_usage_store()  # must not raise
+        assert store["days"]["2026-09-05"] == {"claude-opus-5": 500}
+
+
+def test_a_refresh_that_loses_a_model_keeps_it(tmp_path, monkeypatch):
+    """Never-shrinks at the RIGHT granularity. One session's transcript can prune while another
+    grows, so a day's TOTAL rises while a model disappears from it — and replacing on the total would
+    drop that model out of the tier split entirely. Each model's daily total can only be discovered."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-05": {"claude-opus-5": 100, "claude-haiku-4-5": 50}},
+        {"2026-09-05": "transcripts"},
+    )
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 900)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    day = cpc.merge_usage_store()["days"]["2026-09-05"]
+
+    assert day == {"claude-opus-5": 900, "claude-haiku-4-5": 50}, "opus grows, haiku survives"
+
+
+def test_the_result_does_not_depend_on_which_file_is_read_first(tmp_path, monkeypatch):
+    """Files are walked in sorted PATH order, which has nothing to do with time. If a call's copies
+    straddle local midnight, booking to the first-TRAVERSED sighting would let filenames decide the
+    day — the same tree totalling differently on two boxes. It is booked to its EARLIEST sighting."""
+    monkeypatch.setenv("TZ", "Europe/Istanbul")
+    import time as _t
+
+    _t.tzset()
+
+    def rec(ts, tok):
+        return json.dumps(
+            {
+                "timestamp": ts,
+                "requestId": "r1",
+                "message": {"id": "m1", "model": "claude-opus-5", "usage": {"output_tokens": tok}},
+            }
+        )
+
+    early, late = rec("2026-09-05T20:30:00.000Z", 10), rec("2026-09-05T21:30:00.000Z", 900)
+    # 20:30Z is 23:30 local on the 5th; 21:30Z is 00:30 local on the 6th.
+    a = cpc.collect_from_transcripts(_tree(tmp_path / "x", {"a.jsonl": [early], "z.jsonl": [late]}))
+    b = cpc.collect_from_transcripts(_tree(tmp_path / "y", {"a.jsonl": [late], "z.jsonl": [early]}))
+    assert a == b, "path order must not change the answer"
+    assert a == {"2026-09-05": {"claude-opus-5": 900}}, "booked where the call started"

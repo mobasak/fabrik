@@ -82,7 +82,9 @@ _TRANSCRIPT_ROOT = Path.home() / ".claude" / "projects"
 #: and re-derived once, so an old rule's numbers cannot survive behind the never-shrinks guard.
 #: Extension-sourced days are never touched by it — they cannot be re-derived from anything.
 #: v2 = local-day bucketing + max-wins dedup (2026-09-06).
-_COLLECTOR_VERSION = 2
+#: v3 = a call books to its EARLIEST sighting's day, so the walk no longer depends on the order
+#: `rglob` happens to return files in (2026-09-06).
+_COLLECTOR_VERSION = 3
 _USAGE_KEYS = (
     "input_tokens",
     "output_tokens",
@@ -459,10 +461,27 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                 if prior is None:
                     seen[key] = (day, model, tok)
                     out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
-                elif tok > prior[2]:
-                    # Same call, a fuller sighting: add only the DELTA, at the day/model the first
-                    # sighting was booked to — re-booking it here would move spend across days when a
-                    # message straddles local midnight.
+                    continue
+                # A call belongs to its EARLIEST sighting's day, not its first-TRAVERSED one. Files
+                # are walked in sorted path order, which has nothing to do with time, so booking to
+                # "whichever copy I read first" would make the answer depend on filenames: the same
+                # tree could total differently per box. A message re-serialised across local midnight
+                # is booked where it STARTED, which is also the stable choice.
+                best_day = min(prior[0], day)
+                if best_day != prior[0]:  # move the booking to the earlier day
+                    out[prior[0]][prior[1]] = out[prior[0]].get(prior[1], 0) - prior[2]
+                    if out[prior[0]][prior[1]] <= 0:
+                        del out[prior[0]][prior[1]]
+                        if not out[prior[0]]:
+                            del out[prior[0]]
+                    out.setdefault(best_day, {})[model] = (
+                        out.setdefault(best_day, {}).get(model, 0) + prior[2]
+                    )
+                    seen[key] = (best_day, model, prior[2])
+                    prior = seen[key]
+                if tok > prior[2]:
+                    # Same call, a fuller sighting: add only the DELTA, at the day and model the
+                    # booking now sits on.
                     out[prior[0]][prior[1]] = out[prior[0]].get(prior[1], 0) + (tok - prior[2])
                     seen[key] = (prior[0], prior[1], tok)
     return out
@@ -521,7 +540,13 @@ def _merge_usage_store_locked(path: Path) -> dict:
     """The body of :func:`merge_usage_store`, run while the store lock is held."""
     try:
         store = json.loads(path.read_text(encoding="utf-8"))
-        days: dict = store.get("days") or {}
+        if not isinstance(store, dict):
+            raise TypeError("store is not an object")
+        # `days` must be a MAPPING or the merge below raises on `.items()` / `days[k]`. A corrupt or
+        # hand-edited store must degrade to "no history yet", never crash the daily refresh — the
+        # store is written atomically, so the shapes that reach here are external damage, and a
+        # producer that dies on them stops recording usage until someone notices.
+        days: dict = store.get("days") if isinstance(store.get("days"), dict) else {}
     except (OSError, ValueError, TypeError, AttributeError):
         store, days = {}, {}
     src_by: dict = (
@@ -572,7 +597,13 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # by construction, while an extension day is irreplaceable and is never touched here. Version-
     # stamped so the migration is reproducible on any box instead of a hand-run mutation nobody can
     # repeat — bump `_COLLECTOR_VERSION` whenever a counting rule changes.
-    if int(store.get("collector_version") or 0) < _COLLECTOR_VERSION:
+    try:
+        stamped = int(store.get("collector_version") or 0)
+    except (TypeError, ValueError):
+        # A corrupt stamp migrates rather than crashing: re-deriving transcript days is safe by
+        # construction, and `int("two")` killing the 06:00 refresh is not.
+        stamped = 0
+    if stamped < _COLLECTOR_VERSION:
         for k in [k for k, v in src_by.items() if v == "transcripts"]:
             days.pop(k, None)
             src_by.pop(k, None)
@@ -585,15 +616,23 @@ def _merge_usage_store_locked(path: Path) -> dict:
         if k not in days:
             days[k], src_by[k] = by, "transcripts"
             t_added += 1
-        elif src_by.get(k) == "transcripts" and sum(by.values()) >= sum(days[k].values()):
+        elif src_by.get(k) == "transcripts":
             # A STORED DAY NEVER SHRINKS. Today is partial all day, so a transcript-sourced day must
             # keep refreshing — but the same re-read is what erodes it later: once that day's session
             # files are pruned the walk returns LESS, and a plain assignment would quietly write the
             # smaller number over a total that was once measured in full. Usage cannot un-happen, so
             # the larger sighting stands and this store keeps being the durable aggregate the
             # transcripts are not.
-            days[k] = by
-            t_refreshed += 1
+            # PER-MODEL max, not a total comparison. A whole-day total can be larger while having
+            # LOST a model — one session's transcript prunes while another grows — and replacing on
+            # the total would drop that model from the day's tier split entirely. Each model's daily
+            # total can only be discovered, so the best observation of each is kept.
+            merged = dict(days[k])
+            for mid, tok in by.items():
+                merged[mid] = max(int(merged.get(mid, 0)), int(tok))
+            if merged != days[k]:
+                days[k] = merged
+                t_refreshed += 1
     overlap = sorted(k for k in tdays if src_by.get(k) == "extension")
     # BOUNDED ON PURPOSE — the last 7 overlapping days, not the whole overlap, so the store does not
     # grow a second copy of itself. `_discrepancy_days` states the population the sample came from,

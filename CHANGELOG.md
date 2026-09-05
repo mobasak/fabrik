@@ -48,6 +48,39 @@ mechanism that made the account invisible.
 - **What:** seven sites in five sources sent a reader to a deleted chain step: `/fabrik-conformance-review` (description + body) routed "one epic vs its decisions-lock" to `/fab-ettw-08-…`; `/fabrik-flows` offered the ettw Core Flows stage as an alternative; `/fabrik-workflow-review` listed ettw artifact types and routed a stale upstream to `09-revise-requirements`; `/fabrik-spec`'s scale up-route named the ettw and mega trigger docs; the corpus checklist's tombstone cite carried the retired path. Each is now a present-tense rule naming the corpus twin (`/fabrik-review` + the per-pair sweep; `/fabrik-vision`; the mega types the Phase-0 table lists with the `mega-review` flywheel label; a stale upstream routed one step up the mega chain); the zero-references gate over `commands/_sources/` + the checklist goes 5 files → 0; rendered box-wide.
 - **Where:** `commands/_sources/fabrik-conformance-review.md`, `fabrik-flows.md`, `fabrik-workflow-review.md`, `fabrik-spec.md`, `docs/reference/command-evaluation-checklist.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14g).
 
+### Fixed — the collector's closing pass: a store that could lose a model, and a walk that depended on filenames (2026-09-06)
+
+The closing round of the same review, after the quota hold lifted. Four more, three of them found
+independently by both an author-blind reader and my own sweep in the same window.
+
+**A day could lose a model.** "Never shrinks" compared whole-day TOTALS, so a snapshot that was
+larger overall while missing a model replaced the stored day and dropped that model's spend from the
+tier split for good — one session's transcript prunes while another grows, and the total still rises.
+The comparison is now per-model: each model's daily total can only be discovered, so the best
+observation of each is kept, and the comment's promise of monotonicity is finally what the code does.
+
+**The walk depended on filenames.** Files are traversed in sorted path order, which has nothing to do
+with time, and a repeated call was booked to its first-TRAVERSED sighting. For a call whose copies
+straddle local midnight that let the filename decide the day — the same tree could total differently
+on two boxes. A call is now booked to its EARLIEST sighting, which is also where it started.
+
+**A corrupt store killed the daily refresh.** Measured before guarding: `collector_version: "two"`
+raised ValueError, a dict raised TypeError, and a non-mapping `days` raised AttributeError — each
+ending the 06:00 run and silently stopping the recording until somebody noticed. All three now
+degrade to "no history yet", and a corrupt version stamp migrates rather than crashing, because
+re-deriving transcript days is safe by construction and dying is not.
+
+**The denominator in my own prose was wrong** in four places: "112 overlapping days" was the UNION;
+the overlap is 111, which is what the store publishes as `_discrepancy_days`. The ratio and the
+conclusion are untouched, but a comparison that names the wrong population is exactly what this
+repo's denominator rule refuses. Corrected in code, tests and changelog; D-143 is immutable, so
+D-145 carries the correction with the counting rules.
+
+`_COLLECTOR_VERSION` is 3 — the earliest-sighting rule is a counting-rule change, and its own policy
+says a counting-rule change re-derives the transcript days once.
+
+22 tests, seven proven red on revert.
+
 ### Fixed — the collector's review: 160M tokens the dedup dropped, a UTC day boundary, and a store that could erode (2026-09-06)
 
 `/fabrik-review-scoped` on d81d9db1 (shipped as ce0e70fd). Five defects in the change, one in its
