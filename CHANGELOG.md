@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 23 of the review: the quota hold checks every flag wherever it sits — a value-taking flag can eat `--` — and the fleet's commit templates gain `-m` (2026-09-05)
+
+`git commit -m -- --amend`: `-m` consumes `--` as its message, so the checker's end-of-options saw a
+separator git never saw and `--amend` passed as a "path" — an amend fired on a pushed commit (the same
+shape reaches `-F`, `git log -S -- --output=x`, `git push origin -- --force`). A `--` in the CHECKER is
+only right if it knows which flags take values — one more list to be wrong about — so every
+flag-shaped token is now checked wherever it sits; a real file named `--hard` is refused, fail-closed.
+The message scan no longer looks past `--` (`git commit -- -m` passed), the prose names `../x`, and
+the fleet's own commit templates — CLAUDE.md § EXIT, the governance template, two command sources,
+the Stop hook's printed remediation and AGENTS-compact — say `git commit -m <msg> -- <paths>`: a
+commit always needs a message, and under a hold the `-m`-less form is refused. Corpus rendered from
+master. Grader red on revert; 28 hook tests, 106 Stop-hook tests.
+
 ### Fixed — pass 22 of the review: normalised pathspecs, and a held `git commit` must have the template's exact shape (2026-09-05)
 
 `git add ./../`, `././`, `docs/..` and `.//` passed the literal `.`/`..` list and swept the parent or

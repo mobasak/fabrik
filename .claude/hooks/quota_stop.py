@@ -249,11 +249,13 @@ def _git_flags_forbidden(command: str) -> bool:
     `git add .`, `git commit -m x -- .` and `git reset -q HEAD -- .` each swept a SIBLING's work on
     disk under `allow` (pass 21, P20-A): the flag set never looked at the positional argument, and
     `.` is the HARD STOP CLAUDE.md names in one breath with `-A`. A pathspec to add/commit/reset
-    may not be `.`/`..`, a glob, or git's `:(magic)` form (a directory path still names a scope;
+    may not normalise to `.`/`..` or escape upward (`../x`), nor be a glob or git's `:(magic)` form
+    (a directory path still names a scope;
     named, not held). A push refspec may not START with `+` (force) or `:` (empty source =
     delete; `a:b` is a plain push); a fetch refspec may not start with `+` or contain `:` at all
     (`git fetch origin +x:x` force-moved a local branch) — before OR after `--`, which ends
-    options, not refspecs (`git push origin -- +master` was a force push).
+    options for git — but not for this check, which reads every flag-shaped token wherever it
+    sits (`git push origin -- +master` was a force push; `git commit -m -- --amend` an amend).
     """
     try:
         argv = shlex.split(command, posix=True)
@@ -267,15 +269,18 @@ def _git_flags_forbidden(command: str) -> bool:
     long_ok, short_ok = _GIT_VERB_FLAGS[verb]
     if verb == "commit" and _commit_lacks_the_template_shape(argv):
         return True
-    options_open = True
+    # Every flag-shaped token is checked WHEREVER it sits. `--` used to end the flag check, but a
+    # value-taking flag CONSUMES the next token: `git commit -m -- --amend` made `--` the message
+    # and git read `--amend` as the flag it is — an amend fired on a pushed commit (pass 23,
+    # P22-A, executed). Enumerating which flags take values is one more list to be wrong about;
+    # a real file named `--hard` after `--` is refused instead, fail-closed.
     for tok in argv[2:]:
-        if options_open and tok == "--":
-            options_open = False
+        if tok == "--":
             continue
-        if options_open and tok.startswith("--"):
+        if tok.startswith("--"):
             if long_ok is not None and tok.split("=", 1)[0] not in long_ok:
                 return True
-        elif options_open and tok.startswith("-") and len(tok) > 1:
+        elif tok.startswith("-") and len(tok) > 1:
             if short_ok is not None and any(
                 ch not in short_ok for ch in tok[1:].rstrip("0123456789")
             ):
@@ -291,16 +296,22 @@ def _commit_lacks_the_template_shape(argv: list[str]) -> bool:
     `git commit -- f` without a message reached git and was saved only by its headless-editor
     refusal (pass 22, P21-A, both executed). So: a message flag AND `--` followed by at least one
     path, or the line is held."""
+    try:
+        dd = argv.index("--", 2)
+    except ValueError:
+        return True  # no `--`: no pathspec the template's way
+    options, paths = (
+        argv[2:dd],
+        argv[dd + 1 :],
+    )  # the FIRST `--`; a later flag is still checked by the caller
+    # the message flag is looked for BEFORE `--` only: after it, `-m` is a path (pass 23 —
+    # `git commit -- -m` passed the shape with `-m` counted as its own message)
     has_message = any(
         tok in ("--message", "--file")
         or tok.startswith(("--message=", "--file="))
         or (tok.startswith("-") and not tok.startswith("--") and ("m" in tok[1:] or "F" in tok[1:]))
-        for tok in argv[2:]
+        for tok in options
     )
-    try:
-        paths = argv[argv.index("--", 2) + 1 :]
-    except ValueError:
-        paths = []
     return not (has_message and paths)
 
 

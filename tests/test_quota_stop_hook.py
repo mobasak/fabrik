@@ -320,23 +320,25 @@ def test_a_quoted_or_abbreviated_git_flag_is_still_a_flag():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
 
-def test_ansi_c_and_locale_quoting_are_held_and_end_of_options_is_honoured():
+def test_ansi_c_and_locale_quoting_are_held_and_a_flag_after_end_of_options_is_still_checked():
     """`$'--output=m'`, `$'\\x2d\\x2doutput=m'`, `$"--output=m"` and `$'--upl=./p'` all wrote or ran
     under `allow` (pass 19, executed — a pool finder's claim): bash decodes the span to a plain
     word while shlex keeps the `$` glued to the token, so the argv veto saw no `--`. The quote
     char survives masking, so `$` followed by a quote is a veto on the masked line; inside double
-    quotes the inner quote is masked and a message containing `$'` stays data. And a bare `--`
-    ends options: `git log -- --output=m` is a pathspec (proven: no file), not a flag."""
+    quotes the inner quote is masked and a message containing `$'` stays data. A bare `--` ends
+    options for GIT — `git log -- --output=m` is a pathspec (proven: no file) — but not for the
+    checker: since pass 23 a flag-shaped token is refused wherever it sits, because a value-taking
+    flag can eat the `--` (`git commit -m -- --amend` fired an amend). Fail-closed, named."""
     for cmd in (
         "git log -1 $'--output=m'",
         "git log -1 $'\\x2d\\x2doutput=m'",
         'git log -1 $"--output=m"',
         "git fetch $'--upl=./pre.sh' .",
         "git status $'x'",
+        "git log -1 -- --output=m",  # a pathspec to git, a flag to the checker: refused, fail-closed
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     for cmd in (
-        "git log -1 -- --output=m",
         'git commit -m "cost $\'s fine" -- f.py',
         "git commit -m 'a $\"b' -- f.py",
     ):
@@ -449,6 +451,13 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "git commit -q -F msg.txt",
         "git commit -- f.py",  # no message: only git's headless refusal stood between this and a commit
         "git commit -m x f.py",  # paths without `--`: not the template shape
+        "git commit -m x --",  # `--` with nothing after it
+        "git commit -- -m",  # a message flag AFTER `--` is a path, not a message
+        "git commit -m -- --amend",  # `-m` CONSUMES `--`; git sees the flag (P22-A: an amend fired)
+        "git commit -qm -- --amend -- a.py",
+        "git log -S -- --output=x",  # the same shape on a read verb
+        "git push origin -- --force",
+        "git add ../x",
         "git add '*.py'",
         "git add ':(top)f'",
         "git commit -m x -- .",

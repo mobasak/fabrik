@@ -252,7 +252,9 @@ _ROUTINE_GOVERNANCE = frozenset(
 )
 
 
-def _failure_cites_session(new_outputs: list[str], authored: dict[str, int], session_floor: float) -> bool | None:
+def _failure_cites_session(
+    new_outputs: list[str], authored: dict[str, int], session_floor: float
+) -> bool | None:
     """Attribute NEW gate failures to this session by cited path, or None if indeterminate.
 
     Returns True (session-caused → block), False (sibling-caused → downgrade), or
@@ -577,7 +579,10 @@ def _ahead_of_upstream(root: Path) -> int | None:
     try:
         r = subprocess.run(
             ["git", "rev-list", "--count", "@{upstream}..HEAD"],
-            cwd=root, capture_output=True, text=True, timeout=15,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if r.returncode != 0:
             return None
@@ -593,7 +598,21 @@ def _ahead_of_upstream(root: Path) -> int | None:
 # /fabrik-review-scoped (same convergence spine, minutes not hours); heavy surfaces escalate to the
 # full /fabrik-review per its own contract.
 _CODE_EXTS = frozenset(
-    {".py", ".sh", ".ts", ".tsx", ".js", ".jsx", ".yaml", ".yml", ".toml", ".sql", ".go", ".rs", ".json"}
+    {
+        ".py",
+        ".sh",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".sql",
+        ".go",
+        ".rs",
+        ".json",
+    }
 )
 
 
@@ -603,7 +622,9 @@ def _count_code_files(authored: dict[str, int]) -> int:
     return sum(1 for f in authored if PurePosixPath(f).suffix.lower() in _CODE_EXTS)
 
 
-def decide_review(code_files: int, has_any_record: bool, attempts: int, cap: int = CAP) -> tuple[str, int]:
+def decide_review(
+    code_files: int, has_any_record: bool, attempts: int, cap: int = CAP
+) -> tuple[str, int]:
     """Pure review-checkpoint decision. Returns (action, attempts').
 
     ⚠️ `has_any_record` means EXISTS, never IS-FRESH. It used to be fed `bool(_run_record(sid))`,
@@ -896,7 +917,10 @@ def _midrun_marker(root: Path, authored: set[str]) -> bool:
                 # a history entry recording a PAST active status must not (review
                 # finding). Unparseable lock → not armed (fail toward allowing).
                 try:
-                    if json.loads(p.read_text(encoding="utf-8", errors="replace")).get("status") == "active":
+                    if (
+                        json.loads(p.read_text(encoding="utf-8", errors="replace")).get("status")
+                        == "active"
+                    ):
                         return True
                 except Exception:
                     pass
@@ -1136,7 +1160,9 @@ def main(argv: list[str]) -> int:
                 subprocess.run(
                     [sys.executable, str(_ta), "harvest", "--session", sid],
                     input=_text,
-                    text=True, capture_output=True, timeout=5,
+                    text=True,
+                    capture_output=True,
+                    timeout=5,
                 )
             _kaizen("anchor_harvest", ev_sid, tp=bool(_tp), chars=len(_text))
         except Exception:
@@ -1291,23 +1317,29 @@ def main(argv: list[str]) -> int:
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                     _kaizen(
-                        "stop_block", ev_sid, cause="unreviewed-spontaneous",
-                        outcome="blocked", attempt=v_att,
+                        "stop_block",
+                        ev_sid,
+                        cause="unreviewed-spontaneous",
+                        outcome="blocked",
+                        attempt=v_att,
                     )
                     sys.stdout.write(
-                        json.dumps({
-                            "decision": "block",
-                            "reason": (
-                                f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                "session edited code files with NO command run record — "
-                                "plain-chat work that skipped every review contract. Run "
-                                "`/fabrik-review-scoped` (minutes: diff-scoped, same "
-                                "convergence spine, fix-in-run) — or the full "
-                                "`/fabrik-review` for gate/hook/enforcement, auth/schema/"
-                                "migration, or multi-file surfaces. Its run record is what "
-                                "clears this block."
-                            ),
-                        }) + "\n"
+                        json.dumps(
+                            {
+                                "decision": "block",
+                                "reason": (
+                                    f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
+                                    "session edited code files with NO command run record — "
+                                    "plain-chat work that skipped every review contract. Run "
+                                    "`/fabrik-review-scoped` (minutes: diff-scoped, same "
+                                    "convergence spine, fix-in-run) — or the full "
+                                    "`/fabrik-review` for gate/hook/enforcement, auth/schema/"
+                                    "migration, or multi-file surfaces. Its run record is what "
+                                    "clears this block."
+                                ),
+                            }
+                        )
+                        + "\n"
                     )
                     return 0
                 if v_action == "allow_warn_review":
@@ -1317,8 +1349,11 @@ def main(argv: list[str]) -> int:
                     )
                     warned.append("unreviewed-spontaneous")
                     _kaizen(
-                        "stop_block", ev_sid, cause="unreviewed-spontaneous",
-                        outcome="warned_through", attempt=CAP,
+                        "stop_block",
+                        ev_sid,
+                        cause="unreviewed-spontaneous",
+                        outcome="warned_through",
+                        attempt=CAP,
                     )
                 if g == 0 and c == 0 and p_att == 0 and r_att == 0 and v_att == 0:
                     counter.unlink(missing_ok=True)
@@ -1433,9 +1468,14 @@ def main(argv: list[str]) -> int:
         # EVERY Stop that reached it, fail-opening the gate/commit/push causes box-wide
         # for ~12h until the full suite surfaced it (13 reds). The review slot is
         # PRESERVED on this path, never zeroed: each cause owns its own slot.
-        gate_attempts, commit_attempts, stall_attempts, push_attempts, run_attempts, review_attempts = (
-            _read_counters(counter)
-        )
+        (
+            gate_attempts,
+            commit_attempts,
+            stall_attempts,
+            push_attempts,
+            run_attempts,
+            review_attempts,
+        ) = _read_counters(counter)
 
         action, gate_attempts, commit_attempts = decide(
             True,
@@ -1458,7 +1498,7 @@ def main(argv: list[str]) -> int:
             elif action == "allow_warn_commit":
                 sys.stderr.write(
                     f"Session-authored files STILL UNCOMMITTED after {CAP} blocked stops — "
-                    "stopping anyway. Commit your own work: git commit -- <your files> "
+                    "stopping anyway. Commit your own work: git commit -m <msg> -- <your files> "
                     "(pathspecs + Agent Provenance Trailers).\n"
                 )
                 warned.append("uncommitted")
@@ -1471,7 +1511,9 @@ def main(argv: list[str]) -> int:
                 )
             # gate/commit causes resolved (or capped) → reset their counters, then
             # the push law + promise-guard still have the last word on THIS stop.
-            counter.write_text(f"0,0,{stall_attempts},{push_attempts},{run_attempts},{review_attempts}")
+            counter.write_text(
+                f"0,0,{stall_attempts},{push_attempts},{run_attempts},{review_attempts}"
+            )
             return _stall_gate()
 
         # Reset-when-cause-false applies to the stall AND push slots here too: a
@@ -1489,9 +1531,7 @@ def main(argv: list[str]) -> int:
             listed = ", ".join(sorted(own_uncommitted)[:8])
             more = len(own_uncommitted) - 8
             gate_state = (
-                "The gate is green"
-                if _passed
-                else "No NEW gate failures (inherited debt remains)"
+                "The gate is green" if _passed else "No NEW gate failures (inherited debt remains)"
             )
             reason = (
                 f"DEFINITION OF DONE NOT MET (attempt {commit_attempts}/{CAP}). {gate_state} "
@@ -1499,7 +1539,7 @@ def main(argv: list[str]) -> int:
                 "uncommitted task is an UNFINISHED task (CLAUDE.md § EXIT): "
                 f"{listed}{f' (+{more} more)' if more > 0 else ''}. Commit YOUR OWN work "
                 "now with explicit pathspecs + Agent Provenance Trailers "
-                "(git commit -- <your files>); never bundle files you didn't author. "
+                "(git commit -m <msg> -- <your files>); never bundle files you didn't author. "
                 "Then PUSH it — commit-and-push is the task-end law (never --force)."
             )
             _kaizen(

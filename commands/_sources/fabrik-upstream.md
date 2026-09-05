@@ -149,7 +149,7 @@ touched files FIRST — the proposal, the `INDEX.md` row, the `docs/README.md` r
 --check` never stages anything itself and its doc-sync checks read `--cached`; run it unstaged and those
 checks test nothing, a vacuous green. THEN run THIS project's own `python scripts/final_gate.py --check
 --json` and confirm `"status":"success"`. THEN **commit** — the same three files, explicit pathspecs, with
-Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -- <the three files>`) — before calling PROJECT
+Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -m <msg> -- <the three files>`) — before calling PROJECT
 mode done; an uncommitted proposal is unfinished work under the same rule that governs every other task.
 
 Never touch the synced file itself, in any phase, for any reason — that boundary is the entire reason this
