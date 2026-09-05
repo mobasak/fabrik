@@ -41,4 +41,4 @@ Docs: CHANGELOG.md — orchestrator-applied
 - .windsurf/rules/core/45-testing-strategy.md
 - .windsurf/rules/core/55-observability.md
 
-(Out-of-repo read, measured and outside the budget: `/opt/site-provisioner/tests/test_glitchtip_init.py` 69,210 B — the 71 `def test_` this guard's cases are (`grep -c` at 8e2f436; 46 at the original pin) drawn from.)
+(Out-of-repo read, measured and outside the budget: `/opt/site-provisioner/tests/test_glitchtip_init.py` 69,210 B — the 75 `def test_` this guard's cases are (`grep -c` at 7b83573; 46 at the original pin) drawn from.)

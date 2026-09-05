@@ -7,7 +7,7 @@ module — the search/scrape executors and the money ceiling are injected via ``
 
 from __future__ import annotations
 
-from libs.deep_research.engine import (
+from deep_research.engine import (
     LegExecutor,
     LegResult,
     LegSpec,
@@ -18,7 +18,7 @@ from libs.deep_research.engine import (
     load_checkpoint,
     run_research,
 )
-from libs.deep_research.pack import (
+from deep_research.pack import (
     CardField,
     LegConfig,
     PackData,

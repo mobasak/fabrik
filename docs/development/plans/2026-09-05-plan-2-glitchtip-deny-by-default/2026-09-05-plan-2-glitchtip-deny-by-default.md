@@ -1,6 +1,6 @@
 # GlitchTip scrubbing in the scaffold is a deny-by-default SHAPE, not a flag list (build plan)
 
-Status: CONVERGED (2026-09-05 — /fabrik-plan-review, 12 author-blind rounds (pass 12 = the 2026-09-05 re-pin re-open): pool finders 5 per round (52 of 55 returned; 3 deaths re-dispatched or recorded) + the orchestrator's own execution each round — 36 findings fixed across passes 1–10, round 11 a full fresh sweep with 0; every `path:line` in the set resolved against the real files (24 of 24), the printed extraction block and census loop run verbatim; emit gates 0 ✗ 0 ⚠ at every commit; closing HEAD ff667c97)
+Status: CONVERGED (2026-09-05 — /fabrik-plan-review, 13 author-blind rounds (passes 12–13 = the 2026-09-05 re-pin re-opens): pool finders 5 per round (52 of 55 returned; 3 deaths re-dispatched or recorded) + the orchestrator's own execution each round — 36 findings fixed across passes 1–10, round 11 a full fresh sweep with 0; every `path:line` in the set resolved against the real files (24 of 24), the printed extraction block and census loop run verbatim; emit gates 0 ✗ 0 ⚠ at every commit; closing HEAD ff667c97)
 **Owner:** infra authors; T02 (the emitter + the back-fill notices at merge) is fleet's beat (scaffolding) — named per ticket; execution on the operator's go-word
 Shape: spine + 4 tickets (the READ set of the scope is 445,243 bytes against the 262,144 per-ticket budget, and `src/fabrik/scaffold.py` alone is 280,969 — see § Self-audit § Sizing)
 Source: mail `01M1QSRJ6M0MB3RGAWZD5F4ZT2` (site-provisioner, CRITICAL) + its correction `01M1QWM094Z6S0ZYGPKTB4NPY0`; proposal `/opt/site-provisioner/docs/reference/upstream-proposals/2026-09-05-scaffold-glitchtip-remaining-channels.md` (221 lines, addendum "five was an undercount", corrected at their `060c096`)
@@ -59,7 +59,7 @@ Ledger: D-126 (minted in this change)
 ## Global Constraints
 
 - Deny-by-default + leaf-shape is the shape; no ticket adds a denylist (a finding that wants one is a BLOCKED spec contradiction, not a fix).
-- The vendored module is COPIED (fabrik-lib law); its origin and revision are recorded in its docstring (`site-provisioner api/glitchtip_init.py @ 8e2f436` — re-pinned from `060c096` on 2026-09-05 after items 13–14 landed graded: `_reduce_origin`, `_redact_userinfo_in_text`; D-127).
+- The vendored module is COPIED (fabrik-lib law); its origin and revision are recorded in its docstring (`site-provisioner api/glitchtip_init.py @ 7b83573` — re-pinned from `060c096` → `8e2f436` (D-127) → `7b83573` (D-130) on 2026-09-05 as items 13–14 landed graded and then corrected: `_reduce_origin`, `_redact_userinfo_in_text` now redacting the REACHABLE field with damaged separators accepted — the mechanism is a URL-PARSE failure, their D-016).
 - `sentry-sdk[fastapi]>=2.18.0` stays the pin the scaffold emits (`src/fabrik/scaffold.py:2125`). The hub `.venv` has NEITHER `sentry_sdk` NOR `structlog` (measured); T01 — first in Merge Order — AUTHORISES adding both to `pyproject.toml` `[project.optional-dependencies] dev` (the deps-file HARD STOP is lifted by this ticket, for these two lines only) and the guard RECORDS the installed version in its output.
 - Synced surfaces: `.windsurf/rules/core/55-observability.md` distributes to 45 repos on commit; `templates/scaffold/**` and `src/fabrik/scaffold.py` are hub-only.
 - Every ticket: watched-fail-first graders; `/fabrik-review` at each phase boundary (execute-plan's own contract); explicit pathspecs; no `git add -A`.
@@ -138,11 +138,11 @@ $ wc -c src/fabrik/scaffold.py
 
 ### Phase B — the reference module and its guard
 
-- `/opt/site-provisioner/api/glitchtip_init.py:33-138` + `:304-307` (the allowlists, at 8e2f436), `:168` (`_keep`), `:338` (`_redact_userinfo_in_text`), `:364` (`_reduce_logentry`), `:465` (`_scrub_event`), `:607-700` (`init_glitchtip` / `_init_sdk`: `before_send=_scrub_event`, `before_send_transaction=_scrub_event`, `include_source_context=False`, `LoggingIntegration(event_level=None, level=None)`); `/opt/site-provisioner/tests/test_glitchtip_init.py` (59 tests).
+- `/opt/site-provisioner/api/glitchtip_init.py:33-138` + `:304-307` (the allowlists, at 7b83573), `:168` (`_keep`), `:350` (`_redact_userinfo_in_text`), `:382` (`_reduce_logentry`), `:483` (`_scrub_event`), `:634-727` (`init_glitchtip` / `_init_sdk`: `before_send=_scrub_event`, `before_send_transaction=_scrub_event`, `include_source_context=False`, `LoggingIntegration(event_level=None, level=None)`); `/opt/site-provisioner/tests/test_glitchtip_init.py` (59 tests).
 
 ```
 $ grep -c "def test_" /opt/site-provisioner/tests/test_glitchtip_init.py
-71
+75
 $ grep -rn "before_send\|scrub" /opt/fabrik-lib/observability/*.py | wc -l
 0
 ```
@@ -395,7 +395,7 @@ Pass Ledger). Verdict vocabulary: CLEAN (swept, nothing raised) · FIXED (raised
 | standing: boundary/sentinel/prefix | FIXED | read-budget boundary: `src/fabrik/scaffold.py` alone is 280,969 B against the 262,144 per-ticket budget, so T02 is the single `Integration: true` ticket and LAST in Merge Order (§ Sizing) |
 | standing: behavior-without-a-test | FIXED | every Behavior Contract bullet has a Gate line; T02 appends byte-equality tests for the emitted module; T01 appends the vendored module's own test |
 | ledger: census | FIXED | the 10-of-11 stdlib-logging census re-run from the script in § Evidence; denominator restated as files that CALL `logger.error`/`.exception`, not files that import logging (T02 back-fill loop excludes hub/templates) |
-| ledger: sdk-semantics | FIXED | `LoggingIntegration(event_level=logging.ERROR, level=None)` still ships `logentry.params`/`formatted` before the scrubber; the vendored `_scrub_event` strips them — read at `/opt/site-provisioner/api/glitchtip_init.py:364-377` (`_reduce_logentry`, 8e2f436) and its logentry tests; `before_send` is skipped for transactions (sentry-sdk `client.py:917-922`), hence `before_send_transaction` |
+| ledger: sdk-semantics | FIXED | `LoggingIntegration(event_level=logging.ERROR, level=None)` still ships `logentry.params`/`formatted` before the scrubber; the vendored `_scrub_event` strips them — read at `/opt/site-provisioner/api/glitchtip_init.py:382-395` (`_reduce_logentry`, 7b83573) and its logentry tests; `before_send` is skipped for transactions (sentry-sdk `client.py:917-922`), hence `before_send_transaction` |
 | ledger: substitution | FIXED | the inline literal is a plain triple-quoted string with LITERAL `{pkg}`; T02 uses `str.replace` on `{pkg}`/`{name}` from `package_name`/`name`, each token present exactly once (T01 asserts the count) |
 | ledger: guard-executability | FIXED | `sentry_sdk.integrations.fastapi` imports in the hub `.venv`; `sentry-sdk[fastapi]>=2.18.0` + `structlog>=24` authorised in `pyproject.toml` dev extras as T01's FIRST step; `_serialize` via `item.payload.json` |
 | ledger: deps | FIXED | the deps-file edit is authorised in-ticket (HARD STOP row) — T01 step 1, not an implicit side effect |
@@ -427,6 +427,7 @@ RE-SWEPT every round — no round re-scoped.
 | Pass 10 | author-blind #10 — full nine-class sweep after the round-9 edits | method: re-derivation | 2 | 0 | 2 |
 | Pass 11 | author-blind #11 — the closing pass: every class re-swept from primary source, `command_run.py round` printed TERMINAL | **method: re-derivation** | 0 | 0 | 0 |
 | Pass 12 | RE-OPENED 2026-09-05 on site-provisioner 01M1R5EE (item 14): the vendor pin was stale — `060c096` → `8e2f436` re-derived (`ast` parses; 71 `def test_` vs 46; `before_send_transaction` ×2; `_redact_userinfo_in_text` present; module line cites re-resolved); D-127 minted; one finding, closed in the set | **method: re-derivation** | 1 | 0 | 1 |
+| Pass 13 | RE-OPENED again on site-provisioner 01M1R78S (item 14 CORRECTED: the DSN reaches the field through a URL-PARSE failure, 1 of 6 shapes, not a connection failure — their D-016): the pin moved `8e2f436` → `7b83573` (4 module/test commits: the reachable field redacted, damaged separators accepted, termination pinned); re-derived on the blob: `ast` parses, 75 `def test_`, `before_send_transaction` ×2, every cite re-resolved; D-130 minted; one finding, closed in the set | **method: re-derivation** | 1 | 0 | 1 |
 
-Round totals: 37 raised over passes 1–10 and 12, 37 closed in the set, 0 open; pass 11 raised 0 — the
-no-op round — and pass 12 (the re-open) closed its single finding in the same change. Plan-dir commits carrying the rounds, newest first: ff667c97 5a1a6d4d 72f96a6e 504abbcd 091a220c cd93ff2f 42864624 c3de9601 dacae798 d7fed38b 6620467d .
+Round totals: 38 raised over passes 1–10, 12 and 13, 38 closed in the set, 0 open; pass 11 raised 0 — the
+no-op round — and passes 12–13 (the re-opens) each closed their single finding in the same change. Plan-dir commits carrying the rounds, newest first: ff667c97 5a1a6d4d 72f96a6e 504abbcd 091a220c cd93ff2f 42864624 c3de9601 dacae798 d7fed38b 6620467d .
