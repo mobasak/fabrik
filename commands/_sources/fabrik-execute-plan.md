@@ -88,13 +88,46 @@ TASK terminator, and the record is what proves the task is actually over.
      reds get mis-attributed to siblings; a legacy lock without these fields → the messy-resume BLOCKED path).
      (A lock left `active` by an orderly `BLOCKED` halt is INTENTIONAL — the plan still owns its scope until
      resolved; the BLOCKED report should say so.)
+   - **Locks are in-repo and PER WORKING TREE — that is the design.** A linked worktree carries its own
+     `.fabrik/plan-locks/`, so step 7's overlap scan sees the tree you are in, which is exactly the tree
+     your own resume reads. A sibling AGENT's lock is invisible from here and that is safe: each agent
+     commits to its own branch and only the merge owner writes the base branch, so overlapping work
+     surfaces as an ordinary git conflict at merge rather than as lost work. Cross-tree lock visibility is
+     unbuilt — never synthesise it by writing a lock outside this tree.
 8. **Isolate + verify clean + capture the baseline.**
-   - **Don't nest a worktree:** if you're already in a linked worktree (`GIT_DIR != GIT_COMMON` and
-     `git rev-parse --show-superproject-working-tree` is empty, so it's not a submodule), work in place —
-     don't create another.
-   - **Isolate concurrent runs:** if any *other* plan-lock is `active`, run this plan in its **own git
-     worktree** (`isolation:"worktree"`) so two runs never share a working tree (ensure its `.venv`/deps
-     exist before any gate runs there); if yours is the only active run, the main worktree is fine.
+   - **Worktrees nest exactly TWO levels, split by ROLE — not by how deep you already are.** As the
+     ORCHESTRATOR you give every dispatched subagent its own worktree (§ Isolation model) whether you sit
+     in the main checkout, in this run's own concurrency-isolation worktree, or in a named agent's window
+     (`claude --worktree <agent>`): a linked worktree shares `$GIT_COMMON_DIR` with the repo, so
+     `git worktree add` from inside one registers against that same repo and the merge back is an ordinary
+     merge. A dispatched CODER already runs in the worktree its dispatch created (`GIT_DIR != GIT_COMMON`
+     and `git rev-parse --show-superproject-working-tree` empty, so it's not a submodule) — it works in
+     place and never opens a third level.
+   - **Resolve the BASE BRANCH from git, once, and use it for every merge, rebase and cleanup in this run:**
+     `BASE=$(git branch --show-current)` — three positions, all three live: `master` in the **main
+     checkout**; the tree's own branch inside **an isolation worktree THIS run created**;
+     `worktree-<agent>` inside **a named agent's window**. (§ Finish gives each position its merge-back
+     disposition — they differ, and only there.) **Never write a branch name as a default:** a merge or rebase aimed at a literal
+     `master` from inside an agent's worktree lands that agent's work on a line it does not own, crossing
+     the boundary the worktrees exist to hold (only the merge owner writes the repo's own base branch).
+     Empty output = detached HEAD → `BLOCKED: no current branch — searched: git branch --show-current —
+     missing: a checked-out branch to merge into`.
+   - **Probe the nesting before the first dispatch relies on it (R6 — once per repo, self-service).** In a
+     scratch repo run `claude -p --worktree agent-alpha` with a brief that adds a nested worktree, commits
+     in it, and merges into `worktree-agent-alpha`; record the verdict in the plan's Evidence. **Probe
+     passes** → dispatch subagents into nested worktrees exactly as the two-level rule states, and the
+     Merge Protocol merges their branches into `BASE`. **Probe blocked by the isolation enforcement** →
+     take the DEFAULT and say so: dispatch subagents on BRANCHES inside the agent's worktree — one branch
+     per unit, same Merge Protocol, no nested worktree.
+   - **Isolate concurrent runs — from the MAIN checkout only:** if you are in the main checkout and any
+     *other* plan-lock is `active`, run this plan in its **own git worktree, entered with `EnterWorktree`**
+     (the tool that puts THIS session in a worktree — `isolation:"worktree"` is the Agent tool's parameter
+     for DISPATCHED coders, a different thing), so
+     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); if
+     yours is the only active run, the main checkout is fine. **Already in a linked worktree — a named
+     agent's window, or an isolation tree a prior step created — work in place: that tree IS your
+     isolation**, and a second orchestrator level would push the coders to a third, against the two-level
+     rule above.
    - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not →
      STOP — for a step-7 same-plan RESUME this is the MESSY case: `BLOCKED: resume needs operator ruling`
      per step 7 (never adopt, reset, or revert residue on shared paths — the operator rules first).
@@ -119,12 +152,17 @@ TASK terminator, and the record is what proves the task is actually over.
     visible; the plan file's `Status:` field + phase-done markers remain the **durable** record a resumed
     run reads (§Plan Status Tracking). The todo list is the ephemeral view, the plan file is the source of truth.
 
-> **Branch model — deliberate divergence, not an omission.** Fabrik runs on **shared `master`** with
-> plan-locks + Agent Provenance Trailers + explicit-path commits (§Commit Provenance Trailers), so
+> **Branch model — deliberate divergence, not an omission.** Fabrik runs on a **shared `BASE` branch**
+> (step 8 resolves it, three positions: `master` in the main checkout · that tree's own branch in an
+> isolation worktree this run created · `worktree-<agent>` in a named agent's window)
+> with plan-locks + Agent Provenance Trailers + explicit-path commits (§Commit Provenance Trailers), so
 > `executing-plans`' "never start on main without consent" and the `finishing-a-development-branch`
-> merge/PR handoff are intentionally **superseded** — there is no feature branch to finish; the plan-lock IS
-> the isolation and the per-phase commits ARE the integration. Worktrees are used only to isolate
-> *concurrent* runs (step 8), not as a merge-to-main gate.
+> merge/PR handoff are intentionally **superseded** — THIS run has no feature branch to finish; the
+> plan-lock IS the isolation and the per-phase commits ARE the integration. Worktrees isolate concurrent
+> runs and dispatched coders (step 8, §Isolation model), never as a merge-to-main gate. When the run sits
+> in a NAMED agent's window, merging that window's branch into the repo's own base branch is the merge
+> owner's act in the main checkout, after this run reports — never this run's; a worktree the run created
+> for ITSELF, the run merges once it has LEFT isolation (§ Finish's three positions).
 
 ## Self-Service Knowledge Hierarchy
 
@@ -375,7 +413,8 @@ acquire lock (owned_paths = spine File Scope MINUS stem-scoped metadata) → bas
 FIRST dispatch commit flips spine Status: CONVERGED → IN-PROGRESS
 
 while the Board has non-terminal tickets:
-    eligible = ⬜ tickets with every Depends: row ✅ and no pending Serialized: barrier
+    eligible = ⬜ tickets with every Depends: row ✅, no pending Serialized: barrier,
+               and (spine carries Epic:) Touches inside the epic's owned_paths — an escape is refused → 🔴
     dispatch up to 3 coders, Merge-Order position order, runtime per Complexity (D2)
     on each coder return: per-ticket review loop to coverage-adjudicated exit (D4)
     merge in Merge Order: squash-apply code + Board flip + applied Deltas in ONE commit (D5)
@@ -425,6 +464,26 @@ its Touches (contract violation → its diff is rejected at acceptance).
   file + the branch history (`git log <base_commit>..HEAD`) + the specific findings — and NO session
   history, prior-phase summaries, or other tickets (the exclusion targets context bloat, never the
   standard briefing).
+- **Epic containment — REFUSE a ticket whose Touches escape the epic.** When the spine carries an
+  `Epic: docs/development/epics/<file>` header (an epic-born plan), read that epic's frontmatter
+  `owned_paths` and check every eligible ticket's `## Touches` against them BEFORE dispatch. A path the
+  epic does not own is refused by NAME — the ticket, the offending path, the epic — 🔴 that ticket and
+  CONTINUE the Board (a refused ticket halts the others no more than a D4 🔴 does), and report it as a
+  plan defect for the epic's owner to resolve; a dispatcher never widens an epic to admit a ticket.
+  The `Epic:` line is also what the emit-time containment check keys on; this is the dispatch-time half,
+  because a Board can gain a ticket after its last gate run. **The comparison is GLOB-AWARE, never a string
+  prefix:** `**` matches any depth (in the MIDDLE of a glob too — `libs/**/entitlements/**` is the shape
+  real epics use), a single `*` matches within ONE path segment. So `src/a/x.py` IS covered by `src/a/**`
+  — a prefix test answers no and would refuse every legitimate dispatch — while `src/a/b/deep.py` is NOT
+  covered by `src/a/*`; a `dir/` entry is covered when the directory's whole SUBTREE is (`docs/x/` under
+  `docs/**`, not under `docs/*`). Only the EPIC side carries globs: Touches and File Scope are literal
+  paths / `dir/` entries by grammar, and a spine that copied a glob in is a plan defect the emit gate
+  ERRORs, not something to match leniently. **An `Epic:` path that does not resolve on disk, or an epic
+  whose frontmatter carries no `owned_paths`, is
+  `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter`
+  (the § Execution Contract shape, all three clauses) — never a silent
+  dispatch:** a header the dispatcher cannot read is containment that never ran, which is exactly the
+  fail-open this rule exists to close. A spine with no `Epic:` line at all is untouched by this rule.
 - **Dispatch eligibility:** every `Depends:` row ✅ AND no `Serialized:` barrier pending (a Serialized row
   is a dispatch barrier: later waits for earlier ✅ — **direction per `## Merge Order` position, the
   canonical order signal**; the row's own ID listing order is not load-bearing, and a row listed against
@@ -518,8 +577,9 @@ Board trustworthy. Touches are exclusively owned → a same-file collision betwe
 violation → ERROR + re-dispatch**, never a merge-rule pick. Cross-ticket semantic incompatibility is
 caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the
 consumer's seam tests on the integrated tree — red → fixup routed to the **CONSUMER's coder** with both
-contracts in scope. **Salvaged/stale branches are rebased onto current master before acceptance review**
-(conflicts → a fixup, never a silent resolution).
+contracts in scope. **Salvaged/stale branches are rebased onto the run's `BASE` branch — resolved by
+`git branch --show-current` per Before You Start step 8, never the literal `master` — before acceptance
+review** (conflicts → a fixup, never a silent resolution).
 
 ### D6 — Lock registry: per-ticket resume
 
@@ -635,18 +695,24 @@ Monitor/notification; split scope only when the work genuinely divides"* instruc
 
 ### Isolation model: worktrees
 
-Every parallel subagent MUST use `isolation: "worktree"` in the Agent tool call. This gives each subagent its own git worktree — a separate working directory with its own branch. They cannot clobber each other.
+Every parallel subagent MUST use `isolation: "worktree"` in the Agent tool call — whether the orchestrator runs in the main checkout, in an isolation tree it created, or inside a named agent's window (Before You Start step 8's two-level rule; a linked worktree nests coder worktrees as ordinary git). This gives each subagent its own git worktree — a separate working directory with its own branch. They cannot clobber each other.
 
 ```
-Phase with 3 parallel subagents:
+Phase with 3 parallel subagents — the orchestrator sits at ONE of three positions (§ Finish):
 
-  main worktree (orchestrator)
+  (a) main checkout                → BASE = master
+  (b) this run's own isolation tree → BASE = that tree's branch   (step 8, entered with EnterWorktree)
+  (c) worktree-<agent>/             → BASE = worktree-<agent>     (a named agent's window)
+
+  orchestrator (a, b or c)
     ├── worktree-1/ (subagent 1, branch: phase-B-task-4)
     ├── worktree-2/ (subagent 2, branch: phase-B-task-5)
     └── worktree-3/ (subagent 3, branch: phase-B-task-6)
 
 Each subagent commits to its own branch.
-Orchestrator merges branches back sequentially.
+Orchestrator merges those branches back into BASE, sequentially — two levels, never three.
+Where BASE itself goes then: (a) nowhere, it IS master · (b) this run merges it back itself, after
+ExitWorktree returns it to the main checkout · (c) the merge owner merges it. § Finish states each.
 ```
 
 ### Briefing template
@@ -842,12 +908,14 @@ configured DSN; exact connection handling (WSL dev vs VPS `SUBAGENT_RUNS_DSN`), 
 
 ## Merge Protocol
 
-After all subagents for a phase complete, merge their branches back to the working branch. This is the critical step — do it carefully.
+After all subagents for a phase complete, merge their branches back into the run's `BASE` branch — the one
+`git branch --show-current` reports (Before You Start step 8), which is `master` only when that is what this
+checkout is on. This is the critical step — do it carefully.
 
 ### Sequential merge, lowest task number first
 
 ```bash
-# 1. Verify you're on the working branch, tree is clean
+# 1. Verify you're on BASE (git branch --show-current — never a hardcoded name), tree is clean
 git status --short  # must be empty
 
 # 2. Merge each subagent branch in task-number order (lowest first)
@@ -912,8 +980,12 @@ EOF
 The design spec may indicate that some phases are independent (e.g., "Phases A, C, D are independent — MAY run in parallel"). If so:
 
 1. Only parallelize phases that the spec explicitly marks as independent.
-2. Each parallel phase gets its own worktree (same `isolation: "worktree"` model as subagents within a phase).
-3. After all parallel phases complete, merge them sequentially (alphabetical phase order).
+2. **No per-phase orchestrator worktree — the two-level rule binds here too** (Before You Start step 8).
+   There is ONE orchestrator (you) and ONE level of coder worktrees: dispatch every parallel phase's
+   subagents as SIBLING worktrees at that same level, whichever phase each belongs to, or run a phase in
+   place when it needs no isolation. Giving a phase its own worktree makes it a second orchestrator level
+   and puts its subagents at a third.
+3. After all parallel phases complete, merge their branches into `BASE` sequentially (alphabetical phase order).
 4. Run the validation gate for EACH phase after merge to confirm nothing broke.
 5. Run `/fabrik-review` on the combined changed surface.
 
@@ -935,8 +1007,15 @@ The design spec may indicate that some phases are independent (e.g., "Phases A, 
 
 Keep the plan file's own `**Status:**` field current as you execute — it is the **durable record** of
 where execution stands, and a resumed session reads it to know what is already done. All of these edits
-are part of the phase commits (explicit path: the plan file) and carry the same provenance trailers; do
+are part of the phase commits (explicit paths: **the plan file AND this run's lock file**,
+`.fabrik/plan-locks/<plan-id>.json`) and carry the same provenance trailers; do
 **not** delete the `## Evidence` / `## Self-audit` sections (they remain the execution's design record).
+**The lock is COMMITTED, not left dirty** — it is tracked like any other file, so every phase commit that
+stages the plan file stages the lock's current state beside it. Two consequences make this load-bearing
+rather than tidiness: an uncommitted lock makes `git worktree remove` refuse the tree outright
+(`fatal: contains modified or untracked files`), and only a committed lock TRAVELS with the branch when a
+position-(b) tree merges back (§ Finish). The lock stays orchestrator territory — a ticket may never list
+it in Touches — but the orchestrator commits it.
 
 - **On start** (before the first phase commit): flip `**Status:** CONVERGED` → `**Status:** IN-PROGRESS`.
   This also moves the plan out of `check_convergence.py`'s scope — it only gates plans whose Status is
@@ -973,11 +1052,28 @@ CHANGELOG: <entry>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 ```
 
-## Finish (shared-master — there is no branch to merge)
+## Finish (the commits are on `BASE` — where `BASE` goes next depends on your tree)
 
-Fabrik commits per-phase directly to `master` and the plan-lock was your isolation, so
-`finishing-a-development-branch`'s merge / PR / keep / discard menu **does not apply** — there is nothing
-to merge back. "Finishing" is:
+Fabrik commits per-phase directly to `BASE` and the plan-lock was your isolation, so
+`finishing-a-development-branch`'s merge / PR / keep / discard menu **does not apply**. What DOES differ
+is where `BASE` goes, and each of step 8's three positions has its own disposition — name yours:
+
+- **(a) Main checkout** (`BASE` = `master`): the commits already sit on the branch everything integrates
+  on. Nothing to merge, nothing to remove; step 7 pushes it.
+- **(b) An isolation worktree THIS run created** (step 8's concurrent-run path; `BASE` = that tree's own
+  branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
+  While the session is isolated the harness refuses every route into the main checkout (`git -C`,
+  `--git-dir`/`GIT_DIR`/`GIT_WORK_TREE`, a `cd` redirect, any command whose cwd resolves there), so a
+  merge attempted from the worktree does not fail cleanly — it is simply blocked. The sequence is
+  commit → push `BASE` → `ExitWorktree` → merge → verify → remove → push, and step 4 carries the
+  commands. Nobody else finishes this tree: it is not an epic window, so the merge owner never comes for
+  it, and a branch left pushed-but-unmerged here is work that never reaches `master`.
+- **(c) A named agent's window** (`claude --worktree <agent>`; `BASE` = `worktree-<agent>`): this run
+  merges nothing and removes nothing. The merge owner merges that window's branch in the main checkout,
+  in epic order, after you report; the window itself is the operator's launch and is retired on the
+  agent's LAST epic, never at a plan's Finish. Push `BASE` and stop there.
+
+"Finishing" is:
 
 1. **Final whole-plan review — the cross-phase net the per-phase reviews CAN'T see.** Run **`/fabrik-review`
    over the CUMULATIVE diff across ALL phases** (`git diff <the step-8 baseline commit>..HEAD` — the whole
@@ -997,13 +1093,50 @@ to merge back. "Finishing" is:
    what actually shipped: point to the commit/file that delivers it. Report any gap explicitly — a passing
    gate does not prove the plan's intent was built (it proves format + the tests you wrote pass). Don't flip
    `Status: EXECUTED` with an un-delivered requirement unaccounted for.
-4. **Clean up your OWN worktree only** — if THIS run used its own worktree (step 8, concurrent run): resolve
-   the MAIN checkout first (`MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` — never
-   dirname-of-`--git-common-dir`, which is a `.git` DIRECTORY, not a checkout), **step your shell OUT of
-   the worktree being removed** (`cd "$MAIN"` — a shell sitting inside it makes the remove fail), then
-   `git -C "$MAIN" worktree remove <path>` + `git -C "$MAIN" worktree prune`. **Provenance guard:** remove only a worktree THIS run
-   created — never a harness-owned or a sibling's tree. (The Merge Protocol already deletes the *subagent*
-   branches; this is the *orchestrator's own* worktree.)
+4. **Leave isolation, merge your own tree, then clean up — position (b) only.** The merge is impossible
+   from inside the worktree (§ Finish's (b)), so the order is fixed and every step happens where it can
+   actually run:
+   1. **Commit everything in the tree** — code, plan file, lock (§ Plan Status Tracking's explicit paths).
+      Two reasons, neither of them `ExitWorktree`'s (its `keep` action refuses nothing — it exists to
+      preserve changes): only committed work is ON the branch there is to merge, and
+      `git worktree remove` in step 4 refuses a tree that still carries uncommitted or untracked files.
+   2. **Push `BASE`** — the branch is off-box-protected before you touch the tree it lives in.
+   3. **`ExitWorktree` with `action: "keep"`** — it returns the session to the main checkout and leaves
+      the tree and branch on disk. **Never `action: "remove"` here:** it refuses a tree holding commits
+      that are not on the original branch, and the `discard_changes` escape would delete exactly the work
+      you came to merge. It reverses `EnterWorktree` and only that: a tree this session reached any other
+      way — a manual `git worktree add`, a harness-owned tree, a window someone else launched — leaves it
+      a no-op, and that run takes the OWED route below.
+   4. **In the main checkout the session is now in** (no redirect involved, so no `git -C` and no `cd`),
+      under § Merge Protocol's rules — it governs this merge exactly as it governs a subagent branch's.
+      **Precondition, and it is not the Merge Protocol's "tree must be empty":** confirm the branch
+      (`git branch --show-current`) and read `git status --short`. A dirty MAIN checkout is the EXPECTED
+      state on a tree several sessions share — that residue is siblings' WIP and you never touch, stash or
+      reset it. Merge only when no path YOUR branch touches is dirty there; if one is, **DEFER** — report
+      the merge as OWED with those paths, exactly like the unavailable-`ExitWorktree` case below. Then
+      `git merge --no-ff <the branch>`, resolving conflicts by § Merge Protocol's table (higher task
+      number wins on semantic conflicts · keep both additions · combine import sets) — a conflict you
+      cannot resolve cleanly is `git merge --abort` + OWED, never a forced resolution. Then **re-run the
+      phase gates ON THE MERGED RESULT**, `git worktree remove <path>` + `git worktree prune`, and delete
+      the branch.
+   5. Steps 5–7 then run here, on the merged branch — **only if step 4 actually merged.** Deferred on a
+      dirty path, or aborted on a conflict → the OWED path below owns the rest: the tree stays, steps 5–7
+      run in it, and the report names what is left.
+
+   **Provenance guard:** merge and remove ONLY a worktree THIS run created — never a harness-owned tree, a
+   sibling's, or a named agent's window (position (c) is the operator's launch and is retired on that
+   agent's last epic; a plan run neither removes it nor reports it as owed). Position (a) skips this step
+   entirely. (The Merge Protocol already deletes the *subagent* branches; this is the *orchestrator's own*
+   worktree.)
+   ⚠️ **When `ExitWorktree` is unavailable** — a headless run, or a tree this session did not enter
+   through it (the tool is a no-op outside its own worktree session) — **the merge cannot happen at all
+   from here, and there is no workaround to attempt:** `git -C`, `--git-dir`, `GIT_DIR`/`GIT_WORK_TREE`
+   and `cd` into the main checkout are all blocked while isolated. Report the merge AND the removal as
+   OWED, naming the branch, the worktree path and the exact commands, for the operator to complete. On
+   that path steps 5–7 run HERE, in the worktree: release the lock, flip and archive the plan, and push
+   `BASE` — the owed merge then carries all of it, because those edits are commits on the branch like any
+   other. Coder worktrees created BY this run are removed from this tree as usual — they are inside it,
+   so no redirect is involved.
 5. **Release + record** — set `.fabrik/plan-locks/<id>.json` `status:"released"` (+ `completed_at`,
    `final_commit`), flip the plan `Status: EXECUTED <date>`, **and cite the step-1 whole-plan review artifact
    in the completion stamp** — a `Whole-plan review: docs/development/reviews/<the step-1 review>.md` line.
@@ -1033,7 +1166,9 @@ to merge back. "Finishing" is:
    archived-but-not-EXECUTED as the backstop). **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
    review finding** — archiving IS the "I am 100% sure this is done" act, and a plan in `archived/` is a
    claim that nothing is left. Commit the move with the plan-status commit (explicit paths).
-7. **Push, then name the one decision left.** The commits are on `master` — **PUSH them now** (`git push`;
+7. **Push, then name the one decision left.** The commits are on `BASE` — **PUSH them now** (`git push`,
+   which pushes the current branch; at position (b) that is the branch step 4 merged INTO, pushed from the
+   main checkout; a branch with no upstream yet — an agent window's first push — `git push -u origin "$BASE"`;
    the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
    `git pull --rebase=merges` then push (preserves the Merge Protocol's `--no-ff` merge commits —
    plain `--rebase` linearizes them away) · conflict: abort + report · NEVER `--force`). The only remaining

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-plan-after-chat` seeds File Scope from the epic's `owned_paths`; `/fabrik-execute-plan` refuses out-of-epic dispatch (2026-09-05)
+
+T04b of plan `2026-09-03-plan-1-multi-agent-per-repo` (spec § Chain consolidation (e), § Live locks;
+D-117 keeps the lock directory at `.fabrik/plan-locks/`). Plan spines gain a mandatory `**Owner:**` line
+(from `CLAUDE_AGENT`; `—` when unset) and, when epic-born, one `Epic: docs/development/epics/<file>`
+header whose epic must resolve or the run BLOCKs; `## File Scope (owned paths)` is seeded by EXPANDING the
+epic's globs to literal paths / `dir/` entries, with the epic's globs as the ceiling (a copied-in glob is a
+gate ERROR). The dispatcher checks every ticket's Touches against the epic's `owned_paths` with the
+glob-aware rule T05a enforces at emit (`**` any depth, `*` one segment, never a prefix test; a `dir/` entry
+is inside a glob when its whole subtree is) and refuses an escape by name; merge, rebase, cleanup and push
+resolve `BASE` via `git branch --show-current` instead of a literal `master`; worktrees nest exactly two
+levels by role (an agent window IS the isolation; the R6 probe and its default written in); the
+D12-blocked cleanup from inside an isolated session is reported as owed to the merge owner. Rendered
+box-wide at merge (render → `--check` → commit).
+
 ### Added — `/fabrik-spec` takes an epic file as its intake (2026-09-05)
 
 T04a of plan `2026-09-03-plan-1-multi-agent-per-repo` (spec § Chain consolidation (d)).

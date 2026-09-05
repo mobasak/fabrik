@@ -1,6 +1,6 @@
 # Acceptance review — T04b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 6 rounds; round 6: pool 3/3 clean after refutation + orchestrator re-read, found: 0, fixed: 0; 1 forward-reference class recorded for T05a's merge)
 
 **Surface:** the coder's worktree branch (worktree-agent-a81361228b7696d5d, head 5d6035cd) against its merge base 1abbc7dd — `commands/_sources/fabrik-plan-after-chat.md` +26/−1, `commands/_sources/fabrik-execute-plan.md` +47/−8. Coder: native Opus worktree (Execution Discipline: opus for T04b); Gate 1 red-before (0) → 2; `--check` from the worktree drifts exactly the two files; `check_command_corpus` green; 0 `plan-locks` references removed (D-117 honoured).
 
@@ -69,4 +69,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] plan-after-chat :232 "no check in this list reads them" is false for the `Epic:` half in either state (the containment check T05a builds lives inside `check_plan_tickets.py`, one of the list's named enforcers) → FIXUP (1): the checks do not VALIDATE the two lines' presence or shape.
 - [L] execute-plan :482's BLOCKED example lacks the `searched:`/`missing:` clauses :182 mandates (the sibling passage has them) → FIXUP (2).
 Round 5 verdict: 2 (1 M, 1 L) → FIXUP routed; pool 3/3 CLEAN. Not the no-op round.
+
+## Round 6 — over the FINAL head `eae893fe` (32,620 B; the round-5 fixup: two sentences, 3/1 + 3/2, both the finder's prescriptions verbatim)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: orchestrator re-read of eae893fe (the spine-grammar clause and the three-clause BLOCKED string, no rule changed) — round 6.
+### Adjudication
+- deepseek — CLEAN (4 rows; the two round-5 sentences; DO-NOTs; lock path; BASE ×3; glob-aware containment; two levels; unreadable epic → BLOCKED).
+- gemini — 2 raised, 2 REFUTED: "🔴 + CONTINUE contradicts the 🔴 symbol" — the D-loop's own rule is 🔴-and-continue with the blocked-end at the last dispatchable ticket (verified by the round-1 native finder against :406/:632); "step 4 permits a merge into a dirty main" — that is the recorded decision (siblings' unrelated WIP is never touched; a dirty path the branch touches DEFERS).
+- qwen — 2 raised, 2 REFUTED: "the Owner line is described, not implemented" — a command source is prose the agent executes, the instruction IS the implementation (same refutation as round 5); "no test could fail on prefix matching" — commands carry no tests; T05a's enforcement carries the test.
+Round 6 verdict: found 0, fixed 0 — the no-op round. Class ledger: glob-seeding · two-levels · BASE-everywhere · self-isolation-merge-back (EnterWorktree/ExitWorktree) · lock-committed · OWED-path · merge-owner-term · forward-references · shared-tree-precondition · BLOCKED-shape — all swept clean.
 

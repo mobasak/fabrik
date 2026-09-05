@@ -18,6 +18,13 @@ First capture the **source of truth** — do NOT invent scope:
   external dependencies (already grounded with cited URLs), the **fabrik-lib vendor→enhance→build verdict**,
   and the `shape:`/infra implications. A spec-fed plan is `RICH` by definition — do not re-brainstorm what
   the spec already settled.
+- **If that spec was fed by an EPIC, read the epic file too** (`/fabrik-spec docs/development/epics/<file>`
+  is the epic intake path; the spec names the epic file it consumed). Capture two things from the epic's
+  frontmatter and carry them into Phase 4: its **path** (the plan's `Epic:` header line) and its
+  **`owned_paths`** globs (the seed AND the ceiling for `## File Scope`). Those globs are the concurrency
+  contract between the agents building sibling epics — a plan that scopes outside them plans work another
+  agent owns, and the work it wants belongs in a scope conversation with that epic's owner, never in a
+  widened File Scope. A chat-born or non-epic spec carries neither, and every epic clause below is simply absent.
 - **Also read the FROZEN contracts if present — they are BINDING, not optional:** `docs/data-contract.md` (the
   frozen GUI↔DB field dictionary from `/fabrik-data-contract`) and, for a GUI project, `docs/ui-design.md` (the
   frozen screen+flow contract from `/fabrik-ui-design`). The plan MUST build against them verbatim — **no phase
@@ -221,7 +228,10 @@ Merge-Order set mismatch + ONE roll-up-mismatch ERROR PER orphaned G/W/T row + u
 something depends on it — easily 6–13 findings from one filename;
 `check_plans` ERRORs a NEW bad name at Tier-3 but downgrades to WARN once it's committed). The spine
 carries: `Status:`
-(DRAFT|PLANNED|CONVERGED|IN-PROGRESS|EXECUTED|BLOCKED) · `## Ticket Board` (a GFM TABLE whose header
+(DRAFT|PLANNED|CONVERGED|IN-PROGRESS|EXECUTED|BLOCKED) · the Phase-4 header lines — `**Owner:**` always,
+`Epic:` on an epic-born plan, both CONTRACT rather than grammar: the checks in this list do not VALIDATE
+either line's presence or shape; `Epic:` is what the epic-containment check keys on and `**Owner:**` is
+what the PLANS table reads · `## Ticket Board` (a GFM TABLE whose header
 and **EVERY row start with a leading `|`** — `| Ticket | Title | Depends | Parallel | State | Commit |`
 then e.g. `| T01 | Alpha | — | ⚡ | ⬜ | |`; a pipe-less table reports
 `ticket file T## has no Ticket Board row` against the SPINE for every ticket and kills the
@@ -599,6 +609,19 @@ Append, so the downstream converge/execute commands have what they need:
   start if any owned path overlaps another in-flight run. Keep the scope **disjoint** from any sibling
   plan you know is active; if the work genuinely must share a file, name it here and flag it as a
   serialization point (those phases cannot run in parallel with the other plan).
+  **An epic-born plan (Phase 0) seeds this section from the epic's `owned_paths` by EXPANDING those
+  globs to the literal paths / `dir/` entries the plan actually touches — never by copying a glob in.**
+  The no-globs grammar binds here exactly as it does everywhere else: a verbatim `src/a/**` entry is a
+  gate ERROR, it collapses the Touches-⊆-File-Scope containment with it, and because
+  `/fabrik-execute-plan` mints the lock FROM File Scope, a glob-seeded spine mints a glob lock. The
+  epic's globs are the CEILING, not the content: every literal entry — and so every ticket's Touches —
+  lies inside them. That is the contract the emit-time containment check keys on once the `Epic:` header
+  is present, and `/fabrik-execute-plan` refuses to dispatch a ticket that escapes. **That containment test is
+  GLOB-AWARE, never a string prefix:** `**` matches any depth — including in the middle of a glob, the
+  shape real epics use (`libs/**/entitlements/**`) — and a single `*` matches within ONE path segment.
+  So `src/a/x.py` IS inside `src/a/**` (a prefix test answers no and would reject every legitimate
+  path), while `src/a/b/deep.py` is NOT inside `src/a/*`; a `dir/` entry is inside a glob when the
+  directory's whole SUBTREE is (`docs/x/` lies inside `docs/**`, not inside `docs/*`).
 - **`## Evidence`** — per phase, ≥1 real `path:line` you read AND ≥1 fenced command-output block you
   captured in Phase 1 (including the **external-research URLs** that grounded any 3rd-party dependency).
   This grounded design rationale is what makes the plan self-contained, so `/fabrik-execute-plan`'s
@@ -611,6 +634,19 @@ Append, so the downstream converge/execute commands have what they need:
   reconcile it now, before a subagent wires against the wrong name). Then the fixed-point claim (or why not yet).
 - **`## Residual unknowns`** — separate **resolved** from **still-open**; every open one carries a named
   resolution step. Do **not** write "100% / zero unknowns."
+- **Header lines — an Owner line on EVERY plan, an Epic line on epic-born ones.** Write the bold-label
+  line `**Owner:** <the value of $CLAUDE_AGENT>` at the top of the plan (the SPINE, for a set), filled
+  from the environment at creation — never left for a human to add later: it is the line
+  `docs/development/PLANS.md`'s Owner column reads, and an unowned row is a plan nobody is
+  answerable for. `CLAUDE_AGENT`
+  unset (a repo running one unnamed session) is the one case the value is `—`, which renders as untagged
+  for the ownership sweep to fill; a guessed name is worse than an honest dash. An epic-born plan (Phase 0)
+  ALSO carries exactly ONE `Epic: docs/development/epics/<file>` line naming the epic file it was fed —
+  that line is the interface the epic-containment check keys on. Write exactly one, and RESOLVE it before
+  you write it: an epic file you cannot read, or one whose frontmatter carries no `owned_paths`, is
+  `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter`,
+  never a plan that emits the header anyway (a header the check cannot resolve fails open, which is the
+  containment silently not running).
 - Set **`Status: DRAFT`** (or `PLANNED`) — **not `CONVERGED`**. Convergence to a fixed point is
   `/fabrik-plan-review`'s job; claiming it here would be premature (and `check_convergence.py` gates it).
 
