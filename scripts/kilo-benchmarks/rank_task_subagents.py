@@ -95,7 +95,7 @@ _SCORE5_NOISE_BAND = 0.25
 # REPRODUCED across two independent incidents six weeks apart is STRONGER evidence, not weaker. A
 # days-floor would have suppressed exactly that while admitting a model swept on ten consecutive days
 # of a single outage. Sampling breadth is not incident independence.
-_STALL_MIN_DAYS = 2       # at least two days on which stalls occurred
+_STALL_MIN_DAYS = 2  # at least two days on which stalls occurred
 _STALL_MIN_SPAN_DAYS = 7  # …separated by at least a week, so one outage cannot qualify alone
 
 
@@ -109,11 +109,7 @@ def stall_signal(stalls: int, total: int, stall_days: int, span_days: int) -> tu
       minimax/minimax-m3      6.4% · 5 days · 56 apart -> routable
     """
     rate = (100.0 * stalls / total) if total else 0.0
-    routable = (
-        stalls > 0
-        and stall_days >= _STALL_MIN_DAYS
-        and span_days >= _STALL_MIN_SPAN_DAYS
-    )
+    routable = stalls > 0 and stall_days >= _STALL_MIN_DAYS and span_days >= _STALL_MIN_SPAN_DAYS
     return rate, routable
 
 
@@ -660,6 +656,60 @@ _CLAUDE_P_RETEST_NOTICE = [
 ]
 
 
+_SIDECAR_STALE_AFTER_HOURS = 24  # the rebuild cadence: `0 6 * * *` in daily_refresh.sh
+
+
+def _sidecar_window(d: dict) -> str:
+    """The provenance clause for ② — the window it came from, and LOUDLY if that build is stale.
+
+    A rate with no date is typographically identical whether it was built this morning or 26 days ago;
+    that is exactly how `claude_p_cost.json` sat at a 17%-low figure while every reader rendered it as
+    current. Three states, deliberately distinguishable:
+
+      * DERIVED and fresh   → the window bounds and denominators, stated plainly
+      * DERIVED and STALE   → the same, prefixed ⚠️ STALE with the age, because a cron that stopped
+                              firing is silent by construction and nothing else here would say so
+      * ANCHOR fallback     → no window at all; the rate is a research constant, and saying "over
+                              2026-08-07→09-05" beside it would assert a derivation that never happened
+
+    A MISSING sidecar never reaches this function — `_claude_p_preamble` returns `[]` first, which is
+    the fail-soft path a project checkout depends on and which must not be confused with staleness.
+    """
+    import datetime
+
+    start, end = d.get("window_start"), d.get("window_end")
+    tokens, accounts = d.get("tokens"), d.get("accounts")
+    built = d.get("built_at")
+
+    age = ""
+    if isinstance(built, str) and built.strip():
+        try:
+            stamped = datetime.datetime.fromisoformat(built)
+            if stamped.tzinfo is None:
+                stamped = stamped.astimezone()
+            hours = (datetime.datetime.now().astimezone() - stamped).total_seconds() / 3600.0
+            if hours > _SIDECAR_STALE_AFTER_HOURS:
+                age = f" ⚠️ **STALE — built {hours / 24:.1f} days ago**, the {_SIDECAR_STALE_AFTER_HOURS}h rebuild has not run"
+        except ValueError:
+            age = " ⚠️ **built_at unparseable** — treat this rate as undated"
+    else:
+        age = " ⚠️ **no `built_at`** — this rate carries no date at all"
+
+    if not (start and end):
+        return f"(⚠️ **no window** — this is the research ANCHOR, not a measured rate{age})"
+    denom = ""
+    if isinstance(tokens, int) and tokens > 0:
+        # a volume that rounds to 0.0B tells the reader nothing — show the raw count instead
+        denom = (
+            f", {tokens / 1e9:.1f}B tokens"
+            if tokens >= 5e7
+            else f", {tokens:,} token" + ("s" if tokens != 1 else "")
+        )
+        if isinstance(accounts, int) and accounts > 0:
+            denom += f" over {accounts} account" + ("s" if accounts != 1 else "")
+    return f"(over {start}→{end}{denom}{age})"
+
+
 def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
     """The ②/③ context line for `claude-code/*` rows (reads `claude_p_cost.json` fail-soft). Empty if absent.
 
@@ -678,7 +728,8 @@ def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
         amort = float(d.get("amortized_per_mtok", 0.0) or 0.0)
         quota = float(d.get("quota_draw_pct", 0.0) or 0.0)
     except (OSError, ValueError, TypeError, AttributeError):
-        return []
+        return []  # MISSING stays fail-soft: a checkout without a sidecar renders no line at all
+    window = _sidecar_window(d)
     col_note = (
         " `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole "
         "measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate)."
@@ -687,7 +738,7 @@ def _claude_p_preamble(has_amortized_col: bool = True) -> list[str]:
     )
     return [
         f"_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's "
-        f"tokens, comparable to the pool — a RATE).{col_note} Context — ② amortized ≈${amort:.3f}/M · ③ last "
+        f"tokens, comparable to the pool — a RATE).{col_note} Context — ② amortized ≈${amort:.3f}/M {window} · ③ last "
         f"run's weekly-quota draw ≈{quota:.1f}% (from `claude_p_cost.json`; ③ is a capacity estimate, not a "
         f"precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the "
         f"printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, "
