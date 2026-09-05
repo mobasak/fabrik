@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — ettw 03-tech-plan is no longer a command.
+     Replaced by `/fabrik-data-contract` + `/fabrik-plan-after-chat` (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — TECH PLAN (our own, tool-capable twin of 03-tech-plan-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the Decisions Lock + Core Flows + rule packs + AGENTS.md + fabrik-lib/README from

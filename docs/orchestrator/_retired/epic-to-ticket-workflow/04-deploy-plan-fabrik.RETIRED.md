@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — ettw 04-deploy-plan is no longer a command.
+     Replaced by `/fabrik-deploy-checklist` + the deploy triad (`/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → `/fabrik-deploy`) (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — DEPLOY PLAN (our own, tool-capable twin of 04-deploy-plan-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the Tech Plan + INFRA-CHECK from disk and verifies the planned deploy against the

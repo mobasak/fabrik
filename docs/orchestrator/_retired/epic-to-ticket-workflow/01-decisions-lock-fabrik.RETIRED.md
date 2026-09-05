@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — ettw 01-decisions-lock is no longer a command.
+     Replaced by `/fabrik-spec` + `/fabrik-spec-review` (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — DECISIONS LOCK
      Run DIRECTLY by our orchestrator agent (Claude Code CLI — bare terminal, or inside a Traycer session
      with Claude Code as the backend) — never pasted into a planner GUI.

@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — ettw 05-ticket-outline is no longer a command.
+     Replaced by `/fabrik-plan-after-chat` + `/fabrik-plan-review` (the spine + ticket plan set, gated by `check_plan_tickets`, dispatched under plan-locks) (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — TICKET OUTLINE (our own, tool-capable twin of 05-ticket-outline-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it READS the Decisions Lock + Core Flows + Tech Plan + Deploy Plan + INFRA-CHECK from disk and

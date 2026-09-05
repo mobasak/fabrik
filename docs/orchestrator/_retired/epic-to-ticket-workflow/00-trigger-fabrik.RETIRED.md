@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — ettw 00-trigger (INFRA-CHECK) is no longer a command.
+     Replaced by `/fabrik-spec`'s epic-file intake — `/fabrik-spec docs/development/epics/<n>-<slug>.md` consumes every Metadata field as an intake row and runs the Constraints Digest in its place (also § (d)) (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — EPIC ENTRYPOINT (our own, tool-capable)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      TOOL-CAPABLE: it RUNS `python scripts/select_rules.py`, grounds external facts LIVE via MCP

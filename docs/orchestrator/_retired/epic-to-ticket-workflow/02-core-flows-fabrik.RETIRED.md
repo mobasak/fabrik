@@ -1,3 +1,5 @@
+<!-- ⛔ RETIRED 2026-09-05 — ettw 02-core-flows is no longer a command.
+     Replaced by `/fabrik-flows` + `/fabrik-flows-review` (spec § Chain consolidation (a)). Kept for history only. Do NOT wire it back as a command. -->
 <!-- ⚠️ FABRIK FACTORY WORKFLOW — CORE FLOWS (our own, tool-capable twin of 02-core-flows-fabrik)
      Run DIRECTLY by our orchestrator agent (Claude Code CLI, in VS Code) — never pasted into a planner GUI.
      GUI-ONLY: runs only when 00-trigger-fabrik's route included `core-flows`. TOOL-CAPABLE: it READS the
