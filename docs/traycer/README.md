@@ -1107,7 +1107,7 @@ The default workflow that guides you through feature development with a collabor
 - **`/implementation-validation`** — Validates code vs specs, creates bug tickets (implementation gate)
 
 **For complete command details** (roles, acceptance criteria, artifact structures, processing flows, validation gate mechanics), see:
-- [Traycer Agile Workflow (Detailed Reference)](./traycer-agile-workflow.md)
+- [Traycer Agile Workflow (Detailed Reference)](../orchestrator/_retired/traycer/traycer-agile-workflow.RETIRED.md)
 
 ### Traycer Refactoring Workflow
 

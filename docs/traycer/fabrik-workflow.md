@@ -1595,4 +1595,4 @@ User picks per ticket.
 - Managed via Workflows panel UI
 - Command files are markdown with frontmatter
 
-See `docs/traycer/traycer-agile-workflow.md` for Traycer's default workflow comparison.
+See `docs/orchestrator/_retired/traycer/traycer-agile-workflow.RETIRED.md` (retired 2026-09-06) for Traycer's default workflow comparison.

@@ -748,8 +748,6 @@ def generate_docs_structure_tree() -> str:
         "templates.md": "Available deployment templates",
         "KILO_MODEL_CAPABILITIES.md": "Kilo model capabilities",
         "windsurf/": "Windsurf IDE optimization",
-        "traycer-agile-workflow.md": "8-command Traycer Agile Workflow reference",
-        "traycer-refactoring-workflow.md": "4-command Traycer Refactoring Workflow reference",
         "kilo_selected_agents.md": "Kilo selected agents",
         "PLAN_OUTPUT_LOCATION.md": "Plan output location",
         "operations/": "Operational runbooks and VPS state",

@@ -145,7 +145,7 @@ Both flavours produce identical ticket structure — the Retrofit prefix carries
 Epic N — [Name]
 ```
 
-**Ticket Frontmatter (REQUIRED — Traycer-ready `[canonical: EPIC-ARTIFACT-SCHEMA.md]`):** every epic file MUST open with the typed frontmatter block below, then the prose body. It is the ONE data model (D10): `scripts/epic_order.py` reads `epic_n`/`depends_on`/`parallel_with`/`owned_paths` for integrity + phased ordering (the code that replaced `05`), and `scripts/traycer_mirror.py` reads `kind`/`title`/`status` for the Traycer card render. ⚠️ `depends_on`/`parallel_with`/`owned_paths` are the **machine form** of the `### Dependencies` prose below — keep them identical (a mismatch is a defect `04` flags).
+**Ticket Frontmatter (REQUIRED — Traycer-ready `[canonical: EPIC-ARTIFACT-SCHEMA.md]`):** every epic file MUST open with the typed frontmatter block below, then the prose body. It is the ONE data model (D10): `scripts/epic_order.py` reads `epic_n`/`depends_on`/`parallel_with`/`owned_paths` for integrity + phased ordering (the code that replaced `05`), and `traycer_mirror.py (deleted 2026-09-06, T09)` reads `kind`/`title`/`status` for the Traycer card render. ⚠️ `depends_on`/`parallel_with`/`owned_paths` are the **machine form** of the `### Dependencies` prose below — keep them identical (a mismatch is a defect `04` flags).
 
 **Ticket Description (frontmatter block, then the body):**
 
@@ -317,7 +317,7 @@ Both allowlisted in `CLAUDE.md` § HARD STOPS — NEVER; matched by `scripts/enf
 - **Never use a Title other than `Epic N — [Name]` / `Epic N — Retrofit: [area]`** — the `Retrofit:` prefix is the sole flavour carrier `epic-to-ticket/00` string-parses; `Epic 4 — i18n Retrofit` silently classifies as delta-feature.
 - **Never copy a remembered port / pack path / shape flag / registrar** — ground each: read `PORTS.md`, `ls` the pack, read `spec_loader.py`. A ticket citing a file that does not exist is a defect, not a formatting nit.
 - **Never go all-native on the 2a adjudication** — pool `fanout("review", …, project="mega-expand", mode="read_only")` (one unit per epic, facts inlined) **plus** ≥1 native `fabrik-reviewer` on Opus, every pool run back-filled by `set_quality`. Never let a grounder return Success Criteria or Scope — the epic-file CONTENT stays single-agent Opus.
-- **Never hand-write the Traycer mirror** — call `scripts/traycer_mirror.py` (the projection is code, not prose); DISK stays source-of-truth, the mirror is a NO-OP headless projection.
+- **Never hand-write the Traycer mirror** — call `traycer_mirror.py (deleted 2026-09-06, T09)` (the projection is code, not prose); DISK stays source-of-truth, the mirror is a NO-OP headless projection.
 
 ## Acceptance Criteria
 

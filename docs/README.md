@@ -15,7 +15,7 @@ what belongs where.
 | `orchestrator/` | The autonomous-factory cockpit docs and north star; `_retired/` holds the tombstoned chain docs (epic-to-ticket, mega-epic) whose text moved into the corpus commands (`/fabrik-spec` intake, `/fabrik-vision`, `/fabrik-epics`, `/fabrik-epics-review`) | — |
 | `development/` | Plan/epic/review artifacts: `plans/` (+`archived/`), `epics/`, `reviews/` (evidence ledgers) | — |
 | `superpowers/` | `/fabrik-spec` designs (`specs/` + `specs/archived/`) and skill-authored plans | — |
-| `traycer/` | Traycer-GUI usage docs (the tool is live; its Kilo-era docs are archived) | — |
+| `traycer/` | The kept Traycer-era references (`README.md`, `kilo_selected_agents.md`, `fabrik-workflow.md`, `PLAN_OUTPUT_LOCATION.md`); the Traycer layer itself is retired — its workflow and wiring docs are tombstoned under `orchestrator/_retired/traycer/` (T09, 2026-09-06) | — |
 | `preplans/` | Stage-1 operator research intents (`fabrik preplan`) | — |
 | `zed/` | Operator's Zed-migration notes (personal, in-flight) | — |
 | `archive/` | History. Content is frozen as written; internal links inside archived docs are exempt from link gates | anything still load-bearing |

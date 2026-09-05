@@ -340,41 +340,6 @@ docs/
 │   └── wsl-environment.md
 ├── orchestrator
 │   ├── 00-autonomous-factory-north-star.md
-│   ├── _traycer-skills
-│   │   ├── fab-ettw-00-trigger
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-01-decisions-lock
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-01r-decisions-review
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-02-core-flows
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-03-tech-plan
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-04-deploy-plan
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-05-ticket-outline
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-06-ticket-breakdown
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-07-execute
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-08-implementation-validation
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-09-revise-requirements
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-10-cross-artifact-validation
-│   │   │   └── SKILL.md
-│   │   ├── fab-ettw-11-deploy
-│   │   │   └── SKILL.md
-│   │   ├── fab-mega-00-trigger
-│   │   │   └── SKILL.md
-│   │   ├── fab-mega-02-decompose
-│   │   │   └── SKILL.md
-│   │   ├── fab-mega-03-expand
-│   │   │   └── SKILL.md
-│   │   └── fab-mega-04-validate
-│   │       └── SKILL.md
 │   ├── _retired
 │   │   ├── epic-to-ticket-workflow
 │   │       ├── 00-trigger-fabrik.RETIRED.md
@@ -397,13 +362,16 @@ docs/
 │   │       ├── 03-expand-epic-files-fabrik.RETIRED.md
 │   │       ├── 04-cross-epic-validation-fabrik.RETIRED.md
 │   │       └── 05-dispatch-epic-tickets-fabrik.RETIRED.md
+│   │   └── traycer
+│   │       ├── traycer-agile-workflow.RETIRED.md
+│   │       ├── traycer-command-wiring.RETIRED.md
+│   │       └── traycer-refactoring-workflow.RETIRED.md
 │   ├── mega-epic-breakdown
 │   │   ├── EPIC-ARTIFACT-SCHEMA.md
 │   │   └── EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md
 │   ├── orchestrator-cockpit-decisions.md
 │   ├── orchestrator-cockpit-feature-set.md
 │   ├── orchestrator-cockpit-requirements.md
-│   └── traycer-command-wiring.md
 ├── owner_ozgur_basak.md            # Owner profile & AI instructions
 ├── preplans
 │   └── README.md                   # Folder index / charter
@@ -500,9 +468,7 @@ docs/
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
 │   ├── README.md                   # Folder index / charter
 │   ├── fabrik-workflow.md
-│   ├── kilo_selected_agents.md     # Kilo selected agents
-│   ├── traycer-agile-workflow.md   # 8-command Traycer Agile Workflow reference
-│   └── traycer-refactoring-workflow.md # 4-command Traycer Refactoring Workflow reference
+│   └── kilo_selected_agents.md     # Kilo selected agents
 ├── workflows                       # Workflow documentation
 │   ├── DATA_SYNC_WORKFLOW.md
 │   ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow
@@ -883,8 +849,9 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 |----------|--------|
 | [README.md](docs/traycer/README.md) | Traycer integration guide - features, modes, workflows |
 | [traycer-yolo-workflow.md](docs/archive/traycer-yolo-workflow.md) | Kilo-era YOLO workflow (archived 2026-07-20) |
-| [traycer-agile-workflow.md](docs/traycer/traycer-agile-workflow.md) | 8-command Agile Workflow reference |
-| [traycer-refactoring-workflow.md](docs/traycer/traycer-refactoring-workflow.md) | 4-command Refactoring Workflow reference |
+| [traycer-agile-workflow.RETIRED.md](docs/orchestrator/_retired/traycer/traycer-agile-workflow.RETIRED.md) | 8-command Agile Workflow reference — retired 2026-09-06 (T09), tombstone |
+| [traycer-refactoring-workflow.RETIRED.md](docs/orchestrator/_retired/traycer/traycer-refactoring-workflow.RETIRED.md) | 4-command Refactoring Workflow reference — retired 2026-09-06 (T09), tombstone |
+| [traycer-command-wiring.RETIRED.md](docs/orchestrator/_retired/traycer/traycer-command-wiring.RETIRED.md) | The Traycer command-wiring doc — retired 2026-09-06 (T09), tombstone; the corpus commands `/fabrik-vision` · `/fabrik-epics` · `/fabrik-epics-review` replaced it |
 | [traycer-evaluation.md](docs/archive/traycer-evaluation.md) | 2026-02 adoption decision record (archived 2026-07-20) |
 
 **Archived (2026-02-25):** `PHASE_TEMPLATE.md`, `TASKS_TEMPLATE.md`, `implementation-plan-template.md` moved to `docs/archive/2026-02-25-pre-traycer-templates/`. Replaced by Traycer Phases + dynamic spec generation.
