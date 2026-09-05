@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cert-coverage cites `_midrun_marker` by symbol, not a rotted `final_gate_stop.py` line (2026-09-05)
+
+T14h of plan `2026-09-03-plan-1-multi-agent-per-repo`. `scripts/enforcement/check_certification_coverage.py`
+(two sites) and `tests/enforcement/test_certification_coverage.py` (one) cited `.claude/hooks/final_gate_stop.py:785`
+for the mid-run plan-lock reader; that line had rotted into `_final_message_text`. All three now cite
+`final_gate_stop.py::_midrun_marker` by symbol. Citations only — 55 tests before and after, no behaviour
+change; fleet-synced, distributed by the post-commit governance sync.
+
 ### Added — `/fabrik-vision` corpus source: mega 00 moved, with the rivals-dossier pre-step (2026-09-05)
 
 T06a of plan `2026-09-03-plan-1-multi-agent-per-repo` (spec § Chain consolidation (g)). The canonical text

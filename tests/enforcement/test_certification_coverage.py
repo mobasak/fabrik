@@ -173,7 +173,7 @@ def test_a_cert_board_with_the_implementation_heading_is_blocking(tmp_path):
 
 
 def test_a_cert_lock_in_the_plan_lock_dir_is_blocking(tmp_path):
-    """`check_phase_tests.py:36` and `final_gate_stop.py:785` both read `.fabrik/plan-locks/`, so a
+    """`check_phase_tests.py:36` and `final_gate_stop.py::_midrun_marker` both read `.fabrik/plan-locks/`, so a
     cert lock there arms the Stop hook as if source were being written."""
     d = tmp_path / ".fabrik" / "plan-locks"
     d.mkdir(parents=True)

@@ -270,12 +270,15 @@
       "updated": "2026-09-05T17:58:27+00:00"
     },
     "T14h": {
-      "state": "review-round-1",
+      "state": "merged",
       "agent": "a8debe38e550458d6",
       "branch": "worktree-agent-a8debe38e550458d6",
       "base": "a6518d1e",
       "updated": "2026-09-05T18:04:43+00:00",
-      "head": "5c8fa999"
+      "head": "5c8fa999",
+      "branch_head": "5c8fa999",
+      "merged_at": "2026-09-05T21:06:37",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14h-review.md"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

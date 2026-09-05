@@ -21,7 +21,7 @@ load-bearing:
 * **BLOCKING from day one — the anti-mix-up guard.** A cert board carrying `## Ticket Board`, or a
   cert lock written to `.fabrik/plan-locks/`, is NOT a coverage-quality problem: it is a board that
   `/fabrik-execute-plan` will dispatch to CODING agents (its detection triggers on the bare heading
-  string, `fabrik-execute-plan.md:34-38`) holding a lock `final_gate_stop.py:785` believes in. The
+  string, `fabrik-execute-plan.md:34-38`) holding a lock `final_gate_stop.py::_midrun_marker` believes in. The
   operator's advisory ruling covered coverage completeness, never a wrong-agent dispatch, and a
   warn-only safety guard is one nobody reads until after the damage.
 
@@ -255,7 +255,7 @@ def evaluate(root: Path) -> tuple[list[Finding], dict[str, int]]:
                     Finding(
                         "MIXUP",
                         f"{lf.name} is a CERT lock in .fabrik/plan-locks/ — it must live in "
-                        f".fabrik/cert-locks/; check_phase_tests.py:36 and final_gate_stop.py:785 read "
+                        f".fabrik/cert-locks/; check_phase_tests.py:36 and final_gate_stop.py::_midrun_marker read "
                         f"the plan-lock dir and would arm the Stop hook as if source were being written",
                         blocking=True,
                     )
