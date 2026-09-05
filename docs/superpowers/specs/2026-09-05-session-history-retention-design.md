@@ -60,6 +60,41 @@ deletes JSONL is racing an indexer that may not have run.** A session created an
 two tool calls is lost with no trace in either store. Today this is masked because agents query
 session-recall often; a deletion cron would remove the masking.
 
+## EXECUTED 2026-09-05 — the `.jsonl.bak-*` tier (operator-authorised)
+
+Found during review of this DRAFT and resolved the same session. It is recorded here because the
+route to it is the lesson, not the gigabytes.
+
+**The first recommendation was WRONG.** The 15 `*.jsonl.bak-*` files (2.41 GB apparent) were
+proposed for outright deletion as "provably lossless", on the strength of a SIZE comparison plus a
+single spot-check. The operator asked "are you 100% sure", and the real check — `cmp` over the
+bytes, then a set comparison of message `uuid`s — refuted it:
+
+- **13 of 15 were not byte-prefixes** of their live counterpart. The files diverge mid-stream
+  (one pair first differs at line 855 of 35,243), so the live transcripts had been REWRITTEN in
+  place, not merely appended to.
+- **293 messages existed only inside the `.bak` files** — 292 of them API-error records
+  (`Connection closed mid-response`, `Rate limited`, `Stream idle timeout`) plus one system
+  message. Something stripped error entries from the live transcripts on 21–23 July and left the
+  pre-strip original beside them. **What performed that rewrite is still unidentified** — nothing
+  in `scripts/`, `~/.claude/bin/` or the hooks matches, and no mechanism is asserted here in place
+  of that gap. Two suffixes (`.bak-monitor`, `.bak-model`) are not timestamps at all.
+
+**Disposition, executed:** the 293 unique records (376,706 bytes) were salvaged to
+`~/.claude/error-salvage/2026-09-05-bak-unique-records.jsonl` with a manifest, verified in BOTH
+directions on disk (re-read yields 293 parseable records; every `.bak`'s unique set recomputed
+fresh is a subset of the salvage), and only then were all 15 files deleted behind a final
+in-invocation guard that re-counted the salvage. `~/.claude/projects` went **12 GB → 8.7 GB**;
+all 14,041 live `*.jsonl` remain untouched.
+
+⚠️ **The salvage inherits the very gap this spec exists to close** — `~/.claude/error-salvage/` is
+not in any backup path. It is the only copy of those 293 records and belongs in the Tier-4 backup
+set below.
+
+**The generalised lesson, which now governs the remaining tiers:** file size is a PROXY; a superset
+claim requires comparing content. No transcript in the subagent or main tier is deleted until the
+same byte-level and message-set verification has been run over it.
+
 ## Approaches
 
 ### A — Scheduled index + off-box index backup, then bounded raw retention (RECOMMENDED)
