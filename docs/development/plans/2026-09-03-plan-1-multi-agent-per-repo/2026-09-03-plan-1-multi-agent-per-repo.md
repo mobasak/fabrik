@@ -117,7 +117,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | 🔵 | |
 | T09 | Retire the Traycer layer — wrapper tree, traycer_mirror.py, the wiring doc, the Traycer workflow docs; re-point check_traycer_chain | T07a, T07b, T08a, T08b | ⛓️ | ⬜ | |
 | T10 | Retire ettw 00–05 → _retired/ (the first half of the 13-doc chain) | T07a, T07b | ⛓️ | ✅ | branch head fd403139; merged 2026-09-06 (d9d34878) |
-| T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | 🔵 | |
+| T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | ✅ | branch head 8249cf9d; merged 2026-09-06 (5c50c40e) |
 | T12a | Retire mega 00 + 02 → _retired/ (their text now lives in /fabrik-vision and /fabrik-epics) | T06a, T06b, T07a, T07b | ⛓️ | ✅ | branch head d9fd0b2e; merged 2026-09-06 (501dc5d0) |
 | T12b | Retire mega 03 + 04 → _retired/ and relocate the 05 tombstone; the mega dir keeps only the schema + checklist | T06b, T06c, T07a, T07b | ⛓️ | 🔵 | |
 | T14a | Governance texts — the template's line (d), the hub's messaging clause, 40-documentation's ticket-format pointer | T02a, T02b, T09 | ⛓️ | ⬜ | |

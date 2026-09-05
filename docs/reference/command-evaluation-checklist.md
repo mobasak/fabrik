@@ -5,8 +5,9 @@ considered sound. **Not every item applies to every command — but every item m
 "N/A for this command, because X" is a valid verdict; forgetting to check is not.
 
 **Sibling checklists, deliberately separate:**
-`docs/orchestrator/epic-to-ticket-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` and
-`docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` audit the **Traycer
+`docs/orchestrator/_retired/epic-to-ticket-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.RETIRED.md`
+(retired 2026-09-06 with the ettw chain; kept for history) and
+`docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` audited the **Traycer
 workflow artifacts** (epics, tickets, tech plans). This one audits the **command corpus itself** —
 the instruction set every agent on this box runs on. Different surface, different failure modes.
 

@@ -383,18 +383,17 @@ docs/
 │   │       ├── 02-core-flows-fabrik.RETIRED.md
 │   │       ├── 03-tech-plan-fabrik.RETIRED.md
 │   │       ├── 04-deploy-plan-fabrik.RETIRED.md
-│   │       └── 05-ticket-outline-fabrik.RETIRED.md
+│   │       ├── 05-ticket-outline-fabrik.RETIRED.md
+│   │       ├── 06-ticket-breakdown-fabrik.RETIRED.md
+│   │       ├── 07-execute-fabrik.RETIRED.md
+│   │       ├── 08-implementation-validation-fabrik.RETIRED.md
+│   │       ├── 09-revise-requirements-fabrik.RETIRED.md
+│   │       ├── 10-cross-artifact-validation-fabrik.RETIRED.md
+│   │       ├── 11-deploy-fabrik.RETIRED.md
+│   │       └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.RETIRED.md
 │   │   └── mega-epic-breakdown
 │   │       ├── 00-trigger-mega-epic-fabrik.RETIRED.md
 │   │       └── 02-epic-decomposition-fabrik.RETIRED.md
-│   ├── epic-to-ticket-workflow
-│   │   ├── 06-ticket-breakdown-fabrik.md
-│   │   ├── 07-execute-fabrik.md
-│   │   ├── 08-implementation-validation-fabrik.md
-│   │   ├── 09-revise-requirements-fabrik.md
-│   │   ├── 10-cross-artifact-validation-fabrik.md
-│   │   ├── 11-deploy-fabrik.md
-│   │   └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md
 │   ├── mega-epic-breakdown
 │   │   ├── 03-expand-epic-files-fabrik.md
 │   │   ├── 04-cross-epic-validation-fabrik.md
