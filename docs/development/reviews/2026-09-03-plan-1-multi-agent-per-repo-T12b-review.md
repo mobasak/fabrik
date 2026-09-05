@@ -1,0 +1,11 @@
+# Acceptance review — T12b (plan set 2026-09-03-plan-1-multi-agent-per-repo)
+
+**Status:** IN-PROGRESS
+
+**Surface:** the coder's worktree branch diff against the dispatch base c700e1b2 (master after the T12a merge) — see the round sections below (one file per ticket, rounds APPENDED).
+
+## Round 1 — over `c700e1b2..7fe45479` (three rename rows: mega 03 and 04 → docs/orchestrator/_retired/mega-epic-breakdown/*.RETIRED.md, 2/0 each with the two-line tombstone header — 03 → `/fabrik-epics`, 04 → `/fabrik-epics-review`, quoting spec § (c); the pre-existing 05 tombstone relocated byte-identical (R100, 0/0) into the same root; the mega dir now holds only EPIC-ARTIFACT-SCHEMA.md and EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md; both gates exit 0; `--follow` history preserved (6 commits on 04); 0 markdown links in the three files (339/287/152 lines); check_doc_links: 0 new — the 03 tombstone's `scripts/traycer_mirror.py` cite breaks only when T09 deletes the script (orchestrator-scrubbed at T09's merge, in a separate commit); referrers for the merge owner: INDEX.md rows incl. the old `mega-epic-breakdown/_retired` node, `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md:7` ("see `_retired/05-…`", relative to the mega dir — now `../_retired/mega-epic-breakdown/05-…`))
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a three-file rename; stated) — round 1.
+### Orchestrator execution (in the worktree)
+- gate 1 (0 / 5) ok; gate 2 ok; bodies identical for 03 and 04; `--name-status -M` → R099, R098, R100; the 04 header's first line follows the shape.
+Pool: PENDING — appended when it returns.

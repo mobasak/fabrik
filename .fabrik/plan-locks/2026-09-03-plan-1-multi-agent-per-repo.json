@@ -125,15 +125,15 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T03a-review.md"
     },
     "T01b": {
-      "state": "fixup-round-11",
+      "state": "review-round-12",
       "branch": "worktree-agent-ae36d1bbd7a83c091",
       "branch_head": "08cf1ae2",
       "coder": "native sonnet worktree",
       "dispatched_at": "2026-09-05T13:13:13",
       "round": 1,
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T01b-review.md",
-      "updated": "2026-09-05T21:07:55+00:00",
-      "head": "3a242852"
+      "updated": "2026-09-05T21:24:23+00:00",
+      "head": "b5c44f6c"
     },
     "T02b": {
       "state": "merged",
@@ -292,12 +292,12 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14h-review.md"
     },
     "T15": {
-      "state": "fixup-round-3",
+      "state": "review-round-4",
       "agent": "af90f113a2db134c8",
       "branch": "worktree-agent-af90f113a2db134c8",
       "base": "cb9716df",
-      "updated": "2026-09-05T21:12:37+00:00",
-      "head": "24c7c935"
+      "updated": "2026-09-05T21:24:23+00:00",
+      "head": "735b3f0a"
     },
     "T12a": {
       "state": "merged",
@@ -347,15 +347,20 @@
       "rename_commit": "5c50c40e"
     },
     "T12b": {
-      "state": "dispatched",
+      "state": "review-round-1",
       "agent": "ade47f95f1f90f5f5",
       "branch": "worktree-agent-ade47f95f1f90f5f5",
-      "updated": "2026-09-05T21:07:55+00:00"
+      "updated": "2026-09-05T21:24:23+00:00",
+      "head": "7fe45479",
+      "base": "c700e1b2"
     },
     "T08b": {
-      "state": "dispatched",
+      "state": "review-round-1",
       "base": "0d5a4685",
-      "updated": "2026-09-05T21:12:37+00:00"
+      "updated": "2026-09-05T21:24:23+00:00",
+      "agent": "af0f1ad25d9b13852",
+      "branch": "worktree-agent-af0f1ad25d9b13852",
+      "head": "f65e3f3b"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

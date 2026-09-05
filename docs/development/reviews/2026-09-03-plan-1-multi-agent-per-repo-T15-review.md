@@ -29,3 +29,9 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - v3.2-exp CLEAN. v4-flash (1) and (2): the lookbehind decides by ONE preceding backslash while markdown escapes by PARITY — `a\\|b` (an escaped backslash, then a live pipe) is left alone → 5 cells — UPHELD [L], the last shape of the class (fix: escape a pipe preceded by an even run of backslashes). v4-flash (2)'s second item ("the test tree never creates scripts/epic_order.py") — REFUTED: the suite runs in the hub where the module exists; the fleet-mirror fixtures cover absence and pass.
 ### Verdict
 **1 finding (L) → FIXUP round 3 routed to the coder** (parity-aware escape + the four-shape grader). Ledger: cell escaping (parity) · everything else clean.
+
+## Round 4 — over `cb9716df..735b3f0a` (the round-3 fixup 24c7c935..735b3f0a: docs_updater.py 9/6, tests 14/3 — `_cell` escapes by backslash PARITY (`(?<!\\)((?:\\\\)*)\|` → `\1\\|`); the four shapes measured idempotent; the grader gains a two-backslash epic owner (the flat frontmatter parser hands the raw two backslashes — printed), 8 rows, 4 cells each, red on the one-backslash lookbehind; 89 passed)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed L item; stated) — round 4.
+### Orchestrator execution (in the worktree)
+- `pytest tests/test_docs_updater.py tests/enforcement/test_plan_shape_gates.py -q` → 89 passed; `ruff check` clean; `_cell` on `a|b` → `a\|b`, `a\|b` unchanged, `a\\|b` → `a\\\|b`, `a\\\|b` unchanged — each idempotent (executed).
+Pool: PENDING — appended when it returns.
