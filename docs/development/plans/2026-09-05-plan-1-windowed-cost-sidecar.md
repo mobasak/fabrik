@@ -1,6 +1,6 @@
 # Plan — the windowed cost sidecar: `claude_p_cost.json` gains its window, its denominators, and a cadence
 
-Status: DRAFT
+Status: CONVERGED (2026-09-05 — 4 author-blind passes, findings 10 → 12 → 7 → 4, all closed; ruling D-125)
 Owner: intel
 Shape: monolith (3 phases; read set 145,448 B across the 8 existing of 10 File Scope paths (`tests/test_derive_cost_sidecar.py` and `scripts/enforcement/_check_refresh_before_ranker.py` are created by the plan), against `READ_BUDGET_BYTES` = 262144 — no split trigger)
 Final Gate Instruction: `python scripts/final_gate.py --json`
@@ -56,7 +56,7 @@ Final Gate Instruction: `python scripts/final_gate.py --json`
 
 ## Phase A — the LIVE writer emits the window, and stops destroying a key
 
-**Files:** `scripts/claude_p_cost.py` · `scripts/kilo-benchmarks/claude_p_cost.json` · `scripts/kilo-benchmarks/claude_price_ratios.json` · `tests/test_price_ratios_current.py` · `tests/test_derive_cost_sidecar.py` (new)
+**Files:** `scripts/claude_p_cost.py` · `scripts/kilo-benchmarks/claude_p_cost.json` · `scripts/kilo-benchmarks/claude_price_ratios.json` · `scripts/kilo-benchmarks/derive_cost.py` · `tests/test_price_ratios_current.py` · `tests/test_derive_cost_sidecar.py` (new)
 
 - **A1.** `refresh()` (`claude_p_cost.py:155-169`) emits `window_start`, `window_end`, `accounts`, `spend_usd`, `tokens` beside the existing keys — **and stops dropping `amortized_per_mtok_by_family`**, which it destroys on every run today (`:163-167` writes three keys; the docstring claims it "preserves ③ quota_draw_pct" and says nothing about the key it silently loses). That is a live bug being fixed, not just a reshape. `rate` is NOT added: `amortized_per_mtok` already IS the rate; renaming it would break every reader for cosmetics — **record that reasoning in `refresh()`'s docstring**, not only here, so the next reader of the source does not "fix" the naming. (This deviates from the operator's literal target shape, which named `rate`; the deviation is deliberate and stated.)
 - **A2.** The window comes from the usage-history the rate is computed over — never a guess. A bound that cannot be derived is `null`, and A1's gate does **not** accept `null` as satisfying the contract (see the gate).
@@ -74,9 +74,9 @@ Final Gate Instruction: `python scripts/final_gate.py --json`
 - **B1.** `_claude_p_preamble()` (`rank_task_subagents.py:663-695`) renders the window: `:690` prints *"② amortized ≈$X/M · ③ last run's weekly-quota draw ≈Y%"* with **no date**, so a 26-day-old rate is typographically identical to one built this morning.
 - **B2.** Mark the rate stale past **24 hours** — the cadence Phase C establishes (`0 6 * * *`, verified at crontab line 44). Revision 1 deferred this constant to "observe the rebuild interval once C is wired"; that was both unexecutable as ordered (B precedes C) and unnecessary, since the interval is the cron line itself.
 - **B3.** Preserve fail-soft for a MISSING sidecar; make a STALE one loud. These are different states and the code cannot currently tell them apart.
-- **B4.** Fix `claude_p_cost.py:17` — it enumerates three keys while four are written today. Also `:10-12` claims the file "is synced to every project"; it is in **no manifest** (grep exit 1) and **1** of 57 `/opt/*` dirs carries it — the hub's own. (Revision 3 wrote "0 of 57", false under the same counting convention `§ Global Constraints` uses, which includes `/opt/fabrik`.)
+- **B4.** Fix `claude_p_cost.py:17` — it enumerates three keys while four are written today, and B **depends on A**, so the truthful post-A enumeration is **NINE**: the 3 existing + `amortized_per_mtok_by_family` that A1 stops destroying + A1's 5 new window/denominator keys. Writing "four" here would leave `:17` false about the very reshape this plan delivers. Also `:10-12` claims the file "is synced to every project"; it is in **no manifest** (grep exit 1) and **1** of 57 `/opt/*` dirs carries it — the hub's own. (Revision 3 wrote "0 of 57", false under the same counting convention `§ Global Constraints` uses, which includes `/opt/fabrik`.)
 - **Gate:** `python -m pytest tests/test_claude_p_cost.py -q` — green today (9 passed as of `e1710420`) and must stay green. ⚠️ **`:65-68` must pass UNCHANGED** — it pins the `$0.093` fail-soft anchor for a MISSING sidecar via `CLAUDE_P_COST`, and B3 is precisely the step that touches fail-soft behaviour. Revision 1 carried that word; revision 2 dropped it, leaving the guard against "make stale loud" quietly softening "missing fails soft" to the executor's memory.
-- **Gate:** `test "$(grep -c 'amortized_per_mtok_by_family' scripts/claude_p_cost.py)" != 0` — **RED today** (0). ⚠️ **Fail-open against B4 itself:** B4 edits the `:17` docstring to enumerate all four keys, which contains this string — so the docstring edit alone greens it while `refresh()` still destroys the key. It is kept only as a cheap docstring check; **A1's round-trip assertion (iii) is the real guard** for the data loss.
+- **Gate:** `test "$(grep -c 'amortized_per_mtok_by_family' scripts/claude_p_cost.py)" != 0` — **RED today** (0). ⚠️ **Fail-open against B4 itself:** B4 edits the `:17` docstring to enumerate the keys, which contains this string — so the docstring edit alone greens it while `refresh()` still destroys the key. It is kept only as a cheap docstring check; **A1's round-trip assertion (iii) is the real guard** for the data loss.
 
 ## Phase C — the cadence, wired where it cannot be undone
 
@@ -98,7 +98,7 @@ r, k = step("claude_p_cost"), step("rank_task_subagents")
 sys.exit(0 if (r is not None and k is not None and r < k) else 1)
 ```
 
-  It it finds the `_step` LINES (never comments) for `claude_p_cost` and `rank_task_subagents` in `daily_refresh.sh` and requires both present with the refresh first. ⚠️ **Revision 2's compound shell gate was broken three ways and is replaced, not patched:** it anchored on `grep -n rank_task_subagents | head -1`, which resolves to a stale COMMENT at `:159` rather than the `_step` at `:164`; its regex demanded a literal space after `.py`, so the file's own quoted-path convention (`"$KB/rank_task_subagents.py"`) never matched and CORRECT work redded it; and with the anchor absent `xargs` ran nothing and exited 0 — vacuously green on a deleted step. The replacement was tested on four cases before being written here: red today · **green** on correct quoted-path wiring · red when wired after the ranker · red when the ranker step is deleted.
+  It finds the `_step` LINES (never comments) for `claude_p_cost` and `rank_task_subagents` in `daily_refresh.sh` and requires both present with the refresh first. ⚠️ **Revision 2's compound shell gate was broken three ways and is replaced, not patched:** it anchored on `grep -n rank_task_subagents | head -1`, which resolves to a stale COMMENT at `:159` rather than the `_step` at `:164`; its regex demanded a literal space after `.py`, so the file's own quoted-path convention (`"$KB/rank_task_subagents.py"`) never matched and CORRECT work redded it; and with the anchor absent `xargs` ran nothing and exited 0 — vacuously green on a deleted step. The replacement was tested on four cases before being written here: red today · **green** on correct quoted-path wiring · red when wired after the ranker · red when the ranker step is deleted.
 - **Gate:** `bash -n scripts/kilo-benchmarks/daily_refresh.sh`
 
 ## File Scope (owned paths)
@@ -188,7 +188,7 @@ $ python scripts/review_rubric.py --changed <the File Scope paths>
 | `core/10-python.md` (MATCHED) | CLEAN | No dependency change; `uv` untouched. |
 | `core/45-testing-strategy.md` (MATCHED) | FIXED (1) | Every phase carries a test: A the round-trip, B the existing suite, C the shell gate. Revision 1's A1 gate tested a **hand-editable file** rather than the behaviour — replaced with a producer round-trip. |
 | fail-open vs fail-closed (standing) | FIXED (2) | Revision 1's C1 (`grep -c … != 0`) greened on a mere comment; now asserts invocation AND ordering. Revision 1's A1 greened on fabricated `null`s; now a round-trip. |
-| gate-can-never-go-green (standing) | CLEAN | All six gates executed; the `git grep -c` filename-prefix trap is absent (all use plain `grep -c FILE` or pytest). |
+| gate-can-never-go-green (standing) | CLEAN | All six gates executed, both halves. The `git grep -c` filename-prefix trap is absent — the six are: 3× pytest, 1× plain `grep -c FILE` (a bare number, safe), 1× a python checker, 1× `bash -n`. None uses `git grep`. |
 | behavior-without-a-test (standing) | CLEAN | A1's data-loss fix, A3's per-model cache rate and B2's staleness marker each name the test that proves them. |
 | anchor rot (standing) | FIXED (4) | Revision 1 was consistently one line early: dict `:246-258`→`:251-256`, rendered line `:691`→`:690`, tests `:57-60`/`:64-68`→`:58-62`/`:65-68`, catch `:97-99`→`:98-99`. |
 
@@ -208,7 +208,18 @@ $ python scripts/review_rubric.py --changed <the File Scope paths>
 
 **(b) Cross-phase signature consistency.** A emits `window_start`, `window_end`, `accounts`, `spend_usd`, `tokens`; B consumes exactly those names; C sequences against `daily_refresh.sh:164`. Checked character by character.
 
-**Not a fixed point yet** — this revision has not itself been reviewed.
+**Fixed point reached.** Four author-blind passes (10 → 12 → 7 → 4 findings). The fourth confirmed revision 4 lost nothing and broke nothing, re-derived every denominator from primary source, executed all six gates on both halves, and ran the pasted checker body on its four claimed cases — all matching. Its four findings are closed in this revision; three were text-only and the fourth a typo. The substantive engineering — the producer identification, the live data-loss bug, the A1 injection point and the C gate design — has held unchanged since revision 2 under three independent executions.
+
+## Pass Ledger
+
+| Pass | axes re-checked | method | raised | new | closed | commit (start → end) |
+|---|---|---|---|---|---|---|
+| Pass 1 | **author-blind #1** — producer identification, gate both-halves, anchors, intake completeness | method: re-derivation | 10 | 10 | 10 | 7a410137 → 07875399 |
+| Pass 2 | **author-blind #2** — the rewrite's own defects, read set, blast radius, A/B soundness | method: re-derivation | 12 | 12 | 12 | 07875399 → 02b81f12 |
+| Pass 3 | **author-blind #3** — mirror hunt (the diagnosed failure mode), checker ownership, gate executability | method: re-derivation | 7 | 7 | 7 | 02b81f12 → 46682205 |
+| Pass 4 | **author-blind #4 — THE CLOSING PASS.** Every count, enumeration and anchor RE-DERIVED from primary source, not re-verified from citation: per-file `stat -c%s` summing to 145,448 · 10 File Scope paths, 8 existing · `1` of 57 `/opt/*` dirs carrying the script and `2` carrying the JSON · `write_cost_sidecar` 0 code call sites under an unbounded `git grep` · 4 shape-coupled consumers, 3 named-only with 0 shape-key refs · 34 files / 11 `scripts/enforcement/` paths in the other plan set, intersection empty under a 221-token superset · `ba7e90dd` 22 ins/6 del · the drift reproduced to the digit (0.007386384040137393 vs 0.006310425076381708 = 17.1%) · all six gates executed on BOTH halves · the pasted checker body extracted verbatim (md5 `1417aab8…`) and run on its four claimed cases, all matching · the A3 green-suite claim and the 30-day fixture expiry both reproduced by execution | **method: re-derivation** | 4 | 4 | 4 | 46682205 → (this row) |
+
+**Verdict of the closing pass:** *"Revision 4 lost nothing and broke nothing that revision 3 had right."* Its four findings were three text-only corrections plus a typo, all closed in this revision: `derive_cost.py` added to Phase A's Files (the exact mirror, one phase earlier, of the checker-ownership gap pass 3 found), B4's key count corrected from "four" to the **nine** `refresh()` writes after A1, the Coverage-Checklist gate enumeration repaired, and a reflow typo fixed. Re-greped afterward for each: zero surviving mirrors.
 
 ## Residual unknowns
 
