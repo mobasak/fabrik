@@ -93,7 +93,7 @@ def test_a_message_replayed_into_another_session_file_is_counted_once(tmp_path):
     assert cpc.collect_from_transcripts(root) == {"2026-09-05": {"claude-opus-5": 1040}}
 
 
-def test_subagent_sidechain_tokens_are_COUNTED(tmp_path):
+def test_subagent_sidechain_tokens_are_counted(tmp_path):
     """They bill to the same subscription. The question this store answers is what the subscription
     was spent on, not what the operator typed — and fan-out is a large part of the answer."""
     root = _tree(
@@ -131,9 +131,23 @@ def test_a_missing_transcript_root_is_empty_not_an_error(tmp_path):
     assert cpc.collect_from_transcripts(tmp_path / "nope") == {}
 
 
-def _store(tmp_path, monkeypatch, days: dict, source_by_day: dict | None = None) -> Path:
+def _store(
+    tmp_path,
+    monkeypatch,
+    days: dict,
+    source_by_day: dict | None = None,
+    *,
+    version: int | None = -1,
+) -> Path:
+    """A store in the STEADY state by default — stamped with the current collector version, so tests
+    exercise the ongoing rules rather than the one-shot migration. Pass `version=None` for an
+    unstamped (pre-migration) store."""
     p = tmp_path / "store.json"
     body: dict = {"days": days}
+    if version == -1:
+        body["collector_version"] = cpc._COLLECTOR_VERSION
+    elif version is not None:
+        body["collector_version"] = version
     if source_by_day is not None:
         body["source_by_day"] = source_by_day
     p.write_text(json.dumps(body), encoding="utf-8")
@@ -160,7 +174,7 @@ def test_the_merge_fills_days_the_extension_never_recorded(tmp_path, monkeypatch
     assert store["_transcript_added"] == 1
 
 
-def test_an_extension_recorded_day_is_NOT_rewritten_by_the_transcripts(tmp_path, monkeypatch):
+def test_an_extension_recorded_day_is_not_rewritten_by_the_transcripts(tmp_path, monkeypatch):
     """The load-bearing one. The transcripts hold more for the same day, and adopting that silently
     would restate 111 days of the operator's dashboard by 2-3x with no decision taken. The overlap is
     PUBLISHED instead, so the re-derivation can be judged on measurement."""
@@ -179,7 +193,7 @@ def test_an_extension_recorded_day_is_NOT_rewritten_by_the_transcripts(tmp_path,
     assert store["_discrepancy"]["2026-09-04"] == {"extension": 100, "transcripts": 900}
 
 
-def test_a_transcript_sourced_day_KEEPS_refreshing(tmp_path, monkeypatch):
+def test_a_transcript_sourced_day_keeps_refreshing(tmp_path, monkeypatch):
     """Today is partial all day. A day this collector wrote must keep being rewritten by it, or the
     first run of the day freezes that day at breakfast."""
     _store(
@@ -224,3 +238,230 @@ def test_the_calendar_reaches_today_once_the_collector_runs(tmp_path, monkeypatc
     daily = cpc.per_model_spend()["daily"]
 
     assert daily[-1]["date"] == today and daily[-1]["tokens"] == 5_000_000
+
+
+def test_a_day_is_the_operators_local_day_not_the_utc_one(tmp_path, monkeypatch):
+    """Transcripts stamp UTC; this box runs +03:00, and 14.2% of usage records fall in UTC
+    21:00-23:59 — already tomorrow where the operator lives. Slicing `timestamp[:10]` filed a seventh
+    of every evening under the previous day's calendar cell, on a page whose every other date is
+    local. Pinned with a fixed +03:00 zone so the assertion does not depend on the box."""
+    monkeypatch.setenv("TZ", "Europe/Istanbul")  # +03:00, no DST
+    import time as _t
+
+    _t.tzset()
+    root = _tree(
+        tmp_path,
+        {
+            "-opt-fabrik/a.jsonl": [
+                # 22:30 UTC on the 4th IS 01:30 local on the 5th
+                json.dumps(
+                    {
+                        "timestamp": "2026-09-04T22:30:00.000Z",
+                        "requestId": "r1",
+                        "message": {
+                            "id": "m1",
+                            "model": "claude-opus-5",
+                            "usage": {"output_tokens": 500},
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-09-04T09:00:00.000Z",
+                        "requestId": "r2",
+                        "message": {
+                            "id": "m2",
+                            "model": "claude-opus-5",
+                            "usage": {"output_tokens": 7},
+                        },
+                    }
+                ),
+            ]
+        },
+    )
+    got = cpc.collect_from_transcripts(root)
+    assert got == {"2026-09-04": {"claude-opus-5": 7}, "2026-09-05": {"claude-opus-5": 500}}
+
+
+def test_a_timestamp_with_no_zone_still_counts_rather_than_vanishing(tmp_path):
+    """Dropping the record would lose real spend. The date slice is the documented fallback."""
+    root = _tree(
+        tmp_path,
+        {
+            "-opt-fabrik/a.jsonl": [
+                json.dumps(
+                    {
+                        "timestamp": "2026-09-04T22:30:00",
+                        "requestId": "r1",
+                        "message": {
+                            "id": "m1",
+                            "model": "claude-opus-5",
+                            "usage": {"output_tokens": 42},
+                        },
+                    }
+                )
+            ]
+        },
+    )
+    assert cpc.collect_from_transcripts(root) == {"2026-09-04": {"claude-opus-5": 42}}
+
+
+def test_a_repeated_message_contributes_its_largest_sighting(tmp_path):
+    """Measured, not theorised: 1,240,230 usage records on this box collapse to 554,811 keys, and
+    153,400 of the repeats DISAGREE on their totals — a message is re-serialised as its usage
+    accrues, so the first sighting is a PARTIAL. First-wins banked 159,866,901 tokens fewer across
+    the tree. Max-wins is identical wherever duplicates agree."""
+    partial = json.dumps(
+        {
+            "timestamp": "2026-09-05T09:00:00.000Z",
+            "requestId": "r1",
+            "message": {
+                "id": "m1",
+                "model": "claude-opus-5",
+                "usage": {"output_tokens": 10},
+            },
+        }
+    )
+    complete = json.dumps(
+        {
+            "timestamp": "2026-09-05T09:00:00.000Z",
+            "requestId": "r1",
+            "message": {
+                "id": "m1",
+                "model": "claude-opus-5",
+                "usage": {"output_tokens": 900},
+            },
+        }
+    )
+    # partial FIRST, so first-wins would bank 10 and stop
+    root = _tree(tmp_path, {"-opt-fabrik/a.jsonl": [partial, complete]})
+    assert cpc.collect_from_transcripts(root) == {"2026-09-05": {"claude-opus-5": 900}}
+    # and the order must not matter
+    root2 = _tree(tmp_path, {"-opt-fabrik/b.jsonl": [complete, partial]})
+    assert cpc.collect_from_transcripts(root2)["2026-09-05"]["claude-opus-5"] == 900
+
+
+def test_a_fuller_sighting_is_booked_to_the_first_sighting_day(tmp_path, monkeypatch):
+    """A message re-serialised after local midnight must not MOVE spend between calendar days: the
+    delta lands where the call was first booked, or a day's total changes retroactively for a reason
+    that has nothing to do with usage."""
+    monkeypatch.setenv("TZ", "Europe/Istanbul")
+    import time as _t
+
+    _t.tzset()
+    early = json.dumps(
+        {
+            "timestamp": "2026-09-05T20:00:00.000Z",  # 23:00 local on the 5th
+            "requestId": "r1",
+            "message": {"id": "m1", "model": "claude-opus-5", "usage": {"output_tokens": 10}},
+        }
+    )
+    later = json.dumps(
+        {
+            "timestamp": "2026-09-05T22:00:00.000Z",  # 01:00 local on the 6th
+            "requestId": "r1",
+            "message": {"id": "m1", "model": "claude-opus-5", "usage": {"output_tokens": 900}},
+        }
+    )
+    got = cpc.collect_from_transcripts(_tree(tmp_path, {"-opt-fabrik/a.jsonl": [early, later]}))
+    assert got == {"2026-09-05": {"claude-opus-5": 900}}, "all 900 on the day it was first booked"
+
+
+def test_a_stored_day_never_shrinks_when_its_transcripts_are_pruned(tmp_path, monkeypatch):
+    """The erosion the daily re-read would otherwise cause. A transcript-sourced day is re-read every
+    run so today can keep growing — but once that day's session files are pruned the walk returns
+    LESS, and a plain assignment writes the smaller number over a total once measured in full. Usage
+    cannot un-happen."""
+    _store(
+        tmp_path, monkeypatch, {"2026-09-05": {"claude-opus-5": 900}}, {"2026-09-05": "transcripts"}
+    )
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 100)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-09-05"] == {"claude-opus-5": 900}
+    assert store["_transcript_refreshed"] == 0
+
+
+def test_a_growing_day_still_refreshes(tmp_path, monkeypatch):
+    """The other half of the same rule — today is partial all day and must keep climbing."""
+    _store(
+        tmp_path, monkeypatch, {"2026-09-05": {"claude-opus-5": 100}}, {"2026-09-05": "transcripts"}
+    )
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 900)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    assert cpc.merge_usage_store()["days"]["2026-09-05"] == {"claude-opus-5": 900}
+
+
+def test_the_discrepancy_sample_states_its_own_population(tmp_path, monkeypatch):
+    """A 7-row sample with no denominator reads as the whole comparison — the exact shape the
+    contract's denominator rule exists to refuse."""
+    days = {f"2026-08-{d:02d}": {"claude-opus-5": 100} for d in range(1, 12)}
+    _store(tmp_path, monkeypatch, days, dict.fromkeys(days, "extension"))
+    root = _tree(
+        tmp_path,
+        {
+            "-opt-fabrik/a.jsonl": [
+                _msg(k, "claude-opus-5", f"m{i}", f"r{i}", 50) for i, k in enumerate(days)
+            ]
+        },
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    store = cpc.merge_usage_store()
+
+    assert len(store["_discrepancy"]) == 7, "the sample stays bounded"
+    assert store["_discrepancy_days"] == 11, "and it says what it is a sample OF"
+
+
+def test_a_rule_change_re_derives_transcript_days_but_never_extension_days(tmp_path, monkeypatch):
+    """The interaction between the two guards. Local-day bucketing and max-wins can make a re-read
+    legitimately SMALLER for a day whose old total was mis-bucketed, and never-shrinks would preserve
+    that error forever. A version bump drops the re-derivable days — and only those."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-04": {"claude-opus-5": 999}, "2026-09-05": {"claude-opus-5": 999}},
+        {"2026-09-04": "extension", "2026-09-05": "transcripts"},
+        version=None,  # a store written before the rule change
+    )
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 100)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-09-05"] == {"claude-opus-5": 100}, "re-derived under the new rules"
+    assert store["days"]["2026-09-04"] == {"claude-opus-5": 999}, "history is NOT re-derivable"
+    assert store["collector_version"] == cpc._COLLECTOR_VERSION
+
+
+def test_an_up_to_date_store_is_not_re_derived(tmp_path, monkeypatch):
+    """Once stamped, the never-shrinks guard takes over again — otherwise every run would erase a
+    completed day's fuller total the moment its transcripts start ageing out."""
+    p = tmp_path / "store.json"
+    p.write_text(
+        json.dumps(
+            {
+                "days": {"2026-09-05": {"claude-opus-5": 999}},
+                "source_by_day": {"2026-09-05": "transcripts"},
+                "collector_version": cpc._COLLECTOR_VERSION,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(p))
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "no-extension.json")
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 100)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    assert cpc.merge_usage_store()["days"]["2026-09-05"] == {"claude-opus-5": 999}

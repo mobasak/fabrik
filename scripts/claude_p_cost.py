@@ -77,6 +77,12 @@ _MANAGER_ACCOUNTS = Path.home() / ".claude" / "manager-accounts"
 #: output, cache read, cache creation), `message.model` and a `timestamp`, plus `message.id` +
 #: `requestId` to deduplicate a message replayed across resumed/compacted session files.
 _TRANSCRIPT_ROOT = Path.home() / ".claude" / "projects"
+#: Bumped whenever a COUNTING RULE in `collect_from_transcripts` changes (day bucketing, dedup,
+#: which fields are summed). A store stamped below this has its TRANSCRIPT-sourced days dropped
+#: and re-derived once, so an old rule's numbers cannot survive behind the never-shrinks guard.
+#: Extension-sourced days are never touched by it — they cannot be re-derived from anything.
+#: v2 = local-day bucketing + max-wins dedup (2026-09-06).
+_COLLECTOR_VERSION = 2
 _USAGE_KEYS = (
     "input_tokens",
     "output_tokens",
@@ -326,6 +332,37 @@ def _transcript_root() -> Path:
     return Path(env) if env else _TRANSCRIPT_ROOT
 
 
+def _local_day(ts: object) -> str:
+    """A transcript timestamp → the LOCAL calendar day it belongs to. "" when unusable.
+
+    ⚠️ LOCAL, not UTC, and the difference is not cosmetic. Transcripts stamp UTC (`…Z`); this box runs
+    +03:00, and 14.2% of usage records fall in UTC 21:00–23:59 — which is already tomorrow where the
+    operator lives. Slicing `timestamp[:10]` therefore files roughly a seventh of every evening's
+    tokens under the previous day's calendar cell, on a page whose every other date (the fee months,
+    `built_at`, "today") is local. The extension's days were local too, so UTC bucketing also added
+    noise to the very comparison that decided history is not re-derived — re-measured both ways, the
+    median 0.54x holds under either, so that conclusion never rested on this.
+
+    Costs ~1.1s per full walk over 1.2M records against ~50s of I/O — measured, not assumed.
+
+    A naive or unparseable stamp falls back to the leading date slice: better the UTC day than no day,
+    since dropping the record would lose real spend, and this reader never raises.
+    """
+    text = str(ts or "")
+    if len(text) < 10:
+        return ""
+    try:
+        parsed = datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        parsed = None
+    if parsed is not None and parsed.tzinfo is not None:
+        return parsed.astimezone().date().isoformat()
+    try:
+        return datetime.date.fromisoformat(text[:10]).isoformat()
+    except (ValueError, TypeError):
+        return ""
+
+
 def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, int]]:
     """Per-day, per-model token totals read from Claude Code's OWN transcripts. Never raises.
 
@@ -336,15 +373,27 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
     every assistant message with its own `usage` block, and it does so whether or not any extension
     is installed.
 
-    ⚠️ It is also MORE COMPLETE than the extension ever was, which is the uncomfortable half.
-    Measured on 2026-09-04: the transcripts hold 5,440 main-session assistant messages against the
-    extension's 1,541, and 588,503,854 `claude-sonnet-5` tokens that the extension's record for that
-    day does not mention AT ALL. So this is not a like-for-like replacement — see
-    :func:`merge_usage_store` for why history is nonetheless left alone.
+    ⚠️ IT IS NOT A BETTER RECORD OF THE PAST — it is a better record of the PRESENT, and those are
+    different claims. Measured across all 112 overlapping days (2026-09-06): the transcripts hold a
+    MEDIAN 0.54x the extension's tokens per day, 186.8B against 298.1B in total, and the ratio climbs
+    toward today — 0.7-0.9 over the last fortnight, 1.00 on 2026-09-02 where both sources were
+    healthy. That gradient is the signature of TRANSCRIPT PRUNING: session files age out, so the
+    further back the walk reaches the less it finds. The single day where the transcripts hold MORE
+    (2026-09-04, 3.47x) is the day the extension died at 17:31 and missed the afternoon — and reading
+    that one day as the general case is exactly the mistake this paragraph replaces.
 
-    DEDUPLICATION is on `(message.id, requestId)`, because a session that was resumed or compacted
-    replays earlier messages into a new file; every record measured carries both keys (0 of 13,113 on
-    the probe day lacked them), so the pair is a real key rather than a hopeful one.
+    Two consequences, both load-bearing. (1) History is NOT re-derived from here; doing so would
+    delete ~111B tokens of recorded past, not enrich it. (2) This collector must run DAILY, because
+    it can only capture a day while that day's transcripts still exist — the store is the durable
+    aggregate, the transcripts a decaying window onto it. See :func:`merge_usage_store` (D-143).
+
+    DEDUPLICATION is on `(message.id, requestId)`, MAX-WINS. A session that was resumed or compacted
+    replays earlier messages into new files, and a message is re-serialised as its usage accrues:
+    measured on this box, 1,240,230 usage records collapse to 554,811 keys, and 153,400 of the
+    repeats DISAGREE on their totals. First-wins banks the partial sighting — 159,866,901 tokens lost
+    across the tree — so the largest sighting is taken instead. Every record measured carries both
+    keys (0 of 13,113 on the probe day lacked them); one that lacks both is COUNTED rather than
+    dropped, since losing real spend is the worse error.
 
     SIDECHAIN (subagent) messages are COUNTED. They are billed to the same subscription, and the
     question this store answers is what the subscription was spent on — not what the operator typed.
@@ -354,7 +403,7 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
     """
     root = root or _transcript_root()
     out: dict[str, dict[str, int]] = {}
-    seen: set[tuple] = set()
+    seen: dict[tuple, tuple[str, str, int]] = {}  # (id, requestId) -> (day, model, best tokens)
     try:
         paths = sorted(root.rglob("*.jsonl"))
     except OSError:
@@ -380,16 +429,9 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                 usage = msg.get("usage") if isinstance(msg, dict) else None
                 if not isinstance(usage, dict):
                     continue
-                day = str(rec.get("timestamp") or "")[:10]
-                try:
-                    datetime.date.fromisoformat(day)
-                except (ValueError, TypeError):
+                day = _local_day(rec.get("timestamp"))
+                if not day:
                     continue
-                key = (msg.get("id"), rec.get("requestId"))
-                if key != (None, None):
-                    if key in seen:
-                        continue
-                    seen.add(key)
                 tok = 0
                 # the SAME four fields `measure()` already sums — one vocabulary for what a token is
                 for f in _USAGE_KEYS:
@@ -399,7 +441,29 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                 model = msg.get("model")
                 if tok <= 0 or not isinstance(model, str) or not model:
                     continue
-                out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
+                # DEDUP, MAX-WINS — not first-wins, and the difference is measured, not aesthetic.
+                # 1,240,230 usage records on this box collapse to 554,811 keys: 55% are repeats, and
+                # 153,400 of those repeats DISAGREE on their totals (largest gap 1,008,284 tokens),
+                # because a message is re-serialised as its usage accrues. Keeping the first sighting
+                # therefore banks a PARTIAL: measured at 159,866,901 tokens lost across the tree.
+                # Usage for a call can only be discovered, never un-happen, so the largest sighting is
+                # the true one — and where duplicates agree, max is first-wins by another name.
+                key = (msg.get("id"), rec.get("requestId"))
+                if key == (None, None):
+                    # No key to dedup on: COUNT it. Dropping would lose real spend, and duplicates
+                    # without keys are unmeasured rather than known (0 of 13,113 on the probe day).
+                    out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
+                    continue
+                prior = seen.get(key)
+                if prior is None:
+                    seen[key] = (day, model, tok)
+                    out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
+                elif tok > prior[2]:
+                    # Same call, a fuller sighting: add only the DELTA, at the day/model the first
+                    # sighting was booked to — re-booking it here would move spend across days when a
+                    # message straddles local midnight.
+                    out[prior[0]][prior[1]] = out[prior[0]].get(prior[1], 0) + (tok - prior[2])
+                    seen[key] = (prior[0], prior[1], tok)
     return out
 
 
@@ -427,6 +491,33 @@ def merge_usage_store() -> dict:
     re-derived, and a store that has already collapsed models into tiers cannot be re-weighted.
     """
     path = _usage_store_path()
+    # ⚠️ SERIALISE THE WHOLE READ-MODIFY-WRITE, not just the write. `os.replace` already makes the
+    # write atomic, which prevents a TORN file and does nothing at all about a LOST UPDATE: two
+    # processes both read 112 days, each adds a different day, and the second `replace` erases the
+    # first one's. That is not hypothetical here — the 06:00 cron and any session running `--refresh`
+    # are exactly two such processes, and I ran one by hand while the cron was armed. The store is the
+    # only durable copy of 112 days of usage, so the lock covers from the read to the rename.
+    # Fail-open by design: a platform without `fcntl`, or a lock file we cannot create, must not stop
+    # the merge — an unlocked merge is the status quo, a refused one loses the day entirely.
+    lock = None
+    try:
+        import fcntl
+
+        lock = open(str(path) + ".lock", "w")  # noqa: SIM115 — released in the finally below
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    except (ImportError, OSError):
+        if lock is not None:
+            lock.close()
+        lock = None
+    try:
+        return _merge_usage_store_locked(path)
+    finally:
+        if lock is not None:
+            lock.close()  # closing the fd releases the flock
+
+
+def _merge_usage_store_locked(path: Path) -> dict:
+    """The body of :func:`merge_usage_store`, run while the store lock is held."""
     try:
         store = json.loads(path.read_text(encoding="utf-8"))
         days: dict = store.get("days") or {}
@@ -472,6 +563,19 @@ def merge_usage_store() -> dict:
     # itself transcript-sourced (today's partial day must keep refreshing), and a day carrying no
     # source marker reads as history — the fail direction that protects data. `_discrepancy`
     # publishes the overlap so the two sources stay comparable on their own evidence.
+    # ⚠️ RULE CHANGES RE-DERIVE THE TRANSCRIPT DAYS, ONCE. The no-shrink guard below would otherwise
+    # FREEZE a day computed under the old rules: local-day bucketing moves an evening's tokens to the
+    # next day and max-wins dedup adds to it, so a re-read can be legitimately smaller for a day whose
+    # old total was simply mis-bucketed, and "never shrinks" would preserve the error forever.
+    # Dropping is safe for exactly these days and no others: a transcript-sourced day is re-derivable
+    # by construction, while an extension day is irreplaceable and is never touched here. Version-
+    # stamped so the migration is reproducible on any box instead of a hand-run mutation nobody can
+    # repeat — bump `_COLLECTOR_VERSION` whenever a counting rule changes.
+    if int(store.get("collector_version") or 0) < _COLLECTOR_VERSION:
+        for k in [k for k, v in src_by.items() if v == "transcripts"]:
+            days.pop(k, None)
+            src_by.pop(k, None)
+
     tdays = collect_from_transcripts()
     t_added = t_refreshed = 0
     for k, by in tdays.items():
@@ -480,10 +584,19 @@ def merge_usage_store() -> dict:
         if k not in days:
             days[k], src_by[k] = by, "transcripts"
             t_added += 1
-        elif src_by.get(k) == "transcripts":
+        elif src_by.get(k) == "transcripts" and sum(by.values()) >= sum(days[k].values()):
+            # A STORED DAY NEVER SHRINKS. Today is partial all day, so a transcript-sourced day must
+            # keep refreshing — but the same re-read is what erodes it later: once that day's session
+            # files are pruned the walk returns LESS, and a plain assignment would quietly write the
+            # smaller number over a total that was once measured in full. Usage cannot un-happen, so
+            # the larger sighting stands and this store keeps being the durable aggregate the
+            # transcripts are not.
             days[k] = by
             t_refreshed += 1
     overlap = sorted(k for k in tdays if src_by.get(k) == "extension")
+    # BOUNDED ON PURPOSE — the last 7 overlapping days, not the whole overlap, so the store does not
+    # grow a second copy of itself. `_discrepancy_days` states the population the sample came from,
+    # because a 7-row sample with no denominator reads as the whole comparison.
     disc = {
         k: {"extension": sum(days[k].values()), "transcripts": sum(tdays[k].values())}
         for k in overlap[-7:]
@@ -493,6 +606,8 @@ def merge_usage_store() -> dict:
     store["days"] = dict(sorted(days.items()))
     store["source_by_day"] = dict(sorted(src_by.items()))
     store["_discrepancy"] = disc
+    store["_discrepancy_days"] = len(overlap)
+    store["collector_version"] = _COLLECTOR_VERSION
     store["source"] = str(_USAGE_HISTORY)
     store["transcript_source"] = str(_transcript_root())
     store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
