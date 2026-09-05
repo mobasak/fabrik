@@ -26,3 +26,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] the docstring's two figures (0 false-fires; 5.7%/229) were measured on the pre-`_forms` predicate — at HEAD 55 and 360/4,000; the mutual-subsumption clause true in one direction only → FIXUP (2). [L] an entry with no segments (whitespace-only, `/`, `./`) now owns the whole repo (`[[], ['**']]`; `if p` drops only the byte-empty string) → FIXUP (3): strip at the parse filter.
 Round 2 verdict: 3 raised → 3 routed (1 H, 1 M, 1 L); pool three-deepseek clean (its file-entry edge confirmed benign). Not the no-op round.
 
+## Round 3 — over `6a5c5990..8374af73` (the round-2 fixup 8374af73, 27/12 + 43/2: the quantifier `all(any(…))` with both mirrors — the wrong test row flipped, `_owns_migrations` kept loose (its regression seen red under the strict predicate alone, then green); the docstring re-cites 0 false-fires / 265 fires / 4,000 pairs, 515/4,000 = 12.9% overlap-without-subsumption, 6 corpus-bounded misses, the one direction; whitespace-only entries own nothing; 74 + 64 green)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 3.
+Pool + native: PENDING — appended when they return.
+
