@@ -3,7 +3,7 @@ activation: glob
 globs: ["**/*.md", "docs/**/*"]
 description: Documentation rules — scaffolded doc templates, Documentation Sync Matrix, plan documents, writing style
 ---
-<!-- CONSUMER: Coding agents (all) + the planning layer (Traycer plans; the hub's epic-to-ticket workflow injects this file's matrix into ticket ACs)
+<!-- CONSUMER: Coding agents (all) + the planning layer (the plan set /fabrik-plan-after-chat emits — spine + tickets — injects this file's matrix into ticket ACs)
      GOAL: Scaffolded doc templates, Documentation Sync Matrix, changelog, INDEX.md, writing style
      AGENT USAGE: Check which doc triggers fire for each code change. Update docs accordingly. -->
 

@@ -42,7 +42,7 @@ what makes an in-flight command visible and un-abandonable.
 
 ## Orient (every task)
 
-**Session start (ONCE per chat, before item 0 — all three fail silently if skipped):**
+**Session start (ONCE per chat, before item 0 — all four fail silently if skipped):**
 **(a) ARM the self-watch** — `Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh <sid>", description: "resume-mesh self-watch")`; it is a STANDING watch — one arm per session for its whole life, any number of wakes; never re-arm after a wake (a duplicate arm exits at once), re-arm only if the Monitor itself ended. `description` is tool-REQUIRED, and `<sid>` is a **literal** id — there is no `$CLAUDE_SESSION_ID` and an empty arg exits 1, ending the watch as you arm it; take it from the SessionStart arming line, or post-compact from the transcript path in the compaction notice. This line exists because that hook **skips on `source=compact` and headless** — a session that never armed pre-compact is never told again. Never a `nohup … &` arm: it eats the death marker and wakes nothing (authority: `/opt/fabrik/docs/workstation/hooks-index.md`).
 **(b) PROBE your assigned MCPs** — `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py`. Assigned-but-dead is a broken tool, FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restores needs a NEW window — say so.
 **(c) CATCH UP on a NEW chat** — `/fabrik-catchup` and/or `session-recall` before acting on inherited context (§ Past sessions); ledger first for decision-shaped questions.
