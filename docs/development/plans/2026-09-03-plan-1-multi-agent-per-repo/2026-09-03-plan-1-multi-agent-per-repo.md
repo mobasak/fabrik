@@ -128,7 +128,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T14f | command_run stops owing a report to a deleted command | T07a, T06c | ⛓️ | 🔵 | |
 | T14g | the command corpus stops routing to deleted chain steps | T04a, T07a, T11 | ⛓️ | ⬜ | |
 | T14h | the cert-coverage anchors, a non-relocation fix rescued from a deleted ticket | — | ⚡ | ✅ | branch head 5c8fa999; merged 2026-09-05 |
-| T15 | PLANS.md regeneration with an Owner column, and the dedicated reference doc | T03a | ⛓️ | ⬜ | |
+| T15 | PLANS.md regeneration with an Owner column, and the dedicated reference doc | T03a | ⛓️ | 🔵 | |
 | T16 | Integration — whole-plan gate, doc receipt, docs review, seam tests | T01a, T01b, T02a, T02b, T03a, T03b, T13, T04a, T04b, T05a, T05b, T06a, T06b, T06c, T07a, T07b, T08a, T08b, T09, T10, T11, T12a, T12b, T14a, T14b, T14c, T14d, T14e, T14f, T14g, T14h, T15 | ⛓️ | ⬜ | |
 
 ## Merge Order
